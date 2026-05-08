@@ -20,12 +20,30 @@ import type {
   SourceContext,
   TimelineEvent,
 } from "./review-workspace-types";
-import { SectionRail } from "./components/SectionRail";
 import { ReviewerWorkflowCard } from "./components/ReviewerWorkflowCard";
 import { EvidenceRelationshipsSection } from "./components/EvidenceRelationshipsSection";
 import { ArtifactHistorySection } from "./components/ArtifactHistorySection";
 import { ReviewerAuditTrailSection } from "./components/ReviewerAuditTrailSection";
 import "./evidence-detail.css";
+
+type EvidenceDetailTab =
+  | "overview"
+  | "evidence"
+  | "integrity"
+  | "custody"
+  | "review"
+  | "artifacts"
+  | "technical";
+
+const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string }> = [
+  { id: "overview", label: "Overview" },
+  { id: "evidence", label: "Evidence" },
+  { id: "integrity", label: "Integrity" },
+  { id: "custody", label: "Custody" },
+  { id: "review", label: "Review" },
+  { id: "artifacts", label: "Artifacts" },
+  { id: "technical", label: "Technical Appendix" },
+];
 
 function shortId(value: string | null | undefined): string {
   const text = (value ?? "").trim();
@@ -47,6 +65,7 @@ function formatBytes(sizeBytes: string | number | null | undefined) {
   const units = ["B", "KB", "MB", "GB", "TB"] as const;
   let value = numeric;
   let unitIndex = 0;
+
   while (value >= 1024 && unitIndex < units.length - 1) {
     value /= 1024;
     unitIndex += 1;
@@ -96,22 +115,28 @@ async function tryDownloadFile(url: string, filename: string) {
 
 function pillTone(status: string) {
   const normalized = status.trim().toUpperCase();
+
   if (
     normalized.includes("READY") ||
     normalized.includes("VERIFIED") ||
     normalized.includes("ACTIVE") ||
-    normalized.includes("AVAILABLE")
+    normalized.includes("AVAILABLE") ||
+    normalized.includes("RECORDED") ||
+    normalized.includes("ANCHORED")
   ) {
     return "success";
   }
+
   if (
     normalized.includes("WARNING") ||
     normalized.includes("LIMIT") ||
     normalized.includes("PENDING") ||
-    normalized.includes("REVIEW")
+    normalized.includes("REVIEW") ||
+    normalized.includes("SUPPORTED")
   ) {
     return "warning";
   }
+
   if (
     normalized.includes("FAILED") ||
     normalized.includes("DANGER") ||
@@ -120,6 +145,7 @@ function pillTone(status: string) {
   ) {
     return "danger";
   }
+
   return "neutral";
 }
 
@@ -145,24 +171,34 @@ function PreviewWorkspace({
       return (
         <div className="evidence-detail-preview-placeholder">
           <strong>Open the original evidence record to review preserved content.</strong>
-          <p>
-            Reviewer-facing preview is not available for this selection in the current
-            response.
-          </p>
+          <p>Reviewer-facing preview is not available for this selection in the current response.</p>
         </div>
       );
     }
 
     if (defaultItem.kind === "image") {
-      return <img src={defaultItem.viewUrl} alt={defaultItem.label} className="evidence-detail-preview-media" />;
+      return (
+        <img
+          src={defaultItem.viewUrl}
+          alt={defaultItem.label}
+          className="evidence-detail-preview-media"
+        />
+      );
     }
+
     if (defaultItem.kind === "video") {
       return (
-        <video controls preload="metadata" className="evidence-detail-preview-media" src={defaultItem.viewUrl}>
+        <video
+          controls
+          preload="metadata"
+          className="evidence-detail-preview-media"
+          src={defaultItem.viewUrl}
+        >
           Your browser could not load this video preview.
         </video>
       );
     }
+
     if (defaultItem.kind === "audio") {
       return (
         <div className="evidence-detail-preview-audio">
@@ -172,6 +208,7 @@ function PreviewWorkspace({
         </div>
       );
     }
+
     if (defaultItem.kind === "pdf") {
       return (
         <iframe
@@ -191,8 +228,8 @@ function PreviewWorkspace({
   };
 
   return (
-    <section className="evidence-detail-card">
-      <div className="evidence-detail-card-header">
+    <section className="evidence-detail-section">
+      <div className="evidence-detail-section-header">
         <div>
           <p className="evidence-detail-kicker">Evidence Preview</p>
           <h2>Review surface</h2>
@@ -206,7 +243,9 @@ function PreviewWorkspace({
           </Button>
         </div>
       </div>
+
       <div className="evidence-detail-preview-shell">{renderPreview()}</div>
+
       <div className="evidence-detail-item-grid">
         {workspace.evidence.contentItems?.map((item) => (
           <div key={item.id} className="evidence-detail-item-card">
@@ -223,13 +262,16 @@ function PreviewWorkspace({
               <span>Role</span>
               <strong>{item.isPrimary ? "Primary item" : "Supporting item"}</strong>
             </div>
-            <div className="evidence-detail-item-actions">
-              {item.viewUrl ? (
-                <Button variant="secondary" onClick={() => window.open(item.viewUrl!, "_blank", "noopener,noreferrer")}>
+            {item.viewUrl ? (
+              <div className="evidence-detail-item-actions">
+                <Button
+                  variant="secondary"
+                  onClick={() => window.open(item.viewUrl!, "_blank", "noopener,noreferrer")}
+                >
                   Open
                 </Button>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
@@ -237,11 +279,7 @@ function PreviewWorkspace({
   );
 }
 
-function KeyValueGrid({
-  items,
-}: {
-  items: Array<{ label: string; value: string }>;
-}) {
+function KeyValueGrid({ items }: { items: Array<{ label: string; value: string }> }) {
   return (
     <div className="evidence-detail-data-grid">
       {items.map((item) => (
@@ -264,13 +302,14 @@ function EventTimeline({
   events: TimelineEvent[];
 }) {
   return (
-    <section className="evidence-detail-card">
-      <div className="evidence-detail-card-header">
+    <section className="evidence-detail-section">
+      <div className="evidence-detail-section-header">
         <div>
           <p className="evidence-detail-kicker">{title}</p>
           <h2>{subtitle}</h2>
         </div>
       </div>
+
       {events.length === 0 ? (
         <p className="evidence-detail-muted">No events recorded in the current API response.</p>
       ) : (
@@ -294,34 +333,43 @@ function EventTimeline({
 }
 
 function buildRiskSignals(sourceContext: SourceContext, alerts: ReviewerAlert[]) {
-  const signals = [...alerts.map((alert) => ({ severity: alert.severity, title: alert.label, detail: alert.detail }))];
+  const signals = alerts.map((alert) => ({
+    severity: alert.severity,
+    title: alert.label,
+    detail: alert.detail,
+  }));
 
   if (sourceContext.clientSignalsSummary.screenshotLike) {
     signals.push({
-      severity: "warning" as const,
+      severity: "warning",
       title: "Screenshot-like signal",
-      detail: "Metadata-derived advisory signal. Requires human review and does not determine factual or legal outcome.",
+      detail:
+        "Metadata-derived advisory signal. Requires human review and does not determine factual or legal outcome.",
     });
   }
+
   if (sourceContext.clientSignalsSummary.genericMime) {
     signals.push({
-      severity: "info" as const,
+      severity: "info",
       title: "Generic MIME type",
       detail: "Generic file typing was recorded in client signals. Review source context separately.",
     });
   }
+
   if (sourceContext.clientSignalsSummary.oldLastModified) {
     signals.push({
-      severity: "warning" as const,
+      severity: "warning",
       title: "Old last-modified signal",
       detail: "Client metadata indicates an older modification timestamp. This is advisory only.",
     });
   }
+
   if (sourceContext.importedUpload) {
     signals.push({
-      severity: "info" as const,
+      severity: "info",
       title: "Imported upload",
-      detail: "Imported upload means PROOVRA preserved the uploaded file and recorded integrity state. It does not independently prove original capture source.",
+      detail:
+        "Imported upload means PROOVRA preserved the uploaded file and recorded integrity state. It does not independently prove original capture source.",
     });
   }
 
@@ -334,6 +382,7 @@ export default function EvidenceDetailPage() {
   const { addToast } = useToast();
   const evidenceId = params?.id ?? "";
 
+  const [activeTab, setActiveTab] = useState<EvidenceDetailTab>("overview");
   const [workspace, setWorkspace] = useState<ReviewWorkspaceResponse | null>(null);
   const [cases, setCases] = useState<CaseOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -369,11 +418,41 @@ export default function EvidenceDetailPage() {
   const [relationshipType, setRelationshipType] = useState("RELATED");
   const [relationshipNote, setRelationshipNote] = useState("");
 
+  const loadWorkflowEvents = async () => {
+    if (!evidenceId) return;
+
+    setWorkflowEventsLoading(true);
+    try {
+      const response = (await apiFetch(`/v1/evidence/${evidenceId}/reviewer-workflow/events`)) as {
+        items?: Array<{
+          id: string;
+          eventType: string;
+          note: string | null;
+          previousValue: unknown;
+          nextValue: unknown;
+          createdAt: string;
+          actor: { id: string; email: string | null; displayName: string | null } | null;
+        }>;
+      };
+
+      setWorkflowEvents(Array.isArray(response.items) ? response.items : []);
+    } catch (loadError) {
+      captureException(loadError, {
+        feature: "web_evidence_workflow_events_load",
+        evidenceId,
+      });
+      addToast("Failed to load workflow history", "error");
+    } finally {
+      setWorkflowEventsLoading(false);
+    }
+  };
+
   const loadWorkspace = async () => {
     if (!evidenceId) return;
 
     setLoading(true);
     setError(null);
+
     try {
       const [workspaceResult, casesResult] = await Promise.allSettled([
         apiFetch(`/v1/evidence/${evidenceId}/review-workspace`),
@@ -385,15 +464,14 @@ export default function EvidenceDetailPage() {
       }
 
       const workspaceData = workspaceResult.value as ReviewWorkspaceResponse;
+
       setWorkspace(workspaceData);
       setLabelDraft(workspaceData.evidence.displayTitle || workspaceData.evidence.title);
       setWorkflowStatusDraft(workspaceData.reviewWorkflow.status || "NOT_STARTED");
       setWorkflowPriorityDraft(workspaceData.reviewWorkflow.priority || "NORMAL");
       setWorkflowAssigneeDraft(workspaceData.reviewWorkflow.assignedTo?.id || "");
       setWorkflowDueAtDraft(
-        workspaceData.reviewWorkflow.dueAt
-          ? workspaceData.reviewWorkflow.dueAt.slice(0, 16)
-          : ""
+        workspaceData.reviewWorkflow.dueAt ? workspaceData.reviewWorkflow.dueAt.slice(0, 16) : ""
       );
       setWorkflowNoteDraft("");
 
@@ -427,103 +505,17 @@ export default function EvidenceDetailPage() {
     void loadWorkflowEvents();
   }, [evidenceId]);
 
-  const loadWorkflowEvents = async () => {
-    if (!evidenceId) return;
-    setWorkflowEventsLoading(true);
-    try {
-      const response = (await apiFetch(
-        `/v1/evidence/${evidenceId}/reviewer-workflow/events`
-      )) as { items?: Array<{
-        id: string;
-        eventType: string;
-        note: string | null;
-        previousValue: unknown;
-        nextValue: unknown;
-        createdAt: string;
-        actor: { id: string; email: string | null; displayName: string | null } | null;
-      }> };
-      setWorkflowEvents(Array.isArray(response.items) ? response.items : []);
-    } catch (loadError) {
-      captureException(loadError, {
-        feature: "web_evidence_workflow_events_load",
-        evidenceId,
-      });
-      addToast("Failed to load workflow history", "error");
-    } finally {
-      setWorkflowEventsLoading(false);
-    }
-  };
-
-  const saveWorkflow = async () => {
-    if (!evidenceId) return;
-    setActionBusy(true);
-    try {
-      await apiFetch(`/v1/evidence/${evidenceId}/reviewer-workflow`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          assignedToUserId: workflowAssigneeDraft || null,
-          status: workflowStatusDraft,
-          priority: workflowPriorityDraft,
-          dueAt: workflowDueAtDraft ? new Date(workflowDueAtDraft).toISOString() : null,
-          note: workflowNoteDraft || null,
-        }),
-      });
-      addToast("Reviewer workflow updated", "success");
-      setWorkflowOpen(false);
-      await Promise.all([loadWorkspace(), loadWorkflowEvents()]);
-    } catch (saveError) {
-      captureException(saveError, {
-        feature: "web_evidence_workflow_update",
-        evidenceId,
-      });
-      addToast(saveError instanceof Error ? saveError.message : "Failed to update workflow", "error");
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const saveRelationship = async () => {
-    if (!evidenceId || !relationshipTargetId) return;
-    setActionBusy(true);
-    try {
-      await apiFetch(`/v1/evidence/${evidenceId}/relationships`, {
-        method: "POST",
-        body: JSON.stringify({
-          targetEvidenceId: relationshipTargetId,
-          relationshipType,
-          note: relationshipNote || null,
-        }),
-      });
-      addToast("Relationship recorded", "success");
-      setRelationshipOpen(false);
-      setRelationshipTargetId("");
-      setRelationshipType("RELATED");
-      setRelationshipNote("");
-      await loadWorkspace();
-    } catch (saveError) {
-      captureException(saveError, {
-        feature: "web_evidence_relationship_create",
-        evidenceId,
-      });
-      addToast(saveError instanceof Error ? saveError.message : "Failed to create relationship", "error");
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
   const evidence = workspace?.evidence ?? null;
   const workspaceCaps = workspace?.workspaceCapabilitySnapshot ?? null;
 
   const reviewSignals = useMemo(
-    () =>
-      workspace
-        ? buildRiskSignals(workspace.sourceContext, workspace.reviewerAlerts)
-        : [],
+    () => (workspace ? buildRiskSignals(workspace.sourceContext, workspace.reviewerAlerts) : []),
     [workspace]
   );
 
   const reviewReadinessItems = useMemo(() => {
     if (!workspace) return [];
+
     return [
       {
         label: "Report artifact",
@@ -552,6 +544,67 @@ export default function EvidenceDetailPage() {
     ];
   }, [workspace, workspaceCaps]);
 
+  const saveWorkflow = async () => {
+    if (!evidenceId) return;
+
+    setActionBusy(true);
+    try {
+      await apiFetch(`/v1/evidence/${evidenceId}/reviewer-workflow`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          assignedToUserId: workflowAssigneeDraft || null,
+          status: workflowStatusDraft,
+          priority: workflowPriorityDraft,
+          dueAt: workflowDueAtDraft ? new Date(workflowDueAtDraft).toISOString() : null,
+          note: workflowNoteDraft || null,
+        }),
+      });
+
+      addToast("Reviewer workflow updated", "success");
+      setWorkflowOpen(false);
+      await Promise.all([loadWorkspace(), loadWorkflowEvents()]);
+    } catch (saveError) {
+      captureException(saveError, {
+        feature: "web_evidence_workflow_update",
+        evidenceId,
+      });
+      addToast(saveError instanceof Error ? saveError.message : "Failed to update workflow", "error");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const saveRelationship = async () => {
+    if (!evidenceId || !relationshipTargetId) return;
+
+    setActionBusy(true);
+    try {
+      await apiFetch(`/v1/evidence/${evidenceId}/relationships`, {
+        method: "POST",
+        body: JSON.stringify({
+          targetEvidenceId: relationshipTargetId,
+          relationshipType,
+          note: relationshipNote || null,
+        }),
+      });
+
+      addToast("Relationship recorded", "success");
+      setRelationshipOpen(false);
+      setRelationshipTargetId("");
+      setRelationshipType("RELATED");
+      setRelationshipNote("");
+      await loadWorkspace();
+    } catch (saveError) {
+      captureException(saveError, {
+        feature: "web_evidence_relationship_create",
+        evidenceId,
+      });
+      addToast(saveError instanceof Error ? saveError.message : "Failed to create relationship", "error");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   const handleSaveLabel = async () => {
     if (!evidenceId || !labelDraft.trim()) return;
 
@@ -561,6 +614,7 @@ export default function EvidenceDetailPage() {
         method: "PATCH",
         body: JSON.stringify({ label: labelDraft.trim() }),
       });
+
       setEditingLabel(false);
       addToast("Evidence label updated", "success");
       await loadWorkspace();
@@ -577,16 +631,19 @@ export default function EvidenceDetailPage() {
 
   const openOriginal = async () => {
     if (!evidenceId) return;
+
     try {
       const data = (await apiFetch(`/v1/evidence/${evidenceId}/original`)) as {
         url?: string | null;
         publicUrl?: string | null;
       };
+
       const url = data.publicUrl ?? data.url ?? null;
       if (!url) {
         addToast("Original file not available", "info");
         return;
       }
+
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (openError) {
       addToast("Failed to open original", "error");
@@ -596,21 +653,25 @@ export default function EvidenceDetailPage() {
 
   const downloadOriginal = async () => {
     if (!evidenceId) return;
+
     try {
       const data = (await apiFetch(`/v1/evidence/${evidenceId}/original`)) as {
         url?: string | null;
         publicUrl?: string | null;
         originalFileName?: string | null;
       };
+
       const url = data.url ?? data.publicUrl ?? null;
       if (!url) {
         addToast("Original file not available", "info");
         return;
       }
+
       const ok = await tryDownloadFile(url, data.originalFileName || `evidence-${evidenceId}`);
       if (!ok) {
         window.open(url, "_blank", "noopener,noreferrer");
       }
+
       addToast("Original downloaded", "success");
     } catch (downloadError) {
       addToast("Failed to download original", "error");
@@ -620,18 +681,22 @@ export default function EvidenceDetailPage() {
 
   const downloadReport = async () => {
     if (!evidenceId || !workspaceCaps) return;
+
     if (!workspaceCaps.reportsIncluded) {
       addToast("PDF reports are not included on the current workspace plan", "info");
       return;
     }
+
     try {
       const data = (await apiFetch(`/v1/evidence/${evidenceId}/report/latest`)) as {
         url?: string | null;
       };
+
       if (!data.url) {
         addToast("Report not available", "info");
         return;
       }
+
       window.open(data.url, "_blank", "noopener,noreferrer");
     } catch (downloadError) {
       addToast("Failed to download report", "error");
@@ -641,18 +706,22 @@ export default function EvidenceDetailPage() {
 
   const downloadVerificationPackage = async () => {
     if (!evidenceId || !workspaceCaps) return;
+
     if (!workspaceCaps.verificationPackageIncluded) {
       addToast("Verification packages are not included on the current workspace plan", "info");
       return;
     }
+
     try {
       const data = (await apiFetch(`/v1/evidence/${evidenceId}/verification-package`)) as {
         url?: string | null;
       };
+
       if (!data.url) {
         addToast("Verification package not available", "info");
         return;
       }
+
       const ok = await tryDownloadFile(data.url, `verification-package-${evidenceId}.zip`);
       if (!ok) {
         window.open(data.url, "_blank", "noopener,noreferrer");
@@ -667,11 +736,16 @@ export default function EvidenceDetailPage() {
   };
 
   const copyShareLink = async () => {
-    const url = buildShareUrl(workspace?.publicVerificationSummary.sharePath) || workspace?.publicVerificationSummary.publicUrl || null;
+    const url =
+      buildShareUrl(workspace?.publicVerificationSummary.sharePath) ||
+      workspace?.publicVerificationSummary.publicUrl ||
+      null;
+
     if (!url) {
       addToast("Public verification link is not available in the current response", "info");
       return;
     }
+
     try {
       await navigator.clipboard.writeText(url);
       addToast("Verification link copied", "success");
@@ -683,6 +757,7 @@ export default function EvidenceDetailPage() {
 
   const runRecordAction = async (path: string, successMessage: string) => {
     if (!evidenceId) return;
+
     setActionBusy(true);
     try {
       await apiFetch(path, { method: "POST", body: JSON.stringify({}) });
@@ -698,6 +773,7 @@ export default function EvidenceDetailPage() {
 
   const moveToTrash = async () => {
     if (!evidenceId) return;
+
     setActionBusy(true);
     try {
       await apiFetch(`/v1/evidence/${evidenceId}`, { method: "DELETE" });
@@ -713,12 +789,14 @@ export default function EvidenceDetailPage() {
 
   const restoreTrash = async () => {
     if (!evidenceId) return;
+
     setActionBusy(true);
     try {
       await apiFetch(`/v1/evidence/${evidenceId}/restore`, {
         method: "POST",
         body: JSON.stringify({ restore: true }),
       });
+
       addToast("Evidence restored from trash", "success");
       await loadWorkspace();
     } catch (runError) {
@@ -731,12 +809,14 @@ export default function EvidenceDetailPage() {
 
   const assignCase = async () => {
     if (!evidenceId || !selectedCaseId) return;
+
     setActionBusy(true);
     try {
       await apiFetch(`/v1/cases/${selectedCaseId}/evidence`, {
         method: "POST",
         body: JSON.stringify({ evidenceId }),
       });
+
       addToast("Evidence added to case", "success");
       setAssignCaseOpen(false);
       await loadWorkspace();
@@ -750,11 +830,13 @@ export default function EvidenceDetailPage() {
 
   const removeCase = async () => {
     if (!evidenceId || !workspace?.relationships.caseId) return;
+
     setActionBusy(true);
     try {
       await apiFetch(`/v1/cases/${workspace.relationships.caseId}/evidence/${evidenceId}`, {
         method: "DELETE",
       });
+
       addToast("Evidence removed from case", "success");
       await loadWorkspace();
     } catch (runError) {
@@ -779,7 +861,7 @@ export default function EvidenceDetailPage() {
     return (
       <div className="evidence-detail-page">
         <div className="evidence-detail-shell">
-          <section className="evidence-detail-card evidence-detail-error-card">
+          <section className="evidence-detail-section evidence-detail-error-card">
             <p className="evidence-detail-kicker">Evidence Review Workspace</p>
             <h1>Unable to load the record</h1>
             <p>{error || "The evidence review workspace is unavailable right now."}</p>
@@ -801,14 +883,14 @@ export default function EvidenceDetailPage() {
   return (
     <div className="evidence-detail-page">
       <div className="evidence-detail-shell">
-        <section id="overview" className="evidence-detail-hero evidence-detail-card">
+        <section className="evidence-detail-hero">
           <div className="evidence-detail-hero-main">
-            <div className="evidence-detail-inline-actions evidence-detail-inline-actions--back">
-              <Button variant="secondary" onClick={() => router.push("/evidence")}>
-                Back to Evidence Library
-              </Button>
-            </div>
+            <Button variant="secondary" onClick={() => router.push("/evidence")}>
+              Back to Evidence Library
+            </Button>
+
             <p className="evidence-detail-kicker">Evidence Review &amp; Defensibility Workspace</p>
+
             {editingLabel ? (
               <div className="evidence-detail-label-edit">
                 <input value={labelDraft} onChange={(event) => setLabelDraft(event.target.value)} />
@@ -822,355 +904,563 @@ export default function EvidenceDetailPage() {
             ) : (
               <h1>{evidence.displayTitle || evidence.title}</h1>
             )}
+
             <p className="evidence-detail-subtitle">
               {evidence.displayDescription ||
                 "Authoritative reviewer workspace for preserved evidence content, technical verification, custody chronology, export readiness, and internal review context."}
             </p>
+
             <div className="evidence-detail-hero-meta">
-              <span className={`evidence-detail-pill ${pillTone(evidence.status)}`}>{evidence.status.replace(/_/g, " ")}</span>
+              <span className={`evidence-detail-pill ${pillTone(evidence.status)}`}>
+                {evidence.status.replace(/_/g, " ")}
+              </span>
               <span className="evidence-detail-pill neutral">{workspace.classification.evidenceTypeLabel}</span>
               <span className="evidence-detail-pill neutral">Record {shortId(evidence.id)}</span>
-              <span className="evidence-detail-pill neutral">{workspace.relationships.multipart ? `${workspace.relationships.itemCount} items` : "Single item"}</span>
+              <span className="evidence-detail-pill neutral">
+                {workspace.relationships.multipart
+                  ? `${workspace.relationships.itemCount} items`
+                  : "Single item"}
+              </span>
             </div>
-            <div className="evidence-detail-boundary">
-              {workspace.legalBoundary}
-            </div>
+
+            <div className="evidence-detail-boundary">{workspace.legalBoundary}</div>
           </div>
-<div className="evidence-detail-hero-actions">
-  <Button onClick={() => void downloadReport()}>Download report</Button>
-  <Button onClick={() => void downloadVerificationPackage()}>Download package</Button>
-  <Button variant="secondary" onClick={() => void copyShareLink()}>
-    Copy verification link
-  </Button>
-  <Button
-    variant="secondary"
-    onClick={() => setLockOpen(true)}
-    disabled={Boolean(evidence.lockedAt) || evidence.deletedAt != null}
-  >
-    {evidence.lockedAt ? "Record locked" : "Lock record"}
-  </Button>
-  <Button variant="secondary" onClick={() => setEditingLabel(true)}>
-    Edit label
-  </Button>
-</div>
+
+          <div className="evidence-detail-hero-actions">
+            <Button onClick={() => void downloadReport()}>Download report</Button>
+            <Button onClick={() => void downloadVerificationPackage()}>Download package</Button>
+            <Button variant="secondary" onClick={() => void copyShareLink()}>
+              Copy verification link
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setLockOpen(true)}
+              disabled={Boolean(evidence.lockedAt) || evidence.deletedAt != null}
+            >
+              {evidence.lockedAt ? "Record locked" : "Lock record"}
+            </Button>
+            <Button variant="secondary" onClick={() => setEditingLabel(true)}>
+              Edit label
+            </Button>
+          </div>
         </section>
 
-        <SectionRail />
+        <nav className="evidence-detail-tabs" aria-label="Evidence detail sections">
+          {DETAIL_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`evidence-detail-tab ${activeTab === tab.id ? "is-active" : ""}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
 
         <div className="evidence-detail-layout">
           <main className="evidence-detail-main">
-            <div id="evidence">
-              <PreviewWorkspace
-              workspace={workspace}
-              onOpenOriginal={() => void openOriginal()}
-              onDownloadOriginal={() => void downloadOriginal()}
-              />
-            </div>
+            {activeTab === "overview" ? (
+              <>
+                <section className="evidence-detail-section">
+                  <div className="evidence-detail-section-header">
+                    <div>
+                      <p className="evidence-detail-kicker">Overview</p>
+                      <h2>{workspace.reviewDecision.label}</h2>
+                    </div>
+                  </div>
 
-            <section id="source-context" className="evidence-detail-card">
-              <div className="evidence-detail-card-header">
-                <div>
-                  <p className="evidence-detail-kicker">Source &amp; Capture Context</p>
-                  <h2>Capture provenance context</h2>
-                </div>
-              </div>
-              <KeyValueGrid
-                items={[
-                  { label: "Source type", value: workspace.sourceContext.sourceType.replace(/_/g, " ") },
-                  { label: "Capture method", value: workspace.sourceContext.captureMethodLabel },
-                  { label: "Device time", value: formatValue(workspace.sourceContext.deviceTimeIso) },
-                  { label: "Captured at", value: formatValue(formatUserDateTime(workspace.sourceContext.capturedAtUtc)) },
-                  { label: "Uploaded at", value: formatValue(formatUserDateTime(workspace.sourceContext.uploadedAtUtc)) },
-                  { label: "Location included", value: workspace.sourceContext.locationIncluded ? "Included" : "Not included" },
-                  { label: "Screenshot-like signal", value: workspace.sourceContext.clientSignalsSummary.screenshotLike ? "Recorded" : "Not recorded" },
-                  { label: "Folder path signal", value: workspace.sourceContext.clientSignalsSummary.folderPathPresent ? "Recorded" : "Not recorded" },
-                ]}
-              />
-              {workspace.sourceCaptureLocation ? (
-                <div className="evidence-detail-map-shell">
-                  <CaptureLocationMapPanel
-                    lat={workspace.sourceCaptureLocation.lat ?? 0}
-                    lng={workspace.sourceCaptureLocation.lng ?? 0}
-                    accuracyMeters={workspace.sourceCaptureLocation.accuracyMeters}
+                  <p>{workspace.reviewDecision.summary}</p>
+
+                  <div className="evidence-detail-overview-grid">
+                    <div>
+                      <p className="evidence-detail-kicker">Review Readiness</p>
+                      <KeyValueGrid items={reviewReadinessItems} />
+                    </div>
+
+                    <div>
+                      <p className="evidence-detail-kicker">Verification Proof</p>
+                      <KeyValueGrid
+                        items={[
+                          {
+                            label: "Integrity",
+                            value: preservation.verificationStatusLabel,
+                          },
+                          {
+                            label: "Custody chain",
+                            value: preservation.custodyChain.valid
+                              ? "Chain continuity recorded"
+                              : "Review required",
+                          },
+                          {
+                            label: "Signature",
+                            value: preservation.signature.valid
+                              ? "Signature applied and validated"
+                              : preservation.signature.recorded
+                                ? "Signature recorded"
+                                : "Not recorded",
+                          },
+                          {
+                            label: "OTS",
+                            value: formatValue(preservation.ots.effectiveStatus),
+                          },
+                        ]}
+                      />
+                    </div>
+                  </div>
+
+                  {workspace.reviewDecision.nextActions.length > 0 ? (
+                    <div className="evidence-detail-note-box">
+                      <strong>Recommended next actions</strong>
+                      <ul className="evidence-detail-flat-list">
+                        {workspace.reviewDecision.nextActions.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </section>
+
+                <PreviewWorkspace
+                  workspace={workspace}
+                  onOpenOriginal={() => void openOriginal()}
+                  onDownloadOriginal={() => void downloadOriginal()}
+                />
+              </>
+            ) : null}
+
+            {activeTab === "evidence" ? (
+              <>
+                <PreviewWorkspace
+                  workspace={workspace}
+                  onOpenOriginal={() => void openOriginal()}
+                  onDownloadOriginal={() => void downloadOriginal()}
+                />
+
+                <section className="evidence-detail-section">
+                  <div className="evidence-detail-section-header">
+                    <div>
+                      <p className="evidence-detail-kicker">Record Metadata &amp; Lifecycle</p>
+                      <h2>Core record state</h2>
+                    </div>
+                  </div>
+                  <KeyValueGrid
+                    items={[
+                      { label: "Created", value: formatUserDateTime(evidence.createdAt) },
+                      { label: "Uploaded", value: formatValue(formatUserDateTime(evidence.uploadedAtUtc)) },
+                      { label: "Signed", value: formatValue(formatUserDateTime(evidence.signedAtUtc)) },
+                      { label: "Captured", value: formatValue(formatUserDateTime(evidence.capturedAtUtc)) },
+                      { label: "Workspace", value: workspaceCaps.workspaceName },
+                      { label: "Plan", value: workspaceCaps.plan },
+                      { label: "Case", value: workspace.relationships.caseName || "Unassigned" },
+                      {
+                        label: "Original filename",
+                        value: evidence.originalFileName || evidence.displayFileName || "Not recorded",
+                      },
+                      { label: "MIME type", value: evidence.mimeType || "Not recorded" },
+                      { label: "Size", value: formatBytes(evidence.sizeBytes) },
+                    ]}
                   />
-                  <p className="evidence-detail-muted">{workspace.sourceCaptureLocation.legalBoundary}</p>
-                </div>
-              ) : null}
-              <div className="evidence-detail-note-box">
-                <strong>Boundary</strong>
-                <p>{workspace.sourceContext.limitations[0]}</p>
-              </div>
-            </section>
+                </section>
+              </>
+            ) : null}
 
-            <section id="preservation" className="evidence-detail-card">
-              <div className="evidence-detail-card-header">
-                <div>
-                  <p className="evidence-detail-kicker">Preservation Matrix</p>
-                  <h2>Recorded integrity and preservation materials</h2>
-                </div>
-              </div>
-              <KeyValueGrid
-                items={[
-                  { label: "Verification status", value: preservation.verificationStatusLabel },
-                  { label: "SHA-256 recorded", value: preservation.sha256Recorded ? "Recorded" : "Not recorded" },
-                  { label: "Fingerprint hash", value: preservation.fingerprintHashRecorded ? "Recorded" : "Not recorded" },
-                  { label: "Signature", value: preservation.signature.recorded ? preservation.signature.valid ? "Recorded and validated" : "Recorded" : "Not recorded" },
-                  { label: "TSA timestamp", value: preservation.tsa.timestampAvailable ? "Timestamp recorded" : preservation.tsa.status ? `Status: ${preservation.tsa.status}` : "Timestamp unavailable" },
-                  { label: "OTS status", value: formatValue(preservation.ots.effectiveStatus) },
-                  { label: "Storage protection", value: preservation.storage?.verified ? "Recorded" : "Not exposed in current API response" },
-                  { label: "Public anchoring", value: preservation.anchor?.published ? "Public anchoring verified" : preservation.anchor?.configured ? "Public anchoring pending" : "Public anchoring unavailable" },
-                  { label: "Report artifact", value: preservation.report.available ? `Version ${preservation.report.version ?? "latest"}` : "Not generated" },
-                  { label: "Verification package", value: preservation.verificationPackage.available ? `Version ${preservation.verificationPackage.version ?? "latest"}` : "Not generated" },
-                ]}
-              />
-            </section>
+            {activeTab === "integrity" ? (
+              <>
+                <section className="evidence-detail-section">
+                  <div className="evidence-detail-section-header">
+                    <div>
+                      <p className="evidence-detail-kicker">Source &amp; Capture Context</p>
+                      <h2>Capture provenance context</h2>
+                    </div>
+                  </div>
 
-            <section className="evidence-detail-card">
-              <div className="evidence-detail-card-header">
-                <div>
-                  <p className="evidence-detail-kicker">Record Metadata &amp; Lifecycle</p>
-                  <h2>Core record state</h2>
-                </div>
-              </div>
-              <KeyValueGrid
-                items={[
-                  { label: "Created", value: formatUserDateTime(evidence.createdAt) },
-                  { label: "Uploaded", value: formatValue(formatUserDateTime(evidence.uploadedAtUtc)) },
-                  { label: "Signed", value: formatValue(formatUserDateTime(evidence.signedAtUtc)) },
-                  { label: "Captured", value: formatValue(formatUserDateTime(evidence.capturedAtUtc)) },
-                  { label: "Workspace", value: workspaceCaps.workspaceName },
-                  { label: "Plan", value: workspaceCaps.plan },
-                  { label: "Case", value: workspace.relationships.caseName || "Unassigned" },
-                  { label: "Original filename", value: evidence.originalFileName || evidence.displayFileName || "Not recorded" },
-                  { label: "MIME type", value: evidence.mimeType || "Not recorded" },
-                  { label: "Size", value: formatBytes(evidence.sizeBytes) },
-                ]}
-              />
-            </section>
+                  <KeyValueGrid
+                    items={[
+                      {
+                        label: "Source type",
+                        value: workspace.sourceContext.sourceType.replace(/_/g, " "),
+                      },
+                      { label: "Capture method", value: workspace.sourceContext.captureMethodLabel },
+                      { label: "Device time", value: formatValue(workspace.sourceContext.deviceTimeIso) },
+                      {
+                        label: "Captured at",
+                        value: formatValue(formatUserDateTime(workspace.sourceContext.capturedAtUtc)),
+                      },
+                      {
+                        label: "Uploaded at",
+                        value: formatValue(formatUserDateTime(workspace.sourceContext.uploadedAtUtc)),
+                      },
+                      {
+                        label: "Location included",
+                        value: workspace.sourceContext.locationIncluded ? "Included" : "Not included",
+                      },
+                      {
+                        label: "Screenshot-like signal",
+                        value: workspace.sourceContext.clientSignalsSummary.screenshotLike
+                          ? "Recorded"
+                          : "Not recorded",
+                      },
+                      {
+                        label: "Folder path signal",
+                        value: workspace.sourceContext.clientSignalsSummary.folderPathPresent
+                          ? "Recorded"
+                          : "Not recorded",
+                      },
+                    ]}
+                  />
 
-            <div id="custody">
-              <EventTimeline
-              title="Forensic Custody Timeline"
-              subtitle="Integrity-relevant lifecycle chronology"
-              events={workspace.custodyLifecycle.forensicEvents}
-              />
-            </div>
+                  {workspace.sourceCaptureLocation ? (
+                    <div className="evidence-detail-map-shell">
+                      <CaptureLocationMapPanel
+                        lat={workspace.sourceCaptureLocation.lat ?? 0}
+                        lng={workspace.sourceCaptureLocation.lng ?? 0}
+                        accuracyMeters={workspace.sourceCaptureLocation.accuracyMeters}
+                      />
+                      <p className="evidence-detail-muted">{workspace.sourceCaptureLocation.legalBoundary}</p>
+                    </div>
+                  ) : null}
 
-            <section id="verification" className="evidence-detail-card">
-              <div className="evidence-detail-card-header">
-                <div>
-                  <p className="evidence-detail-kicker">Verification History</p>
-                  <h2>Fixed artifacts and post-report activity</h2>
-                </div>
-              </div>
-              <KeyValueGrid
-                items={[
-                  { label: "Report generated at", value: formatValue(formatUserDateTime(workspace.snapshot.reportGeneratedAtUtc)) },
-                  { label: "Verification package generated at", value: formatValue(formatUserDateTime(workspace.snapshot.verificationPackageGeneratedAtUtc)) },
-                  { label: "Forensic events at report time", value: String(workspace.custodyDisplayCounts.forensicAtReportGeneration) },
-                  { label: "Current forensic events", value: String(workspace.custodyDisplayCounts.currentForensicEvents) },
-                  { label: "Access events after report", value: String(workspace.custodyDisplayCounts.accessAfterReportGeneration) },
-                  { label: "Current status", value: workspace.snapshot.currentStatus.replace(/_/g, " ") },
-                ]}
-              />
-              <div className="evidence-detail-note-box">
-                <strong>Snapshot boundary</strong>
-                <p>{workspace.snapshot.fixedArtifactNote}</p>
-              </div>
-              <div className="evidence-detail-note-box">
-                <strong>Integrity drift</strong>
-                <p>{workspace.integrityDrift.note}</p>
-              </div>
-            </section>
+                  <div className="evidence-detail-note-box">
+                    <strong>Boundary</strong>
+                    <p>{workspace.sourceContext.limitations[0]}</p>
+                  </div>
+                </section>
 
-            <EvidenceRelationshipsSection
-              caseName={workspace.relationships.caseName}
-              relatedEvidenceCount={workspace.relationships.relatedEvidenceCount}
-              multipart={workspace.relationships.multipart}
-              itemCount={workspace.relationships.itemCount}
-              note={workspace.relationships.note}
-              items={workspace.relationships.items}
-              actionBusy={actionBusy}
-              onAssignCase={() => {
-                setSelectedCaseId(workspace.relationships.caseId || "");
-                setAssignCaseOpen(true);
-              }}
-              onRemoveCase={workspace.relationships.caseId ? () => void removeCase() : null}
-              onOpenRelationshipEditor={() => setRelationshipOpen(true)}
-              onOpenLinkedEvidence={(id) => router.push(`/evidence/${id}`)}
-            />
+                <section className="evidence-detail-section">
+                  <div className="evidence-detail-section-header">
+                    <div>
+                      <p className="evidence-detail-kicker">Preservation Matrix</p>
+                      <h2>Recorded integrity and preservation materials</h2>
+                    </div>
+                  </div>
 
-            <section id="notes" className="evidence-detail-card">
-              <div className="evidence-detail-card-header">
-                <div>
-                  <p className="evidence-detail-kicker">Notes &amp; Reviewer Collaboration</p>
-                  <h2>Private review materials</h2>
-                </div>
-              </div>
-              <div className="evidence-detail-note-box">
-                <strong>Boundary</strong>
-                <p>
-                  Private review notes are not included in public verification or external packages unless explicitly exported.
-                </p>
-              </div>
-              {workspace.governance ? (
-                <div className="evidence-detail-note-box">
-                  <strong>Governance</strong>
-                  <p>
-                    {workspace.governance.reviewerComments.label}, {workspace.governance.legalNotes.label}, and{" "}
-                    {workspace.governance.annotations.label} are internal workspace materials. They are not included in public verification, the fixed PDF report, or the verification package.
-                  </p>
-                </div>
-              ) : null}
-              {evidence.internalNotes ? (
-                <div className="evidence-detail-note-box">
-                  <strong>Internal workspace note</strong>
-                  <p>{evidence.internalNotes}</p>
-                </div>
-              ) : null}
-              <div className="evidence-detail-embedded-panels">
-                <ReviewerCommentsPanel evidenceId={evidence.id} />
-                <LegalNotesPanel evidenceId={evidence.id} />
-                <AnnotationPanel evidenceId={evidence.id} defaultPartId={workspace.parts[0]?.id ?? null} />
-              </div>
-            </section>
+                  <KeyValueGrid
+                    items={[
+                      { label: "Verification status", value: preservation.verificationStatusLabel },
+                      {
+                        label: "SHA-256 recorded",
+                        value: preservation.sha256Recorded ? "Recorded" : "Not recorded",
+                      },
+                      {
+                        label: "Fingerprint hash",
+                        value: preservation.fingerprintHashRecorded ? "Recorded" : "Not recorded",
+                      },
+                      {
+                        label: "Signature",
+                        value: preservation.signature.recorded
+                          ? preservation.signature.valid
+                            ? "Recorded and validated"
+                            : "Recorded"
+                          : "Not recorded",
+                      },
+                      {
+                        label: "TSA timestamp",
+                        value: preservation.tsa.timestampAvailable
+                          ? "Timestamp recorded"
+                          : preservation.tsa.status
+                            ? `Status: ${preservation.tsa.status}`
+                            : "Timestamp unavailable",
+                      },
+                      { label: "OTS status", value: formatValue(preservation.ots.effectiveStatus) },
+                      {
+                        label: "Storage protection",
+                        value: preservation.storage?.verified
+                          ? "Recorded"
+                          : "Not exposed in current API response",
+                      },
+                      {
+                        label: "Public anchoring",
+                        value: preservation.anchor?.published
+                          ? "Public anchoring verified"
+                          : preservation.anchor?.configured
+                            ? "Public anchoring pending"
+                            : "Public anchoring unavailable",
+                      },
+                      {
+                        label: "Report artifact",
+                        value: preservation.report.available
+                          ? `Version ${preservation.report.version ?? "latest"}`
+                          : "Not generated",
+                      },
+                      {
+                        label: "Verification package",
+                        value: preservation.verificationPackage.available
+                          ? `Version ${preservation.verificationPackage.version ?? "latest"}`
+                          : "Not generated",
+                      },
+                    ]}
+                  />
+                </section>
 
-            <ReviewerWorkflowCard
-              workflow={workspace.reviewWorkflow}
-              events={workflowEvents}
-              eventsLoading={workflowEventsLoading}
-              actionBusy={actionBusy}
-              onRefreshEvents={() => void loadWorkflowEvents()}
-              onOpenEditor={() => setWorkflowOpen(true)}
-              formatDateTime={formatUserDateTime}
-            />
+                <section className="evidence-detail-section">
+                  <div className="evidence-detail-section-header">
+                    <div>
+                      <p className="evidence-detail-kicker">Verification History</p>
+                      <h2>Fixed artifacts and post-report activity</h2>
+                    </div>
+                  </div>
 
-            <section className="evidence-detail-card">
-              <div className="evidence-detail-card-header">
-                <div>
-                  <p className="evidence-detail-kicker">Retention &amp; Compliance</p>
-                  <h2>Workspace and record retention state</h2>
-                </div>
-              </div>
-              <KeyValueGrid
-                items={[
-                  { label: "Workspace type", value: workspaceCaps.workspaceType },
-                  { label: "Billing status", value: formatValue(workspaceCaps.billingStatus) },
-                  { label: "Storage used", value: formatValue(workspaceCaps.storageUsedLabel) },
-                  { label: "Storage remaining", value: formatValue(workspaceCaps.storageRemainingLabel) },
-                  { label: "Locked at", value: formatValue(formatUserDateTime(evidence.lockedAt)) },
-                  { label: "Archived at", value: formatValue(formatUserDateTime(evidence.archivedAt)) },
-                  { label: "Deleted at", value: formatValue(formatUserDateTime(evidence.deletedAt)) },
-                  { label: "Delete scheduled for", value: formatValue(formatUserDateTime(evidence.deleteScheduledForUtc)) },
-                  { label: "Object lock", value: preservation.storage?.mode || "Not exposed in current API response" },
-                  { label: "Legal hold", value: preservation.storage?.legalHold || "Not exposed in current API response" },
-                ]}
-              />
-              <div className="evidence-detail-inline-actions">
-                {evidence.archivedAt ? (
-                  <Button variant="secondary" onClick={() => void runRecordAction(`/v1/evidence/${evidence.id}/unarchive`, "Evidence restored from archive")}>
-                    Restore archive
-                  </Button>
-                ) : (
-                  <Button variant="secondary" onClick={() => setArchiveOpen(true)} disabled={evidence.deletedAt != null}>
-                    Archive
-                  </Button>
-                )}
-                {evidence.deletedAt ? (
-                  <Button variant="secondary" onClick={() => void restoreTrash()}>
-                    Restore from trash
-                  </Button>
-                ) : (
-                  <Button variant="secondary" onClick={() => setTrashOpen(true)}>
-                    Move to trash
-                  </Button>
-                )}
-              </div>
-            </section>
+                  <KeyValueGrid
+                    items={[
+                      {
+                        label: "Report generated at",
+                        value: formatValue(formatUserDateTime(workspace.snapshot.reportGeneratedAtUtc)),
+                      },
+                      {
+                        label: "Verification package generated at",
+                        value: formatValue(
+                          formatUserDateTime(workspace.snapshot.verificationPackageGeneratedAtUtc)
+                        ),
+                      },
+                      {
+                        label: "Forensic events at report time",
+                        value: String(workspace.custodyDisplayCounts.forensicAtReportGeneration),
+                      },
+                      {
+                        label: "Current forensic events",
+                        value: String(workspace.custodyDisplayCounts.currentForensicEvents),
+                      },
+                      {
+                        label: "Access events after report",
+                        value: String(workspace.custodyDisplayCounts.accessAfterReportGeneration),
+                      },
+                      {
+                        label: "Current status",
+                        value: workspace.snapshot.currentStatus.replace(/_/g, " "),
+                      },
+                    ]}
+                  />
 
-            <EventTimeline
-              title="Access & Security Activity"
-              subtitle="Viewing, download, and verification access activity"
-              events={workspace.custodyLifecycle.accessEvents}
-            />
+                  <div className="evidence-detail-note-box">
+                    <strong>Snapshot boundary</strong>
+                    <p>{workspace.snapshot.fixedArtifactNote}</p>
+                  </div>
 
-            <ArtifactHistorySection
-              history={workspace.artifactVersions.history}
-              onDownloadReport={() => void downloadReport()}
-              onDownloadVerificationPackage={() => void downloadVerificationPackage()}
-              formatDateTime={formatUserDateTime}
-              formatBytes={formatBytes}
-            />
+                  <div className="evidence-detail-note-box">
+                    <strong>Integrity drift</strong>
+                    <p>{workspace.integrityDrift.note}</p>
+                  </div>
+                </section>
+              </>
+            ) : null}
 
-            <ComparisonPanel evidenceId={evidence.id} />
-            <DuplicateDetectionPanel evidenceId={evidence.id} />
-            <AiCategorizationPanel evidenceId={evidence.id} />
+            {activeTab === "custody" ? (
+              <>
+                <EventTimeline
+                  title="Forensic Custody Timeline"
+                  subtitle="Integrity-relevant lifecycle chronology"
+                  events={workspace.custodyLifecycle.forensicEvents}
+                />
 
-            <ReviewerAuditTrailSection
-              items={workspace.reviewerAudit ?? []}
-              formatDateTime={formatUserDateTime}
-            />
+                <EventTimeline
+                  title="Access & Security Activity"
+                  subtitle="Viewing, download, and verification access activity"
+                  events={workspace.custodyLifecycle.accessEvents}
+                />
+              </>
+            ) : null}
 
-            <section id="technical-appendix" className="evidence-detail-card">
-              <details>
-                <summary className="evidence-detail-raw-summary">Raw technical appendix</summary>
-                <pre className="evidence-detail-raw-block">
-                  {JSON.stringify(
-                    {
-                      trustDecision,
-                      trustDecisionConsistency: workspace.artifactVersions.trustDecisionConsistency,
-                      technicalMaterials: workspace.artifactVersions.technicalMaterials,
-                      preservationMatrix: preservation,
-                    },
-                    null,
-                    2
-                  )}
-                </pre>
-              </details>
-            </section>
+            {activeTab === "review" ? (
+              <>
+                <EvidenceRelationshipsSection
+                  caseName={workspace.relationships.caseName}
+                  relatedEvidenceCount={workspace.relationships.relatedEvidenceCount}
+                  multipart={workspace.relationships.multipart}
+                  itemCount={workspace.relationships.itemCount}
+                  note={workspace.relationships.note}
+                  items={workspace.relationships.items}
+                  actionBusy={actionBusy}
+                  onAssignCase={() => {
+                    setSelectedCaseId(workspace.relationships.caseId || "");
+                    setAssignCaseOpen(true);
+                  }}
+                  onRemoveCase={workspace.relationships.caseId ? () => void removeCase() : null}
+                  onOpenRelationshipEditor={() => setRelationshipOpen(true)}
+                  onOpenLinkedEvidence={(id) => router.push(`/evidence/${id}`)}
+                />
+
+                <ReviewerWorkflowCard
+                  workflow={workspace.reviewWorkflow}
+                  events={workflowEvents}
+                  eventsLoading={workflowEventsLoading}
+                  actionBusy={actionBusy}
+                  onRefreshEvents={() => void loadWorkflowEvents()}
+                  onOpenEditor={() => setWorkflowOpen(true)}
+                  formatDateTime={formatUserDateTime}
+                />
+
+                <section className="evidence-detail-section">
+                  <div className="evidence-detail-section-header">
+                    <div>
+                      <p className="evidence-detail-kicker">Notes &amp; Reviewer Collaboration</p>
+                      <h2>Private review materials</h2>
+                    </div>
+                  </div>
+
+                  <div className="evidence-detail-note-box">
+                    <strong>Boundary</strong>
+                    <p>
+                      Private review notes are not included in public verification or external packages unless
+                      explicitly exported.
+                    </p>
+                  </div>
+
+                  {workspace.governance ? (
+                    <div className="evidence-detail-note-box">
+                      <strong>Governance</strong>
+                      <p>
+                        {workspace.governance.reviewerComments.label},{" "}
+                        {workspace.governance.legalNotes.label}, and{" "}
+                        {workspace.governance.annotations.label} are internal workspace materials. They are not
+                        included in public verification, the fixed PDF report, or the verification package.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {evidence.internalNotes ? (
+                    <div className="evidence-detail-note-box">
+                      <strong>Internal workspace note</strong>
+                      <p>{evidence.internalNotes}</p>
+                    </div>
+                  ) : null}
+
+                  <div className="evidence-detail-embedded-panels">
+                    <ReviewerCommentsPanel evidenceId={evidence.id} />
+                    <LegalNotesPanel evidenceId={evidence.id} />
+                    <AnnotationPanel evidenceId={evidence.id} defaultPartId={workspace.parts[0]?.id ?? null} />
+                  </div>
+                </section>
+
+                <section className="evidence-detail-section">
+                  <div className="evidence-detail-section-header">
+                    <div>
+                      <p className="evidence-detail-kicker">Retention &amp; Compliance</p>
+                      <h2>Workspace and record retention state</h2>
+                    </div>
+                  </div>
+
+                  <KeyValueGrid
+                    items={[
+                      { label: "Workspace type", value: workspaceCaps.workspaceType },
+                      { label: "Billing status", value: formatValue(workspaceCaps.billingStatus) },
+                      { label: "Storage used", value: formatValue(workspaceCaps.storageUsedLabel) },
+                      { label: "Storage remaining", value: formatValue(workspaceCaps.storageRemainingLabel) },
+                      { label: "Locked at", value: formatValue(formatUserDateTime(evidence.lockedAt)) },
+                      { label: "Archived at", value: formatValue(formatUserDateTime(evidence.archivedAt)) },
+                      { label: "Deleted at", value: formatValue(formatUserDateTime(evidence.deletedAt)) },
+                      {
+                        label: "Delete scheduled for",
+                        value: formatValue(formatUserDateTime(evidence.deleteScheduledForUtc)),
+                      },
+                      {
+                        label: "Object lock",
+                        value: preservation.storage?.mode || "Not exposed in current API response",
+                      },
+                      {
+                        label: "Legal hold",
+                        value: preservation.storage?.legalHold || "Not exposed in current API response",
+                      },
+                    ]}
+                  />
+
+                  <div className="evidence-detail-inline-actions">
+                    {evidence.archivedAt ? (
+                      <Button
+                        variant="secondary"
+                        onClick={() =>
+                          void runRecordAction(
+                            `/v1/evidence/${evidence.id}/unarchive`,
+                            "Evidence restored from archive"
+                          )
+                        }
+                      >
+                        Restore archive
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        onClick={() => setArchiveOpen(true)}
+                        disabled={evidence.deletedAt != null}
+                      >
+                        Archive
+                      </Button>
+                    )}
+
+                    {evidence.deletedAt ? (
+                      <Button variant="secondary" onClick={() => void restoreTrash()}>
+                        Restore from trash
+                      </Button>
+                    ) : (
+                      <Button variant="secondary" onClick={() => setTrashOpen(true)}>
+                        Move to trash
+                      </Button>
+                    )}
+                  </div>
+                </section>
+              </>
+            ) : null}
+
+            {activeTab === "artifacts" ? (
+              <>
+                <ArtifactHistorySection
+                  history={workspace.artifactVersions.history}
+                  onDownloadReport={() => void downloadReport()}
+                  onDownloadVerificationPackage={() => void downloadVerificationPackage()}
+                  formatDateTime={formatUserDateTime}
+                  formatBytes={formatBytes}
+                />
+
+                <ComparisonPanel evidenceId={evidence.id} />
+                <DuplicateDetectionPanel evidenceId={evidence.id} />
+                <AiCategorizationPanel evidenceId={evidence.id} />
+
+                <ReviewerAuditTrailSection
+                  items={workspace.reviewerAudit ?? []}
+                  formatDateTime={formatUserDateTime}
+                />
+              </>
+            ) : null}
+
+            {activeTab === "technical" ? (
+              <section className="evidence-detail-section">
+                <details open>
+                  <summary className="evidence-detail-raw-summary">Raw technical appendix</summary>
+                  <pre className="evidence-detail-raw-block">
+                    {JSON.stringify(
+                      {
+                        trustDecision,
+                        trustDecisionConsistency: workspace.artifactVersions.trustDecisionConsistency,
+                        technicalMaterials: workspace.artifactVersions.technicalMaterials,
+                        preservationMatrix: preservation,
+                      },
+                      null,
+                      2
+                    )}
+                  </pre>
+                </details>
+              </section>
+            ) : null}
           </main>
 
           <aside className="evidence-detail-sidebar">
-            <section className="evidence-detail-card">
+            <section className="evidence-detail-side-block">
               <p className="evidence-detail-kicker">Reviewer Decision</p>
               <h2>{workspace.reviewDecision.label}</h2>
               <p>{workspace.reviewDecision.summary}</p>
-              <ul className="evidence-detail-flat-list">
-                {workspace.reviewDecision.nextActions.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
             </section>
 
-            <section className="evidence-detail-card">
-              <p className="evidence-detail-kicker">Review Readiness</p>
-              <h2>Operational readiness</h2>
-              <KeyValueGrid items={reviewReadinessItems} />
-            </section>
-
-            <section className="evidence-detail-card">
-              <p className="evidence-detail-kicker">Verification Proof</p>
-              <h2>Technical verification summary</h2>
-              <KeyValueGrid
-                items={[
-                  { label: "Recorded integrity status", value: preservation.verificationStatusLabel },
-                  { label: "Custody chain", value: preservation.custodyChain.valid ? "Chain continuity recorded" : "Review required" },
-                  { label: "Signature", value: preservation.signature.valid ? "Signature applied and validated" : preservation.signature.recorded ? "Signature recorded" : "Not recorded" },
-                  { label: "Timestamp", value: preservation.tsa.timestampAvailable ? "Timestamp recorded" : "Timestamp unavailable" },
-                  { label: "OTS", value: formatValue(preservation.ots.effectiveStatus) },
-                ]}
-              />
-            </section>
-
-            <section className="evidence-detail-card">
-              <p className="evidence-detail-kicker">Reviewer Risk Signals</p>
-              <h2>Metadata-derived advisory signals</h2>
+            <section className="evidence-detail-side-block">
+              <p className="evidence-detail-kicker">Risk Signals</p>
               {reviewSignals.length === 0 ? (
-                <p className="evidence-detail-muted">No reviewer risk signals are derived from the current response.</p>
+                <p className="evidence-detail-muted">No advisory risk signals in the current response.</p>
               ) : (
                 <div className="evidence-detail-signal-list">
-                  {reviewSignals.map((signal) => (
-                    <article key={`${signal.title}-${signal.detail}`} className={`evidence-detail-signal-card ${signal.severity}`}>
+                  {reviewSignals.slice(0, 4).map((signal) => (
+                    <article
+                      key={`${signal.title}-${signal.detail}`}
+                      className={`evidence-detail-signal-card ${signal.severity}`}
+                    >
                       <strong>{signal.title}</strong>
                       <p>{signal.detail}</p>
                     </article>
@@ -1179,59 +1469,38 @@ export default function EvidenceDetailPage() {
               )}
             </section>
 
-            <section className="evidence-detail-card">
-              <p className="evidence-detail-kicker">Workflow Assignment</p>
-              <h2>Reviewer workflow</h2>
+            <section className="evidence-detail-side-block">
+              <p className="evidence-detail-kicker">Public Verification</p>
               <KeyValueGrid
                 items={[
                   {
                     label: "Status",
-                    value: workspace.reviewWorkflow.status
-                      ? workspace.reviewWorkflow.status.replace(/_/g, " ")
-                      : "Not configured",
+                    value: workspace.publicVerificationSummary.enabled
+                      ? workspace.publicVerificationSummary.published
+                        ? "Enabled"
+                        : "Supported but not published"
+                      : "Not included on plan",
                   },
                   {
-                    label: "Priority",
-                    value: workspace.reviewWorkflow.priority
-                      ? workspace.reviewWorkflow.priority.replace(/_/g, " ")
-                      : "Not configured",
+                    label: "Public views",
+                    value: String(workspace.publicVerificationSummary.publicViewCount),
                   },
                   {
-                    label: "Reviewer",
-                    value:
-                      workspace.reviewWorkflow.assignedTo?.displayName ||
-                      workspace.reviewWorkflow.assignedTo?.email ||
-                      "Unassigned",
+                    label: "Report downloads",
+                    value: String(workspace.publicVerificationSummary.reportDownloadCount),
                   },
                   {
-                    label: "Due",
-                    value: formatValue(formatUserDateTime(workspace.reviewWorkflow.dueAt)),
+                    label: "Package downloads",
+                    value: String(workspace.publicVerificationSummary.verificationPackageDownloadCount),
                   },
                 ]}
               />
-              <p>{workspace.reviewWorkflow.note || "Workflow editing is available in the main review column."}</p>
-            </section>
 
-            <section className="evidence-detail-card">
-              <p className="evidence-detail-kicker">Public Verification &amp; Sharing</p>
-              <h2>External review posture</h2>
-              <KeyValueGrid
-                items={[
-                  { label: "Public verification", value: workspace.publicVerificationSummary.enabled ? workspace.publicVerificationSummary.published ? "Enabled" : "Supported but not published" : "Not included on plan" },
-                  { label: "Public views", value: String(workspace.publicVerificationSummary.publicViewCount) },
-                  { label: "Authenticated views", value: String(workspace.publicVerificationSummary.authenticatedViewCount) },
-                  { label: "Report downloads", value: String(workspace.publicVerificationSummary.reportDownloadCount) },
-                  { label: "Package downloads", value: String(workspace.publicVerificationSummary.verificationPackageDownloadCount) },
-                  { label: "Last public view", value: formatValue(formatUserDateTime(workspace.publicVerificationSummary.lastPublicViewAt)) },
-                ]}
-              />
               {shareUrl ? (
                 <a href={shareUrl} className="evidence-detail-inline-link" target="_blank" rel="noreferrer">
                   Open verification surface
                 </a>
-              ) : (
-                <p className="evidence-detail-muted">Public verification analytics are not available in the current API response.</p>
-              )}
+              ) : null}
             </section>
           </aside>
         </div>
@@ -1304,6 +1573,7 @@ export default function EvidenceDetailPage() {
               ))}
             </select>
           </label>
+
           <label className="evidence-detail-field">
             <span>Priority</span>
             <select
@@ -1318,6 +1588,7 @@ export default function EvidenceDetailPage() {
               ))}
             </select>
           </label>
+
           <label className="evidence-detail-field">
             <span>Assigned reviewer</span>
             <select
@@ -1338,6 +1609,7 @@ export default function EvidenceDetailPage() {
               Reviewer assignment uses currently accessible reviewer identities from the loaded workflow state.
             </p>
           </label>
+
           <label className="evidence-detail-field">
             <span>Due date</span>
             <input
@@ -1347,6 +1619,7 @@ export default function EvidenceDetailPage() {
               onChange={(event) => setWorkflowDueAtDraft(event.target.value)}
             />
           </label>
+
           <label className="evidence-detail-field">
             <span>Workflow note</span>
             <textarea
@@ -1374,25 +1647,17 @@ export default function EvidenceDetailPage() {
         }
       >
         <div className="evidence-detail-modal-stack">
-          <label className="evidence-detail-field">
-            <span>Linked evidence</span>
-            <select
-              className="evidence-detail-select"
-              value={relationshipTargetId}
-              onChange={(event) => setRelationshipTargetId(event.target.value)}
-            >
-              <option value="">Select evidence</option>
-            </select>
-          </label>
           <p className="evidence-detail-muted">
-            Enter a linked evidence record ID below when the target record is not already loaded in this view.
+            Enter the linked evidence record ID. The target must be an accessible evidence record.
           </p>
+
           <input
             className="evidence-detail-input"
             value={relationshipTargetId}
             onChange={(event) => setRelationshipTargetId(event.target.value)}
             placeholder="Linked evidence UUID"
           />
+
           <label className="evidence-detail-field">
             <span>Relationship type</span>
             <select
@@ -1416,6 +1681,7 @@ export default function EvidenceDetailPage() {
               ))}
             </select>
           </label>
+
           <label className="evidence-detail-field">
             <span>Note</span>
             <textarea
@@ -1445,9 +1711,7 @@ export default function EvidenceDetailPage() {
           </>
         }
       >
-        <p>
-          Locking preserves the current record state and prevents further mutable updates to the evidence record.
-        </p>
+        <p>Locking preserves the current record state and prevents further mutable updates to the evidence record.</p>
       </Modal>
 
       <Modal
