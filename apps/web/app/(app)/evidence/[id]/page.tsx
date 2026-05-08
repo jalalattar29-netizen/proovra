@@ -467,9 +467,8 @@ export default function EvidenceDetailPage() {
   const [teamId, setTeamId] = useState<string | null>(null);
   const [workspaceNameFromEvidence, setWorkspaceNameFromEvidence] = useState<string | null>(null);
   const [evidenceType, setEvidenceType] = useState<string | null>(null);
-  const [reportGeneratedAtUtc, setReportGeneratedAtUtc] = useState<string | null>(null);
-  const [verificationPackageGeneratedAtUtc, setVerificationPackageGeneratedAtUtc] =
-    useState<string | null>(null);
+  const [, setReportGeneratedAtUtc] = useState<string | null>(null);
+  const [, setVerificationPackageGeneratedAtUtc] = useState<string | null>(null);
   const [capturedAtUtc, setCapturedAtUtc] = useState<string | null>(null);
   const [deviceTimeIso, setDeviceTimeIso] = useState<string | null>(null);
   const [captureLat, setCaptureLat] = useState<number | null>(null);
