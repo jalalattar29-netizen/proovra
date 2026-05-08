@@ -1148,16 +1148,22 @@ export default function CapturePage() {
     addToast("Finishing video recording...", "info");
   };
 
-  const openAudioRecorder = () => {
-    closeCamera();
-    setError(null);
-    setAudioRecorderOpen(true);
-    setAudioRecorderError(null);
+const openAudioRecorder = () => {
+  closeCamera();
+  setError(null);
 
-    if (audioRecorderState === "failed") {
-      setAudioRecorderState("idle");
-    }
-  };
+  if (audioRecorderOpen && audioRecorderState !== "recording") {
+    resetAudioRecorderState();
+    return;
+  }
+
+  setAudioRecorderOpen(true);
+  setAudioRecorderError(null);
+
+  if (audioRecorderState === "failed") {
+    setAudioRecorderState("idle");
+  }
+};
 
   const startAudioRecording = async () => {
     setAudioRecorderOpen(true);
@@ -2096,6 +2102,7 @@ useEffect(() => {
               {sessionItems.length === 0 ? (
                 <>
                   <strong>Drag & drop files here or choose a capture method</strong>
+                  <div className="capture-dropzone-plus">+</div>
                   <p>
                     Files staged locally before Review & Sign. Nothing is signed or
                     submitted until the evidence record is finalized.
@@ -2108,9 +2115,20 @@ useEffect(() => {
               ) : null}
             {audioRecorderOpen ? (
               <div className="capture-audio-card">
-                <div className="capture-panel-heading">
-                  <strong>Audio Recorder</strong>
-                </div>
+<div className="capture-panel-heading">
+  <strong>Audio Recorder</strong>
+
+  {audioRecorderState !== "recording" ? (
+    <button
+      type="button"
+      className="capture-audio-close-button"
+      onClick={resetAudioRecorderState}
+      aria-label="Close audio recorder"
+    >
+      ×
+    </button>
+  ) : null}
+</div>
 
                 {audioPreviewUrl ? (
                   <audio controls preload="metadata" src={audioPreviewUrl}>
