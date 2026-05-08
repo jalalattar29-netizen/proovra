@@ -4132,3 +4132,46 @@ box-shadow:
 .capture-integrity-value {
   color: #0b4f4a !important;
 }
+
+.capture-empty-dropzone-panel {
+  width: 100%;
+  min-height: 230px;
+  margin-top: 22px;
+  padding: 34px 28px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+
+  border-radius: 26px;
+  border: 1px dashed rgba(15, 92, 86, 0.22);
+
+  background:
+    radial-gradient(circle at 50% 0%, rgba(15, 92, 86, 0.055), transparent 42%),
+    rgba(255, 255, 255, 0.46);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 12px 32px rgba(15, 23, 42, 0.035);
+
+  text-align: center;
+  cursor: pointer;
+}
+
+.capture-empty-dropzone-panel:hover {
+  border-color: rgba(15, 92, 86, 0.34);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(15, 92, 86, 0.075), transparent 42%),
+    rgba(255, 255, 255, 0.58);
+}
+
+.capture-empty-dropzone-panel > strong {
+  margin: 0 !important;
+}
+
+.capture-empty-dropzone-panel > p {
+  max-width: 780px;
+  margin: 0;
+}

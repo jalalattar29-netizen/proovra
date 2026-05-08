@@ -2103,27 +2103,33 @@ useEffect(() => {
   </div>
 ) : null}
 
-              {sessionItems.length === 0 ? (
-                <>
-                  <strong>Drag & drop files here or choose a capture method</strong>
-<div
-  className="capture-dropzone-plus"
-  onClick={openFilePicker}
-  role="button"
-  tabIndex={0}
->
-  <span>+</span>
-</div>
-                  <p>
-                    Files staged locally before Review & Sign. Nothing is signed or
-                    submitted until the evidence record is finalized.
-                  </p>
-                  <p className="capture-drop-zone-note">
-                    Integrity metadata is prepared during intake. Verification artifacts
-                    are generated after finalization.
-                  </p>
-                </>
-              ) : null}
+{sessionItems.length === 0 ? (
+  <div className="capture-empty-dropzone-panel" onClick={openFilePicker}>
+    <strong>Drag & drop files here or choose a capture method</strong>
+
+    <div
+      className="capture-dropzone-plus"
+      role="button"
+      tabIndex={0}
+      onClick={(event) => {
+        event.stopPropagation();
+        openFilePicker();
+      }}
+    >
+      <span>+</span>
+    </div>
+
+    <p>
+      Files staged locally before Review & Sign. Nothing is signed or submitted
+      until the evidence record is finalized.
+    </p>
+
+    <p className="capture-drop-zone-note">
+      Integrity metadata is prepared during intake. Verification artifacts are
+      generated after finalization.
+    </p>
+  </div>
+) : null}
             {audioRecorderOpen ? (
               <div className="capture-audio-card">
 <div className="capture-panel-heading">
