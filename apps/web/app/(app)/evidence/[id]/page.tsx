@@ -479,7 +479,7 @@ export default function EvidenceDetailPage() {
   const [intakePlanJson, setIntakePlanJson] = useState<Record<string, unknown> | null>(null);
 
   const [label, setLabel] = useState<string>("Digital Evidence Record");
-  const [displaySubtitle, setDisplaySubtitle] = useState<string>("");
+  const [, setDisplaySubtitle] = useState<string>("");
   const [itemCount, setItemCount] = useState<number>(1);
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [labelDraft, setLabelDraft] = useState("");
