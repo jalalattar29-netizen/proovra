@@ -89,6 +89,16 @@ export type EvidenceListItem = {
   ownerUserId: string;
   itemCount: number;
   storage: StorageProtectionSummary;
+  reviewWorkflow?: {
+    status: string;
+    priority: string;
+    dueAt: string | null;
+    assignedTo: {
+      id: string;
+      email: string | null;
+      displayName: string | null;
+    } | null;
+  } | null;
   displaySubtitle: string;
 };
 

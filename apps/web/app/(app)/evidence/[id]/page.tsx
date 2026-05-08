@@ -1,53 +1,31 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
-import {
-  CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
-  CAPTURE_LOCATION_LEGAL_BOUNDARY,
-  CAPTURE_LOCATION_SHORT_BOUNDARY,
-  CAPTURE_LOCATION_SOURCE_LABEL,
-  CAPTURE_LOCATION_STATUS_LABEL,
-  formatCaptureLocationAccuracy,
-  formatCaptureLocationCoordinate,
-  getReviewerEvidenceTypeLabel,
-  hasCaptureLocationMetadata,
-} from "@proovra/shared";
+import { useParams, useRouter } from "next/navigation";
 import { Button, Modal, useToast } from "../../../../components/ui";
 import CaptureLocationMapPanel from "../../../../components/capture-location/CaptureLocationMapPanel";
-import { useLocale } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
 import { formatUserDateTime } from "../../../../lib/date";
+import { ReviewerCommentsPanel } from "../components/ReviewerCommentsPanel";
+import { LegalNotesPanel } from "../components/LegalNotesPanel";
+import { AnnotationPanel } from "../components/AnnotationPanel";
+import { ComparisonPanel } from "../components/ComparisonPanel";
+import { DuplicateDetectionPanel } from "../components/DuplicateDetectionPanel";
+import { AiCategorizationPanel } from "../components/AiCategorizationPanel";
+import type { CaseOption } from "../lib/evidence-library-types";
 import type {
-  BillingOverviewResponse,
-  PersonalWorkspaceSummary,
-  TeamWorkspaceSummary,
-} from "../../../../components/billing/types";
-import type { EvidenceIntelligence } from "@proovra/shared";
+  ReviewWorkspaceResponse,
+  ReviewerAlert,
+  SourceContext,
+  TimelineEvent,
+} from "./review-workspace-types";
+import { SectionRail } from "./components/SectionRail";
+import { ReviewerWorkflowCard } from "./components/ReviewerWorkflowCard";
+import { EvidenceRelationshipsSection } from "./components/EvidenceRelationshipsSection";
+import { ArtifactHistorySection } from "./components/ArtifactHistorySection";
+import { ReviewerAuditTrailSection } from "./components/ReviewerAuditTrailSection";
 import "./evidence-detail.css";
-
-function formatBytes(sizeBytes: string | number | null | undefined): string {
-  const n =
-    typeof sizeBytes === "number"
-      ? sizeBytes
-      : sizeBytes
-        ? Number(sizeBytes)
-        : Number.NaN;
-
-  if (!Number.isFinite(n) || n <= 0) return "Unknown size";
-
-  const units = ["B", "KB", "MB", "GB", "TB"] as const;
-  let value = n;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex++;
-  }
-
-  return `${value.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
-}
 
 function shortId(value: string | null | undefined): string {
   const text = (value ?? "").trim();
@@ -56,299 +34,44 @@ function shortId(value: string | null | undefined): string {
   return `${text.slice(0, 8)}…${text.slice(-6)}`;
 }
 
-function getEvidenceKind(
-  mimeType: string | null
-): "image" | "video" | "audio" | "pdf" | "text" | "other" {
-  const mime = (mimeType ?? "").toLowerCase();
+function formatBytes(sizeBytes: string | number | null | undefined) {
+  const numeric =
+    typeof sizeBytes === "number"
+      ? sizeBytes
+      : typeof sizeBytes === "string"
+        ? Number(sizeBytes)
+        : Number.NaN;
 
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  if (mime.startsWith("audio/")) return "audio";
-  if (mime === "application/pdf") return "pdf";
-  if (mime.startsWith("text/") || mime.includes("json") || mime.includes("xml")) {
-    return "text";
+  if (!Number.isFinite(numeric) || numeric <= 0) return "Not recorded";
+
+  const units = ["B", "KB", "MB", "GB", "TB"] as const;
+  let value = numeric;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
   }
 
-  return "other";
+  return `${value.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
 }
 
-function getMimeExtension(mimeType: string | null | undefined): string {
-  const mime = (mimeType ?? "").toLowerCase();
-
-  switch (mime) {
-    case "image/jpeg":
-      return ".jpg";
-    case "image/png":
-      return ".png";
-    case "image/webp":
-      return ".webp";
-    case "image/heic":
-      return ".heic";
-    case "image/heif":
-      return ".heif";
-    case "video/mp4":
-      return ".mp4";
-    case "video/webm":
-      return ".webm";
-    case "video/quicktime":
-      return ".mov";
-    case "audio/mpeg":
-      return ".mp3";
-    case "audio/wav":
-      return ".wav";
-    case "audio/webm":
-      return ".webm";
-    case "application/pdf":
-      return ".pdf";
-    case "text/plain":
-      return ".txt";
-    case "application/json":
-      return ".json";
-    default:
-      return "";
-  }
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "Not recorded";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
 }
 
-function sanitizePossibleFileName(value: string | null | undefined): string | null {
-  const raw = (value ?? "").trim();
-  if (!raw) return null;
+function buildShareUrl(path: string | null | undefined): string | null {
+  const normalized = path?.trim();
+  if (!normalized) return null;
 
-  const slashNormalized = raw.replace(/\\/g, "/");
-  const last = slashNormalized.split("/").pop()?.trim() ?? "";
-  if (!last) return null;
+  const base =
+    (typeof window !== "undefined" ? window.location.origin : null) ??
+    process.env.NEXT_PUBLIC_APP_BASE?.trim() ??
+    process.env.NEXT_PUBLIC_WEB_BASE?.trim() ??
+    "";
 
-  if (last === "." || last === "..") return null;
-  return last;
-}
-
-function formatCaptureTimestampForFileName(value: string | null | undefined): string {
-  const date = value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) {
-    return "unknown-time";
-  }
-
-  const yyyy = date.getUTCFullYear();
-  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(date.getUTCDate()).padStart(2, "0");
-  const hh = String(date.getUTCHours()).padStart(2, "0");
-  const mi = String(date.getUTCMinutes()).padStart(2, "0");
-  const ss = String(date.getUTCSeconds()).padStart(2, "0");
-  const ms = String(date.getUTCMilliseconds()).padStart(3, "0");
-
-  return `${yyyy}-${mm}-${dd}_${hh}-${mi}-${ss}.${ms}Z`;
-}
-
-function buildGeneratedCaptureFileName(params: {
-  mimeType?: string | null;
-  recordedAt?: string | null;
-  itemIndex?: number | null;
-  isMultipart?: boolean;
-}): string {
-  const kind = getEvidenceKind(params.mimeType ?? null);
-  const ext = getMimeExtension(params.mimeType ?? null);
-  const ts = formatCaptureTimestampForFileName(params.recordedAt ?? null);
-
-  const prefix =
-    kind === "image"
-      ? "PROOVRA-CAPTURE"
-      : kind === "video"
-        ? "PROOVRA-VIDEO-CAPTURE"
-        : kind === "audio"
-          ? "PROOVRA-AUDIO-CAPTURE"
-          : kind === "pdf"
-            ? "PROOVRA-DOCUMENT-CAPTURE"
-            : "PROOVRA-EVIDENCE";
-
-  const itemSuffix =
-    params.isMultipart && typeof params.itemIndex === "number"
-      ? `-ITEM-${params.itemIndex + 1}`
-      : "";
-
-  return `${prefix}-${ts}${itemSuffix}${ext}`;
-}
-
-function getDisplayStatusMeta(
-  rawStatus: string | null | undefined,
-  labels: {
-    signed: string;
-    processing: string;
-  }
-): {
-  label: string;
-  tone: "reportReady" | "signed" | "processing" | "ready";
-} {
-  const status = (rawStatus ?? "").trim().toUpperCase();
-
-  switch (status) {
-    case "REPORTED":
-      return {
-        label: "Report Ready",
-        tone: "reportReady",
-      };
-    case "SIGNED":
-      return {
-        label: labels.signed,
-        tone: "signed",
-      };
-    case "UPLOADED":
-      return {
-        label: "UPLOADED",
-        tone: "ready",
-      };
-    case "UPLOADING":
-      return {
-        label: labels.processing,
-        tone: "processing",
-      };
-    case "CREATED":
-      return {
-        label: "CREATED",
-        tone: "processing",
-      };
-    default:
-      return {
-        label: status || "UNKNOWN",
-        tone: "ready",
-      };
-  }
-}
-
-type CaseOption = {
-  id: string;
-  name: string;
-  ownerUserId?: string;
-  teamId?: string | null;
-};
-
-type EvidencePart = {
-  id: string;
-  partIndex: number;
-  mimeType: string | null;
-  sizeBytes?: string | number | null;
-  storageBucket?: string | null;
-  storageKey?: string | null;
-  sha256?: string | null;
-  durationMs?: number | null;
-  publicUrl?: string | null;
-  url?: string | null;
-  previewUrl?: string | null;
-  isPrimary?: boolean;
-  originalFileName?: string | null;
-  fileName?: string | null;
-  displayName?: string | null;
-  capturedAt?: string | null;
-  createdAt?: string | null;
-  privateRole?: string | null;
-  privateNote?: string | null;
-  checklistStepId?: string | null;
-  sourceLabel?: string | null;
-  clientSignals?: Record<string, unknown> | null;
-};
-
-type PartsResponse = {
-  evidenceId?: string;
-  multipart?: boolean;
-  primary?: {
-    bucket?: string | null;
-    key?: string | null;
-    publicUrl?: string | null;
-  } | null;
-  parts?: EvidencePart[];
-};
-
-type OriginalResponse = {
-  evidenceId?: string;
-  bucket?: string | null;
-  key?: string | null;
-  originalFileName?: string | null;
-  url?: string | null;
-  publicUrl?: string | null;
-  mimeType?: string | null;
-  sizeBytes?: string | null;
-};
-
-type EvidenceRecord = {
-  id?: string;
-  title?: string;
-  displayTitle?: string;
-  displaySubtitle?: string;
-  internalNotes?: string | null;
-  itemCount?: number;
-  status?: string;
-  createdAt?: string | null;
-  type?: string;
-  lockedAt?: string | null;
-  archivedAt?: string | null;
-  deletedAt?: string | null;
-  deleteScheduledForUtc?: string | null;
-  caseId?: string | null;
-  teamId?: string | null;
-  organizationId?: string | null;
-  workspaceType?: "PERSONAL" | "TEAM" | null;
-  workspaceName?: string | null;
-  reportGeneratedAtUtc?: string | null;
-  verificationPackageGeneratedAtUtc?: string | null;
-  capturedAtUtc?: string | null;
-  deviceTimeIso?: string | null;
-  lat?: number | null;
-  lng?: number | null;
-  accuracyMeters?: number | null;
-  intakePlanJson?: Record<string, unknown> | null;
-  evidenceIntelligence?: EvidenceIntelligence | null;
-};
-
-type EvidenceResponse = {
-  evidence?: EvidenceRecord;
-};
-
-type WorkspaceCapabilitySnapshot = {
-  workspaceType: "PERSONAL" | "TEAM";
-  workspaceName: string;
-  plan: string;
-  reportsIncluded: boolean;
-  verificationPackageIncluded: boolean;
-  publicVerifyIncluded: boolean;
-  storageUsedLabel?: string | null;
-  storageLimitLabel?: string | null;
-  storageRemainingLabel?: string | null;
-  billingStatus?: string | null;
-  seatsIncluded?: number | null;
-  seatsUsed?: number | null;
-  seatsRemaining?: number | null;
-  overSeatLimit?: boolean | null;
-};
-
-function getPartDisplayName(
-  part: EvidencePart,
-  fallbackRecordedAt?: string | null,
-  isMultipart = false
-): string {
-  const preferred =
-    sanitizePossibleFileName(part.originalFileName) ||
-    sanitizePossibleFileName(part.displayName) ||
-    sanitizePossibleFileName(part.fileName) ||
-    sanitizePossibleFileName(part.storageKey);
-
-  if (preferred) return preferred;
-
-  return buildGeneratedCaptureFileName({
-    mimeType: part.mimeType ?? null,
-    recordedAt: part.capturedAt ?? part.createdAt ?? fallbackRecordedAt ?? null,
-    itemIndex: typeof part.partIndex === "number" ? part.partIndex : null,
-    isMultipart,
-  });
-}
-
-function resolveDisplayTitle(evidence: EvidenceRecord | undefined): string {
-  return (
-    evidence?.displayTitle?.trim() ||
-    evidence?.title?.trim() ||
-    "Digital Evidence Record"
-  );
-}
-
-function resolveDisplaySubtitle(evidence: EvidenceRecord | undefined): string {
-  return evidence?.displaySubtitle?.trim() || "";
+  return `${base.replace(/\/+$/, "")}${normalized.startsWith("/") ? normalized : `/${normalized}`}`;
 }
 
 async function tryDownloadFile(url: string, filename: string) {
@@ -358,2246 +81,1408 @@ async function tryDownloadFile(url: string, filename: string) {
 
     const blob = await response.blob();
     const objectUrl = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
     URL.revokeObjectURL(objectUrl);
     return true;
   } catch {
-    try {
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      return true;
-    } catch {
-      return false;
-    }
+    return false;
   }
 }
 
-function getVerificationUrl(evidenceId: string): string {
-  const appBase =
-    process.env.NEXT_PUBLIC_APP_BASE?.trim() ||
-    process.env.NEXT_PUBLIC_WEB_BASE?.trim() ||
-    "https://app.proovra.com";
-
-  return `${appBase.replace(/\/+$/, "")}/verify/${evidenceId}`;
+function pillTone(status: string) {
+  const normalized = status.trim().toUpperCase();
+  if (
+    normalized.includes("READY") ||
+    normalized.includes("VERIFIED") ||
+    normalized.includes("ACTIVE") ||
+    normalized.includes("AVAILABLE")
+  ) {
+    return "success";
+  }
+  if (
+    normalized.includes("WARNING") ||
+    normalized.includes("LIMIT") ||
+    normalized.includes("PENDING") ||
+    normalized.includes("REVIEW")
+  ) {
+    return "warning";
+  }
+  if (
+    normalized.includes("FAILED") ||
+    normalized.includes("DANGER") ||
+    normalized.includes("DELETED") ||
+    normalized.includes("TRASH")
+  ) {
+    return "danger";
+  }
+  return "neutral";
 }
 
-function deriveWorkspaceCapabilities(params: {
-  evidence?: EvidenceRecord;
-  personal: PersonalWorkspaceSummary | null;
-  teams: TeamWorkspaceSummary[];
-  ownedCases: CaseOption[];
-}): WorkspaceCapabilitySnapshot {
-  const explicitTeamId = params.evidence?.teamId ?? null;
-  const inferredTeamIdFromCase =
-    !explicitTeamId && params.evidence?.caseId
-      ? params.ownedCases.find((item) => item.id === params.evidence?.caseId)?.teamId ?? null
-      : null;
+function PreviewWorkspace({
+  workspace,
+  onOpenOriginal,
+  onDownloadOriginal,
+}: {
+  workspace: ReviewWorkspaceResponse;
+  onOpenOriginal: () => void;
+  onDownloadOriginal: () => void;
+}) {
+  const defaultItem =
+    workspace.evidence.contentItems?.find(
+      (item) => item.id === workspace.evidence.defaultPreviewItemId
+    ) ??
+    workspace.evidence.contentItems?.find((item) => item.previewable && item.viewUrl) ??
+    workspace.evidence.primaryContentItem ??
+    null;
 
-  const effectiveTeamId = explicitTeamId || inferredTeamIdFromCase || null;
-
-  if (effectiveTeamId) {
-    const team = params.teams.find((item) => item.id === effectiveTeamId);
-    if (team) {
-      return {
-        workspaceType: "TEAM",
-        workspaceName:
-          params.evidence?.workspaceName?.trim() || team.name || "Team Workspace",
-        plan: team.plan ?? "FREE",
-        reportsIncluded: Boolean(team.features?.reportsIncluded),
-        verificationPackageIncluded: Boolean(
-          team.features?.verificationPackageIncluded
-        ),
-        publicVerifyIncluded: Boolean(team.features?.publicVerifyIncluded),
-        storageUsedLabel: team.storage?.usedLabel ?? null,
-        storageLimitLabel: team.storage?.limitLabel ?? null,
-        storageRemainingLabel: team.storage?.remainingLabel ?? null,
-        billingStatus: team.billingStatus ?? null,
-        seatsIncluded: team.seats?.included ?? null,
-        seatsUsed: team.seats?.used ?? null,
-        seatsRemaining: team.seats?.remaining ?? null,
-        overSeatLimit: team.overSeatLimit ?? null,
-      };
+  const renderPreview = () => {
+    if (!defaultItem || !defaultItem.viewUrl) {
+      return (
+        <div className="evidence-detail-preview-placeholder">
+          <strong>Open the original evidence record to review preserved content.</strong>
+          <p>
+            Reviewer-facing preview is not available for this selection in the current
+            response.
+          </p>
+        </div>
+      );
     }
-  }
 
-  return {
-    workspaceType: "PERSONAL",
-    workspaceName: params.evidence?.workspaceName?.trim() || "Personal Workspace",
-    plan: params.personal?.plan ?? "FREE",
-    reportsIncluded: Boolean(params.personal?.features?.reportsIncluded),
-    verificationPackageIncluded: Boolean(
-      params.personal?.features?.verificationPackageIncluded
-    ),
-    publicVerifyIncluded: Boolean(params.personal?.features?.publicVerifyIncluded),
-    storageUsedLabel: params.personal?.storage?.usedLabel ?? null,
-    storageLimitLabel: params.personal?.storage?.limitLabel ?? null,
-    storageRemainingLabel: params.personal?.storage?.remainingLabel ?? null,
-    billingStatus: params.personal?.subscription?.status ?? null,
-    seatsIncluded: null,
-    seatsUsed: null,
-    seatsRemaining: null,
-    overSeatLimit: null,
+    if (defaultItem.kind === "image") {
+      return <img src={defaultItem.viewUrl} alt={defaultItem.label} className="evidence-detail-preview-media" />;
+    }
+    if (defaultItem.kind === "video") {
+      return (
+        <video controls preload="metadata" className="evidence-detail-preview-media" src={defaultItem.viewUrl}>
+          Your browser could not load this video preview.
+        </video>
+      );
+    }
+    if (defaultItem.kind === "audio") {
+      return (
+        <div className="evidence-detail-preview-audio">
+          <audio controls preload="metadata" src={defaultItem.viewUrl}>
+            Your browser could not load this audio preview.
+          </audio>
+        </div>
+      );
+    }
+    if (defaultItem.kind === "pdf") {
+      return (
+        <iframe
+          title={defaultItem.label}
+          src={defaultItem.viewUrl}
+          className="evidence-detail-preview-frame"
+        />
+      );
+    }
+
+    return (
+      <div className="evidence-detail-preview-placeholder">
+        <strong>Preview is not available for this file type.</strong>
+        <p>Use the original access actions to review the preserved material directly.</p>
+      </div>
+    );
   };
+
+  return (
+    <section className="evidence-detail-card">
+      <div className="evidence-detail-card-header">
+        <div>
+          <p className="evidence-detail-kicker">Evidence Preview</p>
+          <h2>Review surface</h2>
+        </div>
+        <div className="evidence-detail-inline-actions">
+          <Button variant="secondary" onClick={onOpenOriginal}>
+            Open original
+          </Button>
+          <Button variant="secondary" onClick={onDownloadOriginal}>
+            Download
+          </Button>
+        </div>
+      </div>
+      <div className="evidence-detail-preview-shell">{renderPreview()}</div>
+      <div className="evidence-detail-item-grid">
+        {workspace.evidence.contentItems?.map((item) => (
+          <div key={item.id} className="evidence-detail-item-card">
+            <div className="evidence-detail-item-row">
+              <strong>{item.label}</strong>
+              <span className={`evidence-detail-pill ${pillTone(item.kind)}`}>{item.kind}</span>
+            </div>
+            <p>{item.originalFileName || "Original filename not recorded"}</p>
+            <div className="evidence-detail-definition-inline">
+              <span>Size</span>
+              <strong>{item.displaySizeLabel || formatBytes(item.sizeBytes)}</strong>
+            </div>
+            <div className="evidence-detail-definition-inline">
+              <span>Role</span>
+              <strong>{item.isPrimary ? "Primary item" : "Supporting item"}</strong>
+            </div>
+            <div className="evidence-detail-item-actions">
+              {item.viewUrl ? (
+                <Button variant="secondary" onClick={() => window.open(item.viewUrl!, "_blank", "noopener,noreferrer")}>
+                  Open
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function KeyValueGrid({
+  items,
+}: {
+  items: Array<{ label: string; value: string }>;
+}) {
+  return (
+    <div className="evidence-detail-data-grid">
+      {items.map((item) => (
+        <div key={item.label} className="evidence-detail-data-cell">
+          <span>{item.label}</span>
+          <strong>{item.value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EventTimeline({
+  title,
+  subtitle,
+  events,
+}: {
+  title: string;
+  subtitle: string;
+  events: TimelineEvent[];
+}) {
+  return (
+    <section className="evidence-detail-card">
+      <div className="evidence-detail-card-header">
+        <div>
+          <p className="evidence-detail-kicker">{title}</p>
+          <h2>{subtitle}</h2>
+        </div>
+      </div>
+      {events.length === 0 ? (
+        <p className="evidence-detail-muted">No events recorded in the current API response.</p>
+      ) : (
+        <div className="evidence-detail-timeline">
+          {events.map((event) => (
+            <article key={`${event.sequence}-${event.eventType}`} className="evidence-detail-timeline-item">
+              <div className="evidence-detail-timeline-dot" aria-hidden="true" />
+              <div>
+                <div className="evidence-detail-item-row">
+                  <strong>{event.eventType.replace(/_/g, " ")}</strong>
+                  <span>{formatUserDateTime(event.atUtc)}</span>
+                </div>
+                <p>{event.payloadSummary || "No event summary recorded."}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function buildRiskSignals(sourceContext: SourceContext, alerts: ReviewerAlert[]) {
+  const signals = [...alerts.map((alert) => ({ severity: alert.severity, title: alert.label, detail: alert.detail }))];
+
+  if (sourceContext.clientSignalsSummary.screenshotLike) {
+    signals.push({
+      severity: "warning" as const,
+      title: "Screenshot-like signal",
+      detail: "Metadata-derived advisory signal. Requires human review and does not determine factual or legal outcome.",
+    });
+  }
+  if (sourceContext.clientSignalsSummary.genericMime) {
+    signals.push({
+      severity: "info" as const,
+      title: "Generic MIME type",
+      detail: "Generic file typing was recorded in client signals. Review source context separately.",
+    });
+  }
+  if (sourceContext.clientSignalsSummary.oldLastModified) {
+    signals.push({
+      severity: "warning" as const,
+      title: "Old last-modified signal",
+      detail: "Client metadata indicates an older modification timestamp. This is advisory only.",
+    });
+  }
+  if (sourceContext.importedUpload) {
+    signals.push({
+      severity: "info" as const,
+      title: "Imported upload",
+      detail: "Imported upload means PROOVRA preserved the uploaded file and recorded integrity state. It does not independently prove original capture source.",
+    });
+  }
+
+  return signals;
 }
 
 export default function EvidenceDetailPage() {
-  const { t } = useLocale();
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const { addToast } = useToast();
-  const evidenceId = params?.id ?? "unknown";
+  const evidenceId = params?.id ?? "";
 
-  const [status, setStatus] = useState("CREATED");
-  const [createdAt, setCreatedAt] = useState<string | null>(null);
-  const [lockedAt, setLockedAt] = useState<string | null>(null);
-  const [archivedAt, setArchivedAt] = useState<string | null>(null);
-  const [deletedAt, setDeletedAt] = useState<string | null>(null);
-  const [deleteScheduledForUtc, setDeleteScheduledForUtc] = useState<string | null>(null);
-  const [caseId, setCaseId] = useState<string | null>(null);
-  const [teamId, setTeamId] = useState<string | null>(null);
-  const [workspaceNameFromEvidence, setWorkspaceNameFromEvidence] = useState<string | null>(null);
-  const [evidenceType, setEvidenceType] = useState<string | null>(null);
-  const [, setReportGeneratedAtUtc] = useState<string | null>(null);
-  const [, setVerificationPackageGeneratedAtUtc] = useState<string | null>(null);
-  const [capturedAtUtc, setCapturedAtUtc] = useState<string | null>(null);
-  const [deviceTimeIso, setDeviceTimeIso] = useState<string | null>(null);
-  const [captureLat, setCaptureLat] = useState<number | null>(null);
-  const [captureLng, setCaptureLng] = useState<number | null>(null);
-  const [captureAccuracyMeters, setCaptureAccuracyMeters] = useState<number | null>(null);
-  const [internalNotes, setInternalNotes] = useState<string | null>(null);
-  const [intakePlanJson, setIntakePlanJson] = useState<Record<string, unknown> | null>(null);
-
-  const [label, setLabel] = useState<string>("Digital Evidence Record");
-  const [, setDisplaySubtitle] = useState<string>("");
-  const [itemCount, setItemCount] = useState<number>(1);
-  const [isEditingLabel, setIsEditingLabel] = useState(false);
-  const [labelDraft, setLabelDraft] = useState("");
-  const [labelBusy, setLabelBusy] = useState(false);
-
+  const [workspace, setWorkspace] = useState<ReviewWorkspaceResponse | null>(null);
+  const [cases, setCases] = useState<CaseOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
-
-  const [lockModalOpen, setLockModalOpen] = useState(false);
-  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [shareActionBusy, setShareActionBusy] = useState(false);
-
-  const [assignCaseModalOpen, setAssignCaseModalOpen] = useState(false);
+  const [labelDraft, setLabelDraft] = useState("");
+  const [editingLabel, setEditingLabel] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState("");
-  const [ownedCases, setOwnedCases] = useState<CaseOption[]>([]);
+  const [assignCaseOpen, setAssignCaseOpen] = useState(false);
+  const [lockOpen, setLockOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [workflowOpen, setWorkflowOpen] = useState(false);
+  const [workflowStatusDraft, setWorkflowStatusDraft] = useState("NOT_STARTED");
+  const [workflowPriorityDraft, setWorkflowPriorityDraft] = useState("NORMAL");
+  const [workflowAssigneeDraft, setWorkflowAssigneeDraft] = useState("");
+  const [workflowDueAtDraft, setWorkflowDueAtDraft] = useState("");
+  const [workflowNoteDraft, setWorkflowNoteDraft] = useState("");
+  const [workflowEvents, setWorkflowEvents] = useState<
+    Array<{
+      id: string;
+      eventType: string;
+      note: string | null;
+      previousValue: unknown;
+      nextValue: unknown;
+      createdAt: string;
+      actor: { id: string; email: string | null; displayName: string | null } | null;
+    }>
+  >([]);
+  const [workflowEventsLoading, setWorkflowEventsLoading] = useState(false);
+  const [relationshipOpen, setRelationshipOpen] = useState(false);
+  const [relationshipTargetId, setRelationshipTargetId] = useState("");
+  const [relationshipType, setRelationshipType] = useState("RELATED");
+  const [relationshipNote, setRelationshipNote] = useState("");
 
-  const [personalWorkspace, setPersonalWorkspace] =
-    useState<PersonalWorkspaceSummary | null>(null);
-  const [teamWorkspaces, setTeamWorkspaces] = useState<TeamWorkspaceSummary[]>([]);
-  const [, setBillingOverview] =
-    useState<BillingOverviewResponse | null>(null);
+  const loadWorkspace = async () => {
+    if (!evidenceId) return;
 
-  const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
-  const [originalDownloadUrl, setOriginalDownloadUrl] = useState<string | null>(null);
-  const [originalMimeType, setOriginalMimeType] = useState<string | null>(null);
-  const [originalSizeBytes, setOriginalSizeBytes] = useState<string | null>(null);
-  const [originalFileName, setOriginalFileName] = useState<string | null>(null);
-
-  const [parts, setParts] = useState<EvidencePart[]>([]);
-  const [evidenceIntelligence, setEvidenceIntelligence] = useState<EvidenceIntelligence | null>(null);
-  const [reportAvailable, setReportAvailable] = useState(false);
-  const [verificationPackageAvailable, setVerificationPackageAvailable] = useState(false);
-
-  const sortedParts = useMemo(
-    () => [...parts].sort((a, b) => a.partIndex - b.partIndex),
-    [parts]
-  );
-
-  const isMultipart = useMemo(
-    () => sortedParts.length > 1 || itemCount > 1,
-    [sortedParts.length, itemCount]
-  );
-
-  const isLocked = Boolean(lockedAt);
-  const isArchived = Boolean(archivedAt);
-  const isDeleted = Boolean(deletedAt);
-  const canDelete = !isDeleted;
-
-  const originalKind = useMemo(() => getEvidenceKind(originalMimeType), [originalMimeType]);
-
-  const partTypeSummary = useMemo(() => {
-    if (sortedParts.length === 0) {
-return {
-  imageCount: 0,
-  videoCount: 0,
-  audioCount: 0,
-  pdfCount: 0,
-  textCount: 0,
-  otherCount: 0,
-};
-    }
-
-    return sortedParts.reduce(
-      (acc, part) => {
-        const kind = getEvidenceKind(part.mimeType ?? null);
-if (kind === "image") acc.imageCount += 1;
-else if (kind === "video") acc.videoCount += 1;
-else if (kind === "audio") acc.audioCount += 1;
-else if (kind === "pdf") acc.pdfCount += 1;
-else if (kind === "text") acc.textCount += 1;
-else acc.otherCount += 1;
-        return acc;
-      },
-      {
-        imageCount: 0,
-        videoCount: 0,
-        audioCount: 0,
-        textCount: 0,
-        pdfCount: 0,
-        otherCount: 0,
-      }
-    );
-  }, [sortedParts]);
-
-  const compositionSummary = useMemo(() => {
-    const partsList: string[] = [];
-
-    if (partTypeSummary.imageCount > 0) {
-      partsList.push(`${partTypeSummary.imageCount} image${partTypeSummary.imageCount > 1 ? "s" : ""}`);
-    }
-    if (partTypeSummary.videoCount > 0) {
-      partsList.push(`${partTypeSummary.videoCount} video${partTypeSummary.videoCount > 1 ? "s" : ""}`);
-    }
-    if (partTypeSummary.audioCount > 0) {
-      partsList.push(`${partTypeSummary.audioCount} audio${partTypeSummary.audioCount > 1 ? " files" : ""}`);
-    }
-    if (partTypeSummary.pdfCount > 0) {
-      partsList.push(`${partTypeSummary.pdfCount} document${partTypeSummary.pdfCount > 1 ? "s" : ""}`);
-    }
-    if (partTypeSummary.textCount > 0) {
-  partsList.push(`${partTypeSummary.textCount} text file${partTypeSummary.textCount > 1 ? "s" : ""}`);
-}
-    if (partTypeSummary.otherCount > 0) {
-      partsList.push(`${partTypeSummary.otherCount} other`);
-    }
-
-    if (partsList.length === 0) {
-      if (itemCount > 1) return `${itemCount} items`;
-      return "Single file";
-    }
-
-    return partsList.join(" • ");
-  }, [partTypeSummary, itemCount]);
-
-  const recordTypeLabel = useMemo(
-    () =>
-      getReviewerEvidenceTypeLabel({
-        itemCount,
-        structure: isMultipart ? "multipart" : "single",
-        imageCount: partTypeSummary.imageCount,
-        videoCount: partTypeSummary.videoCount,
-        audioCount: partTypeSummary.audioCount,
-        pdfCount: partTypeSummary.pdfCount,
-        textCount: partTypeSummary.textCount,
-        otherCount: partTypeSummary.otherCount,
-        evidenceType,
-        mimeType: originalMimeType,
-      }),
-    [
-      evidenceType,
-      isMultipart,
-      itemCount,
-      originalMimeType,
-      partTypeSummary.audioCount,
-      partTypeSummary.imageCount,
-      partTypeSummary.otherCount,
-      partTypeSummary.pdfCount,
-      partTypeSummary.textCount,
-      partTypeSummary.videoCount,
-    ]
-  );
-
-  const effectiveOriginalSummaryName = useMemo(() => {
-    const cleanedOriginal = sanitizePossibleFileName(originalFileName);
-    if (cleanedOriginal) return cleanedOriginal;
-
-    if (isMultipart) {
-      return `Multiple original files (${sortedParts.length} items)`;
-    }
-
-    const firstPart = sortedParts[0];
-    if (firstPart) {
-      return getPartDisplayName(firstPart, createdAt, false);
-    }
-
-    if (originalMimeType) {
-      return buildGeneratedCaptureFileName({
-        mimeType: originalMimeType,
-        recordedAt: createdAt,
-        isMultipart: false,
-      });
-    }
-
-    return "Original filename not available";
-  }, [originalFileName, isMultipart, sortedParts, createdAt, originalMimeType]);
-
-  const displayStatusMeta = useMemo(
-    () =>
-      getDisplayStatusMeta(status, {
-        signed: t("statusSigned"),
-        processing: t("statusProcessing"),
-      }),
-    [status, t]
-  );
-
-  const heroSubtitle = useMemo(() => {
-  const countLabel = isMultipart
-    ? `${Math.max(sortedParts.length, itemCount)} items`
-    : "1 item";
-
-  return `${countLabel} • ${displayStatusMeta.label} • ${formatUserDateTime(createdAt)}`;
-}, [
-  isMultipart,
-  sortedParts.length,
-  itemCount,
-  displayStatusMeta.label,
-  createdAt,
-]);
-
-  const workspaceSnapshot = useMemo(
-    () =>
-      deriveWorkspaceCapabilities({
-        evidence: {
-          teamId,
-          caseId,
-          workspaceName: workspaceNameFromEvidence,
-        },
-        personal: personalWorkspace,
-        teams: teamWorkspaces,
-        ownedCases,
-      }),
-    [teamId, caseId, workspaceNameFromEvidence, personalWorkspace, teamWorkspaces, ownedCases]
-  );
-
-  const canAccessReports = workspaceSnapshot.reportsIncluded;
-  const canAccessVerificationPackage = workspaceSnapshot.verificationPackageIncluded;
-  const canUsePublicVerification = workspaceSnapshot.publicVerifyIncluded;
-  const activePlan = workspaceSnapshot.plan;
-  const activeWorkspaceName = workspaceSnapshot.workspaceName;
-  const activeWorkspaceType = workspaceSnapshot.workspaceType;
-
-  const evidenceRecordStateAllowsLock =
-    status === "SIGNED" || status === "REPORTED";
-
-  const canLockEvidence =
-    !isDeleted && !isLocked && evidenceRecordStateAllowsLock;
-
-  const canShareEvidence =
-    !isDeleted && (canUsePublicVerification || canAccessReports || canAccessVerificationPackage);
-
-  useEffect(() => {
-    if (!params?.id) return;
-
-    let cancelled = false;
-
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const [
-          evidenceRes,
-          billingRes,
-          reportRes,
-          originalRes,
-          casesRes,
-          partsRes,
-          verificationPackageRes,
-        ] = await Promise.allSettled([
-          apiFetch(`/v1/evidence/${params.id}`),
-          apiFetch("/v1/billing/overview"),
-          apiFetch(`/v1/evidence/${params.id}/report/latest`),
-          apiFetch(`/v1/evidence/${params.id}/original`),
-          apiFetch("/v1/cases"),
-          apiFetch(`/v1/evidence/${params.id}/parts`),
-          apiFetch(`/v1/evidence/${params.id}/verification-package`),
-        ]);
-
-        if (cancelled) return;
-
-        if (evidenceRes.status === "fulfilled") {
-          const data = evidenceRes.value as EvidenceResponse;
-          const ev = data?.evidence ?? {};
-          setStatus(ev.status ?? "CREATED");
-          setCreatedAt(ev.createdAt ?? null);
-          setLockedAt(ev.lockedAt ?? null);
-          setArchivedAt(ev.archivedAt ?? null);
-          setDeletedAt(ev.deletedAt ?? null);
-          setDeleteScheduledForUtc(ev.deleteScheduledForUtc ?? null);
-          setCaseId(ev.caseId ?? null);
-          setTeamId(ev.teamId ?? null);
-          setWorkspaceNameFromEvidence(ev.workspaceName ?? null);
-          setEvidenceType(ev.type ?? null);
-          setReportGeneratedAtUtc(ev.reportGeneratedAtUtc ?? null);
-          setVerificationPackageGeneratedAtUtc(
-            ev.verificationPackageGeneratedAtUtc ?? null
-          );
-          setCapturedAtUtc(ev.capturedAtUtc ?? null);
-          setDeviceTimeIso(ev.deviceTimeIso ?? null);
-          setCaptureLat(typeof ev.lat === "number" ? ev.lat : null);
-          setCaptureLng(typeof ev.lng === "number" ? ev.lng : null);
-          setCaptureAccuracyMeters(
-            typeof ev.accuracyMeters === "number" ? ev.accuracyMeters : null
-          );
-          setInternalNotes(ev.internalNotes ?? null);
-          setIntakePlanJson(ev.intakePlanJson ?? null);
-          setLabel(resolveDisplayTitle(ev));
-          setLabelDraft(resolveDisplayTitle(ev));
-          setDisplaySubtitle(resolveDisplaySubtitle(ev));
-          setItemCount(typeof ev.itemCount === "number" && ev.itemCount > 0 ? ev.itemCount : 1);
-          setEvidenceIntelligence(ev.evidenceIntelligence ?? null);
-        } else {
-          throw evidenceRes.reason;
-        }
-
-        if (billingRes.status === "fulfilled") {
-          const overview = (billingRes.value ?? null) as BillingOverviewResponse | null;
-          setBillingOverview(overview);
-          setPersonalWorkspace(overview?.workspaces?.personal ?? null);
-          setTeamWorkspaces(
-            Array.isArray(overview?.workspaces?.teams) ? overview.workspaces.teams : []
-          );
-        } else {
-          setBillingOverview(null);
-          setPersonalWorkspace(null);
-          setTeamWorkspaces([]);
-        }
-
-        if (reportRes.status === "fulfilled") {
-          const generatedAtUtc =
-            typeof reportRes.value?.generatedAtUtc === "string"
-              ? reportRes.value.generatedAtUtc
-              : null;
-          setReportAvailable(Boolean(reportRes.value?.url && generatedAtUtc));
-          if (generatedAtUtc) setReportGeneratedAtUtc(generatedAtUtc);
-        } else {
-          setReportAvailable(false);
-        }
-
-        if (casesRes.status === "fulfilled") {
-          const items = Array.isArray(casesRes.value?.items)
-            ? (casesRes.value.items as CaseOption[])
-            : [];
-          setOwnedCases(items);
-        } else {
-          setOwnedCases([]);
-        }
-
-        if (partsRes.status === "fulfilled") {
-          const data = partsRes.value as PartsResponse;
-          const items = Array.isArray(data?.parts) ? data.parts : [];
-          items.sort((a, b) => a.partIndex - b.partIndex);
-          setParts(items);
-        } else {
-          setParts([]);
-        }
-
-        if (verificationPackageRes.status === "fulfilled") {
-          const generatedAtUtc =
-            typeof verificationPackageRes.value?.generatedAtUtc === "string"
-              ? verificationPackageRes.value.generatedAtUtc
-              : null;
-          setVerificationPackageAvailable(
-            Boolean(verificationPackageRes.value?.url && generatedAtUtc)
-          );
-          if (generatedAtUtc) setVerificationPackageGeneratedAtUtc(generatedAtUtc);
-        } else {
-          setVerificationPackageAvailable(false);
-        }
-
-        if (originalRes.status === "fulfilled") {
-          const original = originalRes.value as OriginalResponse;
-          setOriginalPreviewUrl(original?.publicUrl ?? original?.url ?? null);
-          setOriginalDownloadUrl(original?.url ?? original?.publicUrl ?? null);
-          setOriginalMimeType(original?.mimeType ?? null);
-          setOriginalSizeBytes(original?.sizeBytes ?? null);
-          setOriginalFileName(original?.originalFileName ?? null);
-        } else {
-          setOriginalPreviewUrl(null);
-          setOriginalDownloadUrl(null);
-          setOriginalMimeType(null);
-          setOriginalSizeBytes(null);
-          setOriginalFileName(null);
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to load evidence";
-        setError(message);
-        captureException(err, {
-          feature: "web_evidence_detail_load",
-          evidenceId: params.id,
-        });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [params?.id]);
-
-  const refreshEvidence = async () => {
-    if (!params?.id) return;
-
+    setLoading(true);
+    setError(null);
     try {
-      const [
-        evidenceData,
-        billingData,
-        reportData,
-        originalData,
-        partsData,
-        verificationData,
-      ] = await Promise.allSettled([
-        apiFetch(`/v1/evidence/${params.id}`),
-        apiFetch("/v1/billing/overview"),
-        apiFetch(`/v1/evidence/${params.id}/report/latest`),
-        apiFetch(`/v1/evidence/${params.id}/original`),
-        apiFetch(`/v1/evidence/${params.id}/parts`),
-        apiFetch(`/v1/evidence/${params.id}/verification-package`),
+      const [workspaceResult, casesResult] = await Promise.allSettled([
+        apiFetch(`/v1/evidence/${evidenceId}/review-workspace`),
+        apiFetch("/v1/cases"),
       ]);
 
-      if (evidenceData.status === "fulfilled") {
-        const data = evidenceData.value as EvidenceResponse;
-        const ev = data?.evidence ?? {};
-        setStatus(ev.status ?? "CREATED");
-        setCreatedAt(ev.createdAt ?? null);
-        setLockedAt(ev.lockedAt ?? null);
-        setArchivedAt(ev.archivedAt ?? null);
-        setDeletedAt(ev.deletedAt ?? null);
-        setDeleteScheduledForUtc(ev.deleteScheduledForUtc ?? null);
-        setCaseId(ev.caseId ?? null);
-        setTeamId(ev.teamId ?? null);
-        setWorkspaceNameFromEvidence(ev.workspaceName ?? null);
-        setEvidenceType(ev.type ?? null);
-        setReportGeneratedAtUtc(ev.reportGeneratedAtUtc ?? null);
-        setVerificationPackageGeneratedAtUtc(
-          ev.verificationPackageGeneratedAtUtc ?? null
-        );
-        setCapturedAtUtc(ev.capturedAtUtc ?? null);
-        setDeviceTimeIso(ev.deviceTimeIso ?? null);
-        setCaptureLat(typeof ev.lat === "number" ? ev.lat : null);
-        setCaptureLng(typeof ev.lng === "number" ? ev.lng : null);
-        setCaptureAccuracyMeters(
-          typeof ev.accuracyMeters === "number" ? ev.accuracyMeters : null
-        );
-        setInternalNotes(ev.internalNotes ?? null);
-        setIntakePlanJson(ev.intakePlanJson ?? null);
-        setLabel(resolveDisplayTitle(ev));
-        setLabelDraft(resolveDisplayTitle(ev));
-        setDisplaySubtitle(resolveDisplaySubtitle(ev));
-        setItemCount(typeof ev.itemCount === "number" && ev.itemCount > 0 ? ev.itemCount : 1);
-        setEvidenceIntelligence(ev.evidenceIntelligence ?? null);
+      if (workspaceResult.status !== "fulfilled") {
+        throw workspaceResult.reason;
       }
 
-      if (billingData.status === "fulfilled") {
-        const overview = (billingData.value ?? null) as BillingOverviewResponse | null;
-        setBillingOverview(overview);
-        setPersonalWorkspace(overview?.workspaces?.personal ?? null);
-        setTeamWorkspaces(
-          Array.isArray(overview?.workspaces?.teams) ? overview.workspaces.teams : []
-        );
-      }
+      const workspaceData = workspaceResult.value as ReviewWorkspaceResponse;
+      setWorkspace(workspaceData);
+      setLabelDraft(workspaceData.evidence.displayTitle || workspaceData.evidence.title);
+      setWorkflowStatusDraft(workspaceData.reviewWorkflow.status || "NOT_STARTED");
+      setWorkflowPriorityDraft(workspaceData.reviewWorkflow.priority || "NORMAL");
+      setWorkflowAssigneeDraft(workspaceData.reviewWorkflow.assignedTo?.id || "");
+      setWorkflowDueAtDraft(
+        workspaceData.reviewWorkflow.dueAt
+          ? workspaceData.reviewWorkflow.dueAt.slice(0, 16)
+          : ""
+      );
+      setWorkflowNoteDraft("");
 
-      if (reportData.status === "fulfilled") {
-        const generatedAtUtc =
-          typeof reportData.value?.generatedAtUtc === "string"
-            ? reportData.value.generatedAtUtc
-            : null;
-        setReportAvailable(Boolean(reportData.value?.url && generatedAtUtc));
-        if (generatedAtUtc) setReportGeneratedAtUtc(generatedAtUtc);
+      if (casesResult.status === "fulfilled") {
+        const items = Array.isArray(casesResult.value?.items)
+          ? (casesResult.value.items as CaseOption[])
+          : [];
+        setCases(items);
       } else {
-        setReportAvailable(false);
+        setCases([]);
       }
-
-      if (originalData.status === "fulfilled") {
-        const original = originalData.value as OriginalResponse;
-        setOriginalPreviewUrl(original?.publicUrl ?? original?.url ?? null);
-        setOriginalDownloadUrl(original?.url ?? original?.publicUrl ?? null);
-        setOriginalMimeType(original?.mimeType ?? null);
-        setOriginalSizeBytes(original?.sizeBytes ?? null);
-        setOriginalFileName(original?.originalFileName ?? null);
-      } else {
-        setOriginalPreviewUrl(null);
-        setOriginalDownloadUrl(null);
-        setOriginalMimeType(null);
-        setOriginalSizeBytes(null);
-        setOriginalFileName(null);
-      }
-
-      if (partsData.status === "fulfilled") {
-        const data = partsData.value as PartsResponse;
-        const items = Array.isArray(data?.parts) ? data.parts : [];
-        items.sort((a, b) => a.partIndex - b.partIndex);
-        setParts(items);
-      } else {
-        setParts([]);
-      }
-
-      if (verificationData.status === "fulfilled") {
-        const generatedAtUtc =
-          typeof verificationData.value?.generatedAtUtc === "string"
-            ? verificationData.value.generatedAtUtc
-            : null;
-        setVerificationPackageAvailable(
-          Boolean(verificationData.value?.url && generatedAtUtc)
-        );
-        if (generatedAtUtc) setVerificationPackageGeneratedAtUtc(generatedAtUtc);
-      } else {
-        setVerificationPackageAvailable(false);
-      }
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_refresh",
-        evidenceId: params.id,
+    } catch (loadError) {
+      const message =
+        loadError instanceof Error ? loadError.message : "Failed to load evidence review workspace";
+      setError(message);
+      captureException(loadError, {
+        feature: "web_evidence_review_workspace_load",
+        evidenceId,
       });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleStartEditLabel = () => {
-    setLabelDraft(label);
-    setIsEditingLabel(true);
+  useEffect(() => {
+    void loadWorkspace();
+  }, [evidenceId]);
+
+  useEffect(() => {
+    if (!evidenceId) return;
+    void loadWorkflowEvents();
+  }, [evidenceId]);
+
+  const loadWorkflowEvents = async () => {
+    if (!evidenceId) return;
+    setWorkflowEventsLoading(true);
+    try {
+      const response = (await apiFetch(
+        `/v1/evidence/${evidenceId}/reviewer-workflow/events`
+      )) as { items?: Array<{
+        id: string;
+        eventType: string;
+        note: string | null;
+        previousValue: unknown;
+        nextValue: unknown;
+        createdAt: string;
+        actor: { id: string; email: string | null; displayName: string | null } | null;
+      }> };
+      setWorkflowEvents(Array.isArray(response.items) ? response.items : []);
+    } catch (loadError) {
+      captureException(loadError, {
+        feature: "web_evidence_workflow_events_load",
+        evidenceId,
+      });
+      addToast("Failed to load workflow history", "error");
+    } finally {
+      setWorkflowEventsLoading(false);
+    }
   };
 
-  const handleCancelEditLabel = () => {
-    setLabelDraft(label);
-    setIsEditingLabel(false);
+  const saveWorkflow = async () => {
+    if (!evidenceId) return;
+    setActionBusy(true);
+    try {
+      await apiFetch(`/v1/evidence/${evidenceId}/reviewer-workflow`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          assignedToUserId: workflowAssigneeDraft || null,
+          status: workflowStatusDraft,
+          priority: workflowPriorityDraft,
+          dueAt: workflowDueAtDraft ? new Date(workflowDueAtDraft).toISOString() : null,
+          note: workflowNoteDraft || null,
+        }),
+      });
+      addToast("Reviewer workflow updated", "success");
+      setWorkflowOpen(false);
+      await Promise.all([loadWorkspace(), loadWorkflowEvents()]);
+    } catch (saveError) {
+      captureException(saveError, {
+        feature: "web_evidence_workflow_update",
+        evidenceId,
+      });
+      addToast(saveError instanceof Error ? saveError.message : "Failed to update workflow", "error");
+    } finally {
+      setActionBusy(false);
+    }
   };
+
+  const saveRelationship = async () => {
+    if (!evidenceId || !relationshipTargetId) return;
+    setActionBusy(true);
+    try {
+      await apiFetch(`/v1/evidence/${evidenceId}/relationships`, {
+        method: "POST",
+        body: JSON.stringify({
+          targetEvidenceId: relationshipTargetId,
+          relationshipType,
+          note: relationshipNote || null,
+        }),
+      });
+      addToast("Relationship recorded", "success");
+      setRelationshipOpen(false);
+      setRelationshipTargetId("");
+      setRelationshipType("RELATED");
+      setRelationshipNote("");
+      await loadWorkspace();
+    } catch (saveError) {
+      captureException(saveError, {
+        feature: "web_evidence_relationship_create",
+        evidenceId,
+      });
+      addToast(saveError instanceof Error ? saveError.message : "Failed to create relationship", "error");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const evidence = workspace?.evidence ?? null;
+  const workspaceCaps = workspace?.workspaceCapabilitySnapshot ?? null;
+
+  const reviewSignals = useMemo(
+    () =>
+      workspace
+        ? buildRiskSignals(workspace.sourceContext, workspace.reviewerAlerts)
+        : [],
+    [workspace]
+  );
+
+  const reviewReadinessItems = useMemo(() => {
+    if (!workspace) return [];
+    return [
+      {
+        label: "Report artifact",
+        value: workspace.artifactVersions.latestReport.available ? "Available" : "Not generated",
+      },
+      {
+        label: "Verification package",
+        value: workspace.artifactVersions.latestVerificationPackage.available
+          ? "Available"
+          : workspaceCaps?.verificationPackageIncluded
+            ? "Not generated"
+            : "Not included on plan",
+      },
+      {
+        label: "Public verification",
+        value: workspace.publicVerificationSummary.enabled
+          ? workspace.publicVerificationSummary.published
+            ? "Enabled"
+            : "Supported but not published"
+          : "Not included on plan",
+      },
+      {
+        label: "Case assignment",
+        value: workspace.relationships.caseName || "Unassigned",
+      },
+    ];
+  }, [workspace, workspaceCaps]);
 
   const handleSaveLabel = async () => {
-    if (!params?.id) return;
+    if (!evidenceId || !labelDraft.trim()) return;
 
-    const nextLabel = labelDraft.trim();
-    if (!nextLabel) {
-      addToast("Label cannot be empty", "error");
-      return;
-    }
-
-    setLabelBusy(true);
+    setActionBusy(true);
     try {
-      const data = await apiFetch(`/v1/evidence/${params.id}/label`, {
+      await apiFetch(`/v1/evidence/${evidenceId}/label`, {
         method: "PATCH",
-        body: JSON.stringify({ label: nextLabel }),
+        body: JSON.stringify({ label: labelDraft.trim() }),
       });
-
-      const ev = data?.evidence ?? {};
-      const nextResolvedLabel = data?.displayLabel || resolveDisplayTitle(ev);
-      const nextResolvedSubtitle = data?.displaySubtitle || resolveDisplaySubtitle(ev);
-
-      setLabel(nextResolvedLabel);
-      setLabelDraft(nextResolvedLabel);
-      setDisplaySubtitle(nextResolvedSubtitle);
-      setItemCount(typeof data?.itemCount === "number" && data.itemCount > 0 ? data.itemCount : itemCount);
-      setIsEditingLabel(false);
+      setEditingLabel(false);
       addToast("Evidence label updated", "success");
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_update_label",
-        evidenceId: params.id,
+      await loadWorkspace();
+    } catch (updateError) {
+      captureException(updateError, {
+        feature: "web_evidence_detail_update_label",
+        evidenceId,
       });
-      const message = err instanceof Error ? err.message : "Failed to update label";
-      addToast(message, "error");
-    } finally {
-      setLabelBusy(false);
-    }
-  };
-
-  const handleLock = () => setLockModalOpen(true);
-  const handleArchive = () => setArchiveModalOpen(true);
-  const handleDelete = () => setDeleteModalOpen(true);
-
-  const handleOpenShareModal = () => {
-    if (!canShareEvidence) return;
-    setShareModalOpen(true);
-  };
-
-  const handleCopyVerificationLink = async () => {
-    if (!params?.id) return;
-    if (!canUsePublicVerification) {
-      addToast("Public verification is not enabled for this workspace", "info");
-      return;
-    }
-
-    try {
-      setShareActionBusy(true);
-      const verificationUrl = getVerificationUrl(params.id);
-      await navigator.clipboard.writeText(verificationUrl);
-      addToast("Verification link copied", "success");
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_copy_verification_link",
-        evidenceId: params.id,
-      });
-      addToast("Failed to copy verification link", "error");
-    } finally {
-      setShareActionBusy(false);
-    }
-  };
-
-  const handleCopySha256 = async (value: string | null | undefined) => {
-    if (!value) return;
-
-    try {
-      await navigator.clipboard.writeText(value);
-      addToast("SHA-256 copied", "success");
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_copy_sha256",
-        evidenceId: params.id,
-      });
-      addToast("Failed to copy SHA-256", "error");
-    }
-  };
-
-  const handleConfirmLock = async () => {
-    if (!params?.id) return;
-
-    setActionBusy(true);
-    try {
-      addToast("Permanently sealing evidence...", "info");
-      const data = await apiFetch(`/v1/evidence/${params.id}/lock`, {
-        method: "POST",
-        body: JSON.stringify({ locked: true }),
-      });
-      setLockedAt(data.evidence?.lockedAt ?? new Date().toISOString());
-      addToast("Evidence permanently locked", "success");
-      setLockModalOpen(false);
-      await refreshEvidence();
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_lock",
-        evidenceId: params.id,
-      });
-      const message = err instanceof Error ? err.message : "Failed to lock evidence";
-      setError(message);
-      addToast(message, "error");
+      addToast(updateError instanceof Error ? updateError.message : "Failed to update label", "error");
     } finally {
       setActionBusy(false);
     }
   };
 
-  const handleConfirmArchive = async () => {
-    if (!params?.id) return;
-
-    setActionBusy(true);
+  const openOriginal = async () => {
+    if (!evidenceId) return;
     try {
-      addToast("Archiving evidence...", "info");
-      const data = await apiFetch(`/v1/evidence/${params.id}/archive`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
-      setArchivedAt(data.evidence?.archivedAt ?? new Date().toISOString());
-      addToast("Evidence archived", "success");
-      setArchiveModalOpen(false);
-      await refreshEvidence();
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_archive",
-        evidenceId: params.id,
-      });
-      const message = err instanceof Error ? err.message : "Failed to archive evidence";
-      setError(message);
-      addToast(message, "error");
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const handleUnarchive = async () => {
-    if (!params?.id) return;
-
-    setActionBusy(true);
-    try {
-      addToast("Restoring evidence...", "info");
-      const data = await apiFetch(`/v1/evidence/${params.id}/unarchive`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
-      setArchivedAt(data.evidence?.archivedAt ?? null);
-      addToast("Evidence restored", "success");
-      await refreshEvidence();
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_unarchive",
-        evidenceId: params.id,
-      });
-      const message = err instanceof Error ? err.message : "Failed to restore evidence";
-      setError(message);
-      addToast(message, "error");
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!params?.id) return;
-
-    setActionBusy(true);
-    try {
-      addToast("Deleting evidence...", "info");
-      const data = await apiFetch(`/v1/evidence/${params.id}`, {
-        method: "DELETE",
-      });
-
-      setDeletedAt(data?.evidence?.deletedAt ?? new Date().toISOString());
-      setDeleteScheduledForUtc(data?.evidence?.deleteScheduledForUtc ?? null);
-      setDeleteModalOpen(false);
-
-      addToast("Evidence deleted", "success");
-      await refreshEvidence();
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_delete",
-        evidenceId: params.id,
-      });
-      const message = err instanceof Error ? err.message : "Failed to delete evidence";
-      setError(message);
-      addToast(message, "error");
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const handleRestoreDeleted = async () => {
-    if (!params?.id) return;
-
-    setActionBusy(true);
-    try {
-      addToast("Restoring evidence from trash...", "info");
-      await apiFetch(`/v1/evidence/${params.id}/restore`, {
-        method: "POST",
-        body: JSON.stringify({ restore: true }),
-      });
-
-      setDeletedAt(null);
-      setDeleteScheduledForUtc(null);
-
-      addToast("Evidence restored from trash", "success");
-      await refreshEvidence();
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_restore_deleted",
-        evidenceId: params.id,
-      });
-      const message = err instanceof Error ? err.message : "Failed to restore evidence";
-      setError(message);
-      addToast(message, "error");
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const handleDownloadReport = async () => {
-    if (!params?.id) return;
-
-    if (!canAccessReports) {
-      addToast(
-        `${activeWorkspaceName} does not include PDF reports on the current plan`,
-        "info"
-      );
-      return;
-    }
-
-    try {
-      addToast("Preparing report...", "info");
-      const data = await apiFetch(`/v1/evidence/${params.id}/report/latest`);
-      const nextUrl = data?.url ?? null;
-
-      if (!nextUrl || typeof data?.generatedAtUtc !== "string") {
-        setReportAvailable(false);
-        addToast("Report not available", "info");
-        return;
-      }
-
-      setReportAvailable(true);
-      setReportGeneratedAtUtc(data.generatedAtUtc);
-      window.open(nextUrl, "_blank", "noopener,noreferrer");
-      addToast("Report downloaded", "success");
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_download_report",
-        evidenceId: params.id,
-      });
-      addToast("Failed to download report", "error");
-    }
-  };
-
-  const handleDownloadVerificationPackage = async () => {
-    if (!params?.id) return;
-
-    if (!canAccessVerificationPackage) {
-      addToast(
-        `${activeWorkspaceName} does not include verification packages on the current plan`,
-        "info"
-      );
-      return;
-    }
-
-    try {
-      addToast("Preparing verification package...", "info");
-      const data = await apiFetch(`/v1/evidence/${params.id}/verification-package`);
-
-      if (!data?.url || typeof data?.generatedAtUtc !== "string") {
-        setVerificationPackageAvailable(false);
-        addToast("Verification package not available", "info");
-        return;
-      }
-
-      setVerificationPackageAvailable(true);
-      setVerificationPackageGeneratedAtUtc(data.generatedAtUtc);
-      const ok = await tryDownloadFile(data.url, `verification-package-${params.id}.zip`);
-
-      if (!ok) {
-        window.open(data.url, "_blank", "noopener,noreferrer");
-      }
-
-      addToast("Verification package downloaded", "success");
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_verification_package_download",
-        evidenceId: params.id,
-      });
-      addToast("Failed to download verification package", "error");
-    }
-  };
-
-  const handleOpenOriginal = async () => {
-    if (!params?.id) return;
-
-    try {
-      if (!originalDownloadUrl) {
-        const data = await apiFetch(`/v1/evidence/${params.id}/original`);
-        const nextUrl = data?.url ?? data?.publicUrl ?? null;
-        setOriginalPreviewUrl(data?.publicUrl ?? data?.url ?? null);
-        setOriginalDownloadUrl(nextUrl);
-        setOriginalMimeType(data?.mimeType ?? null);
-        setOriginalSizeBytes(data?.sizeBytes ?? null);
-        setOriginalFileName(data?.originalFileName ?? null);
-
-        if (!nextUrl) {
-          addToast("Original file not available", "info");
-          return;
-        }
-
-        window.open(nextUrl, "_blank", "noopener,noreferrer");
-        return;
-      }
-
-      window.open(originalDownloadUrl, "_blank", "noopener,noreferrer");
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_open_original",
-        evidenceId: params.id,
-      });
-      addToast("Failed to open original", "error");
-    }
-  };
-
-  const handleDownloadOriginal = async () => {
-    if (!params?.id) return;
-
-    try {
-      let downloadUrl = originalDownloadUrl;
-      let filename =
-        sanitizePossibleFileName(originalFileName) ||
-        buildGeneratedCaptureFileName({
-          mimeType: originalMimeType,
-          recordedAt: createdAt,
-          isMultipart: false,
-        });
-
-      if (!downloadUrl) {
-        const data = await apiFetch(`/v1/evidence/${params.id}/original`);
-        downloadUrl = data?.url ?? data?.publicUrl ?? null;
-
-        setOriginalPreviewUrl(data?.publicUrl ?? data?.url ?? null);
-        setOriginalDownloadUrl(downloadUrl);
-        setOriginalMimeType(data?.mimeType ?? null);
-        setOriginalSizeBytes(data?.sizeBytes ?? null);
-        setOriginalFileName(data?.originalFileName ?? null);
-
-        if (data?.originalFileName) {
-          filename = sanitizePossibleFileName(data.originalFileName) ?? filename;
-        }
-      }
-
-      if (!downloadUrl) {
+      const data = (await apiFetch(`/v1/evidence/${evidenceId}/original`)) as {
+        url?: string | null;
+        publicUrl?: string | null;
+      };
+      const url = data.publicUrl ?? data.url ?? null;
+      if (!url) {
         addToast("Original file not available", "info");
         return;
       }
-
-      const ok = await tryDownloadFile(downloadUrl, filename);
-
-      if (!ok) {
-        window.open(downloadUrl, "_blank", "noopener,noreferrer");
-      }
-
-      addToast("Original downloaded", "success");
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_download_original",
-        evidenceId: params.id,
-      });
-      addToast("Failed to download original", "error");
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (openError) {
+      addToast("Failed to open original", "error");
+      captureException(openError, { feature: "web_evidence_open_original", evidenceId });
     }
   };
 
-  const handleOpenPart = (part: EvidencePart) => {
-    const url = part.url ?? part.publicUrl ?? null;
-    if (!url) {
-      addToast("This item is not available right now", "info");
-      return;
-    }
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
-
-  const handleDownloadPart = async (part: EvidencePart) => {
-    const url = part.url ?? part.publicUrl ?? null;
-    if (!url) {
-      addToast("This item is not available right now", "info");
-      return;
-    }
-
+  const downloadOriginal = async () => {
+    if (!evidenceId) return;
     try {
-      const ok = await tryDownloadFile(
-        url,
-        getPartDisplayName(part, createdAt, isMultipart)
-      );
+      const data = (await apiFetch(`/v1/evidence/${evidenceId}/original`)) as {
+        url?: string | null;
+        publicUrl?: string | null;
+        originalFileName?: string | null;
+      };
+      const url = data.url ?? data.publicUrl ?? null;
+      if (!url) {
+        addToast("Original file not available", "info");
+        return;
+      }
+      const ok = await tryDownloadFile(url, data.originalFileName || `evidence-${evidenceId}`);
       if (!ok) {
         window.open(url, "_blank", "noopener,noreferrer");
       }
-      addToast("Item downloaded", "success");
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_download_part",
-        evidenceId: params.id,
-        partId: part.id,
-      });
-      addToast("Failed to download this item", "error");
+      addToast("Original downloaded", "success");
+    } catch (downloadError) {
+      addToast("Failed to download original", "error");
+      captureException(downloadError, { feature: "web_evidence_download_original", evidenceId });
     }
   };
 
-  const handleOpenAssignCase = () => {
-    if (ownedCases.length === 0) {
-      addToast("You do not have any accessible cases yet", "info");
+  const downloadReport = async () => {
+    if (!evidenceId || !workspaceCaps) return;
+    if (!workspaceCaps.reportsIncluded) {
+      addToast("PDF reports are not included on the current workspace plan", "info");
       return;
     }
-
-    setSelectedCaseId(caseId ?? "");
-    setAssignCaseModalOpen(true);
+    try {
+      const data = (await apiFetch(`/v1/evidence/${evidenceId}/report/latest`)) as {
+        url?: string | null;
+      };
+      if (!data.url) {
+        addToast("Report not available", "info");
+        return;
+      }
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (downloadError) {
+      addToast("Failed to download report", "error");
+      captureException(downloadError, { feature: "web_evidence_download_report", evidenceId });
+    }
   };
 
-  const handleConfirmAssignCase = async () => {
-    if (!params?.id || !selectedCaseId) return;
+  const downloadVerificationPackage = async () => {
+    if (!evidenceId || !workspaceCaps) return;
+    if (!workspaceCaps.verificationPackageIncluded) {
+      addToast("Verification packages are not included on the current workspace plan", "info");
+      return;
+    }
+    try {
+      const data = (await apiFetch(`/v1/evidence/${evidenceId}/verification-package`)) as {
+        url?: string | null;
+      };
+      if (!data.url) {
+        addToast("Verification package not available", "info");
+        return;
+      }
+      const ok = await tryDownloadFile(data.url, `verification-package-${evidenceId}.zip`);
+      if (!ok) {
+        window.open(data.url, "_blank", "noopener,noreferrer");
+      }
+    } catch (downloadError) {
+      addToast("Failed to download verification package", "error");
+      captureException(downloadError, {
+        feature: "web_evidence_download_verification_package",
+        evidenceId,
+      });
+    }
+  };
 
+  const copyShareLink = async () => {
+    const url = buildShareUrl(workspace?.publicVerificationSummary.sharePath) || workspace?.publicVerificationSummary.publicUrl || null;
+    if (!url) {
+      addToast("Public verification link is not available in the current response", "info");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      addToast("Verification link copied", "success");
+    } catch (copyError) {
+      addToast("Failed to copy verification link", "error");
+      captureException(copyError, { feature: "web_evidence_copy_share_link", evidenceId });
+    }
+  };
+
+  const runRecordAction = async (path: string, successMessage: string) => {
+    if (!evidenceId) return;
     setActionBusy(true);
     try {
-      addToast("Adding evidence to case...", "info");
+      await apiFetch(path, { method: "POST", body: JSON.stringify({}) });
+      addToast(successMessage, "success");
+      await loadWorkspace();
+    } catch (runError) {
+      addToast(runError instanceof Error ? runError.message : "Action failed", "error");
+      captureException(runError, { feature: "web_evidence_record_action", evidenceId, path });
+    } finally {
+      setActionBusy(false);
+    }
+  };
 
+  const moveToTrash = async () => {
+    if (!evidenceId) return;
+    setActionBusy(true);
+    try {
+      await apiFetch(`/v1/evidence/${evidenceId}`, { method: "DELETE" });
+      addToast("Evidence moved to trash", "success");
+      await loadWorkspace();
+    } catch (runError) {
+      addToast(runError instanceof Error ? runError.message : "Delete failed", "error");
+      captureException(runError, { feature: "web_evidence_move_to_trash", evidenceId });
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const restoreTrash = async () => {
+    if (!evidenceId) return;
+    setActionBusy(true);
+    try {
+      await apiFetch(`/v1/evidence/${evidenceId}/restore`, {
+        method: "POST",
+        body: JSON.stringify({ restore: true }),
+      });
+      addToast("Evidence restored from trash", "success");
+      await loadWorkspace();
+    } catch (runError) {
+      addToast(runError instanceof Error ? runError.message : "Restore failed", "error");
+      captureException(runError, { feature: "web_evidence_restore_trash", evidenceId });
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const assignCase = async () => {
+    if (!evidenceId || !selectedCaseId) return;
+    setActionBusy(true);
+    try {
       await apiFetch(`/v1/cases/${selectedCaseId}/evidence`, {
         method: "POST",
-        body: JSON.stringify({ evidenceId: params.id }),
+        body: JSON.stringify({ evidenceId }),
       });
-
-      setCaseId(selectedCaseId);
-      setAssignCaseModalOpen(false);
       addToast("Evidence added to case", "success");
-      await refreshEvidence();
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_add_to_case",
-        evidenceId: params.id,
-        targetCaseId: selectedCaseId,
-      });
-      const message = err instanceof Error ? err.message : "Failed to add evidence to case";
-      addToast(message, "error");
+      setAssignCaseOpen(false);
+      await loadWorkspace();
+    } catch (runError) {
+      addToast(runError instanceof Error ? runError.message : "Assignment failed", "error");
+      captureException(runError, { feature: "web_evidence_assign_case", evidenceId });
     } finally {
       setActionBusy(false);
     }
   };
 
-  const handleRemoveFromCase = async () => {
-    if (!params?.id || !caseId) return;
-
+  const removeCase = async () => {
+    if (!evidenceId || !workspace?.relationships.caseId) return;
     setActionBusy(true);
     try {
-      addToast("Removing evidence from case...", "info");
-
-      await apiFetch(`/v1/cases/${caseId}/evidence/${params.id}`, {
+      await apiFetch(`/v1/cases/${workspace.relationships.caseId}/evidence/${evidenceId}`, {
         method: "DELETE",
       });
-
-      setCaseId(null);
       addToast("Evidence removed from case", "success");
-      await refreshEvidence();
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_remove_from_case",
-        evidenceId: params.id,
-        caseId,
-      });
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Failed to remove evidence from case";
-      addToast(message, "error");
+      await loadWorkspace();
+    } catch (runError) {
+      addToast(runError instanceof Error ? runError.message : "Remove failed", "error");
+      captureException(runError, { feature: "web_evidence_remove_case", evidenceId });
     } finally {
       setActionBusy(false);
     }
   };
 
-  const landingPrimaryButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.22)",
-        color: "#eef3f1",
-        background:
-          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
-        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
+  if (loading) {
+    return (
+      <div className="evidence-detail-page">
+        <div className="evidence-detail-shell">
+          <div className="evidence-detail-loading">Loading evidence review workspace…</div>
+        </div>
+      </div>
+    );
+  }
 
-  const landingSecondaryButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.12)",
-        color: "#24373b",
-        background:
-          "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
-        boxShadow:
-          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
-        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
+  if (error || !workspace || !evidence || !workspaceCaps) {
+    return (
+      <div className="evidence-detail-page">
+        <div className="evidence-detail-shell">
+          <section className="evidence-detail-card evidence-detail-error-card">
+            <p className="evidence-detail-kicker">Evidence Review Workspace</p>
+            <h1>Unable to load the record</h1>
+            <p>{error || "The evidence review workspace is unavailable right now."}</p>
+            <div className="evidence-detail-inline-actions">
+              <Button onClick={() => void loadWorkspace()}>Retry</Button>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
 
-  const landingTertiaryButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(183,157,132,0.16)",
-        color: "#7a624d",
-        background:
-          "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
-        boxShadow:
-          "0 10px 20px rgba(92,69,50,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
-        textShadow: "0 1px 0 rgba(255,255,255,0.32)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
-
-  const landingDangerButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(183,157,132,0.20)",
-        color: "#fff7f1",
-        background:
-          "linear-gradient(180deg, rgba(142,102,72,0.96) 0%, rgba(102,68,45,0.98) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(90,58,36,0.18)",
-        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
-
-  const landingDeleteButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(194,78,78,0.20)",
-        color: "#fff3f3",
-        background:
-          "linear-gradient(180deg, rgba(164,84,84,0.94) 0%, rgba(130,62,62,0.98) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(90,18,18,0.14)",
-        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
-
-  const canAssignToCase = ownedCases.length > 0 && !isDeleted;
-
-  const originalRenderableUrl = useMemo(() => {
-    if (originalKind === "video" || originalKind === "audio") {
-      return originalDownloadUrl ?? originalPreviewUrl ?? null;
-    }
-    return originalPreviewUrl ?? originalDownloadUrl ?? null;
-  }, [originalKind, originalDownloadUrl, originalPreviewUrl]);
-
-  const hasCaptureLocation = useMemo(
-    () =>
-      hasCaptureLocationMetadata({
-        lat: captureLat,
-        lng: captureLng,
-      }),
-    [captureLat, captureLng]
-  );
-
-  const captureLocationCapturedAtLabel = useMemo(
-    () => formatUserDateTime(capturedAtUtc ?? deviceTimeIso ?? createdAt),
-    [capturedAtUtc, createdAt, deviceTimeIso]
-  );
-
-  const intakePlanSummary = useMemo(() => {
-    if (!intakePlanJson || typeof intakePlanJson !== "object") return null;
-    const name =
-      typeof intakePlanJson.templateName === "string"
-        ? intakePlanJson.templateName
-        : typeof intakePlanJson.templateId === "string"
-          ? intakePlanJson.templateId
-          : null;
-    const mode =
-      intakePlanJson.mode === "CHECKLIST_REQUIRED"
-        ? "Checklist required"
-        : intakePlanJson.mode === "FLEXIBLE"
-          ? "Flexible intake"
-          : "Flexible intake";
-
-    if (!name) return mode;
-    return `${name} • ${mode}`;
-  }, [intakePlanJson]);
-
-  const statusToneClass =
-    displayStatusMeta.tone === "reportReady" || displayStatusMeta.tone === "signed"
-      ? "success"
-      : displayStatusMeta.tone === "processing"
-        ? "warning"
-        : "neutral";
-
-  type ReviewRow = {
-    label: string;
-    value: string;
-    ok: boolean;
-  };
-
-  const reviewReadinessRows: ReviewRow[] = [
-    { label: "PDF report", value: reportAvailable ? "Available" : "Not available", ok: reportAvailable },
-    { label: "Verification package", value: verificationPackageAvailable ? "Available" : "Not available", ok: verificationPackageAvailable },
-    { label: "Public verification", value: canUsePublicVerification ? "Enabled" : "Not enabled", ok: canUsePublicVerification },
-    { label: "Case Context", value: caseId ? "Attached" : "Not assigned", ok: Boolean(caseId) },
-    { label: "Capture location", value: hasCaptureLocation ? "Recorded" : "Not recorded", ok: hasCaptureLocation },
-    { label: "Record lock", value: isLocked ? "Locked" : "Not locked", ok: isLocked },
-  ];
-
-  const integrityRows: ReviewRow[] = [
-    { label: "Record state", value: displayStatusMeta.label, ok: status === "SIGNED" || status === "REPORTED" },
-    { label: "SHA-256 fingerprint", value: sortedParts.some((part) => Boolean(part.sha256)) ? "Recorded" : "Not exposed", ok: sortedParts.some((part) => Boolean(part.sha256)) },
-    { label: "Report artifact", value: reportAvailable ? "Ready" : "Unavailable", ok: reportAvailable },
-    { label: "Verification package", value: verificationPackageAvailable ? "Ready" : "Unavailable", ok: verificationPackageAvailable },
-    { label: "Retention state", value: isDeleted ? "Secure trash" : isLocked ? "Locked" : isArchived ? "Archived" : "Active", ok: !isDeleted },
-  ];
-
-const reviewerAlertsFromIntelligence = evidenceIntelligence?.reviewerAlerts ?? [];
-  const evidenceReviewDecision = evidenceIntelligence?.reviewerDecision;
-    const selectedCase = useMemo(
-    () => ownedCases.find((item) => item.id === caseId) ?? null,
-    [ownedCases, caseId]
-  );
-
-  const evidenceVerificationProofRows: ReviewRow[] = evidenceIntelligence
-    ? [
-        {
-          label: "Hash verification",
-          value: evidenceIntelligence.verificationProof.hashMatch,
-ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
-        },
-        {
-          label: "SHA-256 recorded",
-          value: evidenceIntelligence.verificationProof.sha256Recorded ? "Yes" : "No",
-          ok: evidenceIntelligence.verificationProof.sha256Recorded,
-        },
-        {
-          label: "Signature status",
-          value: evidenceIntelligence.verificationProof.signatureStatus,
-          ok: evidenceIntelligence.verificationProof.signatureStatus === "APPLIED",
-        },
-        {
-          label: "TSA status",
-          value: evidenceIntelligence.verificationProof.tsaStatus,
-          ok: evidenceIntelligence.verificationProof.tsaStatus === "RECORDED",
-        },
-        {
-          label: "OTS status",
-          value: evidenceIntelligence.verificationProof.otsStatus,
-          ok: evidenceIntelligence.verificationProof.otsStatus === "ANCHORED",
-        },
-      ]
-    : [];
-
-  const evidenceArtifactRows: ReviewRow[] = evidenceIntelligence
-    ? [
-        {
-          label: "PDF report",
-          value: evidenceIntelligence.artifacts.report.available
-            ? `Ready${evidenceIntelligence.artifacts.report.version ? ` · v${evidenceIntelligence.artifacts.report.version}` : ""}`
-            : "Unavailable",
-          ok: evidenceIntelligence.artifacts.report.available,
-        },
-        {
-          label: "Verification package",
-          value: evidenceIntelligence.artifacts.verificationPackage.available
-            ? `Ready${evidenceIntelligence.artifacts.verificationPackage.version ? ` · v${evidenceIntelligence.artifacts.verificationPackage.version}` : ""}`
-            : "Unavailable",
-          ok: evidenceIntelligence.artifacts.verificationPackage.available,
-        },
-        {
-          label: "Verification proof artifacts",
-          value: evidenceIntelligence.artifacts.verificationProofArtifacts.available
-            ? "Ready"
-            : "Unavailable",
-          ok: evidenceIntelligence.artifacts.verificationProofArtifacts.available,
-        },
-      ]
-    : [];
-
-      const evidenceAccessEvents = evidenceIntelligence?.accessActivity.recentEvents ?? [];
-  const evidenceCustodyTimeline = evidenceIntelligence?.custodyTimeline ?? [];
-
-  const visibleAccessEvents = evidenceAccessEvents.slice(0, 6);
-  const visibleCustodyTimeline = evidenceCustodyTimeline.slice(0, 10);
-
-  const intelligenceLimitationText =
-    "PROOVRA verifies recorded integrity state. It does not determine factual truth, authorship, or legal admissibility.";
-
-  const reviewerDecisionToneClass =
-    evidenceReviewDecision?.tone === "success"
-      ? "success"
-      : evidenceReviewDecision?.tone === "danger"
-        ? "danger"
-        : evidenceReviewDecision?.tone === "warning"
-          ? "warning"
-          : "neutral";
+  const preservation = workspace.preservationMatrix;
+  const trustDecision = workspace.artifactVersions.trustDecision;
+  const shareUrl =
+    buildShareUrl(workspace.publicVerificationSummary.sharePath) ||
+    workspace.publicVerificationSummary.publicUrl;
 
   return (
-    <div className="evidence-enterprise-page">
-      <div className="evidence-enterprise-shell">
-        {error ? <div className="evidence-error">{error}</div> : null}
-
-        <section className="evidence-card evidence-hero-card">
-          <div className="evidence-hero-left">
-            <p className="evidence-hero-kicker">Evidence Record</p>
-
-            {!isEditingLabel ? (
-              <>
-                <h1 className="evidence-title">{label}</h1>
-<p className="evidence-subtitle">{heroSubtitle}</p>
-              </>
-            ) : (
-              <div className="evidence-label-edit-row">
-                <input
-                  value={labelDraft}
-                  onChange={(e) => setLabelDraft(e.target.value)}
-                  maxLength={160}
-                  disabled={labelBusy}
-                  className="evidence-label-input"
-                />
-                <Button onClick={handleSaveLabel} disabled={labelBusy} className="evidence-btn evidence-btn-primary">
-                  {labelBusy ? "Saving..." : "Save"}
+    <div className="evidence-detail-page">
+      <div className="evidence-detail-shell">
+        <section id="overview" className="evidence-detail-hero evidence-detail-card">
+          <div className="evidence-detail-hero-main">
+            <div className="evidence-detail-inline-actions evidence-detail-inline-actions--back">
+              <Button variant="secondary" onClick={() => router.push("/evidence")}>
+                Back to Evidence Library
+              </Button>
+            </div>
+            <p className="evidence-detail-kicker">Evidence Review &amp; Defensibility Workspace</p>
+            {editingLabel ? (
+              <div className="evidence-detail-label-edit">
+                <input value={labelDraft} onChange={(event) => setLabelDraft(event.target.value)} />
+                <Button onClick={() => void handleSaveLabel()} disabled={actionBusy || !labelDraft.trim()}>
+                  Save label
                 </Button>
-                <Button variant="secondary" onClick={handleCancelEditLabel} disabled={labelBusy} className="evidence-btn evidence-btn-secondary">
+                <Button variant="secondary" onClick={() => setEditingLabel(false)}>
                   Cancel
                 </Button>
               </div>
+            ) : (
+              <h1>{evidence.displayTitle || evidence.title}</h1>
             )}
-
-            <div className="evidence-hero-meta">
-              <span className={`evidence-pill ${statusToneClass}`}>{displayStatusMeta.label}</span>
-              <span className="evidence-pill teal">{recordTypeLabel}</span>
-<span className="evidence-pill neutral">
-  {isMultipart ? `${Math.max(sortedParts.length, itemCount)} items` : "Single file"}
-</span>
-              <span className="evidence-pill neutral">Recorded: {formatUserDateTime(createdAt)}</span>
-              <span className="evidence-pill neutral">{activeWorkspaceName} · {activePlan}</span>
-              {isLocked ? <span className="evidence-pill success">Locked</span> : null}
-              {isDeleted ? <span className="evidence-pill danger">In Trash</span> : null}
+            <p className="evidence-detail-subtitle">
+              {evidence.displayDescription ||
+                "Authoritative reviewer workspace for preserved evidence content, technical verification, custody chronology, export readiness, and internal review context."}
+            </p>
+            <div className="evidence-detail-hero-meta">
+              <span className={`evidence-detail-pill ${pillTone(evidence.status)}`}>{evidence.status.replace(/_/g, " ")}</span>
+              <span className="evidence-detail-pill neutral">{workspace.classification.evidenceTypeLabel}</span>
+              <span className="evidence-detail-pill neutral">Record {shortId(evidence.id)}</span>
+              <span className="evidence-detail-pill neutral">{workspace.relationships.multipart ? `${workspace.relationships.itemCount} items` : "Single item"}</span>
             </div>
-
-            <div className="evidence-hero-meta evidence-hero-meta-secondary">
-              <span>Record ID: {shortId(evidenceId)}</span>
-              <span>{activeWorkspaceType === "TEAM" ? "Team Workspace" : "Personal Workspace"}</span>
-              <span>{compositionSummary}</span>
+            <div className="evidence-detail-boundary">
+              {workspace.legalBoundary}
             </div>
           </div>
-
-          <div className="evidence-hero-actions">
-            <Button onClick={handleDownloadReport} disabled={actionBusy || !canAccessReports || !reportAvailable || isDeleted} className="evidence-btn evidence-btn-primary">
-              {t("downloadReport")}
-            </Button>
-
-            <Button variant="secondary" onClick={handleDownloadVerificationPackage} disabled={actionBusy || !canAccessVerificationPackage || !verificationPackageAvailable || isDeleted} className="evidence-btn evidence-btn-secondary">
-              Verification Package
-            </Button>
-
-            <Button variant="secondary" onClick={handleOpenShareModal} disabled={!canShareEvidence} className="evidence-btn evidence-btn-secondary">
+          <div className="evidence-detail-hero-actions">
+            <Button onClick={() => void downloadReport()}>Download report</Button>
+            <Button onClick={() => void downloadVerificationPackage()}>Verification package</Button>
+            <Button variant="secondary" onClick={() => void copyShareLink()}>
               Share
             </Button>
-
-            <Button onClick={handleLock} disabled={actionBusy || !canLockEvidence} className={isLocked ? "evidence-btn evidence-btn-secondary" : "evidence-btn evidence-btn-danger"}>
-              {isLocked ? "Locked" : "Lock"}
+            <Button variant="secondary" onClick={() => setLockOpen(true)} disabled={Boolean(evidence.lockedAt) || evidence.deletedAt != null}>
+              {evidence.lockedAt ? "Locked" : "Lock"}
             </Button>
-
-            <Button variant="secondary" onClick={handleStartEditLabel} disabled={loading || actionBusy || labelBusy || isDeleted} className="evidence-btn evidence-btn-quiet">
-              Edit Label
+            <Button variant="secondary" onClick={() => setEditingLabel(true)}>
+              Edit label
             </Button>
           </div>
-
-          {isDeleted ? (
-            <div className="evidence-alert danger evidence-hero-alert">
-              <strong>Secure trash retention active.</strong> Recoverable until{" "}
-              <strong>{formatUserDateTime(deleteScheduledForUtc)}</strong>.
-            </div>
-          ) : null}
         </section>
 
-        <div className="evidence-review-layout">
-          <main className="evidence-review-main">
-            <section className="evidence-card evidence-preview-card">
-              <div className="evidence-preview-header">
+        <SectionRail />
+
+        <div className="evidence-detail-layout">
+          <main className="evidence-detail-main">
+            <div id="evidence">
+              <PreviewWorkspace
+              workspace={workspace}
+              onOpenOriginal={() => void openOriginal()}
+              onDownloadOriginal={() => void downloadOriginal()}
+              />
+            </div>
+
+            <section id="source-context" className="evidence-detail-card">
+              <div className="evidence-detail-card-header">
                 <div>
-                  <p className="evidence-section-label">Main Review Workspace</p>
-                  <h2 className="evidence-section-title">
-                    {isMultipart ? "Evidence Items" : "Original Evidence"}
-                  </h2>
-                  <p className="evidence-section-muted">
-                    Reviewer-facing evidence material with compact previews, core metadata, and item actions.
+                  <p className="evidence-detail-kicker">Source &amp; Capture Context</p>
+                  <h2>Capture provenance context</h2>
+                </div>
+              </div>
+              <KeyValueGrid
+                items={[
+                  { label: "Source type", value: workspace.sourceContext.sourceType.replace(/_/g, " ") },
+                  { label: "Capture method", value: workspace.sourceContext.captureMethodLabel },
+                  { label: "Device time", value: formatValue(workspace.sourceContext.deviceTimeIso) },
+                  { label: "Captured at", value: formatValue(formatUserDateTime(workspace.sourceContext.capturedAtUtc)) },
+                  { label: "Uploaded at", value: formatValue(formatUserDateTime(workspace.sourceContext.uploadedAtUtc)) },
+                  { label: "Location included", value: workspace.sourceContext.locationIncluded ? "Included" : "Not included" },
+                  { label: "Screenshot-like signal", value: workspace.sourceContext.clientSignalsSummary.screenshotLike ? "Recorded" : "Not recorded" },
+                  { label: "Folder path signal", value: workspace.sourceContext.clientSignalsSummary.folderPathPresent ? "Recorded" : "Not recorded" },
+                ]}
+              />
+              {workspace.sourceCaptureLocation ? (
+                <div className="evidence-detail-map-shell">
+                  <CaptureLocationMapPanel
+                    lat={workspace.sourceCaptureLocation.lat ?? 0}
+                    lng={workspace.sourceCaptureLocation.lng ?? 0}
+                    accuracyMeters={workspace.sourceCaptureLocation.accuracyMeters}
+                  />
+                  <p className="evidence-detail-muted">{workspace.sourceCaptureLocation.legalBoundary}</p>
+                </div>
+              ) : null}
+              <div className="evidence-detail-note-box">
+                <strong>Boundary</strong>
+                <p>{workspace.sourceContext.limitations[0]}</p>
+              </div>
+            </section>
+
+            <section id="preservation" className="evidence-detail-card">
+              <div className="evidence-detail-card-header">
+                <div>
+                  <p className="evidence-detail-kicker">Preservation Matrix</p>
+                  <h2>Recorded integrity and preservation materials</h2>
+                </div>
+              </div>
+              <KeyValueGrid
+                items={[
+                  { label: "Verification status", value: preservation.verificationStatusLabel },
+                  { label: "SHA-256 recorded", value: preservation.sha256Recorded ? "Recorded" : "Not recorded" },
+                  { label: "Fingerprint hash", value: preservation.fingerprintHashRecorded ? "Recorded" : "Not recorded" },
+                  { label: "Signature", value: preservation.signature.recorded ? preservation.signature.valid ? "Recorded and validated" : "Recorded" : "Not recorded" },
+                  { label: "TSA timestamp", value: preservation.tsa.timestampAvailable ? "Timestamp recorded" : preservation.tsa.status ? `Status: ${preservation.tsa.status}` : "Timestamp unavailable" },
+                  { label: "OTS status", value: formatValue(preservation.ots.effectiveStatus) },
+                  { label: "Storage protection", value: preservation.storage?.verified ? "Recorded" : "Not exposed in current API response" },
+                  { label: "Public anchoring", value: preservation.anchor?.published ? "Public anchoring verified" : preservation.anchor?.configured ? "Public anchoring pending" : "Public anchoring unavailable" },
+                  { label: "Report artifact", value: preservation.report.available ? `Version ${preservation.report.version ?? "latest"}` : "Not generated" },
+                  { label: "Verification package", value: preservation.verificationPackage.available ? `Version ${preservation.verificationPackage.version ?? "latest"}` : "Not generated" },
+                ]}
+              />
+            </section>
+
+            <section className="evidence-detail-card">
+              <div className="evidence-detail-card-header">
+                <div>
+                  <p className="evidence-detail-kicker">Record Metadata &amp; Lifecycle</p>
+                  <h2>Core record state</h2>
+                </div>
+              </div>
+              <KeyValueGrid
+                items={[
+                  { label: "Created", value: formatUserDateTime(evidence.createdAt) },
+                  { label: "Uploaded", value: formatValue(formatUserDateTime(evidence.uploadedAtUtc)) },
+                  { label: "Signed", value: formatValue(formatUserDateTime(evidence.signedAtUtc)) },
+                  { label: "Captured", value: formatValue(formatUserDateTime(evidence.capturedAtUtc)) },
+                  { label: "Workspace", value: workspaceCaps.workspaceName },
+                  { label: "Plan", value: workspaceCaps.plan },
+                  { label: "Case", value: workspace.relationships.caseName || "Unassigned" },
+                  { label: "Original filename", value: evidence.originalFileName || evidence.displayFileName || "Not recorded" },
+                  { label: "MIME type", value: evidence.mimeType || "Not recorded" },
+                  { label: "Size", value: formatBytes(evidence.sizeBytes) },
+                ]}
+              />
+            </section>
+
+            <div id="custody">
+              <EventTimeline
+              title="Forensic Custody Timeline"
+              subtitle="Integrity-relevant lifecycle chronology"
+              events={workspace.custodyLifecycle.forensicEvents}
+              />
+            </div>
+
+            <section id="verification" className="evidence-detail-card">
+              <div className="evidence-detail-card-header">
+                <div>
+                  <p className="evidence-detail-kicker">Verification History</p>
+                  <h2>Fixed artifacts and post-report activity</h2>
+                </div>
+              </div>
+              <KeyValueGrid
+                items={[
+                  { label: "Report generated at", value: formatValue(formatUserDateTime(workspace.snapshot.reportGeneratedAtUtc)) },
+                  { label: "Verification package generated at", value: formatValue(formatUserDateTime(workspace.snapshot.verificationPackageGeneratedAtUtc)) },
+                  { label: "Forensic events at report time", value: String(workspace.custodyDisplayCounts.forensicAtReportGeneration) },
+                  { label: "Current forensic events", value: String(workspace.custodyDisplayCounts.currentForensicEvents) },
+                  { label: "Access events after report", value: String(workspace.custodyDisplayCounts.accessAfterReportGeneration) },
+                  { label: "Current status", value: workspace.snapshot.currentStatus.replace(/_/g, " ") },
+                ]}
+              />
+              <div className="evidence-detail-note-box">
+                <strong>Snapshot boundary</strong>
+                <p>{workspace.snapshot.fixedArtifactNote}</p>
+              </div>
+              <div className="evidence-detail-note-box">
+                <strong>Integrity drift</strong>
+                <p>{workspace.integrityDrift.note}</p>
+              </div>
+            </section>
+
+            <EvidenceRelationshipsSection
+              caseName={workspace.relationships.caseName}
+              relatedEvidenceCount={workspace.relationships.relatedEvidenceCount}
+              multipart={workspace.relationships.multipart}
+              itemCount={workspace.relationships.itemCount}
+              note={workspace.relationships.note}
+              items={workspace.relationships.items}
+              actionBusy={actionBusy}
+              onAssignCase={() => {
+                setSelectedCaseId(workspace.relationships.caseId || "");
+                setAssignCaseOpen(true);
+              }}
+              onRemoveCase={workspace.relationships.caseId ? () => void removeCase() : null}
+              onOpenRelationshipEditor={() => setRelationshipOpen(true)}
+              onOpenLinkedEvidence={(id) => router.push(`/evidence/${id}`)}
+            />
+
+            <section id="notes" className="evidence-detail-card">
+              <div className="evidence-detail-card-header">
+                <div>
+                  <p className="evidence-detail-kicker">Notes &amp; Reviewer Collaboration</p>
+                  <h2>Private review materials</h2>
+                </div>
+              </div>
+              <div className="evidence-detail-note-box">
+                <strong>Boundary</strong>
+                <p>
+                  Private review notes are not included in public verification or external packages unless explicitly exported.
+                </p>
+              </div>
+              {workspace.governance ? (
+                <div className="evidence-detail-note-box">
+                  <strong>Governance</strong>
+                  <p>
+                    {workspace.governance.reviewerComments.label}, {workspace.governance.legalNotes.label}, and{" "}
+                    {workspace.governance.annotations.label} are internal workspace materials. They are not included in public verification, the fixed PDF report, or the verification package.
                   </p>
                 </div>
-
-                {!isMultipart ? (
-                  <div className="evidence-preview-actions">
-                    <Button variant="secondary" onClick={handleOpenOriginal} disabled={!originalDownloadUrl || isDeleted} className="evidence-mini-btn">
-                      Open Original
-                    </Button>
-                    <Button variant="secondary" onClick={handleDownloadOriginal} disabled={!originalDownloadUrl || isDeleted} className="evidence-mini-btn">
-                      Download
-                    </Button>
-                  </div>
-                ) : null}
+              ) : null}
+              {evidence.internalNotes ? (
+                <div className="evidence-detail-note-box">
+                  <strong>Internal workspace note</strong>
+                  <p>{evidence.internalNotes}</p>
+                </div>
+              ) : null}
+              <div className="evidence-detail-embedded-panels">
+                <ReviewerCommentsPanel evidenceId={evidence.id} />
+                <LegalNotesPanel evidenceId={evidence.id} />
+                <AnnotationPanel evidenceId={evidence.id} defaultPartId={workspace.parts[0]?.id ?? null} />
               </div>
+            </section>
 
-              {!isMultipart ? (
-                <>
-                  <div className="evidence-original-summary">
-                    <span>{effectiveOriginalSummaryName}</span>
-                    {originalMimeType ? <span>{originalMimeType}</span> : null}
-                    {originalSizeBytes ? <span>{formatBytes(originalSizeBytes)}</span> : null}
-                  </div>
+            <ReviewerWorkflowCard
+              workflow={workspace.reviewWorkflow}
+              events={workflowEvents}
+              eventsLoading={workflowEventsLoading}
+              actionBusy={actionBusy}
+              onRefreshEvents={() => void loadWorkflowEvents()}
+              onOpenEditor={() => setWorkflowOpen(true)}
+              formatDateTime={formatUserDateTime}
+            />
 
-                  <div className="evidence-media-frame">
-                    {originalRenderableUrl && originalKind === "image" ? <img src={originalRenderableUrl} alt={effectiveOriginalSummaryName} /> : null}
+            <section className="evidence-detail-card">
+              <div className="evidence-detail-card-header">
+                <div>
+                  <p className="evidence-detail-kicker">Retention &amp; Compliance</p>
+                  <h2>Workspace and record retention state</h2>
+                </div>
+              </div>
+              <KeyValueGrid
+                items={[
+                  { label: "Workspace type", value: workspaceCaps.workspaceType },
+                  { label: "Billing status", value: formatValue(workspaceCaps.billingStatus) },
+                  { label: "Storage used", value: formatValue(workspaceCaps.storageUsedLabel) },
+                  { label: "Storage remaining", value: formatValue(workspaceCaps.storageRemainingLabel) },
+                  { label: "Locked at", value: formatValue(formatUserDateTime(evidence.lockedAt)) },
+                  { label: "Archived at", value: formatValue(formatUserDateTime(evidence.archivedAt)) },
+                  { label: "Deleted at", value: formatValue(formatUserDateTime(evidence.deletedAt)) },
+                  { label: "Delete scheduled for", value: formatValue(formatUserDateTime(evidence.deleteScheduledForUtc)) },
+                  { label: "Object lock", value: preservation.storage?.mode || "Not exposed in current API response" },
+                  { label: "Legal hold", value: preservation.storage?.legalHold || "Not exposed in current API response" },
+                ]}
+              />
+              <div className="evidence-detail-inline-actions">
+                {evidence.archivedAt ? (
+                  <Button variant="secondary" onClick={() => void runRecordAction(`/v1/evidence/${evidence.id}/unarchive`, "Evidence restored from archive")}>
+                    Restore archive
+                  </Button>
+                ) : (
+                  <Button variant="secondary" onClick={() => setArchiveOpen(true)} disabled={evidence.deletedAt != null}>
+                    Archive
+                  </Button>
+                )}
+                {evidence.deletedAt ? (
+                  <Button variant="secondary" onClick={() => void restoreTrash()}>
+                    Restore from trash
+                  </Button>
+                ) : (
+                  <Button variant="secondary" onClick={() => setTrashOpen(true)}>
+                    Move to trash
+                  </Button>
+                )}
+              </div>
+            </section>
 
-                    {originalRenderableUrl && originalKind === "video" ? (
-                      <video controls playsInline preload="metadata">
-                        <source src={originalRenderableUrl} type={originalMimeType ?? "video/mp4"} />
-                        Your browser could not play this video.
-                      </video>
-                    ) : null}
+            <EventTimeline
+              title="Access & Security Activity"
+              subtitle="Viewing, download, and verification access activity"
+              events={workspace.custodyLifecycle.accessEvents}
+            />
 
-                    {originalRenderableUrl && originalKind === "audio" ? (
-                      <div className="evidence-audio-frame">
-                        <audio controls preload="metadata">
-                          <source src={originalRenderableUrl} type={originalMimeType ?? "audio/mpeg"} />
-                          Your browser could not play this audio.
-                        </audio>
-                      </div>
-                    ) : null}
+            <ArtifactHistorySection
+              history={workspace.artifactVersions.history}
+              onDownloadReport={() => void downloadReport()}
+              onDownloadVerificationPackage={() => void downloadVerificationPackage()}
+              formatDateTime={formatUserDateTime}
+              formatBytes={formatBytes}
+            />
 
-                    {originalRenderableUrl && originalKind === "pdf" ? <iframe src={originalRenderableUrl} title="Original PDF evidence" /> : null}
-                    {!originalRenderableUrl ? <div className="evidence-empty-preview">Preview is not available.</div> : null}
-                  </div>
-                </>
+            <ComparisonPanel evidenceId={evidence.id} />
+            <DuplicateDetectionPanel evidenceId={evidence.id} />
+            <AiCategorizationPanel evidenceId={evidence.id} />
+
+            <ReviewerAuditTrailSection
+              items={workspace.reviewerAudit ?? []}
+              formatDateTime={formatUserDateTime}
+            />
+
+            <section id="technical-appendix" className="evidence-detail-card">
+              <details>
+                <summary className="evidence-detail-raw-summary">Raw technical appendix</summary>
+                <pre className="evidence-detail-raw-block">
+                  {JSON.stringify(
+                    {
+                      trustDecision,
+                      trustDecisionConsistency: workspace.artifactVersions.trustDecisionConsistency,
+                      technicalMaterials: workspace.artifactVersions.technicalMaterials,
+                      preservationMatrix: preservation,
+                    },
+                    null,
+                    2
+                  )}
+                </pre>
+              </details>
+            </section>
+          </main>
+
+          <aside className="evidence-detail-sidebar">
+            <section className="evidence-detail-card">
+              <p className="evidence-detail-kicker">Reviewer Decision</p>
+              <h2>{workspace.reviewDecision.label}</h2>
+              <p>{workspace.reviewDecision.summary}</p>
+              <ul className="evidence-detail-flat-list">
+                {workspace.reviewDecision.nextActions.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="evidence-detail-card">
+              <p className="evidence-detail-kicker">Review Readiness</p>
+              <h2>Operational readiness</h2>
+              <KeyValueGrid items={reviewReadinessItems} />
+            </section>
+
+            <section className="evidence-detail-card">
+              <p className="evidence-detail-kicker">Verification Proof</p>
+              <h2>Technical verification summary</h2>
+              <KeyValueGrid
+                items={[
+                  { label: "Recorded integrity status", value: preservation.verificationStatusLabel },
+                  { label: "Custody chain", value: preservation.custodyChain.valid ? "Chain continuity recorded" : "Review required" },
+                  { label: "Signature", value: preservation.signature.valid ? "Signature applied and validated" : preservation.signature.recorded ? "Signature recorded" : "Not recorded" },
+                  { label: "Timestamp", value: preservation.tsa.timestampAvailable ? "Timestamp recorded" : "Timestamp unavailable" },
+                  { label: "OTS", value: formatValue(preservation.ots.effectiveStatus) },
+                ]}
+              />
+            </section>
+
+            <section className="evidence-detail-card">
+              <p className="evidence-detail-kicker">Reviewer Risk Signals</p>
+              <h2>Metadata-derived advisory signals</h2>
+              {reviewSignals.length === 0 ? (
+                <p className="evidence-detail-muted">No reviewer risk signals are derived from the current response.</p>
               ) : (
-                <div className="evidence-items-grid">
-                  {sortedParts.map((part) => {
-                    const kind = getEvidenceKind(part.mimeType ?? null);
-                    const previewUrl =
-                      kind === "video" || kind === "audio"
-                        ? part.url ?? part.publicUrl ?? part.previewUrl ?? null
-                        : part.previewUrl ?? part.publicUrl ?? part.url ?? null;
-                    const downloadUrl = part.url ?? part.publicUrl ?? null;
-                    const displayName = getPartDisplayName(part, createdAt, true);
-                    const hasTechnicalMetadata = true;
-
-                    return (
-                      <article key={part.id} className={`evidence-item-card evidence-item-${kind}`}>
-                        <div className="evidence-item-preview">
-                          {previewUrl && kind === "image" ? <img src={previewUrl} alt={displayName} /> : null}
-
-                          {previewUrl && kind === "video" ? (
-                            <video controls playsInline preload="metadata">
-                              <source src={previewUrl} type={part.mimeType ?? "video/mp4"} />
-                              Your browser could not play this video.
-                            </video>
-                          ) : null}
-
-                          {previewUrl && kind === "audio" ? (
-                            <audio controls preload="metadata">
-                              <source src={previewUrl} type={part.mimeType ?? "audio/mpeg"} />
-                              Your browser could not play this audio.
-                            </audio>
-                          ) : null}
-
-                          {previewUrl && kind === "pdf" ? <iframe src={previewUrl} title={displayName} /> : null}
-                          {!previewUrl ? <div className="evidence-empty-preview">Preview not available.</div> : null}
-                        </div>
-
-                        <div className="evidence-item-body">
-                          <div className="evidence-item-top">
-                            <div className="evidence-item-title-wrap">
-                              <small>Item {part.partIndex + 1}{part.isPrimary ? " · Primary" : ""}</small>
-                              <strong title={displayName}>{displayName}</strong>
-                            </div>
-
-                            <span className="evidence-type-badge">{kind === "pdf" ? "document" : kind}</span>
-                          </div>
-
-                          <div className="evidence-item-compact">
-                            <span>{part.mimeType ?? "Unknown type"}</span>
-                            <span>{formatBytes(part.sizeBytes ?? null)}</span>
-                          </div>
-
-                          <div className="evidence-item-actions">
-                            <Button variant="secondary" onClick={() => handleOpenPart(part)} disabled={!downloadUrl || isDeleted} className="evidence-mini-btn">
-                              Open
-                            </Button>
-                            <Button variant="secondary" onClick={() => handleDownloadPart(part)} disabled={!downloadUrl || isDeleted} className="evidence-mini-btn">
-                              Download
-                            </Button>
-                          </div>
-
-                          {hasTechnicalMetadata ? (
-                            <details className="evidence-technical-details">
-                              <summary>View technical metadata</summary>
-                              <div className="evidence-item-meta">
-                                {part.originalFileName ? <div>Original filename: {part.originalFileName}</div> : null}
-                                {(part.displayName || part.fileName) ? <div>Displayed filename: {part.displayName ?? part.fileName}</div> : null}
-                                <div>MIME type: {part.mimeType ?? "Unknown"}</div>
-                                <div>Kind: {kind === "pdf" ? "document" : kind}</div>
-                                <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
-                                {part.durationMs && part.durationMs > 0 ? <div>Duration: {(part.durationMs / 1000).toFixed(1)} sec</div> : null}
-                                {part.capturedAt ? <div>Captured at: {formatUserDateTime(part.capturedAt)}</div> : null}
-                                {part.createdAt ? <div>Created at: {formatUserDateTime(part.createdAt)}</div> : null}
-                                {part.sha256 ? (
-                                  <div className="evidence-item-meta-row">
-                                    <span>SHA-256:</span>
-                                    <strong>{part.sha256}</strong>
-                                    <Button variant="secondary" onClick={() => handleCopySha256(part.sha256)} className="evidence-mini-btn">
-                                      Copy SHA-256
-                                    </Button>
-                                  </div>
-                                ) : null}
-                                {part.privateRole ? <div>Storage role: {part.privateRole}</div> : null}
-                                {part.checklistStepId ? <div>Checklist step: {part.checklistStepId}</div> : null}
-                                {part.sourceLabel ? <div>Source label: {part.sourceLabel}</div> : null}
-                                {part.privateNote ? <div>Private note: {part.privateNote}</div> : null}
-                                {part.clientSignals ? (
-                                  <div>
-                                    <div>Client signals summary:</div>
-                                    <pre>{JSON.stringify(part.clientSignals, null, 2)}</pre>
-                                  </div>
-                                ) : null}
-                              </div>
-                            </details>
-                          ) : null}
-                        </div>
-                      </article>
-                    );
-                  })}
+                <div className="evidence-detail-signal-list">
+                  {reviewSignals.map((signal) => (
+                    <article key={`${signal.title}-${signal.detail}`} className={`evidence-detail-signal-card ${signal.severity}`}>
+                      <strong>{signal.title}</strong>
+                      <p>{signal.detail}</p>
+                    </article>
+                  ))}
                 </div>
               )}
             </section>
 
-            <section className="evidence-card evidence-technical-card">
-              <div className="evidence-card-inner">
-                <p className="evidence-section-label">Technical / Context Area</p>
-                <h2 className="evidence-section-title">Record Metadata & Lifecycle</h2>
-
-                <div className="evidence-summary-list evidence-summary-compact">
-                  <div className="evidence-kv full"><span>User label</span><strong>{label}</strong></div>
-                  <div className="evidence-kv full"><span>Original submitted file</span><strong>{effectiveOriginalSummaryName}</strong></div>
-                  <div className="evidence-kv full"><span>Record ID</span><strong>{evidenceId}</strong></div>
-                  <div className="evidence-kv"><span>Evidence type</span><strong>{recordTypeLabel}</strong></div>
-<div className="evidence-kv">
-  <span>Structure</span>
-  <strong>{isMultipart ? `Multipart (${Math.max(sortedParts.length, itemCount)})` : "Single-file"}</strong>
-</div>
-                  <div className="evidence-kv"><span>Composition</span><strong>{compositionSummary}</strong></div>
-                  <div className="evidence-kv"><span>Workspace</span><strong>{activeWorkspaceName}</strong></div>
-                  <div className="evidence-kv"><span>Active plan</span><strong>{activePlan}</strong></div>
-                  <div className="evidence-kv"><span>Case assignment</span><strong>{caseId ? "Attached" : "Not assigned"}</strong></div>
-                  <div className="evidence-kv"><span>Storage</span><strong>{workspaceSnapshot.storageUsedLabel ?? "—"} used · {workspaceSnapshot.storageRemainingLabel ?? "—"} left</strong></div>
-                  {intakePlanSummary ? <div className="evidence-kv full"><span>Intake plan</span><strong>{intakePlanSummary}</strong></div> : null}
-                  <div className="evidence-kv"><span>Recorded at</span><strong>{formatUserDateTime(createdAt)}</strong></div>
-                  <div className="evidence-kv"><span>Locked at</span><strong>{formatUserDateTime(lockedAt)}</strong></div>
-                  <div className="evidence-kv"><span>Archived at</span><strong>{formatUserDateTime(archivedAt)}</strong></div>
-                  <div className="evidence-kv"><span>Deleted at</span><strong>{formatUserDateTime(deletedAt)}</strong></div>
-                </div>
-              </div>
+            <section className="evidence-detail-card">
+              <p className="evidence-detail-kicker">Workflow Assignment</p>
+              <h2>Reviewer workflow</h2>
+              <KeyValueGrid
+                items={[
+                  {
+                    label: "Status",
+                    value: workspace.reviewWorkflow.status
+                      ? workspace.reviewWorkflow.status.replace(/_/g, " ")
+                      : "Not configured",
+                  },
+                  {
+                    label: "Priority",
+                    value: workspace.reviewWorkflow.priority
+                      ? workspace.reviewWorkflow.priority.replace(/_/g, " ")
+                      : "Not configured",
+                  },
+                  {
+                    label: "Reviewer",
+                    value:
+                      workspace.reviewWorkflow.assignedTo?.displayName ||
+                      workspace.reviewWorkflow.assignedTo?.email ||
+                      "Unassigned",
+                  },
+                  {
+                    label: "Due",
+                    value: formatValue(formatUserDateTime(workspace.reviewWorkflow.dueAt)),
+                  },
+                ]}
+              />
+              <p>{workspace.reviewWorkflow.note || "Workflow editing is available in the main review column."}</p>
             </section>
 
-                        {evidenceIntelligence ? (
-              <>
-                <section className="evidence-card evidence-technical-card">
-                  <div className="evidence-card-inner">
-                    <p className="evidence-section-label">Technical / Context Area</p>
-<h2 className="evidence-section-title">Forensic Custody Timeline</h2>
-<p className="evidence-section-muted">
-  Recent lifecycle and integrity-relevant custody events for this evidence record. Access activity is shown separately.
-</p>
-
-                    <div className="evidence-timeline">
-                      {visibleCustodyTimeline.length > 0 ? (
-                        visibleCustodyTimeline.map((event) => (
-                          <div key={`${event.eventType}-${event.timestampUtc}`} className="evidence-timeline-item">
-                            <div className={`evidence-timeline-dot ${event.tone}`} />
-                            <div>
-                              <strong>{event.label}</strong>
-                              <span>
-                                {formatUserDateTime(event.timestampUtc)} · {event.actorLabel} · {event.source}
-                              </span>
-                              <p>{event.description}</p>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="evidence-alert info">
-                          No custody timeline events are available for this record yet.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="evidence-card evidence-technical-card">
-                  <div className="evidence-card-inner">
-                    <p className="evidence-section-label">Technical / Context Area</p>
-                    <h2 className="evidence-section-title">Artifacts & Versions</h2>
-
-                    <div className="evidence-artifact-grid">
-                      {evidenceArtifactRows.map((row) => (
-                        <div key={row.label} className="evidence-artifact-card">
-                          <span>{row.label}</span>
-                          <strong>{row.value}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="evidence-card evidence-technical-card">
-                  <div className="evidence-card-inner">
-                    <p className="evidence-section-label">Technical / Context Area</p>
-                    <h2 className="evidence-section-title">Case Context</h2>
-
-                    <div className="evidence-case-context">
-                      {caseId ? (
-                        <>
-                          <div className="evidence-kv">
-                            <span>Case</span>
-                            <strong>{selectedCase?.name ?? "Attached case"}</strong>
-                          </div>
-                          <div className="evidence-kv">
-                            <span>Case ID</span>
-                            <strong>{shortId(caseId)}</strong>
-                          </div>
-                          <div className="evidence-action-stack">
-                            <Button
-                              variant="secondary"
-                              onClick={handleOpenAssignCase}
-                              disabled={actionBusy || !canAssignToCase}
-                              className="evidence-btn evidence-btn-secondary"
-                            >
-                              Move to Case
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              onClick={handleRemoveFromCase}
-                              disabled={actionBusy || isDeleted}
-                              className="evidence-btn evidence-btn-bronze"
-                            >
-                              Remove from Case
-                            </Button>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="evidence-alert info">
-                            <strong>No case assigned.</strong> Cases group related evidence, notes, reviewer tasks, and investigation timeline.
-                          </div>
-                          <Button
-                            variant="secondary"
-                            onClick={handleOpenAssignCase}
-                            disabled={actionBusy || !canAssignToCase}
-                            className="evidence-btn evidence-btn-secondary"
-                          >
-                            Add to Case
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="evidence-card evidence-technical-card">
-                  <div className="evidence-card-inner">
-                    <p className="evidence-section-label">Technical / Context Area</p>
-                    <h2 className="evidence-section-title">Access & Security Activity</h2>
-
-                    {visibleAccessEvents.length > 0 ? (
-                      <div className="evidence-access-grid">
-                        {visibleAccessEvents.map((event) => (
-                          <div key={`${event.eventType}-${event.timestampUtc}`} className="evidence-activity-item">
-                            <div className="evidence-activity-top">
-                              <strong>{event.label}</strong>
-                              <span>{formatUserDateTime(event.timestampUtc)}</span>
-                            </div>
-                            <div className="evidence-activity-meta">
-                              <span>{event.actorLabel} · {event.source}</span>
-                              <span>{event.description}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="evidence-alert info">
-No recent access activity has been recorded for this evidence record.
-                      </div>
-                    )}
-                  </div>
-                </section>
-              </>
-            ) : null}
-
-            {hasCaptureLocation ? (
-              <section className="evidence-card evidence-technical-card">
-                <div className="evidence-card-inner">
-                  <p className="evidence-section-label">Capture Context</p>
-                  <h2 className="evidence-section-title">Location Metadata</h2>
-                  <p className="evidence-section-muted">{CAPTURE_LOCATION_CONTEXT_DESCRIPTION}</p>
-
-                  <div className="evidence-location-grid">
-                    <div className="evidence-map-frame">
-                      {captureLat !== null && captureLng !== null ? (
-                        <CaptureLocationMapPanel
-                          lat={captureLat}
-                          lng={captureLng}
-                          accuracyMeters={captureAccuracyMeters}
-                          addToast={addToast}
-                          height={300}
-                        />
-                      ) : null}
-                    </div>
-
-                    <div className="evidence-location-facts">
-                      {[
-                        [CAPTURE_LOCATION_STATUS_LABEL, "Yes"],
-                        ["Latitude", formatCaptureLocationCoordinate(captureLat)],
-                        ["Longitude", formatCaptureLocationCoordinate(captureLng)],
-                        ["Accuracy radius", formatCaptureLocationAccuracy(captureAccuracyMeters)],
-                        ["Captured at", captureLocationCapturedAtLabel],
-                        ["Source", CAPTURE_LOCATION_SOURCE_LABEL],
-                      ].map(([labelText, valueText]) => (
-                        <div key={labelText} className="evidence-kv">
-                          <span>{labelText}</span>
-                          <strong>{valueText}</strong>
-                        </div>
-                      ))}
-
-                      <div className="evidence-alert legal">
-                        {CAPTURE_LOCATION_LEGAL_BOUNDARY ?? CAPTURE_LOCATION_SHORT_BOUNDARY}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            ) : null}
-
-            {internalNotes?.trim() ? (
-              <section className="evidence-card evidence-technical-card">
-                <div className="evidence-card-inner">
-                  <p className="evidence-section-label">Internal Notes</p>
-                  <h2 className="evidence-section-title">Authenticated Workspace Note</h2>
-                  <div className="evidence-note-box">{internalNotes.trim()}</div>
-                </div>
-              </section>
-            ) : null}
-          </main>
-
-          <aside className="evidence-review-sidebar">
-            {evidenceReviewDecision ? (
-              <section className={`evidence-card evidence-decision-card ${reviewerDecisionToneClass}`}>
-                <div className="evidence-card-inner">
-                  <p className="evidence-section-label">Reviewer Decision</p>
-                  <h2 className="evidence-section-title">
-                    {evidenceReviewDecision.label}
-                  </h2>
-                  <p className="evidence-section-muted">
-                    {evidenceReviewDecision.summary}
-                  </p>
-
-                  {evidenceReviewDecision.reasons.length > 0 ? (
-                    <div className="evidence-alert-list">
-                      {evidenceReviewDecision.reasons.slice(0, 4).map((reason) => (
-                        <div key={reason} className="evidence-alert-chip">
-                          {reason}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {evidenceReviewDecision.nextActions.length > 0 ? (
-                    <div className="evidence-next-actions">
-                      <strong>Recommended next actions</strong>
-                      <ol>
-                        {evidenceReviewDecision.nextActions.slice(0, 3).map((action) => (
-                          <li key={action}>{action}</li>
-                        ))}
-                      </ol>
-                    </div>
-                  ) : null}
-                </div>
-              </section>
-            ) : null}
-
-            <section className="evidence-card evidence-sticky-panel">
-                            <div className="evidence-card-inner">
-                <p className="evidence-section-label">Legal Review Assistant</p>
-                <h2 className="evidence-section-title">Review Readiness</h2>
-
-                <div className="evidence-readiness-list">
-                  {reviewReadinessRows.map((row) => (
-                    <div key={row.label} className="evidence-check-row">
-                      <div className={`evidence-check-dot ${row.ok ? "ok" : "warn"}`}>{row.ok ? "✓" : "!"}</div>
-                      <strong>{row.label}</strong>
-                      <span>{row.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <section className="evidence-card">
-              <div className="evidence-card-inner">
-                <h2 className="evidence-section-title">Verification Proof</h2>
-
-                <div className="evidence-proof-list">
-                  {evidenceVerificationProofRows.length > 0
-                    ? evidenceVerificationProofRows.map((row) => (
-                        <div key={row.label} className="evidence-check-row">
-                          <div className={`evidence-check-dot ${row.ok ? "ok" : "warn"}`}>
-                            {row.ok ? "✓" : "!"}
-                          </div>
-                          <strong>{row.label}</strong>
-                          <span>{row.value}</span>
-                        </div>
-                      ))
-                    : integrityRows.map((row) => (
-                        <div key={row.label} className="evidence-check-row">
-                          <div className={`evidence-check-dot ${row.ok ? "ok" : "warn"}`}>
-                            {row.ok ? "✓" : "!"}
-                          </div>
-                          <strong>{row.label}</strong>
-                          <span>{row.value}</span>
-                        </div>
-                      ))}
-                </div>
-
-                <div className="evidence-alert legal">
-                  {intelligenceLimitationText}
-                </div>
-              </div>
-            </section>
-
-<section className="evidence-card">
-  <div className="evidence-card-inner">
-    <h2 className="evidence-section-title">Reviewer Alerts</h2>
-
-    <div className="evidence-integrity-list">
-      {reviewerAlertsFromIntelligence.length > 0 ? (
-        reviewerAlertsFromIntelligence.map((alert) => (
-          <div
-            key={`${alert.label}-${alert.detail}`}
-            className="evidence-check-row"
-          >
-            <div
-              className={`evidence-check-dot ${
-                alert.severity === "danger" ||
-                alert.severity === "warning"
-                  ? "warn"
-                  : "ok"
-              }`}
-            >
-              {alert.severity === "danger" ||
-              alert.severity === "warning"
-                ? "!"
-                : "✓"}
-            </div>
-
-            <strong>{alert.label}</strong>
-            <span>{alert.detail}</span>
-          </div>
-        ))
-      ) : (
-        <div className="evidence-alert info">
-          No reviewer alerts are currently recorded for this evidence.
-        </div>
-      )}
-    </div>
-  </div>
-</section>
-            <section className="evidence-card">
-              <div className="evidence-card-inner">
-                <h2 className="evidence-section-title">Preservation Actions</h2>
-                <div className="evidence-action-stack">
-                  <Button variant="secondary" onClick={handleOpenAssignCase} disabled={actionBusy || !canAssignToCase} className="evidence-btn evidence-btn-secondary">
-                    {caseId ? "Move to Case" : "Add to Case"}
-                  </Button>
-
-                  {caseId ? (
-                    <Button variant="secondary" onClick={handleRemoveFromCase} disabled={actionBusy || isDeleted} className="evidence-btn evidence-btn-bronze">
-                      Remove from Case
-                    </Button>
-                  ) : null}
-
-                  <Button onClick={handleLock} disabled={actionBusy || !canLockEvidence} className={isLocked ? "evidence-btn evidence-btn-secondary" : "evidence-btn evidence-btn-danger"}>
-                    {isLocked ? "Permanently Locked" : "Lock Evidence Permanently"}
-                  </Button>
-
-                  {isArchived ? (
-                    <Button variant="secondary" onClick={handleUnarchive} disabled={actionBusy || isDeleted} className="evidence-btn evidence-btn-secondary">
-                      Restore Evidence
-                    </Button>
-                  ) : (
-                    <Button variant="secondary" onClick={handleArchive} disabled={actionBusy || isDeleted} className="evidence-btn evidence-btn-secondary">
-                      Archive Evidence
-                    </Button>
-                  )}
-
-                  {!isDeleted ? (
-                    <Button onClick={handleDelete} disabled={actionBusy || !canDelete} className="evidence-btn evidence-btn-danger">
-                      Delete Evidence
-                    </Button>
-                  ) : (
-                    <Button variant="secondary" onClick={handleRestoreDeleted} disabled={actionBusy} className="evidence-btn evidence-btn-secondary">
-                      Restore from Trash
-                    </Button>
-                  )}
-                </div>
-
-                <div className="evidence-alert legal">
-                  <strong>Trash retention:</strong> When moved to trash, this record stays recoverable for 90 days before permanent deletion.
-                </div>
-              </div>
+            <section className="evidence-detail-card">
+              <p className="evidence-detail-kicker">Public Verification &amp; Sharing</p>
+              <h2>External review posture</h2>
+              <KeyValueGrid
+                items={[
+                  { label: "Public verification", value: workspace.publicVerificationSummary.enabled ? workspace.publicVerificationSummary.published ? "Enabled" : "Supported but not published" : "Not included on plan" },
+                  { label: "Public views", value: String(workspace.publicVerificationSummary.publicViewCount) },
+                  { label: "Authenticated views", value: String(workspace.publicVerificationSummary.authenticatedViewCount) },
+                  { label: "Report downloads", value: String(workspace.publicVerificationSummary.reportDownloadCount) },
+                  { label: "Package downloads", value: String(workspace.publicVerificationSummary.verificationPackageDownloadCount) },
+                  { label: "Last public view", value: formatValue(formatUserDateTime(workspace.publicVerificationSummary.lastPublicViewAt)) },
+                ]}
+              />
+              {shareUrl ? (
+                <a href={shareUrl} className="evidence-detail-inline-link" target="_blank" rel="noreferrer">
+                  Open verification surface
+                </a>
+              ) : (
+                <p className="evidence-detail-muted">Public verification analytics are not available in the current API response.</p>
+              )}
             </section>
           </aside>
         </div>
       </div>
-                  <Modal
-        isOpen={shareModalOpen}
-        onClose={() => setShareModalOpen(false)}
-        title="Share Evidence"
+
+      <Modal
+        isOpen={assignCaseOpen}
+        onClose={() => setAssignCaseOpen(false)}
+        title="Assign evidence to case"
         actions={
-          <div style={{ display: "flex", gap: 10 }}>
-            <Button
-              variant="secondary"
-              onClick={() => setShareModalOpen(false)}
-              disabled={shareActionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={landingSecondaryButtonStyle}
-            >
-              Close
+          <>
+            <Button variant="secondary" onClick={() => setAssignCaseOpen(false)}>
+              Cancel
             </Button>
-          </div>
+            <Button onClick={() => void assignCase()} disabled={actionBusy || !selectedCaseId}>
+              Save assignment
+            </Button>
+          </>
         }
       >
-        <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ fontSize: 14, color: "#cbd5e1", lineHeight: 1.7 }}>
-            Share this evidence with a lawyer, insurer, investigator, or reviewer.
-            Send the PDF report for a fixed record, and include the verification link
-            for independent online review where enabled by the workspace.
-          </div>
+        <select
+          className="evidence-detail-select"
+          value={selectedCaseId}
+          onChange={(event) => setSelectedCaseId(event.target.value)}
+        >
+          <option value="">Select case</option>
+          {cases.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+      </Modal>
 
-          <Button
-            onClick={handleCopyVerificationLink}
-            disabled={shareActionBusy || !canUsePublicVerification || isDeleted}
-            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-            style={landingPrimaryButtonStyle}
-          >
-            {shareActionBusy ? "Copying..." : "Copy Verification Link"}
-          </Button>
-
-          <Button
-            variant="secondary"
-            onClick={handleDownloadReport}
-            disabled={actionBusy || !canAccessReports || !reportAvailable || isDeleted}
-            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-            style={landingSecondaryButtonStyle}
-          >
-            Download PDF Report
-          </Button>
-
-          <Button
-            variant="secondary"
-            onClick={handleDownloadVerificationPackage}
-            disabled={
-              actionBusy ||
-              !canAccessVerificationPackage ||
-              !verificationPackageAvailable ||
-              isDeleted
-            }
-            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-            style={landingTertiaryButtonStyle}
-          >
-            Download Verification Package
-          </Button>
-
-          {!canUsePublicVerification && (
-            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.7 }}>
-              Public verification is not available on the current workspace configuration.
-            </div>
-          )}
-
-          {!canAccessReports && (
-            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.7 }}>
-              PDF reports are not included for {activeWorkspaceName} on the current plan.
-            </div>
-          )}
-
-          {!canAccessVerificationPackage && (
-            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.7 }}>
-              Verification packages are not included for {activeWorkspaceName} on the current plan.
-            </div>
-          )}
-
-          {canAccessVerificationPackage && !verificationPackageAvailable && (
-            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.7 }}>
-              Verification package is not available yet for this record.
-            </div>
-          )}
+      <Modal
+        isOpen={workflowOpen}
+        onClose={() => setWorkflowOpen(false)}
+        title="Update reviewer workflow"
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setWorkflowOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void saveWorkflow()} disabled={actionBusy}>
+              Save workflow
+            </Button>
+          </>
+        }
+      >
+        <div className="evidence-detail-modal-stack">
+          <label className="evidence-detail-field">
+            <span>Status</span>
+            <select
+              className="evidence-detail-select"
+              value={workflowStatusDraft}
+              onChange={(event) => setWorkflowStatusDraft(event.target.value)}
+            >
+              {[
+                "NOT_STARTED",
+                "IN_REVIEW",
+                "NEEDS_INFO",
+                "READY_FOR_EXTERNAL_REVIEW",
+                "APPROVED_INTERNAL",
+                "ESCALATED",
+                "CLOSED",
+              ].map((value) => (
+                <option key={value} value={value}>
+                  {value.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="evidence-detail-field">
+            <span>Priority</span>
+            <select
+              className="evidence-detail-select"
+              value={workflowPriorityDraft}
+              onChange={(event) => setWorkflowPriorityDraft(event.target.value)}
+            >
+              {["LOW", "NORMAL", "HIGH", "URGENT"].map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="evidence-detail-field">
+            <span>Assigned reviewer</span>
+            <select
+              className="evidence-detail-select"
+              value={workflowAssigneeDraft}
+              onChange={(event) => setWorkflowAssigneeDraft(event.target.value)}
+            >
+              <option value="">Unassigned</option>
+              {workspace.reviewWorkflow.assignedTo ? (
+                <option value={workspace.reviewWorkflow.assignedTo.id}>
+                  {workspace.reviewWorkflow.assignedTo.displayName ||
+                    workspace.reviewWorkflow.assignedTo.email ||
+                    workspace.reviewWorkflow.assignedTo.id}
+                </option>
+              ) : null}
+            </select>
+            <p className="evidence-detail-muted">
+              Reviewer assignment uses currently accessible reviewer identities from the loaded workflow state.
+            </p>
+          </label>
+          <label className="evidence-detail-field">
+            <span>Due date</span>
+            <input
+              className="evidence-detail-input"
+              type="datetime-local"
+              value={workflowDueAtDraft}
+              onChange={(event) => setWorkflowDueAtDraft(event.target.value)}
+            />
+          </label>
+          <label className="evidence-detail-field">
+            <span>Workflow note</span>
+            <textarea
+              className="evidence-detail-textarea"
+              value={workflowNoteDraft}
+              onChange={(event) => setWorkflowNoteDraft(event.target.value)}
+            />
+          </label>
         </div>
       </Modal>
 
       <Modal
-        isOpen={assignCaseModalOpen}
-        onClose={() => setAssignCaseModalOpen(false)}
-        title={caseId ? "Move evidence to case" : "Add evidence to case"}
+        isOpen={relationshipOpen}
+        onClose={() => setRelationshipOpen(false)}
+        title="Record evidence relationship"
         actions={
-          <div style={{ display: "flex", gap: 10 }}>
-            <Button
-              variant="secondary"
-              onClick={() => setAssignCaseModalOpen(false)}
-              disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={landingSecondaryButtonStyle}
-            >
+          <>
+            <Button variant="secondary" onClick={() => setRelationshipOpen(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleConfirmAssignCase}
-              disabled={actionBusy || !selectedCaseId}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={landingPrimaryButtonStyle}
-            >
-              {actionBusy ? "Saving..." : caseId ? "Move" : "Add"}
+            <Button onClick={() => void saveRelationship()} disabled={actionBusy || !relationshipTargetId}>
+              Save relationship
             </Button>
-          </div>
+          </>
         }
       >
-        <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ fontSize: 14, color: "#cbd5e1", lineHeight: 1.6 }}>
-            Choose one of your accessible cases.
-          </div>
-
-          <select
-            value={selectedCaseId}
-            onChange={(e) => setSelectedCaseId(e.target.value)}
-            style={{
-              padding: 12,
-              borderRadius: 12,
-              border: "1px solid rgba(214,184,157,0.16)",
-              background: "rgba(255,255,255,0.05)",
-              color: "#eef4f1",
-            }}
-          >
-            <option value="">Select a case...</option>
-            {ownedCases.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-                {item.teamId ? " (Team)" : " (Personal)"}
-              </option>
-            ))}
-          </select>
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={lockModalOpen}
-        onClose={() => setLockModalOpen(false)}
-        title="Lock this evidence?"
-        actions={
-          <div style={{ display: "flex", gap: 10 }}>
-            <Button
-              variant="secondary"
-              onClick={() => setLockModalOpen(false)}
-              disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={landingSecondaryButtonStyle}
+        <div className="evidence-detail-modal-stack">
+          <label className="evidence-detail-field">
+            <span>Linked evidence</span>
+            <select
+              className="evidence-detail-select"
+              value={relationshipTargetId}
+              onChange={(event) => setRelationshipTargetId(event.target.value)}
             >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleConfirmLock}
-              disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={landingDangerButtonStyle}
-            >
-              {actionBusy ? "Locking..." : "Lock permanently"}
-            </Button>
-          </div>
-        }
-      >
-        <div style={{ fontSize: 15, lineHeight: 1.7, color: "#e2e8f0" }}>
-          <p style={{ marginBottom: 16 }}>Once locked:</p>
-          <ul style={{ marginLeft: 20, marginBottom: 16, color: "#cbd5e1" }}>
-            <li style={{ marginBottom: 8 }}>• The evidence cannot be edited</li>
-            <li style={{ marginBottom: 8 }}>• It becomes legally sealed</li>
-            <li>• The preserved record remains shareable and reviewable</li>
-          </ul>
-          <p style={{ marginTop: 16, fontWeight: 700, color: "#fca5a5" }}>
-            This action is irreversible.
+              <option value="">Select evidence</option>
+            </select>
+          </label>
+          <p className="evidence-detail-muted">
+            Enter a linked evidence record ID below when the target record is not already loaded in this view.
           </p>
+          <input
+            className="evidence-detail-input"
+            value={relationshipTargetId}
+            onChange={(event) => setRelationshipTargetId(event.target.value)}
+            placeholder="Linked evidence UUID"
+          />
+          <label className="evidence-detail-field">
+            <span>Relationship type</span>
+            <select
+              className="evidence-detail-select"
+              value={relationshipType}
+              onChange={(event) => setRelationshipType(event.target.value)}
+            >
+              {[
+                "RELATED",
+                "SUPPORTS",
+                "DUPLICATE_OF",
+                "DERIVED_FROM",
+                "SAME_INCIDENT",
+                "CONTRADICTS",
+                "REPLACES",
+                "REFERENCES",
+              ].map((value) => (
+                <option key={value} value={value}>
+                  {value.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="evidence-detail-field">
+            <span>Note</span>
+            <textarea
+              className="evidence-detail-textarea"
+              value={relationshipNote}
+              onChange={(event) => setRelationshipNote(event.target.value)}
+            />
+          </label>
         </div>
       </Modal>
 
       <Modal
-        isOpen={archiveModalOpen}
-        onClose={() => setArchiveModalOpen(false)}
-        title="Archive this evidence?"
+        isOpen={lockOpen}
+        onClose={() => setLockOpen(false)}
+        title="Lock evidence record"
         actions={
-          <div style={{ display: "flex", gap: 10 }}>
-            <Button
-              variant="secondary"
-              onClick={() => setArchiveModalOpen(false)}
-              disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={landingSecondaryButtonStyle}
-            >
+          <>
+            <Button variant="secondary" onClick={() => setLockOpen(false)}>
               Cancel
             </Button>
             <Button
-              onClick={handleConfirmArchive}
+              onClick={() => void runRecordAction(`/v1/evidence/${evidenceId}/lock`, "Evidence locked")}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={landingPrimaryButtonStyle}
             >
-              {actionBusy ? "Archiving..." : "Archive"}
+              Confirm lock
             </Button>
-          </div>
+          </>
         }
       >
-        <div style={{ fontSize: 15, lineHeight: 1.7, color: "#e2e8f0" }}>
-          <p style={{ marginBottom: 12 }}>
-            This will remove the evidence from your active workspace.
-          </p>
-          <p style={{ marginBottom: 12 }}>
-            The evidence will remain stored and can be restored later if needed.
-          </p>
-        </div>
+        <p>
+          Locking preserves the current record state and prevents further mutable updates to the evidence record.
+        </p>
       </Modal>
 
       <Modal
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        title="Delete this evidence?"
+        isOpen={archiveOpen}
+        onClose={() => setArchiveOpen(false)}
+        title="Archive evidence"
         actions={
-          <div style={{ display: "flex", gap: 10 }}>
-            <Button
-              variant="secondary"
-              onClick={() => setDeleteModalOpen(false)}
-              disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={landingSecondaryButtonStyle}
-            >
+          <>
+            <Button variant="secondary" onClick={() => setArchiveOpen(false)}>
               Cancel
             </Button>
             <Button
-              onClick={handleConfirmDelete}
+              onClick={() => void runRecordAction(`/v1/evidence/${evidenceId}/archive`, "Evidence archived")}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={landingDeleteButtonStyle}
             >
-              {actionBusy ? "Deleting..." : "Delete Evidence"}
+              Archive
             </Button>
-          </div>
+          </>
         }
       >
-        <div style={{ display: "grid", gap: 14 }}>
-          <div
-            className="evidence-delete-notice"
-            style={{
-              padding: 16,
-              borderRadius: 16,
-              background:
-                "linear-gradient(135deg, rgba(127,29,29,0.18), rgba(69,10,10,0.12))",
-              border: "1px solid rgba(248,113,113,0.14)",
-            }}
-          >
-            <div
-              className="evidence-delete-notice-title"
-              style={{ color: "#fecaca", fontWeight: 800, marginBottom: 6 }}
-            >
-              90-day recovery window
-            </div>
-            <div
-              className="evidence-delete-notice-text"
-              style={{ color: "rgba(254,202,202,0.86)", lineHeight: 1.7 }}
-            >
-              This evidence will be moved to secure trash and hidden from your active workspace.
-              <br />
-              <br />
-              It will remain recoverable for <strong>90 days</strong>. After that period, it is scheduled for permanent deletion.
-            </div>
-          </div>
+        <p>Archiving changes operational visibility. It does not change recorded integrity materials.</p>
+      </Modal>
 
-          <div
-            style={{
-              fontSize: 13,
-              lineHeight: 1.65,
-              color: "#cbd5e1",
-            }}
-          >
-            Use this only when you no longer want the record in your active workspace but still want a temporary recovery period.
-          </div>
-        </div>
+      <Modal
+        isOpen={trashOpen}
+        onClose={() => setTrashOpen(false)}
+        title="Move evidence to trash"
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setTrashOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void moveToTrash()} disabled={actionBusy}>
+              Move to trash
+            </Button>
+          </>
+        }
+      >
+        <p>Trash state is operational retention handling and must not be confused with technical integrity failure.</p>
       </Modal>
     </div>
   );

@@ -75,19 +75,11 @@ export function buildReviewAlerts(
     });
   }
 
-  if (!detail?.evidence?.lockedAt && !intelligence?.preservation.locked) {
+  if (detail && !detail?.evidence?.lockedAt && !intelligence?.preservation.locked) {
     alerts.push({
       severity: "informational",
       label: "Preservation lock not recorded",
       detail: "No permanent lock state is currently recorded on this evidence record.",
-    });
-  }
-
-  if (!detail?.evidence?.anchor?.configured) {
-    alerts.push({
-      severity: "informational",
-      label: "Public verification not configured",
-      detail: "Public verification is not configured for this record in the detail view.",
     });
   }
 

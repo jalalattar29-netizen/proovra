@@ -79,6 +79,13 @@ export function EvidenceLibraryRow({
           <span>{item.itemCount} item{item.itemCount === 1 ? "" : "s"}</span>
           <span>{formatUtcDateTime(item.createdAt)}</span>
           <span>{caseName ?? "Unassigned"}</span>
+          <span>
+            {item.reviewWorkflow?.assignedTo?.displayName ??
+              item.reviewWorkflow?.assignedTo?.email ??
+              "Unassigned reviewer"}
+          </span>
+          <span>{item.reviewWorkflow?.priority?.replace(/_/g, " ") ?? "Normal"}</span>
+          <span>{item.reviewWorkflow?.dueAt ? formatUtcDateTime(item.reviewWorkflow.dueAt) : "No due date"}</span>
           <span>{report.label}</span>
           <span>{getVerificationStatusLabel(item.verificationStatus)}</span>
           <span>{getCaptureMethodLabel(item.captureMethod)}</span>
@@ -87,7 +94,7 @@ export function EvidenceLibraryRow({
 
       <div className="evidence-library-row__actions">
         <Button onClick={() => onSelect(item.id)} variant="secondary">
-          Open Review
+          Select
         </Button>
         <Button onClick={() => onOpenRecord(item.id)} variant="secondary">
           Open Evidence

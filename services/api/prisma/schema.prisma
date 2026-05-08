@@ -108,6 +108,11 @@ model Evidence {
   aiCategorizations                 EvidenceAiCategorization[]
   legalNotes                        EvidenceLegalNote[]
   reviewerComments                  EvidenceReviewerComment[]
+  reviewWorkflow                    EvidenceReviewWorkflow?
+  reviewWorkflowEvents              EvidenceReviewWorkflowEvent[]
+  reviewerAuditEvents               EvidenceReviewerAuditEvent[]
+  sourceRelationships               EvidenceRelationship[]      @relation("EvidenceRelationshipSource")
+  targetRelationships               EvidenceRelationship[]      @relation("EvidenceRelationshipTarget")
   verificationPackages              VerificationPackage[]
   verificationViews                 VerificationView[]
   anchor                            EvidenceAnchor?
@@ -451,6 +456,11 @@ model User {
   evidenceLegalNotes            EvidenceLegalNote[]
   evidenceReviewerComments      EvidenceReviewerComment[]
   evidenceSavedViews            EvidenceSavedView[]
+  assignedEvidenceReviewWorkflows EvidenceReviewWorkflow[]     @relation("EvidenceWorkflowAssignedTo")
+  initiatedEvidenceReviewWorkflows EvidenceReviewWorkflow[]    @relation("EvidenceWorkflowAssignedBy")
+  evidenceReviewWorkflowEvents  EvidenceReviewWorkflowEvent[]
+  createdEvidenceRelationships  EvidenceRelationship[]
+  evidenceReviewerAuditEvents   EvidenceReviewerAuditEvent[]
 
   ownedTeams                    Team[]                         @relation("TeamOwner")
   billingOwnedTeams             Team[]                         @relation("TeamBillingOwner")
@@ -497,6 +507,8 @@ model Team {
   payments               Payment[]
   subscriptions          Subscription[]
   storageAddons          WorkspaceStorageAddon[]
+  evidenceReviewWorkflows EvidenceReviewWorkflow[]
+  evidenceRelationships  EvidenceRelationship[]
 
   @@index([ownerUserId])
   @@index([billingOwnerUserId])
@@ -612,6 +624,95 @@ model EvidenceAiCategorization {
   @@index([requestedByUserId, createdAt(sort: Desc)])
   @@index([status])
   @@map("evidence_ai_categorizations")
+}
+
+model EvidenceReviewWorkflow {
+  id               String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId       String                         @unique @map("evidence_id") @db.Uuid
+  workspaceType    String                         @map("workspace_type") @db.VarChar(32)
+  teamId           String?                        @map("team_id") @db.Uuid
+  assignedToUserId String?                        @map("assigned_to_user_id") @db.Uuid
+  assignedByUserId String?                        @map("assigned_by_user_id") @db.Uuid
+  status           EvidenceReviewWorkflowStatus   @default(NOT_STARTED)
+  priority         EvidenceReviewWorkflowPriority @default(NORMAL)
+  dueAt            DateTime?                      @map("due_at") @db.Timestamptz(6)
+  lastReviewedAt   DateTime?                      @map("last_reviewed_at") @db.Timestamptz(6)
+  closedAt         DateTime?                      @map("closed_at") @db.Timestamptz(6)
+  createdAt        DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  evidence         Evidence                       @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  team             Team?                          @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  assignedTo       User?                          @relation("EvidenceWorkflowAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  assignedBy       User?                          @relation("EvidenceWorkflowAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  events           EvidenceReviewWorkflowEvent[]
+
+  @@index([teamId])
+  @@index([assignedToUserId])
+  @@index([assignedByUserId])
+  @@index([status])
+  @@index([priority])
+  @@index([dueAt])
+  @@map("evidence_review_workflows")
+}
+
+model EvidenceReviewWorkflowEvent {
+  id           String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowId   String                          @map("workflow_id") @db.Uuid
+  evidenceId   String                          @map("evidence_id") @db.Uuid
+  actorUserId  String?                         @map("actor_user_id") @db.Uuid
+  eventType    EvidenceReviewWorkflowEventType @map("event_type")
+  previousValue Json?                          @map("previous_value")
+  nextValue    Json?                           @map("next_value")
+  note         String?                         @db.VarChar(1000)
+  createdAt    DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+  workflow     EvidenceReviewWorkflow          @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  evidence     Evidence                        @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  actor        User?                           @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([workflowId, createdAt(sort: Desc)])
+  @@index([evidenceId, createdAt(sort: Desc)])
+  @@index([actorUserId])
+  @@index([eventType])
+  @@map("evidence_review_workflow_events")
+}
+
+model EvidenceRelationship {
+  id               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceEvidenceId String                   @map("source_evidence_id") @db.Uuid
+  targetEvidenceId String                   @map("target_evidence_id") @db.Uuid
+  relationshipType EvidenceRelationshipType @map("relationship_type")
+  note             String?                  @db.VarChar(1000)
+  createdByUserId  String?                  @map("created_by_user_id") @db.Uuid
+  teamId           String?                  @map("team_id") @db.Uuid
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sourceEvidence   Evidence                 @relation("EvidenceRelationshipSource", fields: [sourceEvidenceId], references: [id], onDelete: Cascade)
+  targetEvidence   Evidence                 @relation("EvidenceRelationshipTarget", fields: [targetEvidenceId], references: [id], onDelete: Cascade)
+  createdBy        User?                    @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  team             Team?                    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceEvidenceId, targetEvidenceId, relationshipType])
+  @@index([sourceEvidenceId, createdAt(sort: Desc)])
+  @@index([targetEvidenceId, createdAt(sort: Desc)])
+  @@index([relationshipType])
+  @@index([teamId])
+  @@map("evidence_relationships")
+}
+
+model EvidenceReviewerAuditEvent {
+  id          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId  String                        @map("evidence_id") @db.Uuid
+  actorUserId String?                       @map("actor_user_id") @db.Uuid
+  eventType   EvidenceReviewerAuditEventType @map("event_type")
+  metadata    Json?                         @map("metadata")
+  createdAt   DateTime                      @default(now()) @map("created_at") @db.Timestamptz(6)
+  evidence    Evidence                      @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  actor       User?                         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([evidenceId, createdAt(sort: Desc)])
+  @@index([actorUserId])
+  @@index([eventType])
+  @@map("evidence_reviewer_audit_events")
 }
 
 model WorkspaceStorageAddon {
@@ -1274,6 +1375,66 @@ enum EvidenceAiCategorizationStatus {
   PENDING
   COMPLETED
   FAILED
+}
+
+enum EvidenceReviewWorkflowStatus {
+  NOT_STARTED
+  IN_REVIEW
+  NEEDS_INFO
+  READY_FOR_EXTERNAL_REVIEW
+  APPROVED_INTERNAL
+  ESCALATED
+  CLOSED
+}
+
+enum EvidenceReviewWorkflowPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum EvidenceReviewWorkflowEventType {
+  CREATED
+  ASSIGNED
+  UNASSIGNED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  DUE_DATE_CHANGED
+  REVIEW_STARTED
+  REVIEW_COMPLETED
+  ESCALATED
+  CLOSED
+}
+
+enum EvidenceRelationshipType {
+  RELATED
+  SUPPORTS
+  DUPLICATE_OF
+  DERIVED_FROM
+  SAME_INCIDENT
+  CONTRADICTS
+  REPLACES
+  REFERENCES
+}
+
+enum EvidenceReviewerAuditEventType {
+  COMMENT_CREATED
+  COMMENT_UPDATED
+  COMMENT_DELETED
+  LEGAL_NOTE_CREATED
+  LEGAL_NOTE_UPDATED
+  LEGAL_NOTE_DELETED
+  ANNOTATION_CREATED
+  ANNOTATION_UPDATED
+  ANNOTATION_DELETED
+  WORKFLOW_UPDATED
+  RELATIONSHIP_CREATED
+  RELATIONSHIP_UPDATED
+  RELATIONSHIP_DELETED
+  AI_CATEGORIZATION_RUN
+  AI_CATEGORIZATION_ACCEPTED
+  AI_CATEGORIZATION_REJECTED
 }
 
 enum RetentionPolicy {

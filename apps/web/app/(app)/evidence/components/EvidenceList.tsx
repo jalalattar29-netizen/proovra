@@ -58,7 +58,7 @@ export function EvidenceList({
         <div>
           <strong>Evidence queue</strong>
           <p>
-            Dense operational view for reviewer triage, export preparation, and case-linked record management.
+            Dense operational triage for reviewer queues, export readiness, and case-linked evidence operations.
           </p>
         </div>
         <div className="evidence-library-list-shell__meta">

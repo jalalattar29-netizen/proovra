@@ -10,6 +10,7 @@ import {
   getReviewerUploadModeLabel,
   hasCaptureLocationMetadata,
   resolveEffectiveOtsStatus,
+  type EvidenceIntelligence,
   type TrustDecision,
   type VerificationPackageMetadata,
 } from "@proovra/shared";
@@ -69,6 +70,23 @@ import { createAiProvider } from "../services/ai/ai-provider.js";
 import { AiCostGuard } from "../services/ai/ai-cost-guard.js";
 import { AI_LEGAL_DISCLAIMER } from "../services/ai/ai-policy.js";
 import { AiTask } from "../services/ai/ai-types.js";
+import {
+  appendReviewerAuditEvent,
+  listReviewerAuditEvents,
+} from "../services/evidence-review/reviewer-audit.service.js";
+import {
+  getEvidenceReviewerWorkflowSummary,
+  listEvidenceReviewerWorkflowEvents,
+  upsertEvidenceReviewerWorkflow,
+} from "../services/evidence-review/reviewer-workflow.service.js";
+import {
+  createEvidenceRelationship,
+  deleteEvidenceRelationship,
+  listEvidenceRelationships,
+  updateEvidenceRelationship,
+} from "../services/evidence-review/relationship-summary.service.js";
+import { listEvidenceArtifacts } from "../services/evidence-review/artifact-history.service.js";
+import { buildEvidenceReviewGovernance } from "../services/evidence-review/governance.service.js";
 
 const EvidenceTypeSchema = prismaPkg.EvidenceType
   ? z.nativeEnum(prismaPkg.EvidenceType)
@@ -214,6 +232,25 @@ const AnnotationBody = z.object({
 });
 
 const AnnotationUpdateBody = AnnotationBody.partial();
+
+const ReviewerWorkflowUpdateBody = z.object({
+  assignedToUserId: z.string().uuid().nullable().optional(),
+  status: z.nativeEnum(prismaPkg.EvidenceReviewWorkflowStatus).optional(),
+  priority: z.nativeEnum(prismaPkg.EvidenceReviewWorkflowPriority).optional(),
+  dueAt: z.string().datetime().nullable().optional(),
+  note: z.string().trim().max(1000).optional().nullable(),
+});
+
+const RelationshipBody = z.object({
+  targetEvidenceId: z.string().uuid(),
+  relationshipType: z.nativeEnum(prismaPkg.EvidenceRelationshipType),
+  note: z.string().trim().max(1000).optional().nullable(),
+});
+
+const RelationshipUpdateBody = z.object({
+  relationshipType: z.nativeEnum(prismaPkg.EvidenceRelationshipType).optional(),
+  note: z.string().trim().max(1000).optional().nullable(),
+});
 
 const RequestEvidenceCertificationBody = z.object({
   declarationType: z.nativeEnum(PrismaCertificationType),
@@ -635,6 +672,7 @@ const SAFE_EVIDENCE_SELECT = {
   storageObjectLockLegalHoldStatus: true,
   sizeBytes: true,
   fileSha256: true,
+  fingerprintCanonicalJson: true,
   fingerprintHash: true,
   signatureBase64: true,
   signingKeyId: true,
@@ -2177,6 +2215,22 @@ function mapEvidenceListItem(item: SelectedEvidenceListItem) {
     ownerUserId: item.ownerUserId,
     itemCount,
     storage,
+    reviewWorkflow: item.reviewWorkflow
+      ? {
+          status: item.reviewWorkflow.status,
+          priority: item.reviewWorkflow.priority,
+          dueAt: item.reviewWorkflow.dueAt
+            ? item.reviewWorkflow.dueAt.toISOString()
+            : null,
+          assignedTo: item.reviewWorkflow.assignedTo
+            ? {
+                id: item.reviewWorkflow.assignedTo.id,
+                email: item.reviewWorkflow.assignedTo.email ?? null,
+                displayName: item.reviewWorkflow.assignedTo.displayName ?? null,
+              }
+            : null,
+        }
+      : null,
     displaySubtitle: buildEvidenceSubtitle({
       itemCount,
       status: item.status,
@@ -2497,6 +2551,20 @@ const EVIDENCE_LIST_SELECT = {
   storageObjectLockMode: true,
   storageObjectLockRetainUntilUtc: true,
   storageObjectLockLegalHoldStatus: true,
+  reviewWorkflow: {
+    select: {
+      status: true,
+      priority: true,
+      dueAt: true,
+      assignedTo: {
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+        },
+      },
+    },
+  },
   _count: {
     select: { parts: true },
   },
@@ -3307,6 +3375,249 @@ function buildPublicCustodyLifecycle(params: {
     chronologyNote:
       "Forensic events describe integrity-relevant lifecycle actions. Access events describe later viewing, download, or verification access activity.",
   };
+}
+
+type BillingOverviewSnapshot = Awaited<ReturnType<typeof readBillingOverview>>;
+
+function resolveWorkspaceCapabilitySnapshot(params: {
+  overview: BillingOverviewSnapshot;
+  evidence: SelectedEvidence;
+}) {
+  const teamWorkspace = params.evidence.teamId
+    ? params.overview.workspaces.teams.find(
+        (team) => team.id === params.evidence.teamId
+      ) ?? null
+    : null;
+
+  if (teamWorkspace) {
+    return {
+      workspaceType: "TEAM" as const,
+      workspaceName:
+        params.evidence.workspaceNameSnapshot?.trim() ||
+        teamWorkspace.name ||
+        "Team Workspace",
+      plan: teamWorkspace.plan,
+      effectivePlan: teamWorkspace.effectivePlan ?? teamWorkspace.plan,
+      reportsIncluded: Boolean(teamWorkspace.features?.reportsIncluded),
+      verificationPackageIncluded: Boolean(
+        teamWorkspace.features?.verificationPackageIncluded
+      ),
+      publicVerifyIncluded: Boolean(teamWorkspace.features?.publicVerifyIncluded),
+      billingStatus: teamWorkspace.billingStatus ?? null,
+      storageUsedLabel: teamWorkspace.storage?.usedLabel ?? null,
+      storageLimitLabel: teamWorkspace.storage?.limitLabel ?? null,
+      storageRemainingLabel: teamWorkspace.storage?.remainingLabel ?? null,
+      seatsIncluded: teamWorkspace.seats?.included ?? null,
+      seatsUsed: teamWorkspace.seats?.used ?? null,
+      seatsRemaining: teamWorkspace.seats?.remaining ?? null,
+      overSeatLimit: teamWorkspace.overSeatLimit ?? null,
+    };
+  }
+
+  return {
+    workspaceType: "PERSONAL" as const,
+    workspaceName:
+      params.evidence.workspaceNameSnapshot?.trim() || "Personal Workspace",
+    plan: params.overview.workspaces.personal.plan,
+    effectivePlan: params.overview.workspaces.personal.plan,
+    reportsIncluded: Boolean(
+      params.overview.workspaces.personal.features?.reportsIncluded
+    ),
+    verificationPackageIncluded: Boolean(
+      params.overview.workspaces.personal.features
+        ?.verificationPackageIncluded
+    ),
+    publicVerifyIncluded: Boolean(
+      params.overview.workspaces.personal.features?.publicVerifyIncluded
+    ),
+    billingStatus:
+      params.overview.workspaces.personal.subscription?.status ?? null,
+    storageUsedLabel: params.overview.workspaces.personal.storage?.usedLabel ?? null,
+    storageLimitLabel:
+      params.overview.workspaces.personal.storage?.limitLabel ?? null,
+    storageRemainingLabel:
+      params.overview.workspaces.personal.storage?.remainingLabel ?? null,
+    seatsIncluded: null,
+    seatsUsed: null,
+    seatsRemaining: null,
+    overSeatLimit: null,
+  };
+}
+
+function readBooleanClientSignal(
+  source: Prisma.JsonValue | null | undefined,
+  key: string
+): boolean | null {
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return null;
+  }
+
+  const value = (source as Record<string, unknown>)[key];
+  return typeof value === "boolean" ? value : null;
+}
+
+function readStringClientSignal(
+  source: Prisma.JsonValue | null | undefined,
+  key: string
+): string | null {
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return null;
+  }
+
+  const value = (source as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function buildSourceContext(params: {
+  evidence: SelectedEvidence;
+  parts: Array<{
+    sourceLabel: string | null;
+    clientSignals: Prisma.JsonValue | null;
+    originalFileName: string | null;
+    mimeType: string | null;
+  }>;
+}) {
+  const folderPathPresent = params.parts.some(
+    (part) => readBooleanClientSignal(part.clientSignals, "folderPathPresent") === true
+  );
+  const screenshotLike = params.parts.some(
+    (part) => readBooleanClientSignal(part.clientSignals, "screenshotLike") === true
+  );
+  const genericMime = params.parts.some(
+    (part) => readBooleanClientSignal(part.clientSignals, "genericMime") === true
+  );
+  const oldLastModified = params.parts.some(
+    (part) => readBooleanClientSignal(part.clientSignals, "oldLastModified") === true
+  );
+  const duplicateSignals = params.parts
+    .map((part) => readStringClientSignal(part.clientSignals, "duplicateStatus"))
+    .filter((value): value is string => Boolean(value));
+  const locationIncluded =
+    hasCaptureLocationMetadata({
+      lat: decimalToNumber(params.evidence.lat),
+      lng: decimalToNumber(params.evidence.lng),
+    }) ||
+    params.parts.some(
+      (part) => readBooleanClientSignal(part.clientSignals, "locationIncluded") === true
+    );
+  const captureMethod = params.evidence.captureMethod ?? null;
+  const sourceType =
+    folderPathPresent || captureMethod === prismaPkg.CaptureMethod.MULTIPART_PACKAGE
+      ? "folder_upload"
+      : captureMethod === prismaPkg.CaptureMethod.SECURE_CAMERA
+        ? "native_capture"
+        : captureMethod === prismaPkg.CaptureMethod.UPLOADED_FILE ||
+            captureMethod === prismaPkg.CaptureMethod.IMPORTED_DOCUMENT
+          ? "imported_upload"
+          : "unknown";
+
+  return {
+    sourceType,
+    captureMethod,
+    captureMethodLabel: mapCaptureMethodLabel(captureMethod),
+    importedUpload: sourceType === "imported_upload",
+    nativeCapture: sourceType === "native_capture",
+    folderUpload: sourceType === "folder_upload",
+    deviceTimeIso: params.evidence.deviceTimeIso ?? null,
+    capturedAtUtc: params.evidence.capturedAtUtc
+      ? params.evidence.capturedAtUtc.toISOString()
+      : null,
+    uploadedAtUtc: params.evidence.uploadedAtUtc
+      ? params.evidence.uploadedAtUtc.toISOString()
+      : null,
+    createdAt: params.evidence.createdAt.toISOString(),
+    locationIncluded,
+    sourceLabels: params.parts
+      .map((part) => part.sourceLabel?.trim() ?? "")
+      .filter(Boolean),
+    clientSignalsSummary: {
+      screenshotLike,
+      genericMime,
+      oldLastModified,
+      folderPathPresent,
+      duplicateSignals,
+    },
+    metadataAvailability: {
+      nativeMetadataRecorded: params.parts.some(
+        (part) => Boolean(part.originalFileName || part.mimeType)
+      ),
+      captureLocationRecorded: locationIncluded,
+      clientSignalsRecorded: params.parts.some((part) => Boolean(part.clientSignals)),
+    },
+    limitations: [
+      "Imported upload indicates PROOVRA preserved the uploaded file and recorded integrity state. It does not independently prove original capture source.",
+    ],
+  };
+}
+
+function buildResolvedReviewerAlerts(params: {
+  evidenceIntelligence: EvidenceIntelligence | null;
+  workspaceCapabilitySnapshot: ReturnType<typeof resolveWorkspaceCapabilitySnapshot>;
+  anchor: AnchorStatusSummary;
+  latestReportVersion: number | null;
+  latestVerificationPackageVersion: number | null;
+  evidence: SelectedEvidence;
+}) {
+  const baseAlerts =
+    params.evidenceIntelligence?.reviewerAlerts?.filter((alert: EvidenceIntelligence["reviewerAlerts"][number]) => {
+      if (alert.label !== "Public verification not configured") return true;
+
+      if (!params.workspaceCapabilitySnapshot.publicVerifyIncluded) {
+        return false;
+      }
+
+      return !params.anchor.published;
+    }) ?? [];
+
+  const operationalAlerts = [...baseAlerts];
+
+  if (!params.workspaceCapabilitySnapshot.publicVerifyIncluded) {
+    operationalAlerts.push({
+      severity: "info" as const,
+      label: "Public verification not included",
+      detail:
+        "Public verification is not included in the current workspace plan.",
+    });
+  } else if (!params.anchor.published) {
+    operationalAlerts.push({
+      severity: "warning" as const,
+      label: "Public verification not published",
+      detail:
+        "Public verification is supported for this workspace, but a public verification record is not published yet.",
+    });
+  }
+
+  if (!params.latestReportVersion) {
+    operationalAlerts.push({
+      severity: "warning" as const,
+      label: "Report not generated",
+      detail:
+        "Generate a PDF report when a fixed review artifact is required.",
+    });
+  }
+
+  if (
+    params.workspaceCapabilitySnapshot.verificationPackageIncluded &&
+    !params.latestVerificationPackageVersion
+  ) {
+    operationalAlerts.push({
+      severity: "warning" as const,
+      label: "Verification package not generated",
+      detail:
+        "Generate a verification package for offline or external review when needed.",
+    });
+  }
+
+  if (!params.evidence.caseId) {
+    operationalAlerts.push({
+      severity: "info" as const,
+      label: "No case assignment",
+      detail:
+        "Case assignment is not recorded for this evidence item.",
+    });
+  }
+
+  return operationalAlerts;
 }
 
 async function buildStorageLimitPayload(params: {
@@ -5021,6 +5332,16 @@ await appendCustodyEvent({
       include: { author: { select: { id: true, displayName: true, email: true } } },
     });
 
+    await appendReviewerAuditEvent({
+      evidenceId: id,
+      actorUserId: userId,
+      eventType: prismaPkg.EvidenceReviewerAuditEventType.COMMENT_CREATED,
+      metadata: {
+        commentId: created.id,
+        visibility: created.visibility,
+      } as Prisma.InputJsonValue,
+    }).catch(() => null);
+
     return reply.code(201).send({
       comment: {
         id: created.id,
@@ -5066,6 +5387,16 @@ await appendCustodyEvent({
         include: { author: { select: { id: true, displayName: true, email: true } } },
       });
 
+      await appendReviewerAuditEvent({
+        evidenceId: id,
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.COMMENT_UPDATED,
+        metadata: {
+          commentId: updated.id,
+          visibility: updated.visibility,
+        } as Prisma.InputJsonValue,
+      }).catch(() => null);
+
       return reply.code(200).send({
         comment: {
           id: updated.id,
@@ -5106,6 +5437,13 @@ await appendCustodyEvent({
         where: { id: commentId },
         data: { deletedAt: new Date() },
       });
+
+      await appendReviewerAuditEvent({
+        evidenceId: id,
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.COMMENT_DELETED,
+        metadata: { commentId } as Prisma.InputJsonValue,
+      }).catch(() => null);
 
       return reply.code(200).send({ deleted: true });
     }
@@ -5152,6 +5490,16 @@ await appendCustodyEvent({
       include: { author: { select: { id: true, displayName: true, email: true } } },
     });
 
+    await appendReviewerAuditEvent({
+      evidenceId: id,
+      actorUserId: userId,
+      eventType: prismaPkg.EvidenceReviewerAuditEventType.LEGAL_NOTE_CREATED,
+      metadata: {
+        legalNoteId: created.id,
+        noteType: created.noteType,
+      } as Prisma.InputJsonValue,
+    }).catch(() => null);
+
     return reply.code(201).send({
       legalNote: {
         id: created.id,
@@ -5197,6 +5545,16 @@ await appendCustodyEvent({
         include: { author: { select: { id: true, displayName: true, email: true } } },
       });
 
+      await appendReviewerAuditEvent({
+        evidenceId: id,
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.LEGAL_NOTE_UPDATED,
+        metadata: {
+          legalNoteId: updated.id,
+          noteType: updated.noteType,
+        } as Prisma.InputJsonValue,
+      }).catch(() => null);
+
       return reply.code(200).send({
         legalNote: {
           id: updated.id,
@@ -5237,6 +5595,13 @@ await appendCustodyEvent({
         where: { id: noteId },
         data: { deletedAt: new Date() },
       });
+
+      await appendReviewerAuditEvent({
+        evidenceId: id,
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.LEGAL_NOTE_DELETED,
+        metadata: { legalNoteId: noteId } as Prisma.InputJsonValue,
+      }).catch(() => null);
 
       return reply.code(200).send({ deleted: true });
     }
@@ -5306,6 +5671,17 @@ await appendCustodyEvent({
       include: { author: { select: { id: true, displayName: true, email: true } } },
     });
 
+    await appendReviewerAuditEvent({
+      evidenceId: id,
+      actorUserId: userId,
+      eventType: prismaPkg.EvidenceReviewerAuditEventType.ANNOTATION_CREATED,
+      metadata: {
+        annotationId: created.id,
+        annotationType: created.annotationType,
+        evidencePartId: created.evidencePartId ?? null,
+      } as Prisma.InputJsonValue,
+    }).catch(() => null);
+
     return reply.code(201).send({
       annotation: {
         id: created.id,
@@ -5374,6 +5750,17 @@ await appendCustodyEvent({
         include: { author: { select: { id: true, displayName: true, email: true } } },
       });
 
+      await appendReviewerAuditEvent({
+        evidenceId: id,
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.ANNOTATION_UPDATED,
+        metadata: {
+          annotationId: updated.id,
+          annotationType: updated.annotationType,
+          evidencePartId: updated.evidencePartId ?? null,
+        } as Prisma.InputJsonValue,
+      }).catch(() => null);
+
       return reply.code(200).send({
         annotation: {
           id: updated.id,
@@ -5425,6 +5812,13 @@ await appendCustodyEvent({
         where: { id: annotationId },
         data: { deletedAt: new Date() },
       });
+
+      await appendReviewerAuditEvent({
+        evidenceId: id,
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.ANNOTATION_DELETED,
+        metadata: { annotationId } as Prisma.InputJsonValue,
+      }).catch(() => null);
 
       return reply.code(200).send({ deleted: true });
     }
@@ -5602,6 +5996,276 @@ await appendCustodyEvent({
   });
 
   app.get(
+    "/v1/evidence/:id/reviewer-workflow",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      await getEvidenceWithReadAccess(userId, id);
+
+      return reply.code(200).send(await getEvidenceReviewerWorkflowSummary(id));
+    }
+  );
+
+  app.patch(
+    "/v1/evidence/:id/reviewer-workflow",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const body = ReviewerWorkflowUpdateBody.parse(req.body);
+      const evidence = await getEvidenceWithReadAccess(userId, id);
+
+      if (body.assignedToUserId) {
+        const targetUserAccessible =
+          evidence.ownerUserId === body.assignedToUserId ||
+          (evidence.caseId
+            ? await prisma.caseAccess.findFirst({
+                where: {
+                  caseId: evidence.caseId,
+                  userId: body.assignedToUserId,
+                },
+                select: { caseId: true },
+              })
+            : evidence.teamId
+              ? await prisma.teamMember.findFirst({
+                  where: {
+                    teamId: evidence.teamId,
+                    userId: body.assignedToUserId,
+                  },
+                  select: { id: true },
+                })
+              : null);
+
+        if (!targetUserAccessible) {
+          return reply
+            .code(400)
+            .send({ message: "Assigned reviewer must have access to this evidence record" });
+        }
+      }
+
+      const summary = await upsertEvidenceReviewerWorkflow({
+        evidenceId: id,
+        workspaceType: evidence.teamId ? "TEAM" : "PERSONAL",
+        teamId: evidence.teamId ?? null,
+        actorUserId: userId,
+        assignedToUserId: body.assignedToUserId,
+        status: body.status,
+        priority: body.priority,
+        dueAt:
+          body.dueAt === undefined
+            ? undefined
+            : body.dueAt
+              ? new Date(body.dueAt)
+              : null,
+        note: body.note ?? null,
+      });
+
+      await appendReviewerAuditEvent({
+        evidenceId: id,
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.WORKFLOW_UPDATED,
+        metadata: {
+          assignedToUserId: body.assignedToUserId ?? undefined,
+          status: body.status ?? undefined,
+          priority: body.priority ?? undefined,
+          dueAt: body.dueAt ?? undefined,
+        } as Prisma.InputJsonValue,
+      }).catch(() => null);
+
+      return reply.code(200).send(summary);
+    }
+  );
+
+  app.get(
+    "/v1/evidence/:id/reviewer-workflow/events",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      await getEvidenceWithReadAccess(userId, id);
+
+      const items = await listEvidenceReviewerWorkflowEvents(id);
+      return reply.code(200).send({
+        items: items.map((item) => ({
+          id: item.id,
+          eventType: item.eventType,
+          note: item.note ?? null,
+          previousValue: toJsonSafe(item.previousValue ?? null),
+          nextValue: toJsonSafe(item.nextValue ?? null),
+          createdAt: item.createdAt.toISOString(),
+          actor: item.actor ? mapCollaborativeAuthor(item.actor) : null,
+        })),
+      });
+    }
+  );
+
+  app.get(
+    "/v1/evidence/:id/relationships",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      await getEvidenceWithReadAccess(userId, id);
+
+      return reply.code(200).send({
+        items: await listEvidenceRelationships(id),
+      });
+    }
+  );
+
+  app.post(
+    "/v1/evidence/:id/relationships",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const body = RelationshipBody.parse(req.body);
+      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const target = await getEvidenceWithReadAccess(userId, body.targetEvidenceId);
+
+      const relationship = await createEvidenceRelationship({
+        sourceEvidenceId: id,
+        targetEvidenceId: target.id,
+        relationshipType: body.relationshipType,
+        note: body.note ?? null,
+        createdByUserId: userId,
+        teamId: evidence.teamId ?? target.teamId ?? null,
+      });
+
+      await appendReviewerAuditEvent({
+        evidenceId: id,
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.RELATIONSHIP_CREATED,
+        metadata: {
+          relationshipId: relationship.id,
+          targetEvidenceId: target.id,
+          relationshipType: relationship.relationshipType,
+        } as Prisma.InputJsonValue,
+      }).catch(() => null);
+
+      return reply.code(201).send({
+        relationshipId: relationship.id,
+        items: await listEvidenceRelationships(id),
+      });
+    }
+  );
+
+  app.patch(
+    "/v1/evidence/:id/relationships/:relationshipId",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const relationshipId = z
+        .string()
+        .uuid()
+        .parse((req.params as { relationshipId: string }).relationshipId);
+      const body = RelationshipUpdateBody.parse(req.body);
+      await getEvidenceWithReadAccess(userId, id);
+
+      const relationship = await prisma.evidenceRelationship.findUnique({
+        where: { id: relationshipId },
+      });
+
+      if (
+        !relationship ||
+        (relationship.sourceEvidenceId !== id && relationship.targetEvidenceId !== id)
+      ) {
+        return reply.code(404).send({ message: "Relationship not found" });
+      }
+
+      await updateEvidenceRelationship({
+        relationshipId,
+        relationshipType: body.relationshipType,
+        note: body.note,
+      });
+
+      await appendReviewerAuditEvent({
+        evidenceId: id,
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.RELATIONSHIP_UPDATED,
+        metadata: {
+          relationshipId,
+          relationshipType: body.relationshipType ?? undefined,
+        } as Prisma.InputJsonValue,
+      }).catch(() => null);
+
+      return reply.code(200).send({
+        items: await listEvidenceRelationships(id),
+      });
+    }
+  );
+
+  app.delete(
+    "/v1/evidence/:id/relationships/:relationshipId",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const relationshipId = z
+        .string()
+        .uuid()
+        .parse((req.params as { relationshipId: string }).relationshipId);
+      await getEvidenceWithReadAccess(userId, id);
+
+      const relationship = await prisma.evidenceRelationship.findUnique({
+        where: { id: relationshipId },
+      });
+
+      if (
+        !relationship ||
+        (relationship.sourceEvidenceId !== id && relationship.targetEvidenceId !== id)
+      ) {
+        return reply.code(404).send({ message: "Relationship not found" });
+      }
+
+      await deleteEvidenceRelationship(relationshipId);
+
+      await appendReviewerAuditEvent({
+        evidenceId: id,
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.RELATIONSHIP_DELETED,
+        metadata: { relationshipId } as Prisma.InputJsonValue,
+      }).catch(() => null);
+
+      return reply.code(200).send({ deleted: true });
+    }
+  );
+
+  app.get(
+    "/v1/evidence/:id/reviewer-audit",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      await getEvidenceWithReadAccess(userId, id);
+
+      const items = await listReviewerAuditEvents(id);
+      return reply.code(200).send({
+        items: items.map((item) => ({
+          id: item.id,
+          eventType: item.eventType,
+          metadata: toJsonSafe(item.metadata ?? null),
+          createdAt: item.createdAt.toISOString(),
+          actor: item.actor ? mapCollaborativeAuthor(item.actor) : null,
+        })),
+      });
+    }
+  );
+
+  app.get(
+    "/v1/evidence/:id/artifacts",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      await getEvidenceWithReadAccess(userId, id);
+      return reply.code(200).send(await listEvidenceArtifacts(id));
+    }
+  );
+
+  app.get(
     "/v1/evidence/:id/ai-categorization",
     { preHandler: requireAuth },
     async (req, reply) => {
@@ -5728,6 +6392,17 @@ await appendCustodyEvent({
 
       evidenceAiCostGuard.recordEvidenceCategorization(userId, id);
 
+      await appendReviewerAuditEvent({
+        evidenceId: id,
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.AI_CATEGORIZATION_RUN,
+        metadata: {
+          categorizationId: persisted.id,
+          status: persisted.status,
+          model: persisted.model ?? null,
+        } as Prisma.InputJsonValue,
+      }).catch(() => null);
+
       return reply.code(200).send({
         categorization: {
           status: persisted.status,
@@ -5742,6 +6417,909 @@ await appendCustodyEvent({
           nextActions: aiResult.suggestions,
         },
       });
+    }
+  );
+
+  app.get(
+    "/v1/evidence/:id/review-workspace",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const ownerUserId = getAuthUserId(req);
+
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      try {
+        const evidence = await getEvidenceWithReadAccess(ownerUserId, id);
+        if (!evidence.signingKeyId || evidence.signingKeyVersion == null) {
+          return reply
+            .code(409)
+            .send({ message: "Signing key metadata is not recorded for this evidence record" });
+        }
+        const signingKey = await prisma.signingKey.findUnique({
+          where: {
+            keyId_version: {
+              keyId: evidence.signingKeyId,
+              version: evidence.signingKeyVersion,
+            },
+          },
+          select: { publicKeyPem: true },
+        });
+
+        if (!signingKey) {
+          return reply.code(404).send({ message: "Signing key not found" });
+        }
+
+        const [
+          itemCount,
+          overview,
+          storage,
+          anchor,
+          parts,
+          allCustodyEvents,
+          latestReport,
+          latestVerificationPackage,
+          caseItem,
+          publicVerifyCount,
+          lastPublicVerify,
+          authenticatedVerifyCount,
+          reportDownloadCount,
+          verificationPackageDownloadCount,
+        ] = await Promise.all([
+          getEvidenceItemCount(id),
+          readBillingOverview(ownerUserId),
+          getStorageProtectionSummary(evidence.storageBucket, evidence.storageKey, {
+            storageRegion: evidence.storageRegion,
+            storageObjectLockMode: evidence.storageObjectLockMode,
+            storageObjectLockRetainUntilUtc:
+              evidence.storageObjectLockRetainUntilUtc,
+            storageObjectLockLegalHoldStatus:
+              evidence.storageObjectLockLegalHoldStatus,
+          }),
+          getAnchorStatus(id),
+          prisma.evidencePart.findMany({
+            where: { evidenceId: id },
+            orderBy: { partIndex: "asc" },
+            select: {
+              id: true,
+              partIndex: true,
+              originalFileName: true,
+              mimeType: true,
+              sizeBytes: true,
+              sha256: true,
+              durationMs: true,
+              storageBucket: true,
+              storageKey: true,
+              storageRegion: true,
+              storageObjectLockMode: true,
+              storageObjectLockRetainUntilUtc: true,
+              storageObjectLockLegalHoldStatus: true,
+              privateRole: true,
+              privateNote: true,
+              checklistStepId: true,
+              sourceLabel: true,
+              clientSignals: true,
+              uploadedAtUtc: true,
+              createdAt: true,
+            },
+          }),
+          prisma.custodyEvent.findMany({
+            where: { evidenceId: id },
+            orderBy: { sequence: "asc" },
+            take: 500,
+            select: {
+              sequence: true,
+              atUtc: true,
+              eventType: true,
+              payload: true,
+              prevEventHash: true,
+              eventHash: true,
+            },
+          }),
+          prisma.report.findFirst({
+            where: { evidenceId: id },
+            orderBy: { version: "desc" },
+            select: {
+              version: true,
+              generatedAtUtc: true,
+              embeddedPreviewsSnapshot: true,
+              trustDecisionSnapshot: true,
+              verificationStatusSnapshot: true,
+              displayTitleSnapshot: true,
+              itemCountSnapshot: true,
+            },
+          }),
+          prisma.verificationPackage.findFirst({
+            where: { evidenceId: id },
+            orderBy: { version: "desc" },
+            select: {
+              version: true,
+              generatedAtUtc: true,
+              packageType: true,
+              storageBucket: true,
+              storageKey: true,
+              trustDecisionSnapshot: true,
+            },
+          }),
+          evidence.caseId
+            ? prisma.case.findUnique({
+                where: { id: evidence.caseId },
+                select: { id: true, name: true, teamId: true },
+              })
+            : Promise.resolve(null),
+          prisma.verificationView.count({
+            where: {
+              evidenceId: id,
+              viewerType: prismaPkg.VerificationViewerType.PUBLIC,
+            },
+          }),
+          prisma.verificationView.findFirst({
+            where: {
+              evidenceId: id,
+              viewerType: prismaPkg.VerificationViewerType.PUBLIC,
+            },
+            orderBy: { createdAt: "desc" },
+            select: { createdAt: true },
+          }),
+          prisma.verificationView.count({
+            where: {
+              evidenceId: id,
+              viewerType: prismaPkg.VerificationViewerType.AUTHENTICATED,
+            },
+          }),
+          prisma.custodyEvent.count({
+            where: {
+              evidenceId: id,
+              eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
+            },
+          }),
+          prisma.custodyEvent.count({
+            where: {
+              evidenceId: id,
+              eventType:
+                prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
+            },
+          }),
+        ]);
+
+        const workspaceCapabilitySnapshot = resolveWorkspaceCapabilitySnapshot({
+          overview,
+          evidence,
+        });
+
+        const evidenceIntelligence = await buildEvidenceIntelligence({
+          evidenceId: id,
+          evidence,
+          anchor,
+          storage,
+        });
+
+        const forensicCustodyEvents = allCustodyEvents.filter(
+          (ev) => classifyCustodyEventType(ev.eventType) === "forensic"
+        );
+        const accessCustodyEvents = allCustodyEvents.filter(
+          (ev) => classifyCustodyEventType(ev.eventType) === "access"
+        );
+
+        const persistedVerificationPackageMetadata =
+          isVerificationPackageMetadata(evidence.verificationPackageMetadata)
+            ? evidence.verificationPackageMetadata
+            : null;
+
+        let verificationPackageIntegrity: PublicVerificationPackageIntegrity;
+        if (persistedVerificationPackageMetadata) {
+          verificationPackageIntegrity = {
+            available: Boolean(latestVerificationPackage),
+            version: latestVerificationPackage?.version ?? null,
+            generatedAtUtc: latestVerificationPackage?.generatedAtUtc
+              ? latestVerificationPackage.generatedAtUtc.toISOString()
+              : null,
+            packageType: latestVerificationPackage?.packageType ?? null,
+            manifestPresent: persistedVerificationPackageMetadata.manifestPresent,
+            signedManifestPresent:
+              persistedVerificationPackageMetadata.signedManifestPresent,
+            manifestDigestPresent:
+              persistedVerificationPackageMetadata.signedManifestPresent,
+            checksumIndexPresent:
+              persistedVerificationPackageMetadata.checksumIndexPresent,
+            offlineVerifierIncluded:
+              persistedVerificationPackageMetadata.offlineVerifierIncluded,
+            auditExportIncluded:
+              persistedVerificationPackageMetadata.auditExportIncluded ?? false,
+            custodyExportIncluded:
+              persistedVerificationPackageMetadata.custodyExportIncluded ??
+              false,
+            accessExportIncluded:
+              persistedVerificationPackageMetadata.accessExportIncluded ?? false,
+          };
+        } else if (latestVerificationPackage) {
+          const inspectedArtifacts = await inspectVerificationPackageArtifacts(
+            latestVerificationPackage.storageBucket,
+            latestVerificationPackage.storageKey
+          );
+
+          verificationPackageIntegrity = {
+            available: true,
+            version: latestVerificationPackage.version,
+            generatedAtUtc:
+              latestVerificationPackage.generatedAtUtc.toISOString(),
+            packageType: latestVerificationPackage.packageType ?? null,
+            manifestPresent: inspectedArtifacts?.manifestPresent ?? false,
+            signedManifestPresent:
+              inspectedArtifacts?.signedManifestPresent ?? false,
+            manifestDigestPresent:
+              inspectedArtifacts?.manifestDigestPresent ?? false,
+            checksumIndexPresent:
+              inspectedArtifacts?.checksumIndexPresent ?? false,
+            offlineVerifierIncluded:
+              inspectedArtifacts?.offlineVerifierIncluded ?? false,
+            auditExportIncluded:
+              inspectedArtifacts?.auditExportIncluded ?? false,
+            custodyExportIncluded:
+              inspectedArtifacts?.custodyExportIncluded ?? false,
+            accessExportIncluded:
+              inspectedArtifacts?.accessExportIncluded ?? false,
+          };
+        } else {
+          verificationPackageIntegrity = {
+            available: false,
+            version: null,
+            generatedAtUtc: null,
+            packageType: null,
+            manifestPresent: false,
+            signedManifestPresent: false,
+            manifestDigestPresent: false,
+            checksumIndexPresent: false,
+            offlineVerifierIncluded: false,
+            auditExportIncluded: false,
+            custodyExportIncluded: false,
+            accessExportIncluded: false,
+          };
+        }
+
+        const reportPreviewMap = new Map<
+          string,
+          {
+            previewDataUrl?: string | null;
+            previewTextExcerpt?: string | null;
+            previewCaption?: string | null;
+          }
+        >();
+
+        if (Array.isArray(latestReport?.embeddedPreviewsSnapshot)) {
+          for (const item of latestReport.embeddedPreviewsSnapshot) {
+            if (
+              item &&
+              typeof item === "object" &&
+              "id" in item &&
+              typeof item.id === "string"
+            ) {
+              reportPreviewMap.set(item.id, {
+                previewDataUrl:
+                  "previewDataUrl" in item &&
+                  typeof item.previewDataUrl === "string"
+                    ? item.previewDataUrl
+                    : null,
+                previewTextExcerpt:
+                  "previewTextExcerpt" in item &&
+                  typeof item.previewTextExcerpt === "string"
+                    ? item.previewTextExcerpt
+                    : null,
+                previewCaption:
+                  "previewCaption" in item &&
+                  typeof item.previewCaption === "string"
+                    ? item.previewCaption
+                    : null,
+              });
+            }
+          }
+        }
+
+        const authenticatedContentAccessPolicy =
+          resolveEvidenceContentAccessPolicyForSurface({
+            surface: "authenticated_verify",
+          });
+        const content = await buildPublicEvidenceContent({
+          accessPolicy: authenticatedContentAccessPolicy,
+          previews: reportPreviewMap,
+          evidence: {
+            id: evidence.id,
+            mimeType: evidence.mimeType,
+            sizeBytes: evidence.sizeBytes,
+            storageBucket: evidence.storageBucket,
+            storageKey: evidence.storageKey,
+            fileSha256: evidence.fileSha256,
+            originalFileName: evidence.originalFileName ?? null,
+            displayFileName: evidence.displayFileName ?? null,
+            recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
+          },
+          parts,
+        });
+
+        const defaultPreviewItem =
+          content.items.find((item) => item.previewable && item.viewUrl) ??
+          content.items.find((item) => item.viewUrl) ??
+          content.primaryItem ??
+          null;
+
+        const display = buildEvidenceDisplayDescriptor({
+          title:
+            evidence.title ??
+            evidence.displayFileName ??
+            evidence.originalFileName ??
+            null,
+          summary: content.summary,
+          itemCount,
+        });
+
+        const recomputedFingerprintHash = evidence.fingerprintCanonicalJson
+          ? sha256Hex(evidence.fingerprintCanonicalJson)
+          : null;
+        const canonicalHashMatches =
+          Boolean(recomputedFingerprintHash) &&
+          recomputedFingerprintHash === evidence.fingerprintHash;
+
+        let signatureValid = false;
+        try {
+          signatureValid =
+            recomputedFingerprintHash != null &&
+            evidence.signatureBase64 != null &&
+            ed25519VerifyHexSignature({
+              messageHex: recomputedFingerprintHash,
+              signatureBase64: evidence.signatureBase64,
+              publicKeyPem: signingKey.publicKeyPem,
+            });
+        } catch {
+          signatureValid = false;
+        }
+
+        const normalizedTsaStatus = String(evidence.tsaStatus ?? "")
+          .trim()
+          .toUpperCase();
+        const timestampInputDigestHex =
+          evidence.tsaInputDigestHex ?? evidence.fileSha256;
+        const timestampStatusIsPositive =
+          normalizedTsaStatus === "STAMPED" ||
+          normalizedTsaStatus === "GRANTED" ||
+          normalizedTsaStatus === "VERIFIED" ||
+          normalizedTsaStatus === "SUCCEEDED";
+        const timestampStatusIsUnavailable =
+          normalizedTsaStatus === "FAILED" ||
+          normalizedTsaStatus === "UNAVAILABLE" ||
+          normalizedTsaStatus === "ERROR" ||
+          normalizedTsaStatus.length === 0;
+const timestampDigestMatches: boolean | null =
+  timestampStatusIsPositive
+    ? Boolean(evidence.tsaMessageImprint && timestampInputDigestHex) &&
+      String(evidence.tsaMessageImprint).toLowerCase() ===
+        String(timestampInputDigestHex).toLowerCase()
+            : timestampStatusIsUnavailable
+              ? null
+              : null;
+
+        const effectiveOtsStatus = resolveEffectiveOtsStatus({
+          status: evidence.otsStatus,
+          anchoredAtUtc: evidence.otsAnchoredAtUtc,
+        });
+        const effectiveOtsAnchoredAtUtc =
+          effectiveOtsStatus === "ANCHORED" ? evidence.otsAnchoredAtUtc : null;
+        const otsHashMatches =
+          evidence.otsHash && evidence.fingerprintHash
+            ? evidence.otsHash.toLowerCase() ===
+              evidence.fingerprintHash.toLowerCase()
+            : null;
+
+        const custodyChain = evaluateCustodyChain({
+          evidenceId: id,
+          records: allCustodyEvents.map((ev) => ({
+            sequence: ev.sequence,
+            eventType: ev.eventType,
+            atUtc: ev.atUtc,
+            payload: ev.payload,
+            prevEventHash: ev.prevEventHash,
+            eventHash: ev.eventHash,
+          })),
+        });
+
+        const snapshotTrustDecision =
+          normalizeTrustDecisionSnapshot(latestReport?.trustDecisionSnapshot) ??
+          normalizeTrustDecisionSnapshot(
+            latestVerificationPackage?.trustDecisionSnapshot
+          ) ??
+          null;
+
+        const liveTrustDecision = buildEvidenceTrustDecision({
+          evidence: {
+            verificationStatus: evidence.verificationStatus ?? null,
+            recordedIntegrityVerifiedAtUtc:
+              evidence.recordedIntegrityVerifiedAtUtc?.toISOString() ?? null,
+            fileSha256: evidence.fileSha256 ?? null,
+            fingerprintHash: evidence.fingerprintHash ?? null,
+            signatureBase64: evidence.signatureBase64 ?? null,
+            signingKeyId: evidence.signingKeyId ?? null,
+            publicKeyPem: signingKey.publicKeyPem ?? null,
+            tsaStatus: evidence.tsaStatus ?? null,
+            tsaFailureReason: evidence.tsaFailureReason ?? null,
+            otsStatus: effectiveOtsStatus,
+            otsHash: evidence.otsHash ?? null,
+            otsBitcoinTxid: evidence.otsBitcoinTxid ?? null,
+            otsAnchoredAtUtc:
+              effectiveOtsAnchoredAtUtc?.toISOString() ?? null,
+            otsCalendar: evidence.otsCalendar ?? null,
+            otsFailureReason: evidence.otsFailureReason ?? null,
+            storageImmutable: storage?.immutable ?? null,
+            storageObjectLockMode: storage?.mode ?? null,
+            storageObjectLockRetainUntilUtc: storage?.retainUntil ?? null,
+            identityLevelSnapshot: evidence.identityLevelSnapshot ?? null,
+            submittedByEmail: evidence.submittedByEmail ?? null,
+            submittedByAuthProvider: evidence.submittedByAuthProvider ?? null,
+            verificationPackageVersion:
+              latestVerificationPackage?.version ??
+              evidence.verificationPackageVersion ??
+              null,
+            verificationPackageGeneratedAtUtc:
+              latestVerificationPackage?.generatedAtUtc?.toISOString() ??
+              evidence.verificationPackageGeneratedAtUtc?.toISOString() ??
+              null,
+            anchor: anchor
+              ? {
+                  configured: anchor.configured,
+                  published: anchor.published,
+                  provider: anchor.provider,
+                  publicUrl: anchor.publicUrl,
+                  anchoredAtUtc: anchor.anchoredAtUtc,
+                  transactionId: anchor.transactionId,
+                  receiptId: anchor.receiptId,
+                }
+              : null,
+          },
+          custodyEvents: allCustodyEvents.map((event) => ({
+            eventType: event.eventType,
+            category: classifyCustodyEventType(event.eventType),
+            eventHash: event.eventHash ?? null,
+            prevEventHash: event.prevEventHash ?? null,
+          })),
+        });
+
+        const trustDecision = snapshotTrustDecision ?? liveTrustDecision;
+        const trustDecisionConsistency = {
+          source: snapshotTrustDecision
+            ? latestReport?.trustDecisionSnapshot
+              ? "REPORT_SNAPSHOT"
+              : "VERIFICATION_PACKAGE_SNAPSHOT"
+            : "LIVE_SHARED_FALLBACK",
+          consistentWithSnapshot: snapshotTrustDecision
+            ? JSON.stringify(snapshotTrustDecision) ===
+              JSON.stringify(liveTrustDecision)
+            : null,
+        };
+
+        const custodyDisplayContext = {
+          itemCount: content.summary.itemCount,
+          structure: content.summary.structure,
+        } as const;
+
+        const mappedForensicEvents = forensicCustodyEvents.map((event) =>
+          mapPublicCustodyEvent(event, custodyDisplayContext)
+        );
+        const mappedAccessEvents = accessCustodyEvents.map((event) =>
+          mapPublicCustodyEvent(event, custodyDisplayContext)
+        );
+        const custodyLifecycle = buildPublicCustodyLifecycle({
+          forensicEvents: mappedForensicEvents,
+          accessEvents: mappedAccessEvents,
+        });
+
+        const reportGeneratedAtUtc =
+          latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null;
+        const forensicEventsAtReportGeneration = reportGeneratedAtUtc
+          ? forensicCustodyEvents.filter((ev) => ev.atUtc <= reportGeneratedAtUtc)
+          : forensicCustodyEvents;
+        const accessEventsAfterReportGeneration = reportGeneratedAtUtc
+          ? accessCustodyEvents.filter((ev) => ev.atUtc > reportGeneratedAtUtc)
+          : accessCustodyEvents;
+
+        const custodyDisplayCounts = {
+          forensicAtReportGeneration: forensicEventsAtReportGeneration.length,
+          currentForensicEvents: forensicCustodyEvents.length,
+          accessAfterReportGeneration: accessEventsAfterReportGeneration.length,
+          currentAccessEvents: accessCustodyEvents.length,
+          reportGeneratedAtUtc: reportGeneratedAtUtc
+            ? reportGeneratedAtUtc.toISOString()
+            : null,
+        };
+
+        const sourceContext = buildSourceContext({ evidence, parts });
+        const relatedEvidenceCount = evidence.caseId
+          ? await prisma.evidence.count({
+              where: {
+                caseId: evidence.caseId,
+                deletedAt: null,
+              },
+            })
+          : null;
+
+        const reviewerAlerts = buildResolvedReviewerAlerts({
+          evidenceIntelligence,
+          workspaceCapabilitySnapshot,
+          anchor,
+          latestReportVersion: latestReport?.version ?? evidence.latestReportVersion,
+          latestVerificationPackageVersion:
+            latestVerificationPackage?.version ??
+            evidence.verificationPackageVersion,
+          evidence,
+        });
+        const reviewerWorkflowSummary = await getEvidenceReviewerWorkflowSummary(id);
+        const relationshipItems = await listEvidenceRelationships(id);
+        const artifactHistory = await listEvidenceArtifacts(id);
+        const governance = buildEvidenceReviewGovernance();
+        const reviewerAudit = await listReviewerAuditEvents(id);
+
+        const reviewDecision =
+          evidenceIntelligence?.reviewerDecision ?? {
+            status: evidence.deletedAt
+              ? "RESTRICTED"
+              : evidence.verificationStatus ===
+                    prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED &&
+                  latestReport
+                ? "READY_FOR_EXTERNAL_REVIEW"
+                : "NEEDS_ATTENTION",
+            label: evidence.deletedAt
+              ? "Review with limitations"
+              : evidence.verificationStatus ===
+                    prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED &&
+                  latestReport
+                ? "Ready for review"
+                : "Requires reviewer attention",
+            summary: evidence.deletedAt
+              ? "This record is in trash or restricted state and should be handled with retention controls in mind."
+              : evidence.verificationStatus ===
+                    prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED &&
+                  latestReport
+                ? "Technical verification materials are available for reviewer inspection."
+                : "One or more technical or operational materials are still incomplete.",
+            issues: reviewerAlerts.map((alert) => alert.label),
+            nextActions: [
+              latestReport
+                ? "Review the generated report together with the live record state."
+                : "Generate a report when a fixed reviewer snapshot is required.",
+              latestVerificationPackage
+                ? "Download the verification package for offline review if needed."
+                : "Generate a verification package when offline review is required.",
+            ],
+          };
+
+        const publicVerifyPath = `/verify/${evidence.id}`;
+
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.review_workspace_viewed",
+          outcome: "success",
+          resourceId: id,
+          metadata: {
+            itemCount,
+            forensicEventCount: forensicCustodyEvents.length,
+            accessEventCount: accessCustodyEvents.length,
+          },
+        });
+
+        return reply.code(200).send(
+          toJsonSafe({
+            evidence: {
+              ...toSafeEvidence(evidence),
+              itemCount,
+              display,
+              displayTitle: display.displayTitle,
+              displaySubtitle: buildEvidenceSubtitle({
+                itemCount,
+                status: evidence.status,
+                createdAt: evidence.createdAt,
+              }),
+              displayDescription: display.displayDescription,
+              storage,
+              anchor,
+              contentAccessPolicy: authenticatedContentAccessPolicy,
+              contentCompositionSummary: buildContentCompositionSummary(
+                content.summary
+              ),
+              primaryContentLabel: buildPrimaryContentLabel(
+                content.summary.primaryKind
+              ),
+              defaultPreviewItemId: defaultPreviewItem?.id ?? null,
+              contentSummary: content.summary,
+              contentItems: content.items,
+              primaryContentItem: content.primaryItem,
+              previewPolicy: content.previewPolicy,
+              evidenceIntelligence,
+            },
+            workspaceCapabilitySnapshot,
+            sourceContext,
+            reviewDecision,
+            reviewerAlerts,
+            custodyLifecycle,
+            custodyDisplayCounts,
+            sourceCaptureLocation: hasCaptureLocationMetadata({
+              lat: decimalToNumber(evidence.lat),
+              lng: decimalToNumber(evidence.lng),
+            })
+              ? {
+                  statusLabel: CAPTURE_LOCATION_STATUS_LABEL,
+                  description: CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+                  lat: decimalToNumber(evidence.lat),
+                  lng: decimalToNumber(evidence.lng),
+                  accuracyMeters: decimalToNumber(evidence.accuracyMeters),
+                  capturedAtUtc: evidence.capturedAtUtc
+                    ? evidence.capturedAtUtc.toISOString()
+                    : evidence.createdAt.toISOString(),
+                  deviceTimeIso: evidence.deviceTimeIso ?? null,
+                  source: CAPTURE_LOCATION_SOURCE_LABEL,
+                  externalMapUrl:
+                    buildCaptureLocationExternalMapUrl({
+                      lat: decimalToNumber(evidence.lat),
+                      lng: decimalToNumber(evidence.lng),
+                      accuracyMeters: decimalToNumber(
+                        evidence.accuracyMeters
+                      ),
+                    }) ?? null,
+                  legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
+                }
+              : null,
+            preservationMatrix: {
+              verificationStatus: evidence.verificationStatus ?? null,
+              verificationStatusLabel: mapVerificationStatusLabel(
+                evidence.verificationStatus
+              ),
+              recordedIntegrityVerifiedAtUtc:
+                evidence.recordedIntegrityVerifiedAtUtc?.toISOString() ?? null,
+              sha256Recorded: Boolean(evidence.fileSha256),
+              fingerprintHashRecorded: Boolean(evidence.fingerprintHash),
+              signature: {
+                recorded: Boolean(evidence.signatureBase64),
+                valid: signatureValid,
+                keyId: evidence.signingKeyId ?? null,
+                keyVersion: evidence.signingKeyVersion ?? null,
+              },
+              tsa: {
+                status: evidence.tsaStatus ?? null,
+                provider: evidence.tsaProvider ?? null,
+                timestampAvailable: timestampStatusIsPositive,
+                digestMatchesTimestampInput: timestampDigestMatches,
+                digestCheckConclusive: timestampDigestMatches !== null,
+                genTimeUtc: evidence.tsaGenTimeUtc?.toISOString() ?? null,
+                failureReason: evidence.tsaFailureReason ?? null,
+                timestampedDigestLabel: getTimestampDigestLabel({
+                  itemCount,
+                  tsaInputKind: evidence.tsaInputKind,
+                }),
+              },
+              ots: {
+                status: evidence.otsStatus ?? null,
+                effectiveStatus: effectiveOtsStatus,
+                hashMatches: otsHashMatches,
+                anchoredAtUtc:
+                  effectiveOtsAnchoredAtUtc?.toISOString() ?? null,
+                calendar: evidence.otsCalendar ?? null,
+                bitcoinTxid: evidence.otsBitcoinTxid ?? null,
+                failureReason: evidence.otsFailureReason ?? null,
+              },
+              custodyChain: {
+                valid: custodyChain.valid,
+                mode: custodyChain.mode,
+                reason: custodyChain.reason,
+              },
+              storage,
+              anchor,
+              report: {
+                available: Boolean(latestReport),
+                version: latestReport?.version ?? evidence.latestReportVersion ?? null,
+                generatedAtUtc: latestReport?.generatedAtUtc
+                  ? latestReport.generatedAtUtc.toISOString()
+                  : evidence.reportGeneratedAtUtc?.toISOString() ?? null,
+              },
+              verificationPackage: verificationPackageIntegrity,
+            },
+            relationships: {
+              caseId: caseItem?.id ?? evidence.caseId ?? null,
+              caseName: caseItem?.name ?? null,
+              relatedEvidenceCount,
+              multipart: content.summary.structure === "multipart",
+              itemCount: content.summary.itemCount,
+              note:
+                !evidence.caseId && relationshipItems.length === 0
+                  ? "No linked evidence relationships recorded yet."
+                  : null,
+              items: relationshipItems,
+            },
+            reviewWorkflow: reviewerWorkflowSummary.workflow
+              ? {
+                  available: true,
+                  ...reviewerWorkflowSummary.workflow,
+                  note: null,
+                }
+              : {
+                  available: false,
+                  status: null,
+                  priority: null,
+                  assignedTo: null,
+                  dueAt: null,
+                  lastReviewedAt: null,
+                  note: "No reviewer workflow has been created.",
+                },
+            classification: {
+              evidenceType: evidence.type,
+              evidenceTypeLabel: getReviewerEvidenceTypeLabel({
+                itemCount: content.summary.itemCount,
+                structure: content.summary.structure,
+                imageCount: content.summary.imageCount,
+                videoCount: content.summary.videoCount,
+                audioCount: content.summary.audioCount,
+                pdfCount: content.summary.pdfCount,
+                textCount: content.summary.textCount,
+                otherCount: content.summary.otherCount,
+                mimeType: evidence.mimeType,
+                evidenceType: evidence.type,
+              }),
+              captureMethod: evidence.captureMethod ?? null,
+              captureMethodLabel: mapCaptureMethodLabel(evidence.captureMethod),
+              intakeTemplate:
+                typeof evidence.intakePlanJson === "object" &&
+                evidence.intakePlanJson &&
+                "selectedPlanId" in
+                  (evidence.intakePlanJson as Record<string, unknown>)
+                  ? (
+                      evidence.intakePlanJson as Record<string, unknown>
+                    ).selectedPlanId ?? null
+                  : null,
+              workspaceType: workspaceCapabilitySnapshot.workspaceType,
+              workspaceName: workspaceCapabilitySnapshot.workspaceName,
+              matterType: caseItem?.name ?? null,
+            },
+            integrityDrift: {
+              available: Boolean(reportGeneratedAtUtc),
+              reportGeneratedAtUtc: reportGeneratedAtUtc
+                ? reportGeneratedAtUtc.toISOString()
+                : null,
+              reportVersion: latestReport?.version ?? null,
+              titleDiffersFromReportSnapshot:
+                Boolean(latestReport?.displayTitleSnapshot) &&
+                latestReport?.displayTitleSnapshot !== display.displayTitle,
+              itemCountDiffersFromReportSnapshot:
+                typeof latestReport?.itemCountSnapshot === "number" &&
+                latestReport.itemCountSnapshot !== itemCount,
+              postReportForensicEvents:
+                forensicCustodyEvents.length -
+                forensicEventsAtReportGeneration.length,
+              postReportAccessEvents: accessEventsAfterReportGeneration.length,
+              note: reportGeneratedAtUtc
+                ? "Post-report activity reflects changes in lifecycle or access activity after the fixed report snapshot."
+                : "No integrity drift indicators available from current API response.",
+            },
+            snapshot: {
+              reportGeneratedAtUtc: reportGeneratedAtUtc
+                ? reportGeneratedAtUtc.toISOString()
+                : null,
+              reportVersion: latestReport?.version ?? null,
+              verificationPackageGeneratedAtUtc:
+                latestVerificationPackage?.generatedAtUtc?.toISOString() ??
+                evidence.verificationPackageGeneratedAtUtc?.toISOString() ??
+                null,
+              verificationPackageVersion:
+                latestVerificationPackage?.version ??
+                evidence.verificationPackageVersion ??
+                null,
+              currentStatus: evidence.status,
+              statusAtReportGeneration:
+                latestReport?.verificationStatusSnapshot ?? null,
+              fixedArtifactNote:
+                "PDF report is a fixed generated artifact. Public verification may show current verification or access state depending on implementation.",
+            },
+            publicVerificationSummary: {
+              enabled: workspaceCapabilitySnapshot.publicVerifyIncluded,
+              configured: anchor.configured,
+              published: anchor.published,
+              sharePath: workspaceCapabilitySnapshot.publicVerifyIncluded
+                ? publicVerifyPath
+                : null,
+              publicUrl: anchor.publicUrl ?? null,
+              publicViewCount: publicVerifyCount,
+              authenticatedViewCount: authenticatedVerifyCount,
+              lastPublicViewAt: lastPublicVerify?.createdAt?.toISOString() ?? null,
+              reportDownloadCount,
+              verificationPackageDownloadCount,
+              analyticsAvailable: true,
+            },
+            artifactVersions: {
+              history: artifactHistory,
+              latestReport: latestReport
+                ? {
+                    available: true,
+                    version: latestReport.version,
+                    generatedAtUtc: latestReport.generatedAtUtc.toISOString(),
+                  }
+                : {
+                    available: false,
+                    version: evidence.latestReportVersion ?? null,
+                    generatedAtUtc:
+                      evidence.reportGeneratedAtUtc?.toISOString() ?? null,
+                  },
+              latestVerificationPackage: latestVerificationPackage
+                ? {
+                    available: true,
+                    version: latestVerificationPackage.version,
+                    packageType: latestVerificationPackage.packageType ?? null,
+                    generatedAtUtc:
+                      latestVerificationPackage.generatedAtUtc.toISOString(),
+                  }
+                : {
+                    available: false,
+                    version: evidence.verificationPackageVersion ?? null,
+                    packageType: null,
+                    generatedAtUtc:
+                      evidence.verificationPackageGeneratedAtUtc?.toISOString() ??
+                      null,
+                  },
+              technicalMaterials: buildTechnicalMaterials({
+                evidence: {
+                  fileSha256: evidence.fileSha256,
+                  fingerprintHash: evidence.fingerprintHash,
+                  signatureBase64: evidence.signatureBase64,
+                  signingKeyId: evidence.signingKeyId,
+                  signingKeyVersion: evidence.signingKeyVersion,
+                  tsaMessageImprint: evidence.tsaMessageImprint,
+                  tsaInputDigestHex: evidence.tsaInputDigestHex,
+                  tsaInputKind: evidence.tsaInputKind,
+                  otsProofBase64: evidence.otsProofBase64,
+                },
+                publicKeyPem: signingKey.publicKeyPem,
+              }),
+              trustDecision,
+              trustDecisionConsistency,
+            },
+            governance,
+            reviewerAudit: reviewerAudit.map((item) => ({
+              id: item.id,
+              eventType: item.eventType,
+              metadata: toJsonSafe(item.metadata ?? null),
+              createdAt: item.createdAt.toISOString(),
+              actor: item.actor ? mapCollaborativeAuthor(item.actor) : null,
+            })),
+            parts: parts.map((part) => ({
+              id: part.id,
+              partIndex: part.partIndex,
+              originalFileName: part.originalFileName ?? null,
+              mimeType: part.mimeType ?? null,
+              sizeBytes: part.sizeBytes?.toString() ?? null,
+              sha256: part.sha256 ?? null,
+              durationMs: part.durationMs ?? null,
+              privateRole: part.privateRole ?? null,
+              privateNote: part.privateNote ?? null,
+              checklistStepId: part.checklistStepId ?? null,
+              sourceLabel: part.sourceLabel ?? null,
+              clientSignals: toJsonSafe(part.clientSignals ?? null),
+              storage: getStorageProtectionSummaryFromSnapshot({
+                storageRegion: part.storageRegion,
+                storageObjectLockMode: part.storageObjectLockMode,
+                storageObjectLockRetainUntilUtc:
+                  part.storageObjectLockRetainUntilUtc,
+                storageObjectLockLegalHoldStatus:
+                  part.storageObjectLockLegalHoldStatus,
+              }),
+              uploadedAtUtc: part.uploadedAtUtc?.toISOString() ?? null,
+              createdAt: part.createdAt.toISOString(),
+            })),
+            legalBoundary:
+              "PROOVRA verifies the recorded integrity state of evidence records and supporting technical materials. It does not independently establish factual truth, authorship, identity, legal admissibility, or evidentiary weight.",
+          })
+        );
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
+      }
     }
   );
 

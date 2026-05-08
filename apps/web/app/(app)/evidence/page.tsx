@@ -12,7 +12,7 @@ import {
   type EvidenceFilterState,
 } from "./components/EvidenceFilters";
 import { EvidenceList } from "./components/EvidenceList";
-import { ReviewWorkspace } from "./components/ReviewWorkspace";
+import { QueueSelectionPreview } from "./components/QueueSelectionPreview";
 import { SavedViewsMenu } from "./components/SavedViewsMenu";
 import { BulkActionsToolbar } from "./components/BulkActionsToolbar";
 import "./evidence-library.css";
@@ -104,9 +104,6 @@ export default function EvidenceLibraryPage() {
   const [selectedDetail, setSelectedDetail] = useState<DetailWorkspaceState | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const [selectedCaseId, setSelectedCaseId] = useState("");
-  const [assigningCase, setAssigningCase] = useState(false);
-  const [removingCase, setRemovingCase] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const defaultSavedViewAppliedRef = useRef(false);
 
@@ -253,7 +250,6 @@ export default function EvidenceLibraryPage() {
       const selectedListItem = library.items.find((item) => item.id === evidenceId);
       if (!selectedListItem) return;
 
-      setSelectedCaseId(selectedListItem.caseId ?? "");
       setDetailError(null);
 
       if (!force && detailCacheRef.current[evidenceId]) {
@@ -718,67 +714,6 @@ export default function EvidenceLibraryPage() {
     }
   };
 
-  const assignCase = async () => {
-    if (!selectedItem || !selectedCaseId) return;
-
-    setAssigningCase(true);
-    try {
-      await apiFetch(`/v1/cases/${selectedCaseId}/evidence`, {
-        method: "POST",
-        body: JSON.stringify({ evidenceId: selectedItem.id }),
-      });
-
-      setLibrary((current) => ({
-        ...current,
-        items: current.items.map((item) =>
-          item.id === selectedItem.id ? { ...item, caseId: selectedCaseId } : item
-        ),
-      }));
-
-      await loadDetail(selectedItem.id, true);
-      addToast("Evidence added to case", "success");
-    } catch (assignError) {
-      captureException(assignError, {
-        feature: "web_evidence_library_assign_case_second_pass",
-        evidenceId: selectedItem.id,
-        caseId: selectedCaseId,
-      });
-      addToast(assignError instanceof Error ? assignError.message : "Failed to assign case", "error");
-    } finally {
-      setAssigningCase(false);
-    }
-  };
-
-  const removeCase = async () => {
-    if (!selectedItem?.caseId || !selectedItem) return;
-
-    setRemovingCase(true);
-    try {
-      await apiFetch(`/v1/cases/${selectedItem.caseId}/evidence/${selectedItem.id}`, {
-        method: "DELETE",
-      });
-
-      setLibrary((current) => ({
-        ...current,
-        items: current.items.map((item) =>
-          item.id === selectedItem.id ? { ...item, caseId: null } : item
-        ),
-      }));
-      setSelectedCaseId("");
-      await loadDetail(selectedItem.id, true);
-      addToast("Evidence removed from case", "success");
-    } catch (removeError) {
-      captureException(removeError, {
-        feature: "web_evidence_library_remove_case_second_pass",
-        evidenceId: selectedItem.id,
-        caseId: selectedItem.caseId,
-      });
-      addToast(removeError instanceof Error ? removeError.message : "Failed to remove case", "error");
-    } finally {
-      setRemovingCase(false);
-    }
-  };
-
   const runBulkAction = useCallback(
     async (
       action: EvidenceBulkAction,
@@ -907,18 +842,12 @@ export default function EvidenceLibraryPage() {
             onNextPage={goToNextPage}
           />
 
-          <ReviewWorkspace
+          <QueueSelectionPreview
             item={selectedItem}
             detail={selectedDetail}
             loading={detailLoading}
             error={detailError}
-            availableCases={library.cases}
-            selectedCaseId={selectedCaseId}
-            assigningCase={assigningCase}
-            removingCase={removingCase}
-            onChangeCase={setSelectedCaseId}
-            onAssignCase={assignCase}
-            onRemoveCase={removeCase}
+            caseName={selectedItem?.caseId ? getCaseName(selectedItem.caseId, caseMap) : null}
             onOpenRecord={() => (selectedItem ? openRecord(selectedItem.id) : undefined)}
             onDownloadReport={() =>
               selectedItem ? void downloadReport(selectedItem.id) : undefined
