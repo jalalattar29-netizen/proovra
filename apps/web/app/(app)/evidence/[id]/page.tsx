@@ -1760,7 +1760,9 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
             <div className="evidence-hero-meta">
               <span className={`evidence-pill ${statusToneClass}`}>{displayStatusMeta.label}</span>
               <span className="evidence-pill teal">{recordTypeLabel}</span>
-{isMultipart ? `${Math.max(sortedParts.length, itemCount)} items` : "Single file"}
+<span className="evidence-pill neutral">
+  {isMultipart ? `${Math.max(sortedParts.length, itemCount)} items` : "Single file"}
+</span>
               <span className="evidence-pill neutral">Recorded: {formatUtcDateTime(createdAt)}</span>
               <span className="evidence-pill neutral">{activeWorkspaceName} · {activePlan}</span>
               {isLocked ? <span className="evidence-pill success">Locked</span> : null}
@@ -1972,7 +1974,10 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
                   <div className="evidence-kv full"><span>Original submitted file</span><strong>{effectiveOriginalSummaryName}</strong></div>
                   <div className="evidence-kv full"><span>Record ID</span><strong>{evidenceId}</strong></div>
                   <div className="evidence-kv"><span>Evidence type</span><strong>{recordTypeLabel}</strong></div>
-<strong>{isMultipart ? `Multipart (${Math.max(sortedParts.length, itemCount)})` : "Single-file"}</strong>
+<div className="evidence-kv">
+  <span>Structure</span>
+  <strong>{isMultipart ? `Multipart (${Math.max(sortedParts.length, itemCount)})` : "Single-file"}</strong>
+</div>
                   <div className="evidence-kv"><span>Composition</span><strong>{compositionSummary}</strong></div>
                   <div className="evidence-kv"><span>Workspace</span><strong>{activeWorkspaceName}</strong></div>
                   <div className="evidence-kv"><span>Active plan</span><strong>{activePlan}</strong></div>
