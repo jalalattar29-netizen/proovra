@@ -3768,37 +3768,6 @@ box-shadow:
   font-size: 0.84rem !important;
 }
 
-.capture-dropzone-plus {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 58px;
-  height: 58px;
-
-  margin: 14px auto 18px;
-
-  border-radius: 18px;
-
-  background: linear-gradient(
-    180deg,
-    rgba(12, 86, 79, 0.96),
-    rgba(9, 66, 61, 0.98)
-  );
-
-  color: #ffffff;
-
-  font-size: 2.2rem;
-  font-weight: 300;
-  line-height: 1;
-
-  box-shadow:
-    0 10px 24px rgba(7, 48, 45, 0.22),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-
-  user-select: none;
-}
-
 /* Upload action icons */
 
 .capture-upload-actions button svg,
@@ -3879,4 +3848,74 @@ box-shadow:
 
 .capture-requirement-status {
   color: #b98a55 !important;
+}
+
+.capture-dropzone-plus {
+  width: 58px;
+  height: 58px;
+
+  margin: 16px auto 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(31, 141, 134, 0.12),
+      rgba(31, 141, 134, 0.08)
+    );
+
+  border: 1px solid rgba(31, 141, 134, 0.18);
+
+  cursor: pointer;
+
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.capture-dropzone-plus:hover {
+  transform: translateY(-1px);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(31, 141, 134, 0.16),
+      rgba(31, 141, 134, 0.11)
+    );
+
+  border-color: rgba(31, 141, 134, 0.28);
+}
+
+.capture-dropzone-plus span {
+  color: #1f8d86;
+
+  font-size: 2rem;
+  font-weight: 300;
+  line-height: 1;
+
+  position: relative;
+  top: -1px;
+}
+
+/* Unified optional badges */
+
+.capture-requirement-copy .optional,
+.capture-requirement-status:not(.capture-status-met):not(.capture-status-missing) {
+  background: rgba(245, 158, 11, 0.14) !important;
+  color: #c27a12 !important;
+  border: 1px solid rgba(245, 158, 11, 0.18) !important;
+
+  font-weight: 700 !important;
+}
+
+/* Lift finish/sign section above footer */
+
+.capture-bottom-bar {
+  margin-bottom: 34px !important;
 }

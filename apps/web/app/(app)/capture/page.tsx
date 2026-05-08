@@ -1847,23 +1847,27 @@ useEffect(() => {
 <Upload
   size={17}
   strokeWidth={2.1}
-  color="#1C8C84"
-/>  Upload Files
+  className="capture-action-icon"
+/>
+  Upload Files
 </Button>
 <Button variant="secondary" onClick={openFolderPicker} disabled={busy}>
-  <FolderOpen size={17} strokeWidth={2.1} color="#1C8C84" />
-  Upload Folder
+<Upload
+  size={17}
+  strokeWidth={2.1}
+  className="capture-action-icon"
+/>  Upload Folder
 </Button>
 <Button variant="secondary" onClick={() => openCamera("PHOTO")} disabled={busy}>
-  <Camera size={17} strokeWidth={2.1} color="#1C8C84" />
+  <Camera size={17} strokeWidth={2.1} className="capture-action-icon" />
   Capture Photo
 </Button>
 <Button variant="secondary" onClick={() => openCamera("VIDEO")} disabled={busy}>
-  <Video size={17} strokeWidth={2.1} color="#1C8C84" />
+  <Video size={17} strokeWidth={2.1} className="capture-action-icon" />
   Record Video
 </Button>
 <Button variant="secondary" onClick={openAudioRecorder} disabled={busy}>
-  <Mic size={17} strokeWidth={2.1} color="#1C8C84" />
+  <Mic size={17} strokeWidth={2.1} className="capture-action-icon" />
   Record Audio
 </Button>
               </div>
@@ -2102,7 +2106,14 @@ useEffect(() => {
               {sessionItems.length === 0 ? (
                 <>
                   <strong>Drag & drop files here or choose a capture method</strong>
-                  <div className="capture-dropzone-plus">+</div>
+<div
+  className="capture-dropzone-plus"
+  onClick={openFilePicker}
+  role="button"
+  tabIndex={0}
+>
+  <span>+</span>
+</div>
                   <p>
                     Files staged locally before Review & Sign. Nothing is signed or
                     submitted until the evidence record is finalized.
