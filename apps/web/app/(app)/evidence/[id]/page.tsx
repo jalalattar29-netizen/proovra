@@ -836,19 +836,23 @@ export default function EvidenceDetailPage() {
               {workspace.legalBoundary}
             </div>
           </div>
-          <div className="evidence-detail-hero-actions">
-            <Button onClick={() => void downloadReport()}>Download report</Button>
-            <Button onClick={() => void downloadVerificationPackage()}>Verification package</Button>
-            <Button variant="secondary" onClick={() => void copyShareLink()}>
-              Share
-            </Button>
-            <Button variant="secondary" onClick={() => setLockOpen(true)} disabled={Boolean(evidence.lockedAt) || evidence.deletedAt != null}>
-              {evidence.lockedAt ? "Locked" : "Lock"}
-            </Button>
-            <Button variant="secondary" onClick={() => setEditingLabel(true)}>
-              Edit label
-            </Button>
-          </div>
+<div className="evidence-detail-hero-actions">
+  <Button onClick={() => void downloadReport()}>Download report</Button>
+  <Button onClick={() => void downloadVerificationPackage()}>Download package</Button>
+  <Button variant="secondary" onClick={() => void copyShareLink()}>
+    Copy verification link
+  </Button>
+  <Button
+    variant="secondary"
+    onClick={() => setLockOpen(true)}
+    disabled={Boolean(evidence.lockedAt) || evidence.deletedAt != null}
+  >
+    {evidence.lockedAt ? "Record locked" : "Lock record"}
+  </Button>
+  <Button variant="secondary" onClick={() => setEditingLabel(true)}>
+    Edit label
+  </Button>
+</div>
         </section>
 
         <SectionRail />
