@@ -4474,3 +4474,28 @@ box-shadow:
   color: #0f7a3b !important;
   border: 1px solid rgba(22, 163, 74, 0.18) !important;
 }
+
+/* Capture AI assistant title يرجع أبيض */
+.capture-ai-card-title,
+.capture-ai-header-title,
+.capture-ai-header span:first-child {
+  color: #ffffff !important;
+}
+
+/* زر Show / Hide يرجع برونزي */
+.capture-ai-toggle,
+.capture-ai-header button {
+  color: #c7a27a !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Insurance Claim داخل السيليكتور يرجع أسود */
+.capture-plan-dropdown-trigger,
+.capture-plan-dropdown-trigger * {
+  color: #101828 !important;
+}
+
+.capture-ai-header button {
+  opacity: 1 !important;
+}
