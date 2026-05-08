@@ -4430,8 +4430,7 @@ box-shadow:
 }
 
 /* Required badge inside evidence cards */
-.capture-material-status-pill.required,
-.capture-material-status-pill:has-text("Required") {
+.capture-material-status-pill.required {
   background: rgba(240, 68, 56, 0.10) !important;
   color: #b42318 !important;
   border: 1px solid rgba(240, 68, 56, 0.16) !important;
@@ -4513,4 +4512,111 @@ box-shadow:
   color: #c7a27a !important;
   opacity: 1 !important;
   -webkit-text-fill-color: #c7a27a !important;
+}
+
+/* =========================================================
+   FINAL HARD FIX — AI assistant header + sidebar icons
+========================================================= */
+
+/* AI assistant button/header inside right panel */
+.capture-right-panel > .card > button,
+.capture-right-panel > .card > button *,
+.capture-right-panel [class*="ai"] > button,
+.capture-right-panel [class*="AI"] > button {
+  background: linear-gradient(180deg, #0f5c56, #0b403d) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+/* Show / Hide text bronze */
+.capture-right-panel > .card > button span:last-child,
+.capture-right-panel > .card > button strong:last-child,
+.capture-right-panel > .card > button div:last-child {
+  color: #d6b89d !important;
+  -webkit-text-fill-color: #d6b89d !important;
+  opacity: 1 !important;
+}
+
+/* PROOVRA / Capture AI assistant title white */
+.capture-right-panel > .card > button span:first-child,
+.capture-right-panel > .card > button strong:first-child,
+.capture-right-panel > .card > button div:first-child {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+/* Sidebar icons same family as header icons */
+.app-sidebar-v2-link-icon {
+  color: #bfe8df !important;
+  background: rgba(158, 216, 207, 0.10) !important;
+  border: 1px solid rgba(158, 216, 207, 0.16) !important;
+}
+
+.app-sidebar-v2-link-icon svg,
+.app-sidebar-v2-link-icon svg * {
+  color: #bfe8df !important;
+  stroke: #bfe8df !important;
+  fill: none !important;
+  opacity: 1 !important;
+}
+
+.app-sidebar-v2-link:hover .app-sidebar-v2-link-icon,
+.app-sidebar-v2-link.is-active .app-sidebar-v2-link-icon {
+  color: #d6b89d !important;
+  background: rgba(214, 184, 157, 0.11) !important;
+  border-color: rgba(214, 184, 157, 0.22) !important;
+}
+
+.app-sidebar-v2-link:hover .app-sidebar-v2-link-icon svg,
+.app-sidebar-v2-link:hover .app-sidebar-v2-link-icon svg *,
+.app-sidebar-v2-link.is-active .app-sidebar-v2-link-icon svg,
+.app-sidebar-v2-link.is-active .app-sidebar-v2-link-icon svg * {
+  color: #d6b89d !important;
+  stroke: #d6b89d !important;
+}
+
+/* =========================================================
+   FINAL FIX — material dropdown selected text + mapped pill
+========================================================= */
+
+/* Selected dropdown option: first line white */
+.capture-material-dropdown-menu button.active,
+.capture-material-dropdown-menu button.active span,
+.capture-material-dropdown-menu button.active strong {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+/* Selected dropdown option: second line stays soft readable */
+.capture-material-dropdown-menu button.active small {
+  color: rgba(255, 255, 255, 0.78) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.78) !important;
+  opacity: 1 !important;
+}
+
+/* Evidence card mapped requirement pill should be green, even if required */
+.capture-material-status-pill.mapped,
+.capture-material-status-pill.required.mapped,
+.capture-material-status-pill.optional.mapped,
+.capture-material-status-pill.required,
+.capture-material-status-pill.optional {
+  background: rgba(22, 163, 74, 0.10) !important;
+  color: #0f7a3b !important;
+  border: 1px solid rgba(22, 163, 74, 0.18) !important;
+}
+
+/* Keep top requirement badges unchanged */
+.capture-requirement-copy span.required {
+  background: rgba(240, 68, 56, 0.10) !important;
+  color: #b42318 !important;
+  border: 1px solid rgba(240, 68, 56, 0.16) !important;
+}
+
+.capture-requirement-copy span.optional {
+  background: rgba(251, 191, 36, 0.16) !important;
+  color: #d97706 !important;
+  border: 1px solid rgba(251, 191, 36, 0.22) !important;
 }
