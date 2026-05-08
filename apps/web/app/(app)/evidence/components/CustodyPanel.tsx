@@ -2,7 +2,6 @@ import type { DetailWorkspaceState, EvidenceListItem } from "../lib/evidence-lib
 import { formatUtcDateTime } from "../lib/evidence-library-formatters";
 
 export function CustodyPanel({
-  item,
   detail,
 }: {
   item: EvidenceListItem;

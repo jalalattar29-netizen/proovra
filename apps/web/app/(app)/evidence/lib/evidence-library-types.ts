@@ -7,6 +7,25 @@ import type {
 
 export type EvidenceListScope = "active" | "archived" | "deleted" | "locked";
 
+export type EvidenceListQuery = {
+  scope: EvidenceListScope;
+  limit: number;
+  cursor?: string | null;
+  search?: string;
+  status?: string;
+  type?: string;
+  caseAssignment?: "all" | "assigned" | "unassigned";
+  caseId?: string;
+  reportReady?: "all" | "ready" | "missing";
+  sort?: "newest" | "oldest" | "priority";
+};
+
+export type EvidenceListPageInfo = {
+  limit: number;
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
 export type StorageProtectionSummary = {
   immutable: boolean;
   mode: string | null;
@@ -64,6 +83,8 @@ export type EvidenceListItem = {
 export type EvidenceListResponse = {
   scope?: EvidenceListScope;
   items?: EvidenceListItem[];
+  pageInfo?: EvidenceListPageInfo;
+  totalCount?: number;
 };
 
 export type CaseOption = {
@@ -295,6 +316,8 @@ export type LibraryLoadState = {
   teamWorkspaces: TeamWorkspaceSummary[];
   cases: CaseOption[];
   items: EvidenceListItem[];
+  pageInfo: EvidenceListPageInfo | null;
+  totalCount?: number;
 };
 
 export type ReviewAlertSeverity = "critical" | "operational" | "informational";

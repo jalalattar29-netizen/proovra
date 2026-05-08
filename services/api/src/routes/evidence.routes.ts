@@ -1800,6 +1800,305 @@ async function assertCaseAccess(userId: string, caseId: string) {
   throw err;
 }
 
+async function getAccessibleEvidenceContext(userId: string) {
+  const memberTeams = await prisma.teamMember.findMany({
+    where: { userId },
+    select: { teamId: true },
+  });
+  const memberTeamIds = memberTeams.map((item) => item.teamId);
+
+  const accessibleCases = await prisma.case.findMany({
+    where: {
+      OR: [
+        { ownerUserId: userId },
+        { access: { some: { userId } } },
+        ...(memberTeamIds.length > 0
+          ? [
+              {
+                teamId: { in: memberTeamIds },
+                access: { none: {} },
+              },
+            ]
+          : []),
+      ],
+    },
+    select: { id: true },
+  });
+
+  return {
+    memberTeamIds,
+    accessibleCaseIds: accessibleCases.map((item) => item.id),
+  };
+}
+
+function buildEvidenceListBaseWhere(params: {
+  query: EvidenceListQuery;
+  userId: string;
+  memberTeamIds: string[];
+  accessibleCaseIds: string[];
+}): Prisma.EvidenceWhereInput {
+  const { query } = params;
+
+  const archivedFilter: Prisma.EvidenceWhereInput =
+    query.scope === "archived"
+      ? { archivedAt: { not: null } }
+      : query.scope === "active" || query.scope === "locked"
+        ? { archivedAt: null }
+        : {};
+
+  const deletedFilter: Prisma.EvidenceWhereInput =
+    query.scope === "deleted" ? { deletedAt: { not: null } } : { deletedAt: null };
+
+  const lockedFilter: Prisma.EvidenceWhereInput =
+    query.scope === "locked"
+      ? { lockedAt: { not: null } }
+      : query.scope === "active" || query.scope === "archived"
+        ? { lockedAt: null }
+        : {};
+
+  const accessFilter: Prisma.EvidenceWhereInput = query.caseId
+    ? { caseId: query.caseId }
+    : {
+        OR: [
+          { ownerUserId: params.userId },
+          ...(params.accessibleCaseIds.length > 0
+            ? [{ caseId: { in: params.accessibleCaseIds } }]
+            : []),
+          ...(params.memberTeamIds.length > 0
+            ? [{ teamId: { in: params.memberTeamIds } }]
+            : []),
+        ],
+      };
+
+  const searchFilter = buildEvidenceListSearchFilter(query.search);
+  const statusFilter = query.status ? ({ status: query.status } satisfies Prisma.EvidenceWhereInput) : null;
+  const typeFilter = buildEvidenceListTypeFilter(query.type);
+  const caseAssignmentFilter = buildEvidenceListCaseAssignmentFilter(query.caseAssignment);
+  const reportReadyFilter = buildEvidenceListReportReadyFilter(query.reportReady);
+
+  return {
+    AND: [
+      accessFilter,
+      archivedFilter,
+      deletedFilter,
+      lockedFilter,
+      ...(searchFilter ? [searchFilter] : []),
+      ...(statusFilter ? [statusFilter] : []),
+      ...(typeFilter ? [typeFilter] : []),
+      ...(caseAssignmentFilter ? [caseAssignmentFilter] : []),
+      ...(reportReadyFilter ? [reportReadyFilter] : []),
+    ],
+  };
+}
+
+function buildEvidenceListSearchFilter(
+  search: string | null
+): Prisma.EvidenceWhereInput | null {
+  if (!search) return null;
+
+  const exactUuid = z.string().uuid().safeParse(search).success ? search : null;
+
+  return {
+    OR: [
+      ...(exactUuid ? [{ id: exactUuid }] : []),
+      { title: { contains: search, mode: "insensitive" } },
+      { displayFileName: { contains: search, mode: "insensitive" } },
+      { originalFileName: { contains: search, mode: "insensitive" } },
+    ],
+  };
+}
+
+function buildEvidenceListTypeFilter(
+  type: string | null
+): Prisma.EvidenceWhereInput | null {
+  if (!type || type === "all") return null;
+
+  switch (type) {
+    case "photo":
+    case "image":
+      return {
+        OR: [{ type: prismaPkg.EvidenceType.PHOTO }, { mimeType: { startsWith: "image/" } }],
+      };
+    case "video":
+      return {
+        OR: [{ type: prismaPkg.EvidenceType.VIDEO }, { mimeType: { startsWith: "video/" } }],
+      };
+    case "audio":
+      return {
+        OR: [{ type: prismaPkg.EvidenceType.AUDIO }, { mimeType: { startsWith: "audio/" } }],
+      };
+    case "document":
+      return {
+        OR: [
+          { type: prismaPkg.EvidenceType.DOCUMENT },
+          { mimeType: "application/pdf" },
+          { mimeType: { startsWith: "text/" } },
+          { mimeType: { contains: "json" } },
+          { mimeType: { contains: "xml" } },
+        ],
+      };
+    case "multipart":
+      return {
+        parts: {
+          some: {
+            partIndex: { gte: 1 },
+          },
+        },
+      };
+    case "other":
+      return {
+        AND: [
+          { type: { notIn: [prismaPkg.EvidenceType.PHOTO, prismaPkg.EvidenceType.VIDEO, prismaPkg.EvidenceType.AUDIO] } },
+          {
+            NOT: {
+              OR: [
+                { mimeType: { startsWith: "image/" } },
+                { mimeType: { startsWith: "video/" } },
+                { mimeType: { startsWith: "audio/" } },
+                { mimeType: "application/pdf" },
+                { mimeType: { startsWith: "text/" } },
+                { mimeType: { contains: "json" } },
+                { mimeType: { contains: "xml" } },
+              ],
+            },
+          },
+        ],
+      };
+    case "photo evidence":
+    case "photo":
+      return { type: prismaPkg.EvidenceType.PHOTO };
+    default: {
+      const enumCandidate = type.toUpperCase();
+      if (enumCandidate in prismaPkg.EvidenceType) {
+        return { type: enumCandidate as prismaPkg.EvidenceType };
+      }
+      return null;
+    }
+  }
+}
+
+function buildEvidenceListCaseAssignmentFilter(
+  caseAssignment: EvidenceListQuery["caseAssignment"]
+): Prisma.EvidenceWhereInput | null {
+  if (caseAssignment === "assigned") return { caseId: { not: null } };
+  if (caseAssignment === "unassigned") return { caseId: null };
+  return null;
+}
+
+function buildEvidenceListReportReadyFilter(
+  reportReady: EvidenceListQuery["reportReady"]
+): Prisma.EvidenceWhereInput | null {
+  if (reportReady === "ready") {
+    return {
+      OR: [
+        { latestReportVersion: { not: null } },
+        { reportGeneratedAtUtc: { not: null } },
+      ],
+    };
+  }
+
+  if (reportReady === "missing") {
+    return {
+      latestReportVersion: null,
+      reportGeneratedAtUtc: null,
+    };
+  }
+
+  return null;
+}
+
+function buildEvidenceListCursorFilter(
+  cursor: EvidenceListCursorPayload | null,
+  sort: EvidenceListSort
+): Prisma.EvidenceWhereInput | null {
+  if (!cursor) return null;
+
+  const createdAt = new Date(cursor.createdAt);
+  if (Number.isNaN(createdAt.getTime())) {
+    return null;
+  }
+
+  const direction = sort === "oldest" ? "asc" : "desc";
+
+  if (direction === "asc") {
+    return {
+      OR: [
+        { createdAt: { gt: createdAt } },
+        {
+          createdAt,
+          id: { gt: cursor.id },
+        },
+      ],
+    };
+  }
+
+  return {
+    OR: [
+      { createdAt: { lt: createdAt } },
+      {
+        createdAt,
+        id: { lt: cursor.id },
+      },
+    ],
+  };
+}
+
+function getEvidenceListOrderBy(
+  sort: EvidenceListSort
+): Prisma.EvidenceOrderByWithRelationInput[] {
+  const createdDirection: Prisma.SortOrder = sort === "oldest" ? "asc" : "desc";
+
+  return [{ createdAt: createdDirection }, { id: createdDirection }];
+}
+
+function mapEvidenceListItem(item: SelectedEvidenceListItem) {
+  const itemCount = item._count.parts > 0 ? item._count.parts : 1;
+  const storage = getStorageProtectionSummaryFromSnapshot({
+    storageRegion: item.storageRegion,
+    storageObjectLockMode: item.storageObjectLockMode,
+    storageObjectLockRetainUntilUtc: item.storageObjectLockRetainUntilUtc,
+    storageObjectLockLegalHoldStatus: item.storageObjectLockLegalHoldStatus,
+  });
+
+  return {
+    id: item.id,
+    title: resolveEvidenceTitle(item.title),
+    type: item.type,
+    mimeType: item.mimeType ?? null,
+    primaryKind: detectEvidenceAssetKind(item.mimeType ?? null),
+    previewable: isPreviewableEvidenceKind(detectEvidenceAssetKind(item.mimeType ?? null)),
+    status: item.status,
+    statusLabel: mapRecordStatusLabel(item.status),
+    verificationStatus: item.verificationStatus,
+    verificationStatusLabel: mapVerificationStatusLabel(item.verificationStatus),
+    captureMethod: item.captureMethod,
+    captureMethodLabel: mapCaptureMethodLabel(item.captureMethod),
+    identityLevel: item.identityLevelSnapshot,
+    identityLevelLabel: mapIdentityLevelLabel(item.identityLevelSnapshot),
+    submittedByEmail: item.submittedByEmail,
+    latestReportVersion: item.latestReportVersion,
+    originalFileName: item.originalFileName ?? null,
+    displayFileName: item.displayFileName ?? null,
+    reviewReadyAtUtc: item.reviewReadyAtUtc ? item.reviewReadyAtUtc.toISOString() : null,
+    createdAt: item.createdAt.toISOString(),
+    archivedAt: item.archivedAt ? item.archivedAt.toISOString() : null,
+    deletedAt: item.deletedAt ? item.deletedAt.toISOString() : null,
+    deleteScheduledForUtc: item.deleteScheduledForUtc
+      ? item.deleteScheduledForUtc.toISOString()
+      : null,
+    caseId: item.caseId,
+    teamId: item.teamId,
+    ownerUserId: item.ownerUserId,
+    itemCount,
+    storage,
+    displaySubtitle: buildEvidenceSubtitle({
+      itemCount,
+      status: item.status,
+      createdAt: item.createdAt,
+    }),
+  };
+}
+
 async function getEvidenceWithReadAccess(
   userId: string,
   evidenceId: string
@@ -1909,10 +2208,204 @@ const EvidenceListScopeSchema = z.enum([
   "all",
 ]);
 
+const EvidenceListLimitSchema = z.coerce.number().int().min(1).max(100).default(50);
+const EvidenceListCaseAssignmentSchema = z.enum(["all", "assigned", "unassigned"]);
+const EvidenceListSortSchema = z.enum(["newest", "oldest", "priority"]);
+
+type EvidenceListSort = z.infer<typeof EvidenceListSortSchema>;
+
+type EvidenceListCursorPayload = {
+  createdAt: string;
+  id: string;
+};
+
+type EvidenceListQuery = {
+  caseId: string | null;
+  scope: z.infer<typeof EvidenceListScopeSchema>;
+  limit: number;
+  cursor: EvidenceListCursorPayload | null;
+  search: string | null;
+  status: prismaPkg.EvidenceStatus | null;
+  type: string | null;
+  caseAssignment: z.infer<typeof EvidenceListCaseAssignmentSchema>;
+  reportReady: "all" | "ready" | "missing";
+  sort: EvidenceListSort;
+};
+
+const EVIDENCE_LIST_SELECT = {
+  id: true,
+  title: true,
+  type: true,
+  mimeType: true,
+  originalFileName: true,
+  displayFileName: true,
+  status: true,
+  verificationStatus: true,
+  captureMethod: true,
+  identityLevelSnapshot: true,
+  submittedByEmail: true,
+  latestReportVersion: true,
+  reportGeneratedAtUtc: true,
+  reviewReadyAtUtc: true,
+  createdAt: true,
+  archivedAt: true,
+  deletedAt: true,
+  deleteScheduledForUtc: true,
+  caseId: true,
+  teamId: true,
+  ownerUserId: true,
+  storageBucket: true,
+  storageKey: true,
+  storageRegion: true,
+  storageObjectLockMode: true,
+  storageObjectLockRetainUntilUtc: true,
+  storageObjectLockLegalHoldStatus: true,
+  _count: {
+    select: { parts: true },
+  },
+} as const;
+
+type SelectedEvidenceListItem = prismaPkg.Prisma.EvidenceGetPayload<{
+  select: typeof EVIDENCE_LIST_SELECT;
+}>;
+
 function toJsonSafe<T>(value: T): T {
   return JSON.parse(
     JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v))
   );
+}
+
+function encodeEvidenceListCursor(value: EvidenceListCursorPayload): string {
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+function decodeEvidenceListCursor(value: string | null | undefined): EvidenceListCursorPayload | null {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as {
+      createdAt?: unknown;
+      id?: unknown;
+    };
+
+    if (typeof parsed.createdAt !== "string" || typeof parsed.id !== "string") {
+      return null;
+    }
+
+    const createdAt = new Date(parsed.createdAt);
+    if (Number.isNaN(createdAt.getTime())) {
+      return null;
+    }
+
+    if (!z.string().uuid().safeParse(parsed.id).success) {
+      return null;
+    }
+
+    return {
+      createdAt: createdAt.toISOString(),
+      id: parsed.id,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parseEvidenceStatusFilter(
+  value: string | null | undefined
+): prismaPkg.EvidenceStatus | null {
+  const raw = typeof value === "string" ? value.trim().toUpperCase() : "";
+  if (!raw) return null;
+  return EvidenceStatus && raw in EvidenceStatus
+    ? (raw as prismaPkg.EvidenceStatus)
+    : null;
+}
+
+function normalizeEvidenceListTypeFilter(value: string | null | undefined): string | null {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return raw || null;
+}
+
+function parseEvidenceListQuery(query: Record<string, unknown>): EvidenceListQuery {
+  const caseId =
+    typeof query.caseId === "string" && query.caseId.trim()
+      ? z.string().uuid().parse(query.caseId)
+      : null;
+
+  const scope =
+    typeof query.scope === "string" && query.scope.trim().length > 0
+      ? EvidenceListScopeSchema.parse(query.scope.trim().toLowerCase())
+      : query.includeDeleted === "true"
+        ? "deleted"
+        : query.includeArchived === "true"
+          ? "all"
+          : "active";
+
+  const limit = EvidenceListLimitSchema.parse(query.limit ?? undefined);
+  const cursor = decodeEvidenceListCursor(
+    typeof query.cursor === "string" ? query.cursor : null
+  );
+
+  if (typeof query.cursor === "string" && query.cursor.trim() && !cursor) {
+    const err: Error & { statusCode?: number } = new Error("Invalid evidence list cursor");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const search =
+    typeof query.search === "string" && query.search.trim().length > 0
+      ? query.search.trim().slice(0, 160)
+      : null;
+
+  const statusRaw =
+    typeof query.status === "string" && query.status.trim().length > 0
+      ? query.status
+      : null;
+  const status = parseEvidenceStatusFilter(statusRaw);
+
+  if (statusRaw && !status) {
+    const err: Error & { statusCode?: number } = new Error("Invalid evidence status filter");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const type = normalizeEvidenceListTypeFilter(
+    typeof query.type === "string" ? query.type : null
+  );
+
+  const caseAssignment =
+    typeof query.caseAssignment === "string" && query.caseAssignment.trim().length > 0
+      ? EvidenceListCaseAssignmentSchema.parse(query.caseAssignment.trim().toLowerCase())
+      : "all";
+
+  const reportReadyRaw =
+    typeof query.reportReady === "string" && query.reportReady.trim().length > 0
+      ? query.reportReady.trim().toLowerCase()
+      : "all";
+
+  if (!["all", "ready", "missing"].includes(reportReadyRaw)) {
+    const err: Error & { statusCode?: number } = new Error("Invalid report readiness filter");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const sort =
+    typeof query.sort === "string" && query.sort.trim().length > 0
+      ? EvidenceListSortSchema.parse(query.sort.trim().toLowerCase())
+      : "newest";
+
+  return {
+    caseId,
+    scope,
+    limit,
+    cursor,
+    search,
+    status,
+    type,
+    caseAssignment,
+    reportReady: reportReadyRaw as EvidenceListQuery["reportReady"],
+    sort,
+  };
 }
 
 
@@ -3792,193 +4285,29 @@ await appendCustodyEvent({
 
   app.get("/v1/evidence", { preHandler: requireAuth }, async (req, reply) => {
     const ownerUserId = getAuthUserId(req);
-    const query = req.query as {
-      caseId?: string;
-      scope?: string;
-      includeArchived?: string;
-      includeDeleted?: string;
-    };
-
-    const caseId = query.caseId ? z.string().uuid().parse(query.caseId) : null;
-
-    const scope =
-      typeof query.scope === "string" && query.scope.trim().length > 0
-        ? EvidenceListScopeSchema.parse(query.scope.trim().toLowerCase())
-        : query.includeDeleted === "true"
-          ? "deleted"
-          : query.includeArchived === "true"
-            ? "all"
-            : "active";
-
-    const archivedFilter =
-      scope === "archived"
-        ? { archivedAt: { not: null as null | object } }
-        : scope === "active" || scope === "locked"
-          ? { archivedAt: null }
-          : {};
-
-    const deletedFilter =
-      scope === "deleted"
-        ? { deletedAt: { not: null as null | object } }
-        : { deletedAt: null };
-
-    const lockedFilter =
-      scope === "locked"
-        ? { lockedAt: { not: null as null | object } }
-        : scope === "active" || scope === "archived"
-          ? { lockedAt: null }
-          : {};
-
-    const mapEvidenceListItem = async (item: {
-      id: string;
-      title: string | null;
-      type: prismaPkg.EvidenceType;
-      originalFileName: string | null;
-      displayFileName: string | null;
-      mimeType: string | null;
-      status: prismaPkg.EvidenceStatus;
-      verificationStatus: prismaPkg.VerificationStatus | null;
-      captureMethod: prismaPkg.CaptureMethod | null;
-      identityLevelSnapshot: prismaPkg.IdentityLevel | null;
-      submittedByEmail: string | null;
-      latestReportVersion: number | null;
-      reviewReadyAtUtc: Date | null;
-      createdAt: Date;
-      archivedAt: Date | null;
-      deletedAt: Date | null;
-      deleteScheduledForUtc: Date | null;
-      caseId: string | null;
-      teamId: string | null;
-      ownerUserId: string;
-      storageBucket: string | null;
-      storageKey: string | null;
-      storageRegion: string | null;
-      storageObjectLockMode: string | null;
-      storageObjectLockRetainUntilUtc: Date | null;
-      storageObjectLockLegalHoldStatus: string | null;
-      _count: { parts: number };
-    }) => {
-      const itemCount = item._count.parts > 0 ? item._count.parts : 1;
-const storage = getStorageProtectionSummaryFromSnapshot({
-  storageRegion: item.storageRegion,
-  storageObjectLockMode: item.storageObjectLockMode,
-  storageObjectLockRetainUntilUtc: item.storageObjectLockRetainUntilUtc,
-  storageObjectLockLegalHoldStatus: item.storageObjectLockLegalHoldStatus,
-});
-
-      return {
-        id: item.id,
-        title: resolveEvidenceTitle(item.title),
-        type: item.type,
-        mimeType: item.mimeType ?? null,
-        primaryKind: detectEvidenceAssetKind(item.mimeType ?? null),
-        previewable: isPreviewableEvidenceKind(
-          detectEvidenceAssetKind(item.mimeType ?? null)
-        ),
-        status: item.status,
-        statusLabel: mapRecordStatusLabel(item.status),
-        verificationStatus: item.verificationStatus,
-        verificationStatusLabel: mapVerificationStatusLabel(
-          item.verificationStatus
-        ),
-        captureMethod: item.captureMethod,
-        captureMethodLabel: mapCaptureMethodLabel(item.captureMethod),
-        identityLevel: item.identityLevelSnapshot,
-        identityLevelLabel: mapIdentityLevelLabel(item.identityLevelSnapshot),
-
-        submittedByEmail: item.submittedByEmail,
-        latestReportVersion: item.latestReportVersion,
-        originalFileName: item.originalFileName ?? null,
-        displayFileName: item.displayFileName ?? null,
-        reviewReadyAtUtc: item.reviewReadyAtUtc
-          ? item.reviewReadyAtUtc.toISOString()
-          : null,
-        createdAt: item.createdAt.toISOString(),
-        archivedAt: item.archivedAt ? item.archivedAt.toISOString() : null,
-        deletedAt: item.deletedAt ? item.deletedAt.toISOString() : null,
-        deleteScheduledForUtc: item.deleteScheduledForUtc
-          ? item.deleteScheduledForUtc.toISOString()
-          : null,
-        caseId: item.caseId,
-        teamId: item.teamId,
-        ownerUserId: item.ownerUserId,
-        itemCount,
-        storage,
-        displaySubtitle: buildEvidenceSubtitle({
-          itemCount,
-          status: item.status,
-          createdAt: item.createdAt,
-        }),
-      };
-    };
+    const parsedQuery = parseEvidenceListQuery(req.query as Record<string, unknown>);
+    const {
+      caseId,
+      scope,
+      limit,
+      cursor,
+      search,
+      status,
+      type,
+      caseAssignment,
+      reportReady,
+      sort,
+    } = parsedQuery;
 
     if (caseId) {
       await assertCaseAccess(ownerUserId, caseId);
-
-      const items = await prisma.evidence.findMany({
-        where: {
-          ...deletedFilter,
-          ...archivedFilter,
-          ...lockedFilter,
-          caseId,
-        },
-        orderBy: { createdAt: "desc" },
-        take: 50,
-        select: {
-          id: true,
-          title: true,
-originalFileName: true,
-displayFileName: true,
-          type: true,
-          mimeType: true,
-          status: true,
-          verificationStatus: true,
-          captureMethod: true,
-          identityLevelSnapshot: true,
-          submittedByEmail: true,
-          latestReportVersion: true,
-          reviewReadyAtUtc: true,
-          createdAt: true,
-          archivedAt: true,
-          deletedAt: true,
-          deleteScheduledForUtc: true,
-          caseId: true,
-          teamId: true,
-          ownerUserId: true,
-          storageBucket: true,
-          storageKey: true,
-          storageRegion: true,
-          storageObjectLockMode: true,
-          storageObjectLockRetainUntilUtc: true,
-          storageObjectLockLegalHoldStatus: true,
-          _count: {
-            select: { parts: true },
-          },
-        },
-      });
-
-      auditEvidenceAction(req, {
-        userId: ownerUserId,
-        action: "evidence.list",
-        outcome: "success",
-        metadata: {
-          caseId,
-          scope,
-          count: items.length,
-        },
-      });
-
-      return reply.code(200).send({
-        scope,
-        items: await Promise.all(items.map(mapEvidenceListItem)),
-      });
     }
 
     const memberTeams = await prisma.teamMember.findMany({
       where: { userId: ownerUserId },
       select: { teamId: true },
     });
-    const memberTeamIds = memberTeams.map((t) => t.teamId);
+    const memberTeamIds = memberTeams.map((entry) => entry.teamId);
 
     const accessibleCases = await prisma.case.findMany({
       where: {
@@ -3997,57 +4326,38 @@ displayFileName: true,
       },
       select: { id: true },
     });
-    const accessibleCaseIds = accessibleCases.map((c) => c.id);
+    const accessibleCaseIds = accessibleCases.map((entry) => entry.id);
+
+    const baseWhere = buildEvidenceListBaseWhere({
+      query: parsedQuery,
+      userId: ownerUserId,
+      memberTeamIds,
+      accessibleCaseIds,
+    });
+    const cursorFilter = buildEvidenceListCursorFilter(cursor, sort);
+    const where: Prisma.EvidenceWhereInput = cursorFilter
+      ? {
+          AND: [baseWhere, cursorFilter],
+        }
+      : baseWhere;
 
     const items = await prisma.evidence.findMany({
-      where: {
-        ...deletedFilter,
-        ...archivedFilter,
-        ...lockedFilter,
-        OR: [
-          { ownerUserId },
-          ...(accessibleCaseIds.length > 0
-            ? [{ caseId: { in: accessibleCaseIds } }]
-            : []),
-          ...(memberTeamIds.length > 0
-            ? [{ teamId: { in: memberTeamIds } }]
-            : []),
-        ],
-      },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-      select: {
-        id: true,
-        title: true,
-        type: true,
-        mimeType: true,
-        originalFileName: true,
-        displayFileName: true,
-        status: true,
-        verificationStatus: true,
-        captureMethod: true,
-        identityLevelSnapshot: true,
-        submittedByEmail: true,
-        latestReportVersion: true,
-        reviewReadyAtUtc: true,
-        createdAt: true,
-        archivedAt: true,
-        deletedAt: true,
-        deleteScheduledForUtc: true,
-        caseId: true,
-        teamId: true,
-        ownerUserId: true,
-        storageBucket: true,
-        storageKey: true,
-        storageRegion: true,
-        storageObjectLockMode: true,
-        storageObjectLockRetainUntilUtc: true,
-        storageObjectLockLegalHoldStatus: true,
-        _count: {
-          select: { parts: true },
-        },
-      },
+      where,
+      orderBy: getEvidenceListOrderBy(sort),
+      take: limit + 1,
+      select: EVIDENCE_LIST_SELECT,
     });
+
+    const hasMore = items.length > limit;
+    const pageItems = hasMore ? items.slice(0, limit) : items;
+    const nextCursor = hasMore
+      ? encodeEvidenceListCursor({
+          createdAt: pageItems[pageItems.length - 1].createdAt.toISOString(),
+          id: pageItems[pageItems.length - 1].id,
+        })
+      : null;
+
+    const mappedItems = pageItems.map(mapEvidenceListItem);
 
     auditEvidenceAction(req, {
       userId: ownerUserId,
@@ -4055,13 +4365,30 @@ displayFileName: true,
       outcome: "success",
       metadata: {
         scope,
-        count: items.length,
+        count: mappedItems.length,
+        limit,
+        sort,
+        caseId,
+        hasMore,
+        filters: {
+          search: search ? "applied" : "none",
+          status,
+          type,
+          caseAssignment,
+          reportReady,
+          cursorApplied: Boolean(cursor),
+        },
       },
     });
 
     return reply.code(200).send({
       scope,
-      items: await Promise.all(items.map(mapEvidenceListItem)),
+      items: mappedItems,
+      pageInfo: {
+        limit,
+        nextCursor,
+        hasMore,
+      },
     });
   });
 

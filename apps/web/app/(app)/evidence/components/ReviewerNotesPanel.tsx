@@ -2,7 +2,6 @@ import type { DetailWorkspaceState, EvidenceListItem } from "../lib/evidence-lib
 import { safeText } from "../lib/evidence-library-formatters";
 
 export function ReviewerNotesPanel({
-  item,
   detail,
 }: {
   item: EvidenceListItem;

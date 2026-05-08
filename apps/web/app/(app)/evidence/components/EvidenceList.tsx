@@ -11,9 +11,10 @@ export function EvidenceList({
   selectedId,
   caseMap,
   currentScope,
-  scopeMayBeTruncated,
-  page,
-  totalPages,
+  pageLabel,
+  resultsLabel,
+  hasNextPage,
+  hasPreviousPage,
   onSelect,
   onRetry,
   onOpenRecord,
@@ -28,9 +29,10 @@ export function EvidenceList({
   selectedId: string | null;
   caseMap: Map<string, string>;
   currentScope: string;
-  scopeMayBeTruncated: boolean;
-  page: number;
-  totalPages: number;
+  pageLabel: string;
+  resultsLabel: string;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
   onSelect: (id: string) => void;
   onRetry: () => void;
   onOpenRecord: (id: string) => void;
@@ -50,9 +52,7 @@ export function EvidenceList({
         </div>
         <div className="evidence-library-list-shell__meta">
           <span>{currentScope}</span>
-          {scopeMayBeTruncated ? (
-            <span>API scope currently returns up to 50 records.</span>
-          ) : null}
+          <span>Results are loaded from the server using the selected filters.</span>
         </div>
       </div>
 
@@ -95,14 +95,13 @@ export function EvidenceList({
           </div>
 
           <div className="evidence-library-pagination">
-            <span>
-              Page {page} of {Math.max(totalPages, 1)}
-            </span>
+            <span>{pageLabel}</span>
+            <span>{resultsLabel}</span>
             <div className="evidence-library-pagination__actions">
-              <Button variant="secondary" onClick={onPrevPage} disabled={page <= 1}>
+              <Button variant="secondary" onClick={onPrevPage} disabled={!hasPreviousPage}>
                 Previous
               </Button>
-              <Button onClick={onNextPage} disabled={page >= totalPages}>
+              <Button onClick={onNextPage} disabled={!hasNextPage}>
                 Next
               </Button>
             </div>

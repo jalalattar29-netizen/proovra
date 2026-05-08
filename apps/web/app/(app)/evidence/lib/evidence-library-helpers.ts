@@ -2,7 +2,6 @@ import type {
   CaseOption,
   DetailWorkspaceState,
   EvidenceListItem,
-  EvidenceRecord,
   WorkspaceCapabilitySnapshot,
 } from "./evidence-library-types";
 import type {
