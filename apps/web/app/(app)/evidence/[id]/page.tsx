@@ -18,6 +18,7 @@ import CaptureLocationMapPanel from "../../../../components/capture-location/Cap
 import { useLocale } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
+import { formatUserDateTime, formatUtcAuditDateTime } from "../../../../lib/date";
 import type {
   BillingOverviewResponse,
   PersonalWorkspaceSummary,
@@ -46,25 +47,6 @@ function formatBytes(sizeBytes: string | number | null | undefined): string {
   }
 
   return `${value.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
-}
-
-function formatUtcDateTime(value: string | null | undefined): string {
-  if (!value) return "Not available";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not available";
-
-  const day = date.getUTCDate().toString().padStart(2, "0");
-  const month = date.toLocaleString("en-GB", {
-    month: "short",
-    timeZone: "UTC",
-  });
-  const year = date.getUTCFullYear();
-  const hours = date.getUTCHours().toString().padStart(2, "0");
-  const minutes = date.getUTCMinutes().toString().padStart(2, "0");
-  const seconds = date.getUTCSeconds().toString().padStart(2, "0");
-
-  return `${day} ${month} ${year}, ${hours}:${minutes}:${seconds} UTC`;
 }
 
 function shortId(value: string | null | undefined): string {
@@ -1560,7 +1542,7 @@ else acc.otherCount += 1;
   const canAssignToCase = ownedCases.length > 0 && !isDeleted;
   const reportCapabilityHint = canAccessReports
     ? reportAvailable && reportGeneratedAtUtc
-      ? `PDF reports are enabled for this workspace. Latest report generated at ${formatUtcDateTime(
+      ? `PDF reports are enabled for this workspace. Latest report generated at ${formatUserDateTime(
           reportGeneratedAtUtc
         )}.`
       : "PDF reports are enabled, but no downloadable report artifact is available yet."
@@ -1568,7 +1550,7 @@ else acc.otherCount += 1;
 
   const packageCapabilityHint = canAccessVerificationPackage
     ? verificationPackageAvailable && verificationPackageGeneratedAtUtc
-      ? `Verification packages are enabled. Latest package generated at ${formatUtcDateTime(
+      ? `Verification packages are enabled. Latest package generated at ${formatUserDateTime(
           verificationPackageGeneratedAtUtc
         )}.`
       : "Verification packages are enabled, but no downloadable package artifact is available yet."
@@ -1591,7 +1573,7 @@ else acc.otherCount += 1;
   );
 
   const captureLocationCapturedAtLabel = useMemo(
-    () => formatUtcDateTime(capturedAtUtc ?? deviceTimeIso ?? createdAt),
+    () => formatUserDateTime(capturedAtUtc ?? deviceTimeIso ?? createdAt),
     [capturedAtUtc, createdAt, deviceTimeIso]
   );
 
@@ -1763,7 +1745,7 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
 <span className="evidence-pill neutral">
   {isMultipart ? `${Math.max(sortedParts.length, itemCount)} items` : "Single file"}
 </span>
-              <span className="evidence-pill neutral">Recorded: {formatUtcDateTime(createdAt)}</span>
+              <span className="evidence-pill neutral">Recorded: {formatUserDateTime(createdAt)}</span>
               <span className="evidence-pill neutral">{activeWorkspaceName} · {activePlan}</span>
               {isLocked ? <span className="evidence-pill success">Locked</span> : null}
               {isDeleted ? <span className="evidence-pill danger">In Trash</span> : null}
@@ -1801,7 +1783,7 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
           {isDeleted ? (
             <div className="evidence-alert danger evidence-hero-alert">
               <strong>Secure trash retention active.</strong> Recoverable until{" "}
-              <strong>{formatUtcDateTime(deleteScheduledForUtc)}</strong>.
+              <strong>{formatUserDateTime(deleteScheduledForUtc)}</strong>.
             </div>
           ) : null}
         </section>
@@ -1932,8 +1914,8 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
                                 <div>Kind: {kind === "pdf" ? "document" : kind}</div>
                                 <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
                                 {part.durationMs && part.durationMs > 0 ? <div>Duration: {(part.durationMs / 1000).toFixed(1)} sec</div> : null}
-                                {part.capturedAt ? <div>Captured at: {formatUtcDateTime(part.capturedAt)}</div> : null}
-                                {part.createdAt ? <div>Created at: {formatUtcDateTime(part.createdAt)}</div> : null}
+                                {part.capturedAt ? <div>Captured at: {formatUserDateTime(part.capturedAt)}</div> : null}
+                                {part.createdAt ? <div>Created at: {formatUserDateTime(part.createdAt)}</div> : null}
                                 {part.sha256 ? (
                                   <div className="evidence-item-meta-row">
                                     <span>SHA-256:</span>
@@ -1984,10 +1966,10 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
                   <div className="evidence-kv"><span>Case assignment</span><strong>{caseId ? "Attached" : "Not assigned"}</strong></div>
                   <div className="evidence-kv"><span>Storage</span><strong>{workspaceSnapshot.storageUsedLabel ?? "—"} used · {workspaceSnapshot.storageRemainingLabel ?? "—"} left</strong></div>
                   {intakePlanSummary ? <div className="evidence-kv full"><span>Intake plan</span><strong>{intakePlanSummary}</strong></div> : null}
-                  <div className="evidence-kv"><span>Recorded at</span><strong>{formatUtcDateTime(createdAt)}</strong></div>
-                  <div className="evidence-kv"><span>Locked at</span><strong>{formatUtcDateTime(lockedAt)}</strong></div>
-                  <div className="evidence-kv"><span>Archived at</span><strong>{formatUtcDateTime(archivedAt)}</strong></div>
-                  <div className="evidence-kv"><span>Deleted at</span><strong>{formatUtcDateTime(deletedAt)}</strong></div>
+                  <div className="evidence-kv"><span>Recorded at (UTC)</span><strong>{formatUtcAuditDateTime(createdAt)}</strong></div>
+                  <div className="evidence-kv"><span>Locked at (UTC)</span><strong>{formatUtcAuditDateTime(lockedAt)}</strong></div>
+                  <div className="evidence-kv"><span>Archived at (UTC)</span><strong>{formatUtcAuditDateTime(archivedAt)}</strong></div>
+                  <div className="evidence-kv"><span>Deleted at (UTC)</span><strong>{formatUtcAuditDateTime(deletedAt)}</strong></div>
                 </div>
               </div>
             </section>
@@ -2010,7 +1992,7 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
                             <div>
                               <strong>{event.label}</strong>
                               <span>
-                                {formatUtcDateTime(event.timestampUtc)} · {event.actorLabel} · {event.source}
+                                {formatUserDateTime(event.timestampUtc)} · {event.actorLabel} · {event.source}
                               </span>
                               <p>{event.description}</p>
                             </div>
@@ -2106,7 +2088,7 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
                           <div key={`${event.eventType}-${event.timestampUtc}`} className="evidence-activity-item">
                             <div className="evidence-activity-top">
                               <strong>{event.label}</strong>
-                              <span>{formatUtcDateTime(event.timestampUtc)}</span>
+                              <span>{formatUserDateTime(event.timestampUtc)}</span>
                             </div>
                             <div className="evidence-activity-meta">
                               <span>{event.actorLabel} · {event.source}</span>
