@@ -4499,3 +4499,18 @@ box-shadow:
 .capture-ai-header button {
   opacity: 1 !important;
 }
+
+/* FORCE AI HEADER COLORS */
+
+.capture-ai-assistant-header,
+.capture-ai-assistant-header * {
+  color: #ffffff !important;
+}
+
+.capture-ai-assistant-header button,
+.capture-ai-assistant-header .toggle,
+.capture-ai-assistant-header .hide-button {
+  color: #c7a27a !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #c7a27a !important;
+}
