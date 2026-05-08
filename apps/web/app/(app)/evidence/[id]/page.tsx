@@ -625,14 +625,6 @@ else acc.otherCount += 1;
     ]
   );
 
-  const effectiveHeroSubtitle = useMemo(() => {
-    if (displaySubtitle) return displaySubtitle;
-    if (isMultipart) {
-      return `${itemCount} item${itemCount === 1 ? "" : "s"} • ${compositionSummary}`;
-    }
-    return compositionSummary || `${itemCount} item${itemCount === 1 ? "" : "s"}`;
-  }, [displaySubtitle, isMultipart, itemCount, compositionSummary]);
-
   const effectiveOriginalSummaryName = useMemo(() => {
     const cleanedOriginal = sanitizePossibleFileName(originalFileName);
     if (cleanedOriginal) return cleanedOriginal;
@@ -665,6 +657,20 @@ else acc.otherCount += 1;
       }),
     [status, t]
   );
+
+  const heroSubtitle = useMemo(() => {
+  const countLabel = isMultipart
+    ? `${Math.max(sortedParts.length, itemCount)} items`
+    : "1 item";
+
+  return `${countLabel} • ${displayStatusMeta.label} • ${formatUserDateTime(createdAt)}`;
+}, [
+  isMultipart,
+  sortedParts.length,
+  itemCount,
+  displayStatusMeta.label,
+  createdAt,
+]);
 
   const workspaceSnapshot = useMemo(
     () =>
@@ -1719,7 +1725,7 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
             {!isEditingLabel ? (
               <>
                 <h1 className="evidence-title">{label}</h1>
-                <p className="evidence-subtitle">{effectiveHeroSubtitle}</p>
+<p className="evidence-subtitle">{heroSubtitle}</p>
               </>
             ) : (
               <div className="evidence-label-edit-row">
