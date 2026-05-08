@@ -4224,3 +4224,133 @@ box-shadow:
   color: #0d5c56 !important;
   font-weight: 700 !important;
 }
+
+/* =========================================================
+   MOBILE FIX — REVIEW & SIGN CARD
+========================================================= */
+
+@media (max-width: 768px) {
+
+  .capture-review-card,
+  .capture-finalize-card,
+  .capture-session-finalize {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 18px !important;
+    align-items: stretch !important;
+  }
+
+  .capture-review-card-actions,
+  .capture-finalize-actions {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  .capture-review-card-actions button,
+  .capture-finalize-actions button {
+    width: 100% !important;
+    min-height: 52px !important;
+  }
+
+  .capture-review-card-content,
+  .capture-finalize-content {
+    max-width: 100% !important;
+  }
+}
+
+/* =========================================================
+   ULTRA CLEAN WHITE ENTERPRISE BACKGROUND
+========================================================= */
+
+.capture-enterprise-page {
+  background: #ffffff !important;
+}
+
+/* remove soft fog overlays if موجودة */
+.capture-enterprise-page::before,
+.capture-enterprise-page::after {
+  opacity: 0 !important;
+  display: none !important;
+}
+
+.capture-material-preview {
+  position: relative !important;
+  height: 150px !important;
+  min-height: 150px !important;
+  max-height: 150px !important;
+  overflow: hidden !important;
+  border-radius: 14px 14px 0 0 !important;
+  background: #f6f8f8 !important;
+}
+
+.capture-material-preview img,
+.capture-material-preview video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  display: block !important;
+  background: #f6f8f8 !important;
+}
+
+.capture-material-type-overlay {
+  position: absolute !important;
+  top: 10px !important;
+  left: 10px !important;
+  z-index: 12 !important;
+
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 12px !important;
+
+  display: grid !important;
+  place-items: center !important;
+
+  background: rgba(255, 255, 255, 0.72) !important;
+  border: 1px solid rgba(15, 92, 86, 0.16) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+
+  color: #17857b !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.10) !important;
+}
+
+.capture-material-type-overlay svg,
+.capture-material-type-overlay svg * {
+  stroke: #17857b !important;
+  color: #17857b !important;
+}
+
+/* PDF / file placeholder nicer */
+.capture-material-file-icon {
+  width: 62px !important;
+  height: 62px !important;
+  border-radius: 18px !important;
+  background: linear-gradient(180deg, #2f9e92 0%, #15756b 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(21, 117, 107, 0.22) !important;
+}
+
+.capture-material-file-icon svg,
+.capture-material-file-icon svg * {
+  stroke: #ffffff !important;
+  color: #ffffff !important;
+}
+
+.capture-material-type-overlay.folder,
+.capture-material-type-overlay.file,
+.capture-material-type-overlay.pdf {
+  background: rgba(255, 255, 255, 0.76) !important;
+  color: #17857b !important;
+}
+
+.capture-material-type-overlay.folder svg,
+.capture-material-type-overlay.file svg,
+.capture-material-type-overlay.pdf svg,
+.capture-material-type-overlay.folder svg *,
+.capture-material-type-overlay.file svg *,
+.capture-material-type-overlay.pdf svg * {
+  stroke: #17857b !important;
+  color: #17857b !important;
+}

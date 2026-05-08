@@ -1943,8 +1943,19 @@ useEffect(() => {
             }`}
           >
             <div className="capture-material-preview">
-              <div className="capture-material-badge">{previewTypeLabel}</div>
-
+<div className={`capture-material-type-overlay ${previewTypeLabel.toLowerCase()}`}>
+  {previewTypeLabel === "VIDEO" ? (
+    <Video size={18} strokeWidth={2.2} />
+  ) : previewTypeLabel === "IMAGE" ? (
+    <ImageIcon size={18} strokeWidth={2.2} />
+  ) : previewTypeLabel === "PDF" ? (
+    <FileText size={18} strokeWidth={2.2} />
+  ) : previewTypeLabel === "FOLDER" ? (
+    <Folder size={18} strokeWidth={2.2} />
+  ) : (
+    <FileText size={18} strokeWidth={2.2} />
+  )}
+</div>
               {item.previewUrl && item.mimeType.startsWith("image/") ? (
                 <img src={item.previewUrl} alt={item.file.name} />
               ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
