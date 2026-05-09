@@ -4606,9 +4606,18 @@ box-shadow:
 }
 
 /* Space between Capture AI assistant title and Show/Hide */
+/* Space between Capture AI assistant title and Show/Hide */
 .capture-right-panel > .card > button {
-  gap: 18px !important;
-  padding: 0 18px !important;
+  gap: 14px !important;
+
+  padding: 12px 18px !important;
+  min-height: 52px !important;
+
+  border-radius: 16px !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
 }
 
 .capture-right-panel > .card > button span:last-child,
@@ -4618,43 +4627,3 @@ box-shadow:
   flex-shrink: 0 !important;
 }
 
-.capture-ai-toggle {
-  min-height: 44px;
-  padding: 0 18px;
-  border-radius: 999px;
-
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-
-  background: linear-gradient(
-    180deg,
-    #0d7a69 0%,
-    #075e52 100%
-  );
-
-  color: #f7faf9;
-  border: 1px solid rgba(7, 94, 82, 0.9);
-
-  box-shadow:
-    0 10px 24px rgba(7, 94, 82, 0.18),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-
-  transition:
-    transform 140ms ease,
-    box-shadow 140ms ease,
-    background 140ms ease;
-}
-
-.capture-ai-toggle:hover {
-  transform: translateY(-1px);
-
-  box-shadow:
-    0 14px 28px rgba(7, 94, 82, 0.24),
-    inset 0 1px 0 rgba(255,255,255,0.12);
-}
