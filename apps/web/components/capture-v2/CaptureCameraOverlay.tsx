@@ -1,5 +1,6 @@
-type CameraMode = "PHOTO" | "VIDEO" | null;
-type FacingMode = "user" | "environment";
+import type { RefObject } from "react";
+
+import type { CameraMode, FacingMode } from "../../app/(app)/capture/_lib/types";
 
 type Props = {
   cameraOpen: boolean;
@@ -12,7 +13,7 @@ type Props = {
   cameraStarting: boolean;
   cameraError: string | null;
   sessionItemsCount: number;
-videoPreviewRef: React.RefObject<HTMLVideoElement>;
+  videoPreviewRef: RefObject<HTMLVideoElement | null>;
   closeCamera: () => void;
   handleToggleFlash: () => void;
   handleFlipCamera: () => void;
@@ -47,7 +48,7 @@ export function CaptureCameraOverlay({
   return (
     <div className={`camera-overlay ${flashEnabled ? "camera-overlay-flash" : ""}`}>
       <video
-        ref={videoPreviewRef}
+        ref={videoPreviewRef as RefObject<HTMLVideoElement>}
         autoPlay
         muted={cameraMode !== "VIDEO" || !isRecording}
         playsInline
@@ -55,16 +56,14 @@ export function CaptureCameraOverlay({
       />
 
       <div className="camera-topbar">
-        <div className="camera-topbar-group">
-          <button
-            type="button"
-            className="camera-icon-btn"
-            onClick={closeCamera}
-            disabled={busy || cameraStarting}
-          >
-            Close
-          </button>
-        </div>
+        <button
+          type="button"
+          className="camera-icon-btn"
+          onClick={closeCamera}
+          disabled={busy || cameraStarting}
+        >
+          Close
+        </button>
 
         <div className="camera-topbar-title-group">
           <div className="camera-title">
@@ -106,9 +105,7 @@ export function CaptureCameraOverlay({
         </div>
       </div>
 
-      <div className="camera-session-pill">
-        {sessionItemsCount} added
-      </div>
+      <div className="camera-added-pill">{sessionItemsCount} added</div>
 
       <div className="camera-bottombar">
         <div className="camera-bottombar-meta">

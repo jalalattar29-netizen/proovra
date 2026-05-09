@@ -5,8 +5,9 @@ type Props = {
   progress: number;
   sessionStatus: string | null;
   finishDisabled: boolean;
-  finishReason?: string;
+  finishReason?: string | null;
   missingSteps: string[];
+  canClearSession: boolean;
   onReset: () => void;
   onFinalize: () => void;
 };
@@ -18,75 +19,56 @@ export function CaptureBottomBar({
   finishDisabled,
   finishReason,
   missingSteps,
+  canClearSession,
   onReset,
   onFinalize,
 }: Props) {
-  return (
-    <div className="capture-bottom-bar">
-      <div className="capture-bottom-bar-inner">
-        <div>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 850,
-            }}
-          >
-            {finishReason ??
-              "Ready to finish and sign"}
-          </div>
+  const missingRequiredCount = missingSteps.length;
+  const missingPreview = missingSteps.slice(0, 3).join(", ");
+  const hiddenMissingCount = Math.max(0, missingRequiredCount - 3);
 
-          <div
-            style={{
-              color: "rgba(211,223,220,0.72)",
-              fontSize: 12,
-              marginTop: 4,
-            }}
-          >
+  return (
+    <section className="capture-bottom-bar">
+      <div className="capture-bottom-bar-inner capture-phase4-bottom-bar-inner">
+        <div>
+          <strong>
+            {finishReason ?? (missingRequiredCount > 0 ? "Required mapping still incomplete" : "Ready for Review & Sign")}
+          </strong>
+          <p>
             {busy
               ? `Finishing evidence session… ${progress}%`
-              : sessionStatus ??
-                "Creates the evidence record, uploads staged materials, signs integrity data, and starts verification artifact generation."}
-          </div>
+              : missingRequiredCount > 0
+                ? `Map staged material to every required collection step before Review & Sign. Remaining: ${missingPreview}${hiddenMissingCount > 0 ? ` and ${hiddenMissingCount} more` : ""}.`
+                : sessionStatus ??
+                  "All required collection steps are mapped. Review & Sign locks the session, records integrity metadata, and starts verification artifact generation."}
+          </p>
 
-          {missingSteps.length > 0 ? (
-            <div
-              style={{
-                color: "#e6c9ae",
-                fontSize: 12,
-                marginTop: 8,
-              }}
-            >
-              Missing: {missingSteps.join(", ")}
-            </div>
+          {missingRequiredCount > 0 ? (
+            <small className="capture-phase4-missing-list">
+              Required still unmapped: {missingSteps.join(", ")}
+            </small>
           ) : null}
         </div>
 
-        <Button
-          variant="secondary"
-          onClick={onReset}
-          disabled={busy}
-          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-          style={{
-            borderColor:
-              "rgba(248,113,113,0.24)",
-            color: "#fecaca",
-            background:
-              "rgba(127,29,29,0.16)",
-          }}
-        >
-          Clear Session
-        </Button>
+        <div className="capture-phase5-final-actions" aria-label="Session final actions">
+          <Button
+            variant="secondary"
+            onClick={onReset}
+            disabled={busy || !canClearSession}
+            className="capture-clear-button capture-secondary-session-action"
+          >
+            Clear Session
+          </Button>
 
-        <Button
-          onClick={onFinalize}
-          disabled={finishDisabled}
-          className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-medium"
-        >
-          {busy
-            ? "Finishing…"
-            : "Review & Sign"}
-        </Button>
+          <Button
+            onClick={onFinalize}
+            disabled={finishDisabled}
+            className="capture-finish-button proovra-cta-btn capture-primary-finalize-action"
+          >
+            {busy ? "Finishing…" : "Review & Sign"}
+          </Button>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }

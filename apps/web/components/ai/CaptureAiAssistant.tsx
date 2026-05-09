@@ -79,8 +79,6 @@ type AiResult = {
   legalDisclaimer: string;
 };
 
-
-
 export function CaptureAiAssistant({
   isOpen,
   setOpen,
@@ -103,31 +101,31 @@ export function CaptureAiAssistant({
     setError(null);
     setUnavailable(false);
 
-try {
-  const safeItems = sessionItems.map((item) => ({
-    id: item.id,
-    fileName: item.fileName,
-    mimeType: item.mimeType,
-    sizeBytes: item.sizeBytes,
-    checklistStepId: item.checklistStepId ?? null,
-    role: item.role,
-    sourceLabel: item.sourceLabel,
-    clientSignals: item.clientSignals,
-  }));
+    try {
+      const safeItems = sessionItems.map((item) => ({
+        id: item.id,
+        fileName: item.fileName,
+        mimeType: item.mimeType,
+        sizeBytes: item.sizeBytes,
+        checklistStepId: item.checklistStepId ?? null,
+        role: item.role,
+        sourceLabel: item.sourceLabel,
+        clientSignals: item.clientSignals,
+      }));
 
-  const response = (await apiFetch(
-    "/v1/ai/capture/analyze-session",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        collectionPlan,
-        planMode: summary.planMode,
-        useLocation: summary.useLocation,
-        items: safeItems,
-      }),
-    },
-    { auth: true }
-  )) as { data?: AiResult };
+      const response = (await apiFetch(
+        "/v1/ai/capture/analyze-session",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            collectionPlan,
+            planMode: summary.planMode,
+            useLocation: summary.useLocation,
+            items: safeItems,
+          }),
+        },
+        { auth: true }
+      )) as { data?: AiResult };
 
       const result: AiResult = response?.data ?? {
         status: "disabled",
@@ -170,27 +168,134 @@ try {
       );
   }, [analysis?.flags]);
 
+  const signalSummary = useMemo(() => {
+    return sessionItems.reduce(
+      (acc, item) => {
+        const signals = item.clientSignals;
+        if (!signals) return acc;
+
+        if (signals.duplicateStatus === "duplicate") acc.duplicateItems += 1;
+        if (signals.duplicateStatus === "warning") acc.duplicateWarnings += 1;
+        if (signals.genericMime) acc.genericMimeItems += 1;
+        if (signals.oldLastModified) acc.oldTimestampItems += 1;
+        if (signals.screenshotLike) acc.screenshotLikeItems += 1;
+        if (signals.folderPathPresent) acc.folderPathItems += 1;
+        if (signals.locationIncluded) acc.locationIncludedItems += 1;
+
+        return acc;
+      },
+      {
+        duplicateItems: 0,
+        duplicateWarnings: 0,
+        genericMimeItems: 0,
+        oldTimestampItems: 0,
+        screenshotLikeItems: 0,
+        folderPathItems: 0,
+        locationIncludedItems: 0,
+      }
+    );
+  }, [sessionItems]);
+
+  const requiredMissingCount = Math.max(
+    0,
+    summary.requiredStepsTotal - summary.requiredStepsCompleted
+  );
+
+  const requiredCoveragePercent =
+    summary.requiredStepsTotal > 0
+      ? Math.round((summary.requiredStepsCompleted / summary.requiredStepsTotal) * 100)
+      : 100;
+
+  const clientSignalIssueCount =
+    signalSummary.duplicateItems +
+    signalSummary.duplicateWarnings +
+    signalSummary.genericMimeItems +
+    signalSummary.oldTimestampItems +
+    (summary.locationRequirement === "required" && !summary.useLocation ? 1 : 0);
+
+  const aiFlagIssueCount = sortedAiFlags.filter(
+    (flag) => flag.severity === "danger" || flag.severity === "warning"
+  ).length;
+
+  const qaIssueCount = analysis
+    ? requiredMissingCount + aiFlagIssueCount + analysis.warnings.length
+    : requiredMissingCount + clientSignalIssueCount;
+
+  const workflowState = useMemo(() => {
+    if (!collectionPlan) {
+      return {
+        tone: "idle",
+        label: "Plan context required",
+        detail: "Select a collection plan so AI quality control can evaluate the workflow scope.",
+      };
+    }
+
+    if (summary.totalItems === 0) {
+      return {
+        tone: "idle",
+        label: "Awaiting evidence",
+        detail: "Add source material before running workflow-aware AI quality control.",
+      };
+    }
+
+    if (requiredMissingCount > 0) {
+      return {
+        tone: "blocked",
+        label: "Coverage gap detected",
+        detail: `${requiredMissingCount} required capture step${requiredMissingCount === 1 ? "" : "s"} still need mapped material before final review.`,
+      };
+    }
+
+    if (qaIssueCount > 0) {
+      return {
+        tone: "warning",
+        label: "QA review recommended",
+        detail: `${qaIssueCount} workflow signal${qaIssueCount === 1 ? "" : "s"} should be checked before Review & Sign.`,
+      };
+    }
+
+    return {
+      tone: "ready",
+      label: "Ready for advisory QA",
+      detail: "Required coverage is complete. Run AI quality control as a final metadata review gate.",
+    };
+  }, [collectionPlan, qaIssueCount, requiredMissingCount, summary.totalItems]);
+
   const missingCard = useMemo(() => {
     if (analysis?.flags?.length) {
-const missing = analysis.flags
-  .filter((flag) =>
-    flag.severity === "danger" &&
-    /missing|required/i.test(`${flag.title} ${flag.detail}`)
-  )
-  .map((flag) => flag.title);
-        if (missing.length > 0) return missing;
+      const missing = analysis.flags
+        .filter(
+          (flag) =>
+            flag.severity === "danger" &&
+            /missing|required/i.test(`${flag.title} ${flag.detail}`)
+        )
+        .map((flag) => flag.title);
+      if (missing.length > 0) return missing;
     }
 
     if (summary.requiredStepsTotal === 0) {
       return ["No required capture steps are defined for the selected plan."];
     }
+
+    const unmappedRequiredSteps =
+      collectionPlan?.steps
+        .filter(
+          (step) =>
+            step.required &&
+            !sessionItems.some((item) => item.checklistStepId === step.id)
+        )
+        .map((step) => `Map evidence to required step: ${step.title}`) ?? [];
+
+    if (unmappedRequiredSteps.length > 0) return unmappedRequiredSteps;
+
     if (summary.requiredStepsCompleted < summary.requiredStepsTotal) {
       return [
         `${summary.requiredStepsTotal - summary.requiredStepsCompleted} required capture item(s) appear missing.`,
       ];
     }
+
     return ["Required capture coverage appears complete."];
-  }, [analysis, summary]);
+  }, [analysis, collectionPlan?.steps, sessionItems, summary]);
 
   const riskCard = useMemo(() => {
     if (analysis?.warnings.length) {
@@ -201,88 +306,119 @@ const missing = analysis.flags
     if (summary.locationRequirement === "required" && !summary.useLocation) {
       warnings.push("Location metadata is required by the selected plan but not enabled.");
     }
-    if (sessionItems.some((item) => item.clientSignals?.duplicateStatus === "duplicate")) {
-      warnings.push("Duplicate file signals were detected for one or more items.");
+    if (signalSummary.duplicateItems > 0 || signalSummary.duplicateWarnings > 0) {
+      warnings.push(
+        `${signalSummary.duplicateItems + signalSummary.duplicateWarnings} duplicate-related client signal(s) need review.`
+      );
     }
-    if (sessionItems.some((item) => item.clientSignals?.genericMime)) {
-      warnings.push("One or more items reported a generic MIME type that should be reviewed.");
+    if (signalSummary.genericMimeItems > 0) {
+      warnings.push(`${signalSummary.genericMimeItems} item(s) reported a generic MIME type.`);
     }
-    if (sessionItems.some((item) => item.clientSignals?.oldLastModified)) {
-      warnings.push("One or more items have an older last modified timestamp.");
+    if (signalSummary.oldTimestampItems > 0) {
+      warnings.push(`${signalSummary.oldTimestampItems} item(s) have older last modified timestamps.`);
+    }
+    if (signalSummary.screenshotLikeItems > 0) {
+      warnings.push(`${signalSummary.screenshotLikeItems} screenshot-like item(s) should be confirmed against the evidence purpose.`);
     }
 
     return warnings.length
       ? warnings
       : ["No high-risk session issues were detected in the provided metadata."];
-  }, [analysis, summary, sessionItems]);
+  }, [analysis, signalSummary, summary]);
 
   const actionCard = useMemo(() => {
     if (analysis?.suggestions.length) {
       return analysis.suggestions;
     }
 
-    return [
-      "Confirm required items are mapped to the selected plan steps.",
-      "Review duplicate and generic MIME signals before signing.",
-      "Use location metadata when the plan requires it.",
-    ];
-  }, [analysis]);
+    const actions: string[] = [];
+
+    if (requiredMissingCount > 0) {
+      actions.push("Map or add the missing required evidence before Review & Sign.");
+    }
+
+    if (summary.locationRequirement === "required" && !summary.useLocation) {
+      actions.push("Enable location metadata or resolve the required-location workflow blocker.");
+    }
+
+    if (clientSignalIssueCount > 0) {
+      actions.push("Review duplicate, generic MIME, and timestamp signals against the staged materials.");
+    }
+
+    actions.push("Confirm reviewer judgement before finalizing; AI remains advisory quality control.");
+
+    return actions;
+  }, [analysis, clientSignalIssueCount, requiredMissingCount, summary]);
 
   const groupedActions = useMemo(() => {
-  return {
-    high: actionCard.filter((item) =>
-      /zip|required|missing|confirm|verify|review/i.test(item)
-    ),
-    recommended: actionCard.filter((item) =>
-      /location|collect|add|assign|map|label/i.test(item)
-    ),
-    info: actionCard.filter(
-      (item) =>
-        !/zip|required|missing|confirm|verify|review|location|collect|add|assign|map|label/i.test(
-          item
-        )
-    ),
-  };
-}, [actionCard]);
+    return {
+      high: actionCard.filter((item) =>
+        /zip|required|missing|confirm|verify|review|blocker|finalizing/i.test(item)
+      ),
+      recommended: actionCard.filter((item) =>
+        /location|collect|add|assign|map|label|metadata|timestamp|duplicate/i.test(item)
+      ),
+      info: actionCard.filter(
+        (item) =>
+          !/zip|required|missing|confirm|verify|review|blocker|finalizing|location|collect|add|assign|map|label|metadata|timestamp|duplicate/i.test(
+            item
+          )
+      ),
+    };
+  }, [actionCard]);
+
+  const reviewButtonLabel = loading
+    ? "Reviewing workflow…"
+    : !canAnalyze
+      ? "Add evidence to run QA"
+      : qaIssueCount > 0
+        ? `Run AI QA review (${qaIssueCount})`
+        : "Run AI QA review";
 
   return (
-    <Card className="rounded-[18px] border border-[rgba(36,55,59,0.12)] bg-[#fbfcfb] p-0 shadow-[0_14px_34px_rgba(15,23,42,0.08)]">
+    <Card className="capture-phase7-ai-card rounded-[18px] border border-[rgba(36,55,59,0.12)] bg-[#fbfcfb] p-0 shadow-[0_14px_34px_rgba(15,23,42,0.08)]">
       <button
         type="button"
         onClick={() => setOpen(!isOpen)}
-        className="w-full rounded-t-[18px] border-b border-[rgba(36,55,59,0.10)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-4 py-3 text-left text-sm font-semibold text-[#f4f7f6]"
+        className={`capture-phase7-ai-toggle ${workflowState.tone}`}
       >
-        <div className="flex items-center justify-between gap-4">
-          <span>Capture AI assistant</span>
-          <span className="text-[#e6c9ae]">{isOpen ? "Hide" : "Show"}</span>
+        <div>
+          <span className="capture-phase7-ai-kicker">Workflow QA</span>
+          <strong>Capture AI quality control</strong>
         </div>
+        <span>{isOpen ? "Hide" : qaIssueCount > 0 ? `Show · ${qaIssueCount}` : "Show"}</span>
       </button>
 
       {isOpen ? (
-        <div className="space-y-3 px-4 py-3">
-          <div className="rounded-2xl border border-[rgba(58,93,97,0.14)] bg-[#f1f6f4] p-3 text-sm leading-5 text-[#425458]">
-            This assistant provides intake guidance only. It does not determine legal admissibility, authenticity, or the factual truth of an event.
+        <div className="capture-phase7-ai-body">
+          <div className={`capture-phase7-ai-status ${workflowState.tone}`}>
+            <div>
+              <strong>{workflowState.label}</strong>
+              <span>{workflowState.detail}</span>
+            </div>
+            <span>{analysis ? "Analyzed" : "Pre-check"}</span>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-[rgba(58,93,97,0.12)] bg-white p-3 shadow-sm">
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">Plan</div>
-              <div className="mt-2 text-sm font-extrabold text-[#12252a]">
-                {collectionPlan?.name ?? "No plan selected"}
-              </div>
-              <div className="mt-1 text-sm text-[#647174]">
-                {collectionPlan?.locationRequirement ?? "optional"} location
-              </div>
+          <div className="capture-phase7-ai-context-grid">
+            <div>
+              <span>Workflow</span>
+              <strong>{collectionPlan?.name ?? "No plan selected"}</strong>
+              <small>{summary.planMode === "CHECKLIST_REQUIRED" ? "Checklist required" : "Flexible intake"}</small>
             </div>
-
-            <div className="rounded-2xl border border-[rgba(58,93,97,0.12)] bg-white p-3 shadow-sm">
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">Session</div>
-              <div className="mt-2 text-sm font-extrabold text-[#12252a]">
-                {summary.totalItems} item(s)
-              </div>
-              <div className="mt-1 text-sm text-[#647174]">
-                {summary.requiredStepsCompleted} / {summary.requiredStepsTotal} required steps complete
-              </div>
+            <div>
+              <span>Coverage</span>
+              <strong>{summary.requiredStepsCompleted}/{summary.requiredStepsTotal}</strong>
+              <small>{requiredCoveragePercent}% required coverage</small>
+            </div>
+            <div>
+              <span>Materials</span>
+              <strong>{summary.totalItems}</strong>
+              <small>{signalSummary.locationIncludedItems} with location signal</small>
+            </div>
+            <div>
+              <span>Signals</span>
+              <strong>{clientSignalIssueCount}</strong>
+              <small>{sortedAiFlags.length} AI flag(s)</small>
             </div>
           </div>
 
@@ -298,173 +434,198 @@ const missing = analysis.flags
             </div>
           ) : null}
 
-          <div className="grid gap-3">
-<button
-  type="button"
-  className="capture-ai-review-button"
-  disabled={!canAnalyze || loading}
-  onClick={async () => {
-    setIsReviewModalOpen(true);
+          <div className="capture-phase5-ai-action-shell capture-phase7-ai-action-shell">
+            <div className="capture-ai-review-copy">
+              <strong>Advisory workflow gate</strong>
+              <span>
+                Run after mapping evidence. The review checks coverage, metadata signals,
+                and suggested next actions before the human Review & Sign decision.
+              </span>
+            </div>
 
-    if (!analysis) {
-      await handleAnalyze();
-    }
-  }}
->
-  {loading ? "Reviewing session..." : "Review session with AI"}
-</button>
+            <button
+              type="button"
+              className="capture-ai-review-button capture-secondary-advisory-action"
+              disabled={!canAnalyze || loading}
+              onClick={async () => {
+                setIsReviewModalOpen(true);
 
+                if (!analysis) {
+                  await handleAnalyze();
+                }
+              }}
+            >
+              {reviewButtonLabel}
+            </button>
           </div>
         </div>
       ) : null}
-{isReviewModalOpen && typeof document !== "undefined"
-  ? createPortal(
-      <div
-        className="capture-ai-modal-backdrop"
-        onClick={() => setIsReviewModalOpen(false)}
-      >
-        <div
-          className="capture-ai-modal"
-          onClick={(event) => event.stopPropagation()}
-        >
-                <div className="capture-ai-modal-header">
-        <div>
-          <div className="capture-section-label">AI intake review</div>
-          <h2>Session readiness review</h2>
-          <p>
-            Advisory metadata-based review only. This assistant does not determine
-            factual truth, authenticity, authorship, or legal admissibility.
-          </p>
-        </div>
+      {isReviewModalOpen && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="capture-ai-modal-backdrop capture-phase7-ai-modal-backdrop"
+              onClick={() => setIsReviewModalOpen(false)}
+            >
+              <div
+                className="capture-ai-modal capture-phase7-ai-modal"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="capture-ai-modal-header capture-phase7-ai-modal-header">
+                  <div>
+                    <div className="capture-section-label">AI workflow quality control</div>
+                    <h2>Session readiness review</h2>
+                    <p>
+                      Advisory metadata-based review only. This assistant does not determine
+                      factual truth, authenticity, authorship, or legal admissibility.
+                    </p>
+                  </div>
 
-        <button
-          type="button"
-          className="capture-ai-modal-close"
-          onClick={() => setIsReviewModalOpen(false)}
-        >
-          Close
-        </button>
-      </div>
+                  <button
+                    type="button"
+                    className="capture-ai-modal-close"
+                    onClick={() => setIsReviewModalOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
 
-      <div className="capture-ai-modal-body">
-        {loading ? (
-          <div className="capture-ai-section">
-            <h3>Reviewing session…</h3>
-            <p>Checking metadata, mappings, missing requirements, and risk flags.</p>
-          </div>
-        ) : error ? (
-          <div className="capture-ai-section">
-            <h3>AI unavailable</h3>
-            <p>{error}</p>
-          </div>
-        ) : (
-          <>
-            <div className="capture-ai-severity-grid">
-              <div className="capture-ai-severity-card success">
-                <strong>Requirements</strong>
-                <span>{missingCard[0]}</span>
+                <div className="capture-ai-modal-body capture-phase7-ai-modal-body">
+                  {loading ? (
+                    <div className="capture-ai-section capture-phase7-ai-loading">
+                      <h3>Reviewing workflow…</h3>
+                      <p>Checking metadata, mappings, missing requirements, and risk flags.</p>
+                    </div>
+                  ) : error ? (
+                    <div className="capture-ai-section">
+                      <h3>AI unavailable</h3>
+                      <p>{error}</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="capture-phase7-ai-review-strip">
+                        <div>
+                          <span>Current QA state</span>
+                          <strong>{workflowState.label}</strong>
+                        </div>
+                        <div>
+                          <span>Required coverage</span>
+                          <strong>{requiredCoveragePercent}%</strong>
+                        </div>
+                        <div>
+                          <span>Workflow signals</span>
+                          <strong>{qaIssueCount}</strong>
+                        </div>
+                      </div>
+
+                      <div className="capture-ai-severity-grid capture-phase7-ai-severity-grid">
+                        <div className={`capture-ai-severity-card ${requiredMissingCount > 0 ? "critical" : "success"}`}>
+                          <strong>Coverage gate</strong>
+                          <span>{missingCard[0]}</span>
+                        </div>
+
+                        <div className={`capture-ai-severity-card ${riskCard.length > 1 || clientSignalIssueCount > 0 ? "warning" : "success"}`}>
+                          <strong>Risk signals</strong>
+                          <span>{riskCard.length} workflow note(s).</span>
+                        </div>
+
+                        <div className="capture-ai-severity-card info">
+                          <strong>Metadata review</strong>
+                          <span>{sortedAiFlags.length} metadata flag(s).</span>
+                        </div>
+
+                        <div className="capture-ai-severity-card critical">
+                          <strong>Human gate</strong>
+                          <span>Reviewer confirmation is still required.</span>
+                        </div>
+                      </div>
+
+                      <div className="capture-phase7-ai-workflow-grid">
+                        <div className="capture-ai-section">
+                          <h3>Coverage requirements</h3>
+                          <ul>
+                            {missingCard.map((item, index) => (
+                              <li key={index}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div className="capture-ai-section">
+                          <h3>Risk signals</h3>
+                          <ul>
+                            {riskCard.map((item, index) => (
+                              <li key={index}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+
+                      {sortedAiFlags.length > 0 ? (
+                        <div className="capture-ai-section">
+                          <h3>Metadata review</h3>
+                          <ul>
+                            {sortedAiFlags.map((flag, index) => (
+                              <li key={`${flag.title}-${index}`}>
+                                [{flag.severity}] {flag.title}: {flag.detail}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+
+                      <div className="capture-ai-section capture-phase7-ai-next-actions">
+                        <h3>Workflow next actions</h3>
+
+                        <div className="capture-ai-action-groups">
+                          {groupedActions.high.length > 0 ? (
+                            <div className="capture-ai-action-group high">
+                              <strong>Resolve before final review</strong>
+                              <ul>
+                                {groupedActions.high.map((item, index) => (
+                                  <li key={`high-${index}`}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+
+                          {groupedActions.recommended.length > 0 ? (
+                            <div className="capture-ai-action-group recommended">
+                              <strong>Recommended QA check</strong>
+                              <ul>
+                                {groupedActions.recommended.map((item, index) => (
+                                  <li key={`recommended-${index}`}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+
+                          {groupedActions.info.length > 0 ? (
+                            <div className="capture-ai-action-group info">
+                              <strong>Informational</strong>
+                              <ul>
+                                {groupedActions.info.map((item, index) => (
+                                  <li key={`info-${index}`}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="capture-ai-section capture-phase7-ai-limitation">
+                        <h3>Legal limitation</h3>
+                        <p>
+                          {analysis?.legalDisclaimer ??
+                            "AI assistance is advisory and does not determine factual truth, authorship, authenticity, or legal admissibility."}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-
-              <div className="capture-ai-severity-card warning">
-                <strong>Warnings</strong>
-                <span>{riskCard.length} item(s) need review.</span>
-              </div>
-
-              <div className="capture-ai-severity-card info">
-                <strong>Metadata review</strong>
-                <span>{sortedAiFlags.length} metadata flag(s).</span>
-              </div>
-
-              <div className="capture-ai-severity-card critical">
-                <strong>Human review</strong>
-                <span>Reviewer confirmation is still required.</span>
-              </div>
-            </div>
-
-            <div className="capture-ai-section">
-              <h3>Missing requirements</h3>
-              <ul>
-                {missingCard.map((item, index) => (
-                  <li key={index}>{item}</li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="capture-ai-section">
-              <h3>Risk flags</h3>
-              <ul>
-                {riskCard.map((item, index) => (
-                  <li key={index}>{item}</li>
-                ))}
-              </ul>
-            </div>
-
-            {sortedAiFlags.length > 0 ? (
-              <div className="capture-ai-section">
-                <h3>Metadata review</h3>
-                <ul>
-                  {sortedAiFlags.map((flag, index) => (
-                    <li key={`${flag.title}-${index}`}>
-                      [{flag.severity}] {flag.title}: {flag.detail}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-<div className="capture-ai-section">
-  <h3>Suggested next actions</h3>
-
-  <div className="capture-ai-action-groups">
-    {groupedActions.high.length > 0 ? (
-      <div className="capture-ai-action-group high">
-        <strong>High priority</strong>
-        <ul>
-          {groupedActions.high.map((item, index) => (
-            <li key={`high-${index}`}>{item}</li>
-          ))}
-        </ul>
-      </div>
-    ) : null}
-
-    {groupedActions.recommended.length > 0 ? (
-      <div className="capture-ai-action-group recommended">
-        <strong>Recommended</strong>
-        <ul>
-          {groupedActions.recommended.map((item, index) => (
-            <li key={`recommended-${index}`}>{item}</li>
-          ))}
-        </ul>
-      </div>
-    ) : null}
-
-    {groupedActions.info.length > 0 ? (
-      <div className="capture-ai-action-group info">
-        <strong>Informational</strong>
-        <ul>
-          {groupedActions.info.map((item, index) => (
-            <li key={`info-${index}`}>{item}</li>
-          ))}
-        </ul>
-      </div>
-    ) : null}
-  </div>
-</div>
-            <div className="capture-ai-section">
-              <h3>Legal limitation</h3>
-              <p>
-                {analysis?.legalDisclaimer ??
-                  "AI assistance is advisory and does not determine factual truth, authorship, authenticity, or legal admissibility."}
-              </p>
-            </div>
-          </>
-        )}
-      </div>
-        </div>
-      </div>,
-      document.body
-    )
-  : null}
-</Card>
+            </div>,
+            document.body
+          )
+        : null}
+    </Card>
   );
 }

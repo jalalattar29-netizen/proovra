@@ -1,73 +1,25 @@
+import { AlertTriangle, CheckCircle2, CircleDot, LockKeyhole, MessageSquareText, ShieldCheck } from "lucide-react";
+
 import { CaptureAiAssistant } from "../ai/CaptureAiAssistant";
-
-type EvidenceType = "PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT";
-
-type ChecklistStep = {
-  id: string;
-  title: string;
-  description: string;
-  purposeLabel: string;
-  required: boolean;
-  acceptedKinds?: EvidenceType[];
-};
-
-type CollectionPlanTemplate = {
-  id: string;
-  name: string;
-  description: string;
-  locationRequirement: "optional" | "recommended" | "required";
-  steps: ChecklistStep[];
-};
-
-type SessionItemClientSignals = {
-  clientHintSha256Base64?: string;
-  captureTimeUtc: string;
-  browserMediaCaptureAvailable: boolean;
-  folderPathPresent: boolean;
-  locationIncluded: boolean;
-  duplicateStatus?: "none" | "warning" | "duplicate";
-  screenshotLike?: boolean;
-  genericMime?: boolean;
-  oldLastModified?: boolean;
-};
-
-type SessionItem = {
-  id: string;
-  file: File;
-  previewUrl: string | null;
-  mimeType: string;
-  relativePath: string | null;
-  uploadProgress: number;
-  uploading: boolean;
-  error?: string | null;
-  role?: string;
-  checklistStepId?: string | null;
-  privateNote?: string;
-  sourceLabel?: string;
-  clientSignals?: SessionItemClientSignals;
-};
+import type { CollectionPlanTemplate, SessionItem } from "../../app/(app)/capture/_lib/types";
+import type { CapturePlanMode, SessionReadiness } from "../../app/(app)/capture/_lib/session-readiness";
 
 type CaptureAiSummary = {
   totalItems: number;
   totalSizeBytes: number;
   requiredStepsCompleted: number;
   requiredStepsTotal: number;
-  planMode: "FLEXIBLE" | "CHECKLIST_REQUIRED";
+  planMode: CapturePlanMode;
   useLocation: boolean;
   locationRequirement: "optional" | "recommended" | "required";
 };
 
-type QualityStatus = {
-  tone: "success" | "warning" | "danger";
-  label: string;
-  detail: string;
-};
-
-type RequirementStatus = {
-  label: string;
-  tone: "success" | "warning";
+type PersistentSidebarMessage = {
+  id: string;
   title: string;
-  description: string;
+  detail: string;
+  tone: "info" | "warning" | "danger" | "success";
+  meta?: string;
 };
 
 type Props = {
@@ -78,39 +30,49 @@ type Props = {
   sessionCountLabel: string;
   currentSessionId: string;
   selectedCollectionPlan: CollectionPlanTemplate | undefined;
-  completedRequiredCount: number;
-  requiredStepsTotal: number;
   totalStagedBytes: number;
-  requiredProgressPercent: number;
   internalNotes: string;
   setInternalNotes: (value: string) => void;
   aiPanelOpen: boolean;
   setAiPanelOpen: (open: boolean) => void;
   captureAiSummary: CaptureAiSummary;
-  planMode: "FLEXIBLE" | "CHECKLIST_REQUIRED";
-  resetCaptureState: () => void;
-  removeSessionItem: (itemId: string) => void;
-  updateSessionItem: (
-    itemId: string,
-    updates: Partial<
-      Pick<SessionItem, "role" | "privateNote" | "checklistStepId" | "sourceLabel">
-    >
-  ) => void;
-  getChecklistStepById: (
-    plan: CollectionPlanTemplate | undefined,
-    stepId: string | null | undefined
-  ) => ChecklistStep | null;
-  getChecklistStepStatus: (params: {
-    item: SessionItem;
-    plan: CollectionPlanTemplate | undefined;
-  }) => RequirementStatus;
-  getItemQualityStatus: (params: {
-    item: SessionItem;
-    step: ChecklistStep | null;
-  }) => QualityStatus;
-  deriveSessionItemTypeLabel: (mimeType: string) => string;
+  sessionReadiness: SessionReadiness;
+  useLocation: boolean;
+  planMode: CapturePlanMode;
+  requiredProgressPercent: number;
+  persistentMessages: PersistentSidebarMessage[];
   formatFileSize: (bytes: number) => string;
-  getStepRequirementLabel: (step: ChecklistStep) => string;
+};
+
+const readinessCopy: Record<
+  SessionReadiness["status"],
+  { label: string; detail: string; tone: "empty" | "blocked" | "warning" | "ready" | "collecting" }
+> = {
+  empty: {
+    label: "Awaiting material",
+    detail: "Add at least one file, folder, photo, video, or audio recording to begin readiness review.",
+    tone: "empty",
+  },
+  collecting: {
+    label: "Collecting",
+    detail: "Materials are staged locally. Continue mapping and reviewing before finalization.",
+    tone: "collecting",
+  },
+  blocked: {
+    label: "Blocked",
+    detail: "Required evidence or metadata is missing. Resolve blockers before Review & Sign.",
+    tone: "blocked",
+  },
+  warning: {
+    label: "Ready with warnings",
+    detail: "The session can proceed, but reviewers should inspect the warnings first.",
+    tone: "warning",
+  },
+  ready: {
+    label: "Ready for Review & Sign",
+    detail: "Required evidence is mapped and no blockers are currently detected.",
+    tone: "ready",
+  },
 };
 
 export function CaptureSessionPanel({
@@ -121,262 +83,259 @@ export function CaptureSessionPanel({
   sessionCountLabel,
   currentSessionId,
   selectedCollectionPlan,
-  completedRequiredCount,
-  requiredStepsTotal,
   totalStagedBytes,
-  requiredProgressPercent,
   internalNotes,
   setInternalNotes,
   aiPanelOpen,
   setAiPanelOpen,
   captureAiSummary,
+  sessionReadiness,
+  useLocation,
   planMode,
-  resetCaptureState,
-  removeSessionItem,
-  updateSessionItem,
-  getChecklistStepById,
-  getChecklistStepStatus,
-  getItemQualityStatus,
-  deriveSessionItemTypeLabel,
+  requiredProgressPercent,
+  persistentMessages,
   formatFileSize,
-  getStepRequirementLabel,
 }: Props) {
+  const readiness = readinessCopy[sessionReadiness.status];
+  const visibleBlockers = sessionReadiness.blockers.slice(0, 4);
+  const visibleWarnings = sessionReadiness.warnings.slice(0, 4);
+  const overflowBlockers = Math.max(0, sessionReadiness.blockers.length - visibleBlockers.length);
+  const overflowWarnings = Math.max(0, sessionReadiness.warnings.length - visibleWarnings.length);
+
+  const aiReviewLabel = sessionReadiness.aiRecommendedReview
+    ? "Recommended before finalization"
+    : "Optional metadata review";
+
   return (
     <aside className="capture-session-column">
-      <div className="capture-enterprise-card capture-session-panel">
-        <div className="capture-session-header">
+      <div className="capture-enterprise-card capture-right-panel capture-command-center">
+        <div className="capture-command-header">
           <div>
-            <div className="capture-section-label">Session overview</div>
+            <div className="capture-section-label">Operations command center</div>
             <div className="capture-card-title">{sessionCountLabel}</div>
           </div>
-
-          <button
-            type="button"
-            onClick={resetCaptureState}
-            disabled={busy || sessionItems.length === 0}
-            className="capture-session-reset"
-          >
-            New Session
-          </button>
+          <span className={`capture-readiness-chip ${readiness.tone}`}>
+            {busy ? "Finalizing" : readiness.label}
+          </span>
         </div>
 
-        <div className="capture-session-metrics">
-          {[
-            ["Session ID", currentSessionId],
-            ["Template", selectedCollectionPlan?.name ?? "General"],
-            ["Status", busy ? "Finalizing" : sessionItems.length ? "In Progress" : "Draft"],
-            ["Required Steps", `${completedRequiredCount} of ${requiredStepsTotal} completed`],
-            ["Total Items", String(sessionItems.length)],
-            ["Total Size", formatFileSize(totalStagedBytes)],
-          ].map(([label, value]) => (
-            <div key={label} className="capture-session-metric-row">
-              <span>{label}</span>
-              <strong>{value}</strong>
-            </div>
-          ))}
+        <section className={`capture-readiness-card ${readiness.tone}`}>
+          <div className="capture-readiness-icon">
+            {sessionReadiness.canFinalize ? (
+              <CheckCircle2 size={20} strokeWidth={2.1} />
+            ) : sessionReadiness.status === "blocked" || sessionReadiness.status === "empty" ? (
+              <AlertTriangle size={20} strokeWidth={2.1} />
+            ) : (
+              <CircleDot size={20} strokeWidth={2.1} />
+            )}
+          </div>
+          <div>
+            <strong>{busy ? "Finalization in progress" : readiness.label}</strong>
+            <p>{busy ? "Uploads and verification preparation are running. Keep this tab open." : readiness.detail}</p>
+          </div>
+        </section>
 
-          <div className="capture-session-progress">
-            <div style={{ width: `${requiredProgressPercent}%` }} />
+        <div className="capture-command-metrics">
+          <div>
+            <span>Required</span>
+            <strong>
+              {sessionReadiness.summary.requiredCompleted}/{sessionReadiness.summary.requiredTotal}
+            </strong>
+          </div>
+          <div>
+            <span>Mapped</span>
+            <strong>{sessionReadiness.mappedItems.length}</strong>
+          </div>
+          <div className={sessionReadiness.summary.blockerCount > 0 ? "is-blocked" : ""}>
+            <span>Blockers</span>
+            <strong>{sessionReadiness.summary.blockerCount}</strong>
+          </div>
+          <div className={sessionReadiness.summary.warningCount > 0 ? "is-warning" : ""}>
+            <span>Warnings</span>
+            <strong>{sessionReadiness.summary.warningCount}</strong>
           </div>
         </div>
 
-        <CaptureAiAssistant
-          isOpen={aiPanelOpen}
-          setOpen={setAiPanelOpen}
-          collectionPlan={selectedCollectionPlan ?? null}
-          summary={captureAiSummary}
-          sessionItems={sessionItems.map((item) => ({
-            id: item.id,
-            fileName: item.file.name,
-            mimeType: item.mimeType,
-            sizeBytes: item.file.size,
-            checklistStepId: item.checklistStepId ?? null,
-            role: item.role ?? undefined,
-            sourceLabel: item.sourceLabel ?? undefined,
-            clientSignals: {
-              duplicateStatus: item.clientSignals?.duplicateStatus,
-              screenshotLike: item.clientSignals?.screenshotLike,
-              genericMime: item.clientSignals?.genericMime,
-              oldLastModified: item.clientSignals?.oldLastModified,
-              folderPathPresent: item.clientSignals?.folderPathPresent,
-              locationIncluded: item.clientSignals?.locationIncluded,
-            },
-          }))}
-        />
+        <div className="capture-progress-track capture-command-progress">
+          <div style={{ width: `${requiredProgressPercent}%` }} />
+        </div>
 
-        {sessionItems.length > 0 ? (
-          <div className="capture-session-list">
-            {sessionItems.map((item, index) => {
-              const mappedStep = getChecklistStepById(
-                selectedCollectionPlan,
-                item.checklistStepId
-              );
-
-              const requirementStatus = getChecklistStepStatus({
-                item,
-                plan: selectedCollectionPlan,
-              });
-
-              const qualityStatus = getItemQualityStatus({
-                item,
-                step: mappedStep,
-              });
-
-              const statusLabel = item.error
-                ? "Failed"
-                : item.uploading
-                  ? `Uploading ${item.uploadProgress}%`
-                  : item.uploadProgress === 100
-                    ? "Uploaded"
-                    : "Ready";
-
-              return (
-                <div key={item.id} className="capture-session-item">
-                  <div className="capture-session-item-grid">
-                    <div className="capture-session-thumb">
-                      {item.previewUrl && item.mimeType.startsWith("image/") ? (
-                        <img src={item.previewUrl} alt={item.file.name} />
-                      ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
-                        <video
-                          src={item.previewUrl}
-                          muted
-                          playsInline
-                          controls={false}
-                        />
-                      ) : item.mimeType.startsWith("audio/") ? (
-                        "Audio"
-                      ) : (
-                        deriveSessionItemTypeLabel(item.mimeType)
-                      )}
-                    </div>
-
-                    <div className="capture-session-item-body">
-                      <div className="capture-session-item-title-row">
-                        <div style={{ minWidth: 0 }}>
-                          <div className="capture-session-item-index">
-                            Item {index + 1}
-                          </div>
-
-                          <div title={item.file.name} className="capture-session-file-name">
-                            {item.file.name}
-                          </div>
-                        </div>
-
-                        {!busy ? (
-                          <button
-                            type="button"
-                            onClick={() => removeSessionItem(item.id)}
-                            className="capture-session-remove"
-                          >
-                            Remove
-                          </button>
-                        ) : null}
-                      </div>
-
-                      <div className="capture-card-muted">
-                        {deriveSessionItemTypeLabel(item.mimeType)} •{" "}
-                        {formatFileSize(item.file.size)}
-                      </div>
-
-                      <select
-                        value={item.checklistStepId ?? ""}
-                        onChange={(event) =>
-                          updateSessionItem(item.id, {
-                            checklistStepId: event.target.value || null,
-                          })
-                        }
-                        disabled={busy}
-                        className="capture-session-select"
-                      >
-                        <option value="">
-                          {planMode === "CHECKLIST_REQUIRED"
-                            ? "Map to required collection step"
-                            : "Map to collection step"}
-                        </option>
-
-                        {selectedCollectionPlan?.steps.map((step) => (
-                          <option key={step.id} value={step.id}>
-                            {getStepRequirementLabel(step)}: {step.title} —{" "}
-                            {step.purposeLabel}
-                          </option>
-                        ))}
-                      </select>
-
-                      <div
-                        className={
-                          qualityStatus.tone === "success"
-                            ? "capture-quality-success"
-                            : qualityStatus.tone === "danger"
-                              ? "capture-quality-danger"
-                              : "capture-quality-warning"
-                        }
-                      >
-                        <strong>{qualityStatus.label}</strong>
-                        <div>{qualityStatus.detail}</div>
-                      </div>
-
-                      <textarea
-                        value={item.privateNote ?? ""}
-                        onChange={(event) =>
-                          updateSessionItem(item.id, {
-                            privateNote: event.target.value,
-                          })
-                        }
-                        disabled={busy}
-                        placeholder="Private item note"
-                        maxLength={1000}
-                        className="capture-session-textarea"
-                      />
-
-                      <div className="capture-session-status-row">
-                        <span className={item.error ? "danger" : "ok"}>
-                          {statusLabel}
-                        </span>
-
-                        <span className="capture-card-muted">
-                          {requirementStatus.label}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+        <section className="capture-command-section">
+          <div className="capture-command-section-title">
+            <span>Blockers</span>
+            <strong>{sessionReadiness.blockers.length}</strong>
+          </div>
+          {visibleBlockers.length > 0 ? (
+            <div className="capture-issue-list">
+              {visibleBlockers.map((issue) => (
+                <div key={`${issue.code}-${issue.itemId ?? issue.checklistStepId ?? issue.detail}`} className="capture-issue-row blocker">
+                  <strong>{issue.label}</strong>
+                  <span>{issue.detail}</span>
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="capture-card-muted">
-            Added materials will appear here for mapping, notes, and quality review.
-          </div>
-        )}
+              ))}
+              {overflowBlockers > 0 ? (
+                <div className="capture-issue-overflow">+{overflowBlockers} more blocker{overflowBlockers === 1 ? "" : "s"}</div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="capture-command-clear">No hard blockers detected.</div>
+          )}
+        </section>
 
-        <div className="capture-internal-notes">
-          <div className="capture-card-title">Private Internal Notes</div>
-
-          <div className="capture-card-muted">
-            Visible only inside the authenticated app. Excluded from public
-            verification, reports, and verification packages.
+        <section className="capture-command-section">
+          <div className="capture-command-section-title">
+            <span>Warnings</span>
+            <strong>{sessionReadiness.warnings.length}</strong>
           </div>
+          {visibleWarnings.length > 0 ? (
+            <div className="capture-issue-list">
+              {visibleWarnings.map((issue) => (
+                <div key={`${issue.code}-${issue.itemId ?? issue.checklistStepId ?? issue.detail}`} className="capture-issue-row warning">
+                  <strong>{issue.label}</strong>
+                  <span>{issue.detail}</span>
+                </div>
+              ))}
+              {overflowWarnings > 0 ? (
+                <div className="capture-issue-overflow">+{overflowWarnings} more warning{overflowWarnings === 1 ? "" : "s"}</div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="capture-command-clear">No advisory warnings detected.</div>
+          )}
+        </section>
 
+        <section className="capture-command-section capture-phase8-message-center">
+          <div className="capture-command-section-title">
+            <span>Persistent messages</span>
+            <strong>{persistentMessages.length}</strong>
+          </div>
+          <div className="capture-phase8-message-list" aria-live="polite">
+            {persistentMessages.map((message) => (
+              <article
+                key={message.id}
+                className={`capture-phase8-message-row ${message.tone}`}
+              >
+                <div className="capture-phase8-message-icon">
+                  <MessageSquareText size={15} strokeWidth={2.1} />
+                </div>
+                <div>
+                  <div className="capture-phase8-message-topline">
+                    <strong>{message.title}</strong>
+                    {message.meta ? <span>{message.meta}</span> : null}
+                  </div>
+                  <p>{message.detail}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="capture-command-section capture-session-metadata-card">
+          <div className="capture-command-section-title">
+            <span>Session metadata</span>
+          </div>
+          <div className="capture-command-meta-grid">
+            <div>
+              <span>Session ID</span>
+              <strong>{currentSessionId}</strong>
+            </div>
+            <div>
+              <span>Template</span>
+              <strong>{selectedCollectionPlan?.name ?? "General"}</strong>
+            </div>
+            <div>
+              <span>Mode</span>
+              <strong>{planMode === "CHECKLIST_REQUIRED" ? "Checklist required" : "Flexible"}</strong>
+            </div>
+            <div>
+              <span>Total size</span>
+              <strong>{formatFileSize(totalStagedBytes)}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="capture-command-section capture-integrity-block">
+          <div className="capture-command-section-title">
+            <span>Integrity preparation</span>
+            <ShieldCheck size={16} strokeWidth={2.1} />
+          </div>
+          <div className="capture-integrity-grid">
+            <div>
+              <span>Local fingerprint</span>
+              <strong>{sessionItems.length > 0 ? "Queued for staged material" : "Awaiting material"}</strong>
+            </div>
+            <div>
+              <span>Chain of custody</span>
+              <strong>{sessionItems.length > 0 ? "Prepared after Review & Sign" : "Not initialized"}</strong>
+            </div>
+            <div>
+              <span>Verification package</span>
+              <strong>Generated after finalization</strong>
+            </div>
+            <div>
+              <span>Location metadata</span>
+              <strong>{useLocation ? "Included with consent" : "Not included"}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="capture-command-section capture-ai-advisory-shell">
+          <div className="capture-command-section-title">
+            <span>AI advisory review</span>
+            <strong>{aiReviewLabel}</strong>
+          </div>
+          <p>
+            Metadata-only quality control. It may surface missing mappings or client-side risk signals, but it does not determine authenticity, truth, authorship, legal admissibility, or final outcome.
+          </p>
+          <CaptureAiAssistant
+            isOpen={aiPanelOpen}
+            setOpen={setAiPanelOpen}
+            collectionPlan={selectedCollectionPlan ?? null}
+            summary={captureAiSummary}
+            sessionItems={sessionItems.map((item) => ({
+              id: item.id,
+              fileName: item.file.name,
+              mimeType: item.mimeType,
+              sizeBytes: item.file.size,
+              checklistStepId: item.checklistStepId ?? null,
+              role: item.role ?? undefined,
+              sourceLabel: item.sourceLabel ?? undefined,
+              clientSignals: {
+                duplicateStatus: item.clientSignals?.duplicateStatus,
+                screenshotLike: item.clientSignals?.screenshotLike,
+                genericMime: item.clientSignals?.genericMime,
+                oldLastModified: item.clientSignals?.oldLastModified,
+                folderPathPresent: item.clientSignals?.folderPathPresent,
+                locationIncluded: item.clientSignals?.locationIncluded,
+              },
+            }))}
+          />
+        </section>
+
+        <section className="capture-notes-card">
+          <div className="capture-card-title capture-inline-heading">
+            <span className="capture-inline-heading-icon">
+              <LockKeyhole size={15} strokeWidth={2.1} />
+            </span>
+            Private note
+          </div>
+          <p>
+            Visible only inside the authenticated app. Excluded from public verification, reports, and verification packages.
+          </p>
           <textarea
             value={internalNotes}
             onChange={(event) => setInternalNotes(event.target.value)}
             maxLength={4000}
             disabled={busy}
             placeholder="Add investigator, legal, insurance, or internal review context."
-            className="capture-session-textarea capture-internal-notes-textarea"
           />
-        </div>
+        </section>
 
-        {error ? (
-          <div className="capture-quality-danger capture-inline-alert">
-            {error}
-          </div>
-        ) : null}
+        {error ? <div className="capture-quality-danger capture-inline-alert">{error}</div> : null}
 
         {locationPermissionDenied ? (
           <div className="capture-quality-warning capture-inline-alert">
-            Location was not granted. The current session will continue without GPS
-            metadata.
+            Location was not granted. The current session will continue without GPS metadata unless the selected plan requires it.
           </div>
         ) : null}
       </div>
