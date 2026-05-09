@@ -420,13 +420,6 @@
   background: #ffffff;
 }
 
-.evidence-detail-data-cell span {
-  font-size: 0.68rem;
-  font-weight: 850;
-  color: #667085;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
 
 .evidence-detail-data-cell strong {
   min-width: 0;
@@ -893,12 +886,6 @@
   padding: 12px 13px !important;
 }
 
-.evidence-detail-data-cell span {
-  color: #667085 !important;
-  font-size: 0.67rem !important;
-  font-weight: 850 !important;
-}
-
 .evidence-detail-data-cell strong {
   color: #101828 !important;
   font-size: 0.9rem !important;
@@ -1104,21 +1091,6 @@
   box-shadow: 0 8px 18px rgba(15, 32, 40, 0.045);
 }
 
-/* top label inside each small box */
-.evidence-detail-data-cell span {
-  display: block;
-  width: 100%;
-  padding: 9px 13px;
-  background: linear-gradient(180deg, #0b6b5e 0%, #07544a 100%);
-  color: #ffffff !important;
-  font-size: 0.67rem;
-  font-weight: 850;
-  line-height: 1.15;
-  letter-spacing: 0.105em;
-  text-transform: uppercase;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-}
-
 /* value inside each small box */
 .evidence-detail-data-cell strong {
   display: flex;
@@ -1216,10 +1188,62 @@
   box-shadow: none;
 }
 
+.evidence-detail-data-cell {
+  min-height: 82px;
+  padding: 13px 14px;
+  border: 1px solid #e3e8e5;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.evidence-detail-data-cell span {
+  display: block;
+  padding: 0;
+  background: transparent !important;
+  border: 0 !important;
+  color: #07544a !important;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.evidence-detail-data-cell strong {
+  display: block;
+  min-height: 0;
+  padding: 8px 0 0;
+  color: #111827;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.28;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+/* خلي المربعات متناسقة وما تكسر النصوص بشكل بشع */
+.evidence-detail-data-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+/* عنوان Review Readiness و Verification Proof برونزي */
+.evidence-detail-overview-group-title,
+.evidence-detail-kicker {
+  color: #8a6238 !important;
+}
+
+/* لا تخلي أي مربع يعمل هيدر أخضر */
+.evidence-detail-data-cell span,
 .evidence-detail-sidebar .evidence-detail-data-cell span {
-  background: #f7f2ea;
-  color: #805b34 !important;
-  border-bottom: 1px solid #eadbc6;
+  background: transparent !important;
+  color: #07544a !important;
+}
+
+/* OTS لا تنكسر ANCHORED */
+.evidence-detail-data-cell strong {
+  hyphens: none;
 }
 
 .evidence-detail-sidebar .evidence-detail-data-cell strong {
@@ -1300,4 +1324,253 @@
   .evidence-detail-data-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* HERO TOP */
+.evidence-detail-hero-main {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* TITLE FIX */
+.evidence-detail-hero h1 {
+  margin: 10px 0 14px;
+  max-width: 100%;
+  overflow: hidden;
+
+  font-size: clamp(2.6rem, 4.4vw, 5rem);
+  line-height: 0.96;
+  letter-spacing: -0.055em;
+  font-weight: 900;
+  color: #0f172a;
+
+  word-break: break-word;
+  overflow-wrap: anywhere;
+
+  text-wrap: balance;
+}
+
+/* خلي الهيرو ما يتمدد بشكل غبي */
+.evidence-detail-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 34px;
+  align-items: start;
+}
+
+/* الميتا تحت العنوان */
+.evidence-detail-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* وصف القانوني */
+.evidence-detail-boundary {
+  max-width: 860px;
+  margin-top: 18px;
+  padding-left: 14px;
+  border-left: 2px solid #d6c2a4;
+
+  color: #5b6475;
+  font-size: 0.95rem;
+  line-height: 1.75;
+}
+
+/* زر الرجوع */
+.evidence-detail-inline-actions--back {
+  margin-bottom: 14px;
+}
+
+.evidence-detail-inline-actions--back .btn,
+.evidence-detail-inline-actions--back button {
+  padding: 0;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+
+  color: #0b6b5e !important;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.evidence-detail-inline-actions--back .btn:hover,
+.evidence-detail-inline-actions--back button:hover {
+  color: #064e45 !important;
+  text-decoration: underline;
+}
+
+/* =========================
+   REMOVE DUPLICATE OVERVIEW
+========================= */
+
+/* شيل كلمة OVERVIEW الصغيرة */
+.evidence-detail-main > section:first-child .evidence-detail-kicker,
+.evidence-detail-overview .evidence-detail-kicker {
+  display: none !important;
+}
+
+/* خلي Ready for review هي العنوان الأساسي */
+.evidence-detail-main > section:first-child h2,
+.evidence-detail-overview h2 {
+  color: #8a6238 !important;
+  font-size: 1.2rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em;
+  margin-bottom: 14px;
+}
+
+/* =========================
+   TOP PILLS
+========================= */
+
+.evidence-detail-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.evidence-detail-pill {
+  border-radius: 999px !important;
+  padding: 7px 14px !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em;
+  border: 1px solid transparent;
+  box-shadow: none !important;
+}
+
+/* REPORTED */
+.evidence-detail-pill.success {
+  background: #e7f6ef !important;
+  color: #0b6b5e !important;
+  border-color: #b7e2cf !important;
+}
+
+/* PHOTO EVIDENCE */
+.evidence-detail-pill:nth-child(2) {
+  background: #eef4ff !important;
+  color: #315ea8 !important;
+  border-color: #cfddfb !important;
+}
+
+/* RECORD ID */
+.evidence-detail-pill:nth-child(3) {
+  background: #f4f5f7 !important;
+  color: #5f6675 !important;
+  border-color: #e1e5ea !important;
+}
+
+/* SINGLE ITEM */
+.evidence-detail-pill:nth-child(4) {
+  background: #fbf4e8 !important;
+  color: #9a6a18 !important;
+  border-color: #ecd8ae !important;
+}
+
+/* =========================
+   OVERVIEW CARDS
+========================= */
+
+.evidence-detail-data-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 14px;
+}
+
+/* المربعات نفسها */
+.evidence-detail-data-cell {
+  min-height: 118px;
+  padding: 16px 16px 14px;
+  border-radius: 18px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+/* العنوان الأخضر */
+.evidence-detail-data-cell span {
+  display: block;
+  margin-bottom: 12px;
+
+  color: #0b6b5e !important;
+
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+
+  line-height: 1.3;
+}
+
+/* النص الأسود */
+.evidence-detail-data-cell strong {
+  color: #111827 !important;
+
+  font-size: 1rem !important;
+  font-weight: 500 !important;
+
+  line-height: 1.45 !important;
+
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  hyphens: none !important;
+
+  white-space: normal !important;
+}
+
+/* =========================
+   منع التكسير المقرف
+========================= */
+
+.evidence-detail-data-cell,
+.evidence-detail-data-cell * {
+  word-break: keep-all !important;
+  overflow-wrap: break-word !important;
+}
+
+/* =========================
+   SIDEBAR
+========================= */
+
+.evidence-detail-sidebar .evidence-detail-card {
+  border: 1px solid #ece7df;
+  border-radius: 20px;
+  padding: 22px;
+  background: #fffdfa;
+}
+
+.evidence-detail-sidebar .evidence-detail-kicker {
+  color: #8a6238 !important;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+
+/* =========================
+   BUTTONS
+========================= */
+
+.evidence-detail-inline-actions .btn,
+.evidence-detail-inline-actions button {
+  border-radius: 12px !important;
+  height: 42px;
+  padding: 0 18px;
+  font-weight: 700;
+}
+
+.evidence-detail-inline-actions .btn-secondary,
+.evidence-detail-inline-actions button.secondary {
+  background: #f6f8fa !important;
+  border: 1px solid #dde3ea !important;
+  color: #334155 !important;
+}
+
+.evidence-detail-inline-actions .btn-secondary:hover,
+.evidence-detail-inline-actions button.secondary:hover {
+  background: #edf2f7 !important;
 }
