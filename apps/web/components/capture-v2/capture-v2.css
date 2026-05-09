@@ -4627,3 +4627,9 @@ box-shadow:
   flex-shrink: 0 !important;
 }
 
+.capture-right-panel > .card > button span:last-child,
+.capture-right-panel > .card > button strong:last-child,
+.capture-right-panel > .card > button div:last-child {
+  margin-left: auto !important;
+  padding-left: 18px !important;
+}

@@ -2,6 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  ClipboardCheck,
+  FileText,
+  Globe,
+  History,
+  ImageIcon,
+  LayoutGrid,
+  Package,
+  ShieldCheck,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
 import { Button, Modal, useToast } from "../../../../components/ui";
 import CaptureLocationMapPanel from "../../../../components/capture-location/CaptureLocationMapPanel";
 import { apiFetch } from "../../../../lib/api";
@@ -28,21 +41,42 @@ import "./evidence-detail.css";
 
 type EvidenceDetailTab =
   | "overview"
-  | "evidence"
   | "integrity"
   | "custody"
   | "review"
   | "artifacts"
   | "technical";
 
-const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string }> = [
-  { id: "overview", label: "Overview" },
-  { id: "integrity", label: "Integrity" },
-  { id: "custody", label: "Custody" },
-  { id: "review", label: "Review" },
-  { id: "artifacts", label: "Artifacts" },
-  { id: "technical", label: "Technical Appendix" },
+const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string; icon: LucideIcon }> = [
+  { id: "overview", label: "Overview", icon: LayoutGrid },
+  { id: "integrity", label: "Integrity", icon: ShieldCheck },
+  { id: "custody", label: "Custody", icon: History },
+  { id: "review", label: "Review", icon: ClipboardCheck },
+  { id: "artifacts", label: "Artifacts", icon: Package },
+  { id: "technical", label: "Technical Appendix", icon: FileText },
 ];
+
+function SectionHeading({
+  kicker,
+  title,
+  icon: Icon,
+}: {
+  kicker: string;
+  title: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <div className="evidence-detail-heading">
+      <span className="evidence-detail-heading-icon" aria-hidden="true">
+        <Icon size={16} strokeWidth={2} />
+      </span>
+      <div className="evidence-detail-heading-copy">
+        <p className="evidence-detail-kicker">{kicker}</p>
+        <h2>{title}</h2>
+      </div>
+    </div>
+  );
+}
 
 function shortId(value: string | null | undefined): string {
   const text = (value ?? "").trim();
@@ -229,10 +263,11 @@ function PreviewWorkspace({
   return (
     <section className="evidence-detail-section">
       <div className="evidence-detail-section-header">
-        <div>
-          <p className="evidence-detail-kicker">Evidence Preview</p>
-          <h2>Review surface</h2>
-        </div>
+        <SectionHeading
+          kicker="Evidence Preview"
+          title="Primary review surface"
+          icon={ImageIcon}
+        />
         <div className="evidence-detail-inline-actions">
           <Button variant="secondary" onClick={onOpenOriginal}>
             Open original
@@ -261,16 +296,6 @@ function PreviewWorkspace({
               <span>Role</span>
               <strong>{item.isPrimary ? "Primary item" : "Supporting item"}</strong>
             </div>
-            {item.viewUrl ? (
-              <div className="evidence-detail-item-actions">
-                <Button
-                  variant="secondary"
-                  onClick={() => window.open(item.viewUrl!, "_blank", "noopener,noreferrer")}
-                >
-                  Open
-                </Button>
-              </div>
-            ) : null}
           </div>
         ))}
       </div>
@@ -295,18 +320,17 @@ function EventTimeline({
   title,
   subtitle,
   events,
+  icon,
 }: {
   title: string;
   subtitle: string;
   events: TimelineEvent[];
+  icon: LucideIcon;
 }) {
   return (
     <section className="evidence-detail-section">
       <div className="evidence-detail-section-header">
-        <div>
-          <p className="evidence-detail-kicker">{title}</p>
-          <h2>{subtitle}</h2>
-        </div>
+        <SectionHeading kicker={title} title={subtitle} icon={icon} />
       </div>
 
       {events.length === 0 ? (
@@ -539,6 +563,50 @@ export default function EvidenceDetailPage() {
       {
         label: "Case assignment",
         value: workspace.relationships.caseName || "Unassigned",
+      },
+    ];
+  }, [workspace, workspaceCaps]);
+
+  const overviewMetadataItems = useMemo(() => {
+    if (!workspace) return [];
+
+    return [
+      {
+        label: "Created",
+        value: formatUserDateTime(workspace.evidence.createdAt),
+      },
+      {
+        label: "Captured",
+        value: formatValue(formatUserDateTime(workspace.evidence.capturedAtUtc)),
+      },
+      {
+        label: "MIME type",
+        value: workspace.evidence.mimeType || "Not recorded",
+      },
+      {
+        label: "File size",
+        value: formatBytes(workspace.evidence.sizeBytes),
+      },
+      {
+        label: "Workspace",
+        value: workspaceCaps?.workspaceName || "Not recorded",
+      },
+      {
+        label: "Case",
+        value: workspace.relationships.caseName || "Unassigned",
+      },
+      {
+        label: "Workflow",
+        value: workspace.reviewWorkflow.status
+          ? workspace.reviewWorkflow.status.replace(/_/g, " ")
+          : "Not configured",
+      },
+      {
+        label: "Original filename",
+        value:
+          workspace.evidence.originalFileName ||
+          workspace.evidence.displayFileName ||
+          "Not recorded",
       },
     ];
   }, [workspace, workspaceCaps]);
@@ -884,13 +952,14 @@ export default function EvidenceDetailPage() {
       <div className="evidence-detail-shell">
         <section className="evidence-detail-hero">
           <div className="evidence-detail-hero-main">
-<button
-  type="button"
-  className="evidence-detail-back-link"
-  onClick={() => router.push("/evidence")}
->
-  ← Evidence Library
-</button>
+            <button
+              type="button"
+              className="evidence-detail-back-link"
+              onClick={() => router.push("/evidence")}
+            >
+              <ArrowLeft size={14} strokeWidth={2.2} />
+              <span>Evidence Library</span>
+            </button>
 
             <p className="evidence-detail-kicker">Evidence Review &amp; Defensibility Workspace</p>
 
@@ -955,7 +1024,9 @@ export default function EvidenceDetailPage() {
               type="button"
               className={`evidence-detail-tab ${activeTab === tab.id ? "is-active" : ""}`}
               onClick={() => setActiveTab(tab.id)}
+              aria-pressed={activeTab === tab.id}
             >
+              <tab.icon size={15} strokeWidth={2.1} aria-hidden="true" />
               {tab.label}
             </button>
           ))}
@@ -967,21 +1038,22 @@ export default function EvidenceDetailPage() {
               <>
                 <section className="evidence-detail-section">
                   <div className="evidence-detail-section-header">
-                    <div>
-                      <p className="evidence-detail-kicker">Overview</p>
-                      <h2>{workspace.reviewDecision.label}</h2>
-                    </div>
+                    <SectionHeading
+                      kicker="Overview"
+                      title={workspace.reviewDecision.label}
+                      icon={ClipboardCheck}
+                    />
                   </div>
 
                   <p>{workspace.reviewDecision.summary}</p>
 
                   <div className="evidence-detail-overview-grid">
-                    <div>
+                    <div className="evidence-detail-overview-panel">
                       <p className="evidence-detail-kicker">Review Readiness</p>
                       <KeyValueGrid items={reviewReadinessItems} />
                     </div>
 
-                    <div>
+                    <div className="evidence-detail-overview-panel">
                       <p className="evidence-detail-kicker">Verification Proof</p>
                       <KeyValueGrid
                         items={[
@@ -1029,41 +1101,16 @@ export default function EvidenceDetailPage() {
                   onOpenOriginal={() => void openOriginal()}
                   onDownloadOriginal={() => void downloadOriginal()}
                 />
-              </>
-            ) : null}
-
-            {activeTab === "evidence" ? (
-              <>
-                <PreviewWorkspace
-                  workspace={workspace}
-                  onOpenOriginal={() => void openOriginal()}
-                  onDownloadOriginal={() => void downloadOriginal()}
-                />
 
                 <section className="evidence-detail-section">
                   <div className="evidence-detail-section-header">
-                    <div>
-                      <p className="evidence-detail-kicker">Record Metadata &amp; Lifecycle</p>
-                      <h2>Core record state</h2>
-                    </div>
+                    <SectionHeading
+                      kicker="Core Metadata"
+                      title="Record state at a glance"
+                      icon={FileText}
+                    />
                   </div>
-                  <KeyValueGrid
-                    items={[
-                      { label: "Created", value: formatUserDateTime(evidence.createdAt) },
-                      { label: "Uploaded", value: formatValue(formatUserDateTime(evidence.uploadedAtUtc)) },
-                      { label: "Signed", value: formatValue(formatUserDateTime(evidence.signedAtUtc)) },
-                      { label: "Captured", value: formatValue(formatUserDateTime(evidence.capturedAtUtc)) },
-                      { label: "Workspace", value: workspaceCaps.workspaceName },
-                      { label: "Plan", value: workspaceCaps.plan },
-                      { label: "Case", value: workspace.relationships.caseName || "Unassigned" },
-                      {
-                        label: "Original filename",
-                        value: evidence.originalFileName || evidence.displayFileName || "Not recorded",
-                      },
-                      { label: "MIME type", value: evidence.mimeType || "Not recorded" },
-                      { label: "Size", value: formatBytes(evidence.sizeBytes) },
-                    ]}
-                  />
+                  <KeyValueGrid items={overviewMetadataItems} />
                 </section>
               </>
             ) : null}
@@ -1072,10 +1119,11 @@ export default function EvidenceDetailPage() {
               <>
                 <section className="evidence-detail-section">
                   <div className="evidence-detail-section-header">
-                    <div>
-                      <p className="evidence-detail-kicker">Source &amp; Capture Context</p>
-                      <h2>Capture provenance context</h2>
-                    </div>
+                    <SectionHeading
+                      kicker="Source &amp; Capture Context"
+                      title="Capture provenance context"
+                      icon={ImageIcon}
+                    />
                   </div>
 
                   <KeyValueGrid
@@ -1132,10 +1180,11 @@ export default function EvidenceDetailPage() {
 
                 <section className="evidence-detail-section">
                   <div className="evidence-detail-section-header">
-                    <div>
-                      <p className="evidence-detail-kicker">Preservation Matrix</p>
-                      <h2>Recorded integrity and preservation materials</h2>
-                    </div>
+                    <SectionHeading
+                      kicker="Preservation Matrix"
+                      title="Recorded integrity and preservation materials"
+                      icon={ShieldCheck}
+                    />
                   </div>
 
                   <KeyValueGrid
@@ -1198,10 +1247,11 @@ export default function EvidenceDetailPage() {
 
                 <section className="evidence-detail-section">
                   <div className="evidence-detail-section-header">
-                    <div>
-                      <p className="evidence-detail-kicker">Verification History</p>
-                      <h2>Fixed artifacts and post-report activity</h2>
-                    </div>
+                    <SectionHeading
+                      kicker="Verification History"
+                      title="Fixed artifacts and post-report activity"
+                      icon={History}
+                    />
                   </div>
 
                   <KeyValueGrid
@@ -1254,12 +1304,14 @@ export default function EvidenceDetailPage() {
                   title="Forensic Custody Timeline"
                   subtitle="Integrity-relevant lifecycle chronology"
                   events={workspace.custodyLifecycle.forensicEvents}
+                  icon={History}
                 />
 
                 <EventTimeline
                   title="Access & Security Activity"
                   subtitle="Viewing, download, and verification access activity"
                   events={workspace.custodyLifecycle.accessEvents}
+                  icon={Globe}
                 />
               </>
             ) : null}
@@ -1295,10 +1347,11 @@ export default function EvidenceDetailPage() {
 
                 <section className="evidence-detail-section">
                   <div className="evidence-detail-section-header">
-                    <div>
-                      <p className="evidence-detail-kicker">Notes &amp; Reviewer Collaboration</p>
-                      <h2>Private review materials</h2>
-                    </div>
+                    <SectionHeading
+                      kicker="Notes &amp; Reviewer Collaboration"
+                      title="Private review materials"
+                      icon={ClipboardCheck}
+                    />
                   </div>
 
                   <div className="evidence-detail-note-box">
@@ -1337,10 +1390,11 @@ export default function EvidenceDetailPage() {
 
                 <section className="evidence-detail-section">
                   <div className="evidence-detail-section-header">
-                    <div>
-                      <p className="evidence-detail-kicker">Retention &amp; Compliance</p>
-                      <h2>Workspace and record retention state</h2>
-                    </div>
+                    <SectionHeading
+                      kicker="Retention &amp; Compliance"
+                      title="Workspace and record retention state"
+                      icon={ShieldCheck}
+                    />
                   </div>
 
                   <KeyValueGrid
@@ -1414,6 +1468,54 @@ export default function EvidenceDetailPage() {
                   formatBytes={formatBytes}
                 />
 
+                <section className="evidence-detail-section">
+                  <div className="evidence-detail-section-header">
+                    <SectionHeading
+                      kicker="Public Verification &amp; Sharing"
+                      title="External verification and export activity"
+                      icon={Globe}
+                    />
+                  </div>
+                  <KeyValueGrid
+                    items={[
+                      {
+                        label: "Verification status",
+                        value: workspace.publicVerificationSummary.enabled
+                          ? workspace.publicVerificationSummary.published
+                            ? "Enabled"
+                            : "Supported but not published"
+                          : "Not included on plan",
+                      },
+                      {
+                        label: "Verification link",
+                        value: shareUrl ? "Available" : "Not available",
+                      },
+                      {
+                        label: "Public views",
+                        value: String(workspace.publicVerificationSummary.publicViewCount),
+                      },
+                      {
+                        label: "Report downloads",
+                        value: String(workspace.publicVerificationSummary.reportDownloadCount),
+                      },
+                      {
+                        label: "Package downloads",
+                        value: String(workspace.publicVerificationSummary.verificationPackageDownloadCount),
+                      },
+                      {
+                        label: "Last public view",
+                        value: formatValue(
+                          formatUserDateTime(workspace.publicVerificationSummary.lastPublicViewAt)
+                        ),
+                      },
+                    ]}
+                  />
+                </section>
+              </>
+            ) : null}
+
+            {activeTab === "review" ? (
+              <>
                 <ComparisonPanel evidenceId={evidence.id} />
                 <DuplicateDetectionPanel evidenceId={evidence.id} />
                 <AiCategorizationPanel evidenceId={evidence.id} />
@@ -1427,6 +1529,13 @@ export default function EvidenceDetailPage() {
 
             {activeTab === "technical" ? (
               <section className="evidence-detail-section">
+                <div className="evidence-detail-section-header">
+                  <SectionHeading
+                    kicker="Technical Appendix"
+                    title="Structured technical materials"
+                    icon={FileText}
+                  />
+                </div>
                 <details open>
                   <summary className="evidence-detail-raw-summary">Raw technical appendix</summary>
                   <pre className="evidence-detail-raw-block">
@@ -1448,13 +1557,16 @@ export default function EvidenceDetailPage() {
 
           <aside className="evidence-detail-sidebar">
             <section className="evidence-detail-side-block">
-              <p className="evidence-detail-kicker">Reviewer Decision</p>
-              <h2>{workspace.reviewDecision.label}</h2>
+              <SectionHeading
+                kicker="Reviewer Decision"
+                title={workspace.reviewDecision.label}
+                icon={ClipboardCheck}
+              />
               <p>{workspace.reviewDecision.summary}</p>
             </section>
 
             <section className="evidence-detail-side-block">
-              <p className="evidence-detail-kicker">Risk Signals</p>
+              <SectionHeading kicker="Risk Signals" title="Reviewer attention" icon={TriangleAlert} />
               {reviewSignals.length === 0 ? (
                 <p className="evidence-detail-muted">No advisory risk signals in the current response.</p>
               ) : (
@@ -1473,7 +1585,41 @@ export default function EvidenceDetailPage() {
             </section>
 
             <section className="evidence-detail-side-block">
-              <p className="evidence-detail-kicker">Public Verification</p>
+              <SectionHeading
+                kicker="Review Readiness"
+                title="Operational summary"
+                icon={ShieldCheck}
+              />
+              <KeyValueGrid
+                items={[
+                  {
+                    label: "Workflow",
+                    value: workspace.reviewWorkflow.status
+                      ? workspace.reviewWorkflow.status.replace(/_/g, " ")
+                      : "Not configured",
+                  },
+                  {
+                    label: "Priority",
+                    value: workspace.reviewWorkflow.priority || "Not configured",
+                  },
+                  {
+                    label: "Case",
+                    value: workspace.relationships.caseName || "Unassigned",
+                  },
+                  {
+                    label: "Due date",
+                    value: formatValue(formatUserDateTime(workspace.reviewWorkflow.dueAt)),
+                  },
+                ]}
+              />
+            </section>
+
+            <section className="evidence-detail-side-block">
+              <SectionHeading
+                kicker="Public Verification"
+                title="External verification summary"
+                icon={Globe}
+              />
               <KeyValueGrid
                 items={[
                   {
