@@ -114,6 +114,68 @@ export function extensionFromMimeType(
   return "bin";
 }
 
+/**
+ * Phase D Blocker 2 — strip directory components from a relative path so
+ * folder structure (which can carry sensitive context like patient ids,
+ * matter codes, source organizations) does not leak into reviewer or
+ * public surfaces. The basename only is kept and itself sanitized.
+ *
+ * Examples:
+ *   "Patients/John Doe/MRI.pdf" -> "MRI.pdf"
+ *   "/etc/secret/key.pem"        -> "key.pem"
+ *   "case-123\\evidence\\img.jpg" -> "img.jpg"
+ *   ""                            -> null
+ *   "../../etc/passwd"            -> "passwd"
+ */
+export function stripRelativePath(
+  value: string | null | undefined
+): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  // Normalize backslashes too — some browsers leak Windows-style paths.
+  const normalized = trimmed.replace(/\\/g, "/");
+  const segments = normalized.split("/");
+  for (let i = segments.length - 1; i >= 0; i -= 1) {
+    const seg = segments[i]?.trim();
+    if (!seg) continue;
+    if (seg === "." || seg === "..") continue;
+    return seg;
+  }
+  return null;
+}
+
+/**
+ * Phase D Blocker 2 — produce a public-safe display filename from any input.
+ * Strips relative paths, normalizes whitespace, length-bounds, and falls
+ * back to a neutral "Item N" label when nothing safe is left.
+ *
+ * Returned string contains NO directory components and no leading dots.
+ * Caller is responsible for what surface they display this on.
+ */
+export function sanitizeDisplayFileName(
+  value: string | null | undefined,
+  options?: { fallbackIndex?: number; maxLength?: number }
+): string {
+  const max = options?.maxLength ?? 120;
+  const stripped = stripRelativePath(value);
+  if (!stripped) {
+    return options?.fallbackIndex !== undefined
+      ? `Item ${options.fallbackIndex + 1}`
+      : "Item";
+  }
+  // Drop leading dots so "..." or ".env" don't display as hidden / weird.
+  const noLeadingDots = stripped.replace(/^\.+/, "").trim();
+  if (!noLeadingDots) {
+    return options?.fallbackIndex !== undefined
+      ? `Item ${options.fallbackIndex + 1}`
+      : "Item";
+  }
+  return noLeadingDots.length > max
+    ? `${noLeadingDots.slice(0, max - 1)}…`
+    : noLeadingDots;
+}
+
 export function basenameFromStorageKey(
   key: string | null | undefined,
   fallback: string
@@ -131,12 +193,19 @@ export function getEvidencePartDisplayLabel(params: {
   originalFileName?: string | null | undefined;
   storageKey?: string | null | undefined;
 }): string {
-  const existingName =
-    typeof params.originalFileName === "string" && params.originalFileName.trim()
-      ? params.originalFileName.trim()
-      : basenameFromStorageKey(params.storageKey, "").trim();
+  // Phase D Blocker 2 — never emit a display label that contains directory
+  // components. Strip path segments before considering the filename.
+  const fromOriginal = stripRelativePath(params.originalFileName);
+  const fromStorageKey = fromOriginal
+    ? null
+    : stripRelativePath(basenameFromStorageKey(params.storageKey, ""));
+  const existingName = fromOriginal ?? fromStorageKey;
 
-  if (existingName) return existingName;
+  if (existingName) {
+    return sanitizeDisplayFileName(existingName, {
+      fallbackIndex: params.partIndex,
+    });
+  }
 
   const ext = extensionFromMimeType(params.mimeType);
   return ext

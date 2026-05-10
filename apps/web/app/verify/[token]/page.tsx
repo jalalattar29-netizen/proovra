@@ -72,6 +72,13 @@ type VerifyOverview = {
   lastVerifiedAtUtc?: string | null;
   lastVerifiedSource?: string | null;
   lastVerifiedSourceCode?: string | null;
+  // Phase D Blocker 1 — public-view analytics fields, separate from
+  // meaningful verification.
+  lastVerifiedAtUtcLabel?: string | null;
+  lastPublicVerifyViewAtUtc?: string | null;
+  lastPublicVerifyViewAtUtcLabel?: string | null;
+  currentPublicVerifyViewAtUtc?: string | null;
+  currentPublicVerifyViewAtUtcLabel?: string | null;
   reviewReadyAtUtc?: string | null;
   verificationPackageGeneratedAtUtc?: string | null;
   verificationPackageVersion?: number | null;
@@ -113,6 +120,9 @@ type VerifyHumanSummary = {
   recordedIntegrityVerifiedAtUtc?: string | null;
   lastVerifiedAtUtc?: string | null;
   lastVerifiedSource?: string | null;
+  // Phase D Blocker 1 — analytics-only fields propagated from overview.
+  lastPublicVerifyViewAtUtc?: string | null;
+  currentPublicVerifyViewAtUtc?: string | null;
   chainOfCustodyPresent?: boolean | null;
   reportVersion?: number | null;
   reportGeneratedAtUtc?: string | null;
@@ -4385,9 +4395,40 @@ const executiveBadges = useMemo<
           show: Boolean(generatedAt),
         },
         {
-          label: "Last Verified At",
+          // Phase D Blocker 1 — "Last meaningful verification" instead of
+          // "Last Verified At". This field is now reserved for real
+          // verification events (report generation, reviewer technical
+          // verification). Public page views are tracked separately under
+          // "Last public verify page view".
+          label: "Last meaningful verification",
           value: verifiedAt ? formatDateTime(verifiedAt) : "N/A",
           show: Boolean(verifiedAt),
+        },
+        {
+          // Analytics-only — anonymous public verify page view, NOT a
+          // technical verification.
+          label: "Last public verify page view",
+          value: humanSummary?.lastPublicVerifyViewAtUtc
+            ? formatDateTime(humanSummary.lastPublicVerifyViewAtUtc)
+            : overview?.lastPublicVerifyViewAtUtc
+              ? formatDateTime(overview.lastPublicVerifyViewAtUtc)
+              : "N/A",
+          show: Boolean(
+            humanSummary?.lastPublicVerifyViewAtUtc ??
+              overview?.lastPublicVerifyViewAtUtc
+          ),
+        },
+        {
+          label: "Current public verify page view",
+          value: humanSummary?.currentPublicVerifyViewAtUtc
+            ? formatDateTime(humanSummary.currentPublicVerifyViewAtUtc)
+            : overview?.currentPublicVerifyViewAtUtc
+              ? formatDateTime(overview.currentPublicVerifyViewAtUtc)
+              : "N/A",
+          show: Boolean(
+            humanSummary?.currentPublicVerifyViewAtUtc ??
+              overview?.currentPublicVerifyViewAtUtc
+          ),
         },
         {
           label: "File Type",
@@ -4725,7 +4766,10 @@ tone={
           "Uploaded At",
           "Signed At",
           "Generated At",
-          "Last Verified At",
+          // Match the renamed label from Blocker 1.
+          "Last meaningful verification",
+          "Last public verify page view",
+          "Current public verify page view",
           "File Type",
         ].includes(field.label)
       ),

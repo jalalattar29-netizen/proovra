@@ -7,6 +7,27 @@ import {
 } from "../ui.js";
 import { escapeHtml } from "../formatters.js";
 
+/**
+ * Phase D Blocker 3 — render a per-component package-presence flag truthfully.
+ *
+ *   true  -> the supplied "presentLabel" (e.g. "Present" / "Included").
+ *   false -> "Not available".
+ *   null  -> "Presence not independently confirmed (legacy package)".
+ *
+ * The third state is critical: prior to Phase D, packages did not persist
+ * per-component artifact presence. Treating those as success would
+ * overclaim. Treating them as "Not available" would falsely contradict the
+ * archive. We name them honestly.
+ */
+function renderPackageComponentFlag(
+  flag: boolean | null | undefined,
+  presentLabel: string
+): string {
+  if (flag === true) return presentLabel;
+  if (flag === false) return "Not available";
+  return "Presence not independently confirmed (legacy package)";
+}
+
 function renderAppendixSection(
   title: string,
   subtitle: string,
@@ -137,6 +158,11 @@ function readPackageIntegrityRows(vm: ReportViewModel): KeyValueRow[] {
   const integrity = vm.verificationPackageIntegrity;
 
   return [
+    // Phase D Blocker 3 — render per-component flags truthfully:
+    //   true  -> "Present" / "Included"
+    //   false -> "Not available"
+    //   null  -> "Presence not independently confirmed" (legacy package
+    //            with no per-component metadata persisted)
     {
       label: "Verification Package",
       value:
@@ -146,31 +172,51 @@ function readPackageIntegrityRows(vm: ReportViewModel): KeyValueRow[] {
     },
     {
       label: "Package Manifest",
-      value: integrity.manifestPresent ? "Present" : "Not available",
+      value: renderPackageComponentFlag(integrity.manifestPresent, "Present"),
     },
-{
-  label: "Manifest Signature",
-  value: integrity.signedManifestPresent
-    ? "Ed25519 signature present"
-    : "Not available",
-},
-{
-  label: "Manifest Digest",
-  value: integrity.manifestDigestPresent ? "Present" : "Not available",
-},
+    {
+      label: "Manifest Signature",
+      value: renderPackageComponentFlag(
+        integrity.signedManifestPresent,
+        "Ed25519 signature present"
+      ),
+    },
+    {
+      label: "Manifest Digest",
+      value: renderPackageComponentFlag(
+        integrity.manifestDigestPresent,
+        "Present"
+      ),
+    },
     {
       label: "Checksum Index",
-      value: integrity.checksumIndexPresent ? "Present" : "Not available",
+      value: renderPackageComponentFlag(
+        integrity.checksumIndexPresent,
+        "Present"
+      ),
     },
     {
       label: "Offline Verifier",
-      value: integrity.offlineVerifierIncluded ? "Included" : "Not available",
+      value: renderPackageComponentFlag(
+        integrity.offlineVerifierIncluded,
+        "Included"
+      ),
     },
     {
       label: "Audit Export",
-      value: integrity.auditExportIncluded
-        ? "Custody and access export included"
-        : "Not available",
+      value: renderPackageComponentFlag(
+        integrity.auditExportIncluded,
+        "Custody and access export included"
+      ),
+    },
+    {
+      label: "Component presence source",
+      value:
+        integrity.componentPresenceSource === "verification_package_metadata"
+          ? "Persisted package artifact-presence record"
+          : integrity.componentPresenceSource === "legacy_inferred_unknown"
+            ? "Legacy package — per-component presence not independently confirmed; inspect the verification package archive directly"
+            : "Not generated",
     },
     {
       label: "Generated At",

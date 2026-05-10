@@ -191,20 +191,33 @@ describe("report v2 pipeline", () => {
     const html = renderReportHtml(vm);
 
     expect(html).toContain("Evidence Title");
+    // Phase D Blocker 4 — assert the truthful intent of this test against
+    // the current legally-safer report structure. Section titles were
+    // tightened during the Phase A/B/C wording sweep:
+    //   "Integrity Proof" → "Integrity Control Checklist"
+    //   "Legal Interpretation & Review Use" → "Legal Interpretation & Report Boundary"
+    //   "Evidence Presentation" → broken into "Primary Evidence" / "Supporting Evidence Gallery"
+    //   "Storage, Timestamping & Publication" → folded into the Technical Appendix
+    // The intent — that each forensic section exists in the correct order
+    // — is what this test protects.
+    expect(html).toContain("Executive Summary");
     expect(html).toContain("Executive conclusion");
-    expect(html).toContain("Integrity Proof");
-    expect(html).toContain("Storage, Timestamping &amp; Publication");
+    expect(html).toContain("Integrity Control Checklist");
+    expect(html).toContain("Chain of Custody");
+    expect(html).toContain("Legal Interpretation");
     expect(html).toContain("Technical Appendix");
     expect(html).not.toContain("Evidence Manifest");
     expect(html).not.toContain("Evidence Package Structure");
+    // Defensive: no overclaim wording survived the sweep.
+    expect(html).not.toContain("guarantees admissibility");
+    expect(html).not.toContain("proves authorship");
 
     expectInOrder(html, [
+      "Executive Summary",
       "Executive conclusion",
-      "Evidence Presentation",
-      "Integrity Proof",
-      "Storage, Timestamping &amp; Publication",
+      "Integrity Control Checklist",
       "Chain of Custody",
-      "Legal Interpretation &amp; Review Use",
+      "Legal Interpretation",
       "Technical Appendix",
     ]);
   });
@@ -296,8 +309,18 @@ describe("report v2 pipeline", () => {
 
     const html = renderReportHtml(vm);
 
+    // Phase D Blocker 4 — assert the truthful intent of this test:
+    // supporting previewable evidence MUST still be visually represented in
+    // the rendered HTML. The heading wording was tightened from the
+    // legacy "Supporting preview items" string to the more precise
+    // "Supporting Evidence Gallery" / "Supporting evidence gallery"
+    // (the legally cautious "Supporting previews are reviewer-facing
+    // representations only..." callout body lives inline). The structural
+    // requirement — that the supporting items render — is what this test
+    // protects, not the exact pre-Phase-A heading text.
     expect(vm.presentation.buckets.supportingPreviewItems).toHaveLength(2);
-    expect(html).toContain("Supporting preview items");
+    expect(html).toContain("Supporting Evidence Gallery");
+    expect(html).toContain("Supporting previews are reviewer-facing");
     expect(html).toContain("supporting.pdf");
     expect(html).toContain("note.txt");
     expect(html).toContain(FULL_HASH_A);
@@ -305,5 +328,10 @@ describe("report v2 pipeline", () => {
     expect(html).toContain(FULL_HASH_C);
     expect(html).not.toContain(`${FULL_HASH_A.slice(0, 8)}…`);
     expect(html).not.toContain(`${FULL_HASH_B.slice(0, 8)}...`);
+    // Phase D Blocker 4 — also assert the report does not overclaim.
+    // These should NEVER appear in a generated report.
+    expect(html).not.toContain("guarantees admissibility");
+    expect(html).not.toContain("proves authorship");
+    expect(html).not.toContain("Strongly verified"); // Replaced by "Strong recorded integrity".
   });
 });

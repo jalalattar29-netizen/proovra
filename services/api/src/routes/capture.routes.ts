@@ -13,6 +13,44 @@ import {
   listIntakeTemplates,
   snapshotIntakeTemplate,
 } from "../services/capture-intake-templates.js";
+import {
+  sanitizeDisplayFileName,
+  stripRelativePath,
+} from "@proovra/shared-evidence-presentation";
+
+/**
+ * Phase D Blocker 2 — sanitize CaptureSession draft items before they are
+ * persisted. Folder uploads can put paths like
+ *   "Patients/John Doe/MRI.pdf"
+ * into relativePath, and consumer-friendly filenames may themselves contain
+ * directory separators or leading dots. Persisting them raw would later
+ * leak through the resume UI, the verification package, the report, or the
+ * public verify surface.
+ *
+ * Rules:
+ *   - relativePath is stripped to its basename component (folder structure
+ *     is the most sensitive element of an upload; the file itself is enough).
+ *   - fileName is run through sanitizeDisplayFileName so leading dots and
+ *     embedded path components are normalized to a safe display label.
+ *   - clientHintSha256Base64 / duplicateStatus / role / privateNote / etc
+ *     pass through unchanged — they don't carry path semantics.
+ */
+function sanitizeCaptureSessionItem<
+  T extends { fileName: string; relativePath?: string | null }
+>(item: T, index: number): T {
+  return {
+    ...item,
+    fileName: sanitizeDisplayFileName(item.fileName, {
+      fallbackIndex: index,
+    }),
+    relativePath:
+      item.relativePath === undefined
+        ? undefined
+        : item.relativePath === null
+          ? null
+          : stripRelativePath(item.relativePath),
+  };
+}
 
 /*
  * Capture routes.
@@ -271,7 +309,11 @@ export async function captureRoutes(app: FastifyInstance) {
             itemsSnapshot:
               body.items === undefined
                 ? prismaPkg.Prisma.JsonNull
-                : (body.items as unknown as prismaPkg.Prisma.InputJsonValue),
+                : // Phase D Blocker 2 — sanitize before persistence so the
+                  // database never holds raw relative paths.
+                  (body.items.map((item, index) =>
+                    sanitizeCaptureSessionItem(item, index)
+                  ) as unknown as prismaPkg.Prisma.InputJsonValue),
             uploadStateSnapshot:
               body.uploadState === undefined
                 ? prismaPkg.Prisma.JsonNull
@@ -410,7 +452,10 @@ export async function captureRoutes(app: FastifyInstance) {
           data.useLocation = body.useLocation;
         }
         if (body.items !== undefined) {
-          data.itemsSnapshot = body.items as unknown as prismaPkg.Prisma.InputJsonValue;
+          // Phase D Blocker 2 — sanitize before persistence.
+          data.itemsSnapshot = body.items.map((item, index) =>
+            sanitizeCaptureSessionItem(item, index)
+          ) as unknown as prismaPkg.Prisma.InputJsonValue;
           eventPayload.itemCount = body.items.length;
         }
         if (body.uploadState !== undefined) {

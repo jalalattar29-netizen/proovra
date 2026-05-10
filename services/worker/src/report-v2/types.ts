@@ -170,6 +170,22 @@ export type ReportEvidence = {
   lastVerifiedSource?: string | null;
   verificationPackageGeneratedAtUtc?: string | null;
   verificationPackageVersion?: number | null;
+  // Phase D Blocker 3 — per-artifact presence flags persisted on the
+  // Evidence row when the verification package is generated. Pass through
+  // so the report does NOT have to infer all artifacts are present from
+  // the mere existence of a package record.
+  verificationPackageMetadata?: {
+    manifestPresent?: boolean;
+    signedManifestPresent?: boolean;
+    checksumIndexPresent?: boolean;
+    offlineVerifierIncluded?: boolean;
+    auditExportIncluded?: boolean;
+    custodyExportIncluded?: boolean;
+    accessExportIncluded?: boolean;
+    packageVersion?: string;
+    generatedAtUtc?: string;
+    source?: string;
+  } | null;
   latestReportVersion?: number | null;
   reviewReadyAtUtc?: string | null;
   reviewerSummaryVersion?: number | null;
@@ -374,14 +390,26 @@ verificationPackageIntegrity: {
   available: boolean;
   version: number | null;
   generatedAtUtc: string | null;
-  manifestPresent: boolean;
-  signedManifestPresent: boolean;
-  manifestDigestPresent: boolean;
-  checksumIndexPresent: boolean;
-  offlineVerifierIncluded: boolean;
-  auditExportIncluded: boolean;
-  custodyExportIncluded?: boolean;
-  accessExportIncluded?: boolean;
+  // Phase D Blocker 3 — per-component flags can be:
+  //   true  — present (verified from package metadata)
+  //   false — explicitly absent OR no package generated
+  //   null  — legacy package without per-component metadata; component
+  //           presence is unknown to the report layer.
+  // Renderers MUST NOT show null as success; conservative wording belongs
+  // alongside componentPresenceNote.
+  manifestPresent: boolean | null;
+  signedManifestPresent: boolean | null;
+  manifestDigestPresent: boolean | null;
+  checksumIndexPresent: boolean | null;
+  offlineVerifierIncluded: boolean | null;
+  auditExportIncluded: boolean | null;
+  custodyExportIncluded?: boolean | null;
+  accessExportIncluded?: boolean | null;
+  componentPresenceSource?:
+    | "verification_package_metadata"
+    | "legacy_inferred_unknown"
+    | "not_generated";
+  componentPresenceNote?: string;
 };
   executiveConclusion: CalloutModel;
   legalLimitationShort: CalloutModel;

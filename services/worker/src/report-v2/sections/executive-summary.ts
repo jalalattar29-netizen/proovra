@@ -241,6 +241,24 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
     },
   ];
 
+  // Phase D Blocker 4 — render the executiveConclusion callout from the
+  // view model (truth-model.buildExecutiveConclusion). The viewmodel
+  // computed it from the verified state of the recorded integrity, but
+  // no template was rendering it before this pass. Both the report cover
+  // and the executive summary should make the conclusion explicit so a
+  // reviewer scanning the front of the PDF cannot miss it. Using the
+  // computed callout (not hard-coded copy) preserves the verified-vs-
+  // reviewable two-state honest wording from truth-model.
+  const conclusion = vm.executiveConclusion;
+  const conclusionToneClass =
+    conclusion.tone === "success"
+      ? "tone-success"
+      : conclusion.tone === "warning"
+        ? "tone-warning"
+        : conclusion.tone === "danger"
+          ? "tone-danger"
+          : "tone-neutral";
+
   const executivePage = renderPageSection(
     "Executive Summary",
     `
@@ -252,6 +270,13 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
           </div>
           <div class="executive-confirmation-body">
             Reviewers can use this report to inspect the evidence package, custody history, storage controls, timestamp status, trust decision, and technical materials through the appendix and verification page.
+          </div>
+        </section>
+
+        <section class="executive-confirmation-card executive-conclusion-card ${escapeHtml(conclusionToneClass)}">
+          <div class="executive-confirmation-kicker">${escapeHtml(conclusion.title)}</div>
+          <div class="executive-confirmation-body">
+            ${escapeHtml(conclusion.body)}
           </div>
         </section>
 

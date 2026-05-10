@@ -1316,6 +1316,32 @@ const verificationPackageAvailable = Boolean(
     input.evidence.verificationPackageGeneratedAtUtc
 );
 
+// Phase D Blocker 3 — per-artifact completeness must come from the
+// per-artifact presence record persisted by the worker at package
+// generation time. The previous code inferred ALL artifacts as present
+// purely because a package record existed. That overclaimed completeness
+// for any package that was generated with reduced artifact coverage
+// (rate-limited, partial regeneration, future variants).
+//
+// Resolution order:
+//   1. If verificationPackageMetadata.manifestPresent etc are present, use
+//      them directly.
+//   2. If the metadata blob is absent (legacy records before Phase D),
+//      fall back to a CONSERVATIVE wording ("Package record present;
+//      component-level artifact presence not independently confirmed").
+const packageMetadata =
+  input.evidence.verificationPackageMetadata ?? null;
+const packageMetadataPresent = packageMetadata !== null;
+
+const componentFlag = (
+  field: keyof NonNullable<typeof input.evidence.verificationPackageMetadata>
+): boolean | null => {
+  if (!verificationPackageAvailable) return false;
+  if (!packageMetadata) return null;
+  const value = packageMetadata[field];
+  return typeof value === "boolean" ? value : null;
+};
+
 const verificationPackageIntegrity = {
   available: verificationPackageAvailable,
   version: verificationPackageAvailable
@@ -1324,14 +1350,33 @@ const verificationPackageIntegrity = {
   generatedAtUtc: verificationPackageAvailable
     ? input.evidence.verificationPackageGeneratedAtUtc ?? null
     : null,
-  manifestPresent: verificationPackageAvailable,
-  signedManifestPresent: verificationPackageAvailable,
-  manifestDigestPresent: verificationPackageAvailable,
-  checksumIndexPresent: verificationPackageAvailable,
-  offlineVerifierIncluded: verificationPackageAvailable,
-  auditExportIncluded: verificationPackageAvailable,
-  custodyExportIncluded: verificationPackageAvailable,
-  accessExportIncluded: verificationPackageAvailable,
+  // Per-component presence: boolean when known from the persisted
+  // metadata, null when it is a legacy record without per-component
+  // tracking. Renderers MUST surface "presence not independently
+  // confirmed" for nulls and never present them as success.
+  manifestPresent: componentFlag("manifestPresent"),
+  signedManifestPresent: componentFlag("signedManifestPresent"),
+  // The legacy code claimed manifestDigestPresent unconditionally; we
+  // collapse it onto signedManifestPresent (the digest IS the signed
+  // manifest payload) and emit null when unknown.
+  manifestDigestPresent: componentFlag("signedManifestPresent"),
+  checksumIndexPresent: componentFlag("checksumIndexPresent"),
+  offlineVerifierIncluded: componentFlag("offlineVerifierIncluded"),
+  auditExportIncluded: componentFlag("auditExportIncluded"),
+  custodyExportIncluded: componentFlag("custodyExportIncluded"),
+  accessExportIncluded: componentFlag("accessExportIncluded"),
+  // Truthful summary so downstream renderers can choose conservative
+  // copy without re-deriving the same logic.
+  componentPresenceSource: packageMetadataPresent
+    ? ("verification_package_metadata" as const)
+    : verificationPackageAvailable
+      ? ("legacy_inferred_unknown" as const)
+      : ("not_generated" as const),
+  componentPresenceNote: packageMetadataPresent
+    ? "Per-component presence is reported from the verification package's persisted artifact-presence record."
+    : verificationPackageAvailable
+      ? "Package record present; component-level artifact presence not independently confirmed for this legacy record. Inspect the verification package archive to verify which components are included."
+      : "No verification package has been generated for this evidence record yet.",
 };
 
   const forensicIntegrityStatement = buildForensicIntegrityStatementModel(

@@ -97,6 +97,13 @@ type PackageManifest = {
   signingKeyId: string | null;
   signingKeyVersion: string | null;
   multipart: boolean;
+  // Phase D Blocker 5 — multipart hash semantics in the package manifest
+  // so the offline verifier and any downstream tool can interpret
+  // evidence.fileSha256 correctly without out-of-band knowledge.
+  hashSemantics?: string | null;
+  fileSha256Label?: string | null;
+  multipartManifestSha256?: string | null;
+  multipartManifestRecomputationMethod?: string | null;
   rawEvidenceType?: string | null;
   rawEvidenceTypeSource?: string | null;
   reviewerEvidenceType?: string | null;
@@ -151,6 +158,14 @@ type VerificationPackageMetadata = {
   reviewerEvidenceType?: string | null;
   evidenceStructure?: string | null;
   itemCount?: number | null;
+  // Phase D Blocker 5 — multipart hash semantics surfaced as first-class
+  // package metadata. Reviewers must be able to tell from the package
+  // alone whether evidence.fileSha256 is the SHA-256 of an original file
+  // (single_file) or a synthetic composite of per-part SHA-256s
+  // (multipart_composite, with multipartManifestSha256 reproducible).
+  hashSemantics?: string | null;
+  multipartManifestSha256?: string | null;
+  fileSha256Label?: string | null;
   contentCategories?: string[] | null;
   imageCount?: number | null;
   videoCount?: number | null;
@@ -291,6 +306,36 @@ function mapMimeTypeToExtension(mimeType: string | null | undefined): string {
     default:
       return "bin";
   }
+}
+
+/**
+ * Phase D Blocker 2 — strip directory components before exposing a filename
+ * through the verification package JSON. Defensive against legacy
+ * EvidencePart rows that may still carry raw "Folder/Subfolder/file.ext"
+ * paths persisted before the API-side sanitization landed.
+ *
+ * Returns null on null/empty/path-only inputs.
+ */
+function stripPathForPackageExposure(
+  value: string | null | undefined
+): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.replace(/\\/g, "/");
+  const segments = normalized.split("/");
+  for (let i = segments.length - 1; i >= 0; i -= 1) {
+    const seg = segments[i]?.trim();
+    if (!seg) continue;
+    if (seg === "." || seg === "..") continue;
+    // Drop leading dots so ".env" / "..." don't display as hidden.
+    const noLeadingDots = seg.replace(/^\.+/, "").trim();
+    if (!noLeadingDots) continue;
+    return noLeadingDots.length > 255
+      ? noLeadingDots.slice(0, 254) + "…"
+      : noLeadingDots;
+  }
+  return null;
 }
 
 function sanitizeFileBaseName(value: string, maxLen = 120): string {
@@ -1100,6 +1145,44 @@ function buildVerifyPackageScript() {
     "}",
     "",
     "// ------------------------------",
+    "// 4. MULTIPART HASH SEMANTICS (Phase D Blocker 5)",
+    "// ------------------------------",
+    "",
+    "if (existsSync(manifestPath)) {",
+    '  const manifestJson = JSON.parse(readFileSync(manifestPath, "utf8"));',
+    '  const hashSemantics = String(manifestJson.hashSemantics || "single_file");',
+    '  const fileSha256Label = String(manifestJson.fileSha256Label || "");',
+    '  const claimedManifestDigest = manifestJson.multipartManifestSha256;',
+    '  console.log("ℹ HASH SEMANTICS: " + hashSemantics);',
+    '  if (fileSha256Label) console.log("  - " + fileSha256Label);',
+    '  if (hashSemantics === "multipart_composite") {',
+    '    if (typeof claimedManifestDigest === "string" && /^[a-f0-9]{64}$/i.test(claimedManifestDigest)) {',
+    '      // Recompute the canonical multipart manifest digest from the per-part hashes',
+    '      // recorded in package-checksums.json. Method: sort per-part hex SHA-256s',
+    '      // by partIndex ascending, lowercase, join with \\n, then SHA-256 the result.',
+    '      const partFiles = files',
+    '        .filter((f) => f && typeof f.path === "string" && f.path.startsWith("evidence/") && typeof f.sha256 === "string")',
+    '        .map((f) => ({ path: f.path, sha256: String(f.sha256).toLowerCase() }))',
+    '        .sort((a, b) => a.path.localeCompare(b.path));',
+    '      if (partFiles.length > 1) {',
+    '        const recomputed = createHash("sha256")',
+    '          .update(partFiles.map((p) => p.sha256).join("\\n"))',
+    '          .digest("hex");',
+    '        if (recomputed === claimedManifestDigest.toLowerCase()) {',
+    '          console.log("✔ multipartManifestSha256 RECOMPUTED OK (" + partFiles.length + " parts)");',
+    '        } else {',
+    '          fail("multipartManifestSha256 RECOMPUTE MISMATCH (claimed=" + claimedManifestDigest + ", recomputed=" + recomputed + ")");',
+    '        }',
+    '      } else {',
+    '        console.log("ℹ multipartManifestSha256 present but per-part hashes not enumerable from this package");',
+    '      }',
+    '    } else {',
+    '      console.log("ℹ multipartManifestSha256 not recorded in package manifest");',
+    '    }',
+    '  }',
+    "}",
+    "",
+    "// ------------------------------",
     "// FINAL RESULT",
     "// ------------------------------",
     "",
@@ -1109,6 +1192,7 @@ function buildVerifyPackageScript() {
     'console.log("  - Checksums OK");',
     'console.log("  - Manifest signature VALID");',
     'console.log("  - Preserved package files match the signed manifest");',
+    'console.log("  - Multipart hash semantics inspected (see HASH SEMANTICS line above)");',
     'console.log("  - This does not independently prove factual truth, authorship, legal admissibility, or completed public anchoring");',
     'console.log("  - Review RFC3161 timestamp, OpenTimestamps/public anchoring, custody, and legal context separately");',
     "",
@@ -1252,7 +1336,12 @@ function buildDuplicateDigests(
       packageIndex: index + 1,
       partIndex: file.partIndex ?? null,
       name: file.finalName,
-      originalFileName: file.originalFileName ?? null,
+      // Phase D Blocker 2 — strip directory components before exposing
+      // through the verification package JSON. file.originalFileName comes
+      // from EvidencePart.originalFileName which has already been
+      // sanitized at the API layer for new records, but legacy records may
+      // still carry raw paths; defensive strip here protects them too.
+      originalFileName: stripPathForPackageExposure(file.originalFileName),
       mimeType: file.mimeType ?? null,
       sizeBytes: file.sizeBytes ?? file.buffer.length,
     });
@@ -1330,7 +1419,8 @@ function buildOriginalLinkage(
       packageIndex: index + 1,
       partIndex: file.partIndex ?? null,
       packageName: file.finalName,
-      originalFileName: file.originalFileName ?? null,
+      // Phase D Blocker 2 — strip path components before exposing.
+      originalFileName: stripPathForPackageExposure(file.originalFileName),
       mimeType: file.mimeType ?? null,
       sizeBytes: file.sizeBytes ?? file.buffer.length,
       sha256: file.sha256 ?? null,
@@ -1372,6 +1462,28 @@ function buildPackageManifest(params: {
 }): PackageManifest {
   const reviewerEvidence = buildReviewerEvidenceMetadata(params.metadata);
 
+  // Phase D Blocker 5 — derive a reproducible multipart manifest digest
+  // from the per-part SHA-256 hashes when the API did not persist one
+  // (legacy records). This guarantees the package always carries either
+  // the persisted manifest digest or one independently computable from
+  // the contents of package-checksums.json.
+  const isMultipartPackage = params.evidenceFiles.length > 1;
+  const partsForManifest = isMultipartPackage
+    ? params.evidenceFiles
+        .filter(
+          (file): file is typeof file & { sha256: string } =>
+            typeof file.sha256 === "string" && /^[a-f0-9]{64}$/i.test(file.sha256)
+        )
+        .slice()
+        .sort((a, b) => (a.partIndex ?? 0) - (b.partIndex ?? 0))
+    : [];
+  const derivedMultipartManifestSha256 =
+    isMultipartPackage && partsForManifest.length === params.evidenceFiles.length
+      ? createHash("sha256")
+          .update(partsForManifest.map((p) => p.sha256.toLowerCase()).join("\n"))
+          .digest("hex")
+      : null;
+
   return {
     packageType: "PROOVRA_VERIFICATION_PACKAGE",
     version: 4,
@@ -1380,7 +1492,26 @@ function buildPackageManifest(params: {
     signingKeyId: params.signingKeyId ?? null,
     signingKeyVersion:
       params.signingKeyVersion != null ? String(params.signingKeyVersion) : null,
-    multipart: params.evidenceFiles.length > 1,
+    multipart: isMultipartPackage,
+    // Phase D Blocker 5 — first-class multipart hash semantics in the
+    // package manifest. Surfaced from VerificationPackageMetadata when
+    // present (Phase C+ records) and derived from per-part hashes
+    // otherwise (legacy records). Either way the package is honest about
+    // what evidence.fileSha256 represents.
+    hashSemantics:
+      params.metadata.hashSemantics ??
+      (isMultipartPackage ? "multipart_composite" : "single_file"),
+    fileSha256Label:
+      params.metadata.fileSha256Label ??
+      (isMultipartPackage
+        ? "Synthetic composite SHA-256 of per-part SHA-256s. The reproducible canonical multipart digest is multipartManifestSha256."
+        : "SHA-256 of the original file"),
+    multipartManifestSha256:
+      params.metadata.multipartManifestSha256 ??
+      derivedMultipartManifestSha256,
+    multipartManifestRecomputationMethod: isMultipartPackage
+      ? "Sort per-part hex SHA-256 digests by partIndex ascending, lowercase them, join with a single '\\n' (LF), and SHA-256 the resulting UTF-8 string. Per-part SHA-256s are also recorded in package-checksums.json."
+      : null,
     rawEvidenceType: reviewerEvidence.rawEvidenceType,
     rawEvidenceTypeSource: reviewerEvidence.rawEvidenceTypeSource,
     reviewerEvidenceType: reviewerEvidence.reviewerEvidenceType,

@@ -3056,6 +3056,10 @@ function buildPublicVerifyOverview(params: {
     recordedIntegrityVerifiedAtUtc: Date | null;
     lastVerifiedAtUtc: Date | null;
     lastVerifiedSource: prismaPkg.VerificationSource | null;
+    // Phase D Blocker 1 — analytics-only timestamp of the most recent
+    // anonymous /public/verify hit. NEVER conflated with technical
+    // verification or reviewer verification.
+    lastPublicVerifyViewAtUtc: Date | null;
     reviewReadyAtUtc: Date | null;
     verificationPackageGeneratedAtUtc: Date | null;
     verificationPackageVersion: number | null;
@@ -3074,6 +3078,11 @@ function buildPublicVerifyOverview(params: {
   anchor: AnchorStatusSummary;
   contentSummary: PublicEvidenceContentSummary | null;
   trustDecision?: TrustDecision | null;
+  // Phase D Blocker 1 — when this overview is being built for a public
+  // /public/verify hit, this carries the timestamp of the CURRENT page view.
+  // It is rendered separately (currentPublicVerifyViewAtUtc) and never
+  // appears as "last verified".
+  currentPublicVerifyViewAtUtc?: Date | null;
 }) {
     const reportGeneratedAtUtc = params.latestReport?.generatedAtUtc
     ? params.latestReport.generatedAtUtc.toISOString()
@@ -3167,6 +3176,11 @@ primaryContentLabel: buildPrimaryContentLabel(
       params.evidence.recordedIntegrityVerifiedAtUtc
         ? params.evidence.recordedIntegrityVerifiedAtUtc.toISOString()
         : null,
+    // Phase D Blocker 1 — "Last verified" is reserved for meaningful
+    // technical verifications (report generation, explicit reviewer
+    // technical-verification action). It is NOT the public-page view time.
+    // The public-page-view time lives on lastPublicVerifyViewAtUtc and
+    // currentPublicVerifyViewAtUtc, surfaced separately below.
     lastVerifiedAtUtc: params.evidence.lastVerifiedAtUtc
       ? params.evidence.lastVerifiedAtUtc.toISOString()
       : null,
@@ -3174,6 +3188,18 @@ primaryContentLabel: buildPrimaryContentLabel(
       params.evidence.lastVerifiedSource
     ),
     lastVerifiedSourceCode: params.evidence.lastVerifiedSource ?? null,
+    lastVerifiedAtUtcLabel:
+      "Last meaningful technical verification (report generation or reviewer technical-verification action). Public page views do not update this field.",
+    // Public verify analytics (anonymous page views).
+    lastPublicVerifyViewAtUtc: params.evidence.lastPublicVerifyViewAtUtc
+      ? params.evidence.lastPublicVerifyViewAtUtc.toISOString()
+      : null,
+    lastPublicVerifyViewAtUtcLabel:
+      "Most recent anonymous public verify page view (analytics only — not a technical verification).",
+    currentPublicVerifyViewAtUtc:
+      params.currentPublicVerifyViewAtUtc?.toISOString() ?? null,
+    currentPublicVerifyViewAtUtcLabel:
+      "Timestamp of the current public verify page request (analytics only — not a technical verification).",
     reviewReadyAtUtc: params.evidence.reviewReadyAtUtc
       ? params.evidence.reviewReadyAtUtc.toISOString()
       : null,
@@ -3246,6 +3272,13 @@ function buildPublicVerifyHumanSummary(params: {
       params.overview.recordedIntegrityVerifiedAtUtc,
     lastVerifiedAtUtc: params.overview.lastVerifiedAtUtc,
     lastVerifiedSource: params.overview.lastVerifiedSource,
+    // Phase D Blocker 1 — propagate public-view analytics fields to the
+    // human-summary surface so the verify page can render them as
+    // "Last public verify page view" / "Current public verify page view"
+    // rather than masquerading as "Last verified".
+    lastPublicVerifyViewAtUtc: params.overview.lastPublicVerifyViewAtUtc,
+    currentPublicVerifyViewAtUtc:
+      params.overview.currentPublicVerifyViewAtUtc,
     chainOfCustodyPresent: params.overview.chainOfCustodyPresent,
     reportVersion: params.overview.reportVersion,
     reportGeneratedAtUtc: params.overview.reportGeneratedAtUtc,
@@ -4230,7 +4263,11 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
               partIndex: body.partIndex,
               storageBucket: bucket,
               storageKey: key,
-              originalFileName: body.originalFileName?.trim() || null,
+              // Phase D Blocker 2 — strip any directory components the
+              // browser may have leaked from a folder upload, normalize, and
+              // drop leading dots. We persist only a safe basename so the
+              // raw relative path never enters our database.
+              originalFileName: sanitizeFileName(body.originalFileName),
               mimeType: normalizedMimeType,
               durationMs: body.durationMs ?? null,
               privateRole: body.privateRole?.trim() || null,
@@ -8565,6 +8602,9 @@ action: "evidence.certification_requested",
         recordedIntegrityVerifiedAtUtc: true,
         lastVerifiedAtUtc: true,
         lastVerifiedSource: true,
+        // Phase D Blocker 1 — analytics-only column, surfaced separately
+        // from lastVerifiedAtUtc on the verify page.
+        lastPublicVerifyViewAtUtc: true,
         verificationPackageGeneratedAtUtc: true,
         verificationPackageVersion: true,
         latestReportVersion: true,
@@ -9285,8 +9325,14 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
         signedAtUtc: evidence.signedAtUtc,
         recordedIntegrityVerifiedAtUtc:
           evidence.recordedIntegrityVerifiedAtUtc,
-        lastVerifiedAtUtc: verifiedAt,
-        lastVerifiedSource: VerificationSource.PUBLIC_VERIFY_VIEWED,
+        // Phase D Blocker 1 — pass through the ACTUAL meaningful-verification
+        // timestamp from the database. Do NOT inject the current page-view
+        // time as "last verified". The current page-view time flows through
+        // currentPublicVerifyViewAtUtc below.
+        lastVerifiedAtUtc: evidence.lastVerifiedAtUtc,
+        lastVerifiedSource: evidence.lastVerifiedSource ?? null,
+        lastPublicVerifyViewAtUtc:
+          evidence.lastPublicVerifyViewAtUtc ?? null,
         reviewReadyAtUtc: evidence.reviewReadyAtUtc,
 verificationPackageGeneratedAtUtc:
   latestVerificationPackage?.generatedAtUtc ??
@@ -9310,7 +9356,10 @@ verificationPackageVersion:
       anchor,
       contentSummary: content.summary,
       trustDecision,
-
+      // Phase D Blocker 1 — surface the current page-view time as a
+      // separate analytics field. The verify page renders this as
+      // "Current public verify page view", NOT "Last verified".
+      currentPublicVerifyViewAtUtc: verifiedAt,
     });
 
     const humanSummary = buildPublicVerifyHumanSummary({

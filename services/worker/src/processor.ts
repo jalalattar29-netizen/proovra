@@ -1745,6 +1745,8 @@ async function prepareReportArtifacts(
       lastVerifiedSource: true,
       verificationPackageGeneratedAtUtc: true,
       verificationPackageVersion: true,
+      // Phase D Blocker 3 — per-component artifact presence record.
+      verificationPackageMetadata: true,
       latestReportVersion: true,
       reviewReadyAtUtc: true,
       reviewerSummaryVersion: true,
@@ -2389,6 +2391,25 @@ verificationPackageGeneratedAtUtc: verificationPackageIncluded
 verificationPackageVersion: verificationPackageIncluded
   ? provisionalVersion
   : evidence.verificationPackageVersion ?? null,
+// Phase D Blocker 3 — pass through the persisted per-component artifact
+// presence record so the report renders truthful per-component flags
+// instead of inferring all components are present from existence.
+verificationPackageMetadata:
+  (evidence.verificationPackageMetadata as
+    | {
+        manifestPresent?: boolean;
+        signedManifestPresent?: boolean;
+        checksumIndexPresent?: boolean;
+        offlineVerifierIncluded?: boolean;
+        auditExportIncluded?: boolean;
+        custodyExportIncluded?: boolean;
+        accessExportIncluded?: boolean;
+        packageVersion?: string;
+        generatedAtUtc?: string;
+        source?: string;
+      }
+    | null
+    | undefined) ?? null,
       latestReportVersion: evidence.latestReportVersion ?? null,
     reviewReadyAtUtc: evidence.reviewReadyAtUtc?.toISOString() ?? null,
     reviewerSummaryVersion: evidence.reviewerSummaryVersion ?? null,
