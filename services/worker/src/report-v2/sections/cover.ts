@@ -347,15 +347,14 @@ getTrustDecisionLabel(vm.trustDecision)
 <div class="cover-boundary-note cover-boundary-inline">
   <div class="cover-boundary-title">Report Boundary.</div>
   <div class="cover-boundary-body">
-    This report verifies the recorded integrity state, preservation controls,
-    timestamps, storage state, and custody records of the evidence record.
-    PROOVRA preserves and verifies the recorded integrity state after intake.
-    It does not prove original device-capture authenticity, factual truth,
-    authorship, context, intent, admissibility, evidentiary weight, court
-    acceptance, or examiner-grade forensic acquisition.
+    This page summarizes recorded integrity, preservation, timestamping,
+    storage, and custody signals only. Integrity verification does not prove
+    factual truth, authorship, admissibility, or original device-capture
+    authenticity.
   </div>
   <div class="cover-boundary-followup">
-    For technical validation, use the verification page and appendix.
+    Full legal boundary and reviewer-use limits appear later in the Legal
+    Interpretation &amp; Report Boundary section.
   </div>
 </div>
       </div>

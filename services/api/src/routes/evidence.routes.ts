@@ -88,6 +88,7 @@ import {
 import { listEvidenceArtifacts } from "../services/evidence-review/artifact-history.service.js";
 import { buildEvidenceArtifactStatus } from "../services/evidence-artifact-status.service.js";
 import { buildEvidenceReviewGovernance } from "../services/evidence-review/governance.service.js";
+import { buildTrustDecisionConsistency } from "../services/trust-decision-consistency.service.js";
 
 const EvidenceTypeSchema = prismaPkg.EvidenceType
   ? z.nativeEnum(prismaPkg.EvidenceType)
@@ -7062,17 +7063,11 @@ const timestampDigestMatches: boolean | null =
         });
 
         const trustDecision = snapshotTrustDecision ?? liveTrustDecision;
-        const trustDecisionConsistency = {
-          source: snapshotTrustDecision
-            ? latestReport?.trustDecisionSnapshot
-              ? "REPORT_SNAPSHOT"
-              : "VERIFICATION_PACKAGE_SNAPSHOT"
-            : "LIVE_SHARED_FALLBACK",
-          consistentWithSnapshot: snapshotTrustDecision
-            ? JSON.stringify(snapshotTrustDecision) ===
-              JSON.stringify(liveTrustDecision)
-            : null,
-        };
+        const trustDecisionConsistencySource = snapshotTrustDecision
+          ? latestReport?.trustDecisionSnapshot
+            ? "REPORT_SNAPSHOT"
+            : "VERIFICATION_PACKAGE_SNAPSHOT"
+          : "LIVE_SHARED_FALLBACK";
 
         const custodyDisplayContext = {
           itemCount: content.summary.itemCount,
@@ -7098,6 +7093,37 @@ const timestampDigestMatches: boolean | null =
         const accessEventsAfterReportGeneration = reportGeneratedAtUtc
           ? accessCustodyEvents.filter((ev) => ev.atUtc > reportGeneratedAtUtc)
           : accessCustodyEvents;
+
+        const snapshotGeneratedAtUtc =
+          trustDecisionConsistencySource === "REPORT_SNAPSHOT"
+            ? latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null
+            : trustDecisionConsistencySource === "VERIFICATION_PACKAGE_SNAPSHOT"
+              ? latestVerificationPackage?.generatedAtUtc ??
+                evidence.verificationPackageGeneratedAtUtc ??
+                null
+              : null;
+
+        const trustDecisionConsistency = buildTrustDecisionConsistency({
+          snapshotTrustDecision,
+          liveTrustDecision,
+          source: trustDecisionConsistencySource,
+          snapshotGeneratedAtUtc,
+          latestReportGeneratedAtUtc:
+            latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null,
+          latestReportVersion:
+            latestReport?.version ?? evidence.latestReportVersion ?? null,
+          latestVerificationPackageGeneratedAtUtc:
+            latestVerificationPackage?.generatedAtUtc ??
+            evidence.verificationPackageGeneratedAtUtc ??
+            null,
+          latestVerificationPackageVersion:
+            latestVerificationPackage?.version ??
+            evidence.verificationPackageVersion ??
+            null,
+          forensicEventsAtSnapshot: forensicEventsAtReportGeneration.length,
+          currentForensicEvents: forensicCustodyEvents.length,
+          accessEventsAfterSnapshot: accessEventsAfterReportGeneration.length,
+        });
 
         const custodyDisplayCounts = {
           forensicAtReportGeneration: forensicEventsAtReportGeneration.length,
@@ -9209,17 +9235,11 @@ const liveTrustDecision = buildEvidenceTrustDecision({
 });
 
 const trustDecision = snapshotTrustDecision ?? liveTrustDecision;
-
-const trustDecisionConsistency = {
-  source: snapshotTrustDecision
-    ? latestReport?.trustDecisionSnapshot
-      ? "REPORT_SNAPSHOT"
-      : "VERIFICATION_PACKAGE_SNAPSHOT"
-    : "LIVE_SHARED_FALLBACK",
-  consistentWithSnapshot: snapshotTrustDecision
-    ? JSON.stringify(snapshotTrustDecision) === JSON.stringify(liveTrustDecision)
-    : null,
-};
+const trustDecisionConsistencySource = snapshotTrustDecision
+  ? latestReport?.trustDecisionSnapshot
+    ? "REPORT_SNAPSHOT"
+    : "VERIFICATION_PACKAGE_SNAPSHOT"
+  : "LIVE_SHARED_FALLBACK";
 
 const timestampLayerBlocksIntegrity = timestampDigestMatches === false;
 
@@ -9411,6 +9431,37 @@ const forensicEventsAtReportGeneration = reportGeneratedAtUtc
 const accessEventsAfterReportGeneration = reportGeneratedAtUtc
   ? accessCustodyEvents.filter((ev) => ev.atUtc > reportGeneratedAtUtc)
   : accessCustodyEvents;
+
+const snapshotGeneratedAtUtc =
+  trustDecisionConsistencySource === "REPORT_SNAPSHOT"
+    ? latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null
+    : trustDecisionConsistencySource === "VERIFICATION_PACKAGE_SNAPSHOT"
+      ? latestVerificationPackage?.generatedAtUtc ??
+        evidence.verificationPackageGeneratedAtUtc ??
+        null
+      : null;
+
+const trustDecisionConsistency = buildTrustDecisionConsistency({
+  snapshotTrustDecision,
+  liveTrustDecision,
+  source: trustDecisionConsistencySource,
+  snapshotGeneratedAtUtc,
+  latestReportGeneratedAtUtc:
+    latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null,
+  latestReportVersion:
+    latestReport?.version ?? evidence.latestReportVersion ?? null,
+  latestVerificationPackageGeneratedAtUtc:
+    latestVerificationPackage?.generatedAtUtc ??
+    evidence.verificationPackageGeneratedAtUtc ??
+    null,
+  latestVerificationPackageVersion:
+    latestVerificationPackage?.version ??
+    evidence.verificationPackageVersion ??
+    null,
+  forensicEventsAtSnapshot: forensicEventsAtReportGeneration.length,
+  currentForensicEvents: forensicCustodyEvents.length,
+  accessEventsAfterSnapshot: accessEventsAfterReportGeneration.length,
+});
 
 const custodyDisplayCounts = {
   forensicAtReportGeneration: forensicEventsAtReportGeneration.length,

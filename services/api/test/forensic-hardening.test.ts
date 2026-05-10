@@ -21,6 +21,89 @@ import {
   CAPTURE_DRAFT_EXPIRY_MS,
   sanitizeCaptureSessionItem,
 } from "../src/services/capture-draft-governance.js";
+import { buildTrustDecisionConsistency } from "../src/services/trust-decision-consistency.service.js";
+
+const SNAPSHOT_TRUST_DECISION = {
+  verdict: "VERIFIED",
+  level: "standard",
+  tone: "warning",
+  presentationState: "VERIFIED_PENDING_PUBLICATION",
+  presentationTone: "warning",
+  publicationState: "pending",
+  score: 84,
+  maxScore: 100,
+  scoreLabel: "84/100",
+  verdictLabel: "Recorded integrity verified; publication pending",
+  shortLabel: "Pending publication",
+  summary:
+    "Recorded integrity is verified, but public anchoring is still pending.",
+  narrative:
+    "Recorded integrity is verified, but independent public anchoring is not finalized yet.",
+  primaryReason: "Publication is pending.",
+  reviewerAction: "Recheck publication later if independent anchoring is required.",
+  legalBoundary: "Integrity verification is not a truth finding.",
+  degradedButUsable: true,
+  relianceLevel: "high",
+  signals: [
+    {
+      key: "core_integrity",
+      label: "Core integrity",
+      status: "passed",
+      tone: "success",
+      points: 25,
+      maxPoints: 25,
+      summary: "Core integrity verified",
+      detail: "Core materials are present and consistent.",
+    },
+    {
+      key: "signature",
+      label: "Digital signature",
+      status: "passed",
+      tone: "success",
+      points: 15,
+      maxPoints: 15,
+      summary: "Signature package recorded",
+      detail: "Signature materials are available.",
+    },
+    {
+      key: "trusted_timestamp",
+      label: "Trusted timestamp",
+      status: "passed",
+      tone: "success",
+      points: 15,
+      maxPoints: 15,
+      summary: "Trusted timestamp recorded",
+      detail: "RFC 3161 timestamp material is present.",
+    },
+    {
+      key: "public_anchoring",
+      label: "Public anchoring",
+      status: "pending",
+      tone: "warning",
+      points: 9,
+      maxPoints: 15,
+      summary: "OpenTimestamps proof present; public anchoring pending",
+      detail: "Independent public anchoring has not completed yet.",
+    },
+    {
+      key: "immutable_storage",
+      label: "Immutable storage",
+      status: "passed",
+      tone: "success",
+      points: 15,
+      maxPoints: 15,
+      summary: "Immutable retention verified",
+      detail: "Object Lock metadata is verified.",
+    },
+  ],
+  passedSignals: 4,
+  degradedSignals: 1,
+  failedSignals: 0,
+} as const;
+
+function cloneTrustDecision() {
+  return JSON.parse(JSON.stringify(SNAPSHOT_TRUST_DECISION));
+}
 
 function readRepoFile(...segments: string[]): string {
   return readFileSync(resolve("D:/digital-witness", ...segments), "utf8");
@@ -95,6 +178,62 @@ describe("public verify semantics (Governance Item 1)", () => {
     expect(verifyPageSource).not.toContain('label: "Last Verified At"');
     expect(verifyPageSource).toContain("getTrustDecisionConfidenceLabel");
     expect(verifyPageSource).toContain("Recorded integrity verified; publication pending");
+  });
+
+  it("classifies access-only divergence as informational and non-integrity-critical", () => {
+    const result = buildTrustDecisionConsistency({
+      snapshotTrustDecision: cloneTrustDecision(),
+      liveTrustDecision: cloneTrustDecision(),
+      source: "REPORT_SNAPSHOT",
+      snapshotGeneratedAtUtc: "2026-01-01T00:00:00.000Z",
+      latestReportGeneratedAtUtc: "2026-01-01T00:00:00.000Z",
+      latestVerificationPackageGeneratedAtUtc: "2026-01-01T00:00:00.000Z",
+      forensicEventsAtSnapshot: 5,
+      currentForensicEvents: 5,
+      accessEventsAfterSnapshot: 3,
+    });
+
+    expect(result.consistentWithSnapshot).toBe(false);
+    expect(result.accessOnly).toBe(true);
+    expect(result.integrityCritical).toBe(false);
+    expect(result.tone).toBe("info");
+    expect(result.reasons).toHaveLength(1);
+    expect(result.reasons[0]?.code).toBe("ACCESS_ACTIVITY_CHANGED");
+  });
+
+  it("classifies integrity-critical divergence separately from access drift", () => {
+    const live = cloneTrustDecision();
+    const timestampSignal = live.signals.find(
+      (signal: { key: string }) => signal.key === "trusted_timestamp"
+    );
+
+    if (!timestampSignal) {
+      throw new Error("trusted_timestamp signal missing from test fixture");
+    }
+
+    timestampSignal.status = "failed";
+    timestampSignal.tone = "danger";
+    timestampSignal.summary = "Trusted timestamp failed";
+    live.presentationTone = "danger";
+    live.tone = "danger";
+
+    const result = buildTrustDecisionConsistency({
+      snapshotTrustDecision: cloneTrustDecision(),
+      liveTrustDecision: live,
+      source: "REPORT_SNAPSHOT",
+      snapshotGeneratedAtUtc: "2026-01-01T00:00:00.000Z",
+      latestReportGeneratedAtUtc: "2026-01-01T00:00:00.000Z",
+      latestVerificationPackageGeneratedAtUtc: "2026-01-01T00:00:00.000Z",
+      forensicEventsAtSnapshot: 5,
+      currentForensicEvents: 5,
+      accessEventsAfterSnapshot: 0,
+    });
+
+    expect(result.consistentWithSnapshot).toBe(false);
+    expect(result.accessOnly).toBe(false);
+    expect(result.integrityCritical).toBe(true);
+    expect(result.tone).toBe("danger");
+    expect(result.reasons.some((reason) => reason.code === "CORE_INTEGRITY_SIGNALS_CHANGED")).toBe(true);
   });
 });
 

@@ -317,6 +317,16 @@ export type ReviewWorkspaceResponse = {
     trustDecisionConsistency: {
       source: string;
       consistentWithSnapshot: boolean | null;
+      tone?: "neutral" | "info" | "warning" | "danger" | null;
+      accessOnly?: boolean | null;
+      integrityCritical?: boolean | null;
+      reasons?: Array<{
+        code?: string | null;
+        label?: string | null;
+        detail?: string | null;
+        tone?: "info" | "warning" | "danger" | null;
+        integrityCritical?: boolean | null;
+      }>;
     };
   };
   governance?: {

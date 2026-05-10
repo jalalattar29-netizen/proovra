@@ -230,7 +230,7 @@ letter-spacing: -0.005em;
 
 .cover-decision-hero {
   text-align: center;
-  padding: 2px 28px 0;
+  padding: 0 24px 0;
   break-inside: avoid;
   page-break-inside: avoid;
 }
@@ -319,14 +319,14 @@ letter-spacing: -0.005em;
     }
 
 .cover-status-stamp {
-  margin: 9px auto 0;
+  margin: 7px auto 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   min-width: 200px;
   border-radius: 8px;
-  padding: 8px 14px;
+  padding: 7px 12px;
   border: 1px solid ${c.softLine};
   font-size: 10.5px;
   font-weight: 900;
@@ -349,7 +349,7 @@ letter-spacing: -0.005em;
     .cover-decision-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 8px;
+      gap: 7px;
       break-inside: avoid;
       page-break-inside: avoid;
     }
@@ -357,11 +357,11 @@ letter-spacing: -0.005em;
 .cover-decision-indicator {
   border: 1px solid ${c.softLine};
   border-radius: 8px;
-  padding: 8px;
-  min-height: 58px;
+  padding: 7px;
+  min-height: 52px;
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
-  gap: 7px;
+  gap: 6px;
   align-items: start;
   break-inside: avoid;
   page-break-inside: avoid;
@@ -398,7 +398,7 @@ letter-spacing: -0.005em;
     .cover-main-grid {
       display: grid;
       grid-template-columns: minmax(0, 1.42fr) minmax(190px, 0.58fr);
-      gap: 12px;
+      gap: 10px;
       align-items: stretch;
       break-inside: avoid;
       page-break-inside: avoid;
@@ -414,9 +414,9 @@ letter-spacing: -0.005em;
 
 .cover-evidence-panel {
   display: grid;
-  grid-template-columns: 165px minmax(0, 1fr);
+  grid-template-columns: 150px minmax(0, 1fr);
   gap: 10px;
-  padding: 10px;
+  padding: 9px;
   background: ${c.white};
   border: 1px solid ${c.softLine};
   border-radius: 9px;
@@ -425,8 +425,8 @@ letter-spacing: -0.005em;
 }
 
 .cover-evidence-visual {
-  min-height: 118px;
-  max-height: 128px;
+  min-height: 104px;
+  max-height: 112px;
   background: ${c.neutralSoft};
   border: 1px solid ${c.softLine};
   border-radius: 7px;
@@ -472,7 +472,7 @@ letter-spacing: -0.005em;
     .cover-snapshot-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 9px;
+      gap: 7px;
     }
 
     .cover-meta-grid,
@@ -481,7 +481,7 @@ letter-spacing: -0.005em;
     .integrity-control-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
+      gap: 7px;
       break-inside: auto;
       page-break-inside: auto;
     }
@@ -506,8 +506,8 @@ letter-spacing: -0.005em;
     }
 
 .cover-meta-card {
-  padding: 8px 9px;
-  min-height: 46px;
+  padding: 7px 8px;
+  min-height: 40px;
 }
 
     .cover-meta-label,
@@ -540,10 +540,10 @@ letter-spacing: -0.005em;
     }
 
     .cover-meta-value {
-      margin-top: 5px;
-      font-size: 10.4px;
+      margin-top: 4px;
+      font-size: 10px;
       font-weight: 700;
-      line-height: 1.42;
+      line-height: 1.34;
     }
 
     .cover-meta-value-code,
@@ -561,13 +561,13 @@ letter-spacing: -0.005em;
     }
 
 .cover-verify-box {
-  padding: 10px;
+  padding: 9px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
   gap: 8px;
-  min-height: 142px;
+  min-height: 128px;
   break-inside: avoid;
   page-break-inside: avoid;
 }
@@ -586,14 +586,14 @@ letter-spacing: -0.005em;
       align-items: center;
       justify-content: center;
       gap: 7px;
-      padding: 10px;
-      min-width: 124px;
+      padding: 8px;
+      min-width: 112px;
       border-radius: 8px;
     }
 
 .qr-inline-block img {
-  width: 92px;
-  height: 92px;
+  width: 82px;
+  height: 82px;
   object-fit: contain;
   display: block;
   background: white;
@@ -649,10 +649,10 @@ letter-spacing: -0.005em;
   border-left: 4px solid ${c.accentMetal};
   background: ${c.white};
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 7px 9px;
   color: ${c.muted};
-  font-size: 8.8px;
-  line-height: 1.38;
+  font-size: 8.3px;
+  line-height: 1.32;
   break-inside: avoid;
   page-break-inside: avoid;
 }
@@ -3011,7 +3011,7 @@ body {
 }
 
 .cover-boundary-note.cover-boundary-inline {
-  margin-top: auto !important;
+  margin-top: 1.6mm !important;
   border: 1px solid rgba(12, 28, 25, 0.22) !important;
   border-left-width: 5px !important;
   border-left-style: solid !important;
@@ -4061,19 +4061,19 @@ body {
 
 .cover-decision-grid.cover-trust-signal-grid {
   margin-top: 0 !important;
-  margin-bottom: 3.2mm !important;
+  margin-bottom: 2.2mm !important;
 }
 
 .cover-main-grid {
-  margin-bottom: 3mm !important;
+  margin-bottom: 2.2mm !important;
 }
 
 .cover-meta-grid {
-  margin-bottom: 2.6mm !important;
+  margin-bottom: 1.8mm !important;
 }
 
 .cover-boundary-note.cover-boundary-inline {
-  margin-bottom: 9mm !important;
+  margin-bottom: 3.5mm !important;
 }
 
 /* Pin bottom notes above the Chromium footer */

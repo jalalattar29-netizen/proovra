@@ -195,6 +195,12 @@ describe("report v2 pipeline", () => {
   it("renders the v2 HTML report sections in the intended order", async () => {
     const vm = await buildReportViewModel(buildInput());
     const html = renderReportHtml(vm);
+    const coverStart = html.indexOf('<section class="report-cover');
+    const coverEnd = html.indexOf("</section>", coverStart);
+    const coverHtml =
+      coverStart >= 0 && coverEnd > coverStart
+        ? html.slice(coverStart, coverEnd)
+        : html;
 
     expect(html).toContain("Evidence Title");
     // Phase D Blocker 4 — assert the truthful intent of this test against
@@ -212,6 +218,9 @@ describe("report v2 pipeline", () => {
     expect(html).toContain("Chain of Custody");
     expect(html).toContain("Legal Interpretation");
     expect(html).toContain("Technical Appendix");
+    expect(coverHtml).toContain("reviewer-use limits appear later");
+    expect(coverHtml).not.toContain("court acceptance");
+    expect(coverHtml).not.toContain("examiner-grade forensic acquisition");
     expect(html).not.toContain("Evidence Manifest");
     expect(html).not.toContain("Evidence Package Structure");
     // Defensive: no overclaim wording survived the sweep.
@@ -346,5 +355,78 @@ describe("report v2 pipeline", () => {
     for (const pattern of PROOVRA_FORBIDDEN_SURFACE_PATTERNS) {
       expect(html).not.toMatch(pattern);
     }
+  });
+
+  it("keeps the cover boundary note compact while preserving the full legal boundary later", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({
+        evidence: {
+          ...buildInput().evidence,
+          id: "9732eb48-15ba-4727-bf70-8f25ecfea76d-with-a-long-suffix-for-layout",
+          contentSummary: {
+            ...buildInput().evidence.contentSummary!,
+            structure: "multipart",
+            itemCount: 15,
+            previewableItemCount: 5,
+            downloadableItemCount: 15,
+            imageCount: 4,
+            videoCount: 3,
+            audioCount: 2,
+            pdfCount: 3,
+            textCount: 2,
+            otherCount: 1,
+            totalSizeBytes: "49240000",
+            totalSizeDisplay: "49.24 MB",
+          },
+          contentItems: Array.from({ length: 15 }, (_, index) => ({
+            ...buildInput().evidence.contentItems![0]!,
+            id: `item-${index + 1}`,
+            index,
+            isPrimary: index === 0,
+            artifactRole: index === 0 ? "primary_evidence" : "supporting_evidence",
+            originalFileName:
+              index === 0
+                ? "lead-item-with-a-very-long-filename-that-should-still-fit-cleanly-on-page-one-and-not-push-the-footer.pdf"
+                : `supporting-item-${index + 1}.txt`,
+            label:
+              index === 0
+                ? "Lead item with an intentionally long reviewer-facing filename"
+                : `Supporting item ${index + 1}`,
+            kind: index === 0 ? "pdf" : "text",
+            mimeType: index === 0 ? "application/pdf" : "text/plain",
+            displaySizeLabel: index === 0 ? "12 MB" : "1 KB",
+            previewTextExcerpt: index === 0 ? null : `supporting excerpt ${index + 1}`,
+            previewDataUrl: index === 0 ? TINY_PNG_DATA_URL : null,
+            sha256: FULL_HASH_A,
+          })),
+          primaryContentItem: {
+            ...buildInput().evidence.primaryContentItem!,
+            kind: "pdf",
+            mimeType: "application/pdf",
+            originalFileName:
+              "lead-item-with-a-very-long-filename-that-should-still-fit-cleanly-on-page-one-and-not-push-the-footer.pdf",
+            label: "Lead item with an intentionally long reviewer-facing filename",
+            displaySizeLabel: "12 MB",
+            previewDataUrl: TINY_PNG_DATA_URL,
+            previewTextExcerpt: null,
+            sha256: FULL_HASH_A,
+          },
+        },
+      })
+    );
+    const html = renderReportHtml(vm);
+    const coverStart = html.indexOf('<section class="report-cover');
+    const coverEnd = html.indexOf("</section>", coverStart);
+    const coverHtml =
+      coverStart >= 0 && coverEnd > coverStart
+        ? html.slice(coverStart, coverEnd)
+        : html;
+
+    expect(coverHtml).toContain("Report Boundary.");
+    expect(coverHtml).toContain("reviewer-use limits appear later");
+    expect(coverHtml).not.toContain("court acceptance");
+    expect(coverHtml).not.toContain("examiner-grade forensic acquisition");
+    expect(html).toContain("Legal and evidentiary boundary");
+    expect(html).toContain("This report does not prove");
   });
 });

@@ -1349,22 +1349,61 @@ export default function EvidenceDetailPage() {
                   {workspace.artifactVersions.trustDecisionConsistency
                     ?.consistentWithSnapshot === false ? (
                     <div
-                      role="alert"
+                      role={
+                        workspace.artifactVersions.trustDecisionConsistency
+                          ?.tone === "info"
+                          ? "status"
+                          : "alert"
+                      }
                       className="evidence-detail-note-box"
                       style={{
-                        borderLeft: "5px solid #b8861f",
-                        background: "#fef7e8",
+                        borderLeft:
+                          workspace.artifactVersions.trustDecisionConsistency
+                            ?.tone === "danger"
+                            ? "5px solid #b54738"
+                            : workspace.artifactVersions
+                                  .trustDecisionConsistency?.tone === "info"
+                              ? "5px solid #0b2e27"
+                              : "5px solid #b8861f",
+                        background:
+                          workspace.artifactVersions.trustDecisionConsistency
+                            ?.tone === "danger"
+                            ? "#fff3f1"
+                            : workspace.artifactVersions
+                                  .trustDecisionConsistency?.tone === "info"
+                              ? "rgba(11,46,39,0.06)"
+                              : "#fef7e8",
                       }}
                     >
                       <strong>Snapshot vs live divergence</strong>
                       <p>
-                        Live verification currently differs from the fixed
-                        report snapshot. Review current technical materials
-                        before relying on this result. The trust decision
-                        shown is sourced from the report snapshot (frozen at
-                        report generation time); one or more live signals
-                        have changed since then.
+                        {workspace.artifactVersions.trustDecisionConsistency
+                          ?.accessOnly
+                          ? "Live access activity now differs from the fixed report snapshot. This is informational activity drift, not by itself an integrity failure."
+                          : "Live verification currently differs from the fixed report snapshot. Review current technical materials before relying on the snapshot-era result."}
                       </p>
+                      <p>
+                        The trust decision shown here is sourced from the fixed
+                        snapshot taken at report or package generation time.
+                        The reasons below explain what changed later in the live
+                        state.
+                      </p>
+                      {workspace.artifactVersions.trustDecisionConsistency
+                        ?.reasons?.length ? (
+                        <ul>
+                          {workspace.artifactVersions.trustDecisionConsistency.reasons.map(
+                            (reason, index) => (
+                              <li key={`${reason.code ?? "reason"}-${index}`}>
+                                <strong>
+                                  {reason.label ?? "Snapshot difference detected"}.
+                                </strong>{" "}
+                                {reason.detail ??
+                                  "Review the live technical materials for the current state."}
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      ) : null}
                     </div>
                   ) : null}
                 </section>
