@@ -336,17 +336,24 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
       } as prismaPkg.Prisma.InputJsonValue,
     });
 
+    // Truthful intake event: at this point a presigned URL is about to be
+    // issued and the storage location is reserved. NO bytes have been
+    // uploaded yet. Previously written as UPLOAD_STARTED, which made the
+    // chain claim something that had not happened. New records use
+    // UPLOAD_AUTHORIZED; old records keep UPLOAD_STARTED for compatibility.
     await appendCustodyEventTx(tx, {
       evidenceId: evidence.id,
-      eventType: prismaPkg.CustodyEventType.UPLOAD_STARTED,
+      eventType: prismaPkg.CustodyEventType.UPLOAD_AUTHORIZED,
       atUtc: new Date(),
       payload: {
-        phase: "upload_started",
+        phase: "upload_authorized",
         uploadKind: "single",
         captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
         bucket,
         key,
         contentType: normalizedMimeType,
+        meaning:
+          "A presigned upload URL was issued for this storage location. No bytes have been confirmed uploaded yet.",
       } as prismaPkg.Prisma.InputJsonValue,
     });
 

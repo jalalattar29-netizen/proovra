@@ -63,7 +63,7 @@ function renderCaptureContext(vm: ReportViewModel): string {
             ["Latitude", vm.meta.captureContext.lat],
             ["Longitude", vm.meta.captureContext.lng],
             ["Accuracy radius", vm.meta.captureContext.accuracyRadius],
-            ["Captured at", vm.meta.captureContext.capturedAtLabel],
+            ["Recorded at intake (server UTC)", vm.meta.captureContext.capturedAtLabel],
             ["Source", vm.meta.captureContext.sourceLabel],
           ]
             .map(
@@ -236,7 +236,7 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
       value: getTrustDecisionLabel(vm.trustDecision),
     },
     {
-      label: "Reviewer Reliance",
+      label: "Technical Confidence",
       value: getReviewerRelianceLabel(vm.trustDecision.relianceLevel),
     },
   ];

@@ -142,14 +142,15 @@ Technical controls supporting reviewer validation
 
         <div class="integrity-check-list">
           ${renderIntegrityCheckRow({
+            // Issue #10: distinguish single-file vs multipart hash semantics.
 label:
   vm.contentSummary.itemCount > 1
-    ? "Lead Item SHA-256"
-    : "Original File SHA-256",
+    ? "Lead item SHA-256 (single item of multipart package)"
+    : "Original file SHA-256",
                 value: vm.meta.primaryHash || "Not recorded",
             explanation:
 vm.contentSummary.itemCount > 1
-  ? "Recorded SHA-256 digest for comparing the preserved lead evidence item against the report and verification materials."
+  ? "Per-part SHA-256 of the lead item only. Each multipart item has its own SHA-256 in the items table. The verification package also includes a per-part checksum index. The package-level synthetic composite hash is documented separately in the technical appendix."
   : "Recorded SHA-256 digest for comparing the preserved original file against the report and verification materials.",
               tone:
               vm.meta.primaryHash && vm.meta.primaryHash !== "N/A"

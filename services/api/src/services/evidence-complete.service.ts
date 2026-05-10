@@ -225,30 +225,54 @@ async function safeGetStream(bucket: string, key: string) {
   }
 }
 
-async function applyRetentionOrThrow(targets: RetentionTarget[]) {
+/**
+ * Apply default object retention to each target. Returns whether ANY target had
+ * retention actually applied (i.e. Object Lock enabled and retention written).
+ *
+ * The truthful return value is critical for the EVIDENCE_LOCKED custody event:
+ * we must NOT append EVIDENCE_LOCKED unless retention actually applied. When
+ * Object Lock is disabled in the environment, applyDefaultObjectRetention is a
+ * no-op that returns { applied: false, reason: "object_lock_disabled" } — that
+ * must propagate to the caller so the chain remains honest.
+ */
+async function applyRetentionOrThrow(
+  targets: RetentionTarget[]
+): Promise<{ anyApplied: boolean; reason: string | null }> {
   const deduped = Array.from(
     new Map(targets.map((item) => [`${item.bucket}:${item.key}`, item])).values()
   );
 
+  let anyApplied = false;
+  let reason: string | null = null;
+
   for (const target of deduped) {
     try {
-      await applyDefaultObjectRetention({
+      const result = await applyDefaultObjectRetention({
         bucket: target.bucket,
         key: target.key,
       });
+      if (result?.applied === true) {
+        anyApplied = true;
+      } else if (!reason && typeof result?.reason === "string") {
+        reason = result.reason;
+      }
     } catch (error) {
       if (isAlreadyObjectLockedLike(error)) {
+        // Object already locked by an earlier write — that counts as applied.
+        anyApplied = true;
         continue;
       }
 
-      const reason =
+      const errMsg =
         error instanceof Error ? error.message : "UNKNOWN_RETENTION_ERROR";
 
       throw new Error(
-        `EVIDENCE_RETENTION_APPLY_FAILED: bucket=${target.bucket} key=${target.key} reason=${reason}`
+        `EVIDENCE_RETENTION_APPLY_FAILED: bucket=${target.bucket} key=${target.key} reason=${errMsg}`
       );
     }
   }
+
+  return { anyApplied, reason };
 }
 
 function buildMultipartSummary(parts: ProcessedPart[], totalSizeBytes: number) {
@@ -751,8 +775,21 @@ const captureMethod =
           tsaGenTimeUtc: tsaResult?.genTimeUtc ?? null,
           tsaTokenBase64: tsaResult?.tokenBase64 ?? null,
           tsaMessageImprint: tsaResult?.messageImprint ?? null,
-          tsaInputDigestHex: tsaResult?.messageImprint ?? fileSha256,
-          tsaInputKind: tsaResult ? tsaInputKind : null,
+          // Truthful TSA semantics (Issue #8):
+          //   - tsaInputDigestHex now ONLY records the digest the TSA provider
+          //     actually accepted (i.e., what the returned token imprints).
+          //   - When TSA failed / was unavailable / not configured, this is
+          //     null. We do NOT fall back to fileSha256, because that
+          //     previously implied the TSA accepted something it did not.
+          //   - The intended-input digest is implicitly fileSha256, which is
+          //     stored in its own column. Reviewers can compare them when both
+          //     are present.
+          tsaInputDigestHex:
+            tsaResult?.status === "STAMPED"
+              ? tsaResult.messageImprint ?? null
+              : null,
+          tsaInputKind:
+            tsaResult?.status === "STAMPED" ? tsaInputKind : null,
           tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
           tsaStatus: tsaResult?.status ?? null,
           tsaFailureReason: tsaResult?.failureReason ?? null,
@@ -806,8 +843,14 @@ const captureMethod =
           tsaSerialNumber: tsaResult?.serialNumber ?? null,
           tsaGenTimeUtc: tsaResult?.genTimeUtc?.toISOString() ?? null,
           tsaMessageImprint: tsaResult?.messageImprint ?? null,
-          tsaInputDigestHex: tsaResult?.messageImprint ?? fileSha256,
-          tsaInputKind,
+          // Issue #8: tsaInputDigestHex only when TSA actually stamped.
+          tsaInputDigestHex:
+            tsaResult?.status === "STAMPED"
+              ? tsaResult.messageImprint ?? null
+              : null,
+          // Same gating for tsaInputKind so the chain does not imply a TSA
+          // accepted-input semantic that did not happen.
+          tsaInputKind: tsaResult?.status === "STAMPED" ? tsaInputKind : null,
           tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
           tsaStatus: tsaResult?.status ?? null,
           tsaFailureReason: tsaResult?.failureReason ?? null,
@@ -860,7 +903,7 @@ const captureMethod =
   );
 
   if (final.retentionTargets.length > 0) {
-    await applyRetentionOrThrow(final.retentionTargets);
+    const retentionResult = await applyRetentionOrThrow(final.retentionTargets);
 
     const primaryTarget = final.retentionTargets[0];
 
@@ -916,25 +959,75 @@ const captureMethod =
           }
         }
 
-        await appendCustodyEvent({
-          evidenceId: final.result.id,
-          eventType: prismaPkg.CustodyEventType.EVIDENCE_LOCKED,
-          atUtc: new Date(),
-          payload: {
-            storageRegion: process.env.S3_REGION?.trim() || null,
-            storageObjectLockMode: lockedMeta.objectLockMode
-              ? String(lockedMeta.objectLockMode)
-              : null,
-            storageObjectLockRetainUntilUtc:
-              lockedMeta.objectLockRetainUntilDate?.toISOString() ?? null,
-            storageObjectLockLegalHoldStatus:
-              lockedMeta.objectLockLegalHoldStatus
-                ? String(lockedMeta.objectLockLegalHoldStatus)
-                : null,
-            itemCount: final.retentionTargets.length,
-            retentionApplied: true,
-          } as prismaPkg.Prisma.InputJsonValue,
-        });
+        // Decide truthfully whether to append EVIDENCE_LOCKED.
+        //
+        // We require ALL of the following to be true:
+        //   1. applyRetentionOrThrow reported at least one target had retention
+        //      actually applied (i.e. Object Lock enabled in the environment
+        //      AND a PutObjectRetention call succeeded).
+        //   2. headObject() reports a non-null objectLockMode on the object.
+        //   3. headObject() reports a future objectLockRetainUntilDate.
+        //
+        // If any of these fail, we append the truthful STORAGE_PROTECTION_UNAVAILABLE
+        // event instead of the misleading EVIDENCE_LOCKED. The verify page
+        // already correctly downgrades the badge in this case; the chain must
+        // not contradict the badge.
+        const lockMode = lockedMeta.objectLockMode
+          ? String(lockedMeta.objectLockMode)
+          : null;
+        const retainUntil = lockedMeta.objectLockRetainUntilDate ?? null;
+        const retentionInForce =
+          retainUntil instanceof Date && retainUntil.getTime() > Date.now();
+
+        const lockTrulyApplied =
+          retentionResult.anyApplied === true &&
+          (lockMode === "COMPLIANCE" || lockMode === "GOVERNANCE") &&
+          retentionInForce;
+
+        if (lockTrulyApplied) {
+          await appendCustodyEvent({
+            evidenceId: final.result.id,
+            eventType: prismaPkg.CustodyEventType.EVIDENCE_LOCKED,
+            atUtc: new Date(),
+            payload: {
+              storageRegion: process.env.S3_REGION?.trim() || null,
+              storageObjectLockMode: lockMode,
+              storageObjectLockRetainUntilUtc:
+                retainUntil?.toISOString() ?? null,
+              storageObjectLockLegalHoldStatus:
+                lockedMeta.objectLockLegalHoldStatus
+                  ? String(lockedMeta.objectLockLegalHoldStatus)
+                  : null,
+              itemCount: final.retentionTargets.length,
+              retentionApplied: true,
+            } as prismaPkg.Prisma.InputJsonValue,
+          });
+        } else {
+          await appendCustodyEvent({
+            evidenceId: final.result.id,
+            eventType:
+              prismaPkg.CustodyEventType.STORAGE_PROTECTION_UNAVAILABLE,
+            atUtc: new Date(),
+            payload: {
+              phase: "storage_protection_unavailable",
+              storageRegion: process.env.S3_REGION?.trim() || null,
+              storageObjectLockMode: lockMode,
+              storageObjectLockRetainUntilUtc:
+                retainUntil?.toISOString() ?? null,
+              storageObjectLockLegalHoldStatus:
+                lockedMeta.objectLockLegalHoldStatus
+                  ? String(lockedMeta.objectLockLegalHoldStatus)
+                  : null,
+              itemCount: final.retentionTargets.length,
+              retentionApplied: false,
+              reason:
+                retentionResult.reason ??
+                (retentionResult.anyApplied
+                  ? "object_metadata_does_not_confirm_lock"
+                  : "object_lock_disabled"),
+            } as prismaPkg.Prisma.InputJsonValue,
+          });
+        }
       } catch (error) {
         const reason =
           error instanceof Error ? error.message : "OBJECT_LOCK_SNAPSHOT_FAILED";

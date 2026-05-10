@@ -1223,11 +1223,16 @@ export default function EvidenceDetailPage() {
                       },
                       {
                         label: "Public anchoring",
+                        // The anchor.published flag indicates the anchor was
+                        // submitted; without a Bitcoin transaction id field on
+                        // this surface we cannot truthfully assert
+                        // "Bitcoin anchoring verified", so we use the more
+                        // conservative published-vs-pending phrasing.
                         value: preservation.anchor?.published
-                          ? "Public anchoring verified"
+                          ? "Anchor publication recorded"
                           : preservation.anchor?.configured
-                            ? "Public anchoring pending"
-                            : "Public anchoring unavailable",
+                            ? "OpenTimestamps proof present; public anchoring pending"
+                            : "OpenTimestamps not configured",
                       },
                       {
                         label: "Report artifact",

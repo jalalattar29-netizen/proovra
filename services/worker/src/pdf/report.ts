@@ -528,7 +528,8 @@ function mapVerificationSourceLabel(value: string | null | undefined): string {
     case "REPORT_GENERATED":
       return "Report generated";
     case "PUBLIC_VERIFY_VIEWED":
-      return "Public verification page viewed";
+      // Legacy. Public hits no longer bump the meaningful verification source.
+      return "Public verification page viewed (legacy)";
     case "TECHNICAL_VERIFICATION_CHECKED":
       return "Technical verification checked";
     default:
@@ -539,17 +540,23 @@ function mapVerificationSourceLabel(value: string | null | undefined): string {
 function mapCustodyEventLabel(eventType: string | null | undefined): string {
   switch (safe(eventType, "").toUpperCase()) {
     case "EVIDENCE_CREATED":
-      return "Evidence created";
+      return "Evidence record created";
     case "IDENTITY_SNAPSHOT_RECORDED":
-      return "Identity snapshot recorded";
+      return "Identity snapshot recorded at intake";
+    case "REPORT_IDENTITY_CONTEXT_RECORDED":
+      return "Identity context recorded at report generation";
     case "UPLOAD_STARTED":
-      return "Upload started";
+      return "Upload authorization recorded (legacy label)";
+    case "UPLOAD_AUTHORIZED":
+      return "Upload authorization recorded";
     case "UPLOAD_COMPLETED":
-      return "Upload completed";
+      return "Upload completion confirmed";
     case "SIGNATURE_APPLIED":
       return "Digital signature applied";
     case "TIMESTAMP_APPLIED":
-      return "Trusted timestamp applied";
+      return "Trusted timestamp token recorded";
+    case "TIMESTAMP_FAILED":
+      return "Trusted timestamp not obtained";
     case "REPORT_GENERATED":
       return "Report generated";
     case "REVIEW_READY":
@@ -565,7 +572,11 @@ function mapCustodyEventLabel(eventType: string | null | undefined): string {
     case "EVIDENCE_PURGED":
       return "Evidence purged";
     case "OTS_APPLIED":
-      return "OpenTimestamps update";
+      return "OpenTimestamps update recorded";
+    case "OTS_FAILED":
+      return "OpenTimestamps provider returned failure";
+    case "OTS_ATTEMPT_ERROR":
+      return "OpenTimestamps attempt errored";
     case "TECHNICAL_VERIFICATION_CHECKED":
       return "Technical verification checked";
     case "VERIFY_VIEWED":
@@ -577,7 +588,9 @@ function mapCustodyEventLabel(eventType: string | null | undefined): string {
     case "VERIFICATION_PACKAGE_DOWNLOADED":
       return "Verification package downloaded";
     case "EVIDENCE_LOCKED":
-      return "Evidence locked";
+      return "Object Lock retention applied to storage";
+    case "STORAGE_PROTECTION_UNAVAILABLE":
+      return "Storage protection unavailable (Object Lock not applied)";
     case "EVIDENCE_ARCHIVED":
       return "Evidence archived";
     case "EVIDENCE_RESTORED":
@@ -599,30 +612,48 @@ function mapTimestampStatusPublicLabel(
     case "GRANTED":
     case "VERIFIED":
     case "SUCCEEDED":
-      return "Trusted timestamp recorded";
+      return "Trusted timestamp token recorded";
     case "PENDING":
+      return "Trusted timestamp pending";
     case "UNAVAILABLE":
-      return "Timestamp pending";
+      return "Trusted timestamp unavailable";
     case "FAILED":
-      return "Timestamp failed";
+      return "Trusted timestamp attempt failed";
     default:
-      return "Timestamp not recorded";
+      return "Trusted timestamp not configured";
   }
 }
 
 function mapOtsStatusPublicLabel(status: string | null | undefined): string {
+  // Truthful label without txid context. Use mapOtsStatusPublicLabelWithTxid()
+  // when the Bitcoin transaction id is known.
   switch (safe(status, "").toUpperCase()) {
     case "ANCHORED":
-      return "Public anchoring recorded";
+      return "OpenTimestamps proof present; public anchoring pending";
     case "PENDING":
-      return "Anchoring pending";
+      return "OpenTimestamps proof present; public anchoring pending";
     case "FAILED":
-      return "Anchoring failed";
+      return "OpenTimestamps anchoring failed";
     case "DISABLED":
-      return "Anchoring disabled";
+      return "OpenTimestamps unavailable";
     default:
-      return "Anchoring not recorded";
+      return "OpenTimestamps not configured";
   }
+}
+
+function mapOtsStatusPublicLabelWithTxid(params: {
+  status: string | null | undefined;
+  bitcoinTxid: string | null | undefined;
+}): string {
+  const status = safe(params.status, "").toUpperCase();
+  const hasTxid =
+    typeof params.bitcoinTxid === "string" &&
+    /^[a-f0-9]{64}$/i.test(params.bitcoinTxid.trim());
+
+  if (status === "ANCHORED" && hasTxid) {
+    return "Bitcoin anchoring verified";
+  }
+  return mapOtsStatusPublicLabel(params.status);
 }
 
 function mapObjectLockModePublicLabel(mode: string | null | undefined): string {
@@ -2332,9 +2363,12 @@ function buildExecutiveRows(
   add("Primary Content Kind", mapEvidenceAssetKindLabel(contentSummary.primaryKind));
   add("MIME Type", safe(evidence.mimeType));
   add("Total Content Size", safe(contentSummary.totalSizeDisplay));
-  add("Captured (UTC)", safe(evidence.capturedAtUtc));
-  add("Uploaded (UTC)", safe(evidence.uploadedAtUtc));
-  add("Signed (UTC)", safe(evidence.signedAtUtc));
+  // Issue #6 timestamp provenance: distinguish server clocks from any
+  // device-witnessed time. The trustworthy "this digest existed at or before
+  // X" signal is the TSA token, not these server clock values.
+  add("Recorded at intake (server UTC)", safe(evidence.capturedAtUtc));
+  add("Upload completion confirmed (server UTC)", safe(evidence.uploadedAtUtc));
+  add("Signed (server UTC)", safe(evidence.signedAtUtc));
   add("Integrity Verified At (UTC)", safe(evidence.recordedIntegrityVerifiedAtUtc));
   add("Storage Protection", mapObjectLockModePublicLabel(evidence.storageObjectLockMode));
   add("Retention Until (UTC)", safe(evidence.storageObjectLockRetainUntilUtc));

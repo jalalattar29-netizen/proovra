@@ -465,7 +465,11 @@ function summarizePayloadForReport(
     case "EVIDENCE_CREATED":
       return "Evidence record created.";
 
-    case "UPLOAD_STARTED": {
+    case "UPLOAD_STARTED":
+    case "UPLOAD_AUTHORIZED": {
+      // Both events represent the same intake moment (legacy vs current name).
+      // The honest meaning is: a presigned upload URL was issued / the storage
+      // location was reserved. Bytes are NOT yet confirmed at the storage layer.
       const uploadMode = getReviewerUploadModeLabel({
         itemCount: context?.itemCount ?? null,
         structure: context?.structure ?? null,
@@ -473,7 +477,10 @@ function summarizePayloadForReport(
           normalizePayloadPrimitive(obj.mode) ??
           normalizePayloadPrimitive(obj.uploadKind),
       });
-  return ["Upload session started", uploadMode ? `Mode: ${uploadMode}` : null]
+  return [
+    "Upload authorization recorded (presigned URL issued; bytes not yet confirmed)",
+    uploadMode ? `Mode: ${uploadMode}` : null,
+  ]
     .filter(Boolean)
     .join(" • ");
 }
@@ -685,7 +692,16 @@ case "TIMESTAMP_FAILED": {
       return "Protected evidence file accessed.";
 
     case "EVIDENCE_LOCKED":
-      return "Evidence record locked.";
+      return "Object Lock retention applied to storage. Storage object cannot be altered or deleted before the retention deadline expires.";
+
+    case "STORAGE_PROTECTION_UNAVAILABLE":
+      return "Storage protection was attempted, but Object Lock retention was not actually applied. Treat storage immutability as not asserted for this record.";
+
+    case "OTS_ATTEMPT_ERROR":
+      return "An OpenTimestamps attempt was initiated but errored before a provider status was available.";
+
+    case "REPORT_IDENTITY_CONTEXT_RECORDED":
+      return "Identity context re-snapshotted at report generation for the report's reviewer audit context.";
 
     case "EVIDENCE_ARCHIVED":
       return "Evidence record archived.";

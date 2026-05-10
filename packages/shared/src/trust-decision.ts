@@ -154,26 +154,37 @@ export function getTrustNarrative(
     | "signals"
   >
 ): string {
-  if (decision.verdictLabel === "Strongly verified") {
+  // Match by verdict tier (label was softened — "Strongly verified" → "Strong
+  // recorded integrity"; "Verified" → "Recorded integrity verified"; etc.).
+  if (
+    decision.verdictLabel === "Strongly verified" ||
+    decision.verdictLabel === "Strong recorded integrity"
+  ) {
     if (hasPendingPublicAnchoringSignal(decision)) {
-      return "Recorded integrity state is strongly verified; public anchoring is still pending and should be rechecked if independent public anchoring is required.";
+      return "Recorded integrity state is strong; public anchoring is still pending and should be rechecked if independent public anchoring is required.";
     }
 
     return decision.degradedButUsable || decision.failedSignals > 0
-      ? "Recorded integrity state is strongly verified. One or more supporting verification signals may still require follow-up."
-      : "Recorded integrity state is strongly verified. No post-submission integrity mismatch was detected across the recorded verification layers.";
+      ? "Recorded integrity state is strong. One or more supporting verification signals may still require follow-up."
+      : "Recorded integrity state is strong. No post-submission integrity mismatch was detected across the recorded verification layers.";
   }
 
-  if (decision.verdictLabel === "Verified") {
+  if (
+    decision.verdictLabel === "Verified" ||
+    decision.verdictLabel === "Recorded integrity verified"
+  ) {
     if (hasPendingPublicAnchoringSignal(decision)) {
-      return "Recorded integrity state is verified; public anchoring is still pending and should be rechecked if independent public anchoring is required.";
+      return "Recorded integrity is verified; public anchoring is still pending and should be rechecked if independent public anchoring is required.";
     }
 
-    return "Recorded integrity state is verified. No post-submission integrity mismatch was detected across the recorded verification layers reviewed here.";
+    return "Recorded integrity is verified. No post-submission integrity mismatch was detected across the recorded verification layers reviewed here.";
   }
 
-  if (decision.verdictLabel === "Verified with limitations") {
-    return "Recorded integrity state is verified with limitations. Core integrity materials are recorded, but one or more supporting verification layers still require follow-up.";
+  if (
+    decision.verdictLabel === "Verified with limitations" ||
+    decision.verdictLabel === "Recorded integrity verified with limitations"
+  ) {
+    return "Recorded integrity is verified with limitations. Core integrity materials are recorded, but one or more supporting verification layers still require follow-up.";
   }
 
   if (decision.verdictLabel === "Insufficient verification") {
@@ -731,7 +742,7 @@ function buildAnchoringSignal(
       status: "passed",
       points: 10,
       maxPoints: 10,
-      summary: "Public anchoring verified",
+      summary: "Bitcoin anchoring verified",
       detail:
         "Public anchoring metadata includes defensible public evidence such as a valid Bitcoin transaction id, receipt, public URL, or anchored publication metadata.",
     });
@@ -757,7 +768,7 @@ function buildAnchoringSignal(
       status: "pending",
       points: 6,
       maxPoints: 10,
-      summary: "OTS proof present, public anchoring pending",
+      summary: "OpenTimestamps proof present; public anchoring pending",
       detail:
         "OpenTimestamps proof material is present, but Bitcoin/public anchoring has not finalized yet.",
     });
@@ -1079,36 +1090,40 @@ export function buildEvidenceTrustDecision(
     title = "Insufficient verification materials";
     relianceLevel = "low";
   } else if (score >= 90 && failedSignals === 0 && corePassed) {
+    // Wording softened from "Strongly verified" so the headline cannot be
+    // misread as a claim about authorship, factual truth, or admissibility.
+    // The verdict enum value is preserved for backward compatibility with
+    // older records and downstream consumers.
     verdict = "STRONGLY_VERIFIED";
     level = "strong";
     tone = "success";
-    verdictLabel = "Strongly verified";
+    verdictLabel = "Strong recorded integrity";
     shortLabel = "Strong";
-    title = "Strong verification state";
+    title = "Strong recorded-integrity state";
     relianceLevel = "high";
   } else if (score >= 78 && corePassed) {
     verdict = "VERIFIED";
     level = "standard";
     tone = "success";
-    verdictLabel = "Verified";
+    verdictLabel = "Recorded integrity verified";
     shortLabel = "Verified";
-    title = "Verified evidence state";
+    title = "Recorded integrity verified";
     relianceLevel = "high";
   } else if (score >= 78 && !corePassed) {
     verdict = "PARTIALLY_VERIFIED";
     level = "partial";
     tone = "warning";
-    verdictLabel = "Verified with limitations";
+    verdictLabel = "Recorded integrity verified with limitations";
     shortLabel = "Limited";
-    title = "Verified evidence state with limitations";
+    title = "Recorded integrity verified with limitations";
     relianceLevel = "medium";
   } else if (score >= 62) {
     verdict = "PARTIALLY_VERIFIED";
     level = "partial";
     tone = "warning";
-    verdictLabel = "Verified with limitations";
+    verdictLabel = "Recorded integrity verified with limitations";
     shortLabel = "Limited";
-    title = "Verified evidence state with limitations";
+    title = "Recorded integrity verified with limitations";
     relianceLevel = "medium";
   } else {
     verdict = "REVIEW_REQUIRED";

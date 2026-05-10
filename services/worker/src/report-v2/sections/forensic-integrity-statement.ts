@@ -56,7 +56,7 @@ if (
   }
 
   if (normalized.includes("signature")) {
-    return "Validates authenticity of the recorded evidence package.";
+    return "Validates signature and integrity consistency of the recorded evidence package.";
   }
 
   if (normalized.includes("opentimestamp")) {
@@ -64,7 +64,7 @@ if (
 }
 
   if (normalized.includes("timestamp")) {
-    return "Establishes existence of the evidence at a specific point in time.";
+    return "Supports verification that the recorded digest existed at or before the referenced timestamp.";
   }
 
   if (normalized.includes("custody")) {

@@ -63,6 +63,125 @@ function inferEvidenceTypeFromMimeType(mimeType: string | null | undefined): Evi
   return "DOCUMENT";
 }
 
+/**
+ * Issue #5 — AI privacy: filenames CAN carry highly sensitive information
+ * (patient names, legal case names, police references, etc.). PROOVRA must
+ * not forward raw filenames to the OpenAI provider. The provider receives
+ * a redacted payload that preserves analytical signal (kind, mime category,
+ * size bucket, mapping, client signals) but drops the literal filename.
+ *
+ * Local (server-side, in-process) deterministic logic and user-facing flag
+ * detail strings may still reference the filename since they do not leave
+ * PROOVRA's trust boundary.
+ */
+function redactFileName(originalName: string | null | undefined): string {
+  // We deliberately surface a generic identifier so the model's downstream
+  // text never echoes the original filename back to the user.
+  return "redacted-filename";
+}
+
+function buildExtensionCategory(fileName: string | null | undefined): string {
+  if (typeof fileName !== "string") return "unknown";
+  const idx = fileName.lastIndexOf(".");
+  if (idx < 0 || idx === fileName.length - 1) return "unknown";
+  const ext = fileName.slice(idx + 1).toLowerCase();
+  // Only return the extension shape (e.g., "ext-3char") rather than the raw
+  // extension string, to avoid leaking unusual extensions that themselves
+  // could be sensitive (".john-doe-medical").
+  if (!/^[a-z0-9]{1,8}$/.test(ext)) return "unusual";
+  if (["jpg", "jpeg", "png", "gif", "webp", "heic", "heif"].includes(ext))
+    return "image";
+  if (["mp4", "mov", "avi", "mkv", "webm"].includes(ext)) return "video";
+  if (["mp3", "wav", "m4a", "ogg", "flac", "aac"].includes(ext)) return "audio";
+  if (["pdf"].includes(ext)) return "pdf";
+  if (["doc", "docx", "rtf", "txt", "md"].includes(ext)) return "document";
+  if (["xls", "xlsx", "csv"].includes(ext)) return "spreadsheet";
+  if (["ppt", "pptx"].includes(ext)) return "presentation";
+  if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) return "archive";
+  return "other";
+}
+
+function bucketSizeBytes(sizeBytes: number | null | undefined): string {
+  const n = typeof sizeBytes === "number" && Number.isFinite(sizeBytes) ? sizeBytes : 0;
+  if (n <= 0) return "empty";
+  if (n < 100 * 1024) return "tiny_lt_100KB";
+  if (n < 1024 * 1024) return "small_lt_1MB";
+  if (n < 10 * 1024 * 1024) return "medium_lt_10MB";
+  if (n < 100 * 1024 * 1024) return "large_lt_100MB";
+  if (n < 1024 * 1024 * 1024) return "very_large_lt_1GB";
+  return "massive_gt_1GB";
+}
+
+type RedactedCaptureItem = {
+  id: string;
+  itemLabel: string;
+  fileName: string;
+  mimeType: string;
+  extensionCategory: string;
+  sizeBucket: string;
+  checklistStepId: string | null;
+  role?: string;
+  sourceLabel?: string;
+  clientSignals?: CaptureSessionItem["clientSignals"];
+};
+
+function buildRedactedItems(
+  items: CaptureSessionItem[]
+): RedactedCaptureItem[] {
+  return items.map((item, index) => ({
+    id: item.id,
+    itemLabel: `Item ${index + 1}`,
+    fileName: redactFileName(item.fileName),
+    mimeType: item.mimeType,
+    extensionCategory: buildExtensionCategory(item.fileName),
+    sizeBucket: bucketSizeBytes(item.sizeBytes),
+    checklistStepId: item.checklistStepId ?? null,
+    role: item.role,
+    sourceLabel: item.sourceLabel,
+    clientSignals: item.clientSignals,
+  }));
+}
+
+function redactSessionPayloadForProvider(
+  payload: CaptureSessionReviewPayload
+): {
+  collectionPlan: CaptureCollectionPlan;
+  planMode: "FLEXIBLE" | "CHECKLIST_REQUIRED";
+  useLocation: boolean;
+  privacyNotice: string;
+  items: RedactedCaptureItem[];
+} {
+  return {
+    collectionPlan: payload.collectionPlan,
+    planMode: payload.planMode,
+    useLocation: payload.useLocation,
+    privacyNotice:
+      "Filenames have been redacted. Reference items by itemLabel or id. Do not invent filenames.",
+    items: buildRedactedItems(payload.items),
+  };
+}
+
+function redactItemPayloadForProvider(
+  payload: CaptureItemReviewPayload
+): {
+  collectionPlan: CaptureCollectionPlan;
+  planMode: "FLEXIBLE" | "CHECKLIST_REQUIRED";
+  useLocation: boolean;
+  privacyNotice: string;
+  selectedStep: CapturePlanStep;
+  item: RedactedCaptureItem;
+} {
+  return {
+    collectionPlan: payload.collectionPlan,
+    planMode: payload.planMode,
+    useLocation: payload.useLocation,
+    privacyNotice:
+      "Filenames have been redacted. Reference the item by itemLabel or id. Do not invent filenames.",
+    selectedStep: payload.selectedStep,
+    item: buildRedactedItems([payload.item])[0]!,
+  };
+}
+
 function isCloseUpStep(step: CapturePlanStep): boolean {
   return /close[-_ ]?up|close-up|close up/i.test(step.id) || /close[-_ ]?up/i.test(step.title);
 }
@@ -367,9 +486,11 @@ export class AiCaptureService {
       };
     }
 
+// Redacted payload for the provider — see redactSessionPayloadForProvider
+// for the privacy rationale (Issue #5: never send raw filenames to AI).
 const providerResult = await this.provider.run(
   AiTask.CAPTURE_SESSION_REVIEW,
-  payload
+  redactSessionPayloadForProvider(payload)
 );
 
 if (providerResult.status === "ok") {
@@ -415,9 +536,11 @@ return {
       };
     }
 
+// Redacted payload for the provider — see redactItemPayloadForProvider
+// for the privacy rationale (Issue #5: never send raw filenames to AI).
 const providerResult = await this.provider.run(
 AiTask.CAPTURE_ITEM_REVIEW,
-payload
+redactItemPayloadForProvider(payload)
 );
 
 if (providerResult.status === "ok") {

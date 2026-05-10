@@ -42,8 +42,15 @@ model Evidence {
   organizationNameSnapshot          String?             @map("organization_name_snapshot") @db.VarChar(180)
   organizationVerifiedSnapshot      Boolean?            @map("organization_verified_snapshot")
   recordedIntegrityVerifiedAtUtc    DateTime?           @map("recorded_integrity_verified_at_utc") @db.Timestamptz(6)
+  // Reserved for MEANINGFUL technical verifications (report generation, an
+  // explicit reviewer technical-verification action). Not bumped by anonymous
+  // public verify-page page views — those are tracked separately on
+  // lastPublicVerifyViewAtUtc to keep analytics out of the forensic surface.
   lastVerifiedAtUtc                 DateTime?           @map("last_verified_at_utc") @db.Timestamptz(6)
   lastVerifiedSource                VerificationSource? @map("last_verified_source")
+  // Analytics-only timestamp of the last anonymous /public/verify hit. Updating
+  // this does NOT imply a meaningful technical verification by a reviewer.
+  lastPublicVerifyViewAtUtc         DateTime?           @map("last_public_verify_view_at_utc") @db.Timestamptz(6)
   verificationPackageGeneratedAtUtc DateTime?           @map("verification_package_generated_at_utc") @db.Timestamptz(6)
   verificationPackageVersion        Int?                @map("verification_package_version")
   verificationPackageMetadata       Json?               @map("verification_package_metadata")
@@ -143,6 +150,7 @@ model Evidence {
   @@index([uploadedByUserId])
   @@index([lastAccessedByUserId])
   @@index([lastAccessedAtUtc])
+  @@index([lastPublicVerifyViewAtUtc])
   @@index([verificationStatus])
   @@index([recordedIntegrityVerifiedAtUtc])
   @@index([lastVerifiedAtUtc])
@@ -1369,7 +1377,16 @@ enum OrganizationVerificationState {
 
 enum CustodyEventType {
   EVIDENCE_CREATED
+  // Issued by the API at intake (presign authorized) but BEFORE any bytes
+  // are confirmed at the storage layer. Forensically: the system promised
+  // a place for the upload to land; it does not assert that bytes moved.
+  // Kept for backward compatibility with old records; new records issued
+  // at presign use UPLOAD_AUTHORIZED instead.
   UPLOAD_STARTED
+  // Renamed-truthful variant of UPLOAD_STARTED. Written when a presigned URL
+  // is issued / the intake record is created. Means: the system authorized
+  // an upload to a specific bucket/key; it does NOT mean bytes were uploaded.
+  UPLOAD_AUTHORIZED
   UPLOAD_COMPLETED
   EVIDENCE_COMPLETED
   SIGNATURE_APPLIED
@@ -1384,10 +1401,18 @@ enum CustodyEventType {
   CERTIFICATION_ATTESTED
   CERTIFICATION_REVOKED
   IDENTITY_SNAPSHOT_RECORDED
+  // Identity snapshot recorded at report generation time, separately from the
+  // intake-time IDENTITY_SNAPSHOT_RECORDED. Distinct event so two snapshots
+  // for the same record do not look like duplicate / tampered audit history.
+  REPORT_IDENTITY_CONTEXT_RECORDED
   ANCHOR_PUBLISHED
   ANCHOR_FAILED
   OTS_APPLIED
   OTS_FAILED
+  // Written when an OTS attempt was initiated but threw before a status was
+  // available (e.g., binary missing, network failure pre-call). Distinct from
+  // OTS_FAILED, which carries provider-returned failure semantics.
+  OTS_ATTEMPT_ERROR
   EVIDENCE_VIEWED
   EVIDENCE_DOWNLOADED
   EVIDENCE_DELETED
@@ -1397,6 +1422,11 @@ enum CustodyEventType {
   VERIFY_VIEWED
   REPORT_DOWNLOADED
   EVIDENCE_LOCKED
+  // Truthful counterpart of EVIDENCE_LOCKED used when retention was attempted
+  // but Object Lock is disabled / unavailable / did not apply. Replaces the
+  // prior practice of appending EVIDENCE_LOCKED unconditionally on the
+  // post-completion path even when no lock was actually written.
+  STORAGE_PROTECTION_UNAVAILABLE
   EVIDENCE_CLAIMED
   EVIDENCE_ARCHIVED
   EVIDENCE_RESTORED

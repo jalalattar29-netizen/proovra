@@ -59,6 +59,24 @@ export function normalizeOtsTone(status: string | null | undefined): Tone {
   return "neutral";
 }
 
+/**
+ * Truthful Bitcoin-anchoring tone: returns "success" only when the OTS proof
+ * is ANCHORED AND a valid Bitcoin transaction id is recorded. Without the
+ * txid the public-anchoring step is incomplete, so the tone is "warning".
+ */
+function isValidBitcoinTxid(value: string | null | undefined): boolean {
+  return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value.trim());
+}
+
+export function normalizeBitcoinAnchorTone(params: {
+  status: string | null | undefined;
+  bitcoinTxid: string | null | undefined;
+}): Tone {
+  const baseTone = normalizeOtsTone(params.status);
+  if (baseTone !== "success") return baseTone;
+  return isValidBitcoinTxid(params.bitcoinTxid) ? "success" : "warning";
+}
+
 export function normalizeStorageTone(
   immutable: boolean | null | undefined,
   mode: string | null | undefined,
@@ -161,22 +179,33 @@ export function buildTimestampCallout(evidence: ReportEvidence): CalloutModel {
 }
 
 export function buildOtsCallout(evidence: ReportEvidence): CalloutModel {
-  const tone = normalizeOtsTone(evidence.otsStatus);
+  // Tone is txid-aware: "Bitcoin anchoring verified" only when the OTS proof
+  // is ANCHORED AND a valid Bitcoin transaction id is recorded. ANCHORED
+  // without txid is treated as still-pending public anchoring (warning tone).
+  const tone = normalizeBitcoinAnchorTone({
+    status: evidence.otsStatus,
+    bitcoinTxid: evidence.otsBitcoinTxid,
+  });
+  const baseStatusTone = normalizeOtsTone(evidence.otsStatus);
 
   return {
     title:
       tone === "success"
-        ? "Public anchoring verified"
+        ? "Bitcoin anchoring verified"
         : tone === "warning"
-          ? "OTS proof present, public anchoring pending"
+          ? baseStatusTone === "success"
+            ? "OpenTimestamps proof present; public anchoring pending"
+            : "OpenTimestamps proof present; public anchoring pending"
           : tone === "danger"
-            ? "Public anchoring failed"
-            : "Public anchoring unavailable",
+            ? "OpenTimestamps anchoring failed"
+            : "OpenTimestamps unavailable",
     body:
       tone === "success"
-        ? "An OpenTimestamps proof is recorded in an anchored state and may provide additional independent public anchoring evidence."
+        ? "An OpenTimestamps proof is recorded with a Bitcoin transaction reference. This supports independent public anchoring evidence."
         : tone === "warning"
-          ? "OpenTimestamps proof material is present, but Bitcoin/public anchoring has not finalized yet."
+          ? baseStatusTone === "success"
+            ? "An OpenTimestamps proof is recorded, but the Bitcoin transaction reference is not yet attached. Bitcoin anchoring will be confirmed after a separate upgrade pass."
+            : "OpenTimestamps proof material is present, but public anchoring has not finalized yet."
           : tone === "danger"
             ? `OpenTimestamps processing reported a failure state.${safe(
                 evidence.otsFailureReason,

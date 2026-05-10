@@ -1356,19 +1356,36 @@ function mapTimestampStatusLabel(status: string | null | undefined): string {
 }
 
 function mapOtsStatusLabel(status: string | null | undefined): string {
+  // Honest base label: "ANCHORED" alone does NOT mean Bitcoin anchoring is
+  // confirmed (Bitcoin transaction id may attach later via the OTS upgrade
+  // pass). Use mapOtsStatusLabelWithTxid() in surfaces that have the txid.
   const normalized = normalizeOtsStatus(status);
   switch (normalized) {
     case "ANCHORED":
-      return "Public anchoring verified";
+      return "OpenTimestamps proof present; public anchoring pending";
     case "PENDING":
-      return "OTS proof present, public anchoring pending";
+      return "OpenTimestamps proof present; public anchoring pending";
     case "FAILED":
-      return "Public anchoring failed";
+      return "OpenTimestamps anchoring failed";
     case "DISABLED":
-      return "Public anchoring unavailable";
+      return "OpenTimestamps unavailable";
     default:
-      return "Public anchoring unavailable";
+      return "OpenTimestamps not configured";
   }
+}
+
+function mapOtsStatusLabelWithTxid(params: {
+  status: string | null | undefined;
+  bitcoinTxid: string | null | undefined;
+}): string {
+  const normalized = normalizeOtsStatus(params.status);
+  const hasTxid =
+    typeof params.bitcoinTxid === "string" &&
+    /^[a-f0-9]{64}$/i.test(params.bitcoinTxid.trim());
+  if (normalized === "ANCHORED" && hasTxid) {
+    return "Bitcoin anchoring verified";
+  }
+  return mapOtsStatusLabel(params.status);
 }
 
 function summarizePublicPayload(
@@ -3113,15 +3130,34 @@ primaryContentLabel: buildPrimaryContentLabel(
     organizationName: params.evidence.organizationNameSnapshot ?? null,
     organizationVerified: params.evidence.organizationVerifiedSnapshot ?? null,
     createdAt: params.evidence.createdAt.toISOString(),
+    // Issue #6 timestamp provenance: surface what each timestamp actually
+    // means, not just its raw value.
+    //   - capturedAtUtc is the SERVER-recorded intake time. It is NOT proof
+    //     of when the underlying media was captured by a device. The
+    //     deviceTimeIso field carries the (untrusted) client-provided device
+    //     clock when available.
+    //   - uploadedAtUtc is the SERVER-recorded completion time, set after
+    //     parts are verified at S3 (headObject + sha256). It is NOT a TSA
+    //     timestamp.
+    //   - signedAtUtc is the SERVER-recorded signing time of the canonical
+    //     fingerprint.
+    //   - The trustworthy "this digest existed at or before X" signal is the
+    //     TSA token (when present), not these three server-clock values.
     capturedAtUtc: params.evidence.capturedAtUtc
       ? params.evidence.capturedAtUtc.toISOString()
       : null,
+    capturedAtUtcLabel: "Server-recorded intake time",
+    capturedAtUtcProvenance: "server_clock",
     uploadedAtUtc: params.evidence.uploadedAtUtc
       ? params.evidence.uploadedAtUtc.toISOString()
       : null,
+    uploadedAtUtcLabel: "Server-recorded upload completion time",
+    uploadedAtUtcProvenance: "server_clock",
     signedAtUtc: params.evidence.signedAtUtc
       ? params.evidence.signedAtUtc.toISOString()
       : null,
+    signedAtUtcLabel: "Server-recorded signing time",
+    signedAtUtcProvenance: "server_clock",
     recordedIntegrityVerifiedAtUtc:
       params.evidence.recordedIntegrityVerifiedAtUtc
         ? params.evidence.recordedIntegrityVerifiedAtUtc.toISOString()
@@ -3521,13 +3557,23 @@ function buildSourceContext(params: {
     importedUpload: sourceType === "imported_upload",
     nativeCapture: sourceType === "native_capture",
     folderUpload: sourceType === "folder_upload",
+    // Issue #6 timestamp provenance (capture context surface).
+    // deviceTimeIso is a CLIENT-supplied device/browser clock value at intake.
+    // It is NOT verified server-side and must not be relied on as proof of
+    // actual capture time. capturedAtUtc and uploadedAtUtc are server clocks.
     deviceTimeIso: params.evidence.deviceTimeIso ?? null,
+    deviceTimeIsoLabel: "Client-reported device clock at intake (unverified)",
+    deviceTimeIsoProvenance: "client_reported",
     capturedAtUtc: params.evidence.capturedAtUtc
       ? params.evidence.capturedAtUtc.toISOString()
       : null,
+    capturedAtUtcLabel: "Server-recorded intake time",
+    capturedAtUtcProvenance: "server_clock",
     uploadedAtUtc: params.evidence.uploadedAtUtc
       ? params.evidence.uploadedAtUtc.toISOString()
       : null,
+    uploadedAtUtcLabel: "Server-recorded upload completion time",
+    uploadedAtUtcProvenance: "server_clock",
     createdAt: params.evidence.createdAt.toISOString(),
     locationIncluded,
     sourceLabels: params.parts
@@ -8579,6 +8625,42 @@ action: "evidence.certification_requested",
       },
     });
 
+    // Issue #4: Public verify must reject pre-finalized records.
+    //
+    // Before finalization the record has no fingerprint, no signature, no
+    // verification artifacts. Returning a verify response in those states
+    // would let UUID enumeration enrich the record, mislead viewers about
+    // verification state, and produce an apparently-valid verify response
+    // for an empty record. Treat as not-yet-available.
+    if (!evidence) {
+      return reply.code(404).send({ message: "Evidence not found" });
+    }
+    {
+      const evidenceStatus = evidence.status as
+        | prismaPkg.EvidenceStatus
+        | null;
+      const isFinalized =
+        evidenceStatus === EvidenceStatus.SIGNED ||
+        evidenceStatus === EvidenceStatus.REPORTED;
+      if (!isFinalized) {
+        auditVerificationAction(req, {
+          userId: null,
+          action: "verification.page_opened",
+          resourceId: id,
+          metadata: {
+            outcome: "not_finalized",
+            status: evidenceStatus ?? null,
+          },
+        });
+        return reply.code(409).send({
+          code: "EVIDENCE_NOT_FINALIZED",
+          message:
+            "This evidence record has not been finalized yet. A verification response is not available for pre-finalized records.",
+          status: evidenceStatus ?? null,
+        });
+      }
+    }
+
     const [latestCustodianCertification, latestQualifiedPersonCertification] =
       await Promise.all([
         prisma.evidenceCertification.findFirst({
@@ -9119,74 +9201,67 @@ const overallIntegrity =
     const verifiedAt = new Date();
     const responseVerificationStatus = evidence.verificationStatus ?? null;
 
-await prisma.$transaction([
-  prisma.evidence.update({
-    where: { id },
-    data: {
-      lastVerifiedAtUtc: verifiedAt,
-      lastVerifiedSource: VerificationSource.PUBLIC_VERIFY_VIEWED,
-    },
-  }),
-  prisma.verificationView.create({
-    data: {
-      evidenceId: id,
-      viewerType: VerificationViewerType.PUBLIC,
-      viewerUserId: null,
-      accessMode: "public_verify",
-      ipAddress: req.ip,
-      userAgent: readUserAgent(req),
-    },
-  }),
-]);
+    // Public-verify post-processing.
+    //
+    // Issue #2 (sampling removed) + Issue #4 (gate on finalized status) +
+    // Issue #12 (separate analytics from forensic verification state).
+    //
+    // - Anonymous public hits NEVER write custody events. The forensic chain
+    //   should not contain entries that imply a meaningful technical
+    //   verification was performed by anyone with reviewer authority. The
+    //   verification_views row + the new lastPublicVerifyViewAtUtc column
+    //   carry the analytics signal cleanly.
+    // - lastVerifiedAtUtc is reserved for meaningful verification events
+    //   (report generation, explicit reviewer technical-verification action).
+    //   It is NOT bumped by public-verify hits anymore.
+    // - For pre-finalized records (status not in SIGNED/REPORTED), we still
+    //   record the analytics view but do NOT update lastVerified* fields and
+    //   do NOT include the analytics view if the record cannot meaningfully
+    //   be verified yet. The verify response itself still serves the public
+    //   page (which explains the not-yet-finalized state honestly).
+    const evidenceStatusForGate = evidence.status as
+      | prismaPkg.EvidenceStatus
+      | null;
+    const isFinalizedForVerify =
+      evidenceStatusForGate === EvidenceStatus.SIGNED ||
+      evidenceStatusForGate === EvidenceStatus.REPORTED;
 
-const shouldWritePublicVerifyCustodyEvent = Math.random() < 0.2;
+    if (isFinalizedForVerify) {
+      await prisma.$transaction([
+        prisma.evidence.update({
+          where: { id },
+          data: {
+            // Analytics-only timestamp — does NOT imply a meaningful technical
+            // verification by a reviewer. lastVerifiedAtUtc is intentionally
+            // not touched here.
+            lastPublicVerifyViewAtUtc: verifiedAt,
+          },
+        }),
+        prisma.verificationView.create({
+          data: {
+            evidenceId: id,
+            viewerType: VerificationViewerType.PUBLIC,
+            viewerUserId: null,
+            accessMode: "public_verify",
+            ipAddress: req.ip,
+            userAgent: readUserAgent(req),
+          },
+        }),
+      ]);
+    }
 
-if (shouldWritePublicVerifyCustodyEvent) {
-  void appendCustodyEvent({
-    evidenceId: id,
-    eventType: prismaPkg.CustodyEventType.TECHNICAL_VERIFICATION_CHECKED,
-    payload: {
-      source: "public_verify",
-      overallIntegrity,
-      canonicalHashMatches,
-      signatureValid,
-      custodyChainValid: custodyChain.valid,
-      custodyChainMode: custodyChain.mode,
-      custodyChainFailureReason: custodyChain.reason,
-      timestampDigestMatches,
-      timestampStatus: evidence.tsaStatus,
-      timestampAvailable: timestampStatusIsPositive,
-      timestampDigestCheckConclusive: timestampDigestMatches !== null,
-      otsHashMatches,
-      verificationStatus: responseVerificationStatus,
-      accessPolicyMode: publicVerifyAccessPolicy.mode,
-      sampled: true,
-    },
-    ip: req.ip,
-    userAgent: req.headers["user-agent"],
-  }).catch(() => null);
-
-  void appendCustodyEvent({
-    evidenceId: id,
-    eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
-    payload: {
-      accessMode: "public_verify",
-      sampled: true,
-    },
-    ip: req.ip,
-    userAgent: req.headers["user-agent"],
-  }).catch(() => null);
-}
-auditVerificationAction(req, {
-  userId: null,
-  action: "verification.page_opened",
-  resourceId: id,
-  metadata: {
-    evidenceId: id,
-    overallIntegrity,
-    custodyEventSampled: shouldWritePublicVerifyCustodyEvent,
-  },
-});
+    auditVerificationAction(req, {
+      userId: null,
+      action: "verification.page_opened",
+      resourceId: id,
+      metadata: {
+        evidenceId: id,
+        overallIntegrity,
+        finalizedForVerify: isFinalizedForVerify,
+        // Sampling removed: public verify never writes custody events.
+        custodyEventSampled: false,
+      },
+    });
 
     const custodyDisplayContext = {
       itemCount: content.summary.itemCount,

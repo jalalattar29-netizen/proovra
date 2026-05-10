@@ -319,6 +319,13 @@ tsaMessageImprint?: string | null;
   title?: string | null;
   status?: string | null;
   trustDecision?: VerifyTrustDecision | null;
+  // Issue #7: snapshot-vs-live divergence flag from the API. When the report
+  // snapshot trust decision differs from a live recomputation, surface a
+  // warning so the verify page does not silently show a stale positive result.
+  trustDecisionConsistency?: {
+    source?: string | null;
+    consistentWithSnapshot?: boolean | null;
+  } | null;
   verificationStatus?: string | null;
   captureMethod?: string | null;
   identityLevelSnapshot?: string | null;
@@ -2519,7 +2526,7 @@ function TrustDecisionCard({
               color: VERIFY_BRAND.subtle,
             }}
           >
-            Reviewer Reliance
+            Technical Confidence
           </div>
 
           <div
@@ -3227,6 +3234,8 @@ export default function VerifyPage() {
   const [captureContext, setCaptureContext] = useState<VerifyCaptureContext>(null);
   const [serverTrustDecision, setServerTrustDecision] =
     useState<VerifyTrustDecision | null>(null);
+  const [trustSnapshotDivergence, setTrustSnapshotDivergence] =
+    useState<{ source: string | null } | null>(null);
   const [custodyDisplayCounts, setCustodyDisplayCounts] =
     useState<VerifyResponse["custodyDisplayCounts"]>(null);
   const [limitations, setLimitations] = useState<VerifyLimitations | null>(null);
@@ -3280,6 +3289,15 @@ function isAccessEventType(eventType?: string | null): boolean {
     const tsaDetails = buildTsaDetails(data);
     const otsDetails = buildOtsDetails(data);
     setServerTrustDecision(data.trustDecision ?? null);
+    // Issue #7: surface snapshot/live divergence. The API returns
+    // trustDecisionConsistency.consistentWithSnapshot === false when the
+    // current live recomputation differs from the report snapshot. We render
+    // a clear warning instead of silently preferring the snapshot.
+    setTrustSnapshotDivergence(
+      data.trustDecisionConsistency?.consistentWithSnapshot === false
+        ? { source: data.trustDecisionConsistency.source ?? null }
+        : null
+    );
     setCaptureContext(data.captureContext ?? null);
 
     const reviewTrailForensic =
@@ -4223,7 +4241,7 @@ const executiveBadges = useMemo<
   show: true,
 },
 {
-  label: "Reviewer Reliance",
+  label: "Technical Confidence",
   value: getReviewerRelianceLabel(trustDecision.relianceLevel),
   show: true,
 },
@@ -5406,6 +5424,57 @@ Reviewer Action
     factual truth, authorship, intent, context, or court admissibility.
   </div>
 </div>
+
+{/*
+  Issue #7: surface snapshot/live trust divergence to the public viewer.
+  When the report snapshot differs from a live recomputation, we must NOT
+  silently show the older snapshot as positive — render an explicit warning.
+*/}
+{trustSnapshotDivergence ? (
+  <div
+    role="alert"
+    style={{
+      border: `1px solid rgba(138,106,47,0.45)`,
+      borderLeft: `5px solid ${VERIFY_BRAND.warning}`,
+      background: VERIFY_BRAND.warningSoft,
+      borderRadius: 18,
+      padding: 18,
+      display: "grid",
+      gap: 8,
+    }}
+  >
+    <div
+      style={{
+        ...VERIFY_TYPO.kicker,
+        fontSize: 10.5,
+        color: VERIFY_BRAND.warning,
+      }}
+    >
+      Snapshot vs Live Verification
+    </div>
+    <div
+      style={{
+        ...VERIFY_TYPO.value,
+        fontSize: 15,
+        lineHeight: 1.55,
+      }}
+    >
+      Live verification currently differs from the fixed report snapshot.
+      Review the current technical materials before relying on this result.
+    </div>
+    <div
+      style={{
+        ...VERIFY_TYPO.small,
+        fontSize: 13,
+        color: VERIFY_BRAND.ink,
+      }}
+    >
+      The trust decision shown here is sourced from the report snapshot
+      (frozen at report-generation time). One or more live signals have
+      changed since then.
+    </div>
+  </div>
+) : null}
 
                   <div
                     style={{

@@ -215,9 +215,13 @@ const shouldRenderSignature = hasSignatureRows;
   )
     ? String(vm.technicalAppendix.tsaMessageImprint)
     : "";
+  // Issue #10: be precise about what the timestamped digest covers. For a
+  // multipart record the digest is the lead-item SHA-256 (or, where used,
+  // the synthetic composite — see the per-part checksum index in the
+  // verification package).
   const timestampDigestLabel =
     vm.technicalAppendix.timestampDigestLabel ??
-    "Timestamped Digest / Original File SHA-256";
+    "Timestamped digest (lead item SHA-256 for multipart; original file SHA-256 for single)";
 
   const otsHash = hasMeaningfulTechnicalValue(vm.technicalAppendix.otsHash)
     ? String(vm.technicalAppendix.otsHash)

@@ -223,7 +223,7 @@ const integrityBadgeText = decision.shortLabel;
             </div>
 
             <div class="cover-trust-score-line">
-              <strong>Reviewer Reliance: ${escapeHtml(reviewerReliance)}</strong>
+              <strong>Technical Confidence: ${escapeHtml(reviewerReliance)}</strong>
             </div>
                       </div>
 
@@ -332,8 +332,8 @@ getTrustDecisionLabel(vm.trustDecision)
             <div class="cover-meta-card cover-meta-card-wide">
 <div class="cover-meta-label">${
   vm.contentSummary.itemCount > 1
-    ? "Lead Item SHA-256"
-    : "Original File SHA-256"
+    ? "Lead item SHA-256 (multipart package — per-part hashes follow)"
+    : "Original file SHA-256"
 }</div>
               <div class="cover-meta-value cover-meta-value-code cover-primary-hash">
                 ${escapeHtml(primaryHash)}

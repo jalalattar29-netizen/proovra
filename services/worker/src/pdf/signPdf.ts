@@ -23,6 +23,49 @@ export function isPdfSigningEnabled(): boolean {
   return (env("PDF_SIGNING_ENABLED") ?? "false").toLowerCase() === "true";
 }
 
+/**
+ * Production safety guard.
+ *
+ * Issue #11: in production we must not silently emit unsigned PDFs while the
+ * report visually implies a "signed report" semantic. Two acceptable paths:
+ *   (a) PDF_SIGNING_ENABLED=true so the PDF artifact is signed, or
+ *   (b) PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK=true to explicitly acknowledge that
+ *       the operator has opted into unsigned PDFs (the report copy then
+ *       distinguishes fingerprint signature from PDF artifact signature).
+ *
+ * In NODE_ENV=production with neither flag set, the worker refuses to
+ * generate the report and surfaces a loud error so deploys can't slip
+ * unsigned PDFs into a customer environment by accident.
+ *
+ * The fingerprint Ed25519 signature exists regardless of this PDF artifact
+ * signature; the two are independent layers and both are described separately
+ * in the report.
+ */
+export function assertPdfSigningProductionSafetyOrThrow(): void {
+  const isProduction =
+    (env("NODE_ENV") ?? "").toLowerCase() === "production";
+  if (!isProduction) return;
+  if (isPdfSigningEnabled()) return;
+
+  const optOutAcknowledged =
+    (env("PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK") ?? "").toLowerCase() ===
+    "true";
+  if (optOutAcknowledged) return;
+
+  throw new Error(
+    "PDF_SIGNING_ENABLED is not set in production. Either enable PDF artifact signing (PDF_SIGNING_ENABLED=true) or explicitly acknowledge the unsigned-artifact path (PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK=true)."
+  );
+}
+
+/**
+ * Returns whether the PDF artifact will be signed in the current environment.
+ * The report copy uses this to distinguish fingerprint signature from PDF
+ * artifact signature so the report does not imply something it didn't do.
+ */
+export function pdfArtifactSignatureExpected(): boolean {
+  return isPdfSigningEnabled();
+}
+
 function asBuffer(value: unknown): Buffer {
   if (Buffer.isBuffer(value)) return value;
   if (value instanceof Uint8Array) return Buffer.from(value);

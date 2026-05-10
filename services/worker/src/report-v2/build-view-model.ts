@@ -301,8 +301,10 @@ function buildExecutiveRows(
     primaryContentItem ? mapEvidenceAssetKindLabel(primaryContentItem.kind) : null
   );
   add("Total Content Size", safe(contentSummary.totalSizeDisplay));
-  add("Captured (UTC)", safe(evidence.capturedAtUtc));
-  add("Signed (UTC)", safe(evidence.signedAtUtc));
+  // Issue #6: be precise about timestamp provenance. capturedAtUtc / signedAtUtc
+  // are SERVER clocks recorded at intake / signing — not device-witnessed times.
+  add("Recorded at intake (server UTC)", safe(evidence.capturedAtUtc));
+  add("Signed (server UTC)", safe(evidence.signedAtUtc));
   add(
     "Submitted By",
     externalMode

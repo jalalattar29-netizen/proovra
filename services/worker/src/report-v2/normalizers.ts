@@ -106,7 +106,10 @@ export function mapVerificationSourceLabel(
     case "REPORT_GENERATED":
       return "Report generated";
     case "PUBLIC_VERIFY_VIEWED":
-      return "Public verification page viewed";
+      // Legacy value: meaningful technical verifications are no longer tagged
+      // with PUBLIC_VERIFY_VIEWED; public hits are tracked separately on
+      // lastPublicVerifyViewAtUtc (analytics) without bumping lastVerified.
+      return "Public verification page viewed (legacy)";
     case "TECHNICAL_VERIFICATION_CHECKED":
       return "Technical verification checked";
     default:
@@ -117,19 +120,25 @@ export function mapVerificationSourceLabel(
 export function mapCustodyEventLabel(eventType: string | null | undefined): string {
   switch (safe(eventType, "").toUpperCase()) {
     case "EVIDENCE_CREATED":
-      return "Evidence created";
+      return "Evidence record created";
     case "IDENTITY_SNAPSHOT_RECORDED":
-      return "Identity snapshot recorded";
+      return "Identity snapshot recorded at intake";
+    case "REPORT_IDENTITY_CONTEXT_RECORDED":
+      return "Identity context recorded at report generation";
     case "UPLOAD_STARTED":
-      return "Upload started";
+      // Legacy event for backward compatibility. New records use
+      // UPLOAD_AUTHORIZED at intake (presign issuance).
+      return "Upload authorization recorded (legacy label)";
+    case "UPLOAD_AUTHORIZED":
+      return "Upload authorization recorded";
     case "UPLOAD_COMPLETED":
-      return "Upload completed";
+      return "Upload completion confirmed";
     case "SIGNATURE_APPLIED":
       return "Digital signature applied";
     case "TIMESTAMP_APPLIED":
-      return "Trusted timestamp applied";
+      return "Trusted timestamp token recorded";
     case "TIMESTAMP_FAILED":
-      return "Trusted timestamp failed";
+      return "Trusted timestamp not obtained";
     case "REPORT_GENERATED":
       return "Report generated";
     case "REVIEW_READY":
@@ -145,9 +154,11 @@ export function mapCustodyEventLabel(eventType: string | null | undefined): stri
     case "EVIDENCE_PURGED":
       return "Evidence purged";
     case "OTS_APPLIED":
-      return "OpenTimestamps update";
+      return "OpenTimestamps update recorded";
     case "OTS_FAILED":
-      return "OpenTimestamps failure";
+      return "OpenTimestamps provider returned failure";
+    case "OTS_ATTEMPT_ERROR":
+      return "OpenTimestamps attempt errored";
     case "TECHNICAL_VERIFICATION_CHECKED":
       return "Technical verification checked";
     case "VERIFY_VIEWED":
@@ -159,7 +170,9 @@ export function mapCustodyEventLabel(eventType: string | null | undefined): stri
     case "VERIFICATION_PACKAGE_DOWNLOADED":
       return "Verification package downloaded";
     case "EVIDENCE_LOCKED":
-      return "Evidence locked";
+      return "Object Lock retention applied to storage";
+    case "STORAGE_PROTECTION_UNAVAILABLE":
+      return "Storage protection unavailable (Object Lock not applied)";
     case "EVIDENCE_ARCHIVED":
       return "Evidence archived";
     case "EVIDENCE_RESTORED":
@@ -181,30 +194,62 @@ export function mapTimestampStatusPublicLabel(
     case "GRANTED":
     case "VERIFIED":
     case "SUCCEEDED":
-      return "Trusted timestamp recorded";
+      return "Trusted timestamp token recorded";
     case "PENDING":
+      return "Trusted timestamp pending";
     case "UNAVAILABLE":
-      return "Timestamp pending";
+      return "Trusted timestamp unavailable";
     case "FAILED":
-      return "Timestamp failed";
+      return "Trusted timestamp attempt failed";
     default:
-      return "Timestamp not recorded";
+      return "Trusted timestamp not configured";
   }
 }
 
+/**
+ * Truthful OTS / public anchoring labels.
+ *
+ * "Public anchoring verified" was previously returned for ANCHORED, but the
+ * worker can persist ANCHORED before a Bitcoin transaction id is attached
+ * (that lives behind a separate upgrade pass). For legal safety we no longer
+ * return "verified" purely on the ANCHORED status. Use the txid-aware variant
+ * mapOtsStatusPublicLabelWithTxid() to choose the precise label.
+ */
 export function mapOtsStatusPublicLabel(status: string | null | undefined): string {
   switch (safe(status, "").toUpperCase()) {
     case "ANCHORED":
-      return "Public anchoring verified";
+      // Without txid context we cannot assert Bitcoin anchoring; report the
+      // honest OTS state instead.
+      return "OpenTimestamps proof present; public anchoring pending";
     case "PENDING":
-      return "OTS proof present, public anchoring pending";
+      return "OpenTimestamps proof present; public anchoring pending";
     case "FAILED":
-      return "Public anchoring failed";
+      return "OpenTimestamps anchoring failed";
     case "DISABLED":
-      return "Public anchoring unavailable";
+      return "OpenTimestamps unavailable";
     default:
-      return "Public anchoring unavailable";
+      return "OpenTimestamps not configured";
   }
+}
+
+/**
+ * txid-aware variant: returns "Bitcoin anchoring verified" only when a Bitcoin
+ * transaction id is actually recorded for the OTS proof. This is the function
+ * report / verify / package surfaces should prefer when they have the txid.
+ */
+export function mapOtsStatusPublicLabelWithTxid(params: {
+  status: string | null | undefined;
+  bitcoinTxid: string | null | undefined;
+}): string {
+  const status = safe(params.status, "").toUpperCase();
+  const hasTxid =
+    typeof params.bitcoinTxid === "string" &&
+    /^[a-f0-9]{64}$/i.test(params.bitcoinTxid.trim());
+
+  if (status === "ANCHORED" && hasTxid) {
+    return "Bitcoin anchoring verified";
+  }
+  return mapOtsStatusPublicLabel(params.status);
 }
 
 export function mapObjectLockModePublicLabel(

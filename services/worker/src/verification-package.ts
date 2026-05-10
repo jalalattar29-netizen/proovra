@@ -448,17 +448,30 @@ function normalizeAnchorMode(value: string | null | undefined): AnchorMode {
   }
 }
 
-function getAnchorStatusLabel(mode: AnchorMode): string {
+function getAnchorStatusLabel(
+  mode: AnchorMode,
+  options?: { bitcoinTxid?: string | null }
+): string {
+  // Truthful Bitcoin-anchoring label: only say "Bitcoin anchoring verified"
+  // when the OTS proof has progressed to ANCHORED AND a valid Bitcoin
+  // transaction id is recorded. The previous label "Public anchoring verified"
+  // could appear before the Bitcoin upgrade pass attached a txid.
+  const hasTxid =
+    typeof options?.bitcoinTxid === "string" &&
+    /^[a-f0-9]{64}$/i.test(options.bitcoinTxid.trim());
+
   switch (mode) {
     case "anchored":
-      return "Public anchoring verified";
+      return hasTxid
+        ? "Bitcoin anchoring verified"
+        : "OpenTimestamps proof present; public anchoring pending";
     case "failed":
-      return "Public anchoring failed";
+      return "OpenTimestamps anchoring failed";
     case "not_configured":
-      return "Public anchoring unavailable";
+      return "OpenTimestamps not configured";
     case "pending_public_anchor":
     default:
-      return "OTS proof present, public anchoring pending";
+      return "OpenTimestamps proof present; public anchoring pending";
   }
 }
 
@@ -1110,6 +1123,7 @@ function buildAnchorReadmeSection(params: {
   otsStatus?: string | null;
   anchorProvider?: string | null;
   anchorPublicBaseUrl?: string | null;
+  bitcoinTxid?: string | null;
 }): string {
   const providerLine = params.anchorProvider
     ? `Provider: ${params.anchorProvider}`
@@ -1139,11 +1153,27 @@ ${providerLine}
 ${publicBaseLine}`;
   }
 
+  // Truthful Bitcoin-anchoring section: only assert "Bitcoin anchoring verified"
+  // when a valid Bitcoin transaction id is recorded for the OTS proof.
+  const hasBitcoinTxid =
+    typeof params.bitcoinTxid === "string" &&
+    /^[a-f0-9]{64}$/i.test(params.bitcoinTxid.trim());
+
   if (params.anchorMode === "anchored") {
+    if (hasBitcoinTxid) {
+      return `ANCHOR STATUS
+
+anchor.json is included in this package.
+Bitcoin anchoring verified (transaction reference recorded).
+This anchoring layer is independent from RFC 3161 timestamping.
+${providerLine}
+${publicBaseLine}`;
+    }
     return `ANCHOR STATUS
 
 anchor.json is included in this package.
-Public anchoring verified.
+OpenTimestamps proof present; public anchoring pending.
+A Bitcoin transaction reference has not yet been attached to the OpenTimestamps proof. Re-check this package after the OTS upgrade pass for confirmed Bitcoin anchoring.
 This anchoring layer is independent from RFC 3161 timestamping.
 ${providerLine}
 ${publicBaseLine}`;
@@ -1153,7 +1183,7 @@ ${publicBaseLine}`;
     return `ANCHOR STATUS
 
 anchor.json is included in this package.
-OTS proof present, public anchoring pending.
+OpenTimestamps proof present; public anchoring pending.
 Public anchoring should be rechecked later if independent public anchoring is required.
 This anchoring layer is independent from RFC 3161 timestamping.
 ${providerLine}
@@ -1442,6 +1472,7 @@ function buildReadme(params: {
   hasTimestampToken: boolean;
   timestampStatus?: string | null;
   otsStatus?: string | null;
+  bitcoinTxid?: string | null;
   metadata: VerificationPackageMetadata;
 }): string {
   const multipart = params.evidenceFiles.length > 1;
@@ -1609,6 +1640,7 @@ ${buildAnchorReadmeSection({
   otsStatus: params.otsStatus,
   anchorProvider: params.anchorProvider,
   anchorPublicBaseUrl: params.anchorPublicBaseUrl,
+  bitcoinTxid: params.bitcoinTxid,
 })}
 
 LEGAL NOTE
@@ -1832,6 +1864,7 @@ function buildVerifyHtml(params: {
   hasTimestampToken: boolean;
   timestampStatus?: string | null;
   otsStatus?: string | null;
+  bitcoinTxid?: string | null;
   evidenceId?: string;
   reportVersion?: number;
 }): string {
@@ -1851,17 +1884,22 @@ function buildVerifyHtml(params: {
 
   const anchoringText = (() => {
     const status = String(params.otsStatus ?? "").toUpperCase();
+    const hasBitcoinTxid =
+      typeof params.bitcoinTxid === "string" &&
+      /^[a-f0-9]{64}$/i.test(params.bitcoinTxid.trim());
 
     if (status === "ANCHORED") {
-      return "Public anchoring verified.";
+      return hasBitcoinTxid
+        ? "Bitcoin anchoring verified (transaction reference recorded)."
+        : "OpenTimestamps proof present; public anchoring pending. A Bitcoin transaction reference has not yet been attached to the OpenTimestamps proof.";
     }
 
     if (status === "PENDING") {
-      return "OTS proof present, public anchoring pending.";
+      return "OpenTimestamps proof present; public anchoring pending.";
     }
 
     if (status === "FAILED") {
-      return "Public anchoring failed or could not be completed.";
+      return "OpenTimestamps anchoring failed or could not be completed.";
     }
 
     return params.anchorIncluded
@@ -2131,7 +2169,9 @@ export async function createVerificationPackage(data: {
       anchor: data.anchor ?? null,
       trustDecision: data.trustDecision,
     });
-    const anchorStatusLabel = getAnchorStatusLabel(anchorMode);
+    const anchorStatusLabel = getAnchorStatusLabel(anchorMode, {
+      bitcoinTxid: data.anchor?.transactionId ?? null,
+    });
     const anchorIncluded = Boolean(data.anchor);
     const hasTimestampToken = Boolean(data.timestampToken);
     const certificationSummary = buildCertificationSummary({
@@ -2496,6 +2536,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           hasTimestampToken,
           timestampStatus: metadata.tsaStatus ?? null,
           otsStatus: metadata.otsStatus ?? null,
+          bitcoinTxid: data.anchor?.transactionId ?? null,
           metadata,
         })
       ),
@@ -2583,6 +2624,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           hasTimestampToken,
           timestampStatus: metadata.tsaStatus ?? null,
           otsStatus: metadata.otsStatus ?? null,
+          bitcoinTxid: data.anchor?.transactionId ?? null,
           evidenceId: data.evidenceId,
           reportVersion: data.reportVersion,
         })
