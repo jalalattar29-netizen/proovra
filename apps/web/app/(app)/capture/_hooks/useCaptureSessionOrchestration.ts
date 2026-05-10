@@ -43,6 +43,13 @@ type UseCaptureSessionOrchestrationParams = {
   planMode: CapturePlanMode;
   selectedCollectionPlan: CollectionPlanTemplate | undefined;
   useLocation: boolean;
+  // Optional durable Capture draft binding. When present, the draft id is
+  // sent on POST /v1/evidence so the server can move the draft to FINALIZED.
+  // The hook calls onSessionFinalized() after a successful finalize so the
+  // draft owner can drop its local state.
+  getCaptureSessionDraftId?: () => string | null;
+  onSessionFinalized?: () => void;
+  onSessionDiscarded?: () => void | Promise<void>;
 };
 
 export function useCaptureSessionOrchestration({
@@ -52,6 +59,9 @@ export function useCaptureSessionOrchestration({
   planMode,
   selectedCollectionPlan,
   useLocation,
+  getCaptureSessionDraftId,
+  onSessionFinalized,
+  onSessionDiscarded,
 }: UseCaptureSessionOrchestrationParams) {
   const router = useRouter();
   const { addToast } = useToast();
@@ -93,16 +103,26 @@ export function useCaptureSessionOrchestration({
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const pollReport = async (evidenceId: string): Promise<boolean> => {
+  // Side-effect-free polling: the server endpoint never creates custody, audit,
+  // view, or download events. This was previously /report/latest, which logged
+  // REPORT_DOWNLOADED + evidence.report_viewed on every poll and falsified the
+  // custody chain. See backend evidence.routes.ts /artifacts/status.
+  const pollArtifacts = async (evidenceId: string): Promise<boolean> => {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       try {
-        await apiFetch(`/v1/evidence/${evidenceId}/report/latest`, {
-          method: "GET",
-        });
-        return true;
+        const status = await apiFetch(
+          `/v1/evidence/${evidenceId}/artifacts/status`,
+          { method: "GET" }
+        );
+
+        if (status?.report?.available) {
+          return true;
+        }
       } catch {
-        await sleep(2000);
+        // Treat transient failures as "not yet ready" and retry.
       }
+
+      await sleep(2000);
     }
 
     return false;
@@ -306,6 +326,10 @@ export function useCaptureSessionOrchestration({
             ]
           : []
       );
+
+      // A non-finalized clear is a discard. Tell the durable draft owner so
+      // it can move the server-side draft to DISCARDED (audit-trailed).
+      void onSessionDiscarded?.();
     }
 
     onCloseCaptureDevices();
@@ -449,6 +473,8 @@ export function useCaptureSessionOrchestration({
           }
         : undefined;
 
+      const captureSessionId = getCaptureSessionDraftId?.() ?? null;
+
       const created = await apiFetch("/v1/evidence", {
         method: "POST",
         body: JSON.stringify({
@@ -462,6 +488,7 @@ export function useCaptureSessionOrchestration({
           checksumSha256Base64: primaryIntegrity.checksumSha256Base64,
           contentMd5Base64: primaryIntegrity.contentMd5Base64,
           intakePlanJson,
+          captureSessionId: captureSessionId ?? undefined,
         }),
       });
 
@@ -579,7 +606,7 @@ export function useCaptureSessionOrchestration({
       });
 
       setSessionStatus("Generating verification artifacts...");
-      const reportReady = await pollReport(evidenceId);
+      const reportReady = await pollArtifacts(evidenceId);
 
       setProgress(100);
 
@@ -591,6 +618,10 @@ export function useCaptureSessionOrchestration({
           "warning"
         );
       }
+
+      // Drop the local draft handle — the server has moved it to FINALIZED
+      // (linked to the new evidence record) inside the create handler.
+      onSessionFinalized?.();
 
       resetCaptureState({ preserveTimeline: true });
       router.push(`/evidence/${evidenceId}`);

@@ -11,6 +11,7 @@ import { usersRoutes } from "./routes/users.routes.js";
 import { captureException, initSentry } from "./observability/sentry.js";
 import { auditMiddleware } from "./middleware/audit.middleware.js";
 import { evidenceRoutes } from "./routes/evidence.routes.js";
+import { captureRoutes } from "./routes/capture.routes.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { teamsRoutes } from "./routes/teams.routes.js";
 import { billingRoutes } from "./routes/billing.routes.js";
@@ -377,6 +378,7 @@ allowedHeaders: [
   await app.register(webhooksRoutes, { prefix: "/webhooks" });
   await app.register(casesRoutes);
   await app.register(evidenceRoutes);
+  await app.register(captureRoutes);
   await app.register(searchRoutes);
   await app.register(aiRoutes);
   await app.register(enterpriseRoutes);

@@ -28,6 +28,8 @@ import {
   GENERIC_EVIDENCE_UPLOAD_ACCEPT,
   ROLE_SUGGESTIONS,
 } from "./_lib/templates";
+import { useIntakeTemplates } from "./_hooks/useIntakeTemplates";
+import { useCaptureDraftPersistence } from "./_hooks/useCaptureDraftPersistence";
 
 import {
   deriveBatchEvidenceType,
@@ -68,6 +70,9 @@ export default function CapturePage() {
   const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(null);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
+  // Operational dense table mode for large evidence sessions.
+  const [denseListMode, setDenseListMode] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
@@ -78,10 +83,20 @@ export default function CapturePage() {
     folderInput.setAttribute("directory", "");
   }, []);
 
+  const { templates: serverTemplates } = useIntakeTemplates();
+
+  const collectionPlans = serverTemplates.length
+    ? serverTemplates
+    : COLLECTION_PLAN_TEMPLATES;
+
   const selectedCollectionPlan = useMemo(
-    () => COLLECTION_PLAN_TEMPLATES.find((plan) => plan.id === collectionPlanId),
-    [collectionPlanId]
+    () => collectionPlans.find((plan) => plan.id === collectionPlanId),
+    [collectionPlanId, collectionPlans]
   );
+
+  const draftPersistence = useCaptureDraftPersistence({ enabled: true });
+  const draftIdRef = useRef<string | null>(null);
+  draftIdRef.current = draftPersistence.draftId;
 
   const {
     cameraError,
@@ -146,6 +161,11 @@ export default function CapturePage() {
     planMode,
     selectedCollectionPlan,
     useLocation,
+    getCaptureSessionDraftId: () => draftIdRef.current,
+    onSessionFinalized: () => {
+      draftPersistence.acknowledgeFinalized();
+    },
+    onSessionDiscarded: () => draftPersistence.discardDraft(),
   });
 
   addFilesToSessionRef.current = addFilesToSession;
@@ -193,6 +213,25 @@ export default function CapturePage() {
       )
     );
   }, [selectedCollectionPlan?.id]);
+
+  // Debounced draft persistence — auto-creates a server-side CaptureSession
+  // once any meaningful intake state exists, then patches it on changes.
+  useEffect(() => {
+    draftPersistence.scheduleSave({
+      templateId: collectionPlanId,
+      planMode,
+      internalNotes,
+      useLocation,
+      items: sessionItems,
+    });
+  }, [
+    collectionPlanId,
+    planMode,
+    internalNotes,
+    useLocation,
+    sessionItems,
+    draftPersistence,
+  ]);
 
   const openFilePicker = () => {
     if (busy) return;
@@ -544,7 +583,7 @@ useEffect(() => {
           <main className="capture-enterprise-card capture-main-panel">
             <CaptureRequirements
               selectedCollectionPlan={selectedCollectionPlan}
-              collectionPlans={COLLECTION_PLAN_TEMPLATES}
+              collectionPlans={collectionPlans}
               collectionPlanId={collectionPlanId}
               setCollectionPlanId={setCollectionPlanId}
               planDropdownOpen={planDropdownOpen}
@@ -591,10 +630,87 @@ useEffect(() => {
       <div className="capture-materials-meta-stack">
         <span>{formatFileSize(totalStagedBytes)}</span>
         <strong>{sessionReadiness.summary.unmappedCount} unmapped</strong>
+        <span
+          className="capture-draft-pill"
+          aria-live="polite"
+          title={
+            draftPersistence.savingState === "error"
+              ? "Failed to save the latest changes to the server draft."
+              : draftPersistence.lastSavedAt
+                ? `Last saved ${draftPersistence.lastSavedAt.toLocaleTimeString()}`
+                : "Draft is staged locally."
+          }
+        >
+          {draftPersistence.savingState === "saving"
+            ? "Saving draft…"
+            : draftPersistence.savingState === "error"
+              ? "Draft save failed"
+              : draftPersistence.draftId
+                ? "Draft saved"
+                : "Draft staging"}
+        </span>
+        <button
+          type="button"
+          className="capture-list-mode-toggle"
+          onClick={() => setDenseListMode((current) => !current)}
+          aria-pressed={denseListMode}
+        >
+          {denseListMode ? "Card view" : "Dense list"}
+        </button>
       </div>
     </div>
 
-    <div className="capture-materials-grid">
+    {sessionItems.length > 0 && !busy ? (
+      <div className="capture-bulk-actions" role="toolbar" aria-label="Bulk actions">
+        <button
+          type="button"
+          className="capture-bulk-button"
+          disabled={sessionItems.every((item) => !item.checklistStepId)}
+          onClick={() => {
+            setSessionItems((prev) =>
+              prev.map((item) => ({ ...item, checklistStepId: null }))
+            );
+          }}
+        >
+          Clear all mappings
+        </button>
+        <button
+          type="button"
+          className="capture-bulk-button"
+          disabled={sessionItems.every(
+            (item) => item.uploadProgress >= 100 || item.uploading
+          )}
+          onClick={() => {
+            // Remove only items that haven't been uploaded yet.
+            sessionItems
+              .filter(
+                (item) => !item.uploading && item.uploadProgress < 100
+              )
+              .forEach((item) => removeSessionItem(item.id));
+          }}
+        >
+          Remove pending items
+        </button>
+      </div>
+    ) : null}
+
+    <div
+      className={
+        denseListMode ? "capture-materials-list" : "capture-materials-grid"
+      }
+    >
+      {denseListMode ? (
+        <div className="capture-materials-list-header" role="rowheader">
+          <span>#</span>
+          <span>File</span>
+          <span>Type</span>
+          <span>Size</span>
+          <span>Mapping</span>
+          <span>Upload</span>
+          <span>Status</span>
+          <span aria-hidden="true" />
+        </div>
+      ) : null}
       {sessionItems.map((item, index) => {
         const mappedStep = getChecklistStepById(
           selectedCollectionPlan,
@@ -650,6 +766,83 @@ useEffect(() => {
               : item.mimeType.startsWith("image/")
                 ? ImageIcon
                 : FileText;
+
+        if (denseListMode) {
+          const uploadLabel = item.error
+            ? "Failed"
+            : item.uploadProgress >= 100
+              ? "Uploaded"
+              : item.uploading
+                ? `${item.uploadProgress}%`
+                : "Pending";
+
+          return (
+            <div
+              key={item.id}
+              className="capture-material-row"
+              role="row"
+            >
+              <span className="capture-material-row-index">{index + 1}</span>
+              <span className="capture-material-row-name" title={item.file.name}>
+                {item.file.name}
+              </span>
+              <span className="capture-material-row-type">{typeLabel}</span>
+              <span className="capture-material-row-size">
+                {formatFileSize(item.file.size)}
+              </span>
+              <span
+                className={`capture-material-row-mapping ${
+                  mappedStep
+                    ? mappedStep.required
+                      ? "required"
+                      : "optional"
+                    : "unmapped"
+                }`}
+              >
+                {mappedLabel}
+              </span>
+              <span className="capture-material-row-upload">{uploadLabel}</span>
+              <span
+                className={`capture-material-row-status ${
+                  item.error ? "critical" : riskTone
+                }`}
+              >
+                {item.error ? "Retry needed" : qualityStatus.label}
+              </span>
+              <span className="capture-material-row-actions">
+                {item.error && !busy ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSessionItems((prev) =>
+                        prev.map((current) =>
+                          current.id === item.id
+                            ? {
+                                ...current,
+                                error: null,
+                                uploadProgress: 0,
+                                uploading: false,
+                              }
+                            : current
+                        )
+                      )
+                    }
+                  >
+                    Retry
+                  </button>
+                ) : null}
+                {!busy ? (
+                  <button
+                    type="button"
+                    onClick={() => removeSessionItem(item.id)}
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </span>
+            </div>
+          );
+        }
 
         return (
           <div

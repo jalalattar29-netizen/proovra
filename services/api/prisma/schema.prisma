@@ -715,6 +715,80 @@ model EvidenceReviewerAuditEvent {
   @@map("evidence_reviewer_audit_events")
 }
 
+// Durable Capture draft session.
+//
+// Stores the in-progress workflow state of an evidence intake session BEFORE
+// finalization, so a refresh, crash, tab loss, or network interruption no
+// longer destroys the staged workflow.
+//
+// Privacy / safety:
+//   - No file bytes are ever stored here. Files only exist in S3 after a
+//     part is presigned and uploaded; this model only references session
+//     metadata (file names, MIME types, sizes, mappings, notes).
+//   - Precise GPS is NOT stored unless the intake plan explicitly requires it.
+//   - Discarded or expired drafts are tombstoned (status), then can be
+//     reaped out-of-band.
+//   - Owned by a user; respects team ownership when set.
+//   - When a draft is finalized, its evidenceId is recorded for traceability,
+//     and the draft is moved to FINALIZED status (not deleted) so the
+//     CaptureSessionEvent audit trail survives.
+model CaptureSession {
+  id                    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId           String                @map("owner_user_id") @db.Uuid
+  teamId                String?               @map("team_id") @db.Uuid
+  status                CaptureSessionStatus  @default(DRAFT)
+
+  // Selected intake template snapshot (server-side template id + version + name).
+  // The full template snapshot is stored on the resulting Evidence at finalize.
+  templateId            String?               @map("template_id") @db.VarChar(120)
+  templateVersion       Int?                  @map("template_version")
+  templateName          String?               @map("template_name") @db.VarChar(180)
+
+  // Plan mode: FLEXIBLE | CHECKLIST_REQUIRED.
+  planMode              String?               @map("plan_mode") @db.VarChar(40)
+
+  // Frozen template snapshot at draft creation/update time, used to render
+  // the same checklist when a draft is resumed even if the template changes.
+  templateSnapshot      Json?                 @map("template_snapshot")
+
+  // Operational draft data (no file bytes).
+  internalNotes         String?               @map("internal_notes")
+  useLocation           Boolean               @default(false) @map("use_location")
+  itemsSnapshot         Json?                 @map("items_snapshot")
+  uploadStateSnapshot   Json?                 @map("upload_state_snapshot")
+
+  // Evidence record produced when this draft is finalized.
+  finalizedEvidenceId   String?               @unique @map("finalized_evidence_id") @db.Uuid
+  finalizedAtUtc        DateTime?             @map("finalized_at_utc") @db.Timestamptz(6)
+  discardedAtUtc        DateTime?             @map("discarded_at_utc") @db.Timestamptz(6)
+  expiresAtUtc          DateTime?             @map("expires_at_utc") @db.Timestamptz(6)
+
+  createdAt             DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  events                CaptureSessionEvent[]
+
+  @@index([ownerUserId, status, updatedAt(sort: Desc)])
+  @@index([teamId, status, updatedAt(sort: Desc)])
+  @@index([status, expiresAtUtc])
+  @@index([finalizedEvidenceId])
+  @@map("capture_sessions")
+}
+
+model CaptureSessionEvent {
+  id                String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId         String                  @map("session_id") @db.Uuid
+  actorUserId       String?                 @map("actor_user_id") @db.Uuid
+  eventType         CaptureSessionEventType @map("event_type")
+  payload           Json?
+  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  session           CaptureSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt(sort: Desc)])
+  @@index([eventType])
+  @@map("capture_session_events")
+}
+
 model WorkspaceStorageAddon {
   id                     String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ownerUserId            String                       @map("owner_user_id") @db.Uuid
@@ -1514,6 +1588,24 @@ enum StorageAddonKey {
 enum StorageAddonBillingCycle {
   ONE_TIME
   MONTHLY
+}
+
+enum CaptureSessionStatus {
+  DRAFT
+  FINALIZED
+  DISCARDED
+  EXPIRED
+}
+
+enum CaptureSessionEventType {
+  CREATED
+  UPDATED
+  TEMPLATE_CHANGED
+  ITEMS_UPDATED
+  RESUMED
+  FINALIZED
+  DISCARDED
+  EXPIRED
 }
 
 enum WorkspaceStorageAddonStatus {

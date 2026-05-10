@@ -113,6 +113,9 @@ const CreateEvidenceBody = z.object({
   checksumSha256Base64: z.string().min(1).max(128).optional(),
   contentMd5Base64: z.string().min(1).max(128).optional(),
   intakePlanJson: JsonValueSchema.optional(),
+  // Optional: link this Evidence to an existing CaptureSession draft so that
+  // the draft is moved to FINALIZED status and the audit trail is preserved.
+  captureSessionId: z.string().uuid().optional(),
   gps: z
     .object({
       lat: z.number().finite().min(-90).max(90),
@@ -3829,8 +3832,51 @@ intakePlanJson:
           type: body.type,
           mimeType: body.mimeType ?? null,
           hasGps: Boolean(body.gps),
+          captureSessionId: body.captureSessionId ?? null,
         },
       });
+
+      // If this Evidence was created from a CaptureSession draft, finalize the
+      // draft so the audit trail is preserved (DRAFT → FINALIZED). Failures
+      // here must NOT fail the create; the draft can be reaped/cleaned later.
+      if (body.captureSessionId) {
+        try {
+          const draft = await prisma.captureSession.findUnique({
+            where: { id: body.captureSessionId },
+          });
+          if (
+            draft &&
+            draft.ownerUserId === ownerUserId &&
+            draft.status === prismaPkg.CaptureSessionStatus.DRAFT
+          ) {
+            await prisma.$transaction(async (tx) => {
+              await tx.captureSession.update({
+                where: { id: draft.id },
+                data: {
+                  status: prismaPkg.CaptureSessionStatus.FINALIZED,
+                  finalizedEvidenceId: result.id,
+                  finalizedAtUtc: new Date(),
+                },
+              });
+              await tx.captureSessionEvent.create({
+                data: {
+                  sessionId: draft.id,
+                  actorUserId: ownerUserId,
+                  eventType: prismaPkg.CaptureSessionEventType.FINALIZED,
+                  payload: {
+                    evidenceId: result.id,
+                  } as prismaPkg.Prisma.InputJsonValue,
+                },
+              });
+            });
+          }
+        } catch (sessionErr) {
+          req.log?.warn?.(
+            { err: sessionErr, captureSessionId: body.captureSessionId, evidenceId: result.id },
+            "capture_session_finalize_link_failed"
+          );
+        }
+      }
 
       return reply.code(201).send(result);
     } catch (err) {
@@ -4086,6 +4132,11 @@ const fallbackFileName =
 
 const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${fallbackFileName}`;
 
+          // Upload truth semantics: do NOT mark uploadedAtUtc here.
+          // A presigned URL being issued is not proof the object was uploaded.
+          // uploadedByUserId is stored as the presign requester for traceability,
+          // but uploadedAtUtc is intentionally null until completeEvidence()
+          // verifies the object via headObject() and computes its sha256.
           const part = await tx.evidencePart.create({
             data: {
               evidenceId: id,
@@ -4106,7 +4157,7 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
                     ? prismaPkg.Prisma.JsonNull
                     : body.clientSignals,
               uploadedByUserId: ownerUserId,
-              uploadedAtUtc: new Date(),
+              uploadedAtUtc: null,
             },
           });
 
@@ -7514,6 +7565,32 @@ try {
   userAgent: req.headers["user-agent"],
 }).catch(() => null);
 
+        // Initialize the EvidenceReviewWorkflow at NOT_STARTED so the
+        // evidence shows up in the reviewer queue immediately on completion.
+        // upsert is idempotent — replays / re-completions don't create duplicates.
+        try {
+          const evidenceForWorkflow = await prisma.evidence.findUnique({
+            where: { id },
+            select: { teamId: true, ownerUserId: true },
+          });
+          if (evidenceForWorkflow) {
+            await upsertEvidenceReviewerWorkflow({
+              evidenceId: id,
+              workspaceType: evidenceForWorkflow.teamId ? "TEAM" : "PERSONAL",
+              teamId: evidenceForWorkflow.teamId,
+              actorUserId: ownerUserId,
+              status: prismaPkg.EvidenceReviewWorkflowStatus.NOT_STARTED,
+              priority: prismaPkg.EvidenceReviewWorkflowPriority.NORMAL,
+              note: "Created automatically on Capture finalization.",
+            });
+          }
+        } catch (workflowErr) {
+          req.log?.warn?.(
+            { err: workflowErr, evidenceId: id },
+            "capture_finalize_workflow_init_failed"
+          );
+        }
+
         const refreshed = await prisma.evidence.findUnique({
           where: { id },
           select: SAFE_EVIDENCE_SELECT,
@@ -7736,6 +7813,119 @@ if (
 
         throw err;
       }
+    }
+  );
+
+  /*
+   * Side-effect-free artifact readiness endpoint.
+   *
+   * Purpose: lets Capture (and other clients) poll whether the post-finalization
+   * artifacts (signed report, verification package) are ready WITHOUT generating
+   * any audit, custody, view, or download events. The existing
+   * /report/latest endpoint creates REPORT_DOWNLOADED + evidence.report_viewed,
+   * which are intended for human report access — using it for polling falsifies
+   * custody chain and reviewer audit history.
+   *
+   * Contract:
+   *   GET /v1/evidence/:id/artifacts/status
+   *   Auth: required (read access).
+   *   Returns 200 with:
+   *     { evidenceId, status, report: {...}, verificationPackage: {...} }
+   *   Never creates CustodyEvent, ReviewerAuditEvent, or VerificationView rows.
+   *   Does not increment counters or change Evidence state.
+   */
+  app.get(
+    "/v1/evidence/:id/artifacts/status",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      let evidenceRecord: SelectedEvidence;
+      try {
+        evidenceRecord = await getEvidenceWithReadAccess(ownerUserId, id);
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
+      }
+
+      const [latestReport, latestPackage] = await Promise.all([
+        prisma.report.findFirst({
+          where: { evidenceId: id },
+          orderBy: { version: "desc" },
+          select: {
+            version: true,
+            generatedAtUtc: true,
+            verificationPackageVersion: true,
+            reviewerSummaryVersion: true,
+          },
+        }),
+        prisma.verificationPackage.findFirst({
+          where: { evidenceId: id },
+          orderBy: { version: "desc" },
+          select: {
+            version: true,
+            generatedAtUtc: true,
+            packageType: true,
+          },
+        }),
+      ]);
+
+      const evidenceStatus = evidenceRecord.status as prismaPkg.EvidenceStatus | null;
+      const finalized =
+        evidenceStatus === EvidenceStatus.SIGNED ||
+        evidenceStatus === EvidenceStatus.REPORTED;
+
+      // Pending = evidence finalized but artifacts not yet generated.
+      // Failed = no signal currently exposed in the data model; report as unknown.
+      const reportPending = finalized && !latestReport;
+      const packagePending = finalized && !latestPackage;
+
+      return reply.code(200).send({
+        evidenceId: id,
+        status: evidenceStatus,
+        finalized,
+        report: latestReport
+          ? {
+              available: true,
+              version: latestReport.version,
+              generatedAtUtc: latestReport.generatedAtUtc.toISOString(),
+              reviewerSummaryVersion: latestReport.reviewerSummaryVersion ?? null,
+              verificationPackageVersion:
+                latestReport.verificationPackageVersion ?? null,
+              pending: false,
+            }
+          : {
+              available: false,
+              version: null,
+              generatedAtUtc: null,
+              reviewerSummaryVersion: null,
+              verificationPackageVersion: null,
+              pending: reportPending,
+            },
+        verificationPackage: latestPackage
+          ? {
+              available: true,
+              version: latestPackage.version,
+              generatedAtUtc: latestPackage.generatedAtUtc.toISOString(),
+              packageType: latestPackage.packageType ?? null,
+              pending: false,
+            }
+          : {
+              available: false,
+              version: null,
+              generatedAtUtc: null,
+              packageType: null,
+              pending: packagePending,
+            },
+      });
     }
   );
 
