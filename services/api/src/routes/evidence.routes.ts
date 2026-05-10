@@ -86,6 +86,7 @@ import {
   updateEvidenceRelationship,
 } from "../services/evidence-review/relationship-summary.service.js";
 import { listEvidenceArtifacts } from "../services/evidence-review/artifact-history.service.js";
+import { buildEvidenceArtifactStatus } from "../services/evidence-artifact-status.service.js";
 import { buildEvidenceReviewGovernance } from "../services/evidence-review/governance.service.js";
 
 const EvidenceTypeSchema = prismaPkg.EvidenceType
@@ -675,6 +676,10 @@ const SAFE_EVIDENCE_SELECT = {
   storageObjectLockLegalHoldStatus: true,
   sizeBytes: true,
   fileSha256: true,
+  // Phase C #4: explicit multipart hash semantics so consumers don't have
+  // to infer them from evidenceParts count.
+  multipartManifestSha256: true,
+  hashSemantics: true,
   fingerprintCanonicalJson: true,
   fingerprintHash: true,
   signatureBase64: true,
@@ -3298,6 +3303,8 @@ contentReviewNote:
 function buildTechnicalMaterials(params: {
   evidence: {
     fileSha256: string | null;
+    multipartManifestSha256?: string | null;
+    hashSemantics?: string | null;
     fingerprintHash: string | null;
     signatureBase64: string | null;
     signingKeyId: string | null;
@@ -3308,9 +3315,43 @@ function buildTechnicalMaterials(params: {
     otsProofBase64: string | null;
   };
   publicKeyPem: string;
+  partsCount?: number;
 }) {
+  // Phase C #4 — surface multipart hash semantics so reviewers don't have
+  // to guess what fileSha256 represents on multipart records.
+  //
+  // Resolved hashSemantics rules:
+  //   - explicit column wins when set on Phase-C+ records.
+  //   - for legacy records (column null), infer from partsCount when known:
+  //     0 or 1 parts -> "single_file"; >1 -> "multipart_composite_legacy".
+  //   - "multipart_composite_legacy" carries an extra warning that the
+  //     dedicated multipartManifestSha256 column was not populated, so
+  //     reviewers fall back to per-part hashes from the verification package.
+  const explicitSemantics = params.evidence.hashSemantics ?? null;
+  let resolvedSemantics: string | null = explicitSemantics;
+  if (!resolvedSemantics) {
+    if (typeof params.partsCount === "number") {
+      resolvedSemantics =
+        params.partsCount > 1
+          ? "multipart_composite_legacy"
+          : "single_file";
+    }
+  }
+
   return {
     fileSha256: params.evidence.fileSha256,
+    fileSha256Label:
+      resolvedSemantics === "single_file"
+        ? "SHA-256 of the original file"
+        : resolvedSemantics === "multipart_composite"
+          ? "Synthetic composite of per-part SHA-256 hashes (multipart). See multipartManifestSha256 for the canonical reproducible digest."
+          : resolvedSemantics === "multipart_composite_legacy"
+            ? "Synthetic composite of per-part SHA-256 hashes (multipart, legacy record). multipartManifestSha256 was not stored at the time of completion; reproduce from per-part hashes in the verification package."
+            : "Hash semantics unknown for this record",
+    multipartManifestSha256: params.evidence.multipartManifestSha256 ?? null,
+    multipartManifestSha256Label:
+      "Reproducible SHA-256 of newline-joined per-part SHA-256 hashes in part-index order",
+    hashSemantics: resolvedSemantics,
     fingerprintHash: params.evidence.fingerprintHash,
     signatureBase64: params.evidence.signatureBase64,
     publicKeyPem: params.publicKeyPem,
@@ -7359,6 +7400,9 @@ const timestampDigestMatches: boolean | null =
               technicalMaterials: buildTechnicalMaterials({
                 evidence: {
                   fileSha256: evidence.fileSha256,
+                  multipartManifestSha256:
+                    evidence.multipartManifestSha256 ?? null,
+                  hashSemantics: evidence.hashSemantics ?? null,
                   fingerprintHash: evidence.fingerprintHash,
                   signatureBase64: evidence.signatureBase64,
                   signingKeyId: evidence.signingKeyId,
@@ -7369,6 +7413,7 @@ const timestampDigestMatches: boolean | null =
                   otsProofBase64: evidence.otsProofBase64,
                 },
                 publicKeyPem: signingKey.publicKeyPem,
+                partsCount: parts.length,
               }),
               trustDecision,
               trustDecisionConsistency,
@@ -7902,76 +7947,16 @@ if (
         return reply.code(statusCode).send({ message });
       }
 
-      const [latestReport, latestPackage] = await Promise.all([
-        prisma.report.findFirst({
-          where: { evidenceId: id },
-          orderBy: { version: "desc" },
-          select: {
-            version: true,
-            generatedAtUtc: true,
-            verificationPackageVersion: true,
-            reviewerSummaryVersion: true,
-          },
-        }),
-        prisma.verificationPackage.findFirst({
-          where: { evidenceId: id },
-          orderBy: { version: "desc" },
-          select: {
-            version: true,
-            generatedAtUtc: true,
-            packageType: true,
-          },
-        }),
-      ]);
-
-      const evidenceStatus = evidenceRecord.status as prismaPkg.EvidenceStatus | null;
-      const finalized =
-        evidenceStatus === EvidenceStatus.SIGNED ||
-        evidenceStatus === EvidenceStatus.REPORTED;
-
-      // Pending = evidence finalized but artifacts not yet generated.
-      // Failed = no signal currently exposed in the data model; report as unknown.
-      const reportPending = finalized && !latestReport;
-      const packagePending = finalized && !latestPackage;
-
-      return reply.code(200).send({
+      // Phase C #12: extracted to a bounded helper so route file shrinks
+      // and the artifact-readiness logic can be tested independently.
+      const artifactStatus = await buildEvidenceArtifactStatus({
         evidenceId: id,
-        status: evidenceStatus,
-        finalized,
-        report: latestReport
-          ? {
-              available: true,
-              version: latestReport.version,
-              generatedAtUtc: latestReport.generatedAtUtc.toISOString(),
-              reviewerSummaryVersion: latestReport.reviewerSummaryVersion ?? null,
-              verificationPackageVersion:
-                latestReport.verificationPackageVersion ?? null,
-              pending: false,
-            }
-          : {
-              available: false,
-              version: null,
-              generatedAtUtc: null,
-              reviewerSummaryVersion: null,
-              verificationPackageVersion: null,
-              pending: reportPending,
-            },
-        verificationPackage: latestPackage
-          ? {
-              available: true,
-              version: latestPackage.version,
-              generatedAtUtc: latestPackage.generatedAtUtc.toISOString(),
-              packageType: latestPackage.packageType ?? null,
-              pending: false,
-            }
-          : {
-              available: false,
-              version: null,
-              generatedAtUtc: null,
-              packageType: null,
-              pending: packagePending,
-            },
+        evidenceStatus: evidenceRecord.status as
+          | prismaPkg.EvidenceStatus
+          | null,
       });
+
+      return reply.code(200).send(artifactStatus);
     }
   );
 
@@ -8594,6 +8579,9 @@ action: "evidence.certification_requested",
         accuracyMeters: true,
         fingerprintCanonicalJson: true,
         fingerprintHash: true,
+        // Phase C #4 — multipart hash semantics in public verify too.
+        multipartManifestSha256: true,
+        hashSemantics: true,
         signatureBase64: true,
         signingKeyId: true,
         signingKeyVersion: true,
@@ -9389,6 +9377,8 @@ const custodyDisplayCounts = {
 const technicalMaterials = buildTechnicalMaterials({
   evidence: {
     fileSha256: evidence.fileSha256,
+    multipartManifestSha256: evidence.multipartManifestSha256 ?? null,
+    hashSemantics: evidence.hashSemantics ?? null,
     fingerprintHash: evidence.fingerprintHash,
     signatureBase64: evidence.signatureBase64,
     signingKeyId: evidence.signingKeyId,
@@ -9399,6 +9389,7 @@ const technicalMaterials = buildTechnicalMaterials({
     otsProofBase64: evidence.otsProofBase64,
   },
   publicKeyPem: signingKey.publicKeyPem,
+  partsCount: parts.length,
 });
 
 const versioning: PublicVerifyVersioning = {

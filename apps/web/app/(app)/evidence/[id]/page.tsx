@@ -1246,6 +1246,41 @@ export default function EvidenceDetailPage() {
                           ? `Version ${preservation.verificationPackage.version ?? "latest"}`
                           : "Not generated",
                       },
+                      // Phase C #10 — retention visibility on the
+                      // authenticated evidence detail surface.
+                      {
+                        label: "Retention until",
+                        value: workspace.evidence?.retentionUntilUtc
+                          ? `Recorded — ${formatValue(formatUserDateTime(workspace.evidence.retentionUntilUtc))}`
+                          : "No record-level retention deadline recorded",
+                      },
+                      {
+                        label: "Object Lock retention mode",
+                        value: workspace.evidence?.storageObjectLockMode
+                          ? String(workspace.evidence.storageObjectLockMode)
+                          : "Not asserted (storage immutability not confirmed for this record)",
+                      },
+                      {
+                        label: "Object Lock retention until",
+                        value: workspace.evidence?.storageObjectLockRetainUntilUtc
+                          ? formatValue(
+                              formatUserDateTime(
+                                workspace.evidence.storageObjectLockRetainUntilUtc
+                              )
+                            )
+                          : "Not asserted",
+                      },
+                      {
+                        label: "Legal hold",
+                        value:
+                          workspace.evidence?.storageObjectLockLegalHoldStatus ===
+                          "ON"
+                            ? "Legal hold active"
+                            : workspace.evidence?.storageObjectLockLegalHoldStatus ===
+                                "OFF"
+                              ? "Legal hold off"
+                              : "No legal hold metadata recorded",
+                      },
                     ]}
                   />
                 </section>
@@ -1299,6 +1334,121 @@ export default function EvidenceDetailPage() {
                     <strong>Integrity drift</strong>
                     <p>{workspace.integrityDrift.note}</p>
                   </div>
+
+                  {/*
+                    Phase C #2 — surface the snapshot/live divergence on the
+                    authenticated evidence detail surface too. The verify page
+                    has the same callout for public viewers; this one is for
+                    the reviewer.
+                  */}
+                  {workspace.artifactVersions.trustDecisionConsistency
+                    ?.consistentWithSnapshot === false ? (
+                    <div
+                      role="alert"
+                      className="evidence-detail-note-box"
+                      style={{
+                        borderLeft: "5px solid #b8861f",
+                        background: "#fef7e8",
+                      }}
+                    >
+                      <strong>Snapshot vs live divergence</strong>
+                      <p>
+                        Live verification currently differs from the fixed
+                        report snapshot. Review current technical materials
+                        before relying on this result. The trust decision
+                        shown is sourced from the report snapshot (frozen at
+                        report generation time); one or more live signals
+                        have changed since then.
+                      </p>
+                    </div>
+                  ) : null}
+                </section>
+
+                {/*
+                  Phase C #11 — concise reviewer audit drilldown. Surfaces the
+                  forensic vs access split, custody chain validity, and the
+                  hash-semantics flag in one spot so reviewers don't have to
+                  spelunk through the raw JSON appendix.
+                */}
+                <section className="evidence-detail-section">
+                  <div className="evidence-detail-section-header">
+                    <SectionHeading
+                      kicker="Reviewer Audit Drilldown"
+                      title="Forensic chain, access analytics, and hash semantics"
+                      icon={ShieldCheck}
+                    />
+                  </div>
+
+                  <KeyValueGrid
+                    items={[
+                      {
+                        label: "Custody chain validity",
+                        value: preservation.custodyChain.valid
+                          ? `Continuous (${preservation.custodyChain.mode})`
+                          : `Review required (${preservation.custodyChain.reason ?? "unknown"})`,
+                      },
+                      {
+                        label: "Forensic events at report time",
+                        value: String(
+                          workspace.custodyDisplayCounts.forensicAtReportGeneration
+                        ),
+                      },
+                      {
+                        label: "Forensic events now",
+                        value: String(
+                          workspace.custodyDisplayCounts.currentForensicEvents
+                        ),
+                      },
+                      {
+                        label: "Access / view events after report",
+                        value: String(
+                          workspace.custodyDisplayCounts.accessAfterReportGeneration
+                        ),
+                      },
+                      ...(() => {
+                        // technicalMaterials is loosely typed (Record<string, unknown>);
+                        // narrow to a small reader to make the rendering clean.
+                        const tm = (workspace.artifactVersions
+                          .technicalMaterials ?? {}) as {
+                          hashSemantics?: string | null;
+                          multipartManifestSha256?: string | null;
+                          tsaInputDigestHex?: string | null;
+                        };
+                        return [
+                          {
+                            label: "Hash semantics",
+                            value:
+                              tm.hashSemantics === "single_file"
+                                ? "Single-file SHA-256"
+                                : tm.hashSemantics === "multipart_composite"
+                                  ? "Multipart composite (with reproducible manifest digest)"
+                                  : tm.hashSemantics ===
+                                      "multipart_composite_legacy"
+                                    ? "Multipart composite (legacy record — reproduce from per-part hashes in the verification package)"
+                                    : "Not specified",
+                          },
+                          {
+                            label: "Multipart manifest SHA-256",
+                            value:
+                              tm.multipartManifestSha256 ??
+                              "Not applicable / not stored",
+                          },
+                          {
+                            label: "TSA accepted message imprint",
+                            value:
+                              tm.tsaInputDigestHex ?? "TSA token not present",
+                          },
+                        ];
+                      })(),
+                    ]}
+                  />
+
+                  <p className="evidence-detail-muted">
+                    Forensic custody events are technical chain events
+                    (creation, signature, retention, timestamp). Access events
+                    are read-only views and downloads. The two are kept
+                    separate so the chain is not diluted by analytics traffic.
+                  </p>
                 </section>
               </>
             ) : null}

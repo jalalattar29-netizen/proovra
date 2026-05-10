@@ -525,6 +525,12 @@ export async function completeEvidence(params: {
       let canonical = "";
       let fingerprintHash = "";
       let canonicalEvidenceType = evidence.type;
+      // Phase C #4 — multipart hash semantics. These variables are populated
+      // in either the multipart branch or the single-file branch and stored
+      // alongside fileSha256 so consumers know which is which.
+      let multipartManifestSha256Out: string | null = null;
+      let hashSemanticsOut: "single_file" | "multipart_composite" =
+        "single_file";
       const retentionTargets: RetentionTarget[] = [];
 
       const now = new Date();
@@ -609,9 +615,30 @@ export async function completeEvidence(params: {
 
 const isMultipartPackage = updatedParts.length > 1;
 
+// Phase C #4 — multipart hash semantics.
+//
+// Single-file evidence: fileSha256 IS the SHA-256 of the original file.
+// Multipart evidence: fileSha256 is a synthetic composite (per-part
+// SHA-256s joined by "|" then hashed). To make multipart integrity
+// independently reproducible by reviewers, we ALSO record an explicit
+// multipartManifestSha256 computed deterministically from the per-part
+// hashes in part-index order, joined by newlines. The package-checksums.json
+// in the verification package is the same source of truth.
 fileSha256 = isMultipartPackage
   ? sha256Hex(updatedParts.map((p) => p.sha256).join("|"))
   : updatedParts[0]!.sha256;
+
+const sortedPartsForManifest = [...updatedParts].sort(
+  (a, b) => a.partIndex - b.partIndex
+);
+multipartManifestSha256Out = isMultipartPackage
+  ? sha256Hex(
+      sortedPartsForManifest.map((p) => p.sha256).join("\n")
+    )
+  : null;
+hashSemanticsOut = isMultipartPackage
+  ? "multipart_composite"
+  : "single_file";
 
 multipart = isMultipartPackage;
 multipartItemCount = updatedParts.length;
@@ -762,6 +789,11 @@ const captureMethod =
           sizeBytes: BigInt(sizeBytesNum),
           mimeType: primaryMimeType,
           fileSha256,
+          // Phase C #4: explicit multipart hash semantics, see schema
+          // comments. fileSha256 alone is ambiguous for multipart records
+          // because it's a synthetic composite of per-part hashes.
+          multipartManifestSha256: multipartManifestSha256Out,
+          hashSemantics: hashSemanticsOut,
           fingerprintCanonicalJson: canonical,
           fingerprintHash,
           signatureBase64: signResult.signatureBase64,

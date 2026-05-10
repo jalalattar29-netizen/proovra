@@ -3903,7 +3903,11 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
   const heroWhatIsVerifiedText = useMemo(() => {
     return (
       humanSummary?.whatIsVerified ??
-      "This page verifies the recorded integrity state of the evidence record. It does not independently prove factual truth, authorship, context, or legal admissibility."
+      // Phase C #14 / #15 — explicit honest positioning: PROOVRA preserves and
+      // verifies the *recorded integrity state* after intake; it does not
+      // make controlled-capture / device-attestation / examiner-grade
+      // forensic-acquisition / court-acceptance claims.
+      "PROOVRA preserves and verifies the recorded integrity state of the evidence record after intake. It does not prove original device-capture authenticity, factual truth, authorship, context, intent, legal admissibility, or court acceptance."
     );
   }, [humanSummary?.whatIsVerified]);
 

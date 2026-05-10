@@ -17,6 +17,50 @@ export type SupportChatPayload = {
   };
 };
 
+/**
+ * Phase C #3 — sanitize the page-context path before forwarding to the
+ * provider. Paths can include UUIDs (evidence ids), slugs derived from case
+ * names, or invite tokens. We strip any UUID-shaped or token-shaped segment
+ * and any segment longer than ~24 chars and replace it with a generic
+ * placeholder. The route shape is what's analytically useful, not the
+ * specific identifiers.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const HEX_TOKEN_RE = /^[0-9a-f]{16,}$/i;
+
+export function sanitizePageContextPath(
+  path: string | undefined | null
+): string | null {
+  if (typeof path !== "string") return null;
+  const trimmed = path.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > 256) return null;
+  return trimmed
+    .split("/")
+    .map((segment) => {
+      if (!segment) return segment;
+      if (UUID_RE.test(segment)) return ":id";
+      if (HEX_TOKEN_RE.test(segment)) return ":token";
+      if (segment.length > 24) return ":dynamic";
+      // Strip query strings entirely; they may carry sensitive params.
+      if (segment.includes("?")) return segment.split("?")[0] ?? "";
+      return segment;
+    })
+    .join("/");
+}
+
+function sanitizeChatPayload(payload: SupportChatPayload): SupportChatPayload {
+  if (!payload.pageContext) return payload;
+  return {
+    ...payload,
+    pageContext: {
+      // Title is short and reviewer-safe; path is the risk surface.
+      title: payload.pageContext.title,
+      path: sanitizePageContextPath(payload.pageContext.path) ?? undefined,
+    },
+  };
+}
+
 export class AiChatService {
   constructor(
     private provider: AiProvider,
@@ -49,7 +93,10 @@ if (productAnswer) {
   return productAnswer;
 }
     
-const result = await this.provider.run(AiTask.SUPPORT_CHAT, payload);
+const result = await this.provider.run(
+  AiTask.SUPPORT_CHAT,
+  sanitizeChatPayload(payload)
+);
 
 const cleanedResult: AiResult = {
   ...result,

@@ -2726,11 +2726,20 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           );
         }
 
+        // Phase C #5 — distinct event type for the worker-time identity
+        // re-snapshot. The intake-time IDENTITY_SNAPSHOT_RECORDED event is
+        // written by the API at evidence creation. Re-using the same event
+        // type at report generation made the chain look like a duplicate or
+        // tampered audit entry. REPORT_IDENTITY_CONTEXT_RECORDED carries
+        // the same payload shape but the distinct semantic of "report-time
+        // identity context for the reviewer audit context".
         await appendCustodyEventTx(tx, {
           evidenceId: prepared.evidenceId,
-          eventType: prismaPkg.CustodyEventType.IDENTITY_SNAPSHOT_RECORDED,
+          eventType:
+            prismaPkg.CustodyEventType.REPORT_IDENTITY_CONTEXT_RECORDED,
           atUtc: prepared.now,
           payload: {
+            phase: "report_identity_context",
             submittedByEmail: prepared.identitySnapshot.submittedByEmail,
             submittedByAuthProvider:
               prepared.identitySnapshot.submittedByAuthProvider,

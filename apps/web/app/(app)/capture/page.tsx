@@ -30,6 +30,7 @@ import {
 } from "./_lib/templates";
 import { useIntakeTemplates } from "./_hooks/useIntakeTemplates";
 import { useCaptureDraftPersistence } from "./_hooks/useCaptureDraftPersistence";
+import { useCaptureDraftList } from "./_hooks/useCaptureDraftList";
 
 import {
   deriveBatchEvidenceType,
@@ -93,6 +94,15 @@ export default function CapturePage() {
     () => collectionPlans.find((plan) => plan.id === collectionPlanId),
     [collectionPlanId, collectionPlans]
   );
+
+  // Phase C #16 — resume-draft surface state.
+  const draftList = useCaptureDraftList();
+  const [resumeOpen, setResumeOpen] = useState(false);
+  const [resumeDraftId, setResumeDraftId] = useState<string | null>(null);
+  const [resumeDraftDetail, setResumeDraftDetail] = useState<
+    Awaited<ReturnType<typeof draftList.fetchDetail>> | null
+  >(null);
+  const [resumeMetadataApplied, setResumeMetadataApplied] = useState(false);
 
   const draftPersistence = useCaptureDraftPersistence({ enabled: true });
   const draftIdRef = useRef<string | null>(null);
@@ -232,6 +242,26 @@ export default function CapturePage() {
     sessionItems,
     draftPersistence,
   ]);
+
+  // Phase C #16 — apply restored draft metadata once after the user picks a
+  // draft to resume. We only restore template / plan mode / internal notes;
+  // file binaries cannot be restored from a previous tab.
+  useEffect(() => {
+    if (!resumeDraftDetail || resumeMetadataApplied) return;
+    if (resumeDraftDetail.templateId) {
+      setCollectionPlanId(resumeDraftDetail.templateId);
+    }
+    if (typeof resumeDraftDetail.internalNotes === "string") {
+      setInternalNotes(resumeDraftDetail.internalNotes);
+    }
+    if (
+      resumeDraftDetail.planMode === "FLEXIBLE" ||
+      resumeDraftDetail.planMode === "CHECKLIST_REQUIRED"
+    ) {
+      setPlanMode(resumeDraftDetail.planMode);
+    }
+    setResumeMetadataApplied(true);
+  }, [resumeDraftDetail, resumeMetadataApplied]);
 
   const openFilePicker = () => {
     if (busy) return;
@@ -427,6 +457,108 @@ useEffect(() => {
       </datalist>
 
       <div className="capture-enterprise-shell">
+        {draftList.drafts.length > 0 && !sessionItems.length ? (
+          <div className="capture-resume-banner" role="region" aria-label="Unfinished capture sessions">
+            <div className="capture-resume-banner-text">
+              <strong>You have {draftList.drafts.length} unfinished capture session{draftList.drafts.length === 1 ? "" : "s"}.</strong>
+              <p>
+                Resume restores template, mappings, notes, and item metadata.
+                For privacy and browser-security reasons, the original file
+                binaries cannot be restored automatically — you must
+                re-attach the actual files before finalization.
+              </p>
+            </div>
+            <div className="capture-resume-banner-actions">
+              <button
+                type="button"
+                className="capture-bulk-button"
+                onClick={() => {
+                  setResumeOpen((open) => !open);
+                }}
+              >
+                {resumeOpen ? "Hide drafts" : "View drafts"}
+              </button>
+            </div>
+
+            {resumeOpen ? (
+              <ul className="capture-resume-list">
+                {draftList.drafts.map((draft) => (
+                  <li key={draft.id} className="capture-resume-list-item">
+                    <div className="capture-resume-list-meta">
+                      <strong>{draft.templateName ?? "Untitled draft"}</strong>
+                      <span>
+                        {draft.itemCount} staged item{draft.itemCount === 1 ? "" : "s"}
+                        {draft.planMode ? ` • ${draft.planMode}` : ""}
+                        {draft.expiresAtUtc
+                          ? ` • Expires ${new Date(draft.expiresAtUtc).toLocaleString()}`
+                          : ""}
+                      </span>
+                    </div>
+                    <div className="capture-resume-list-actions">
+                      <button
+                        type="button"
+                        className="capture-bulk-button"
+                        onClick={async () => {
+                          const detail = await draftList.fetchDetail(draft.id);
+                          setResumeDraftId(draft.id);
+                          setResumeDraftDetail(detail);
+                        }}
+                      >
+                        Resume metadata
+                      </button>
+                      <button
+                        type="button"
+                        className="capture-bulk-button"
+                        onClick={async () => {
+                          await draftList.discard(draft.id);
+                        }}
+                      >
+                        Discard
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {resumeDraftDetail ? (
+              <div className="capture-resume-restore-note">
+                <strong>Restored draft metadata loaded.</strong>
+                <p>
+                  Template:{" "}
+                  <em>{resumeDraftDetail.templateName ?? "Untitled"}</em>.
+                  Notes and {resumeDraftDetail.items.length} staged item
+                  reference{resumeDraftDetail.items.length === 1 ? "" : "s"}{" "}
+                  loaded into local view. Re-attach each file binary in the
+                  Capture surface below before finalization. The previous
+                  uploaded files (if any) will be retained server-side under
+                  their existing parts. Continuing finalization will create a
+                  fresh evidence record.
+                </p>
+                <button
+                  type="button"
+                  className="capture-bulk-button"
+                  onClick={() => {
+                    setResumeDraftId(null);
+                    setResumeDraftDetail(null);
+                    setResumeMetadataApplied(false);
+                  }}
+                >
+                  Acknowledge
+                </button>
+              </div>
+            ) : null}
+
+            {/*
+              Honesty note about the inherent browser file limitation. The
+              user MUST re-attach the actual files before finalize.
+              ResumedDraftId is preserved so the next Finalize will reuse
+              that captureSessionId and the server can keep the chain.
+            */}
+            <input type="hidden" name="resumed-draft" value={resumeDraftId ?? ""} />
+          </div>
+        ) : null}
+
         <section className="capture-enterprise-top">
           <div className="capture-enterprise-title-card">
 <div className="capture-enterprise-icon">

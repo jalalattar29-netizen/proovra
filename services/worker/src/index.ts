@@ -21,6 +21,8 @@ import {
 import { processOtsUpgrade } from "./ots-upgrade.processor.js";
 import { startHealthServer, type HealthServer } from "./health.js";
 import { captureException, initSentry } from "./sentry.js";
+import { reapExpiredCaptureDrafts } from "./capture-reaper.js";
+import { runOrphanArtifactScan } from "./orphan-scan.js";
 
 type JobData = { evidenceId?: string };
 
@@ -332,6 +334,101 @@ function stopDemoFollowUpScheduler() {
   }
 }
 
+// Phase C #8 — capture draft reaper scheduler.
+// Defaults to a 30-minute sweep. Disable with CAPTURE_DRAFT_REAPER_ENABLED=false.
+const captureReaperEnabled = envBoolean(
+  "CAPTURE_DRAFT_REAPER_ENABLED",
+  true
+);
+const captureReaperIntervalMs = envNumber(
+  "CAPTURE_DRAFT_REAPER_INTERVAL_MS",
+  30 * 60 * 1000
+);
+let captureReaperTimer: ReturnType<typeof setInterval> | null = null;
+let captureReaperRunning = false;
+
+async function runCaptureDraftReaper(trigger: string) {
+  if (captureReaperRunning) return;
+  captureReaperRunning = true;
+  try {
+    await reapExpiredCaptureDrafts({ trigger });
+  } catch (err) {
+    logger.error({ err, trigger }, "capture.reaper.failed");
+    captureException(err, { trigger });
+  } finally {
+    captureReaperRunning = false;
+  }
+}
+
+function startCaptureDraftReaperScheduler() {
+  if (!captureReaperEnabled) {
+    logger.info({}, "capture.reaper.scheduler.disabled");
+    return;
+  }
+  captureReaperTimer = setInterval(() => {
+    void runCaptureDraftReaper("interval");
+  }, captureReaperIntervalMs);
+  logger.info(
+    { intervalMs: captureReaperIntervalMs },
+    "capture.reaper.scheduler.started"
+  );
+  void runCaptureDraftReaper("startup");
+}
+
+function stopCaptureDraftReaperScheduler() {
+  if (captureReaperTimer) {
+    clearInterval(captureReaperTimer);
+    captureReaperTimer = null;
+  }
+}
+
+// Phase C #9 — orphan upload / artifact scan scheduler.
+// Defaults to a 6-hour sweep. Disable with ORPHAN_ARTIFACT_SCAN_ENABLED=false.
+const orphanScanEnabled = envBoolean(
+  "ORPHAN_ARTIFACT_SCAN_ENABLED",
+  true
+);
+const orphanScanIntervalMs = envNumber(
+  "ORPHAN_ARTIFACT_SCAN_INTERVAL_MS",
+  6 * 60 * 60 * 1000
+);
+let orphanScanTimer: ReturnType<typeof setInterval> | null = null;
+let orphanScanRunning = false;
+
+async function runOrphanScan(trigger: string) {
+  if (orphanScanRunning) return;
+  orphanScanRunning = true;
+  try {
+    await runOrphanArtifactScan({ trigger });
+  } catch (err) {
+    logger.error({ err, trigger }, "orphan.scan.failed");
+    captureException(err, { trigger });
+  } finally {
+    orphanScanRunning = false;
+  }
+}
+
+function startOrphanScanScheduler() {
+  if (!orphanScanEnabled) {
+    logger.info({}, "orphan.scan.scheduler.disabled");
+    return;
+  }
+  orphanScanTimer = setInterval(() => {
+    void runOrphanScan("interval");
+  }, orphanScanIntervalMs);
+  logger.info(
+    { intervalMs: orphanScanIntervalMs },
+    "orphan.scan.scheduler.started"
+  );
+}
+
+function stopOrphanScanScheduler() {
+  if (orphanScanTimer) {
+    clearInterval(orphanScanTimer);
+    orphanScanTimer = null;
+  }
+}
+
 initSentry();
 
 const reportWorker = new Worker(reportQueueName, processGenerateReport, {
@@ -367,6 +464,8 @@ async function shutdown(exitCode: number) {
   logger.info({ requestId: randomUUID(), exitCode }, "worker.shutdown_started");
 
   stopDemoFollowUpScheduler();
+  stopCaptureDraftReaperScheduler();
+  stopOrphanScanScheduler();
 
   try {
     await reportWorker.pause(true);
@@ -447,9 +546,26 @@ async function shutdown(exitCode: number) {
 }
 
 startHealthServer()
-  .then((server) => {
+  .then(async (server) => {
     healthServer = server;
+    // Phase C #1 — Object Lock startup verification at the worker too.
+    // Throws in production-shaped envs when S3_OBJECT_LOCK_ENABLED=true but
+    // the bucket cannot accept retention writes.
+    try {
+      const { bootstrapObjectLockVerification } = await import(
+        "./object-lock-bootstrap.js"
+      );
+      await bootstrapObjectLockVerification();
+    } catch (err) {
+      logger.error({ err }, "worker.object_lock.bootstrap_failed");
+      captureException(err, { phase: "worker.object_lock_bootstrap" });
+      // Refuse to start so operators see the failure in production.
+      void shutdown(1);
+      return;
+    }
     startDemoFollowUpScheduler();
+    startCaptureDraftReaperScheduler();
+    startOrphanScanScheduler();
   })
   .catch((err) => {
     const requestId = randomUUID();

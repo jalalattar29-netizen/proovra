@@ -159,10 +159,15 @@ vm.contentSummary.itemCount > 1
           })}
 
           ${renderIntegrityCheckRow({
-            label: "Digital Signature",
+            // Phase C #7: distinguish the evidence fingerprint signature
+            // (Ed25519 over the canonical fingerprint hash) from the PDF
+            // artifact signature (PKCS#7 over the PDF binary). The
+            // fingerprint signature exists for every completed record. The
+            // PDF artifact signature only exists when PDF_SIGNING_ENABLED=true.
+            label: "Evidence fingerprint signature (Ed25519)",
             value: signatureStatus,
             explanation:
-              "Signature material and signing-key references support independent validation of the recorded integrity package.",
+              "Signature material and signing-key references support independent validation of the recorded integrity package. This is the cryptographic signature over the canonical evidence fingerprint, distinct from any PDF artifact signature on the report file itself.",
             tone: toneFromValue(signatureStatus, ["recorded", "present"]),
           })}
 

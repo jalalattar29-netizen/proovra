@@ -12,6 +12,7 @@ import { captureException, initSentry } from "./observability/sentry.js";
 import { auditMiddleware } from "./middleware/audit.middleware.js";
 import { evidenceRoutes } from "./routes/evidence.routes.js";
 import { captureRoutes } from "./routes/capture.routes.js";
+import { bootstrapObjectLockVerification } from "./bootstrap/object-lock-verification.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { teamsRoutes } from "./routes/teams.routes.js";
 import { billingRoutes } from "./routes/billing.routes.js";
@@ -388,6 +389,17 @@ allowedHeaders: [
   await app.register(demoRequestsRoutes);
   await app.register(adminDemoRequestsRoutes);
   await app.register(adminAuditRoutes);
+
+  // Phase C #1: Object Lock startup verification.
+  // Throws in production-shaped envs when S3_OBJECT_LOCK_ENABLED=true but the
+  // bucket cannot accept retention writes. Set OBJECT_LOCK_VERIFICATION_BYPASS=true
+  // to opt out (and accept that EVIDENCE_LOCKED claims will be downgraded
+  // per-record by the Phase A truth gate).
+  await bootstrapObjectLockVerification({
+    info: (obj, msg) => app.log.info(obj as Record<string, unknown>, msg),
+    warn: (obj, msg) => app.log.warn(obj as Record<string, unknown>, msg),
+    error: (obj, msg) => app.log.error(obj as Record<string, unknown>, msg),
+  });
 
   return app;
 }

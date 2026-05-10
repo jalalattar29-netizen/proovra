@@ -24,27 +24,55 @@ export function isPdfSigningEnabled(): boolean {
 }
 
 /**
- * Production safety guard.
+ * Production safety guard (Phase B #11 + Phase C #7).
  *
- * Issue #11: in production we must not silently emit unsigned PDFs while the
- * report visually implies a "signed report" semantic. Two acceptable paths:
+ * In production we must not silently emit unsigned PDFs while the report
+ * visually implies a "signed report" semantic. Two acceptable paths:
  *   (a) PDF_SIGNING_ENABLED=true so the PDF artifact is signed, or
  *   (b) PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK=true to explicitly acknowledge that
  *       the operator has opted into unsigned PDFs (the report copy then
  *       distinguishes fingerprint signature from PDF artifact signature).
  *
- * In NODE_ENV=production with neither flag set, the worker refuses to
- * generate the report and surfaces a loud error so deploys can't slip
- * unsigned PDFs into a customer environment by accident.
+ * Production detection (Phase C #7): NODE_ENV alone is unreliable in real
+ * deployments (containers / Vercel / Render / Fly often leave NODE_ENV
+ * undefined or set it to non-standard values). We accept any of the
+ * conventional production signals so the guard cannot be silently bypassed
+ * by a missing env var:
+ *
+ *   PROOVRA_ENV   in {production, prod}
+ *   APP_ENV       in {production, prod}
+ *   DEPLOY_ENV    in {production, prod}
+ *   VERCEL_ENV    == production
+ *   RENDER        defined and truthy (Render sets RENDER=true)
+ *   NODE_ENV      in {production, prod}
+ *
+ * If ANY of these signals indicates production, the safety check fires.
  *
  * The fingerprint Ed25519 signature exists regardless of this PDF artifact
  * signature; the two are independent layers and both are described separately
  * in the report.
  */
+function isProductionShapedEnv(): boolean {
+  const candidates = [
+    env("PROOVRA_ENV"),
+    env("APP_ENV"),
+    env("DEPLOY_ENV"),
+    env("VERCEL_ENV"),
+    env("NODE_ENV"),
+  ];
+  for (const raw of candidates) {
+    if (typeof raw !== "string") continue;
+    const value = raw.trim().toLowerCase();
+    if (value === "production" || value === "prod") return true;
+  }
+  // Render sets RENDER=true and does not necessarily provide a -ENV variable.
+  const renderFlag = (env("RENDER") ?? "").trim().toLowerCase();
+  if (renderFlag === "true" || renderFlag === "1") return true;
+  return false;
+}
+
 export function assertPdfSigningProductionSafetyOrThrow(): void {
-  const isProduction =
-    (env("NODE_ENV") ?? "").toLowerCase() === "production";
-  if (!isProduction) return;
+  if (!isProductionShapedEnv()) return;
   if (isPdfSigningEnabled()) return;
 
   const optOutAcknowledged =

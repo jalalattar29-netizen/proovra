@@ -51,6 +51,21 @@ model Evidence {
   // Analytics-only timestamp of the last anonymous /public/verify hit. Updating
   // this does NOT imply a meaningful technical verification by a reviewer.
   lastPublicVerifyViewAtUtc         DateTime?           @map("last_public_verify_view_at_utc") @db.Timestamptz(6)
+
+  // Phase C #4 — explicit multipart hash semantics.
+  // For multipart packages: SHA-256 of a canonical newline-joined list of
+  // per-part SHA-256 hex digests in part-index order. Reviewers can recompute
+  // this independently from the per-part hashes in the verification package's
+  // package-checksums.json. For single-file evidence this column is null and
+  // fileSha256 is the SHA-256 of the original file.
+  multipartManifestSha256           String?             @map("multipart_manifest_sha256") @db.VarChar(64)
+  // Hash semantics indicator so old records render safely. One of:
+  //   "single_file"          — fileSha256 IS the original-file SHA-256.
+  //   "multipart_composite"  — fileSha256 is the synthetic composite of
+  //                            per-part hashes; multipartManifestSha256 is set.
+  //   null                   — pre-Phase-C records; readers must infer from
+  //                            evidenceParts count.
+  hashSemantics                     String?             @map("hash_semantics") @db.VarChar(32)
   verificationPackageGeneratedAtUtc DateTime?           @map("verification_package_generated_at_utc") @db.Timestamptz(6)
   verificationPackageVersion        Int?                @map("verification_package_version")
   verificationPackageMetadata       Json?               @map("verification_package_metadata")

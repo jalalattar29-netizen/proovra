@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
   GetObjectCommand,
+  GetObjectLockConfigurationCommand,
   PutObjectLegalHoldCommand,
   PutObjectRetentionCommand,
   type ObjectLockLegalHoldStatus,
@@ -541,4 +542,110 @@ async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
   }
 
   return Buffer.concat(chunks);
+}
+
+/**
+ * Object Lock startup verification (Phase C #1).
+ *
+ * When S3_OBJECT_LOCK_ENABLED=true the code path that completes evidence
+ * appends EVIDENCE_LOCKED custody events. We must NOT enter that code path
+ * if the configured bucket cannot actually accept retention writes — the
+ * EVIDENCE_LOCKED event would still be gated by Phase A's truth check
+ * (anyApplied + headObject), but operators deserve a loud failure at startup
+ * rather than silent per-record downgrades.
+ *
+ * Returns:
+ *   { mode: "verified", configured: { ... } } — bucket has Object Lock and
+ *     a default retention or "no default" but Object Lock is enabled.
+ *   { mode: "claimed-but-unsupported", reason } — env says enabled, bucket
+ *     does not support Object Lock. In production the caller should refuse
+ *     to start; in dev it should log loudly and downgrade claims.
+ *   { mode: "disabled" } — env did not opt in; nothing to verify.
+ *   { mode: "skipped", reason } — verification could not run (e.g., probe
+ *     S3 client mis-configured); caller decides policy.
+ */
+export type ObjectLockVerificationResult =
+  | {
+      mode: "verified";
+      configured: {
+        objectLockEnabled: boolean;
+        defaultMode: string | null;
+        defaultRetainDays: number | null;
+        bucket: string;
+      };
+    }
+  | { mode: "claimed-but-unsupported"; bucket: string; reason: string }
+  | { mode: "disabled" }
+  | { mode: "skipped"; reason: string };
+
+export async function verifyObjectLockConfiguration(): Promise<ObjectLockVerificationResult> {
+  if (!isObjectLockEnabled()) {
+    return { mode: "disabled" };
+  }
+
+  const bucket = clean(process.env.S3_BUCKET);
+  if (!bucket) {
+    return { mode: "skipped", reason: "S3_BUCKET not configured" };
+  }
+
+  try {
+    const res = await s3.send(
+      new GetObjectLockConfigurationCommand({ Bucket: bucket })
+    );
+    const cfg = res.ObjectLockConfiguration;
+    const objectLockEnabled =
+      String(cfg?.ObjectLockEnabled ?? "").toLowerCase() === "enabled";
+
+    if (!objectLockEnabled) {
+      return {
+        mode: "claimed-but-unsupported",
+        bucket,
+        reason:
+          "GetObjectLockConfiguration returned a configuration but ObjectLockEnabled is not 'Enabled'",
+      };
+    }
+
+    return {
+      mode: "verified",
+      configured: {
+        objectLockEnabled,
+        defaultMode: cfg?.Rule?.DefaultRetention?.Mode ?? null,
+        defaultRetainDays:
+          cfg?.Rule?.DefaultRetention?.Days ??
+          (typeof cfg?.Rule?.DefaultRetention?.Years === "number"
+            ? cfg.Rule.DefaultRetention.Years * 365
+            : null),
+        bucket,
+      },
+    };
+  } catch (err) {
+    const errObj = err as {
+      name?: unknown;
+      Code?: unknown;
+      code?: unknown;
+      message?: unknown;
+    };
+    const code = String(errObj?.Code ?? errObj?.code ?? errObj?.name ?? "");
+    const msg = String(errObj?.message ?? "");
+
+    // S3 returns ObjectLockConfigurationNotFoundError when the bucket exists
+    // but Object Lock was never enabled at bucket creation time.
+    if (
+      code.includes("ObjectLockConfigurationNotFoundError") ||
+      msg.includes("Object Lock configuration does not exist") ||
+      msg.includes("ObjectLockConfigurationNotFound")
+    ) {
+      return {
+        mode: "claimed-but-unsupported",
+        bucket,
+        reason:
+          "Bucket has no Object Lock configuration. Object Lock can only be enabled at bucket creation time on AWS S3.",
+      };
+    }
+
+    return {
+      mode: "skipped",
+      reason: `GetObjectLockConfiguration probe failed: ${code || msg || "unknown"}`,
+    };
+  }
 }
