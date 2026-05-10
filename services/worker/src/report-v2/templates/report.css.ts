@@ -149,6 +149,21 @@ letter-spacing: -0.005em;
   border-bottom: 2px solid ${c.accentMetal};
 }
 
+.cover-tone-warning .cover-certificate-top {
+  background: linear-gradient(180deg, rgba(45, 74, 76, 0.96), rgba(84, 66, 34, 0.96));
+  border-bottom-color: ${c.warning};
+}
+
+.cover-tone-warning .cover-status-stamp,
+.cover-tone-warning .cover-top-badge {
+  box-shadow: none;
+}
+
+.cover-tone-danger .cover-certificate-top {
+  background: linear-gradient(180deg, rgba(68, 28, 24, 0.96), rgba(96, 41, 31, 0.96));
+  border-bottom-color: ${c.danger};
+}
+
 .cover-brand-row {
   display: flex;
   align-items: center;

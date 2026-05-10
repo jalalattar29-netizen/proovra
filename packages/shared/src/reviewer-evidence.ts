@@ -111,18 +111,21 @@ export function getReviewerUploadModeLabel(
   input: ReviewerUploadModeInput
 ): string | null {
   if (isMultipartEvidence(input)) {
-    return "multipart package";
+    return "initial intake authorization for multipart evidence";
   }
 
   const normalized = normalizeDisplayToken(input.rawMode);
   if (!normalized) return null;
 
   switch (normalized) {
+    case "intake authorization":
+    case "intake_authorization":
+      return "initial intake authorization";
     case "single":
-      return "single";
+      return "single evidence item";
     case "multipart":
     case "multipart package":
-      return "multipart package";
+      return "initial intake authorization for multipart evidence";
     default:
       return normalized;
   }

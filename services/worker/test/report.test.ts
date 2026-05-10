@@ -207,7 +207,7 @@ describe("report v2 pipeline", () => {
     // The intent — that each forensic section exists in the correct order
     // — is what this test protects.
     expect(html).toContain("Executive Summary");
-    expect(html).toContain("Executive conclusion");
+    expect(html).toContain("executive-conclusion-card");
     expect(html).toContain("Integrity Control Checklist");
     expect(html).toContain("Chain of Custody");
     expect(html).toContain("Legal Interpretation");
@@ -220,7 +220,7 @@ describe("report v2 pipeline", () => {
 
     expectInOrder(html, [
       "Executive Summary",
-      "Executive conclusion",
+      "executive-conclusion-card",
       "Integrity Control Checklist",
       "Chain of Custody",
       "Legal Interpretation",
@@ -338,7 +338,8 @@ describe("report v2 pipeline", () => {
     // These should NEVER appear in a generated report.
     expect(html).not.toContain("guarantees admissibility");
     expect(html).not.toContain("proves authorship");
-    expect(html).not.toContain("Strongly verified"); // Replaced by "Strong recorded integrity".
+    expect(html).not.toContain("Strongly verified");
+    expect(html).not.toContain("Strong recorded integrity");
     expect(html).toContain(PROOVRA_MULTIPART_REVIEWER_EXPLANATION);
     expect(html).toContain(PROOVRA_MULTIPART_RECOMPUTATION_NOTE);
     expect(html).toContain(PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE);

@@ -86,7 +86,6 @@ import {
   buildTrustDecision,
   hasCoreCryptoMaterials,
   isIntegrityVerified,
-  normalizeOtsTone,
   normalizeStorageTone,
   normalizeTimestampTone,
 } from "./truth-model.js";
@@ -535,7 +534,7 @@ function buildReviewReadinessRows(
       value: safeBooleanLabel(
         evidence.storageImmutable,
         "Verified",
-        "Not fully verified",
+        "Recorded with limitations",
         "Not reported"
       ),
     },
@@ -687,7 +686,7 @@ function buildStorageRows(
       value: safeBooleanLabel(
         evidence.storageImmutable,
         "Verified",
-        "Not fully verified",
+        "Recorded with limitations",
         "Not reported"
       ),
     },
@@ -1080,7 +1079,7 @@ function buildTechnicalAppendixCourtRows(params: {
       value: safeBooleanLabel(
         params.evidence.storageImmutable,
         "Verified",
-        "Not fully verified",
+        "Recorded with limitations",
         "Not reported"
       ),
     },
@@ -1223,7 +1222,7 @@ const primaryContentItem = resolvePrimaryContentItem(
     ),
   });
 
-  const executiveConclusion = buildExecutiveConclusion(input.evidence);
+  const executiveConclusion = buildExecutiveConclusion(trustDecision);
   const legalLimitationShort = buildLegalLimitationShort();
   const reviewSequence = buildReviewSequence(
     primaryContentItem?.originalFileName ?? primaryContentItem?.label
@@ -1240,8 +1239,6 @@ const primaryContentItem = resolvePrimaryContentItem(
     input.evidence.storageObjectLockMode,
     input.evidence.storageObjectLockRetainUntilUtc
   );
-  const otsTone = normalizeOtsTone(otsEvidence.otsStatus);
-
   const storageAndTimestampTone =
     timestampTone === "danger" || storageTone === "danger"
       ? "danger"
@@ -1289,18 +1286,14 @@ const primaryContentItem = resolvePrimaryContentItem(
       tone: storageAndTimestampTone,
     },
     {
-      label: "Report Mode",
-      value:
-        presentationMode === "simple"
-          ? "Simple package presentation"
-          : presentationMode === "medium"
-            ? "Balanced package presentation"
-            : "Heavy package presentation",
-      tone: anchorSummary?.published
-        ? "success"
-        : otsTone === "danger"
-          ? "danger"
-          : "neutral",
+      label: "Publication Posture",
+      value: trustDecision.publicationStatusLabel,
+      tone:
+        trustDecision.presentationState === "VERIFIED_FINALIZED"
+          ? "success"
+          : trustDecision.presentationTone === "danger"
+            ? "danger"
+            : "warning",
     },
   ];
 

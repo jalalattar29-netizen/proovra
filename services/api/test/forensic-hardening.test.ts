@@ -93,6 +93,37 @@ describe("public verify semantics (Governance Item 1)", () => {
     expect(verifyPageSource).toContain('label: "Last public verify page view"');
     expect(verifyPageSource).toContain('label: "Current public verify page view"');
     expect(verifyPageSource).not.toContain('label: "Last Verified At"');
+    expect(verifyPageSource).toContain("getTrustDecisionConfidenceLabel");
+    expect(verifyPageSource).toContain("Recorded integrity verified; publication pending");
+  });
+});
+
+describe("intake + TSA semantics", () => {
+  it("marks initial upload authorization as intake authorization instead of single-upload finality", () => {
+    const source = readRepoFile(
+      "services",
+      "api",
+      "src",
+      "services",
+      "evidence.service.ts"
+    );
+
+    expect(source).toContain('uploadKind: "intake_authorization"');
+    expect(source).toContain("final evidence structure may still become multipart");
+  });
+
+  it("labels multipart timestamp input as canonical package digest", () => {
+    const source = readRepoFile(
+      "services",
+      "api",
+      "src",
+      "services",
+      "evidence-complete.service.ts"
+    );
+
+    expect(source).toContain(
+      'multipartItemCount > 1 ? "CANONICAL_PACKAGE_SHA256" : "FILE_SHA256"'
+    );
   });
 });
 

@@ -769,7 +769,8 @@ const fingerprint = buildFingerprint({
       const tsaResult = await createEvidenceTimestamp({
         digestHex: fileSha256,
       });
-      const tsaInputKind = "FILE_SHA256";
+      const tsaInputKind =
+        multipartItemCount > 1 ? "CANONICAL_PACKAGE_SHA256" : "FILE_SHA256";
 
 const captureMethod =
   multipartItemCount > 1

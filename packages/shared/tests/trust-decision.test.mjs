@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   buildEvidenceTrustDecision,
   evaluateRecordedIntegrityPromotion,
+  getTrustDecisionConfidenceLabel,
+  getTrustDecisionPresentationTone,
   serializeTrustDecisionForReviewerPackage,
 } from "../dist/index.js";
 
@@ -220,7 +222,7 @@ test("anchored without defensible public material stays partial", () => {
   );
 
   assert.equal(anchoring?.status, "partial");
-  assert.equal(anchoring?.points, 8);
+  assert.equal(anchoring?.points, 6);
 });
 
 test("pending ots yields pending anchoring signal", () => {
@@ -236,7 +238,56 @@ test("pending ots yields pending anchoring signal", () => {
   );
 
   assert.equal(anchoring?.status, "pending");
-  assert.equal(anchoring?.points, 6);
+  assert.equal(anchoring?.points, 4);
+});
+
+test("pending publication degrades presentation tone and confidence label", () => {
+  const trustDecision = buildEvidenceTrustDecision({
+    evidence: buildBaseEvidence({
+      verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
+      recordedIntegrityVerifiedAtUtc: "2026-05-02T10:00:00.000Z",
+      otsStatus: "PENDING",
+    }),
+    custodyEvents: [
+      buildForensicEvent(1),
+      buildForensicEvent(2),
+      buildForensicEvent(3),
+      buildForensicEvent(4),
+      buildForensicEvent(5),
+    ],
+  });
+
+  assert.equal(trustDecision.presentationState, "VERIFIED_PENDING_PUBLICATION");
+  assert.equal(getTrustDecisionPresentationTone(trustDecision), "warning");
+  assert.equal(getTrustDecisionConfidenceLabel(trustDecision), "High (Pending publication)");
+  assert.match(trustDecision.verdictLabel, /publication pending/i);
+});
+
+test("finalized publication can retain a success presentation tone", () => {
+  const trustDecision = buildEvidenceTrustDecision({
+    evidence: buildBaseEvidence({
+      verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
+      recordedIntegrityVerifiedAtUtc: "2026-05-02T10:00:00.000Z",
+      otsStatus: "ANCHORED",
+      otsBitcoinTxid: "c".repeat(64),
+      anchor: {
+        transactionId: "c".repeat(64),
+        publicUrl: "https://anchor.example/receipt/123",
+      },
+    }),
+    custodyEvents: [
+      buildForensicEvent(1),
+      buildForensicEvent(2),
+      buildForensicEvent(3),
+      buildForensicEvent(4),
+      buildForensicEvent(5),
+    ],
+  });
+
+  assert.equal(trustDecision.presentationState, "VERIFIED_FINALIZED");
+  assert.equal(getTrustDecisionPresentationTone(trustDecision), "success");
+  assert.equal(getTrustDecisionConfidenceLabel(trustDecision), "High");
+  assert.equal(trustDecision.verdictLabel, "Recorded integrity verified");
 });
 
 test("failed ots yields failed anchoring signal", () => {

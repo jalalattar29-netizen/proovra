@@ -1,5 +1,6 @@
 import {
   buildEvidenceTrustDecision,
+  getTrustDecisionConfidenceLabel,
   hasCoreCryptoMaterials as hasSharedCoreCryptoMaterials,
   isExplicitRecordedIntegrityVerified,
 } from "@proovra/shared";
@@ -104,16 +105,23 @@ export function normalizeStorageTone(
 }
 
 export function buildExecutiveConclusion(
-  evidence: ReportEvidence
+  decision: ReportTrustDecision
 ): CalloutModel {
-  const verified = isIntegrityVerified(evidence);
-
   return {
-    title: verified ? "Executive conclusion" : "Reviewable evidence record",
-    body: verified
-      ? "The preserved evidence record reached a verified recorded-integrity state at report generation time. Reviewers can use this report to orient themselves to the package, then proceed to the later technical and legal sections for deeper validation and interpretation."
-      : "The preserved evidence record is present and reviewable, but one or more technical confirmation signals were not finalized at report generation time. Reviewers should use the report as an evidence-orientation and technical-review aid.",
-    tone: verified ? "success" : "warning",
+    title:
+      decision.presentationState === "VERIFIED_FINALIZED"
+        ? "Executive conclusion"
+        : "Conditional integrity conclusion",
+    body:
+      decision.presentationState === "VERIFIED_FINALIZED"
+        ? "The preserved evidence record reached a verified recorded-integrity state with finalized supporting publication materials at report generation time. Reviewers can use this report to orient themselves to the package, then proceed to the later technical and legal sections for deeper validation and interpretation."
+        : decision.presentationState === "VERIFIED_PENDING_PUBLICATION"
+          ? `The preserved evidence record reached a verified recorded-integrity state at report generation time, but independent public anchoring or external publication was not finalized yet. Technical confidence remains ${getTrustDecisionConfidenceLabel(
+              decision
+            ).toLowerCase()}, and publication recheck is recommended if independent public anchoring is required.`
+          : "The preserved evidence record is present and reviewable, but one or more supporting technical confirmation signals were not finalized at report generation time. Reviewers should use this report as an evidence-orientation and technical-review aid.",
+    tone:
+      decision.presentationState === "VERIFIED_FINALIZED" ? "success" : "warning",
   };
 }
 

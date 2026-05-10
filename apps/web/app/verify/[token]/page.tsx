@@ -12,9 +12,10 @@ import {
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
   getReviewerEvidenceTypeLabel,
-  getReviewerRelianceLabel,
+  getTrustDecisionConfidenceLabel,
   getTrustDecisionLabel,
   getTrustNarrative,
+  getTrustDecisionPresentationTone,
   getTrustSignalPresentationLabel,
   hasCaptureLocationMetadata,
   isAccessCustodyEventType,
@@ -757,12 +758,17 @@ function timestampTone(
 }
 
 function otsTone(
-  status?: string | null
+  status?: string | null,
+  bitcoinTxid?: string | null
 ): { label: string; tone: "success" | "warning" | "neutral" | "info" } {
   const s = (status ?? "").toUpperCase();
+  const hasValidBitcoinTxid =
+    typeof bitcoinTxid === "string" && /^[a-f0-9]{64}$/i.test(bitcoinTxid.trim());
 
   if (s === "ANCHORED") {
-    return { label: "ANCHORED", tone: "success" };
+    return hasValidBitcoinTxid
+      ? { label: "ANCHORED", tone: "success" }
+      : { label: "PUBLICATION PENDING", tone: "warning" };
   }
 
   if (s === "PENDING") {
@@ -1960,6 +1966,22 @@ type VerifyTrustDecision = {
   score: number;
   scoreLabel: string;
   tone: TrustDecisionTone;
+  presentationState?:
+    | "VERIFIED_FINALIZED"
+    | "VERIFIED_PENDING_PUBLICATION"
+    | "VERIFIED_WITH_DEGRADED_SIGNALS"
+    | "PARTIALLY_VERIFIED"
+    | "FAILED_VERIFICATION"
+    | "REVIEW_REQUIRED";
+  presentationTone?: TrustDecisionTone;
+  publicationState?:
+    | "finalized"
+    | "pending"
+    | "degraded"
+    | "unavailable"
+    | "failed";
+  confidenceLabel?: string;
+  publicationStatusLabel?: string;
   relianceLevel: "high" | "medium" | "limited" | "low";
   degradedButUsable: boolean;
   summary: string;
@@ -1970,6 +1992,29 @@ type VerifyTrustDecision = {
   failedSignals: number;
   signals: VerifyTrustSignal[];
 };
+
+function normalizeVerifyTrustDecision(
+  decision: VerifyTrustDecision
+): VerifyTrustDecision & {
+  presentationState:
+    | "VERIFIED_FINALIZED"
+    | "VERIFIED_PENDING_PUBLICATION"
+    | "VERIFIED_WITH_DEGRADED_SIGNALS"
+    | "PARTIALLY_VERIFIED"
+    | "FAILED_VERIFICATION"
+    | "REVIEW_REQUIRED";
+} {
+  return {
+    ...decision,
+    presentationState:
+      decision.presentationState ??
+      (decision.verdict === "PARTIALLY_VERIFIED"
+        ? "PARTIALLY_VERIFIED"
+        : decision.verdict === "REVIEW_REQUIRED"
+          ? "REVIEW_REQUIRED"
+          : "VERIFIED_WITH_DEGRADED_SIGNALS"),
+  };
+}
 
 type VerificationVerdict = {
   status:
@@ -2025,8 +2070,12 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     (signal) => signal.key === "public_anchoring"
   );
   const verdictCode = input.trustDecision?.verdict ?? null;
+  const presentationState = input.trustDecision?.presentationState ?? null;
   const coreExplicitlyVerified = coreSignal?.status === "passed";
-  const publicAnchoringPending = publicAnchoringSignal?.status === "pending";
+  const publicAnchoringPending =
+    publicAnchoringSignal?.status === "pending" ||
+    publicAnchoringSignal?.status === "partial" ||
+    presentationState === "VERIFIED_PENDING_PUBLICATION";
   const timestampMismatch =
     isPositiveTsa(input.tsaStatus) && input.timestampDigestMatches === false;
   const timestampUnavailable =
@@ -2083,7 +2132,7 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
       label: "Review Required",
       riskLevel: "High",
       actionRequired:
-        "Do not rely on this record as a fully verified evidence record until the failed integrity signal is reviewed by a qualified technical or forensic reviewer.",
+        "Do not rely on this record as a finalized integrity result until the failed integrity signal is reviewed by a qualified technical or forensic reviewer.",
       legalStatement:
         "One or more returned integrity checks did not pass. This page supports review of the recorded system state, but it must not be interpreted as conclusive proof of authenticity, authorship, factual truth, legal admissibility, or absence of tampering.",
       reviewerSummary:
@@ -2097,22 +2146,24 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     return {
       status: "verified",
       title: "Final Verification Verdict",
-      label: "Core Integrity Verified",
-      riskLevel: "Low",
+      label: publicAnchoringPending
+        ? "Recorded integrity verified; publication pending"
+        : "Recorded integrity verified",
+      riskLevel: publicAnchoringPending ? "Medium" : "Low",
       actionRequired:
         publicAnchoringPending
-          ? "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility. Public anchoring is still pending and should be rechecked later if independent public anchoring is required."
+          ? "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility. Independent public anchoring is not finalized yet and should be rechecked later if external/public publication matters to the review."
           : "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility.",
       legalStatement:
         publicAnchoringPending
-          ? "The available cryptographic, custody, timestamping, and storage signals returned in this verification response support the recorded integrity state. Public anchoring is still pending and should not be treated as finalized. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content."
+          ? "The available cryptographic, custody, timestamping, and storage signals returned in this verification response support the recorded integrity state. Independent public anchoring is still pending and must not be treated as finalized publication. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content."
           : "The available cryptographic, custody, timestamping, storage, and publication signals returned in this verification response support the recorded integrity state. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
       reviewerSummary:
         publicAnchoringPending
-          ? "The available technical verification signals support the integrity of the recorded evidence state, while public anchoring remains pending."
+          ? "The available technical verification signals support the recorded integrity state, while independent public anchoring remains pending."
           : "The available technical verification signals support the integrity of the recorded evidence state.",
       confidenceScore,
-      tone: "success",
+      tone: publicAnchoringPending ? "warning" : "success",
     };
   }
 
@@ -2125,23 +2176,23 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
       status: "partial",
       title: "Final Verification Verdict",
       label: !coreExplicitlyVerified
-        ? "Verified with limitations"
+        ? "Conditional trust state"
         : timestampUnavailable
-        ? "Available Integrity Checks Verified; Trusted Timestamp Unavailable"
-        : "Partially Verified",
+        ? "Integrity verified; trusted timestamp unavailable"
+        : "Conditional trust state",
       riskLevel: "Medium",
       actionRequired:
         !coreExplicitlyVerified
-          ? "Core integrity materials are recorded, but the recorded-integrity state has not been finalized as fully verified. Use this record with limitations until that state is explicit."
+          ? "Core integrity materials are recorded, but the recorded-integrity state has not been finalized as explicitly verified. Use this record with limitations until that state is explicit."
           : timestampUnavailable
-          ? "Core integrity checks are available, but the trusted timestamp provider did not return a usable token. Review timestamp availability before treating the evidence as fully timestamp-verified."
-          : "Use this record with caution. Review missing, pending, or unavailable verification layers before treating the evidence as fully verified.",
+          ? "Core integrity checks are available, but the trusted timestamp provider did not return a usable token. Review timestamp availability before treating the evidence as timestamp-verified."
+          : "Use this record with caution. Review missing, pending, or unavailable verification layers before treating the evidence as finalized.",
       legalStatement:
         !coreExplicitlyVerified
-          ? "Core integrity materials are present, but the recorded-integrity state has not been finalized as fully verified. This response should not be summarized as plain verified."
+          ? "Core integrity materials are present, but the recorded-integrity state has not been finalized as explicitly verified. This response should not be summarized as plain verified."
           : timestampUnavailable
           ? "Available integrity checks support the recorded evidence state, but trusted timestamp verification is unavailable. No timestamp digest match or mismatch can be concluded from this response."
-          : "Some verification materials were returned, but the response did not provide a complete positive integrity conclusion for every technical layer. The record should be treated as partially verified until missing or pending layers are resolved.",
+          : "Some verification materials were returned, but the response did not provide a complete positive integrity conclusion for every technical layer. The record should be treated as a conditional trust state until missing or pending layers are resolved.",
       reviewerSummary:
         !coreExplicitlyVerified
           ? "The record contains strong supporting verification materials, but the core recorded-integrity state remains partial rather than explicitly verified."
@@ -2177,6 +2228,11 @@ function buildUnavailableTrustDecision(): VerifyTrustDecision {
     score: 0,
     scoreLabel: "0/100",
     tone: "neutral",
+    presentationState: "REVIEW_REQUIRED",
+    presentationTone: "neutral",
+    publicationState: "unavailable",
+    confidenceLabel: "Unavailable",
+    publicationStatusLabel: "Public anchoring unavailable",
     relianceLevel: "limited",
     degradedButUsable: false,
     summary:
@@ -2450,16 +2506,18 @@ function TrustDecisionCard({
 }: {
   decision: VerifyTrustDecision;
 }) {
-  const relianceLabel = getReviewerRelianceLabel(decision.relianceLevel);
-  const trustNarrative = getTrustNarrative(decision);
+  const normalizedDecision = normalizeVerifyTrustDecision(decision);
+  const relianceLabel = getTrustDecisionConfidenceLabel(decision);
+  const trustNarrative = getTrustNarrative(normalizedDecision);
+  const decisionTone = getTrustDecisionPresentationTone(normalizedDecision);
   const palette =
-    decision.tone === "success"
+    decisionTone === "success"
       ? {
           rail: VERIFY_BRAND.success,
           bg: "linear-gradient(180deg, rgba(33,117,93,0.10), rgba(255,255,255,0.78))",
           border: "rgba(33,117,93,0.30)",
         }
-      : decision.tone === "danger"
+      : decisionTone === "danger"
         ? {
             rail: VERIFY_BRAND.danger,
             bg: "linear-gradient(180deg, rgba(181,71,56,0.10), rgba(255,255,255,0.78))",
@@ -2588,6 +2646,10 @@ function TrustDecisionCard({
         </div>
         <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink }}>
           {decision.primaryReason}
+        </div>
+        <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink }}>
+          Publication posture:{" "}
+          {decision.publicationStatusLabel ?? "Public anchoring status requires review"}.
         </div>
         <div
           style={{
@@ -3151,7 +3213,7 @@ function verificationStatusDisplayLabel(status?: string | null): string {
 function integrityStatusDisplayLabel(decision: VerifyTrustDecision): string {
   const core = decision.signals.find((signal) => signal.key === "core_integrity");
 
-  if (core?.status === "passed") return "Core Integrity Verified";
+  if (core?.status === "passed") return "Recorded Integrity Verified";
   if (core?.status === "partial") return "Integrity materials recorded";
   if (core?.status === "failed") return "Integrity review required";
   if (core?.status === "missing") return "Integrity materials missing";
@@ -3227,6 +3289,7 @@ export default function VerifyPage() {
 
   const [otsStatus, setOtsStatus] = useState<string | null>(null);
   const [otsCalendar, setOtsCalendar] = useState<string | null>(null);
+  const [otsBitcoinTxid, setOtsBitcoinTxid] = useState<string | null>(null);
   const [otsAnchoredAtUtc, setOtsAnchoredAtUtc] = useState<string | null>(null);
   const [otsUpgradedAtUtc, setOtsUpgradedAtUtc] = useState<string | null>(null);
   const [otsFailureReason, setOtsFailureReason] = useState<string | null>(null);
@@ -3598,6 +3661,7 @@ setFullCustodyTimeline(fullTimeline);
 
     setOtsStatus(otsDetails.status);
     setOtsCalendar(otsDetails.calendar);
+    setOtsBitcoinTxid(otsDetails.bitcoinTxid);
     setOtsAnchoredAtUtc(otsDetails.anchoredAtUtc);
     setOtsUpgradedAtUtc(otsDetails.upgradedAtUtc);
     setOtsFailureReason(otsDetails.failureReason);
@@ -4140,6 +4204,14 @@ const verificationPackageIntegrity = useMemo(
 
 const verdictRequiresReview =
   trustDecision.verdict === "REVIEW_REQUIRED";
+const normalizedTrustDecision = normalizeVerifyTrustDecision(trustDecision);
+const trustDecisionTone = getTrustDecisionPresentationTone(
+  normalizedTrustDecision
+);
+const publicationPendingPosture =
+  trustDecision.presentationState === "VERIFIED_PENDING_PUBLICATION" ||
+  trustDecision.publicationState === "pending" ||
+  trustDecision.publicationState === "degraded";
 
 const executiveBadges = useMemo<
   Array<{
@@ -4261,7 +4333,7 @@ const executiveBadges = useMemo<
 },
 {
   label: "Technical Confidence",
-  value: getReviewerRelianceLabel(trustDecision.relianceLevel),
+  value: getTrustDecisionConfidenceLabel(trustDecision),
   show: true,
 },
         {
@@ -4583,8 +4655,8 @@ tone={
           label: "OpenTimestamps",
           content: (
             <Badge
-              label={otsTone(otsStatus).label}
-              tone={otsTone(otsStatus).tone}
+              label={otsTone(otsStatus, otsBitcoinTxid).label}
+              tone={otsTone(otsStatus, otsBitcoinTxid).tone}
             />
           ),
           show: true,
@@ -5336,9 +5408,9 @@ with this evidence record.
                           height: 60,
                           borderRadius: 999,
 background:
-  trustDecision.tone === "danger"
+  trustDecisionTone === "danger"
     ? `linear-gradient(180deg, ${VERIFY_BRAND.danger} 0%, #8f3328 100%)`
-    : trustDecision.tone === "warning"
+    : trustDecisionTone === "warning"
       ? `linear-gradient(180deg, ${VERIFY_BRAND.warning} 0%, #6f4f1f 100%)`
       : `linear-gradient(180deg, ${VERIFY_BRAND.success} 0%, #145c48 100%)`,
                                 display: "flex",
@@ -5348,13 +5420,15 @@ background:
                           fontSize: 28,
                           fontWeight: 900,
                           boxShadow:
-                            overallIntegrity === false
+                            trustDecisionTone === "danger"
                               ? "0 16px 34px rgba(181,71,56,0.20)"
-                              : "0 16px 34px rgba(33,117,93,0.20)",
+                              : trustDecisionTone === "warning"
+                                ? "0 16px 34px rgba(138,106,47,0.20)"
+                                : "0 16px 34px rgba(33,117,93,0.20)",
                           flexShrink: 0,
                         }}
                       >
-{trustDecision.tone === "success" ? "✓" : "!"}
+{trustDecisionTone === "success" ? "✓" : "!"}
                       </div>
 
                       <div style={{ minWidth: 0 }}>
@@ -5423,20 +5497,26 @@ The signals below show the recorded verification layers behind the Trust Decisio
                   </div>
                   <div
   style={{
-    border: `1px solid ${
-      overallIntegrity === true
+      border: `1px solid ${
+      trustDecisionTone === "success"
         ? "rgba(33,117,93,0.28)"
-        : "rgba(138,106,47,0.32)"
+        : trustDecisionTone === "danger"
+          ? "rgba(181,71,56,0.28)"
+          : "rgba(138,106,47,0.32)"
     }`,
     borderLeft: `5px solid ${
-      overallIntegrity === true
+      trustDecisionTone === "success"
         ? VERIFY_BRAND.success
-        : VERIFY_BRAND.warning
+        : trustDecisionTone === "danger"
+          ? VERIFY_BRAND.danger
+          : VERIFY_BRAND.warning
     }`,
     background:
-      overallIntegrity === true
+      trustDecisionTone === "success"
         ? VERIFY_BRAND.successSoft
-        : VERIFY_BRAND.warningSoft,
+        : trustDecisionTone === "danger"
+          ? VERIFY_BRAND.dangerSoft
+          : VERIFY_BRAND.warningSoft,
     borderRadius: 18,
     padding: 18,
     display: "grid",
@@ -5448,9 +5528,11 @@ The signals below show the recorded verification layers behind the Trust Decisio
       ...VERIFY_TYPO.kicker,
       fontSize: 10.5,
       color:
-        overallIntegrity === true
+        trustDecisionTone === "success"
           ? VERIFY_BRAND.success
-          : VERIFY_BRAND.warning,
+          : trustDecisionTone === "danger"
+            ? VERIFY_BRAND.danger
+            : VERIFY_BRAND.warning,
     }}
   >
 Reviewer Action
@@ -5597,6 +5679,37 @@ Reviewer Action
                       </div>
                     ))}
                   </div>
+
+                    {publicationPendingPosture ? (
+                    <div
+                      style={{
+                        ...glassPanelStyle,
+                        borderLeft: `5px solid ${VERIFY_BRAND.warning}`,
+                        padding: 18,
+                        display: "grid",
+                        gap: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          ...VERIFY_TYPO.kicker,
+                          fontSize: 10.5,
+                          color: VERIFY_BRAND.warning,
+                        }}
+                      >
+                        Publication Posture
+                      </div>
+                      <div
+                        style={{
+                          ...VERIFY_TYPO.small,
+                          fontSize: 13,
+                          color: VERIFY_BRAND.ink,
+                        }}
+                      >
+                        Recorded integrity is verified, but independent public anchoring or external publication is not finalized yet. Reviewers should treat this as a conditional publication state and recheck publication later if external/public anchoring matters to the review.
+                      </div>
+                    </div>
+                  ) : null}
 
                   {externalPublicationPresent === true ? (
                     <div

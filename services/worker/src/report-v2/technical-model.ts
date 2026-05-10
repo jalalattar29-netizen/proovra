@@ -54,10 +54,14 @@ function mapTimestampTone(status: string | null | undefined): Tone {
 function mapOtsTone(status: string | null | undefined): Tone {
   const value = safe(status, "").toUpperCase();
 
-  if (value === "ANCHORED") return "success";
+  if (value === "ANCHORED") return "warning";
   if (value === "PENDING") return "warning";
   if (value === "FAILED") return "danger";
   return "neutral";
+}
+
+function isValidBitcoinTxid(value: string | null | undefined): boolean {
+  return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value.trim());
 }
 
 function isMeaningfulTechnicalRow(row: KeyValueRow): boolean {
@@ -343,7 +347,11 @@ const fingerprintRows: KeyValueRow[] = [
     timestampStatusLabel: mapTimestampStatusPublicLabel(evidence.tsaStatus),
     timestampStatusTone: mapTimestampTone(evidence.tsaStatus),
     otsStatusLabel: mapOtsStatusPublicLabel(evidence.otsStatus),
-    otsStatusTone: mapOtsTone(evidence.otsStatus),
+    otsStatusTone:
+      safe(evidence.otsStatus, "").toUpperCase() === "ANCHORED" &&
+      isValidBitcoinTxid(evidence.otsBitcoinTxid)
+        ? "success"
+        : mapOtsTone(evidence.otsStatus),
     tsaMessageImprint: safe(evidence.tsaMessageImprint),
     tsaInputDigestHex: safe(evidence.tsaInputDigestHex),
     tsaInputKind: safe(evidence.tsaInputKind),

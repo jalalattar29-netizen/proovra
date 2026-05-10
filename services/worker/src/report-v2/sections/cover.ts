@@ -4,9 +4,10 @@ import type { ReportViewModel } from "../types.js";
 import { escapeHtml, safe } from "../formatters.js";
 import { renderInlineQrBlock } from "../ui.js";
 import {
-  getReviewerRelianceLabel,
+  getTrustDecisionConfidenceLabel,
   getTrustDecisionLabel,
   getTrustNarrative,
+  getTrustDecisionPresentationTone,
 } from "@proovra/shared";
 const coverBrandIconUrl = reportAssetDataUrl("icon-192.png");
 
@@ -123,16 +124,17 @@ function renderCoverEvidenceVisual(vm: ReportViewModel): string {
 
 export function renderCoverSection(vm: ReportViewModel): string {
   const decision = vm.trustDecision;
+  const presentationTone = getTrustDecisionPresentationTone(decision);
 
   const integrityBadgeClass =
-    decision.tone === "success"
+    presentationTone === "success"
       ? "badge-success"
-      : decision.tone === "danger"
+      : presentationTone === "danger"
         ? "badge-danger"
         : "badge-warning";
 
 const integrityBadgeText = decision.shortLabel;
-  const reviewerReliance = getReviewerRelianceLabel(decision.relianceLevel);
+  const reviewerReliance = getTrustDecisionConfidenceLabel(decision);
   const trustNarrative = getTrustNarrative(decision);
 
   const primaryHash =
@@ -181,8 +183,8 @@ const integrityBadgeText = decision.shortLabel;
   `;
 
   return `
-    <section class="report-cover report-cover-premium">
-      <div class="cover-certificate-card">
+    <section class="report-cover report-cover-premium cover-tone-${presentationTone}">
+      <div class="cover-certificate-card cover-tone-${presentationTone}">
         <div class="cover-certificate-top">
           <div class="cover-brand-row">
             <img
@@ -214,7 +216,7 @@ const integrityBadgeText = decision.shortLabel;
             </div>
 
             <div class="cover-status-stamp ${integrityBadgeClass}">
-              <span>${decision.tone === "success" ? "✓" : decision.tone === "danger" ? "!" : "!"}</span>
+              <span>${presentationTone === "success" ? "✓" : presentationTone === "danger" ? "!" : "!"}</span>
 <strong>${escapeHtml(decision.verdictLabel)}</strong>
             </div>
 
@@ -234,6 +236,7 @@ const integrityBadgeText = decision.shortLabel;
                   "core_integrity",
                   "signature",
                   "trusted_timestamp",
+                  "public_anchoring",
                   "immutable_storage",
                 ].includes(signal.key)
               )

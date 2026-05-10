@@ -347,13 +347,13 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
       atUtc: new Date(),
       payload: {
         phase: "upload_authorized",
-        uploadKind: "single",
+        uploadKind: "intake_authorization",
         captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
         bucket,
         key,
         contentType: normalizedMimeType,
         meaning:
-          "A presigned upload URL was issued for this storage location. No bytes have been confirmed uploaded yet.",
+          "A presigned upload URL was issued for the initial intake location. No bytes have been confirmed uploaded yet, and the final evidence structure may still become multipart during completion.",
       } as prismaPkg.Prisma.InputJsonValue,
     });
 

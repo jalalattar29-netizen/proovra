@@ -68,7 +68,7 @@ export function IntegrityPanel({
                 surface (verify page / verification package) carries the
                 txid-aware wording. */}
             {proof?.otsStatus === "ANCHORED"
-              ? "OpenTimestamps proof present; Bitcoin anchoring confirmation available on the public verify surface"
+              ? "OpenTimestamps proof present; public anchoring status should be confirmed on the public verify surface"
               : proof?.otsStatus === "PENDING"
                 ? "OpenTimestamps proof present; public anchoring pending"
                 : proof?.otsStatus === "FAILED"

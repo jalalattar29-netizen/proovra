@@ -5,6 +5,10 @@ import {
   PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
 } from "@proovra/shared-evidence-presentation";
 import {
+  getTrustDecisionConfidenceLabel,
+  getTrustDecisionPresentationTone,
+} from "@proovra/shared";
+import {
   renderCallout,
   renderKeyValueGrid,
   renderMonoBlock,
@@ -99,6 +103,7 @@ function normalizeAnchoringRows(vm: ReportViewModel): KeyValueRow[] {
 function renderTechnicalStatusCards(vm: ReportViewModel): string {
   const timestampTone = vm.technicalAppendix.timestampStatusTone ?? "neutral";
   const otsTone = vm.technicalAppendix.otsStatusTone ?? "neutral";
+  const trustTone = getTrustDecisionPresentationTone(vm.trustDecision);
 
   return `
     <div class="technical-verification-strip">
@@ -124,14 +129,16 @@ function renderTechnicalStatusCards(vm: ReportViewModel): string {
           OpenTimestamps or external publication state for the recorded digest.
         </div>
       </article>
-      <article class="technical-verification-card tone-${vm.trustDecision.tone}">
+      <article class="technical-verification-card tone-${trustTone}">
         <div class="technical-verification-kicker">Trust Decision</div>
         <div class="technical-verification-title">Verification Classification</div>
         <div class="technical-verification-value">${escapeHtml(
           vm.trustDecision.verdictLabel
         )}</div>
         <div class="technical-verification-note">
-          ${escapeHtml(vm.trustDecision.reviewerAction)}
+          ${escapeHtml(vm.trustDecision.reviewerAction)} Technical confidence: ${escapeHtml(
+            getTrustDecisionConfidenceLabel(vm.trustDecision)
+          )}.
         </div>
       </article>
     </div>

@@ -1,7 +1,8 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
 import {
-  getReviewerRelianceLabel,
+  getTrustDecisionPresentationTone,
+  getTrustDecisionConfidenceLabel,
   getTrustDecisionLabel,
 } from "@proovra/shared";
 import {
@@ -237,7 +238,7 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
     },
     {
       label: "Technical Confidence",
-      value: getReviewerRelianceLabel(vm.trustDecision.relianceLevel),
+      value: getTrustDecisionConfidenceLabel(vm.trustDecision),
     },
   ];
 
@@ -258,12 +259,16 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
         : conclusion.tone === "danger"
           ? "tone-danger"
           : "tone-neutral";
+  const confirmationToneClass =
+    getTrustDecisionPresentationTone(vm.trustDecision) === "success"
+      ? "tone-success"
+      : "tone-warning";
 
   const executivePage = renderPageSection(
     "Executive Summary",
     `
       <div class="executive-summary-page executive-summary-page-enterprise">
-        <section class="executive-confirmation-card tone-success">
+        <section class="executive-confirmation-card ${escapeHtml(confirmationToneClass)}">
           <div class="executive-confirmation-kicker">What this report confirms</div>
           <div class="executive-confirmation-title">
             The evidence package has recorded preservation and integrity materials for review.

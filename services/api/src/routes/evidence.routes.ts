@@ -1414,7 +1414,8 @@ function summarizePublicPayload(
     case prismaPkg.CustodyEventType.EVIDENCE_CREATED:
       return "Evidence record created.";
 
-    case prismaPkg.CustodyEventType.UPLOAD_STARTED: {
+    case prismaPkg.CustodyEventType.UPLOAD_STARTED:
+    case prismaPkg.CustodyEventType.UPLOAD_AUTHORIZED: {
       const uploadMode = getReviewerUploadModeLabel({
         itemCount: context?.itemCount ?? null,
         structure: context?.structure ?? null,
@@ -1422,7 +1423,10 @@ function summarizePublicPayload(
           normalizePublicPayloadValue(obj.uploadKind) ??
           normalizePublicPayloadValue(obj.mode),
       });
-  return ["Upload session started", uploadMode ? `Mode: ${uploadMode}` : null]
+  return [
+    "Upload authorization recorded (presigned URL issued; bytes not yet confirmed)",
+    uploadMode ? `Mode: ${uploadMode}` : null,
+  ]
     .filter(Boolean)
     .join(" • ");
 }

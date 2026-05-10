@@ -1,6 +1,7 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
 import { renderCallout, renderPageSection } from "../ui.js";
+import { getTrustDecisionPresentationTone } from "@proovra/shared";
 
 type IntegrityTone = "success" | "warning" | "danger" | "neutral";
 
@@ -72,9 +73,9 @@ function renderIntegrityCheckRow(params: {
 function renderIntegrityResultPill(vm: ReportViewModel): string {
   const decision = vm.trustDecision;
   const tone =
-    decision?.tone === "success"
+    getTrustDecisionPresentationTone(decision) === "success"
       ? "success"
-      : decision?.tone === "danger"
+      : getTrustDecisionPresentationTone(decision) === "danger"
         ? "danger"
         : "warning";
 
@@ -209,7 +210,7 @@ value:
               "Anchoring records whether OpenTimestamps or external publication proof is available or still pending.",
 tone: toneFromValue(
   anchoringStatus,
-  ["anchored", "published", "verified", "recorded"],
+  ["published", "verified"],
   ["pending", "configured", "not recorded"]
 ),
           })}

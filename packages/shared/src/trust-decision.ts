@@ -18,6 +18,21 @@ export type TrustDecisionVerdict =
   | "PARTIALLY_VERIFIED"
   | "REVIEW_REQUIRED";
 
+export type TrustPresentationState =
+  | "VERIFIED_FINALIZED"
+  | "VERIFIED_PENDING_PUBLICATION"
+  | "VERIFIED_WITH_DEGRADED_SIGNALS"
+  | "PARTIALLY_VERIFIED"
+  | "FAILED_VERIFICATION"
+  | "REVIEW_REQUIRED";
+
+export type TrustPublicationState =
+  | "finalized"
+  | "pending"
+  | "degraded"
+  | "unavailable"
+  | "failed";
+
 export type TrustSignalKey =
   | "core_integrity"
   | "signature"
@@ -43,12 +58,17 @@ export type TrustDecision = {
   verdict: TrustDecisionVerdict;
   level: "strong" | "standard" | "partial" | "review";
   tone: TrustDecisionTone;
+  presentationState: TrustPresentationState;
+  presentationTone: TrustDecisionTone;
+  publicationState: TrustPublicationState;
   score: number;
   maxScore: 100;
   scoreLabel: string;
   verdictLabel: string;
   shortLabel: string;
   title: string;
+  confidenceLabel: string;
+  publicationStatusLabel: string;
   summary: string;
   primaryReason: string;
   reviewerAction: string;
@@ -96,20 +116,6 @@ export function getTrustDecisionLabel(
   return decision.verdictLabel;
 }
 
-function hasPendingPublicAnchoringSignal(
-  decision:
-    | Pick<TrustDecision, "signals">
-    | {
-        signals?: Array<Pick<TrustSignal, "key" | "status">> | null;
-      }
-): boolean {
-  const anchoringSignal = decision.signals?.find(
-    (signal) => signal.key === "public_anchoring"
-  );
-
-  return anchoringSignal?.status === "pending";
-}
-
 export function getReviewerRelianceLabel(
   relianceLevel: TrustDecision["relianceLevel"]
 ): string {
@@ -124,6 +130,106 @@ export function getReviewerRelianceLabel(
     default:
       return "Low";
   }
+}
+
+function hasPublicationPendingSignal(
+  decision:
+    | Pick<TrustDecision, "signals">
+    | {
+        signals?: Array<Pick<TrustSignal, "key" | "status">> | null;
+      }
+): boolean {
+  const anchoringSignal = decision.signals?.find(
+    (signal) => signal.key === "public_anchoring"
+  );
+
+  return (
+    anchoringSignal?.status === "pending" || anchoringSignal?.status === "partial"
+  );
+}
+
+function hasPublicationFailedSignal(
+  decision:
+    | Pick<TrustDecision, "signals">
+    | {
+        signals?: Array<Pick<TrustSignal, "key" | "status">> | null;
+      }
+): boolean {
+  const anchoringSignal = decision.signals?.find(
+    (signal) => signal.key === "public_anchoring"
+  );
+
+  return anchoringSignal?.status === "failed";
+}
+
+export function getTrustDecisionPresentationTone(
+  decision:
+    | Pick<
+        TrustDecision,
+        "presentationTone" | "tone" | "signals"
+      >
+    | {
+        presentationTone?: TrustDecisionTone | null;
+        tone?: TrustDecisionTone | null;
+        signals?: Array<Pick<TrustSignal, "key" | "status">> | null;
+      }
+): TrustDecisionTone {
+  if (decision.presentationTone) {
+    return decision.presentationTone;
+  }
+
+  if (hasPublicationPendingSignal(decision)) {
+    return "warning";
+  }
+
+  if (hasPublicationFailedSignal(decision)) {
+    return "danger";
+  }
+
+  return decision.tone ?? "neutral";
+}
+
+export function getTrustDecisionConfidenceLabel(
+  decision:
+    | Pick<
+        TrustDecision,
+        | "confidenceLabel"
+        | "relianceLevel"
+        | "presentationState"
+        | "signals"
+        | "failedSignals"
+      >
+    | {
+        confidenceLabel?: string | null;
+        relianceLevel?: TrustDecision["relianceLevel"] | null;
+        presentationState?: TrustPresentationState | null;
+        signals?: Array<Pick<TrustSignal, "key" | "status">> | null;
+        failedSignals?: number | null;
+      }
+): string {
+  if (decision.confidenceLabel) {
+    return decision.confidenceLabel;
+  }
+
+  if (
+    decision.presentationState === "VERIFIED_PENDING_PUBLICATION" ||
+    hasPublicationPendingSignal(decision)
+  ) {
+    return "High (Pending publication)";
+  }
+
+  if (decision.presentationState === "VERIFIED_WITH_DEGRADED_SIGNALS") {
+    return "Conditional";
+  }
+
+  if (
+    decision.presentationState === "FAILED_VERIFICATION" ||
+    (typeof decision.failedSignals === "number" && decision.failedSignals > 0)
+  ) {
+    return "Low";
+  }
+
+  return getReviewerRelianceLabel(decision.relianceLevel ?? "limited");
 }
 
 export function getTrustSignalPresentationLabel(
@@ -144,40 +250,50 @@ export function getTrustSignalPresentationLabel(
   }
 }
 
+function getPublicationStateLabel(state: TrustPublicationState): string {
+  switch (state) {
+    case "finalized":
+      return "Independent publication finalized";
+    case "pending":
+      return "Public anchoring pending";
+    case "degraded":
+      return "Public anchoring recorded with limitations";
+    case "failed":
+      return "Public anchoring failed";
+    case "unavailable":
+    default:
+      return "Public anchoring unavailable";
+  }
+}
+
 export function getTrustNarrative(
   decision: Pick<
     TrustDecision,
     | "verdictLabel"
+    | "presentationState"
     | "relianceLevel"
     | "degradedButUsable"
     | "failedSignals"
     | "signals"
   >
 ): string {
-  // Match by verdict tier (label was softened — "Strongly verified" → "Strong
-  // recorded integrity"; "Verified" → "Recorded integrity verified"; etc.).
   if (
-    decision.verdictLabel === "Strongly verified" ||
-    decision.verdictLabel === "Strong recorded integrity"
-  ) {
-    if (hasPendingPublicAnchoringSignal(decision)) {
-      return "Recorded integrity state is strong; public anchoring is still pending and should be rechecked if independent public anchoring is required.";
-    }
-
-    return decision.degradedButUsable || decision.failedSignals > 0
-      ? "Recorded integrity state is strong. One or more supporting verification signals may still require follow-up."
-      : "Recorded integrity state is strong. No post-submission integrity mismatch was detected across the recorded verification layers.";
-  }
-
-  if (
+    decision.presentationState === "VERIFIED_FINALIZED" ||
     decision.verdictLabel === "Verified" ||
     decision.verdictLabel === "Recorded integrity verified"
   ) {
-    if (hasPendingPublicAnchoringSignal(decision)) {
-      return "Recorded integrity is verified; public anchoring is still pending and should be rechecked if independent public anchoring is required.";
-    }
+    return "Recorded integrity is verified across the returned cryptographic, custody, storage, timestamp, and publication materials. This remains a technical integrity conclusion, not proof of factual truth, authorship, legal admissibility, or original device capture authenticity.";
+  }
 
-    return "Recorded integrity is verified. No post-submission integrity mismatch was detected across the recorded verification layers reviewed here.";
+  if (
+    decision.presentationState === "VERIFIED_PENDING_PUBLICATION" ||
+    hasPublicationPendingSignal(decision)
+  ) {
+    return "Recorded integrity is verified, but independent public anchoring or external publication is still pending. Reviewers should treat the record as conditionally reliable for integrity review and recheck publication status later if independent public anchoring is required.";
+  }
+
+  if (decision.presentationState === "VERIFIED_WITH_DEGRADED_SIGNALS") {
+    return "Recorded integrity is verified, but one or more supporting verification signals remain pending, partial, unavailable, or otherwise degraded. Review the affected technical layers before higher-reliance use.";
   }
 
   if (
@@ -205,7 +321,7 @@ export function serializeTrustDecisionForReviewerPackage(
     verdict: decision.verdict,
     verdictLabel: decision.verdictLabel,
     relianceLevel: decision.relianceLevel,
-    relianceLabel: getReviewerRelianceLabel(decision.relianceLevel),
+    relianceLabel: getTrustDecisionConfidenceLabel(decision),
     narrative: getTrustNarrative(decision),
     reviewerAction: decision.reviewerAction,
     legalBoundary: TRUST_DECISION_LEGAL_BOUNDARY,
@@ -556,7 +672,7 @@ function buildCoreIntegritySignal(
       maxPoints: 25,
       summary: "Integrity materials recorded",
       detail:
-        "Recorded digest, canonical fingerprint, and signature material are present, but the recorded-integrity state has not been finalized as fully verified.",
+        "Recorded digest, canonical fingerprint, and signature material are present, but the recorded-integrity state has not yet been finalized as explicitly verified.",
     });
   }
 
@@ -753,9 +869,9 @@ function buildAnchoringSignal(
       key: "public_anchoring",
       label: "Public anchoring",
       status: "partial",
-      points: 8,
+      points: 6,
       maxPoints: 10,
-      summary: "Anchor material included",
+      summary: "OpenTimestamps proof present; public anchoring pending",
       detail:
         "Anchoring material is recorded in an anchored state, but no defensible public transaction id, receipt, public URL, or anchored publication metadata was attached.",
     });
@@ -766,7 +882,7 @@ function buildAnchoringSignal(
       key: "public_anchoring",
       label: "Public anchoring",
       status: "pending",
-      points: 6,
+      points: 4,
       maxPoints: 10,
       summary: "OpenTimestamps proof present; public anchoring pending",
       detail:
@@ -1072,67 +1188,137 @@ export function buildEvidenceTrustDecision(
 
   const corePassed = core.status === "passed";
   const publicAnchoringPending = anchoring.status === "pending";
+  const publicAnchoringPartial = anchoring.status === "partial";
+  const publicationState: TrustPublicationState =
+    anchoring.status === "passed"
+      ? "finalized"
+      : publicAnchoringPending
+        ? "pending"
+        : publicAnchoringPartial
+          ? "degraded"
+          : anchoring.status === "failed"
+            ? "failed"
+            : "unavailable";
 
   let verdict: TrustDecisionVerdict;
   let level: TrustDecision["level"];
   let tone: TrustDecisionTone;
+  let presentationState: TrustPresentationState;
+  let presentationTone: TrustDecisionTone;
   let verdictLabel: string;
   let shortLabel: string;
   let title: string;
   let relianceLevel: TrustDecision["relianceLevel"];
+  let confidenceLabel: string;
 
   if (criticalFailed || score < 45) {
     verdict = "REVIEW_REQUIRED";
     level = "review";
     tone = "danger";
+    presentationState = "FAILED_VERIFICATION";
+    presentationTone = "danger";
     verdictLabel = "Insufficient verification";
     shortLabel = "Insufficient";
     title = "Insufficient verification materials";
     relianceLevel = "low";
+    confidenceLabel = "Low";
   } else if (score >= 90 && failedSignals === 0 && corePassed) {
-    // Wording softened from "Strongly verified" so the headline cannot be
-    // misread as a claim about authorship, factual truth, or admissibility.
-    // The verdict enum value is preserved for backward compatibility with
-    // older records and downstream consumers.
     verdict = "STRONGLY_VERIFIED";
-    level = "strong";
-    tone = "success";
-    verdictLabel = "Strong recorded integrity";
-    shortLabel = "Strong";
-    title = "Strong recorded-integrity state";
-    relianceLevel = "high";
+    if (publicationState === "finalized") {
+      level = "strong";
+      tone = "success";
+      presentationState = "VERIFIED_FINALIZED";
+      presentationTone = "success";
+      verdictLabel = "Recorded integrity verified";
+      shortLabel = "Verified";
+      title = "Recorded integrity verified";
+      relianceLevel = "high";
+      confidenceLabel = "High";
+    } else {
+      level = "standard";
+      tone = "warning";
+      presentationState =
+        publicationState === "pending" || publicationState === "degraded"
+          ? "VERIFIED_PENDING_PUBLICATION"
+          : "VERIFIED_WITH_DEGRADED_SIGNALS";
+      presentationTone = "warning";
+      verdictLabel =
+        publicationState === "pending" || publicationState === "degraded"
+          ? "Recorded integrity verified; publication pending"
+          : "Recorded integrity verified with supporting limitations";
+      shortLabel =
+        publicationState === "pending" || publicationState === "degraded"
+          ? "Pending publication"
+          : "Conditional";
+      title =
+        publicationState === "pending" || publicationState === "degraded"
+          ? "Recorded integrity verified; public anchoring pending"
+          : "Conditional trust state";
+      relianceLevel = "medium";
+      confidenceLabel =
+        publicationState === "pending" || publicationState === "degraded"
+          ? "High (Pending publication)"
+          : "Conditional";
+    }
   } else if (score >= 78 && corePassed) {
     verdict = "VERIFIED";
     level = "standard";
-    tone = "success";
-    verdictLabel = "Recorded integrity verified";
-    shortLabel = "Verified";
-    title = "Recorded integrity verified";
-    relianceLevel = "high";
+    tone = "warning";
+    presentationState =
+      publicationState === "pending" || publicationState === "degraded"
+        ? "VERIFIED_PENDING_PUBLICATION"
+        : "VERIFIED_WITH_DEGRADED_SIGNALS";
+    presentationTone = "warning";
+    verdictLabel =
+      publicationState === "pending" || publicationState === "degraded"
+        ? "Recorded integrity verified; publication pending"
+        : "Recorded integrity verified with supporting limitations";
+    shortLabel =
+      publicationState === "pending" || publicationState === "degraded"
+        ? "Pending publication"
+        : "Conditional";
+    title =
+      publicationState === "pending" || publicationState === "degraded"
+        ? "Recorded integrity verified; public anchoring pending"
+        : "Conditional trust state";
+    relianceLevel = "medium";
+    confidenceLabel =
+      publicationState === "pending" || publicationState === "degraded"
+        ? "High (Pending publication)"
+        : "Conditional";
   } else if (score >= 78 && !corePassed) {
     verdict = "PARTIALLY_VERIFIED";
     level = "partial";
     tone = "warning";
-    verdictLabel = "Recorded integrity verified with limitations";
-    shortLabel = "Limited";
-    title = "Recorded integrity verified with limitations";
+    presentationState = "PARTIALLY_VERIFIED";
+    presentationTone = "warning";
+    verdictLabel = "Conditional trust state";
+    shortLabel = "Conditional";
+    title = "Conditional trust state";
     relianceLevel = "medium";
+    confidenceLabel = "Conditional";
   } else if (score >= 62) {
     verdict = "PARTIALLY_VERIFIED";
     level = "partial";
     tone = "warning";
-    verdictLabel = "Recorded integrity verified with limitations";
-    shortLabel = "Limited";
-    title = "Recorded integrity verified with limitations";
+    presentationState = "PARTIALLY_VERIFIED";
+    presentationTone = "warning";
+    verdictLabel = "Conditional trust state";
+    shortLabel = "Conditional";
+    title = "Conditional trust state";
     relianceLevel = "medium";
+    confidenceLabel = "Conditional";
   } else {
     verdict = "REVIEW_REQUIRED";
     level = "review";
     tone = "warning";
+    presentationState = "REVIEW_REQUIRED";
+    presentationTone = "warning";
     verdictLabel = "Review required";
     shortLabel = "Review";
     title = "Reviewer validation required";
     relianceLevel = "limited";
+    confidenceLabel = "Limited";
   }
 
   const passedText =
@@ -1151,6 +1337,7 @@ export function buildEvidenceTrustDecision(
 
   const summary = getTrustNarrative({
     verdictLabel,
+    presentationState,
     relianceLevel,
     degradedButUsable,
     failedSignals,
@@ -1161,8 +1348,8 @@ export function buildEvidenceTrustDecision(
 
   const reviewerAction = criticalFailed
     ? "Do not rely on this record as verified until failed core integrity, signature, or custody signals are reviewed."
-    : publicAnchoringPending && corePassed
-      ? "Recorded integrity is strongly verified, but public anchoring is still pending. Recheck public anchoring later if independent public anchoring is required."
+    : (publicAnchoringPending || publicAnchoringPartial) && corePassed
+      ? "Recorded integrity is verified, but independent public anchoring is not finalized yet. Use the technical integrity result with a conditional publication posture and recheck publication later if independent public anchoring is required."
     : degradedButUsable
       ? "Review the degraded signals before high-reliance use, especially timestamping, public anchoring, storage, or custody items marked as pending, partial, missing, or failed."
       : score >= 78
@@ -1173,12 +1360,17 @@ export function buildEvidenceTrustDecision(
     verdict,
     level,
     tone,
+    presentationState,
+    presentationTone,
+    publicationState,
     score,
     maxScore: 100,
     scoreLabel: `${score}/100`,
     verdictLabel,
     shortLabel,
     title,
+    confidenceLabel,
+    publicationStatusLabel: getPublicationStateLabel(publicationState),
     summary,
     primaryReason,
     reviewerAction,

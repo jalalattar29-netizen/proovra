@@ -2445,7 +2445,7 @@ function buildReviewReadinessRows(
       safeBooleanLabel(
         evidence.storageImmutable,
         "Verified",
-        "Not fully verified",
+        "Recorded with limitations",
         "Not reported"
       ),
     ],
@@ -3398,7 +3398,7 @@ export async function buildReportPdf(params: {
           safeBooleanLabel(
             params.evidence.storageImmutable,
             "Verified",
-            "Not fully verified",
+            "Recorded with limitations",
             "Not reported"
           ),
         ],
@@ -3552,7 +3552,7 @@ export async function buildReportPdf(params: {
           safeBooleanLabel(
             params.evidence.storageImmutable,
             "Verified",
-            "Not fully verified",
+            "Recorded with limitations",
             "Not reported"
           ),
         ],
