@@ -15,6 +15,11 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
+import {
+  PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
+  PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
+  PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
+} from "@proovra/shared-evidence-presentation";
 import { Button, Modal, useToast } from "../../../../components/ui";
 import CaptureLocationMapPanel from "../../../../components/capture-location/CaptureLocationMapPanel";
 import { apiFetch } from "../../../../lib/api";
@@ -1449,6 +1454,20 @@ export default function EvidenceDetailPage() {
                     are read-only views and downloads. The two are kept
                     separate so the chain is not diluted by analytics traffic.
                   </p>
+                  {(() => {
+                    const tm = (workspace.artifactVersions.technicalMaterials ??
+                      {}) as {
+                      hashSemantics?: string | null;
+                    };
+                    return tm.hashSemantics === "multipart_composite" ||
+                      tm.hashSemantics === "multipart_composite_legacy" ? (
+                      <p className="evidence-detail-muted">
+                        {PROOVRA_MULTIPART_REVIEWER_EXPLANATION}{" "}
+                        {PROOVRA_MULTIPART_RECOMPUTATION_NOTE}{" "}
+                        {PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE}
+                      </p>
+                    ) : null;
+                  })()}
                 </section>
               </>
             ) : null}

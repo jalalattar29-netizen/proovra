@@ -20,6 +20,11 @@ import {
   isAccessCustodyEventType,
 } from "@proovra/shared";
 import {
+  PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
+  PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
+  PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
+} from "@proovra/shared-evidence-presentation";
+import {
   Button,
   Card,
   useToast,
@@ -6572,7 +6577,7 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                           subtitle={
                             evidenceContentSummary?.itemCount &&
                             evidenceContentSummary.itemCount > 1
-                              ? "SHA-256 digest representing the canonical multipart evidence package. Individual item hashes are listed separately, and the Canonical Fingerprint Hash defines the full package identity."
+                              ? `${PROOVRA_MULTIPART_REVIEWER_EXPLANATION} ${PROOVRA_MULTIPART_RECOMPUTATION_NOTE}`
                               : tsaInputKind && tsaInputKind !== "FILE_SHA256"
                                 ? "SHA-256 digest of the original preserved evidence file. The timestamp layer may instead reference canonical evidence or fingerprint material."
                                 : "SHA-256 digest of the original preserved evidence file."
@@ -6589,6 +6594,38 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                                 : "Original file hash copied"
                           }
                         />
+                      ) : null}
+
+                      {evidenceContentSummary?.itemCount &&
+                      evidenceContentSummary.itemCount > 1 ? (
+                        <div
+                          style={{
+                            ...BRONZE_RAIL_STYLE,
+                            padding: 16,
+                            display: "grid",
+                            gap: 8,
+                          }}
+                        >
+                          <div
+                            style={{
+                              ...VERIFY_TYPO.kicker,
+                              fontSize: 10.5,
+                            }}
+                          >
+                            Multipart integrity boundary
+                          </div>
+                          <div
+                            style={{
+                              ...VERIFY_TYPO.small,
+                              fontSize: 13,
+                              color: VERIFY_BRAND.ink,
+                            }}
+                          >
+                            {PROOVRA_MULTIPART_REVIEWER_EXPLANATION}{" "}
+                            {PROOVRA_MULTIPART_RECOMPUTATION_NOTE}{" "}
+                            {PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE}
+                          </div>
+                        </div>
                       ) : null}
 
                       {tsaInputDigestHex && tsaInputDigestHex !== hash ? (

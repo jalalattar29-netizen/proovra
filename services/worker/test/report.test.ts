@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildReportViewModel, renderReportHtml } from "../src/report-v2";
 import type { ReportV2Input } from "../src/report-v2";
+import {
+  PROOVRA_FORBIDDEN_SURFACE_PATTERNS,
+  PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
+  PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
+  PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
+} from "@proovra/shared-evidence-presentation";
 
 const FULL_HASH_A =
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -333,5 +339,11 @@ describe("report v2 pipeline", () => {
     expect(html).not.toContain("guarantees admissibility");
     expect(html).not.toContain("proves authorship");
     expect(html).not.toContain("Strongly verified"); // Replaced by "Strong recorded integrity".
+    expect(html).toContain(PROOVRA_MULTIPART_REVIEWER_EXPLANATION);
+    expect(html).toContain(PROOVRA_MULTIPART_RECOMPUTATION_NOTE);
+    expect(html).toContain(PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE);
+    for (const pattern of PROOVRA_FORBIDDEN_SURFACE_PATTERNS) {
+      expect(html).not.toMatch(pattern);
+    }
   });
 });

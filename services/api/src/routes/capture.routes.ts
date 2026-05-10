@@ -14,43 +14,9 @@ import {
   snapshotIntakeTemplate,
 } from "../services/capture-intake-templates.js";
 import {
-  sanitizeDisplayFileName,
-  stripRelativePath,
-} from "@proovra/shared-evidence-presentation";
-
-/**
- * Phase D Blocker 2 — sanitize CaptureSession draft items before they are
- * persisted. Folder uploads can put paths like
- *   "Patients/John Doe/MRI.pdf"
- * into relativePath, and consumer-friendly filenames may themselves contain
- * directory separators or leading dots. Persisting them raw would later
- * leak through the resume UI, the verification package, the report, or the
- * public verify surface.
- *
- * Rules:
- *   - relativePath is stripped to its basename component (folder structure
- *     is the most sensitive element of an upload; the file itself is enough).
- *   - fileName is run through sanitizeDisplayFileName so leading dots and
- *     embedded path components are normalized to a safe display label.
- *   - clientHintSha256Base64 / duplicateStatus / role / privateNote / etc
- *     pass through unchanged — they don't carry path semantics.
- */
-function sanitizeCaptureSessionItem<
-  T extends { fileName: string; relativePath?: string | null }
->(item: T, index: number): T {
-  return {
-    ...item,
-    fileName: sanitizeDisplayFileName(item.fileName, {
-      fallbackIndex: index,
-    }),
-    relativePath:
-      item.relativePath === undefined
-        ? undefined
-        : item.relativePath === null
-          ? null
-          : stripRelativePath(item.relativePath),
-  };
-}
+  buildDefaultCaptureDraftExpiry,
+  sanitizeCaptureSessionItem,
+} from "../services/capture-draft-governance.js";
 
 /*
  * Capture routes.
@@ -191,12 +157,6 @@ async function loadOwnedDraft(
   return session;
 }
 
-function defaultDraftExpiry(): Date {
-  // Drafts auto-expire 7 days after creation. A reaper can sweep them;
-  // for now this is purely advisory and surfaced as expiresAtUtc.
-  return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-}
-
 export async function captureRoutes(app: FastifyInstance) {
   // -- Intake templates --------------------------------------------------
   app.get(
@@ -318,7 +278,7 @@ export async function captureRoutes(app: FastifyInstance) {
               body.uploadState === undefined
                 ? prismaPkg.Prisma.JsonNull
                 : (body.uploadState as prismaPkg.Prisma.InputJsonValue),
-            expiresAtUtc: defaultDraftExpiry(),
+            expiresAtUtc: buildDefaultCaptureDraftExpiry(),
           },
         });
 

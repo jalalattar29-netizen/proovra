@@ -409,3 +409,5 @@ export function buildEvidencePreviewPolicy(params: {
           : "Anyone with access to this verification flow may be able to view or download the exposed evidence items.",
   };
 }
+
+export * from "./claims-matrix.js";

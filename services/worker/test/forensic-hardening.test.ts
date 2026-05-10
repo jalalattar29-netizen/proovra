@@ -2,6 +2,15 @@
  * Phase C #17 — worker-side forensic-semantics tests.
  */
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import {
+  PROOVRA_FORBIDDEN_SURFACE_PATTERNS,
+  PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
+  PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
+  PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
+} from "@proovra/shared-evidence-presentation";
+import * as prismaPkg from "@prisma/client";
 import {
   mapOtsStatusPublicLabel,
   mapOtsStatusPublicLabelWithTxid,
@@ -9,6 +18,11 @@ import {
   mapCustodyEventLabel,
 } from "../src/report-v2/normalizers.js";
 import { normalizeBitcoinAnchorTone } from "../src/report-v2/truth-model.js";
+import { shouldExpireCaptureDraft } from "../src/capture-draft-governance.js";
+
+function readRepoFile(...segments: string[]): string {
+  return readFileSync(resolve("D:/digital-witness", ...segments), "utf8");
+}
 
 describe("OTS labels (Phase B #9 / Phase C #4)", () => {
   it("never returns 'Public anchoring verified' from the base label", () => {
@@ -87,5 +101,98 @@ describe("TSA labels (Phase A / Phase C)", () => {
       const label = mapTimestampStatusPublicLabel(status as string | null);
       expect(label.toLowerCase()).not.toContain("verified");
     }
+  });
+});
+
+describe("claims governance across worker-facing reviewer materials (Governance Items 3/4)", () => {
+  it("keeps report-v2 and verification-package templates free of positive overclaim phrases", () => {
+    const surfaces = [
+      readRepoFile("services", "worker", "src", "report-v2", "build-view-model.ts"),
+      readRepoFile(
+        "services",
+        "worker",
+        "src",
+        "report-v2",
+        "sections",
+        "cover.ts"
+      ),
+      readRepoFile(
+        "services",
+        "worker",
+        "src",
+        "report-v2",
+        "sections",
+        "executive-summary.ts"
+      ),
+      readRepoFile(
+        "services",
+        "worker",
+        "src",
+        "report-v2",
+        "sections",
+        "technical-appendix.ts"
+      ),
+      readRepoFile("services", "worker", "src", "verification-package.ts"),
+    ];
+
+    for (const surface of surfaces) {
+      for (const pattern of PROOVRA_FORBIDDEN_SURFACE_PATTERNS) {
+        expect(surface).not.toMatch(pattern);
+      }
+    }
+  });
+
+  it("uses the shared multipart reviewer explanation in report/package surfaces", () => {
+    const appendixSource = readRepoFile(
+      "services",
+      "worker",
+      "src",
+      "report-v2",
+      "sections",
+      "technical-appendix.ts"
+    );
+    const packageSource = readRepoFile(
+      "services",
+      "worker",
+      "src",
+      "verification-package.ts"
+    );
+
+    expect(appendixSource).toContain("PROOVRA_MULTIPART_REVIEWER_EXPLANATION");
+    expect(appendixSource).toContain("PROOVRA_MULTIPART_RECOMPUTATION_NOTE");
+    expect(appendixSource).toContain("PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE");
+    expect(packageSource).toContain("PROOVRA_MULTIPART_REVIEWER_EXPLANATION");
+    expect(packageSource).toContain("PROOVRA_MULTIPART_RECOMPUTATION_NOTE");
+    expect(packageSource).toContain("PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE");
+  });
+});
+
+describe("capture draft reaper governance (Governance Item 2)", () => {
+  it("expires only past-due drafts", () => {
+    const now = new Date("2026-05-10T12:00:00.000Z");
+
+    expect(
+      shouldExpireCaptureDraft({
+        status: prismaPkg.CaptureSessionStatus.DRAFT,
+        expiresAtUtc: new Date("2026-05-10T11:59:59.000Z"),
+        now,
+      })
+    ).toBe(true);
+
+    expect(
+      shouldExpireCaptureDraft({
+        status: prismaPkg.CaptureSessionStatus.DRAFT,
+        expiresAtUtc: new Date("2026-05-10T12:00:01.000Z"),
+        now,
+      })
+    ).toBe(false);
+
+    expect(
+      shouldExpireCaptureDraft({
+        status: prismaPkg.CaptureSessionStatus.FINALIZED,
+        expiresAtUtc: new Date("2026-05-10T11:59:59.000Z"),
+        now,
+      })
+    ).toBe(false);
   });
 });

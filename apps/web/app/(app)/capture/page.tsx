@@ -569,7 +569,8 @@ useEffect(() => {
               <h1 className="capture-enterprise-title">Capture Evidence</h1>
               <p className="capture-enterprise-subtitle">
                 Collect, map, fingerprint, and prepare evidence materials before Review
-                & Sign.
+                & Sign. Drafts save metadata only. File contents are not stored until
+                finalization, and draft metadata expires automatically.
               </p>
             </div>
           </div>

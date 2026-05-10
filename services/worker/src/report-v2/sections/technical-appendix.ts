@@ -1,5 +1,10 @@
 import { ReportViewModel, KeyValueRow } from "../types.js";
 import {
+  PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
+  PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
+  PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
+} from "@proovra/shared-evidence-presentation";
+import {
   renderCallout,
   renderKeyValueGrid,
   renderMonoBlock,
@@ -307,6 +312,15 @@ shouldRenderSignature
               body: vm.technicalFingerprintNarrative,
               tone: "neutral",
             })}
+            ${
+              vm.contentSummary.itemCount > 1
+                ? renderCallout({
+                    title: "Multipart integrity explanation",
+                    body: `${PROOVRA_MULTIPART_REVIEWER_EXPLANATION} ${PROOVRA_MULTIPART_RECOMPUTATION_NOTE} ${PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE}`,
+                    tone: "neutral",
+                  })
+                : ""
+            }
             ${renderKeyValueGrid(vm.technicalAppendix.fingerprintRows)}
           `,
           { className: "technical-appendix-fingerprint-block" }

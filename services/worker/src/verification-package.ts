@@ -15,6 +15,11 @@ import {
   isAccessCustodyEventType,
   serializeTrustDecisionForReviewerPackage,
 } from "@proovra/shared";
+import {
+  PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
+  PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
+  PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
+} from "@proovra/shared-evidence-presentation";
 import type { ReportTrustDecision } from "./report-v2/types.js";
 import { renderCaptureLocationMapPreviewPng } from "./capture-location-map.js";
 
@@ -1756,6 +1761,9 @@ HOW TO VERIFY
 3) Review fingerprint.json.
 4) Calculate SHA-256 hash of the included evidence file(s).
 5) Compare computed hashes against original-linkage.json, fingerprint.json, and package-checksums.json.
+${params.evidenceFiles.length > 1 ? `   ${PROOVRA_MULTIPART_REVIEWER_EXPLANATION}
+   ${PROOVRA_MULTIPART_RECOMPUTATION_NOTE}
+   ${PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE}` : ""}
 6) Verify the Ed25519 signature using public-key.pem and the platform signing rules.
 7) Verify the RFC3161 timestamp token using timestamp verification tools, if included.
 8) Review custody.json and, where present, anchor.json.
@@ -2102,6 +2110,14 @@ a{color:#0b2e27;font-weight:700}
       <li>Timestamp: ${timestampText}</li>
       <li>Anchoring: ${anchoringText}</li>
     </ul>
+    ${
+      multipart
+        ? `<p>${safeText(PROOVRA_MULTIPART_REVIEWER_EXPLANATION)}</p>
+    <p>${safeText(PROOVRA_MULTIPART_RECOMPUTATION_NOTE)} ${safeText(
+            PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE
+          )}</p>`
+        : ""
+    }
   </div>
 
   <div class="card">
@@ -2132,6 +2148,13 @@ a{color:#0b2e27;font-weight:700}
       <li>Review <code>package-manifest.json</code>, <code>package-manifest.sig</code>, <code>integrity-summary.json</code>, and <code>trust-decision.json</code>.</li>
       <li>Hash the included evidence file(s) with SHA-256.</li>
       <li>Compare computed hashes against <code>original-linkage.json</code>, <code>fingerprint.json</code>, and <code>package-checksums.json</code>.</li>
+      ${
+        multipart
+          ? `<li>${safeText(
+              PROOVRA_MULTIPART_RECOMPUTATION_NOTE
+            )} ${safeText(PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE)}</li>`
+          : ""
+      }
       <li>Verify <code>signature.txt</code> using <code>public-key.pem</code>.</li>
       <li>If present, verify <code>timestamp.tsr</code> as RFC 3161 DER data, for example with <code>openssl ts -reply -in timestamp.tsr -text</code>.</li>
       <li>If present, review <code>anchor.json</code> as anchoring material only; pending status is not the same as verified public publication.</li>

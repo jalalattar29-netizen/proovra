@@ -20,6 +20,7 @@ import * as prismaPkg from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { logger } from "./logger.js";
 import { prisma } from "./db.js";
+import { shouldExpireCaptureDraft } from "./capture-draft-governance.js";
 
 const DEFAULT_BATCH_SIZE = 100;
 const MAX_BATCH_SIZE = 500;
@@ -81,13 +82,12 @@ export async function reapExpiredCaptureDrafts(
           skipped++;
           return;
         }
-        if (fresh.status !== prismaPkg.CaptureSessionStatus.DRAFT) {
-          skipped++;
-          return;
-        }
         if (
-          !fresh.expiresAtUtc ||
-          fresh.expiresAtUtc.getTime() >= now.getTime()
+          !shouldExpireCaptureDraft({
+            status: fresh.status,
+            expiresAtUtc: fresh.expiresAtUtc,
+            now,
+          })
         ) {
           skipped++;
           return;
