@@ -4,6 +4,7 @@ import type {
   TrustSignal,
   TrustSignalStatus,
   TrustDecisionVerdict,
+  ReviewerArtifactRoleSource,
 } from "@proovra/shared";
 
 export type ReportArtifactMode = "external" | "internal";
@@ -52,6 +53,9 @@ export type ReportEvidenceAsset = {
     | "text_excerpt"
     | "metadata_only";
   artifactRole?: "primary_evidence" | "supporting_evidence" | "attachment";
+  artifactRoleSource?: ReviewerArtifactRoleSource;
+  checklistStepId?: string | null;
+  checklistStepLabel?: string | null;
   originalPreservationNote?: string | null;
   reviewerRepresentationLabel?: string | null;
   reviewerRepresentationNote?: string | null;

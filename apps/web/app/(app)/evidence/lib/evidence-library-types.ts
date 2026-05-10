@@ -150,6 +150,12 @@ export type EvidenceContentItem = {
   durationMs?: number | null;
   sha256?: string | null;
   isPrimary: boolean;
+  artifactRole?: "primary_evidence" | "supporting_evidence" | "attachment" | null;
+  artifactRoleLabel?: string | null;
+  artifactRoleSource?: string | null;
+  checklistStepId?: string | null;
+  checklistStepLabel?: string | null;
+  sourceLabel?: string | null;
   previewable: boolean;
   downloadable: boolean;
   viewUrl?: string | null;

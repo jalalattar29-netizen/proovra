@@ -179,6 +179,22 @@ describe("claims governance across worker-facing reviewer materials (Governance 
     expect(packageSource).toContain("Multipart verification requires evidence-manifest.json");
     expect(packageSource).toContain("Multipart manifest sha256 mismatch");
   });
+
+  it("exports artifact-role metadata into verification-package manifests", () => {
+    const packageSource = readRepoFile(
+      "services",
+      "worker",
+      "src",
+      "verification-package.ts"
+    );
+
+    expect(packageSource).toContain("artifactRole: file.artifactRole ?? null");
+    expect(packageSource).toContain("artifactRoleLabel:");
+    expect(packageSource).toContain("artifactRoleSource: file.artifactRoleSource ?? null");
+    expect(packageSource).toContain("checklistStepId: file.checklistStepId ?? null");
+    expect(packageSource).toContain("checklistStepLabel: file.checklistStepLabel ?? null");
+    expect(packageSource).toContain("sourceLabel: file.sourceLabel ?? null");
+  });
 });
 
 describe("capture draft reaper governance (Governance Item 2)", () => {

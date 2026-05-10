@@ -136,6 +136,13 @@ export function renderCoverSection(vm: ReportViewModel): string {
 const integrityBadgeText = decision.shortLabel;
   const reviewerReliance = getTrustDecisionConfidenceLabel(decision);
   const trustNarrative = getTrustNarrative(decision);
+  const primaryItemCount = vm.contentItems.filter(
+    (item) => item.artifactRole === "primary_evidence"
+  ).length;
+  const compactNarrative =
+    primaryItemCount > 1
+      ? `${decision.shortLabel}. ${primaryItemCount} items are explicitly marked primary.`
+      : `${decision.shortLabel}. Review later sections for signal detail and legal boundary.`;
 
   const primaryHash =
     vm.primaryContentItem?.sha256 ||
@@ -152,6 +159,10 @@ const integrityBadgeText = decision.shortLabel;
     vm.primaryContentItem?.originalFileName || vm.primaryContentItem?.label,
     "No identified lead item"
   );
+  const leadItemDisplayLabel =
+    primaryItemCount > 1
+      ? `Primary evidence set (${primaryItemCount} items)`
+      : leadItemLabel;
 
   const reportMode =
     vm.presentationMode === "simple"
@@ -221,7 +232,7 @@ const integrityBadgeText = decision.shortLabel;
             </div>
 
             <div class="cover-status-subtitle">
-              ${escapeHtml(trustNarrative)}
+              ${escapeHtml(compactNarrative || trustNarrative)}
             </div>
 
             <div class="cover-trust-score-line">
@@ -277,8 +288,10 @@ tone:
                     )}</div>
                   </div>
                   <div>
-<div class="cover-meta-label">Lead Item</div>
-<div class="cover-meta-value">${escapeHtml(leadItemLabel)}</div>
+<div class="cover-meta-label">${
+  primaryItemCount > 1 ? "Primary Evidence Set" : "Lead Item"
+}</div>
+<div class="cover-meta-value">${escapeHtml(leadItemDisplayLabel)}</div>
                   </div>
                 </div>
               </div>
@@ -347,14 +360,7 @@ getTrustDecisionLabel(vm.trustDecision)
 <div class="cover-boundary-note cover-boundary-inline">
   <div class="cover-boundary-title">Report Boundary.</div>
   <div class="cover-boundary-body">
-    This page summarizes recorded integrity, preservation, timestamping,
-    storage, and custody signals only. Integrity verification does not prove
-    factual truth, authorship, admissibility, or original device-capture
-    authenticity.
-  </div>
-  <div class="cover-boundary-followup">
-    Full legal boundary and reviewer-use limits appear later in the Legal
-    Interpretation &amp; Report Boundary section.
+    Full legal boundary and reviewer-use limits appear later.
   </div>
 </div>
       </div>

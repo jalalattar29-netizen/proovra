@@ -6,11 +6,17 @@ import {
   CAPTURE_LOCATION_STATUS_LABEL,
   buildCaptureLocationExternalMapUrl,
   buildEvidenceTrustDecision,
+  compareReviewerArtifactRolePriority,
+  getReviewerArtifactRoleLabel,
   getReviewerEvidenceTypeLabel,
   getReviewerUploadModeLabel,
   hasCaptureLocationMetadata,
+  isPrimaryReviewerArtifactRole,
+  resolveReviewerArtifactRole,
   resolveEffectiveOtsStatus,
   type EvidenceIntelligence,
+  type ReviewerArtifactRole,
+  type ReviewerArtifactRoleSource,
   type TrustDecision,
   type VerificationPackageMetadata,
 } from "@proovra/shared";
@@ -338,6 +344,11 @@ type PublicEvidenceAsset = {
   durationMs: number | null;
   sha256: string | null;
   isPrimary: boolean;
+  artifactRole: ReviewerArtifactRole;
+  artifactRoleLabel: string;
+  artifactRoleSource: ReviewerArtifactRoleSource;
+  checklistStepId: string | null;
+  checklistStepLabel: string | null;
   previewable: boolean;
   downloadable: boolean;
   viewUrl: string | null;
@@ -558,9 +569,14 @@ function buildOriginalPreservationNote(params: {
 
 function buildReviewerRepresentationLabel(params: {
   kind: PublicEvidenceAssetKind;
-  isPrimary: boolean;
+  artifactRole: ReviewerArtifactRole;
 }): string {
-  const prefix = params.isPrimary ? "Primary" : "Supporting";
+  const prefix =
+    params.artifactRole === "primary_evidence"
+      ? "Primary"
+      : params.artifactRole === "attachment"
+        ? "Reference"
+        : "Supporting";
   switch (params.kind) {
     case "image":
       return `${prefix} image review surface`;
@@ -606,6 +622,17 @@ function buildVerificationMaterialsNote(params: {
   kind: PublicEvidenceAssetKind;
 }): string {
   return `Verification materials for this ${params.kind} item include the recorded digest, custody linkage, timestamping state, and published anchoring indicators associated with the evidence record.`;
+}
+
+function sortPublicEvidenceItems(items: PublicEvidenceAsset[]): PublicEvidenceAsset[] {
+  return [...items].sort((left, right) => {
+    const roleOrder = compareReviewerArtifactRolePriority(
+      left.artifactRole,
+      right.artifactRole
+    );
+    if (roleOrder !== 0) return roleOrder;
+    return left.index - right.index;
+  });
 }
 
 const SAFE_EVIDENCE_SELECT = {
@@ -2762,6 +2789,7 @@ async function buildPublicEvidenceContent(params: {
     storageBucket: string | null;
     storageKey: string | null;
     fileSha256: string | null;
+    intakePlanJson?: Prisma.JsonValue | null;
     originalFileName?: string | null;
     displayFileName?: string | null;
     recordedAt?: Date | string | null;
@@ -2774,6 +2802,8 @@ async function buildPublicEvidenceContent(params: {
     sizeBytes: bigint | number | null;
     sha256: string | null;
     durationMs: number | null;
+    privateRole?: string | null;
+    checklistStepId?: string | null;
     storageBucket: string;
     storageKey: string;
   }>;
@@ -2790,14 +2820,42 @@ async function buildPublicEvidenceContent(params: {
   const canExposeContent = accessPolicy.allowContentView;
   const canDownload = accessPolicy.allowDownload;
 
-  const items: PublicEvidenceAsset[] = multipart
+  const buildRoleDecision = (input: {
+    privateRole?: string | null;
+    checklistStepId?: string | null;
+    fallbackRole: ReviewerArtifactRole;
+    fallbackRoleSource: ReviewerArtifactRoleSource;
+  }) =>
+    resolveReviewerArtifactRole({
+      privateRole: input.privateRole ?? null,
+      checklistStepId: input.checklistStepId ?? null,
+      intakePlanJson: params.evidence.intakePlanJson ?? null,
+      fallbackRole: input.fallbackRole,
+      fallbackRoleSource: input.fallbackRoleSource,
+    });
+
+  const roleAwareItems: PublicEvidenceAsset[] = multipart
     ? await Promise.all(
         params.parts.map(async (part) => {
           const kind = detectEvidenceAssetKind(part.mimeType);
           const sizeBytes = bigintToString(part.sizeBytes);
-          const isPrimary =
-            params.evidence.storageBucket === part.storageBucket &&
-            params.evidence.storageKey === part.storageKey;
+          const resolvedRole = buildRoleDecision({
+            privateRole: part.privateRole ?? null,
+            checklistStepId: part.checklistStepId ?? null,
+            fallbackRole:
+              params.evidence.storageBucket === part.storageBucket &&
+              params.evidence.storageKey === part.storageKey
+                ? "primary_evidence"
+                : "supporting_evidence",
+            fallbackRoleSource:
+              params.evidence.storageBucket === part.storageBucket &&
+              params.evidence.storageKey === part.storageKey
+                ? "fallback_root"
+                : "fallback_first",
+          });
+          const isPrimary = isPrimaryReviewerArtifactRole(
+            resolvedRole.artifactRole
+          );
 
           const canPreviewThisItem =
             canExposeContent && isPreviewableEvidenceKind(kind);
@@ -2835,6 +2893,13 @@ async function buildPublicEvidenceContent(params: {
             durationMs: part.durationMs ?? null,
             sha256: part.sha256 ?? null,
             isPrimary,
+            artifactRole: resolvedRole.artifactRole,
+            artifactRoleLabel: getReviewerArtifactRoleLabel(
+              resolvedRole.artifactRole
+            ),
+            artifactRoleSource: resolvedRole.roleSource,
+            checklistStepId: resolvedRole.checklistStepId,
+            checklistStepLabel: resolvedRole.checklistStepLabel,
             previewable: canPreviewThisItem,
             downloadable: canDownload,
             viewUrl,
@@ -2852,7 +2917,7 @@ async function buildPublicEvidenceContent(params: {
             }),
             reviewerRepresentationLabel: buildReviewerRepresentationLabel({
               kind,
-              isPrimary,
+              artifactRole: resolvedRole.artifactRole,
             }),
             reviewerRepresentationNote: buildReviewerRepresentationNote({
               kind,
@@ -2882,7 +2947,12 @@ async function buildPublicEvidenceContent(params: {
             const itemId = singlePart?.id ?? params.evidence.id;
             const itemIndex = singlePart?.partIndex ?? 0;
             const kind = detectEvidenceAssetKind(mimeType);
-
+            const resolvedRole = buildRoleDecision({
+              privateRole: singlePart?.privateRole ?? null,
+              checklistStepId: singlePart?.checklistStepId ?? null,
+              fallbackRole: "primary_evidence",
+              fallbackRoleSource: "fallback_single",
+            });
             const previewable =
               canExposeContent && isPreviewableEvidenceKind(kind);
             const canExposeDirectUrl = previewable || canDownload;
@@ -2923,7 +2993,14 @@ async function buildPublicEvidenceContent(params: {
               sizeBytes,
               durationMs: singlePart?.durationMs ?? null,
               sha256: sha256 ?? null,
-              isPrimary: true,
+              isPrimary: isPrimaryReviewerArtifactRole(resolvedRole.artifactRole),
+              artifactRole: resolvedRole.artifactRole,
+              artifactRoleLabel: getReviewerArtifactRoleLabel(
+                resolvedRole.artifactRole
+              ),
+              artifactRoleSource: resolvedRole.roleSource,
+              checklistStepId: resolvedRole.checklistStepId,
+              checklistStepLabel: resolvedRole.checklistStepLabel,
               previewable,
               downloadable: canDownload,
               viewUrl: canExposeDirectUrl
@@ -2945,7 +3022,7 @@ async function buildPublicEvidenceContent(params: {
               }),
               reviewerRepresentationLabel: buildReviewerRepresentationLabel({
                 kind,
-                isPrimary: true,
+                artifactRole: resolvedRole.artifactRole,
               }),
               reviewerRepresentationNote: buildReviewerRepresentationNote({
                 kind,
@@ -2966,16 +3043,35 @@ async function buildPublicEvidenceContent(params: {
         ])
       : [];
 
-  if (items.length > 1 && !items.some((item) => item.isPrimary)) {
-    items[0] = {
-      ...items[0],
+  const items: PublicEvidenceAsset[] = sortPublicEvidenceItems(
+    roleAwareItems
+  ).map((item, index, list) => {
+    if (list.some((candidate) => candidate.isPrimary)) {
+      return {
+        ...item,
+        previewRole:
+          item.previewRole === "metadata_only"
+            ? ("metadata_only" as const)
+            : item.isPrimary
+              ? ("primary_preview" as const)
+              : ("secondary_preview" as const),
+      };
+    }
+
+    if (index !== 0) return item;
+
+    return {
+      ...item,
       isPrimary: true,
+      artifactRole: "primary_evidence" as const,
+      artifactRoleLabel: getReviewerArtifactRoleLabel("primary_evidence"),
+      artifactRoleSource: multipart ? "fallback_first" : "fallback_single",
       previewRole:
-        items[0]?.previewRole === "metadata_only"
-          ? "metadata_only"
-          : "primary_preview",
+        item.previewRole === "metadata_only"
+          ? ("metadata_only" as const)
+          : ("primary_preview" as const),
     };
-  }
+  });
 
   const primaryItem =
     items.find((item) => item.isPrimary) ?? (items.length > 0 ? items[0] : null);
@@ -6910,6 +7006,7 @@ await appendCustodyEvent({
             storageBucket: evidence.storageBucket,
             storageKey: evidence.storageKey,
             fileSha256: evidence.fileSha256,
+            intakePlanJson: evidence.intakePlanJson ?? null,
             originalFileName: evidence.originalFileName ?? null,
             displayFileName: evidence.displayFileName ?? null,
             recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
@@ -7591,6 +7688,8 @@ const timestampDigestMatches: boolean | null =
             durationMs: true,
             storageBucket: true,
             storageKey: true,
+            privateRole: true,
+            checklistStepId: true,
           },
         });
 
@@ -7608,6 +7707,7 @@ const content = await buildPublicEvidenceContent({
     storageBucket: evidence.storageBucket,
     storageKey: evidence.storageKey,
     fileSha256: evidence.fileSha256,
+    intakePlanJson: evidence.intakePlanJson ?? null,
     originalFileName: evidence.originalFileName ?? null,
     displayFileName: evidence.displayFileName ?? null,
     recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
@@ -7798,6 +7898,8 @@ const parts = await prisma.evidencePart.findMany({
     durationMs: true,
     storageBucket: true,
     storageKey: true,
+    privateRole: true,
+    checklistStepId: true,
   },
 });
 
@@ -7815,6 +7917,7 @@ const content = await buildPublicEvidenceContent({
     storageBucket: refreshed.storageBucket,
     storageKey: refreshed.storageKey,
     fileSha256: refreshed.fileSha256,
+    intakePlanJson: refreshed.intakePlanJson ?? null,
     originalFileName: refreshed.originalFileName ?? null,
     displayFileName: refreshed.displayFileName ?? null,
     recordedAt: refreshed.capturedAtUtc ?? refreshed.createdAt,
@@ -8613,6 +8716,7 @@ action: "evidence.certification_requested",
         title: true,
         originalFileName: true,
         displayFileName: true,
+        intakePlanJson: true,
         type: true,
         status: true,
         verificationStatus: true,
@@ -9039,6 +9143,8 @@ const snapshotTrustDecision =
         durationMs: true,
         storageBucket: true,
         storageKey: true,
+        privateRole: true,
+        checklistStepId: true,
       },
     });
 
@@ -9092,6 +9198,7 @@ const content = await buildPublicEvidenceContent({
     storageBucket: evidence.storageBucket,
     storageKey: evidence.storageKey,
     fileSha256: evidence.fileSha256,
+    intakePlanJson: evidence.intakePlanJson ?? null,
 originalFileName: evidence.originalFileName ?? null,
 displayFileName: evidence.displayFileName ?? null,
     recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,

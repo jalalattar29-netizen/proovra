@@ -330,9 +330,16 @@ function renderDuplicateDigestRegister(vm: ReportViewModel): string {
 export function renderGallerySection(vm: ReportViewModel): string {
   const { buckets } = vm.presentation;
   const heroItem = buckets.heroItem;
+  const primaryItems =
+    buckets.primaryPreviewItems.length > 0
+      ? buckets.primaryPreviewItems
+      : heroItem
+        ? [heroItem]
+        : [];
 
   if (
     !heroItem &&
+    primaryItems.length === 0 &&
     buckets.supportingPreviewItems.length === 0 &&
     buckets.metadataOnlyItems.length === 0
   ) {
@@ -341,34 +348,47 @@ export function renderGallerySection(vm: ReportViewModel): string {
 
   const pages: string[] = [];
 
-  if (heroItem) {
-    pages.push(
-      renderPageSection(
-        "Primary Evidence",
-        `
-          <div class="primary-evidence-layout">
-            ${renderPrimaryEvidenceCard(heroItem)}
-          </div>
+  if (primaryItems.length > 0) {
+    const primaryChunks = chunkItems(primaryItems, 2);
 
-          ${
-            buckets.supportingPreviewItems.length > 0 ||
-            buckets.metadataOnlyItems.length > 0
-? `
-  <div class="supporting-gallery-callout-wrapper">
-    ${renderCallout({
-      title: "Supporting evidence gallery",
-      body:
-        "Supporting previews are reviewer-facing representations only. The preserved originals, recorded hashes, custody chain, timestamp state, and verification workflow remain authoritative.",
-      tone: "neutral",
-    })}
-  </div>
-`
-              : ""
+    primaryChunks.forEach((chunk, index) => {
+      const primaryTitle =
+        primaryItems.length > 1
+          ? `Primary Evidence Set ${index + 1}/${primaryChunks.length}`
+          : "Primary Evidence";
+
+      pages.push(
+        renderPageSection(
+          primaryTitle,
+          `
+            <div class="primary-evidence-layout">
+              ${chunk.map((item) => renderPrimaryEvidenceCard(item)).join("")}
+            </div>
+
+            ${
+              index === primaryChunks.length - 1 &&
+              (buckets.supportingPreviewItems.length > 0 ||
+                buckets.metadataOnlyItems.length > 0)
+                ? `
+    <div class="supporting-gallery-callout-wrapper">
+      ${renderCallout({
+        title: "Supporting evidence gallery",
+        body:
+          "Supporting previews are reviewer-facing representations only. The preserved originals, recorded hashes, custody chain, timestamp state, and verification workflow remain authoritative.",
+        tone: "neutral",
+      })}
+    </div>
+  `
+                : ""
+            }
+          `,
+          {
+            pageBreakBefore: true,
+            className: "evidence-presentation-section primary-evidence-section",
           }
-        `,
-        { pageBreakBefore: true, className: "evidence-presentation-section primary-evidence-section" }
-      )
-    );
+        )
+      );
+    });
   }
 
   const supportingChunks = chunkItems(buckets.supportingPreviewItems, 4);

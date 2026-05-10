@@ -357,6 +357,125 @@ describe("report v2 pipeline", () => {
     }
   });
 
+  it("honors explicit primary/supporting roles instead of collapsing to a single inferred lead item", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({
+        evidence: {
+          ...buildInput().evidence,
+          contentSummary: {
+            ...buildInput().evidence.contentSummary!,
+            structure: "multipart",
+            itemCount: 4,
+            previewableItemCount: 4,
+            downloadableItemCount: 4,
+            imageCount: 2,
+            pdfCount: 1,
+            textCount: 1,
+            totalSizeBytes: "8192",
+            totalSizeDisplay: "8 KB",
+          },
+          contentItems: [
+            {
+              ...buildInput().evidence.contentItems![0]!,
+              id: "primary-1",
+              index: 0,
+              label: "Primary contract",
+              originalFileName: "contract.pdf",
+              mimeType: "application/pdf",
+              kind: "pdf",
+              previewDataUrl: TINY_PNG_DATA_URL,
+              previewTextExcerpt: null,
+              artifactRole: "primary_evidence",
+              artifactRoleSource: "private_role",
+              checklistStepId: "primary_media",
+              checklistStepLabel: "Primary evidence",
+            },
+            {
+              ...buildInput().evidence.contentItems![0]!,
+              id: "primary-2",
+              index: 1,
+              label: "Primary photo",
+              originalFileName: "photo.jpg",
+              mimeType: "image/jpeg",
+              kind: "image",
+              previewDataUrl: TINY_PNG_DATA_URL,
+              previewTextExcerpt: null,
+              artifactRole: "primary_evidence",
+              artifactRoleSource: "checklist_step",
+              checklistStepId: "primary_media",
+              checklistStepLabel: "Primary evidence",
+            },
+            {
+              ...buildInput().evidence.contentItems![0]!,
+              id: "supporting-1",
+              index: 2,
+              label: "Supporting note",
+              originalFileName: "note.txt",
+              kind: "text",
+              mimeType: "text/plain",
+              previewDataUrl: null,
+              previewTextExcerpt: "supporting note",
+              isPrimary: false,
+              artifactRole: "supporting_evidence",
+              artifactRoleSource: "private_role",
+              checklistStepId: "supporting_context",
+              checklistStepLabel: "Supporting context",
+            },
+            {
+              ...buildInput().evidence.contentItems![0]!,
+              id: "supporting-2",
+              index: 3,
+              label: "Supporting receipt",
+              originalFileName: "receipt.pdf",
+              kind: "pdf",
+              mimeType: "application/pdf",
+              previewDataUrl: TINY_PNG_DATA_URL,
+              previewTextExcerpt: null,
+              isPrimary: false,
+              artifactRole: "supporting_evidence",
+              artifactRoleSource: "checklist_step",
+              checklistStepId: "supporting_context",
+              checklistStepLabel: "Supporting context",
+            },
+          ],
+          primaryContentItem: {
+            ...buildInput().evidence.primaryContentItem!,
+            id: "primary-1",
+            label: "Primary contract",
+            originalFileName: "contract.pdf",
+            kind: "pdf",
+            mimeType: "application/pdf",
+            previewDataUrl: TINY_PNG_DATA_URL,
+            previewTextExcerpt: null,
+            artifactRole: "primary_evidence",
+            artifactRoleSource: "private_role",
+            checklistStepId: "primary_media",
+            checklistStepLabel: "Primary evidence",
+          },
+          embeddedPreviewsSnapshot: [
+            { id: "primary-1", previewDataUrl: TINY_PNG_DATA_URL },
+            { id: "primary-2", previewDataUrl: TINY_PNG_DATA_URL },
+            { id: "supporting-1", previewTextExcerpt: "supporting note" },
+            { id: "supporting-2", previewDataUrl: TINY_PNG_DATA_URL },
+          ],
+        },
+      })
+    );
+
+    const html = renderReportHtml(vm);
+
+    expect(vm.presentation.buckets.primaryPreviewItems).toHaveLength(2);
+    expect(vm.presentation.buckets.supportingPreviewItems).toHaveLength(2);
+    expect(vm.presentation.buckets.supportingPreviewItems.some((item) => item.asset.id === "primary-1")).toBe(false);
+    expect(vm.executiveRows.some((row) => row.label === "Primary Evidence Set")).toBe(true);
+    expect(html).toContain("Primary Evidence Set");
+    expect(html).toContain("contract.pdf");
+    expect(html).toContain("photo.jpg");
+    expect(html).toContain("Supporting Evidence Gallery");
+    expect(html).toContain("note.txt");
+    expect(html).toContain("receipt.pdf");
+  });
+
   it("keeps the cover boundary note compact while preserving the full legal boundary later", async () => {
     const vm = await buildReportViewModel(
       buildInput({

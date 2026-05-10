@@ -22,6 +22,7 @@ import {
   sanitizeCaptureSessionItem,
 } from "../src/services/capture-draft-governance.js";
 import { buildTrustDecisionConsistency } from "../src/services/trust-decision-consistency.service.js";
+import { resolveReviewerArtifactRole } from "@proovra/shared";
 
 const SNAPSHOT_TRUST_DECISION = {
   verdict: "VERIFIED",
@@ -263,6 +264,78 @@ describe("intake + TSA semantics", () => {
     expect(source).toContain(
       'multipartItemCount > 1 ? "CANONICAL_PACKAGE_SHA256" : "FILE_SHA256"'
     );
+  });
+});
+
+describe("capture role/mapping semantics", () => {
+  const intakePlanJson = {
+    steps: [
+      {
+        id: "primary_media",
+        title: "Primary media",
+        purposeLabel: "Primary evidence",
+      },
+      {
+        id: "supporting_context",
+        title: "Supporting context",
+        purposeLabel: "Supporting evidence",
+      },
+    ],
+  };
+
+  it("prefers explicit private roles over fallback heuristics", () => {
+    const resolved = resolveReviewerArtifactRole({
+      privateRole: "PRIMARY",
+      checklistStepId: null,
+      intakePlanJson,
+      fallbackRole: "supporting_evidence",
+      fallbackRoleSource: "fallback_first",
+    });
+
+    expect(resolved.artifactRole).toBe("primary_evidence");
+    expect(resolved.roleSource).toBe("private_role");
+  });
+
+  it("respects checklist mappings when no explicit role is set", () => {
+    const resolved = resolveReviewerArtifactRole({
+      privateRole: null,
+      checklistStepId: "supporting_context",
+      intakePlanJson,
+      fallbackRole: "primary_evidence",
+      fallbackRoleSource: "fallback_root",
+    });
+
+    expect(resolved.artifactRole).toBe("supporting_evidence");
+    expect(resolved.roleSource).toBe("checklist_step");
+    expect(resolved.checklistStepLabel).toContain("Supporting");
+  });
+
+  it("falls back safely for legacy records with no role metadata", () => {
+    const resolved = resolveReviewerArtifactRole({
+      privateRole: null,
+      checklistStepId: null,
+      intakePlanJson: null,
+      fallbackRole: "primary_evidence",
+      fallbackRoleSource: "fallback_single",
+    });
+
+    expect(resolved.artifactRole).toBe("primary_evidence");
+    expect(resolved.roleSource).toBe("fallback_single");
+  });
+
+  it("keeps API evidence-content construction wired to explicit role metadata", () => {
+    const routeSource = readRepoFile(
+      "services",
+      "api",
+      "src",
+      "routes",
+      "evidence.routes.ts"
+    );
+
+    expect(routeSource).toContain("artifactRole: resolvedRole.artifactRole");
+    expect(routeSource).toContain("artifactRoleLabel: getReviewerArtifactRoleLabel(");
+    expect(routeSource).toContain("checklistStepLabel: resolvedRole.checklistStepLabel");
+    expect(routeSource).toContain("sortPublicEvidenceItems");
   });
 });
 

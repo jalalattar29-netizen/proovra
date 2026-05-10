@@ -275,6 +275,11 @@ function buildExecutiveRows(
   primaryContentItem: ReportEvidenceAsset | null,
   externalMode: boolean
 ): KeyValueRow[] {
+  const explicitPrimaryItems =
+    evidence.contentItems?.filter(
+      (item) => item.artifactRole === "primary_evidence"
+    ) ?? [];
+  const multipleExplicitPrimary = explicitPrimaryItems.length > 1;
   const rows: KeyValueRow[] = [];
   const add = (label: string, value: string | null | undefined) => {
     if (value === null || value === undefined || value === "") return;
@@ -290,14 +295,24 @@ function buildExecutiveRows(
   add("Evidence Structure", structureLabel);
   add("Item Count", String(contentSummary.itemCount));
   add(
-    "Lead Review Item",
-    primaryContentItem
-      ? safe(primaryContentItem.originalFileName || primaryContentItem.label)
-      : "No identified lead item"
+    multipleExplicitPrimary ? "Primary Evidence Set" : "Lead Review Item",
+    multipleExplicitPrimary
+      ? `${explicitPrimaryItems.length} items explicitly marked primary`
+      : primaryContentItem
+        ? safe(primaryContentItem.originalFileName || primaryContentItem.label)
+        : "No identified lead item"
   );
   add(
-    "Lead Item Type",
-    primaryContentItem ? mapEvidenceAssetKindLabel(primaryContentItem.kind) : null
+    multipleExplicitPrimary ? "Primary Evidence Coverage" : "Lead Item Type",
+    multipleExplicitPrimary
+      ? explicitPrimaryItems
+          .map((item) => safe(item.originalFileName || item.label))
+          .filter(Boolean)
+          .slice(0, 3)
+          .join(" • ")
+      : primaryContentItem
+        ? mapEvidenceAssetKindLabel(primaryContentItem.kind)
+        : null
   );
   add("Total Content Size", safe(contentSummary.totalSizeDisplay));
   // Issue #6: be precise about timestamp provenance. capturedAtUtc / signedAtUtc
@@ -423,6 +438,11 @@ function buildVerificationSummaryRows(
   primaryContentItem: ReportEvidenceAsset | null,
   externalMode: boolean
 ): KeyValueRow[] {
+  const explicitPrimaryItems =
+    evidence.contentItems?.filter(
+      (item) => item.artifactRole === "primary_evidence"
+    ) ?? [];
+  const multipleExplicitPrimary = explicitPrimaryItems.length > 1;
   const rows: KeyValueRow[] = [];
   const add = (label: string, value: string | null | undefined) => {
     if (value === null || value === undefined || value === "") return;
@@ -441,7 +461,12 @@ function buildVerificationSummaryRows(
   add("Canonical Fingerprint Hash", safe(evidence.fingerprintHash));
 
   if (contentSummary.itemCount > 1 && primaryContentItem?.sha256) {
-    add("Lead Item SHA-256", safe(primaryContentItem.sha256));
+    add(
+      multipleExplicitPrimary
+        ? "Representative Primary Item SHA-256"
+        : "Lead Item SHA-256",
+      safe(primaryContentItem.sha256)
+    );
   }
 
   add("Primary MIME Type", safe(contentSummary.primaryMimeType));
@@ -578,6 +603,11 @@ function buildEvidenceContentSummaryRows(
   primaryItem: ReportEvidenceAsset | null,
   evidence?: ReportEvidence
 ): KeyValueRow[] {
+  const explicitPrimaryItems =
+    evidence?.contentItems?.filter(
+      (item) => item.artifactRole === "primary_evidence"
+    ) ?? [];
+  const multipleExplicitPrimary = explicitPrimaryItems.length > 1;
   const rows: KeyValueRow[] = [];
   const add = (label: string, value: string | null | undefined) => {
     if (value === null || value === undefined || value === "") return;
@@ -618,14 +648,24 @@ function buildEvidenceContentSummaryRows(
     contentSummary.otherCount > 0 ? String(contentSummary.otherCount) : null
   );
   add(
-    "Lead Review Item",
-    primaryItem
-      ? safe(primaryItem.originalFileName || primaryItem.label)
-      : null
+    multipleExplicitPrimary ? "Primary Evidence Set" : "Lead Review Item",
+    multipleExplicitPrimary
+      ? `${explicitPrimaryItems.length} items explicitly marked primary`
+      : primaryItem
+        ? safe(primaryItem.originalFileName || primaryItem.label)
+        : null
   );
   add(
-    "Lead Item Type",
-    primaryItem ? mapEvidenceAssetKindLabel(primaryItem.kind) : null
+    multipleExplicitPrimary ? "Primary Evidence Coverage" : "Lead Item Type",
+    multipleExplicitPrimary
+      ? explicitPrimaryItems
+          .map((item) => mapEvidenceAssetKindLabel(item.kind))
+          .filter(Boolean)
+          .slice(0, 3)
+          .join(" • ")
+      : primaryItem
+        ? mapEvidenceAssetKindLabel(primaryItem.kind)
+        : null
   );
   add("Primary MIME Type", safe(contentSummary.primaryMimeType));
   add("Total Size", safe(contentSummary.totalSizeDisplay));
@@ -919,16 +959,26 @@ function buildCertificationRows(
 function buildForensicIntegrityStatementModel(
   verifyUrl: string,
   structureLabel: string,
-  externalMode: boolean
+  externalMode: boolean,
+  evidence?: ReportEvidence
 ) {
+  const explicitPrimaryCount =
+    evidence?.contentItems?.filter(
+      (item) => item.artifactRole === "primary_evidence"
+    ).length ?? 0;
+  const multipleExplicitPrimary = explicitPrimaryCount > 1;
   return {
     introLead:
       "Procedural verification checklist",
     introBody:
       "Use this section as a review workflow for validating the report against the preserved evidence package and the verification endpoint.",
     includedBulletItems: [
-      "Confirm the evidence reference, package structure, and lead review item.",
-"Validate the lead item SHA-256, original file or canonical package digest, and canonical fingerprint hash against the preserved materials.",
+      multipleExplicitPrimary
+        ? "Confirm the evidence reference, package structure, and the explicit primary evidence set."
+        : "Confirm the evidence reference, package structure, and lead review item.",
+      multipleExplicitPrimary
+        ? "Validate the representative primary-item SHA-256, the canonical package digest, and the canonical fingerprint hash against the preserved materials."
+        : "Validate the lead item SHA-256, original file or canonical package digest, and canonical fingerprint hash against the preserved materials.",
 "Review custody chronology before relying on the evidence record.",
       "Use the verification endpoint for signature, timestamp token, and anchoring proof validation.",
     ],
@@ -979,7 +1029,13 @@ function buildTechnicalAppendixCourtRows(params: {
   custody: ReturnType<typeof splitCustodyEvents>;
   reportVersion: number;
 }): KeyValueRow[] {
-    return [
+  const explicitPrimaryItems =
+    params.evidence.contentItems?.filter(
+      (item) => item.artifactRole === "primary_evidence"
+    ) ?? [];
+  const multipleExplicitPrimary = explicitPrimaryItems.length > 1;
+
+  return [
     {
       label: "Evidence Record",
       value: buildPublicEvidenceReference(params.evidence.id),
@@ -991,11 +1047,12 @@ function buildTechnicalAppendixCourtRows(params: {
       }`,
     },
     {
-      label: "Lead Review Item",
-      value:
-        params.primaryContentItem?.originalFileName ??
-        params.primaryContentItem?.label ??
-        "No identified lead item",
+      label: multipleExplicitPrimary ? "Primary Evidence Set" : "Lead Review Item",
+      value: multipleExplicitPrimary
+        ? `${explicitPrimaryItems.length} items explicitly marked primary`
+        : params.primaryContentItem?.originalFileName ??
+          params.primaryContentItem?.label ??
+          "No identified lead item",
     },
     {
   label: "File Digest Present",
@@ -1375,7 +1432,8 @@ const verificationPackageIntegrity = {
   const forensicIntegrityStatement = buildForensicIntegrityStatementModel(
     verifyUrl,
     structureLabel,
-    externalMode
+    externalMode,
+    input.evidence
   );
 
 const captureLat = input.evidence.gps.lat;

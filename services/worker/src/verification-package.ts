@@ -9,6 +9,7 @@ import {
   CAPTURE_LOCATION_SOURCE_LABEL,
   TRUST_DECISION_LEGAL_BOUNDARY,
   buildCaptureLocationExternalMapUrl,
+  getReviewerArtifactRoleLabel,
   getReviewerEvidenceCategories,
   getReviewerEvidenceTypeLabel,
   hasCaptureLocationMetadata,
@@ -37,6 +38,11 @@ type VerificationEvidenceFile = {
   storageObjectLockMode?: string | null;
   storageObjectLockRetainUntilUtc?: string | null;
   storageObjectLockLegalHoldStatus?: string | null;
+  artifactRole?: "primary_evidence" | "supporting_evidence" | "attachment" | null;
+  artifactRoleSource?: string | null;
+  checklistStepId?: string | null;
+  checklistStepLabel?: string | null;
+  sourceLabel?: string | null;
 };
 
 type VerificationPackageArtifactPresence = {
@@ -971,6 +977,10 @@ Compare the result with:
 - \`package-checksums.json\`
 - the PDF report
 
+For multipart evidence, also inspect \`evidence-manifest.json\` to confirm each packaged part's
+role assignment, checklist mapping, and ordered part hash before recomputing the canonical
+multipart manifest digest.
+
 ## 3. Verify package manifest digest
 
 \`\`\`bash
@@ -1340,6 +1350,14 @@ function buildEvidenceManifest(
       partIndex: file.partIndex ?? index + 1,
       name: file.finalName,
       packagePath: multipart ? `evidence-parts/${file.finalName}` : file.finalName,
+      artifactRole: file.artifactRole ?? null,
+      artifactRoleLabel: file.artifactRole
+        ? getReviewerArtifactRoleLabel(file.artifactRole)
+        : null,
+      artifactRoleSource: file.artifactRoleSource ?? null,
+      checklistStepId: file.checklistStepId ?? null,
+      checklistStepLabel: file.checklistStepLabel ?? null,
+      sourceLabel: file.sourceLabel ?? null,
       sizeBytes: file.buffer.length,
       mimeType: file.mimeType ?? null,
       sha256:
@@ -1461,6 +1479,14 @@ function buildOriginalLinkage(
       packageIndex: index + 1,
       partIndex: file.partIndex ?? null,
       packageName: file.finalName,
+      artifactRole: file.artifactRole ?? null,
+      artifactRoleLabel: file.artifactRole
+        ? getReviewerArtifactRoleLabel(file.artifactRole)
+        : null,
+      artifactRoleSource: file.artifactRoleSource ?? null,
+      checklistStepId: file.checklistStepId ?? null,
+      checklistStepLabel: file.checklistStepLabel ?? null,
+      sourceLabel: file.sourceLabel ?? null,
       // Phase D Blocker 2 — strip path components before exposing.
       originalFileName: stripPathForPackageExposure(file.originalFileName),
       mimeType: file.mimeType ?? null,

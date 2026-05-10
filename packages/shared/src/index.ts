@@ -81,6 +81,20 @@ export {
 } from "./reviewer-evidence.js";
 
 export type {
+  ReviewerArtifactRole,
+  ReviewerArtifactRoleSource,
+  ResolvedReviewerArtifactRole,
+} from "./evidence-roles.js";
+
+export {
+  compareReviewerArtifactRolePriority,
+  getReviewerArtifactRoleLabel,
+  isExplicitReviewerArtifactRoleSource,
+  isPrimaryReviewerArtifactRole,
+  resolveReviewerArtifactRole,
+} from "./evidence-roles.js";
+
+export type {
   TrustDecision,
   ReviewerPackageTrustDecision,
   ReviewerPackageTrustSignal,

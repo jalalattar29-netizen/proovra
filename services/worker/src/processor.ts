@@ -44,12 +44,17 @@ import {
   buildEvidencePreviewPolicy,
 } from "@proovra/shared-evidence-presentation";
 import {
+  compareReviewerArtifactRolePriority,
   classifyCustodyEventType,
   evaluateRecordedIntegrityPromotion,
   getReviewerEvidenceCategories,
   getReviewerEvidenceTypeLabel,
   getReviewerUploadModeLabel,
+  isPrimaryReviewerArtifactRole,
+  resolveReviewerArtifactRole,
   resolveEffectiveOtsStatus,
+  type ReviewerArtifactRole,
+  type ReviewerArtifactRoleSource,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
 import { appendWorkerAnalyticsEvent } from "./analytics-events.js";
@@ -106,6 +111,11 @@ type VerificationEvidenceFile = {
   storageObjectLockMode?: string | null;
   storageObjectLockRetainUntilUtc?: string | null;
   storageObjectLockLegalHoldStatus?: string | null;
+  artifactRole?: ReviewerArtifactRole | null;
+  artifactRoleSource?: ReviewerArtifactRoleSource | null;
+  checklistStepId?: string | null;
+  checklistStepLabel?: string | null;
+  sourceLabel?: string | null;
 };
 
 type LoadedEvidenceArtifact = {
@@ -200,6 +210,9 @@ type ReportEvidenceAsset = {
     | "text_excerpt"
     | "metadata_only";
   artifactRole: "primary_evidence" | "supporting_evidence" | "attachment";
+  artifactRoleSource: ReviewerArtifactRoleSource;
+  checklistStepId: string | null;
+  checklistStepLabel: string | null;
   originalPreservationNote: string;
   reviewerRepresentationLabel: string;
   reviewerRepresentationNote: string;
@@ -1223,6 +1236,7 @@ function buildReportEvidenceContent(params: {
     storageBucket: string | null;
     storageKey: string | null;
     fileSha256: string | null;
+    intakePlanJson?: Prisma.JsonValue | null;
   };
   parts: Array<{
     id: string;
@@ -1232,6 +1246,8 @@ function buildReportEvidenceContent(params: {
     sizeBytes: bigint | number | null;
     sha256: string | null;
     durationMs: number | null;
+    privateRole?: string | null;
+    checklistStepId?: string | null;
     storageBucket: string;
     storageKey: string;
   }>;
@@ -1249,13 +1265,29 @@ const hasStoredParts = params.parts.length > 0;
   const canDownload = accessPolicy.allowDownload;
 
 const items: ReportEvidenceAsset[] = hasStoredParts
-  ? params.parts.map((part) => {
+  ? [...params.parts]
+      .map((part) => {
             const kind = detectEvidenceAssetKind(part.mimeType);
         const sizeBytes = part.sizeBytes != null ? String(part.sizeBytes) : null;
-const isPrimary =
-  params.parts.length === 1 ||
-  (params.evidence.storageBucket === part.storageBucket &&
-    params.evidence.storageKey === part.storageKey);
+const resolvedRole = resolveReviewerArtifactRole({
+  privateRole: part.privateRole ?? null,
+  checklistStepId: part.checklistStepId ?? null,
+  intakePlanJson: params.evidence.intakePlanJson ?? null,
+  fallbackRole:
+    params.parts.length === 1 ||
+    (params.evidence.storageBucket === part.storageBucket &&
+      params.evidence.storageKey === part.storageKey)
+      ? "primary_evidence"
+      : "supporting_evidence",
+  fallbackRoleSource:
+    params.parts.length === 1
+      ? "fallback_single"
+      : params.evidence.storageBucket === part.storageBucket &&
+          params.evidence.storageKey === part.storageKey
+        ? "fallback_root"
+        : "fallback_first",
+});
+const isPrimary = isPrimaryReviewerArtifactRole(resolvedRole.artifactRole);
 
         const canPreviewThisItem =
           canExposeContent && isPreviewableEvidenceKind(kind);
@@ -1286,23 +1318,22 @@ const isPrimary =
           displaySizeLabel: formatBytesForDisplay(sizeBytes),
           previewRole: canPreviewThisItem
             ? isPrimary
-              ? "primary_preview"
-              : "secondary_preview"
+              ? ("primary_preview" as const)
+              : ("secondary_preview" as const)
             : canDownload
-              ? "download_only"
-              : "metadata_only",
+              ? ("download_only" as const)
+              : ("metadata_only" as const),
           embedPreference: canPreviewThisItem
             ? resolveEmbedPreference(kind)
             : "metadata_only",
-          artifactRole: isPrimary
-            ? "primary_evidence"
-            : canPreviewThisItem
-              ? "supporting_evidence"
-              : "attachment",
+          artifactRole: resolvedRole.artifactRole,
+          artifactRoleSource: resolvedRole.roleSource,
+          checklistStepId: resolvedRole.checklistStepId,
+          checklistStepLabel: resolvedRole.checklistStepLabel,
           originalPreservationNote: buildOriginalPreservationNote({ label, kind }),
           reviewerRepresentationLabel: buildReviewerRepresentationLabel({
             kind,
-            isPrimary,
+            isPrimary: resolvedRole.artifactRole === "primary_evidence",
           }),
           reviewerRepresentationNote: buildReviewerRepresentationNote({
             kind,
@@ -1319,6 +1350,14 @@ const isPrimary =
               mimeType: part.mimeType ?? null,
             }),
         };
+      })
+      .sort((left, right) => {
+        const roleOrder = compareReviewerArtifactRolePriority(
+          left.artifactRole,
+          right.artifactRole
+        );
+        if (roleOrder !== 0) return roleOrder;
+        return left.index - right.index;
       })
     : params.evidence.storageBucket && params.evidence.storageKey
       ? (() => {
@@ -1357,14 +1396,17 @@ const isPrimary =
               viewUrl: null,
               displaySizeLabel: formatBytesForDisplay(params.evidence.sizeBytes),
               previewRole: singlePreviewable
-                ? "primary_preview"
+                ? ("primary_preview" as const)
                 : canDownload
-                  ? "download_only"
-                  : "metadata_only",
+                  ? ("download_only" as const)
+                  : ("metadata_only" as const),
               embedPreference: singlePreviewable
                 ? resolveEmbedPreference(singleKind)
                 : "metadata_only",
               artifactRole: "primary_evidence",
+              artifactRoleSource: "fallback_single",
+              checklistStepId: null,
+              checklistStepLabel: null,
               originalPreservationNote: buildOriginalPreservationNote({
                 label,
                 kind: singleKind,
@@ -1400,8 +1442,8 @@ if (items.length > 0 && !items.some((item) => item.isPrimary)) {
       isPrimary: true,
       previewRole:
         items[0]?.previewRole === "metadata_only"
-          ? "metadata_only"
-          : "primary_preview",
+          ? ("metadata_only" as const)
+          : ("primary_preview" as const),
       artifactRole: "primary_evidence",
     };
   }
@@ -1750,6 +1792,7 @@ async function prepareReportArtifacts(
       latestReportVersion: true,
       reviewReadyAtUtc: true,
       reviewerSummaryVersion: true,
+      intakePlanJson: true,
       createdAt: true,
       uploadedAtUtc: true,
       signedAtUtc: true,
@@ -1870,6 +1913,9 @@ async function prepareReportArtifacts(
         storageObjectLockMode: true,
         storageObjectLockRetainUntilUtc: true,
         storageObjectLockLegalHoldStatus: true,
+        privateRole: true,
+        checklistStepId: true,
+        sourceLabel: true,
         uploadedByUserId: true,
       },
     }),
@@ -2018,6 +2064,22 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
     const hashes: string[] = [];
 
     for (const [index, part] of parts.entries()) {
+      const resolvedRole = resolveReviewerArtifactRole({
+        privateRole: part.privateRole ?? null,
+        checklistStepId: part.checklistStepId ?? null,
+        intakePlanJson: evidence.intakePlanJson ?? null,
+        fallbackRole:
+          parts.length === 1 || index === 0
+            ? "primary_evidence"
+            : "supporting_evidence",
+        fallbackRoleSource:
+          parts.length === 1
+            ? "fallback_single"
+            : index === 0
+              ? "fallback_root"
+              : "fallback_first",
+      });
+
       const head = await headObject({
         bucket: part.storageBucket,
         key: part.storageKey,
@@ -2037,6 +2099,8 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
       hashes.push(partSha);
 
       verificationEvidenceFiles.push({
+        artifactRole: resolvedRole.artifactRole,
+        artifactRoleSource: resolvedRole.roleSource,
         name:
           part.originalFileName ??
           basenameFromStorageKey(
@@ -2059,6 +2123,9 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
           part.storageObjectLockRetainUntilUtc?.toISOString() ?? null,
         storageObjectLockLegalHoldStatus:
           part.storageObjectLockLegalHoldStatus ?? null,
+        checklistStepId: resolvedRole.checklistStepId,
+        checklistStepLabel: resolvedRole.checklistStepLabel,
+        sourceLabel: part.sourceLabel ?? null,
       });
             loadedArtifacts.push({
         id: part.id,
@@ -2197,6 +2264,7 @@ if (
       storageBucket,
       storageKey,
       fileSha256,
+      intakePlanJson: evidence.intakePlanJson ?? null,
     },
     parts: parts.map((part) => ({
       id: part.id,
@@ -2206,6 +2274,8 @@ if (
       sizeBytes: part.sizeBytes,
       sha256: part.sha256,
       durationMs: part.durationMs,
+      privateRole: part.privateRole ?? null,
+      checklistStepId: part.checklistStepId ?? null,
       storageBucket: part.storageBucket,
       storageKey: part.storageKey,
     })),

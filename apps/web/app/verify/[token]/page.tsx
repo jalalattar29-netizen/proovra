@@ -12,6 +12,7 @@ import {
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
   getReviewerEvidenceTypeLabel,
+  getReviewerArtifactRoleLabel,
   getTrustDecisionConfidenceLabel,
   getTrustDecisionLabel,
   getTrustNarrative,
@@ -275,6 +276,12 @@ type VerifyEvidenceAsset = {
   durationMs?: number | null;
   sha256?: string | null;
   isPrimary: boolean;
+  artifactRole?: "primary_evidence" | "supporting_evidence" | "attachment" | null;
+  artifactRoleLabel?: string | null;
+  artifactRoleSource?: string | null;
+  checklistStepId?: string | null;
+  checklistStepLabel?: string | null;
+  sourceLabel?: string | null;
   previewable: boolean;
   downloadable: boolean;
   viewUrl?: string | null;
@@ -808,6 +815,19 @@ function firstNonEmpty(...values: Array<string | null | undefined>): string | nu
 
 function normalizeBool(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
+}
+
+function describeEvidenceAssetRole(item: VerifyEvidenceAsset): string {
+  const roleLabel =
+    item.artifactRoleLabel ??
+    (item.artifactRole ? getReviewerArtifactRoleLabel(item.artifactRole) : null) ??
+    (item.isPrimary ? "Primary evidence" : "Supporting evidence");
+  const checklistLabel =
+    typeof item.checklistStepLabel === "string" && item.checklistStepLabel.trim()
+      ? item.checklistStepLabel.trim()
+      : null;
+
+  return checklistLabel ? `${roleLabel} • ${checklistLabel}` : roleLabel;
 }
 
 function buildTsaDetails(data: VerifyResponse) {
@@ -6218,7 +6238,7 @@ Reviewer Action
   }}
 >
   {evidenceKindLabel(item.kind)}
-  {item.isPrimary ? " • Primary item" : ""}
+  {` • ${describeEvidenceAssetRole(item)}`}
 </div>
                             </button>
                           );

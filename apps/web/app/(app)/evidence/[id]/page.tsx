@@ -20,6 +20,7 @@ import {
   PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
   PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
 } from "@proovra/shared-evidence-presentation";
+import { getReviewerArtifactRoleLabel } from "@proovra/shared";
 import { Button, Modal, useToast } from "../../../../components/ui";
 import CaptureLocationMapPanel from "../../../../components/capture-location/CaptureLocationMapPanel";
 import { apiFetch } from "../../../../lib/api";
@@ -116,6 +117,24 @@ function formatValue(value: unknown): string {
   if (value === null || value === undefined || value === "") return "Not recorded";
   if (typeof value === "boolean") return value ? "Yes" : "No";
   return String(value);
+}
+
+function describeContentItemRole(item: {
+  isPrimary: boolean;
+  artifactRole?: "primary_evidence" | "supporting_evidence" | "attachment" | null;
+  artifactRoleLabel?: string | null;
+  checklistStepLabel?: string | null;
+}) {
+  const roleLabel =
+    item.artifactRoleLabel ??
+    (item.artifactRole ? getReviewerArtifactRoleLabel(item.artifactRole) : null) ??
+    (item.isPrimary ? "Primary evidence" : "Supporting evidence");
+  const checklistLabel =
+    typeof item.checklistStepLabel === "string" && item.checklistStepLabel.trim()
+      ? item.checklistStepLabel.trim()
+      : null;
+
+  return checklistLabel ? `${roleLabel} • ${checklistLabel}` : roleLabel;
 }
 
 function buildShareUrl(path: string | null | undefined): string | null {
@@ -299,7 +318,7 @@ function PreviewWorkspace({
             </div>
             <div className="evidence-detail-definition-inline">
               <span>Role</span>
-              <strong>{item.isPrimary ? "Primary item" : "Supporting item"}</strong>
+              <strong>{describeContentItemRole(item)}</strong>
             </div>
           </div>
         ))}

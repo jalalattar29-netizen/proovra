@@ -9,6 +9,7 @@ import {
 } from "./types.js";
 import { formatBytesHuman, safe } from "./formatters.js";
 import { mapEvidenceAssetKindLabel } from "./normalizers.js";
+import { isExplicitReviewerArtifactRoleSource } from "@proovra/shared";
 
 type ParsedFingerprintSummary = {
   multipart: boolean;
@@ -224,25 +225,52 @@ export function buildPresentationBuckets(params: {
     prominent: params.primaryItem ? asset.id === params.primaryItem.id : false,
   }));
 
+  const explicitRoleAssignments = mapped.some((item) =>
+    isExplicitReviewerArtifactRoleSource(item.asset.artifactRoleSource)
+  );
+
+  const explicitPrimaryItems = mapped.filter(
+    (item) => item.asset.artifactRole === "primary_evidence"
+  );
+  const explicitSupportingItems = mapped.filter(
+    (item) => item.asset.artifactRole === "supporting_evidence"
+  );
+
   const heroItem =
+    explicitPrimaryItems.find((item) => item.hasRenderablePreview) ??
+    explicitPrimaryItems[0] ??
     mapped.find((item) => item.prominent) ??
     mapped.find((item) => item.hasRenderablePreview) ??
     mapped[0] ??
     null;
 
-  const previewable = mapped.filter(
-    (item) => item.hasRenderablePreview && (!heroItem || item.asset.id !== heroItem.asset.id)
-  );
+  const primaryPreviewItems = explicitRoleAssignments
+    ? explicitPrimaryItems.length > 0
+      ? explicitPrimaryItems
+      : heroItem
+        ? [heroItem]
+        : []
+    : heroItem
+      ? [heroItem]
+      : [];
 
-  const metadataOnly = mapped.filter((item) => !item.hasRenderablePreview);
+  const primaryIds = new Set(primaryPreviewItems.map((item) => item.asset.id));
 
-  const primaryPreviewItems =
-    heroItem && heroItem.hasRenderablePreview ? [heroItem] : heroItem ? [heroItem] : [];
+  const supportingPreviewItems = explicitRoleAssignments
+    ? explicitSupportingItems.filter((item) => !primaryIds.has(item.asset.id))
+    : mapped.filter(
+        (item) =>
+          item.hasRenderablePreview &&
+          (!heroItem || item.asset.id !== heroItem.asset.id)
+      );
 
-  const supportingPreviewItems =
-    params.presentationMode === "heavy"
-      ? previewable
-      : previewable;
+  const metadataOnly = explicitRoleAssignments
+    ? mapped.filter(
+        (item) =>
+          !item.hasRenderablePreview &&
+          !primaryIds.has(item.asset.id)
+      )
+    : mapped.filter((item) => !item.hasRenderablePreview);
 
   return {
     heroItem,
