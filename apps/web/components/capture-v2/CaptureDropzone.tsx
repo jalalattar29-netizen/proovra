@@ -13,13 +13,13 @@ type CaptureDropzoneProps = {
 };
 
 const INTAKE_ACTIONS = [
-  {
-    key: "files",
-    label: "Files",
-    helper: "Upload evidence",
-    icon: Upload,
-    tone: "primary",
-  },
+{
+  key: "files",
+  label: "Files",
+  helper: "Photos, video, audio, PDFs",
+  icon: Upload,
+  tone: "primary",
+},
   {
     key: "folder",
     label: "Folder",
@@ -92,11 +92,10 @@ export function CaptureDropzone({
       <div className="capture-intake-command-header">
         <div>
           <div className="capture-section-label">Evidence capture</div>
-          <div className="capture-card-title">Add source materials</div>
-          <p>
-            Use direct upload, folder intake, or device capture. Materials remain staged
-            until Review & Sign creates the evidence record.
-          </p>
+<div className="capture-card-title">Add source files</div>
+<p>
+  Upload, capture, or record materials for this session.
+</p>
         </div>
 
         <div className="capture-intake-state-pill">
