@@ -4060,8 +4060,41 @@ body {
 }
 
 .cover-decision-grid.cover-trust-signal-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 2mm !important;
   margin-top: 0 !important;
   margin-bottom: 2.2mm !important;
+}
+
+.cover-trust-signal-grid .cover-decision-indicator {
+  min-height: 12.8mm !important;
+  padding: 1.8mm 1.7mm !important;
+  grid-template-columns: 4.6mm minmax(0, 1fr) !important;
+  gap: 1.5mm !important;
+  border-radius: 7px !important;
+}
+
+.cover-trust-signal-grid .cover-decision-mark {
+  width: 4.6mm !important;
+  height: 4.6mm !important;
+  font-size: 8.8px !important;
+}
+
+.cover-trust-signal-grid .cover-decision-label {
+  font-size: 6.9px !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0.035em !important;
+  margin-bottom: 1mm !important;
+  white-space: normal !important;
+}
+
+.cover-trust-signal-grid .cover-decision-value {
+  font-size: 8.2px !important;
+  line-height: 1.12 !important;
+  font-weight: 900 !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
 }
 
 .cover-main-grid {

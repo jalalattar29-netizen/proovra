@@ -178,6 +178,20 @@ ${renderDuplicateDigestBadge(item)}
   `;
 }
 
+function reviewerRoleLabel(asset: ReportEvidenceAsset): string {
+  if (asset.artifactRole === "primary_evidence") return "Primary";
+  if (asset.artifactRole === "supporting_evidence") return "Supporting";
+  return "Context";
+}
+
+function reviewerMappingLabel(asset: ReportEvidenceAsset): string {
+  return (
+    safe(asset.checklistStepLabel, "") ||
+    safe(asset.reviewerRepresentationLabel, "") ||
+    "Unmapped / supplemental"
+  );
+}
+
 function renderSupportingCard(item: PresentationEvidenceItem): string {
   const asset = item.asset;
   const fileName = buildAssetName(asset);
@@ -187,18 +201,22 @@ function renderSupportingCard(item: PresentationEvidenceItem): string {
     <article class="gallery-card${duplicate ? " gallery-card-duplicate" : ""}">
         <div class="gallery-card-header">
         <div class="gallery-card-file-name">${escapeHtml(fileName)}</div>
-        <div class="gallery-card-role">${escapeHtml(mediaKindLabel(item))}</div>
+<div class="gallery-card-role">
+  ${escapeHtml(reviewerRoleLabel(asset))} · ${escapeHtml(reviewerMappingLabel(asset))}
+</div>
       </div>
 
       ${renderPreviewMedia(item)}
 
-      <div class="gallery-card-meta gallery-card-meta-compact">
-        ${renderGalleryMetaRow("Type", mediaKindLabel(item))}
-        ${renderGalleryMetaRow("Format", safe(asset.mimeType, "N/A"))}
-        ${renderGalleryMetaRow("Size", safe(asset.displaySizeLabel, "N/A"))}
-${renderGalleryMetaRow("Item SHA-256", asset.sha256 ?? "Not recorded")}
-${renderDuplicateDigestBadge(item)}
-      </div>
+<div class="gallery-card-meta gallery-card-meta-compact">
+  ${renderGalleryMetaRow("Role", reviewerRoleLabel(asset))}
+  ${renderGalleryMetaRow("Mapping", reviewerMappingLabel(asset))}
+  ${renderGalleryMetaRow("Type", mediaKindLabel(item))}
+  ${renderGalleryMetaRow("Format", safe(asset.mimeType, "N/A"))}
+  ${renderGalleryMetaRow("Size", safe(asset.displaySizeLabel, "N/A"))}
+  ${renderGalleryMetaRow("Item SHA-256", asset.sha256 ?? "Not recorded")}
+  ${renderDuplicateDigestBadge(item)}
+</div>
           </article>
   `;
 }
@@ -329,87 +347,50 @@ function renderDuplicateDigestRegister(vm: ReportViewModel): string {
 
 export function renderGallerySection(vm: ReportViewModel): string {
   const { buckets } = vm.presentation;
-  const heroItem = buckets.heroItem;
-  const primaryItems =
-    buckets.primaryPreviewItems.length > 0
-      ? buckets.primaryPreviewItems
-      : heroItem
-        ? [heroItem]
-        : [];
 
-  if (
-    !heroItem &&
-    primaryItems.length === 0 &&
-    buckets.supportingPreviewItems.length === 0 &&
-    buckets.metadataOnlyItems.length === 0
-  ) {
+  const previewItems = buckets.supportingPreviewItems;
+  const metadataOnlyItems = buckets.metadataOnlyItems;
+
+  if (previewItems.length === 0 && metadataOnlyItems.length === 0) {
     return "";
   }
 
   const pages: string[] = [];
 
-  if (primaryItems.length > 0) {
-    const primaryChunks = chunkItems(primaryItems, 2);
+  const previewChunks = chunkItems(previewItems, 4);
 
-    primaryChunks.forEach((chunk, index) => {
-      const primaryTitle =
-        primaryItems.length > 1
-          ? `Primary Evidence Set ${index + 1}/${primaryChunks.length}`
-          : "Primary Evidence";
-
-      pages.push(
-        renderPageSection(
-          primaryTitle,
-          `
-            <div class="primary-evidence-layout">
-              ${chunk.map((item) => renderPrimaryEvidenceCard(item)).join("")}
-            </div>
-
-            ${
-              index === primaryChunks.length - 1 &&
-              (buckets.supportingPreviewItems.length > 0 ||
-                buckets.metadataOnlyItems.length > 0)
-                ? `
-    <div class="supporting-gallery-callout-wrapper">
-      ${renderCallout({
-        title: "Supporting evidence gallery",
-        body:
-          "Supporting previews are reviewer-facing representations only. The preserved originals, recorded hashes, custody chain, timestamp state, and verification workflow remain authoritative.",
-        tone: "neutral",
-      })}
-    </div>
-  `
-                : ""
-            }
-          `,
-          {
-            pageBreakBefore: true,
-            className: "evidence-presentation-section primary-evidence-section",
-          }
-        )
-      );
-    });
-  }
-
-  const supportingChunks = chunkItems(buckets.supportingPreviewItems, 4);
-
-  supportingChunks.forEach((chunk, index) => {
+  previewChunks.forEach((chunk, index) => {
     pages.push(
       renderPageSection(
-        supportingChunks.length > 1
-          ? `Supporting Evidence Gallery ${index + 1}/${supportingChunks.length}`
-          : "Supporting Evidence Gallery",
+        previewChunks.length > 1
+          ? `Evidence Gallery ${index + 1}/${previewChunks.length}`
+          : "Evidence Gallery",
         `
+          ${
+            index === 0
+              ? renderCallout({
+                  title: "Unified evidence gallery",
+                  body:
+                    "Primary, supporting, and context items are presented together for reviewer efficiency. Role and checklist mapping labels identify each item's review purpose; preserved originals, hashes, custody, timestamps, and verification materials remain authoritative.",
+                  tone: "neutral",
+                })
+              : ""
+          }
+
           <div class="gallery-support-grid support-grid">
             ${chunk.map((item) => renderSupportingCard(item)).join("")}
           </div>
         `,
-        { pageBreakBefore: true, className: "evidence-presentation-section evidence-gallery-section" }
+        {
+          pageBreakBefore: true,
+          className:
+            "evidence-presentation-section evidence-gallery-section unified-evidence-gallery-section",
+        }
       )
     );
   });
 
-  const metadataChunks = chunkItems(buckets.metadataOnlyItems, 6);
+  const metadataChunks = chunkItems(metadataOnlyItems, 6);
 
   metadataChunks.forEach((chunk, index) => {
     pages.push(
@@ -423,7 +404,7 @@ export function renderGallerySection(vm: ReportViewModel): string {
               ? renderCallout({
                   title: "Reference-only evidence items",
                   body:
-                    "These items are part of the preserved package but do not include an inline PDF preview. Their identity, format, and digest references are preserved for completeness.",
+                    "These items are part of the preserved package but do not include an inline PDF preview. Their identity, format, role, mapping, and digest references are preserved for completeness.",
                   tone: "neutral",
                 })
               : ""
@@ -433,15 +414,19 @@ export function renderGallerySection(vm: ReportViewModel): string {
             ${chunk.map(renderMetadataOnlyCard).join("")}
           </div>
         `,
-        { pageBreakBefore: true, className: "evidence-presentation-section evidence-gallery-section" }
+        {
+          pageBreakBefore: true,
+          className:
+            "evidence-presentation-section evidence-gallery-section",
+        }
       )
     );
   });
 
   const duplicateRegister = renderDuplicateDigestRegister(vm);
-if (duplicateRegister) {
-  pages.push(duplicateRegister);
-}
+  if (duplicateRegister) {
+    pages.push(duplicateRegister);
+  }
 
   return pages.join("");
 }

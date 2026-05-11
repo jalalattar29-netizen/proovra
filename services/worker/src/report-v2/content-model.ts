@@ -225,58 +225,28 @@ export function buildPresentationBuckets(params: {
     prominent: params.primaryItem ? asset.id === params.primaryItem.id : false,
   }));
 
-  const explicitRoleAssignments = mapped.some((item) =>
-    isExplicitReviewerArtifactRoleSource(item.asset.artifactRoleSource)
-  );
+  const roleWeight = (item: PresentationEvidenceItem): number => {
+    if (item.asset.artifactRole === "primary_evidence") return 0;
+    if (item.asset.artifactRole === "supporting_evidence") return 1;
+    return 2;
+  };
 
-  const explicitPrimaryItems = mapped.filter(
-    (item) => item.asset.artifactRole === "primary_evidence"
-  );
-  const explicitSupportingItems = mapped.filter(
-    (item) => item.asset.artifactRole === "supporting_evidence"
-  );
-
-  const heroItem =
-    explicitPrimaryItems.find((item) => item.hasRenderablePreview) ??
-    explicitPrimaryItems[0] ??
-    mapped.find((item) => item.prominent) ??
-    mapped.find((item) => item.hasRenderablePreview) ??
-    mapped[0] ??
-    null;
-
-  const primaryPreviewItems = explicitRoleAssignments
-    ? explicitPrimaryItems.length > 0
-      ? explicitPrimaryItems
-      : heroItem
-        ? [heroItem]
-        : []
-    : heroItem
-      ? [heroItem]
-      : [];
-
-  const primaryIds = new Set(primaryPreviewItems.map((item) => item.asset.id));
-
-  const supportingPreviewItems = explicitRoleAssignments
-    ? explicitSupportingItems.filter((item) => !primaryIds.has(item.asset.id))
-    : mapped.filter(
-        (item) =>
-          item.hasRenderablePreview &&
-          (!heroItem || item.asset.id !== heroItem.asset.id)
-      );
-
-  const metadataOnly = explicitRoleAssignments
-    ? mapped.filter(
-        (item) =>
-          !item.hasRenderablePreview &&
-          !primaryIds.has(item.asset.id)
-      )
-    : mapped.filter((item) => !item.hasRenderablePreview);
+  const ordered = [...mapped].sort((a, b) => {
+    const roleDiff = roleWeight(a) - roleWeight(b);
+    if (roleDiff !== 0) return roleDiff;
+    return (a.asset.index ?? 0) - (b.asset.index ?? 0);
+  });
 
   return {
-    heroItem,
-    primaryPreviewItems,
-    supportingPreviewItems,
-    metadataOnlyItems: metadataOnly,
+    heroItem:
+      ordered.find((item) => item.prominent) ??
+      ordered.find((item) => item.hasRenderablePreview) ??
+      ordered[0] ??
+      null,
+
+    primaryPreviewItems: [],
+    supportingPreviewItems: ordered.filter((item) => item.hasRenderablePreview),
+    metadataOnlyItems: ordered.filter((item) => !item.hasRenderablePreview),
   };
 }
 

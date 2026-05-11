@@ -69,14 +69,38 @@ function buildCoverSubtitle(vm: ReportViewModel): string {
 function renderDecisionIndicator(params: {
   label: string;
   value: string;
-tone: "success" | "warning" | "danger";
+  tone: "success" | "warning" | "danger";
 }): string {
+  let compactValue = params.value;
+
+  const normalizedLabel = params.label.trim().toLowerCase();
+
+  if (normalizedLabel.includes("core integrity")) {
+    compactValue = "Verified";
+  } else if (normalizedLabel.includes("digital signature")) {
+    compactValue = "Recorded";
+  } else if (normalizedLabel.includes("trusted timestamp")) {
+    compactValue = "Recorded";
+  } else if (normalizedLabel.includes("public anchoring")) {
+    compactValue = "Pending";
+  } else if (normalizedLabel.includes("immutable storage")) {
+    compactValue = "Verified";
+  }
+
   return `
     <div class="cover-decision-indicator tone-${params.tone}">
-      <div class="cover-decision-mark">${params.tone === "success" ? "✓" : "!"}</div>
+      <div class="cover-decision-mark">
+        ${params.tone === "success" ? "✓" : "!"}
+      </div>
+
       <div class="cover-decision-copy">
-        <div class="cover-decision-label">${escapeHtml(params.label)}</div>
-        <div class="cover-decision-value">${escapeHtml(params.value)}</div>
+        <div class="cover-decision-label">
+          ${escapeHtml(params.label)}
+        </div>
+
+        <div class="cover-decision-value">
+          ${escapeHtml(compactValue)}
+        </div>
       </div>
     </div>
   `;

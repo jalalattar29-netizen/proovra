@@ -78,48 +78,46 @@ export default function CapturePage() {
     return "Context";
   };
 
-  const getRoleFromChecklistStep = (step: ChecklistStep) => {
-    const text = `${step.id} ${step.title} ${step.purposeLabel}`.toLowerCase();
+const getRoleFromChecklistStep = (step: ChecklistStep) => {
+  const id = step.id.toLowerCase();
 
-    const primaryTokens = [
-      "primary",
-      "overview",
-      "damage",
-      "close_up",
-      "close-up",
-      "scene_overview",
-      "scene overview",
-      "ownership",
-      "policy",
-      "compliance document",
-      "export",
-      "primary media",
-      "primary document",
-    ];
+  const primaryStepIds = [
+    "primary_evidence",
+    "primary_media",
+    "overview_media",
+    "damage_close_up",
+    "ownership_document",
+    "scene_overview",
+    "close_up_detail",
+    "policy_document",
+    "screenshot_export",
+  ];
 
-    const supportingTokens = [
-      "supporting",
-      "witness",
-      "statement",
-      "source",
-      "context",
-      "timeline",
-      "log",
-      "reviewer",
-      "note",
-      "optional",
-    ];
+  const supportingStepIds = [
+    "supporting_context",
+    "optional_statement",
+    "optional_audio",
+    "supporting_exhibit",
+    "source_context",
+    "optional_timeline",
+    "witness_statement",
+    "supporting_file",
+    "supporting_evidence",
+    "reviewer_context",
+    "source_safe_note",
+    "supporting_document",
+  ];
 
-    if (primaryTokens.some((token) => text.includes(token))) {
-      return "Primary";
-    }
+  if (primaryStepIds.includes(id)) {
+    return "Primary";
+  }
 
-    if (supportingTokens.some((token) => text.includes(token))) {
-      return "Supporting";
-    }
+  if (supportingStepIds.includes(id)) {
+    return "Supporting";
+  }
 
-    return step.required ? "Primary" : "Supporting";
-  };
+  return step.required ? "Primary" : "Supporting";
+};
 
 const getRoleRequirementDisplayLabel = (
   item: SessionItem,
