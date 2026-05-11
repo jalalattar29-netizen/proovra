@@ -28,7 +28,6 @@ import {
   COLLECTION_PLAN_TEMPLATES,
   GENERIC_EVIDENCE_UPLOAD_ACCEPT,
 } from "./_lib/templates";
-import { resolveReviewerArtifactRole } from "@proovra/shared";
 import { useIntakeTemplates } from "./_hooks/useIntakeTemplates";
 import { useCaptureDraftPersistence } from "./_hooks/useCaptureDraftPersistence";
 import { useCaptureDraftList } from "./_hooks/useCaptureDraftList";
