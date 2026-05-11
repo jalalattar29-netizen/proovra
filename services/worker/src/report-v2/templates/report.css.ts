@@ -4105,10 +4105,6 @@ body {
   margin-bottom: 1.8mm !important;
 }
 
-.cover-boundary-note.cover-boundary-inline {
-  margin-bottom: 3.5mm !important;
-}
-
 /* Pin bottom notes above the Chromium footer */
 .trust-signal-analysis-section .report-page,
 .workflow-section .report-page {
@@ -4357,6 +4353,298 @@ body {
   font-size: 7.7px !important;
   line-height: 1.08 !important;
   font-weight: 900 !important;
+}
+
+.cover-decision-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  text-align: center;
+
+  min-height: 110px;
+  padding: 18px 14px;
+
+  border-radius: 18px;
+}
+
+.cover-decision-mark {
+  font-size: 30px;
+  line-height: 1;
+  margin-bottom: 10px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cover-decision-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.cover-decision-label {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+
+  text-align: center;
+  line-height: 1.3;
+
+  margin-bottom: 6px;
+}
+
+.cover-decision-value {
+  font-size: 22px;
+  font-weight: 700;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 6px;
+}
+
+/* EVIDENCE GALLERY — 4 cards per page, footer-safe */
+
+.evidence-gallery-section .report-page {
+  height: 297mm !important;
+  min-height: 297mm !important;
+  overflow: hidden !important;
+  padding: 11mm 14mm 18mm 14mm !important;
+}
+
+.evidence-gallery-section .section-heading {
+  margin-bottom: 4mm !important;
+}
+
+.evidence-gallery-section .section-title {
+  font-size: 15px !important;
+  padding-bottom: 2mm !important;
+  margin-bottom: 3mm !important;
+}
+
+.unified-evidence-gallery-section .callout {
+  padding: 2mm 2.6mm !important;
+  margin-bottom: 3mm !important;
+}
+
+.unified-evidence-gallery-section .callout-title {
+  font-size: 8.6px !important;
+  margin-bottom: 0.8mm !important;
+}
+
+.unified-evidence-gallery-section .callout-body {
+  font-size: 7.6px !important;
+  line-height: 1.25 !important;
+}
+
+.evidence-gallery-section .gallery-support-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(2, 1fr) !important;
+  gap: 3mm !important;
+  height: 219mm !important;
+  max-height: 219mm !important;
+  overflow: hidden !important;
+  align-items: stretch !important;
+}
+
+.evidence-gallery-section .gallery-card {
+  min-height: 0 !important;
+  height: 108mm !important;
+  max-height: 108mm !important;
+  overflow: hidden !important;
+  border-radius: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.evidence-gallery-section .gallery-card-header {
+  min-height: 10mm !important;
+  padding: 1.8mm 2.2mm !important;
+  flex: 0 0 auto !important;
+}
+
+.evidence-gallery-section .gallery-card-file-name {
+  font-size: 8.6px !important;
+  line-height: 1.15 !important;
+  max-height: 6mm !important;
+  overflow: hidden !important;
+}
+
+.evidence-gallery-section .gallery-card-role {
+  font-size: 6.8px !important;
+  line-height: 1.1 !important;
+  max-height: 4mm !important;
+  overflow: hidden !important;
+}
+
+.evidence-gallery-section .gallery-thumb {
+  height: 39mm !important;
+  min-height: 39mm !important;
+  max-height: 39mm !important;
+  flex: 0 0 39mm !important;
+}
+
+.evidence-gallery-section .gallery-thumb img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
+
+.evidence-gallery-section .gallery-card-meta {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 1.2mm 2.4mm 2mm !important;
+}
+
+.evidence-gallery-section .gallery-meta-row {
+  grid-template-columns: 20mm minmax(0, 1fr) !important;
+  gap: 2mm !important;
+  padding: 1mm 0 !important;
+}
+
+.evidence-gallery-section .gallery-meta-label {
+  font-size: 6.5px !important;
+  line-height: 1.05 !important;
+}
+
+.evidence-gallery-section .gallery-meta-value {
+  font-size: 6.9px !important;
+  line-height: 1.12 !important;
+}
+
+.evidence-gallery-section .gallery-sha-value {
+  font-size: 6.7px !important;
+  line-height: 1.08 !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+.cover-premium-body {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.cover-boundary-note.cover-boundary-inline {
+  margin-top: auto !important;
+  margin-bottom: 9mm !important;
+  padding: 2.6mm 3mm !important;
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+.cover-boundary-title {
+  margin-bottom: 1mm !important;
+  font-size: 9.8px !important;
+  font-weight: 900 !important;
+}
+
+.cover-boundary-body {
+  font-size: 8.7px !important;
+  line-height: 1.35 !important;
+}
+
+.cover-boundary-followup {
+  display: block !important;
+  margin-top: 1.4mm !important;
+  font-size: 8.5px !important;
+  line-height: 1.3 !important;
+  font-weight: 900 !important;
+}
+
+/* GALLERY — 4 evidence cards per page without hitting footer */
+
+.evidence-gallery-section .report-page {
+  height: 297mm !important;
+  min-height: 297mm !important;
+  overflow: hidden !important;
+  padding: 11mm 14mm 17mm 14mm !important;
+}
+
+.evidence-gallery-section .section-body {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.evidence-gallery-section .callout {
+  padding: 2mm 2.6mm !important;
+  margin-bottom: 2.4mm !important;
+}
+
+.evidence-gallery-section .gallery-support-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+  gap: 3.2mm !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
+.evidence-gallery-section .gallery-card {
+  min-height: 0 !important;
+  height: 102mm !important;
+  max-height: 102mm !important;
+  overflow: hidden !important;
+}
+
+.evidence-gallery-section .gallery-card-header {
+  min-height: 10mm !important;
+  padding: 1.6mm 2mm !important;
+}
+
+.evidence-gallery-section .gallery-card-file-name {
+  font-size: 9px !important;
+  line-height: 1.15 !important;
+}
+
+.evidence-gallery-section .gallery-card-role {
+  font-size: 6.8px !important;
+  line-height: 1.15 !important;
+}
+
+.evidence-gallery-section .gallery-thumb {
+  height: 35mm !important;
+  min-height: 35mm !important;
+}
+
+.evidence-gallery-section .gallery-card-meta {
+  padding: 1.4mm 2.2mm 2mm !important;
+}
+
+.evidence-gallery-section .gallery-meta-row {
+  grid-template-columns: 22mm minmax(0, 1fr) !important;
+  padding: 1.05mm 0 !important;
+  gap: 2mm !important;
+}
+
+.evidence-gallery-section .gallery-meta-label {
+  font-size: 6.8px !important;
+  line-height: 1.12 !important;
+}
+
+.evidence-gallery-section .gallery-meta-value {
+  font-size: 7.25px !important;
+  line-height: 1.18 !important;
+}
+
+.evidence-gallery-section .gallery-sha-value {
+  font-size: 7.2px !important;
+  line-height: 1.16 !important;
+}
+
+.evidence-gallery-section .gallery-duplicate-badge {
+  margin-top: 0.8mm !important;
+  font-size: 6.4px !important;
+  padding: 0.6mm 1.2mm !important;
 }
 
 @media print {

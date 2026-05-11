@@ -384,7 +384,12 @@ getTrustDecisionLabel(vm.trustDecision)
 <div class="cover-boundary-note cover-boundary-inline">
   <div class="cover-boundary-title">Report Boundary.</div>
   <div class="cover-boundary-body">
-    Full legal boundary and reviewer-use limits appear later.
+    This report verifies integrity state, preservation controls, timestamps,
+    storage state, and custody records. It does not independently prove truth,
+    authorship, context, intent, admissibility, or evidentiary weight.
+  </div>
+  <div class="cover-boundary-followup">
+    For technical validation, use the verification page and appendix.
   </div>
 </div>
       </div>
