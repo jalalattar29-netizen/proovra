@@ -67,9 +67,16 @@ export default function CapturePage() {
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
   const [materialDropdownOpenId, setMaterialDropdownOpenId] =
-  useState<string | null>(null);
+    useState<string | null>(null);
   const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(null);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+
+  const EVIDENCE_ROLE_OPTIONS = [
+    { value: "", label: "Infer from mapping" },
+    { value: "Primary evidence", label: "Primary evidence" },
+    { value: "Supporting evidence", label: "Supporting evidence" },
+    { value: "Context / supplemental", label: "Context / supplemental" },
+  ];
 
   // Operational dense table mode for large evidence sessions.
   const [denseListMode, setDenseListMode] = useState(false);
@@ -838,6 +845,7 @@ useEffect(() => {
           <span>File</span>
           <span>Type</span>
           <span>Size</span>
+          <span>Role</span>
           <span>Mapping</span>
           <span>Upload</span>
           <span>Status</span>
@@ -922,6 +930,9 @@ useEffect(() => {
               <span className="capture-material-row-type">{typeLabel}</span>
               <span className="capture-material-row-size">
                 {formatFileSize(item.file.size)}
+              </span>
+              <span className="capture-material-row-role">
+                {item.role?.trim() || "Inferred role"}
               </span>
               <span
                 className={`capture-material-row-mapping ${
@@ -1029,6 +1040,14 @@ useEffect(() => {
 
                 <div className="capture-material-pill-row capture-phase4-material-pill-row">
                   <span
+                    className={`capture-material-role-pill ${
+                      item.role ? "explicit" : "inferred"
+                    }`}
+                  >
+                    {item.role?.trim() || "Inferred role"}
+                  </span>
+
+                  <span
                     className={`capture-material-status-pill ${
                       mappedStep
                         ? mappedStep.required
@@ -1067,6 +1086,32 @@ useEffect(() => {
 
               {isExpanded ? (
                 <div className="capture-material-review-panel">
+                  <label className="capture-material-field capture-material-role-field">
+                    <span>Evidence role</span>
+                    <select
+                      value={item.role ?? ""}
+                      disabled={busy}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        updateSessionItem(item.id, {
+                          role: value ? value : undefined,
+                        });
+                      }}
+                    >
+                      {EVIDENCE_ROLE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <small>
+                      {item.role
+                        ? "Explicit role selected."
+                        : "No explicit role chosen. Role will be inferred from mapping or default rules."
+                      }
+                    </small>
+                  </label>
+
                   <div
                     className={`capture-material-dropdown ${
                       materialDropdownOpenId === item.id ? "is-open" : ""
