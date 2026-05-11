@@ -348,13 +348,21 @@ function renderDuplicateDigestRegister(vm: ReportViewModel): string {
 export function renderGallerySection(vm: ReportViewModel): string {
   const { buckets } = vm.presentation;
 
-  const previewItems = buckets.supportingPreviewItems;
-  const metadataOnlyItems = buckets.metadataOnlyItems;
+  const previewItems = [
+    ...buckets.primaryPreviewItems,
+    ...buckets.supportingPreviewItems,
+  ];
+
+  const previewItemIds = new Set(previewItems.map((item) => item.asset.id));
+
+  const metadataOnlyItems = buckets.metadataOnlyItems.filter(
+    (item) => !previewItemIds.has(item.asset.id)
+  );
 
   if (previewItems.length === 0 && metadataOnlyItems.length === 0) {
     return "";
   }
-
+  
   const pages: string[] = [];
 
   const previewChunks = chunkItems(previewItems, 4);

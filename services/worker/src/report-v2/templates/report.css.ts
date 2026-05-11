@@ -4324,6 +4324,41 @@ body {
   line-height: 1.25 !important;
 }
 
+.cover-decision-grid.cover-trust-signal-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 1.6mm !important;
+  margin-top: 0 !important;
+  margin-bottom: 2mm !important;
+}
+
+.cover-trust-signal-grid .cover-decision-indicator {
+  min-height: 11.5mm !important;
+  padding: 1.45mm 1.35mm !important;
+  grid-template-columns: 4.2mm minmax(0, 1fr) !important;
+  gap: 1.15mm !important;
+  align-items: center !important;
+}
+
+.cover-trust-signal-grid .cover-decision-mark {
+  width: 4.2mm !important;
+  height: 4.2mm !important;
+  font-size: 8px !important;
+}
+
+.cover-trust-signal-grid .cover-decision-label {
+  font-size: 6.25px !important;
+  line-height: 1.05 !important;
+  margin-bottom: 0.45mm !important;
+  letter-spacing: 0.035em !important;
+}
+
+.cover-trust-signal-grid .cover-decision-value {
+  font-size: 7.7px !important;
+  line-height: 1.08 !important;
+  font-weight: 900 !important;
+}
+
 @media print {
   html,
   body,
