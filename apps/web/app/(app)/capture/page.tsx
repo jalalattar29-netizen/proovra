@@ -66,6 +66,7 @@ export default function CapturePage() {
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
   const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(null);
+  const [openMaterialDropdownId, setOpenMaterialDropdownId] = useState<string | null>(null);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   const UNMAPPED_OPTION_VALUE = "UNMAPPED";
@@ -451,10 +452,14 @@ useEffect(() => {
     if (!target) return;
 
     const clickedInsidePlanDropdown = target.closest(".capture-plan-dropdown");
+const clickedInsideMaterialDropdown = target.closest(".capture-material-dropdown");
+if (!clickedInsidePlanDropdown) {
+  setPlanDropdownOpen(false);
+}
 
-    if (!clickedInsidePlanDropdown) {
-      setPlanDropdownOpen(false);
-    }
+if (!clickedInsideMaterialDropdown) {
+  setOpenMaterialDropdownId(null);
+}
   };
 
   document.addEventListener("pointerdown", handleOutsideClick);
@@ -1087,39 +1092,74 @@ useEffect(() => {
                   </span>
                 </div>
 
-<div className="capture-material-inline-map">
-  <select
-    value={item.checklistStepId ?? UNMAPPED_OPTION_VALUE}
+<div
+  className={`capture-material-dropdown ${
+    openMaterialDropdownId === item.id ? "is-open" : ""
+  }`}
+>
+  <button
+    type="button"
+    className="capture-material-dropdown-trigger"
     disabled={busy}
-    onChange={(event) => {
-      const selectedValue = event.target.value;
-      const selectedStep = selectedCollectionPlan?.steps.find(
-        (step) => step.id === selectedValue
+    aria-haspopup="listbox"
+    aria-expanded={openMaterialDropdownId === item.id}
+    onClick={(event) => {
+      event.stopPropagation();
+      setOpenMaterialDropdownId((current) =>
+        current === item.id ? null : item.id
       );
-
-      updateSessionItem(item.id, {
-        checklistStepId:
-          selectedValue === UNMAPPED_OPTION_VALUE
-            ? null
-            : selectedStep?.id ?? null,
-role:
-  selectedValue === UNMAPPED_OPTION_VALUE
-    ? "Context / supplemental"
-    : selectedStep
-      ? `${getRoleFromChecklistStep(selectedStep)} evidence`
-      : item.role,
-          });
     }}
   >
-<option value={UNMAPPED_OPTION_VALUE}>
-  Context · Unmapped · Leave unmapped / supplemental
-</option>
-    {selectedCollectionPlan?.steps.map((step) => (
-      <option key={step.id} value={step.id}>
-        {getRoleRequirementOptionLabel(step)}
-      </option>
-    ))}
-  </select>
+    <span>{getRoleRequirementDisplayLabel(item, mappedStep)}</span>
+    <span className="capture-material-dropdown-chevron">⌄</span>
+  </button>
+
+  {openMaterialDropdownId === item.id ? (
+    <div className="capture-material-dropdown-menu" role="listbox">
+      <button
+        type="button"
+        className={!item.checklistStepId ? "active" : ""}
+        onClick={() => {
+          updateSessionItem(item.id, {
+            checklistStepId: null,
+            role: "Context / supplemental",
+          });
+          setOpenMaterialDropdownId(null);
+        }}
+      >
+        <span>Context · Unmapped</span>
+        <small>Leave unmapped or supplemental</small>
+      </button>
+
+      {selectedCollectionPlan?.steps.map((step) => {
+        const active = item.checklistStepId === step.id;
+
+        return (
+          <button
+            key={step.id}
+            type="button"
+            className={active ? "active" : ""}
+            onClick={() => {
+              updateSessionItem(item.id, {
+                checklistStepId: step.id,
+                role: `${getRoleFromChecklistStep(step)} evidence`,
+              });
+              setOpenMaterialDropdownId(null);
+            }}
+          >
+            <span>
+              {getRoleFromChecklistStep(step)} · {step.title}
+            </span>
+            <small>
+              {step.required ? "Required" : "Optional"} ·{" "}
+              {step.acceptedKinds?.map(formatEvidenceTypeLabel).join(", ") ||
+                "Any supported material"}
+            </small>
+          </button>
+        );
+      })}
+    </div>
+  ) : null}
 </div>
 
 <div className={`capture-material-mapping-helper ${mappedStep ? "mapped" : "unmapped"}`}>
