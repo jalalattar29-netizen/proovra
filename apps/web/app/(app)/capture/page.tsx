@@ -133,7 +133,7 @@ const getRoleRequirementDisplayLabel = (
 };
 
   // Operational dense table mode for large evidence sessions.
-  const [denseListMode, setDenseListMode] = useState(false);
+const [denseListMode, setDenseListMode] = useState<"list" | "cards">("list");
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
@@ -833,14 +833,16 @@ if (!clickedInsideMaterialDropdown) {
                 ? "Draft saved"
                 : "Draft staging"}
         </span>
-        <button
-          type="button"
-          className="capture-list-mode-toggle"
-          onClick={() => setDenseListMode((current) => !current)}
-          aria-pressed={denseListMode}
-        >
-          {denseListMode ? "Card view" : "Dense list"}
-        </button>
+<button
+  type="button"
+  className="capture-list-mode-toggle"
+  onClick={() =>
+    setDenseListMode((current) => (current === "list" ? "cards" : "list"))
+  }
+  aria-pressed={denseListMode === "list"}
+>
+  {denseListMode === "list" ? "Card view" : "List view"}
+</button>
       </div>
     </div>
 
@@ -880,11 +882,11 @@ if (!clickedInsideMaterialDropdown) {
 
     <div
       className={
-        denseListMode ? "capture-materials-list" : "capture-materials-grid"
+denseListMode === "list" ? "capture-materials-list" : "capture-materials-grid"
       }
     >
-      {denseListMode ? (
-        <div className="capture-materials-list-header" role="rowheader">
+{denseListMode === "list" ? (
+          <div className="capture-materials-list-header" role="rowheader">
           <span>#</span>
           <span>File</span>
           <span>Type</span>
@@ -945,7 +947,7 @@ if (!clickedInsideMaterialDropdown) {
                 ? ImageIcon
                 : FileText;
 
-        if (denseListMode) {
+        if (denseListMode === "list") {
           const uploadLabel = item.error
             ? "Failed"
             : item.uploadProgress >= 100
@@ -968,17 +970,77 @@ if (!clickedInsideMaterialDropdown) {
               <span className="capture-material-row-size">
                 {formatFileSize(item.file.size)}
               </span>
-              <span
-                className={`capture-material-row-role-requirement ${
-                  mappedStep
-                    ? mappedStep.required
-                      ? "required"
-                      : "optional"
-                    : "unmapped"
-                }`}
-              >
-                {getRoleRequirementDisplayLabel(item, mappedStep)}
+<span className="capture-material-row-map-cell">
+  <div
+    className={`capture-material-dropdown compact ${
+      openMaterialDropdownId === item.id ? "is-open" : ""
+    }`}
+  >
+    <button
+      type="button"
+      className="capture-material-dropdown-trigger"
+      disabled={busy}
+      aria-haspopup="listbox"
+      aria-expanded={openMaterialDropdownId === item.id}
+      onClick={(event) => {
+        event.stopPropagation();
+        setOpenMaterialDropdownId((current) =>
+          current === item.id ? null : item.id
+        );
+      }}
+    >
+      <span>{getRoleRequirementDisplayLabel(item, mappedStep)}</span>
+      <span className="capture-material-dropdown-chevron">⌄</span>
+    </button>
+
+    {openMaterialDropdownId === item.id ? (
+      <div className="capture-material-dropdown-menu" role="listbox">
+        <button
+          type="button"
+          className={!item.checklistStepId ? "active" : ""}
+          onClick={() => {
+            updateSessionItem(item.id, {
+              checklistStepId: null,
+              role: "Context / supplemental",
+            });
+            setOpenMaterialDropdownId(null);
+          }}
+        >
+          <span>Context · Unmapped</span>
+          <small>Leave unmapped or supplemental</small>
+        </button>
+
+        {selectedCollectionPlan?.steps.map((step) => {
+          const active = item.checklistStepId === step.id;
+
+          return (
+            <button
+              key={step.id}
+              type="button"
+              className={active ? "active" : ""}
+              onClick={() => {
+                updateSessionItem(item.id, {
+                  checklistStepId: step.id,
+                  role: `${getRoleFromChecklistStep(step)} evidence`,
+                });
+                setOpenMaterialDropdownId(null);
+              }}
+            >
+              <span>
+                {getRoleFromChecklistStep(step)} · {step.title}
               </span>
+              <small>
+                {step.required ? "Required" : "Optional"} ·{" "}
+                {step.acceptedKinds?.map(formatEvidenceTypeLabel).join(", ") ||
+                  "Any supported material"}
+              </small>
+            </button>
+          );
+        })}
+      </div>
+    ) : null}
+  </div>
+</span>
               <span className="capture-material-row-upload">{uploadLabel}</span>
               <span
                 className={`capture-material-row-status ${

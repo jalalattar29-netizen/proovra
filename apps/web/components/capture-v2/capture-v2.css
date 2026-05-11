@@ -6102,3 +6102,409 @@ box-shadow:
 .capture-material-inline-map {
   position: relative;
 }
+
+/* =========================================================
+   PROOVRA CAPTURE — ENTERPRISE MATERIALS QUEUE FIX
+   This makes staged evidence an operational table by default.
+========================================================= */
+
+.capture-materials-board {
+  margin-top: 22px !important;
+  padding-top: 18px !important;
+  border-top: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.capture-materials-header {
+  align-items: flex-start !important;
+  padding-bottom: 14px !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+}
+
+.capture-materials-header .capture-card-title {
+  font-size: 1rem !important;
+  color: #111827 !important;
+}
+
+.capture-materials-header p {
+  max-width: 620px !important;
+  color: #667085 !important;
+  font-size: 0.82rem !important;
+  line-height: 1.45 !important;
+}
+
+.capture-materials-meta-stack {
+  align-items: flex-end !important;
+  gap: 6px !important;
+}
+
+.capture-list-mode-toggle {
+  min-height: 30px !important;
+  border-radius: 999px !important;
+  padding: 0 12px !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  font-size: 0.74rem !important;
+  font-weight: 800 !important;
+}
+
+.capture-list-mode-toggle[aria-pressed="true"] {
+  background: #0f5c56 !important;
+  color: #ffffff !important;
+  border-color: #0f5c56 !important;
+}
+
+/* Bulk toolbar */
+.capture-bulk-actions {
+  margin: 12px 0 14px !important;
+  padding: 10px !important;
+  border-radius: 12px !important;
+  border: 1px dashed rgba(15, 23, 42, 0.14) !important;
+  background: #f8fafc !important;
+}
+
+.capture-bulk-button {
+  min-height: 32px !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  font-size: 0.76rem !important;
+  font-weight: 800 !important;
+}
+
+.capture-bulk-button:hover:not(:disabled) {
+  background: #0f5c56 !important;
+  color: #ffffff !important;
+  border-color: #0f5c56 !important;
+}
+
+/* Enterprise table */
+.capture-materials-list {
+  display: flex !important;
+  flex-direction: column !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  border-radius: 14px !important;
+  overflow: visible !important;
+  background: #ffffff !important;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    0 10px 28px rgba(15, 23, 42, 0.04) !important;
+}
+
+.capture-materials-list-header,
+.capture-material-row {
+  display: grid !important;
+  grid-template-columns:
+    34px
+    minmax(180px, 1.35fr)
+    78px
+    82px
+    minmax(220px, 1.55fr)
+    86px
+    minmax(145px, 1fr)
+    112px !important;
+  gap: 10px !important;
+  align-items: center !important;
+}
+
+.capture-materials-list-header {
+  position: sticky !important;
+  top: 72px !important;
+  z-index: 20 !important;
+  min-height: 42px !important;
+  padding: 0 14px !important;
+  background: #f8fafc !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.10) !important;
+  color: #667085 !important;
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+}
+
+.capture-material-row {
+  position: relative !important;
+  min-height: 58px !important;
+  padding: 10px 14px !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.075) !important;
+  background: #ffffff !important;
+  font-size: 0.8rem !important;
+}
+
+.capture-material-row:nth-child(even) {
+  background: #fcfcfd !important;
+}
+
+.capture-material-row:hover {
+  background: #f8fafc !important;
+}
+
+.capture-material-row:last-child {
+  border-bottom: 0 !important;
+}
+
+.capture-material-row-index {
+  color: #667085 !important;
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+}
+
+.capture-material-row-name {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  color: #111827 !important;
+  font-size: 0.82rem !important;
+  font-weight: 850 !important;
+}
+
+.capture-material-row-type,
+.capture-material-row-size,
+.capture-material-row-upload {
+  color: #667085 !important;
+  font-size: 0.78rem !important;
+  font-weight: 650 !important;
+}
+
+.capture-material-row-map-cell {
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+/* Compact dropdown inside table */
+.capture-material-dropdown.compact {
+  position: relative !important;
+  min-width: 0 !important;
+  z-index: 2 !important;
+}
+
+.capture-material-dropdown.compact.is-open {
+  z-index: 9999 !important;
+}
+
+.capture-material-dropdown.compact .capture-material-dropdown-trigger {
+  width: 100% !important;
+  min-height: 34px !important;
+  border-radius: 9px !important;
+  padding: 0 10px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  color: #111827 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  font-size: 0.76rem !important;
+  font-weight: 800 !important;
+  box-shadow: none !important;
+}
+
+.capture-material-dropdown.compact .capture-material-dropdown-trigger span:first-child {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.capture-material-dropdown.compact .capture-material-dropdown-trigger:hover {
+  border-color: rgba(15, 92, 86, 0.32) !important;
+  box-shadow: 0 0 0 3px rgba(15, 92, 86, 0.08) !important;
+}
+
+.capture-material-dropdown.compact .capture-material-dropdown-menu {
+  position: absolute !important;
+  top: calc(100% + 6px) !important;
+  bottom: auto !important;
+  left: 0 !important;
+  right: auto !important;
+  width: min(330px, 80vw) !important;
+  max-height: 280px !important;
+  overflow-y: auto !important;
+  z-index: 10000 !important;
+  padding: 6px !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.22) !important;
+}
+
+.capture-material-dropdown.compact .capture-material-dropdown-menu button {
+  width: 100% !important;
+  min-height: 42px !important;
+  border: 0 !important;
+  border-radius: 9px !important;
+  background: transparent !important;
+  color: #111827 !important;
+  padding: 7px 9px !important;
+  display: grid !important;
+  gap: 2px !important;
+  text-align: left !important;
+  font-size: 0.78rem !important;
+  font-weight: 850 !important;
+  cursor: pointer !important;
+}
+
+.capture-material-dropdown.compact .capture-material-dropdown-menu button small {
+  color: #667085 !important;
+  font-size: 0.68rem !important;
+  font-weight: 650 !important;
+}
+
+.capture-material-dropdown.compact .capture-material-dropdown-menu button:hover:not(.active) {
+  background: rgba(15, 92, 86, 0.08) !important;
+  color: #0b403d !important;
+}
+
+.capture-material-dropdown.compact .capture-material-dropdown-menu button.active {
+  background: #0f5c56 !important;
+  color: #ffffff !important;
+}
+
+.capture-material-dropdown.compact .capture-material-dropdown-menu button.active small {
+  color: rgba(255,255,255,0.78) !important;
+}
+
+/* Status pills */
+.capture-material-row-status {
+  display: inline-flex !important;
+  width: fit-content !important;
+  align-items: center !important;
+  min-height: 24px !important;
+  border-radius: 999px !important;
+  padding: 0 8px !important;
+  font-size: 0.68rem !important;
+  font-weight: 850 !important;
+  white-space: nowrap !important;
+}
+
+.capture-material-row-status.success {
+  background: rgba(22, 163, 74, 0.10) !important;
+  color: #15803d !important;
+}
+
+.capture-material-row-status.warning {
+  background: rgba(247, 144, 9, 0.12) !important;
+  color: #b54708 !important;
+}
+
+.capture-material-row-status.critical {
+  background: rgba(240, 68, 56, 0.10) !important;
+  color: #b42318 !important;
+}
+
+/* Actions */
+.capture-material-row-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 6px !important;
+}
+
+.capture-material-row-actions button {
+  min-height: 30px !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  background: #ffffff !important;
+  color: #344054 !important;
+  padding: 0 9px !important;
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+}
+
+.capture-material-row-actions button:hover {
+  background: #f8fafc !important;
+  border-color: rgba(15, 92, 86, 0.24) !important;
+  color: #0b403d !important;
+}
+
+/* Card mode becomes secondary/gallery, not the main enterprise view */
+.capture-materials-grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
+  gap: 14px !important;
+}
+
+.capture-material-card {
+  min-height: auto !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.09) !important;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    0 8px 20px rgba(15, 23, 42, 0.035) !important;
+}
+
+.capture-material-preview {
+  height: 110px !important;
+  min-height: 110px !important;
+  max-height: 110px !important;
+}
+
+.capture-material-body {
+  padding: 11px !important;
+  gap: 8px !important;
+}
+
+.capture-material-top strong {
+  max-width: 170px !important;
+  font-size: 0.82rem !important;
+}
+
+.capture-material-mapping-helper {
+  display: none !important;
+}
+
+.capture-material-card .capture-material-dropdown-menu {
+  width: min(300px, 78vw) !important;
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .capture-materials-list-header {
+    display: none !important;
+  }
+
+  .capture-material-row {
+    grid-template-columns: 32px minmax(0, 1fr) 96px !important;
+    grid-template-areas:
+      "idx name actions"
+      "idx type status"
+      "idx map map" !important;
+    gap: 8px !important;
+    align-items: start !important;
+  }
+
+  .capture-material-row-index {
+    grid-area: idx !important;
+  }
+
+  .capture-material-row-name {
+    grid-area: name !important;
+  }
+
+  .capture-material-row-type {
+    grid-area: type !important;
+  }
+
+  .capture-material-row-size {
+    display: none !important;
+  }
+
+  .capture-material-row-map-cell {
+    grid-area: map !important;
+  }
+
+  .capture-material-row-upload {
+    display: none !important;
+  }
+
+  .capture-material-row-status {
+    grid-area: status !important;
+  }
+
+  .capture-material-row-actions {
+    grid-area: actions !important;
+  }
+}
