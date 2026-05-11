@@ -6508,3 +6508,143 @@ box-shadow:
     grid-area: actions !important;
   }
 }
+
+/* =========================================================
+   FIX — prevent materials table from bleeding into sidebars
+========================================================= */
+
+.capture-enterprise-grid {
+  grid-template-columns: 280px minmax(0, 1fr) 340px !important;
+  gap: 18px !important;
+}
+
+.capture-main-panel {
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.capture-materials-board {
+  min-width: 0 !important;
+  width: 100% !important;
+  overflow: hidden !important;
+}
+
+.capture-materials-list {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+
+.capture-materials-list-header,
+.capture-material-row {
+  min-width: 860px !important;
+}
+
+/* =========================================================
+   FIX — materials header stats alignment
+========================================================= */
+
+.capture-materials-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: start !important;
+  gap: 16px !important;
+}
+
+.capture-materials-meta-stack {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  min-width: 260px !important;
+}
+
+.capture-materials-meta-stack > span,
+.capture-materials-meta-stack > strong,
+.capture-draft-pill {
+  min-height: 28px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 999px !important;
+  padding: 0 10px !important;
+  font-size: 0.72rem !important;
+  font-weight: 850 !important;
+  white-space: nowrap !important;
+}
+
+.capture-materials-meta-stack > span:first-child {
+  color: #0b403d !important;
+  background: rgba(15, 92, 86, 0.08) !important;
+  border: 1px solid rgba(15, 92, 86, 0.16) !important;
+}
+
+.capture-materials-meta-stack > strong {
+  color: #8f3f35 !important;
+  background: rgba(143, 63, 53, 0.08) !important;
+  border: 1px solid rgba(143, 63, 53, 0.16) !important;
+}
+
+.capture-draft-pill {
+  color: #9a7a56 !important;
+  background: rgba(154, 122, 86, 0.10) !important;
+  border: 1px solid rgba(154, 122, 86, 0.18) !important;
+}
+
+/* =========================================================
+   FIX — capture command header centered and cleaner
+========================================================= */
+
+.capture-intake-command-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 16px !important;
+}
+
+.capture-intake-command-header > div:first-child {
+  text-align: center !important;
+}
+
+.capture-intake-command-header .capture-section-label {
+  margin-bottom: 5px !important;
+}
+
+.capture-intake-command-header .capture-card-title {
+  margin-bottom: 4px !important;
+}
+
+.capture-intake-command-header p {
+  max-width: 620px !important;
+  margin: 0 auto !important;
+  font-size: 0.78rem !important;
+  line-height: 1.45 !important;
+}
+
+/* =========================================================
+   FIX — compact upload action buttons
+========================================================= */
+
+.capture-intake-command .capture-upload-actions {
+  grid-template-columns: 1.15fr repeat(4, 0.9fr) !important;
+  gap: 8px !important;
+}
+
+.capture-intake-command .capture-upload-actions .btn {
+  min-height: 54px !important;
+  padding: 8px 10px !important;
+  border-radius: 12px !important;
+}
+
+.capture-intake-command .capture-upload-actions .btn strong {
+  font-size: 0.78rem !important;
+}
+
+.capture-intake-command .capture-upload-actions .btn small {
+  font-size: 0.66rem !important;
+  line-height: 1.15 !important;
+}
+

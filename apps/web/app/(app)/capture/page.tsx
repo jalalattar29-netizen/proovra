@@ -19,10 +19,7 @@ import {
   Video,
 } from "lucide-react";
 
-import type {
-  SessionItem,
-  ChecklistStep,
-} from "./_lib/types";
+import type { ChecklistStep, SessionItem } from "./_lib/types";
 
 import {
   COLLECTION_PLAN_TEMPLATES,
@@ -42,9 +39,7 @@ import {
 } from "./_lib/file-utils";
 
 import { filesFromDataTransfer } from "./_lib/folder-utils";
-import {
-  logCaptureClientError,
-} from "./_lib/capture-errors";
+import { logCaptureClientError } from "./_lib/capture-errors";
 import { buildSessionReadiness } from "./_lib/session-readiness";
 import { buildSessionWorkflowSnapshot } from "./_lib/session-workflow";
 import { useCaptureSessionOrchestration } from "./_hooks/useCaptureSessionOrchestration";
@@ -60,83 +55,79 @@ export default function CapturePage() {
   const [useLocation, setUseLocation] = useState(false);
   const [internalNotes, setInternalNotes] = useState("");
 
-  const [collectionPlanId, setCollectionPlanId] = useState("general-evidence-record");
+  const [collectionPlanId, setCollectionPlanId] = useState(
+    "general-evidence-record"
+  );
   const [planMode, setPlanMode] =
     useState<"FLEXIBLE" | "CHECKLIST_REQUIRED">("FLEXIBLE");
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
-  const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(null);
-  const [openMaterialDropdownId, setOpenMaterialDropdownId] = useState<string | null>(null);
+  const [openMaterialDropdownId, setOpenMaterialDropdownId] = useState<
+    string | null
+  >(null);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
-
 
   const getSimpleRoleLabel = (role?: string | null) => {
     const normalized = role?.trim().toLowerCase() ?? "";
     if (normalized.startsWith("primary")) return "Primary";
     if (normalized.startsWith("supporting")) return "Supporting";
-    if (normalized.includes("context") || normalized.includes("supplement")) return "Context";
+    if (normalized.includes("context") || normalized.includes("supplement"))
+      return "Context";
     return "Context";
   };
 
-const getRoleFromChecklistStep = (step: ChecklistStep) => {
-  const id = step.id.toLowerCase();
+  const getRoleFromChecklistStep = (step: ChecklistStep) => {
+    const id = step.id.toLowerCase();
 
-  const primaryStepIds = [
-    "primary_evidence",
-    "primary_media",
-    "overview_media",
-    "damage_close_up",
-    "ownership_document",
-    "scene_overview",
-    "close_up_detail",
-    "policy_document",
-    "screenshot_export",
-  ];
+    const primaryStepIds = [
+      "primary_evidence",
+      "primary_media",
+      "overview_media",
+      "damage_close_up",
+      "ownership_document",
+      "scene_overview",
+      "close_up_detail",
+      "policy_document",
+      "screenshot_export",
+    ];
 
-  const supportingStepIds = [
-    "supporting_context",
-    "optional_statement",
-    "optional_audio",
-    "supporting_exhibit",
-    "source_context",
-    "optional_timeline",
-    "witness_statement",
-    "supporting_file",
-    "supporting_evidence",
-    "reviewer_context",
-    "source_safe_note",
-    "supporting_document",
-  ];
+    const supportingStepIds = [
+      "supporting_context",
+      "optional_statement",
+      "optional_audio",
+      "supporting_exhibit",
+      "source_context",
+      "optional_timeline",
+      "witness_statement",
+      "supporting_file",
+      "supporting_evidence",
+      "reviewer_context",
+      "source_safe_note",
+      "supporting_document",
+    ];
 
-  if (primaryStepIds.includes(id)) {
-    return "Primary";
-  }
+    if (primaryStepIds.includes(id)) return "Primary";
+    if (supportingStepIds.includes(id)) return "Supporting";
 
-  if (supportingStepIds.includes(id)) {
-    return "Supporting";
-  }
+    return step.required ? "Primary" : "Supporting";
+  };
 
-  return step.required ? "Primary" : "Supporting";
-};
+  const getRoleRequirementDisplayLabel = (
+    item: SessionItem,
+    mappedStep: ChecklistStep | null
+  ) => {
+    const roleLabel = mappedStep
+      ? getRoleFromChecklistStep(mappedStep)
+      : getSimpleRoleLabel(item.role);
 
-const getRoleRequirementDisplayLabel = (
-  item: SessionItem,
-  mappedStep: ChecklistStep | null
-) => {
-  const roleLabel = mappedStep
-    ? getRoleFromChecklistStep(mappedStep)
-    : getSimpleRoleLabel(item.role);
+    if (!mappedStep) return `${roleLabel} · Unmapped`;
 
-  if (!mappedStep) return `${roleLabel} · Unmapped`;
-
-  return `${roleLabel} · ${mappedStep.title}`;
-};
-
-  // Operational dense table mode for large evidence sessions.
-const [denseListMode, setDenseListMode] = useState<"list" | "cards">("list");
+    return `${roleLabel} · ${mappedStep.title}`;
+  };
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
+
   useEffect(() => {
     const folderInput = folderInputRef.current;
     if (!folderInput) return;
@@ -156,7 +147,6 @@ const [denseListMode, setDenseListMode] = useState<"list" | "cards">("list");
     [collectionPlanId, collectionPlans]
   );
 
-  // Phase C #16 — resume-draft surface state.
   const draftList = useCaptureDraftList();
   const [resumeOpen, setResumeOpen] = useState(false);
   const [resumeDraftId, setResumeDraftId] = useState<string | null>(null);
@@ -285,8 +275,6 @@ const [denseListMode, setDenseListMode] = useState<"list" | "cards">("list");
     );
   }, [selectedCollectionPlan?.id]);
 
-  // Debounced draft persistence — auto-creates a server-side CaptureSession
-  // once any meaningful intake state exists, then patches it on changes.
   useEffect(() => {
     draftPersistence.scheduleSave({
       templateId: collectionPlanId,
@@ -304,23 +292,24 @@ const [denseListMode, setDenseListMode] = useState<"list" | "cards">("list");
     draftPersistence,
   ]);
 
-  // Phase C #16 — apply restored draft metadata once after the user picks a
-  // draft to resume. We only restore template / plan mode / internal notes;
-  // file binaries cannot be restored from a previous tab.
   useEffect(() => {
     if (!resumeDraftDetail || resumeMetadataApplied) return;
+
     if (resumeDraftDetail.templateId) {
       setCollectionPlanId(resumeDraftDetail.templateId);
     }
+
     if (typeof resumeDraftDetail.internalNotes === "string") {
       setInternalNotes(resumeDraftDetail.internalNotes);
     }
+
     if (
       resumeDraftDetail.planMode === "FLEXIBLE" ||
       resumeDraftDetail.planMode === "CHECKLIST_REQUIRED"
     ) {
       setPlanMode(resumeDraftDetail.planMode);
     }
+
     setResumeMetadataApplied(true);
   }, [resumeDraftDetail, resumeMetadataApplied]);
 
@@ -425,45 +414,48 @@ const [denseListMode, setDenseListMode] = useState<"list" | "cards">("list");
     ]
   );
 
-useEffect(() => {
-  const hasStagedMaterials = sessionItems.length > 0 && !busy;
+  useEffect(() => {
+    const hasStagedMaterials = sessionItems.length > 0 && !busy;
 
-  const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-    if (!hasStagedMaterials) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasStagedMaterials) return;
 
-    event.preventDefault();
-    event.returnValue = "";
-  };
+      event.preventDefault();
+      event.returnValue = "";
+    };
 
-  window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
-  return () => {
-    window.removeEventListener("beforeunload", handleBeforeUnload);
-  };
-}, [sessionItems.length, busy]);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [sessionItems.length, busy]);
 
-useEffect(() => {
-  const handleOutsideClick = (event: PointerEvent) => {
-    const target = event.target as HTMLElement | null;
-    if (!target) return;
+  useEffect(() => {
+    const handleOutsideClick = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
 
-    const clickedInsidePlanDropdown = target.closest(".capture-plan-dropdown");
-const clickedInsideMaterialDropdown = target.closest(".capture-material-dropdown");
-if (!clickedInsidePlanDropdown) {
-  setPlanDropdownOpen(false);
-}
+      const clickedInsidePlanDropdown = target.closest(".capture-plan-dropdown");
+      const clickedInsideMaterialDropdown = target.closest(
+        ".capture-material-dropdown"
+      );
 
-if (!clickedInsideMaterialDropdown) {
-  setOpenMaterialDropdownId(null);
-}
-  };
+      if (!clickedInsidePlanDropdown) {
+        setPlanDropdownOpen(false);
+      }
 
-  document.addEventListener("pointerdown", handleOutsideClick);
+      if (!clickedInsideMaterialDropdown) {
+        setOpenMaterialDropdownId(null);
+      }
+    };
 
-  return () => {
-    document.removeEventListener("pointerdown", handleOutsideClick);
-  };
-}, []);
+    document.addEventListener("pointerdown", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsideClick);
+    };
+  }, []);
 
   return (
     <div className="section app-section capture-page-shell capture-enterprise-page">
@@ -506,26 +498,31 @@ if (!clickedInsideMaterialDropdown) {
         style={{ display: "none" }}
       />
 
-
       <div className="capture-enterprise-shell">
         {draftList.drafts.length > 0 && !sessionItems.length ? (
-          <div className="capture-resume-banner" role="region" aria-label="Unfinished capture sessions">
+          <div
+            className="capture-resume-banner"
+            role="region"
+            aria-label="Unfinished capture sessions"
+          >
             <div className="capture-resume-banner-text">
-              <strong>You have {draftList.drafts.length} unfinished capture session{draftList.drafts.length === 1 ? "" : "s"}.</strong>
+              <strong>
+                You have {draftList.drafts.length} unfinished capture session
+                {draftList.drafts.length === 1 ? "" : "s"}.
+              </strong>
               <p>
                 Resume restores template, mappings, notes, and item metadata.
                 For privacy and browser-security reasons, the original file
-                binaries cannot be restored automatically — you must
-                re-attach the actual files before finalization.
+                binaries cannot be restored automatically — you must re-attach
+                the actual files before finalization.
               </p>
             </div>
+
             <div className="capture-resume-banner-actions">
               <button
                 type="button"
                 className="capture-bulk-button"
-                onClick={() => {
-                  setResumeOpen((open) => !open);
-                }}
+                onClick={() => setResumeOpen((open) => !open)}
               >
                 {resumeOpen ? "Hide drafts" : "View drafts"}
               </button>
@@ -538,13 +535,17 @@ if (!clickedInsideMaterialDropdown) {
                     <div className="capture-resume-list-meta">
                       <strong>{draft.templateName ?? "Untitled draft"}</strong>
                       <span>
-                        {draft.itemCount} staged item{draft.itemCount === 1 ? "" : "s"}
+                        {draft.itemCount} staged item
+                        {draft.itemCount === 1 ? "" : "s"}
                         {draft.planMode ? ` • ${draft.planMode}` : ""}
                         {draft.expiresAtUtc
-                          ? ` • Expires ${new Date(draft.expiresAtUtc).toLocaleString()}`
+                          ? ` • Expires ${new Date(
+                              draft.expiresAtUtc
+                            ).toLocaleString()}`
                           : ""}
                       </span>
                     </div>
+
                     <div className="capture-resume-list-actions">
                       <button
                         type="button"
@@ -557,6 +558,7 @@ if (!clickedInsideMaterialDropdown) {
                       >
                         Resume metadata
                       </button>
+
                       <button
                         type="button"
                         className="capture-bulk-button"
@@ -600,39 +602,40 @@ if (!clickedInsideMaterialDropdown) {
               </div>
             ) : null}
 
-            {/*
-              Honesty note about the inherent browser file limitation. The
-              user MUST re-attach the actual files before finalize.
-              ResumedDraftId is preserved so the next Finalize will reuse
-              that captureSessionId and the server can keep the chain.
-            */}
             <input type="hidden" name="resumed-draft" value={resumeDraftId ?? ""} />
           </div>
         ) : null}
 
         <section className="capture-enterprise-top">
           <div className="capture-enterprise-title-card">
-<div className="capture-enterprise-icon">
-  <Camera size={28} strokeWidth={2.1} />
-</div>
+            <div className="capture-enterprise-icon">
+              <Camera size={28} strokeWidth={2.1} />
+            </div>
+
             <div>
-              <div className="capture-enterprise-eyebrow">Evidence intake workspace</div>
+              <div className="capture-enterprise-eyebrow">
+                Evidence intake workspace
+              </div>
               <h1 className="capture-enterprise-title">Capture Evidence</h1>
               <p className="capture-enterprise-subtitle">
-                Collect, map, fingerprint, and prepare evidence materials before Review
-                & Sign. Drafts save metadata only. File contents are not stored until
-                finalization, and draft metadata expires automatically.
+                Collect, map, fingerprint, and prepare evidence materials
+                before Review & Sign. Drafts save metadata only. File contents
+                are not stored until finalization, and draft metadata expires
+                automatically.
               </p>
             </div>
           </div>
+
           <div className="capture-enterprise-security-card">
-<div className="capture-security-shield">
-  <ShieldCheck size={28} strokeWidth={2.1} />
-</div>
+            <div className="capture-security-shield">
+              <ShieldCheck size={28} strokeWidth={2.1} />
+            </div>
+
             <div>
               <strong>End-to-end protected</strong>
               <p>
-                Cryptographic integrity, encrypted storage, and verifiable audit trail.
+                Cryptographic integrity, encrypted storage, and verifiable audit
+                trail.
               </p>
             </div>
           </div>
@@ -674,8 +677,8 @@ if (!clickedInsideMaterialDropdown) {
               <div className="capture-section-label">Collection method</div>
               <div className="capture-card-title">Choose intake structure</div>
               <p className="capture-card-muted">
-                Select a guided checklist for structured review or use flexible intake
-                for general evidence preservation.
+                Select a guided checklist for structured review or use flexible
+                intake for general evidence preservation.
               </p>
             </div>
 
@@ -687,13 +690,14 @@ if (!clickedInsideMaterialDropdown) {
               onClick={() => setPlanMode("CHECKLIST_REQUIRED")}
               disabled={busy || sessionItems.length > 0}
             >
-<span className="capture-method-icon">
-  <ClipboardCheck size={22} strokeWidth={2.1} />
-</span>
+              <span className="capture-method-icon">
+                <ClipboardCheck size={22} strokeWidth={2.1} />
+              </span>
               <span>
                 <strong>Guided checklist</strong>
                 <small>
-                  Structured requirements for claims, investigations, legal, and compliance.
+                  Structured requirements for claims, investigations, legal,
+                  and compliance.
                 </small>
               </span>
             </button>
@@ -706,9 +710,9 @@ if (!clickedInsideMaterialDropdown) {
               onClick={() => setPlanMode("FLEXIBLE")}
               disabled={busy || sessionItems.length > 0}
             >
-<span className="capture-method-icon bronze">
-  <FolderOpen size={22} strokeWidth={2.1} />
-</span>
+              <span className="capture-method-icon bronze">
+                <FolderOpen size={22} strokeWidth={2.1} />
+              </span>
               <span>
                 <strong>Flexible intake</strong>
                 <small>Upload any materials without blocking completion.</small>
@@ -717,8 +721,8 @@ if (!clickedInsideMaterialDropdown) {
 
             {sessionItems.length > 0 ? (
               <div className="capture-soft-note">
-                Intake mode and template are locked after adding materials to preserve
-                review context.
+                Intake mode and template are locked after adding materials to
+                preserve review context.
               </div>
             ) : null}
 
@@ -730,29 +734,35 @@ if (!clickedInsideMaterialDropdown) {
                 "Improves claim and legal readiness",
                 "Creates clearer audit context",
               ].map((text) => (
-<div key={text}>{text}</div>
+                <div key={text}>{text}</div>
               ))}
             </div>
 
             <label className="capture-location-card">
               <span>
-<strong className="capture-inline-heading">
-  <span className="capture-inline-heading-icon">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <path
-        d="M12 21s-6-5.2-6-11a6 6 0 1 1 12 0c0 5.8-6 11-6 11Z"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="10" r="2.4" fill="currentColor" stroke="none" />
-    </svg>
-  </span>
-  Include location
-</strong>
+                <strong className="capture-inline-heading">
+                  <span className="capture-inline-heading-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path
+                        d="M12 21s-6-5.2-6-11a6 6 0 1 1 12 0c0 5.8-6 11-6 11Z"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <circle
+                        cx="12"
+                        cy="10"
+                        r="2.4"
+                        fill="currentColor"
+                        stroke="none"
+                      />
+                    </svg>
+                  </span>
+                  Include location
+                </strong>
                 <small>
-                  Investigation plans preserve precise GPS metadata, while other intake
-                  workflows reduce location precision by default.
+                  Investigation plans preserve precise GPS metadata, while other
+                  intake workflows reduce location precision by default.
                 </small>
               </span>
               <input
@@ -802,538 +812,384 @@ if (!clickedInsideMaterialDropdown) {
                 }
               }}
             />
-{sessionItems.length > 0 ? (
-  <div className="capture-materials-board">
-    <div className="capture-materials-header">
-      <div>
-        <div className="capture-section-label">Evidence material management</div>
-        <div className="capture-card-title">{sessionCountLabel}</div>
-        <p>Compact review rows surface mapping, status, type, size, and warnings for faster operational scanning.</p>
-      </div>
 
-      <div className="capture-materials-meta-stack">
-        <span>{formatFileSize(totalStagedBytes)}</span>
-        <strong>{sessionReadiness.summary.unmappedCount} unmapped</strong>
-        <span
-          className="capture-draft-pill"
-          aria-live="polite"
-          title={
-            draftPersistence.savingState === "error"
-              ? "Failed to save the latest changes to the server draft."
-              : draftPersistence.lastSavedAt
-                ? `Last saved ${draftPersistence.lastSavedAt.toLocaleTimeString()}`
-                : "Draft is staged locally."
-          }
-        >
-          {draftPersistence.savingState === "saving"
-            ? "Saving draft…"
-            : draftPersistence.savingState === "error"
-              ? "Draft save failed"
-              : draftPersistence.draftId
-                ? "Draft saved"
-                : "Draft staging"}
-        </span>
-<button
-  type="button"
-  className="capture-list-mode-toggle"
-  onClick={() =>
-    setDenseListMode((current) => (current === "list" ? "cards" : "list"))
-  }
-  aria-pressed={denseListMode === "list"}
->
-  {denseListMode === "list" ? "Card view" : "List view"}
-</button>
-      </div>
-    </div>
-
-    {sessionItems.length > 0 && !busy ? (
-      <div className="capture-bulk-actions" role="toolbar" aria-label="Bulk actions">
-        <button
-          type="button"
-          className="capture-bulk-button"
-          disabled={sessionItems.every((item) => !item.checklistStepId)}
-          onClick={() => {
-            setSessionItems((prev) =>
-              prev.map((item) => ({ ...item, checklistStepId: null }))
-            );
-          }}
-        >
-          Clear all mappings
-        </button>
-        <button
-          type="button"
-          className="capture-bulk-button"
-          disabled={sessionItems.every(
-            (item) => item.uploadProgress >= 100 || item.uploading
-          )}
-          onClick={() => {
-            // Remove only items that haven't been uploaded yet.
-            sessionItems
-              .filter(
-                (item) => !item.uploading && item.uploadProgress < 100
-              )
-              .forEach((item) => removeSessionItem(item.id));
-          }}
-        >
-          Remove pending items
-        </button>
-      </div>
-    ) : null}
-
-    <div
-      className={
-denseListMode === "list" ? "capture-materials-list" : "capture-materials-grid"
-      }
-    >
-{denseListMode === "list" ? (
-          <div className="capture-materials-list-header" role="rowheader">
-          <span>#</span>
-          <span>File</span>
-          <span>Type</span>
-          <span>Size</span>
-          <span>Role & requirement</span>
-          <span>Upload</span>
-          <span>Status</span>
-          <span aria-hidden="true" />
-        </div>
-      ) : null}
-      {sessionItems.map((item, index) => {
-        const mappedStep = getChecklistStepById(
-          selectedCollectionPlan,
-          item.checklistStepId
-        );
-
-        const qualityStatus = getItemQualityStatus({
-          item,
-          step: mappedStep,
-        });
-
-        const isExpanded = expandedMaterialId === item.id;
-
-        const riskTone =
-          qualityStatus.tone === "danger"
-            ? "critical"
-            : qualityStatus.tone === "success"
-              ? "success"
-              : "warning";
-
-        const mappingHelper = mappedStep
-          ? `${mappedStep.title} • ${mappedStep.purposeLabel}`
-          : planMode === "CHECKLIST_REQUIRED"
-            ? "Choose a required collection step before Review & Sign."
-            : "Optional context can be linked to a collection step.";
-
-        const typeLabel = deriveSessionItemTypeLabel(item.mimeType);
-
-        const previewTypeLabel = item.relativePath
-          ? "FOLDER"
-          : item.mimeType.startsWith("audio/")
-            ? "AUDIO"
-            : item.mimeType.startsWith("video/")
-              ? "VIDEO"
-              : item.mimeType.startsWith("image/")
-                ? "IMAGE"
-                : item.mimeType === "application/pdf"
-                  ? "PDF"
-                  : "FILE";
-
-        const FileIcon = item.relativePath
-          ? Folder
-          : item.mimeType.startsWith("audio/")
-            ? Mic
-            : item.mimeType.startsWith("video/")
-              ? Video
-              : item.mimeType.startsWith("image/")
-                ? ImageIcon
-                : FileText;
-
-        if (denseListMode === "list") {
-          const uploadLabel = item.error
-            ? "Failed"
-            : item.uploadProgress >= 100
-              ? "Uploaded"
-              : item.uploading
-                ? `${item.uploadProgress}%`
-                : "Pending";
-
-          return (
-            <div
-              key={item.id}
-              className="capture-material-row"
-              role="row"
-            >
-              <span className="capture-material-row-index">{index + 1}</span>
-              <span className="capture-material-row-name" title={item.file.name}>
-                {item.file.name}
-              </span>
-              <span className="capture-material-row-type">{typeLabel}</span>
-              <span className="capture-material-row-size">
-                {formatFileSize(item.file.size)}
-              </span>
-<span className="capture-material-row-map-cell">
-  <div
-    className={`capture-material-dropdown compact ${
-      openMaterialDropdownId === item.id ? "is-open" : ""
-    }`}
-  >
-    <button
-      type="button"
-      className="capture-material-dropdown-trigger"
-      disabled={busy}
-      aria-haspopup="listbox"
-      aria-expanded={openMaterialDropdownId === item.id}
-      onClick={(event) => {
-        event.stopPropagation();
-        setOpenMaterialDropdownId((current) =>
-          current === item.id ? null : item.id
-        );
-      }}
-    >
-      <span>{getRoleRequirementDisplayLabel(item, mappedStep)}</span>
-      <span className="capture-material-dropdown-chevron">⌄</span>
-    </button>
-
-    {openMaterialDropdownId === item.id ? (
-      <div className="capture-material-dropdown-menu" role="listbox">
-        <button
-          type="button"
-          className={!item.checklistStepId ? "active" : ""}
-          onClick={() => {
-            updateSessionItem(item.id, {
-              checklistStepId: null,
-              role: "Context / supplemental",
-            });
-            setOpenMaterialDropdownId(null);
-          }}
-        >
-          <span>Context · Unmapped</span>
-          <small>Leave unmapped or supplemental</small>
-        </button>
-
-        {selectedCollectionPlan?.steps.map((step) => {
-          const active = item.checklistStepId === step.id;
-
-          return (
-            <button
-              key={step.id}
-              type="button"
-              className={active ? "active" : ""}
-              onClick={() => {
-                updateSessionItem(item.id, {
-                  checklistStepId: step.id,
-                  role: `${getRoleFromChecklistStep(step)} evidence`,
-                });
-                setOpenMaterialDropdownId(null);
-              }}
-            >
-              <span>
-                {getRoleFromChecklistStep(step)} · {step.title}
-              </span>
-              <small>
-                {step.required ? "Required" : "Optional"} ·{" "}
-                {step.acceptedKinds?.map(formatEvidenceTypeLabel).join(", ") ||
-                  "Any supported material"}
-              </small>
-            </button>
-          );
-        })}
-      </div>
-    ) : null}
-  </div>
-</span>
-              <span className="capture-material-row-upload">{uploadLabel}</span>
-              <span
-                className={`capture-material-row-status ${
-                  item.error ? "critical" : riskTone
-                }`}
-              >
-                {item.error ? "Retry needed" : qualityStatus.label}
-              </span>
-              <span className="capture-material-row-actions">
-                {item.error && !busy ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSessionItems((prev) =>
-                        prev.map((current) =>
-                          current.id === item.id
-                            ? {
-                                ...current,
-                                error: null,
-                                uploadProgress: 0,
-                                uploading: false,
-                              }
-                            : current
-                        )
-                      )
-                    }
-                  >
-                    Retry
-                  </button>
-                ) : null}
-                {!busy ? (
-                  <button
-                    type="button"
-                    onClick={() => removeSessionItem(item.id)}
-                  >
-                    Remove
-                  </button>
-                ) : null}
-              </span>
-            </div>
-          );
-        }
-
-        return (
-          <div
-            key={item.id}
-            className="capture-material-card"
-          >
-            <div className="capture-material-preview">
-<div className={`capture-material-type-overlay ${previewTypeLabel.toLowerCase()}`}>
-  {previewTypeLabel === "VIDEO" ? (
-    <Video size={18} strokeWidth={2.2} />
-  ) : previewTypeLabel === "IMAGE" ? (
-    <ImageIcon size={18} strokeWidth={2.2} />
-  ) : previewTypeLabel === "PDF" ? (
-    <FileText size={18} strokeWidth={2.2} />
-  ) : previewTypeLabel === "FOLDER" ? (
-    <Folder size={18} strokeWidth={2.2} />
-  ) : (
-    <FileText size={18} strokeWidth={2.2} />
-  )}
-</div>
-              {item.previewUrl && item.mimeType.startsWith("image/") ? (
-                <img src={item.previewUrl} alt={item.file.name} />
-              ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
-                <video src={item.previewUrl} muted playsInline controls={false} />
-              ) : (
-                <div className="capture-material-file-icon">
-                  <FileIcon size={34} strokeWidth={1.9} />
-                </div>
-              )}
-            </div>
-
-            <div className="capture-material-body">
-              <div className="capture-material-compact">
-                <div className="capture-material-top">
+            {sessionItems.length > 0 ? (
+              <div className="capture-materials-board">
+                <div className="capture-materials-header">
                   <div>
-                    <small>Item {index + 1}</small>
-                    <strong title={item.file.name}>{item.file.name}</strong>
-                    <span>
-                      {typeLabel} • {formatFileSize(item.file.size)}
-                    </span>
+                    <div className="capture-section-label">
+                      Evidence material management
+                    </div>
+                    <div className="capture-card-title">{sessionCountLabel}</div>
+                    <p>
+                      Compact review rows surface mapping, status, type, size,
+                      and warnings for faster operational scanning.
+                    </p>
                   </div>
 
-                  {!busy ? (
-                    <button type="button" onClick={() => removeSessionItem(item.id)}>
-                      Remove
+                  <div className="capture-materials-meta-stack">
+                    <span>{formatFileSize(totalStagedBytes)}</span>
+                    <strong>
+                      {sessionReadiness.summary.unmappedCount} unmapped
+                    </strong>
+                    <span
+                      className="capture-draft-pill"
+                      aria-live="polite"
+                      title={
+                        draftPersistence.savingState === "error"
+                          ? "Failed to save the latest changes to the server draft."
+                          : draftPersistence.lastSavedAt
+                            ? `Last saved ${draftPersistence.lastSavedAt.toLocaleTimeString()}`
+                            : "Draft is staged locally."
+                      }
+                    >
+                      {draftPersistence.savingState === "saving"
+                        ? "Saving draft…"
+                        : draftPersistence.savingState === "error"
+                          ? "Draft save failed"
+                          : draftPersistence.draftId
+                            ? "Draft saved"
+                            : "Draft staging"}
+                    </span>
+                  </div>
+                </div>
+
+                {sessionItems.length > 0 && !busy ? (
+                  <div
+                    className="capture-bulk-actions"
+                    role="toolbar"
+                    aria-label="Bulk actions"
+                  >
+                    <button
+                      type="button"
+                      className="capture-bulk-button"
+                      disabled={sessionItems.every((item) => !item.checklistStepId)}
+                      onClick={() => {
+                        setSessionItems((prev) =>
+                          prev.map((item) => ({ ...item, checklistStepId: null }))
+                        );
+                      }}
+                    >
+                      Clear all mappings
+                    </button>
+
+                    <button
+                      type="button"
+                      className="capture-bulk-button"
+                      disabled={sessionItems.every(
+                        (item) => item.uploadProgress >= 100 || item.uploading
+                      )}
+                      onClick={() => {
+                        sessionItems
+                          .filter(
+                            (item) => !item.uploading && item.uploadProgress < 100
+                          )
+                          .forEach((item) => removeSessionItem(item.id));
+                      }}
+                    >
+                      Remove pending items
+                    </button>
+                  </div>
+                ) : null}
+
+                <div className="capture-materials-list">
+                  <div className="capture-materials-list-header" role="rowheader">
+                    <span>#</span>
+                    <span>Preview</span>
+                    <span>File</span>
+                    <span>Type</span>
+                    <span>Size</span>
+                    <span>Role & requirement</span>
+                    <span>Upload</span>
+                    <span>Status</span>
+                    <span aria-hidden="true" />
+                  </div>
+
+                  {sessionItems.map((item, index) => {
+                    const mappedStep = getChecklistStepById(
+                      selectedCollectionPlan,
+                      item.checklistStepId
+                    );
+
+                    const qualityStatus = getItemQualityStatus({
+                      item,
+                      step: mappedStep,
+                    });
+
+                    const riskTone =
+                      qualityStatus.tone === "danger"
+                        ? "critical"
+                        : qualityStatus.tone === "success"
+                          ? "success"
+                          : "warning";
+
+                    const typeLabel = deriveSessionItemTypeLabel(item.mimeType);
+
+                    const FileIcon = item.relativePath
+                      ? Folder
+                      : item.mimeType.startsWith("audio/")
+                        ? Mic
+                        : item.mimeType.startsWith("video/")
+                          ? Video
+                          : item.mimeType.startsWith("image/")
+                            ? ImageIcon
+                            : FileText;
+
+                    const uploadLabel = item.error
+                      ? "Failed"
+                      : item.uploadProgress >= 100
+                        ? "Uploaded"
+                        : item.uploading
+                          ? `${item.uploadProgress}%`
+                          : "Pending";
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="capture-material-row"
+                        role="row"
+                      >
+                        <span className="capture-material-row-index">
+                          {index + 1}
+                        </span>
+
+                        <span className="capture-material-row-preview">
+                          {item.previewUrl &&
+                          item.mimeType.startsWith("image/") ? (
+                            <img src={item.previewUrl} alt={item.file.name} />
+                          ) : item.previewUrl &&
+                            item.mimeType.startsWith("video/") ? (
+                            <video src={item.previewUrl} muted playsInline />
+                          ) : (
+                            <span className="capture-material-row-file-icon">
+                              <FileIcon size={22} strokeWidth={2} />
+                            </span>
+                          )}
+                        </span>
+
+                        <span
+                          className="capture-material-row-name"
+                          title={item.file.name}
+                        >
+                          {item.file.name}
+                        </span>
+
+                        <span className="capture-material-row-type">
+                          {typeLabel}
+                        </span>
+
+                        <span className="capture-material-row-size">
+                          {formatFileSize(item.file.size)}
+                        </span>
+
+                        <span className="capture-material-row-map-cell">
+                          <div
+                            className={`capture-material-dropdown compact ${
+                              openMaterialDropdownId === item.id ? "is-open" : ""
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              className="capture-material-dropdown-trigger"
+                              disabled={busy}
+                              aria-haspopup="listbox"
+                              aria-expanded={openMaterialDropdownId === item.id}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setOpenMaterialDropdownId((current) =>
+                                  current === item.id ? null : item.id
+                                );
+                              }}
+                            >
+                              <span>
+                                {getRoleRequirementDisplayLabel(item, mappedStep)}
+                              </span>
+                              <span className="capture-material-dropdown-chevron">
+                                ⌄
+                              </span>
+                            </button>
+
+                            {openMaterialDropdownId === item.id ? (
+                              <div
+                                className="capture-material-dropdown-menu"
+                                role="listbox"
+                              >
+                                <button
+                                  type="button"
+                                  className={
+                                    !item.checklistStepId ? "active" : ""
+                                  }
+                                  onClick={() => {
+                                    updateSessionItem(item.id, {
+                                      checklistStepId: null,
+                                      role: "Context / supplemental",
+                                    });
+                                    setOpenMaterialDropdownId(null);
+                                  }}
+                                >
+                                  <span>Context · Unmapped</span>
+                                  <small>Leave unmapped or supplemental</small>
+                                </button>
+
+                                {selectedCollectionPlan?.steps.map((step) => {
+                                  const active = item.checklistStepId === step.id;
+
+                                  return (
+                                    <button
+                                      key={step.id}
+                                      type="button"
+                                      className={active ? "active" : ""}
+                                      onClick={() => {
+                                        updateSessionItem(item.id, {
+                                          checklistStepId: step.id,
+                                          role: `${getRoleFromChecklistStep(
+                                            step
+                                          )} evidence`,
+                                        });
+                                        setOpenMaterialDropdownId(null);
+                                      }}
+                                    >
+                                      <span>
+                                        {getRoleFromChecklistStep(step)} ·{" "}
+                                        {step.title}
+                                      </span>
+                                      <small>
+                                        {step.required ? "Required" : "Optional"} ·{" "}
+                                        {step.acceptedKinds
+                                          ?.map(formatEvidenceTypeLabel)
+                                          .join(", ") || "Any supported material"}
+                                      </small>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+                          </div>
+                        </span>
+
+                        <span className="capture-material-row-upload">
+                          {uploadLabel}
+                        </span>
+
+                        <span
+                          className={`capture-material-row-status ${
+                            item.error ? "critical" : riskTone
+                          }`}
+                        >
+                          {item.error ? "Retry needed" : qualityStatus.label}
+                        </span>
+
+                        <span className="capture-material-row-actions">
+                          {item.error && !busy ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSessionItems((prev) =>
+                                  prev.map((current) =>
+                                    current.id === item.id
+                                      ? {
+                                          ...current,
+                                          error: null,
+                                          uploadProgress: 0,
+                                          uploading: false,
+                                        }
+                                      : current
+                                  )
+                                )
+                              }
+                            >
+                              Retry
+                            </button>
+                          ) : null}
+
+                          {!busy ? (
+                            <button
+                              type="button"
+                              onClick={() => removeSessionItem(item.id)}
+                            >
+                              Remove
+                            </button>
+                          ) : null}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {sessionItems.length === 0 ? (
+              <div
+                className="capture-empty-dropzone-panel capture-operational-empty"
+                onClick={openFilePicker}
+              >
+                <div>
+                  <strong>Start by adding source material</strong>
+                  <p>
+                    Drag files or folders here, upload existing material, or
+                    capture photo, video, or audio from this device.
+                  </p>
+                </div>
+
+                <div
+                  className="capture-dropzone-plus"
+                  role="button"
+                  tabIndex={0}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openFilePicker();
+                  }}
+                >
+                  <span>+</span>
+                </div>
+
+                <div className="capture-empty-operational-grid">
+                  <div>
+                    <span>Accepted categories</span>
+                    <strong>
+                      Images, video, audio, PDFs, documents, archives, folders
+                    </strong>
+                  </div>
+                  <div
+                    className={
+                      sessionReadiness.missingRequiredSteps.length > 0
+                        ? "is-blocked"
+                        : ""
+                    }
+                  >
+                    <span>Required missing</span>
+                    <strong>{sessionReadiness.missingRequiredSteps.length}</strong>
+                  </div>
+                  <div>
+                    <span>Submission state</span>
+                    <strong>Local staging only</strong>
+                  </div>
+                </div>
+
+                <p className="capture-drop-zone-note">
+                  Nothing is signed or submitted until Review & Sign. Integrity
+                  metadata is prepared during intake and verification artifacts
+                  are generated after finalization.
+                </p>
+              </div>
+            ) : null}
+
+            {audioRecorderOpen ? (
+              <div className="capture-audio-card">
+                <div className="capture-panel-heading">
+                  <strong>Audio Recorder</strong>
+
+                  {audioRecorderState !== "recording" ? (
+                    <button
+                      type="button"
+                      className="capture-audio-close-button"
+                      onClick={resetAudioRecorderState}
+                      aria-label="Close audio recorder"
+                    >
+                      ×
                     </button>
                   ) : null}
                 </div>
-
-                <div className="capture-material-pill-row capture-phase4-material-pill-row">
-                  <span
-                    className={`capture-material-role-requirement-pill ${
-                      mappedStep
-                        ? mappedStep.required
-                          ? "required"
-                          : "optional"
-                        : "unmapped"
-                    }`}
-                  >
-{getRoleRequirementDisplayLabel(item, mappedStep)}
-                  </span>
-
-                  <span className={`capture-material-risk-pill ${riskTone}`}>
-                    {qualityStatus.label}
-                  </span>
-                </div>
-
-<div
-  className={`capture-material-dropdown ${
-    openMaterialDropdownId === item.id ? "is-open" : ""
-  }`}
->
-  <button
-    type="button"
-    className="capture-material-dropdown-trigger"
-    disabled={busy}
-    aria-haspopup="listbox"
-    aria-expanded={openMaterialDropdownId === item.id}
-    onClick={(event) => {
-      event.stopPropagation();
-      setOpenMaterialDropdownId((current) =>
-        current === item.id ? null : item.id
-      );
-    }}
-  >
-    <span>{getRoleRequirementDisplayLabel(item, mappedStep)}</span>
-    <span className="capture-material-dropdown-chevron">⌄</span>
-  </button>
-
-  {openMaterialDropdownId === item.id ? (
-    <div className="capture-material-dropdown-menu" role="listbox">
-      <button
-        type="button"
-        className={!item.checklistStepId ? "active" : ""}
-        onClick={() => {
-          updateSessionItem(item.id, {
-            checklistStepId: null,
-            role: "Context / supplemental",
-          });
-          setOpenMaterialDropdownId(null);
-        }}
-      >
-        <span>Context · Unmapped</span>
-        <small>Leave unmapped or supplemental</small>
-      </button>
-
-      {selectedCollectionPlan?.steps.map((step) => {
-        const active = item.checklistStepId === step.id;
-
-        return (
-          <button
-            key={step.id}
-            type="button"
-            className={active ? "active" : ""}
-            onClick={() => {
-              updateSessionItem(item.id, {
-                checklistStepId: step.id,
-                role: `${getRoleFromChecklistStep(step)} evidence`,
-              });
-              setOpenMaterialDropdownId(null);
-            }}
-          >
-            <span>
-              {getRoleFromChecklistStep(step)} · {step.title}
-            </span>
-            <small>
-              {step.required ? "Required" : "Optional"} ·{" "}
-              {step.acceptedKinds?.map(formatEvidenceTypeLabel).join(", ") ||
-                "Any supported material"}
-            </small>
-          </button>
-        );
-      })}
-    </div>
-  ) : null}
-</div>
-
-<div className={`capture-material-mapping-helper ${mappedStep ? "mapped" : "unmapped"}`}>
-  {mappingHelper}
-</div>
-
-<button
-  type="button"
-  className="capture-material-expand-button"
-                    onClick={() =>
-                    setExpandedMaterialId((current) =>
-                      current === item.id ? null : item.id
-                    )
-                  }
-                >
-                  {isExpanded ? "Hide review details" : "Expand review"}
-<span className="capture-expand-icon">
-  {isExpanded ? "−" : "+"}
-</span>
-                </button>
-              </div>
-
-              {isExpanded ? (
-                <div className="capture-material-review-panel">
-                  <div
-                    className={
-                      qualityStatus.tone === "success"
-                        ? "capture-quality-success"
-                        : qualityStatus.tone === "danger"
-                          ? "capture-quality-danger"
-                          : "capture-quality-warning"
-                    }
-                  >
-                    <strong>{qualityStatus.label}</strong>
-{qualityStatus.detail ? <div>{qualityStatus.detail}</div> : null}
-                  </div>
-
-                  <textarea
-                    value={item.privateNote ?? ""}
-                    onChange={(event) =>
-                      updateSessionItem(item.id, {
-                        privateNote: event.target.value,
-                      })
-                    }
-                    disabled={busy}
-                    placeholder="Private item note"
-                    maxLength={1000}
-                    className="capture-material-note"
-                  />
-                </div>
-              ) : null}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  </div>
-) : null}
-
-{sessionItems.length === 0 ? (
-  <div className="capture-empty-dropzone-panel capture-operational-empty" onClick={openFilePicker}>
-    <div>
-      <strong>Start by adding source material</strong>
-      <p>
-        Drag files or folders here, upload existing material, or capture photo, video, or audio from this device.
-      </p>
-    </div>
-
-    <div
-      className="capture-dropzone-plus"
-      role="button"
-      tabIndex={0}
-      onClick={(event) => {
-        event.stopPropagation();
-        openFilePicker();
-      }}
-    >
-      <span>+</span>
-    </div>
-
-    <div className="capture-empty-operational-grid">
-      <div>
-        <span>Accepted categories</span>
-        <strong>Images, video, audio, PDFs, documents, archives, folders</strong>
-      </div>
-      <div className={sessionReadiness.missingRequiredSteps.length > 0 ? "is-blocked" : ""}>
-        <span>Required missing</span>
-        <strong>{sessionReadiness.missingRequiredSteps.length}</strong>
-      </div>
-      <div>
-        <span>Submission state</span>
-        <strong>Local staging only</strong>
-      </div>
-    </div>
-
-    <p className="capture-drop-zone-note">
-      Nothing is signed or submitted until Review & Sign. Integrity metadata is prepared during intake and verification artifacts are generated after finalization.
-    </p>
-  </div>
-) : null}
-            {audioRecorderOpen ? (
-              <div className="capture-audio-card">
-<div className="capture-panel-heading">
-  <strong>Audio Recorder</strong>
-
-  {audioRecorderState !== "recording" ? (
-    <button
-      type="button"
-      className="capture-audio-close-button"
-      onClick={resetAudioRecorderState}
-      aria-label="Close audio recorder"
-    >
-      ×
-    </button>
-  ) : null}
-</div>
 
                 {audioPreviewUrl ? (
                   <audio controls preload="metadata" src={audioPreviewUrl}>
@@ -1342,24 +1198,28 @@ denseListMode === "list" ? "capture-materials-list" : "capture-materials-grid"
                 ) : null}
 
                 {audioRecorderError ? (
-                  <div className="capture-quality-danger">{audioRecorderError}</div>
+                  <div className="capture-quality-danger">
+                    {audioRecorderError}
+                  </div>
                 ) : null}
 
-<div className="capture-audio-actions">
-  <Button
-    onClick={startAudioRecording}
-    disabled={busy || audioRecorderState === "recording"}
-    className="capture-audio-start-button"
-  >
-    Start Recording
-  </Button>
-                    <Button
+                <div className="capture-audio-actions">
+                  <Button
+                    onClick={startAudioRecording}
+                    disabled={busy || audioRecorderState === "recording"}
+                    className="capture-audio-start-button"
+                  >
+                    Start Recording
+                  </Button>
+
+                  <Button
                     variant="secondary"
                     onClick={stopAudioRecording}
                     disabled={audioRecorderState !== "recording"}
                   >
                     Stop
                   </Button>
+
                   <Button
                     variant="secondary"
                     onClick={discardAudioRecording}
@@ -1370,6 +1230,7 @@ denseListMode === "list" ? "capture-materials-list" : "capture-materials-grid"
                   >
                     Discard
                   </Button>
+
                   <Button
                     onClick={addAudioRecordingToSession}
                     disabled={audioRecorderState !== "preview_ready"}
@@ -1416,42 +1277,46 @@ denseListMode === "list" ? "capture-materials-list" : "capture-materials-grid"
           onFinalize={finalizeSession}
         />
       </div>
-{clearConfirmOpen ? (
-  <div className="capture-confirm-backdrop">
-    <div className="capture-confirm-modal">
-      <div className="capture-confirm-icon">!</div>
 
-      <div>
-        <div className="capture-confirm-title">Clear this evidence session?</div>
-        <p className="capture-confirm-text">
-          This will remove all staged materials, mapping, private notes, and local
-          review progress. No evidence record has been created yet.
-        </p>
-      </div>
+      {clearConfirmOpen ? (
+        <div className="capture-confirm-backdrop">
+          <div className="capture-confirm-modal">
+            <div className="capture-confirm-icon">!</div>
 
-      <div className="capture-confirm-actions">
-        <button
-          type="button"
-          className="capture-confirm-cancel"
-          onClick={() => setClearConfirmOpen(false)}
-        >
-          Keep Session
-        </button>
+            <div>
+              <div className="capture-confirm-title">
+                Clear this evidence session?
+              </div>
+              <p className="capture-confirm-text">
+                This will remove all staged materials, mapping, private notes,
+                and local review progress. No evidence record has been created
+                yet.
+              </p>
+            </div>
 
-        <button
-          type="button"
-          className="capture-confirm-danger"
-          onClick={() => {
-            setClearConfirmOpen(false);
-            resetCaptureState();
-          }}
-        >
-          Clear Session
-        </button>
-      </div>
-    </div>
-  </div>
-) : null}
+            <div className="capture-confirm-actions">
+              <button
+                type="button"
+                className="capture-confirm-cancel"
+                onClick={() => setClearConfirmOpen(false)}
+              >
+                Keep Session
+              </button>
+
+              <button
+                type="button"
+                className="capture-confirm-danger"
+                onClick={() => {
+                  setClearConfirmOpen(false);
+                  resetCaptureState();
+                }}
+              >
+                Clear Session
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <CaptureCameraOverlay
         cameraOpen={cameraOpen}
