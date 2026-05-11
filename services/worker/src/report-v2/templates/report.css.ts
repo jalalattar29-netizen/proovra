@@ -4647,6 +4647,82 @@ body {
   padding: 0.6mm 1.2mm !important;
 }
 
+/* COVER TRUST SIGNAL CARDS — icon beside title, centered two-line layout */
+
+.cover-decision-grid.cover-trust-signal-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 2.4mm !important;
+  margin-top: 0 !important;
+  margin-bottom: 2.8mm !important;
+}
+
+.cover-decision-indicator {
+  min-height: 17mm !important;
+  padding: 2.6mm 2mm !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 1.1mm !important;
+  text-align: center !important;
+}
+
+.cover-decision-line {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 1.4mm !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.cover-decision-mark {
+  flex: 0 0 5mm !important;
+  width: 5mm !important;
+  height: 5mm !important;
+  border-radius: 999px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 9px !important;
+  line-height: 1 !important;
+  font-weight: 950 !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+}
+
+.cover-decision-label {
+  color: #0b2e27 !important;
+  font-size: 7.6px !important;
+  line-height: 1.08 !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  text-align: left !important;
+}
+
+.cover-decision-value {
+  color: #0b7a5b !important;
+  font-size: 9px !important;
+  line-height: 1.1 !important;
+  font-weight: 950 !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+}
+
+.cover-decision-indicator.tone-warning .cover-decision-value,
+.cover-decision-indicator.tone-warning .cover-decision-mark {
+  color: #9a6a12 !important;
+}
+
+.cover-decision-indicator.tone-danger .cover-decision-value,
+.cover-decision-indicator.tone-danger .cover-decision-mark {
+  color: #a33a2b !important;
+}
+
 @media print {
   html,
   body,

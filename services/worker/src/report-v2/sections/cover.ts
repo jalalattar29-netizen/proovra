@@ -72,7 +72,6 @@ function renderDecisionIndicator(params: {
   tone: "success" | "warning" | "danger";
 }): string {
   let compactValue = params.value;
-
   const normalizedLabel = params.label.trim().toLowerCase();
 
   if (normalizedLabel.includes("core integrity")) {
@@ -89,18 +88,17 @@ function renderDecisionIndicator(params: {
 
   return `
     <div class="cover-decision-indicator tone-${params.tone}">
-      <div class="cover-decision-mark">
-        ${params.tone === "success" ? "✓" : "!"}
+      <div class="cover-decision-line">
+        <span class="cover-decision-mark">
+          ${params.tone === "success" ? "✓" : "!"}
+        </span>
+        <span class="cover-decision-label">
+          ${escapeHtml(params.label)}
+        </span>
       </div>
 
-      <div class="cover-decision-copy">
-        <div class="cover-decision-label">
-          ${escapeHtml(params.label)}
-        </div>
-
-        <div class="cover-decision-value">
-          ${escapeHtml(compactValue)}
-        </div>
+      <div class="cover-decision-value">
+        ${escapeHtml(compactValue)}
       </div>
     </div>
   `;
