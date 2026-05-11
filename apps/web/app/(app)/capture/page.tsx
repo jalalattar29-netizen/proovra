@@ -69,7 +69,6 @@ export default function CapturePage() {
   const [openMaterialDropdownId, setOpenMaterialDropdownId] = useState<string | null>(null);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
-  const UNMAPPED_OPTION_VALUE = "UNMAPPED";
 
   const getSimpleRoleLabel = (role?: string | null) => {
     const normalized = role?.trim().toLowerCase() ?? "";
@@ -132,9 +131,6 @@ const getRoleRequirementDisplayLabel = (
 
   return `${roleLabel} · ${mappedStep.title}`;
 };
-
-const getRoleRequirementOptionLabel = (step: ChecklistStep) =>
-  `${getRoleFromChecklistStep(step)} · ${step.required ? "Required" : "Optional"} · ${step.title}`;
 
   // Operational dense table mode for large evidence sessions.
   const [denseListMode, setDenseListMode] = useState(false);
