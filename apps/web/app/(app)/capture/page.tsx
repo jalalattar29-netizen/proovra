@@ -21,13 +21,14 @@ import {
 
 import type {
   SessionItem,
+  ChecklistStep,
 } from "./_lib/types";
 
 import {
   COLLECTION_PLAN_TEMPLATES,
   GENERIC_EVIDENCE_UPLOAD_ACCEPT,
-  ROLE_SUGGESTIONS,
 } from "./_lib/templates";
+import { resolveReviewerArtifactRole } from "@proovra/shared";
 import { useIntakeTemplates } from "./_hooks/useIntakeTemplates";
 import { useCaptureDraftPersistence } from "./_hooks/useCaptureDraftPersistence";
 import { useCaptureDraftList } from "./_hooks/useCaptureDraftList";
@@ -39,7 +40,6 @@ import {
   formatFileSize,
   getChecklistStepById,
   getItemQualityStatus,
-  getStepRequirementLabel,
 } from "./_lib/file-utils";
 
 import { filesFromDataTransfer } from "./_lib/folder-utils";
@@ -66,17 +66,77 @@ export default function CapturePage() {
     useState<"FLEXIBLE" | "CHECKLIST_REQUIRED">("FLEXIBLE");
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
-  const [materialDropdownOpenId, setMaterialDropdownOpenId] =
-    useState<string | null>(null);
   const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(null);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
-  const EVIDENCE_ROLE_OPTIONS = [
-    { value: "", label: "Infer from mapping" },
-    { value: "Primary evidence", label: "Primary evidence" },
-    { value: "Supporting evidence", label: "Supporting evidence" },
-    { value: "Context / supplemental", label: "Context / supplemental" },
-  ];
+  const UNMAPPED_OPTION_VALUE = "UNMAPPED";
+
+  const getSimpleRoleLabel = (role?: string | null) => {
+    const normalized = role?.trim().toLowerCase() ?? "";
+    if (normalized.startsWith("primary")) return "Primary";
+    if (normalized.startsWith("supporting")) return "Supporting";
+    if (normalized.includes("context") || normalized.includes("supplement")) return "Context";
+    return "Context";
+  };
+
+  const getRoleFromChecklistStep = (step: ChecklistStep) => {
+    const text = `${step.id} ${step.title} ${step.purposeLabel}`.toLowerCase();
+
+    const primaryTokens = [
+      "primary",
+      "overview",
+      "damage",
+      "close_up",
+      "close-up",
+      "scene_overview",
+      "scene overview",
+      "ownership",
+      "policy",
+      "compliance document",
+      "export",
+      "primary media",
+      "primary document",
+    ];
+
+    const supportingTokens = [
+      "supporting",
+      "witness",
+      "statement",
+      "source",
+      "context",
+      "timeline",
+      "log",
+      "reviewer",
+      "note",
+      "optional",
+    ];
+
+    if (primaryTokens.some((token) => text.includes(token))) {
+      return "Primary";
+    }
+
+    if (supportingTokens.some((token) => text.includes(token))) {
+      return "Supporting";
+    }
+
+    return step.required ? "Primary" : "Supporting";
+  };
+
+const getRoleRequirementDisplayLabel = (
+  item: SessionItem,
+  mappedStep: ChecklistStep | null
+) => {
+  const roleLabel = mappedStep
+    ? getRoleFromChecklistStep(mappedStep)
+    : getSimpleRoleLabel(item.role);
+
+  if (!mappedStep) return `${roleLabel} · Unmapped`;
+
+  return `${roleLabel} · ${mappedStep.title}`;
+};
+
+const getRoleRequirementOptionLabel = (step: ChecklistStep) =>
+  `${getRoleFromChecklistStep(step)} · ${step.required ? "Required" : "Optional"} · ${step.title}`;
 
   // Operational dense table mode for large evidence sessions.
   const [denseListMode, setDenseListMode] = useState(false);
@@ -371,10 +431,6 @@ export default function CapturePage() {
     ]
   );
 
-  const closeMaterialDropdown = () => {
-  setMaterialDropdownOpenId(null);
-};
-
 useEffect(() => {
   const hasStagedMaterials = sessionItems.length > 0 && !busy;
 
@@ -398,14 +454,9 @@ useEffect(() => {
     if (!target) return;
 
     const clickedInsidePlanDropdown = target.closest(".capture-plan-dropdown");
-    const clickedInsideMaterialDropdown = target.closest(".capture-material-dropdown");
 
     if (!clickedInsidePlanDropdown) {
       setPlanDropdownOpen(false);
-    }
-
-    if (!clickedInsideMaterialDropdown) {
-      setMaterialDropdownOpenId(null);
     }
   };
 
@@ -457,11 +508,6 @@ useEffect(() => {
         style={{ display: "none" }}
       />
 
-      <datalist id="role-suggestions">
-        {ROLE_SUGGESTIONS.map((role) => (
-          <option key={role} value={role} />
-        ))}
-      </datalist>
 
       <div className="capture-enterprise-shell">
         {draftList.drafts.length > 0 && !sessionItems.length ? (
@@ -845,8 +891,7 @@ useEffect(() => {
           <span>File</span>
           <span>Type</span>
           <span>Size</span>
-          <span>Role</span>
-          <span>Mapping</span>
+          <span>Role & requirement</span>
           <span>Upload</span>
           <span>Status</span>
           <span aria-hidden="true" />
@@ -871,12 +916,6 @@ useEffect(() => {
             : qualityStatus.tone === "success"
               ? "success"
               : "warning";
-
-        const mappedLabel = mappedStep
-          ? `${getStepRequirementLabel(mappedStep)} mapped`
-          : planMode === "CHECKLIST_REQUIRED"
-            ? "Unmapped required"
-            : "Optional unmapped";
 
         const mappingHelper = mappedStep
           ? `${mappedStep.title} • ${mappedStep.purposeLabel}`
@@ -931,11 +970,8 @@ useEffect(() => {
               <span className="capture-material-row-size">
                 {formatFileSize(item.file.size)}
               </span>
-              <span className="capture-material-row-role">
-                {item.role?.trim() || "Inferred role"}
-              </span>
               <span
-                className={`capture-material-row-mapping ${
+                className={`capture-material-row-role-requirement ${
                   mappedStep
                     ? mappedStep.required
                       ? "required"
@@ -943,7 +979,7 @@ useEffect(() => {
                     : "unmapped"
                 }`}
               >
-                {mappedLabel}
+                {getRoleRequirementDisplayLabel(item, mappedStep)}
               </span>
               <span className="capture-material-row-upload">{uploadLabel}</span>
               <span
@@ -991,9 +1027,7 @@ useEffect(() => {
         return (
           <div
             key={item.id}
-            className={`capture-material-card ${
-              materialDropdownOpenId === item.id ? "is-open" : ""
-            }`}
+            className="capture-material-card"
           >
             <div className="capture-material-preview">
 <div className={`capture-material-type-overlay ${previewTypeLabel.toLowerCase()}`}>
@@ -1040,15 +1074,7 @@ useEffect(() => {
 
                 <div className="capture-material-pill-row capture-phase4-material-pill-row">
                   <span
-                    className={`capture-material-role-pill ${
-                      item.role ? "explicit" : "inferred"
-                    }`}
-                  >
-                    {item.role?.trim() || "Inferred role"}
-                  </span>
-
-                  <span
-                    className={`capture-material-status-pill ${
+                    className={`capture-material-role-requirement-pill ${
                       mappedStep
                         ? mappedStep.required
                           ? "required"
@@ -1056,7 +1082,7 @@ useEffect(() => {
                         : "unmapped"
                     }`}
                   >
-                    {mappedLabel}
+{getRoleRequirementDisplayLabel(item, mappedStep)}
                   </span>
 
                   <span className={`capture-material-risk-pill ${riskTone}`}>
@@ -1064,14 +1090,49 @@ useEffect(() => {
                   </span>
                 </div>
 
-                <div className={`capture-material-mapping-helper ${mappedStep ? "mapped" : "unmapped"}`}>
-                  {mappingHelper}
-                </div>
+<div className="capture-material-inline-map">
+  <select
+    value={item.checklistStepId ?? UNMAPPED_OPTION_VALUE}
+    disabled={busy}
+    onChange={(event) => {
+      const selectedValue = event.target.value;
+      const selectedStep = selectedCollectionPlan?.steps.find(
+        (step) => step.id === selectedValue
+      );
 
-                <button
-                  type="button"
-                  className="capture-material-expand-button"
-                  onClick={() =>
+      updateSessionItem(item.id, {
+        checklistStepId:
+          selectedValue === UNMAPPED_OPTION_VALUE
+            ? null
+            : selectedStep?.id ?? null,
+role:
+  selectedValue === UNMAPPED_OPTION_VALUE
+    ? "Context / supplemental"
+    : selectedStep
+      ? `${getRoleFromChecklistStep(selectedStep)} evidence`
+      : item.role,
+          });
+    }}
+  >
+<option value={UNMAPPED_OPTION_VALUE}>
+  Context · Unmapped · Leave unmapped / supplemental
+</option>
+    {selectedCollectionPlan?.steps.map((step) => (
+      <option key={step.id} value={step.id}>
+        {getRoleRequirementOptionLabel(step)}
+      </option>
+    ))}
+  </select>
+</div>
+
+<div className={`capture-material-mapping-helper ${mappedStep ? "mapped" : "unmapped"}`}>
+  {mappingHelper}
+</div>
+
+<button
+  type="button"
+  className="capture-material-expand-button"
+                    onClick={() =>
                     setExpandedMaterialId((current) =>
                       current === item.id ? null : item.id
                     )
@@ -1086,97 +1147,6 @@ useEffect(() => {
 
               {isExpanded ? (
                 <div className="capture-material-review-panel">
-                  <label className="capture-material-field capture-material-role-field">
-                    <span>Evidence role</span>
-                    <select
-                      value={item.role ?? ""}
-                      disabled={busy}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        updateSessionItem(item.id, {
-                          role: value ? value : undefined,
-                        });
-                      }}
-                    >
-                      {EVIDENCE_ROLE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <small>
-                      {item.role
-                        ? "Explicit role selected."
-                        : "No explicit role chosen. Role will be inferred from mapping or default rules."
-                      }
-                    </small>
-                  </label>
-
-                  <div
-                    className={`capture-material-dropdown ${
-                      materialDropdownOpenId === item.id ? "is-open" : ""
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      className="capture-material-dropdown-trigger"
-                      disabled={busy}
-                      onClick={() =>
-                        setMaterialDropdownOpenId((current) =>
-                          current === item.id ? null : item.id
-                        )
-                      }
-                    >
-                      <span>
-                        {mappedStep
-                          ? `Mapped: ${getStepRequirementLabel(mappedStep)}`
-                          : planMode === "CHECKLIST_REQUIRED"
-                            ? "Map to requirement"
-                            : "Map to collection step"}
-                      </span>
-                      <span className="capture-material-dropdown-chevron">⌄</span>
-                    </button>
-
-                    {materialDropdownOpenId === item.id ? (
-                      <div className="capture-material-dropdown-menu">
-                        <button
-                          type="button"
-                          className={!item.checklistStepId ? "active" : ""}
-                          onClick={() => {
-                            updateSessionItem(item.id, { checklistStepId: null });
-                            closeMaterialDropdown();
-                          }}
-                        >
-                          <span>No mapping selected</span>
-                          <small>Leave unmapped only when this material is supplemental.</small>
-                        </button>
-
-                        {selectedCollectionPlan?.steps.map((step) => (
-                          <button
-                            key={step.id}
-                            type="button"
-                            className={
-                              item.checklistStepId === step.id ? "active" : ""
-                            }
-                            onClick={() => {
-                              updateSessionItem(item.id, {
-                                checklistStepId: step.id,
-                              });
-                              closeMaterialDropdown();
-                            }}
-                          >
-                            <span>
-                              {getStepRequirementLabel(step)} · {step.title}
-                            </span>
-                            <small>
-                              {step.purposeLabel} · Accepts {step.acceptedKinds?.map(formatEvidenceTypeLabel).join(", ")}
-                            </small>
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-
                   <div
                     className={
                       qualityStatus.tone === "success"
