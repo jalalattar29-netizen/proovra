@@ -65,6 +65,9 @@ export default function CapturePage() {
   const [openMaterialDropdownId, setOpenMaterialDropdownId] = useState<
     string | null
   >(null);
+  const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(
+  null
+);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   const getSimpleRoleLabel = (role?: string | null) => {
@@ -892,229 +895,248 @@ export default function CapturePage() {
                 ) : null}
 
                 <div className="capture-materials-list">
-                  <div className="capture-materials-list-header" role="rowheader">
-                    <span>#</span>
-                    <span>Preview</span>
-                    <span>File</span>
-                    <span>Type</span>
-                    <span>Size</span>
-                    <span>Role & requirement</span>
-                    <span>Upload</span>
-                    <span>Status</span>
-                    <span aria-hidden="true" />
-                  </div>
+<div className="capture-materials-list-header" role="rowheader">
+  <span>#</span>
+  <span>Preview</span>
+  <span>File</span>
+  <span>Type</span>
+  <span>Size</span>
+  <span>Role & requirement</span>
+  <span>Upload</span>
+  <span>Status</span>
+  <span>Actions</span>
+</div>
 
-                  {sessionItems.map((item, index) => {
-                    const mappedStep = getChecklistStepById(
-                      selectedCollectionPlan,
-                      item.checklistStepId
-                    );
+{sessionItems.map((item, index) => {
+  const mappedStep = getChecklistStepById(
+    selectedCollectionPlan,
+    item.checklistStepId
+  );
 
-                    const qualityStatus = getItemQualityStatus({
-                      item,
-                      step: mappedStep,
+  const qualityStatus = getItemQualityStatus({
+    item,
+    step: mappedStep,
+  });
+
+  const isExpanded = expandedMaterialId === item.id;
+
+  const riskTone =
+    qualityStatus.tone === "danger"
+      ? "critical"
+      : qualityStatus.tone === "success"
+        ? "success"
+        : "warning";
+
+  const typeLabel = deriveSessionItemTypeLabel(item.mimeType);
+
+  const previewTypeLabel = item.relativePath
+    ? "FOLDER"
+    : item.mimeType.startsWith("audio/")
+      ? "AUDIO"
+      : item.mimeType.startsWith("video/")
+        ? "VIDEO"
+        : item.mimeType.startsWith("image/")
+          ? "IMAGE"
+          : item.mimeType === "application/pdf"
+            ? "PDF"
+            : "FILE";
+
+  const FileIcon = item.relativePath
+    ? Folder
+    : item.mimeType.startsWith("audio/")
+      ? Mic
+      : item.mimeType.startsWith("video/")
+        ? Video
+        : item.mimeType.startsWith("image/")
+          ? ImageIcon
+          : FileText;
+
+  const uploadLabel = item.error
+    ? "Failed"
+    : item.uploadProgress >= 100
+      ? "Uploaded"
+      : item.uploading
+        ? `${item.uploadProgress}%`
+        : "Pending";
+
+  const mappingHelper = mappedStep
+    ? `${mappedStep.title} • ${mappedStep.purposeLabel}`
+    : planMode === "CHECKLIST_REQUIRED"
+      ? "Choose a required collection step before Review & Sign."
+      : "Optional context can be linked to a collection step.";
+
+  return (
+    <div
+      key={item.id}
+      className={`capture-material-row-shell ${
+        isExpanded ? "is-expanded" : ""
+      }`}
+    >
+      <div className="capture-material-row" role="row">
+        <span className="capture-material-row-index">{index + 1}</span>
+
+        <span className="capture-material-row-preview">
+          <span className={`capture-material-row-type-icon ${previewTypeLabel.toLowerCase()}`}>
+            <FileIcon size={13} strokeWidth={2.2} />
+          </span>
+
+          {item.previewUrl && item.mimeType.startsWith("image/") ? (
+            <img src={item.previewUrl} alt={item.file.name} />
+          ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
+            <video src={item.previewUrl} muted playsInline />
+          ) : (
+            <span className="capture-material-row-file-icon">
+              <FileIcon size={24} strokeWidth={2} />
+            </span>
+          )}
+        </span>
+
+        <span className="capture-material-row-name" title={item.file.name}>
+          {item.file.name}
+        </span>
+
+        <span className="capture-material-row-type">{typeLabel}</span>
+
+        <span className="capture-material-row-size">
+          {formatFileSize(item.file.size)}
+        </span>
+
+        <span className="capture-material-row-map-cell">
+          <div
+            className={`capture-material-dropdown compact ${
+              openMaterialDropdownId === item.id ? "is-open" : ""
+            }`}
+          >
+            <button
+              type="button"
+              className="capture-material-dropdown-trigger"
+              disabled={busy}
+              aria-haspopup="listbox"
+              aria-expanded={openMaterialDropdownId === item.id}
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpenMaterialDropdownId((current) =>
+                  current === item.id ? null : item.id
+                );
+              }}
+            >
+              <span>{getRoleRequirementDisplayLabel(item, mappedStep)}</span>
+              <span className="capture-material-dropdown-chevron">⌄</span>
+            </button>
+
+            {openMaterialDropdownId === item.id ? (
+              <div className="capture-material-dropdown-menu" role="listbox">
+                <button
+                  type="button"
+                  className={!item.checklistStepId ? "active" : ""}
+                  onClick={() => {
+                    updateSessionItem(item.id, {
+                      checklistStepId: null,
+                      role: "Context / supplemental",
                     });
+                    setOpenMaterialDropdownId(null);
+                  }}
+                >
+                  <span>Context · Unmapped</span>
+                  <small>Leave unmapped or supplemental</small>
+                </button>
 
-                    const riskTone =
-                      qualityStatus.tone === "danger"
-                        ? "critical"
-                        : qualityStatus.tone === "success"
-                          ? "success"
-                          : "warning";
+                {selectedCollectionPlan?.steps.map((step) => {
+                  const active = item.checklistStepId === step.id;
 
-                    const typeLabel = deriveSessionItemTypeLabel(item.mimeType);
+                  return (
+                    <button
+                      key={step.id}
+                      type="button"
+                      className={active ? "active" : ""}
+                      onClick={() => {
+                        updateSessionItem(item.id, {
+                          checklistStepId: step.id,
+                          role: `${getRoleFromChecklistStep(step)} evidence`,
+                        });
+                        setOpenMaterialDropdownId(null);
+                      }}
+                    >
+                      <span>
+                        {getRoleFromChecklistStep(step)} · {step.title}
+                      </span>
+                      <small>
+                        {step.required ? "Required" : "Optional"} ·{" "}
+                        {step.acceptedKinds?.map(formatEvidenceTypeLabel).join(", ") ||
+                          "Any supported material"}
+                      </small>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        </span>
 
-                    const FileIcon = item.relativePath
-                      ? Folder
-                      : item.mimeType.startsWith("audio/")
-                        ? Mic
-                        : item.mimeType.startsWith("video/")
-                          ? Video
-                          : item.mimeType.startsWith("image/")
-                            ? ImageIcon
-                            : FileText;
+        <span className="capture-material-row-upload">{uploadLabel}</span>
 
-                    const uploadLabel = item.error
-                      ? "Failed"
-                      : item.uploadProgress >= 100
-                        ? "Uploaded"
-                        : item.uploading
-                          ? `${item.uploadProgress}%`
-                          : "Pending";
+        <span
+          className={`capture-material-row-status ${
+            item.error ? "critical" : riskTone
+          }`}
+        >
+          {item.error ? "Retry needed" : qualityStatus.label}
+        </span>
 
-                    return (
-                      <div
-                        key={item.id}
-                        className="capture-material-row"
-                        role="row"
-                      >
-                        <span className="capture-material-row-index">
-                          {index + 1}
-                        </span>
+        <span className="capture-material-row-actions">
+          <button
+            type="button"
+            onClick={() =>
+              setExpandedMaterialId((current) =>
+                current === item.id ? null : item.id
+              )
+            }
+          >
+            {isExpanded ? "Close" : "Notes"}
+          </button>
 
-<span className="capture-material-row-preview">
-  <span className="capture-material-row-type-badge">
-    <FileIcon size={12} strokeWidth={2.2} />
-  </span>
+          {!busy ? (
+            <button type="button" onClick={() => removeSessionItem(item.id)}>
+              Remove
+            </button>
+          ) : null}
+        </span>
+      </div>
 
-  {item.previewUrl && item.mimeType.startsWith("image/") ? (
-    <img src={item.previewUrl} alt={item.file.name} />
-  ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
-    <video src={item.previewUrl} muted playsInline />
-  ) : (
-    <span className="capture-material-row-file-icon">
-      <FileIcon size={24} strokeWidth={2} />
-    </span>
-  )}
-</span>
+      {isExpanded ? (
+        <div className="capture-material-detail-row">
+          <div className="capture-material-detail-preview">
+            {item.previewUrl && item.mimeType.startsWith("image/") ? (
+              <img src={item.previewUrl} alt={item.file.name} />
+            ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
+              <video src={item.previewUrl} muted playsInline controls />
+            ) : (
+              <FileIcon size={34} strokeWidth={1.9} />
+            )}
+          </div>
 
-                        <span
-                          className="capture-material-row-name"
-                          title={item.file.name}
-                        >
-                          {item.file.name}
-                        </span>
+          <div className="capture-material-detail-main">
+            <strong>Reviewer note</strong>
+            <p>{mappingHelper}</p>
 
-                        <span className="capture-material-row-type">
-                          {typeLabel}
-                        </span>
-
-                        <span className="capture-material-row-size">
-                          {formatFileSize(item.file.size)}
-                        </span>
-
-                        <span className="capture-material-row-map-cell">
-                          <div
-className={`capture-material-dropdown compact ${
-  openMaterialDropdownId === item.id ? "is-open" : ""
-} ${index >= sessionItems.length - 2 ? "open-up" : ""}`}
-                          >
-                            <button
-                              type="button"
-                              className="capture-material-dropdown-trigger"
-                              disabled={busy}
-                              aria-haspopup="listbox"
-                              aria-expanded={openMaterialDropdownId === item.id}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setOpenMaterialDropdownId((current) =>
-                                  current === item.id ? null : item.id
-                                );
-                              }}
-                            >
-                              <span>
-                                {getRoleRequirementDisplayLabel(item, mappedStep)}
-                              </span>
-                              <span className="capture-material-dropdown-chevron">
-                                ⌄
-                              </span>
-                            </button>
-
-                            {openMaterialDropdownId === item.id ? (
-                              <div
-                                className="capture-material-dropdown-menu"
-                                role="listbox"
-                              >
-                                <button
-                                  type="button"
-                                  className={
-                                    !item.checklistStepId ? "active" : ""
-                                  }
-                                  onClick={() => {
-                                    updateSessionItem(item.id, {
-                                      checklistStepId: null,
-                                      role: "Context / supplemental",
-                                    });
-                                    setOpenMaterialDropdownId(null);
-                                  }}
-                                >
-                                  <span>Context · Unmapped</span>
-                                  <small>Leave unmapped or supplemental</small>
-                                </button>
-
-                                {selectedCollectionPlan?.steps.map((step) => {
-                                  const active = item.checklistStepId === step.id;
-
-                                  return (
-                                    <button
-                                      key={step.id}
-                                      type="button"
-                                      className={active ? "active" : ""}
-                                      onClick={() => {
-                                        updateSessionItem(item.id, {
-                                          checklistStepId: step.id,
-                                          role: `${getRoleFromChecklistStep(
-                                            step
-                                          )} evidence`,
-                                        });
-                                        setOpenMaterialDropdownId(null);
-                                      }}
-                                    >
-                                      <span>
-                                        {getRoleFromChecklistStep(step)} ·{" "}
-                                        {step.title}
-                                      </span>
-                                      <small>
-                                        {step.required ? "Required" : "Optional"} ·{" "}
-                                        {step.acceptedKinds
-                                          ?.map(formatEvidenceTypeLabel)
-                                          .join(", ") || "Any supported material"}
-                                      </small>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            ) : null}
-                          </div>
-                        </span>
-
-                        <span className="capture-material-row-upload">
-                          {uploadLabel}
-                        </span>
-
-                        <span
-                          className={`capture-material-row-status ${
-                            item.error ? "critical" : riskTone
-                          }`}
-                        >
-                          {item.error ? "Retry needed" : qualityStatus.label}
-                        </span>
-
-                        <span className="capture-material-row-actions">
-                          {item.error && !busy ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSessionItems((prev) =>
-                                  prev.map((current) =>
-                                    current.id === item.id
-                                      ? {
-                                          ...current,
-                                          error: null,
-                                          uploadProgress: 0,
-                                          uploading: false,
-                                        }
-                                      : current
-                                  )
-                                )
-                              }
-                            >
-                              Retry
-                            </button>
-                          ) : null}
-
-                          {!busy ? (
-                            <button
-                              type="button"
-                              onClick={() => removeSessionItem(item.id)}
-                            >
-                              Remove
-                            </button>
-                          ) : null}
-                        </span>
-                      </div>
-                    );
-                  })}
+            <textarea
+              value={item.privateNote ?? ""}
+              onChange={(event) =>
+                updateSessionItem(item.id, {
+                  privateNote: event.target.value,
+                })
+              }
+              disabled={busy}
+              placeholder="Add private reviewer comment for this material."
+              maxLength={1000}
+              className="capture-material-note"
+            />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+})}
                 </div>
               </div>
             ) : null}
