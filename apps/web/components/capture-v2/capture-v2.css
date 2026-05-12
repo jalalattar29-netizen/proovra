@@ -8488,3 +8488,106 @@ box-shadow:
   opacity: 0 !important;
   pointer-events: none !important;
 }
+
+/* FINAL — setup cards icon + bronze selected title */
+
+.capture-setup-mode > svg,
+.capture-setup-location > svg {
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  padding: 10px !important;
+  border-radius: 14px !important;
+
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  background: linear-gradient(180deg, #159789 0%, #0f766e 100%) !important;
+  box-shadow: 0 10px 22px rgba(15, 92, 86, 0.18) !important;
+
+  overflow: visible !important;
+}
+
+.capture-setup-mode > svg *,
+.capture-setup-location > svg * {
+  stroke: #ffffff !important;
+}
+
+/* selected title bronze مثل القديم */
+.capture-setup-mode.active strong,
+.capture-setup-location:has(input:checked) strong {
+  color: #9a6b3d !important;
+}
+
+/* غير المختار يبقى أسود */
+.capture-setup-mode:not(.active) strong,
+.capture-setup-location:not(:has(input:checked)) strong {
+  color: #17252a !important;
+}
+
+/* لا تخلي الـ CSS القديم يعمل fake icon فوق الأيقونة */
+.capture-setup-mode::before,
+.capture-setup-location::before {
+  content: none !important;
+  display: none !important;
+}
+
+/* FINAL TRUE FIX — setup icons are inside .capture-setup-icon */
+
+.capture-setup-mode > svg,
+.capture-setup-location > svg {
+  all: unset !important;
+}
+
+.capture-setup-icon {
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  flex: 0 0 42px !important;
+
+  display: grid !important;
+  place-items: center !important;
+
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #2f9e92 0%, #15756b 100%) !important;
+  color: #ffffff !important;
+
+  box-shadow: 0 10px 22px rgba(15, 92, 86, 0.18) !important;
+}
+
+.capture-setup-icon svg {
+  width: 19px !important;
+  height: 19px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.capture-setup-icon svg * {
+  stroke: #ffffff !important;
+}
+
+/* selected title bronze */
+.capture-setup-mode.active strong,
+.capture-setup-location.active strong {
+  color: #9a6b3d !important;
+}
+
+/* unselected title normal */
+.capture-setup-mode:not(.active) strong,
+.capture-setup-location:not(.active) strong {
+  color: #17252a !important;
+}
+
+/* kill fake icons */
+.capture-setup-mode::before,
+.capture-setup-location::before {
+  display: none !important;
+  content: none !important;
+}
+
+.capture-setup-mode.active strong,
+.capture-setup-location.active strong {
+  color: #9a6b3d !important;
+}
