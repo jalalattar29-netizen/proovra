@@ -6860,3 +6860,257 @@ box-shadow:
   border-color: rgba(240, 68, 56, 0.24) !important;
   color: #b42318 !important;
 }
+
+/* =========================================================
+   HARD FIX — Evidence mapping dropdown above bottom bar
+   ========================================================= */
+
+.capture-enterprise-page,
+.capture-enterprise-shell,
+.capture-enterprise-grid,
+.capture-main-panel,
+.capture-materials-board,
+.capture-materials-list,
+.capture-material-row,
+.capture-material-row-map-cell {
+  overflow: visible !important;
+}
+
+.capture-materials-board {
+  position: relative !important;
+  z-index: 50 !important;
+}
+
+.capture-materials-list {
+  position: relative !important;
+  overflow: visible !important;
+  z-index: 60 !important;
+}
+
+.capture-material-row {
+  position: relative !important;
+  overflow: visible !important;
+  z-index: 1 !important;
+}
+
+.capture-material-row:has(.capture-material-dropdown.is-open) {
+  z-index: 99999 !important;
+}
+
+.capture-material-row-map-cell {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+.capture-material-dropdown {
+  position: relative !important;
+  z-index: 20 !important;
+}
+
+.capture-material-dropdown.is-open {
+  z-index: 100000 !important;
+}
+
+.capture-material-dropdown-menu {
+  position: absolute !important;
+  left: 0 !important;
+  top: calc(100% + 8px) !important;
+  bottom: auto !important;
+
+  width: 320px !important;
+  max-width: min(320px, calc(100vw - 32px)) !important;
+  max-height: 280px !important;
+  overflow-y: auto !important;
+
+  z-index: 100001 !important;
+
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28) !important;
+}
+
+/* آخر صفين يفتحوا لفوق بدل ما يدخلوا تحت Review & Sign */
+.capture-material-dropdown.open-up .capture-material-dropdown-menu {
+  top: auto !important;
+  bottom: calc(100% + 8px) !important;
+}
+
+/* Review & Sign لازم يضل تحت الدروبداون */
+.capture-bottom-bar {
+  position: relative !important;
+  z-index: 5 !important;
+}
+
+/* HARD FIX — bottom Review & Sign status stays transparent in every state */
+.capture-bottom-bar,
+.capture-bottom-bar-inner,
+.capture-phase4-bottom-bar-inner,
+.capture-phase4-bottom-bar-inner:has(.capture-phase4-missing-list) {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.capture-bottom-bar {
+  border-top: 1px solid rgba(15, 23, 42, 0.06) !important;
+  padding-top: 14px !important;
+}
+
+/* شيل الأحمر الشفاف اللي بيطلع وقت ما ما في evidence */
+.capture-phase4-bottom-bar-inner:has(.capture-phase4-missing-list) {
+  box-shadow: none !important;
+}
+
+.capture-bottom-bar-inner > div:first-child {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding-left: 0 !important;
+}
+
+.capture-bottom-bar-inner p {
+  color: rgba(15, 23, 42, 0.58) !important;
+}
+
+.capture-phase4-missing-list {
+  color: #9f2f25 !important;
+  font-weight: 800 !important;
+}
+
+/* Enterprise evidence thumbnails */
+.capture-material-row-preview {
+  position: relative !important;
+  width: 82px !important;
+  height: 56px !important;
+  min-width: 82px !important;
+  max-width: 82px !important;
+  min-height: 56px !important;
+  max-height: 56px !important;
+  display: block !important;
+  overflow: hidden !important;
+  border-radius: 12px !important;
+  background: #f3f6f6 !important;
+  border: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+.capture-material-row-preview img,
+.capture-material-row-preview video {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  object-fit: cover !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.capture-material-row-file-icon {
+  width: 100% !important;
+  height: 100% !important;
+  display: grid !important;
+  place-items: center !important;
+  color: #17857b !important;
+  background: rgba(23, 133, 123, 0.08) !important;
+}
+
+.capture-material-row-type-badge {
+  position: absolute !important;
+  top: 5px !important;
+  left: 5px !important;
+  z-index: 4 !important;
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 7px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid rgba(23, 133, 123, 0.22) !important;
+  color: #17857b !important;
+  box-shadow: 0 5px 12px rgba(15, 23, 42, 0.14) !important;
+}
+
+.capture-material-row-type-badge svg,
+.capture-material-row-type-badge svg * {
+  width: 12px !important;
+  height: 12px !important;
+  color: #17857b !important;
+  stroke: #17857b !important;
+}
+
+/* =========================================================
+   ENTERPRISE DROPDOWN LAYER FIX
+========================================================= */
+
+.capture-enterprise-page,
+.capture-enterprise-shell,
+.capture-enterprise-grid,
+.capture-main-panel,
+.capture-materials-board,
+.capture-materials-list,
+.capture-material-row,
+.capture-material-row-map-cell {
+  overflow: visible !important;
+}
+
+.capture-materials-board,
+.capture-materials-list {
+  position: relative !important;
+  z-index: 60 !important;
+}
+
+.capture-material-row {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.capture-material-row:has(.capture-material-dropdown.is-open) {
+  z-index: 99999 !important;
+}
+
+.capture-material-row-map-cell {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+.capture-material-dropdown {
+  position: relative !important;
+  z-index: 100 !important;
+}
+
+.capture-material-dropdown.is-open {
+  z-index: 100000 !important;
+}
+
+.capture-material-dropdown-menu {
+  position: absolute !important;
+  left: 0 !important;
+  top: calc(100% + 8px) !important;
+  bottom: auto !important;
+
+  width: 320px !important;
+  max-width: min(320px, calc(100vw - 32px)) !important;
+  max-height: 280px !important;
+  overflow-y: auto !important;
+
+  z-index: 100001 !important;
+
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.1) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24) !important;
+}
+
+/* آخر صفين يفتحوا لفوق */
+.capture-material-dropdown.open-up .capture-material-dropdown-menu {
+  top: auto !important;
+  bottom: calc(100% + 8px) !important;
+}
+
+/* bottom bar يبقى تحت الدروبداون */
+.capture-bottom-bar {
+  position: relative !important;
+  z-index: 5 !important;
+}

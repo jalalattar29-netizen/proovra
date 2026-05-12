@@ -953,19 +953,21 @@ export default function CapturePage() {
                           {index + 1}
                         </span>
 
-                        <span className="capture-material-row-preview">
-                          {item.previewUrl &&
-                          item.mimeType.startsWith("image/") ? (
-                            <img src={item.previewUrl} alt={item.file.name} />
-                          ) : item.previewUrl &&
-                            item.mimeType.startsWith("video/") ? (
-                            <video src={item.previewUrl} muted playsInline />
-                          ) : (
-                            <span className="capture-material-row-file-icon">
-                              <FileIcon size={22} strokeWidth={2} />
-                            </span>
-                          )}
-                        </span>
+<span className="capture-material-row-preview">
+  <span className="capture-material-row-type-badge">
+    <FileIcon size={12} strokeWidth={2.2} />
+  </span>
+
+  {item.previewUrl && item.mimeType.startsWith("image/") ? (
+    <img src={item.previewUrl} alt={item.file.name} />
+  ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
+    <video src={item.previewUrl} muted playsInline />
+  ) : (
+    <span className="capture-material-row-file-icon">
+      <FileIcon size={24} strokeWidth={2} />
+    </span>
+  )}
+</span>
 
                         <span
                           className="capture-material-row-name"
@@ -984,9 +986,9 @@ export default function CapturePage() {
 
                         <span className="capture-material-row-map-cell">
                           <div
-                            className={`capture-material-dropdown compact ${
-                              openMaterialDropdownId === item.id ? "is-open" : ""
-                            }`}
+className={`capture-material-dropdown compact ${
+  openMaterialDropdownId === item.id ? "is-open" : ""
+} ${index >= sessionItems.length - 2 ? "open-up" : ""}`}
                           >
                             <button
                               type="button"
@@ -1260,7 +1262,6 @@ export default function CapturePage() {
             useLocation={useLocation}
             planMode={planMode}
             requiredProgressPercent={requiredProgressPercent}
-            persistentMessages={persistentSidebarMessages}
             formatFileSize={formatFileSize}
           />
         </section>

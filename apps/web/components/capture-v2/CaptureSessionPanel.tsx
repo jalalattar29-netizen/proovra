@@ -14,14 +14,6 @@ type CaptureAiSummary = {
   locationRequirement: "optional" | "recommended" | "required";
 };
 
-type PersistentSidebarMessage = {
-  id: string;
-  title: string;
-  detail: string;
-  tone: "info" | "warning" | "danger" | "success";
-  meta?: string;
-};
-
 type Props = {
   busy: boolean;
   error: string | null;
@@ -40,7 +32,6 @@ type Props = {
   useLocation: boolean;
   planMode: CapturePlanMode;
   requiredProgressPercent: number;
-  persistentMessages: PersistentSidebarMessage[];
   formatFileSize: (bytes: number) => string;
 };
 
@@ -93,7 +84,6 @@ export function CaptureSessionPanel({
   useLocation,
   planMode,
   requiredProgressPercent,
-  persistentMessages,
   formatFileSize,
 }: Props) {
   const readiness = readinessCopy[sessionReadiness.status];
@@ -202,32 +192,6 @@ export function CaptureSessionPanel({
           ) : (
             <div className="capture-command-clear">No advisory warnings detected.</div>
           )}
-        </section>
-
-        <section className="capture-command-section capture-phase8-message-center">
-          <div className="capture-command-section-title">
-            <span>Persistent messages</span>
-            <strong>{persistentMessages.length}</strong>
-          </div>
-          <div className="capture-phase8-message-list" aria-live="polite">
-            {persistentMessages.map((message) => (
-              <article
-                key={message.id}
-                className={`capture-phase8-message-row ${message.tone}`}
-              >
-                <div className="capture-phase8-message-icon">
-                  <MessageSquareText size={15} strokeWidth={2.1} />
-                </div>
-                <div>
-                  <div className="capture-phase8-message-topline">
-                    <strong>{message.title}</strong>
-                    {message.meta ? <span>{message.meta}</span> : null}
-                  </div>
-                  <p>{message.detail}</p>
-                </div>
-              </article>
-            ))}
-          </div>
         </section>
 
         <section className="capture-command-section capture-session-metadata-card">
