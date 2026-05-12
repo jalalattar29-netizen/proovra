@@ -12,7 +12,6 @@ import {
   getReviewerUploadModeLabel,
   hasCaptureLocationMetadata,
   isPrimaryReviewerArtifactRole,
-  maskPublicEmail,
   maskPublicEmailsInText,
   resolveReviewerArtifactRole,
   resolveEffectiveOtsStatus,
