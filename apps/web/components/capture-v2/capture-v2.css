@@ -8649,3 +8649,51 @@ box-shadow:
   background: linear-gradient(180deg, #0f8d7f 0%, #0a6d63 100%) !important;
   color: #ffffff !important;
 }
+
+/* FINAL FIX — setup cards normal size, not squeezed */
+.capture-setup-strip {
+  grid-template-columns: 320px minmax(0, 1fr) !important;
+}
+
+.capture-setup-description {
+  grid-column: 2 !important;
+  margin: 0 0 12px !important;
+  max-width: 760px !important;
+  color: #17252a !important;
+  font-size: 0.92rem !important;
+  line-height: 1.45 !important;
+}
+
+.capture-setup-controls {
+  grid-column: 2 !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(190px, 1fr)) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+}
+
+.capture-setup-mode,
+.capture-setup-location {
+  min-width: 190px !important;
+  min-height: 78px !important;
+  padding: 14px 18px !important;
+  grid-template-columns: 48px minmax(0, 1fr) 18px !important;
+  gap: 14px !important;
+}
+
+.capture-setup-icon {
+  width: 48px !important;
+  height: 48px !important;
+  min-width: 48px !important;
+  border-radius: 15px !important;
+}
+
+.capture-setup-mode strong,
+.capture-setup-location strong {
+  font-size: 0.95rem !important;
+}
+
+.capture-setup-mode small,
+.capture-setup-location small {
+  font-size: 0.78rem !important;
+}
