@@ -8698,24 +8698,19 @@ box-shadow:
   font-size: 0.78rem !important;
 }
 
-/* widen setup cards slightly */
 .capture-setup-controls {
-  grid-template-columns: repeat(3, minmax(220px, 1fr)) !important;
-  gap: 16px !important;
+  grid-column: 2 !important;
+  display: grid !important;
+  grid-template-columns: 1.12fr 1.12fr 1.2fr !important;
+  gap: 14px !important;
+  width: 100% !important;
+  align-items: stretch !important;
 }
 
 .capture-setup-mode,
 .capture-setup-location {
-  min-width: 220px !important;
-  min-height: 84px !important;
-  padding: 16px 20px !important;
-}
-
-/* location disabled text = red */
-.capture-setup-location small {
-  color: #8b98a7 !important;
-}
-
-.capture-setup-location:not(.active) small {
-  color: #c55b5b !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 78px !important;
+  padding: 14px 16px !important;
 }
