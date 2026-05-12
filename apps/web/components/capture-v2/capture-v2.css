@@ -8714,3 +8714,106 @@ box-shadow:
   min-height: 78px !important;
   padding: 14px 16px !important;
 }
+
+/* FINAL FIX — setup cards exactly like target image */
+
+.capture-setup-strip {
+  grid-template-columns: 260px minmax(0, 1fr) !important;
+  overflow: hidden !important;
+}
+
+.capture-setup-description {
+  max-width: 680px !important;
+  color: #17252a !important;
+  font-size: 0.92rem !important;
+  font-weight: 500 !important;
+  line-height: 1.45 !important;
+}
+
+.capture-setup-controls {
+  grid-column: 2 !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(210px, 1fr)) !important;
+  gap: 14px !important;
+  max-width: 760px !important;
+  margin-top: 18px !important;
+}
+
+.capture-setup-mode,
+.capture-setup-location {
+  min-width: 0 !important;
+  width: 100% !important;
+  min-height: 74px !important;
+  display: grid !important;
+  grid-template-columns: 46px minmax(0, 1fr) 18px !important;
+  align-items: center !important;
+  gap: 14px !important;
+  padding: 14px 16px !important;
+  border-radius: 16px !important;
+}
+
+.capture-setup-mode strong,
+.capture-setup-location strong {
+  font-size: 0.9rem !important;
+  line-height: 1.1 !important;
+}
+
+.capture-setup-mode small,
+.capture-setup-location small {
+  font-size: 0.82rem !important;
+  line-height: 1.15 !important;
+  font-weight: 600 !important;
+}
+
+.capture-setup-location:not(.active) small {
+  color: #dc2626 !important;
+  font-weight: 800 !important;
+}
+
+.capture-setup-location.active small {
+  color: #667085 !important;
+  font-weight: 650 !important;
+}
+
+.capture-setup-mode::after,
+.capture-setup-location::after {
+  justify-self: end !important;
+  flex: none !important;
+  width: 17px !important;
+  height: 17px !important;
+  min-width: 17px !important;
+  min-height: 17px !important;
+}
+
+@media (max-width: 1320px) {
+  .capture-setup-controls {
+    grid-template-columns: repeat(3, minmax(185px, 1fr)) !important;
+    max-width: 690px !important;
+  }
+
+  .capture-setup-mode,
+  .capture-setup-location {
+    grid-template-columns: 42px minmax(0, 1fr) 18px !important;
+    gap: 12px !important;
+    padding: 13px 14px !important;
+  }
+
+  .capture-setup-mode small,
+  .capture-setup-location small {
+    font-size: 0.78rem !important;
+  }
+}
+
+/* step cards soft highlight */
+
+.capture-enterprise-step {
+  background: rgba(245, 249, 248, 0.92) !important;
+  border: 1px solid rgba(102, 168, 157, 0.28) !important;
+
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.03),
+    0 0 0 1px rgba(255,255,255,0.7) inset !important;
+
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
