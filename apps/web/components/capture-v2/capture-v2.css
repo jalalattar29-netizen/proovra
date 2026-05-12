@@ -7670,3 +7670,546 @@ box-shadow:
     grid-template-columns: 1fr !important;
   }
 }
+
+/* REAL FIX — restore enterprise proportions */
+
+.capture-enterprise-shell {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 18px 28px !important;
+}
+
+.capture-enterprise-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 320px !important;
+  gap: 18px !important;
+  align-items: start !important;
+}
+
+.capture-main-panel {
+  min-width: 0 !important;
+}
+
+.capture-enterprise-top,
+.capture-enterprise-steps,
+.capture-setup-strip,
+.capture-requirements-card,
+.capture-drop-zone-enterprise,
+.capture-materials-board {
+  max-width: 100% !important;
+}
+
+/* FIX gigantic typography */
+
+.capture-enterprise-title {
+  font-size: 3.2rem !important;
+  line-height: 1.02 !important;
+  letter-spacing: -0.05em !important;
+}
+
+.capture-enterprise-subtitle {
+  max-width: 920px !important;
+  font-size: 1rem !important;
+  line-height: 1.55 !important;
+}
+
+.capture-enterprise-step strong {
+  font-size: 0.92rem !important;
+}
+
+.capture-enterprise-step span {
+  font-size: 0.76rem !important;
+}
+
+.capture-card-title {
+  font-size: 1.02rem !important;
+}
+
+.capture-card-muted {
+  font-size: 0.82rem !important;
+  line-height: 1.45 !important;
+}
+
+/* FIX setup section layout */
+
+.capture-setup-strip {
+  display: grid !important;
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) !important;
+  gap: 22px !important;
+  align-items: center !important;
+}
+
+.capture-setup-strip-main {
+  display: contents !important;
+}
+
+.capture-setup-mode-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+}
+
+.capture-setup-mode,
+.capture-setup-location {
+  min-width: 160px !important;
+  max-width: 185px !important;
+  min-height: 72px !important;
+}
+
+/* REMOVE ugly lock note block */
+
+.capture-setup-lock-note {
+  display: none !important;
+}
+
+@media (max-width: 1250px) {
+  .capture-setup-strip-main {
+    grid-template-columns: 1fr !important;
+  }
+
+  .capture-setup-copy {
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .capture-setup-mode-group {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* =========================================================
+   FINAL CAPTURE FIX — real enterprise width + bottom bar
+   Put this at the VERY END of capture CSS
+========================================================= */
+
+/* الصفحة ما تبقى ممدودة وملزوقة */
+.capture-enterprise-page {
+  font-size: 14px !important;
+}
+
+.capture-enterprise-shell {
+  width: 100% !important;
+  max-width: 1440px !important;
+  margin: 0 auto !important;
+  padding: 28px 28px 0 !important;
+}
+
+/* Desktop layout: center gets space, right panel ثابت ومرتاح */
+@media (min-width: 1181px) {
+  .capture-enterprise-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 330px !important;
+    gap: 28px !important;
+    align-items: start !important;
+  }
+
+  .capture-main-panel {
+    min-width: 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .capture-session-column {
+    width: 330px !important;
+    min-width: 330px !important;
+    max-width: 330px !important;
+  }
+}
+
+/* الكروت لا تكون ضخمة */
+.capture-enterprise-card,
+.capture-main-panel,
+.capture-right-panel,
+.capture-command-center {
+  border-radius: 18px !important;
+}
+
+.capture-enterprise-title {
+  font-size: clamp(2rem, 2.6vw, 2.8rem) !important;
+  line-height: 1.04 !important;
+}
+
+.capture-enterprise-subtitle {
+  max-width: 780px !important;
+  font-size: 0.98rem !important;
+  line-height: 1.55 !important;
+}
+
+/* Collection setup يصير مرتب ومو مضغوط */
+.capture-setup-strip {
+  display: grid !important;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(360px, 1.2fr) auto !important;
+  align-items: center !important;
+  gap: 18px !important;
+  padding: 18px !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: #ffffff !important;
+}
+
+.capture-setup-strip-main {
+  display: contents !important;
+}
+
+.capture-setup-mode-group {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(145px, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.capture-setup-mode,
+.capture-setup-location {
+  min-height: 62px !important;
+  padding: 10px 12px !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.capture-setup-mode {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.capture-setup-mode.active {
+  border-color: rgba(15, 92, 86, 0.32) !important;
+  background: rgba(15, 92, 86, 0.065) !important;
+  box-shadow: inset 0 0 0 1px rgba(15, 92, 86, 0.08) !important;
+}
+
+.capture-setup-mode svg,
+.capture-setup-location svg {
+  flex: 0 0 auto !important;
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.capture-setup-mode > svg,
+.capture-setup-location > span::before {
+  display: none !important;
+}
+
+.capture-setup-mode::before,
+.capture-setup-location::before {
+  content: "";
+  width: 36px !important;
+  height: 36px !important;
+  flex: 0 0 36px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(180deg, #2f9e92 0%, #0f5c56 100%) !important;
+  box-shadow: 0 10px 20px rgba(15, 92, 86, 0.16) !important;
+}
+
+.capture-setup-mode:nth-child(2)::before {
+  background: linear-gradient(180deg, #b98a55 0%, #8a633a 100%) !important;
+  box-shadow: 0 10px 20px rgba(154, 122, 86, 0.16) !important;
+}
+
+.capture-setup-mode strong,
+.capture-setup-location strong {
+  font-size: 0.86rem !important;
+  font-weight: 850 !important;
+  color: #17252a !important;
+  white-space: nowrap !important;
+}
+
+.capture-setup-mode small,
+.capture-setup-location small {
+  font-size: 0.72rem !important;
+  line-height: 1.25 !important;
+  color: rgba(23, 37, 42, 0.62) !important;
+}
+
+.capture-setup-location {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-width: 170px !important;
+}
+
+.capture-setup-location span {
+  display: grid !important;
+  gap: 2px !important;
+}
+
+.capture-setup-location input {
+  margin-left: auto !important;
+}
+
+/* شيل كرت/نوت lock لأنه حشو ومساحة ضايعة */
+.capture-setup-lock-note {
+  display: none !important;
+}
+
+/* الجدول ثابت داخل الوسط */
+.capture-materials-list {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  max-width: 100% !important;
+}
+
+.capture-materials-list-header,
+.capture-material-row {
+  min-width: 980px !important;
+  grid-template-columns:
+    30px
+    70px
+    minmax(180px, 1.25fr)
+    70px
+    80px
+    minmax(240px, 1.4fr)
+    120px
+    130px !important;
+}
+
+/* اليمين: لا تكسر الكلمات */
+.capture-command-center {
+  overflow: hidden !important;
+}
+
+.capture-command-section-title,
+.capture-command-meta-grid > div,
+.capture-integrity-grid > div {
+  min-width: 0 !important;
+}
+
+.capture-integrity-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 8px !important;
+}
+
+.capture-integrity-grid > div {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 10px 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.capture-integrity-grid span {
+  color: #17252a !important;
+  font-size: 0.72rem !important;
+  font-weight: 850 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+  white-space: normal !important;
+  word-break: normal !important;
+}
+
+.capture-integrity-grid strong {
+  max-width: 150px !important;
+  color: #0f5c56 !important;
+  font-size: 0.78rem !important;
+  font-weight: 850 !important;
+  line-height: 1.25 !important;
+  text-align: right !important;
+  white-space: normal !important;
+  word-break: normal !important;
+}
+
+/* Bottom bar لا يكون كرت عملاق */
+.capture-bottom-bar {
+  max-width: 1440px !important;
+  margin: 24px auto 0 !important;
+  padding: 14px 28px 18px !important;
+  border-top: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: #ffffff !important;
+}
+
+.capture-bottom-bar-inner {
+  max-width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 20px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.capture-bottom-bar-inner strong {
+  font-size: 0.86rem !important;
+  color: #9f2f25 !important;
+}
+
+.capture-bottom-bar-inner p,
+.capture-phase4-missing-list {
+  font-size: 0.76rem !important;
+  line-height: 1.35 !important;
+}
+
+.capture-phase5-final-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+}
+
+.capture-primary-finalize-action.btn,
+.capture-secondary-session-action.btn {
+  min-height: 42px !important;
+  padding-inline: 18px !important;
+  font-size: 0.82rem !important;
+}
+
+/* Responsive */
+@media (max-width: 1180px) {
+  .capture-enterprise-shell {
+    padding: 22px 18px 0 !important;
+  }
+
+  .capture-enterprise-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 22px !important;
+  }
+
+  .capture-session-column {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  .capture-setup-strip {
+    grid-template-columns: 1fr !important;
+  }
+
+  .capture-bottom-bar {
+    padding-inline: 18px !important;
+  }
+
+  .capture-bottom-bar-inner {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* FINAL PATCH — material table icon, dropdown layer, toolbar cleanup */
+
+/* 1) رجّع أيقونة نوع الملف الخضرا الصغيرة */
+.capture-material-row-type-icon,
+.capture-material-row-type-badge {
+  position: absolute !important;
+  top: 5px !important;
+  left: 5px !important;
+  z-index: 4 !important;
+
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 7px !important;
+
+  display: grid !important;
+  place-items: center !important;
+
+  background: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid rgba(23, 133, 123, 0.24) !important;
+  color: #17857b !important;
+  box-shadow: 0 5px 12px rgba(15, 23, 42, 0.12) !important;
+}
+
+.capture-material-row-type-icon svg,
+.capture-material-row-type-icon svg *,
+.capture-material-row-type-badge svg,
+.capture-material-row-type-badge svg * {
+  width: 12px !important;
+  height: 12px !important;
+  color: #17857b !important;
+  stroke: #17857b !important;
+}
+
+/* 2) خلي الدروبداون يطلع فوق كل شي وما يختفي ورا آخر كرت */
+.capture-materials-board,
+.capture-materials-list,
+.capture-material-row-shell,
+.capture-material-row,
+.capture-material-row-map-cell {
+  overflow: visible !important;
+}
+
+.capture-materials-board {
+  position: relative !important;
+  z-index: 30 !important;
+}
+
+.capture-material-row-shell {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.capture-material-row-shell:has(.capture-material-dropdown.is-open),
+.capture-material-row:has(.capture-material-dropdown.is-open) {
+  z-index: 99999 !important;
+}
+
+.capture-material-dropdown.is-open {
+  position: relative !important;
+  z-index: 100000 !important;
+}
+
+.capture-material-dropdown.compact .capture-material-dropdown-menu,
+.capture-material-dropdown-menu {
+  z-index: 100001 !important;
+}
+
+/* آخر 3 عناصر افتحهم لفوق حتى ما يدخلوا بالـ bottom bar */
+.capture-material-row-shell:nth-last-child(-n + 3)
+  .capture-material-dropdown.is-open
+  .capture-material-dropdown-menu {
+  top: auto !important;
+  bottom: calc(100% + 8px) !important;
+}
+
+/* 3) نظّف بداية الجدول والـ bulk toolbar */
+.capture-bulk-actions {
+  margin: 10px 0 14px !important;
+  padding: 8px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: #fbfcfd !important;
+}
+
+.capture-bulk-button {
+  min-height: 30px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  font-size: 0.72rem !important;
+  font-weight: 760 !important;
+}
+
+.capture-materials-list {
+  margin-top: 0 !important;
+  border-radius: 14px !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+
+.capture-materials-list-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 20 !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 14px !important;
+  background: #f8fafc !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+}
+
+/* شيل الفراغ/القطع البشع فوق الهيدر */
+.capture-materials-list::before,
+.capture-materials-list::after {
+  display: none !important;
+  content: none !important;
+}
+
+.capture-material-row:first-of-type {
+  margin-top: 0 !important;
+}
