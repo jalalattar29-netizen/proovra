@@ -639,47 +639,6 @@ const BRONZE_RAIL_STYLE: CSSProperties = {
   borderRadius: 18,
 };
 
-const verifyShellStyle: CSSProperties = {
-  border: `1px solid ${VERIFY_BRAND.line}`,
-  background:
-    "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(247,249,247,0.92) 100%)",
-  borderRadius: 20,
-  boxShadow: "0 16px 40px rgba(16,32,29,0.07)",
-};
-
-const verifySectionHeaderStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  gap: 16,
-  flexWrap: "wrap",
-  paddingBottom: 14,
-  borderBottom: `1px solid ${VERIFY_BRAND.softLine}`,
-};
-
-const verifyKpiGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-  gap: 12,
-};
-
-const verifyCompactPanelStyle: CSSProperties = {
-  border: `1px solid ${VERIFY_BRAND.softLine}`,
-  background: "rgba(255,255,255,0.58)",
-  borderRadius: 16,
-  padding: 14,
-  minWidth: 0,
-};
-
-const verifyConsoleCardStyle: CSSProperties = {
-  border: `1px solid ${VERIFY_BRAND.line}`,
-  background:
-    "linear-gradient(180deg, rgba(255,255,255,0.90), rgba(250,251,249,0.78))",
-  borderRadius: 18,
-  padding: 16,
-  minWidth: 0,
-};
-
 function formatDateTime(value?: string | null): string {
   if (!value) return "N/A";
   return formatUserDateTime(value);
@@ -1290,30 +1249,26 @@ function TechnicalTabButton({
     <button
       type="button"
       onClick={onClick}
-      style={{
-        padding: "10px 14px",
-        borderRadius: 999,
-        border: active
-          ? `1px solid ${VERIFY_BRAND.accent}`
-          : `1px solid ${VERIFY_BRAND.line}`,
-        background: active
-          ? VERIFY_BRAND.accent
-          : "rgba(255,255,255,0.62)",
-        color: active ? "#ffffff" : VERIFY_BRAND.ink,
-        fontSize: 12,
-        fontWeight: 850,
-        cursor: "pointer",
-        minWidth: "auto",
-        height: 42,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: active
-          ? "0 10px 24px rgba(11,46,39,0.16)"
-          : "0 6px 16px rgba(16,32,29,0.045)",
-        whiteSpace: "nowrap",
-      }}
-    >
+style={{
+  padding: "12px 14px",
+  borderRadius: 16,
+  border: active
+    ? `1px solid ${VERIFY_BRAND.accent}`
+    : `1px solid ${VERIFY_BRAND.line}`,
+  background: active
+    ? "rgba(11,46,39,0.10)"
+    : "rgba(255,255,255,0.54)",
+  color: VERIFY_BRAND.ink,
+  fontSize: 13,
+  fontWeight: 800,
+  cursor: "pointer",
+  textAlign: "left",
+  minWidth: 220,
+  height: 72,
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+}}    >
       {label}
     </button>
   );
@@ -2579,131 +2534,158 @@ function TrustDecisionCard({
   const relianceLabel = getTrustDecisionConfidenceLabel(decision);
   const trustNarrative = getTrustNarrative(normalizedDecision);
   const decisionTone = getTrustDecisionPresentationTone(normalizedDecision);
-
   const palette =
     decisionTone === "success"
       ? {
           rail: VERIFY_BRAND.success,
-          soft: "rgba(33,117,93,0.10)",
-          border: "rgba(33,117,93,0.26)",
-          label: "Verified",
+          bg: "linear-gradient(180deg, rgba(33,117,93,0.10), rgba(255,255,255,0.78))",
+          border: "rgba(33,117,93,0.30)",
         }
       : decisionTone === "danger"
         ? {
             rail: VERIFY_BRAND.danger,
-            soft: "rgba(181,71,56,0.10)",
-            border: "rgba(181,71,56,0.28)",
-            label: "Review required",
+            bg: "linear-gradient(180deg, rgba(181,71,56,0.10), rgba(255,255,255,0.78))",
+            border: "rgba(181,71,56,0.30)",
           }
         : {
             rail: VERIFY_BRAND.warning,
-            soft: "rgba(138,106,47,0.11)",
+            bg: "linear-gradient(180deg, rgba(138,106,47,0.11), rgba(255,255,255,0.78))",
             border: "rgba(138,106,47,0.30)",
-            label: "Conditional",
           };
 
   return (
-    <section
+    <div
       style={{
-        ...verifyShellStyle,
-        borderColor: palette.border,
+        border: `1px solid ${palette.border}`,
         borderLeft: `7px solid ${palette.rail}`,
+        background: palette.bg,
+        borderRadius: 24,
         padding: 24,
         display: "grid",
-        gap: 20,
+        gap: 18,
+        boxShadow: "0 18px 42px rgba(16,32,29,0.08)",
       }}
     >
-      <div style={verifySectionHeaderStyle}>
-        <div style={{ minWidth: 0, flex: "1 1 680px" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) 210px",
+          gap: 18,
+          alignItems: "stretch",
+        }}
+      >
+        <div>
           <div style={{ ...VERIFY_TYPO.kicker, marginBottom: 8 }}>
-            Final Verification Decision
+            Overall Trust Decision
           </div>
 
-          <h2
+          <div
             style={{
-              margin: 0,
-              fontSize: "clamp(1.7rem, 2.6vw, 2.45rem)",
-              lineHeight: 1.05,
-              fontWeight: 900,
-              letterSpacing: "-0.04em",
+              fontSize: "clamp(1.45rem, 2.3vw, 2.15rem)",
+              lineHeight: 1.1,
+              fontWeight: 950,
+              letterSpacing: "-0.035em",
               color: VERIFY_BRAND.ink,
+              marginBottom: 10,
             }}
           >
             {getTrustDecisionLabel(decision)}
-          </h2>
+          </div>
 
-          <p
+          <div
             style={{
               ...VERIFY_TYPO.body,
-              margin: "10px 0 0",
-              maxWidth: 920,
+              fontSize: 14.5,
               color: VERIFY_BRAND.ink,
+              maxWidth: 900,
             }}
           >
             {trustNarrative}
-          </p>
-        </div>
-
-        <Badge label={palette.label} tone={decisionTone === "success" ? "success" : decisionTone === "danger" ? "warning" : "warning"} />
-      </div>
-
-      <div style={verifyKpiGridStyle}>
-        <div style={{ ...verifyCompactPanelStyle, background: palette.soft }}>
-          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10, marginBottom: 8 }}>
-            Trust Classification
-          </div>
-          <div style={{ ...VERIFY_TYPO.value, fontSize: 18, fontWeight: 900 }}>
-            {getTrustDecisionLabel(decision)}
           </div>
         </div>
 
-        <div style={verifyCompactPanelStyle}>
-          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10, marginBottom: 8 }}>
+        <div
+          style={{
+            border: `1px solid ${VERIFY_BRAND.line}`,
+            background: "rgba(255,255,255,0.58)",
+            borderRadius: 18,
+            padding: 16,
+            textAlign: "center",
+            display: "grid",
+            alignContent: "center",
+            gap: 8,
+          }}
+        >
+          <div
+            style={{
+              ...VERIFY_TYPO.kicker,
+              fontSize: 10.5,
+              color: VERIFY_BRAND.subtle,
+            }}
+          >
             Technical Confidence
           </div>
-          <div style={{ ...VERIFY_TYPO.value, fontSize: 18, fontWeight: 900 }}>
+
+          <div
+            style={{
+              fontSize: 24,
+              lineHeight: 1.1,
+              fontWeight: 950,
+              color: VERIFY_BRAND.accent,
+            }}
+          >
             {relianceLabel}
           </div>
-        </div>
 
-        <div style={verifyCompactPanelStyle}>
-          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10, marginBottom: 8 }}>
-            Score
+          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10 }}>
+            Verification Classification
           </div>
-          <div style={{ ...VERIFY_TYPO.value, fontSize: 18, fontWeight: 900 }}>
-            {decision.scoreLabel}
-          </div>
-        </div>
 
-        <div style={verifyCompactPanelStyle}>
-          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10, marginBottom: 8 }}>
-            Publication State
-          </div>
-          <div style={{ ...VERIFY_TYPO.value, fontSize: 14 }}>
-            {decision.publicationStatusLabel ?? "Review publication status"}
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 900,
+              color: VERIFY_BRAND.muted,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}
+          >
+            {getTrustDecisionLabel(decision)}
           </div>
         </div>
       </div>
 
       <div
         style={{
-          ...verifyConsoleCardStyle,
-          borderLeft: `5px solid ${palette.rail}`,
+          border: `1px solid ${VERIFY_BRAND.softLine}`,
+          background: "rgba(255,255,255,0.44)",
+          borderRadius: 18,
+          padding: 16,
           display: "grid",
           gap: 8,
         }}
       >
         <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>
-          Reviewer Action
+          Decision Basis
         </div>
-        <div style={{ ...VERIFY_TYPO.value, fontSize: 15, lineHeight: 1.55 }}>
+        <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink }}>
+          {decision.primaryReason}
+        </div>
+        <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink }}>
+          Publication posture:{" "}
+          {decision.publicationStatusLabel ?? "Public anchoring status requires review"}.
+        </div>
+        <div
+          style={{
+            ...VERIFY_TYPO.small,
+            color: VERIFY_BRAND.ink,
+            fontWeight: 850,
+          }}
+        >
           {decision.reviewerAction}
         </div>
-        <div style={{ ...VERIFY_TYPO.small, fontSize: 12.5 }}>
-          This decision is limited to the recorded technical state. It does not prove factual truth, authorship, intent, context, court acceptance, or legal admissibility.
-        </div>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -2733,13 +2715,16 @@ function TrustSignalGrid({
         return (
           <div
             key={signal.key}
-style={{
-  ...verifyConsoleCardStyle,
-  borderLeft: `4px solid ${color}`,
-  display: "grid",
-  gap: 9,
-  minHeight: 132,
-}}
+            style={{
+              border: `1px solid ${VERIFY_BRAND.line}`,
+              borderLeft: `5px solid ${color}`,
+              background: "rgba(255,255,255,0.64)",
+              borderRadius: 18,
+              padding: 16,
+              display: "grid",
+              gap: 9,
+              minHeight: 150,
+            }}
           >
             <div
               style={{
@@ -3021,30 +3006,38 @@ function LegalWarningBlock({
   return (
     <div
       style={{
-        ...verifyShellStyle,
-        borderLeft: `5px solid ${VERIFY_BRAND.bronze}`,
+        border: `1px solid ${
+          verdict.tone === "danger"
+            ? "rgba(181,71,56,0.28)"
+            : "rgba(138,106,47,0.30)"
+        }`,
+        borderLeft: `6px solid ${
+          verdict.tone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.bronze
+        }`,
+        background:
+          verdict.tone === "danger"
+            ? "linear-gradient(180deg, rgba(181,71,56,0.10), rgba(255,255,255,0.68))"
+            : "linear-gradient(180deg, rgba(138,106,47,0.11), rgba(255,255,255,0.68))",
+        borderRadius: 20,
         padding: 18,
         display: "grid",
         gap: 8,
-        boxShadow: "0 10px 28px rgba(16,32,29,0.045)",
       }}
     >
       <div
         style={{
           ...VERIFY_TYPO.kicker,
           fontSize: 10.5,
-          color: VERIFY_BRAND.bronze,
+          color: verdict.tone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.warning,
         }}
       >
-        Legal Reliance Boundary
+        Legal Review Boundary
       </div>
-
       <div
         style={{
           ...VERIFY_TYPO.small,
           fontSize: 13.5,
           color: VERIFY_BRAND.ink,
-          lineHeight: 1.65,
         }}
       >
         {verdict.legalStatement}
@@ -3061,40 +3054,37 @@ function ReviewerActionsBlock({
   return (
     <div
       style={{
-        ...verifyShellStyle,
-        padding: 22,
+        border: `1px solid ${VERIFY_BRAND.line}`,
+        background: "rgba(255,255,255,0.68)",
+        borderRadius: 22,
+        padding: 20,
         display: "grid",
-        gap: 16,
+        gap: 14,
+        boxShadow: "0 14px 34px rgba(16,32,29,0.06)",
       }}
     >
-      <div style={verifySectionHeaderStyle}>
-        <div>
-          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, marginBottom: 6 }}>
-            Reviewer Workflow
-          </div>
-          <div style={{ ...VERIFY_TYPO.h3, fontSize: 20 }}>
-            Recommended next actions
-          </div>
+      <div>
+        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, marginBottom: 6 }}>
+          Recommended Reviewer Actions
         </div>
-        <Badge label={`${actions.length} Actions`} tone="info" />
+        <div style={{ ...VERIFY_TYPO.small, fontSize: 13, maxWidth: 860 }}>
+          These actions help a legal, insurance, compliance, or forensic reviewer decide what must be checked before relying on this evidence record.
+        </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: 12,
-        }}
-      >
+      <div style={{ display: "grid", gap: 10 }}>
         {actions.map((action, index) => (
           <div
             key={`${index}-${action}`}
             style={{
-              ...verifyConsoleCardStyle,
               display: "grid",
-              gridTemplateColumns: "30px minmax(0, 1fr)",
+              gridTemplateColumns: "32px minmax(0, 1fr)",
               gap: 12,
               alignItems: "start",
+              border: `1px solid ${VERIFY_BRAND.softLine}`,
+              background: "rgba(255,255,255,0.44)",
+              borderRadius: 16,
+              padding: 12,
             }}
           >
             <div
@@ -3102,9 +3092,8 @@ function ReviewerActionsBlock({
                 width: 26,
                 height: 26,
                 borderRadius: 999,
-                background: "rgba(11,46,39,0.10)",
-                color: VERIFY_BRAND.accent,
-                border: `1px solid ${VERIFY_BRAND.line}`,
+                background: VERIFY_BRAND.accent,
+                color: "#fff",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -3114,13 +3103,11 @@ function ReviewerActionsBlock({
             >
               {index + 1}
             </div>
-
             <div
               style={{
                 ...VERIFY_TYPO.small,
                 fontSize: 13,
                 color: VERIFY_BRAND.ink,
-                lineHeight: 1.55,
               }}
             >
               {action}
@@ -5189,13 +5176,13 @@ with this evidence record.
 <Card>
   <div
     style={{
-      ...verifyShellStyle,
-      padding: 22,
+      ...glassCardStyle,
+      padding: 24,
       display: "grid",
       gap: 18,
     }}
   >
-        <div>
+    <div>
       <div style={{ ...VERIFY_TYPO.kicker, fontSize: 11, marginBottom: 8 }}>
         Trust Signal Breakdown
       </div>
@@ -5415,7 +5402,7 @@ with this evidence record.
                                 <div
                   style={{
                     ...glassCardStyle,
-                    padding: 22,
+                    padding: 24,
                     display: "grid",
                     gridTemplateColumns: "minmax(0, 1fr)",
                     gap: 18,
@@ -5441,8 +5428,8 @@ with this evidence record.
                     >
                       <div
                         style={{
-                          width: 48,
-                          height: 48,
+                          width: 60,
+                          height: 60,
                           borderRadius: 999,
 background:
   trustDecisionTone === "danger"
@@ -5454,7 +5441,7 @@ background:
                           alignItems: "center",
                           justifyContent: "center",
                           color: "#fff",
-                          fontSize: 22,
+                          fontSize: 28,
                           fontWeight: 900,
                           boxShadow:
                             trustDecisionTone === "danger"
@@ -5889,9 +5876,9 @@ Reviewer Action
                   {custodyChainFailureReason ? (
                     <div
                       style={{
-border: `1px solid rgba(138,106,47,0.28)`,
-borderLeft: `5px solid ${VERIFY_BRAND.warning}`,
-background: VERIFY_BRAND.warningSoft,
+                        border: `1px solid rgba(181,71,56,0.25)`,
+                        borderLeft: `5px solid ${VERIFY_BRAND.danger}`,
+                        background: VERIFY_BRAND.dangerSoft,
                         borderRadius: 18,
                         padding: 18,
                       }}
@@ -5900,7 +5887,7 @@ background: VERIFY_BRAND.warningSoft,
                         style={{
                           ...VERIFY_TYPO.kicker,
                           fontSize: 10.5,
-color: VERIFY_BRAND.warning,
+                          color: VERIFY_BRAND.danger,
                           marginBottom: 8,
                         }}
                       >
@@ -5970,7 +5957,7 @@ color: VERIFY_BRAND.warning,
                   <div
                     style={{
                       ...glassCardStyle,
-                      padding: 22,
+                      padding: 24,
                       display: "grid",
                       gap: 18,
                     }}
@@ -6586,7 +6573,7 @@ color: VERIFY_BRAND.warning,
                 <div
                   style={{
                     ...glassCardStyle,
-                    padding: 22,
+                    padding: 24,
                     display: "grid",
                     gap: 18,
                   }}
@@ -6685,20 +6672,8 @@ These materials support the Trust Decision shown above. The Trust Decision is th
     {forensicMode ? "Disable Forensic Mode" : "Enable Forensic Mode"}
   </button>
 </div>
-<div
-  style={{
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 8,
-    padding: 8,
-    borderRadius: 999,
-    border: `1px solid ${VERIFY_BRAND.softLine}`,
-    background: "rgba(255,255,255,0.44)",
-    width: "fit-content",
-    maxWidth: "100%",
-  }}
->
-                      <TechnicalTabButton
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    <TechnicalTabButton
                       label="Record"
                       active={activeTechnicalTab === "record"}
                       onClick={() => setActiveTechnicalTab("record")}
@@ -7205,7 +7180,7 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                 <div
                   style={{
                     ...glassCardStyle,
-                    padding: 22,
+                    padding: 24,
                     display: "grid",
                     gap: 18,
                   }}
