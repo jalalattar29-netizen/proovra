@@ -1637,20 +1637,6 @@
   font-weight: 900 !important;
 }
 
-/* =========================================================
-   FINAL SIDEBAR SIZE + BOTTOM POSITION TUNING
-========================================================= */
-
-/* Desktop sidebar: enterprise width, not too thin */
-.app-shell-v2-main {
-  grid-template-columns: 232px minmax(0, 1fr) !important;
-}
-
-.app-shell-v2-desktop-sidebar {
-  min-width: 232px !important;
-  width: 232px !important;
-}
-
 /* Sidebar inner spacing after width reduction */
 .app-sidebar-v2-inner {
   padding: 22px 12px 20px !important;
@@ -1752,11 +1738,32 @@
   }
 }
 
-.app-shell-v2-main {
-  grid-template-columns: 245px minmax(0, 1fr) !important;
-}
+/* Desktop sidebar: balanced enterprise width */
+@media (min-width: 981px) {
+  .app-shell-v2-main {
+    grid-template-columns: 240px minmax(0, 1fr) !important;
+  }
 
-.app-shell-v2-desktop-sidebar {
-  min-width: 245px !important;
-  width: 245px !important;
+  .app-shell-v2-desktop-sidebar,
+  .app-sidebar-v2 {
+    width: 240px !important;
+    min-width: 240px !important;
+    max-width: 240px !important;
+  }
+
+  .app-sidebar-v2-inner {
+    padding: 22px 14px 20px !important;
+  }
+
+  .app-sidebar-v2-link {
+    min-height: 42px !important;
+    padding: 0 11px !important;
+    gap: 10px !important;
+    font-size: 0.88rem !important;
+  }
+
+  .app-sidebar-v2-link-icon {
+    width: 28px !important;
+    height: 28px !important;
+  }
 }
