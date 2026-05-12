@@ -133,13 +133,25 @@ export function CaptureDropzone({
         })}
       </div>
 
-      <div className="capture-drop-assistive-copy">
-        <strong>Drag and drop files or folders into this workspace.</strong>
-        <span>
-          Mapping, integrity checks, and readiness warnings update as soon as materials
-          are staged.
-        </span>
-      </div>
+<div
+  className="capture-dropzone-inline-note"
+  onClick={onOpenFilePicker}
+  role="button"
+  tabIndex={0}
+>
+  <strong>
+    Drag and drop files or folders into this workspace.
+  </strong>
+
+  <span>
+    Mapping, integrity checks, and readiness warnings update as soon as
+    materials are staged.
+  </span>
+
+  <div className="capture-dropzone-plus">
+    <span>+</span>
+  </div>
+</div>
     </div>
   );
 }

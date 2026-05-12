@@ -1094,16 +1094,6 @@ export default function CapturePage() {
 
       {isExpanded ? (
         <div className="capture-material-detail-row">
-          <div className="capture-material-detail-preview">
-            {item.previewUrl && item.mimeType.startsWith("image/") ? (
-              <img src={item.previewUrl} alt={item.file.name} />
-            ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
-              <video src={item.previewUrl} muted playsInline controls />
-            ) : (
-              <FileIcon size={34} strokeWidth={1.9} />
-            )}
-          </div>
-
           <div className="capture-material-detail-main">
             <strong>Reviewer note</strong>
             <p>{mappingHelper}</p>
