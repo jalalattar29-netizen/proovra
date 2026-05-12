@@ -8213,3 +8213,252 @@ box-shadow:
 .capture-material-row:first-of-type {
   margin-top: 0 !important;
 }
+
+/* FINAL — clean enterprise collection setup */
+
+.capture-setup-strip {
+  display: grid !important;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.6fr) !important;
+  align-items: center !important;
+  gap: 22px !important;
+
+  padding: 18px 20px !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: #ffffff !important;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.035) !important;
+}
+
+.capture-setup-copy {
+  min-width: 0 !important;
+}
+
+.capture-setup-copy .capture-card-muted {
+  max-width: 360px !important;
+  margin: 6px 0 0 !important;
+  font-size: 0.82rem !important;
+  line-height: 1.45 !important;
+}
+
+.capture-setup-controls {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(150px, 1fr)) !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+}
+
+.capture-setup-mode,
+.capture-setup-location {
+  min-height: 58px !important;
+  width: 100% !important;
+
+  display: grid !important;
+  grid-template-columns: 34px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 10px !important;
+
+  padding: 10px 12px !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  background: #fbfcfd !important;
+
+  color: #17252a !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+}
+
+.capture-setup-mode svg,
+.capture-setup-location svg {
+  width: 34px !important;
+  height: 34px !important;
+  padding: 8px !important;
+  border-radius: 11px !important;
+
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  background: linear-gradient(180deg, #149184, #0f5c56) !important;
+  box-shadow: 0 10px 22px rgba(15, 92, 86, 0.16) !important;
+}
+
+.capture-setup-mode strong,
+.capture-setup-location strong {
+  display: block !important;
+  color: #17252a !important;
+  font-size: 0.84rem !important;
+  font-weight: 850 !important;
+  line-height: 1.15 !important;
+}
+
+.capture-setup-mode small,
+.capture-setup-location small {
+  display: block !important;
+  margin-top: 2px !important;
+  color: #667085 !important;
+  font-size: 0.72rem !important;
+  font-weight: 650 !important;
+  line-height: 1.2 !important;
+}
+
+.capture-setup-mode.active,
+.capture-setup-location.active {
+  border-color: rgba(15, 92, 86, 0.28) !important;
+  background: linear-gradient(180deg, rgba(15, 92, 86, 0.08), rgba(15, 92, 86, 0.035)) !important;
+  box-shadow: inset 0 0 0 1px rgba(15, 92, 86, 0.08) !important;
+}
+
+.capture-setup-mode:disabled {
+  opacity: 0.72 !important;
+  cursor: not-allowed !important;
+}
+
+.capture-setup-location input {
+  width: 18px !important;
+  height: 18px !important;
+  accent-color: #0f5c56 !important;
+}
+
+@media (max-width: 1150px) {
+  .capture-setup-strip {
+    grid-template-columns: 1fr !important;
+  }
+
+  .capture-setup-controls {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ===== Compact evidence materials table ===== */
+
+.capture-materials-board {
+  padding: 14px !important;
+}
+
+.capture-materials-list {
+  border-radius: 16px !important;
+  overflow: auto !important;
+}
+
+.capture-materials-list-header {
+  min-width: 980px !important;
+
+  padding: 10px 14px !important;
+  gap: 12px !important;
+
+  font-size: 0.68rem !important;
+  letter-spacing: 0.04em !important;
+}
+
+.capture-material-row {
+  min-width: 980px !important;
+
+  padding: 8px 14px !important;
+  gap: 12px !important;
+
+  min-height: 64px !important;
+}
+
+.capture-material-row-shell {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06) !important;
+}
+
+.capture-material-row-index {
+  font-size: 0.78rem !important;
+}
+
+.capture-material-row-preview {
+  width: 58px !important;
+  height: 58px !important;
+  border-radius: 12px !important;
+}
+
+.capture-material-row-preview img,
+.capture-material-row-preview video {
+  border-radius: 10px !important;
+}
+
+.capture-material-row-name {
+  font-size: 0.82rem !important;
+  line-height: 1.3 !important;
+  max-width: 170px !important;
+}
+
+.capture-material-row-type,
+.capture-material-row-size {
+  font-size: 0.76rem !important;
+}
+
+.capture-material-row-status {
+  padding: 5px 10px !important;
+  border-radius: 999px !important;
+
+  font-size: 0.7rem !important;
+  font-weight: 700 !important;
+}
+
+.capture-material-dropdown-trigger {
+  min-height: 38px !important;
+
+  padding: 0 12px !important;
+  border-radius: 11px !important;
+
+  font-size: 0.76rem !important;
+}
+
+.capture-material-row-actions {
+  gap: 8px !important;
+}
+
+.capture-material-row-actions button {
+  min-height: 34px !important;
+
+  padding: 0 12px !important;
+  border-radius: 10px !important;
+
+  font-size: 0.72rem !important;
+}
+
+.capture-material-row-type-icon {
+  width: 18px !important;
+  height: 18px !important;
+
+  top: 4px !important;
+  left: 4px !important;
+}
+
+.capture-material-row-type-icon svg {
+  width: 10px !important;
+  height: 10px !important;
+}
+
+/* خفف سماكة الهيدر */
+.capture-materials-list-header {
+  background: #f8fafb !important;
+}
+
+/* خفف حجم أزرار فوق الجدول */
+.capture-bulk-actions {
+  padding: 10px 0 !important;
+}
+
+.capture-bulk-button {
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  font-size: 0.72rem !important;
+  border-radius: 10px !important;
+}
+
+/* FINAL — Review & Sign bottom status colors */
+.capture-bottom-bar-inner > div:first-child > strong {
+  color: #9a7a56 !important; /* brown warning */
+}
+
+.capture-bottom-bar-inner:not(:has(.capture-phase4-missing-list))
+  > div:first-child
+  > strong {
+  color: #0b5f56 !important; /* ready green */
+}
+
+.capture-phase4-missing-list {
+  color: #b42318 !important; /* only missing line red */
+}
