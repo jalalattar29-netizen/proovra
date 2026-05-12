@@ -8697,3 +8697,25 @@ box-shadow:
 .capture-setup-location small {
   font-size: 0.78rem !important;
 }
+
+/* widen setup cards slightly */
+.capture-setup-controls {
+  grid-template-columns: repeat(3, minmax(220px, 1fr)) !important;
+  gap: 16px !important;
+}
+
+.capture-setup-mode,
+.capture-setup-location {
+  min-width: 220px !important;
+  min-height: 84px !important;
+  padding: 16px 20px !important;
+}
+
+/* location disabled text = red */
+.capture-setup-location small {
+  color: #8b98a7 !important;
+}
+
+.capture-setup-location:not(.active) small {
+  color: #c55b5b !important;
+}
