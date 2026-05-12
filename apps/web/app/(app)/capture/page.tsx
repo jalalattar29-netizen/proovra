@@ -378,7 +378,6 @@ export default function CapturePage() {
     finishDisabled,
     finishReason,
     missingStepTitles,
-    persistentSidebarMessages,
     requiredProgressPercent,
     sessionCountLabel,
     totalStagedBytes,

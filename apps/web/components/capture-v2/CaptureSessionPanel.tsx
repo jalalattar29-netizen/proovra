@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, CircleDot, LockKeyhole, MessageSquareText, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleDot, LockKeyhole, ShieldCheck } from "lucide-react";
 
 import { CaptureAiAssistant } from "../ai/CaptureAiAssistant";
 import type { CollectionPlanTemplate, SessionItem } from "../../app/(app)/capture/_lib/types";
