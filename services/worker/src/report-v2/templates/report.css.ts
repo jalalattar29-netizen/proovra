@@ -4647,7 +4647,7 @@ body {
   padding: 0.6mm 1.2mm !important;
 }
 
-/* COVER TRUST SIGNAL CARDS — final aligned enterprise layout */
+/* COVER TRUST SIGNAL CARDS — readable final layout */
 
 .cover-decision-grid.cover-trust-signal-grid {
   display: grid !important;
@@ -4657,67 +4657,74 @@ body {
   margin-bottom: 2.8mm !important;
 }
 
-.cover-decision-indicator {
+.cover-trust-signal-grid .cover-decision-indicator {
   min-height: 18mm !important;
   padding: 2.4mm 2mm !important;
+
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 1.5mm !important;
+
+  gap: 1.4mm !important;
   text-align: center !important;
 }
 
-.cover-decision-line {
-  display: inline-flex !important;
+.cover-trust-signal-grid .cover-decision-line {
+  display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 1.6mm !important;
+  gap: 1.7mm !important;
   width: 100% !important;
-  min-width: 0 !important;
 }
 
-.cover-decision-mark {
-  flex: 0 0 5.6mm !important;
-  width: 5.6mm !important;
-  height: 5.6mm !important;
-  border-radius: 999px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-size: 11px !important;
+.cover-trust-signal-grid .cover-decision-mark {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+
+  width: auto !important;
+  height: auto !important;
+  flex: 0 0 auto !important;
+
+  font-size: 15px !important;
   line-height: 1 !important;
   font-weight: 950 !important;
-  background: rgba(255, 255, 255, 0.88) !important;
+
   margin: 0 !important;
-  transform: translateY(-0.15mm) !important;
+  padding: 0 !important;
+  transform: none !important;
 }
 
-.cover-decision-label {
+.cover-trust-signal-grid .cover-decision-label {
   color: #0b2e27 !important;
-  font-size: 7.9px !important;
-  line-height: 1.05 !important;
+
+  font-size: 8.9px !important;
+  line-height: 1.12 !important;
   font-weight: 950 !important;
   letter-spacing: 0.045em !important;
   text-transform: uppercase !important;
+
   white-space: normal !important;
   word-break: normal !important;
   overflow-wrap: anywhere !important;
   text-align: left !important;
+
   margin: 0 !important;
 }
 
-.cover-decision-value {
-  color: #0b7a5b !important;
-  font-size: 9.4px !important;
-  line-height: 1.1 !important;
+.cover-trust-signal-grid .cover-decision-value {
+  font-size: 11px !important;
+  line-height: 1.12 !important;
   font-weight: 950 !important;
+
   white-space: nowrap !important;
   text-align: center !important;
   margin: 0 !important;
 }
 
-.cover-decision-indicator.tone-success .cover-decision-mark {
+.cover-decision-indicator.tone-success .cover-decision-mark,
+.cover-decision-indicator.tone-success .cover-decision-value {
   color: #0b7a5b !important;
 }
 
@@ -4730,7 +4737,7 @@ body {
 .cover-decision-indicator.tone-danger .cover-decision-value {
   color: #a33a2b !important;
 }
-  
+    
 @media print {
   html,
   body,

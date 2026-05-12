@@ -181,14 +181,19 @@ function renderCourtReviewIndexPage(vm: ReportViewModel): string {
 }
 
 export function renderExecutiveSummarySection(vm: ReportViewModel): string {
-  const leadItemType = findRowValue(vm.executiveRows, "Lead Item Type", "");
-  const leadItemName = findRowValue(vm.executiveRows, "Lead Review Item", "");
+  const leadItemType =
+    findRowValue(vm.executiveRows, "Lead Item Type", "") ||
+    findRowValue(vm.executiveRows, "Primary Evidence Coverage", "");
+
+  const leadItemName =
+    findRowValue(vm.executiveRows, "Lead Review Item", "") ||
+    findRowValue(vm.executiveRows, "Primary Evidence Set", "");
 
   const leadItemValue =
     leadItemType && leadItemName
-      ? `${leadItemType} • ${leadItemName}`
+      ? `${leadItemName} • ${leadItemType}`
       : leadItemName || leadItemType || "Not recorded";
-
+      
   const executiveRows = [
     {
       label: "Evidence Type",

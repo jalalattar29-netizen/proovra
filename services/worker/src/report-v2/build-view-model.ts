@@ -53,6 +53,7 @@ import {
   mapIdentityLevelLabel,
   mapObjectLockModePublicLabel,
   mapOtsStatusPublicLabel,
+  mapOtsStatusPublicLabelWithTxid,
   mapRecordStatusLabel,
   mapTimestampStatusPublicLabel,
   mapCustodyEventLabel,
@@ -482,10 +483,13 @@ function buildVerificationSummaryRows(
     "Timestamp Status",
     mapTimestampStatusPublicLabel(evidence.tsaStatus)
   );
-  add(
-    "Anchoring Status",
-    mapOtsStatusPublicLabel(evidence.otsStatus)
-  );
+add(
+  "Anchoring Status",
+  mapOtsStatusPublicLabelWithTxid({
+    status: evidence.otsStatus,
+    bitcoinTxid: evidence.otsBitcoinTxid,
+  })
+);
   add("Last Verified At (UTC)", safe(evidence.lastVerifiedAtUtc));
   add(
     "Last Verified Source",
@@ -508,22 +512,28 @@ function buildVerificationSummaryRows(
 }
 
 function resolveOtsPresentationEvidence(evidence: ReportEvidence): ReportEvidence {
-  if (
-    safe(evidence.otsStatus, "").toUpperCase() !== "ANCHORED" ||
-    isCompleteOtsAnchor({
-      status: evidence.otsStatus,
-      bitcoinTxid: evidence.otsBitcoinTxid,
-      anchoredAtUtc: evidence.otsAnchoredAtUtc,
-    })
-  ) {
-    return evidence;
+  const complete = isCompleteOtsAnchor({
+    status: evidence.otsStatus,
+    bitcoinTxid: evidence.otsBitcoinTxid,
+    anchoredAtUtc: evidence.otsAnchoredAtUtc,
+  });
+
+  if (complete) {
+    return Object.assign({}, evidence, {
+      otsStatus: "ANCHORED",
+      otsFailureReason: null,
+    });
   }
 
-  return Object.assign({}, evidence, {
-    otsStatus: "PENDING",
-    otsAnchoredAtUtc: null,
-    otsFailureReason: null,
-  });
+  if (safe(evidence.otsStatus, "").toUpperCase() === "ANCHORED") {
+    return Object.assign({}, evidence, {
+      otsStatus: "PENDING",
+      otsAnchoredAtUtc: null,
+      otsFailureReason: null,
+    });
+  }
+
+  return evidence;
 }
 
 function buildReviewReadinessRows(
@@ -550,10 +560,13 @@ function buildReviewReadinessRows(
   value: normalizeProviderFailure(evidence.tsaFailureReason),
 },
 
-    {
-      label: "Public Anchoring Status",
-      value: mapOtsStatusPublicLabel(evidence.otsStatus),
-    },
+{
+  label: "Public Anchoring Status",
+  value: mapOtsStatusPublicLabelWithTxid({
+    status: evidence.otsStatus,
+    bitcoinTxid: evidence.otsBitcoinTxid,
+  }),
+},
     {
       label: "Immutable Storage",
       value: safeBooleanLabel(
@@ -745,10 +758,13 @@ function buildStorageRows(
       label: "RFC 3161 Status",
       value: mapTimestampStatusPublicLabel(evidence.tsaStatus),
     },
-    {
-      label: "Public Anchoring Status",
-      value: mapOtsStatusPublicLabel(evidence.otsStatus),
-    },
+{
+  label: "Public Anchoring Status",
+  value: mapOtsStatusPublicLabelWithTxid({
+    status: evidence.otsStatus,
+    bitcoinTxid: evidence.otsBitcoinTxid,
+  }),
+},
     {
       label: "RFC 3161 Note",
       value: normalizeProviderFailure(evidence.tsaFailureReason),
@@ -1118,10 +1134,13 @@ function buildTechnicalAppendixCourtRows(params: {
       label: "Timestamp Material",
       value: mapTimestampStatusPublicLabel(params.evidence.tsaStatus),
     },
-    {
-      label: "Public Anchoring",
-      value: mapOtsStatusPublicLabel(params.evidence.otsStatus),
-    },
+{
+  label: "Public Anchoring",
+  value: mapOtsStatusPublicLabelWithTxid({
+    status: params.evidence.otsStatus,
+    bitcoinTxid: params.evidence.otsBitcoinTxid,
+  }),
+},
     {
       label: "Forensic Custody Events",
       value: String(params.custody.forensic.length),

@@ -80,9 +80,15 @@ function renderDecisionIndicator(params: {
     compactValue = "Recorded";
   } else if (normalizedLabel.includes("trusted timestamp")) {
     compactValue = "Recorded";
-  } else if (normalizedLabel.includes("public anchoring")) {
-    compactValue = "Pending";
-  } else if (normalizedLabel.includes("immutable storage")) {
+} else if (normalizedLabel.includes("public anchoring")) {
+  compactValue =
+    params.tone === "success"
+      ? "Anchored"
+      : params.tone === "danger"
+        ? "Failed"
+        : "Pending";
+}
+  else if (normalizedLabel.includes("immutable storage")) {
     compactValue = "Verified";
   }
 
