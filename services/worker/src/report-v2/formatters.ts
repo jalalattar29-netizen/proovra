@@ -1,10 +1,12 @@
-import { maskPublicEmail as maskEmail } from "@proovra/shared";
+import { maskPublicEmail } from "@proovra/shared";
+
+export const maskEmail = maskPublicEmail;
 
 export function safe(
   value: string | null | undefined,
   fallback = "N/A"
 ): string {
-  const t = typeof value === "string" ? value.trim() : "";
+    const t = typeof value === "string" ? value.trim() : "";
   return t ? t : fallback;
 }
 
