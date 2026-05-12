@@ -151,11 +151,10 @@ export function useCaptureDraftPersistence({
 
       // Don't create a draft for an empty / untouched session — only persist
       // once the user has done meaningful work.
-      const isMeaningful =
-        next.items.length > 0 ||
-        Boolean(next.internalNotes) ||
-        Boolean(next.templateId);
-
+const isMeaningful =
+  next.items.length > 0 ||
+  Boolean(next.internalNotes.trim());
+  
       if (!draftIdRef.current && !isMeaningful) {
         return;
       }
