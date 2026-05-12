@@ -902,7 +902,6 @@ export default function CapturePage() {
   <span>Type</span>
   <span>Size</span>
   <span>Role & requirement</span>
-  <span>Upload</span>
   <span>Status</span>
   <span>Actions</span>
 </div>
@@ -950,14 +949,6 @@ export default function CapturePage() {
         : item.mimeType.startsWith("image/")
           ? ImageIcon
           : FileText;
-
-  const uploadLabel = item.error
-    ? "Failed"
-    : item.uploadProgress >= 100
-      ? "Uploaded"
-      : item.uploading
-        ? `${item.uploadProgress}%`
-        : "Pending";
 
   const mappingHelper = mappedStep
     ? `${mappedStep.title} • ${mappedStep.purposeLabel}`
@@ -1072,8 +1063,6 @@ export default function CapturePage() {
             ) : null}
           </div>
         </span>
-
-        <span className="capture-material-row-upload">{uploadLabel}</span>
 
         <span
           className={`capture-material-row-status ${

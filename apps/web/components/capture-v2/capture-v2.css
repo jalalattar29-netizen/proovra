@@ -7406,3 +7406,66 @@ box-shadow:
 .capture-material-row-shell {
   overflow: visible !important;
 }
+
+/* FINAL FIX — keep evidence table inside center column */
+.capture-materials-board,
+.capture-materials-list {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: visible !important;
+}
+
+.capture-materials-list-header,
+.capture-material-row {
+  grid-template-columns:
+    28px
+    74px
+    minmax(150px, 1fr)
+    64px
+    70px
+    minmax(190px, 1.15fr)
+    92px
+    118px !important;
+  gap: 10px !important;
+}
+
+.capture-material-row-preview {
+  width: 66px !important;
+  height: 50px !important;
+}
+
+.capture-material-row-map-cell {
+  min-width: 0 !important;
+}
+
+.capture-material-dropdown.compact .capture-material-dropdown-trigger {
+  width: 100% !important;
+  max-width: 220px !important;
+}
+
+.capture-material-row-actions {
+  justify-content: flex-end !important;
+  gap: 6px !important;
+}
+
+.capture-material-row-actions button {
+  padding: 0 9px !important;
+  min-height: 32px !important;
+  font-size: 0.72rem !important;
+}
+
+@media (max-width: 1450px) {
+  .capture-materials-list-header,
+  .capture-material-row {
+    grid-template-columns:
+      24px
+      66px
+      minmax(130px, 1fr)
+      56px
+      62px
+      minmax(170px, 1fr)
+      82px
+      108px !important;
+    gap: 8px !important;
+  }
+}
