@@ -704,45 +704,61 @@ onClick={async () => {
   </div>
 
   <div className="capture-setup-controls">
-    <button
-      type="button"
-      className={`capture-setup-mode ${planMode === "CHECKLIST_REQUIRED" ? "active" : ""}`}
-      onClick={() => setPlanMode("CHECKLIST_REQUIRED")}
-      disabled={busy}
-    >
-      <ClipboardCheck size={18} strokeWidth={2.1} />
-      <span>
-        <strong>Guided</strong>
-        <small>Checklist required</small>
-      </span>
-    </button>
+<button
+  type="button"
+  className={`capture-setup-mode ${planMode === "CHECKLIST_REQUIRED" ? "active" : ""}`}
+  onClick={() => setPlanMode("CHECKLIST_REQUIRED")}
+  disabled={busy || sessionItems.length > 0}
+>
+  <span className="capture-setup-icon">
+    <ClipboardCheck size={18} strokeWidth={2.1} />
+  </span>
+  <span>
+    <strong>Guided</strong>
+    <small>Checklist required</small>
+  </span>
+</button>
 
-    <button
-      type="button"
-      className={`capture-setup-mode ${planMode === "FLEXIBLE" ? "active" : ""}`}
-      onClick={() => setPlanMode("FLEXIBLE")}
-      disabled={busy}
-    >
-      <FolderOpen size={18} strokeWidth={2.1} />
-      <span>
-        <strong>Flexible</strong>
-        <small>General intake</small>
-      </span>
-    </button>
+<button
+  type="button"
+  className={`capture-setup-mode ${planMode === "FLEXIBLE" ? "active" : ""}`}
+  onClick={() => setPlanMode("FLEXIBLE")}
+  disabled={busy || sessionItems.length > 0}
+>
+  <span className="capture-setup-icon">
+    <FolderOpen size={18} strokeWidth={2.1} />
+  </span>
+  <span>
+    <strong>Flexible</strong>
+    <small>General intake</small>
+  </span>
+</button>
 
-    <label className={`capture-setup-location ${useLocation ? "active" : ""}`}>
-      <MapPinIcon />
-      <span>
-        <strong>Location</strong>
-        <small>{useLocation ? "Included" : "Not included"}</small>
-      </span>
-      <input
-        type="checkbox"
-        checked={useLocation}
-        onChange={(event) => setUseLocation(event.target.checked)}
-        disabled={busy}
+<label className={`capture-setup-location ${useLocation ? "active" : ""}`}>
+  <span className="capture-setup-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path
+        d="M12 21s-6-5.2-6-11a6 6 0 1 1 12 0c0 5.8-6 11-6 11Z"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
-    </label>
+      <circle cx="12" cy="10" r="2.4" fill="currentColor" stroke="none" />
+    </svg>
+  </span>
+
+  <span>
+    <strong>Location</strong>
+    <small>{useLocation ? "Included" : "Not included"}</small>
+  </span>
+
+  <input
+    type="checkbox"
+    checked={useLocation}
+    onChange={(event) => setUseLocation(event.target.checked)}
+    disabled={busy}
+  />
+</label>
   </div>
 </section>
             <CaptureRequirements
