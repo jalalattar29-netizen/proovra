@@ -6990,3 +6990,395 @@ box-shadow:
     align-items: stretch !important;
   }
 }
+
+/* =========================================================
+   PROOVRA CAPTURE — FINAL ENTERPRISE LAYOUT RESET
+   Put this at the very end of capture CSS.
+========================================================= */
+
+@media (min-width: 981px) {
+  .capture-enterprise-shell {
+    max-width: 1540px !important;
+  }
+
+  .capture-enterprise-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 360px !important;
+    gap: 24px !important;
+    align-items: start !important;
+  }
+
+  .capture-left-panel {
+    display: none !important;
+  }
+
+  .capture-main-panel {
+    min-width: 0 !important;
+    overflow: visible !important;
+    padding: 22px !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+  }
+
+  .capture-session-column {
+    min-width: 0 !important;
+    position: sticky !important;
+    top: 92px !important;
+  }
+
+  .capture-right-panel,
+  .capture-command-center {
+    width: 100% !important;
+    max-width: 360px !important;
+    overflow: hidden !important;
+  }
+}
+
+/* Top setup strip replacing the old left column */
+.capture-setup-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px 220px;
+  gap: 12px;
+  align-items: stretch;
+  padding: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.09);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.capture-setup-strip-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  min-width: 0;
+}
+
+.capture-setup-mode-group {
+  display: flex;
+  gap: 8px;
+}
+
+.capture-setup-mode {
+  min-height: 48px;
+  min-width: 128px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  background: #f8fafc;
+  color: #17252a;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.capture-setup-mode.active {
+  border-color: rgba(15, 92, 86, 0.24);
+  background: rgba(15, 92, 86, 0.08);
+  color: #0b403d;
+}
+
+.capture-setup-mode svg {
+  color: #0f5c56;
+  flex-shrink: 0;
+}
+
+.capture-setup-mode span {
+  display: grid;
+  gap: 1px;
+  text-align: left;
+}
+
+.capture-setup-mode strong {
+  font-size: 0.82rem;
+  font-weight: 850;
+  line-height: 1.1;
+}
+
+.capture-setup-mode small {
+  font-size: 0.68rem;
+  color: rgba(23, 37, 42, 0.58);
+  line-height: 1.15;
+}
+
+.capture-setup-location,
+.capture-setup-lock-note {
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fbfaf7;
+  padding: 11px 12px;
+}
+
+.capture-setup-location {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.capture-setup-location span {
+  display: grid;
+  gap: 2px;
+}
+
+.capture-setup-location strong,
+.capture-setup-lock-note {
+  font-size: 0.78rem;
+  font-weight: 850;
+  color: #17252a;
+}
+
+.capture-setup-location small {
+  font-size: 0.7rem;
+  color: rgba(23, 37, 42, 0.58);
+}
+
+.capture-setup-lock-note {
+  display: flex;
+  align-items: center;
+  color: rgba(23, 37, 42, 0.64);
+  line-height: 1.35;
+}
+
+/* Evidence table: stable desktop width */
+@media (min-width: 981px) {
+  .capture-materials-board {
+    overflow: hidden !important;
+  }
+
+  .capture-materials-list {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+  }
+
+  .capture-materials-list-header,
+  .capture-material-row {
+    min-width: 980px !important;
+    grid-template-columns:
+      28px
+      72px
+      minmax(180px, 1.25fr)
+      74px
+      82px
+      minmax(240px, 1.55fr)
+      118px
+      126px !important;
+  }
+
+  .capture-material-row {
+    height: 68px !important;
+    min-height: 68px !important;
+    max-height: 68px !important;
+    overflow: visible !important;
+  }
+
+  .capture-material-row-preview {
+    width: 62px !important;
+    height: 46px !important;
+    min-width: 62px !important;
+    max-width: 62px !important;
+    min-height: 46px !important;
+    max-height: 46px !important;
+  }
+
+  .capture-material-dropdown.compact .capture-material-dropdown-trigger {
+    max-width: none !important;
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+}
+
+/* Right rail: readable, no broken vertical words */
+.capture-command-center {
+  gap: 14px !important;
+}
+
+.capture-command-section {
+  padding: 14px !important;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+}
+
+.capture-command-section-title {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+.capture-command-section-title span {
+  font-size: 0.84rem !important;
+  font-weight: 850 !important;
+  color: #17252a !important;
+}
+
+.capture-integrity-grid {
+  display: none !important;
+}
+
+.capture-integrity-list {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.capture-integrity-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px 11px;
+  background: #ffffff;
+}
+
+.capture-integrity-list span {
+  min-width: 0;
+  color: rgba(23, 37, 42, 0.58);
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.capture-integrity-list strong {
+  color: #0f5c56;
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* AI card: stop nested-card mess */
+.capture-ai-advisory-shell {
+  background: #ffffff !important;
+}
+
+.capture-ai-advisory-shell > p {
+  font-size: 0.78rem !important;
+  line-height: 1.45 !important;
+  color: rgba(23, 37, 42, 0.62) !important;
+}
+
+.capture-ai-advisory-shell .capture-phase7-ai-card,
+.capture-ai-advisory-shell .capture-phase7-ai-shell,
+.capture-ai-advisory-shell .capture-phase7-ai-body,
+.capture-ai-advisory-shell .capture-phase7-ai-content,
+.capture-ai-advisory-shell .capture-phase7-ai-expanded {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.capture-ai-advisory-shell .capture-phase7-ai-toggle {
+  min-height: 46px !important;
+  border-radius: 14px !important;
+  padding: 10px 12px !important;
+  background: linear-gradient(180deg, #0f5c56, #0b403d) !important;
+}
+
+.capture-ai-advisory-shell .capture-phase7-ai-status {
+  margin-top: 10px !important;
+  border-radius: 14px !important;
+}
+
+.capture-ai-advisory-shell .capture-phase7-ai-context-grid {
+  margin-top: 10px !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.capture-ai-advisory-shell .capture-phase7-ai-context-grid > div {
+  border-radius: 12px !important;
+  padding: 9px !important;
+}
+
+/* Responsive */
+@media (max-width: 980px) {
+  .capture-setup-strip {
+    grid-template-columns: 1fr !important;
+  }
+
+  .capture-setup-strip-main {
+    grid-template-columns: 1fr !important;
+  }
+
+  .capture-setup-mode-group {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .capture-session-column {
+    position: static !important;
+  }
+
+  .capture-right-panel,
+  .capture-command-center {
+    max-width: none !important;
+  }
+}
+
+/* FINAL — preserve PROOVRA teal icon system */
+
+.capture-enterprise-page .capture-enterprise-icon,
+.capture-enterprise-page .capture-security-shield,
+.capture-enterprise-page .capture-method-icon,
+.capture-enterprise-page .capture-requirement-icon,
+.capture-enterprise-page .capture-inline-heading-icon,
+.capture-enterprise-page .capture-material-file-icon,
+.capture-enterprise-page .capture-material-row-file-icon,
+.capture-enterprise-page .capture-readiness-icon,
+.capture-enterprise-page .capture-action-icon {
+  color: #ffffff !important;
+  background: linear-gradient(180deg, #2f9c94 0%, #16766f 100%) !important;
+  border-color: rgba(35, 139, 132, 0.32) !important;
+}
+
+.capture-enterprise-page .capture-enterprise-icon svg,
+.capture-enterprise-page .capture-security-shield svg,
+.capture-enterprise-page .capture-method-icon svg,
+.capture-enterprise-page .capture-requirement-icon svg,
+.capture-enterprise-page .capture-inline-heading-icon svg,
+.capture-enterprise-page .capture-material-file-icon svg,
+.capture-enterprise-page .capture-material-row-file-icon svg,
+.capture-enterprise-page .capture-readiness-icon svg,
+.capture-enterprise-page .capture-action-icon,
+.capture-enterprise-page .capture-action-icon * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* upload buttons: icon stays teal unless primary button */
+.capture-intake-secondary-action .capture-action-icon,
+.capture-intake-secondary-action .capture-action-icon * {
+  color: #17857b !important;
+  stroke: #17857b !important;
+}
+
+.capture-intake-primary-action .capture-action-icon,
+.capture-intake-primary-action .capture-action-icon * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* small file-type badge on evidence row */
+.capture-material-row-type-icon,
+.capture-material-row-type-badge {
+  color: #17857b !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid rgba(23, 133, 123, 0.22) !important;
+}
+
+.capture-material-row-type-icon svg,
+.capture-material-row-type-icon svg *,
+.capture-material-row-type-badge svg,
+.capture-material-row-type-badge svg * {
+  color: #17857b !important;
+  stroke: #17857b !important;
+}

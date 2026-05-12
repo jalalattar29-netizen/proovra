@@ -128,6 +128,14 @@ export default function CapturePage() {
     return `${roleLabel} · ${mappedStep.title}`;
   };
 
+  const setupModeLabel =
+  planMode === "CHECKLIST_REQUIRED" ? "Guided checklist" : "Flexible intake";
+
+const setupModeDescription =
+  planMode === "CHECKLIST_REQUIRED"
+    ? "Structured requirements for claims, investigations, legal, and compliance."
+    : "Upload any materials without blocking completion.";
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -677,109 +685,67 @@ onClick={async () => {
         </section>
 
         <section className="capture-enterprise-grid">
-          <aside className="capture-enterprise-card capture-left-panel">
-            <div>
-              <div className="capture-section-label">Collection method</div>
-              <div className="capture-card-title">Choose intake structure</div>
-              <p className="capture-card-muted">
-                Select a guided checklist for structured review or use flexible
-                intake for general evidence preservation.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className={`capture-method-button ${
-                planMode === "CHECKLIST_REQUIRED" ? "active" : ""
-              }`}
-              onClick={() => setPlanMode("CHECKLIST_REQUIRED")}
-              disabled={busy || sessionItems.length > 0}
-            >
-              <span className="capture-method-icon">
-                <ClipboardCheck size={22} strokeWidth={2.1} />
-              </span>
-              <span>
-                <strong>Guided checklist</strong>
-                <small>
-                  Structured requirements for claims, investigations, legal,
-                  and compliance.
-                </small>
-              </span>
-            </button>
-
-            <button
-              type="button"
-              className={`capture-method-button ${
-                planMode === "FLEXIBLE" ? "active" : ""
-              }`}
-              onClick={() => setPlanMode("FLEXIBLE")}
-              disabled={busy || sessionItems.length > 0}
-            >
-              <span className="capture-method-icon bronze">
-                <FolderOpen size={22} strokeWidth={2.1} />
-              </span>
-              <span>
-                <strong>Flexible intake</strong>
-                <small>Upload any materials without blocking completion.</small>
-              </span>
-            </button>
-
-            {sessionItems.length > 0 ? (
-              <div className="capture-soft-note">
-                Intake mode and template are locked after adding materials to
-                preserve review context.
-              </div>
-            ) : null}
-
-            <div className="capture-benefits-card">
-              <div className="capture-card-title">Why guided checklist?</div>
-              {[
-                "Reduces missing evidence",
-                "Maps each item to reviewer purpose",
-                "Improves claim and legal readiness",
-                "Creates clearer audit context",
-              ].map((text) => (
-                <div key={text}>{text}</div>
-              ))}
-            </div>
-
-            <label className="capture-location-card">
-              <span>
-                <strong className="capture-inline-heading">
-                  <span className="capture-inline-heading-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path
-                        d="M12 21s-6-5.2-6-11a6 6 0 1 1 12 0c0 5.8-6 11-6 11Z"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <circle
-                        cx="12"
-                        cy="10"
-                        r="2.4"
-                        fill="currentColor"
-                        stroke="none"
-                      />
-                    </svg>
-                  </span>
-                  Include location
-                </strong>
-                <small>
-                  Investigation plans preserve precise GPS metadata, while other
-                  intake workflows reduce location precision by default.
-                </small>
-              </span>
-              <input
-                type="checkbox"
-                checked={useLocation}
-                onChange={(event) => setUseLocation(event.target.checked)}
-                disabled={busy}
-              />
-            </label>
-          </aside>
-
           <main className="capture-enterprise-card capture-main-panel">
+            <section className="capture-setup-strip">
+  <div className="capture-setup-strip-main">
+    <div>
+      <div className="capture-section-label">Collection setup</div>
+      <div className="capture-card-title">Intake structure</div>
+      <p className="capture-card-muted">
+        Choose how this session should be collected and reviewed.
+      </p>
+    </div>
+
+    <div className="capture-setup-mode-group">
+      <button
+        type="button"
+        className={`capture-setup-mode ${planMode === "CHECKLIST_REQUIRED" ? "active" : ""}`}
+        onClick={() => setPlanMode("CHECKLIST_REQUIRED")}
+        disabled={busy || sessionItems.length > 0}
+      >
+        <ClipboardCheck size={17} strokeWidth={2.1} />
+        <span>
+          <strong>Guided</strong>
+          <small>Checklist required</small>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className={`capture-setup-mode ${planMode === "FLEXIBLE" ? "active" : ""}`}
+        onClick={() => setPlanMode("FLEXIBLE")}
+        disabled={busy || sessionItems.length > 0}
+      >
+        <FolderOpen size={17} strokeWidth={2.1} />
+        <span>
+          <strong>Flexible</strong>
+          <small>General intake</small>
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <label className="capture-setup-location">
+    <span>
+      <strong>Location</strong>
+      <small>{useLocation ? "Included with consent" : "Not included"}</small>
+    </span>
+    <input
+      type="checkbox"
+      checked={useLocation}
+      onChange={(event) => setUseLocation(event.target.checked)}
+      disabled={busy}
+    />
+  </label>
+
+  {sessionItems.length > 0 ? (
+    <div className="capture-setup-lock-note">
+      {setupModeLabel} locked after staging materials.
+    </div>
+  ) : (
+    <div className="capture-setup-lock-note">{setupModeDescription}</div>
+  )}
+</section>
             <CaptureRequirements
               selectedCollectionPlan={selectedCollectionPlan}
               collectionPlans={collectionPlans}

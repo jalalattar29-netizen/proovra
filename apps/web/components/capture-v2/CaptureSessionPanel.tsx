@@ -218,31 +218,31 @@ export function CaptureSessionPanel({
           </div>
         </section>
 
-        <section className="capture-command-section capture-integrity-block">
-          <div className="capture-command-section-title">
-            <span>Integrity preparation</span>
-            <ShieldCheck size={16} strokeWidth={2.1} />
-          </div>
-          <div className="capture-integrity-grid">
-            <div>
-              <span>Local fingerprint</span>
-              <strong>{sessionItems.length > 0 ? "Queued for staged material" : "Awaiting material"}</strong>
-            </div>
-            <div>
-              <span>Chain of custody</span>
-              <strong>{sessionItems.length > 0 ? "Prepared after Review & Sign" : "Not initialized"}</strong>
-            </div>
-            <div>
-              <span>Verification package</span>
-              <strong>Generated after finalization</strong>
-            </div>
-            <div>
-              <span>Location metadata</span>
-              <strong>{useLocation ? "Included with consent" : "Not included"}</strong>
-            </div>
-          </div>
-        </section>
+<section className="capture-command-section capture-integrity-block">
+  <div className="capture-command-section-title">
+    <span>Integrity preparation</span>
+    <ShieldCheck size={16} strokeWidth={2.1} />
+  </div>
 
+  <div className="capture-integrity-list">
+    <div>
+      <span>Fingerprint</span>
+      <strong>{sessionItems.length > 0 ? "Queued" : "Waiting"}</strong>
+    </div>
+    <div>
+      <span>Custody</span>
+      <strong>{sessionItems.length > 0 ? "Ready after sign" : "Not started"}</strong>
+    </div>
+    <div>
+      <span>Package</span>
+      <strong>After finalization</strong>
+    </div>
+    <div>
+      <span>Location</span>
+      <strong>{useLocation ? "Included" : "Not included"}</strong>
+    </div>
+  </div>
+</section>
         <section className="capture-command-section capture-ai-advisory-shell">
           <div className="capture-command-section-title">
             <span>AI advisory review</span>
