@@ -1130,62 +1130,6 @@ export default function CapturePage() {
               </div>
             ) : null}
 
-            {sessionItems.length === 0 ? (
-              <div
-                className="capture-empty-dropzone-panel capture-operational-empty"
-                onClick={openFilePicker}
-              >
-                <div>
-                  <strong>Start by adding source material</strong>
-                  <p>
-                    Drag files or folders here, upload existing material, or
-                    capture photo, video, or audio from this device.
-                  </p>
-                </div>
-
-                <div
-                  className="capture-dropzone-plus"
-                  role="button"
-                  tabIndex={0}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    openFilePicker();
-                  }}
-                >
-                  <span>+</span>
-                </div>
-
-                <div className="capture-empty-operational-grid">
-                  <div>
-                    <span>Accepted categories</span>
-                    <strong>
-                      Images, video, audio, PDFs, documents, archives, folders
-                    </strong>
-                  </div>
-                  <div
-                    className={
-                      sessionReadiness.missingRequiredSteps.length > 0
-                        ? "is-blocked"
-                        : ""
-                    }
-                  >
-                    <span>Required missing</span>
-                    <strong>{sessionReadiness.missingRequiredSteps.length}</strong>
-                  </div>
-                  <div>
-                    <span>Submission state</span>
-                    <strong>Local staging only</strong>
-                  </div>
-                </div>
-
-                <p className="capture-drop-zone-note">
-                  Nothing is signed or submitted until Review & Sign. Integrity
-                  metadata is prepared during intake and verification artifacts
-                  are generated after finalization.
-                </p>
-              </div>
-            ) : null}
-
             {audioRecorderOpen ? (
               <div className="capture-audio-card">
                 <div className="capture-panel-heading">

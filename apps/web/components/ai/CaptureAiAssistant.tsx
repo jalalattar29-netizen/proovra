@@ -383,10 +383,12 @@ export function CaptureAiAssistant({
         className={`capture-phase7-ai-toggle ${workflowState.tone}`}
       >
         <div>
-          <span className="capture-phase7-ai-kicker">Workflow QA</span>
-          <strong>Capture AI quality control</strong>
+<span className="capture-phase7-ai-kicker">Workflow QA</span>
+<strong>AI Review</strong>
         </div>
-        <span>{isOpen ? "Hide" : qaIssueCount > 0 ? `Show · ${qaIssueCount}` : "Show"}</span>
+<span className="capture-ai-count-pill">
+  {isOpen ? "Hide" : qaIssueCount > 0 ? qaIssueCount : "Open"}
+</span>
       </button>
 
       {isOpen ? (

@@ -7469,3 +7469,92 @@ box-shadow:
     gap: 8px !important;
   }
 }
+
+/* spacing between status and actions */
+.capture-material-row-status {
+  margin-right: 14px !important;
+}
+
+/* actions layout */
+.capture-material-row-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+/* remove button neutral state */
+.capture-material-row-actions button:last-child {
+  border-color: rgba(220, 38, 38, 0.14) !important;
+  color: #991b1b !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+}
+
+/* remove button hover */
+.capture-material-row-actions button:last-child:hover {
+  background: rgba(220, 38, 38, 0.08) !important;
+  border-color: rgba(220, 38, 38, 0.24) !important;
+  color: #b91c1c !important;
+}
+
+/* notes button keep enterprise neutral */
+.capture-material-row-actions button:first-child:hover {
+  background: rgba(15, 23, 42, 0.05) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+  color: #0f172a !important;
+}
+
+/* FINAL — single enterprise upload surface */
+.capture-empty-dropzone-panel,
+.capture-operational-empty {
+  display: none !important;
+}
+
+.capture-drop-zone-enterprise,
+.capture-intake-command {
+  margin-bottom: 22px !important;
+}
+
+.capture-drop-assistive-copy {
+  margin-top: 8px !important;
+}
+
+/* FINAL — compact enterprise AI review toggle */
+.capture-phase7-ai-toggle {
+  min-height: 58px !important;
+  padding: 12px 14px !important;
+  border-radius: 16px !important;
+}
+
+.capture-phase7-ai-toggle > div {
+  min-width: 0 !important;
+}
+
+.capture-phase7-ai-kicker {
+  font-size: 0.64rem !important;
+  letter-spacing: 0.14em !important;
+}
+
+.capture-phase7-ai-toggle strong {
+  max-width: 145px !important;
+  font-size: 0.88rem !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.capture-ai-count-pill {
+  flex: 0 0 auto !important;
+  min-width: 34px !important;
+  height: 30px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(255,255,255,0.12) !important;
+  border: 1px solid rgba(214,184,157,0.32) !important;
+  color: #d6b89d !important;
+  font-size: 0.76rem !important;
+  font-weight: 900 !important;
+}
