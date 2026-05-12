@@ -7683,3 +7683,286 @@ box-shadow:
   background: rgba(18, 122, 112, 0.16) !important;
   transform: translateY(-1px) !important;
 }
+
+/* FINAL — AI review card less white / more enterprise */
+
+.capture-phase7-ai-panel,
+.capture-phase7-ai-expanded,
+.capture-phase7-ai-content {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* outer white shell */
+.capture-phase7-ai-shell,
+.capture-phase7-ai-card {
+  background: rgba(248, 250, 252, 0.58) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.06) !important;
+  box-shadow: none !important;
+}
+
+/* cards inside AI review */
+.capture-phase7-ai-summary-card,
+.capture-phase7-ai-metric,
+.capture-phase7-ai-advisory,
+.capture-phase7-ai-state-card {
+  background: rgba(255, 255, 255, 0.42) !important;
+  border: 1px solid rgba(15, 23, 42, 0.07) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+/* advisory section softer */
+.capture-phase7-ai-advisory {
+  background: rgba(250, 247, 242, 0.52) !important;
+  border-color: rgba(191, 161, 122, 0.14) !important;
+}
+
+/* remove harsh white under AI button */
+.capture-phase7-ai-toggle-wrapper,
+.capture-phase7-ai-toggle-container {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* softer spacing */
+.capture-phase7-ai-content {
+  gap: 12px !important;
+}
+
+/* FINAL FIX — separate Status from Notes/Actions */
+
+.capture-materials-list-header,
+.capture-material-row {
+  grid-template-columns:
+    30px
+    76px
+    minmax(150px, 1.25fr)
+    70px
+    78px
+    minmax(210px, 1.45fr)
+    minmax(120px, 140px)
+    minmax(118px, auto) !important;
+}
+
+.capture-material-row-status {
+  justify-self: start !important;
+  white-space: nowrap !important;
+  max-width: 112px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.capture-material-row-actions {
+  justify-self: end !important;
+  display: flex !important;
+  gap: 8px !important;
+  align-items: center !important;
+  min-width: 118px !important;
+}
+
+.capture-material-row-actions button {
+  flex-shrink: 0 !important;
+}
+
+/* Enterprise add button */
+
+.capture-dropzone-plus {
+  width: 54px !important;
+  height: 54px !important;
+  border-radius: 16px !important;
+
+  background: linear-gradient(
+    180deg,
+    #117a6d 0%,
+    #0d5f55 100%
+  ) !important;
+
+  border: 1px solid rgba(9, 95, 84, 0.95) !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  box-shadow:
+    0 10px 24px rgba(9, 95, 84, 0.18),
+    inset 0 1px 0 rgba(255,255,255,0.12) !important;
+
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease !important;
+
+  cursor: pointer !important;
+}
+
+.capture-dropzone-plus span {
+  color: #ffffff !important;
+  font-size: 30px !important;
+  font-weight: 300 !important;
+  line-height: 1 !important;
+  transform: translateY(-1px);
+}
+
+.capture-dropzone-plus:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow:
+    0 14px 28px rgba(9, 95, 84, 0.24),
+    inset 0 1px 0 rgba(255,255,255,0.14) !important;
+}
+
+/* Center capture header copy */
+
+.capture-intake-command-header {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: 1fr auto 1fr !important;
+  align-items: start !important;
+  text-align: center !important;
+}
+
+.capture-intake-command-header > div:first-child {
+  grid-column: 2 !important;
+  justify-self: center !important;
+  text-align: center !important;
+}
+
+.capture-intake-command-header p {
+  margin-left: auto !important;
+  margin-right: auto !important;
+  text-align: center !important;
+}
+
+.capture-intake-state-pill {
+  grid-column: 3 !important;
+  justify-self: end !important;
+}
+
+.capture-resume-banner {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  padding: 10px 14px !important;
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.42) !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  box-shadow: none !important;
+}
+
+.capture-resume-banner-text p {
+  display: none !important;
+}
+
+.capture-drafts-trigger {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 92, 86, 0.18);
+  background: rgba(15, 92, 86, 0.08);
+  color: #0b5f56;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.capture-drafts-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(7, 16, 18, 0.48);
+  backdrop-filter: blur(10px);
+}
+
+.capture-drafts-modal {
+  width: min(760px, 100%);
+  max-height: 78vh;
+  overflow: auto;
+  border-radius: 24px;
+  padding: 22px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: 0 32px 90px rgba(15, 23, 42, 0.22);
+}
+
+.capture-drafts-modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.capture-drafts-modal-header strong {
+  color: #101828;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.capture-drafts-modal-header p {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 0.82rem;
+}
+
+.capture-drafts-modal-header button {
+  border: 0;
+  background: transparent;
+  color: #667085;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.capture-drafts-modal-list {
+  display: grid;
+  gap: 10px;
+}
+
+.capture-drafts-modal-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.capture-drafts-modal-meta {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.capture-drafts-modal-meta strong {
+  color: #101828;
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+
+.capture-drafts-modal-meta span {
+  color: #667085;
+  font-size: 0.78rem;
+}
+
+.capture-drafts-modal-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.capture-draft-delete-button {
+  color: #b42318 !important;
+  border-color: rgba(240, 68, 56, 0.22) !important;
+}
+
+.capture-draft-delete-button:hover {
+  background: rgba(240, 68, 56, 0.08) !important;
+  color: #b42318 !important;
+}

@@ -520,89 +520,92 @@ export default function CapturePage() {
               </p>
             </div>
 
-            <div className="capture-resume-banner-actions">
+<div className="capture-resume-banner-actions">
+  <button
+    type="button"
+    className="capture-drafts-trigger"
+    onClick={() => setResumeOpen(true)}
+  >
+    Drafts ({draftList.drafts.length})
+  </button>
+</div>
+
+{resumeOpen ? (
+  <div
+    className="capture-drafts-modal-backdrop"
+    onClick={() => setResumeOpen(false)}
+  >
+    <div
+      className="capture-drafts-modal"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="capture-drafts-modal-header">
+        <div>
+          <strong>Unfinished capture drafts</strong>
+          <p>Resume draft metadata, then re-attach files before Review & Sign.</p>
+        </div>
+
+        <button type="button" onClick={() => setResumeOpen(false)}>
+          Close
+        </button>
+      </div>
+
+      <div className="capture-drafts-modal-list">
+        {draftList.drafts.map((draft) => (
+          <div key={draft.id} className="capture-drafts-modal-item">
+            <div className="capture-drafts-modal-meta">
+              <strong>{draft.templateName ?? "Untitled draft"}</strong>
+              <span>
+                {draft.itemCount} staged item{draft.itemCount === 1 ? "" : "s"}
+                {draft.planMode ? ` • ${draft.planMode}` : ""}
+                {draft.expiresAtUtc
+                  ? ` • Expires ${new Date(draft.expiresAtUtc).toLocaleString()}`
+                  : ""}
+              </span>
+            </div>
+
+            <div className="capture-drafts-modal-actions">
               <button
                 type="button"
                 className="capture-bulk-button"
-                onClick={() => setResumeOpen((open) => !open)}
+onClick={async () => {
+  const detail = await draftList.fetchDetail(draft.id);
+
+  if (!detail) {
+    addToast("Draft could not be restored.", "error");
+    return;
+  }
+
+  setResumeDraftId(draft.id);
+  setResumeDraftDetail(detail);
+  setResumeMetadataApplied(false);
+  setResumeOpen(false);
+
+  addToast(
+    "Draft restored. Re-attach files before Review & Sign.",
+    "success"
+  );
+}}
               >
-                {resumeOpen ? "Hide drafts" : "View drafts"}
+                Resume
+              </button>
+
+              <button
+                type="button"
+                className="capture-bulk-button capture-draft-delete-button"
+                onClick={async () => {
+                  await draftList.discard(draft.id);
+                }}
+              >
+                Delete
               </button>
             </div>
-
-            {resumeOpen ? (
-              <ul className="capture-resume-list">
-                {draftList.drafts.map((draft) => (
-                  <li key={draft.id} className="capture-resume-list-item">
-                    <div className="capture-resume-list-meta">
-                      <strong>{draft.templateName ?? "Untitled draft"}</strong>
-                      <span>
-                        {draft.itemCount} staged item
-                        {draft.itemCount === 1 ? "" : "s"}
-                        {draft.planMode ? ` • ${draft.planMode}` : ""}
-                        {draft.expiresAtUtc
-                          ? ` • Expires ${new Date(
-                              draft.expiresAtUtc
-                            ).toLocaleString()}`
-                          : ""}
-                      </span>
-                    </div>
-
-                    <div className="capture-resume-list-actions">
-                      <button
-                        type="button"
-                        className="capture-bulk-button"
-                        onClick={async () => {
-                          const detail = await draftList.fetchDetail(draft.id);
-                          setResumeDraftId(draft.id);
-                          setResumeDraftDetail(detail);
-                        }}
-                      >
-                        Resume metadata
-                      </button>
-
-                      <button
-                        type="button"
-                        className="capture-bulk-button"
-                        onClick={async () => {
-                          await draftList.discard(draft.id);
-                        }}
-                      >
-                        Discard
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-
-            {resumeDraftDetail ? (
-              <div className="capture-resume-restore-note">
-                <strong>Restored draft metadata loaded.</strong>
-                <p>
-                  Template:{" "}
-                  <em>{resumeDraftDetail.templateName ?? "Untitled"}</em>.
-                  Notes and {resumeDraftDetail.items.length} staged item
-                  reference{resumeDraftDetail.items.length === 1 ? "" : "s"}{" "}
-                  loaded into local view. Re-attach each file binary in the
-                  Capture surface below before finalization. The previous
-                  uploaded files (if any) will be retained server-side under
-                  their existing parts. Continuing finalization will create a
-                  fresh evidence record.
-                </p>
-                <button
-                  type="button"
-                  className="capture-bulk-button"
-                  onClick={() => {
-                    setResumeDraftId(null);
-                    setResumeDraftDetail(null);
-                    setResumeMetadataApplied(false);
-                  }}
-                >
-                  Acknowledge
-                </button>
-              </div>
-            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+) : null}
 
             <input type="hidden" name="resumed-draft" value={resumeDraftId ?? ""} />
           </div>
