@@ -8591,3 +8591,61 @@ box-shadow:
 .capture-setup-location.active strong {
   color: #9a6b3d !important;
 }
+
+/* make all capture cards transparent */
+
+.capture-enterprise-title-card,
+.capture-enterprise-security-card,
+.capture-enterprise-step,
+.capture-main-panel,
+.capture-session-panel,
+.capture-materials-board,
+.capture-dropzone,
+.capture-setup-strip,
+.capture-audio-card,
+.capture-resume-banner,
+.capture-requirements-card,
+.capture-enterprise-card {
+  background: transparent !important;
+}
+
+/* optional: remove extra borders/shadows if بدك clean أكثر */
+.capture-enterprise-title-card,
+.capture-enterprise-security-card,
+.capture-main-panel,
+.capture-session-panel,
+.capture-materials-board,
+.capture-dropzone,
+.capture-setup-strip,
+.capture-audio-card,
+.capture-resume-banner,
+.capture-requirements-card,
+.capture-enterprise-card {
+  box-shadow: none !important;
+}
+
+/* keep subtle separators only */
+.capture-enterprise-step,
+.capture-setup-strip,
+.capture-materials-board {
+  border: 1px solid rgba(15, 23, 42, 0.06) !important;
+}
+
+.capture-setup-description {
+  margin: 6px 0 22px !important;
+  color: #111827 !important;
+  font-size: 15px !important;
+  font-weight: 400 !important;
+  line-height: 1.5 !important;
+}
+
+/* keep plus button solid on hover */
+
+.capture-dropzone-add-button:hover,
+.capture-dropzone-add-button:focus,
+.capture-dropzone-add-button:active {
+  opacity: 1 !important;
+  filter: none !important;
+  background: linear-gradient(180deg, #0f8d7f 0%, #0a6d63 100%) !important;
+  color: #ffffff !important;
+}

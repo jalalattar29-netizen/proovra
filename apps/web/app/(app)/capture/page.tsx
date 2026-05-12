@@ -679,16 +679,18 @@ onClick={async () => {
         <section className="capture-enterprise-grid">
           <main className="capture-enterprise-card capture-main-panel">
 <section className="capture-setup-strip">
-  <div className="capture-setup-copy">
-    <div className="capture-section-label">Collection setup</div>
-    <div className="capture-card-title">Intake structure</div>
-    <p className="capture-card-muted">
-      Choose whether this session follows a required checklist or flexible intake.
-    </p>
-  </div>
+<div className="capture-setup-copy">
+  <div className="capture-section-label">Collection setup</div>
+  <div className="capture-card-title">Intake structure</div>
+</div>
 
-  <div className="capture-setup-controls">
-<button
+<p className="capture-setup-description">
+  Choose whether this session follows a required checklist, flexible intake,
+  or location-enabled collection.
+</p>
+
+<div className="capture-setup-controls">
+  <button
   type="button"
   className={`capture-setup-mode ${planMode === "CHECKLIST_REQUIRED" ? "active" : ""}`}
   onClick={() => setPlanMode("CHECKLIST_REQUIRED")}
@@ -782,6 +784,72 @@ onClick={async () => {
                 }
               }}
             />
+                        {audioRecorderOpen ? (
+              <div className="capture-audio-card">
+                <div className="capture-panel-heading">
+                  <strong>Audio Recorder</strong>
+
+                  {audioRecorderState !== "recording" ? (
+                    <button
+                      type="button"
+                      className="capture-audio-close-button"
+                      onClick={resetAudioRecorderState}
+                      aria-label="Close audio recorder"
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </div>
+
+                {audioPreviewUrl ? (
+                  <audio controls preload="metadata" src={audioPreviewUrl}>
+                    Your browser could not play this audio preview.
+                  </audio>
+                ) : null}
+
+                {audioRecorderError ? (
+                  <div className="capture-quality-danger">
+                    {audioRecorderError}
+                  </div>
+                ) : null}
+
+                <div className="capture-audio-actions">
+                  <Button
+                    onClick={startAudioRecording}
+                    disabled={busy || audioRecorderState === "recording"}
+                    className="capture-audio-start-button"
+                  >
+                    Start Recording
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    onClick={stopAudioRecording}
+                    disabled={audioRecorderState !== "recording"}
+                  >
+                    Stop
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    onClick={discardAudioRecording}
+                    disabled={
+                      audioRecorderState === "recording" ||
+                      audioRecorderState === "uploading"
+                    }
+                  >
+                    Discard
+                  </Button>
+
+                  <Button
+                    onClick={addAudioRecordingToSession}
+                    disabled={audioRecorderState !== "preview_ready"}
+                  >
+                    Add to Session
+                  </Button>
+                </div>
+              </div>
+            ) : null}
 
             {sessionItems.length > 0 ? (
               <div className="capture-materials-board">
@@ -1084,73 +1152,6 @@ onClick={async () => {
     </div>
   );
 })}
-                </div>
-              </div>
-            ) : null}
-
-            {audioRecorderOpen ? (
-              <div className="capture-audio-card">
-                <div className="capture-panel-heading">
-                  <strong>Audio Recorder</strong>
-
-                  {audioRecorderState !== "recording" ? (
-                    <button
-                      type="button"
-                      className="capture-audio-close-button"
-                      onClick={resetAudioRecorderState}
-                      aria-label="Close audio recorder"
-                    >
-                      ×
-                    </button>
-                  ) : null}
-                </div>
-
-                {audioPreviewUrl ? (
-                  <audio controls preload="metadata" src={audioPreviewUrl}>
-                    Your browser could not play this audio preview.
-                  </audio>
-                ) : null}
-
-                {audioRecorderError ? (
-                  <div className="capture-quality-danger">
-                    {audioRecorderError}
-                  </div>
-                ) : null}
-
-                <div className="capture-audio-actions">
-                  <Button
-                    onClick={startAudioRecording}
-                    disabled={busy || audioRecorderState === "recording"}
-                    className="capture-audio-start-button"
-                  >
-                    Start Recording
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    onClick={stopAudioRecording}
-                    disabled={audioRecorderState !== "recording"}
-                  >
-                    Stop
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    onClick={discardAudioRecording}
-                    disabled={
-                      audioRecorderState === "recording" ||
-                      audioRecorderState === "uploading"
-                    }
-                  >
-                    Discard
-                  </Button>
-
-                  <Button
-                    onClick={addAudioRecordingToSession}
-                    disabled={audioRecorderState !== "preview_ready"}
-                  >
-                    Add to Session
-                  </Button>
                 </div>
               </div>
             ) : null}
