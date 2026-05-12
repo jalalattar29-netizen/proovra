@@ -7310,6 +7310,107 @@ box-shadow:
   }
 }
 
+/* FINAL — enterprise intake setup strip */
+
+.capture-enterprise-shell {
+  max-width: 1560px !important;
+}
+
+.capture-enterprise-grid {
+  grid-template-columns: minmax(0, 1fr) 350px !important;
+  gap: 24px !important;
+}
+
+.capture-left-panel.capture-intake-strip {
+  grid-column: 1 / -1 !important;
+  display: grid !important;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(0, 2fr) !important;
+  align-items: center !important;
+  gap: 18px !important;
+  padding: 18px 20px !important;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.035) !important;
+}
+
+.capture-intake-strip-copy p {
+  max-width: 440px !important;
+  margin: 5px 0 0 !important;
+  font-size: 0.9rem !important;
+  line-height: 1.45 !important;
+}
+
+.capture-intake-strip-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(180px, 1fr)) minmax(180px, 0.85fr) !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+}
+
+.capture-method-button.capture-method-compact {
+  min-height: 74px !important;
+  padding: 14px !important;
+  grid-template-columns: 40px minmax(0, 1fr) 22px !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  box-shadow: none !important;
+}
+
+.capture-method-button.capture-method-compact.active {
+  background: linear-gradient(180deg, rgba(15, 92, 86, 0.08), rgba(15, 92, 86, 0.035)) !important;
+  border-color: rgba(15, 92, 86, 0.34) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 92, 86, 0.10),
+    0 10px 26px rgba(15, 92, 86, 0.08) !important;
+}
+
+.capture-method-button.capture-method-compact.active::after {
+  border-color: #0f5c56 !important;
+  background:
+    radial-gradient(circle, #ffffff 0 32%, transparent 34%),
+    #0f5c56 !important;
+}
+
+.capture-method-button.capture-method-compact strong {
+  font-size: 0.88rem !important;
+  color: #17232a !important;
+}
+
+.capture-method-button.capture-method-compact small {
+  font-size: 0.74rem !important;
+  color: #667085 !important;
+}
+
+/* icon colors ONLY for Guided / Flexible / Location setup */
+.capture-intake-strip .capture-method-icon,
+.capture-location-compact::before {
+  color: #ffffff !important;
+  background: linear-gradient(180deg, #2f9c94 0%, #16766f 100%) !important;
+  border: 1px solid rgba(35, 139, 132, 0.32) !important;
+  box-shadow: 0 8px 18px rgba(15, 92, 86, 0.14) !important;
+}
+
+.capture-intake-strip .capture-method-icon svg,
+.capture-intake-strip .capture-method-icon svg * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.capture-location-compact {
+  position: relative !important;
+  min-height: 74px !important;
+  display: grid !important;
+  grid-template-columns: 40px minmax(0, 1fr) 44px !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 14px !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+}
+
 .capture-location-compact::before {
   content: "⌖" !important;
   width: 40px !important;
@@ -7396,6 +7497,1201 @@ box-shadow:
 
 @media (max-width: 640px) {
   .capture-intake-strip-actions {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* FINAL — Capture setup strip real layout */
+
+.capture-setup-strip {
+  display: grid !important;
+  padding: 16px !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: #ffffff !important;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.035) !important;
+}
+
+.capture-setup-strip-main {
+  display: grid !important;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(0, 2fr) !important;
+  align-items: center !important;
+  gap: 18px !important;
+}
+
+.capture-setup-copy p {
+  max-width: 430px !important;
+  margin-top: 5px !important;
+  font-size: 0.86rem !important;
+  line-height: 1.45 !important;
+}
+
+.capture-setup-mode-group {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.capture-setup-mode,
+.capture-setup-location {
+  min-height: 72px !important;
+  display: grid !important;
+  grid-template-columns: 40px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 12px 14px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  background: #ffffff !important;
+  text-align: left !important;
+}
+
+.capture-setup-mode.active,
+.capture-setup-location.active {
+  border-color: rgba(15, 92, 86, 0.34) !important;
+  background: linear-gradient(180deg, rgba(15, 92, 86, 0.075), rgba(15, 92, 86, 0.025)) !important;
+  box-shadow: inset 0 0 0 1px rgba(15, 92, 86, 0.08) !important;
+}
+
+.capture-setup-icon {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 14px !important;
+  display: grid !important;
+  place-items: center !important;
+  color: #ffffff !important;
+  background: linear-gradient(180deg, #2f9e92 0%, #15756b 100%) !important;
+  border: 1px solid rgba(21, 117, 107, 0.28) !important;
+  box-shadow: 0 8px 18px rgba(15, 92, 86, 0.14) !important;
+}
+
+.capture-setup-icon.bronze {
+  background: linear-gradient(180deg, #b99162 0%, #8f6b43 100%) !important;
+  border-color: rgba(143, 107, 67, 0.28) !important;
+}
+
+.capture-setup-icon svg,
+.capture-setup-icon svg * {
+  width: 18px !important;
+  height: 18px !important;
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.capture-setup-mode strong,
+.capture-setup-location strong {
+  display: block !important;
+  color: #17232a !important;
+  font-size: 0.86rem !important;
+  font-weight: 850 !important;
+  line-height: 1.15 !important;
+}
+
+.capture-setup-mode small,
+.capture-setup-location small {
+  display: block !important;
+  margin-top: 3px !important;
+  color: #667085 !important;
+  font-size: 0.72rem !important;
+  font-weight: 650 !important;
+  line-height: 1.2 !important;
+}
+
+.capture-setup-mode.active::after {
+  content: "" !important;
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 999px !important;
+  background: #0f5c56 !important;
+  box-shadow: 0 0 0 4px rgba(15, 92, 86, 0.12) !important;
+}
+
+.capture-setup-location input {
+  appearance: none !important;
+  width: 42px !important;
+  height: 24px !important;
+  border-radius: 999px !important;
+  background: #e5e7eb !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  position: relative !important;
+}
+
+.capture-setup-location input::after {
+  content: "" !important;
+  position: absolute !important;
+  top: 3px !important;
+  left: 3px !important;
+  width: 16px !important;
+  height: 16px !important;
+  border-radius: 999px !important;
+  background: #ffffff !important;
+  box-shadow: 0 2px 7px rgba(15, 23, 42, 0.18) !important;
+  transition: transform 160ms ease !important;
+}
+
+.capture-setup-location input:checked {
+  background: #0f5c56 !important;
+}
+
+.capture-setup-location input:checked::after {
+  transform: translateX(18px) !important;
+}
+
+@media (max-width: 1180px) {
+  .capture-setup-strip-main {
+    grid-template-columns: 1fr !important;
+  }
+
+  .capture-setup-mode-group {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .capture-setup-location {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .capture-setup-mode-group {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* REAL FIX — restore enterprise proportions */
+
+.capture-enterprise-shell {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 18px 28px !important;
+}
+
+.capture-enterprise-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 320px !important;
+  gap: 18px !important;
+  align-items: start !important;
+}
+
+.capture-main-panel {
+  min-width: 0 !important;
+}
+
+.capture-enterprise-top,
+.capture-enterprise-steps,
+.capture-setup-strip,
+.capture-requirements-card,
+.capture-drop-zone-enterprise,
+.capture-materials-board {
+  max-width: 100% !important;
+}
+
+/* FIX gigantic typography */
+
+.capture-enterprise-title {
+  font-size: 3.2rem !important;
+  line-height: 1.02 !important;
+  letter-spacing: -0.05em !important;
+}
+
+.capture-enterprise-subtitle {
+  max-width: 920px !important;
+  font-size: 1rem !important;
+  line-height: 1.55 !important;
+}
+
+.capture-enterprise-step strong {
+  font-size: 0.92rem !important;
+}
+
+.capture-enterprise-step span {
+  font-size: 0.76rem !important;
+}
+
+.capture-card-title {
+  font-size: 1.02rem !important;
+}
+
+.capture-card-muted {
+  font-size: 0.82rem !important;
+  line-height: 1.45 !important;
+}
+
+/* FIX setup section layout */
+
+.capture-setup-strip {
+  display: grid !important;
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) !important;
+  gap: 22px !important;
+  align-items: center !important;
+}
+
+.capture-setup-strip-main {
+  display: contents !important;
+}
+
+.capture-setup-mode-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+}
+
+.capture-setup-mode,
+.capture-setup-location {
+  min-width: 160px !important;
+  max-width: 185px !important;
+  min-height: 72px !important;
+}
+
+/* REMOVE ugly lock note block */
+
+.capture-setup-lock-note {
+  display: none !important;
+}
+
+@media (max-width: 1250px) {
+  .capture-setup-strip-main {
+    grid-template-columns: 1fr !important;
+  }
+
+  .capture-setup-copy {
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .capture-setup-mode-group {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* =========================================================
+   FINAL CAPTURE FIX — real enterprise width + bottom bar
+   Put this at the VERY END of capture CSS
+========================================================= */
+
+/* الصفحة ما تبقى ممدودة وملزوقة */
+.capture-enterprise-page {
+  font-size: 14px !important;
+}
+
+.capture-enterprise-shell {
+  width: 100% !important;
+  max-width: 1440px !important;
+  margin: 0 auto !important;
+  padding: 28px 28px 0 !important;
+}
+
+/* Desktop layout: center gets space, right panel ثابت ومرتاح */
+@media (min-width: 1181px) {
+  .capture-enterprise-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 330px !important;
+    gap: 28px !important;
+    align-items: start !important;
+  }
+
+  .capture-main-panel {
+    min-width: 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .capture-session-column {
+    width: 330px !important;
+    min-width: 330px !important;
+    max-width: 330px !important;
+  }
+}
+
+/* الكروت لا تكون ضخمة */
+.capture-enterprise-card,
+.capture-main-panel,
+.capture-right-panel,
+.capture-command-center {
+  border-radius: 18px !important;
+}
+
+.capture-enterprise-title {
+  font-size: clamp(2rem, 2.6vw, 2.8rem) !important;
+  line-height: 1.04 !important;
+}
+
+.capture-enterprise-subtitle {
+  max-width: 780px !important;
+  font-size: 0.98rem !important;
+  line-height: 1.55 !important;
+}
+
+/* Collection setup يصير مرتب ومو مضغوط */
+.capture-setup-strip {
+  display: grid !important;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(360px, 1.2fr) auto !important;
+  align-items: center !important;
+  gap: 18px !important;
+  padding: 18px !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: #ffffff !important;
+}
+
+.capture-setup-strip-main {
+  display: contents !important;
+}
+
+.capture-setup-mode-group {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(145px, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.capture-setup-mode,
+.capture-setup-location {
+  min-height: 62px !important;
+  padding: 10px 12px !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.capture-setup-mode {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.capture-setup-mode.active {
+  border-color: rgba(15, 92, 86, 0.32) !important;
+  background: rgba(15, 92, 86, 0.065) !important;
+  box-shadow: inset 0 0 0 1px rgba(15, 92, 86, 0.08) !important;
+}
+
+.capture-setup-mode svg,
+.capture-setup-location svg {
+  flex: 0 0 auto !important;
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.capture-setup-mode > svg,
+.capture-setup-location > span::before {
+  display: none !important;
+}
+
+.capture-setup-mode::before,
+.capture-setup-location::before {
+  content: "";
+  width: 36px !important;
+  height: 36px !important;
+  flex: 0 0 36px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(180deg, #2f9e92 0%, #0f5c56 100%) !important;
+  box-shadow: 0 10px 20px rgba(15, 92, 86, 0.16) !important;
+}
+
+.capture-setup-mode:nth-child(2)::before {
+  background: linear-gradient(180deg, #b98a55 0%, #8a633a 100%) !important;
+  box-shadow: 0 10px 20px rgba(154, 122, 86, 0.16) !important;
+}
+
+.capture-setup-mode strong,
+.capture-setup-location strong {
+  font-size: 0.86rem !important;
+  font-weight: 850 !important;
+  color: #17252a !important;
+  white-space: nowrap !important;
+}
+
+.capture-setup-mode small,
+.capture-setup-location small {
+  font-size: 0.72rem !important;
+  line-height: 1.25 !important;
+  color: rgba(23, 37, 42, 0.62) !important;
+}
+
+.capture-setup-location {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-width: 170px !important;
+}
+
+.capture-setup-location span {
+  display: grid !important;
+  gap: 2px !important;
+}
+
+.capture-setup-location input {
+  margin-left: auto !important;
+}
+
+/* شيل كرت/نوت lock لأنه حشو ومساحة ضايعة */
+.capture-setup-lock-note {
+  display: none !important;
+}
+
+/* الجدول ثابت داخل الوسط */
+.capture-materials-list {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  max-width: 100% !important;
+}
+
+
+/* اليمين: لا تكسر الكلمات */
+.capture-command-center {
+  overflow: hidden !important;
+}
+
+.capture-command-section-title,
+.capture-command-meta-grid > div,
+.capture-integrity-grid > div {
+  min-width: 0 !important;
+}
+
+.capture-integrity-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 8px !important;
+}
+
+.capture-integrity-grid > div {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 10px 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.capture-integrity-grid span {
+  color: #17252a !important;
+  font-size: 0.72rem !important;
+  font-weight: 850 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+  white-space: normal !important;
+  word-break: normal !important;
+}
+
+.capture-integrity-grid strong {
+  max-width: 150px !important;
+  color: #0f5c56 !important;
+  font-size: 0.78rem !important;
+  font-weight: 850 !important;
+  line-height: 1.25 !important;
+  text-align: right !important;
+  white-space: normal !important;
+  word-break: normal !important;
+}
+
+/* Bottom bar لا يكون كرت عملاق */
+.capture-bottom-bar {
+  max-width: 1440px !important;
+  margin: 24px auto 0 !important;
+  padding: 14px 28px 18px !important;
+  border-top: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: #ffffff !important;
+}
+
+.capture-bottom-bar-inner {
+  max-width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 20px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.capture-bottom-bar-inner strong {
+  font-size: 0.86rem !important;
+  color: #9f2f25 !important;
+}
+
+.capture-bottom-bar-inner p,
+.capture-phase4-missing-list {
+  font-size: 0.76rem !important;
+  line-height: 1.35 !important;
+}
+
+.capture-phase5-final-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+}
+
+.capture-primary-finalize-action.btn,
+.capture-secondary-session-action.btn {
+  min-height: 42px !important;
+  padding-inline: 18px !important;
+  font-size: 0.82rem !important;
+}
+
+/* Responsive */
+@media (max-width: 1180px) {
+  .capture-enterprise-shell {
+    padding: 22px 18px 0 !important;
+  }
+
+  .capture-enterprise-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 22px !important;
+  }
+
+  .capture-session-column {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  .capture-setup-strip {
+    grid-template-columns: 1fr !important;
+  }
+
+  .capture-bottom-bar {
+    padding-inline: 18px !important;
+  }
+
+  .capture-bottom-bar-inner {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* FINAL PATCH — material table icon, dropdown layer, toolbar cleanup */
+
+/* 1) رجّع أيقونة نوع الملف الخضرا الصغيرة */
+.capture-material-row-type-icon,
+.capture-material-row-type-badge {
+  position: absolute !important;
+  top: 5px !important;
+  left: 5px !important;
+  z-index: 4 !important;
+
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 7px !important;
+
+  display: grid !important;
+  place-items: center !important;
+
+  background: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid rgba(23, 133, 123, 0.24) !important;
+  color: #17857b !important;
+  box-shadow: 0 5px 12px rgba(15, 23, 42, 0.12) !important;
+}
+
+.capture-material-row-type-icon svg,
+.capture-material-row-type-icon svg *,
+.capture-material-row-type-badge svg,
+.capture-material-row-type-badge svg * {
+  width: 12px !important;
+  height: 12px !important;
+  color: #17857b !important;
+  stroke: #17857b !important;
+}
+
+/* 2) خلي الدروبداون يطلع فوق كل شي وما يختفي ورا آخر كرت */
+.capture-materials-board,
+.capture-materials-list,
+.capture-material-row-shell,
+.capture-material-row,
+.capture-material-row-map-cell {
+  overflow: visible !important;
+}
+
+.capture-materials-board {
+  position: relative !important;
+  z-index: 30 !important;
+}
+
+.capture-material-row-shell {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.capture-material-row-shell:has(.capture-material-dropdown.is-open),
+.capture-material-row:has(.capture-material-dropdown.is-open) {
+  z-index: 99999 !important;
+}
+
+.capture-material-dropdown.is-open {
+  position: relative !important;
+  z-index: 100000 !important;
+}
+
+.capture-material-dropdown.compact .capture-material-dropdown-menu,
+.capture-material-dropdown-menu {
+  z-index: 100001 !important;
+}
+
+/* آخر 3 عناصر افتحهم لفوق حتى ما يدخلوا بالـ bottom bar */
+.capture-material-row-shell:nth-last-child(-n + 3)
+  .capture-material-dropdown.is-open
+  .capture-material-dropdown-menu {
+  top: auto !important;
+  bottom: calc(100% + 8px) !important;
+}
+
+/* 3) نظّف بداية الجدول والـ bulk toolbar */
+.capture-bulk-actions {
+  margin: 10px 0 14px !important;
+  padding: 8px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: #fbfcfd !important;
+}
+
+.capture-bulk-button {
+  min-height: 30px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  font-size: 0.72rem !important;
+  font-weight: 760 !important;
+}
+
+.capture-materials-list {
+  margin-top: 0 !important;
+  border-radius: 14px !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+
+.capture-materials-list-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 20 !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 14px !important;
+  background: #f8fafc !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+}
+
+/* شيل الفراغ/القطع البشع فوق الهيدر */
+.capture-materials-list::before,
+.capture-materials-list::after {
+  display: none !important;
+  content: none !important;
+}
+
+.capture-material-row:first-of-type {
+  margin-top: 0 !important;
+}
+
+/* FINAL — clean enterprise collection setup */
+
+.capture-setup-strip {
+  display: grid !important;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.6fr) !important;
+  align-items: center !important;
+  gap: 22px !important;
+
+  padding: 18px 20px !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: #ffffff !important;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.035) !important;
+}
+
+.capture-setup-copy {
+  min-width: 0 !important;
+}
+
+.capture-setup-copy .capture-card-muted {
+  max-width: 360px !important;
+  margin: 6px 0 0 !important;
+  font-size: 0.82rem !important;
+  line-height: 1.45 !important;
+}
+
+.capture-setup-controls {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(150px, 1fr)) !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+}
+
+.capture-setup-mode,
+.capture-setup-location {
+  min-height: 58px !important;
+  width: 100% !important;
+
+  display: grid !important;
+  grid-template-columns: 34px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 10px !important;
+
+  padding: 10px 12px !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  background: #fbfcfd !important;
+
+  color: #17252a !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+}
+
+.capture-setup-mode svg,
+.capture-setup-location svg {
+  width: 34px !important;
+  height: 34px !important;
+  padding: 8px !important;
+  border-radius: 11px !important;
+
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  background: linear-gradient(180deg, #149184, #0f5c56) !important;
+  box-shadow: 0 10px 22px rgba(15, 92, 86, 0.16) !important;
+}
+
+.capture-setup-mode strong,
+.capture-setup-location strong {
+  display: block !important;
+  color: #17252a !important;
+  font-size: 0.84rem !important;
+  font-weight: 850 !important;
+  line-height: 1.15 !important;
+}
+
+.capture-setup-mode small,
+.capture-setup-location small {
+  display: block !important;
+  margin-top: 2px !important;
+  color: #667085 !important;
+  font-size: 0.72rem !important;
+  font-weight: 650 !important;
+  line-height: 1.2 !important;
+}
+
+.capture-setup-mode.active,
+.capture-setup-location.active {
+  border-color: rgba(15, 92, 86, 0.28) !important;
+  background: linear-gradient(180deg, rgba(15, 92, 86, 0.08), rgba(15, 92, 86, 0.035)) !important;
+  box-shadow: inset 0 0 0 1px rgba(15, 92, 86, 0.08) !important;
+}
+
+.capture-setup-mode:disabled {
+  opacity: 0.72 !important;
+  cursor: not-allowed !important;
+}
+
+.capture-setup-location input {
+  width: 18px !important;
+  height: 18px !important;
+  accent-color: #0f5c56 !important;
+}
+
+@media (max-width: 1150px) {
+  .capture-setup-strip {
+    grid-template-columns: 1fr !important;
+  }
+
+  .capture-setup-controls {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ===== Compact evidence materials table ===== */
+
+.capture-materials-board {
+  padding: 14px !important;
+}
+
+.capture-materials-list {
+  border-radius: 16px !important;
+  overflow: auto !important;
+}
+
+.capture-materials-list-header {
+  min-width: 980px !important;
+
+  padding: 10px 14px !important;
+  gap: 12px !important;
+
+  font-size: 0.68rem !important;
+  letter-spacing: 0.04em !important;
+}
+
+.capture-material-row-shell {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06) !important;
+}
+
+.capture-material-row-index {
+  font-size: 0.78rem !important;
+}
+
+.capture-material-row-preview {
+  width: 58px !important;
+  height: 58px !important;
+  border-radius: 12px !important;
+}
+
+.capture-material-row-preview img,
+.capture-material-row-preview video {
+  border-radius: 10px !important;
+}
+
+.capture-material-row-name {
+  font-size: 0.82rem !important;
+  line-height: 1.3 !important;
+  max-width: 170px !important;
+}
+
+.capture-material-row-type,
+.capture-material-row-size {
+  font-size: 0.76rem !important;
+}
+
+.capture-material-row-status {
+  padding: 5px 10px !important;
+  border-radius: 999px !important;
+
+  font-size: 0.7rem !important;
+  font-weight: 700 !important;
+}
+
+.capture-material-dropdown-trigger {
+  min-height: 38px !important;
+
+  padding: 0 12px !important;
+  border-radius: 11px !important;
+
+  font-size: 0.76rem !important;
+}
+
+.capture-material-row-actions {
+  gap: 8px !important;
+}
+
+.capture-material-row-actions button {
+  min-height: 34px !important;
+
+  padding: 0 12px !important;
+  border-radius: 10px !important;
+
+  font-size: 0.72rem !important;
+}
+
+.capture-material-row-type-icon {
+  width: 18px !important;
+  height: 18px !important;
+
+  top: 4px !important;
+  left: 4px !important;
+}
+
+.capture-material-row-type-icon svg {
+  width: 10px !important;
+  height: 10px !important;
+}
+
+/* خفف سماكة الهيدر */
+.capture-materials-list-header {
+  background: #f8fafb !important;
+}
+
+/* خفف حجم أزرار فوق الجدول */
+.capture-bulk-actions {
+  padding: 10px 0 !important;
+}
+
+.capture-bulk-button {
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  font-size: 0.72rem !important;
+  border-radius: 10px !important;
+}
+
+/* FINAL — Review & Sign bottom status colors */
+.capture-bottom-bar-inner > div:first-child > strong {
+  color: #9a7a56 !important; /* brown warning */
+}
+
+.capture-bottom-bar-inner:not(:has(.capture-phase4-missing-list))
+  > div:first-child
+  > strong {
+  color: #0b5f56 !important; /* ready green */
+}
+
+.capture-phase4-missing-list {
+  color: #b42318 !important; /* only missing line red */
+}
+
+/* REAL compact table fix */
+
+.capture-materials-list-header,
+.capture-material-row {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+/* صغر الأعمدة */
+.capture-material-row {
+  grid-template-columns:
+    28px     /* # */
+    56px     /* preview */
+    minmax(150px, 1.5fr)
+    70px
+    72px
+    minmax(180px, 1.4fr)
+    110px
+    110px !important;
+
+  gap: 10px !important;
+}
+
+/* نفس الشي للهيدر */
+.capture-materials-list-header {
+  grid-template-columns:
+    28px
+    56px
+    minmax(150px, 1.5fr)
+    70px
+    72px
+    minmax(180px, 1.4fr)
+    110px
+    110px !important;
+
+  gap: 10px !important;
+}
+
+/* صغر اسم الملف */
+.capture-material-row-name {
+  max-width: 150px !important;
+  font-size: 0.78rem !important;
+}
+
+/* صغر السلكت */
+.capture-material-dropdown-trigger {
+  min-height: 34px !important;
+  font-size: 0.72rem !important;
+  padding: 0 10px !important;
+}
+
+/* صغر أزرار الأكشن */
+.capture-material-row-actions button {
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  font-size: 0.7rem !important;
+}
+
+/* صغر بادج الحالة */
+.capture-material-row-status {
+  font-size: 0.68rem !important;
+  padding: 4px 8px !important;
+}
+
+/* FINAL FIX — setup icons restored */
+
+.capture-setup-mode,
+.capture-setup-location {
+  min-height: 66px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 12px 16px !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+}
+
+.capture-setup-mode.active,
+.capture-setup-location.active {
+  background: rgba(15, 92, 86, 0.055) !important;
+  border-color: rgba(15, 92, 86, 0.24) !important;
+  box-shadow: inset 0 0 0 1px rgba(15, 92, 86, 0.08) !important;
+}
+
+.capture-setup-icon {
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  border-radius: 14px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: linear-gradient(180deg, #2f9e92 0%, #15756b 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(21, 117, 107, 0.18) !important;
+}
+
+.capture-setup-icon svg,
+.capture-setup-icon svg * {
+  width: 19px !important;
+  height: 19px !important;
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.capture-setup-mode > span:not(.capture-setup-icon),
+.capture-setup-location > span:not(.capture-setup-icon) {
+  display: grid !important;
+  gap: 2px !important;
+  min-width: 0 !important;
+}
+
+.capture-setup-mode strong,
+.capture-setup-location strong {
+  color: #17252a !important;
+  font-size: 0.86rem !important;
+  font-weight: 850 !important;
+  line-height: 1.15 !important;
+}
+
+.capture-setup-mode small,
+.capture-setup-location small {
+  color: #667085 !important;
+  font-size: 0.74rem !important;
+  font-weight: 650 !important;
+  line-height: 1.2 !important;
+}
+
+.capture-setup-location input {
+  margin-left: auto !important;
+  width: 18px !important;
+  height: 18px !important;
+  accent-color: #15756b !important;
+}
+/* selected state */
+.capture-setup-mode.active,
+.capture-setup-location:has(input:checked) {
+  background: rgba(15, 92, 86, 0.055) !important;
+  border-color: rgba(15, 92, 86, 0.28) !important;
+}
+
+/* kill any fake/decorative extra icon blocks */
+.capture-setup-mode::before,
+.capture-setup-location::before {
+  display: none !important;
+  content: none !important;
+}
+
+/* Guided + Flexible icons: one clean green square only */
+.capture-setup-mode > svg {
+  width: 40px !important;
+  height: 40px !important;
+  padding: 10px !important;
+  border-radius: 12px !important;
+
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+
+  background: linear-gradient(180deg, #2f9e92 0%, #15756b 100%) !important;
+  box-shadow: 0 10px 22px rgba(15, 92, 86, 0.16) !important;
+}
+
+/* text */
+.capture-setup-mode strong,
+.capture-setup-location strong {
+  color: #17252a !important;
+  font-size: 0.88rem !important;
+  font-weight: 850 !important;
+  line-height: 1.15 !important;
+}
+
+.capture-setup-mode small,
+.capture-setup-location small {
+  color: #667085 !important;
+  font-size: 0.74rem !important;
+  font-weight: 650 !important;
+  line-height: 1.25 !important;
+}
+
+/* active text accent */
+.capture-setup-mode.active strong {
+  color: #0f5c56 !important;
+}
+
+.capture-setup-location:has(input:checked) strong {
+  color: #1d4ed8 !important;
+}
+
+/* right selection indicator */
+.capture-setup-mode::after,
+.capture-setup-location::after {
+  content: "" !important;
+  position: absolute !important;
+  right: 14px !important;
+  top: 50% !important;
+  width: 14px !important;
+  height: 14px !important;
+  transform: translateY(-50%) !important;
+  border-radius: 999px !important;
+  border: 2px solid rgba(148, 163, 184, 0.45) !important;
+  background: #ffffff !important;
+}
+
+.capture-setup-mode.active::after {
+  border-color: #0f766e !important;
+  background: radial-gradient(circle, #0f766e 42%, #ffffff 46%) !important;
+}
+
+.capture-setup-location:has(input:checked)::after {
+  border-color: #2563eb !important;
+  background: radial-gradient(circle, #2563eb 42%, #ffffff 46%) !important;
+}
+
+/* Location icon — back to enterprise green */
+.capture-setup-location svg,
+.capture-setup-location > svg {
+  width: 40px !important;
+  height: 40px !important;
+  padding: 10px !important;
+  border-radius: 12px !important;
+
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+
+  background: linear-gradient(
+    180deg,
+    #2f9e92 0%,
+    #15756b 100%
+  ) !important;
+
+  box-shadow: 0 10px 22px rgba(15, 92, 86, 0.16) !important;
+}
+
+/* selected text stays slightly differentiated */
+.capture-setup-location:has(input:checked) strong {
+  color: #0f5c56 !important;
+}
+
+/* selected radio indicator */
+.capture-setup-location:has(input:checked)::after {
+  border-color: #0f766e !important;
+  background: radial-gradient(
+    circle,
+    #0f766e 42%,
+    #ffffff 46%
+  ) !important;
+}
+
+/* keep the setup strip from squeezing buttons */
+.capture-setup-strip-main {
+  display: grid !important;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(420px, 1.2fr) !important;
+  gap: 18px !important;
+  align-items: center !important;
+}
+
+.capture-setup-mode-group {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(150px, 1fr)) !important;
+  gap: 12px !important;
+}
+
+@media (max-width: 1100px) {
+  .capture-setup-strip-main,
+  .capture-setup-mode-group {
     grid-template-columns: 1fr !important;
   }
 }
