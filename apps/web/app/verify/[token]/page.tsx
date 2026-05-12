@@ -20,6 +20,8 @@ import {
   getTrustSignalPresentationLabel,
   hasCaptureLocationMetadata,
   isAccessCustodyEventType,
+  maskPublicEmail,
+  maskPublicEmailsInText,
 } from "@proovra/shared";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
@@ -1427,7 +1429,9 @@ function TimelinePanel({
       ) : (
         <div style={{ display: "grid", gap: 10 }}>
           {events.map((event, idx) => {
-            const cleanSummary = stripShortHashLines(event.payloadSummary);
+            const cleanSummary = maskPublicEmailsInText(
+              stripShortHashLines(event.payloadSummary)
+            );
 
             return (
               <div
@@ -2346,15 +2350,6 @@ function buildLegacyTrustDecisionFallback(params: {
       prevEventHash: event.prevEventHash ?? null,
     })),
   });
-}
-
-function maskPublicEmail(email: string | null | undefined): string {
-  const value = String(email ?? "").trim();
-  if (!value || !value.includes("@")) return "Not recorded";
-
-  const [name, domain] = value.split("@");
-  const visible = name.slice(0, Math.min(3, name.length));
-  return `${visible}***@${domain}`;
 }
 
 function getTimestampDigestLabel(params: {
@@ -5596,24 +5591,24 @@ Reviewer Action
 */}
 {trustSnapshotDivergence ? (
   <div
-    role={trustSnapshotDivergence.tone === "info" ? "status" : "alert"}
+    role={trustSnapshotDivergence.tone === "danger" ? "alert" : "status"}
     style={{
       border:
         trustSnapshotDivergence.tone === "danger"
           ? `1px solid rgba(181,71,56,0.32)`
-          : trustSnapshotDivergence.tone === "info"
+          : trustSnapshotDivergence.accessOnly
             ? `1px solid rgba(11,46,39,0.18)`
             : `1px solid rgba(138,106,47,0.45)`,
       borderLeft:
         trustSnapshotDivergence.tone === "danger"
           ? `5px solid ${VERIFY_BRAND.danger}`
-          : trustSnapshotDivergence.tone === "info"
+          : trustSnapshotDivergence.accessOnly
             ? `5px solid ${VERIFY_BRAND.accent}`
             : `5px solid ${VERIFY_BRAND.warning}`,
       background:
         trustSnapshotDivergence.tone === "danger"
           ? VERIFY_BRAND.dangerSoft
-          : trustSnapshotDivergence.tone === "info"
+          : trustSnapshotDivergence.accessOnly
             ? "rgba(11,46,39,0.06)"
             : VERIFY_BRAND.warningSoft,
       borderRadius: 18,
@@ -5629,12 +5624,14 @@ Reviewer Action
         color:
           trustSnapshotDivergence.tone === "danger"
             ? VERIFY_BRAND.danger
-            : trustSnapshotDivergence.tone === "info"
+            : trustSnapshotDivergence.accessOnly
               ? VERIFY_BRAND.accent
               : VERIFY_BRAND.warning,
       }}
     >
-      Snapshot vs Live Verification
+      {trustSnapshotDivergence.accessOnly
+        ? "Live access activity update"
+        : "Snapshot vs live verification"}
     </div>
     <div
       style={{
@@ -5644,8 +5641,10 @@ Reviewer Action
       }}
     >
       {trustSnapshotDivergence.accessOnly
-        ? "Live access activity now differs from the fixed report snapshot. This is informational activity drift, not by itself an integrity failure."
-        : "Live verification currently differs from the fixed report snapshot. Review the current technical materials before relying on the snapshot-era result."}
+        ? "No integrity mismatch detected. Live access activity now differs from the fixed report snapshot, and this is informational activity drift only."
+        : trustSnapshotDivergence.tone === "danger"
+          ? "A live integrity-relevant divergence was detected between the current state and the fixed report snapshot. Review the current technical materials to understand the exact issue."
+          : "Live verification now differs from the fixed report snapshot. Review the current technical materials to understand the nature of the change."}
     </div>
     <div
       style={{

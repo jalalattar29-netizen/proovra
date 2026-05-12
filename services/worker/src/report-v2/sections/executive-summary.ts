@@ -210,8 +210,8 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
       label: "Captured & Signed",
       value:
         [
-          findRowValue(vm.executiveRows, "Captured (UTC)", ""),
-          findRowValue(vm.executiveRows, "Signed (UTC)", ""),
+          findRowValue(vm.executiveRows, "Recorded at intake (server UTC)", ""),
+          findRowValue(vm.executiveRows, "Signed (server UTC)", ""),
         ]
           .filter(Boolean)
           .join(" / ") || "Not recorded",

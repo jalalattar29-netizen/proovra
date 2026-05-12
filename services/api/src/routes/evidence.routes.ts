@@ -12,6 +12,8 @@ import {
   getReviewerUploadModeLabel,
   hasCaptureLocationMetadata,
   isPrimaryReviewerArtifactRole,
+  maskPublicEmail,
+  maskPublicEmailsInText,
   resolveReviewerArtifactRole,
   resolveEffectiveOtsStatus,
   type EvidenceIntelligence,
@@ -1039,7 +1041,8 @@ function normalizePublicPayloadValue(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "string") {
     const t = value.trim();
-    return t || null;
+    if (!t) return null;
+    return t.includes("@") ? maskPublicEmail(t) : t;
   }
   if (typeof value === "number" || typeof value === "boolean") {
     return String(value);
@@ -1728,7 +1731,9 @@ transactionId ? `Tx: ${transactionId}` : null,
           );
         })
         .slice(0, 5)
-        .map(([key, value]) => `${key}: ${String(value)}`);
+        .map(([key, value]) =>
+          `${key}: ${maskPublicEmailsInText(String(value))}`
+        );
 
       return safeEntries.length > 0 ? safeEntries.join(" • ") : null;
     }

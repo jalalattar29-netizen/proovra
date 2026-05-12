@@ -1,3 +1,5 @@
+import { maskPublicEmail as maskEmail } from "@proovra/shared";
+
 export function safe(
   value: string | null | undefined,
   fallback = "N/A"
@@ -25,16 +27,6 @@ export function redactIdentifier(
   if (!t) return "Not included in external report";
   if (t.length <= visible * 2 + 3) return t;
   return `${t.slice(0, visible)}[redacted-middle]${t.slice(-visible)}`;
-}
-
-export function maskEmail(value: string | null | undefined): string {
-  const t = safe(value, "");
-  if (!t || !t.includes("@")) return "Not recorded";
-
-  const [local, domain] = t.split("@");
-  if (!local || !domain) return t;
-  if (local.length <= 2) return `${local[0] ?? "*"}***@${domain}`;
-  return `${local.slice(0, 2)}***@${domain}`;
 }
 
 export function buildPublicEvidenceReference(

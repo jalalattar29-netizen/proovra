@@ -1370,9 +1370,9 @@ export default function EvidenceDetailPage() {
                     <div
                       role={
                         workspace.artifactVersions.trustDecisionConsistency
-                          ?.tone === "info"
-                          ? "status"
-                          : "alert"
+                          ?.tone === "danger"
+                          ? "alert"
+                          : "status"
                       }
                       className="evidence-detail-note-box"
                       style={{
@@ -1381,7 +1381,7 @@ export default function EvidenceDetailPage() {
                             ?.tone === "danger"
                             ? "5px solid #b54738"
                             : workspace.artifactVersions
-                                  .trustDecisionConsistency?.tone === "info"
+                                  .trustDecisionConsistency?.accessOnly
                               ? "5px solid #0b2e27"
                               : "5px solid #b8861f",
                         background:
@@ -1389,17 +1389,20 @@ export default function EvidenceDetailPage() {
                             ?.tone === "danger"
                             ? "#fff3f1"
                             : workspace.artifactVersions
-                                  .trustDecisionConsistency?.tone === "info"
+                                  .trustDecisionConsistency?.accessOnly
                               ? "rgba(11,46,39,0.06)"
                               : "#fef7e8",
                       }}
                     >
-                      <strong>Snapshot vs live divergence</strong>
+                      <strong>Snapshot boundary update</strong>
                       <p>
                         {workspace.artifactVersions.trustDecisionConsistency
                           ?.accessOnly
-                          ? "Live access activity now differs from the fixed report snapshot. This is informational activity drift, not by itself an integrity failure."
-                          : "Live verification currently differs from the fixed report snapshot. Review current technical materials before relying on the snapshot-era result."}
+                          ? "No integrity mismatch detected. Live access activity now differs from the fixed report snapshot, and this is informational activity drift only."
+                          : workspace.artifactVersions.trustDecisionConsistency
+                            ?.tone === "danger"
+                              ? "A live integrity-relevant divergence was detected between the current state and the fixed report snapshot. Review the current technical materials to understand the exact issue."
+                              : "Live verification now differs from the fixed report snapshot. Review current technical materials to understand the nature of the change."}
                       </p>
                       <p>
                         The trust decision shown here is sourced from the fixed

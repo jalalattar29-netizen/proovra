@@ -49,6 +49,8 @@ export type {
   CaptureLocationTile,
 } from "./capture-location.js";
 
+export { maskPublicEmail, maskPublicEmailsInText } from "./public-identifiers.js";
+
 export type {
   EnqueueReportJobOptions,
   ReportJobPayload,
