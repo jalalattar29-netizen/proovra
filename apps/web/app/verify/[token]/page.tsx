@@ -5590,37 +5590,23 @@ Reviewer Action
   silently show the older snapshot as positive — render an explicit warning.
 */}
 {trustSnapshotDivergence ? (() => {
-  const isIntegrityCritical =
-    trustSnapshotDivergence.integrityCritical === true ||
-    trustSnapshotDivergence.tone === "danger" ||
-    trustSnapshotDivergence.reasons?.some(
-      (reason) => reason.integrityCritical === true
-    ) === true;
+  const isAccessOnly = trustSnapshotDivergence.accessOnly === true;
 
-  const isAccessOnly =
-    trustSnapshotDivergence.accessOnly === true && !isIntegrityCritical;
+  const railColor = isAccessOnly
+    ? VERIFY_BRAND.accent
+    : VERIFY_BRAND.warning;
 
-  const railColor = isIntegrityCritical
-    ? VERIFY_BRAND.danger
-    : isAccessOnly
-      ? VERIFY_BRAND.accent
-      : VERIFY_BRAND.warning;
+  const background = isAccessOnly
+    ? "rgba(11,46,39,0.045)"
+    : "rgba(138,106,47,0.075)";
 
-  const background = isIntegrityCritical
-    ? "rgba(181,71,56,0.055)"
-    : isAccessOnly
-      ? "rgba(11,46,39,0.045)"
-      : "rgba(138,106,47,0.075)";
-
-  const borderColor = isIntegrityCritical
-    ? "rgba(181,71,56,0.24)"
-    : isAccessOnly
-      ? "rgba(11,46,39,0.16)"
-      : "rgba(138,106,47,0.26)";
+  const borderColor = isAccessOnly
+    ? "rgba(11,46,39,0.16)"
+    : "rgba(138,106,47,0.26)";
 
   return (
     <div
-      role={isIntegrityCritical ? "alert" : "status"}
+      role="status"
       style={{
         border: `1px solid ${borderColor}`,
         borderLeft: `5px solid ${railColor}`,
@@ -5638,11 +5624,9 @@ Reviewer Action
           color: railColor,
         }}
       >
-        {isIntegrityCritical
-          ? "Live integrity review notice"
-          : isAccessOnly
-            ? "Live access activity update"
-            : "Live verification status update"}
+        {isAccessOnly
+          ? "Live access activity update"
+          : "Live verification status update"}
       </div>
 
       <div
@@ -5652,11 +5636,9 @@ Reviewer Action
           lineHeight: 1.55,
         }}
       >
-        {isIntegrityCritical
-          ? "A live integrity-relevant difference was detected between the current state and the fixed report snapshot. Review the technical materials before relying on the live state."
-          : isAccessOnly
-            ? "No integrity mismatch detected. Later page views, downloads, or access activity changed after the fixed report snapshot."
-            : "The live verification state differs from the fixed report snapshot, but no critical integrity failure is indicated by this notice."}
+        {isAccessOnly
+          ? "No integrity mismatch detected. Later page views, downloads, or access activity changed after the fixed report snapshot."
+          : "The live verification state differs from the fixed report snapshot. Review the technical materials if this change matters to your review."}
       </div>
 
       <div
@@ -5667,8 +5649,8 @@ Reviewer Action
         }}
       >
         The trust decision shown here is sourced from the fixed snapshot taken at
-        report or package generation time. Later access activity can change the
-        live page without changing the preserved evidence integrity state.
+        report or package generation time. Later activity can change the live page
+        without necessarily changing the preserved evidence integrity state.
       </div>
 
       {trustSnapshotDivergence.reasons?.length ? (
@@ -5681,31 +5663,16 @@ Reviewer Action
             gap: 8,
           }}
         >
-          <strong>
-            {isIntegrityCritical ? "Review reason" : "Why this appears"}
-          </strong>
+          <strong>Why this appears</strong>
 
           <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6 }}>
-            {trustSnapshotDivergence.reasons.map((reason, index) => {
-              const reasonCritical =
-                reason.integrityCritical === true || reason.tone === "danger";
-
-              return (
-                <li key={`${reason.code ?? "reason"}-${index}`}>
-                  <strong>
-                    {reason.label ??
-                      (reasonCritical
-                        ? "Integrity-relevant difference"
-                        : "Activity difference")}
-                    .
-                  </strong>{" "}
-                  {reason.detail ??
-                    (reasonCritical
-                      ? "Review the live technical materials for the current state."
-                      : "Later access or activity changed after the fixed snapshot.")}
-                </li>
-              );
-            })}
+            {trustSnapshotDivergence.reasons.map((reason, index) => (
+              <li key={`${reason.code ?? "reason"}-${index}`}>
+                <strong>{reason.label ?? "Snapshot difference"}.</strong>{" "}
+                {reason.detail ??
+                  "Later activity changed after the fixed snapshot."}
+              </li>
+            ))}
           </ul>
         </div>
       ) : null}
