@@ -8578,3 +8578,243 @@ box-shadow:
 
   box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18) !important;
 }
+
+/* =========================================================
+   FINAL FIX — Collection setup buttons/icons
+   Put at VERY END of capture CSS
+========================================================= */
+
+.capture-setup-mode,
+.capture-setup-location {
+  position: relative !important;
+  min-height: 72px !important;
+  padding: 12px 44px 12px 14px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  background: #ffffff !important;
+
+  display: grid !important;
+  grid-template-columns: 44px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 12px !important;
+
+  box-shadow: none !important;
+}
+
+/* selected state */
+.capture-setup-mode.active,
+.capture-setup-location:has(input:checked) {
+  background: rgba(15, 92, 86, 0.055) !important;
+  border-color: rgba(15, 92, 86, 0.28) !important;
+}
+
+/* kill any fake/decorative extra icon blocks */
+.capture-setup-mode::before,
+.capture-setup-location::before {
+  display: none !important;
+  content: none !important;
+}
+
+/* Guided + Flexible icons: one clean green square only */
+.capture-setup-mode > svg {
+  width: 40px !important;
+  height: 40px !important;
+  padding: 10px !important;
+  border-radius: 12px !important;
+
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+
+  background: linear-gradient(180deg, #2f9e92 0%, #15756b 100%) !important;
+  box-shadow: 0 10px 22px rgba(15, 92, 86, 0.16) !important;
+}
+
+/* Location icon: blue, not green */
+.capture-setup-location svg,
+.capture-setup-location > svg {
+  width: 40px !important;
+  height: 40px !important;
+  padding: 10px !important;
+  border-radius: 12px !important;
+
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+
+  background: linear-gradient(180deg, #4da3ff 0%, #2563eb 100%) !important;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18) !important;
+}
+
+/* text */
+.capture-setup-mode strong,
+.capture-setup-location strong {
+  color: #17252a !important;
+  font-size: 0.88rem !important;
+  font-weight: 850 !important;
+  line-height: 1.15 !important;
+}
+
+.capture-setup-mode small,
+.capture-setup-location small {
+  color: #667085 !important;
+  font-size: 0.74rem !important;
+  font-weight: 650 !important;
+  line-height: 1.25 !important;
+}
+
+/* active text accent */
+.capture-setup-mode.active strong {
+  color: #0f5c56 !important;
+}
+
+.capture-setup-location:has(input:checked) strong {
+  color: #1d4ed8 !important;
+}
+
+/* right selection indicator */
+.capture-setup-mode::after,
+.capture-setup-location::after {
+  content: "" !important;
+  position: absolute !important;
+  right: 14px !important;
+  top: 50% !important;
+  width: 14px !important;
+  height: 14px !important;
+  transform: translateY(-50%) !important;
+  border-radius: 999px !important;
+  border: 2px solid rgba(148, 163, 184, 0.45) !important;
+  background: #ffffff !important;
+}
+
+.capture-setup-mode.active::after {
+  border-color: #0f766e !important;
+  background: radial-gradient(circle, #0f766e 42%, #ffffff 46%) !important;
+}
+
+.capture-setup-location:has(input:checked)::after {
+  border-color: #2563eb !important;
+  background: radial-gradient(circle, #2563eb 42%, #ffffff 46%) !important;
+}
+
+/* Location icon — back to enterprise green */
+.capture-setup-location svg,
+.capture-setup-location > svg {
+  width: 40px !important;
+  height: 40px !important;
+  padding: 10px !important;
+  border-radius: 12px !important;
+
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+
+  background: linear-gradient(
+    180deg,
+    #2f9e92 0%,
+    #15756b 100%
+  ) !important;
+
+  box-shadow: 0 10px 22px rgba(15, 92, 86, 0.16) !important;
+}
+
+/* selected text stays slightly differentiated */
+.capture-setup-location:has(input:checked) strong {
+  color: #0f5c56 !important;
+}
+
+/* selected radio indicator */
+.capture-setup-location:has(input:checked)::after {
+  border-color: #0f766e !important;
+  background: radial-gradient(
+    circle,
+    #0f766e 42%,
+    #ffffff 46%
+  ) !important;
+}
+
+/* keep the setup strip from squeezing buttons */
+.capture-setup-strip-main {
+  display: grid !important;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(420px, 1.2fr) !important;
+  gap: 18px !important;
+  align-items: center !important;
+}
+
+.capture-setup-mode-group {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(150px, 1fr)) !important;
+  gap: 12px !important;
+}
+
+@media (max-width: 1100px) {
+  .capture-setup-strip-main,
+  .capture-setup-mode-group {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* FINAL — setup cards not squeezed + perfect radio circle */
+
+.capture-setup-mode-group {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(180px, 1fr)) !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+}
+
+.capture-setup-mode,
+.capture-setup-location {
+  min-width: 180px !important;
+  min-height: 74px !important;
+  display: grid !important;
+  grid-template-columns: 42px minmax(0, 1fr) 18px !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 14px 16px !important;
+}
+
+.capture-setup-mode input,
+.capture-setup-location input {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  max-width: 18px !important;
+  max-height: 18px !important;
+  border-radius: 999px !important;
+  border: 2px solid #d8e1df !important;
+  background: #ffffff !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  flex: 0 0 18px !important;
+}
+
+.capture-setup-mode input:checked,
+.capture-setup-location input:checked {
+  border-color: #0f766e !important;
+  background:
+    radial-gradient(circle, #0f766e 0 42%, transparent 45%),
+    #ffffff !important;
+}
+
+.capture-setup-mode strong,
+.capture-setup-location strong {
+  white-space: nowrap !important;
+}
+
+.capture-setup-mode small,
+.capture-setup-location small {
+  line-height: 1.15 !important;
+}
+
+@media (max-width: 1280px) {
+  .capture-setup-mode-group {
+    grid-template-columns: repeat(3, minmax(160px, 1fr)) !important;
+  }
+
+  .capture-setup-mode,
+  .capture-setup-location {
+    min-width: 160px !important;
+  }
+}
