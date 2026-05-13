@@ -4165,7 +4165,10 @@ const trustDecision = useMemo(() => {
       humanSummary?.verificationPackageGeneratedAtUtc ??
       null,
     anchor: {
-      configured: externalPublicationPresent,
+      configured:
+        Boolean(externalPublicationProvider) ||
+        Boolean(externalPublicationUrl) ||
+        Boolean(externalPublicationAnchoredAtUtc),
       published: externalPublicationPresent,
       provider: externalPublicationProvider,
       publicUrl: externalPublicationUrl,

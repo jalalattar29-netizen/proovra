@@ -1548,6 +1548,16 @@ async function resolveAnchorStatusForReport(
     };
   }
 
+  const normalizedPublicBaseUrl = publicBaseUrl?.replace(/\/+$/, "") || null;
+  const publicUrl =
+    anchor.publicUrl?.trim() ||
+    (normalizedPublicBaseUrl &&
+    (anchor.receiptId || anchor.transactionId || anchor.anchorHash)
+      ? `${normalizedPublicBaseUrl}/${encodeURIComponent(
+          anchor.receiptId ?? anchor.transactionId ?? anchor.anchorHash ?? ""
+        )}`
+      : null);
+
   return {
     mode: normalizeAnchorMode(anchor.mode),
     provider: anchor.provider ?? provider,
@@ -1556,13 +1566,13 @@ async function resolveAnchorStatusForReport(
     published: Boolean(
       anchor.transactionId ||
         anchor.receiptId ||
-        anchor.publicUrl ||
+        publicUrl ||
         anchor.anchoredAtUtc
     ),
     anchorHash: anchor.anchorHash ?? null,
     receiptId: anchor.receiptId ?? null,
     transactionId: anchor.transactionId ?? null,
-    publicUrl: anchor.publicUrl ?? null,
+    publicUrl,
     anchoredAtUtc: anchor.anchoredAtUtc
       ? anchor.anchoredAtUtc.toISOString()
       : null,
