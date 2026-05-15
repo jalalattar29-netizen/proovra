@@ -9,6 +9,7 @@ import {
   CAPTURE_LOCATION_SOURCE_LABEL,
   TRUST_DECISION_LEGAL_BOUNDARY,
   buildCaptureLocationExternalMapUrl,
+  deriveAnchorSemantics,
   getReviewerArtifactRoleLabel,
   getReviewerEvidenceCategories,
   getReviewerEvidenceTypeLabel,
@@ -1597,7 +1598,11 @@ function buildPackageManifest(params: {
     anchorStatusLabel: params.anchorStatusLabel,
     anchorProvider: params.anchorProvider ?? null,
     anchorPublicBaseUrl: params.anchorPublicBaseUrl ?? null,
-    externalPublicationAttached: Boolean(params.anchor?.publicUrl),
+    externalPublicationAttached: Boolean(
+      params.anchor?.publicUrl ||
+        params.anchor?.transactionId ||
+        params.anchor?.anchoredAtUtc
+    ),
     publicAnchoringVerified: Boolean(
       params.anchor?.transactionId && params.anchor?.anchoredAtUtc
     ),
@@ -2393,6 +2398,16 @@ export async function createVerificationPackage(data: {
       bitcoinTxid: data.anchor?.transactionId ?? null,
     });
     const anchorIncluded = Boolean(data.anchor);
+    const anchorSemantics = data.anchor
+      ? deriveAnchorSemantics({
+          transactionId: data.anchor.transactionId ?? null,
+          receiptId: data.anchor.receiptId ?? null,
+          publicUrl: data.anchor.publicUrl ?? null,
+          anchoredAtUtc: data.anchor.anchoredAtUtc ?? null,
+          otsStatus: null,
+          otsProofPresent: null,
+        })
+      : null;
     const hasTimestampToken = Boolean(data.timestampToken);
     const certificationSummary = buildCertificationSummary({
       custodian: data.certifications?.custodian ?? null,
@@ -2403,13 +2418,7 @@ export async function createVerificationPackage(data: {
       ? (data.custody as CustodyEventRecord[])
       : [];
 
-    const anchorPublished = Boolean(
-      data.anchor?.published ||
-        data.anchor?.receiptId ||
-        data.anchor?.transactionId ||
-        data.anchor?.publicUrl ||
-        data.anchor?.anchoredAtUtc
-    );
+    const anchorPublished = anchorSemantics?.published ?? false;
 
     if (evidenceFilesWithFinalName.length === 1) {
       const file = evidenceFilesWithFinalName[0];
@@ -2509,11 +2518,13 @@ export async function createVerificationPackage(data: {
           ...data.anchor,
           status: anchorMode,
           statusLabel: anchorStatusLabel,
-          externalPublicationAttached: Boolean(data.anchor.publicUrl),
+          externalPublicationAttached:
+            anchorSemantics?.externalPublicationAttached ??
+            Boolean(data.anchor.publicUrl),
           publicAnchoringVerified: Boolean(
             data.anchor.transactionId && data.anchor.anchoredAtUtc
           ),
-          externalPublicationUrl: data.anchor.publicUrl ?? null,
+          externalPublicationUrl: anchorSemantics?.externalPublicationUrl ?? null,
           transactionId: data.anchor.transactionId ?? null,
         }),
         "application/json"

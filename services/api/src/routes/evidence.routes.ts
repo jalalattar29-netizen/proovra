@@ -3322,7 +3322,11 @@ primaryContentLabel: buildPrimaryContentLabel(
     otsStatus: mapOtsStatusLabel(params.otsStatus),
     storageProtection: mapStorageStatusLabel(params.storageProtection),
     chainOfCustodyPresent: params.chainOfCustodyPresent,
-    externalPublicationPresent: Boolean(params.anchor.publicUrl),
+    externalPublicationPresent: Boolean(
+      params.anchor.publicUrl ||
+        params.anchor.transactionId ||
+        params.anchor.anchoredAtUtc
+    ),
     externalPublicationProvider: params.anchor.provider,
     externalPublicationUrl: params.anchor.publicUrl,
     externalPublicationAnchoredAtUtc: params.anchor.anchoredAtUtc,
@@ -3395,7 +3399,10 @@ function buildPublicVerifyHumanSummary(params: {
     timestampStatus: params.overview.timestampStatus,
     otsStatus: params.overview.otsStatus,
     storageProtection: params.overview.storageProtection,
-    externalPublicationPresent: Boolean(params.overview.externalPublicationUrl),
+    externalPublicationPresent: Boolean(
+      params.overview.externalPublicationUrl ||
+        params.overview.externalPublicationAnchoredAtUtc
+    ),
     externalPublicationProvider: params.overview.externalPublicationProvider,
     externalPublicationUrl: params.overview.externalPublicationUrl,
     externalPublicationAnchoredAtUtc:

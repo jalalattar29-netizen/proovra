@@ -1,4 +1,8 @@
-import { normalizeOtsStatusValue, isValidOtsBitcoinTxid } from "./ots.js";
+import {
+  normalizeOtsStatusValue,
+  isValidOtsBitcoinTxid,
+  resolveEffectiveOtsStatus,
+} from "./ots.js";
 
 export type AnchorSemanticsInput = {
   transactionId?: string | null;
@@ -65,28 +69,34 @@ export function deriveAnchorSemantics(
   const anchoredAtUtc = normalizeString(input.anchoredAtUtc);
   const bitcoinTxid = isValidOtsBitcoinTxid(transactionId) ? transactionId : null;
   const externalPublicationUrl = publicUrl;
-  const externalPublicationPresent = Boolean(externalPublicationUrl);
-  const externalPublicationAttached = externalPublicationPresent;
+  const externalPublicationAttached = Boolean(externalPublicationUrl);
   const hasAnchorMaterial = Boolean(
     transactionId ||
       receiptId ||
       externalPublicationUrl ||
       anchoredAtUtc
   );
+  const externalPublicationPresent = hasAnchorMaterial;
   const publicAnchoringVerified = Boolean(bitcoinTxid && anchoredAtUtc);
+  const normalizedOtsStatus = normalizeOtsStatusValue(input.otsStatus);
+  const effectiveOtsStatus = resolveEffectiveOtsStatus({
+    status: normalizedOtsStatus,
+    bitcoinTxid,
+    anchoredAtUtc,
+  });
   const published = hasAnchorMaterial;
   const anchorMode: AnchorSemantics["anchorMode"] =
-    normalizeOtsStatusValue(input.otsStatus) === "FAILED"
+    normalizedOtsStatus === "FAILED"
       ? "failed"
-      : publicAnchoringVerified || hasAnchorMaterial
+      : publicAnchoringVerified
         ? "anchored"
-        : normalizeOtsStatusValue(input.otsStatus) === "ANCHORED" ||
-          normalizeOtsStatusValue(input.otsStatus) === "PENDING"
+        : hasAnchorMaterial ||
+          effectiveOtsStatus === "ANCHORED" ||
+          effectiveOtsStatus === "PENDING"
           ? "pending_public_anchor"
           : "not_configured";
 
   let anchoringStatus: AnchorSemantics["anchoringStatus"] = "unavailable";
-  const normalizedOtsStatus = normalizeOtsStatusValue(input.otsStatus);
 
   if (normalizedOtsStatus === "FAILED") {
     anchoringStatus = "failed";
@@ -94,8 +104,8 @@ export function deriveAnchorSemantics(
     anchoringStatus = "verified";
   } else if (
     Boolean(input.otsProofPresent) ||
-    normalizedOtsStatus === "ANCHORED" ||
-    normalizedOtsStatus === "PENDING" ||
+    effectiveOtsStatus === "ANCHORED" ||
+    effectiveOtsStatus === "PENDING" ||
     hasAnchorMaterial
   ) {
     anchoringStatus = "pending";

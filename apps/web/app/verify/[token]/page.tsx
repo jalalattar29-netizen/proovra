@@ -3669,7 +3669,11 @@ setFullCustodyTimeline(fullTimeline);
         : typeof effectiveOverview?.externalPublicationPresent === "boolean"
           ? effectiveOverview.externalPublicationPresent
           : data.anchor
-            ? Boolean(data.anchor.publicUrl)
+            ? Boolean(
+                data.anchor.publicUrl ||
+                  data.anchor.transactionId ||
+                  data.anchor.anchoredAtUtc
+              )
             : null
     );
     setExternalPublicationProvider(
@@ -4814,13 +4818,17 @@ tone={
               <Badge
                 label={
                   externalPublicationUrl
-                    ? "Published"
+                    ? "Publication record available"
                     : anchorTransactionId
                       ? "Bitcoin anchor recorded"
-                      : "Not Published"
+                      : externalPublicationAnchoredAtUtc
+                        ? "Public anchor recorded"
+                        : "Not Published"
                 }
                 tone={
-                  externalPublicationUrl || anchorTransactionId
+                  externalPublicationUrl ||
+                  anchorTransactionId ||
+                  externalPublicationAnchoredAtUtc
                     ? "success"
                     : "neutral"
                 }
