@@ -130,6 +130,13 @@ export {
 } from "./trust-decision.js";
 
 export type {
+  AnchorSemantics,
+  AnchorSemanticsInput,
+} from "./anchor.js";
+
+export { deriveAnchorSemantics } from "./anchor.js";
+
+export type {
   EffectiveOtsStatus,
   OtsAnchorCompletenessInput,
 } from "./ots.js";

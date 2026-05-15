@@ -815,6 +815,15 @@ function firstNonEmpty(...values: Array<string | null | undefined>): string | nu
   return null;
 }
 
+function truncateHash(hash?: string | null, length = 16): string | null {
+  if (!hash) return null;
+  const normalized = hash.trim();
+  if (normalized.length <= length) return normalized;
+  const prefix = normalized.slice(0, Math.max(6, length - 8));
+  const suffix = normalized.slice(-4);
+  return `${prefix}…${suffix}`;
+}
+
 function normalizeBool(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
@@ -3310,6 +3319,8 @@ export default function VerifyPage() {
     useState<string | null>(null);
   const [externalPublicationAnchoredAtUtc, setExternalPublicationAnchoredAtUtc] =
     useState<string | null>(null);
+  const [anchorTransactionId, setAnchorTransactionId] =
+    useState<string | null>(null);
 
   const [otsStatus, setOtsStatus] = useState<string | null>(null);
   const [otsCalendar, setOtsCalendar] = useState<string | null>(null);
@@ -3657,8 +3668,8 @@ setFullCustodyTimeline(fullTimeline);
         ? effectiveHumanSummary.externalPublicationPresent
         : typeof effectiveOverview?.externalPublicationPresent === "boolean"
           ? effectiveOverview.externalPublicationPresent
-          : typeof data.anchor?.published === "boolean"
-            ? data.anchor.published
+          : data.anchor
+            ? Boolean(data.anchor.publicUrl)
             : null
     );
     setExternalPublicationProvider(
@@ -3679,6 +3690,7 @@ setFullCustodyTimeline(fullTimeline);
         data.anchor?.anchoredAtUtc ??
         null
     );
+    setAnchorTransactionId(data.anchor?.transactionId ?? null);
 
     setForensicTimeline(forensicOnly);
     setAccessTimeline(accessOnly);
@@ -4168,12 +4180,16 @@ const trustDecision = useMemo(() => {
       configured:
         Boolean(externalPublicationProvider) ||
         Boolean(externalPublicationUrl) ||
+        Boolean(externalPublicationAnchoredAtUtc) ||
+        Boolean(anchorTransactionId),
+      published:
+        Boolean(externalPublicationUrl) ||
+        Boolean(anchorTransactionId) ||
         Boolean(externalPublicationAnchoredAtUtc),
-      published: externalPublicationPresent,
       provider: externalPublicationProvider,
       publicUrl: externalPublicationUrl,
       anchoredAtUtc: externalPublicationAnchoredAtUtc,
-      transactionId: null,
+      transactionId: anchorTransactionId,
       receiptId: null,
     },
     custodyEvents: [...forensicTimeline, ...accessTimeline],
@@ -4794,14 +4810,52 @@ tone={
         {
           label: "External Publication",
           content: (
-            <Badge
-              label={
-                externalPublicationPresent === true ? "Published" : "Not Published"
-              }
-              tone={externalPublicationPresent === true ? "success" : "neutral"}
-            />
+            <div style={{ display: "grid", gap: 6 }}>
+              <Badge
+                label={
+                  externalPublicationUrl
+                    ? "Published"
+                    : anchorTransactionId
+                      ? "Bitcoin anchor recorded"
+                      : "Not Published"
+                }
+                tone={
+                  externalPublicationUrl || anchorTransactionId
+                    ? "success"
+                    : "neutral"
+                }
+              />
+              {anchorTransactionId && !externalPublicationUrl ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div
+                    style={{
+                      ...VERIFY_TYPO.small,
+                      color: VERIFY_BRAND.ink,
+                    }}
+                  >
+                    TxID: {truncateHash(anchorTransactionId)}
+                  </div>
+                  <CopyMiniButton
+                    value={anchorTransactionId}
+                    successMessage="Transaction ID copied"
+                    addToast={addToast}
+                  />
+                </div>
+              ) : null}
+            </div>
           ),
-          show: externalPublicationPresent !== null,
+          show:
+            externalPublicationPresent !== null ||
+            Boolean(externalPublicationUrl) ||
+            Boolean(anchorTransactionId) ||
+            Boolean(externalPublicationAnchoredAtUtc),
         },
         {
           label: "Anchor Provider",
@@ -5783,10 +5837,10 @@ Reviewer Action
                     </div>
                   ) : null}
 
-                  {externalPublicationPresent === true ? (
+                  {externalPublicationUrl || anchorTransactionId || externalPublicationAnchoredAtUtc ? (
                     <div
                       style={{
-                        ...glassPanelStyle,
+                        ...glassCardStyle,
                         borderLeft: `5px solid ${VERIFY_BRAND.success}`,
                         padding: 18,
                         display: "grid",
@@ -5809,9 +5863,9 @@ Reviewer Action
                           color: VERIFY_BRAND.ink,
                         }}
                       >
-                        This evidence record includes external publication metadata.
-                        That means an external publication or anchor receipt has been
-                        recorded for this integrity state.
+                        This evidence record includes public anchoring metadata. A
+                        separate external publication link is available only when
+                        an externalPublicationUrl is returned.
                       </div>
                       {externalPublicationProvider ? (
                         <div style={VERIFY_TYPO.small}>
@@ -5820,8 +5874,7 @@ Reviewer Action
                       ) : null}
                       {externalPublicationAnchoredAtUtc ? (
                         <div style={VERIFY_TYPO.small}>
-                          Anchored At:{" "}
-                          {formatDateTime(externalPublicationAnchoredAtUtc)}
+                          Anchored At: {formatDateTime(externalPublicationAnchoredAtUtc)}
                         </div>
                       ) : null}
                       {externalPublicationUrl ? (
@@ -5839,6 +5892,48 @@ Reviewer Action
                         >
                           Open publication record
                         </a>
+                      ) : anchorTransactionId ? (
+                        <div style={{ display: "grid", gap: 10 }}>
+                          <div
+                            style={{
+                              ...VERIFY_TYPO.small,
+                              fontWeight: 700,
+                              color: VERIFY_BRAND.ink,
+                            }}
+                          >
+                            Bitcoin anchor recorded
+                          </div>
+                          <div
+                            style={{
+                              ...VERIFY_TYPO.small,
+                              color: VERIFY_BRAND.ink,
+                            }}
+                          >
+                            TxID: {truncateHash(anchorTransactionId)}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(anchorTransactionId);
+                              addToast("Transaction ID copied", "success");
+                            }}
+                            style={{
+                              width: "fit-content",
+                              borderRadius: 999,
+                              border: `1px solid ${VERIFY_BRAND.line}`,
+                              background: "rgba(255,255,255,0.62)",
+                              color: VERIFY_BRAND.accent,
+                              fontSize: 12,
+                              fontWeight: 900,
+                              letterSpacing: "0.065em",
+                              textTransform: "uppercase",
+                              padding: "10px 14px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Copy TxID
+                          </button>
+                        </div>
                       ) : null}
                     </div>
                   ) : null}

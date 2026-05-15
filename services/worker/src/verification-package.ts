@@ -130,6 +130,9 @@ type PackageManifest = {
   anchorProvider: string | null;
   anchorPublicBaseUrl: string | null;
   externalPublicationAttached: boolean;
+  publicAnchoringVerified: boolean;
+  externalPublicationUrl: string | null;
+  transactionId: string | null;
   verificationProfile: "FORENSIC_INTEGRITY";
   contents: {
     evidenceFiles: boolean;
@@ -1594,12 +1597,12 @@ function buildPackageManifest(params: {
     anchorStatusLabel: params.anchorStatusLabel,
     anchorProvider: params.anchorProvider ?? null,
     anchorPublicBaseUrl: params.anchorPublicBaseUrl ?? null,
-    externalPublicationAttached: Boolean(
-      params.anchor?.published ||
-        params.anchor?.receiptId ||
-        params.anchor?.transactionId ||
-        params.anchor?.publicUrl
+    externalPublicationAttached: Boolean(params.anchor?.publicUrl),
+    publicAnchoringVerified: Boolean(
+      params.anchor?.transactionId && params.anchor?.anchoredAtUtc
     ),
+    externalPublicationUrl: params.anchor?.publicUrl ?? null,
+    transactionId: params.anchor?.transactionId ?? null,
     verificationProfile: "FORENSIC_INTEGRITY",
     contents: {
       evidenceFiles: true,
@@ -2506,6 +2509,12 @@ export async function createVerificationPackage(data: {
           ...data.anchor,
           status: anchorMode,
           statusLabel: anchorStatusLabel,
+          externalPublicationAttached: Boolean(data.anchor.publicUrl),
+          publicAnchoringVerified: Boolean(
+            data.anchor.transactionId && data.anchor.anchoredAtUtc
+          ),
+          externalPublicationUrl: data.anchor.publicUrl ?? null,
+          transactionId: data.anchor.transactionId ?? null,
         }),
         "application/json"
       );

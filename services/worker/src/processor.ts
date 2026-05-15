@@ -46,6 +46,7 @@ import {
 import {
   compareReviewerArtifactRolePriority,
   classifyCustodyEventType,
+  deriveAnchorSemantics,
   evaluateRecordedIntegrityPromotion,
   getReviewerEvidenceCategories,
   getReviewerEvidenceTypeLabel,
@@ -1549,7 +1550,7 @@ async function resolveAnchorStatusForReport(
   }
 
   const normalizedPublicBaseUrl = publicBaseUrl?.replace(/\/+$/, "") || null;
-  const publicUrl =
+  const resolvedPublicUrl =
     anchor.publicUrl?.trim() ||
     (normalizedPublicBaseUrl &&
     (anchor.receiptId || anchor.transactionId || anchor.anchorHash)
@@ -1558,21 +1559,27 @@ async function resolveAnchorStatusForReport(
         )}`
       : null);
 
+  const semantics = deriveAnchorSemantics({
+    transactionId: anchor.transactionId ?? null,
+    receiptId: anchor.receiptId ?? null,
+    publicUrl: resolvedPublicUrl,
+    anchoredAtUtc: anchor.anchoredAtUtc
+      ? anchor.anchoredAtUtc.toISOString()
+      : null,
+    otsStatus: null,
+    otsProofPresent: null,
+  });
+
   return {
     mode: normalizeAnchorMode(anchor.mode),
     provider: anchor.provider ?? provider,
     publicBaseUrl,
     configured: Boolean(anchor.provider ?? provider),
-    published: Boolean(
-      anchor.transactionId ||
-        anchor.receiptId ||
-        publicUrl ||
-        anchor.anchoredAtUtc
-    ),
+    published: semantics.published,
     anchorHash: anchor.anchorHash ?? null,
     receiptId: anchor.receiptId ?? null,
     transactionId: anchor.transactionId ?? null,
-    publicUrl,
+    publicUrl: semantics.externalPublicationUrl,
     anchoredAtUtc: anchor.anchoredAtUtc
       ? anchor.anchoredAtUtc.toISOString()
       : null,

@@ -10,6 +10,7 @@ import {
   getReviewerArtifactRoleLabel,
   getReviewerEvidenceTypeLabel,
   getReviewerUploadModeLabel,
+  deriveAnchorSemantics,
   hasCaptureLocationMetadata,
   isPrimaryReviewerArtifactRole,
   maskPublicEmailsInText,
@@ -3321,7 +3322,7 @@ primaryContentLabel: buildPrimaryContentLabel(
     otsStatus: mapOtsStatusLabel(params.otsStatus),
     storageProtection: mapStorageStatusLabel(params.storageProtection),
     chainOfCustodyPresent: params.chainOfCustodyPresent,
-    externalPublicationPresent: params.anchor.published,
+    externalPublicationPresent: Boolean(params.anchor.publicUrl),
     externalPublicationProvider: params.anchor.provider,
     externalPublicationUrl: params.anchor.publicUrl,
     externalPublicationAnchoredAtUtc: params.anchor.anchoredAtUtc,
@@ -3394,7 +3395,7 @@ function buildPublicVerifyHumanSummary(params: {
     timestampStatus: params.overview.timestampStatus,
     otsStatus: params.overview.otsStatus,
     storageProtection: params.overview.storageProtection,
-    externalPublicationPresent: params.overview.externalPublicationPresent,
+    externalPublicationPresent: Boolean(params.overview.externalPublicationUrl),
     externalPublicationProvider: params.overview.externalPublicationProvider,
     externalPublicationUrl: params.overview.externalPublicationUrl,
     externalPublicationAnchoredAtUtc:
@@ -3560,21 +3561,36 @@ async function getAnchorStatus(
     };
   }
 
+  const resolvedPublicUrl =
+    anchor.publicUrl?.trim() ||
+    (publicBaseUrl &&
+    (anchor.receiptId || anchor.transactionId || anchor.anchorHash)
+      ? `${publicBaseUrl.replace(/\/+$/, "")}/${encodeURIComponent(
+          anchor.receiptId ?? anchor.transactionId ?? anchor.anchorHash ?? ""
+        )}`
+      : null);
+
+  const semantics = deriveAnchorSemantics({
+    transactionId: anchor.transactionId ?? null,
+    receiptId: anchor.receiptId ?? null,
+    publicUrl: resolvedPublicUrl,
+    anchoredAtUtc: anchor.anchoredAtUtc
+      ? anchor.anchoredAtUtc.toISOString()
+      : null,
+    otsStatus: null,
+    otsProofPresent: null,
+  });
+
   return {
     mode: normalizeAnchorMode(anchor.mode),
     provider: anchor.provider ?? provider,
     publicBaseUrl,
     configured: Boolean(anchor.provider ?? provider),
-    published: Boolean(
-      anchor.transactionId ||
-        anchor.receiptId ||
-        anchor.publicUrl ||
-        anchor.anchoredAtUtc
-    ),
+    published: semantics.published,
     anchorHash: anchor.anchorHash ?? null,
     receiptId: anchor.receiptId ?? null,
     transactionId: anchor.transactionId ?? null,
-    publicUrl: anchor.publicUrl ?? null,
+    publicUrl: semantics.externalPublicationUrl,
     anchoredAtUtc: anchor.anchoredAtUtc
       ? anchor.anchoredAtUtc.toISOString()
       : null,

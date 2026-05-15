@@ -17,6 +17,7 @@ import {
   mapIdentityLevelLabel,
   mapAnchorModePublicLabel,
   mapOtsStatusPublicLabel,
+  mapOtsStatusPublicLabelWithTxid,
   mapTimestampStatusPublicLabel,
 } from "./normalizers.js";
 
@@ -239,7 +240,13 @@ export function buildTimestampRows(
 
 export function buildOtsRows(evidence: ReportEvidence): KeyValueRow[] {
   return [
-    { label: "OTS Status", value: mapOtsStatusPublicLabel(evidence.otsStatus) },
+    {
+      label: "OTS Status",
+      value: mapOtsStatusPublicLabelWithTxid({
+        status: evidence.otsStatus,
+        bitcoinTxid: evidence.otsBitcoinTxid,
+      }),
+    },
     { label: "OTS Calendar", value: safe(evidence.otsCalendar) },
     { label: "OTS Anchored At (UTC)", value: safe(evidence.otsAnchoredAtUtc) },
     { label: "OTS Upgraded At (UTC)", value: safe(evidence.otsUpgradedAtUtc) },
@@ -346,7 +353,10 @@ const fingerprintRows: KeyValueRow[] = [
     anchoringRows: buildOtsRows(evidence).concat(buildAnchorRows(anchorSummary)),
     timestampStatusLabel: mapTimestampStatusPublicLabel(evidence.tsaStatus),
     timestampStatusTone: mapTimestampTone(evidence.tsaStatus),
-    otsStatusLabel: mapOtsStatusPublicLabel(evidence.otsStatus),
+    otsStatusLabel: mapOtsStatusPublicLabelWithTxid({
+      status: evidence.otsStatus,
+      bitcoinTxid: evidence.otsBitcoinTxid,
+    }),
     otsStatusTone:
       safe(evidence.otsStatus, "").toUpperCase() === "ANCHORED" &&
       isValidBitcoinTxid(evidence.otsBitcoinTxid)
