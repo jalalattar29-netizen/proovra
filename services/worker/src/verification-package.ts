@@ -1604,7 +1604,7 @@ function buildPackageManifest(params: {
         params.anchor?.anchoredAtUtc
     ),
     publicAnchoringVerified: Boolean(
-      params.anchor?.transactionId && params.anchor?.anchoredAtUtc
+      params.anchor?.transactionId || params.anchor?.anchoredAtUtc
     ),
     externalPublicationUrl: params.anchor?.publicUrl ?? null,
     transactionId: params.anchor?.transactionId ?? null,
@@ -2521,9 +2521,8 @@ export async function createVerificationPackage(data: {
           externalPublicationAttached:
             anchorSemantics?.externalPublicationAttached ??
             Boolean(data.anchor.publicUrl),
-          publicAnchoringVerified: Boolean(
-            data.anchor.transactionId && data.anchor.anchoredAtUtc
-          ),
+          publicAnchoringVerified:
+            anchorSemantics?.publicAnchoringVerified ?? false,
           externalPublicationUrl: anchorSemantics?.externalPublicationUrl ?? null,
           transactionId: data.anchor.transactionId ?? null,
         }),

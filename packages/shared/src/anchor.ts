@@ -19,6 +19,9 @@ export type AnchorSemantics = {
   transactionId: string | null;
   receiptId: string | null;
   publicUrl: string | null;
+  hasTransactionId: boolean;
+  hasAnchoredAt: boolean;
+  hasPublicUrl: boolean;
   externalPublicationUrl: string | null;
   externalPublicationPresent: boolean;
   externalPublicationAttached: boolean;
@@ -69,7 +72,10 @@ export function deriveAnchorSemantics(
   const anchoredAtUtc = normalizeString(input.anchoredAtUtc);
   const bitcoinTxid = isValidOtsBitcoinTxid(transactionId) ? transactionId : null;
   const externalPublicationUrl = publicUrl;
-  const externalPublicationAttached = Boolean(externalPublicationUrl);
+  const hasTransactionId = Boolean(transactionId);
+  const hasAnchoredAt = Boolean(anchoredAtUtc);
+  const hasPublicUrl = Boolean(externalPublicationUrl);
+  const externalPublicationAttached = hasPublicUrl;
   const hasAnchorMaterial = Boolean(
     transactionId ||
       receiptId ||
@@ -77,7 +83,7 @@ export function deriveAnchorSemantics(
       anchoredAtUtc
   );
   const externalPublicationPresent = hasAnchorMaterial;
-  const publicAnchoringVerified = Boolean(bitcoinTxid && anchoredAtUtc);
+  const publicAnchoringVerified = Boolean(bitcoinTxid || anchoredAtUtc);
   const normalizedOtsStatus = normalizeOtsStatusValue(input.otsStatus);
   const effectiveOtsStatus = resolveEffectiveOtsStatus({
     status: normalizedOtsStatus,
@@ -124,6 +130,9 @@ export function deriveAnchorSemantics(
     transactionId,
     receiptId,
     publicUrl,
+    hasTransactionId,
+    hasAnchoredAt,
+    hasPublicUrl,
     externalPublicationUrl,
     externalPublicationPresent,
     externalPublicationAttached,

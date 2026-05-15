@@ -388,9 +388,10 @@ export type ReportViewModel = {
   evidenceReference: string;
   recordStatusLabel: string;
   verificationStatusLabel: string;
-integrityVerified: boolean;
-trustDecision: ReportTrustDecision;
-verificationPackageIntegrity: {
+  integrityVerified: boolean;
+  trustDecision: ReportTrustDecision;
+  anchorSummary: ReportAnchorSummary | null;
+  verificationPackageIntegrity: {
   available: boolean;
   version: number | null;
   generatedAtUtc: string | null;

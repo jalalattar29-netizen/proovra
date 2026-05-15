@@ -20,6 +20,7 @@ import {
   mapOtsStatusPublicLabelWithTxid,
   mapTimestampStatusPublicLabel,
 } from "./normalizers.js";
+import { deriveAnchorSemantics } from "@proovra/shared";
 
 export function getTimestampDigestValueLabel(params: {
   structure?: string | null;
@@ -80,52 +81,32 @@ export function resolveAnchorSummary(
     Boolean(evidence.anchorProvider) ||
     Boolean(evidence.anchorHash) ||
     Boolean(evidence.anchorPublicUrl) ||
-    Boolean(evidence.anchorAnchoredAtUtc);
+    Boolean(evidence.anchorAnchoredAtUtc) ||
+    Boolean(evidence.anchorTransactionId) ||
+    Boolean(evidence.anchorReceiptId);
 
   if (!hasLegacyAnchor) return null;
 
-  const modeText = safe(evidence.anchorMode, "").toLowerCase();
-  const otsStatus = safe(evidence.otsStatus, "").toUpperCase();
-  const hasDefensiblePublicAnchor = Boolean(
-    evidence.anchorReceiptId ||
-      evidence.anchorTransactionId ||
-      evidence.anchorPublicUrl ||
-      evidence.anchorAnchoredAtUtc
-  );
-
-  let normalizedMode: ReportAnchorSummary["mode"] = "pending_public_anchor";
-
-  if (otsStatus === "FAILED" || modeText === "failed") {
-    normalizedMode = "failed";
-  } else if (
-    hasDefensiblePublicAnchor ||
-    modeText === "anchored" ||
-    (modeText === "active" && hasDefensiblePublicAnchor)
-  ) {
-    normalizedMode = "anchored";
-  } else if (
-    otsStatus === "PENDING" ||
-    otsStatus === "ANCHORED" ||
-    modeText === "ready" ||
-    modeText === "pending_public_anchor" ||
-    modeText === "active"
-  ) {
-    normalizedMode = "pending_public_anchor";
-  } else if (modeText === "off" || modeText === "not_configured") {
-    normalizedMode = "not_configured";
-  }
+  const semantics = deriveAnchorSemantics({
+    transactionId: evidence.anchorTransactionId ?? null,
+    receiptId: evidence.anchorReceiptId ?? null,
+    publicUrl: evidence.anchorPublicUrl ?? null,
+    anchoredAtUtc: evidence.anchorAnchoredAtUtc ?? null,
+    otsStatus: evidence.otsStatus,
+    otsProofPresent: Boolean(evidence.otsProofBase64),
+  });
 
   return {
-    mode: normalizedMode,
+    mode: semantics.anchorMode,
     provider: evidence.anchorProvider ?? null,
     publicBaseUrl: null,
     configured: Boolean(evidence.anchorProvider),
-    published: Boolean(evidence.anchorPublicUrl || evidence.anchorAnchoredAtUtc),
+    published: semantics.published,
     anchorHash: evidence.anchorHash ?? null,
-    receiptId: evidence.anchorReceiptId ?? null,
-    transactionId: evidence.anchorTransactionId ?? null,
-    publicUrl: evidence.anchorPublicUrl ?? null,
-    anchoredAtUtc: evidence.anchorAnchoredAtUtc ?? null,
+    receiptId: semantics.receiptId,
+    transactionId: semantics.transactionId,
+    publicUrl: semantics.externalPublicationUrl,
+    anchoredAtUtc: semantics.anchoredAtUtc,
   };
 }
 

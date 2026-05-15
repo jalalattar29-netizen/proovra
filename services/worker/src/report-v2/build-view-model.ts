@@ -1558,6 +1558,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     ),
     integrityVerified,
     trustDecision,
+    anchorSummary,
     verificationPackageIntegrity,
     executiveConclusion,
     legalLimitationShort,
