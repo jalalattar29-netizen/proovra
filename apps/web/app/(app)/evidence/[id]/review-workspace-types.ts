@@ -73,6 +73,10 @@ export type ReviewDecision = {
   nextActions: string[];
 };
 
+export type ReviewWorkspaceEvidenceContentItem = EvidenceContentItem & {
+  privateNote?: string | null;
+};
+
 export type PreservationMatrix = {
   verificationStatus: string | null;
   verificationStatusLabel: string;
@@ -144,7 +148,7 @@ export type TimelineEvent = {
 
 export type ReviewWorkspaceResponse = {
   evidence: EvidenceRecord & {
-    contentItems?: EvidenceContentItem[] | null;
+    contentItems?: ReviewWorkspaceEvidenceContentItem[] | null;
     contentSummary?: EvidenceContentSummary | null;
     evidenceIntelligence?: EvidenceIntelligence | null;
   };

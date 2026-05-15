@@ -7034,9 +7034,18 @@ await appendCustodyEvent({
           parts,
         });
 
+        const privateNoteByPartId = new Map(
+          parts.map((part) => [part.id, part.privateNote ?? null] as const)
+        );
+
+        const contentItems = content.items.map((item) => ({
+          ...item,
+          privateNote: privateNoteByPartId.get(item.id) ?? null,
+        }));
+
         const defaultPreviewItem =
-          content.items.find((item) => item.previewable && item.viewUrl) ??
-          content.items.find((item) => item.viewUrl) ??
+          contentItems.find((item) => item.previewable && item.viewUrl) ??
+          contentItems.find((item) => item.viewUrl) ??
           content.primaryItem ??
           null;
 
@@ -7350,7 +7359,7 @@ const timestampDigestMatches: boolean | null =
               ),
               defaultPreviewItemId: defaultPreviewItem?.id ?? null,
               contentSummary: content.summary,
-              contentItems: content.items,
+              contentItems: contentItems,
               primaryContentItem: content.primaryItem,
               previewPolicy: content.previewPolicy,
               evidenceIntelligence,

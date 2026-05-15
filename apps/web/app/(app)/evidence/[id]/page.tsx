@@ -215,6 +215,14 @@ function PreviewWorkspace({
   onOpenOriginal: () => void;
   onDownloadOriginal: () => void;
 }) {
+  const privateItemNotesById = useMemo(
+    () =>
+      new Map(
+        workspace.parts.map((part) => [part.id, part.privateNote ?? null] as const)
+      ),
+    [workspace.parts]
+  );
+
   const defaultItem =
     workspace.evidence.contentItems?.find(
       (item) => item.id === workspace.evidence.defaultPreviewItemId
@@ -305,23 +313,32 @@ function PreviewWorkspace({
       <div className="evidence-detail-preview-shell">{renderPreview()}</div>
 
       <div className="evidence-detail-item-grid">
-        {workspace.evidence.contentItems?.map((item) => (
-          <div key={item.id} className="evidence-detail-item-card">
-            <div className="evidence-detail-item-row">
-              <strong>{item.label}</strong>
-              <span className={`evidence-detail-pill ${pillTone(item.kind)}`}>{item.kind}</span>
+        {workspace.evidence.contentItems?.map((item) => {
+          const privateItemNote = privateItemNotesById.get(item.id);
+          return (
+            <div key={item.id} className="evidence-detail-item-card">
+              <div className="evidence-detail-item-row">
+                <strong>{item.label}</strong>
+                <span className={`evidence-detail-pill ${pillTone(item.kind)}`}>{item.kind}</span>
+              </div>
+              <p>{item.originalFileName || "Original filename not recorded"}</p>
+              <div className="evidence-detail-definition-inline">
+                <span>Size</span>
+                <strong>{item.displaySizeLabel || formatBytes(item.sizeBytes)}</strong>
+              </div>
+              <div className="evidence-detail-definition-inline">
+                <span>Role</span>
+                <strong>{describeContentItemRole(item)}</strong>
+              </div>
+              {privateItemNote ? (
+                <div className="evidence-detail-definition-inline">
+                  <span>Private item note</span>
+                  <strong>{privateItemNote}</strong>
+                </div>
+              ) : null}
             </div>
-            <p>{item.originalFileName || "Original filename not recorded"}</p>
-            <div className="evidence-detail-definition-inline">
-              <span>Size</span>
-              <strong>{item.displaySizeLabel || formatBytes(item.sizeBytes)}</strong>
-            </div>
-            <div className="evidence-detail-definition-inline">
-              <span>Role</span>
-              <strong>{describeContentItemRole(item)}</strong>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -1611,7 +1628,7 @@ export default function EvidenceDetailPage() {
 
                   {evidence.internalNotes ? (
                     <div className="evidence-detail-note-box">
-                      <strong>Internal workspace note</strong>
+                      <strong>Private session note</strong>
                       <p>{evidence.internalNotes}</p>
                     </div>
                   ) : null}
