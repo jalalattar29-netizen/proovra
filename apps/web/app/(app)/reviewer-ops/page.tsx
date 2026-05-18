@@ -16,26 +16,23 @@
  * file. Use the `REVIEWER_OPS_ALLOWED_LABELS` catalog for badges.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
 import {
   cardStyle,
-  chipStyle,
   emptyStateStyle,
   errorBoxStyle,
   formatDateTime,
   formatRelative,
   ghostButtonStyle,
   headerRowStyle,
-  inputStyle,
   lifecycleBadgeStyle,
   mutedStyle,
   pageStyle,
   primaryButtonStyle,
   rowStyle,
   sectionTitleStyle,
-  selectStyle,
   slaBadgeStyle,
   subtitleStyle,
   tableStyle,

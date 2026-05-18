@@ -18,7 +18,6 @@ import {
   headerRowStyle,
   mutedStyle,
   pageStyle,
-  selectStyle,
   statusBadgeStyle,
   subtitleStyle,
   tableStyle,

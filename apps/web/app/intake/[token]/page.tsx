@@ -30,7 +30,7 @@
  *   6. confirmation
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
 
@@ -136,9 +136,12 @@ async function disclosureHash(text: string): Promise<string> {
 export default function ExternalIntakePage({
   params,
 }: {
-  params: { token: string };
+  // Next.js 15 — `params` is now a Promise even for client components.
+  // We unwrap with React 19's `use()` and keep the rest of the page
+  // unchanged.
+  params: Promise<{ token: string }>;
 }) {
-  const token = params.token;
+  const { token } = use(params);
 
   const [phase, setPhase] = useState<
     | "loading"

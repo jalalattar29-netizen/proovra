@@ -18,7 +18,7 @@
  *     URL is held in component state ONLY while the dialog is open.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
 

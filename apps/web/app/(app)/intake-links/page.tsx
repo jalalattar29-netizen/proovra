@@ -87,7 +87,6 @@ export default function IntakeLinksPage() {
   const [featureDisabled, setFeatureDisabled] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);
-  const [createBusy, setCreateBusy] = useState(false);
   const [rawTokenReveal, setRawTokenReveal] = useState<{
     rawToken: string;
     intakeUrl: string;
