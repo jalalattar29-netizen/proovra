@@ -3323,11 +3323,14 @@ primaryContentLabel: buildPrimaryContentLabel(
     otsStatus: mapOtsStatusLabel(params.otsStatus),
     storageProtection: mapStorageStatusLabel(params.storageProtection),
     chainOfCustodyPresent: params.chainOfCustodyPresent,
-    externalPublicationPresent: Boolean(
-      params.anchor.publicUrl ||
-        params.anchor.transactionId ||
-        params.anchor.anchoredAtUtc
-    ),
+    // External publication is a SEPARATE feature from OTS / Bitcoin
+    // anchoring. We only assert publication-present when a real public
+    // URL exists. txid / anchoredAtUtc are OTS signals and must not
+    // promote externalPublicationPresent here. The same rule is
+    // mirrored in the human-summary builder and in the verification
+    // package's anchor.json + package-manifest.json (verification-
+    // package.ts) so every surface returns the same answer.
+    externalPublicationPresent: Boolean(params.anchor.publicUrl),
     externalPublicationProvider: params.anchor.provider,
     externalPublicationUrl: params.anchor.publicUrl,
     externalPublicationAnchoredAtUtc: params.anchor.anchoredAtUtc,
@@ -3400,9 +3403,12 @@ function buildPublicVerifyHumanSummary(params: {
     timestampStatus: params.overview.timestampStatus,
     otsStatus: params.overview.otsStatus,
     storageProtection: params.overview.storageProtection,
+    // Canonical rule: only a real public URL counts as external
+    // publication present. anchoredAtUtc alone is an OTS / public-
+    // anchoring signal and does not imply an external publication
+    // record exists.
     externalPublicationPresent: Boolean(
-      params.overview.externalPublicationUrl ||
-        params.overview.externalPublicationAnchoredAtUtc
+      params.overview.externalPublicationUrl
     ),
     externalPublicationProvider: params.overview.externalPublicationProvider,
     externalPublicationUrl: params.overview.externalPublicationUrl,

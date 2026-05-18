@@ -239,6 +239,24 @@ export const COUNTER_NAMES = [
   "governance_notification_delivery_failed_total",
   "governance_export_snapshot_created_total",
   "lifecycle_drift_detected_total",
+  // Phase Y — Observability platform counters.
+  "ots_upgrade_started_total",
+  "ots_upgrade_succeeded_total",
+  "ots_upgrade_failed_total",
+  "ots_upgrade_pending_total",
+  "platform_audit_chain_drift_detected_total",
+  "platform_audit_append_failed_total",
+  "worker_span_total",
+  "worker_span_failed_total",
+  "worker_heartbeat_total",
+  "queue_job_enqueued_total",
+  "queue_job_processed_total",
+  "queue_job_failed_total",
+  "queue_job_stalled_total",
+  "queue_dlq_total",
+  "observability_metrics_exporter_calls_total",
+  "observability_alert_evaluations_total",
+  "observability_sink_failures_total",
 ] as const;
 export type CounterName = (typeof COUNTER_NAMES)[number];
 
@@ -305,6 +323,19 @@ export const GAUGE_NAMES = [
   "governance_notifications_pending",
   "governance_notifications_failed",
   "governance_overdue_reviews",
+  // Phase Y — Observability platform gauges.
+  "ots_upgrade_pending_inflight",
+  "ots_upgrade_backlog",
+  "audit_chain_last_drift_check_age_seconds",
+  "worker_last_heartbeat_age_seconds",
+  "queue_active_count",
+  "queue_waiting_count",
+  "queue_delayed_count",
+  "queue_failed_count",
+  "queue_completed_count",
+  "queue_dlq_size",
+  "observability_alerts_firing",
+  "observability_alerts_firing_critical",
 ] as const;
 export type GaugeName = (typeof GAUGE_NAMES)[number];
 
@@ -368,4 +399,60 @@ export function snapshotMetrics(): MetricsSnapshot {
 export function __resetMetricsForTests(): void {
   counters.clear();
   gauges.clear();
+}
+
+// -----------------------------------------------------------------------------
+// Phase Y — Prometheus exposition
+//
+// Renders the in-process registry to the Prometheus text format. Pure
+// projection over the registry — no side effects, safe to call on
+// every scrape. Counters are emitted as `counter`, gauges as `gauge`.
+// Includes a process `uptime_seconds` gauge so operators can confirm
+// the api was alive at scrape time even when every catalog metric is
+// still at zero (fresh start).
+// -----------------------------------------------------------------------------
+
+import {
+  formatPrometheusExposition,
+  type PromMetric,
+} from "@proovra/shared";
+
+const EXPORTER_ENV = (process.env.NODE_ENV ?? "development").slice(0, 32);
+const EXPORTER_SERVICE = "proovra-api";
+
+export function buildPrometheusExposition(): string {
+  // Best-effort metric bump — never let exposition crash itself.
+  try {
+    bump("observability_metrics_exporter_calls_total");
+  } catch {
+    /* never propagates */
+  }
+  const metrics: PromMetric[] = [];
+  metrics.push({
+    name: "proovra_uptime_seconds",
+    kind: "gauge",
+    help: "Process uptime in seconds since this api instance started.",
+    value: Math.floor((Date.now() - startedAtMs) / 1000),
+  });
+  for (const name of COUNTER_NAMES) {
+    metrics.push({
+      name,
+      kind: "counter",
+      value: counters.get(name) ?? 0,
+    });
+  }
+  for (const name of GAUGE_NAMES) {
+    metrics.push({
+      name,
+      kind: "gauge",
+      value: gauges.get(name) ?? 0,
+    });
+  }
+  return formatPrometheusExposition({
+    globalLabels: [
+      { name: "service", value: EXPORTER_SERVICE },
+      { name: "env", value: EXPORTER_ENV },
+    ],
+    metrics,
+  });
 }

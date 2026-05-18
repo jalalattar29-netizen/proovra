@@ -1696,7 +1696,12 @@ verificationSummaryRows: buildVerificationSummaryRows(
       ),
       timestampRows: buildTimestampRows(input.evidence, contentSummary),
       otsRows: buildOtsRows(otsEvidence),
-      anchorRows: buildAnchorRows(anchorSummary),
+      anchorRows: buildAnchorRows(anchorSummary, {
+        otsStatus: otsEvidence.otsStatus,
+        otsBitcoinTxid: otsEvidence.otsBitcoinTxid,
+        otsAnchoredAtUtc: otsEvidence.otsAnchoredAtUtc,
+        otsProofPresent: Boolean(otsEvidence.otsProofBase64),
+      }),
       signingKeyReference: buildPublicSigningKeyReference(
         input.evidence.signingKeyId,
         input.evidence.signingKeyVersion

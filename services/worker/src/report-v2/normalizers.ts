@@ -289,6 +289,59 @@ export function mapAnchorModePublicLabel(mode: string | null | undefined): strin
   }
 }
 
+/**
+ * OTS-aware variant of `mapAnchorModePublicLabel` for the report's
+ * Technical Appendix "Anchor Mode" row.
+ *
+ * The row historically reflected the EvidenceAnchor (external
+ * publication) pipeline only, which produced a misleading
+ * "OTS proof present, public anchoring pending" label on records whose
+ * OTS proof was actually fully ANCHORED with a Bitcoin txid. The row
+ * is supposed to summarize the *public anchoring* state — i.e. OTS /
+ * Bitcoin anchoring — not the external publication pipeline. This
+ * helper inspects the canonical OTS facts FIRST and only falls back to
+ * the EvidenceAnchor-derived mode when OTS state is unknown.
+ *
+ * Honest semantics:
+ *   - OTS ANCHORED with valid txid/anchoredAt → "Public anchoring verified"
+ *   - OTS PENDING / proof present, not yet upgraded → "OTS proof present,
+ *     public anchoring pending"
+ *   - OTS FAILED → "Public anchoring failed"
+ *   - OTS DISABLED / missing → fall through to anchor-mode label
+ *     (typically "Public anchoring unavailable")
+ *
+ * NEVER fabricates. Never asserts verified anchoring without canonical
+ * proof signals (txid OR anchoredAtUtc).
+ */
+export function mapPublicAnchoringLabelFromOts(input: {
+  otsStatus?: string | null;
+  otsBitcoinTxid?: string | null;
+  otsAnchoredAtUtc?: string | null;
+  otsProofPresent?: boolean | null;
+  fallbackAnchorMode?: string | null;
+}): string {
+  const status = safe(input.otsStatus, "").toUpperCase();
+  const hasTxid =
+    typeof input.otsBitcoinTxid === "string" &&
+    /^[a-f0-9]{64}$/i.test(input.otsBitcoinTxid.trim());
+  const hasAnchoredAt = Boolean(input.otsAnchoredAtUtc);
+  const hasProof = Boolean(input.otsProofPresent);
+
+  if (status === "ANCHORED" && (hasTxid || hasAnchoredAt)) {
+    return "Public anchoring verified";
+  }
+  if (status === "FAILED") {
+    return "Public anchoring failed";
+  }
+  if (status === "PENDING" || hasProof) {
+    return "OTS proof present, public anchoring pending";
+  }
+  if (status === "DISABLED") {
+    return "Public anchoring unavailable";
+  }
+  return mapAnchorModePublicLabel(input.fallbackAnchorMode ?? null);
+}
+
 export function mapEvidenceAssetKindLabel(
   kind: ReportEvidenceAssetKind | null | undefined
 ): string {

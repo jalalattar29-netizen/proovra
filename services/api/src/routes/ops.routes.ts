@@ -44,9 +44,12 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import {
+  bump,
+  buildPrometheusExposition,
   setGauge,
   snapshotMetrics,
 } from "../services/ops/metrics.service.js";
+import { evaluateAlerts } from "@proovra/shared";
 import { buildObservabilityHealth } from "../services/observability/registry.js";
 import { buildAlertHealth } from "../services/alerts/alert.service.js";
 import {
@@ -354,6 +357,74 @@ export async function opsRoutes(app: FastifyInstance) {
       const actor = await requireOpsActor(req, reply, q.teamId);
       if (!actor) return;
       return reply.code(200).send({ metrics: snapshotMetrics() });
+    },
+  );
+
+  // Phase Y — Prometheus exposition endpoint.
+  //
+  // Public path conventionally consumed by a scraper inside the
+  // trusted cluster network. Optionally gated by a shared bearer
+  // token (`METRICS_SCRAPE_TOKEN`) — when set, callers must pass
+  // `Authorization: Bearer <token>` or the endpoint returns 401.
+  // When the env is not set, the endpoint is open (typical k8s
+  // deployment where /metrics is network-firewalled). This matches
+  // the existing /healthz + /readyz public-endpoint pattern.
+  //
+  // Returns Prometheus exposition format with `text/plain;
+  // version=0.0.4` content type. Includes the entire COUNTER_NAMES +
+  // GAUGE_NAMES catalog plus a process uptime gauge.
+  app.get("/metrics", async (req: FastifyRequest, reply: FastifyReply) => {
+    const requiredToken = process.env.METRICS_SCRAPE_TOKEN?.trim();
+    if (requiredToken) {
+      const auth = req.headers.authorization ?? "";
+      const m = /^Bearer\s+(.+)$/i.exec(auth);
+      const presented = m?.[1]?.trim();
+      if (!presented || presented !== requiredToken) {
+        return reply.code(401).send({ error: "unauthorized" });
+      }
+    }
+    const body = buildPrometheusExposition();
+    return reply
+      .code(200)
+      .header("content-type", "text/plain; version=0.0.4; charset=utf-8")
+      .header("cache-control", "no-store")
+      .send(body);
+  });
+
+  // Phase Y — Alert evaluation endpoint.
+  //
+  // Reads the current metrics snapshot and runs it against the shared
+  // OPERATIONAL_ALERT_THRESHOLDS catalog. Returns the alerts that are
+  // currently firing. Authenticated; the operator dashboard polls
+  // this to render the alert ribbon. Updates two gauges so a scraper
+  // can also tell at a glance how many alerts are open.
+  app.get(
+    "/v1/ops/alerts",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = TeamIdQuery.parse(req.query ?? {});
+      const actor = await requireOpsActor(req, reply, q.teamId);
+      if (!actor) return;
+      const snap = snapshotMetrics();
+      const merged: Record<string, number | undefined> = {
+        ...snap.counters,
+        ...snap.gauges,
+      };
+      const firing = evaluateAlerts(merged);
+      const critical = firing.filter((a) => a.severity === "CRITICAL").length;
+      setGauge("observability_alerts_firing", firing.length);
+      setGauge("observability_alerts_firing_critical", critical);
+      bump("observability_alert_evaluations_total");
+      return reply.code(200).send({
+        firing,
+        counts: {
+          total: firing.length,
+          critical,
+          high: firing.filter((a) => a.severity === "HIGH").length,
+          warning: firing.filter((a) => a.severity === "WARNING").length,
+        },
+        evaluatedAtUtc: new Date().toISOString(),
+      });
     },
   );
 

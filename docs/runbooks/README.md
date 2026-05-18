@@ -16,6 +16,24 @@ These runbooks are the operator's first stop when an incident fires. Each one is
 | [storage-write-failure](./storage-write-failure.md) | S3 put/head/get failure burst |
 | [workflow-stuck](./workflow-stuck.md) | Phase 22 workflow stuck in SUBMITTED / NEEDS_REVIEW too long |
 | [workflow-intake-abuse](./workflow-intake-abuse.md) | Phase 22 intake link abuse / contributor token failure burst |
+| [lifecycle-bypass](./lifecycle-bypass.md) | Suspected lifecycle state bypass (FM-LIFE-001/002) |
+| [hold-override](./hold-override.md) | Legal hold appears to have been overridden (FM-HOLD-001/002/003) |
+| [immutable-drift](./immutable-drift.md) | `immutable_storage_drift_open` alert (FM-RET-001) |
+| [retention-precedence](./retention-precedence.md) | Operator reports wrong retention policy in force (FM-RET-002) |
+| [export-blocked](./export-blocked.md) | Operator reports compliance export blocked or failing (FM-EXP-001/002/003) |
+| [audit-chain-drift](./audit-chain-drift.md) | `audit_chain_drift` CRITICAL alert (FM-AUD-001/002) |
+| [worker-wedged](./worker-wedged.md) | Queue not draining / `queue_oldest_pending_age` HIGH (FM-Q-001/002) |
+| [ots-degradation](./ots-degradation.md) | `ots_failure_rate` rising or anchor evidence missing (FM-OTS-001/002) |
+| [observability-degraded](./observability-degraded.md) | Metrics endpoint not scraping / Sentry silent (FM-OBS-001) |
+| [privacy-leak](./privacy-leak.md) | Suspected privileged-data leak in metrics / logs / ledger (FM-PRIV-001/002, FM-OBS-003) |
+
+## Phase Z failure-mode coverage
+
+The right-hand `FM-*` column above maps each runbook to entries in
+[`packages/shared/src/failure-mode-audit.ts`](../../packages/shared/src/failure-mode-audit.ts).
+That audit map is the canonical catalog of failure modes the platform is
+designed to survive. Test coverage lives in
+[`services/api/test/phase-z-hardening.test.ts`](../../services/api/test/phase-z-hardening.test.ts).
 
 ## Wording invariant
 

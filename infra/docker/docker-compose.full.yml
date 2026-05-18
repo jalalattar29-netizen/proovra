@@ -85,6 +85,9 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       VERIFY_RATE_LIMIT_MAX: ${VERIFY_RATE_LIMIT_MAX}
       VERIFY_RATE_LIMIT_WINDOW_SEC: ${VERIFY_RATE_LIMIT_WINDOW_SEC}
+      # Phase Y — Observability config (api side).
+      METRICS_SCRAPE_TOKEN: ${METRICS_SCRAPE_TOKEN:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
       - "8080:8080"
     healthcheck:
@@ -128,6 +131,10 @@ services:
       S3_ALLOW_INSECURE: ${S3_ALLOW_INSECURE}
       WORKER_BUILD_INFO: ${WORKER_BUILD_INFO}
       WORKER_PORT: ${WORKER_PORT}
+      # Phase Y — Observability config (worker side).
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-30000}
+      WORKER_QUEUE_HEALTH_INTERVAL_MS: ${WORKER_QUEUE_HEALTH_INTERVAL_MS:-60000}
     ports:
       - "8090:8090"
     healthcheck:

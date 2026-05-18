@@ -1711,11 +1711,14 @@ function buildPackageManifest(params: {
     anchorStatusLabel: params.anchorStatusLabel,
     anchorProvider: params.anchorProvider ?? null,
     anchorPublicBaseUrl: params.anchorPublicBaseUrl ?? null,
-    externalPublicationAttached: Boolean(
-      params.anchor?.publicUrl ||
-        params.anchor?.transactionId ||
-        params.anchor?.anchoredAtUtc
-    ),
+    // External publication is a SEPARATE concept from OTS / Bitcoin
+    // anchoring. The flag is true ONLY when a real public publication
+    // URL exists. txid and anchoredAtUtc are OTS / public-anchoring
+    // signals, not publication signals — they MUST NOT promote
+    // externalPublicationAttached here. anchor.json uses the canonical
+    // helper (deriveAnchorSemantics) and resolves to the same rule;
+    // this manifest emitter mirrors that rule so the two files agree.
+    externalPublicationAttached: Boolean(params.anchor?.publicUrl),
     publicAnchoringVerified: Boolean(
       params.anchor?.transactionId || params.anchor?.anchoredAtUtc
     ),

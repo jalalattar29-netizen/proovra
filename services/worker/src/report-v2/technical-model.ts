@@ -18,6 +18,7 @@ import {
   mapAnchorModePublicLabel,
   mapOtsStatusPublicLabel,
   mapOtsStatusPublicLabelWithTxid,
+  mapPublicAnchoringLabelFromOts,
   mapTimestampStatusPublicLabel,
 } from "./normalizers.js";
 import { deriveAnchorSemantics } from "@proovra/shared";
@@ -236,12 +237,32 @@ export function buildOtsRows(evidence: ReportEvidence): KeyValueRow[] {
 }
 
 export function buildAnchorRows(
-  anchorSummary: ReportAnchorSummary | null
+  anchorSummary: ReportAnchorSummary | null,
+  otsFacts?: {
+    otsStatus?: string | null;
+    otsBitcoinTxid?: string | null;
+    otsAnchoredAtUtc?: string | null;
+    otsProofPresent?: boolean | null;
+  } | null
 ): KeyValueRow[] {
   if (!anchorSummary) return [];
 
+  // The "Anchor Mode" row summarizes PUBLIC ANCHORING state (OTS /
+  // Bitcoin), not the external publication pipeline. Drive the label
+  // from canonical OTS facts when supplied; fall back to the
+  // EvidenceAnchor-derived mode label only when OTS state is absent.
+  const anchorModeLabel = otsFacts
+    ? mapPublicAnchoringLabelFromOts({
+        otsStatus: otsFacts.otsStatus ?? null,
+        otsBitcoinTxid: otsFacts.otsBitcoinTxid ?? null,
+        otsAnchoredAtUtc: otsFacts.otsAnchoredAtUtc ?? null,
+        otsProofPresent: otsFacts.otsProofPresent ?? null,
+        fallbackAnchorMode: anchorSummary.mode,
+      })
+    : mapAnchorModePublicLabel(anchorSummary.mode);
+
   return [
-    { label: "Anchor Mode", value: mapAnchorModePublicLabel(anchorSummary.mode) },
+    { label: "Anchor Mode", value: anchorModeLabel },
     { label: "Anchor Provider", value: safe(anchorSummary.provider) },
     {
       label: "Anchor Anchored At (UTC)",
@@ -331,7 +352,14 @@ const fingerprintRows: KeyValueRow[] = [
     signatureRows,
     fingerprintRows,
     timestampRows: buildTimestampRows(evidence, contentSummary),
-    anchoringRows: buildOtsRows(evidence).concat(buildAnchorRows(anchorSummary)),
+    anchoringRows: buildOtsRows(evidence).concat(
+      buildAnchorRows(anchorSummary, {
+        otsStatus: evidence.otsStatus,
+        otsBitcoinTxid: evidence.otsBitcoinTxid,
+        otsAnchoredAtUtc: evidence.otsAnchoredAtUtc,
+        otsProofPresent: Boolean(evidence.otsProofBase64),
+      })
+    ),
     timestampStatusLabel: mapTimestampStatusPublicLabel(evidence.tsaStatus),
     timestampStatusTone: mapTimestampTone(evidence.tsaStatus),
     otsStatusLabel: mapOtsStatusPublicLabelWithTxid({

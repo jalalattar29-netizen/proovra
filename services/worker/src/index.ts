@@ -33,6 +33,12 @@ import {
   ensureApiReadyOnce,
   type ApiReadinessResult,
 } from "./api-readiness.js";
+// Phase Y — Observability heartbeat + job-outcome instrumentation.
+import {
+  heartbeat,
+  instrumentJobOutcome,
+  snapshotQueueHealth,
+} from "./observability.js";
 
 type JobData = { evidenceId?: string };
 
@@ -109,6 +115,15 @@ function bindWorkerEvents(
       }),
       `${jobKind}.job.completed`
     );
+    // Phase Y — structured outcome line for log-based metrics.
+    instrumentJobOutcome({
+      queueName: jobKind,
+      jobId: job.id ?? null,
+      attempt: job.attemptsMade + 1,
+      durationMs,
+      outcome: "completed",
+      correlationId: requestId,
+    });
   });
 
   workerInstance.on("failed", (job, err) => {
@@ -141,6 +156,17 @@ function bindWorkerEvents(
         },
         `${jobKind}.job.pending_retry`
       );
+      // Phase Y — pending retry is NOT a failure, but track it as a
+      // distinct outcome for the dashboard.
+      instrumentJobOutcome({
+        queueName: jobKind,
+        jobId: job.id ?? null,
+        attempt: job.attemptsMade + 1,
+        durationMs,
+        outcome: "stalled",
+        correlationId: requestId,
+        errorMessage: getErrorMessage(err),
+      });
       return;
     }
 
@@ -157,6 +183,16 @@ function bindWorkerEvents(
       reason: `${jobKind}_job_failed`,
       err,
       context,
+    });
+    // Phase Y — structured outcome line for log-based metrics.
+    instrumentJobOutcome({
+      queueName: jobKind,
+      jobId: job.id ?? null,
+      attempt: job.attemptsMade + 1,
+      durationMs,
+      outcome: "failed",
+      correlationId: requestId,
+      errorMessage: getErrorMessage(err),
     });
   });
 
@@ -712,6 +748,89 @@ function stopImmutableStorageReconciliationScheduler() {
   }
 }
 
+// -----------------------------------------------------------------------------
+// Phase Y — Observability heartbeat + queue health sampler.
+//
+// Heartbeat: emits a structured log line every 30 seconds. The log
+// contains `heartbeat: true` + `workerId` + ISO timestamp. A future
+// scraper (or `tail -f`) can compute "age of last heartbeat" to
+// detect stuck workers.
+//
+// Queue health sampler: every 60 seconds, snapshots BullMQ counts
+// for the three known queues and emits a structured log line. The
+// dashboard reads this directly via the worker's health endpoint.
+// -----------------------------------------------------------------------------
+
+const observabilityHeartbeatIntervalMs = envNumber(
+  "WORKER_HEARTBEAT_INTERVAL_MS",
+  30_000,
+);
+const queueHealthSamplerIntervalMs = envNumber(
+  "WORKER_QUEUE_HEALTH_INTERVAL_MS",
+  60_000,
+);
+let observabilityHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let queueHealthSamplerTimer: ReturnType<typeof setInterval> | null = null;
+let lastQueueHealthSample: unknown = null;
+
+function startObservabilityHeartbeat() {
+  heartbeat("worker-main");
+  observabilityHeartbeatTimer = setInterval(() => {
+    heartbeat("worker-main");
+  }, observabilityHeartbeatIntervalMs);
+  logger.info(
+    { intervalMs: observabilityHeartbeatIntervalMs },
+    "worker.heartbeat.scheduler.started",
+  );
+}
+
+function stopObservabilityHeartbeat() {
+  if (observabilityHeartbeatTimer) {
+    clearInterval(observabilityHeartbeatTimer);
+    observabilityHeartbeatTimer = null;
+  }
+}
+
+async function sampleQueueHealthOnce() {
+  try {
+    const snapshot = await snapshotQueueHealth([
+      { name: reportQueueName, queue: reportQueue },
+      { name: otsUpgradeQueueName, queue: otsUpgradeQueue },
+      { name: evidencePurgeQueueName, queue: evidencePurgeQueue },
+    ]);
+    lastQueueHealthSample = snapshot;
+    logger.info(
+      { queueHealthSample: true, queues: snapshot },
+      "worker.queue_health.sampled",
+    );
+  } catch (err) {
+    logger.warn({ err }, "worker.queue_health.sample_failed");
+  }
+}
+
+function startQueueHealthSampler() {
+  void sampleQueueHealthOnce();
+  queueHealthSamplerTimer = setInterval(() => {
+    void sampleQueueHealthOnce();
+  }, queueHealthSamplerIntervalMs);
+  logger.info(
+    { intervalMs: queueHealthSamplerIntervalMs },
+    "worker.queue_health.sampler.started",
+  );
+}
+
+function stopQueueHealthSampler() {
+  if (queueHealthSamplerTimer) {
+    clearInterval(queueHealthSamplerTimer);
+    queueHealthSamplerTimer = null;
+  }
+}
+
+/** Read-only accessor for the most recent queue-health snapshot. */
+export function getLatestQueueHealthSnapshot(): unknown {
+  return lastQueueHealthSample;
+}
+
 initSentry();
 
 const reportWorker = new Worker(reportQueueName, processGenerateReport, {
@@ -753,6 +872,9 @@ async function shutdown(exitCode: number) {
   stopRetentionReconciliationScheduler();
   stopDestructionOrchestratorScheduler();
   stopImmutableStorageReconciliationScheduler();
+  // Phase Y — Observability schedulers.
+  stopObservabilityHeartbeat();
+  stopQueueHealthSampler();
 
   try {
     await reportWorker.pause(true);
@@ -857,6 +979,14 @@ startHealthServer()
     startRetentionReconciliationScheduler();
     startDestructionOrchestratorScheduler();
     startImmutableStorageReconciliationScheduler();
+    // Phase Y — Observability heartbeat + queue-health sampler.
+    // The heartbeat fires every 30s; a log-based metrics provider
+    // can derive `worker_last_heartbeat_age_seconds` by tailing
+    // `worker.heartbeat` log lines. The queue sampler fires every
+    // 60s and emits a structured snapshot operators / dashboards
+    // can read.
+    startObservabilityHeartbeat();
+    startQueueHealthSampler();
   })
   .catch((err) => {
     const requestId = randomUUID();

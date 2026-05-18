@@ -1235,3 +1235,51 @@ export {
   newWorkerExecutionContext,
   parseQueueEnvelope,
 } from "./operational-contracts.js";
+
+// -----------------------------------------------------------------------------
+// Phase Y — Observability runtime primitives (Prometheus exporter,
+// trace context, withSpan helper, alert threshold catalog).
+// -----------------------------------------------------------------------------
+
+export type {
+  OperationalAlertSeverity,
+  OperationalAlertThreshold,
+  PromLabel,
+  PromMetric,
+  PromMetricKind,
+  PromSnapshot,
+  SpanOutcome,
+  SpanSink,
+  TraceContext,
+} from "./observability-runtime.js";
+
+export {
+  OPERATIONAL_ALERT_THRESHOLDS,
+  evaluateAlerts,
+  formatPrometheusExposition,
+  newTraceContext,
+  parseTraceParentHeader,
+  safeLabelSet,
+  sanitizePromLabelValue,
+  traceParentHeader,
+  withSpan,
+} from "./observability-runtime.js";
+
+// -----------------------------------------------------------------------------
+// Phase Z — Failure-mode audit map (canonical catalog of the failure
+// modes the platform must survive). Used by the Phase Z hardening test
+// suite and operator runbooks.
+// -----------------------------------------------------------------------------
+
+export type {
+  FailureDomain,
+  FailureModeEntry,
+  FailureSeverity,
+  ValidationStrategy,
+} from "./failure-mode-audit.js";
+export {
+  FAILURE_MODE_AUDIT,
+  failureModesByDomain,
+  failureModesBySeverity,
+  findFailureMode,
+} from "./failure-mode-audit.js";

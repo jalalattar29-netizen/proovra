@@ -1,0 +1,575 @@
+"use client";
+
+/**
+ * Phase Y — Observability operational dashboard.
+ *
+ * Dense, operator-facing surface for the in-process metrics registry
+ * and the alert evaluation result. Lives under the existing Phase 21
+ * Operations Center (`/ops`) — does NOT replace it. Polled every 15
+ * seconds.
+ *
+ * The page reads:
+ *   - `GET /v1/ops/metrics`  → counter + gauge snapshot
+ *   - `GET /v1/ops/alerts`   → currently firing alerts
+ *
+ * Both endpoints are authenticated and workspace-scoped. The page
+ * uses the same canonical `useActiveWorkspaceId()` hook as the
+ * Reviewer Ops surfaces so the workspace resolution is consistent
+ * platform-wide.
+ *
+ * Wording is operator-only. No marketing copy. No truth claims. No
+ * raw evidence content.
+ */
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+
+import { apiFetch } from "../../../../lib/api";
+import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
+
+type MetricsResponse = {
+  metrics: {
+    uptimeSeconds: number;
+    counters: Record<string, number>;
+    gauges: Record<string, number>;
+  };
+};
+
+type FiringAlert = {
+  id: string;
+  metric: string;
+  op: string;
+  value: number;
+  severity: "WARNING" | "HIGH" | "CRITICAL";
+  reason: string;
+  window: string;
+  observedValue: number;
+};
+
+type AlertsResponse = {
+  firing: FiringAlert[];
+  counts: {
+    total: number;
+    critical: number;
+    high: number;
+    warning: number;
+  };
+  evaluatedAtUtc: string;
+};
+
+const POLL_INTERVAL_MS = 15_000;
+
+const COUNTER_GROUPS: Array<{
+  title: string;
+  prefixes: ReadonlyArray<string>;
+}> = [
+  {
+    title: "Lifecycle + governance",
+    prefixes: [
+      "lifecycle_",
+      "governance_",
+      "retention_",
+      "destruction_",
+      "evidence_archived_total",
+      "evidence_restored_total",
+    ],
+  },
+  {
+    title: "Review workflow",
+    prefixes: ["reviewer_", "review_sla_", "workflows_", "workflow_"],
+  },
+  {
+    title: "Notifications + audit",
+    prefixes: [
+      "notification_",
+      "communication_",
+      "alert_",
+      "audit_",
+      "platform_audit_",
+    ],
+  },
+  {
+    title: "Queues + workers",
+    prefixes: [
+      "queue_",
+      "worker_",
+      "jobs_",
+      "ots_upgrade_",
+      "search_indexing_",
+    ],
+  },
+  {
+    title: "Identity + access",
+    prefixes: [
+      "sso_",
+      "scim_",
+      "session_",
+      "trusted_device_",
+      "adaptive_",
+      "geo_",
+      "rbac_",
+      "stale_session_",
+      "suspicious_",
+      "forced_reauth_",
+      "privileged_",
+    ],
+  },
+  {
+    title: "Observability runtime",
+    prefixes: ["observability_"],
+  },
+];
+
+const GAUGE_GROUPS: Array<{
+  title: string;
+  prefixes: ReadonlyArray<string>;
+}> = [
+  {
+    title: "Live backlog",
+    prefixes: [
+      "queue_",
+      "lifecycle_",
+      "governance_",
+      "ots_upgrade_",
+      "active_legal_holds",
+      "stalled_uploads",
+    ],
+  },
+  {
+    title: "Reviewer queues",
+    prefixes: ["reviewer_"],
+  },
+  {
+    title: "Identity runtime",
+    prefixes: [
+      "active_sso_",
+      "active_scim_",
+      "active_sessions_",
+      "stale_session_",
+      "high_risk_sessions",
+      "idp_in_outage",
+      "scim_groups_",
+      "quarantined_",
+      "privileged_",
+      "geo_cache_",
+      "trusted_devices_",
+    ],
+  },
+  {
+    title: "Observability runtime",
+    prefixes: ["observability_", "audit_chain_", "worker_last_heartbeat_"],
+  },
+];
+
+function classifyForGroup<T extends string>(
+  name: T,
+  groups: Array<{ title: string; prefixes: ReadonlyArray<string> }>,
+): string {
+  for (const g of groups) {
+    if (g.prefixes.some((p) => name.startsWith(p) || name === p)) {
+      return g.title;
+    }
+  }
+  return "Other";
+}
+
+function severityBadgeStyle(
+  severity: "WARNING" | "HIGH" | "CRITICAL",
+): React.CSSProperties {
+  const palette: Record<typeof severity, [string, string, string]> = {
+    WARNING: ["#fffbeb", "#fcd34d", "#92400e"],
+    HIGH: ["#fff7ed", "#fed7aa", "#9a3412"],
+    CRITICAL: ["#fef2f2", "#fca5a5", "#991b1b"],
+  };
+  const [bg, border, color] = palette[severity];
+  return {
+    padding: "3px 10px",
+    fontSize: 11,
+    fontWeight: 600,
+    background: bg,
+    border: `1px solid ${border}`,
+    color,
+    borderRadius: 999,
+    display: "inline-block",
+  };
+}
+
+export default function ObservabilityDashboardPage() {
+  const workspaceState = useActiveWorkspaceId();
+  const teamId =
+    workspaceState.status === "ready" ? workspaceState.workspaceId : null;
+  const [metrics, setMetrics] = useState<MetricsResponse["metrics"] | null>(
+    null,
+  );
+  const [alerts, setAlerts] = useState<AlertsResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [lastPolledAtUtc, setLastPolledAtUtc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!teamId) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const [m, a] = await Promise.all([
+          apiFetch(
+            `/v1/ops/metrics?teamId=${encodeURIComponent(teamId)}`,
+            { method: "GET" },
+          ) as Promise<MetricsResponse>,
+          apiFetch(`/v1/ops/alerts?teamId=${encodeURIComponent(teamId)}`, {
+            method: "GET",
+          }) as Promise<AlertsResponse>,
+        ]);
+        if (cancelled) return;
+        setMetrics(m.metrics);
+        setAlerts(a);
+        setLastPolledAtUtc(new Date().toISOString());
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setError((err as { message?: string })?.message ?? "Unable to load.");
+      }
+    };
+    tick();
+    const handle = window.setInterval(tick, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(handle);
+    };
+  }, [teamId]);
+
+  const counterGroups = useMemo(() => {
+    if (!metrics) return new Map<string, [string, number][]>();
+    const groups = new Map<string, [string, number][]>();
+    for (const [name, value] of Object.entries(metrics.counters)) {
+      const title = classifyForGroup(name, COUNTER_GROUPS);
+      const existing = groups.get(title) ?? [];
+      existing.push([name, value]);
+      groups.set(title, existing);
+    }
+    for (const arr of groups.values()) {
+      arr.sort((a, b) => a[0].localeCompare(b[0]));
+    }
+    return groups;
+  }, [metrics]);
+
+  const gaugeGroups = useMemo(() => {
+    if (!metrics) return new Map<string, [string, number][]>();
+    const groups = new Map<string, [string, number][]>();
+    for (const [name, value] of Object.entries(metrics.gauges)) {
+      const title = classifyForGroup(name, GAUGE_GROUPS);
+      const existing = groups.get(title) ?? [];
+      existing.push([name, value]);
+      groups.set(title, existing);
+    }
+    for (const arr of groups.values()) {
+      arr.sort((a, b) => a[0].localeCompare(b[0]));
+    }
+    return groups;
+  }, [metrics]);
+
+  if (!teamId) {
+    return (
+      <main style={pageStyle}>
+        <h1 style={titleStyle}>Observability</h1>
+        <p style={mutedStyle}>
+          Switch to a workspace to view operational telemetry.
+        </p>
+      </main>
+    );
+  }
+
+  return (
+    <main style={pageStyle}>
+      <header style={headerStyle}>
+        <div>
+          <h1 style={titleStyle}>Observability</h1>
+          <p style={mutedStyle}>
+            Internal operator surface. In-process metrics + alert evaluation
+            for the API runtime. Polled every 15 s.
+            {lastPolledAtUtc ? ` Last sample: ${new Date(lastPolledAtUtc).toLocaleTimeString()}` : ""}
+          </p>
+        </div>
+        <Link href="/ops" style={navLinkStyle}>
+          ← Operations Center
+        </Link>
+      </header>
+
+      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+
+      {alerts && alerts.counts.total > 0 ? (
+        <section style={alertRibbonStyle}>
+          <div style={alertRibbonHeaderStyle}>
+            <strong>{alerts.counts.total} alert{alerts.counts.total === 1 ? "" : "s"} firing</strong>
+            <span style={mutedStyle}>
+              {alerts.counts.critical} critical · {alerts.counts.high} high · {alerts.counts.warning} warning
+            </span>
+          </div>
+          <ul style={alertListStyle}>
+            {alerts.firing.map((a) => (
+              <li key={a.id} style={alertRowStyle}>
+                <span style={severityBadgeStyle(a.severity)}>{a.severity}</span>
+                <strong style={alertIdStyle}>{a.id}</strong>
+                <span style={mutedStyle}>
+                  {a.metric} {a.op} {a.value} · observed {a.observedValue} · window {a.window}
+                </span>
+                <div style={alertReasonStyle}>{a.reason}</div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : alerts ? (
+        <section style={okRibbonStyle}>
+          <strong>No alerts firing</strong>
+          <span style={mutedStyle}>
+            {Object.keys(metrics?.counters ?? {}).length} counters · {Object.keys(metrics?.gauges ?? {}).length} gauges
+            · uptime {metrics?.uptimeSeconds ?? 0}s
+          </span>
+        </section>
+      ) : null}
+
+      {!metrics ? (
+        <p style={mutedStyle}>Loading metrics…</p>
+      ) : (
+        <>
+          <section style={cardStyle}>
+            <h2 style={sectionTitleStyle}>Counters</h2>
+            <p style={mutedStyle}>
+              Monotonic since this api instance started ({metrics.uptimeSeconds}s ago).
+              All values reset on restart.
+            </p>
+            {[...counterGroups.entries()]
+              .sort((a, b) => a[0].localeCompare(b[0]))
+              .map(([title, rows]) => (
+                <details key={title} style={groupStyle} open={rows.some(([, v]) => v > 0)}>
+                  <summary style={groupSummaryStyle}>
+                    {title} <span style={groupCountStyle}>({rows.length})</span>
+                  </summary>
+                  <table style={tableStyle}>
+                    <tbody>
+                      {rows.map(([name, value]) => (
+                        <tr key={name}>
+                          <td style={tdMonoStyle}>{name}</td>
+                          <td style={tdNumStyle(value)}>{value.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </details>
+              ))}
+          </section>
+
+          <section style={cardStyle}>
+            <h2 style={sectionTitleStyle}>Gauges</h2>
+            <p style={mutedStyle}>
+              Last-write-wins. A non-zero gauge typically reflects current
+              backlog / outstanding state.
+            </p>
+            {[...gaugeGroups.entries()]
+              .sort((a, b) => a[0].localeCompare(b[0]))
+              .map(([title, rows]) => (
+                <details key={title} style={groupStyle} open={rows.some(([, v]) => v > 0)}>
+                  <summary style={groupSummaryStyle}>
+                    {title} <span style={groupCountStyle}>({rows.length})</span>
+                  </summary>
+                  <table style={tableStyle}>
+                    <tbody>
+                      {rows.map(([name, value]) => (
+                        <tr key={name}>
+                          <td style={tdMonoStyle}>{name}</td>
+                          <td style={tdNumStyle(value)}>{value.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </details>
+              ))}
+          </section>
+        </>
+      )}
+
+      <section style={cardStyle}>
+        <h2 style={sectionTitleStyle}>Scrape endpoints</h2>
+        <ul style={listStyle}>
+          <li>
+            <code style={codeStyle}>GET /metrics</code> — Prometheus exposition
+            format. Public; optionally gated by <code style={codeStyle}>METRICS_SCRAPE_TOKEN</code>.
+          </li>
+          <li>
+            <code style={codeStyle}>GET /v1/ops/metrics?teamId=…</code> —
+            authenticated JSON snapshot used by this dashboard.
+          </li>
+          <li>
+            <code style={codeStyle}>GET /v1/ops/alerts?teamId=…</code> —
+            authenticated alert evaluation.
+          </li>
+          <li>
+            <code style={codeStyle}>GET /readyz</code> — readiness probe (DB ping).
+          </li>
+          <li>
+            <code style={codeStyle}>GET /healthz</code> — liveness probe.
+          </li>
+        </ul>
+      </section>
+    </main>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Styles — enterprise/SOC dense layout
+// -----------------------------------------------------------------------------
+
+const pageStyle: React.CSSProperties = {
+  maxWidth: 1200,
+  margin: "0 auto",
+  padding: "32px 24px",
+  fontFamily:
+    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  color: "#0f172a",
+};
+const headerStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-end",
+  gap: 16,
+  marginBottom: 12,
+};
+const titleStyle: React.CSSProperties = {
+  fontSize: 26,
+  fontWeight: 700,
+  marginBottom: 4,
+  letterSpacing: -0.4,
+};
+const mutedStyle: React.CSSProperties = { fontSize: 13, color: "#64748b" };
+const sectionTitleStyle: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: 0.4,
+  color: "#334155",
+  marginBottom: 8,
+};
+const cardStyle: React.CSSProperties = {
+  marginTop: 16,
+  padding: 16,
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  background: "#fff",
+};
+const navLinkStyle: React.CSSProperties = {
+  color: "#4338ca",
+  fontWeight: 600,
+  textDecoration: "none",
+  fontSize: 13,
+};
+const errorBoxStyle: React.CSSProperties = {
+  marginTop: 12,
+  padding: 12,
+  background: "#fef2f2",
+  color: "#7f1d1d",
+  border: "1px solid #fecaca",
+  borderRadius: 8,
+  fontSize: 14,
+};
+const alertRibbonStyle: React.CSSProperties = {
+  marginTop: 16,
+  padding: 16,
+  background: "#fef2f2",
+  border: "1px solid #fca5a5",
+  borderRadius: 12,
+};
+const alertRibbonHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "baseline",
+  gap: 12,
+  marginBottom: 8,
+};
+const alertListStyle: React.CSSProperties = {
+  listStyle: "none",
+  padding: 0,
+  margin: 0,
+};
+const alertRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "auto auto 1fr",
+  gap: 8,
+  alignItems: "baseline",
+  padding: "6px 0",
+  borderTop: "1px solid #fecaca",
+  fontSize: 13,
+};
+const alertIdStyle: React.CSSProperties = {
+  fontFamily:
+    "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
+  fontSize: 12,
+  fontWeight: 600,
+};
+const alertReasonStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: "#7f1d1d",
+  gridColumn: "1 / -1",
+};
+const okRibbonStyle: React.CSSProperties = {
+  marginTop: 16,
+  padding: 12,
+  background: "#ecfdf5",
+  border: "1px solid #bbf7d0",
+  color: "#166534",
+  borderRadius: 12,
+  display: "flex",
+  alignItems: "baseline",
+  gap: 12,
+};
+const groupStyle: React.CSSProperties = {
+  marginTop: 8,
+  border: "1px solid #f1f5f9",
+  borderRadius: 8,
+};
+const groupSummaryStyle: React.CSSProperties = {
+  padding: "8px 12px",
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#334155",
+  cursor: "pointer",
+};
+const groupCountStyle: React.CSSProperties = {
+  marginLeft: 6,
+  color: "#94a3b8",
+  fontWeight: 400,
+  fontSize: 12,
+};
+const tableStyle: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+  fontSize: 12,
+};
+const tdMonoStyle: React.CSSProperties = {
+  padding: "6px 12px",
+  borderTop: "1px solid #f8fafc",
+  fontFamily:
+    "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
+};
+function tdNumStyle(value: number): React.CSSProperties {
+  return {
+    padding: "6px 12px",
+    borderTop: "1px solid #f8fafc",
+    textAlign: "right",
+    fontVariantNumeric: "tabular-nums",
+    fontWeight: value > 0 ? 600 : 400,
+    color: value > 0 ? "#0f172a" : "#94a3b8",
+  };
+}
+const listStyle: React.CSSProperties = {
+  paddingLeft: 20,
+  margin: "8px 0 0",
+  fontSize: 13,
+  lineHeight: 1.7,
+  color: "#334155",
+};
+const codeStyle: React.CSSProperties = {
+  fontFamily:
+    "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
+  fontSize: 12,
+  background: "#f1f5f9",
+  padding: "2px 6px",
+  borderRadius: 4,
+};

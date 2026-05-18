@@ -4811,71 +4811,36 @@ tone={
           ),
           show: true,
         },
+        // External Publication is a SEPARATE feature from OTS / Bitcoin
+        // anchoring (which is shown in the OTS / Public Anchoring rows
+        // above). The card is shown ONLY when a real external publication
+        // URL exists. We never display "Not Published" / pending / disabled
+        // states for a publication pipeline the workspace has not opted
+        // into — that would imply a missing feature and confuse the
+        // reader. Bitcoin txid + anchoredAt are OTS / public-anchoring
+        // signals and surface in their own rows above.
         {
           label: "External Publication",
           content: (
-            <div style={{ display: "grid", gap: 6 }}>
-              <Badge
-                label={
-                  externalPublicationUrl
-                    ? "Publication record available"
-                    : anchorTransactionId
-                      ? "Bitcoin anchor recorded"
-                      : externalPublicationAnchoredAtUtc
-                        ? "Public anchor recorded"
-                        : "Not Published"
-                }
-                tone={
-                  externalPublicationUrl ||
-                  anchorTransactionId ||
-                  externalPublicationAnchoredAtUtc
-                    ? "success"
-                    : "neutral"
-                }
-              />
-              {anchorTransactionId && !externalPublicationUrl ? (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div
-                    style={{
-                      ...VERIFY_TYPO.small,
-                      color: VERIFY_BRAND.ink,
-                    }}
-                  >
-                    TxID: {truncateHash(anchorTransactionId)}
-                  </div>
-                  <CopyMiniButton
-                    value={anchorTransactionId}
-                    successMessage="Transaction ID copied"
-                    addToast={addToast}
-                  />
-                </div>
-              ) : null}
-            </div>
+            <Badge label="Publication record available" tone="success" />
           ),
-          show:
-            externalPublicationPresent !== null ||
-            Boolean(externalPublicationUrl) ||
-            Boolean(anchorTransactionId) ||
-            Boolean(externalPublicationAnchoredAtUtc),
+          show: Boolean(externalPublicationUrl),
         },
         {
           label: "Anchor Provider",
           content: externalPublicationProvider ?? null,
-          show: Boolean(externalPublicationProvider),
+          show:
+            Boolean(externalPublicationUrl) &&
+            Boolean(externalPublicationProvider),
         },
         {
           label: "Anchor Time",
           content: externalPublicationAnchoredAtUtc
             ? formatDateTime(externalPublicationAnchoredAtUtc)
             : null,
-          show: Boolean(externalPublicationAnchoredAtUtc),
+          show:
+            Boolean(externalPublicationUrl) &&
+            Boolean(externalPublicationAnchoredAtUtc),
         },
       ].filter((item) => item.show),
     [
@@ -4901,6 +4866,7 @@ tone={
       signingKeyVersion,
       externalPublicationPresent,
       externalPublicationProvider,
+      externalPublicationUrl,
       externalPublicationAnchoredAtUtc,
     ]
   );
