@@ -52,6 +52,7 @@ import {
   getReviewerEvidenceTypeLabel,
   getReviewerUploadModeLabel,
   isPrimaryReviewerArtifactRole,
+  parseQueueEnvelope,
   resolveReviewerArtifactRole,
   resolveEffectiveOtsStatus,
   type ReviewerArtifactRole,
@@ -3817,19 +3818,35 @@ function isRetentionStillActive(retainUntilUtc: Date | null | undefined): boolea
 }
 
 export async function processPurgeDeletedEvidence(
-  job: Job<PurgeDeletedEvidenceJobData>
+  job: Job<unknown>
 ) {
   const start = Date.now();
-  const evidenceId = job.data.evidenceId;
-  const requestId = randomUUID();
-
-  const ctx = withJobContext({
-    requestId,
-    jobId: job.id,
-    evidenceId,
-    attempt: job.attemptsMade + 1,
-    status: "purging",
+  // Phase X.1 — decode the canonical queue envelope. Back-compat with
+  // legacy raw `{evidenceId}` payloads (in-flight jobs from before
+  // the envelope was adopted). The parser synthesizes the missing
+  // metadata so downstream code can always assume the contract.
+  const decoded = parseQueueEnvelope<PurgeDeletedEvidenceJobData>(job.data, {
+    expectedKind: "PurgeDeletedEvidenceJob",
   });
+  const evidenceId = decoded.body.evidenceId;
+  const requestId = decoded.correlationId || randomUUID();
+  if (decoded.legacy) {
+    // Track legacy-payload drain so operators can see when in-flight
+    // pre-envelope jobs have all completed.
+    // (Logged at INFO; no metrics catalog change needed.)
+  }
+
+  const ctx = {
+    ...withJobContext({
+      requestId,
+      jobId: job.id,
+      evidenceId,
+      attempt: job.attemptsMade + 1,
+      status: "purging",
+    }),
+    correlationId: decoded.correlationId,
+    envelope: decoded.legacy ? ("legacy" as const) : ("canonical" as const),
+  };
 
   logger.info(ctx, "PurgeDeletedEvidenceJob started");
 

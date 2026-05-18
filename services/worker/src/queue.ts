@@ -8,6 +8,8 @@ import {
   EnqueueReportJobOptions,
   ReportJobPayload,
   generateReportJobName,
+  newQueuePayloadEnvelope,
+  type QueuePayloadEnvelope,
 } from "@proovra/shared";
 
 export { generateReportJobName };
@@ -201,7 +203,8 @@ export function buildEvidencePurgeJobId(evidenceId: string): string {
 
 export async function enqueueEvidencePurgeJob(
   evidenceId: string,
-  runAtUtc: string | Date
+  runAtUtc: string | Date,
+  options: { correlationId?: string; teamId?: string | null } = {},
 ) {
   const when =
     runAtUtc instanceof Date ? runAtUtc.getTime() : new Date(runAtUtc).getTime();
@@ -238,9 +241,22 @@ export async function enqueueEvidencePurgeJob(
     }
   }
 
+  // Phase X.1 — wrap the payload in the canonical queue envelope.
+  // Downstream processor uses `parseQueueEnvelope` so legacy in-flight
+  // raw payloads still drain. `jobId` doubles as idempotency key — the
+  // queue refuses a second add with the same id.
+  const envelope: QueuePayloadEnvelope<PurgeDeletedEvidenceJobPayload> =
+    newQueuePayloadEnvelope({
+      kind: purgeDeletedEvidenceJobName,
+      idempotencyKey: jobId,
+      body: { evidenceId },
+      correlationId: options.correlationId,
+      teamId: options.teamId ?? null,
+    });
+
   await evidencePurgeQueue.add(
     purgeDeletedEvidenceJobName,
-    { evidenceId },
+    envelope,
     {
       jobId,
       delay,
@@ -251,5 +267,5 @@ export async function enqueueEvidencePurgeJob(
     }
   );
 
-  return { enqueued: true, delay };
+  return { enqueued: true, delay, correlationId: envelope.correlationId };
 }

@@ -31,9 +31,11 @@
  */
 
 import * as prismaPkg from "@prisma/client";
+import { newCorrelationId } from "@proovra/shared";
 import { logger } from "../logger.js";
 import { prisma } from "../db.js";
 import { runGovernanceReconciliation } from "./reconciliation-run.js";
+import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
 
 const DEFAULT_BATCH_SIZE = 200;
 const MAX_BATCH_SIZE = 1000;
@@ -104,6 +106,10 @@ export async function runRetentionReconciliation(
           continue;
         }
         const teamId = ev.teamId;
+        // Phase X.1 — one correlation id per evidence iteration. Threads
+        // into every downstream emission (notification, lifecycle ledger)
+        // for end-to-end stitching.
+        const correlationId = newCorrelationId();
         try {
           // Hold check.
           const directHold = await prisma.evidenceLegalHold.findFirst({
@@ -115,7 +121,12 @@ export async function runRetentionReconciliation(
           });
           if (directHold) {
             ctx.reportProgress({ skipped: 1 });
-            await emitDestructionBlockedNotification(teamId, ev.id, "hold");
+            await emitDestructionBlockedNotification(
+              teamId,
+              ev.id,
+              "hold",
+              correlationId,
+            );
             continue;
           }
           // Cascade case-level hold.
@@ -137,6 +148,7 @@ export async function runRetentionReconciliation(
                 teamId,
                 ev.id,
                 "case_hold",
+                correlationId,
               );
               continue;
             }
@@ -167,6 +179,7 @@ export async function runRetentionReconciliation(
               teamId,
               ev.id,
               "immutable",
+              correlationId,
             );
             continue;
           }
@@ -200,11 +213,13 @@ export async function runRetentionReconciliation(
                   eventType: "retention_recomputed",
                   summary: `Retention auto-extended by ${policySnapshot.autoExtensionDays} days`,
                   metadata: {
+                    correlationId,
                     autoExtensionDays: policySnapshot.autoExtensionDays,
                     nextRetentionUntilUtc: nextRetention.toISOString(),
                     triggeredByRun: ctx.runId,
                   } as prismaPkg.Prisma.InputJsonValue,
                   actorUserId: options.triggeredByUserId ?? undefined,
+                  requestId: correlationId.slice(0, 64),
                 },
               });
               await emitRetentionExtensionNotification(
@@ -212,6 +227,7 @@ export async function runRetentionReconciliation(
                 ev.id,
                 policySnapshot.retentionPolicyId,
                 policySnapshot.autoExtensionDays,
+                correlationId,
               );
               ctx.reportProgress({ matched: 1 });
               extended += 1;
@@ -256,11 +272,13 @@ export async function runRetentionReconciliation(
                 eventType: "destruction_review_created",
                 summary: "Retention expired — destruction review queued",
                 metadata: {
+                  correlationId,
                   destructionReviewId: r.id,
                   reason: "retention_expired",
                   triggeredByRun: ctx.runId,
                 } as prismaPkg.Prisma.InputJsonValue,
                 actorUserId: options.triggeredByUserId ?? undefined,
+                requestId: correlationId.slice(0, 64),
               },
             });
             return r;
@@ -274,11 +292,12 @@ export async function runRetentionReconciliation(
             teamId,
             ev.id,
             review.id,
+            correlationId,
           );
         } catch (err) {
           ctx.reportProgress({ failed: 1 });
           logger.error(
-            { err, evidenceId: ev.id, runId: ctx.runId },
+            { err, evidenceId: ev.id, runId: ctx.runId, correlationId },
             "retention.reconciliation.evidence_failed",
           );
         }
@@ -307,6 +326,7 @@ export async function runRetentionReconciliation(
           continue;
         }
         const driftTeamId = ev.teamId;
+        const driftCorrelationId = newCorrelationId();
         try {
           let isDrifted = ev.activeDestructionReviewId === null;
           if (!isDrifted && ev.activeDestructionReviewId) {
@@ -333,18 +353,24 @@ export async function runRetentionReconciliation(
                 eventType: "lifecycle_transition",
                 summary: "Lifecycle drift detected — pointer stale",
                 metadata: {
+                  correlationId: driftCorrelationId,
                   driftKind: "stale_active_destruction_review",
                   triggeredByRun: ctx.runId,
                 } as prismaPkg.Prisma.InputJsonValue,
                 actorUserId: options.triggeredByUserId ?? undefined,
+                requestId: driftCorrelationId.slice(0, 64),
               },
             });
-            await emitLifecycleDriftNotification(driftTeamId, ev.id);
+            await emitLifecycleDriftNotification(
+              driftTeamId,
+              ev.id,
+              driftCorrelationId,
+            );
           }
         } catch (err) {
           ctx.reportProgress({ failed: 1 });
           logger.error(
-            { err, evidenceId: ev.id, runId: ctx.runId },
+            { err, evidenceId: ev.id, runId: ctx.runId, correlationId: driftCorrelationId },
             "retention.reconciliation.drift_check_failed",
           );
         }
@@ -373,7 +399,14 @@ export async function runRetentionReconciliation(
 }
 
 // -----------------------------------------------------------------------------
-// Notification emission — best-effort. Failures never break the run.
+// Notification emission — Phase X.1 routes every emission through the
+// canonical worker emitter so throttle, dedupe, severity escalation,
+// and HIGH/CRITICAL incident fan-out stay consistent with the api
+// notification service. The inline `prisma.governanceNotification.upsert`
+// calls that lived here are gone.
+//
+// All emissions remain best-effort: a failure to record a notification
+// must never break the reconciliation run.
 // -----------------------------------------------------------------------------
 
 function dedupeKey(...parts: ReadonlyArray<string>): string {
@@ -384,33 +417,19 @@ async function emitDestructionPendingNotification(
   teamId: string,
   evidenceId: string,
   reviewId: string,
+  correlationId?: string,
 ): Promise<void> {
   try {
-    const key = dedupeKey("destruction_pending", evidenceId);
-    await prisma.governanceNotification.upsert({
-      where: {
-        teamId_kind_dedupeKey: {
-          teamId,
-          kind: prismaPkg.GovernanceNotificationKind.DESTRUCTION_PENDING,
-          dedupeKey: key,
-        },
-      },
-      create: {
-        teamId,
-        kind: prismaPkg.GovernanceNotificationKind.DESTRUCTION_PENDING,
-        severity: prismaPkg.GovernanceNotificationSeverity.WARNING,
-        dedupeKey: key,
-        title: "Destruction review pending",
-        summary: `Retention has expired on evidence ${evidenceId.slice(0, 8)}…; review #${reviewId.slice(0, 8)}…`,
-        relatedEvidenceId: evidenceId,
-        relatedReviewId: reviewId,
-        channels: ["in_app"],
-      },
-      update: {
-        lastSeenAtUtc: new Date(),
-        occurrenceCount: { increment: 1 },
-        relatedReviewId: reviewId,
-      },
+    await emitWorkerGovernanceNotification({
+      teamId,
+      kind: "DESTRUCTION_PENDING",
+      severity: "WARNING",
+      dedupeKey: dedupeKey("destruction_pending", evidenceId),
+      title: "Destruction review pending",
+      summary: `Retention has expired on evidence ${evidenceId.slice(0, 8)}…; review #${reviewId.slice(0, 8)}…`,
+      relatedEvidenceId: evidenceId,
+      relatedReviewId: reviewId,
+      correlationId,
     });
   } catch (err) {
     logger.warn({ err }, "governance.notification.emit_failed");
@@ -421,36 +440,23 @@ async function emitDestructionBlockedNotification(
   teamId: string,
   evidenceId: string,
   blockReason: "hold" | "case_hold" | "immutable",
+  correlationId?: string,
 ): Promise<void> {
   try {
-    const key = dedupeKey("destruction_blocked", blockReason, evidenceId);
-    await prisma.governanceNotification.upsert({
-      where: {
-        teamId_kind_dedupeKey: {
-          teamId,
-          kind: prismaPkg.GovernanceNotificationKind.DESTRUCTION_BLOCKED,
-          dedupeKey: key,
-        },
-      },
-      create: {
-        teamId,
-        kind: prismaPkg.GovernanceNotificationKind.DESTRUCTION_BLOCKED,
-        severity: prismaPkg.GovernanceNotificationSeverity.INFO,
-        dedupeKey: key,
-        title: "Destruction blocked",
-        summary:
-          blockReason === "immutable"
-            ? "Retention has expired but the policy is immutable. Operator must supersede the policy before destruction."
-            : blockReason === "case_hold"
-              ? "Retention has expired but the parent case is on legal hold."
-              : "Retention has expired but the evidence is on legal hold.",
-        relatedEvidenceId: evidenceId,
-        channels: ["in_app"],
-      },
-      update: {
-        lastSeenAtUtc: new Date(),
-        occurrenceCount: { increment: 1 },
-      },
+    await emitWorkerGovernanceNotification({
+      teamId,
+      kind: "DESTRUCTION_BLOCKED",
+      severity: "INFO",
+      dedupeKey: dedupeKey("destruction_blocked", blockReason, evidenceId),
+      title: "Destruction blocked",
+      summary:
+        blockReason === "immutable"
+          ? "Retention has expired but the policy is immutable. Operator must supersede the policy before destruction."
+          : blockReason === "case_hold"
+            ? "Retention has expired but the parent case is on legal hold."
+            : "Retention has expired but the evidence is on legal hold.",
+      relatedEvidenceId: evidenceId,
+      correlationId,
     });
   } catch (err) {
     logger.warn({ err }, "governance.notification.emit_failed");
@@ -462,32 +468,19 @@ async function emitRetentionExtensionNotification(
   evidenceId: string,
   policyId: string,
   days: number,
+  correlationId?: string,
 ): Promise<void> {
   try {
-    const key = dedupeKey("retention_extension", policyId, evidenceId);
-    await prisma.governanceNotification.upsert({
-      where: {
-        teamId_kind_dedupeKey: {
-          teamId,
-          kind: prismaPkg.GovernanceNotificationKind.RETENTION_EXTENSION_APPLIED,
-          dedupeKey: key,
-        },
-      },
-      create: {
-        teamId,
-        kind: prismaPkg.GovernanceNotificationKind.RETENTION_EXTENSION_APPLIED,
-        severity: prismaPkg.GovernanceNotificationSeverity.INFO,
-        dedupeKey: key,
-        title: "Retention auto-extended",
-        summary: `Policy auto-extended retention by ${days} days following recent custody activity.`,
-        relatedEvidenceId: evidenceId,
-        relatedPolicyId: policyId,
-        channels: ["in_app"],
-      },
-      update: {
-        lastSeenAtUtc: new Date(),
-        occurrenceCount: { increment: 1 },
-      },
+    await emitWorkerGovernanceNotification({
+      teamId,
+      kind: "RETENTION_EXTENSION_APPLIED",
+      severity: "INFO",
+      dedupeKey: dedupeKey("retention_extension", policyId, evidenceId),
+      title: "Retention auto-extended",
+      summary: `Policy auto-extended retention by ${days} days following recent custody activity.`,
+      relatedEvidenceId: evidenceId,
+      relatedPolicyId: policyId,
+      correlationId,
     });
   } catch (err) {
     logger.warn({ err }, "governance.notification.emit_failed");
@@ -497,32 +490,19 @@ async function emitRetentionExtensionNotification(
 async function emitLifecycleDriftNotification(
   teamId: string,
   evidenceId: string,
+  correlationId?: string,
 ): Promise<void> {
   try {
-    const key = dedupeKey("lifecycle_drift", "stale_review", evidenceId);
-    await prisma.governanceNotification.upsert({
-      where: {
-        teamId_kind_dedupeKey: {
-          teamId,
-          kind: prismaPkg.GovernanceNotificationKind.LIFECYCLE_DRIFT,
-          dedupeKey: key,
-        },
-      },
-      create: {
-        teamId,
-        kind: prismaPkg.GovernanceNotificationKind.LIFECYCLE_DRIFT,
-        severity: prismaPkg.GovernanceNotificationSeverity.HIGH,
-        dedupeKey: key,
-        title: "Lifecycle drift detected",
-        summary:
-          "Evidence is PENDING_DESTRUCTION but its active destruction review pointer is stale.",
-        relatedEvidenceId: evidenceId,
-        channels: ["in_app", "email"],
-      },
-      update: {
-        lastSeenAtUtc: new Date(),
-        occurrenceCount: { increment: 1 },
-      },
+    await emitWorkerGovernanceNotification({
+      teamId,
+      kind: "LIFECYCLE_DRIFT",
+      severity: "HIGH",
+      dedupeKey: dedupeKey("lifecycle_drift", "stale_review", evidenceId),
+      title: "Lifecycle drift detected",
+      summary:
+        "Evidence is PENDING_DESTRUCTION but its active destruction review pointer is stale.",
+      relatedEvidenceId: evidenceId,
+      correlationId,
     });
   } catch (err) {
     logger.warn({ err }, "governance.notification.emit_failed");

@@ -32,9 +32,12 @@
  */
 
 import * as prismaPkg from "@prisma/client";
+import { newCorrelationId } from "@proovra/shared";
 import { logger } from "../logger.js";
 import { prisma } from "../db.js";
 import { runGovernanceReconciliation } from "./reconciliation-run.js";
+import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
+import { recordWorkerIncident } from "./incident-emitter.js";
 
 const DEFAULT_BATCH_SIZE = 100;
 const MAX_BATCH_SIZE = 500;
@@ -128,6 +131,7 @@ export async function runImmutableStorageReconciliation(
           continue;
         }
         const evidenceTeamId = ev.teamId;
+        const correlationId = newCorrelationId();
         try {
           const directHold = await prisma.evidenceLegalHold.findFirst({
             where: { evidenceId: ev.id, status: prismaPkg.LegalHoldStatus.ACTIVE },
@@ -209,6 +213,7 @@ export async function runImmutableStorageReconciliation(
               ev.id,
               outcome,
               driftSummary,
+              correlationId,
             );
           }
 
@@ -225,6 +230,10 @@ export async function runImmutableStorageReconciliation(
               storageComplianceMode: probeResult.complianceMode,
               raisedIncidentId,
               driftSummary: driftSummary?.slice(0, 400) ?? null,
+              metadata: {
+                correlationId,
+                reconciliationRunId: ctx.runId,
+              } as prismaPkg.Prisma.InputJsonValue,
             },
           });
 
@@ -238,6 +247,7 @@ export async function runImmutableStorageReconciliation(
               ev.id,
               outcome,
               driftSummary,
+              correlationId,
             );
           }
         } catch (err) {
@@ -278,48 +288,26 @@ async function raiseGovernanceIncident(
   evidenceId: string,
   outcome: prismaPkg.ImmutableStorageCheckOutcome,
   driftSummary: string | null,
+  correlationId?: string,
 ): Promise<string | null> {
-  try {
-    const fingerprint = `immutable_storage_drift:${outcome}:${evidenceId}`.slice(
-      0,
-      120,
-    );
-    const existing = await prisma.operationalIncident.findUnique({
-      where: { teamId_fingerprint: { teamId, fingerprint } },
-    });
-    if (existing) {
-      const row = await prisma.operationalIncident.update({
-        where: { id: existing.id },
-        data: {
-          lastSeenAtUtc: new Date(),
-          occurrenceCount: { increment: 1 },
-          status:
-            existing.status === prismaPkg.IncidentStatus.RESOLVED ||
-            existing.status === prismaPkg.IncidentStatus.SUPPRESSED
-              ? prismaPkg.IncidentStatus.OPEN
-              : existing.status,
-        },
-      });
-      return row.id;
-    }
-    const row = await prisma.operationalIncident.create({
-      data: {
-        teamId,
-        category: prismaPkg.IncidentCategory.GOVERNANCE,
-        severity: prismaPkg.IncidentSeverity.HIGH,
-        status: prismaPkg.IncidentStatus.OPEN,
-        fingerprint,
-        title: `Immutable storage drift: ${outcome}`,
-        safeSummary: driftSummary?.slice(0, 400) ?? `Drift outcome ${outcome} on evidence ${evidenceId.slice(0, 8)}…`,
-        relatedEvidenceId: evidenceId,
-        openedBySystem: true,
-      },
-    });
-    return row.id;
-  } catch (err) {
-    logger.warn({ err }, "governance.incident.raise_failed");
-    return null;
-  }
+  // Phase X.1 — route through the canonical worker incident emitter
+  // (incident-emitter.ts) which mirrors the Phase 21 recordIncident
+  // contract. The inline `operationalIncident.upsert` logic that
+  // lived here is gone.
+  const row = await recordWorkerIncident({
+    teamId,
+    category: "GOVERNANCE",
+    severity: "HIGH",
+    fingerprint: `immutable_storage_drift:${outcome}:${evidenceId}`,
+    title: `Immutable storage drift: ${outcome}`,
+    safeSummary:
+      driftSummary ??
+      `Drift outcome ${outcome} on evidence ${evidenceId.slice(0, 8)}…`,
+    relatedEvidenceId: evidenceId,
+    correlationId,
+    metadata: { outcome, driftSummary: driftSummary ?? null },
+  });
+  return row?.id ?? null;
 }
 
 async function emitImmutableDriftNotification(
@@ -327,41 +315,26 @@ async function emitImmutableDriftNotification(
   evidenceId: string,
   outcome: prismaPkg.ImmutableStorageCheckOutcome,
   driftSummary: string | null,
+  correlationId?: string,
 ): Promise<void> {
+  // Phase X.1 — route through the canonical worker notification
+  // emitter (notification-emitter.ts). Inline upsert removed.
   try {
-    const key = `immutable_drift:${outcome}:${evidenceId}`.slice(
-      0,
-      DEDUPE_KEY_MAX,
-    );
-    await prisma.governanceNotification.upsert({
-      where: {
-        teamId_kind_dedupeKey: {
-          teamId,
-          kind: prismaPkg.GovernanceNotificationKind
-            .IMMUTABLE_RECONCILIATION_FAILURE,
-          dedupeKey: key,
-        },
-      },
-      create: {
-        teamId,
-        kind: prismaPkg.GovernanceNotificationKind
-          .IMMUTABLE_RECONCILIATION_FAILURE,
-        severity: prismaPkg.GovernanceNotificationSeverity.HIGH,
-        dedupeKey: key,
-        title: "Immutable storage drift detected",
-        summary:
-          driftSummary?.slice(0, 1000) ??
-          `Storage layer disagrees with DB on evidence ${evidenceId.slice(0, 8)}… (outcome=${outcome}).`,
-        relatedEvidenceId: evidenceId,
-        channels: ["in_app", "email"],
-        metadata: {
-          outcome,
-        } as prismaPkg.Prisma.InputJsonValue,
-      },
-      update: {
-        lastSeenAtUtc: new Date(),
-        occurrenceCount: { increment: 1 },
-      },
+    await emitWorkerGovernanceNotification({
+      teamId,
+      kind: "IMMUTABLE_RECONCILIATION_FAILURE",
+      severity: "HIGH",
+      dedupeKey: `immutable_drift:${outcome}:${evidenceId}`.slice(
+        0,
+        DEDUPE_KEY_MAX,
+      ),
+      title: "Immutable storage drift detected",
+      summary:
+        driftSummary?.slice(0, 1000) ??
+        `Storage layer disagrees with DB on evidence ${evidenceId.slice(0, 8)}… (outcome=${outcome}).`,
+      relatedEvidenceId: evidenceId,
+      metadata: { outcome },
+      correlationId,
     });
   } catch (err) {
     logger.warn({ err }, "governance.notification.emit_failed");

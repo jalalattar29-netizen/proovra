@@ -160,6 +160,94 @@ export function newQueuePayloadEnvelope<TBody>(input: {
   };
 }
 
+/**
+ * Tolerant envelope parser — accepts either:
+ *   1. A canonical `QueuePayloadEnvelope<TBody>` (post-Phase X.1 jobs)
+ *   2. A raw `TBody` (legacy / in-flight jobs that were enqueued
+ *      before the envelope was adopted).
+ *
+ * The return shape is uniform: always exposes `body` + metadata. When
+ * the inbound is a raw legacy body, missing envelope fields are
+ * synthesized so downstream code can assume the contract is present.
+ *
+ * Used by BullMQ job processors to decode `job.data` without breaking
+ * back-compat. The processor calls this once at the top of the
+ * handler and works from `body` onward.
+ */
+export function parseQueueEnvelope<TBody>(
+  raw: unknown,
+  options: {
+    /** Expected `kind` for sanity checking. When provided and the
+     *  inbound envelope's kind doesn't match, the parser warns via
+     *  the returned `kindMismatch` flag but still returns the body. */
+    expectedKind?: string;
+    /** Validator for the body payload. Defaults to identity. */
+    validateBody?: (candidate: unknown) => candidate is TBody;
+  } = {},
+): {
+  body: TBody;
+  correlationId: string;
+  idempotencyKey: string | null;
+  enqueuedAtUtc: string | null;
+  teamId: string | null;
+  legacy: boolean;
+  kindMismatch: boolean;
+} {
+  const isEnvelope =
+    raw !== null &&
+    typeof raw === "object" &&
+    typeof (raw as { kind?: unknown }).kind === "string" &&
+    "body" in (raw as Record<string, unknown>) &&
+    typeof (raw as { correlationId?: unknown }).correlationId === "string";
+
+  if (!isEnvelope) {
+    // Legacy raw payload — synthesize envelope fields.
+    const body = raw as TBody;
+    if (options.validateBody && !options.validateBody(body)) {
+      throw new Error("parseQueueEnvelope: validateBody rejected the payload");
+    }
+    return {
+      body,
+      correlationId: newCorrelationId(),
+      idempotencyKey: null,
+      enqueuedAtUtc: null,
+      teamId: null,
+      legacy: true,
+      kindMismatch: false,
+    };
+  }
+
+  const env = raw as QueuePayloadEnvelope<TBody>;
+  const kindMismatch = Boolean(
+    options.expectedKind && env.kind !== options.expectedKind,
+  );
+  if (options.validateBody && !options.validateBody(env.body)) {
+    throw new Error("parseQueueEnvelope: validateBody rejected the body");
+  }
+  return {
+    body: env.body,
+    correlationId: env.correlationId,
+    idempotencyKey: env.idempotencyKey,
+    enqueuedAtUtc: env.enqueuedAtUtc,
+    teamId: env.teamId ?? null,
+    legacy: false,
+    kindMismatch,
+  };
+}
+
+/** Type guard for an unknown payload claiming to be the canonical envelope. */
+export function isQueuePayloadEnvelope(
+  raw: unknown,
+): raw is QueuePayloadEnvelope<unknown> {
+  return (
+    raw !== null &&
+    typeof raw === "object" &&
+    typeof (raw as { kind?: unknown }).kind === "string" &&
+    typeof (raw as { correlationId?: unknown }).correlationId === "string" &&
+    "body" in (raw as Record<string, unknown>)
+  );
+}
+
 // -----------------------------------------------------------------------------
 // Retry / DLQ contract — canonical defaults for any new queue.
 // -----------------------------------------------------------------------------

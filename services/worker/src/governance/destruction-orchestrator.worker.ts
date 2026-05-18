@@ -52,11 +52,13 @@ import * as prismaPkg from "@prisma/client";
 import { createHash } from "node:crypto";
 import {
   canonicalEvaluateLifecycleTransition,
+  newCorrelationId,
   type EvidenceLifecycleState,
 } from "@proovra/shared";
 import { logger } from "../logger.js";
 import { prisma } from "../db.js";
 import { runGovernanceReconciliation } from "./reconciliation-run.js";
+import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
 
 const DEFAULT_BATCH_SIZE = 50;
 const MAX_BATCH_SIZE = 200;
@@ -119,6 +121,11 @@ export async function runDestructionOrchestration(
       ctx.reportProgress({ scanned: approved.length });
 
       for (const review of approved) {
+        // Phase X.1 — one correlation id per execution attempt. Threaded
+        // through every downstream emission so operators can stitch the
+        // chain end-to-end: review → execution row → lifecycle event →
+        // notification → incident.
+        const correlationId = newCorrelationId();
         try {
           // 1. Idempotency — reuse an existing non-terminal execution row.
           let execution = await prisma.destructionExecution.findFirst({
@@ -139,12 +146,25 @@ export async function runDestructionOrchestration(
                 phase: "validating_inputs",
                 attemptCount: 1,
                 executedByUserId: review.decidedByUserId,
+                metadata: {
+                  correlationId,
+                  reconciliationRunId: ctx.runId,
+                } as prismaPkg.Prisma.InputJsonValue,
               },
             });
           } else {
             execution = await prisma.destructionExecution.update({
               where: { id: execution.id },
-              data: { attemptCount: { increment: 1 } },
+              data: {
+                attemptCount: { increment: 1 },
+                // Refresh correlation id on retry so each attempt is
+                // independently traceable while the prior attempt's id
+                // remains in the lifecycle ledger.
+                metadata: {
+                  correlationId,
+                  reconciliationRunId: ctx.runId,
+                } as prismaPkg.Prisma.InputJsonValue,
+              },
             });
           }
 
@@ -180,6 +200,7 @@ export async function runDestructionOrchestration(
               review.teamId,
               review.evidenceId,
               blockedBy,
+              correlationId,
             );
             ctx.reportProgress({ skipped: 1 });
             continue;
@@ -266,6 +287,7 @@ export async function runDestructionOrchestration(
                 eventType: "destruction_executed",
                 summary: "Evidence destroyed by destruction orchestrator",
                 metadata: {
+                  correlationId,
                   destructionExecutionId: executionId,
                   destructionReviewId: review.id,
                   certificateHash,
@@ -274,6 +296,7 @@ export async function runDestructionOrchestration(
                   certificate: certificateBody,
                 } as unknown as prismaPkg.Prisma.InputJsonValue,
                 actorUserId: review.decidedByUserId ?? undefined,
+                requestId: correlationId.slice(0, 64),
               },
             });
           });
@@ -303,12 +326,13 @@ export async function runDestructionOrchestration(
             review.evidenceId,
             review.id,
             certificateHash,
+            correlationId,
           );
         } catch (err) {
           rolledBack += 1;
           ctx.reportProgress({ failed: 1 });
           logger.error(
-            { err, reviewId: review.id, runId: ctx.runId },
+            { err, reviewId: review.id, runId: ctx.runId, correlationId },
             "destruction.orchestrator.review_failed",
           );
           // Best-effort: flip any in-flight execution to FAILED.
@@ -451,35 +475,20 @@ async function emitDestructionExecutedNotification(
   evidenceId: string,
   reviewId: string,
   certificateHash: string,
+  correlationId?: string,
 ): Promise<void> {
   try {
-    const key = `destruction_executed:${reviewId}`.slice(0, DEDUPE_KEY_MAX);
-    await prisma.governanceNotification.upsert({
-      where: {
-        teamId_kind_dedupeKey: {
-          teamId,
-          kind: prismaPkg.GovernanceNotificationKind.DESTRUCTION_EXECUTED,
-          dedupeKey: key,
-        },
-      },
-      create: {
-        teamId,
-        kind: prismaPkg.GovernanceNotificationKind.DESTRUCTION_EXECUTED,
-        severity: prismaPkg.GovernanceNotificationSeverity.HIGH,
-        dedupeKey: key,
-        title: "Destruction executed",
-        summary: `Evidence ${evidenceId.slice(0, 8)}… was destroyed. Certificate ${certificateHash.slice(0, 16)}…`,
-        relatedEvidenceId: evidenceId,
-        relatedReviewId: reviewId,
-        channels: ["in_app", "email"],
-        metadata: {
-          certificateHash,
-        } as prismaPkg.Prisma.InputJsonValue,
-      },
-      update: {
-        lastSeenAtUtc: new Date(),
-        occurrenceCount: { increment: 1 },
-      },
+    await emitWorkerGovernanceNotification({
+      teamId,
+      kind: "DESTRUCTION_EXECUTED",
+      severity: "HIGH",
+      dedupeKey: `destruction_executed:${reviewId}`.slice(0, DEDUPE_KEY_MAX),
+      title: "Destruction executed",
+      summary: `Evidence ${evidenceId.slice(0, 8)}… was destroyed. Certificate ${certificateHash.slice(0, 16)}…`,
+      relatedEvidenceId: evidenceId,
+      relatedReviewId: reviewId,
+      metadata: { certificateHash },
+      correlationId,
     });
   } catch (err) {
     logger.warn({ err }, "governance.notification.emit_failed");
@@ -490,37 +499,24 @@ async function emitDestructionBlockedNotification(
   teamId: string,
   evidenceId: string,
   reason: "hold" | "immutable",
+  correlationId?: string,
 ): Promise<void> {
   try {
-    const key = `destruction_blocked:${reason}:${evidenceId}`.slice(
-      0,
-      DEDUPE_KEY_MAX,
-    );
-    await prisma.governanceNotification.upsert({
-      where: {
-        teamId_kind_dedupeKey: {
-          teamId,
-          kind: prismaPkg.GovernanceNotificationKind.DESTRUCTION_BLOCKED,
-          dedupeKey: key,
-        },
-      },
-      create: {
-        teamId,
-        kind: prismaPkg.GovernanceNotificationKind.DESTRUCTION_BLOCKED,
-        severity: prismaPkg.GovernanceNotificationSeverity.HIGH,
-        dedupeKey: key,
-        title: "Destruction blocked at execution",
-        summary:
-          reason === "hold"
-            ? "Destruction was blocked because a legal hold became active before execution."
-            : "Destruction was blocked because the retention policy is immutable at execution time.",
-        relatedEvidenceId: evidenceId,
-        channels: ["in_app", "email"],
-      },
-      update: {
-        lastSeenAtUtc: new Date(),
-        occurrenceCount: { increment: 1 },
-      },
+    await emitWorkerGovernanceNotification({
+      teamId,
+      kind: "DESTRUCTION_BLOCKED",
+      severity: "HIGH",
+      dedupeKey: `destruction_blocked:${reason}:${evidenceId}`.slice(
+        0,
+        DEDUPE_KEY_MAX,
+      ),
+      title: "Destruction blocked at execution",
+      summary:
+        reason === "hold"
+          ? "Destruction was blocked because a legal hold became active before execution."
+          : "Destruction was blocked because the retention policy is immutable at execution time.",
+      relatedEvidenceId: evidenceId,
+      correlationId,
     });
   } catch (err) {
     logger.warn({ err }, "governance.notification.emit_failed");

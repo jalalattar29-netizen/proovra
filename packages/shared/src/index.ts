@@ -1228,8 +1228,10 @@ export {
   QUEUE_RETRY_PROFILES,
   WORKER_EXECUTION_TRIGGERS,
   ingestCorrelationId,
+  isQueuePayloadEnvelope,
   isValidCorrelationId,
   newCorrelationId,
   newQueuePayloadEnvelope,
   newWorkerExecutionContext,
+  parseQueueEnvelope,
 } from "./operational-contracts.js";

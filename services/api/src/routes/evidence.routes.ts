@@ -4848,44 +4848,27 @@ return {
   });
 }
 
-// Phase 9.5 — legal hold check (fail-closed). Archive is destructive
-// for downstream UX (hides the evidence from list views), so a hold
-// must block it.
-if (evidence.teamId) {
-  const { enforceSensitiveAction } = await import(
-    "../services/governance.service.js"
+// Phase 9.5 / Phase X.1 — legal hold check (fail-closed). Archive is
+// destructive for downstream UX (hides the evidence from list views),
+// so a hold must block it. Routed through the canonical gate
+// orchestrator — same module the delete endpoint uses.
+{
+  const { runDestructiveActionGate } = await import(
+    "../services/governance/destructive-action-gate.service.js"
   );
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId: evidence.teamId, userId: ownerUserId } },
-  });
-  const decision = await enforceSensitiveAction("archive_evidence", {
-    teamId: evidence.teamId,
-    role: membership?.role,
+  const gate = await runDestructiveActionGate({
+    action: "archive_evidence",
+    actorUserId: ownerUserId,
     evidence: {
       id: evidence.id,
       teamId: evidence.teamId,
       retentionUntilUtc: evidence.retentionUntilUtc ?? null,
     },
+    routeLabel: "archive",
+    req,
   });
-  if (!decision.allowed) {
-    await appendCustodyEvent({
-      evidenceId: id,
-      eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-      payload: {
-        action: "archive",
-        reason: decision.reason,
-        actorUserId: ownerUserId,
-      },
-      ip: req.ip,
-      userAgent: req.headers["user-agent"],
-    }).catch(() => null);
-    const statusCode = decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 409;
-    return reply.code(statusCode).send({
-      code: decision.code,
-      reason: decision.reason,
-      message:
-        "Evidence archive is not permitted under the current governance state.",
-    });
+  if (gate.gated) {
+    return reply.code(gate.statusCode).send(gate.body);
   }
 }
 
@@ -5087,59 +5070,29 @@ await appendCustodyEvent({
   });
 }
 
-// Phase 9.5 — fail-closed governance enforcement on destructive delete.
-// If policy / legal hold cannot be checked we BLOCK rather than fall
-// through to permissive behavior. This is the enterprise-safe
-// posture: a transient DB error must not silently bypass a hold.
-if (evidence.teamId) {
-  const { enforceSensitiveAction, emitPolicyBlockedEvent } = await import(
-    "../services/governance.service.js"
+// Phase 9.5 / Phase X.1 — fail-closed governance enforcement on
+// destructive delete. The inline glue that previously lived here is
+// extracted to `runDestructiveActionGate` (orchestrator service). The
+// gate consolidates the membership lookup, sensitive-action decision,
+// custody-event-on-block, and HTTP-status mapping in one place. The
+// route handler stays a thin adapter: dispatch → branch on `gated`.
+{
+  const { runDestructiveActionGate } = await import(
+    "../services/governance/destructive-action-gate.service.js"
   );
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId: evidence.teamId, userId: ownerUserId } },
-  });
-  const decision = await enforceSensitiveAction("delete_evidence", {
-    teamId: evidence.teamId,
-    role: membership?.role,
+  const gate = await runDestructiveActionGate({
+    action: "delete_evidence",
+    actorUserId: ownerUserId,
     evidence: {
       id: evidence.id,
       teamId: evidence.teamId,
       retentionUntilUtc: evidence.retentionUntilUtc ?? null,
     },
+    routeLabel: "delete",
+    req,
   });
-  if (!decision.allowed) {
-    // Custody event for the blocked attempt — visible in the same
-    // forensic chain as integrity events.
-    const eventType =
-      decision.code === "DELETE_BLOCKED_BY_LEGAL_HOLD"
-        ? prismaPkg.CustodyEventType.DELETE_BLOCKED_BY_LEGAL_HOLD
-        : decision.code === "DELETE_BLOCKED_BY_RETENTION"
-          ? prismaPkg.CustodyEventType.DELETE_BLOCKED_BY_RETENTION
-          : prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY;
-    await appendCustodyEvent({
-      evidenceId: id,
-      eventType,
-      payload: {
-        action: "delete",
-        reason: decision.reason,
-        actorUserId: ownerUserId,
-      },
-      ip: req.ip,
-      userAgent: req.headers["user-agent"],
-    }).catch(() => null);
-    void emitPolicyBlockedEvent; // imported for unified signal API
-    const statusCode =
-      decision.code === "GOVERNANCE_CHECK_FAILED"
-        ? 503
-        : decision.code === "DELETE_RESTRICTED_TO_ADMIN"
-          ? 403
-          : 409;
-    return reply.code(statusCode).send({
-      code: decision.code,
-      reason: decision.reason,
-      message:
-        "Evidence deletion is not permitted under the current governance state.",
-    });
+  if (gate.gated) {
+    return reply.code(gate.statusCode).send(gate.body);
   }
 }
 

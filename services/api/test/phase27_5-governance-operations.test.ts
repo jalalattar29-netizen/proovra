@@ -438,14 +438,18 @@ describe("Phase 27.5 — Worker wiring", () => {
   });
 
   it("immutable storage worker raises governance incidents on drift", () => {
+    // Phase X.1 — the worker now routes its incident raising through
+    // the canonical recordWorkerIncident emitter (incident-emitter.ts)
+    // instead of inlining `prisma.operationalIncident.upsert`. The
+    // emitter applies the GOVERNANCE category internally.
     expect(immutableSrc).toContain("ImmutableStorageCheckOutcome");
     expect(immutableSrc).toContain("MISSING_LOCK");
     expect(immutableSrc).toContain("RETENTION_MISMATCH");
     expect(immutableSrc).toContain("LEGAL_HOLD_MISMATCH");
     expect(immutableSrc).toContain("COMPLIANCE_MODE_MISMATCH");
     expect(immutableSrc).toContain("STORAGE_UNAVAILABLE");
-    expect(immutableSrc).toContain("operationalIncident");
-    expect(immutableSrc).toContain('category: prismaPkg.IncidentCategory.GOVERNANCE');
+    expect(immutableSrc).toContain("recordWorkerIncident");
+    expect(immutableSrc).toContain('category: "GOVERNANCE"');
     expect(immutableSrc).toContain("IMMUTABLE_RECONCILIATION_FAILURE");
   });
 
