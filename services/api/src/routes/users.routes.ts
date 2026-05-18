@@ -39,6 +39,20 @@ function pickMe(u: any) {
     provider: u.provider,
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
+    // Hotfix — the web app (reviewer-ops, governance, intake-links, and
+    // every "operator console" page) reads
+    // `response.user.currentWorkspaceId` to scope its API calls. The
+    // field was previously dropped here, so those pages saw
+    // `currentWorkspaceId === undefined` and rendered the
+    // "Switch to a workspace" empty state EVEN WHEN the user had an
+    // active workspace selected on the server. /home didn't depend on
+    // this field (it uses session-scoped queries directly) so the
+    // regression only manifested on consoles. The User model already
+    // stores the value (`User.currentWorkspaceId @map("current_workspace_id")`).
+    // Returning `null` when the user has no workspace is the right
+    // semantic; that lets the canonical "no workspace" message fire
+    // only when it's actually true.
+    currentWorkspaceId: u.currentWorkspaceId ?? null,
     ...(u.platformRole === "admin" ? { role: "admin" as const } : {}),
   };
 }

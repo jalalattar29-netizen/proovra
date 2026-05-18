@@ -11,6 +11,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
+import { WorkspaceGateState } from "../WorkspaceGateState";
 import {
   cardStyle,
   emptyStateStyle,
@@ -95,26 +97,15 @@ type DashboardResponse = {
 };
 
 export default function SlaDashboardPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  // Hotfix — canonical workspace resolution.
+  const workspaceState = useActiveWorkspaceId();
+  const teamId =
+    workspaceState.status === "ready" ? workspaceState.workspaceId : null;
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<EscalationAnalytics | null>(null);
   const [reviewers, setReviewers] = useState<ReviewerPerformance | null>(null);
   const [rangeDays, setRangeDays] = useState<number>(14);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const load = useCallback(() => {
     if (!teamId) return;
@@ -168,12 +159,8 @@ export default function SlaDashboardPage() {
     };
   }, [teamId, rangeDays]);
 
-  if (!teamId) {
-    return (
-      <main style={pageStyle}>
-        <p style={mutedStyle}>Switch to a workspace.</p>
-      </main>
-    );
+  if (workspaceState.status !== "ready") {
+    return <WorkspaceGateState state={workspaceState} surface="SLA" />;
   }
   if (!data) {
     return (

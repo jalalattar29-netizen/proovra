@@ -19,6 +19,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { useActiveWorkspaceId } from "../../../lib/useActiveWorkspaceId";
+import { WorkspaceGateState } from "./WorkspaceGateState";
 import {
   cardStyle,
   emptyStateStyle,
@@ -140,7 +142,13 @@ type SavedView = {
 };
 
 export default function ReviewerOpsConsole() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  // Hotfix — canonical workspace resolution. Distinguishes auth /
+  // permission / operational errors from genuine "no workspace"
+  // membership so the page no longer collapses every failure mode
+  // into "Switch to a workspace".
+  const workspaceState = useActiveWorkspaceId();
+  const teamId =
+    workspaceState.status === "ready" ? workspaceState.workspaceId : null;
   const [queue, setQueue] = useState<QueueType>("UNASSIGNED");
   const [rows, setRows] = useState<WorkflowProjection[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -151,20 +159,6 @@ export default function ReviewerOpsConsole() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [bulkBusy, setBulkBusy] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const loadQueue = useCallback(() => {
     if (!teamId) return;
@@ -368,11 +362,12 @@ export default function ReviewerOpsConsole() {
     [teamId, selected, loadQueue],
   );
 
-  if (!teamId) {
+  if (workspaceState.status !== "ready") {
     return (
-      <main style={pageStyle}>
-        <p style={mutedStyle}>Switch to a workspace to use Reviewer Ops.</p>
-      </main>
+      <WorkspaceGateState
+        state={workspaceState}
+        surface="Reviewer Ops"
+      />
     );
   }
 

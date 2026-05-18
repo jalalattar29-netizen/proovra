@@ -16,6 +16,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
+import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
+import { WorkspaceGateState } from "../WorkspaceGateState";
 import {
   cardStyle,
   emptyStateStyle,
@@ -87,24 +89,13 @@ type WorkspaceResponse = {
 export default function ReviewWorkspacePage() {
   const params = useParams<{ reviewId: string }>();
   const workflowId = params?.reviewId ?? "";
-  const [teamId, setTeamId] = useState<string | null>(null);
+  // Hotfix — canonical workspace resolution.
+  const workspaceState = useActiveWorkspaceId();
+  const teamId =
+    workspaceState.status === "ready" ? workspaceState.workspaceId : null;
   const [data, setData] = useState<WorkspaceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const load = useCallback(() => {
     if (!teamId || !workflowId) return;
@@ -155,11 +146,9 @@ export default function ReviewWorkspacePage() {
     [teamId, workflowId, load],
   );
 
-  if (!teamId) {
+  if (workspaceState.status !== "ready") {
     return (
-      <main style={pageStyle}>
-        <p style={mutedStyle}>Switch to a workspace to use Reviewer Ops.</p>
-      </main>
+      <WorkspaceGateState state={workspaceState} surface="Reviewer Ops" />
     );
   }
 

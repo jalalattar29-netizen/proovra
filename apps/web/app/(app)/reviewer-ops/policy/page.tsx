@@ -18,6 +18,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
+import { WorkspaceGateState } from "../WorkspaceGateState";
 import {
   cardStyle,
   errorBoxStyle,
@@ -62,7 +64,10 @@ type ApiResponse = {
 };
 
 export default function ReviewerOpsPolicyPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  // Hotfix — canonical workspace resolution.
+  const workspaceState = useActiveWorkspaceId();
+  const teamId =
+    workspaceState.status === "ready" ? workspaceState.workspaceId : null;
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [flags, setFlags] = useState<Flags | null>(null);
   const [overrides, setOverrides] = useState<Partial<Policy["policy"]>>({});
@@ -70,20 +75,6 @@ export default function ReviewerOpsPolicyPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const load = useCallback(() => {
     if (!teamId) return;
@@ -142,11 +133,9 @@ export default function ReviewerOpsPolicyPage() {
     }
   }, [teamId, overrides, flagDraft]);
 
-  if (!teamId) {
+  if (workspaceState.status !== "ready") {
     return (
-      <main style={pageStyle}>
-        <p style={mutedStyle}>Switch to a workspace.</p>
-      </main>
+      <WorkspaceGateState state={workspaceState} surface="Review Policy" />
     );
   }
 
