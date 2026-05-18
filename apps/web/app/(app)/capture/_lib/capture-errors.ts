@@ -2,6 +2,63 @@ import { ApiError } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
 import type { BillingWallLike } from "./types";
 
+type GenericApiErrorShape = {
+  code?: string;
+  message?: string;
+  details?: unknown;
+};
+
+/**
+ * Recognize the typed billing gate POST /v1/evidence returns when the
+ * user (a) is on a TEAM workspace target AND (b) does not have an
+ * active TEAM plan. This is an expected, user-recoverable condition,
+ * not a server fault — Capture must surface a friendly message and
+ * preserve staged materials so the user can switch workspace / upgrade
+ * without re-uploading.
+ *
+ * The backend (services/api/src/routes/evidence.routes.ts) returns:
+ *   HTTP 402
+ *   { code: "TEAM_PLAN_REQUIRED",
+ *     message: "...",
+ *     target: "TEAM",
+ *     requiredPlan: "TEAM" }
+ *
+ * Returns null when the error is NOT a TEAM plan gate.
+ */
+export type TeamPlanRequiredDetails = {
+  message: string;
+  target: "TEAM";
+  requiredPlan: "TEAM";
+};
+
+export function isTeamPlanRequiredError(
+  error: unknown
+): error is (Error & { code: "TEAM_PLAN_REQUIRED" }) | ApiError {
+  if (error instanceof ApiError && error.code === "TEAM_PLAN_REQUIRED") {
+    return true;
+  }
+  const generic = error as GenericApiErrorShape | null | undefined;
+  return Boolean(generic && generic.code === "TEAM_PLAN_REQUIRED");
+}
+
+export function buildTeamPlanRequiredDetails(
+  error: unknown
+): TeamPlanRequiredDetails | null {
+  if (!isTeamPlanRequiredError(error)) return null;
+  const generic = error as GenericApiErrorShape & {
+    target?: unknown;
+    requiredPlan?: unknown;
+  };
+  return {
+    message:
+      typeof generic.message === "string" && generic.message
+        ? generic.message
+        : "Team workspace evidence creation requires an active TEAM plan.",
+    target: "TEAM",
+    requiredPlan: "TEAM",
+  };
+}
+
 export function buildStorageLimitMessage(error: unknown): string | null {
   if (error instanceof ApiError) {
     if (

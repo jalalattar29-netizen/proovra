@@ -20,6 +20,7 @@ import {
 import { computeIntegrityFromBlob } from "../_lib/hash-utils";
 import {
   buildStorageLimitMessage,
+  buildTeamPlanRequiredDetails,
   logCaptureClientError,
 } from "../_lib/capture-errors";
 
@@ -668,6 +669,20 @@ export function useCaptureSessionOrchestration({
       resetCaptureState({ preserveTimeline: true });
       router.push(`/evidence/${evidenceId}`);
     } catch (err) {
+      // Expected billing gate — TEAM workspace evidence requires a TEAM
+      // plan. This is user-recoverable: switch to personal workspace OR
+      // upgrade. Staged materials must NOT be discarded (we don't call
+      // resetCaptureState below for billing gates). Skip the Sentry
+      // capture too — this is not a server fault.
+      const teamPlanGate = buildTeamPlanRequiredDetails(err);
+      if (teamPlanGate) {
+        setError(teamPlanGate.message);
+        addToast(teamPlanGate.message, "warning");
+        setSessionStatus("Team plan required");
+        setBusy(false);
+        return;
+      }
+
       logCaptureClientError("web_capture_finalize_session", err, {
         itemCount: items.length,
       });
@@ -691,7 +706,9 @@ export function useCaptureSessionOrchestration({
     } finally {
       setBusy(false);
       setSessionStatus((current) =>
-        current === "Storage limit reached" ? current : null
+        current === "Storage limit reached" || current === "Team plan required"
+          ? current
+          : null
       );
     }
   };

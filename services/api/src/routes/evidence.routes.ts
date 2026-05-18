@@ -4205,6 +4205,33 @@ if (
   });
 }
 
+      // Expected billing gate — TEAM workspace evidence requires an
+      // active TEAM plan. This is a user-recoverable condition (switch
+      // to personal workspace, or upgrade the team), NOT a server fault.
+      // Audit at warning severity and return a typed 402 so the client
+      // can render a friendly recovery prompt without staged materials
+      // being lost. NEVER report this as a high-priority server error.
+      if (
+        err instanceof Error &&
+        "code" in err &&
+        (err as Error & { code?: string }).code === "TEAM_PLAN_REQUIRED"
+      ) {
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.create",
+          outcome: "blocked",
+          severity: "warning",
+          metadata: { reason: "TEAM_PLAN_REQUIRED" },
+        });
+        return reply.code(402).send({
+          code: "TEAM_PLAN_REQUIRED",
+          message:
+            "Team workspace evidence creation requires an active TEAM plan.",
+          target: "TEAM",
+          requiredPlan: "TEAM",
+        });
+      }
+
       if (err instanceof Error && err.message === "FREE_LIMIT_REACHED") {
         auditEvidenceAction(req, {
           userId: ownerUserId,
@@ -6705,10 +6732,40 @@ await appendCustodyEvent({
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       await getEvidenceWithReadAccess(userId, id);
 
-      const latest = await prisma.evidenceAiCategorization.findFirst({
-        where: { evidenceId: id },
-        orderBy: { createdAt: "desc" },
-      });
+      // Tolerant lookup. The default path expects the
+      // `evidence_ai_categorizations` table to exist (created by the
+      // 20260508133000 migration). If the deployment's DB is missing
+      // that migration, Prisma raises P2021 ("table does not exist").
+      // We treat that case as "no categorization yet" so the endpoint
+      // stays 200, while still emitting a WARN so the drift remains
+      // visible in logs / Sentry breadcrumbs for the on-call operator.
+      let latest:
+        | Awaited<ReturnType<typeof prisma.evidenceAiCategorization.findFirst>>
+        | null = null;
+      try {
+        latest = await prisma.evidenceAiCategorization.findFirst({
+          where: { evidenceId: id },
+          orderBy: { createdAt: "desc" },
+        });
+      } catch (err) {
+        if (
+          err instanceof prismaPkg.Prisma.PrismaClientKnownRequestError &&
+          err.code === "P2021"
+        ) {
+          req.log?.warn?.(
+            {
+              err,
+              evidenceId: id,
+              code: err.code,
+              meta: err.meta,
+            },
+            "evidence.ai_categorization.schema_drift_table_missing",
+          );
+          latest = null;
+        } else {
+          throw err;
+        }
+      }
 
       if (!latest) {
         return reply.code(200).send({

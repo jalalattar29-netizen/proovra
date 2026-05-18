@@ -178,7 +178,16 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     throw new Error("OWNER_NOT_FOUND");
   }
 
-  const effectiveTeamId = params.teamId ?? owner.currentWorkspaceId ?? null;
+  // Workspace scope MUST be explicit. Callers (Capture POST /v1/evidence,
+  // external intake orchestration, ...) decide whether the new record is
+  // PERSONAL or scoped to a team by passing `teamId` (or omitting it for
+  // personal). The user's `currentWorkspaceId` is a UI navigation hint,
+  // NOT a billing decision — falling back to it here used to silently
+  // route Capture submissions to the user's last-selected team workspace
+  // and trip the TEAM plan gate, even when the user picked a template
+  // like "Legal Matter" that has no team implications. Templates only
+  // describe checklist structure; they never imply workspace scope.
+  const effectiveTeamId = params.teamId ?? null;
 
   if (effectiveTeamId) {
     const membership = await prisma.teamMember.findUnique({
