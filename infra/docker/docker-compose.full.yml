@@ -108,6 +108,13 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      # Startup race hotfix — wait for the api healthcheck to pass
+      # before the worker enters the dependency. The in-process
+      # readiness probe (api-readiness.ts) then verifies /readyz one
+      # more time before any startup-triggered API call fires. Defense
+      # in depth: docker gate + in-process gate.
+      proovra-api:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}

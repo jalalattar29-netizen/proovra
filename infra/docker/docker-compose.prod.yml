@@ -72,6 +72,12 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      # Startup race hotfix — wait for the api healthcheck to pass
+      # before the worker container is started. The in-process
+      # readiness probe (api-readiness.ts) then re-verifies /readyz
+      # before any startup-triggered fetch. Defense in depth.
+      proovra-api:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}

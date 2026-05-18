@@ -50,6 +50,10 @@
 
 import * as prismaPkg from "@prisma/client";
 import { createHash } from "node:crypto";
+import {
+  canonicalEvaluateLifecycleTransition,
+  type EvidenceLifecycleState,
+} from "@proovra/shared";
 import { logger } from "../logger.js";
 import { prisma } from "../db.js";
 import { runGovernanceReconciliation } from "./reconciliation-run.js";
@@ -144,33 +148,38 @@ export async function runDestructionOrchestration(
             });
           }
 
-          // 2. Hold check + immutable check (defense in depth).
-          const holdActive = await isHoldActiveForEvidence(review.evidenceId);
-          if (holdActive) {
+          // 2. Defense-in-depth gate. Gather facts locally (DB lookups
+          //    must stay in the worker), then run the DECISION through
+          //    the canonical shared formula so this runtime cannot
+          //    drift from the api orchestrator.
+          const facts = await gatherDestructionFacts(review.evidenceId);
+          const decision = canonicalEvaluateLifecycleTransition({
+            fromState: facts.lifecycleState,
+            toState: "DESTROYED",
+            hasActiveDirectHold: facts.hasActiveDirectHold,
+            hasActiveCaseHold: facts.hasActiveCaseHold,
+            immutableRetention: facts.immutable,
+          });
+          if (!decision.allowed) {
+            const blockedBy: "hold" | "immutable" =
+              decision.reason === "blocked_by_immutable"
+                ? "immutable"
+                : "hold";
             await failExecution(execution.id, {
-              code: "BLOCKED_BY_HOLD",
-              detail: "Active legal hold present at execution time.",
-              phase: "verifying_no_hold",
+              code:
+                decision.reason === "blocked_by_immutable"
+                  ? "BLOCKED_BY_IMMUTABLE"
+                  : "BLOCKED_BY_HOLD",
+              detail: `Canonical lifecycle gate denied DESTROYED transition (reason=${decision.reason}).`,
+              phase:
+                decision.reason === "blocked_by_immutable"
+                  ? "verifying_immutable_state"
+                  : "verifying_no_hold",
             });
             await emitDestructionBlockedNotification(
               review.teamId,
               review.evidenceId,
-              "hold",
-            );
-            ctx.reportProgress({ skipped: 1 });
-            continue;
-          }
-          const immutable = await isImmutableForEvidence(review.evidenceId);
-          if (immutable) {
-            await failExecution(execution.id, {
-              code: "BLOCKED_BY_IMMUTABLE",
-              detail: "Retention policy is immutable at execution time.",
-              phase: "verifying_immutable_state",
-            });
-            await emitDestructionBlockedNotification(
-              review.teamId,
-              review.evidenceId,
-              "immutable",
+              blockedBy,
             );
             ctx.reportProgress({ skipped: 1 });
             continue;
@@ -347,35 +356,64 @@ export async function runDestructionOrchestration(
 // Helpers
 // -----------------------------------------------------------------------------
 
-async function isHoldActiveForEvidence(evidenceId: string): Promise<boolean> {
-  const direct = await prisma.evidenceLegalHold.findFirst({
+type DestructionGateFacts = {
+  lifecycleState: EvidenceLifecycleState;
+  hasActiveDirectHold: boolean;
+  hasActiveCaseHold: boolean;
+  immutable: boolean;
+};
+
+/**
+ * Gather the bounded set of facts the canonical lifecycle decision
+ * needs. DB lookups stay in this runtime; the actual decision is made
+ * by `canonicalEvaluateLifecycleTransition` in @proovra/shared so the
+ * worker cannot drift from the api orchestrator's rule.
+ */
+async function gatherDestructionFacts(
+  evidenceId: string,
+): Promise<DestructionGateFacts> {
+  const ev = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
+    select: {
+      lifecycleState: true,
+      caseId: true,
+      retentionPolicyVersionId: true,
+    },
+  });
+  const lifecycleState = (ev?.lifecycleState ??
+    "ACTIVE") as EvidenceLifecycleState;
+
+  const directHold = await prisma.evidenceLegalHold.findFirst({
     where: { evidenceId, status: prismaPkg.LegalHoldStatus.ACTIVE },
     select: { id: true },
   });
-  if (direct) return true;
-  const ev = await prisma.evidence.findUnique({
-    where: { id: evidenceId },
-    select: { caseId: true },
-  });
-  if (!ev?.caseId) return false;
-  const caseHold = await prisma.caseLegalHold.findFirst({
-    where: { caseId: ev.caseId, status: prismaPkg.CaseLegalHoldStatus.ACTIVE },
-    select: { id: true },
-  });
-  return Boolean(caseHold);
-}
 
-async function isImmutableForEvidence(evidenceId: string): Promise<boolean> {
-  const ev = await prisma.evidence.findUnique({
-    where: { id: evidenceId },
-    select: { retentionPolicyVersionId: true },
-  });
-  if (!ev?.retentionPolicyVersionId) return false;
-  const v = await prisma.evidenceRetentionPolicyVersion.findUnique({
-    where: { id: ev.retentionPolicyVersionId },
-    select: { immutable: true },
-  });
-  return Boolean(v?.immutable);
+  let caseHold: { id: string } | null = null;
+  if (ev?.caseId) {
+    caseHold = await prisma.caseLegalHold.findFirst({
+      where: {
+        caseId: ev.caseId,
+        status: prismaPkg.CaseLegalHoldStatus.ACTIVE,
+      },
+      select: { id: true },
+    });
+  }
+
+  let immutable = false;
+  if (ev?.retentionPolicyVersionId) {
+    const v = await prisma.evidenceRetentionPolicyVersion.findUnique({
+      where: { id: ev.retentionPolicyVersionId },
+      select: { immutable: true },
+    });
+    immutable = Boolean(v?.immutable);
+  }
+
+  return {
+    lifecycleState,
+    hasActiveDirectHold: Boolean(directHold),
+    hasActiveCaseHold: Boolean(caseHold),
+    immutable,
+  };
 }
 
 async function mostRecentLifecycleLedgerDigest(

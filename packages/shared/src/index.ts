@@ -1174,3 +1174,62 @@ export {
   isExternalRecipientMode,
   isTerminalEvidenceRequestStatus,
 } from "./evidence-request.js";
+
+// -----------------------------------------------------------------------------
+// Phase X — Canonical decision contracts (single source of truth for
+// the pure formulas the api and worker runtimes both consume).
+// -----------------------------------------------------------------------------
+
+export type {
+  CanonicalDecision,
+  CanonicalDecisionReason,
+  CanonicalDestructionFacts,
+  CanonicalDomain,
+  CanonicalExportFacts,
+  CanonicalExportOutcome,
+  CanonicalLifecycleTransitionFacts,
+  CanonicalPolicyPick,
+  RuntimeOwner,
+  RuntimeOwnershipEntry,
+} from "./canonical-decisions.js";
+export {
+  canonicalCanEnterPendingDestruction,
+  canonicalEvaluateExportEligibility,
+  canonicalEvaluateLifecycleTransition,
+  canonicalIsAllowedDestructionReviewTransition,
+  canonicalIsAllowedEvidenceLifecycleTransition,
+  canonicalIsAllowedRetentionPolicyTransition,
+  canonicalIsTerminalDestructionReviewStatus,
+  canonicalIsTerminalLifecycleState,
+  canonicalListAllowedEvidenceLifecycleTransitions,
+  canonicalPickHighestPrecedencePolicy,
+  decisionAllow,
+  decisionDeny,
+  findRuntimeOwners,
+  RUNTIME_OWNERSHIP_MAP,
+} from "./canonical-decisions.js";
+
+// -----------------------------------------------------------------------------
+// Phase X — Operational contracts (typed queue payloads, worker
+// execution context, correlation IDs, retry profiles).
+// -----------------------------------------------------------------------------
+
+export type {
+  AuditEventEmission,
+  GovernanceNotificationEmission,
+  LifecycleTransitionEmission,
+  QueuePayloadEnvelope,
+  QueueRetryConfig,
+  QueueRetryProfile,
+  WorkerExecutionContext,
+  WorkerExecutionTrigger,
+} from "./operational-contracts.js";
+export {
+  QUEUE_RETRY_PROFILES,
+  WORKER_EXECUTION_TRIGGERS,
+  ingestCorrelationId,
+  isValidCorrelationId,
+  newCorrelationId,
+  newQueuePayloadEnvelope,
+  newWorkerExecutionContext,
+} from "./operational-contracts.js";

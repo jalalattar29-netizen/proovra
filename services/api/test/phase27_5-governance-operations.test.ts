@@ -417,8 +417,12 @@ describe("Phase 27.5 — Worker wiring", () => {
   });
 
   it("destruction orchestrator validates hold + immutable + emits certificate", () => {
-    expect(destructionSrc).toContain("isHoldActiveForEvidence");
-    expect(destructionSrc).toContain("isImmutableForEvidence");
+    // Phase X — the worker now routes its hold/immutable decision
+    // through the canonical shared formula instead of inlining a
+    // private helper. The fact-gatherer + canonical formula together
+    // replace the old isHold/isImmutable helpers.
+    expect(destructionSrc).toContain("gatherDestructionFacts");
+    expect(destructionSrc).toContain("canonicalEvaluateLifecycleTransition");
     expect(destructionSrc).toContain("certificateHash");
     expect(destructionSrc).toContain("lineageHash");
     expect(destructionSrc).toContain("destruction_executed");

@@ -27,6 +27,12 @@ import { runOrphanArtifactScan } from "./orphan-scan.js";
 import { runRetentionReconciliation } from "./governance/retention-reconciliation.worker.js";
 import { runDestructionOrchestration } from "./governance/destruction-orchestrator.worker.js";
 import { runImmutableStorageReconciliation } from "./governance/immutable-storage-reconciliation.worker.js";
+// Hotfix — API readiness probe so startup-triggered fetches don't
+// race the api process and trigger spurious operational alerts.
+import {
+  ensureApiReadyOnce,
+  type ApiReadinessResult,
+} from "./api-readiness.js";
 
 type JobData = { evidenceId?: string };
 
@@ -179,6 +185,65 @@ const followUpIntervalMs = envNumber(
   60 * 60 * 1000
 );
 
+// Hotfix — API readiness probe knobs. Defaults: 12 attempts × ~30s cap.
+// Operators can tune via env (mostly useful in slow staging envs).
+const apiReadinessEnabled = envBoolean("WORKER_API_READINESS_PROBE_ENABLED", true);
+const apiReadinessMaxAttempts = envNumber(
+  "WORKER_API_READINESS_MAX_ATTEMPTS",
+  12,
+);
+const apiReadinessInitialBackoffMs = envNumber(
+  "WORKER_API_READINESS_INITIAL_BACKOFF_MS",
+  500,
+);
+const apiReadinessMaxBackoffMs = envNumber(
+  "WORKER_API_READINESS_MAX_BACKOFF_MS",
+  5_000,
+);
+const apiReadinessAttemptTimeoutMs = envNumber(
+  "WORKER_API_READINESS_ATTEMPT_TIMEOUT_MS",
+  2_000,
+);
+
+/**
+ * Gate a startup-triggered consumer behind the api readiness probe.
+ *
+ * If the api is reachable, the consumer runs immediately. If the api
+ * is NOT reachable after `maxAttempts`, the consumer skips this tick.
+ * The interval scheduler will retry on its next cron firing.
+ *
+ * Sustained failure (post-exhaustion) emits exactly ONE operational
+ * alert — startup-race failures (the common case) never alert.
+ */
+async function gateStartupOnApiReadiness(
+  consumer: string,
+): Promise<ApiReadinessResult> {
+  if (!apiReadinessEnabled) {
+    return { ready: true, attempts: 0, totalLatencyMs: 0 };
+  }
+  return ensureApiReadyOnce({
+    baseUrl: internalApiBase,
+    consumer,
+    maxAttempts: apiReadinessMaxAttempts,
+    initialBackoffMs: apiReadinessInitialBackoffMs,
+    maxBackoffMs: apiReadinessMaxBackoffMs,
+    attemptTimeoutMs: apiReadinessAttemptTimeoutMs,
+    onSustainedFailure: ({ requestId, attempts, totalLatencyMs, lastError }) => {
+      emitOperationalAlert({
+        requestId,
+        reason: "worker_api_readiness_probe_exhausted",
+        context: {
+          consumer,
+          attempts,
+          totalLatencyMs,
+          lastError,
+          internalApiBase,
+        },
+      });
+    },
+  });
+}
+
 let followUpTimer: NodeJS.Timeout | null = null;
 let followUpRunning = false;
 
@@ -328,7 +393,28 @@ function startDemoFollowUpScheduler() {
     "followup.scheduler.started"
   );
 
-  void runDemoFollowUps("startup");
+  // Hotfix — gate the startup invocation behind the api readiness
+  // probe. If readiness fails after `maxAttempts`, we skip the
+  // startup tick (the interval timer above will retry naturally) and
+  // emit exactly one alert for sustained unavailability. Transient
+  // startup-race ECONNREFUSED no longer escapes as an alert.
+  void (async () => {
+    const readiness = await gateStartupOnApiReadiness("demo-followup");
+    if (!readiness.ready) {
+      logger.warn(
+        {
+          requestId: randomUUID(),
+          consumer: "demo-followup",
+          attempts: readiness.attempts,
+          totalLatencyMs: readiness.totalLatencyMs,
+          lastError: readiness.lastError,
+        },
+        "followup.run.skipped_api_unready",
+      );
+      return;
+    }
+    void runDemoFollowUps("startup");
+  })();
 }
 
 function stopDemoFollowUpScheduler() {
@@ -376,7 +462,28 @@ function startCaptureDraftReaperScheduler() {
     { intervalMs: captureReaperIntervalMs },
     "capture.reaper.scheduler.started"
   );
-  void runCaptureDraftReaper("startup");
+  // Hotfix — gate the startup invocation behind api readiness. The
+  // reaper itself only writes to the DB, but we keep the system as a
+  // whole quiet until the api is reachable so the startup log stream
+  // is uniform across consumers. After the first ready signal the
+  // probe short-circuits via the process singleton.
+  void (async () => {
+    const readiness = await gateStartupOnApiReadiness("capture-reaper");
+    if (!readiness.ready) {
+      logger.warn(
+        {
+          requestId: randomUUID(),
+          consumer: "capture-reaper",
+          attempts: readiness.attempts,
+          totalLatencyMs: readiness.totalLatencyMs,
+          lastError: readiness.lastError,
+        },
+        "capture.reaper.skipped_api_unready",
+      );
+      return;
+    }
+    void runCaptureDraftReaper("startup");
+  })();
 }
 
 function stopCaptureDraftReaperScheduler() {
@@ -476,7 +583,30 @@ function startRetentionReconciliationScheduler() {
     { intervalMs: retentionReconciliationIntervalMs },
     "governance.retention_reconciliation.scheduler.started",
   );
-  void runRetentionRecon("startup");
+  // Hotfix — governance workers must not execute before api readiness
+  // confirmation. The recon worker writes to the same DB but the
+  // operational contract is that the system runtime is "up" only when
+  // the api accepts traffic. Sustained probe failure escalates to one
+  // operational alert; transient startup races are silent.
+  void (async () => {
+    const readiness = await gateStartupOnApiReadiness(
+      "retention-reconciliation",
+    );
+    if (!readiness.ready) {
+      logger.warn(
+        {
+          requestId: randomUUID(),
+          consumer: "retention-reconciliation",
+          attempts: readiness.attempts,
+          totalLatencyMs: readiness.totalLatencyMs,
+          lastError: readiness.lastError,
+        },
+        "governance.retention_reconciliation.skipped_api_unready",
+      );
+      return;
+    }
+    void runRetentionRecon("startup");
+  })();
 }
 
 function stopRetentionReconciliationScheduler() {
