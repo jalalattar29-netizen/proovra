@@ -4,13 +4,16 @@ import type { ForwardRefExoticComponent, RefAttributes } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  AlertTriangle,
   BriefcaseBusiness,
   Camera,
   CreditCard,
   FileText,
   Gauge,
+  GaugeCircle,
   Headphones,
   LibraryBig,
+  ListTodo,
   Settings,
   ShieldCheck,
   Users,
@@ -32,6 +35,14 @@ const WORKSPACE_NAV: SidebarItem[] = [
   { href: "/capture", label: "Capture", Icon: Camera },
   { href: "/reports", label: "Reports", Icon: FileText },
   { href: "/evidence", label: "Evidence", Icon: LibraryBig },
+];
+
+const REVIEW_OPS_NAV: SidebarItem[] = [
+  { href: "/reviewer-ops", label: "Review Ops", Icon: ListTodo },
+  { href: "/reviewer-ops/sla", label: "SLA", Icon: GaugeCircle },
+  { href: "/reviewer-ops/escalations", label: "Escalations", Icon: AlertTriangle },
+  // Phase 25.5 — workspace governance + SLA policy editor.
+  { href: "/reviewer-ops/policy", label: "Policy", Icon: ShieldCheck },
 ];
 
 const MANAGE_NAV: SidebarItem[] = [
@@ -96,6 +107,7 @@ export function AppSidebarV2({
       <div className="app-sidebar-v2-inner">
         <div className="app-sidebar-v2-scroll">
           <SidebarGroup title="Workspace" items={WORKSPACE_NAV} />
+          <SidebarGroup title="Review Operations" items={REVIEW_OPS_NAV} />
           <SidebarGroup title="Manage" items={MANAGE_NAV} />
           <SidebarGroup
             title={isPlatformAdmin ? "Admin" : "Account"}

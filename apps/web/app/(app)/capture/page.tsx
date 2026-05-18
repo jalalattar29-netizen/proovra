@@ -25,7 +25,12 @@ import {
   COLLECTION_PLAN_TEMPLATES,
   GENERIC_EVIDENCE_UPLOAD_ACCEPT,
 } from "./_lib/templates";
-import { useIntakeTemplates } from "./_hooks/useIntakeTemplates";
+// Phase 3 Workflow Engine: prefer the workflow-aware loader. When the
+// NEXT_PUBLIC_FEATURE_WORKFLOW_ENGINE_CAPTURE flag is unset/false, this hook
+// is a transparent pass-through to useIntakeTemplates and behavior is
+// bit-for-bit identical to today. When the flag is true, the hook attempts
+// /v1/workflow/templates and falls back to useIntakeTemplates on any error.
+import { useWorkflowTemplates } from "./_hooks/useWorkflowTemplates";
 import { useCaptureDraftPersistence } from "./_hooks/useCaptureDraftPersistence";
 import { useCaptureDraftList } from "./_hooks/useCaptureDraftList";
 
@@ -139,7 +144,7 @@ export default function CapturePage() {
     folderInput.setAttribute("directory", "");
   }, []);
 
-  const { templates: serverTemplates } = useIntakeTemplates();
+  const { templates: serverTemplates } = useWorkflowTemplates();
 
   const collectionPlans = serverTemplates.length
     ? serverTemplates

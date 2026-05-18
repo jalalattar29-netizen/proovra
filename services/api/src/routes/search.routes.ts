@@ -4,13 +4,38 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import * as prismaPkg from "@prisma/client";
 import { z } from "zod";
+import {
+  SAVED_VIEW_VISIBILITIES,
+  SearchFilterSchema,
+  SEARCH_DOCUMENT_TYPES,
+  SEARCH_SORT_MODES,
+  type SavedViewVisibility,
+  type SearchFilterInput,
+} from "@proovra/shared";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
+import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
+import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import {
+  createRelationship,
+  executeSearch,
+  listRelationshipsForEvidence,
+} from "../services/search/evidence-search.service.js";
+import {
+  createSavedView,
+  deleteSavedView,
+  listSavedViewsForUser,
+} from "../services/search/saved-search.service.js";
+import {
+  indexEvidence,
+  indexWorkflowInstance,
+} from "../services/search/evidence-indexing.service.js";
 
 async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireAuth(req, reply);
@@ -76,6 +101,93 @@ function fireSearchAnalytics(params: {
     req: params.req,
     skipSessionUpsert: true,
   }).catch(() => null);
+}
+
+/**
+ * Phase 24 — 404-on-non-member + reviewer-capability resolution.
+ * Returns `null` when the actor is not a team member; the route should
+ * return immediately. `isReviewerCapable` controls whether the search
+ * service exposes reviewer-restricted rows.
+ */
+async function requireSearchActor(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  teamId: string
+): Promise<{ userId: string; isReviewerCapable: boolean } | null> {
+  const userId = getAuthUserId(req);
+  const member = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+    select: { id: true },
+  });
+  if (!member) {
+    reply.code(404).send({ error: { code: "not_found" } });
+    return null;
+  }
+  const baseDecision = await evaluateMemberAccess({
+    teamId,
+    userId,
+    permission: "identity.member.read",
+  });
+  if (!baseDecision.allowed) {
+    reply.code(403).send({
+      error: {
+        code: "permission_denied",
+        reason: baseDecision.reason,
+        detail: baseDecision.detail ?? null,
+      },
+    });
+    return null;
+  }
+  const reviewerDecision = await evaluateMemberAccess({
+    teamId,
+    userId,
+    permission: "identity.access_review.action",
+  });
+  return { userId, isReviewerCapable: reviewerDecision.allowed };
+}
+
+/**
+ * Phase 24 — Operator gate for write actions (reindex + create
+ * relationship). Requires identity.access_review.action.
+ */
+async function requireSearchOperator(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  teamId: string
+): Promise<{ userId: string } | null> {
+  const actor = await requireSearchActor(req, reply, teamId);
+  if (!actor) return null;
+  if (!actor.isReviewerCapable) {
+    reply.code(403).send({
+      error: { code: "permission_denied", reason: "operator_required" },
+    });
+    return null;
+  }
+  return { userId: actor.userId };
+}
+
+function parseBool(value: unknown): boolean | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value === "true" || value === "1") return true;
+    if (value === "false" || value === "0") return false;
+  }
+  return undefined;
+}
+
+function parseStringList(value: unknown): string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (Array.isArray(value)) {
+    return value.filter((v): v is string => typeof v === "string");
+  }
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+  return undefined;
 }
 
 export async function searchRoutes(app: FastifyInstance) {
@@ -443,4 +555,307 @@ export async function searchRoutes(app: FastifyInstance) {
       }
     }
   );
+
+  // =========================================================================
+  // Phase 24 — Enterprise Search + Evidence Discovery Platform
+  // =========================================================================
+
+  // -------------------------------------------------------------------------
+  // GET /v1/search — main discovery query
+  // -------------------------------------------------------------------------
+  app.get(
+    "/v1/search",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const raw = (req.query ?? {}) as Record<string, unknown>;
+      const teamId = typeof raw.teamId === "string" ? raw.teamId : null;
+      if (!teamId) {
+        return reply
+          .code(400)
+          .send({ error: { code: "validation_error", reason: "teamId_required" } });
+      }
+      const actor = await requireSearchActor(req, reply, teamId);
+      if (!actor) return;
+
+      const candidate: Record<string, unknown> = {
+        teamId,
+        q: typeof raw.q === "string" ? raw.q : undefined,
+        documentTypes: parseStringList(raw.documentTypes),
+        evidenceTypes: parseStringList(raw.evidenceTypes),
+        workflowStatuses: parseStringList(raw.workflowStatuses),
+        reviewStatuses: parseStringList(raw.reviewStatuses),
+        onLegalHold: parseBool(raw.onLegalHold),
+        exportRestricted: parseBool(raw.exportRestricted),
+        incidentLinked: parseBool(raw.incidentLinked),
+        workflowLinked: parseBool(raw.workflowLinked),
+        contributorScoped: parseBool(raw.contributorScoped),
+        updatedSinceUtc:
+          typeof raw.updatedSinceUtc === "string" ? raw.updatedSinceUtc : undefined,
+        updatedUntilUtc:
+          typeof raw.updatedUntilUtc === "string" ? raw.updatedUntilUtc : undefined,
+        sort: typeof raw.sort === "string" ? raw.sort : undefined,
+        cursor: typeof raw.cursor === "string" ? raw.cursor : undefined,
+        limit: raw.limit !== undefined ? Number(raw.limit) : undefined,
+      };
+      // Strip undefined so .strict() doesn't reject.
+      for (const k of Object.keys(candidate)) {
+        if (candidate[k] === undefined) delete candidate[k];
+      }
+      const parsed = SearchFilterSchema.safeParse(candidate);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: {
+            code: "validation_error",
+            detail: parsed.error.flatten(),
+          },
+        });
+      }
+      const filter: SearchFilterInput = parsed.data;
+      const result = await executeSearch({
+        actorUserId: actor.userId,
+        isReviewerCapable: actor.isReviewerCapable,
+        filter,
+      });
+      return reply.code(200).send({
+        rows: result.rows,
+        nextCursor: result.nextCursor,
+        totalReturned: result.totalReturned,
+        filteredByGovernance: result.filteredByGovernance,
+        filteredByVisibility: result.filteredByVisibility,
+      });
+    }
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /v1/search/saved-views?teamId=...
+  // -------------------------------------------------------------------------
+  app.get(
+    "/v1/search/saved-views",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z
+        .object({
+          teamId: z.string().uuid(),
+          limit: z.coerce.number().int().min(1).max(200).optional(),
+        })
+        .parse(req.query ?? {});
+      const actor = await requireSearchActor(req, reply, q.teamId);
+      if (!actor) return;
+      const views = await listSavedViewsForUser({
+        teamId: q.teamId,
+        userId: actor.userId,
+        limit: q.limit,
+      });
+      return reply.code(200).send({ views });
+    }
+  );
+
+  // -------------------------------------------------------------------------
+  // POST /v1/search/saved-views — create a saved view
+  // -------------------------------------------------------------------------
+  app.post(
+    "/v1/search/saved-views",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = z
+        .object({
+          teamId: z.string().uuid(),
+          name: z.string().min(1).max(120),
+          description: z.string().max(400).nullable().optional(),
+          visibility: z.enum(
+            SAVED_VIEW_VISIBILITIES as unknown as [string, ...string[]]
+          ),
+          pinned: z.boolean().optional(),
+          query: SearchFilterSchema,
+        })
+        .parse(req.body ?? {});
+      if (body.query.teamId !== body.teamId) {
+        return reply.code(400).send({
+          error: { code: "validation_error", reason: "teamId_mismatch" },
+        });
+      }
+      const actor = await requireSearchActor(req, reply, body.teamId);
+      if (!actor) return;
+      const view = await createSavedView({
+        teamId: body.teamId,
+        actorUserId: actor.userId,
+        name: body.name,
+        description: body.description ?? null,
+        visibility: body.visibility as SavedViewVisibility,
+        pinned: body.pinned ?? false,
+        query: body.query,
+      });
+      if (!view) {
+        return reply
+          .code(409)
+          .send({ error: { code: "duplicate_saved_view" } });
+      }
+      return reply.code(201).send({ view });
+    }
+  );
+
+  // -------------------------------------------------------------------------
+  // DELETE /v1/search/saved-views/:id
+  // -------------------------------------------------------------------------
+  app.delete(
+    "/v1/search/saved-views/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      const q = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
+      const actor = await requireSearchActor(req, reply, q.teamId);
+      if (!actor) return;
+      const ok = await deleteSavedView({
+        teamId: q.teamId,
+        actorUserId: actor.userId,
+        id,
+      });
+      if (!ok) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      return reply.code(204).send();
+    }
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /v1/search/relationships/:evidenceId
+  // -------------------------------------------------------------------------
+  app.get(
+    "/v1/search/relationships/:evidenceId",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { evidenceId } = z
+        .object({ evidenceId: z.string().uuid() })
+        .parse(req.params);
+      const q = z
+        .object({
+          teamId: z.string().uuid(),
+          limit: z.coerce.number().int().min(1).max(200).optional(),
+        })
+        .parse(req.query ?? {});
+      const actor = await requireSearchActor(req, reply, q.teamId);
+      if (!actor) return;
+      const relationships = await listRelationshipsForEvidence({
+        teamId: q.teamId,
+        evidenceId,
+        limit: q.limit,
+      });
+      return reply.code(200).send({ relationships });
+    }
+  );
+
+  // -------------------------------------------------------------------------
+  // POST /v1/search/relationships — create
+  // -------------------------------------------------------------------------
+  app.post(
+    "/v1/search/relationships",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = z
+        .object({
+          teamId: z.string().uuid(),
+          sourceEvidenceId: z.string().uuid(),
+          targetEvidenceId: z.string().uuid(),
+          relationshipType: z.enum([
+            "RELATED",
+            "SUPPORTS",
+            "DUPLICATE_OF",
+            "DERIVED_FROM",
+            "SAME_INCIDENT",
+            "CONTRADICTS",
+            "REPLACES",
+            "REFERENCES",
+          ]),
+          note: z.string().max(1000).nullable().optional(),
+        })
+        .parse(req.body ?? {});
+      const operator = await requireSearchOperator(req, reply, body.teamId);
+      if (!operator) return;
+      const row = await createRelationship({
+        teamId: body.teamId,
+        sourceEvidenceId: body.sourceEvidenceId,
+        targetEvidenceId: body.targetEvidenceId,
+        relationshipType:
+          body.relationshipType as prismaPkg.EvidenceRelationshipType,
+        note: body.note ?? null,
+        createdByUserId: operator.userId,
+      });
+      if (!row) {
+        return reply
+          .code(409)
+          .send({ error: { code: "duplicate_or_invalid_relationship" } });
+      }
+      return reply.code(201).send({
+        relationship: {
+          relationshipId: row.id,
+          sourceEvidenceId: row.sourceEvidenceId,
+          targetEvidenceId: row.targetEvidenceId,
+          relationshipType: row.relationshipType,
+          note: row.note,
+          createdByUserId: row.createdByUserId,
+          createdAt: row.createdAt.toISOString(),
+        },
+      });
+    }
+  );
+
+  // -------------------------------------------------------------------------
+  // POST /v1/search/reindex/evidence/:id — operator reindex
+  // -------------------------------------------------------------------------
+  app.post(
+    "/v1/search/reindex/evidence/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      const body = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.body ?? {});
+      const operator = await requireSearchOperator(req, reply, body.teamId);
+      if (!operator) return;
+      const result = await indexEvidence({ teamId: body.teamId, evidenceId: id });
+      if (!result.ok) {
+        return reply.code(409).send({
+          error: { code: "indexing_failed", reason: result.reason },
+        });
+      }
+      return reply.code(200).send({
+        documentId: result.documentId,
+        created: result.created,
+      });
+    }
+  );
+
+  // -------------------------------------------------------------------------
+  // POST /v1/search/reindex/workflow/:id — operator reindex
+  // -------------------------------------------------------------------------
+  app.post(
+    "/v1/search/reindex/workflow/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      const body = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.body ?? {});
+      const operator = await requireSearchOperator(req, reply, body.teamId);
+      if (!operator) return;
+      const result = await indexWorkflowInstance({
+        teamId: body.teamId,
+        workflowInstanceId: id,
+      });
+      if (!result.ok) {
+        return reply.code(409).send({
+          error: { code: "indexing_failed", reason: result.reason },
+        });
+      }
+      return reply.code(200).send({
+        documentId: result.documentId,
+        created: result.created,
+      });
+    }
+  );
+
+  // Reference SEARCH_DOCUMENT_TYPES / SEARCH_SORT_MODES to keep them
+  // surfaced for OpenAPI tooling (avoids unused-import lint noise).
+  void SEARCH_DOCUMENT_TYPES;
+  void SEARCH_SORT_MODES;
 }

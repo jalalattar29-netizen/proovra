@@ -8,6 +8,11 @@ import {
 import * as prismaPkg from "@prisma/client";
 import { ensureGuestIdentity } from "./auth.service.js";
 import { appendCustodyEventTx } from "./custody-events.service.js";
+import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
+import {
+  ensureUploadSession,
+  safeTransitionUploadSession,
+} from "./reliability/upload-session.service.js";
 
 function must(name: string): string {
   const v = process.env[name];
@@ -381,9 +386,45 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
     expiresInSeconds: 600,
   });
 
+  // Phase 12 — open the operations-side UploadSession and move it to
+  // PRESIGNED. Best-effort: this row is purely observational and any
+  // failure here MUST NOT fail evidence creation.
+  ensureUploadSession({
+    evidenceId: created.id,
+    teamId: scope.teamId ?? null,
+  })
+    .then(() =>
+      safeTransitionUploadSession({
+        evidenceId: created.id,
+        to: "PRESIGNED",
+      }),
+    )
+    .catch(() => null);
+
   const publicUrl = publicBase
     ? `${publicBase.replace(/\/+$/, "")}/${created.key}`
     : null;
+
+  // Phase 10 — fire `evidence.created` to any subscribed webhook
+  // endpoints in this workspace. Feature-flag gated and best-effort.
+  if (scope.teamId) {
+    try {
+      await emitWebhookEvent({
+        teamId: scope.teamId,
+        eventType: "evidence.created",
+        payload: {
+          evidenceId: created.id,
+          type: params.type,
+          status: EvidenceStatus.UPLOADING,
+          mimeType: normalizedMimeType,
+          captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
+        },
+        attemptInline: true,
+      });
+    } catch {
+      // never fail evidence creation on webhook delivery
+    }
+  }
 
   return {
     id: created.id,

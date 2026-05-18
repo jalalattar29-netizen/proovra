@@ -23,6 +23,10 @@ import { startHealthServer, type HealthServer } from "./health.js";
 import { captureException, initSentry } from "./sentry.js";
 import { reapExpiredCaptureDrafts } from "./capture-reaper.js";
 import { runOrphanArtifactScan } from "./orphan-scan.js";
+// Phase 27.5 — Governance operationalization workers.
+import { runRetentionReconciliation } from "./governance/retention-reconciliation.worker.js";
+import { runDestructionOrchestration } from "./governance/destruction-orchestrator.worker.js";
+import { runImmutableStorageReconciliation } from "./governance/immutable-storage-reconciliation.worker.js";
 
 type JobData = { evidenceId?: string };
 
@@ -429,6 +433,155 @@ function stopOrphanScanScheduler() {
   }
 }
 
+// -----------------------------------------------------------------------------
+// Phase 27.5 — Governance operationalization schedulers.
+// Three workers, each with its own enable / interval env. The workers
+// are idempotent and lock-protected, so missed ticks are recoverable.
+// Defaults are deliberately conservative — operator can lower in prod.
+// -----------------------------------------------------------------------------
+
+const retentionReconciliationEnabled = envBoolean(
+  "RETENTION_RECONCILIATION_ENABLED",
+  true,
+);
+const retentionReconciliationIntervalMs = envNumber(
+  "RETENTION_RECONCILIATION_INTERVAL_MS",
+  15 * 60 * 1000, // 15m
+);
+let retentionReconciliationTimer: ReturnType<typeof setInterval> | null = null;
+let retentionReconciliationRunning = false;
+
+async function runRetentionRecon(trigger: string) {
+  if (retentionReconciliationRunning) return;
+  retentionReconciliationRunning = true;
+  try {
+    await runRetentionReconciliation({ trigger });
+  } catch (err) {
+    logger.error({ err, trigger }, "governance.retention_reconciliation.failed");
+    captureException(err, { trigger });
+  } finally {
+    retentionReconciliationRunning = false;
+  }
+}
+
+function startRetentionReconciliationScheduler() {
+  if (!retentionReconciliationEnabled) {
+    logger.info({}, "governance.retention_reconciliation.scheduler.disabled");
+    return;
+  }
+  retentionReconciliationTimer = setInterval(() => {
+    void runRetentionRecon("interval");
+  }, retentionReconciliationIntervalMs);
+  logger.info(
+    { intervalMs: retentionReconciliationIntervalMs },
+    "governance.retention_reconciliation.scheduler.started",
+  );
+  void runRetentionRecon("startup");
+}
+
+function stopRetentionReconciliationScheduler() {
+  if (retentionReconciliationTimer) {
+    clearInterval(retentionReconciliationTimer);
+    retentionReconciliationTimer = null;
+  }
+}
+
+const destructionOrchestratorEnabled = envBoolean(
+  "DESTRUCTION_ORCHESTRATOR_ENABLED",
+  true,
+);
+const destructionOrchestratorIntervalMs = envNumber(
+  "DESTRUCTION_ORCHESTRATOR_INTERVAL_MS",
+  5 * 60 * 1000, // 5m
+);
+let destructionOrchestratorTimer: ReturnType<typeof setInterval> | null = null;
+let destructionOrchestratorRunning = false;
+
+async function runDestructionOrch(trigger: string) {
+  if (destructionOrchestratorRunning) return;
+  destructionOrchestratorRunning = true;
+  try {
+    await runDestructionOrchestration({ trigger });
+  } catch (err) {
+    logger.error({ err, trigger }, "governance.destruction_orchestrator.failed");
+    captureException(err, { trigger });
+  } finally {
+    destructionOrchestratorRunning = false;
+  }
+}
+
+function startDestructionOrchestratorScheduler() {
+  if (!destructionOrchestratorEnabled) {
+    logger.info({}, "governance.destruction_orchestrator.scheduler.disabled");
+    return;
+  }
+  destructionOrchestratorTimer = setInterval(() => {
+    void runDestructionOrch("interval");
+  }, destructionOrchestratorIntervalMs);
+  logger.info(
+    { intervalMs: destructionOrchestratorIntervalMs },
+    "governance.destruction_orchestrator.scheduler.started",
+  );
+}
+
+function stopDestructionOrchestratorScheduler() {
+  if (destructionOrchestratorTimer) {
+    clearInterval(destructionOrchestratorTimer);
+    destructionOrchestratorTimer = null;
+  }
+}
+
+const immutableStorageReconciliationEnabled = envBoolean(
+  "IMMUTABLE_STORAGE_RECONCILIATION_ENABLED",
+  true,
+);
+const immutableStorageReconciliationIntervalMs = envNumber(
+  "IMMUTABLE_STORAGE_RECONCILIATION_INTERVAL_MS",
+  60 * 60 * 1000, // 1h
+);
+let immutableStorageReconciliationTimer: ReturnType<typeof setInterval> | null = null;
+let immutableStorageReconciliationRunning = false;
+
+async function runImmutableRecon(trigger: string) {
+  if (immutableStorageReconciliationRunning) return;
+  immutableStorageReconciliationRunning = true;
+  try {
+    await runImmutableStorageReconciliation({ trigger });
+  } catch (err) {
+    logger.error(
+      { err, trigger },
+      "governance.immutable_storage_reconciliation.failed",
+    );
+    captureException(err, { trigger });
+  } finally {
+    immutableStorageReconciliationRunning = false;
+  }
+}
+
+function startImmutableStorageReconciliationScheduler() {
+  if (!immutableStorageReconciliationEnabled) {
+    logger.info(
+      {},
+      "governance.immutable_storage_reconciliation.scheduler.disabled",
+    );
+    return;
+  }
+  immutableStorageReconciliationTimer = setInterval(() => {
+    void runImmutableRecon("interval");
+  }, immutableStorageReconciliationIntervalMs);
+  logger.info(
+    { intervalMs: immutableStorageReconciliationIntervalMs },
+    "governance.immutable_storage_reconciliation.scheduler.started",
+  );
+}
+
+function stopImmutableStorageReconciliationScheduler() {
+  if (immutableStorageReconciliationTimer) {
+    clearInterval(immutableStorageReconciliationTimer);
+    immutableStorageReconciliationTimer = null;
+  }
+}
+
 initSentry();
 
 const reportWorker = new Worker(reportQueueName, processGenerateReport, {
@@ -466,6 +619,10 @@ async function shutdown(exitCode: number) {
   stopDemoFollowUpScheduler();
   stopCaptureDraftReaperScheduler();
   stopOrphanScanScheduler();
+  // Phase 27.5 — Governance schedulers.
+  stopRetentionReconciliationScheduler();
+  stopDestructionOrchestratorScheduler();
+  stopImmutableStorageReconciliationScheduler();
 
   try {
     await reportWorker.pause(true);
@@ -566,6 +723,10 @@ startHealthServer()
     startDemoFollowUpScheduler();
     startCaptureDraftReaperScheduler();
     startOrphanScanScheduler();
+    // Phase 27.5 — Governance schedulers.
+    startRetentionReconciliationScheduler();
+    startDestructionOrchestratorScheduler();
+    startImmutableStorageReconciliationScheduler();
   })
   .catch((err) => {
     const requestId = randomUUID();

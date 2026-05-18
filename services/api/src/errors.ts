@@ -44,6 +44,18 @@ export enum ErrorCode {
 
   WEBHOOK_DELIVERY_FAILED = "WEBHOOK_DELIVERY_FAILED",
   WEBHOOK_SIGNATURE_INVALID = "WEBHOOK_SIGNATURE_INVALID",
+
+  // Phase 20 — standardized response codes. Routes should prefer
+  // these over ad-hoc strings. They mirror the inline values already
+  // returned by Phase 18/19 routes (STEP_UP_REQUIRED,
+  // HIGH_RISK_ACTION_BLOCKED, RATE_LIMITED), so adopting them is
+  // backwards-compatible at the wire level.
+  STEP_UP_REQUIRED = "STEP_UP_REQUIRED",
+  HIGH_RISK_ACTION_BLOCKED = "HIGH_RISK_ACTION_BLOCKED",
+  GOVERNANCE_BLOCKED = "GOVERNANCE_BLOCKED",
+  RATE_LIMITED = "RATE_LIMITED",
+  PROVIDER_ERROR = "PROVIDER_ERROR",
+  PRODUCTION_CONFIG_VIOLATION = "PRODUCTION_CONFIG_VIOLATION",
 }
 
 export interface ErrorDetails {
@@ -78,15 +90,25 @@ export function getStatusCode(code: ErrorCode): number {
     case ErrorCode.TOKEN_EXPIRED:
     case ErrorCode.INVALID_CREDENTIALS:
     case ErrorCode.MISSING_AUTH_HEADER:
+    case ErrorCode.STEP_UP_REQUIRED:
       return 401;
 
     case ErrorCode.FORBIDDEN:
     case ErrorCode.INSUFFICIENT_PERMISSIONS:
     case ErrorCode.SUBSCRIPTION_REQUIRED:
+    case ErrorCode.HIGH_RISK_ACTION_BLOCKED:
+    case ErrorCode.GOVERNANCE_BLOCKED:
       return 403;
 
     case ErrorCode.RATE_LIMIT_EXCEEDED:
+    case ErrorCode.RATE_LIMITED:
       return 429;
+
+    case ErrorCode.PROVIDER_ERROR:
+      return 502;
+
+    case ErrorCode.PRODUCTION_CONFIG_VIOLATION:
+      return 503;
 
     case ErrorCode.NOT_FOUND:
     case ErrorCode.EVIDENCE_NOT_FOUND:
@@ -169,6 +191,20 @@ export function getErrorMessage(code: ErrorCode): string {
 
     [ErrorCode.WEBHOOK_DELIVERY_FAILED]: "Webhook delivery failed",
     [ErrorCode.WEBHOOK_SIGNATURE_INVALID]: "Invalid webhook signature",
+
+    // Phase 20 — standardized operational messages. Operator-facing
+    // only; user-facing surfaces should map these codes to the
+    // localised string at the UI layer.
+    [ErrorCode.STEP_UP_REQUIRED]: "Step-up verification required.",
+    [ErrorCode.HIGH_RISK_ACTION_BLOCKED]:
+      "Access restricted. Contact a workspace administrator.",
+    [ErrorCode.GOVERNANCE_BLOCKED]:
+      "Action blocked by workspace governance policy.",
+    [ErrorCode.RATE_LIMITED]: "Too many requests. Try again later.",
+    [ErrorCode.PROVIDER_ERROR]:
+      "Upstream provider returned an error. Try again later.",
+    [ErrorCode.PRODUCTION_CONFIG_VIOLATION]:
+      "Service is misconfigured. Contact an operator.",
   };
 
   return messages[code] ?? "An unexpected error occurred";

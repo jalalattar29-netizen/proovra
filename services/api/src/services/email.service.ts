@@ -96,6 +96,18 @@ function env(name: string): string | undefined {
   return t ? t : undefined;
 }
 
+// Phase 8 — exported so the notification renderer can reuse the same
+// branded shell, escaping rules, and brand-name resolution without
+// duplicating helper code or instantiating a second Resend client.
+export {
+  brandName as getEmailBrandName,
+  emailShell as renderEmailShell,
+  fromHeader as getEmailFromHeader,
+  safeHtml as escapeEmailHtml,
+  supportEmail as getEmailSupportAddress,
+  webBaseUrl as getEmailWebBaseUrl,
+};
+
 function fromHeader(): string {
   return (
     env("EMAIL_FROM") ??
@@ -335,6 +347,86 @@ function buildFollowUpContent(step: 1 | 2 | 3) {
       "This is a final follow-up in case the request is still relevant. If the workflow is still active on your side, you can use the links below to continue or book a walkthrough.",
     ctaText: "Book a walkthrough",
   };
+}
+
+// Phase 8 — generic Resend send helper, shared by the EmailService
+// singleton AND the Phase 8 notification orchestrator. Keeping a single
+// Resend client across the codebase avoids duplicate connections, dual
+// rate-limit accounting, and divergent retry policies.
+let resendSingleton: Resend | null = null;
+
+function getResendClient(): Resend | null {
+  if (resendSingleton) return resendSingleton;
+  const apiKey = env("RESEND_API_KEY");
+  if (!apiKey) return null;
+  resendSingleton = new Resend(apiKey);
+  return resendSingleton;
+}
+
+export type SendCustomEmailResult =
+  | {
+      ok: true;
+      providerMessageId: string | null;
+    }
+  | {
+      ok: false;
+      errorCode: string;
+      errorMessage: string;
+    };
+
+/**
+ * Generic transactional send. Used by Phase 8 notification renderers so
+ * we never spin up a second Resend client.
+ *
+ * Returns a typed result rather than throwing — callers (the notification
+ * orchestrator) classify the error and decide whether to retry. When
+ * RESEND_API_KEY is not configured, returns `not_configured` so the
+ * caller can downgrade to FAILED without entering a retry loop.
+ */
+export async function sendCustomEmailViaResend(input: {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<SendCustomEmailResult> {
+  const client = getResendClient();
+  if (!client) {
+    return {
+      ok: false,
+      errorCode: "not_configured",
+      errorMessage: "RESEND_API_KEY is not set",
+    };
+  }
+  try {
+    const result = (await client.emails.send({
+      from: input.from,
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+    })) as unknown as {
+      id?: string;
+      data?: { id?: string } | null;
+      error?: { message?: string; name?: string } | null;
+    };
+
+    if (result?.error) {
+      return {
+        ok: false,
+        errorCode: String(result.error.name ?? "resend_error"),
+        errorMessage: String(result.error.message ?? "unknown_resend_error"),
+      };
+    }
+    const id = result?.data?.id ?? result?.id ?? null;
+    return { ok: true, providerMessageId: id };
+  } catch (err) {
+    return {
+      ok: false,
+      errorCode: "exception",
+      errorMessage: err instanceof Error ? err.message : "unknown_error",
+    };
+  }
 }
 
 let singleton: EmailService | null = null;

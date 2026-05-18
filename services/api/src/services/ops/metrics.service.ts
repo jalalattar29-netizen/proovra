@@ -1,0 +1,371 @@
+/**
+ * Phase 20 — Lightweight in-process metrics foundation.
+ *
+ * A counter + gauge registry that the rest of the API can use without
+ * pulling in a vendor SDK. Designed to be drained later by Prometheus,
+ * Datadog, or Sentry; for now we expose a JSON snapshot via
+ * `/v1/ops/metrics` (auth-gated).
+ *
+ * Hard invariants:
+ *   - Counters are monotonic — `bump()` increments, never decrements.
+ *   - Gauges are last-write-wins — `setGauge()` overrides.
+ *   - Counter / gauge names are STABLE strings (the catalog below).
+ *     Ad-hoc names from request input are NEVER accepted — that would
+ *     allow a caller to balloon the registry.
+ *   - Snapshot is bounded (the catalog is finite) so the JSON cannot
+ *     grow unbounded.
+ *   - No PII, no secrets, no per-team values — everything is global.
+ *     Per-team operational counts live in the SecurityEvent / audit
+ *     tables.
+ */
+
+// -----------------------------------------------------------------------------
+// Catalog — adding a name requires a code change (deliberate).
+// -----------------------------------------------------------------------------
+
+export const COUNTER_NAMES = [
+  "security_event_emit_failed",
+  "security_event_emit_dropped_unknown_type",
+  "step_up_started",
+  "step_up_approved",
+  "step_up_denied",
+  "step_up_required_blocked",
+  "high_risk_action_blocked",
+  "communication_message_failed",
+  "communication_message_sent",
+  "communication_message_cancelled",
+  "communication_recipient_opted_out",
+  "verification_started",
+  "verification_check_succeeded",
+  "verification_check_failed",
+  "session_revoked",
+  "all_sessions_revoked",
+  "session_revocation_check_failed",
+  "trusted_device_added",
+  "trusted_device_revoked",
+  "webhook_invalid_signature",
+  "webhook_delivery_failed",
+  "webhook_delivery_succeeded",
+  "api_key_auth_failed",
+  "api_key_ip_denied",
+  "notification_failed",
+  "notification_sent",
+  "notification_skipped",
+  "review_sla_overdue",
+  "intelligence_job_failed",
+  "intelligence_job_stuck",
+  "upload_stalled",
+  "upload_abandoned",
+  "permission_denied",
+  "production_config_violation",
+  // Phase 21 — observability + incident counters. Operator-visible
+  // signals for the /ops UI; bumped from the incident service,
+  // alert provider, webhook handlers, and the request lifecycle.
+  "operational_incident_opened",
+  "operational_incident_increment",
+  "operational_incident_acknowledged",
+  "operational_incident_resolved",
+  "operational_incident_suppressed",
+  "alert_sent",
+  "alert_suppressed_rate_limit",
+  "alert_provider_failed",
+  "request_5xx",
+  "request_4xx",
+  "request_unhandled_error",
+  "observability_provider_init",
+  "observability_provider_capture",
+  "jobs_started_total",
+  "jobs_failed_total",
+  "jobs_retry_exhausted_total",
+  "webhook_received_total",
+  "webhook_invalid_signature_total",
+  "webhook_processing_failed_total",
+  "webhook_processed_total",
+  // Phase 22 — Evidence Workflow Engine counters. Bumped from
+  // engine + route layer; surfaced via /v1/ops/metrics.
+  "workflows_created_total",
+  "workflows_submitted_total",
+  "workflows_approved_total",
+  "workflows_blocked_total",
+  "workflow_step_waived_total",
+  "workflow_step_satisfied_total",
+  "workflow_intake_abuse_total",
+  "workflow_export_blocked_total",
+  "workflow_transition_invalid_total",
+  // Phase 24 — search + discovery counters.
+  "search_executed_total",
+  "search_indexing_succeeded_total",
+  "search_indexing_failed_total",
+  "search_governance_filtered_total",
+  "search_visibility_filtered_total",
+  "search_saved_view_created_total",
+  "search_relationship_created_total",
+  // Phase 25 — Reviewer Operations Intelligence + SLA engine.
+  "reviewer_queue_viewed_total",
+  "reviewer_assignment_created_total",
+  "reviewer_reassigned_total",
+  "reviewer_review_started_total",
+  "reviewer_review_completed_total",
+  "reviewer_review_paused_total",
+  "reviewer_information_requested_total",
+  "reviewer_review_approved_total",
+  "reviewer_review_rejected_total",
+  "reviewer_sla_due_soon_total",
+  "reviewer_sla_breached_total",
+  "reviewer_escalation_created_total",
+  "reviewer_escalation_acknowledged_total",
+  "reviewer_escalation_resolved_total",
+  "reviewer_escalation_suppressed_total",
+  "reviewer_escalation_duplicate_blocked_total",
+  "reviewer_workload_computed_total",
+  "reviewer_invalid_transition_blocked_total",
+  "reviewer_reconcile_run_total",
+  "reviewer_reconcile_failed_total",
+  // Phase 25.5 — hardening counters.
+  "reviewer_bulk_action_total",
+  "reviewer_bulk_action_partial_total",
+  "reviewer_step_up_required_total",
+  "reviewer_step_up_satisfied_total",
+  "reviewer_reminder_scheduled_total",
+  "reviewer_reminder_duplicate_blocked_total",
+  "reviewer_reminder_delivered_total",
+  "reviewer_reminder_failed_total",
+  "reviewer_inactivity_detected_total",
+  "reviewer_reassignment_suggestion_total",
+  "reviewer_saved_view_created_total",
+  "reviewer_saved_view_deleted_total",
+  "reviewer_sla_policy_updated_total",
+  "reviewer_analytics_viewed_total",
+  // Phase 26 — Enterprise identity governance.
+  "sso_connection_created_total",
+  "sso_connection_revoked_total",
+  "sso_login_total",
+  "sso_login_failure_total",
+  "sso_jit_provisioned_total",
+  "sso_jit_denied_total",
+  "scim_token_created_total",
+  "scim_token_revoked_total",
+  "scim_sync_total",
+  "scim_user_created_total",
+  "scim_user_updated_total",
+  "scim_user_deactivated_total",
+  "scim_invalid_token_total",
+  "rbac_permission_eval_total",
+  "rbac_temporary_elevation_total",
+  "rbac_explicit_deny_total",
+  "session_revoked_admin_total",
+  "session_inventory_viewed_total",
+  "access_review_completed_total",
+  "trusted_device_revoked_admin_total",
+  // Phase 26.5 — Identity hardening.
+  "session_heartbeat_total",
+  "session_heartbeat_sampled_skip_total",
+  "stale_session_total",
+  "stale_session_swept_total",
+  "suspicious_session_total",
+  "adaptive_step_up_total",
+  "adaptive_block_total",
+  "scim_group_sync_total",
+  "scim_group_created_total",
+  "scim_group_deleted_total",
+  "scim_group_membership_total",
+  "sso_callback_failure_total",
+  "sso_callback_replay_total",
+  "idp_outage_total",
+  "idp_outage_cleared_total",
+  "forced_reauth_total",
+  "session_replay_detected_total",
+  // Phase 26.75 — Identity runtime enforcement.
+  "adaptive_auth_block_total",
+  "adaptive_auth_reauth_total",
+  "adaptive_auth_step_up_total",
+  "adaptive_auth_allow_total",
+  "runtime_risk_recompute_total",
+  "runtime_risk_recompute_failed_total",
+  "geo_lookup_total",
+  "geo_lookup_cache_hit_total",
+  "geo_lookup_failure_total",
+  "geo_lookup_timeout_total",
+  "quarantined_session_total",
+  "quarantine_release_total",
+  "privileged_session_high_risk_total",
+  "privileged_session_blocked_total",
+  "forced_reauth_runtime_total",
+  "forced_reauth_cooldown_skipped_total",
+  "high_risk_session_total",
+  "runtime_incident_total",
+  "emergency_org_revoke_total",
+  "trusted_device_decay_total",
+  "trusted_device_auto_invalidated_total",
+  // Phase 27 — Retention + lifecycle.
+  "retention_policy_created_total",
+  "retention_policy_updated_total",
+  "retention_policy_superseded_total",
+  "retention_recomputed_total",
+  "destruction_review_created_total",
+  "destruction_review_approved_total",
+  "destruction_review_denied_total",
+  "destruction_review_deferred_total",
+  "destruction_review_restored_total",
+  "destruction_executed_total",
+  "destruction_blocked_by_hold_total",
+  "destruction_blocked_by_immutable_total",
+  "export_blocked_by_lifecycle_total",
+  "lifecycle_transition_total",
+  "lifecycle_transition_blocked_total",
+  "evidence_archived_total",
+  "evidence_restored_total",
+  // Phase 27.5 — Governance operationalization counters.
+  "governance_reconciliation_runs_total",
+  "governance_reconciliation_run_failed_total",
+  "governance_reconciliation_run_partial_total",
+  "governance_reconciliation_lock_contention_total",
+  "retention_reconciliation_scanned_total",
+  "retention_reconciliation_matched_total",
+  "retention_reconciliation_review_created_total",
+  "retention_reconciliation_extended_total",
+  "destruction_orchestrator_planned_total",
+  "destruction_orchestrator_executed_total",
+  "destruction_orchestrator_failed_total",
+  "destruction_orchestrator_rolled_back_total",
+  "destruction_orchestrator_partial_failure_total",
+  "immutable_storage_check_total",
+  "immutable_storage_drift_total",
+  "immutable_storage_check_failed_total",
+  "governance_notification_emitted_total",
+  "governance_notification_deduped_total",
+  "governance_notification_throttled_total",
+  "governance_notification_delivered_total",
+  "governance_notification_delivery_failed_total",
+  "governance_export_snapshot_created_total",
+  "lifecycle_drift_detected_total",
+] as const;
+export type CounterName = (typeof COUNTER_NAMES)[number];
+
+export const GAUGE_NAMES = [
+  "communications_retry_scheduled",
+  "communications_failed_24h",
+  "notifications_retry_scheduled",
+  "step_up_pending",
+  "trusted_devices_active",
+  "revoked_sessions_total",
+  "open_access_reviews",
+  "stalled_uploads",
+  "intelligence_jobs_processing",
+  // Phase 21 — incident + queue depth gauges.
+  "operational_incidents_open",
+  "operational_incidents_open_critical",
+  "operational_incidents_open_high",
+  "queue_backlog_count",
+  "queue_oldest_pending_age_seconds",
+  // Phase 24 — search indexing depth + lag.
+  "search_documents_indexed",
+  "search_documents_pending_reindex",
+  "search_indexing_lag_seconds",
+  // Phase 25 — Reviewer Operations dashboards.
+  "reviewer_queue_backlog_total",
+  "reviewer_queue_unassigned",
+  "reviewer_queue_overdue",
+  "reviewer_queue_due_soon",
+  "reviewer_escalations_open",
+  "reviewer_escalations_critical_open",
+  "reviewer_workload_max_active",
+  // Phase 26 — Identity governance dashboards.
+  "active_sso_connections",
+  "active_scim_tokens",
+  "active_sessions_total",
+  "active_sessions_high_privilege",
+  "stale_trusted_devices",
+  // Phase 26.5 — Identity hardening dashboards.
+  "stale_session_backlog",
+  "high_risk_sessions",
+  "idp_in_outage",
+  "scim_groups_active",
+  "sso_callback_pending",
+  // Phase 26.75 — Identity runtime dashboards.
+  "quarantined_sessions_open",
+  "privileged_sessions_aged",
+  "geo_cache_size",
+  "trusted_devices_decayed",
+  // Phase 27 — Governance lifecycle dashboards.
+  "evidence_pending_destruction",
+  "active_legal_holds",
+  "retention_policy_conflicts",
+  "blocked_destruction_attempts",
+  "governance_incidents_total",
+  "export_governance_blocks",
+  "lifecycle_pending_destruction",
+  "lifecycle_on_hold",
+  "lifecycle_retention_locked",
+  "lifecycle_destroyed",
+  // Phase 27.5 — Governance operationalization dashboards.
+  "governance_reconciliation_runs_inflight",
+  "destruction_executions_inflight",
+  "immutable_storage_drift_open",
+  "governance_notifications_pending",
+  "governance_notifications_failed",
+  "governance_overdue_reviews",
+] as const;
+export type GaugeName = (typeof GAUGE_NAMES)[number];
+
+const VALID_COUNTERS = new Set<string>(COUNTER_NAMES);
+const VALID_GAUGES = new Set<string>(GAUGE_NAMES);
+
+// -----------------------------------------------------------------------------
+// Registry
+// -----------------------------------------------------------------------------
+
+const counters = new Map<CounterName, number>();
+const gauges = new Map<GaugeName, number>();
+const startedAtMs = Date.now();
+
+export function bump(name: CounterName, by = 1): void {
+  if (!VALID_COUNTERS.has(name)) return;
+  if (!Number.isFinite(by) || by <= 0) return;
+  const current = counters.get(name) ?? 0;
+  counters.set(name, current + by);
+}
+
+export function setGauge(name: GaugeName, value: number): void {
+  if (!VALID_GAUGES.has(name)) return;
+  if (!Number.isFinite(value) || value < 0) return;
+  gauges.set(name, Math.floor(value));
+}
+
+export function readCounter(name: CounterName): number {
+  return counters.get(name) ?? 0;
+}
+
+export function readGauge(name: GaugeName): number {
+  return gauges.get(name) ?? 0;
+}
+
+export type MetricsSnapshot = {
+  uptimeSeconds: number;
+  counters: Record<string, number>;
+  gauges: Record<string, number>;
+};
+
+export function snapshotMetrics(): MetricsSnapshot {
+  const out: MetricsSnapshot = {
+    uptimeSeconds: Math.floor((Date.now() - startedAtMs) / 1000),
+    counters: {},
+    gauges: {},
+  };
+  for (const name of COUNTER_NAMES) {
+    out.counters[name] = counters.get(name) ?? 0;
+  }
+  for (const name of GAUGE_NAMES) {
+    out.gauges[name] = gauges.get(name) ?? 0;
+  }
+  return out;
+}
+
+/**
+ * Test-only — clears the registry. Production paths must never call
+ * this; it would lose every counter recorded since startup.
+ */
+export function __resetMetricsForTests(): void {
+  counters.clear();
+  gauges.clear();
+}

@@ -40,9 +40,23 @@ import type {
   TimelineEvent,
 } from "./review-workspace-types";
 import { ReviewerWorkflowCard } from "./components/ReviewerWorkflowCard";
+import { EvidenceReviewActionsPanel } from "./components/EvidenceReviewActionsPanel";
 import { EvidenceRelationshipsSection } from "./components/EvidenceRelationshipsSection";
 import { ArtifactHistorySection } from "./components/ArtifactHistorySection";
 import { ReviewerAuditTrailSection } from "./components/ReviewerAuditTrailSection";
+// Phase 6 — surfaces "Source: External intake" + safe reviewer status
+// controls when (and only when) the evidence row arrived via the external
+// intake pipeline. Returns null for every other evidence record, so this
+// import is a no-op for the authenticated capture path.
+import ExternalIntakeSourceCard from "./components/ExternalIntakeSourceCard";
+// Phase 7 — surfaces linked EvidenceRequests with deliverables + responses
+// + reviewer actions. Renders an empty-state CTA when no requests exist,
+// so it never visually clutters records that have no operational
+// coordination need.
+import EvidenceRequestPanel from "./components/EvidenceRequestPanel";
+// Phase 9.5 — workspace governance indicators (legal hold, retention,
+// policy gates). Renders null when no constraint is active.
+import GovernanceIndicators from "./components/GovernanceIndicators";
 import "./evidence-detail.css";
 
 type EvidenceDetailTab =
@@ -1077,6 +1091,15 @@ export default function EvidenceDetailPage() {
           <main className="evidence-detail-main">
             {activeTab === "overview" ? (
               <>
+                <GovernanceIndicators
+                  evidenceId={evidenceId}
+                  teamId={workspace.reviewWorkflow?.teamId ?? null}
+                />
+                <ExternalIntakeSourceCard evidenceId={evidenceId} />
+                <EvidenceRequestPanel
+                  evidenceId={evidenceId}
+                  teamId={workspace.reviewWorkflow?.teamId ?? null}
+                />
                 <section className="evidence-detail-section">
                   <div className="evidence-detail-section-header">
                     <SectionHeading
@@ -1595,6 +1618,20 @@ export default function EvidenceDetailPage() {
                   onRefreshEvents={() => void loadWorkflowEvents()}
                   onOpenEditor={() => setWorkflowOpen(true)}
                   formatDateTime={formatUserDateTime}
+                />
+
+                {/* Phase 13.5 — compact review decisions panel.
+                    Stage-aware action buttons calling the Phase 13
+                    `/v1/review-operations/*` endpoints. */}
+                <EvidenceReviewActionsPanel
+                  evidenceId={evidenceId}
+                  teamId={workspace.reviewWorkflow?.teamId ?? null}
+                  currentStatus={workspace.reviewWorkflow.status ?? null}
+                  assignedToUserId={
+                    workspace.reviewWorkflow.assignedTo?.id ?? null
+                  }
+                  currentUserId={null}
+                  onChanged={() => void loadWorkflowEvents()}
                 />
 
                 <section className="evidence-detail-section">

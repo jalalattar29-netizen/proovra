@@ -538,55 +538,97 @@ export function useCaptureSessionOrchestration({
           }),
         });
 
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
+        // Phase 12 — bounded retry around the PUT. Network errors and
+        // 5xx responses are transient and worth retrying with backoff;
+        // 4xx responses are NOT retried (presigned URL is expired or
+        // the request shape is wrong — re-presign would be needed).
+        // This is additive: success path is unchanged and any user-
+        // visible state update flows through the same callbacks.
+        const MAX_PUT_ATTEMPTS = 3;
+        let attempt = 0;
+        let lastError: Error | null = null;
+        while (attempt < MAX_PUT_ATTEMPTS) {
+          attempt += 1;
+          try {
+            await new Promise<void>((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
 
-          xhr.upload.onprogress = (event) => {
-            if (!event.lengthComputable) return;
+              xhr.upload.onprogress = (event) => {
+                if (!event.lengthComputable) return;
 
-            const itemPct = Math.max(
-              1,
-              Math.min(100, Math.round((event.loaded / event.total) * 100))
-            );
+                const itemPct = Math.max(
+                  1,
+                  Math.min(100, Math.round((event.loaded / event.total) * 100))
+                );
 
-            setSessionItems((prev) =>
-              prev.map((current) =>
-                current.id === item.id
-                  ? {
-                      ...current,
-                      uploading: true,
-                      uploadProgress: itemPct,
-                      error: null,
-                    }
-                  : current
-              )
-            );
+                setSessionItems((prev) =>
+                  prev.map((current) =>
+                    current.id === item.id
+                      ? {
+                          ...current,
+                          uploading: true,
+                          uploadProgress: itemPct,
+                          error: null,
+                        }
+                      : current
+                  )
+                );
 
-            const overall = Math.round(
-              ((index + event.loaded / event.total) / items.length) * 90
-            );
+                const overall = Math.round(
+                  ((index + event.loaded / event.total) / items.length) * 90
+                );
 
-            setProgress(Math.max(1, Math.min(90, overall)));
-          };
+                setProgress(Math.max(1, Math.min(90, overall)));
+              };
 
-          xhr.onerror = () => reject(new Error("Upload failed"));
-          xhr.onload = () => {
-            if (xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) {
-              resolve();
-            } else {
-              reject(new Error(`Upload failed (${xhr.status})`));
+              xhr.onerror = () =>
+                reject(
+                  Object.assign(new Error("Upload failed"), {
+                    transient: true,
+                  })
+                );
+              xhr.onload = () => {
+                if (xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) {
+                  resolve();
+                } else if (xhr.status >= 500) {
+                  reject(
+                    Object.assign(new Error(`Upload failed (${xhr.status})`), {
+                      transient: true,
+                    })
+                  );
+                } else {
+                  // 4xx — presigned URL likely expired or rejected.
+                  // NOT retryable from here.
+                  reject(new Error(`Upload failed (${xhr.status})`));
+                }
+              };
+
+              xhr.open("PUT", part.upload.putUrl);
+              xhr.setRequestHeader(
+                "content-type",
+                normalizeClientMimeType(item.mimeType)
+              );
+              xhr.setRequestHeader(
+                "x-amz-checksum-sha256",
+                integrity.checksumSha256Base64
+              );
+              xhr.setRequestHeader("Content-MD5", integrity.contentMd5Base64);
+              xhr.send(item.file);
+            });
+            lastError = null;
+            break;
+          } catch (err) {
+            lastError = err instanceof Error ? err : new Error(String(err));
+            const isTransient =
+              !!(lastError as Error & { transient?: boolean }).transient;
+            if (!isTransient || attempt >= MAX_PUT_ATTEMPTS) {
+              throw lastError;
             }
-          };
-
-          xhr.open("PUT", part.upload.putUrl);
-          xhr.setRequestHeader("content-type", normalizeClientMimeType(item.mimeType));
-          xhr.setRequestHeader(
-            "x-amz-checksum-sha256",
-            integrity.checksumSha256Base64
-          );
-          xhr.setRequestHeader("Content-MD5", integrity.contentMd5Base64);
-          xhr.send(item.file);
-        });
+            // Backoff: 500ms → 1500ms → ...
+            await new Promise((r) => setTimeout(r, attempt * 500));
+          }
+        }
+        if (lastError) throw lastError;
 
         setSessionItems((prev) =>
           prev.map((current) =>

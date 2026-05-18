@@ -50,6 +50,7 @@ import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { CertificationType as PrismaCertificationType } from "@prisma/client";
 import { prisma } from "../db.js";
+import { validateUploadedFile } from "../services/security/file-validation.service.js";
 import {
   presignGetObject,
   presignPutObject,
@@ -4084,6 +4085,34 @@ intakePlanJson:
         },
       });
 
+      // Phase 9.5 — apply workspace retention policy on create. Resolves
+      // the workspace's defaultRetentionDays; only sets retentionUntilUtc
+      // when it is longer than any existing explicit retention. Never
+      // shortens. Failure-safe: if the policy lookup fails the evidence
+      // creation has already succeeded — retention application is
+      // observability and can be re-run later.
+      try {
+        const createdEvidence = await prisma.evidence.findUnique({
+          where: { id: result.id },
+          select: { teamId: true, retentionUntilUtc: true },
+        });
+        if (createdEvidence?.teamId) {
+          const { applyRetentionPolicyOnCreate } = await import(
+            "../services/governance.service.js"
+          );
+          await applyRetentionPolicyOnCreate({
+            evidenceId: result.id,
+            teamId: createdEvidence.teamId,
+            existingRetentionUntilUtc: createdEvidence.retentionUntilUtc ?? null,
+          });
+        }
+      } catch (err) {
+        req.log?.warn?.(
+          { err, evidenceId: result.id },
+          "governance.retention.apply_failed",
+        );
+      }
+
       // If this Evidence was created from a CaptureSession draft, finalize the
       // draft so the audit trail is preserved (DRAFT → FINALIZED). Failures
       // here must NOT fail the create; the draft can be reaped/cleaned later.
@@ -4366,6 +4395,31 @@ message:
 
           if (existing) {
             return { part: existing, created: false as const };
+          }
+
+          // Phase 11 — pre-presign file validation (authenticated path).
+          // Magic-byte sniffing is empty here because bytes are not yet
+          // uploaded; the helper still blocks dangerous extensions,
+          // double extensions, and dangerous claimed MIME. SecurityEvent
+          // is recorded internally.
+          const presignValidation = validateUploadedFile({
+            teamId: evidence.teamId,
+            evidenceId: evidence.id,
+            fileName: body.originalFileName ?? null,
+            claimedMime: body.mimeType ?? null,
+            head: new Uint8Array(0),
+            source: "authenticated",
+          });
+          if (presignValidation.outcome === "block") {
+            const err: Error & {
+              statusCode?: number;
+              code?: string;
+              reason?: string | null;
+            } = new Error("File validation blocked");
+            err.statusCode = 415;
+            err.code = "FILE_VALIDATION_BLOCKED";
+            err.reason = presignValidation.findings.reason;
+            throw err;
           }
 
 const bucket = must("S3_BUCKET");
@@ -4794,6 +4848,47 @@ return {
   });
 }
 
+// Phase 9.5 — legal hold check (fail-closed). Archive is destructive
+// for downstream UX (hides the evidence from list views), so a hold
+// must block it.
+if (evidence.teamId) {
+  const { enforceSensitiveAction } = await import(
+    "../services/governance.service.js"
+  );
+  const membership = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId: evidence.teamId, userId: ownerUserId } },
+  });
+  const decision = await enforceSensitiveAction("archive_evidence", {
+    teamId: evidence.teamId,
+    role: membership?.role,
+    evidence: {
+      id: evidence.id,
+      teamId: evidence.teamId,
+      retentionUntilUtc: evidence.retentionUntilUtc ?? null,
+    },
+  });
+  if (!decision.allowed) {
+    await appendCustodyEvent({
+      evidenceId: id,
+      eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+      payload: {
+        action: "archive",
+        reason: decision.reason,
+        actorUserId: ownerUserId,
+      },
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    }).catch(() => null);
+    const statusCode = decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 409;
+    return reply.code(statusCode).send({
+      code: decision.code,
+      reason: decision.reason,
+      message:
+        "Evidence archive is not permitted under the current governance state.",
+    });
+  }
+}
+
       if (evidence.archivedAt) {
         const storage = await getStorageProtectionSummary(
           evidence.storageBucket,
@@ -4990,6 +5085,62 @@ await appendCustodyEvent({
         ? err.message
         : "Evidence cannot be deleted in its current preservation state",
   });
+}
+
+// Phase 9.5 — fail-closed governance enforcement on destructive delete.
+// If policy / legal hold cannot be checked we BLOCK rather than fall
+// through to permissive behavior. This is the enterprise-safe
+// posture: a transient DB error must not silently bypass a hold.
+if (evidence.teamId) {
+  const { enforceSensitiveAction, emitPolicyBlockedEvent } = await import(
+    "../services/governance.service.js"
+  );
+  const membership = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId: evidence.teamId, userId: ownerUserId } },
+  });
+  const decision = await enforceSensitiveAction("delete_evidence", {
+    teamId: evidence.teamId,
+    role: membership?.role,
+    evidence: {
+      id: evidence.id,
+      teamId: evidence.teamId,
+      retentionUntilUtc: evidence.retentionUntilUtc ?? null,
+    },
+  });
+  if (!decision.allowed) {
+    // Custody event for the blocked attempt — visible in the same
+    // forensic chain as integrity events.
+    const eventType =
+      decision.code === "DELETE_BLOCKED_BY_LEGAL_HOLD"
+        ? prismaPkg.CustodyEventType.DELETE_BLOCKED_BY_LEGAL_HOLD
+        : decision.code === "DELETE_BLOCKED_BY_RETENTION"
+          ? prismaPkg.CustodyEventType.DELETE_BLOCKED_BY_RETENTION
+          : prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY;
+    await appendCustodyEvent({
+      evidenceId: id,
+      eventType,
+      payload: {
+        action: "delete",
+        reason: decision.reason,
+        actorUserId: ownerUserId,
+      },
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    }).catch(() => null);
+    void emitPolicyBlockedEvent; // imported for unified signal API
+    const statusCode =
+      decision.code === "GOVERNANCE_CHECK_FAILED"
+        ? 503
+        : decision.code === "DELETE_RESTRICTED_TO_ADMIN"
+          ? 403
+          : 409;
+    return reply.code(statusCode).send({
+      code: decision.code,
+      reason: decision.reason,
+      message:
+        "Evidence deletion is not permitted under the current governance state.",
+    });
+  }
 }
 
       if (evidence.deletedAt) {
@@ -6378,6 +6529,25 @@ await appendCustodyEvent({
 
       return reply.code(200).send(summary);
     }
+  );
+
+  // Phase 6 — external intake source summary. Authenticated workspace
+  // members only. Returns null safely when the evidence did NOT arrive via
+  // external intake (which is the common case for existing evidence).
+  app.get(
+    "/v1/evidence/:id/external-intake-summary",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      await getEvidenceWithReadAccess(userId, id);
+
+      const { loadExternalIntakeSourceSummary } = await import(
+        "../services/external-intake-source-summary.service.js"
+      );
+      const summary = await loadExternalIntakeSourceSummary(id);
+      return reply.code(200).send({ summary });
+    },
   );
 
   app.get(
@@ -7845,6 +8015,71 @@ try {
         return reply.code(429).send({ message: "Rate limit exceeded" });
       }
 
+      // Phase 9.5 — governance gate on completion. Completion triggers the
+      // existing pipeline that produces the report-v2 PDF and the
+      // verification package. If policy denies report or package
+      // generation, block completion and emit a custody event recording
+      // the blocked attempt. Public-verify is also gated here because
+      // there is no separate publish endpoint — public verify eligibility
+      // is a side-effect of completion.
+      const completionEvidence = await prisma.evidence.findUnique({
+        where: { id },
+        select: { id: true, teamId: true, retentionUntilUtc: true },
+      });
+      if (completionEvidence?.teamId) {
+        const { enforceSensitiveAction, evidenceIsReviewed } = await import(
+          "../services/governance.service.js"
+        );
+        const membership = await prisma.teamMember.findUnique({
+          where: {
+            teamId_userId: {
+              teamId: completionEvidence.teamId,
+              userId: ownerUserId,
+            },
+          },
+        });
+        const isReviewed = await evidenceIsReviewed(id);
+        const reviewState = { isReviewed };
+
+        for (const action of [
+          "generate_report",
+          "generate_package",
+          "publish_public_verify",
+        ] as const) {
+          const decision = await enforceSensitiveAction(action, {
+            teamId: completionEvidence.teamId,
+            role: membership?.role,
+            evidence: {
+              id: completionEvidence.id,
+              teamId: completionEvidence.teamId,
+              retentionUntilUtc: completionEvidence.retentionUntilUtc ?? null,
+            },
+            reviewState,
+          });
+          if (!decision.allowed) {
+            await appendCustodyEvent({
+              evidenceId: id,
+              eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+              payload: {
+                action,
+                reason: decision.reason,
+                actorUserId: ownerUserId,
+              },
+              ip: req.ip,
+              userAgent: req.headers["user-agent"],
+            }).catch(() => null);
+            const statusCode =
+              decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 409;
+            return reply.code(statusCode).send({
+              code: decision.code,
+              reason: decision.reason,
+              message:
+                "Evidence finalization is blocked by workspace governance policy.",
+            });
+          }
+        }
+      }
+
       try {
         const result = await completeEvidence({ evidenceId: id, ownerUserId });
 
@@ -8187,6 +8422,59 @@ if (
         return reply.code(statusCode).send({ message });
       }
 
+      // Phase 9.5 — gate report download by workspace policy. Fail-closed:
+      // a transient policy lookup blocks the export rather than leaking
+      // a download URL.
+      {
+        const evidenceForGate = await prisma.evidence.findUnique({
+          where: { id },
+          select: { id: true, teamId: true, retentionUntilUtc: true },
+        });
+        if (evidenceForGate?.teamId) {
+          const { enforceSensitiveAction } = await import(
+            "../services/governance.service.js"
+          );
+          const membership = await prisma.teamMember.findUnique({
+            where: {
+              teamId_userId: {
+                teamId: evidenceForGate.teamId,
+                userId: ownerUserId,
+              },
+            },
+          });
+          const decision = await enforceSensitiveAction("download_report", {
+            teamId: evidenceForGate.teamId,
+            role: membership?.role,
+            evidence: {
+              id: evidenceForGate.id,
+              teamId: evidenceForGate.teamId,
+              retentionUntilUtc: evidenceForGate.retentionUntilUtc ?? null,
+            },
+          });
+          if (!decision.allowed) {
+            await appendCustodyEvent({
+              evidenceId: id,
+              eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+              payload: {
+                action: "report_download",
+                reason: decision.reason,
+                actorUserId: ownerUserId,
+              },
+              ip: req.ip,
+              userAgent: req.headers["user-agent"],
+            }).catch(() => null);
+            return reply
+              .code(decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
+              .send({
+                code: decision.code,
+                reason: decision.reason,
+                message:
+                  "Report download is blocked by workspace governance policy.",
+              });
+          }
+        }
+      }
+
       const latest = await prisma.report.findFirst({
         where: { evidenceId: id },
         orderBy: { version: "desc" },
@@ -8347,6 +8635,51 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         return reply.code(404).send({ message: "Original file not found" });
       }
 
+      // Phase 10 — original-download governance gate. Fail-closed.
+      if (evidence.teamId) {
+        const { enforceSensitiveAction } = await import(
+          "../services/governance.service.js"
+        );
+        const membership = await prisma.teamMember.findUnique({
+          where: {
+            teamId_userId: {
+              teamId: evidence.teamId,
+              userId: ownerUserId,
+            },
+          },
+        });
+        const decision = await enforceSensitiveAction("download_original", {
+          teamId: evidence.teamId,
+          role: membership?.role,
+          evidence: {
+            id: evidence.id,
+            teamId: evidence.teamId,
+            retentionUntilUtc: evidence.retentionUntilUtc ?? null,
+          },
+        });
+        if (!decision.allowed) {
+          await appendCustodyEvent({
+            evidenceId: id,
+            eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+            payload: {
+              action: "download_original",
+              reason: decision.reason,
+              actorUserId: ownerUserId,
+            },
+            ip: req.ip,
+            userAgent: req.headers["user-agent"],
+          }).catch(() => null);
+          return reply
+            .code(decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
+            .send({
+              code: decision.code,
+              reason: decision.reason,
+              message:
+                "Original file download is blocked by workspace governance policy.",
+            });
+        }
+      }
+
       const url = await presignGetObject({
         bucket: evidence.storageBucket,
         key: evidence.storageKey,
@@ -8481,6 +8814,57 @@ displayName: resolvedDisplayName,
             : 500;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
+      }
+
+      // Phase 9.5 — gate package download by workspace policy. Fail-closed.
+      {
+        const evidenceForGate = await prisma.evidence.findUnique({
+          where: { id },
+          select: { id: true, teamId: true, retentionUntilUtc: true },
+        });
+        if (evidenceForGate?.teamId) {
+          const { enforceSensitiveAction } = await import(
+            "../services/governance.service.js"
+          );
+          const membership = await prisma.teamMember.findUnique({
+            where: {
+              teamId_userId: {
+                teamId: evidenceForGate.teamId,
+                userId: ownerUserId,
+              },
+            },
+          });
+          const decision = await enforceSensitiveAction("download_package", {
+            teamId: evidenceForGate.teamId,
+            role: membership?.role,
+            evidence: {
+              id: evidenceForGate.id,
+              teamId: evidenceForGate.teamId,
+              retentionUntilUtc: evidenceForGate.retentionUntilUtc ?? null,
+            },
+          });
+          if (!decision.allowed) {
+            await appendCustodyEvent({
+              evidenceId: id,
+              eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+              payload: {
+                action: "verification_package_download",
+                reason: decision.reason,
+                actorUserId: ownerUserId,
+              },
+              ip: req.ip,
+              userAgent: req.headers["user-agent"],
+            }).catch(() => null);
+            return reply
+              .code(decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
+              .send({
+                code: decision.code,
+                reason: decision.reason,
+                message:
+                  "Verification package download is blocked by workspace governance policy.",
+              });
+          }
+        }
       }
 
       const latest = await prisma.verificationPackage.findFirst({
@@ -8749,6 +9133,10 @@ action: "evidence.certification_requested",
       where: { id, deletedAt: null },
       select: {
         id: true,
+        // Phase 14 — explicit publication state gate. Records that
+        // are NOT_PUBLISHED / SUSPENDED / UNPUBLISHED are not
+        // returned from the public verify route.
+        publicVerifyState: true,
         title: true,
         originalFileName: true,
         displayFileName: true,
@@ -8831,6 +9219,23 @@ action: "evidence.certification_requested",
     // verification state, and produce an apparently-valid verify response
     // for an empty record. Treat as not-yet-available.
     if (!evidence) {
+      return reply.code(404).send({ message: "Evidence not found" });
+    }
+    // Phase 14 — additive publication gate. When the evidence is not
+    // explicitly PUBLISHED (NOT_PUBLISHED / SUSPENDED / UNPUBLISHED),
+    // return 404 with no leak of state. This is BEFORE finalization
+    // and policy checks so suspension is fast-fail and the response
+    // body never contains governance state.
+    if (evidence.publicVerifyState !== "PUBLISHED") {
+      auditVerificationAction(req, {
+        userId: null,
+        action: "verification.page_opened",
+        resourceId: id,
+        metadata: {
+          outcome: "publication_not_available",
+          publicVerifyState: evidence.publicVerifyState,
+        },
+      });
       return reply.code(404).send({ message: "Evidence not found" });
     }
     {

@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 type JwtPayload = {
   sub: string;
@@ -7,6 +7,18 @@ type JwtPayload = {
   /** Present when user is a platform admin (dashboard / audit). */
   role?: string | null;
   exp?: number;
+  /**
+   * Phase 19 — issued-at (epoch seconds). Always set by `signJwt`;
+   * may be missing on JWTs issued before Phase 19. Used by the
+   * session-revocation deny list for ALL_FOR_USER revoke.
+   */
+  iat?: number;
+  /**
+   * Phase 19 — opaque session id. Always set by `signJwt` (random
+   * 16 bytes hex). Hashed and persisted in `revoked_sessions` when
+   * an operator revokes a single session.
+   */
+  sid?: string;
 };
 
 function base64UrlEncode(input: Buffer | string) {
@@ -36,8 +48,14 @@ export function signJwt(
   expiresInSec: number
 ) {
   const header = { alg: "HS256", typ: "JWT" };
-  const exp = Math.floor(Date.now() / 1000) + expiresInSec;
-  const payloadWithExp = { ...payload, exp };
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + expiresInSec;
+  // Phase 19 — always populate iat + sid so the session-revocation
+  // registry has something to key on. sid is a fresh random per
+  // signing; caller cannot override (deliberate — we don't want sid
+  // collisions across signings).
+  const sid = randomBytes(16).toString("hex");
+  const payloadWithExp = { ...payload, iat: now, exp, sid };
   const headerB64 = base64UrlEncode(JSON.stringify(header));
   const payloadB64 = base64UrlEncode(JSON.stringify(payloadWithExp));
   const signingInput = `${headerB64}.${payloadB64}`;

@@ -21,6 +21,14 @@ import {
   appendCustodyEvent,
   appendCustodyEventTx,
 } from "./custody-events.service.js";
+import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
+import {
+  enqueueScan,
+  isMalwareScanningEnabled,
+  runScan,
+} from "./security/file-security-scan.service.js";
+import { safeEmitSecurityEvent } from "./security/security-event.service.js";
+import { safeTransitionUploadSession } from "./reliability/upload-session.service.js";
 
 type HttpError = Error & { statusCode: number };
 
@@ -479,6 +487,16 @@ export async function completeEvidence(params: {
       }
 
       if (evidence.status === EvidenceStatus.SIGNED) {
+        // Phase 12 — duplicate finalize detected. Audit so operators
+        // can spot retry storms; the response is still the canonical
+        // existing result so callers see a stable success.
+        safeEmitSecurityEvent({
+          teamId: evidence.teamId,
+          eventType: "finalize_duplicate_detected",
+          severity: "INFO",
+          evidenceId: evidence.id,
+          details: { reason: "already_signed" },
+        });
         const retentionTargets: RetentionTarget[] = [];
         if (evidenceBucket && evidenceKey) {
           retentionTargets.push({
@@ -501,6 +519,13 @@ export async function completeEvidence(params: {
           retentionTargets,
         };
       }
+
+      // Phase 12 — move the operations-side session to VERIFYING. Best
+      // effort; failure here MUST NOT break the forensic write path.
+      safeTransitionUploadSession({
+        evidenceId: evidence.id,
+        to: "VERIFYING",
+      }).catch(() => null);
 
       const parts = await tx.evidencePart.findMany({
         where: { evidenceId: evidence.id },
@@ -777,56 +802,88 @@ const captureMethod =
     ? prismaPkg.CaptureMethod.MULTIPART_PACKAGE
     : prismaPkg.CaptureMethod.UPLOADED_FILE;
     
-      const ev = await tx.evidence.update({
-        where: { id: evidence.id },
-        data: {
-          status: EvidenceStatus.SIGNED,
-          verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
-          type: canonicalEvidenceType,
-          captureMethod,
-          uploadedByUserId: params.ownerUserId,
-          uploadedAtUtc: now,
-          signedAtUtc: now,
-          sizeBytes: BigInt(sizeBytesNum),
-          mimeType: primaryMimeType,
-          fileSha256,
-          // Phase C #4: explicit multipart hash semantics, see schema
-          // comments. fileSha256 alone is ambiguous for multipart records
-          // because it's a synthetic composite of per-part hashes.
-          multipartManifestSha256: multipartManifestSha256Out,
-          hashSemantics: hashSemanticsOut,
-          fingerprintCanonicalJson: canonical,
-          fingerprintHash,
-          signatureBase64: signResult.signatureBase64,
-          signingKeyId: signResult.keyId,
-          signingKeyVersion: signResult.keyVersion,
-          storageBucket: primaryBucket,
-          storageKey: primaryKey,
-          tsaProvider: tsaResult?.provider ?? null,
-          tsaUrl: tsaResult?.url ?? null,
-          tsaSerialNumber: tsaResult?.serialNumber ?? null,
-          tsaGenTimeUtc: tsaResult?.genTimeUtc ?? null,
-          tsaTokenBase64: tsaResult?.tokenBase64 ?? null,
-          tsaMessageImprint: tsaResult?.messageImprint ?? null,
-          // Truthful TSA semantics (Issue #8):
-          //   - tsaInputDigestHex now ONLY records the digest the TSA provider
-          //     actually accepted (i.e., what the returned token imprints).
-          //   - When TSA failed / was unavailable / not configured, this is
-          //     null. We do NOT fall back to fileSha256, because that
-          //     previously implied the TSA accepted something it did not.
-          //   - The intended-input digest is implicitly fileSha256, which is
-          //     stored in its own column. Reviewers can compare them when both
-          //     are present.
-          tsaInputDigestHex:
-            tsaResult?.status === "STAMPED"
-              ? tsaResult.messageImprint ?? null
-              : null,
-          tsaInputKind:
-            tsaResult?.status === "STAMPED" ? tsaInputKind : null,
-          tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
-          tsaStatus: tsaResult?.status ?? null,
-          tsaFailureReason: tsaResult?.failureReason ?? null,
+      // Phase 12 — atomic finalize guard. We already hold the
+      // advisory lock and we already returned early if the row was
+      // SIGNED, but this `updateMany` re-asserts the precondition at
+      // the DB level so a refactor that accidentally removes either
+      // guard above cannot silently create a duplicate finalize.
+      const finalizeData = {
+        status: EvidenceStatus.SIGNED,
+        verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
+        type: canonicalEvidenceType,
+        captureMethod,
+        uploadedByUserId: params.ownerUserId,
+        uploadedAtUtc: now,
+        signedAtUtc: now,
+        sizeBytes: BigInt(sizeBytesNum),
+        mimeType: primaryMimeType,
+        fileSha256,
+        // Phase C #4: explicit multipart hash semantics, see schema
+        // comments. fileSha256 alone is ambiguous for multipart records
+        // because it's a synthetic composite of per-part hashes.
+        multipartManifestSha256: multipartManifestSha256Out,
+        hashSemantics: hashSemanticsOut,
+        fingerprintCanonicalJson: canonical,
+        fingerprintHash,
+        signatureBase64: signResult.signatureBase64,
+        signingKeyId: signResult.keyId,
+        signingKeyVersion: signResult.keyVersion,
+        storageBucket: primaryBucket,
+        storageKey: primaryKey,
+        tsaProvider: tsaResult?.provider ?? null,
+        tsaUrl: tsaResult?.url ?? null,
+        tsaSerialNumber: tsaResult?.serialNumber ?? null,
+        tsaGenTimeUtc: tsaResult?.genTimeUtc ?? null,
+        tsaTokenBase64: tsaResult?.tokenBase64 ?? null,
+        tsaMessageImprint: tsaResult?.messageImprint ?? null,
+        // Truthful TSA semantics (Issue #8):
+        //   - tsaInputDigestHex now ONLY records the digest the TSA provider
+        //     actually accepted (i.e., what the returned token imprints).
+        //   - When TSA failed / was unavailable / not configured, this is
+        //     null. We do NOT fall back to fileSha256, because that
+        //     previously implied the TSA accepted something it did not.
+        //   - The intended-input digest is implicitly fileSha256, which is
+        //     stored in its own column. Reviewers can compare them when both
+        //     are present.
+        tsaInputDigestHex:
+          tsaResult?.status === "STAMPED"
+            ? tsaResult.messageImprint ?? null
+            : null,
+        tsaInputKind:
+          tsaResult?.status === "STAMPED" ? tsaInputKind : null,
+        tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
+        tsaStatus: tsaResult?.status ?? null,
+        tsaFailureReason: tsaResult?.failureReason ?? null,
+      } satisfies prismaPkg.Prisma.EvidenceUpdateManyMutationInput;
+
+      const finalizeClaim = await tx.evidence.updateMany({
+        where: {
+          id: evidence.id,
+          status: {
+            in: [EvidenceStatus.CREATED, EvidenceStatus.UPLOADING],
+          },
         },
+        data: finalizeData,
+      });
+      if (finalizeClaim.count !== 1) {
+        // Race lost — another finalize won between the early-return
+        // check and this update. Audit + raise a stable error so the
+        // outer handler can re-fetch and return the canonical result.
+        safeEmitSecurityEvent({
+          teamId: evidence.teamId,
+          eventType: "finalize_duplicate_detected",
+          severity: "WARNING",
+          evidenceId: evidence.id,
+          details: { reason: "lost_finalize_race" },
+        });
+        const err: HttpError = Object.assign(
+          new Error("EVIDENCE_FINALIZE_RACE_DETECTED"),
+          { statusCode: 409 },
+        );
+        throw err;
+      }
+      const ev = await tx.evidence.findUniqueOrThrow({
+        where: { id: evidence.id },
         select: {
           id: true,
           status: true,
@@ -1074,6 +1131,75 @@ const captureMethod =
 
   if (final.shouldEnqueueReport) {
     await enqueueGenerateReportJob(final.result.id);
+  }
+
+  // Phase 12 — operations-side session reached its terminal good state.
+  safeTransitionUploadSession({
+    evidenceId: final.result.id,
+    to: "COMPLETED",
+  }).catch(() => null);
+
+  // Phase 10 — fire `evidence.completed` to any subscribed webhook
+  // endpoints in this workspace. The dispatcher is feature-flag gated
+  // and swallows its own errors so failures here never break the
+  // completion path.
+  try {
+    const ev = await prisma.evidence.findUnique({
+      where: { id: final.result.id },
+      select: {
+        id: true,
+        teamId: true,
+        type: true,
+        status: true,
+        verificationStatus: true,
+        fileSha256: true,
+        mimeType: true,
+        sizeBytes: true,
+        signedAtUtc: true,
+        capturedAtUtc: true,
+      },
+    });
+    if (ev && ev.teamId) {
+      await emitWebhookEvent({
+        teamId: ev.teamId,
+        eventType: "evidence.completed",
+        payload: {
+          evidenceId: ev.id,
+          type: ev.type,
+          status: ev.status,
+          verificationStatus: ev.verificationStatus,
+          fileSha256: ev.fileSha256,
+          mimeType: ev.mimeType,
+          sizeBytes: ev.sizeBytes ? ev.sizeBytes.toString() : null,
+          signedAtUtc: ev.signedAtUtc?.toISOString() ?? null,
+          capturedAtUtc: ev.capturedAtUtc?.toISOString() ?? null,
+        },
+        attemptInline: true,
+      });
+    }
+  } catch {
+    // Webhook emission is best-effort; never fail completion on it.
+  }
+
+  // Phase 11 — enqueue a file security scan row for this evidence and
+  // run the active scanner. NEVER blocks completion; scanner failures
+  // are recorded as FAILED / SKIPPED rows, not exceptions. Feature flag
+  // controls whether any row is written at all.
+  if (isMalwareScanningEnabled()) {
+    try {
+      const ev = await prisma.evidence.findUnique({
+        where: { id: final.result.id },
+        select: { id: true, teamId: true },
+      });
+      if (ev) {
+        await enqueueScan({ evidenceId: ev.id, teamId: ev.teamId });
+        // Fire-and-forget runScan; the scanner is responsible for its
+        // own timeouts. Completion returns immediately either way.
+        runScan({ evidenceId: ev.id, teamId: ev.teamId }).catch(() => null);
+      }
+    } catch {
+      /* never fail completion on scan enqueue */
+    }
   }
 
   return final.result;
