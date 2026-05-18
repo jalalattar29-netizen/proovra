@@ -3329,6 +3329,24 @@ signingKeyVersion: evidence.signingKeyVersion ?? undefined,
           anchorPublicBaseUrl:
             process.env.ANCHOR_PUBLIC_BASE_URL?.trim() || null,
           certifications: prepared.certifications,
+          // Hotfix — pass OTS state + proof through so the package
+          // honestly includes `opentimestamps-proof.ots` whenever the
+          // record actually has proof bytes. Null fields stay null;
+          // never fabricated.
+          ots: {
+            status: prepared.reportEvidencePayload.otsStatus ?? null,
+            proofBase64: prepared.reportEvidencePayload.otsProofBase64 ?? null,
+            hash: prepared.reportEvidencePayload.otsHash ?? null,
+            calendar: prepared.reportEvidencePayload.otsCalendar ?? null,
+            bitcoinTxid:
+              prepared.reportEvidencePayload.otsBitcoinTxid ?? null,
+            anchoredAtUtc:
+              prepared.reportEvidencePayload.otsAnchoredAtUtc ?? null,
+            upgradedAtUtc:
+              prepared.reportEvidencePayload.otsUpgradedAtUtc ?? null,
+            failureReason:
+              prepared.reportEvidencePayload.otsFailureReason ?? null,
+          },
           metadata: {
             title: prepared.display.displayTitle,
             rawEvidenceType: String(evidence.type),

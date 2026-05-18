@@ -701,6 +701,119 @@ function jsonBuffer(value: unknown): Buffer {
   return Buffer.from(JSON.stringify(value, null, 2), "utf8");
 }
 
+// -----------------------------------------------------------------------------
+// Hotfix — OTS artifact emission decision (pure, unit-testable).
+//
+// Captures the rules for emitting `opentimestamps-proof.ots` and
+// `opentimestamps.json` inside the verification package. Kept separate
+// from the rest of the package builder so it can be exercised by the
+// regression tests without setting up signing keys, archives, or a
+// full evidence fixture.
+//
+// Hard rules (mirrored by the test file):
+//   * `.ots` file is emitted ONLY when proof bytes actually decode
+//     from the base64 input AND have non-zero length. Never
+//     fabricated.
+//   * `opentimestamps.json` companion is emitted whenever any OTS
+//     state is reported, EXCEPT for DISABLED (we don't add stubs for
+//     workspaces that intentionally have OTS off).
+//   * `ANCHORED` status without a valid Bitcoin txid AND without an
+//     `anchoredAtUtc` value DEGRADES to PENDING in the companion. The
+//     package never asserts Bitcoin anchoring without evidence for it.
+//   * `failureReason` is only echoed when status is FAILED. `anchoredAtUtc`
+//     is only echoed when canonical status remains ANCHORED.
+// -----------------------------------------------------------------------------
+
+export type OtsPackageArtifactInput = {
+  status: string | null;
+  proofBase64: string | null;
+  hash: string | null;
+  calendar: string | null;
+  bitcoinTxid: string | null;
+  anchoredAtUtc: string | null;
+  upgradedAtUtc: string | null;
+  failureReason: string | null;
+};
+
+export type OtsPackageArtifactCompanion = {
+  schema: "PROOVRA_OPENTIMESTAMPS_STATE";
+  version: 1;
+  status: string;
+  hash: string | null;
+  calendar: string | null;
+  bitcoinTxid: string | null;
+  anchoredAtUtc: string | null;
+  upgradedAtUtc: string | null;
+  failureReason: string | null;
+  proofPresent: boolean;
+  proofFile: string | null;
+  verificationHint: string;
+};
+
+export type OtsPackageArtifactDecision = {
+  proofBytes: Buffer | null;
+  companion: OtsPackageArtifactCompanion | null;
+};
+
+export function decideOtsPackageArtifact(
+  input: OtsPackageArtifactInput
+): OtsPackageArtifactDecision {
+  const statusRaw = (input.status ?? "").toString().trim().toUpperCase();
+  const hasValidTxid =
+    typeof input.bitcoinTxid === "string" &&
+    /^[a-f0-9]{64}$/i.test(input.bitcoinTxid.trim());
+  const hasAnchoredAt = Boolean(input.anchoredAtUtc);
+
+  // Status the package commits to. Never elevate. Only DEGRADE
+  // ANCHORED → PENDING when neither txid NOR anchoredAtUtc supports it,
+  // matching the canonical resolveEffectiveOtsStatus + isCompleteOtsAnchor
+  // rules used by report / public-verify.
+  const canonicalStatus =
+    statusRaw === "ANCHORED" && !hasValidTxid && !hasAnchoredAt
+      ? "PENDING"
+      : statusRaw || "UNKNOWN";
+
+  // Decode proof bytes ONLY when bytes exist. Never fabricated.
+  let proofBytes: Buffer | null = null;
+  if (input.proofBase64 && input.proofBase64.trim()) {
+    try {
+      const buf = Buffer.from(input.proofBase64, "base64");
+      if (buf.length > 0) proofBytes = buf;
+    } catch {
+      proofBytes = null;
+    }
+  }
+
+  // Companion JSON is suppressed for DISABLED (no value adding a stub
+  // for a workspace that has OTS off).
+  if (canonicalStatus === "DISABLED") {
+    return { proofBytes: null, companion: null };
+  }
+
+  const companion: OtsPackageArtifactCompanion = {
+    schema: "PROOVRA_OPENTIMESTAMPS_STATE",
+    version: 1,
+    status: canonicalStatus,
+    hash: input.hash ?? null,
+    calendar: input.calendar ?? null,
+    bitcoinTxid: hasValidTxid
+      ? (input.bitcoinTxid as string).trim()
+      : null,
+    anchoredAtUtc:
+      canonicalStatus === "ANCHORED" ? input.anchoredAtUtc ?? null : null,
+    upgradedAtUtc: input.upgradedAtUtc ?? null,
+    failureReason:
+      canonicalStatus === "FAILED" ? input.failureReason ?? null : null,
+    proofPresent: Boolean(proofBytes),
+    proofFile: proofBytes ? "opentimestamps-proof.ots" : null,
+    verificationHint: proofBytes
+      ? "Verify with: ots verify opentimestamps-proof.ots"
+      : "OTS proof bytes are not present on this record; status above is the canonical OTS state at package generation time.",
+  };
+
+  return { proofBytes, companion };
+}
+
 function textBuffer(value: string): Buffer {
   return Buffer.from(value, "utf8");
 }
@@ -2292,6 +2405,36 @@ export async function createVerificationPackage(data: {
   reportPdf?: Buffer | null;
   reportFileName?: string | null;
   metadata?: VerificationPackageMetadata;
+  /**
+   * Hotfix — OTS proof material for inclusion in the package zip. When
+   * present, the package emits `opentimestamps-proof.ots` (binary, the
+   * raw OTS file written by the OpenTimestamps client) alongside an
+   * `opentimestamps.json` companion that names the canonical OTS state
+   * frozen at package generation time.
+   *
+   * Honest semantics:
+   *   - `otsProofBase64 === null` → NO file is emitted. The user gets
+   *     the same package shape as before. The `opentimestamps.json`
+   *     companion is still emitted when any OTS state exists, so the
+   *     status (DISABLED / PENDING / FAILED with no proof) is auditable
+   *     from inside the package without fabricating a proof file.
+   *   - `otsStatus === "DISABLED"` → no `.ots` file, no companion. The
+   *     package shape is unchanged from pre-hotfix builds.
+   *   - All other states with `otsProofBase64` present → the `.ots`
+   *     file IS emitted, and the companion records the canonical
+   *     state. `ANCHORED` without a valid txid degrades to `PENDING`
+   *     in the companion so the package never overclaims anchoring.
+   */
+  ots?: {
+    status: string | null;
+    proofBase64: string | null;
+    hash: string | null;
+    calendar: string | null;
+    bitcoinTxid: string | null;
+    anchoredAtUtc: string | null;
+    upgradedAtUtc: string | null;
+    failureReason: string | null;
+  } | null;
 }): Promise<{ buffer: Buffer; artifactPresence: VerificationPackageArtifactPresence }> {
   return new Promise((resolve, reject) => {
     const archive = archiver("zip", { zlib: { level: 9 } });
@@ -2473,6 +2616,37 @@ export async function createVerificationPackage(data: {
         Buffer.from(data.timestampToken, "base64"),
         "application/octet-stream"
       );
+    }
+
+    // Hotfix — OTS proof artifact emission. Honest semantics:
+    //   * Emit `opentimestamps-proof.ots` ONLY when the proof bytes
+    //     actually exist on the evidence record. Never fabricated.
+    //   * Emit `opentimestamps.json` whenever any OTS state exists
+    //     (status / hash / failureReason / DISABLED / etc.) so the
+    //     canonical OTS state is auditable from inside the package
+    //     even when the proof file is absent (DISABLED / probe-failed).
+    //   * `ANCHORED` without a valid txid degrades to `PENDING` in the
+    //     companion. The package never overclaims anchoring.
+    if (data.ots) {
+      const decision = decideOtsPackageArtifact(data.ots);
+      if (decision.proofBytes) {
+        appendPackageEntry(
+          archive,
+          packageEntries,
+          "opentimestamps-proof.ots",
+          decision.proofBytes,
+          "application/octet-stream"
+        );
+      }
+      if (decision.companion) {
+        appendPackageEntry(
+          archive,
+          packageEntries,
+          "opentimestamps.json",
+          jsonBuffer(decision.companion),
+          "application/json"
+        );
+      }
     }
 
     appendPackageEntry(
