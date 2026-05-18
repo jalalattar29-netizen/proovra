@@ -57,6 +57,12 @@ import EvidenceRequestPanel from "./components/EvidenceRequestPanel";
 // Phase 9.5 — workspace governance indicators (legal hold, retention,
 // policy gates). Renders null when no constraint is active.
 import GovernanceIndicators from "./components/GovernanceIndicators";
+import {
+  ExportPackageEligibilityBadge,
+  GovernanceSnapshotPanel,
+  OperationalTimelinePanel,
+  RuntimeStatusBanner,
+} from "../../../../components/operational";
 import "./evidence-detail.css";
 
 type EvidenceDetailTab =
@@ -495,6 +501,10 @@ export default function EvidenceDetailPage() {
   const [relationshipTargetId, setRelationshipTargetId] = useState("");
   const [relationshipType, setRelationshipType] = useState("RELATED");
   const [relationshipNote, setRelationshipNote] = useState("");
+  // Phase 28 — operational eligibility gating. Both buttons fail-closed:
+  // unknown / loading / blocked → disabled.
+  const [exportDisabled, setExportDisabled] = useState(true);
+  const [packageDisabled, setPackageDisabled] = useState(true);
 
   const loadWorkflowEvents = async () => {
     if (!evidenceId) return;
@@ -1005,6 +1015,9 @@ export default function EvidenceDetailPage() {
   return (
     <div className="evidence-detail-page">
       <div className="evidence-detail-shell">
+        {workspace.reviewWorkflow?.teamId ? (
+          <RuntimeStatusBanner teamId={workspace.reviewWorkflow.teamId} />
+        ) : null}
         <section className="evidence-detail-hero">
           <div className="evidence-detail-hero-main">
             <button
@@ -1053,9 +1066,46 @@ export default function EvidenceDetailPage() {
             <div className="evidence-detail-boundary">{workspace.legalBoundary}</div>
           </div>
 
+          {workspace.reviewWorkflow?.teamId ? (
+            <div
+              style={{
+                display: "flex",
+                gap: 16,
+                flexWrap: "wrap",
+                marginBottom: 12,
+              }}
+            >
+              <ExportPackageEligibilityBadge
+                evidenceId={evidenceId}
+                teamId={workspace.reviewWorkflow.teamId}
+                kind="export"
+                onEligibilityChange={(s) =>
+                  setExportDisabled(s.loading || s.unknown || !s.eligible)
+                }
+              />
+              <ExportPackageEligibilityBadge
+                evidenceId={evidenceId}
+                teamId={workspace.reviewWorkflow.teamId}
+                kind="package"
+                onEligibilityChange={(s) =>
+                  setPackageDisabled(s.loading || s.unknown || !s.eligible)
+                }
+              />
+            </div>
+          ) : null}
           <div className="evidence-detail-hero-actions">
-            <Button onClick={() => void downloadReport()}>Download report</Button>
-            <Button onClick={() => void downloadVerificationPackage()}>Download package</Button>
+            <Button
+              onClick={() => void downloadReport()}
+              disabled={exportDisabled}
+            >
+              Download report
+            </Button>
+            <Button
+              onClick={() => void downloadVerificationPackage()}
+              disabled={packageDisabled}
+            >
+              Download package
+            </Button>
             <Button variant="secondary" onClick={() => void copyShareLink()}>
               Copy verification link
             </Button>
@@ -1095,6 +1145,12 @@ export default function EvidenceDetailPage() {
                   evidenceId={evidenceId}
                   teamId={workspace.reviewWorkflow?.teamId ?? null}
                 />
+                {workspace.reviewWorkflow?.teamId ? (
+                  <GovernanceSnapshotPanel
+                    evidenceId={evidenceId}
+                    teamId={workspace.reviewWorkflow.teamId}
+                  />
+                ) : null}
                 <ExternalIntakeSourceCard evidenceId={evidenceId} />
                 <EvidenceRequestPanel
                   evidenceId={evidenceId}
@@ -1588,6 +1644,13 @@ export default function EvidenceDetailPage() {
                   events={workspace.custodyLifecycle.accessEvents}
                   icon={Globe}
                 />
+
+                {workspace.reviewWorkflow?.teamId ? (
+                  <OperationalTimelinePanel
+                    evidenceId={evidenceId}
+                    teamId={workspace.reviewWorkflow.teamId}
+                  />
+                ) : null}
               </>
             ) : null}
 

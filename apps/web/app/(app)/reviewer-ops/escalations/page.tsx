@@ -16,6 +16,10 @@ import { apiFetch } from "../../../../lib/api";
 import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
 import { WorkspaceGateState } from "../WorkspaceGateState";
 import {
+  NoEscalationsEmptyState,
+  RuntimeStatusBanner,
+} from "../../../../components/operational";
+import {
   cardStyle,
   emptyStateStyle,
   errorBoxStyle,
@@ -193,11 +197,20 @@ export default function EscalationsConsolePage() {
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
+      {teamId ? <RuntimeStatusBanner teamId={teamId} /> : null}
+
       <section style={{ ...cardStyle, marginTop: 16, padding: 0 }}>
         {rows === null ? (
           <div style={emptyStateStyle}>Loading…</div>
         ) : rows.length === 0 ? (
-          <div style={emptyStateStyle}>No escalations match these filters.</div>
+          // Phase 28-G — actionable enterprise empty state.
+          // Replaces the previous static "No escalations match these
+          // filters." line so the operator sees WHY the page is empty
+          // (no overdue reviews, reconcile not yet run, etc.) and
+          // what they can do next (check SLA policy, run seed, etc.).
+          <div style={{ padding: 20 }}>
+            <NoEscalationsEmptyState />
+          </div>
         ) : (
           <table style={tableStyle}>
             <thead>

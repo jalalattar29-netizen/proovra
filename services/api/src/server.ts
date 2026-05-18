@@ -51,6 +51,9 @@ import { identityRoutes } from "./routes/identity.routes.js";
 import { communicationsRoutes } from "./routes/communications.routes.js";
 import { identitySecurityRoutes } from "./routes/identity-security.routes.js";
 import { opsRoutes } from "./routes/ops.routes.js";
+import { opsSeedRoutes } from "./routes/ops-seed.routes.js";
+import { governanceSnapshotRoutes } from "./routes/governance-snapshot.routes.js";
+import { runtimeReadinessRoutes } from "./routes/runtime-readiness.routes.js";
 import { workflowInstancesRoutes } from "./routes/workflow-instances.routes.js";
 import { runStartupConfigValidation } from "./config/index.js";
 import {
@@ -453,6 +456,9 @@ allowedHeaders: [
   // /v1/ops/metrics, /v1/ops/reconcile). Registered FIRST so they're
   // available even if a later route module fails to load.
   await app.register(opsRoutes);
+  await app.register(opsSeedRoutes);
+  await app.register(governanceSnapshotRoutes);
+  await app.register(runtimeReadinessRoutes);
 
   await app.register(authRoutes);
   await app.register(usersRoutes);
@@ -570,6 +576,51 @@ allowedHeaders: [
     warn: (obj, msg) => app.log.warn(obj as Record<string, unknown>, msg),
     error: (obj, msg) => app.log.error(obj as Record<string, unknown>, msg),
   });
+
+  // Runtime schema validation. Inspects the live database against the
+  // expected-schema catalog and refuses to boot when a CRITICAL
+  // reviewer-ops / governance object is missing — that's a P2022 about
+  // to happen. Set SCHEMA_VALIDATION_FAIL_FAST=false (or omit env in
+  // dev) to log + continue instead of aborting; recommended only for
+  // local development. Production should always fail-fast.
+  const schemaValidationFailFast =
+    (process.env.SCHEMA_VALIDATION_FAIL_FAST ?? "true").toLowerCase() !== "false";
+  try {
+    const { validateAtStartup } = await import("./runtime/schema-validation.js");
+    await validateAtStartup({
+      logger: {
+        info: (obj, msg) => app.log.info(obj as Record<string, unknown>, msg),
+        warn: (obj, msg) => app.log.warn(obj as Record<string, unknown>, msg),
+        error: (obj, msg) => app.log.error(obj as Record<string, unknown>, msg),
+      },
+      sentryHook: ({ fingerprint, status, failingSubsystems, summary }) => {
+        const err = new Error(summary);
+        (err as Error & { code?: string }).code =
+          status === "critical"
+            ? "SCHEMA_DRIFT_CRITICAL"
+            : "SCHEMA_DRIFT_DEGRADED";
+        captureException(err, {
+          schemaDriftFingerprint: fingerprint,
+          schemaDriftStatus: status,
+          failingSubsystems: failingSubsystems.join(","),
+        });
+      },
+      failFastOnCritical: schemaValidationFailFast,
+    });
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      (err as Error & { code?: string }).code === "SCHEMA_DRIFT_CRITICAL"
+    ) {
+      // Re-throw so the process exits with non-zero status and the
+      // orchestrator restarts/halts. Don't capture again — already
+      // tagged by the sentryHook above.
+      throw err;
+    }
+    // Any unexpected validation error: log + continue. We never let
+    // an instrumentation bug take the API down.
+    app.log.error({ err }, "runtime.schema_validation.unexpected_error");
+  }
 
   return app;
 }

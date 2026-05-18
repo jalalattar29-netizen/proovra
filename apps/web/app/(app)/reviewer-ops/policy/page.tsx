@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
 import { WorkspaceGateState } from "../WorkspaceGateState";
+import { RuntimeStatusBanner } from "../../../../components/operational";
 import {
   cardStyle,
   errorBoxStyle,
@@ -153,6 +154,7 @@ export default function ReviewerOpsPolicyPage() {
 
   return (
     <main style={pageStyle}>
+      {teamId ? <RuntimeStatusBanner teamId={teamId} /> : null}
       <header style={headerRowStyle}>
         <div>
           <h1 style={titleStyle}>Reviewer Ops Policy</h1>

@@ -18,6 +18,11 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import {
+  NoGovernanceIncidentsEmptyState,
+  OperationalEmptyState,
+  RuntimeStatusBanner,
+} from "../../../components/operational";
 
 type Policy = {
   defaultRetentionDays: number | null;
@@ -181,6 +186,7 @@ export default function GovernancePage() {
 
   return (
     <main style={pageStyle}>
+      {teamId ? <RuntimeStatusBanner teamId={teamId} /> : null}
       <header>
         <h1 style={titleStyle}>Workspace governance</h1>
         <p style={mutedStyle}>
@@ -301,7 +307,17 @@ export default function GovernancePage() {
         {holds === null ? (
           <p style={mutedStyle}>Loading legal holds…</p>
         ) : holds.length === 0 ? (
-          <p style={mutedStyle}>No legal holds on record.</p>
+          <OperationalEmptyState
+            emptyStateCode="no_evidence_legal_holds"
+            kicker="Legal holds"
+            title="No evidence-level legal holds placed."
+            reason="No evidence record in this workspace is currently under a preservation hold. Holds are placed from the evidence detail surface and persist until an operator explicitly releases them."
+            runtimeDependency="Operator action on /evidence/[id]. Hold lifecycle is captured in the internal audit trail; nothing is exposed to public verify or external intake."
+            actions={[
+              { label: "Open evidence list", href: "/evidence" },
+              { label: "Review governance policy below", href: "#policy" },
+            ]}
+          />
         ) : (
           <ul style={listStyle}>
             {holds.map((h) => (
@@ -343,7 +359,14 @@ export default function GovernancePage() {
         {caseHolds === null ? (
           <p style={mutedStyle}>Loading case holds…</p>
         ) : caseHolds.length === 0 ? (
-          <p style={mutedStyle}>No case-level holds on record.</p>
+          <OperationalEmptyState
+            emptyStateCode="no_case_legal_holds"
+            kicker="Legal holds"
+            title="No case-level legal holds placed."
+            reason="Case-level holds extend preservation to every evidence record linked to a case. They are placed from the case detail surface. None are currently active in this workspace."
+            runtimeDependency="Operator action on /cases/[id]. Case-hold lifecycle is captured in the internal audit trail."
+            actions={[{ label: "Open cases", href: "/cases" }]}
+          />
         ) : (
           <ul style={listStyle}>
             {caseHolds.map((h) => (
@@ -377,7 +400,7 @@ export default function GovernancePage() {
         {retentionCandidates === null ? (
           <p style={mutedStyle}>Loading retention candidates…</p>
         ) : retentionCandidates.length === 0 ? (
-          <p style={mutedStyle}>No expired records flagged.</p>
+          <NoGovernanceIncidentsEmptyState />
         ) : (
           <ul style={listStyle}>
             {retentionCandidates.map((c) => (

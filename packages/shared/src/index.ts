@@ -1283,3 +1283,80 @@ export {
   failureModesBySeverity,
   findFailureMode,
 } from "./failure-mode-audit.js";
+
+// -----------------------------------------------------------------------------
+// Phase 28-D — Canonical package-eligibility helper. Same shape as
+// canonicalEvaluateExportEligibility; both gates share a single
+// precedence ladder so the operator always sees the most-restrictive
+// blocker first. Package adds an extra BLOCKED_BY_IMMUTABLE_DRIFT
+// outcome that fires when the immutable-storage reconciliation worker
+// has an open incident for the evidence.
+// -----------------------------------------------------------------------------
+
+export type {
+  CanonicalPackageDecision,
+  CanonicalPackageFacts,
+  PackageEligibilityOutcome,
+} from "./governance-package-eligibility.js";
+export {
+  PACKAGE_ELIGIBILITY_OUTCOMES,
+  canonicalEvaluatePackageEligibility,
+  exportEligibilityLabel,
+  packageEligibilityLabel,
+} from "./governance-package-eligibility.js";
+
+// -----------------------------------------------------------------------------
+// Phase 28-E — External review lifecycle + privacy-filter primitives.
+// -----------------------------------------------------------------------------
+
+export type {
+  ExternalReviewAccessDecision,
+  ExternalReviewAccessFacts,
+  ExternalReviewAccessState,
+  ExternalReviewEvidenceProjection,
+} from "./external-review.js";
+export {
+  EXTERNAL_REVIEW_ACCESS_STATES,
+  EXTERNAL_REVIEW_EVIDENCE_FORBIDDEN_FIELDS,
+  EXTERNAL_REVIEW_EVIDENCE_SAFE_FIELDS,
+  ExternalReviewAccessStateSchema,
+  evaluateExternalReviewAccess,
+  isActiveExternalReviewState,
+  isAllowedExternalReviewTransition,
+  isTerminalExternalReviewState,
+  projectEvidenceForExternalReview,
+} from "./external-review.js";
+
+// -----------------------------------------------------------------------------
+// Phase 28-E — Enterprise discovery foundation. Architecture
+// primitives only; no engine.
+// -----------------------------------------------------------------------------
+
+export type {
+  DiscoveryFilterDecision,
+  DiscoveryFilterFacts,
+  DiscoveryForbiddenField,
+  IndexingEvent,
+  IndexingEventKind,
+  IndexingEventSink,
+  SafeCaseDocument,
+  SafeDocumentEnvelope,
+  SafeEscalationDocument,
+  SafeEvidenceDocument,
+  SafeExternalReviewShareDocument,
+  SafeIncidentDocument,
+  SafeOperationalEventDocument,
+  SafeReviewTaskDocument,
+  SafeSearchableDocument,
+  SafeVerificationPackageDocument,
+  SearchableEntityKind,
+} from "./discovery-foundation.js";
+export {
+  DISCOVERY_FORBIDDEN_FIELDS,
+  INDEXING_EVENT_KINDS,
+  SEARCHABLE_ENTITY_KINDS,
+  SearchableEntityKindSchema,
+  applyDiscoveryFilter,
+  emitIndexingEvent,
+  registerIndexingEventSink,
+} from "./discovery-foundation.js";

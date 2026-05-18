@@ -22,6 +22,10 @@ import { apiFetch } from "../../../lib/api";
 import { useActiveWorkspaceId } from "../../../lib/useActiveWorkspaceId";
 import { WorkspaceGateState } from "./WorkspaceGateState";
 import {
+  OperationalEmptyState,
+  RuntimeStatusBanner,
+} from "../../../components/operational";
+import {
   cardStyle,
   emptyStateStyle,
   errorBoxStyle,
@@ -373,6 +377,7 @@ export default function ReviewerOpsConsole() {
 
   return (
     <main style={pageStyle}>
+      {teamId ? <RuntimeStatusBanner teamId={teamId} /> : null}
       <header style={headerRowStyle}>
         <div>
           <h1 style={titleStyle}>Reviewer Operations</h1>
@@ -552,8 +557,20 @@ export default function ReviewerOpsConsole() {
           {rows === null ? (
             <SkeletonTable />
           ) : rows.length === 0 ? (
-            <div style={emptyStateStyle}>
-              No reviews in this queue.
+            <div style={{ padding: 16 }}>
+              <OperationalEmptyState
+                emptyStateCode="no_review_queue"
+                kicker="Reviewer Ops"
+                title="No reviews in this queue."
+                reason="Nothing has been routed to this queue for the current filter set. Reviews enter the queue automatically when evidence is created or moved through the lifecycle, and when the reviewer-reconciliation worker advances workflow state."
+                runtimeDependency="Reviewer reconciliation worker (interval default 5 min). Workspace SLA policy must be configured for SLA-driven movement."
+                actions={[
+                  { label: "Open escalation console", href: "/reviewer-ops/escalations" },
+                  { label: "Check SLA dashboard", href: "/reviewer-ops/sla" },
+                  { label: "View SLA policy", href: "/reviewer-ops/policy" },
+                  { label: "Open runtime readiness", href: "/ops/observability" },
+                ]}
+              />
             </div>
           ) : (
             <div style={{ overflowY: "auto", maxHeight: "calc(100vh - 200px)" }}>

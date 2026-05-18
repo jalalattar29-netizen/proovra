@@ -65,6 +65,7 @@ import {
   INCIDENT_SEVERITIES,
   INCIDENT_STATUSES,
 } from "@proovra/shared";
+import { runSchemaValidation } from "../runtime/schema-validation.js";
 
 const TeamIdQuery = z.object({ teamId: z.string().uuid() });
 
@@ -424,6 +425,62 @@ export async function opsRoutes(app: FastifyInstance) {
           warning: firing.filter((a) => a.severity === "WARNING").length,
         },
         evaluatedAtUtc: new Date().toISOString(),
+      });
+    },
+  );
+
+  // GET /admin/runtime/schema-status — runtime schema drift probe.
+  //
+  // Inspects the live database against the runtime's expected-schema
+  // catalog (`services/api/src/runtime/schema-validation.ts`) and
+  // returns a per-subsystem health rollup plus the specific missing
+  // objects. Used by:
+  //   - operator dashboards to render a drift banner before P2022
+  //     traffic hits the engines,
+  //   - smoke probes during a deploy to confirm migrations applied,
+  //   - the Sentry-tagged on-call to verify which subsystems are
+  //     degraded without inspecting the DB by hand.
+  //
+  // Authenticated like the other /v1/ops/* operator endpoints — same
+  // teamId/identity.member.read gate. Returns a snapshot, never
+  // mutates. Safe to poll.
+  app.get(
+    "/admin/runtime/schema-status",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = TeamIdQuery.parse(req.query ?? {});
+      const actor = await requireOpsActor(req, reply, q.teamId);
+      if (!actor) return;
+      const report = await runSchemaValidation();
+      // Project a JSON-safe shape. Failures are flattened into
+      // `kind|name` rows so the dashboard can render them as a list.
+      const failures = report.failures.map((f) => {
+        const t = f.target;
+        const label =
+          t.kind === "column"
+            ? `${t.table}.${t.column}`
+            : t.kind === "enum_value"
+              ? `${t.enumName}.${t.value}`
+              : t.kind === "index"
+                ? `${t.table}.${t.indexName}`
+                : (t as { name: string }).name;
+        return {
+          kind: t.kind,
+          name: label,
+          severity: t.severity,
+          subsystem: t.subsystem,
+          outcome: f.outcome,
+          detail: f.detail ?? null,
+        };
+      });
+      return reply.code(200).send({
+        status: report.status,
+        ranAtUtc: report.ranAtUtc,
+        durationMs: report.durationMs,
+        checked: report.checked,
+        driftFingerprint: report.driftFingerprint,
+        subsystems: report.subsystems,
+        failures,
       });
     },
   );

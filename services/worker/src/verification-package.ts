@@ -2384,7 +2384,36 @@ a{color:#0b2e27;font-weight:700}
 </html>`;
 }
 
+/**
+ * Worker error thrown when the canonical package-eligibility gate
+ * refuses package generation. Caller MUST NOT emit success metrics,
+ * write download-ready state, or persist package artifacts when this
+ * error is thrown.
+ */
+export class PackageGateDeniedError extends Error {
+  readonly code: "PACKAGE_GATE_DENIED";
+  readonly outcome: string;
+  readonly reason: string;
+  readonly label: string;
+  constructor(outcome: string, reason: string, label: string) {
+    super(`Package generation denied: ${outcome}`);
+    this.name = "PackageGateDeniedError";
+    this.code = "PACKAGE_GATE_DENIED";
+    this.outcome = outcome;
+    this.reason = reason;
+    this.label = label;
+  }
+}
+
 export async function createVerificationPackage(data: {
+  /**
+   * Optional team id — required when `evidenceId` is also provided so
+   * the fail-closed package-eligibility gate can run. When either is
+   * absent the function STILL runs the gate but with a denial
+   * outcome of GOVERNANCE_STATE_UNAVAILABLE. The gate decides; this
+   * field is informational.
+   */
+  teamId?: string;
   evidenceBuffer?: Buffer;
   evidenceFiles?: VerificationEvidenceFile[];
   fingerprint: string;
@@ -2439,6 +2468,45 @@ export async function createVerificationPackage(data: {
     failureReason: string | null;
   } | null;
 }): Promise<{ buffer: Buffer; artifactPresence: VerificationPackageArtifactPresence }> {
+  // -------------------------------------------------------------------------
+  // Fail-closed canonical eligibility gate.
+  //
+  // BEFORE any artifact is built, the worker MUST consult the canonical
+  // package-eligibility helper through the worker-side gate. Denial
+  // produces a PackageGateDeniedError that the caller MUST surface as
+  // a refusal (no metrics, no download-ready state, no artifact emit).
+  //
+  // Gate self-denies when:
+  //   * teamId or evidenceId is missing (cannot reason about governance).
+  //   * any prisma read throws.
+  //   * canonical helper returns anything other than ALLOWED.
+  //
+  // The gate logs / audits / records a GOVERNANCE incident internally;
+  // this call site only needs to translate the decision into an error.
+  // -------------------------------------------------------------------------
+  if (!data.teamId || !data.evidenceId) {
+    throw new PackageGateDeniedError(
+      "GOVERNANCE_STATE_UNAVAILABLE",
+      "teamId_or_evidenceId_missing",
+      "Governance state could not be determined — package generation denied",
+    );
+  }
+  const { assertPackageEligibleOrDeny } = await import(
+    "./governance/package-eligibility-gate.js"
+  );
+  const gateDecision = await assertPackageEligibleOrDeny({
+    teamId: data.teamId,
+    evidenceId: data.evidenceId,
+    triggerSource: "createVerificationPackage",
+  });
+  if (!gateDecision.allowed) {
+    throw new PackageGateDeniedError(
+      gateDecision.outcome,
+      gateDecision.reason,
+      gateDecision.label,
+    );
+  }
+
   return new Promise((resolve, reject) => {
     const archive = archiver("zip", { zlib: { level: 9 } });
     const stream = new PassThrough();

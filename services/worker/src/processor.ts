@@ -3310,6 +3310,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
   otsAnchoredAtUtc: prepared.reportEvidencePayload.otsAnchoredAtUtc ?? null,
 });
         const finalizedVerificationPackage = await createVerificationPackage({
+          teamId: evidence.teamId ?? undefined,
           evidenceFiles: prepared.verificationEvidenceFiles,
           reportPdf: finalized.finalizedReportPdf,
           reportFileName: `proovra-verification-report-v${prepared.version}.pdf`,

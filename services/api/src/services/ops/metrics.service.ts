@@ -257,6 +257,41 @@ export const COUNTER_NAMES = [
   "observability_metrics_exporter_calls_total",
   "observability_alert_evaluations_total",
   "observability_sink_failures_total",
+  // Operational seeding + E2E validation (staging / demo only — env-gated).
+  "operational_seed_run_total",
+  "operational_seed_created_reviews_total",
+  "operational_seed_created_escalations_total",
+  "operational_seed_created_incidents_total",
+  "operational_seed_cleanup_total",
+  "operational_e2e_validation_success_total",
+  "operational_e2e_validation_failed_total",
+  // Phase 28-D — Cross-system governance integration counters.
+  "governance_snapshot_requested_total",
+  "export_governance_blocked_total",
+  "package_governance_blocked_total",
+  "immutable_drift_block_total",
+  "legal_hold_export_block_total",
+  "retention_destruction_candidate_total",
+  "external_review_access_blocked_total",
+  "operational_timeline_loaded_total",
+  // Phase 28-E — Fail-closed enforcement, external review, discovery.
+  "package_generation_blocked_total",
+  "export_generation_blocked_total",
+  "external_review_access_granted_total",
+  "external_review_access_revoked_total",
+  "external_review_access_denied_total",
+  "governance_ui_snapshot_loaded_total",
+  "operational_timeline_rendered_total",
+  "discovery_index_event_total",
+  // Phase 28-F — Runtime readiness aggregator + empty-state instrumentation.
+  "runtime_readiness_check_total",
+  "runtime_readiness_degraded_total",
+  "runtime_readiness_critical_total",
+  "runtime_queue_health_check_total",
+  "runtime_migration_drift_detected_total",
+  "enterprise_empty_state_rendered_total",
+  "governance_snapshot_ui_loaded_total",
+  "operational_timeline_ui_loaded_total",
 ] as const;
 export type CounterName = (typeof COUNTER_NAMES)[number];
 

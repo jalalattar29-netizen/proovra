@@ -26,6 +26,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
+import { RuntimeStatusBanner } from "../../../../components/operational";
 
 type MetricsResponse = {
   metrics: {
@@ -280,6 +281,7 @@ export default function ObservabilityDashboardPage() {
 
   return (
     <main style={pageStyle}>
+      <RuntimeStatusBanner teamId={teamId} />
       <header style={headerStyle}>
         <div>
           <h1 style={titleStyle}>Observability</h1>

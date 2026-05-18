@@ -26,6 +26,7 @@ These runbooks are the operator's first stop when an incident fires. Each one is
 | [ots-degradation](./ots-degradation.md) | `ots_failure_rate` rising or anchor evidence missing (FM-OTS-001/002) |
 | [observability-degraded](./observability-degraded.md) | Metrics endpoint not scraping / Sentry silent (FM-OBS-001) |
 | [privacy-leak](./privacy-leak.md) | Suspected privileged-data leak in metrics / logs / ledger (FM-PRIV-001/002, FM-OBS-003) |
+| [reviewer-escalation-storm](./reviewer-escalation-storm.md) | `runReconcile()` created ≥ threshold escalations in a single sweep |
 
 ## Phase Z failure-mode coverage
 

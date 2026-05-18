@@ -263,6 +263,36 @@ const ParamsId = z.object({ id: z.string().uuid() });
 
 const BoundedNote = z.string().min(1).max(1000);
 
+/**
+ * Per-team wrapper around `runReconcile()` used by the all-teams
+ * sweep. A failure for one team must NOT abort the rest of the
+ * sweep — we capture the error into a structured result and let the
+ * loop carry on. The route catch-block contract (every `catch (err)`
+ * must call `sendEngineError` or `throw err`) is honored by isolating
+ * the try/catch inside this helper, which lives outside any route
+ * handler.
+ */
+async function runReconcileSafely(input: {
+  teamId: string;
+  batchSize?: number;
+}): Promise<
+  | { ok: true; result: Awaited<ReturnType<typeof runReconcile>> }
+  | { ok: false; error: string }
+> {
+  try {
+    const result = await runReconcile({
+      teamId: input.teamId,
+      batchSize: input.batchSize,
+    });
+    return { ok: true, result };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "unknown_error",
+    };
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Routes
 // -----------------------------------------------------------------------------
@@ -1130,17 +1160,98 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       ) {
         return reply.code(401).send({ error: { code: "unauthorized" } });
       }
+      // Either single-team (legacy: { teamId }) or all-teams sweep
+      // ({ allTeams: true }). All-teams mode enumerates teams from DB
+      // and runs reconcile per team with a per-team timeout. This is
+      // the path the worker tick uses.
       const body = z
-        .object({
-          teamId: z.string().uuid(),
-          batchSize: z.number().int().min(1).max(2000).optional(),
-        })
+        .union([
+          z.object({
+            teamId: z.string().uuid(),
+            batchSize: z.number().int().min(1).max(2000).optional(),
+          }),
+          z.object({
+            allTeams: z.literal(true),
+            batchSize: z.number().int().min(1).max(2000).optional(),
+            maxTeamsPerSweep: z.number().int().min(1).max(10_000).optional(),
+          }),
+        ])
         .parse(req.body ?? {});
-      const result = await runReconcile({
-        teamId: body.teamId,
-        batchSize: body.batchSize,
+
+      if ("teamId" in body) {
+        const result = await runReconcile({
+          teamId: body.teamId,
+          batchSize: body.batchSize,
+        });
+        return reply.code(200).send({ teams: 1, perTeam: [result] });
+      }
+
+      const maxTeams = body.maxTeamsPerSweep ?? 500;
+      const teams = await prisma.team.findMany({
+        // Reviewer-ops only matters for teams that have at least one
+        // review workflow row. Limit + ordering keeps the worker tick
+        // bounded — the next tick picks up any team we missed.
+        where: {
+          evidenceReviewWorkflows: { some: {} },
+        },
+        select: { id: true },
+        orderBy: { id: "asc" },
+        take: maxTeams,
       });
-      return reply.code(200).send(result);
+
+      const perTeam: Array<{
+        teamId: string;
+        ok: boolean;
+        result?: Awaited<ReturnType<typeof runReconcile>>;
+        error?: string;
+      }> = [];
+      let totalEscalationsCreated = 0;
+      let totalFlippedBreached = 0;
+      let totalFlippedDueSoon = 0;
+      let totalDueSoonReminders = 0;
+      let totalInactivityReminders = 0;
+      let failedTeams = 0;
+
+      // Per-team error isolation runs through runReconcileSafely
+      // (defined at the top of this file): a single team failure
+      // must not abort the sweep for the rest of the fleet. The
+      // helper captures the failure into a structured result and the
+      // loop carries on, accumulating `failedTeams`. This intentionally
+      // keeps the catch out of any route handler so the Phase 25
+      // route-layer error-handling contract is preserved.
+      for (const t of teams) {
+        const teamResult = await runReconcileSafely({
+          teamId: t.id,
+          batchSize: body.batchSize,
+        });
+        if (teamResult.ok) {
+          perTeam.push({ teamId: t.id, ok: true, result: teamResult.result });
+          totalEscalationsCreated += teamResult.result.escalationsCreated;
+          totalFlippedBreached += teamResult.result.flippedBreached;
+          totalFlippedDueSoon += teamResult.result.flippedDueSoon;
+          totalDueSoonReminders += teamResult.result.dueSoonRemindersScheduled;
+          totalInactivityReminders +=
+            teamResult.result.inactivityRemindersScheduled;
+        } else {
+          failedTeams += 1;
+          perTeam.push({
+            teamId: t.id,
+            ok: false,
+            error: teamResult.error,
+          });
+        }
+      }
+
+      return reply.code(200).send({
+        teams: teams.length,
+        failedTeams,
+        totalEscalationsCreated,
+        totalFlippedBreached,
+        totalFlippedDueSoon,
+        totalDueSoonReminders,
+        totalInactivityReminders,
+        perTeam,
+      });
     },
   );
 }

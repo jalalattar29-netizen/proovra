@@ -27,6 +27,8 @@ import { runOrphanArtifactScan } from "./orphan-scan.js";
 import { runRetentionReconciliation } from "./governance/retention-reconciliation.worker.js";
 import { runDestructionOrchestration } from "./governance/destruction-orchestrator.worker.js";
 import { runImmutableStorageReconciliation } from "./governance/immutable-storage-reconciliation.worker.js";
+// Reviewer Ops activation — periodic reconcile tick across all teams.
+import { runReviewerReconciliation } from "./reviewer-ops/reviewer-reconciliation.worker.js";
 // Hotfix — API readiness probe so startup-triggered fetches don't
 // race the api process and trigger spurious operational alerts.
 import {
@@ -749,6 +751,110 @@ function stopImmutableStorageReconciliationScheduler() {
 }
 
 // -----------------------------------------------------------------------------
+// Reviewer Ops reconciliation scheduler.
+//
+// Drives the entire reviewer-ops lifecycle (SLA progression, escalation
+// generation, workload snapshots, reminder fan-out) by invoking the
+// api's all-teams reconcile endpoint on a fixed interval. Before this
+// scheduler existed the lifecycle was dormant — pages loaded but no
+// SLA timer fired, no escalation row was generated, no workload
+// snapshot was written. This is the missing wire.
+//
+// Tunables (all envs are optional with safe defaults):
+//   REVIEWER_OPS_RECONCILIATION_ENABLED  — default true
+//   REVIEWER_OPS_RECONCILIATION_INTERVAL_MS — default 5m (sensible
+//                                            cadence for SLA timers
+//                                            that flip at hour
+//                                            boundaries)
+//   REVIEWER_OPS_RECONCILIATION_BATCH_SIZE — passed to runReconcile()
+//                                            per team
+//   REVIEWER_OPS_MAX_TEAMS_PER_SWEEP       — upper bound per tick
+// -----------------------------------------------------------------------------
+
+const reviewerReconciliationEnabled = envBoolean(
+  "REVIEWER_OPS_RECONCILIATION_ENABLED",
+  true,
+);
+const reviewerReconciliationIntervalMs = envNumber(
+  "REVIEWER_OPS_RECONCILIATION_INTERVAL_MS",
+  5 * 60 * 1000, // 5m
+);
+const reviewerReconciliationBatchSize = envNumber(
+  "REVIEWER_OPS_RECONCILIATION_BATCH_SIZE",
+  200,
+);
+const reviewerReconciliationMaxTeamsPerSweep = envNumber(
+  "REVIEWER_OPS_MAX_TEAMS_PER_SWEEP",
+  500,
+);
+let reviewerReconciliationTimer: ReturnType<typeof setInterval> | null = null;
+let reviewerReconciliationRunning = false;
+
+async function runReviewerRecon(trigger: string) {
+  if (reviewerReconciliationRunning) return;
+  reviewerReconciliationRunning = true;
+  try {
+    await runReviewerReconciliation({
+      trigger,
+      batchSize: reviewerReconciliationBatchSize,
+      maxTeamsPerSweep: reviewerReconciliationMaxTeamsPerSweep,
+    });
+  } catch (err) {
+    logger.error({ err, trigger }, "reviewer_ops.reconciliation.failed");
+    captureException(err, { trigger });
+  } finally {
+    reviewerReconciliationRunning = false;
+  }
+}
+
+function startReviewerReconciliationScheduler() {
+  if (!reviewerReconciliationEnabled) {
+    logger.info({}, "reviewer_ops.reconciliation.scheduler.disabled");
+    return;
+  }
+  reviewerReconciliationTimer = setInterval(() => {
+    void runReviewerRecon("interval");
+  }, reviewerReconciliationIntervalMs);
+  logger.info(
+    {
+      intervalMs: reviewerReconciliationIntervalMs,
+      batchSize: reviewerReconciliationBatchSize,
+      maxTeamsPerSweep: reviewerReconciliationMaxTeamsPerSweep,
+    },
+    "reviewer_ops.reconciliation.scheduler.started",
+  );
+  // Gate startup-triggered first run on api readiness. The reconcile
+  // endpoint lives on the api; calling it before /readyz returns
+  // 200 would just trip the existing api-readiness fallback.
+  void (async () => {
+    const readiness = await gateStartupOnApiReadiness(
+      "reviewer-reconciliation",
+    );
+    if (!readiness.ready) {
+      logger.warn(
+        {
+          requestId: randomUUID(),
+          consumer: "reviewer-reconciliation",
+          attempts: readiness.attempts,
+          totalLatencyMs: readiness.totalLatencyMs,
+          lastError: readiness.lastError,
+        },
+        "reviewer_ops.reconciliation.skipped_api_unready",
+      );
+      return;
+    }
+    void runReviewerRecon("startup");
+  })();
+}
+
+function stopReviewerReconciliationScheduler() {
+  if (reviewerReconciliationTimer) {
+    clearInterval(reviewerReconciliationTimer);
+    reviewerReconciliationTimer = null;
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Phase Y — Observability heartbeat + queue health sampler.
 //
 // Heartbeat: emits a structured log line every 30 seconds. The log
@@ -872,6 +978,8 @@ async function shutdown(exitCode: number) {
   stopRetentionReconciliationScheduler();
   stopDestructionOrchestratorScheduler();
   stopImmutableStorageReconciliationScheduler();
+  // Reviewer Ops scheduler.
+  stopReviewerReconciliationScheduler();
   // Phase Y — Observability schedulers.
   stopObservabilityHeartbeat();
   stopQueueHealthSampler();
@@ -979,6 +1087,9 @@ startHealthServer()
     startRetentionReconciliationScheduler();
     startDestructionOrchestratorScheduler();
     startImmutableStorageReconciliationScheduler();
+    // Reviewer Ops activation — drives SLA / escalation / workload /
+    // reminder engines across all teams on a fixed interval.
+    startReviewerReconciliationScheduler();
     // Phase Y — Observability heartbeat + queue-health sampler.
     // The heartbeat fires every 30s; a log-based metrics provider
     // can derive `worker_last_heartbeat_age_seconds` by tailing

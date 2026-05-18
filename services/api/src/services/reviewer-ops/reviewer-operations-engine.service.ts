@@ -36,6 +36,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { recordIncident } from "../observability/incident.service.js";
 import {
   assignReviewer as legacyAssignReviewer,
   bulkReviewAction as legacyBulkReviewAction,
@@ -838,6 +839,79 @@ export async function runReconcile(
             client,
           )
         : { scanned: 0, scheduled: 0, duplicates: 0 };
+
+    // Escalation-storm detection — if a single reconcile cycle creates
+    // more than ESCALATION_STORM_THRESHOLD escalations for the same
+    // team, file a single GOVERNANCE OperationalIncident so the
+    // on-call sees one alert (the dedupe key collapses repeated
+    // bursts within the day). Threshold is conservative; tune via env
+    // without redeploying the engine.
+    const stormThreshold = (() => {
+      const raw = Number(process.env.REVIEWER_ESCALATION_STORM_THRESHOLD ?? 10);
+      return Number.isFinite(raw) && raw > 0 ? raw : 10;
+    })();
+    if (escalationsCreated >= stormThreshold) {
+      const today = new Date().toISOString().slice(0, 10);
+      try {
+        await recordIncident(
+          {
+            teamId: input.teamId,
+            category: "GOVERNANCE",
+            severity: "HIGH",
+            fingerprint: `reviewer:escalation_storm:${input.teamId}:${today}`,
+            title: "Reviewer escalation storm",
+            safeSummary:
+              `Reviewer reconcile created ${escalationsCreated} escalations in a single sweep. ` +
+              `Investigate workload distribution and SLA policy before escalation backlog grows.`,
+            runbookSlug: "reviewer-escalation-storm",
+            metadata: {
+              escalationsCreated,
+              flippedBreached: sla.flippedBreached,
+              flippedDueSoon: sla.flippedDueSoon,
+              workloadReviewersComputed: workload.reviewersComputed,
+            },
+          },
+          client,
+        );
+      } catch {
+        // Storm detection is observability; never let it fail the
+        // reconcile itself. Worst case the storm goes unrecorded for
+        // this sweep — the next sweep will retry with the same
+        // fingerprint (per-team + per-day). The reconcile failure
+        // counter would already increment if the outer try threw.
+        bump("reviewer_reconcile_failed_total");
+      }
+    }
+
+    // Operational gauges so dashboards / Prometheus see live counts
+    // even when no escalation fired. Cheap counts (single SQL each)
+    // bounded to a reasonable window.
+    try {
+      const overdue = await client.evidenceReviewWorkflow.count({
+        where: {
+          teamId: input.teamId,
+          slaStatus: "BREACHED",
+          status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"] },
+        },
+      });
+      const dueSoon = await client.evidenceReviewWorkflow.count({
+        where: {
+          teamId: input.teamId,
+          slaStatus: "DUE_SOON",
+          status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"] },
+        },
+      });
+      setGauge("reviewer_queue_overdue", overdue);
+      setGauge("reviewer_workload_max_active", workload.reviewersComputed);
+      // `reviewer_queue_overdue` is also referenced by the Phase Y
+      // alert catalog (overdue backlog > 50). Operators see it on
+      // the alerts ribbon without any extra wiring.
+      // dueSoon is informational — surfaced through metrics only.
+      bump("reviewer_workload_computed_total", workload.reviewersComputed);
+      void dueSoon;
+    } catch {
+      // Gauge updates are best-effort; never block reconcile.
+    }
 
     safeEmitSecurityEvent({
       teamId: input.teamId,

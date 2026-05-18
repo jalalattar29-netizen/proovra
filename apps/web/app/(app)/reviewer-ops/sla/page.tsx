@@ -14,6 +14,10 @@ import { apiFetch } from "../../../../lib/api";
 import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
 import { WorkspaceGateState } from "../WorkspaceGateState";
 import {
+  NoWorkloadSnapshotsEmptyState,
+  RuntimeStatusBanner,
+} from "../../../../components/operational";
+import {
   cardStyle,
   emptyStateStyle,
   errorBoxStyle,
@@ -173,6 +177,7 @@ export default function SlaDashboardPage() {
 
   return (
     <main style={pageStyle}>
+      {teamId ? <RuntimeStatusBanner teamId={teamId} /> : null}
       <header style={headerRowStyle}>
         <div>
           <h1 style={titleStyle}>SLA Operations</h1>
@@ -413,7 +418,9 @@ export default function SlaDashboardPage() {
         {!reviewers ? (
           <p style={mutedStyle}>Loading…</p>
         ) : reviewers.rows.length === 0 ? (
-          <p style={mutedStyle}>No reviewer activity in this range.</p>
+          <div style={{ marginTop: 8 }}>
+            <NoWorkloadSnapshotsEmptyState />
+          </div>
         ) : (
           <table style={tableStyle}>
             <thead>
