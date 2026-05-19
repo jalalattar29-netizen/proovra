@@ -69,6 +69,12 @@ import {
   sweepDueSoonReminders,
   sweepInactivityReminders,
 } from "./reminder-engine.service.js";
+import {
+  detectStuckWorkflow,
+  type StuckClassification,
+  type WorkflowReviewStatus,
+  type WorkflowSlaStatus,
+} from "@proovra/shared";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -913,6 +919,98 @@ export async function runReconcile(
       // Gauge updates are best-effort; never block reconcile.
     }
 
+    // Phase 25.7 — stuck workflow sweep. Catches the operational
+    // states the SLA flip path doesn't catch (submitted_never_assigned,
+    // escalated_unacknowledged, approved_export_blocked, etc.) and
+    // raises a fresh escalation for any CRITICAL-severity stuck row.
+    // Bounded scan + the escalation engine's fingerprint dedup keeps
+    // re-runs idempotent.
+    let stuckDetected = 0;
+    let stuckEscalated = 0;
+    try {
+      const nonTerminal = await client.evidenceReviewWorkflow.findMany({
+        where: {
+          teamId: input.teamId,
+          status: {
+            notIn: [
+              "CLOSED",
+              "APPROVED_INTERNAL",
+              "REJECTED_INSUFFICIENT",
+            ] as never,
+          },
+        },
+        take: 200,
+        select: {
+          id: true,
+          evidenceId: true,
+          status: true,
+          createdAt: true,
+          assignedAtUtc: true,
+          lastReviewedAt: true,
+          slaStatus: true,
+          activeEscalationId: true,
+        },
+      });
+      const nowMs = Date.now();
+      for (const wf of nonTerminal) {
+        const slaStatus: WorkflowSlaStatus =
+          wf.slaStatus === "ON_TRACK" ||
+          wf.slaStatus === "DUE_SOON" ||
+          wf.slaStatus === "BREACHED"
+            ? wf.slaStatus
+            : null;
+        const classification: StuckClassification = detectStuckWorkflow({
+          nowEpochMs: nowMs,
+          status: wf.status as WorkflowReviewStatus,
+          submittedAtEpochMs: wf.createdAt.getTime(),
+          assignedAtEpochMs: wf.assignedAtUtc?.getTime() ?? null,
+          firstOpenedAtEpochMs: wf.lastReviewedAt?.getTime() ?? null,
+          lastReviewerTouchAtEpochMs: wf.lastReviewedAt?.getTime() ?? null,
+          lastContributorResponseAtEpochMs: null,
+          slaStatus,
+          hasOpenEscalation: !!wf.activeEscalationId,
+          escalationAcknowledged: false,
+          approvedButExportBlocked: false,
+        });
+        if (!classification.isStuck) continue;
+        stuckDetected += 1;
+        bump("reviewer_stuck_workflow_detected_total");
+        // Only CRITICAL stuck-classifications raise an automated
+        // escalation. WARNING / HIGH cases surface via the priority
+        // engine + UI, but the reconciliation loop does not fan out
+        // additional escalations for them — that would create the
+        // escalation storm the engine explicitly guards against.
+        if (
+          classification.topSeverity === "CRITICAL" &&
+          !wf.activeEscalationId
+        ) {
+          const top = classification.reasons[0]!;
+          const res = await createEscalation(
+            {
+              teamId: input.teamId,
+              workflowId: wf.id,
+              // Map to the canonical escalation reason catalog. Stuck-
+              // workflow CRITICAL is most often a stalled lifecycle —
+              // route it through WORKFLOW_STALLED so the existing
+              // fingerprint dedup keeps escalation storms bounded.
+              reason: "WORKFLOW_STALLED",
+              safeSummary: `Workflow stuck — ${top.label}. Automatic escalation by reviewer ops reconcile.`,
+              severity: "HIGH",
+              evidenceId: wf.evidenceId ?? null,
+            },
+            client,
+          );
+          if (res.ok && res.created) {
+            stuckEscalated += 1;
+            escalationsCreated += 1;
+            bump("reviewer_stuck_workflow_escalated_total");
+          }
+        }
+      }
+    } catch {
+      // Stuck sweep is best-effort; failure must not abort reconcile.
+    }
+
     safeEmitSecurityEvent({
       teamId: input.teamId,
       eventType: "reviewer_reconcile_run",
@@ -925,6 +1023,8 @@ export async function runReconcile(
         workloadReviewersComputed: workload.reviewersComputed,
         dueSoonRemindersScheduled: dueSoonReminders.scheduled,
         inactivityRemindersScheduled: inactivityResult.scheduled,
+        stuckDetected,
+        stuckEscalated,
       },
     });
 

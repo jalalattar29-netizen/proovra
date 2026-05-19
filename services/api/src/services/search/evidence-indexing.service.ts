@@ -35,6 +35,10 @@
 import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import {
+  buildEvidenceProjection,
+  buildWorkflowInstanceProjection,
+  isAllowedSearchDocumentType,
+  type SearchDocumentProjection,
   type SearchDocumentType,
   SEARCH_DOCUMENT_TYPES,
   SEARCH_FORBIDDEN_OVERCLAIM_PHRASES,
@@ -259,19 +263,12 @@ export async function indexEvidence(
   }
   if (!evidence) return { ok: false, reason: "evidence_not_found" };
 
-  // Hard governance gates — do NOT index a row that is deleted or on
-  // a state that the search service must hide entirely.
-  if (evidence.deletedAt || evidence.deletedAtUtc) {
-    await tryDeleteByKey(client, input.teamId, "EVIDENCE", input.evidenceId);
-    return { ok: false, reason: "deleted" };
-  }
-
   // Workflow visibility — load the most-recent applicable workflow
   // instance state (operator-facing badges only).
   const workflowState = await loadEvidenceWorkflowStatus(client, evidence.id);
 
   // Extracted text from Phase 15 — best-effort include.
-  let extracted = "";
+  const extractedChunks: string[] = [];
   try {
     const extractedRows = await client.evidenceExtractedText.findMany({
       where: {
@@ -281,72 +278,56 @@ export async function indexEvidence(
       select: { text: true, kind: true },
       take: 5,
     });
-    extracted = extractedRows
-      .map((r) => `[${r.kind}] ${r.text ?? ""}`)
-      .join("\n")
-      .slice(0, 8 * 1024);
+    for (const r of extractedRows) {
+      const safeText = (r.text ?? "").slice(0, 4 * 1024);
+      if (safeText.length > 0) {
+        extractedChunks.push(`[${r.kind}] ${safeText}`);
+      }
+    }
   } catch {
     /* extraction table may not have rows; non-fatal */
   }
 
-  const legalHoldState = evidence.storageObjectLockLegalHoldStatus ?? null;
-  const publicVerifyState = evidence.publicVerifyState ?? null;
-
-  return upsertSearchDocument(
-    {
-      teamId: input.teamId,
-      documentType: "EVIDENCE",
-      sourceId: evidence.id,
-      title: evidence.title?.slice(0, 200) ?? evidence.displayFileName ?? "(untitled)",
-      subtitle: evidence.type ?? null,
-      summary: evidence.displayFileName ?? evidence.originalFileName ?? null,
-      searchableText: [
-        evidence.title ?? "",
-        evidence.displayFileName ?? "",
-        evidence.originalFileName ?? "",
-        extracted,
-      ]
-        .filter(Boolean)
-        .join("\n")
-        .trim() || null,
-      searchableMetadata: {
-        type: evidence.type,
-        mimeType: evidence.mimeType,
-        captureMethod: evidence.captureMethod,
-        publicVerifyState,
-        retentionPolicySource: evidence.retentionPolicySource ?? null,
-      },
-      searchableTags: [
-        evidence.type ?? "",
-        publicVerifyState ?? "",
-        legalHoldState ? "legal_hold" : "",
-        evidence.archivedAt ? "archived" : "",
-      ].filter((t): t is string => !!t),
-      visibilityScope: { publicVerifyState },
-      governanceScope: {
-        legalHoldState,
-        retentionPolicySource: evidence.retentionPolicySource ?? null,
-        retentionUntilUtc: evidence.retentionUntilUtc?.toISOString() ?? null,
-      },
-      reviewState: evidence.reviewReadyAtUtc ? "REVIEW_READY" : null,
-      workflowState: workflowState,
-      exportState:
-        publicVerifyState === "PUBLISHED"
-          ? "PUBLIC"
-          : publicVerifyState === "SUSPENDED"
-            ? "SUSPENDED"
-            : "INTERNAL",
-      retentionState: evidence.retentionPolicySource ?? null,
-      legalHoldState: legalHoldState,
-      contributorScoped:
-        evidence.captureMethod === "EXTERNAL_INTAKE_UPLOAD" ? true : false,
-      reviewerRestricted: false,
-      evidenceId: evidence.id,
+  // Phase 25 — delegate to the SHARED canonical projection engine.
+  // The pure builder applies governance gates (deleted / DESTROYED /
+  // PENDING_DESTRUCTION → delete-from-index) so the API and worker
+  // agree on what's indexable.
+  const result = buildEvidenceProjection({
+    teamId: input.teamId,
+    evidenceId: input.evidenceId,
+    evidence: {
+      id: evidence.id,
+      teamId: evidence.teamId,
+      title: evidence.title,
+      displayFileName: evidence.displayFileName,
+      originalFileName: evidence.originalFileName,
+      type: evidence.type,
+      mimeType: evidence.mimeType,
+      captureMethod: evidence.captureMethod,
       caseId: evidence.caseId ?? null,
-      sourceUpdatedAtUtc: evidence.updatedAt,
+      deletedAt: evidence.deletedAt ?? null,
+      lifecycleState: evidence.lifecycleState ?? null,
+      archivedAt: evidence.archivedAt ?? null,
+      publicVerifyState: evidence.publicVerifyState ?? null,
+      storageObjectLockLegalHoldStatus:
+        evidence.storageObjectLockLegalHoldStatus ?? null,
+      retentionPolicySource: evidence.retentionPolicySource ?? null,
+      retentionUntilUtc: evidence.retentionUntilUtc ?? null,
+      reviewReadyAtUtc: evidence.reviewReadyAtUtc ?? null,
+      updatedAt: evidence.updatedAt,
     },
-    client,
-  );
+    workflowState,
+    extractedTextChunks: extractedChunks,
+  });
+
+  if (!result.ok) {
+    if (result.deleteFromIndex) {
+      await tryDeleteByKey(client, input.teamId, "EVIDENCE", input.evidenceId);
+    }
+    return { ok: false, reason: result.reason };
+  }
+
+  return upsertSearchDocumentProjection(result.projection, client);
 }
 
 async function loadEvidenceWorkflowStatus(
@@ -383,55 +364,82 @@ export async function indexWorkflowInstance(
   }
   if (!instance) return { ok: false, reason: "workflow_not_found" };
 
-  return upsertSearchDocument(
-    {
-      teamId: input.teamId,
-      documentType: "WORKFLOW",
-      sourceId: instance.id,
-      title: instance.title?.slice(0, 200) ?? `Workflow ${instance.id.slice(0, 8)}…`,
-      subtitle: instance.templateSlug ?? null,
-      summary: `intake ${instance.intakeMode} · actor ${instance.actorRole}`,
-      searchableText: [
-        instance.title ?? "",
-        instance.templateSlug ?? "",
-        instance.intakeMode,
-        instance.actorRole,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .trim() || null,
-      searchableMetadata: {
-        templateSlug: instance.templateSlug,
-        templateVersion: instance.templateVersion,
-        intakeMode: instance.intakeMode,
-        actorRole: instance.actorRole,
-      },
-      searchableTags: [
-        instance.intakeMode,
-        instance.actorRole,
-        instance.status,
-      ].filter(Boolean) as string[],
-      reviewState: instance.assignedReviewerUserId ? "ASSIGNED" : null,
-      workflowState: instance.status,
-      exportState:
-        instance.status === "SHARED_EXTERNALLY"
-          ? "PUBLIC"
-          : instance.status === "PACKAGE_READY"
-            ? "PACKAGE_READY"
-            : instance.status === "APPROVED"
-              ? "APPROVED"
-              : "INTERNAL",
-      legalHoldState: instance.status === "LEGAL_HOLD" ? "ACTIVE" : null,
-      contributorScoped:
-        instance.actorRole === "EXTERNAL_CONTRIBUTOR" ||
-        instance.actorRole === "ANONYMOUS_SOURCE",
-      reviewerRestricted: false,
-      evidenceId: null,
-      workflowInstanceId: instance.id,
+  // Phase 25 — delegate to the SHARED canonical projection engine.
+  const result = buildWorkflowInstanceProjection({
+    teamId: input.teamId,
+    workflowInstanceId: input.workflowInstanceId,
+    instance: {
+      id: instance.id,
+      teamId: instance.teamId,
+      title: instance.title,
+      templateSlug: instance.templateSlug,
+      templateVersion: instance.templateVersion,
+      intakeMode: instance.intakeMode,
+      actorRole: instance.actorRole,
+      status: instance.status,
       caseId: instance.caseId ?? null,
       claimRef: instance.claimRef ?? null,
       matterRef: instance.matterRef ?? null,
-      sourceUpdatedAtUtc: instance.updatedAt,
+      assignedReviewerUserId: instance.assignedReviewerUserId ?? null,
+      updatedAt: instance.updatedAt,
+    },
+  });
+  if (!result.ok) {
+    if (result.deleteFromIndex) {
+      await tryDeleteByKey(
+        client,
+        input.teamId,
+        "WORKFLOW",
+        input.workflowInstanceId,
+      );
+    }
+    return { ok: false, reason: result.reason };
+  }
+  return upsertSearchDocumentProjection(result.projection, client);
+}
+
+// -----------------------------------------------------------------------------
+// Phase 25 — public canonical upsert. Both API and worker upsert through
+// the same persistence shape. This function takes the SHARED projection
+// and writes it; callers are responsible for governance/visibility
+// decisions before calling.
+// -----------------------------------------------------------------------------
+
+export async function upsertSearchDocumentProjection(
+  projection: SearchDocumentProjection,
+  client: PrismaClient = defaultPrisma,
+): Promise<IndexResult> {
+  if (!isAllowedSearchDocumentType(projection.documentType)) {
+    bump("search_indexing_failed_total");
+    return { ok: false, reason: "unknown_document_type" };
+  }
+  return upsertSearchDocument(
+    {
+      teamId: projection.teamId,
+      documentType: projection.documentType,
+      sourceId: projection.sourceId,
+      title: projection.title,
+      subtitle: projection.subtitle,
+      summary: projection.summary,
+      searchableText: projection.searchableText,
+      searchableMetadata: projection.searchableMetadata,
+      searchableTags: projection.searchableTags,
+      visibilityScope: projection.visibilityScope,
+      governanceScope: projection.governanceScope,
+      reviewState: projection.reviewState,
+      workflowState: projection.workflowState,
+      exportState: projection.exportState,
+      retentionState: projection.retentionState,
+      legalHoldState: projection.legalHoldState,
+      contributorScoped: projection.contributorScoped,
+      reviewerRestricted: projection.reviewerRestricted,
+      evidenceId: projection.evidenceId,
+      workflowInstanceId: projection.workflowInstanceId,
+      workflowStepInstanceId: projection.workflowStepInstanceId,
+      caseId: projection.caseId,
+      claimRef: projection.claimRef,
+      matterRef: projection.matterRef,
+      sourceUpdatedAtUtc: projection.sourceUpdatedAtUtc,
     },
     client,
   );

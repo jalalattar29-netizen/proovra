@@ -431,6 +431,83 @@ export {
   stringContainsForbiddenOverclaim,
 } from "./search.js";
 
+// Phase 25 — reviewer queue priority scoring engine.
+export {
+  computeReviewerPriority,
+  summarisePriorityReasons,
+  PRIORITY_REASON_CODES,
+  type PriorityFacts,
+  type PriorityScoreResult,
+  type PriorityReason,
+  type PriorityReasonCode,
+  type WorkflowSlaStatus,
+  type EscalationSeverity,
+  type EvidencePriorityHint,
+} from "./reviewer-priority.js";
+
+// Phase 25.5 — reviewer assignment intelligence (eligibility + ranking
+// + throughput balancing).
+export {
+  evaluateReviewerEligibility,
+  rankReviewerSuggestions,
+  evaluateTeamBalance,
+  ASSIGNMENT_INELIGIBILITY_CODES,
+  ASSIGNMENT_RANK_REASON_CODES,
+  ASSIGNMENT_RISK_FLAG_CODES,
+  type WorkflowAssignmentFacts,
+  type ReviewerCandidate,
+  type EligibilityResult,
+  type EligibilityReason,
+  type ReviewerSuggestion,
+  type AssignmentRankReason,
+  type AssignmentRankReasonCode,
+  type AssignmentRiskFlag,
+  type AssignmentRiskFlagCode,
+  type AssignmentIneligibilityCode,
+  type RecommendationBand,
+  type RankerResult,
+  type TeamBalanceFacts,
+  type TeamBalanceResult,
+} from "./reviewer-assignment.js";
+
+// Phase 25 — stuck workflow detection (pure deterministic).
+export {
+  detectStuckWorkflow,
+  STUCK_REASON_CODES,
+  STUCK_SUBMITTED_THRESHOLD_MS,
+  STUCK_ASSIGNED_NEVER_OPENED_THRESHOLD_MS,
+  STUCK_OPENED_NO_ACTION_THRESHOLD_MS,
+  STUCK_NEEDS_INFO_THRESHOLD_MS,
+  STUCK_ESCALATION_UNACK_THRESHOLD_MS,
+  type StuckWorkflowFacts,
+  type StuckClassification,
+  type StuckReason,
+  type StuckReasonCode,
+  type WorkflowReviewStatus,
+} from "./stuck-workflow-detector.js";
+
+// Phase 25 — canonical search document projection engine (pure
+// builders shared by the API indexer + the worker rebuilder).
+export {
+  sanitiseSearchString,
+  sanitiseSearchBody,
+  sanitiseSearchTags,
+  safeMetadataSnapshot,
+  buildEvidenceProjection,
+  buildWorkflowInstanceProjection,
+  isAllowedSearchDocumentType,
+  SEARCH_TITLE_MAX_CHARS,
+  SEARCH_SUBTITLE_MAX_CHARS,
+  SEARCH_SUMMARY_MAX_CHARS,
+  SEARCH_BODY_MAX_CHARS,
+  SEARCH_TAG_MAX_COUNT,
+  type SearchDocumentProjection,
+  type ProjectionResult,
+  type ProjectionFailureReason,
+  type EvidenceProjectionInput,
+  type WorkflowInstanceProjectionInput,
+} from "./search-projection.js";
+
 // -----------------------------------------------------------------------------
 // Phase 22 — Evidence Workflow Engine (runtime instance + step layer)
 // -----------------------------------------------------------------------------

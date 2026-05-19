@@ -160,6 +160,20 @@ export const SECURITY_EVENT_TYPES = [
   "search_saved_view_deleted",
   "search_relationship_created",
   "search_relationship_deleted",
+  // Phase 24-J — discovery audit + OCR/transcript foundations + async
+  // indexing. Each event documents a failure or a fail-closed
+  // engagement; the search service does NOT emit a success-event per
+  // query (that's what the dedicated `search_audit_logs` table is for).
+  "search_audit_log_write_failed",
+  "search_audit_log_read_failed",
+  "search_indexing_enqueue_failed",
+  "search_indexing_lag_critical",
+  "search_ocr_text_redacted",
+  "search_ocr_text_indexing_failed",
+  "search_transcript_segment_redacted",
+  "search_transcript_segment_indexing_failed",
+  "search_fail_closed_engaged",
+  "search_semantic_unavailable",
   // Phase 25 — Reviewer Operations Intelligence + SLA engine.
   "reviewer_assignment_created",
   "reviewer_reassigned",

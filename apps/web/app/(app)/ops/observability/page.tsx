@@ -340,6 +340,11 @@ export default function ObservabilityDashboardPage() {
     () => readiness?.subsystems.find((s) => s.id === "queues") ?? null,
     [readiness],
   );
+  // Phase 24-B — search indexing subsystem readiness.
+  const searchIndexingSubsystem = useMemo(
+    () => readiness?.subsystems.find((s) => s.id === "search_indexing") ?? null,
+    [readiness],
+  );
 
   // Phase 28-J — rolling sample buffers for sparklines. Each metric we
   // care about gets a bounded queue of the last 20 polled values. This
@@ -632,6 +637,37 @@ export default function ObservabilityDashboardPage() {
               : !queuesSubsystem
                 ? "Loading…"
                 : queuesSubsystem.detail || queuesSubsystem.reasonCode
+          }
+        />
+        <SummaryTile
+          label="Search indexing"
+          value={
+            readinessError
+              ? "?"
+              : !searchIndexingSubsystem
+                ? "—"
+                : searchIndexingSubsystem.status
+          }
+          tone={
+            readinessError
+              ? "unknown"
+              : !searchIndexingSubsystem
+                ? "neutral"
+                : searchIndexingSubsystem.status === "CRITICAL"
+                  ? "critical"
+                  : searchIndexingSubsystem.status === "DEGRADED"
+                    ? "warning"
+                    : searchIndexingSubsystem.status === "UNKNOWN"
+                      ? "unknown"
+                      : "healthy"
+          }
+          hint={
+            readinessError
+              ? "Readiness unavailable — treat as unknown"
+              : !searchIndexingSubsystem
+                ? "Loading…"
+                : searchIndexingSubsystem.detail ||
+                  searchIndexingSubsystem.reasonCode
           }
         />
       </section>

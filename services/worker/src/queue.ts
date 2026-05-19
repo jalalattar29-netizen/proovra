@@ -21,6 +21,32 @@ export const otsUpgradeJobName = "UpgradeOts";
 export const evidencePurgeQueueName = "evidence-purge";
 export const purgeDeletedEvidenceJobName = "PurgeDeletedEvidenceJob";
 
+// Phase 24-J — async Search Discovery indexing queue. Replaces inline
+// indexing on the request path so heavy index builds (multipart OCR
+// rollup, workflow event chains, etc.) don't block the API.
+export const searchIndexingQueueName = "search-indexing";
+export const searchIndexingJobName = "RebuildSearchDocument";
+
+export type SearchIndexingDocumentKind =
+  | "evidence"
+  | "workflow_instance"
+  | "workflow_step"
+  | "review_event"
+  | "operational_incident"
+  | "case";
+
+export type SearchIndexingJobPayload = {
+  teamId: string;
+  kind: SearchIndexingDocumentKind;
+  sourceId: string;
+  /**
+   * Why this rebuild was enqueued. Bounded catalog so the audit trail
+   * + worker logs stay scanable. Examples: "lifecycle_changed",
+   * "legal_hold_placed", "operator_reindex", "ocr_segment_indexed".
+   */
+  reason: string;
+};
+
 export type PurgeDeletedEvidenceJobPayload = {
   evidenceId: string;
 };
@@ -66,6 +92,77 @@ export const evidencePurgeQueue = new Queue(evidencePurgeQueueName, {
     removeOnFail: false,
   },
 });
+
+// Phase 24-J — async Search Discovery indexing queue.
+export const searchIndexingQueue = new Queue(searchIndexingQueueName, {
+  connection: redisConnection,
+  defaultJobOptions: {
+    attempts: 5,
+    backoff: { type: "exponential", delay: 5_000 },
+    removeOnComplete: 200,
+    removeOnFail: 200,
+  },
+});
+
+export function buildSearchIndexingJobId(
+  kind: SearchIndexingDocumentKind,
+  sourceId: string,
+): string {
+  return `search-index-${kind}-${sourceId}`;
+}
+
+/**
+ * Enqueue a Discovery index rebuild. Idempotent — repeat calls collapse
+ * to the existing job. Never throws to the calling flow; a Redis outage
+ * returns `enqueued: false, reason: "queue_unavailable"` and the caller
+ * relies on the periodic reconciliation cron to catch the drift.
+ */
+export async function enqueueSearchIndexingJob(
+  payload: SearchIndexingJobPayload,
+  options: { delayMs?: number } = {},
+): Promise<
+  | { enqueued: true; jobId: string }
+  | { enqueued: false; reason: string }
+> {
+  const jobId = buildSearchIndexingJobId(payload.kind, payload.sourceId);
+  try {
+    const existing = await searchIndexingQueue.getJob(jobId);
+    if (existing) {
+      const state = await existing.getState();
+      if (
+        state === "waiting" ||
+        state === "delayed" ||
+        state === "active" ||
+        state === "prioritized"
+      ) {
+        // Already queued or running — collapse to existing.
+        return { enqueued: false, reason: `job_${state}` };
+      }
+      try {
+        await existing.remove();
+      } catch {
+        // ignore race
+      }
+    }
+    await searchIndexingQueue.add(searchIndexingJobName, payload, {
+      jobId,
+      delay: Math.max(0, options.delayMs ?? 0),
+      attempts: 5,
+      backoff: { type: "exponential", delay: 5_000 },
+      removeOnComplete: 200,
+      removeOnFail: 200,
+    });
+    return { enqueued: true, jobId };
+  } catch (err) {
+    return {
+      enqueued: false,
+      reason:
+        err instanceof Error
+          ? `queue_unavailable:${err.message.slice(0, 80)}`
+          : "queue_unavailable",
+    };
+  }
+}
 
 export function buildOtsUpgradeJobId(evidenceId: string): string {
   return `ots-upgrade-${evidenceId}`;

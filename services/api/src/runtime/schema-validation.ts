@@ -88,7 +88,8 @@ export type SubsystemId =
   | "workflow_engine"
   | "integrations"
   | "identity"
-  | "operational_incidents";
+  | "operational_incidents"
+  | "search_discovery";
 
 /**
  * The expected-schema catalog. Updated when a new migration adds
@@ -172,6 +173,33 @@ export const EXPECTED_SCHEMA: ReadonlyArray<ExpectedSchemaObject> = [
   // ---------------------------------------------------------------------------
   { kind: "table", name: "operational_incidents", severity: "important", subsystem: "operational_incidents" },
   { kind: "table", name: "operational_incident_events", severity: "important", subsystem: "operational_incidents" },
+
+  // ---------------------------------------------------------------------------
+  // Search + Discovery (Phase 24 + 24-J). The Phase 24 base shipped
+  // `evidence_search_documents` and `saved_search_views`; Phase 24-J
+  // adds the dedicated audit log, OCR text, and transcript stores.
+  // The FTS `tsv` column on `evidence_search_documents` is OPTIONAL —
+  // the service falls back to ILIKE when it's missing — so it's
+  // registered as `important` not `critical`.
+  // ---------------------------------------------------------------------------
+  { kind: "table", name: "evidence_search_documents", severity: "important", subsystem: "search_discovery" },
+  { kind: "table", name: "saved_search_views", severity: "important", subsystem: "search_discovery" },
+  { kind: "table", name: "search_audit_logs", severity: "important", subsystem: "search_discovery" },
+  { kind: "table", name: "evidence_ocr_text", severity: "important", subsystem: "search_discovery" },
+  { kind: "table", name: "evidence_transcript_segments", severity: "important", subsystem: "search_discovery" },
+  // Phase 24-J FTS additions on the search document table. Missing →
+  // the service falls back to ILIKE; not a fail-fast.
+  { kind: "column", table: "evidence_search_documents", column: "tsv", severity: "optional", subsystem: "search_discovery" },
+  { kind: "index", table: "evidence_search_documents", indexName: "evidence_search_documents_tsv_gin", severity: "optional", subsystem: "search_discovery" },
+  // Audit log critical columns.
+  { kind: "column", table: "search_audit_logs", column: "fail_closed", severity: "important", subsystem: "search_discovery" },
+  { kind: "column", table: "search_audit_logs", column: "filtered_governance_count", severity: "important", subsystem: "search_discovery" },
+  // OCR / transcript visibility scope columns — drift here would
+  // disable the governance gate on Discovery indexing.
+  { kind: "column", table: "evidence_ocr_text", column: "visibility_scope", severity: "important", subsystem: "search_discovery" },
+  { kind: "column", table: "evidence_ocr_text", column: "redacted", severity: "important", subsystem: "search_discovery" },
+  { kind: "column", table: "evidence_transcript_segments", column: "visibility_scope", severity: "important", subsystem: "search_discovery" },
+  { kind: "column", table: "evidence_transcript_segments", column: "redacted", severity: "important", subsystem: "search_discovery" },
 ];
 
 // -----------------------------------------------------------------------------
@@ -348,6 +376,7 @@ function rollUpSubsystems(
     "integrations",
     "identity",
     "operational_incidents",
+    "search_discovery",
   ];
   return ids.map((subsystem) => {
     const subsystemFailures = failures.filter(

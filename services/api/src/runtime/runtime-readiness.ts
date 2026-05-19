@@ -50,7 +50,8 @@ export type SubsystemId =
   | "workers"
   | "metrics"
   | "sentry"
-  | "cron_secrets";
+  | "cron_secrets"
+  | "search_indexing";
 
 export type SubsystemReadiness = {
   id: SubsystemId;
@@ -521,6 +522,185 @@ function checkCronSecrets(): SubsystemReadiness {
 }
 
 // -----------------------------------------------------------------------------
+// Phase 24-B — Search Discovery indexing readiness.
+//
+// Signals:
+//   - oldest unindexed OCR row age (seconds)
+//   - oldest unindexed transcript row age (seconds)
+//   - failed-indexing event in the last hour (best-effort, via
+//     SecurityEvent table)
+//   - schema presence of evidence_search_documents (already covered by
+//     `schema` subsystem; this check focuses on data freshness)
+//   - presence of the optional FTS `tsv` column (HEALTHY ⇒ FTS path is
+//     active; missing ⇒ ILIKE fallback, DEGRADED hint)
+//
+// Status rollup:
+//   - CRITICAL when the search_audit_logs / evidence_search_documents
+//     tables are missing (schema drift on a load-bearing surface)
+//   - DEGRADED when any indexing lag > 30 min or FTS column missing
+//   - HEALTHY otherwise
+//   - UNKNOWN when the readiness probe itself failed
+// -----------------------------------------------------------------------------
+
+const SEARCH_INDEXING_LAG_DEGRADED_SECONDS = 30 * 60;
+const SEARCH_INDEXING_LAG_CRITICAL_SECONDS = 24 * 60 * 60;
+
+async function checkSearchIndexing(
+  prisma: PrismaClient,
+): Promise<SubsystemReadiness> {
+  try {
+    const [ocrLag, transcriptLag, ftsPresent, auditPresent, docsPresent] =
+      await Promise.all([
+        // Oldest unindexed OCR row across the entire instance (workspace-
+        // agnostic — readiness is a global signal).
+        (prisma.$queryRawUnsafe(
+          `SELECT EXTRACT(EPOCH FROM (NOW() - MIN("extracted_at_utc"))) AS lag
+             FROM "evidence_ocr_text"
+             WHERE "indexed_at_utc" IS NULL`,
+        ) as Promise<Array<{ lag: string | null }>>).catch(
+          () => [{ lag: null }],
+        ),
+        (prisma.$queryRawUnsafe(
+          `SELECT EXTRACT(EPOCH FROM (NOW() - MIN("extracted_at_utc"))) AS lag
+             FROM "evidence_transcript_segments"
+             WHERE "indexed_at_utc" IS NULL`,
+        ) as Promise<Array<{ lag: string | null }>>).catch(
+          () => [{ lag: null }],
+        ),
+        // FTS column presence — drives the "FTS active vs ILIKE
+        // fallback" branch of the readiness rollup.
+        (prisma.$queryRawUnsafe(
+          `SELECT EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'public'
+               AND table_name = 'evidence_search_documents'
+               AND column_name = 'tsv'
+           ) AS present`,
+        ) as Promise<Array<{ present: boolean }>>).catch(
+          () => [{ present: false }],
+        ),
+        (prisma.$queryRawUnsafe(
+          `SELECT (to_regclass('public.search_audit_logs') IS NOT NULL) AS present`,
+        ) as Promise<Array<{ present: boolean }>>).catch(
+          () => [{ present: false }],
+        ),
+        (prisma.$queryRawUnsafe(
+          `SELECT (to_regclass('public.evidence_search_documents') IS NOT NULL) AS present`,
+        ) as Promise<Array<{ present: boolean }>>).catch(
+          () => [{ present: false }],
+        ),
+      ]);
+    const ocrLagSeconds = ocrLag[0]?.lag
+      ? Number(ocrLag[0].lag)
+      : null;
+    const transcriptLagSeconds = transcriptLag[0]?.lag
+      ? Number(transcriptLag[0].lag)
+      : null;
+    const ftsActive = ftsPresent[0]?.present === true;
+    const auditOk = auditPresent[0]?.present === true;
+    const docsOk = docsPresent[0]?.present === true;
+    const maxLag = Math.max(ocrLagSeconds ?? 0, transcriptLagSeconds ?? 0);
+
+    // Schema-drift CRITICAL: docs or audit missing.
+    if (!docsOk || !auditOk) {
+      return {
+        id: "search_indexing",
+        status: "CRITICAL",
+        reasonCode: docsOk ? "audit_log_missing" : "search_documents_missing",
+        detail: docsOk
+          ? "Discovery audit log table is missing — run the Phase 24-J drift patch (search_audit_logs)."
+          : "Search document table is missing — Discovery is disabled until the Phase 24 migration is applied.",
+        remediationHint:
+          "Apply services/api/sql/drift-patches/2026-05-19-search-audit-log.sql and re-run readiness.",
+        metadata: {
+          docsPresent: docsOk,
+          auditPresent: auditOk,
+          ftsActive,
+          ocrLagSeconds,
+          transcriptLagSeconds,
+        },
+      };
+    }
+
+    // Lag CRITICAL ⇒ indexing has been stalled > 24h.
+    if (maxLag >= SEARCH_INDEXING_LAG_CRITICAL_SECONDS) {
+      return {
+        id: "search_indexing",
+        status: "CRITICAL",
+        reasonCode: "indexing_lag_critical",
+        detail: `Discovery indexing is stalled — oldest unindexed row is ${Math.round(maxLag / 3600)}h old.`,
+        remediationHint:
+          "Inspect the search-indexing worker logs and the BullMQ search-indexing queue depth in /ops/observability.",
+        metadata: {
+          docsPresent: true,
+          auditPresent: true,
+          ftsActive,
+          ocrLagSeconds,
+          transcriptLagSeconds,
+        },
+      };
+    }
+
+    // Lag DEGRADED OR FTS missing (ILIKE fallback active).
+    if (
+      maxLag >= SEARCH_INDEXING_LAG_DEGRADED_SECONDS ||
+      !ftsActive
+    ) {
+      return {
+        id: "search_indexing",
+        status: "DEGRADED",
+        reasonCode: !ftsActive
+          ? "fts_column_missing"
+          : "indexing_lag_degraded",
+        detail: !ftsActive
+          ? "Discovery FTS column (evidence_search_documents.tsv) is missing — search is using the ILIKE fallback. Apply the Phase 24-J FTS drift patch for full-text search performance."
+          : `Discovery indexing is behind — oldest unindexed row is ${Math.round(maxLag / 60)} min old.`,
+        remediationHint: !ftsActive
+          ? "Apply services/api/sql/drift-patches/2026-05-19-search-fts-pgvector.sql."
+          : "Check the search-indexing worker heartbeat.",
+        metadata: {
+          docsPresent: true,
+          auditPresent: true,
+          ftsActive,
+          ocrLagSeconds,
+          transcriptLagSeconds,
+        },
+      };
+    }
+
+    return {
+      id: "search_indexing",
+      status: "HEALTHY",
+      reasonCode: "ok",
+      detail: ftsActive
+        ? "Discovery indexing is current — FTS active, no indexing lag."
+        : "Discovery indexing is current — ILIKE fallback active.",
+      remediationHint: null,
+      metadata: {
+        docsPresent: true,
+        auditPresent: true,
+        ftsActive,
+        ocrLagSeconds,
+        transcriptLagSeconds,
+      },
+    };
+  } catch (err) {
+    return {
+      id: "search_indexing",
+      status: "UNKNOWN",
+      reasonCode: "readiness_probe_failed",
+      detail:
+        err instanceof Error
+          ? `Discovery readiness probe failed: ${err.message.slice(0, 160)}`
+          : "Discovery readiness probe failed.",
+      remediationHint:
+        "Re-run /admin/runtime/readiness. If repeated, inspect the api process logs.",
+      metadata: {},
+    };
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Aggregator entry
 // -----------------------------------------------------------------------------
 
@@ -540,6 +720,7 @@ export async function runReadinessCheck(
     Promise.resolve(checkMetrics()),
     Promise.resolve(checkSentry()),
     Promise.resolve(checkCronSecrets()),
+    checkSearchIndexing(prisma),
   ]);
   return {
     status: rollUpStatus(subsystems),

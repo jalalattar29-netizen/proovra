@@ -62,6 +62,7 @@ import {
   startReview,
   type LifecycleActorContext,
 } from "../services/reviewer-ops/reviewer-operations-engine.service.js";
+import { projectQueueIntelligence } from "../services/reviewer-ops/queue-intelligence.service.js";
 import {
   EscalationEngineError,
   acknowledgeEscalation,
@@ -323,6 +324,34 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           limit: q.limit,
         },
       );
+      return reply.code(200).send(result);
+    },
+  );
+
+  // ===========================================================================
+  // POST /v1/reviewer-ops/queue-intelligence
+  // Phase 25.7 — single projection endpoint that hydrates queue rows
+  // with priority + stuck + assignment-suggestion + workload pressure
+  // + governance blockers. Bounded to 100 workflowIds per call.
+  // ===========================================================================
+  app.post(
+    "/v1/reviewer-ops/queue-intelligence",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = z
+        .object({
+          teamId: z.string().uuid(),
+          workflowIds: z.array(z.string().uuid()).min(1).max(100),
+        })
+        .parse(req.body ?? {});
+      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      if (!ctx) return;
+      const result = await projectQueueIntelligence({
+        teamId: body.teamId,
+        workflowIds: body.workflowIds,
+        actorUserId: ctx.actorUserId,
+        isReviewerCapable: ctx.isReviewerCapable,
+      });
       return reply.code(200).send(result);
     },
   );

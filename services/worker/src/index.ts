@@ -13,12 +13,15 @@ import {
   reportDlqQueue,
   reportQueue,
   reportQueueName,
+  searchIndexingQueue,
+  searchIndexingQueueName,
 } from "./queue.js";
 import {
   processGenerateReport,
   processPurgeDeletedEvidence,
 } from "./processor.js";
 import { processOtsUpgrade } from "./ots-upgrade.processor.js";
+import { processSearchIndexingJob } from "./search-indexing.processor.js";
 import { startHealthServer, type HealthServer } from "./health.js";
 import { captureException, initSentry } from "./sentry.js";
 import { reapExpiredCaptureDrafts } from "./capture-reaper.js";
@@ -88,7 +91,7 @@ function getErrorMessage(err: unknown): string {
 }
 
 function isExpectedOtsPendingError(
-  jobKind: "report" | "ots-upgrade" | "evidence-purge",
+  jobKind: "report" | "ots-upgrade" | "evidence-purge" | "search-indexing",
   err: unknown
 ): boolean {
   if (jobKind !== "ots-upgrade") return false;
@@ -97,7 +100,7 @@ function isExpectedOtsPendingError(
 
 function bindWorkerEvents(
   workerInstance: Worker,
-  jobKind: "report" | "ots-upgrade" | "evidence-purge"
+  jobKind: "report" | "ots-upgrade" | "evidence-purge" | "search-indexing"
 ) {
   workerInstance.on("completed", (job) => {
     const requestId = randomUUID();
@@ -958,9 +961,20 @@ const evidencePurgeWorker = new Worker(
   }
 );
 
+// Phase 24-J — Search Discovery indexing worker.
+const searchIndexingWorker = new Worker(
+  searchIndexingQueueName,
+  processSearchIndexingJob,
+  {
+    connection: redisConnection,
+    concurrency: 2,
+  }
+);
+
 bindWorkerEvents(reportWorker, "report");
 bindWorkerEvents(otsUpgradeWorker, "ots-upgrade");
 bindWorkerEvents(evidencePurgeWorker, "evidence-purge");
+bindWorkerEvents(searchIndexingWorker, "search-indexing");
 
 let healthServer: HealthServer | null = null;
 let shuttingDown = false;
@@ -1029,6 +1043,14 @@ async function shutdown(exitCode: number) {
   } catch (err) {
     const requestId = randomUUID();
     logger.error({ requestId, err }, "worker.close_evidence_purge_failed");
+    captureException(err, { requestId });
+  }
+
+  try {
+    await searchIndexingWorker.close();
+  } catch (err) {
+    const requestId = randomUUID();
+    logger.error({ requestId, err }, "worker.close_search_indexing_failed");
     captureException(err, { requestId });
   }
 

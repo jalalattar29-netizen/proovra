@@ -39,6 +39,19 @@ export {
   type SparklineProps,
   type SparklineSeverity,
 } from "./Sparkline";
+// Phase 25.6 — Reviewer Ops UI maturity primitives (consume the shared
+// reviewer-priority + reviewer-assignment + stuck-workflow engines).
+export { PriorityChip, type PriorityChipProps } from "./PriorityChip";
+export { StuckBadge, type StuckBadgeProps } from "./StuckBadge";
+export {
+  AssignmentSuggestionRow,
+  type AssignmentSuggestionRowProps,
+} from "./AssignmentSuggestionRow";
+export {
+  WorkloadHeatTile,
+  type WorkloadHeatTileProps,
+  type ReviewerWorkloadSnapshot,
+} from "./WorkloadHeatTile";
 export {
   OperationalEmptyState,
   NoEscalationsEmptyState,

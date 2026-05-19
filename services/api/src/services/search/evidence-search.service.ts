@@ -49,6 +49,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import { recordSearchAudit } from "./search-audit.service.js";
 
 // -----------------------------------------------------------------------------
 // Result
@@ -70,6 +71,15 @@ export type ExecuteSearchInput = {
   actorUserId: string;
   isReviewerCapable: boolean;
   filter: SearchFilterInput;
+  /** Phase 24-B — bounded surface label written to the dedicated audit
+   *  log so compliance can answer "who searched where". Defaults to
+   *  `api:executeSearch` when the caller doesn't pass one. */
+  surface?: string;
+  /** Phase 24-B — request correlation id, persisted on the audit row. */
+  requestId?: string | null;
+  /** Phase 24-B — raw IP — hashed inside the audit service, never
+   *  persisted raw. */
+  ipAddress?: string | null;
 };
 
 export async function executeSearch(
@@ -166,6 +176,7 @@ export async function executeSearch(
     });
   } catch (err) {
     bump("search_indexing_failed_total");
+    bump("search_fail_closed_engaged_total");
     safeEmitSecurityEvent({
       teamId: filter.teamId,
       eventType: "search_indexing_drift_detected",
@@ -174,6 +185,25 @@ export async function executeSearch(
         reason: err instanceof Error ? err.message.slice(0, 200) : "unknown",
       },
     });
+    // Phase 24-B — even on a failed query the audit log records the
+    // fail-closed engagement so compliance can prove the gate is firing.
+    void recordSearchAudit(
+      {
+        teamId: filter.teamId,
+        actorUserId: input.actorUserId,
+        surface: input.surface ?? "api:executeSearch",
+        queryText: filter.q ?? null,
+        documentTypes: filter.documentTypes ?? null,
+        filters: buildSafeFilterSnapshot(filter),
+        resultCount: 0,
+        filteredGovernanceCount: 0,
+        filteredVisibilityCount: 0,
+        failClosed: true,
+        requestId: input.requestId ?? null,
+        ipAddress: input.ipAddress ?? null,
+      },
+      client,
+    );
     return {
       rows: [],
       nextCursor: null,
@@ -228,6 +258,9 @@ export async function executeSearch(
   // SecurityEvent with a HASH of the query (never the raw text) so
   // operators can correlate without us leaking what people typed.
   bump("search_executed_total");
+  if (safeRows.length > 0) {
+    bump("search_result_returned_total", safeRows.length);
+  }
   safeEmitSecurityEvent({
     teamId: filter.teamId,
     eventType: "search_executed",
@@ -242,6 +275,28 @@ export async function executeSearch(
       filteredByVisibility,
     },
   });
+
+  // Phase 24-B — dedicated operator-facing audit row. Best-effort:
+  // recordSearchAudit catches its own errors and never throws to the
+  // calling search handler. The SecurityEvent stream above remains as
+  // the durable backup.
+  void recordSearchAudit(
+    {
+      teamId: filter.teamId,
+      actorUserId: input.actorUserId,
+      surface: input.surface ?? "api:executeSearch",
+      queryText: filter.q ?? null,
+      documentTypes: filter.documentTypes ?? null,
+      filters: buildSafeFilterSnapshot(filter),
+      resultCount: safeRows.length,
+      filteredGovernanceCount: filteredByGovernance,
+      filteredVisibilityCount: filteredByVisibility,
+      failClosed: false,
+      requestId: input.requestId ?? null,
+      ipAddress: input.ipAddress ?? null,
+    },
+    client,
+  );
 
   const nextCursor =
     hasMore && safeRows.length > 0
@@ -265,6 +320,35 @@ function hashQuery(q: string): string {
     .update(q.toLowerCase().trim(), "utf8")
     .digest("hex")
     .slice(0, 16);
+}
+
+/**
+ * Phase 24-B — operator-safe filter snapshot for the search audit row.
+ *
+ * The raw `SearchFilterInput` is safe to persist verbatim minus the
+ * `q` text. We strip `q` (already hashed separately), `cursor` (opaque
+ * pagination state, not investigation-relevant), and any field that
+ * could leak raw search syntax. Document-type / lifecycle / governance
+ * fields are persisted as-is so compliance can answer "who searched
+ * for legal-hold blocks in October".
+ */
+function buildSafeFilterSnapshot(
+  filter: SearchFilterInput,
+): Record<string, unknown> {
+  return {
+    documentTypes: filter.documentTypes ?? null,
+    workflowStatuses: filter.workflowStatuses ?? null,
+    reviewStatuses: filter.reviewStatuses ?? null,
+    onLegalHold: filter.onLegalHold ?? null,
+    exportRestricted: filter.exportRestricted ?? null,
+    workflowLinked: filter.workflowLinked ?? null,
+    contributorScoped: filter.contributorScoped ?? null,
+    updatedSinceUtc: filter.updatedSinceUtc ?? null,
+    updatedUntilUtc: filter.updatedUntilUtc ?? null,
+    sort: filter.sort ?? null,
+    limit: filter.limit ?? null,
+    hasQueryText: filter.q ? true : false,
+  };
 }
 
 function sortToOrderBy(

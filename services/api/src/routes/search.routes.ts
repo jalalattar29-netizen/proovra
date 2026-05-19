@@ -36,6 +36,10 @@ import {
   indexEvidence,
   indexWorkflowInstance,
 } from "../services/search/evidence-indexing.service.js";
+import {
+  listSearchAudit,
+  recordSearchAudit,
+} from "../services/search/search-audit.service.js";
 
 async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireAuth(req, reply);
@@ -615,6 +619,11 @@ export async function searchRoutes(app: FastifyInstance) {
         actorUserId: actor.userId,
         isReviewerCapable: actor.isReviewerCapable,
         filter,
+        // Phase 24-B — propagate request context so the dedicated
+        // audit row carries surface + requestId + hashed ip.
+        surface: "api:/v1/search",
+        requestId: req.id,
+        ipAddress: req.ip,
       });
       return reply.code(200).send({
         rows: result.rows,
@@ -852,6 +861,65 @@ export async function searchRoutes(app: FastifyInstance) {
         created: result.created,
       });
     }
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /v1/search/audit — Phase 24-J Discovery audit log
+  //
+  // Operator-facing audit log for every Discovery / Enterprise Search
+  // query the platform has run. The handler enforces the same
+  // `requireSearchOperator` gate the reindex handlers use — only
+  // OWNER / ADMIN / REVIEWER roles can read who searched for what.
+  // Raw query text is NEVER returned (only a hash prefix), so this
+  // surface does not become a leak vector.
+  // -------------------------------------------------------------------------
+  app.get(
+    "/v1/search/audit",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z
+        .object({
+          teamId: z.string().uuid(),
+          actorUserId: z.string().uuid().optional(),
+          failClosedOnly: z.coerce.boolean().optional(),
+          limit: z.coerce.number().int().min(1).max(200).optional(),
+          beforeUtc: z.string().datetime().optional(),
+        })
+        .parse(req.query ?? {});
+      const operator = await requireSearchOperator(req, reply, q.teamId);
+      if (!operator) return;
+      const result = await listSearchAudit({
+        teamId: q.teamId,
+        actorUserId: q.actorUserId ?? null,
+        failClosedOnly: q.failClosedOnly ?? false,
+        limit: q.limit,
+        beforeUtc: q.beforeUtc ?? null,
+      });
+      // The act of reading the audit log is itself an audit-worthy
+      // operation. We record it with a synthetic surface so compliance
+      // can see "who pulled the search audit log".
+      void recordSearchAudit({
+        teamId: q.teamId,
+        actorUserId: operator.userId,
+        surface: "api:/v1/search/audit",
+        queryText: null,
+        documentTypes: null,
+        filters: {
+          actorUserId: q.actorUserId ?? null,
+          failClosedOnly: q.failClosedOnly ?? false,
+        },
+        resultCount: result.rows.length,
+        filteredGovernanceCount: 0,
+        filteredVisibilityCount: 0,
+        failClosed: false,
+        requestId: req.id,
+        ipAddress: req.ip,
+      });
+      return reply.code(200).send({
+        rows: result.rows,
+        nextBeforeUtc: result.nextBeforeUtc,
+      });
+    },
   );
 
   // Reference SEARCH_DOCUMENT_TYPES / SEARCH_SORT_MODES to keep them
