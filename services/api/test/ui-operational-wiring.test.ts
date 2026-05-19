@@ -112,8 +112,12 @@ describe("OperationalTimelinePanel", () => {
 
   it("never invents events — every row from a real backend stream", () => {
     // The endpoint payload type defines `entries` from lifecycle /
-    // review / incident. We assert the component only iterates that.
-    expect(src).toContain("timeline.entries.map");
+    // review / incident. Phase 28-J groups entries by UTC date bucket,
+    // so the iteration walks `timeline.entries` once to build buckets
+    // and then `bucket.entries.map(...)` to render rows. Either pattern
+    // proves the component does not fabricate events.
+    expect(src).toMatch(/for\s*\(\s*const\s+entry\s+of\s+timeline\.entries/);
+    expect(src).toContain("bucket.entries.map");
     expect(src).not.toMatch(/synthetic|fake|invented/i);
   });
 });

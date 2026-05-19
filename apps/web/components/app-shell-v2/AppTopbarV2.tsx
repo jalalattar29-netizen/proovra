@@ -13,6 +13,8 @@ import {
   UserCircle,
 } from "lucide-react";
 import { LanguageSwitcher } from "../language-switcher";
+import { GlobalRuntimeIndicator } from "../operational";
+import { useActiveWorkspaceId } from "../../lib/useActiveWorkspaceId";
 
 export type AppShellUserV2 = {
   email?: string | null;
@@ -66,6 +68,10 @@ export function AppTopbarV2({
   const pathname = usePathname();
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement | null>(null);
+  // Phase 28-J — workspace-scoped runtime awareness for the topbar pill.
+  const workspace = useActiveWorkspaceId();
+  const runtimeTeamId =
+    workspace.status === "ready" ? workspace.workspaceId : null;
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -122,6 +128,13 @@ export function AppTopbarV2({
         </nav>
 
         <div className="app-topbar-v2-actions">
+          <div
+            className="app-topbar-v2-runtime"
+            data-app-topbar-runtime
+            style={{ display: "inline-flex", alignItems: "center" }}
+          >
+            <GlobalRuntimeIndicator teamId={runtimeTeamId} />
+          </div>
           <div className="app-topbar-v2-language">
             <LanguageSwitcher />
           </div>

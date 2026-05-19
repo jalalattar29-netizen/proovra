@@ -31,6 +31,8 @@ import {
   OPS_SURFACE,
   OPS_TONES,
   RuntimeStatusBanner,
+  Sparkline,
+  type SparklineSeverity,
 } from "../../../../components/operational";
 
 type RuntimeReadinessReport = {
@@ -328,6 +330,120 @@ export default function ObservabilityDashboardPage() {
       .map((s) => ({ id: s.id, status: s.status }));
   }, [readiness]);
 
+  // Phase 28-J — worker + queue subsystem visibility. Real values from
+  // the readiness probe, not synthetic.
+  const workersSubsystem = useMemo(
+    () => readiness?.subsystems.find((s) => s.id === "workers") ?? null,
+    [readiness],
+  );
+  const queuesSubsystem = useMemo(
+    () => readiness?.subsystems.find((s) => s.id === "queues") ?? null,
+    [readiness],
+  );
+
+  // Phase 28-J — rolling sample buffers for sparklines. Each metric we
+  // care about gets a bounded queue of the last 20 polled values. This
+  // is in-page session data only — not historical / persistent. Caller
+  // sees REAL observed values, never fabricated counters.
+  const SAMPLE_CAP = 20;
+  const HOT_METRICS: ReadonlyArray<{
+    key: string;
+    caption: string;
+    severity: SparklineSeverity;
+    source: "counter" | "gauge";
+  }> = [
+    {
+      key: "reviewer_sla_breach_total",
+      caption: "SLA breaches",
+      severity: "high",
+      source: "counter",
+    },
+    {
+      key: "reviewer_escalation_raised_total",
+      caption: "Escalation rate",
+      severity: "high",
+      source: "counter",
+    },
+    {
+      key: "queue_depth",
+      caption: "Queue depth",
+      severity: "warning",
+      source: "gauge",
+    },
+    {
+      key: "worker_retries_total",
+      caption: "Worker retries",
+      severity: "warning",
+      source: "counter",
+    },
+    {
+      key: "webhook_invalid_signature_total",
+      caption: "Webhook bad-sig",
+      severity: "warning",
+      source: "counter",
+    },
+    {
+      key: "governance_incident_opened_total",
+      caption: "Governance incidents",
+      severity: "high",
+      source: "counter",
+    },
+  ];
+  const [samples, setSamples] = useState<Record<string, number[]>>({});
+
+  useEffect(() => {
+    if (!metrics) return;
+    setSamples((prev) => {
+      const next: Record<string, number[]> = { ...prev };
+      for (const hot of HOT_METRICS) {
+        const v =
+          hot.source === "counter"
+            ? metrics.counters[hot.key] ?? 0
+            : metrics.gauges[hot.key] ?? 0;
+        const buffer = next[hot.key] ? [...next[hot.key]] : [];
+        buffer.push(v);
+        while (buffer.length > SAMPLE_CAP) buffer.shift();
+        next[hot.key] = buffer;
+      }
+      return next;
+    });
+    // We deliberately want to record one sample per polled `metrics`
+    // snapshot, so depend on `metrics` only.
+  }, [metrics]);
+
+  // Phase 28-J — operational heat surfaces. Real signals derived from
+  // the current gauge snapshot.
+  const operationalHeat = useMemo(() => {
+    if (!metrics) return null;
+    const gaugeRows = Object.entries(metrics.gauges).filter(([, v]) => v > 0);
+    const hottestQueue =
+      gaugeRows
+        .filter(([k]) => k.startsWith("queue_"))
+        .sort((a, b) => b[1] - a[1])[0] ?? null;
+    const slaPressure =
+      gaugeRows
+        .filter(
+          ([k]) =>
+            k.includes("reviewer_") &&
+            (k.includes("breach") || k.includes("due") || k.includes("overdue")),
+        )
+        .sort((a, b) => b[1] - a[1])[0] ?? null;
+    const escalationPressure =
+      gaugeRows
+        .filter(([k]) => k.includes("escalation"))
+        .sort((a, b) => b[1] - a[1])[0] ?? null;
+    const retryPressure =
+      gaugeRows
+        .filter(([k]) => k.includes("retry") || k.includes("retries"))
+        .sort((a, b) => b[1] - a[1])[0] ?? null;
+    return {
+      hottestQueue,
+      slaPressure,
+      escalationPressure,
+      retryPressure,
+    };
+  }, [metrics]);
+
   if (!teamId) {
     return (
       <main style={pageStyle}>
@@ -458,7 +574,166 @@ export default function ObservabilityDashboardPage() {
               : "Loading…"
           }
         />
+        <SummaryTile
+          label="Worker heartbeat"
+          value={
+            readinessError
+              ? "?"
+              : !workersSubsystem
+                ? "—"
+                : workersSubsystem.status
+          }
+          tone={
+            readinessError
+              ? "unknown"
+              : !workersSubsystem
+                ? "neutral"
+                : workersSubsystem.status === "CRITICAL"
+                  ? "critical"
+                  : workersSubsystem.status === "DEGRADED"
+                    ? "warning"
+                    : workersSubsystem.status === "UNKNOWN"
+                      ? "unknown"
+                      : "healthy"
+          }
+          hint={
+            readinessError
+              ? "Readiness unavailable — treat as unknown"
+              : !workersSubsystem
+                ? "Loading…"
+                : workersSubsystem.detail || workersSubsystem.reasonCode
+          }
+        />
+        <SummaryTile
+          label="Queue health"
+          value={
+            readinessError
+              ? "?"
+              : !queuesSubsystem
+                ? "—"
+                : queuesSubsystem.status
+          }
+          tone={
+            readinessError
+              ? "unknown"
+              : !queuesSubsystem
+                ? "neutral"
+                : queuesSubsystem.status === "CRITICAL"
+                  ? "critical"
+                  : queuesSubsystem.status === "DEGRADED"
+                    ? "warning"
+                    : queuesSubsystem.status === "UNKNOWN"
+                      ? "unknown"
+                      : "healthy"
+          }
+          hint={
+            readinessError
+              ? "Readiness unavailable — treat as unknown"
+              : !queuesSubsystem
+                ? "Loading…"
+                : queuesSubsystem.detail || queuesSubsystem.reasonCode
+          }
+        />
       </section>
+
+      {/* Phase 28-J — operational heat row. Real values from the gauge
+          snapshot; only the buckets that have non-zero hottest values
+          render a card. */}
+      {operationalHeat &&
+      (operationalHeat.hottestQueue ||
+        operationalHeat.slaPressure ||
+        operationalHeat.escalationPressure ||
+        operationalHeat.retryPressure) ? (
+        <section
+          data-observability-heat
+          aria-label="Operational heat"
+          style={{
+            ...cardStyle,
+            marginTop: 12,
+          }}
+        >
+          <h2 style={sectionTitleStyle}>Operational heat</h2>
+          <p style={mutedStyle}>
+            Where the system is under the most operator pressure right now.
+            Values are the current gauges, not synthetic.
+          </p>
+          <div style={heatGridStyle}>
+            {operationalHeat.hottestQueue ? (
+              <HeatCell
+                kicker="Hottest queue"
+                metric={operationalHeat.hottestQueue[0]}
+                value={operationalHeat.hottestQueue[1]}
+                severity={
+                  operationalHeat.hottestQueue[1] > 100 ? "high" : "warning"
+                }
+              />
+            ) : null}
+            {operationalHeat.slaPressure ? (
+              <HeatCell
+                kicker="Highest SLA pressure"
+                metric={operationalHeat.slaPressure[0]}
+                value={operationalHeat.slaPressure[1]}
+                severity="high"
+              />
+            ) : null}
+            {operationalHeat.escalationPressure ? (
+              <HeatCell
+                kicker="Active escalation pressure"
+                metric={operationalHeat.escalationPressure[0]}
+                value={operationalHeat.escalationPressure[1]}
+                severity="high"
+              />
+            ) : null}
+            {operationalHeat.retryPressure ? (
+              <HeatCell
+                kicker="Highest retry source"
+                metric={operationalHeat.retryPressure[0]}
+                value={operationalHeat.retryPressure[1]}
+                severity="warning"
+              />
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {/* Phase 28-J — live sparklines for the highest-signal operational
+          metrics. Built from a rolling sample buffer of polled values,
+          NOT fabricated. */}
+      {metrics ? (
+        <section
+          data-observability-sparklines
+          aria-label="Live operational trends"
+          style={{
+            ...cardStyle,
+            marginTop: 12,
+          }}
+        >
+          <h2 style={sectionTitleStyle}>Live trends</h2>
+          <p style={mutedStyle}>
+            Last {SAMPLE_CAP} polled samples (~{(SAMPLE_CAP * 15) / 60} min) for
+            the most operationally-relevant counters + gauges. Delta is the
+            change since the first sample observed this session.
+          </p>
+          <div style={sparklineGridStyle}>
+            {HOT_METRICS.map((hot) => {
+              const buffer = samples[hot.key] ?? [];
+              const first = buffer[0] ?? 0;
+              const last = buffer[buffer.length - 1] ?? 0;
+              const delta = buffer.length >= 2 ? last - first : null;
+              return (
+                <Sparkline
+                  key={hot.key}
+                  caption={hot.caption}
+                  values={buffer}
+                  severity={hot.severity}
+                  delta={delta}
+                  deltaWindow="this session"
+                />
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       {!metrics ? null : (
         <section style={cardStyle} aria-label="Top non-zero counters">
@@ -804,6 +1079,100 @@ const twoColStyle: React.CSSProperties = {
   gap: 12,
   marginTop: 8,
 };
+const heatGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+  marginTop: 8,
+};
+const sparklineGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+  gap: 14,
+  marginTop: 8,
+};
+const heatCellPalette = {
+  warning: {
+    bg: OPS_TONES.warning.bg,
+    border: OPS_TONES.warning.border,
+    ink: OPS_TONES.warning.ink,
+    kicker: OPS_TONES.warning.kicker,
+  },
+  high: {
+    bg: OPS_TONES.high.bg,
+    border: OPS_TONES.high.border,
+    ink: OPS_TONES.high.ink,
+    kicker: OPS_TONES.high.kicker,
+  },
+  critical: {
+    bg: OPS_TONES.critical.bg,
+    border: OPS_TONES.critical.border,
+    ink: OPS_TONES.critical.ink,
+    kicker: OPS_TONES.critical.kicker,
+  },
+} as const;
+function HeatCell({
+  kicker,
+  metric,
+  value,
+  severity,
+}: {
+  kicker: string;
+  metric: string;
+  value: number;
+  severity: keyof typeof heatCellPalette;
+}) {
+  const palette = heatCellPalette[severity];
+  return (
+    <div
+      data-heat-cell={kicker.toLowerCase().replace(/\s+/g, "_")}
+      data-heat-severity={severity}
+      style={{
+        background: palette.bg,
+        border: `1px solid ${palette.border}`,
+        borderRadius: 10,
+        padding: "12px 14px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          letterSpacing: 0.4,
+          textTransform: "uppercase",
+          color: palette.kicker,
+          fontWeight: 700,
+        }}
+      >
+        {kicker}
+      </div>
+      <div
+        style={{
+          fontSize: 22,
+          fontWeight: 700,
+          color: palette.ink,
+          fontVariantNumeric: "tabular-nums",
+          lineHeight: 1.1,
+        }}
+      >
+        {value.toLocaleString()}
+      </div>
+      <code
+        style={{
+          fontSize: 11,
+          color: palette.ink,
+          opacity: 0.85,
+          fontFamily:
+            "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
+        }}
+      >
+        {metric}
+      </code>
+    </div>
+  );
+}
 const navLinkStyle: React.CSSProperties = {
   color: "#4338ca",
   fontWeight: 600,

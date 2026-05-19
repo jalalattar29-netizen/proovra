@@ -41,8 +41,10 @@ describe("App sidebar — Operations group", () => {
     "../../../apps/web/components/app-shell-v2/AppSidebarV2.tsx",
   );
 
-  it("declares an OPERATIONS_NAV array", () => {
-    expect(src).toMatch(/const\s+OPERATIONS_NAV\s*:\s*SidebarItem\[\]\s*=/);
+  it("declares an Operations nav array (Phase 28-J renamed OPERATIONS_NAV → OPERATIONS_NAV_BASE so badges can be merged in per-render)", () => {
+    expect(src).toMatch(
+      /const\s+OPERATIONS_NAV_BASE\s*:\s*SidebarItem\[\]\s*=/,
+    );
   });
 
   it("includes /ops, /ops/observability, /ops/runbooks", () => {
@@ -51,13 +53,15 @@ describe("App sidebar — Operations group", () => {
     expect(src).toMatch(/href:\s*"\/ops\/runbooks"/);
   });
 
-  it("renders the Operations group between Review Operations and Manage", () => {
-    const reviewIdx = src.indexOf('title="Review Operations"');
+  it("renders the Operations group inside the enterprise IA (Primary → Operations → Governance → Admin)", () => {
+    // Phase 28-J introduced semantic groups. Operations sits between
+    // Primary and Governance.
+    const primaryIdx = src.indexOf('title="Primary"');
     const opsIdx = src.indexOf('title="Operations"');
-    const manageIdx = src.indexOf('title="Manage"');
-    expect(reviewIdx).toBeGreaterThan(0);
-    expect(opsIdx).toBeGreaterThan(reviewIdx);
-    expect(manageIdx).toBeGreaterThan(opsIdx);
+    const govIdx = src.indexOf('title="Governance"');
+    expect(primaryIdx).toBeGreaterThan(0);
+    expect(opsIdx).toBeGreaterThan(primaryIdx);
+    expect(govIdx).toBeGreaterThan(opsIdx);
   });
 
   it("never points at the broken /docs/runbooks", () => {
