@@ -126,6 +126,95 @@ export const COUNTER_NAMES = [
   "reviewer_stuck_workflow_detected_total",
   "reviewer_escalation_storm_detected_total",
   "reviewer_workload_pressure_total",
+  // Phase 26 — centralized authorize() helper.
+  "authorize_allowed_total",
+  "authorize_denied_total",
+  "authorize_failed_closed_total",
+  // Phase 30 — resumable multipart upload session lifecycle.
+  "upload_session_created_total",
+  "upload_session_resumed_total",
+  "upload_session_completed_total",
+  "upload_session_aborted_total",
+  "upload_session_expired_total",
+  "upload_session_create_failed_total",
+  "upload_session_reap_failed_total",
+  "upload_session_idempotent_reuse_total",
+  "upload_part_marked_uploaded_total",
+  "upload_part_verified_total",
+  "upload_hash_mismatch_total",
+  // Phase 30.6 — route-level counters for the resumable upload REST
+  // surface (both authenticated-web + API-key paths). The Phase 30
+  // service-layer counters above bump per-service-call; these bump
+  // per-route-invocation so we can distinguish e.g. "REST surface saw
+  // a session-create attempt" from "service created a row" (matters
+  // when idempotent reuse collapses a fresh POST onto an existing row).
+  "upload_session_route_created_total",
+  "upload_session_route_completed_total",
+  // Phase 30.7 — custody-safe finalize gate. Counts evaluations of
+  // the gate at evidence-finalize time: `no_session` is the legacy
+  // single-shot path (gate doesn't apply); `allowed`/`denied` are
+  // resumable-session paths.
+  "upload_session_finalize_gate_no_session_total",
+  "upload_session_finalize_gate_allowed_total",
+  "upload_session_finalize_gate_denied_total",
+  "upload_session_finalize_gate_failed_total",
+  // Phase 30.8 — S3 native multipart lifecycle counters.
+  // `initiated`/`completed`/`aborted` are success counts; the rest
+  // are explicit failure surfaces so SRE can distinguish "we asked
+  // S3 nicely and it said no" from "the routes are working but the
+  // bucket is misconfigured".
+  "multipart_initiated_total",
+  "multipart_initiated_failed_total",
+  "multipart_presign_part_total",
+  "multipart_part_marked_uploaded_total",
+  "multipart_part_verified_total",
+  "multipart_completed_total",
+  "multipart_aborted_total",
+  "multipart_abort_failed_total",
+  "multipart_complete_failed_total",
+  "multipart_head_failed_total",
+  "multipart_verify_failed_total",
+  "multipart_stale_cleanup_total",
+  // Phase 30.9 — client-side upload operations telemetry. The
+  // orchestrator (apps/web/lib/uploads/multipart-uploader.ts) drives
+  // these via beacon-style POSTs to /v1/ops/metrics in a follow-up
+  // batch; for now they're catalog-registered so the metrics-snapshot
+  // endpoint can surface zeros consistently.
+  "upload_resume_total",
+  "upload_pause_total",
+  "upload_cancel_total",
+  "upload_retry_total",
+  "upload_chunk_retry_total",
+  "upload_recovery_total",
+  "offline_draft_created_total",
+  "offline_draft_recovered_total",
+  "offline_draft_conflict_total",
+  "background_sync_retry_total",
+  "background_sync_failed_total",
+  // Phase 30.11 — Mixed-material finalize gate counters. Bumped by
+  // the strengthened ALL-sessions gate so SRE can distinguish:
+  //   - `allowed`: every session COMPLETED + every part VERIFIED
+  //   - `blocked`: at least one session blocking finalize
+  // Plus capture-side selection counters (bumped from the browser
+  // via /v1/ops/upload-telemetry when the resumable flag is on).
+  "mixed_material_finalize_allowed_total",
+  "mixed_material_finalize_blocked_total",
+  "capture_resumable_selected_total",
+  "capture_resumable_completed_total",
+  "capture_resumable_failed_total",
+  "capture_resumable_recovered_total",
+  // Phase 30.12 — unified manifest observability. Bumped by
+  // consumers that resolve materials via buildUnifiedEvidenceManifest.
+  "unified_manifest_materials_total",
+  "unified_manifest_mixed_evidence_total",
+  // Phase 27/28 — external reviewer grant persistence + lifecycle.
+  "external_review_invited_total",
+  "external_review_accepted_total",
+  "external_review_accessed_total",
+  "external_review_revoked_total",
+  "external_review_expired_total",
+  "external_review_grant_issue_failed_total",
+  "external_review_grant_lookup_denied_total",
   // Phase 25.5 — assignment intelligence + reconciliation wiring.
   "reviewer_assignment_rank_computed_total",
   "reviewer_assignment_auto_blocked_total",
@@ -413,6 +502,10 @@ export const GAUGE_NAMES = [
   "queue_dlq_size",
   "observability_alerts_firing",
   "observability_alerts_firing_critical",
+  // Phase 30.8 — multipart reaper telemetry.
+  "multipart_stale_scanned",
+  "multipart_stale_aborted",
+  "multipart_stale_failed",
 ] as const;
 export type GaugeName = (typeof GAUGE_NAMES)[number];
 

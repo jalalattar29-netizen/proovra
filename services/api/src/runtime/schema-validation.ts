@@ -200,6 +200,53 @@ export const EXPECTED_SCHEMA: ReadonlyArray<ExpectedSchemaObject> = [
   { kind: "column", table: "evidence_ocr_text", column: "redacted", severity: "important", subsystem: "search_discovery" },
   { kind: "column", table: "evidence_transcript_segments", column: "visibility_scope", severity: "important", subsystem: "search_discovery" },
   { kind: "column", table: "evidence_transcript_segments", column: "redacted", severity: "important", subsystem: "search_discovery" },
+
+  // ---------------------------------------------------------------------------
+  // Phase 27/28 — External reviewer grant persistence. Drift on the
+  // state catalog or the token-hash column would silently break
+  // external review access — register them at `critical` severity so
+  // the next startup fails fast if the drift patch hasn't been applied.
+  // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Phase 30 — Resumable multipart upload sessions. Drift on `state`
+  // or the unique (session_id, part_index) index would silently break
+  // upload resumability. Register at critical severity so the startup
+  // validator catches drift before the upload path fails at runtime.
+  // ---------------------------------------------------------------------------
+  { kind: "table", name: "evidence_upload_sessions", severity: "important", subsystem: "core_evidence" },
+  { kind: "table", name: "evidence_upload_session_parts", severity: "important", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_upload_sessions", column: "state", severity: "critical", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_upload_sessions", column: "completed_at_utc", severity: "critical", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_upload_session_parts", column: "state", severity: "critical", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_upload_session_parts", column: "verified_at_utc", severity: "critical", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_upload_session_parts", column: "server_sha256", severity: "critical", subsystem: "core_evidence" },
+  { kind: "index", table: "evidence_upload_session_parts", indexName: "evidence_upload_session_parts_uk", severity: "critical", subsystem: "core_evidence" },
+  // Phase 30.8 — S3 native multipart columns. Critical: dropping the
+  // `multipart_upload_id` / `storage_key` columns would break the
+  // abort/complete path against S3 and risk orphaning multipart
+  // transactions on the storage side.
+  { kind: "column", table: "evidence_upload_sessions", column: "multipart_upload_id", severity: "critical", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_upload_sessions", column: "storage_bucket", severity: "critical", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_upload_sessions", column: "storage_key", severity: "critical", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_upload_sessions", column: "completed_at_storage_utc", severity: "important", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_upload_session_parts", column: "part_etag", severity: "critical", subsystem: "core_evidence" },
+  { kind: "index", table: "evidence_upload_sessions", indexName: "evidence_upload_sessions_multipart_uk", severity: "important", subsystem: "core_evidence" },
+  // Phase 30.12 — upload-session → EvidencePart bridge columns.
+  // Dropping `bridged_evidence_part_id` would break the idempotency
+  // guarantee on completeStorageMultipart's bridge step (a retry
+  // could create a second EvidencePart row).
+  { kind: "column", table: "evidence_upload_sessions", column: "target_part_index", severity: "critical", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_upload_sessions", column: "original_file_name", severity: "critical", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_upload_sessions", column: "expected_mime_type", severity: "important", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_upload_sessions", column: "bridged_evidence_part_id", severity: "critical", subsystem: "core_evidence" },
+
+  { kind: "table", name: "external_review_grants", severity: "important", subsystem: "governance_lifecycle" },
+  { kind: "column", table: "external_review_grants", column: "state", severity: "critical", subsystem: "governance_lifecycle" },
+  { kind: "column", table: "external_review_grants", column: "token_hash", severity: "critical", subsystem: "governance_lifecycle" },
+  { kind: "column", table: "external_review_grants", column: "expires_at_utc", severity: "critical", subsystem: "governance_lifecycle" },
+  { kind: "column", table: "external_review_grants", column: "scope_kind", severity: "important", subsystem: "governance_lifecycle" },
+  { kind: "column", table: "external_review_grants", column: "allow_original_download", severity: "important", subsystem: "governance_lifecycle" },
+  { kind: "index", table: "external_review_grants", indexName: "external_review_grants_token_hash_uk", severity: "critical", subsystem: "governance_lifecycle" },
 ];
 
 // -----------------------------------------------------------------------------

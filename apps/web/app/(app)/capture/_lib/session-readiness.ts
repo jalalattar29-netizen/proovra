@@ -43,11 +43,41 @@ export type SessionReadiness = {
   summary: SessionReadinessSummary;
 };
 
+/**
+ * Phase 30.12 — bounded vocabulary for resumable upload blockers
+ * that gate Review & Sign. Each blocker carries a sessionId so the
+ * UI can render a precise "this large file is blocking finalize"
+ * message rather than a generic disabled state.
+ *
+ * This is a SHAPE-COMPATIBLE narrow type — the hook's full
+ * `ReviewSignBlocker` discriminated union is wider but we only
+ * need the kind discriminator here. Anything else that's not in
+ * this list collapses to `failed_retryable`.
+ */
+export type ResumableReviewSignBlocker = {
+  kind:
+    | "upload_in_progress"
+    | "server_verification_pending"
+    | "hash_mismatch"
+    | "session_expired"
+    | "session_aborted"
+    | "needs_recovery"
+    | "failed_retryable";
+  sessionId: string;
+};
+
 type BuildSessionReadinessParams = {
   items: SessionItem[];
   selectedPlan: CollectionPlanTemplate | undefined;
   planMode: CapturePlanMode;
   useLocation: boolean;
+  /**
+   * Phase 30.12 — resumable upload blockers from useResumableUploads().
+   * When empty (the default), readiness reflects only the legacy
+   * capture flow. When non-empty, Review & Sign is disabled and
+   * the UI shows the precise blocker reason.
+   */
+  resumableBlockers?: ReadonlyArray<ResumableReviewSignBlocker>;
 };
 
 function createItemIssue(params: {
@@ -68,11 +98,76 @@ function createItemIssue(params: {
   };
 }
 
+/** Phase 30.12 — humanised blocker label + detail (bounded). */
+function resumableBlockerToIssue(
+  b: ResumableReviewSignBlocker,
+): ReadinessIssue {
+  switch (b.kind) {
+    case "upload_in_progress":
+      return {
+        code: "resumable_upload_in_progress",
+        severity: "blocker",
+        label: "Large file upload still in progress",
+        detail:
+          "A resumable upload is still uploading parts to storage. Review & Sign will become available when the upload completes and the server confirms verification.",
+      };
+    case "server_verification_pending":
+      return {
+        code: "resumable_server_verification_pending",
+        severity: "blocker",
+        label: "Server verification pending",
+        detail:
+          "The server is verifying the uploaded file. This usually takes a few seconds.",
+      };
+    case "hash_mismatch":
+      return {
+        code: "resumable_hash_mismatch",
+        severity: "blocker",
+        label: "Hash mismatch detected",
+        detail:
+          "The server-computed hash of the uploaded file does not match the expected value. The upload must be retried.",
+      };
+    case "session_expired":
+      return {
+        code: "resumable_session_expired",
+        severity: "blocker",
+        label: "Upload session expired",
+        detail:
+          "The upload session expired before all parts were uploaded. Re-stage the file and retry.",
+      };
+    case "session_aborted":
+      return {
+        code: "resumable_session_aborted",
+        severity: "blocker",
+        label: "Upload session aborted",
+        detail:
+          "An upload session was aborted. Discard or replace the affected file to continue.",
+      };
+    case "needs_recovery":
+      return {
+        code: "resumable_needs_recovery",
+        severity: "blocker",
+        label: "Recovery required before finalization",
+        detail:
+          "A previous upload requires operator action before this evidence can be finalized.",
+      };
+    case "failed_retryable":
+      return {
+        code: "resumable_failed_retryable",
+        severity: "blocker",
+        label: "Finalization blocked by upload session",
+        detail:
+          "A resumable upload reported a transient failure. Retry it from the operations panel.",
+      };
+  }
+}
+
 export function buildSessionReadiness({
   items,
   selectedPlan,
   planMode,
   useLocation,
+  resumableBlockers,
 }: BuildSessionReadinessParams): SessionReadiness {
   const requiredSteps = selectedPlan?.steps.filter((step) => step.required) ?? [];
   const mappedStepIds = new Set(
@@ -157,6 +252,18 @@ export function buildSessionReadiness({
       label: "Recommended location not included",
       detail: "The selected plan recommends location metadata, but it is not included for this session.",
     });
+  }
+
+  // Phase 30.12 — fold resumable upload blockers into the
+  // readiness verdict. Each upload session that isn't COMPLETED +
+  // VERIFIED contributes a precise blocker reason. The backend
+  // finalize gate remains the ultimate authority — this is just
+  // UI hygiene so the user sees why Review & Sign is disabled
+  // rather than a generic "not ready" message.
+  if (resumableBlockers && resumableBlockers.length > 0) {
+    for (const b of resumableBlockers) {
+      blockers.push(resumableBlockerToIssue(b));
+    }
   }
 
   const requiredCompleted = requiredSteps.length - missingRequiredSteps.length;

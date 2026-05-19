@@ -71,6 +71,11 @@ export const PERMISSIONS = [
   "integration.webhook.manage",
   "integration.evidence.read",
   "integration.evidence.create",
+  // Phase 30.6 — resumable upload session scope. Granted independently
+  // of `integration.evidence.create` so an ingestion key can be allowed
+  // to drive uploads without being allowed to create evidence rows by
+  // other means (and vice versa). Used by /v1/integrations/api/uploads/*.
+  "integration.evidence.upload",
   "integration.intake_link.create",
   "integration.evidence_request.create",
   "integration.evidence_request.read",
@@ -243,6 +248,7 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "integration.webhook.manage",
     "integration.evidence.read",
     "integration.evidence.create",
+    "integration.evidence.upload",
     "integration.intake_link.create",
     "integration.evidence_request.create",
     "integration.evidence_request.read",

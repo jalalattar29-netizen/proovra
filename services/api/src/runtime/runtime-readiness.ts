@@ -51,7 +51,8 @@ export type SubsystemId =
   | "metrics"
   | "sentry"
   | "cron_secrets"
-  | "search_indexing";
+  | "search_indexing"
+  | "multipart_storage";
 
 export type SubsystemReadiness = {
   id: SubsystemId;
@@ -701,6 +702,91 @@ async function checkSearchIndexing(
 }
 
 // -----------------------------------------------------------------------------
+// Phase 30.8 — multipart storage health
+//
+// Reports on the S3 native multipart upload subsystem:
+//   * Active multipart sessions (state UPLOADING with multipart_upload_id)
+//   * Stale multipart sessions (expired but storage_complete/abort still null)
+//   * Abort backlog (stale rows the reaper has not yet swept)
+//   * Failed multipart completions in the last hour
+//
+// Status:
+//   * CRITICAL if S3_BUCKET is unset (multipart cannot run).
+//   * DEGRADED if abort backlog > 20 OR failed completions > 10 / hour.
+//   * HEALTHY otherwise.
+// -----------------------------------------------------------------------------
+
+async function checkMultipartStorage(
+  prisma: PrismaClient,
+): Promise<SubsystemReadiness> {
+  if (!envPresent("S3_BUCKET")) {
+    return {
+      id: "multipart_storage",
+      status: "CRITICAL",
+      reasonCode: "s3_bucket_missing",
+      detail:
+        "S3_BUCKET is not set. Multipart uploads cannot be initiated against storage.",
+      remediationHint: "Set S3_BUCKET to the bucket configured for evidence storage.",
+      metadata: { configured: false },
+    };
+  }
+  let active = 0;
+  let stale = 0;
+  let recentlyFailed = 0;
+  try {
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT
+         COUNT(*) FILTER (WHERE "multipart_upload_id" IS NOT NULL
+                          AND "completed_at_storage_utc" IS NULL
+                          AND "aborted_at_storage_utc" IS NULL
+                          AND "state" = 'UPLOADING') AS "active",
+         COUNT(*) FILTER (WHERE "multipart_upload_id" IS NOT NULL
+                          AND "completed_at_storage_utc" IS NULL
+                          AND "aborted_at_storage_utc" IS NULL
+                          AND "expires_at_utc" < NOW()) AS "stale",
+         COUNT(*) FILTER (WHERE "state" = 'FAILED'
+                          AND "updated_at_utc" > NOW() - INTERVAL '1 hour'
+                          AND "multipart_upload_id" IS NOT NULL) AS "recently_failed"
+       FROM "evidence_upload_sessions"`,
+    )) as Array<{ active: bigint | number; stale: bigint | number; recently_failed: bigint | number }>;
+    const r = rows[0];
+    if (r) {
+      active = Number(r.active ?? 0);
+      stale = Number(r.stale ?? 0);
+      recentlyFailed = Number(r.recently_failed ?? 0);
+    }
+  } catch {
+    return {
+      id: "multipart_storage",
+      status: "UNKNOWN",
+      reasonCode: "query_failed",
+      detail: "Could not query evidence_upload_sessions for multipart health.",
+      remediationHint:
+        "Verify the Phase 30.8 drift patch has been applied + DB is reachable.",
+      metadata: { configured: true },
+    };
+  }
+  const degraded = stale > 20 || recentlyFailed > 10;
+  return {
+    id: "multipart_storage",
+    status: degraded ? "DEGRADED" : "HEALTHY",
+    reasonCode: degraded ? "abort_backlog_high" : "ok",
+    detail: degraded
+      ? `Multipart storage degraded: stale=${stale}, recently_failed=${recentlyFailed}`
+      : `Multipart storage healthy: active=${active}, stale=${stale}, recently_failed=${recentlyFailed}`,
+    remediationHint: degraded
+      ? "Run the multipart reaper (see reapStaleMultipartUploads in upload-session service). Check S3 bucket lifecycle policy."
+      : null,
+    metadata: {
+      active,
+      stale,
+      recentlyFailed,
+      configured: true,
+    },
+  };
+}
+
+// -----------------------------------------------------------------------------
 // Aggregator entry
 // -----------------------------------------------------------------------------
 
@@ -721,6 +807,7 @@ export async function runReadinessCheck(
     Promise.resolve(checkSentry()),
     Promise.resolve(checkCronSecrets()),
     checkSearchIndexing(prisma),
+    checkMultipartStorage(prisma),
   ]);
   return {
     status: rollUpStatus(subsystems),

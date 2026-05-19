@@ -3,6 +3,13 @@ import { useRouter } from "next/navigation";
 
 import { useToast } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
+// Phase 30.12 — resumable upload adoption. Only the routing helper +
+// chunk planner are imported eagerly; the orchestrator type is
+// imported as a type-only reference so the bundle isn't pulled in
+// when the env flag is off.
+import { routeFile } from "../../../../lib/uploads/feature-flag";
+import { planChunks } from "../../../../lib/uploads/retry";
+import type { UseResumableUploadsApi } from "./useResumableUploads";
 import type { CapturePlanMode } from "../_lib/session-readiness";
 import type {
   CollectionPlanTemplate,
@@ -29,6 +36,151 @@ export type CaptureSessionAddFiles = (
   options?: { sessionEvidenceType?: EvidenceType }
 ) => Promise<void>;
 
+// =============================================================================
+// Phase 30.12 — resumable item upload helper
+// =============================================================================
+
+/**
+ * Drive a single capture-item through the resumable upload pipeline:
+ *
+ *   1. POST /v1/uploads/sessions — create session bound to evidence
+ *      with bridge metadata (targetPartIndex, originalFileName,
+ *      expectedMimeType).
+ *   2. POST .../multipart/initiate — bind to S3 native multipart.
+ *   3. Drive MultipartUploader via the resumable hook (per-chunk
+ *      presign → PUT → mark-uploaded).
+ *   4. POST .../multipart/complete with verifyHash:true — server
+ *      runs CompleteMultipartUpload + HEAD + SHA-256 stream + marks
+ *      all parts VERIFIED + creates the bridging EvidencePart row.
+ *   5. POST .../complete — session transitions to COMPLETED so the
+ *      Phase 30.11 ALL-sessions finalize gate allows finalize.
+ *
+ * Hard custody rules baked in:
+ *   * NEVER calls /v1/evidence/:id/complete (orchestrator does that
+ *     once for the whole capture session after this returns).
+ *   * NEVER creates custody events.
+ *   * NEVER sets uploadedAt — server sets it during the canonical
+ *     completeEvidence transaction.
+ *   * Failure throws — caller surfaces to UI; no silent fallback
+ *     to legacy.
+ */
+async function runResumableItemUpload(input: {
+  evidenceId: string;
+  evidenceTeamId: string;
+  item: SessionItem;
+  index: number;
+  resumable: UseResumableUploadsApi;
+  setSessionItems: (
+    updater: (prev: SessionItem[]) => SessionItem[],
+  ) => void;
+}): Promise<void> {
+  const { evidenceId, evidenceTeamId, item, index, resumable, setSessionItems } =
+    input;
+  const expectedPartCount = planChunks(item.file.size).length;
+  // 1. Create the upload session.
+  const sessionRes = (await apiFetch("/v1/uploads/sessions", {
+    method: "POST",
+    body: JSON.stringify({
+      teamId: evidenceTeamId,
+      evidenceId,
+      expectedPartCount,
+      idempotencyKey: `capture:${evidenceId}:${index}`,
+      targetPartIndex: index,
+      originalFileName: item.relativePath || item.file.name,
+      expectedMimeType: normalizeClientMimeType(item.mimeType),
+    }),
+  })) as { session: { id: string } };
+  const sessionId = sessionRes.session.id;
+  // 2. Initiate the S3 native multipart upload.
+  await apiFetch(`/v1/uploads/sessions/${sessionId}/multipart/initiate`, {
+    method: "POST",
+    body: JSON.stringify({
+      teamId: evidenceTeamId,
+      contentType: normalizeClientMimeType(item.mimeType),
+    }),
+  });
+  // 3. Drive chunk upload via MultipartUploader.
+  const uploader = resumable.startResumable({
+    sessionId,
+    teamId: evidenceTeamId,
+    evidenceId,
+    file: item.file,
+    contentType: normalizeClientMimeType(item.mimeType),
+  });
+  await new Promise<void>((resolve, reject) => {
+    const unsub = uploader.subscribe((snap) => {
+      // Translate the uploader's coarse state into the capture-page
+      // item progress field so the legacy UI still shows "uploading".
+      // Fine-grained per-chunk progress is rendered by the
+      // UploadOperationsPanel mounted on the capture page.
+      const pct = snap.totalBytes
+        ? Math.min(99, Math.floor((snap.uploadedBytes / snap.totalBytes) * 100))
+        : 1;
+      setSessionItems((prev) =>
+        prev.map((current) =>
+          current.id === item.id
+            ? {
+                ...current,
+                uploading: true,
+                uploadProgress: Math.max(1, pct),
+                error: null,
+              }
+            : current,
+        ),
+      );
+      // VERIFYING / READY_FOR_FINALIZATION = all parts uploaded;
+      // proceed to storage-complete.
+      if (
+        snap.state === "VERIFYING" ||
+        snap.state === "READY_FOR_FINALIZATION"
+      ) {
+        unsub();
+        resolve();
+      } else if (
+        snap.state === "FAILED_TERMINAL" ||
+        snap.state === "FAILED_RETRYABLE" ||
+        snap.state === "CANCELLED" ||
+        snap.state === "CONFLICT"
+      ) {
+        unsub();
+        reject(
+          new Error(
+            snap.failureReason
+              ? `resumable_upload_failed:${snap.failureReason}`
+              : `resumable_upload_failed:${snap.state.toLowerCase()}`,
+          ),
+        );
+      }
+    });
+  });
+  // 4. Server-side complete + bridge creation.
+  await apiFetch(`/v1/uploads/sessions/${sessionId}/multipart/complete`, {
+    method: "POST",
+    body: JSON.stringify({ teamId: evidenceTeamId, verifyHash: true }),
+  });
+  // 5. Flip session to COMPLETED so the Phase 30.11 gate allows
+  // the downstream evidence finalize.
+  await apiFetch(`/v1/uploads/sessions/${sessionId}/complete`, {
+    method: "POST",
+    body: JSON.stringify({ teamId: evidenceTeamId }),
+  });
+  // Mark the capture-page item complete. The server-side
+  // EvidencePart bridge row already exists; downstream
+  // completeEvidence will validate it alongside the legacy parts.
+  setSessionItems((prev) =>
+    prev.map((current) =>
+      current.id === item.id
+        ? {
+            ...current,
+            uploading: false,
+            uploadProgress: 100,
+            error: null,
+          }
+        : current,
+    ),
+  );
+}
+
 type AddFilesOptions = {
   sessionEvidenceType?: EvidenceType;
 };
@@ -51,6 +203,14 @@ type UseCaptureSessionOrchestrationParams = {
   getCaptureSessionDraftId?: () => string | null;
   onSessionFinalized?: () => void;
   onSessionDiscarded?: () => void | Promise<void>;
+  // Phase 30.12 — optional resumable upload adoption. When supplied
+  // AND the feature flag is enabled AND a file is large, this hook
+  // forks that file's upload through the resumable orchestrator
+  // instead of the legacy XHR PUT path. ALL other files (small,
+  // camera, audio, recorded video, folder) continue through the
+  // legacy path verbatim. Omitted ⇒ orchestrator behaves exactly
+  // as before this phase.
+  resumable?: UseResumableUploadsApi | null;
 };
 
 export function useCaptureSessionOrchestration({
@@ -63,6 +223,7 @@ export function useCaptureSessionOrchestration({
   getCaptureSessionDraftId,
   onSessionFinalized,
   onSessionDiscarded,
+  resumable,
 }: UseCaptureSessionOrchestrationParams) {
   const router = useRouter();
   const { addToast } = useToast();
@@ -494,6 +655,13 @@ export function useCaptureSessionOrchestration({
       });
 
       const evidenceId = created.id as string;
+      // Phase 30.12 — teamId is null for personal-workspace evidence.
+      // The resumable fork engages only when teamId is non-null AND
+      // the resumable adoption hook is supplied AND the env flag is
+      // on AND the file is large enough. All other paths run the
+      // legacy XHR PUT flow verbatim.
+      const evidenceTeamId =
+        (created as { teamId?: string | null }).teamId ?? null;
       setSessionStatus("Uploading preserved evidence items...");
 
       for (let index = 0; index < items.length; index += 1) {
@@ -506,6 +674,57 @@ export function useCaptureSessionOrchestration({
               : current
           )
         );
+
+        // Phase 30.12 — large-file resumable fork. The fork engages
+        // BEFORE the integrity hash + presign call so the legacy XHR
+        // path is never reached for files routed to resumable. This
+        // guarantees a file either goes one way or the other — never
+        // a half-legacy / half-resumable state (per non-negotiable 14
+        // "NEVER silently convert a failed large upload to legacy
+        // simple upload after resumable has started").
+        if (
+          resumable &&
+          resumable.enabled &&
+          evidenceTeamId &&
+          routeFile({ sizeBytes: item.file.size }) === "resumable"
+        ) {
+          try {
+            await runResumableItemUpload({
+              evidenceId,
+              evidenceTeamId,
+              item,
+              index,
+              resumable,
+              setSessionItems,
+            });
+            // Item is now staged + uploaded + server-bridged via the
+            // EvidencePart row created at completeStorageMultipart
+            // time. The downstream completeEvidence transaction
+            // sees this item alongside any legacy parts and
+            // finalizes them atomically.
+            continue;
+          } catch (err) {
+            // Resumable failures are surfaced to the user via the
+            // operations panel; the orchestrator continues to the
+            // next item rather than falling back to legacy for THIS
+            // file (forbidden by the non-negotiables). The capture
+            // page must surface the failure and let the user retry.
+            const msg = err instanceof Error ? err.message : "upload_failed";
+            setSessionItems((prev) =>
+              prev.map((current) =>
+                current.id === item.id
+                  ? {
+                      ...current,
+                      uploading: false,
+                      uploadProgress: 0,
+                      error: msg,
+                    }
+                  : current,
+              ),
+            );
+            throw err;
+          }
+        }
 
         const integrity = await computeIntegrityFromBlob(item.file);
 

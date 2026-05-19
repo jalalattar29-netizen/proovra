@@ -29,6 +29,7 @@ import {
 } from "./security/file-security-scan.service.js";
 import { safeEmitSecurityEvent } from "./security/security-event.service.js";
 import { safeTransitionUploadSession } from "./reliability/upload-session.service.js";
+import { evaluateUploadSessionFinalizeGate } from "./uploads/upload-session.service.js";
 
 type HttpError = Error & { statusCode: number };
 
@@ -518,6 +519,50 @@ export async function completeEvidence(params: {
           shouldEnqueueReport: canPlanGenerateReports(scope.plan),
           retentionTargets,
         };
+      }
+
+      // Phase 30.7 — custody-safe finalize gate.
+      //
+      // If a Phase 30 resumable upload session exists for this
+      // evidence, refuse finalization unless that session is
+      // COMPLETED with every part VERIFIED. Legacy single-shot
+      // uploads (no session row) continue unchanged.
+      //
+      // The gate read runs on the transaction client so it shares
+      // the advisory-lock snapshot with the SIGNED-status short-
+      // circuit above. A concurrent session abort cannot race past
+      // this check.
+      //
+      // Idempotency: this gate sits AFTER the SIGNED/REPORTED
+      // short-circuits. A retry on already-finalized evidence
+      // returns the existing chain WITHOUT re-evaluating the gate,
+      // so a session that aborted post-finalization cannot retro-
+      // actively turn a successful finalize into a denial.
+      if (evidence.teamId) {
+        const gate = await evaluateUploadSessionFinalizeGate(
+          { teamId: evidence.teamId, evidenceId: evidence.id },
+          tx as unknown as typeof prisma,
+        );
+        if (!gate.ok) {
+          safeEmitSecurityEvent({
+            teamId: evidence.teamId,
+            eventType: "finalize_blocked_by_upload_session",
+            severity: "WARNING",
+            evidenceId: evidence.id,
+            details: {
+              reason: gate.reason,
+              sessionId: gate.sessionId ?? null,
+              sessionState: gate.sessionState ?? null,
+            },
+          });
+          const statusCode =
+            gate.reason === "gate_unavailable" ? 503 : 409;
+          const err: HttpError = Object.assign(
+            new Error(`UPLOAD_SESSION_GATE:${gate.reason}`),
+            { statusCode },
+          );
+          throw err;
+        }
       }
 
       // Phase 12 — move the operations-side session to VERIFYING. Best

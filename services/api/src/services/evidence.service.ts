@@ -437,6 +437,10 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
 
   return {
     id: created.id,
+    // Phase 30.12 — expose teamId so the capture page can drive
+    // resumable upload session creation (which requires teamId in
+    // every authorize call). Null for personal workspaces.
+    teamId: effectiveTeamId,
     status: EvidenceStatus.UPLOADING,
     upload: {
       bucket,

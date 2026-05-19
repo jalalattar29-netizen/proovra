@@ -48,6 +48,12 @@ import { logCaptureClientError } from "./_lib/capture-errors";
 import { buildSessionReadiness } from "./_lib/session-readiness";
 import { buildSessionWorkflowSnapshot } from "./_lib/session-workflow";
 import { useCaptureSessionOrchestration } from "./_hooks/useCaptureSessionOrchestration";
+// Phase 30.10 — resumable upload adoption surface. The hook is
+// active only when NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED=true; with
+// the flag off it returns empty arrays and no UI/network activity.
+// The panel mount is therefore a true no-op for production today.
+import { useResumableUploads } from "./_hooks/useResumableUploads";
+import { UploadOperationsPanel } from "../../../components/uploads/UploadOperationsPanel";
 import type { CaptureSessionAddFiles } from "./_hooks/useCaptureSessionOrchestration";
 import { useCaptureCamera } from "./_hooks/useCaptureCamera";
 import { useCaptureAudioRecorder } from "./_hooks/useCaptureAudioRecorder";
@@ -207,6 +213,16 @@ export default function CapturePage() {
     onClearPageError: () => setPageErrorRef.current(null),
   });
 
+  // Phase 30.10 / 30.12 — resumable upload adoption. With the env flag OFF
+  // (production default), `resumable.enabled` is false and the hook
+  // does no work — no IndexedDB open, no recovery scan, no network
+  // monitor subscription. The panel below short-circuits to null
+  // when there's nothing to show, so this mount is a true no-op
+  // for the existing capture flow.
+  // Phase 30.12: this declaration must come BEFORE the orchestrator
+  // call so the orchestrator can receive `resumable` as a parameter.
+  const resumable = useResumableUploads();
+
   const {
     addFilesToSession,
     busy,
@@ -235,6 +251,11 @@ export default function CapturePage() {
       draftPersistence.acknowledgeFinalized();
     },
     onSessionDiscarded: () => draftPersistence.discardDraft(),
+    // Phase 30.12 — pass the resumable adoption hook so the
+    // orchestrator can fork large files through the multipart path.
+    // With NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED unset (default),
+    // `resumable.enabled` is false and the fork never engages.
+    resumable,
   });
 
   addFilesToSessionRef.current = addFilesToSession;
@@ -374,8 +395,20 @@ export default function CapturePage() {
         selectedPlan: selectedCollectionPlan,
         planMode,
         useLocation,
+        // Phase 30.12 — fold resumable upload blockers into the
+        // readiness verdict so Review & Sign is disabled with a
+        // precise reason when a large-file upload isn't yet
+        // server-verified. Empty array (the default when the env
+        // flag is off) makes this a no-op.
+        resumableBlockers: resumable.blockingReasons,
       }),
-    [sessionItems, selectedCollectionPlan, planMode, useLocation]
+    [
+      sessionItems,
+      selectedCollectionPlan,
+      planMode,
+      useLocation,
+      resumable.blockingReasons,
+    ]
   );
 
   const {
@@ -466,6 +499,30 @@ export default function CapturePage() {
 
   return (
     <div className="section app-section capture-page-shell capture-enterprise-page">
+      {/* Phase 30.10 — resumable upload operations panel. Renders
+       *  only when the env flag is on AND there's something to show
+       *  (active uploads, network is offline, or recovery has at
+       *  least one entry). The legacy single-shot capture flow
+       *  below stays unchanged. */}
+      {resumable.enabled &&
+        (resumable.uploads.length > 0 ||
+          !resumable.network.isOnline ||
+          (resumable.recovery && resumable.recovery.entries.length > 0)) ? (
+        <UploadOperationsPanel
+          uploads={resumable.uploads}
+          network={resumable.network}
+          recovery={resumable.recovery}
+          onPause={resumable.pause}
+          onResume={(id) => {
+            void resumable.resume(id);
+          }}
+          onCancel={resumable.cancel}
+          onClearRecovery={(id) => {
+            void resumable.clearRecovery(id);
+          }}
+        />
+      ) : null}
+
       <input
         ref={fileInputRef}
         type="file"

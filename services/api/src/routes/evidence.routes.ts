@@ -8305,7 +8305,37 @@ if (
           return reply.code(404).send({ message: "Uploaded object not found" });
         }
 
-                if (
+                // Phase 30.7 — custody-safe finalize gate denial.
+        // The gate refused finalization because a Phase 30
+        // resumable upload session exists and isn't COMPLETED
+        // with every part VERIFIED. Surface a bounded reason
+        // code in the response envelope; the actual reason is
+        // encoded as `UPLOAD_SESSION_GATE:<bounded_code>` in
+        // err.message by completeEvidence.
+        if (
+          err instanceof Error &&
+          err.message.startsWith("UPLOAD_SESSION_GATE:")
+        ) {
+          const reason = err.message.slice("UPLOAD_SESSION_GATE:".length);
+          const statusCode =
+            (err as Error & { statusCode?: number }).statusCode ?? 409;
+          auditEvidenceAction(req, {
+            userId: ownerUserId,
+            action: "evidence.complete",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: id,
+            metadata: { reason: `upload_session_gate:${reason}` },
+          });
+          return reply.code(statusCode).send({
+            code: "FINALIZE_BLOCKED_BY_UPLOAD_SESSION",
+            reason,
+            message:
+              "Evidence cannot be finalized until the resumable upload session is server-verified.",
+          });
+        }
+
+        if (
           err instanceof Error &&
           "code" in err &&
           (err as Error & { code?: string }).code === "STORAGE_LIMIT_REACHED"

@@ -43,6 +43,7 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import {
   bump,
   buildPrometheusExposition,
@@ -235,6 +236,27 @@ async function runMasterReconcile(): Promise<ReconcileSummary> {
   setGauge("trusted_devices_active", activeDevices);
   setGauge("open_access_reviews", openReviews);
   setGauge("revoked_sessions_total", totalRevoked);
+
+  // 9. Phase 30.8 — sweep stale S3 multipart uploads. Tolerant of
+  // S3 errors (failure count is bumped via metrics; the rest of
+  // reconcile continues). Bounded to 100 rows per run.
+  let multipartScanned = 0;
+  let multipartAborted = 0;
+  let multipartFailed = 0;
+  try {
+    const { reapStaleMultipartUploads } = await import(
+      "../services/uploads/upload-session.service.js"
+    );
+    const result = await reapStaleMultipartUploads();
+    multipartScanned = result.scanned;
+    multipartAborted = result.aborted;
+    multipartFailed = result.failed;
+  } catch {
+    /* best-effort — bumps already happened inside the helper */
+  }
+  setGauge("multipart_stale_scanned", multipartScanned);
+  setGauge("multipart_stale_aborted", multipartAborted);
+  setGauge("multipart_stale_failed", multipartFailed);
 
   return {
     stepUpChallengesExpired: expiredStepUps.count,
@@ -635,6 +657,92 @@ export async function opsRoutes(app: FastifyInstance) {
         if (handleIncidentError(reply, err)) return;
         throw err;
       }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase 30.10 — Client upload telemetry beacon.
+  //
+  // The browser-side MultipartUploader emits bounded lifecycle events
+  // (resume / pause / cancel / retry / recovery / etc.). This endpoint
+  // accepts a tiny batch of those events and bumps the corresponding
+  // server-side counters so the observability dashboards see real
+  // numbers when the resumable rollout is enabled.
+  //
+  // Hard rules:
+  //   - Bounded event type catalog. Unknown types are silently
+  //     dropped (no oracle for "is X a valid metric").
+  //   - Bounded batch size (≤ 50 events / call).
+  //   - Per-user rate limit so a misbehaving tab can't ballast the
+  //     metric registry.
+  //   - Team membership required — but NO permission gate beyond
+  //     that. The events carry NO PII, NO storage identifiers, NO
+  //     evidence-scoped context.
+  // ---------------------------------------------------------------------------
+
+  const UploadTelemetryEvent = z.object({
+    type: z.enum([
+      "upload_resume_total",
+      "upload_pause_total",
+      "upload_cancel_total",
+      "upload_retry_total",
+      "upload_chunk_retry_total",
+      "upload_recovery_total",
+      "offline_draft_created_total",
+      "offline_draft_recovered_total",
+      "offline_draft_conflict_total",
+      "background_sync_retry_total",
+      "background_sync_failed_total",
+    ]),
+    count: z.number().int().min(1).max(1000).optional(),
+  });
+
+  const UploadTelemetryBody = z.object({
+    teamId: z.string().uuid(),
+    events: z.array(UploadTelemetryEvent).min(1).max(50),
+  });
+
+  app.post(
+    "/v1/ops/upload-telemetry",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      let body: z.infer<typeof UploadTelemetryBody>;
+      try {
+        body = UploadTelemetryBody.parse(req.body ?? {});
+      } catch {
+        return reply
+          .code(400)
+          .send({ error: { code: "invalid_payload" } });
+      }
+      // Anti-enumeration: a non-member of the team sees 404 the
+      // same as if the team doesn't exist.
+      const userId = getAuthUserId(req);
+      const member = await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId: body.teamId, userId } },
+        select: { id: true },
+      });
+      if (!member) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      // Per-user rate limit. 60 calls / minute is well above what
+      // a healthy capture page would ever need.
+      const rate = await enforceRateLimit({
+        key: `ops:upload-telemetry:${userId}`,
+        max: 60,
+        windowSec: 60,
+      });
+      if (!rate.allowed) {
+        reply.header(
+          "retry-after",
+          String(Math.max(1, Math.ceil((rate.resetAtMs - Date.now()) / 1000))),
+        );
+        return reply.code(429).send({ error: { code: "rate_limited" } });
+      }
+      for (const evt of body.events) {
+        const n = evt.count ?? 1;
+        for (let i = 0; i < n; i++) bump(evt.type);
+      }
+      return reply.code(202).send({ accepted: body.events.length });
     },
   );
 }

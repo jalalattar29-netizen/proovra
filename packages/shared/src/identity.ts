@@ -138,6 +138,7 @@ const DELEGATED_ADMIN_SCOPE_PERMISSIONS: Readonly<
     "integration.webhook.manage",
     "integration.evidence.read",
     "integration.evidence.create",
+    "integration.evidence.upload",
     "integration.intake_link.create",
     "integration.evidence_request.create",
     "integration.evidence_request.read",

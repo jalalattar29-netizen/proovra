@@ -60,6 +60,14 @@ export const SECURITY_EVENT_TYPES = [
   "upload_resumed",
   "upload_abandoned",
   "finalize_duplicate_detected",
+  // Phase 30.7 — finalize refused by upload-session gate.
+  "finalize_blocked_by_upload_session",
+  // Phase 30.8 — S3 native multipart lifecycle observability.
+  "multipart_initiate_failed",
+  "multipart_complete_failed",
+  "multipart_head_failed",
+  "multipart_hash_mismatch",
+  "multipart_abort_failed",
   "reconciliation_triggered",
   "orphaned_upload_detected",
   "multipart_inconsistency_detected",
@@ -174,6 +182,18 @@ export const SECURITY_EVENT_TYPES = [
   "search_transcript_segment_indexing_failed",
   "search_fail_closed_engaged",
   "search_semantic_unavailable",
+  // Phase 30 — resumable upload session lifecycle events.
+  "upload_session_create_failed",
+  "upload_session_resume_failed",
+  "upload_session_completed",
+  "upload_session_aborted",
+  "upload_part_hash_mismatch",
+  // Phase 27/28 — external reviewer grant lifecycle events.
+  "external_review_invited",
+  "external_review_revoked",
+  "external_review_grant_issue_failed",
+  "external_review_grant_lookup_failed",
+  "external_review_grant_transition_failed",
   // Phase 25 — Reviewer Operations Intelligence + SLA engine.
   "reviewer_assignment_created",
   "reviewer_reassigned",

@@ -20,6 +20,9 @@ import { webhooksRoutes } from "./routes/webhooks.routes.js";
 import { casesRoutes } from "./routes/cases.routes.js";
 import { searchRoutes } from "./routes/search.routes.js";
 import { reviewerOpsRoutes } from "./routes/reviewer-ops.routes.js";
+import { externalReviewRoutes } from "./routes/external-review.routes.js";
+import { uploadSessionsRoutes } from "./routes/upload-sessions.routes.js";
+import { integrationsUploadsRoutes } from "./routes/integrations-uploads.routes.js";
 import {
   adminIdentityRoutes,
   adminIdentityRuntimeRoutes,
@@ -470,6 +473,17 @@ allowedHeaders: [
   await app.register(captureRoutes);
   await app.register(searchRoutes);
   await app.register(reviewerOpsRoutes);
+  await app.register(externalReviewRoutes);
+  // Phase 30.5 — Resumable multipart upload session REST surface.
+  // Wraps the Phase 30 upload-session service in authorizeOrFail-
+  // gated routes. NO storage keys / signed URLs are projected; this
+  // is metadata + lifecycle only. The actual byte transfer continues
+  // through the existing per-part presigned URL path.
+  await app.register(uploadSessionsRoutes);
+  // Phase 30.6 — API-key resumable upload surface. Bearer API key,
+  // scope `integration.evidence.upload`. Governance + legal-hold gate
+  // enforced on session creation; idempotency key required.
+  await app.register(integrationsUploadsRoutes);
   await app.register(adminIdentityRoutes);
   await app.register(adminIdentityRuntimeRoutes);
   await app.register(scimRoutes);
