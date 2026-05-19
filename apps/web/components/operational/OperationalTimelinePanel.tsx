@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 import { NoOperationalTimelineEmptyState } from "./OperationalEmptyState";
+import { OPS_INK, OPS_SEVERITY_DOT, OPS_SURFACE, OPS_TONES } from "./tokens";
 
 type TimelineEntry = {
   id: string;
@@ -39,12 +40,8 @@ type OperationalTimeline = {
   entries: TimelineEntry[];
 };
 
-const SEVERITY_DOT_COLOR: Record<TimelineEntry["severity"], string> = {
-  INFO: "rgba(96, 165, 250, 0.8)",
-  WARNING: "rgba(252, 211, 77, 0.85)",
-  HIGH: "rgba(252, 165, 165, 0.85)",
-  CRITICAL: "rgba(254, 202, 202, 0.95)",
-};
+const SEVERITY_DOT_COLOR: Record<TimelineEntry["severity"], string> =
+  OPS_SEVERITY_DOT;
 
 const KIND_LABEL: Record<TimelineEntry["kind"], string> = {
   lifecycle: "Lifecycle",
@@ -117,12 +114,13 @@ export function OperationalTimelinePanel({
         role="status"
         data-timeline-state="unavailable"
         style={{
-          border: "1px solid rgba(239, 68, 68, 0.35)",
-          background: "rgba(239, 68, 68, 0.06)",
+          border: `1px solid ${OPS_TONES.unknown.border}`,
+          background: OPS_TONES.unknown.bg,
           borderRadius: 8,
           padding: 14,
           fontSize: 13,
-          color: "rgba(252, 165, 165, 0.95)",
+          color: OPS_TONES.unknown.ink,
+          fontWeight: 500,
         }}
       >
         Operational timeline could not be loaded. The platform is failing closed
@@ -137,7 +135,7 @@ export function OperationalTimelinePanel({
         aria-busy="true"
         style={{
           padding: 12,
-          color: "rgba(255,255,255,0.5)",
+          color: OPS_INK.muted,
           fontSize: 13,
         }}
       >
@@ -160,7 +158,7 @@ export function OperationalTimelinePanel({
         display: "flex",
         flexDirection: "column",
         gap: 8,
-        borderLeft: "1px solid rgba(255,255,255,0.08)",
+        borderLeft: `1px solid ${OPS_SURFACE.border}`,
       }}
     >
       {timeline.entries.map((entry) => (
@@ -177,21 +175,22 @@ export function OperationalTimelinePanel({
           <span
             aria-hidden="true"
             style={{
-              width: 8,
-              height: 8,
-              borderRadius: 8,
+              width: 9,
+              height: 9,
+              borderRadius: 9,
               background: SEVERITY_DOT_COLOR[entry.severity],
               marginTop: 6,
               marginLeft: -4,
-              border: "2px solid rgba(0,0,0,0.4)",
+              border: `2px solid ${OPS_SURFACE.card}`,
+              boxShadow: `0 0 0 1px ${OPS_SURFACE.border}`,
             }}
           />
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <div
               style={{
                 fontSize: 13,
-                color: "rgba(255,255,255,0.9)",
-                fontWeight: 500,
+                color: OPS_INK.default,
+                fontWeight: 600,
               }}
             >
               {entry.label}
@@ -200,7 +199,7 @@ export function OperationalTimelinePanel({
               <div
                 style={{
                   fontSize: 12,
-                  color: "rgba(255,255,255,0.55)",
+                  color: OPS_INK.muted,
                   lineHeight: 1.45,
                 }}
               >
@@ -210,7 +209,7 @@ export function OperationalTimelinePanel({
             <div
               style={{
                 fontSize: 11,
-                color: "rgba(255,255,255,0.4)",
+                color: OPS_INK.subtle,
                 marginTop: 2,
                 display: "flex",
                 gap: 8,
@@ -224,7 +223,7 @@ export function OperationalTimelinePanel({
           <div
             style={{
               fontSize: 11,
-              color: "rgba(255,255,255,0.45)",
+              color: OPS_INK.subtle,
               whiteSpace: "nowrap",
             }}
             title={entry.occurredAtUtc}

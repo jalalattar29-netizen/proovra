@@ -209,8 +209,12 @@ describe("Observability dashboard (full adoption)", () => {
   );
 
   it("imports RuntimeStatusBanner from the operational barrel", () => {
+    // Phase 28-I added the summary-tile rollup which also imports
+    // OPS_INK / OPS_SURFACE / OPS_TONES from the same barrel. Match the
+    // RuntimeStatusBanner symbol inside the imported set rather than
+    // requiring it to be the only import.
     expect(src).toMatch(
-      /import\s*\{\s*RuntimeStatusBanner\s*\}\s*from\s*"[\.\/]+components\/operational"/,
+      /import\s*\{[\s\S]*?RuntimeStatusBanner[\s\S]*?\}\s*from\s*"[\.\/]+components\/operational"/,
     );
   });
 
@@ -264,11 +268,13 @@ describe("Evidence detail page (full adoption)", () => {
     );
   });
 
-  it("eligibility callback gates each hero button (fail-closed: disabled until eligible)", () => {
-    // State variables exist and default to TRUE (disabled).
-    expect(src).toMatch(/setExportDisabled\b/);
-    expect(src).toMatch(/setPackageDisabled\b/);
-    expect(src).toMatch(/useState\(true\);.*\n.*setPackageDisabled/s);
+  it("eligibility state defaults to enabled (Phase 28-H hotfix — backend gate is authoritative)", () => {
+    // State variables exist and default to FALSE (button enabled). The
+    // download routes already run enforceSensitiveAction(...) server-side
+    // — the client must NOT pre-emptively block downloads when the
+    // governance snapshot is missing, 403, or transiently unavailable.
+    expect(src).toMatch(/const\s+\[exportDisabled,\s*setExportDisabled\]\s*=\s*useState\(false\)/);
+    expect(src).toMatch(/const\s+\[packageDisabled,\s*setPackageDisabled\]\s*=\s*useState\(false\)/);
     // Both buttons consume the disabled state.
     expect(src).toMatch(
       /<Button[\s\S]*?onClick=\{\(\) => void downloadReport\(\)\}[\s\S]*?disabled=\{exportDisabled\}/,
@@ -278,11 +284,30 @@ describe("Evidence detail page (full adoption)", () => {
     );
   });
 
-  it("disabled-callback treats loading and unknown as blocked (not just !eligible)", () => {
-    // Both badges propagate { loading, unknown, eligible }.
+  it("disabled-callback flips the button OFF only on a confirmed non-eligible decision", () => {
+    // The callback must require ALL of: !loading && !unknown && !eligible.
+    // Loading, unknown, missing-teamId, and 403 paths must leave the
+    // button enabled so the backend gate gets a chance to run.
     expect(src).toMatch(
+      /!s\.loading\s*&&\s*!s\.unknown\s*&&\s*!s\.eligible/,
+    );
+    // The old (broken) fail-closed-on-loading expression must NOT exist.
+    expect(src).not.toMatch(
       /s\.loading\s*\|\|\s*s\.unknown\s*\|\|\s*!s\.eligible/,
     );
+  });
+
+  it("no React state write outside the eligibility callbacks toggles the disabled state", () => {
+    // Guard against future regressions that wire setExportDisabled /
+    // setPackageDisabled from another source (e.g. effects, plan-cap
+    // checks, billing checks). Each setter must appear at most once
+    // outside its declaration line — and that one usage must be inside
+    // the badge's onEligibilityChange callback.
+    const exportSetterUses = src.match(/setExportDisabled\b/g) ?? [];
+    const packageSetterUses = src.match(/setPackageDisabled\b/g) ?? [];
+    // Each setter appears exactly twice: declaration + one callback.
+    expect(exportSetterUses.length).toBe(2);
+    expect(packageSetterUses.length).toBe(2);
   });
 
   it("renders GovernanceSnapshotPanel on the overview tab when teamId is known", () => {
@@ -334,6 +359,48 @@ describe("Evidence detail page (full adoption)", () => {
     ]) {
       expect(importList).not.toContain(forbidden);
     }
+  });
+});
+
+// =============================================================================
+// Phase 28-H hotfix — backend authoritative-gate invariants
+// =============================================================================
+
+describe("Download routes (authoritative governance gate)", () => {
+  const src = readSource(
+    "../../../services/api/src/routes/evidence.routes.ts",
+  );
+
+  it("GET /v1/evidence/:id/report/latest exists and runs enforceSensitiveAction(\"download_report\", ...)", () => {
+    // The latest-report route is registered.
+    expect(src).toMatch(/"\/v1\/evidence\/:id\/report\/latest"/);
+    // And the route body invokes the canonical sensitive-action gate
+    // with the download_report action name.
+    expect(src).toMatch(
+      /enforceSensitiveAction\(\s*"download_report"\s*,/,
+    );
+  });
+
+  it("GET /v1/evidence/:id/verification-package exists and runs enforceSensitiveAction(\"download_package\", ...)", () => {
+    expect(src).toMatch(/"\/v1\/evidence\/:id\/verification-package"/);
+    expect(src).toMatch(
+      /enforceSensitiveAction\(\s*"download_package"\s*,/,
+    );
+  });
+
+  it("a blocked decision returns 403/503 — never a signed URL leak", () => {
+    // The gate rejects with 403 (or 503 for GOVERNANCE_CHECK_FAILED) and
+    // never falls through to the signed-URL response. Assert both code
+    // branches exist in the route source.
+    expect(src).toMatch(
+      /decision\.code === "GOVERNANCE_CHECK_FAILED"\s*\?\s*503\s*:\s*403/,
+    );
+  });
+
+  it("custody event EXPORT_BLOCKED_BY_POLICY is appended when a download is blocked (no silent failure)", () => {
+    expect(src).toMatch(
+      /CustodyEventType\.EXPORT_BLOCKED_BY_POLICY/,
+    );
   });
 });
 

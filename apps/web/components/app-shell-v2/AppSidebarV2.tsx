@@ -4,7 +4,9 @@ import type { ForwardRefExoticComponent, RefAttributes } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   AlertTriangle,
+  BookOpen,
   BriefcaseBusiness,
   Camera,
   CreditCard,
@@ -14,6 +16,7 @@ import {
   Headphones,
   LibraryBig,
   ListTodo,
+  Radio,
   Settings,
   ShieldCheck,
   Users,
@@ -49,6 +52,17 @@ const MANAGE_NAV: SidebarItem[] = [
   { href: "/cases", label: "Cases", Icon: BriefcaseBusiness },
   { href: "/teams", label: "Teams", Icon: Users },
   { href: "/billing", label: "Billing", Icon: CreditCard },
+];
+
+// Phase 28-I — Operations group. Surfaces the operator command surfaces
+// that previously had no nav entry (Ops Center, Observability dashboard,
+// Runbooks). Runtime readiness is consumed via the top-of-page banner
+// component and surfaced inside the Observability dashboard's summary
+// rollup — there is no separate page.
+const OPERATIONS_NAV: SidebarItem[] = [
+  { href: "/ops", label: "Operations Center", Icon: Radio },
+  { href: "/ops/observability", label: "Observability", Icon: Activity },
+  { href: "/ops/runbooks", label: "Runbooks", Icon: BookOpen },
 ];
 
 const ADMIN_NAV: SidebarItem[] = [
@@ -108,6 +122,7 @@ export function AppSidebarV2({
         <div className="app-sidebar-v2-scroll">
           <SidebarGroup title="Workspace" items={WORKSPACE_NAV} />
           <SidebarGroup title="Review Operations" items={REVIEW_OPS_NAV} />
+          <SidebarGroup title="Operations" items={OPERATIONS_NAV} />
           <SidebarGroup title="Manage" items={MANAGE_NAV} />
           <SidebarGroup
             title={isPlatformAdmin ? "Admin" : "Account"}

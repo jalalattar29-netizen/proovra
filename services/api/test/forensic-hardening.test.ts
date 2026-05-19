@@ -373,10 +373,13 @@ describe("capture draft governance (Governance Item 2)", () => {
       "page.tsx"
     );
 
-    expect(capturePageSource).toContain(
+    // Phase 28-I — normalise JSX whitespace (the prose can wrap across
+    // multiple lines in the source) before asserting the bounded copy.
+    const normalised = capturePageSource.replace(/\s+/g, " ");
+    expect(normalised).toContain(
       "Drafts save metadata only. File contents are not stored until"
     );
-    expect(capturePageSource).toContain(
+    expect(normalised).toContain(
       "finalization, and draft metadata expires automatically."
     );
   });

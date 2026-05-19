@@ -26,7 +26,23 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
-import { RuntimeStatusBanner } from "../../../../components/operational";
+import {
+  OPS_INK,
+  OPS_SURFACE,
+  OPS_TONES,
+  RuntimeStatusBanner,
+} from "../../../../components/operational";
+
+type RuntimeReadinessReport = {
+  status: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
+  ranAtUtc: string;
+  subsystems: ReadonlyArray<{
+    id: string;
+    status: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
+    reasonCode: string;
+    detail: string;
+  }>;
+};
 
 type MetricsResponse = {
   metrics: {
@@ -203,6 +219,10 @@ export default function ObservabilityDashboardPage() {
     null,
   );
   const [alerts, setAlerts] = useState<AlertsResponse | null>(null);
+  const [readiness, setReadiness] = useState<RuntimeReadinessReport | null>(
+    null,
+  );
+  const [readinessError, setReadinessError] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [lastPolledAtUtc, setLastPolledAtUtc] = useState<string | null>(null);
 
@@ -228,6 +248,21 @@ export default function ObservabilityDashboardPage() {
       } catch (err) {
         if (cancelled) return;
         setError((err as { message?: string })?.message ?? "Unable to load.");
+      }
+      // Runtime readiness — used by the summary rollup. Failure here
+      // sets a flag so the rollup shows "Unknown" rather than implying
+      // HEALTHY.
+      try {
+        const r = (await apiFetch(
+          `/admin/runtime/readiness?teamId=${encodeURIComponent(teamId)}`,
+          { method: "GET" },
+        )) as RuntimeReadinessReport;
+        if (!cancelled) {
+          setReadiness(r);
+          setReadinessError(false);
+        }
+      } catch {
+        if (!cancelled) setReadinessError(true);
       }
     };
     tick();
@@ -267,6 +302,31 @@ export default function ObservabilityDashboardPage() {
     }
     return groups;
   }, [metrics]);
+
+  // Phase 28-I — summary-first rollup. Picks the highest-signal counters
+  // and gauges so the operator sees risk before the raw metric dump.
+  const topNonZeroCounters = useMemo(() => {
+    if (!metrics) return [] as Array<[string, number]>;
+    return Object.entries(metrics.counters)
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+  }, [metrics]);
+
+  const topNonZeroGauges = useMemo(() => {
+    if (!metrics) return [] as Array<[string, number]>;
+    return Object.entries(metrics.gauges)
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+  }, [metrics]);
+
+  const degradedSubsystems = useMemo(() => {
+    if (!readiness) return [] as Array<{ id: string; status: string }>;
+    return readiness.subsystems
+      .filter((s) => s.status !== "HEALTHY")
+      .map((s) => ({ id: s.id, status: s.status }));
+  }, [readiness]);
 
   if (!teamId) {
     return (
@@ -329,6 +389,99 @@ export default function ObservabilityDashboardPage() {
         </section>
       ) : null}
 
+      {/* Phase 28-I — summary-first rollup. Alerts firing, degraded
+          subsystems, top non-zero counters, top non-zero gauges. */}
+      <section
+        data-observability-summary
+        aria-label="Observability summary"
+        style={summaryGridStyle}
+      >
+        <SummaryTile
+          label="Alerts firing"
+          value={alerts ? alerts.counts.total : "—"}
+          tone={
+            !alerts
+              ? "neutral"
+              : alerts.counts.critical > 0
+                ? "critical"
+                : alerts.counts.high > 0
+                  ? "high"
+                  : alerts.counts.warning > 0
+                    ? "warning"
+                    : "healthy"
+          }
+          hint={
+            alerts
+              ? `${alerts.counts.critical} critical · ${alerts.counts.high} high · ${alerts.counts.warning} warning`
+              : "Loading…"
+          }
+        />
+        <SummaryTile
+          label="Degraded subsystems"
+          value={
+            readinessError
+              ? "?"
+              : !readiness
+                ? "—"
+                : degradedSubsystems.length
+          }
+          tone={
+            readinessError
+              ? "unknown"
+              : !readiness
+                ? "neutral"
+                : degradedSubsystems.length === 0
+                  ? "healthy"
+                  : readiness.status === "CRITICAL"
+                    ? "critical"
+                    : "warning"
+          }
+          hint={
+            readinessError
+              ? "Readiness unavailable — treat as unknown"
+              : !readiness
+                ? "Loading…"
+                : degradedSubsystems.length === 0
+                  ? "All subsystems healthy"
+                  : degradedSubsystems.map((s) => s.id).join(", ")
+          }
+        />
+        <SummaryTile
+          label="Runtime uptime"
+          value={
+            metrics ? `${Math.round(metrics.uptimeSeconds / 60)}m` : "—"
+          }
+          tone="neutral"
+          hint={
+            metrics
+              ? "Since last api restart — all counters reset on restart"
+              : "Loading…"
+          }
+        />
+      </section>
+
+      {!metrics ? null : (
+        <section style={cardStyle} aria-label="Top non-zero counters">
+          <h2 style={sectionTitleStyle}>Top signals</h2>
+          <p style={mutedStyle}>
+            Non-zero counters + gauges with the largest current values. Open
+            a group below for the full metric list.
+          </p>
+          <div style={twoColStyle}>
+            <SignalList
+              caption="Top non-zero counters"
+              rows={topNonZeroCounters}
+              emptyHint="All counters at 0 since restart."
+            />
+            <SignalList
+              caption="Top non-zero gauges"
+              rows={topNonZeroGauges}
+              emptyHint="All gauges at 0 — no current backlog."
+            />
+          </div>
+        </section>
+      )}
+
       {!metrics ? (
         <p style={mutedStyle}>Loading metrics…</p>
       ) : (
@@ -342,7 +495,7 @@ export default function ObservabilityDashboardPage() {
             {[...counterGroups.entries()]
               .sort((a, b) => a[0].localeCompare(b[0]))
               .map(([title, rows]) => (
-                <details key={title} style={groupStyle} open={rows.some(([, v]) => v > 0)}>
+                <details key={title} style={groupStyle}>
                   <summary style={groupSummaryStyle}>
                     {title} <span style={groupCountStyle}>({rows.length})</span>
                   </summary>
@@ -369,7 +522,7 @@ export default function ObservabilityDashboardPage() {
             {[...gaugeGroups.entries()]
               .sort((a, b) => a[0].localeCompare(b[0]))
               .map(([title, rows]) => (
-                <details key={title} style={groupStyle} open={rows.some(([, v]) => v > 0)}>
+                <details key={title} style={groupStyle}>
                   <summary style={groupSummaryStyle}>
                     {title} <span style={groupCountStyle}>({rows.length})</span>
                   </summary>
@@ -389,9 +542,13 @@ export default function ObservabilityDashboardPage() {
         </>
       )}
 
-      <section style={cardStyle}>
-        <h2 style={sectionTitleStyle}>Scrape endpoints</h2>
-        <ul style={listStyle}>
+      <details style={{ ...cardStyle, marginTop: 16 }}>
+        <summary
+          style={{ ...sectionTitleStyle, cursor: "pointer", marginBottom: 0 }}
+        >
+          Scrape endpoints + raw API references
+        </summary>
+        <ul style={{ ...listStyle, marginTop: 12 }}>
           <li>
             <code style={codeStyle}>GET /metrics</code> — Prometheus exposition
             format. Public; optionally gated by <code style={codeStyle}>METRICS_SCRAPE_TOKEN</code>.
@@ -405,14 +562,192 @@ export default function ObservabilityDashboardPage() {
             authenticated alert evaluation.
           </li>
           <li>
+            <code style={codeStyle}>GET /admin/runtime/readiness?teamId=…</code> —
+            cross-subsystem readiness used by the summary tiles + runtime banner.
+          </li>
+          <li>
             <code style={codeStyle}>GET /readyz</code> — readiness probe (DB ping).
           </li>
           <li>
             <code style={codeStyle}>GET /healthz</code> — liveness probe.
           </li>
         </ul>
-      </section>
+      </details>
     </main>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Summary-first helpers (Phase 28-I)
+// -----------------------------------------------------------------------------
+
+type SummaryTone =
+  | "neutral"
+  | "healthy"
+  | "warning"
+  | "high"
+  | "critical"
+  | "unknown";
+
+const SUMMARY_TILE_PALETTE: Record<
+  SummaryTone,
+  { bg: string; border: string; ink: string; kicker: string }
+> = {
+  neutral: {
+    bg: OPS_SURFACE.card,
+    border: OPS_SURFACE.border,
+    ink: OPS_INK.default,
+    kicker: OPS_INK.subtle,
+  },
+  healthy: {
+    bg: OPS_TONES.healthy.bg,
+    border: OPS_TONES.healthy.border,
+    ink: OPS_TONES.healthy.ink,
+    kicker: OPS_TONES.healthy.kicker,
+  },
+  warning: {
+    bg: OPS_TONES.warning.bg,
+    border: OPS_TONES.warning.border,
+    ink: OPS_TONES.warning.ink,
+    kicker: OPS_TONES.warning.kicker,
+  },
+  high: {
+    bg: OPS_TONES.high.bg,
+    border: OPS_TONES.high.border,
+    ink: OPS_TONES.high.ink,
+    kicker: OPS_TONES.high.kicker,
+  },
+  critical: {
+    bg: OPS_TONES.critical.bg,
+    border: OPS_TONES.critical.border,
+    ink: OPS_TONES.critical.ink,
+    kicker: OPS_TONES.critical.kicker,
+  },
+  unknown: {
+    bg: OPS_TONES.unknown.bg,
+    border: OPS_TONES.unknown.border,
+    ink: OPS_TONES.unknown.ink,
+    kicker: OPS_TONES.unknown.kicker,
+  },
+};
+
+function SummaryTile({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: number | string;
+  hint: string;
+  tone: SummaryTone;
+}) {
+  const palette = SUMMARY_TILE_PALETTE[tone];
+  return (
+    <div
+      data-summary-tile={label.toLowerCase().replace(/\s+/g, "_")}
+      data-summary-tone={tone}
+      style={{
+        background: palette.bg,
+        border: `1px solid ${palette.border}`,
+        borderRadius: 10,
+        padding: "14px 16px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          letterSpacing: 0.5,
+          textTransform: "uppercase",
+          color: palette.kicker,
+          fontWeight: 700,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: 26,
+          fontWeight: 700,
+          color: palette.ink,
+          lineHeight: 1.1,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {value}
+      </div>
+      <div
+        style={{
+          fontSize: 12,
+          color: palette.ink,
+          opacity: 0.85,
+          lineHeight: 1.4,
+        }}
+      >
+        {hint}
+      </div>
+    </div>
+  );
+}
+
+function SignalList({
+  caption,
+  rows,
+  emptyHint,
+}: {
+  caption: string;
+  rows: ReadonlyArray<[string, number]>;
+  emptyHint: string;
+}) {
+  return (
+    <div
+      style={{
+        border: `1px solid ${OPS_SURFACE.border}`,
+        borderRadius: 8,
+        background: OPS_SURFACE.cardMuted,
+        padding: 12,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          letterSpacing: 0.4,
+          textTransform: "uppercase",
+          fontWeight: 700,
+          color: OPS_INK.subtle,
+          marginBottom: 8,
+        }}
+      >
+        {caption}
+      </div>
+      {rows.length === 0 ? (
+        <p style={{ ...mutedStyle, margin: 0 }}>{emptyHint}</p>
+      ) : (
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {rows.map(([name, value]) => (
+            <li
+              key={name}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                padding: "4px 0",
+                fontSize: 12,
+                color: OPS_INK.default,
+                borderTop: `1px solid ${OPS_SURFACE.border}`,
+              }}
+            >
+              <code style={tdMonoStyle}>{name}</code>
+              <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
+                {value.toLocaleString()}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -456,6 +791,18 @@ const cardStyle: React.CSSProperties = {
   border: "1px solid #e2e8f0",
   borderRadius: 12,
   background: "#fff",
+};
+const summaryGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+  marginTop: 16,
+};
+const twoColStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+  gap: 12,
+  marginTop: 8,
 };
 const navLinkStyle: React.CSSProperties = {
   color: "#4338ca",

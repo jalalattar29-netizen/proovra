@@ -359,9 +359,12 @@ describe("Phase 28-F [fail-closed UI behavior]", () => {
   });
 
   it("Unknown variant uses the 'unknown' severity tone", () => {
-    expect(src).toMatch(
-      /unknown:\s*\{\s*border:\s*"1px solid rgba\(239,\s*68,\s*68/,
-    );
+    // Phase 28-I refactored the inline rgba tones to a shared token
+    // module (`./tokens.ts`). The unknown variant now delegates to
+    // `OPS_TONES.unknown` (red-50 background, red-900 ink). Assert the
+    // shared-token contract rather than the literal rgba string.
+    expect(src).toMatch(/variant === "unknown"/);
+    expect(src).toMatch(/OPS_TONES\.unknown/);
   });
 });
 

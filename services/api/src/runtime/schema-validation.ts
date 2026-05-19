@@ -138,6 +138,19 @@ export const EXPECTED_SCHEMA: ReadonlyArray<ExpectedSchemaObject> = [
   { kind: "index", table: "review_escalations", indexName: "review_escalations_team_fingerprint_uk", severity: "critical", subsystem: "reviewer_ops" },
 
   // ---------------------------------------------------------------------------
+  // Reviewer Ops — Phase 24 / 25.5 saved views. Drift on `scope` is the
+  // exact P2022 the operator saw on /reviewer-ops/saved-views; register
+  // the column so the next time it's missing we catch it at startup
+  // rather than at request time.
+  // ---------------------------------------------------------------------------
+  { kind: "table", name: "saved_search_views", severity: "important", subsystem: "reviewer_ops" },
+  { kind: "column", table: "saved_search_views", column: "scope", severity: "critical", subsystem: "reviewer_ops" },
+  { kind: "column", table: "saved_search_views", column: "query_json", severity: "critical", subsystem: "reviewer_ops" },
+  { kind: "column", table: "saved_search_views", column: "visibility", severity: "important", subsystem: "reviewer_ops" },
+  { kind: "column", table: "saved_search_views", column: "pinned", severity: "important", subsystem: "reviewer_ops" },
+  { kind: "column", table: "saved_search_views", column: "last_used_at_utc", severity: "important", subsystem: "reviewer_ops" },
+
+  // ---------------------------------------------------------------------------
   // Workflow engine (Phase 22).
   // ---------------------------------------------------------------------------
   { kind: "table", name: "evidence_workflow_templates", severity: "important", subsystem: "workflow_engine" },

@@ -501,10 +501,14 @@ export default function EvidenceDetailPage() {
   const [relationshipTargetId, setRelationshipTargetId] = useState("");
   const [relationshipType, setRelationshipType] = useState("RELATED");
   const [relationshipNote, setRelationshipNote] = useState("");
-  // Phase 28 — operational eligibility gating. Both buttons fail-closed:
-  // unknown / loading / blocked → disabled.
-  const [exportDisabled, setExportDisabled] = useState(true);
-  const [packageDisabled, setPackageDisabled] = useState(true);
+  // Phase 28-H hotfix — eligibility badge is informational only. The
+  // download routes already run enforceSensitiveAction(...) server-side,
+  // which is the authoritative gate. Disable the button ONLY when the
+  // snapshot has loaded and reports a confirmed non-eligible decision.
+  // Loading / unknown / missing-teamId / 403 → leave the button enabled
+  // and let the backend respond.
+  const [exportDisabled, setExportDisabled] = useState(false);
+  const [packageDisabled, setPackageDisabled] = useState(false);
 
   const loadWorkflowEvents = async () => {
     if (!evidenceId) return;
@@ -1080,7 +1084,7 @@ export default function EvidenceDetailPage() {
                 teamId={workspace.reviewWorkflow.teamId}
                 kind="export"
                 onEligibilityChange={(s) =>
-                  setExportDisabled(s.loading || s.unknown || !s.eligible)
+                  setExportDisabled(!s.loading && !s.unknown && !s.eligible)
                 }
               />
               <ExportPackageEligibilityBadge
@@ -1088,7 +1092,7 @@ export default function EvidenceDetailPage() {
                 teamId={workspace.reviewWorkflow.teamId}
                 kind="package"
                 onEligibilityChange={(s) =>
-                  setPackageDisabled(s.loading || s.unknown || !s.eligible)
+                  setPackageDisabled(!s.loading && !s.unknown && !s.eligible)
                 }
               />
             </div>

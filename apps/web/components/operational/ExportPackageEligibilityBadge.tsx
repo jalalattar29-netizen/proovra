@@ -25,6 +25,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { OPS_INK, OPS_PILL } from "./tokens";
 
 type EligibilityKind = "export" | "package";
 
@@ -116,24 +117,18 @@ export function ExportPackageEligibilityBadge({
     };
   }, [evidenceId, teamId, kind, onEligibilityChange]);
 
-  // Visual pill — fail-closed colors.
+  // Visual pill — fail-closed colors (light-surface tokens).
   const pill = state.loading
-    ? { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "Loading…" }
+    ? { ...OPS_PILL.loading, label: "Loading…" }
     : state.unknown
-      ? {
-          bg: "rgba(239, 68, 68, 0.12)",
-          color: "rgba(252, 165, 165, 0.95)",
-          label: "Unknown — blocked",
-        }
+      ? { ...OPS_PILL.unknown, label: "Unknown — blocked" }
       : state.eligible
         ? {
-            bg: "rgba(134, 239, 172, 0.12)",
-            color: "rgba(134, 239, 172, 0.95)",
+            ...OPS_PILL.eligible,
             label: kind === "export" ? "Export allowed" : "Package allowed",
           }
         : {
-            bg: "rgba(252, 165, 165, 0.12)",
-            color: "rgba(252, 165, 165, 0.95)",
+            ...OPS_PILL.blocked,
             label: kind === "export" ? "Export blocked" : "Package blocked",
           };
 
@@ -163,8 +158,9 @@ export function ExportPackageEligibilityBadge({
           borderRadius: 999,
           background: pill.bg,
           color: pill.color,
+          border: `1px solid ${pill.border}`,
           fontSize: 11,
-          fontWeight: 600,
+          fontWeight: 700,
           letterSpacing: 0.3,
         }}
       >
@@ -173,7 +169,7 @@ export function ExportPackageEligibilityBadge({
       <span
         style={{
           fontSize: 11,
-          color: "rgba(255,255,255,0.55)",
+          color: OPS_INK.muted,
           maxWidth: 280,
           lineHeight: 1.4,
         }}
@@ -184,7 +180,7 @@ export function ExportPackageEligibilityBadge({
         <span
           style={{
             fontSize: 10,
-            color: "rgba(255,255,255,0.4)",
+            color: OPS_INK.subtle,
             fontStyle: "italic",
           }}
         >

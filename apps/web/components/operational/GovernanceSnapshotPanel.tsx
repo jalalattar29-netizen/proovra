@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 import { GovernanceSnapshotUnavailableNotice } from "./OperationalEmptyState";
+import { OPS_INK, OPS_SURFACE, OPS_TONES } from "./tokens";
 
 type GovernanceWarning = {
   code: string;
@@ -93,34 +94,34 @@ const SEVERITY_TONE: Record<
   { bg: string; border: string; color: string }
 > = {
   INFO: {
-    bg: "rgba(96, 165, 250, 0.08)",
-    border: "1px solid rgba(96, 165, 250, 0.3)",
-    color: "rgba(147, 197, 253, 0.95)",
+    bg: OPS_TONES.info.bg,
+    border: `1px solid ${OPS_TONES.info.border}`,
+    color: OPS_TONES.info.ink,
   },
   WARNING: {
-    bg: "rgba(245, 158, 11, 0.08)",
-    border: "1px solid rgba(245, 158, 11, 0.3)",
-    color: "rgba(252, 211, 77, 0.95)",
+    bg: OPS_TONES.warning.bg,
+    border: `1px solid ${OPS_TONES.warning.border}`,
+    color: OPS_TONES.warning.ink,
   },
   HIGH: {
-    bg: "rgba(239, 68, 68, 0.08)",
-    border: "1px solid rgba(239, 68, 68, 0.35)",
-    color: "rgba(252, 165, 165, 0.95)",
+    bg: OPS_TONES.high.bg,
+    border: `1px solid ${OPS_TONES.high.border}`,
+    color: OPS_TONES.high.ink,
   },
   CRITICAL: {
-    bg: "rgba(239, 68, 68, 0.15)",
-    border: "1px solid rgba(239, 68, 68, 0.5)",
-    color: "rgba(254, 202, 202, 0.98)",
+    bg: OPS_TONES.critical.bg,
+    border: `1px solid ${OPS_TONES.critical.border}`,
+    color: OPS_TONES.critical.ink,
   },
 };
 
 function eligibilityBadge(eligible: boolean | null) {
   if (eligible === null) {
-    return { label: "Unknown — treat as blocked", color: "rgba(252, 165, 165, 0.95)" };
+    return { label: "Unknown — treat as blocked", color: OPS_TONES.unknown.inkMuted };
   }
   return eligible
-    ? { label: "Allowed", color: "rgba(134, 239, 172, 0.95)" }
-    : { label: "Blocked", color: "rgba(252, 165, 165, 0.95)" };
+    ? { label: "Allowed", color: OPS_TONES.healthy.inkMuted }
+    : { label: "Blocked", color: OPS_TONES.high.inkMuted };
 }
 
 export type GovernanceSnapshotPanelProps = {
@@ -179,9 +180,10 @@ export function GovernanceSnapshotPanel({
         aria-busy="true"
         style={{
           padding: 16,
-          border: "1px solid rgba(255,255,255,0.08)",
+          border: `1px solid ${OPS_SURFACE.border}`,
+          background: OPS_SURFACE.cardMuted,
           borderRadius: 8,
-          color: "rgba(255,255,255,0.5)",
+          color: OPS_INK.muted,
           fontSize: 13,
         }}
       >
@@ -206,8 +208,8 @@ export function GovernanceSnapshotPanel({
       {/* Lifecycle + eligibility row */}
       <section
         style={{
-          border: "1px solid rgba(255,255,255,0.08)",
-          background: "rgba(255,255,255,0.02)",
+          border: `1px solid ${OPS_SURFACE.border}`,
+          background: OPS_SURFACE.card,
           borderRadius: 8,
           padding: 14,
           display: "grid",
@@ -268,8 +270,8 @@ export function GovernanceSnapshotPanel({
       {/* Export + package eligibility */}
       <section
         style={{
-          border: "1px solid rgba(255,255,255,0.08)",
-          background: "rgba(255,255,255,0.02)",
+          border: `1px solid ${OPS_SURFACE.border}`,
+          background: OPS_SURFACE.card,
           borderRadius: 8,
           padding: 14,
           display: "grid",
@@ -343,8 +345,8 @@ export function GovernanceSnapshotPanel({
         <section
           aria-label="Open incidents"
           style={{
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(255,255,255,0.02)",
+            border: `1px solid ${OPS_SURFACE.border}`,
+            background: OPS_SURFACE.card,
             borderRadius: 8,
             padding: 14,
           }}
@@ -354,8 +356,8 @@ export function GovernanceSnapshotPanel({
               fontSize: 11,
               letterSpacing: 0.6,
               textTransform: "uppercase",
-              color: "rgba(255,255,255,0.5)",
-              fontWeight: 600,
+              color: OPS_INK.subtle,
+              fontWeight: 700,
               marginBottom: 8,
             }}
           >
@@ -367,7 +369,7 @@ export function GovernanceSnapshotPanel({
                 key={i.id}
                 style={{
                   fontSize: 13,
-                  color: "rgba(255,255,255,0.8)",
+                  color: OPS_INK.default,
                   display: "flex",
                   justifyContent: "space-between",
                   gap: 12,
@@ -378,13 +380,13 @@ export function GovernanceSnapshotPanel({
                   style={{
                     fontSize: 10,
                     letterSpacing: 0.5,
-                    fontWeight: 600,
+                    fontWeight: 700,
                     color:
                       i.severity === "CRITICAL"
-                        ? "rgba(252, 165, 165, 0.95)"
+                        ? OPS_TONES.critical.inkMuted
                         : i.severity === "HIGH"
-                          ? "rgba(252, 211, 77, 0.95)"
-                          : "rgba(255,255,255,0.5)",
+                          ? OPS_TONES.high.inkMuted
+                          : OPS_INK.subtle,
                   }}
                 >
                   {i.severity}
@@ -415,10 +417,10 @@ function SnapshotField({
 }) {
   const color =
     tone === "danger"
-      ? "rgba(252, 165, 165, 0.95)"
+      ? OPS_TONES.high.inkMuted
       : tone === "warning"
-        ? "rgba(252, 211, 77, 0.95)"
-        : "rgba(255,255,255,0.92)";
+        ? OPS_TONES.warning.inkMuted
+        : OPS_INK.default;
   return (
     <div>
       <div
@@ -426,14 +428,14 @@ function SnapshotField({
           fontSize: 10,
           letterSpacing: 0.5,
           textTransform: "uppercase",
-          color: "rgba(255,255,255,0.45)",
-          fontWeight: 600,
+          color: OPS_INK.subtle,
+          fontWeight: 700,
           marginBottom: 4,
         }}
       >
         {label}
       </div>
-      <div style={{ fontSize: 14, color, fontWeight: 500 }}>{value}</div>
+      <div style={{ fontSize: 14, color, fontWeight: 600 }}>{value}</div>
     </div>
   );
 }
@@ -466,8 +468,8 @@ function EligibilityCard({
           fontSize: 10,
           letterSpacing: 0.5,
           textTransform: "uppercase",
-          color: "rgba(255,255,255,0.45)",
-          fontWeight: 600,
+          color: OPS_INK.subtle,
+          fontWeight: 700,
         }}
       >
         {kicker}
@@ -475,7 +477,7 @@ function EligibilityCard({
       <div
         style={{
           fontSize: 14,
-          fontWeight: 600,
+          fontWeight: 700,
           color: badge.color,
         }}
       >
@@ -484,7 +486,7 @@ function EligibilityCard({
       <div
         style={{
           fontSize: 12,
-          color: "rgba(255,255,255,0.65)",
+          color: OPS_INK.muted,
           lineHeight: 1.45,
         }}
       >
@@ -494,7 +496,7 @@ function EligibilityCard({
         <div
           style={{
             fontSize: 11,
-            color: "rgba(255,255,255,0.45)",
+            color: OPS_INK.subtle,
             fontStyle: "italic",
           }}
         >

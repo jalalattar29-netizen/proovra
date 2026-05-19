@@ -43,3 +43,13 @@ export {
   type OperationalEmptyStateAction,
   type OperationalEmptyStateVariant,
 } from "./OperationalEmptyState";
+export {
+  OPS_INK,
+  OPS_SURFACE,
+  OPS_LINK,
+  OPS_TONES,
+  OPS_SEVERITY_DOT,
+  OPS_PILL,
+  type OpsSeverity,
+  type OpsToneToken,
+} from "./tokens";

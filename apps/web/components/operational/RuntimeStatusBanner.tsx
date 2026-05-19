@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 import { RuntimeDegradedNotice } from "./OperationalEmptyState";
+import { OPS_TONES } from "./tokens";
 
 type ReadinessStatus = "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
 
@@ -93,12 +94,13 @@ export function RuntimeStatusBanner({
         role="status"
         data-runtime-status="UNKNOWN"
         style={{
-          border: "1px solid rgba(239, 68, 68, 0.35)",
-          background: "rgba(239, 68, 68, 0.06)",
+          border: `1px solid ${OPS_TONES.unknown.border}`,
+          background: OPS_TONES.unknown.bg,
           borderRadius: 6,
           padding: "10px 14px",
           fontSize: 13,
-          color: "rgba(252, 165, 165, 0.95)",
+          color: OPS_TONES.unknown.ink,
+          fontWeight: 600,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -114,8 +116,8 @@ export function RuntimeStatusBanner({
           style={{
             fontSize: 10,
             letterSpacing: 0.5,
-            fontWeight: 600,
-            opacity: 0.75,
+            fontWeight: 700,
+            color: OPS_TONES.unknown.kicker,
           }}
         >
           UNKNOWN
@@ -145,17 +147,29 @@ export function RuntimeStatusBanner({
         role="status"
         data-runtime-status="UNKNOWN"
         style={{
-          border: "1px solid rgba(245, 158, 11, 0.4)",
-          background: "rgba(245, 158, 11, 0.06)",
+          border: `1px solid ${OPS_TONES.warning.border}`,
+          background: OPS_TONES.warning.bg,
           borderRadius: 6,
           padding: "10px 14px",
           fontSize: 13,
-          color: "rgba(252, 211, 77, 0.95)",
+          color: OPS_TONES.warning.ink,
+          fontWeight: 500,
           marginBottom: 12,
         }}
       >
         Runtime status is unknown for {failing.length || "some"} subsystem(s).
-        Refer to /admin/runtime/readiness for detail.
+        Open the{" "}
+        <a
+          href="/ops/observability"
+          style={{
+            color: OPS_TONES.warning.link,
+            fontWeight: 700,
+            textDecoration: "underline",
+          }}
+        >
+          Observability dashboard
+        </a>{" "}
+        for detail.
       </div>
     );
   }
@@ -165,12 +179,12 @@ export function RuntimeStatusBanner({
       role="alert"
       data-runtime-status="CRITICAL"
       style={{
-        border: "1px solid rgba(239, 68, 68, 0.5)",
-        background: "rgba(239, 68, 68, 0.12)",
+        border: `1px solid ${OPS_TONES.critical.border}`,
+        background: OPS_TONES.critical.bg,
         borderRadius: 6,
         padding: "12px 14px",
         fontSize: 13,
-        color: "rgba(254, 202, 202, 0.98)",
+        color: OPS_TONES.critical.ink,
         display: "flex",
         flexDirection: "column",
         gap: 6,
@@ -178,16 +192,33 @@ export function RuntimeStatusBanner({
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <span style={{ fontWeight: 600 }}>
+        <span style={{ fontWeight: 700 }}>
           Runtime CRITICAL — operational paths may fail
         </span>
-        <span style={{ fontSize: 10, letterSpacing: 0.5, fontWeight: 700 }}>
+        <span
+          style={{
+            fontSize: 10,
+            letterSpacing: 0.5,
+            fontWeight: 700,
+            color: OPS_TONES.critical.kicker,
+          }}
+        >
           CRITICAL
         </span>
       </div>
-      <div style={{ fontSize: 12, opacity: 0.85 }}>
-        Failing subsystems: {failing.join(", ") || "unknown"}. Refer to
-        runbooks before continuing destructive operations.
+      <div style={{ fontSize: 12, color: OPS_TONES.critical.inkMuted }}>
+        Failing subsystems: {failing.join(", ") || "unknown"}. Review the{" "}
+        <a
+          href="/ops/runbooks"
+          style={{
+            color: OPS_TONES.critical.link,
+            fontWeight: 700,
+            textDecoration: "underline",
+          }}
+        >
+          runbooks
+        </a>{" "}
+        before continuing destructive operations.
       </div>
     </div>
   );

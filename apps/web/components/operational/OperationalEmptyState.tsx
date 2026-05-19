@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * Phase 28-F — Enterprise operational empty state.
+ * Phase 28-F (light-surface refresh, Phase 28-I).
  *
- * Pages must NEVER look dead or broken when data is absent. Each
- * empty state explains:
+ * Enterprise operational empty state. Pages must NEVER look dead or
+ * broken when data is absent. Each empty state explains:
  *   1. What this page shows.
  *   2. Why it may be empty.
  *   3. What action the operator can take.
@@ -14,7 +14,7 @@
  * Aesthetic rules:
  *   - Dense, professional, operational.
  *   - No marketing copy, no playful gradients, no decorative-only widgets.
- *   - Consistent with app-shell-v2 color tokens (neutral grays + thin borders).
+ *   - Light-surface tokens via `./tokens.ts` — readable on light pages.
  *
  * Variants:
  *   - "neutral"  — no data is expected yet (e.g. fresh workspace).
@@ -25,6 +25,8 @@
  */
 
 import Link from "next/link";
+
+import { OPS_INK, OPS_SURFACE, OPS_TONES } from "./tokens";
 
 export type OperationalEmptyStateVariant = "neutral" | "degraded" | "unknown";
 
@@ -52,26 +54,11 @@ export type OperationalEmptyStateProps = {
   emptyStateCode: string;
 };
 
-const VARIANT_TONE: Record<
-  OperationalEmptyStateVariant,
-  { border: string; bg: string; kickerColor: string }
-> = {
-  neutral: {
-    border: "1px solid rgba(255,255,255,0.08)",
-    bg: "rgba(255,255,255,0.02)",
-    kickerColor: "rgba(255,255,255,0.5)",
-  },
-  degraded: {
-    border: "1px solid rgba(245, 158, 11, 0.4)",
-    bg: "rgba(245, 158, 11, 0.06)",
-    kickerColor: "rgba(245, 158, 11, 0.9)",
-  },
-  unknown: {
-    border: "1px solid rgba(239, 68, 68, 0.4)",
-    bg: "rgba(239, 68, 68, 0.06)",
-    kickerColor: "rgba(239, 68, 68, 0.9)",
-  },
-};
+function toneFor(variant: OperationalEmptyStateVariant) {
+  if (variant === "degraded") return OPS_TONES.degraded;
+  if (variant === "unknown") return OPS_TONES.unknown;
+  return OPS_TONES.neutral;
+}
 
 export function OperationalEmptyState({
   kicker,
@@ -82,14 +69,14 @@ export function OperationalEmptyState({
   variant = "neutral",
   emptyStateCode,
 }: OperationalEmptyStateProps) {
-  const tone = VARIANT_TONE[variant];
+  const tone = toneFor(variant);
   return (
     <div
       role="status"
       data-empty-state-code={emptyStateCode}
       data-empty-state-variant={variant}
       style={{
-        border: tone.border,
+        border: `1px solid ${tone.border}`,
         background: tone.bg,
         borderRadius: 8,
         padding: 20,
@@ -103,8 +90,8 @@ export function OperationalEmptyState({
           fontSize: 11,
           letterSpacing: 0.6,
           textTransform: "uppercase",
-          color: tone.kickerColor,
-          fontWeight: 600,
+          color: tone.kicker,
+          fontWeight: 700,
         }}
       >
         {kicker}
@@ -113,7 +100,7 @@ export function OperationalEmptyState({
         style={{
           fontSize: 16,
           fontWeight: 600,
-          color: "rgba(255,255,255,0.92)",
+          color: tone.ink,
           lineHeight: 1.35,
         }}
       >
@@ -122,7 +109,7 @@ export function OperationalEmptyState({
       <div
         style={{
           fontSize: 13,
-          color: "rgba(255,255,255,0.65)",
+          color: tone.inkMuted,
           lineHeight: 1.5,
         }}
       >
@@ -132,13 +119,13 @@ export function OperationalEmptyState({
         <div
           style={{
             fontSize: 12,
-            color: "rgba(255,255,255,0.5)",
-            borderTop: "1px solid rgba(255,255,255,0.06)",
+            color: tone.inkMuted,
+            borderTop: `1px solid ${tone.border}`,
             paddingTop: 10,
             lineHeight: 1.5,
           }}
         >
-          <strong style={{ color: "rgba(255,255,255,0.7)", fontWeight: 600 }}>
+          <strong style={{ color: tone.ink, fontWeight: 600 }}>
             Runtime dependency:
           </strong>{" "}
           {runtimeDependency}
@@ -152,16 +139,17 @@ export function OperationalEmptyState({
               href={a.href}
               style={{
                 fontSize: 13,
-                color: "rgba(96, 165, 250, 0.9)",
-                textDecoration: "none",
-                fontWeight: 500,
+                color: tone.link,
+                textDecoration: "underline",
+                textUnderlineOffset: 3,
+                fontWeight: 600,
               }}
             >
               → {a.label}
               {a.hint ? (
                 <span
                   style={{
-                    color: "rgba(255,255,255,0.4)",
+                    color: tone.inkMuted,
                     fontWeight: 400,
                     marginLeft: 6,
                   }}
@@ -208,7 +196,7 @@ export function NoWorkloadSnapshotsEmptyState() {
       runtimeDependency="Reviewer reconciliation worker. Assignments via /reviewer-ops/reviews/:id/assign."
       actions={[
         { label: "Assign reviewers", href: "/reviewer-ops" },
-        { label: "Trigger reconcile (operator)", href: "/ops/observability" },
+        { label: "Open Operations Center", href: "/ops" },
       ]}
     />
   );
@@ -223,8 +211,8 @@ export function NoGovernanceIncidentsEmptyState() {
       reason="No drift, hold conflict, retention conflict, or escalation storm has been detected. New incidents appear here automatically when the canonical engines flag them."
       runtimeDependency="Immutable-storage reconciliation worker + reviewer reconciliation worker. Both write incidents on detected conflicts."
       actions={[
-        { label: "Check runtime readiness", href: "/ops/observability" },
-        { label: "View runbooks", href: "/docs/runbooks" },
+        { label: "Open Operations Center", href: "/ops" },
+        { label: "View runbooks", href: "/ops/runbooks" },
       ]}
     />
   );
@@ -238,9 +226,7 @@ export function NoSlaBreachesEmptyState() {
       title="No SLA breaches detected."
       reason="All active reviewer workflows are within their configured SLA window. Breached workflows appear here once the next reconcile pass flips them."
       runtimeDependency="Reviewer reconciliation worker. Workspace SLA policy must be configured."
-      actions={[
-        { label: "View SLA policy", href: "/reviewer-ops/policy" },
-      ]}
+      actions={[{ label: "View SLA policy", href: "/reviewer-ops/policy" }]}
     />
   );
 }
@@ -275,8 +261,8 @@ export function RuntimeDegradedNotice({
       runtimeDependency={`Failing subsystems: ${failingSubsystems.join(", ")}.`}
       variant="degraded"
       actions={[
-        { label: "Open runtime readiness", href: "/ops/observability" },
-        { label: "Review runbooks", href: "/docs/runbooks" },
+        { label: "Open Observability dashboard", href: "/ops/observability" },
+        { label: "Review runbooks", href: "/ops/runbooks" },
       ]}
     />
   );
@@ -297,9 +283,18 @@ export function GovernanceSnapshotUnavailableNotice({
       variant="unknown"
       actions={
         requestId
-          ? [{ label: `Reference request ${requestId.slice(0, 12)}`, href: "/ops/observability" }]
-          : [{ label: "Check runtime readiness", href: "/ops/observability" }]
+          ? [
+              {
+                label: `Reference request ${requestId.slice(0, 12)}`,
+                href: "/ops/observability",
+              },
+            ]
+          : [{ label: "Open Observability dashboard", href: "/ops/observability" }]
       }
     />
   );
 }
+
+// Token re-exports for downstream consumers (kept in this file so the
+// barrel doesn't need to also export them separately).
+export { OPS_INK, OPS_SURFACE };
