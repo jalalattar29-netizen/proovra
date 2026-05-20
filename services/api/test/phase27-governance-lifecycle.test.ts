@@ -479,7 +479,7 @@ describe("Phase 27 — Catalog wiring", () => {
 
   it("metrics catalog includes Phase 27 counters + gauges", () => {
     const src = readSource(
-      "../src/services/ops/metrics.service.ts",
+      "../../../packages/shared-runtime/src/ops/metrics.service.ts",
     );
     for (const c of [
       "retention_policy_created_total",

@@ -67,7 +67,7 @@ describe("Phase 31.15 — CASE catalog membership", () => {
 
 describe("Phase 31.15 — CASE reconciler source contract", () => {
   const src = readSource(
-    "../src/services/graph/graph-builder.service.ts",
+    "../../../packages/shared-runtime/src/graph/graph-builder.service.ts",
   );
 
   it("inserts the CASE step between EVIDENCE upserts and MEDIA_SIGNAL step", () => {
@@ -157,7 +157,7 @@ describe("Phase 31.15 — CASE reconciler source contract", () => {
 
 describe("Phase 31.15 — CASE reconciler anti-leak", () => {
   const src = readSource(
-    "../src/services/graph/graph-builder.service.ts",
+    "../../../packages/shared-runtime/src/graph/graph-builder.service.ts",
   );
 
   it("CASE step does NOT touch storage internals / signed URLs / private notes", () => {

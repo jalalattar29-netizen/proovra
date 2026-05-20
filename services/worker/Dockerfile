@@ -6,12 +6,15 @@ RUN corepack enable
 FROM base AS deps
 ENV NODE_ENV=development
 
+# Phase 31.22 — worker container no longer requires services/api source.
+# All shared business logic lives in packages/shared-runtime; the worker
+# imports from @proovra/shared-runtime and never reaches into api/src.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
-COPY services/api/package.json services/api/package.json
 COPY services/worker/package.json services/worker/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/shared-billing/package.json packages/shared-billing/package.json
 COPY packages/shared-evidence-presentation/package.json packages/shared-evidence-presentation/package.json
+COPY packages/shared-runtime/package.json packages/shared-runtime/package.json
 
 RUN pnpm install --frozen-lockfile --prod=false --node-linker=hoisted
 
@@ -21,9 +24,6 @@ ENV DATABASE_URL=$DATABASE_URL
 RUN test -n "$DATABASE_URL"
 
 COPY tsconfig.json ./tsconfig.json
-
-COPY services/api/prisma services/api/prisma
-COPY services/api/prisma.config.ts services/api/prisma.config.ts
 
 COPY services/worker/src services/worker/src
 COPY services/worker/scripts services/worker/scripts
@@ -42,10 +42,25 @@ COPY packages/shared-evidence-presentation/src packages/shared-evidence-presenta
 COPY packages/shared-evidence-presentation/tsconfig.json packages/shared-evidence-presentation/tsconfig.json
 COPY packages/shared-evidence-presentation/tsconfig.build.json packages/shared-evidence-presentation/tsconfig.build.json
 
+# Phase 31.22 — shared-runtime (Prisma-using business logic + DTOs
+# shared between services/api and services/worker).
+COPY packages/shared-runtime/src packages/shared-runtime/src
+COPY packages/shared-runtime/tsconfig.json packages/shared-runtime/tsconfig.json
+
+# Prisma schema needed by shared-runtime to type-resolve PrismaClient.
+# The schema file is canonical-owned by services/api; the worker
+# container still needs `prisma generate` to materialise the Prisma
+# client. This is NOT a cross-import of api source — it's a build-
+# time tool dependency.
+COPY services/api/prisma services/api/prisma
+COPY services/api/prisma.config.ts services/api/prisma.config.ts
+COPY services/api/package.json services/api/package.json
+
 RUN pnpm --filter @proovra/shared build
 RUN pnpm --filter @proovra/shared-billing build
 RUN pnpm --filter @proovra/shared-evidence-presentation build
 RUN pnpm --filter proovra-api prisma:generate
+RUN pnpm --filter @proovra/shared-runtime build
 RUN pnpm --filter proovra-worker build
 
 FROM node:20-alpine AS runner
@@ -87,6 +102,7 @@ COPY --from=build /app/services/worker /app/services/worker
 COPY --from=build /app/packages/shared /app/packages/shared
 COPY --from=build /app/packages/shared-billing /app/packages/shared-billing
 COPY --from=build /app/packages/shared-evidence-presentation /app/packages/shared-evidence-presentation
+COPY --from=build /app/packages/shared-runtime /app/packages/shared-runtime
 COPY --from=build /app/tsconfig.json /app/tsconfig.json
 
 WORKDIR /app/services/worker

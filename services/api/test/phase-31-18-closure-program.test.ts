@@ -79,7 +79,7 @@ function flat(s: string): string {
 }
 
 const RECONCILER_SRC = readSource(
-  "../src/services/graph/graph-builder.service.ts",
+  "../../../packages/shared-runtime/src/graph/graph-builder.service.ts",
 );
 const GRAPH_ROUTES_SRC = readSource("../src/routes/graph.routes.ts");
 const MI_ROUTES_SRC = readSource("../src/routes/media-intelligence.routes.ts");
@@ -630,7 +630,7 @@ describe("Phase 31.18 — Search → graph/timeline pivots", () => {
 // PART 7 — Metrics registry (new bounded counters are registered)
 // =============================================================================
 
-const METRICS_SRC = readSource("../src/services/ops/metrics.service.ts");
+const METRICS_SRC = readSource("../../../packages/shared-runtime/src/ops/metrics.service.ts");
 
 describe("Phase 31.18 — metric names registered", () => {
   it("registers the 4 new bounded counters", () => {

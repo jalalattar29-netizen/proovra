@@ -48,7 +48,7 @@ export async function buildVerificationPackageIntelligence(input: {
     // 1. Media signals (re-uses the report projection's signal pull;
     //    the package shape needs fewer fields than the report).
     const { projectMediaIntelligenceForReport } = await import(
-      "../../api/src/services/media-intelligence/report-projection.service.js"
+      "@proovra/shared-runtime/media-intelligence"
     );
     const reportProjection = await projectMediaIntelligenceForReport(
       { teamId: input.teamId, evidenceId: input.evidenceId },
@@ -59,7 +59,7 @@ export async function buildVerificationPackageIntelligence(input: {
     //    + their SHA-256s. NEVER includes storage internals — the
     //    listDerivedAssetsForEvidence projection strips them.
     const { listDerivedAssetsForEvidence } = await import(
-      "../../api/src/services/media-intelligence/derived-assets.service.js"
+      "@proovra/shared-runtime/media-intelligence"
     );
     const derivedRows = await listDerivedAssetsForEvidence(
       input.teamId,

@@ -38,10 +38,10 @@ function stripComments(s: string): string {
 }
 
 const SIGNAL_CATALOG_SRC = readSource(
-  "../src/services/media-intelligence/signal-catalog.ts",
+  "../../../packages/shared-runtime/src/media-intelligence/signal-catalog.ts",
 );
 const INDEXER_SRC = readSource(
-  "../src/services/media-intelligence/ocr-transcript-indexer.service.ts",
+  "../../../packages/shared-runtime/src/media-intelligence/ocr-transcript-indexer.service.ts",
 );
 const INDEXED_SIGNALS_SQL = readSource(
   "../sql/drift-patches/2026-05-20-ocr-transcript-indexed-signals.sql",
@@ -307,9 +307,11 @@ const SUBSYSTEM_PROCESSORS_SRC = readSource(
 );
 
 describe("Phase 31.20 — graph-reconcile invokes OCR/transcript indexer", () => {
-  it("imports and conditionally invokes the indexer service", () => {
+  it("imports and conditionally invokes the indexer service via @proovra/shared-runtime", () => {
+    // Phase 31.22 boundary fix — the dynamic import now points at the
+    // shared-runtime package, not at api/src.
     expect(SUBSYSTEM_PROCESSORS_SRC).toMatch(
-      /import\([\s\S]*?ocr-transcript-indexer\.service\.js[\s\S]*?\)/,
+      /import\(\s*"@proovra\/shared-runtime\/media-intelligence"/,
     );
     expect(SUBSYSTEM_PROCESSORS_SRC).toMatch(
       /const indexerResult = await indexExistingOcrAndTranscript\(\s*\{\s*teamId: job\.data\.teamId/,
@@ -451,7 +453,7 @@ describe("Phase 31.20 — final 3 queue processors", () => {
 // PART 7 — Metrics registry (new counters)
 // =============================================================================
 
-const METRICS_SRC = readSource("../src/services/ops/metrics.service.ts");
+const METRICS_SRC = readSource("../../../packages/shared-runtime/src/ops/metrics.service.ts");
 
 describe("Phase 31.20 — bounded metric names registered", () => {
   it("registers ocr indexer + 3 new graph subsystem counters", () => {

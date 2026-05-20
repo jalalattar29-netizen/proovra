@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "prebuild": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-runtime build",
     "start": "node --experimental-specifier-resolution=node dist/index.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -25,6 +26,7 @@
     "@proovra/shared": "workspace:*",
     "@proovra/shared-billing": "workspace:*",
     "@proovra/shared-evidence-presentation": "workspace:*",
+    "@proovra/shared-runtime": "workspace:*",
     "@sentry/node": "^10.38.0",
     "@signpdf/placeholder-plain": "^3.3.0",
     "@signpdf/signer-p12": "^3.3.0",

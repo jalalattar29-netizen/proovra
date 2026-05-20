@@ -124,7 +124,7 @@ describe("Phase 31.13 — evidence_part_derived_assets SQL drift patch", () => {
 
 describe("Phase 31.13 — derived assets persistence service", () => {
   const src = readSource(
-    "../src/services/media-intelligence/derived-assets.service.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/derived-assets.service.ts",
   );
 
   it("upsert keyed by (team_id, evidence_part_id, asset_kind) — idempotent", () => {
@@ -542,7 +542,7 @@ describe("Phase 31.13 — derived-assets worker bootstrap", () => {
 
 describe("Phase 31.13 — metrics catalog", () => {
   const src = readSource(
-    "../src/services/ops/metrics.service.ts",
+    "../../../packages/shared-runtime/src/ops/metrics.service.ts",
   );
 
   it("registers all 7 new derived-assets counters", () => {
@@ -579,7 +579,7 @@ describe("Phase 31.13 — metrics catalog", () => {
 
 describe("Phase 31.13 — anti-leak across new surfaces", () => {
   const sources = [
-    "../src/services/media-intelligence/derived-assets.service.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/derived-assets.service.ts",
     "../src/queue/derived-assets-queue.ts",
     "../../../services/worker/src/derived-assets.processor.ts",
     "../../../services/worker/src/derived-assets-capability.ts",

@@ -11,6 +11,8 @@ COPY services/worker/package.json services/worker/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/shared-billing/package.json packages/shared-billing/package.json
 COPY packages/shared-evidence-presentation/package.json packages/shared-evidence-presentation/package.json
+# Phase 31.22 — shared-runtime package required by services/api.
+COPY packages/shared-runtime/package.json packages/shared-runtime/package.json
 
 RUN pnpm install --frozen-lockfile --prod=false --node-linker=hoisted
 
@@ -39,10 +41,15 @@ COPY packages/shared-evidence-presentation/src packages/shared-evidence-presenta
 COPY packages/shared-evidence-presentation/tsconfig.json packages/shared-evidence-presentation/tsconfig.json
 COPY packages/shared-evidence-presentation/tsconfig.build.json packages/shared-evidence-presentation/tsconfig.build.json
 
+# Phase 31.22 — shared-runtime package (Prisma-using business logic).
+COPY packages/shared-runtime/src packages/shared-runtime/src
+COPY packages/shared-runtime/tsconfig.json packages/shared-runtime/tsconfig.json
+
 RUN pnpm --filter @proovra/shared build
 RUN pnpm --filter @proovra/shared-billing build
 RUN pnpm --filter @proovra/shared-evidence-presentation build
 RUN pnpm --filter proovra-api prisma:generate
+RUN pnpm --filter @proovra/shared-runtime build
 RUN pnpm --filter proovra-api build
 
 FROM node:20-alpine AS runner
@@ -58,6 +65,7 @@ COPY --from=build /app/services/api /app/services/api
 COPY --from=build /app/packages/shared /app/packages/shared
 COPY --from=build /app/packages/shared-billing /app/packages/shared-billing
 COPY --from=build /app/packages/shared-evidence-presentation /app/packages/shared-evidence-presentation
+COPY --from=build /app/packages/shared-runtime /app/packages/shared-runtime
 COPY --from=build /app/tsconfig.json /app/tsconfig.json
 
 WORKDIR /app/services/api

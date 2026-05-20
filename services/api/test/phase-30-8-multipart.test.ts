@@ -731,7 +731,7 @@ describe("Phase 30.8 — custody / integrity invariants", () => {
 describe("Phase 30.8 — observability catalogs", () => {
   it("metrics catalog registers the new multipart counters", () => {
     const src = readSource(
-      "../../../services/api/src/services/ops/metrics.service.ts",
+      "../../../packages/shared-runtime/src/ops/metrics.service.ts",
     );
     for (const m of [
       "multipart_initiated_total",

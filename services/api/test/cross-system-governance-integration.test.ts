@@ -394,7 +394,7 @@ describe("Phase 28-D — cross-system chain proof", () => {
 // =============================================================================
 
 describe("Phase 28-D — metrics catalog completeness", () => {
-  const src = readSource("../src/services/ops/metrics.service.ts");
+  const src = readSource("../../../packages/shared-runtime/src/ops/metrics.service.ts");
   const required = [
     "governance_snapshot_requested_total",
     "export_governance_blocked_total",

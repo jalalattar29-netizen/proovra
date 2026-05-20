@@ -196,7 +196,7 @@ describe("Phase 32 — investigation-graph SQL drift patch", () => {
 
 describe("Phase 31.5 — run tracker", () => {
   const src = readSource(
-    "../../../services/api/src/services/media-intelligence/run-tracker.service.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/run-tracker.service.ts",
   );
 
   it("bounded run kinds match the brief catalog", () => {
@@ -322,7 +322,7 @@ describe("Phase 31.5 — enhanced analyzer signals", () => {
 
   it("analyzer source emits the 4 new signal types + OCR/transcript", () => {
     const src = readSource(
-      "../../../services/api/src/services/media-intelligence/analyzer.service.ts",
+      "../../../packages/shared-runtime/src/media-intelligence/analyzer.service.ts",
     );
     for (const sigType of [
       "SIMILAR_FILE_CANDIDATE",
@@ -339,7 +339,7 @@ describe("Phase 31.5 — enhanced analyzer signals", () => {
 
   it("OCR / TRANSCRIPT availability check queries the existing intelligence-jobs table (no new infra)", () => {
     const src = readSource(
-      "../../../services/api/src/services/media-intelligence/analyzer.service.ts",
+      "../../../packages/shared-runtime/src/media-intelligence/analyzer.service.ts",
     );
     expect(src).toMatch(/FROM "evidence_intelligence_jobs"/);
     expect(src).toMatch(/"kind" = \$2::"EvidenceIntelligenceJobKind"/);
@@ -349,7 +349,7 @@ describe("Phase 31.5 — enhanced analyzer signals", () => {
 
   it("SIMILAR_FILE_CANDIDATE query excludes exact-hash duplicates (no double-counting)", () => {
     const src = readSource(
-      "../../../services/api/src/services/media-intelligence/analyzer.service.ts",
+      "../../../packages/shared-runtime/src/media-intelligence/analyzer.service.ts",
     );
     expect(src).toMatch(
       /findSimilarFilenameSizeCount[\s\S]*?ep\."sha256" IS NULL OR ep\."sha256" <> COALESCE/,
@@ -483,7 +483,7 @@ describe("Phase 32 — graph catalog", () => {
 
 describe("Phase 32 — graph builder source contract", () => {
   const src = readSource(
-    "../../../services/api/src/services/graph/graph-builder.service.ts",
+    "../../../packages/shared-runtime/src/graph/graph-builder.service.ts",
   );
   const noComments = src
     .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -550,7 +550,7 @@ describe("Phase 32 — graph builder source contract", () => {
 
 describe("Phase 32 — graph traversal", () => {
   const src = readSource(
-    "../../../services/api/src/services/graph/graph-builder.service.ts",
+    "../../../packages/shared-runtime/src/graph/graph-builder.service.ts",
   );
 
   it("depth clamped to [0, MAX_GRAPH_TRAVERSAL_DEPTH]", () => {
@@ -675,7 +675,7 @@ describe("Phase 32 — graph routes", () => {
 
 describe("Phase 32 — observability + reconciliation wiring", () => {
   const metricsSrc = readSource(
-    "../../../services/api/src/services/ops/metrics.service.ts",
+    "../../../packages/shared-runtime/src/ops/metrics.service.ts",
   );
 
   it("registers all new counters from the brief", () => {
@@ -760,10 +760,10 @@ describe("Phase 32 — observability + reconciliation wiring", () => {
 
 describe("Phase 31.5 + 32 — anti-leak invariants", () => {
   const allSources = [
-    "../../../services/api/src/services/media-intelligence/run-tracker.service.ts",
-    "../../../services/api/src/services/media-intelligence/analyzer.service.ts",
-    "../../../services/api/src/services/graph/graph-builder.service.ts",
-    "../../../services/api/src/services/graph/graph-catalog.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/run-tracker.service.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/analyzer.service.ts",
+    "../../../packages/shared-runtime/src/graph/graph-builder.service.ts",
+    "../../../packages/shared-runtime/src/graph/graph-catalog.ts",
     "../../../services/api/src/routes/graph.routes.ts",
     "../../../services/api/src/routes/media-intelligence.routes.ts",
   ].map(readSource);

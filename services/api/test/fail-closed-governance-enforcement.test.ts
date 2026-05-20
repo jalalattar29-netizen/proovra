@@ -595,7 +595,7 @@ describe("Phase 28-E [export parity audit] — every governance-sensitive path c
 // =============================================================================
 
 describe("Phase 28-E [metrics catalog]", () => {
-  const src = readSource("../src/services/ops/metrics.service.ts");
+  const src = readSource("../../../packages/shared-runtime/src/ops/metrics.service.ts");
 
   const required = [
     "package_generation_blocked_total",

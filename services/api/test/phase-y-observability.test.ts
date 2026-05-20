@@ -356,7 +356,7 @@ describe("Phase Y — safeLabelSet", () => {
 // -----------------------------------------------------------------------------
 
 describe("Phase Y — Metrics catalog completeness", () => {
-  const src = readSource("../src/services/ops/metrics.service.ts");
+  const src = readSource("../../../packages/shared-runtime/src/ops/metrics.service.ts");
 
   it("counters cover Phase Y additions", () => {
     for (const n of [

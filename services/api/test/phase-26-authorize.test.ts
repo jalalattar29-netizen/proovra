@@ -290,7 +290,7 @@ describe("Phase 26 — privacy + governance invariants", () => {
 
   it("metric catalogue registers the three new Phase 26 counters", () => {
     const metricSrc = readSource(
-      "../../../services/api/src/services/ops/metrics.service.ts",
+      "../../../packages/shared-runtime/src/ops/metrics.service.ts",
     );
     expect(metricSrc).toContain('"authorize_allowed_total"');
     expect(metricSrc).toContain('"authorize_denied_total"');

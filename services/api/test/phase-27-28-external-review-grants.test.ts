@@ -294,7 +294,7 @@ describe("Phase 27/28 — schema validation registration", () => {
 describe("Phase 27/28 — metric + SecurityEvent catalogues", () => {
   it("metrics service registers every Phase 27/28 external-review counter", () => {
     const src = readSource(
-      "../../../services/api/src/services/ops/metrics.service.ts",
+      "../../../packages/shared-runtime/src/ops/metrics.service.ts",
     );
     for (const m of [
       "external_review_invited_total",

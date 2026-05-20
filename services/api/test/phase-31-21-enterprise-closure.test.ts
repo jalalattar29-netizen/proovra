@@ -62,7 +62,7 @@ const LOCAL_CAP_SRC = readSource(
   "../../worker/src/local-ocr-transcript-capability.ts",
 );
 const DOMAIN_SYNC_SRC = readSource(
-  "../src/services/graph/domain-sync.service.ts",
+  "../../../packages/shared-runtime/src/graph/domain-sync.service.ts",
 );
 const SUBSYSTEM_PROCESSORS_SRC = readSource(
   "../../worker/src/subsystem-queue-processors.ts",
@@ -352,7 +352,7 @@ describe("Phase 31.21 — Reviewer Console UI", () => {
 // PART 6 — Metrics registry includes the new counters
 // =============================================================================
 
-const METRICS_SRC = readSource("../src/services/ops/metrics.service.ts");
+const METRICS_SRC = readSource("../../../packages/shared-runtime/src/ops/metrics.service.ts");
 
 describe("Phase 31.21 — metric counters", () => {
   it("graph_node_removed_total is registered", () => {

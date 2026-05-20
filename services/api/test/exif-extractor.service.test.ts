@@ -192,7 +192,7 @@ describe("EXIF extractor — computeExifVsServerGapSeconds", () => {
 
 describe("EXIF extractor — source contract", () => {
   const src = readSource(
-    "../src/services/media-intelligence/exif-extractor.service.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/exif-extractor.service.ts",
   );
 
   it("declared pure — no fs / net / process.env imports", () => {

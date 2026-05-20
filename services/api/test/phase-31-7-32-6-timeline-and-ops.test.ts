@@ -32,7 +32,7 @@ function readSource(rel: string): string {
 
 describe("Phase 31.7 — buildInvestigationTimeline", () => {
   const src = readSource(
-    "../src/services/graph/graph-builder.service.ts",
+    "../../../packages/shared-runtime/src/graph/graph-builder.service.ts",
   );
 
   it("TimelineEventKind union includes lifecycle + MI run + MI signal kinds", () => {

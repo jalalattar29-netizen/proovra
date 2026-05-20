@@ -508,7 +508,7 @@ describe("Phase 30.12 — Review & Sign readiness with resumable blockers", () =
 
 describe("Phase 30.12 — observability", () => {
   const metricsSrc = readSource(
-    "../../../services/api/src/services/ops/metrics.service.ts",
+    "../../../packages/shared-runtime/src/ops/metrics.service.ts",
   );
 
   it("registers the 2 new unified-manifest counters", () => {

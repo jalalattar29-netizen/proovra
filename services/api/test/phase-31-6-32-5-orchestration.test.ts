@@ -40,7 +40,7 @@ function readSource(rel: string): string {
 
 describe("Phase 31.6 — metrics catalog (counters)", () => {
   const src = readSource(
-    "../../../services/api/src/services/ops/metrics.service.ts",
+    "../../../packages/shared-runtime/src/ops/metrics.service.ts",
   );
 
   it("registers every new Phase 31.6 counter", () => {
@@ -71,7 +71,7 @@ describe("Phase 31.6 — metrics catalog (counters)", () => {
 
 describe("Phase 31.6 — metrics catalog (gauges)", () => {
   const src = readSource(
-    "../../../services/api/src/services/ops/metrics.service.ts",
+    "../../../packages/shared-runtime/src/ops/metrics.service.ts",
   );
 
   it("registers every new Phase 31.6 gauge", () => {
@@ -594,7 +594,7 @@ describe("Phase 31.6 — MediaIntelligencePanel source contract", () => {
 
 describe("Phase 31.6 — run tracker dismiss counter", () => {
   const src = readSource(
-    "../../../services/api/src/services/media-intelligence/run-tracker.service.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/run-tracker.service.ts",
   );
 
   it("dismissRun bumps media_intelligence_run_dismissed_total", () => {

@@ -520,7 +520,7 @@ describe("Phase 30.7 — bounded vocabulary + observability catalog", () => {
 
   it("metrics catalog registers the four new gate counters", () => {
     const src = readSource(
-      "../../../services/api/src/services/ops/metrics.service.ts",
+      "../../../packages/shared-runtime/src/ops/metrics.service.ts",
     );
     for (const m of [
       "upload_session_finalize_gate_no_session_total",

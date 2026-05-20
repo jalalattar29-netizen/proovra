@@ -61,7 +61,7 @@ export async function buildReportMediaIntelligence(input: {
   }
   try {
     const { projectMediaIntelligenceForReport } = await import(
-      "../../api/src/services/media-intelligence/report-projection.service.js"
+      "@proovra/shared-runtime/media-intelligence"
     );
     const result = await projectMediaIntelligenceForReport(
       { teamId: input.teamId, evidenceId: input.evidenceId },

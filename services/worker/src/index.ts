@@ -1,4 +1,8 @@
 import "./env-loader.js";
+// Phase 31.22 — register the worker's Prisma instance with the
+// @proovra/shared-runtime registry BEFORE any processor module
+// loads. Side-effect import; do not remove or reorder.
+import "./register-shared-runtime.js";
 import { randomUUID } from "node:crypto";
 import { Worker } from "bullmq";
 import { logger, withJobContext } from "./logger.js";

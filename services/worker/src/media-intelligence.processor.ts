@@ -67,7 +67,7 @@ async function tryBump(
 ): Promise<void> {
   try {
     const mod = await import(
-      "../../api/src/services/ops/metrics.service.js"
+      "@proovra/shared-runtime/ops"
     );
     mod.bump(name);
   } catch {
@@ -138,16 +138,16 @@ export async function processMediaIntelligenceJob(
   // from ./db.js is passed in explicitly so the API code's default
   // (services/api/src/db.ts) is bypassed — keeps the worker
   // single-prisma-instance.
-  let runMediaIntelligenceAnalysis: typeof import("../../api/src/services/media-intelligence/analyzer.service.js")["runMediaIntelligenceAnalysis"];
-  let markRunProcessing: typeof import("../../api/src/services/media-intelligence/run-tracker.service.js")["markRunProcessing"];
-  let markRunCompleted: typeof import("../../api/src/services/media-intelligence/run-tracker.service.js")["markRunCompleted"];
-  let markRunFailed: typeof import("../../api/src/services/media-intelligence/run-tracker.service.js")["markRunFailed"];
+  let runMediaIntelligenceAnalysis: typeof import("@proovra/shared-runtime/media-intelligence")["runMediaIntelligenceAnalysis"];
+  let markRunProcessing: typeof import("@proovra/shared-runtime/media-intelligence")["markRunProcessing"];
+  let markRunCompleted: typeof import("@proovra/shared-runtime/media-intelligence")["markRunCompleted"];
+  let markRunFailed: typeof import("@proovra/shared-runtime/media-intelligence")["markRunFailed"];
   try {
     ({ runMediaIntelligenceAnalysis } = await import(
-      "../../api/src/services/media-intelligence/analyzer.service.js"
+      "@proovra/shared-runtime/media-intelligence"
     ));
     ({ markRunProcessing, markRunCompleted, markRunFailed } = await import(
-      "../../api/src/services/media-intelligence/run-tracker.service.js"
+      "@proovra/shared-runtime/media-intelligence"
     ));
   } catch (err) {
     // Module import itself failed (e.g. analyzer file moved). This
@@ -252,21 +252,21 @@ async function processExtractExifJob(
   // Lazy-import: keeps the worker free to start even if the API
   // package is being rebuilt. Failure to import is transient and
   // throws so BullMQ retries with backoff.
-  let markRunProcessing: typeof import("../../api/src/services/media-intelligence/run-tracker.service.js")["markRunProcessing"];
-  let markRunCompleted: typeof import("../../api/src/services/media-intelligence/run-tracker.service.js")["markRunCompleted"];
-  let markRunFailed: typeof import("../../api/src/services/media-intelligence/run-tracker.service.js")["markRunFailed"];
-  let extractExifSafe: typeof import("../../api/src/services/media-intelligence/exif-extractor.service.js")["extractExifSafe"];
-  let upsertExifSummary: typeof import("../../api/src/services/media-intelligence/exif-summary.service.js")["upsertExifSummary"];
-  let recordExifSummaryFailure: typeof import("../../api/src/services/media-intelligence/exif-summary.service.js")["recordExifSummaryFailure"];
+  let markRunProcessing: typeof import("@proovra/shared-runtime/media-intelligence")["markRunProcessing"];
+  let markRunCompleted: typeof import("@proovra/shared-runtime/media-intelligence")["markRunCompleted"];
+  let markRunFailed: typeof import("@proovra/shared-runtime/media-intelligence")["markRunFailed"];
+  let extractExifSafe: typeof import("@proovra/shared-runtime/media-intelligence")["extractExifSafe"];
+  let upsertExifSummary: typeof import("@proovra/shared-runtime/media-intelligence")["upsertExifSummary"];
+  let recordExifSummaryFailure: typeof import("@proovra/shared-runtime/media-intelligence")["recordExifSummaryFailure"];
   try {
     ({ markRunProcessing, markRunCompleted, markRunFailed } = await import(
-      "../../api/src/services/media-intelligence/run-tracker.service.js"
+      "@proovra/shared-runtime/media-intelligence"
     ));
     ({ extractExifSafe } = await import(
-      "../../api/src/services/media-intelligence/exif-extractor.service.js"
+      "@proovra/shared-runtime/media-intelligence"
     ));
     ({ upsertExifSummary, recordExifSummaryFailure } = await import(
-      "../../api/src/services/media-intelligence/exif-summary.service.js"
+      "@proovra/shared-runtime/media-intelligence"
     ));
   } catch (err) {
     logger.error(

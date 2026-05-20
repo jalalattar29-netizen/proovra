@@ -335,7 +335,7 @@ describe("Operational seed [route layer]", () => {
 // =============================================================================
 
 describe("Operational seed [metrics catalog]", () => {
-  const src = readSource("../src/services/ops/metrics.service.ts");
+  const src = readSource("../../../packages/shared-runtime/src/ops/metrics.service.ts");
 
   it("catalog includes every counter the seeding service bumps", () => {
     const expected = [

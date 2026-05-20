@@ -592,7 +592,7 @@ async function persistCompleted(
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   try {
     const { recordDerivedAsset } = await import(
-      "../../api/src/services/media-intelligence/derived-assets.service.js"
+      "@proovra/shared-runtime/media-intelligence"
     );
     const r = await recordDerivedAsset(
       {
@@ -619,7 +619,7 @@ async function persistFailed(
 ): Promise<void> {
   try {
     const { recordDerivedAsset } = await import(
-      "../../api/src/services/media-intelligence/derived-assets.service.js"
+      "@proovra/shared-runtime/media-intelligence"
     );
     await recordDerivedAsset(
       {
@@ -643,7 +643,7 @@ async function persistUnsupported(
 ): Promise<void> {
   try {
     const { recordDerivedAsset } = await import(
-      "../../api/src/services/media-intelligence/derived-assets.service.js"
+      "@proovra/shared-runtime/media-intelligence"
     );
     await recordDerivedAsset(
       {
@@ -672,7 +672,7 @@ async function tryBump(
 ): Promise<void> {
   try {
     const mod = await import(
-      "../../api/src/services/ops/metrics.service.js"
+      "@proovra/shared-runtime/ops"
     );
     mod.bump(name);
   } catch {

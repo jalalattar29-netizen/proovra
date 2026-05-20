@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "prebuild": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/shared-billing build",
+    "prebuild": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/shared-billing build && pnpm --filter @proovra/shared-runtime build",
     "build": "tsc -p tsconfig.build.json",
     "start": "node --experimental-specifier-resolution=node dist/index.js",
     "prisma:generate": "prisma generate",
@@ -32,6 +32,7 @@
     "@proovra/shared": "workspace:*",
     "@proovra/shared-billing": "workspace:*",
     "@proovra/shared-evidence-presentation": "workspace:*",
+    "@proovra/shared-runtime": "workspace:*",
     "@sentry/node": "^10.38.0",
     "@types/nodemailer": "^7.0.9",
     "archiver": "^7.0.1",

@@ -87,7 +87,7 @@ describe("Phase 31.11 — projectMediaIntelligenceForReport: refusal at entry", 
 
 describe("Phase 31.11 — projection source contract", () => {
   const src = readSource(
-    "../src/services/media-intelligence/report-projection.service.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/report-projection.service.ts",
   );
 
   it("declared to never throw — try/catch returns null on error", () => {
@@ -254,9 +254,9 @@ describe("Phase 31.11 — worker report bridge", () => {
     expect(src).toMatch(/if\s*\(!input\.teamId\)\s*\{\s*return\s+null/);
   });
 
-  it("lazy-imports the api projection service via the cross-package path", () => {
+  it("lazy-imports the projection service via @proovra/shared-runtime (Phase 31.22 boundary fix)", () => {
     expect(src).toMatch(
-      /await import\(\s*"\.\.\/\.\.\/api\/src\/services\/media-intelligence\/report-projection\.service\.js"/,
+      /await import\(\s*"@proovra\/shared-runtime\/media-intelligence"/,
     );
   });
 

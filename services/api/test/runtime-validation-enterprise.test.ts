@@ -241,7 +241,7 @@ describe("Runtime readiness routes [registration]", () => {
 // =============================================================================
 
 describe("Phase 28-F [metrics catalog]", () => {
-  const src = readSource("../src/services/ops/metrics.service.ts");
+  const src = readSource("../../../packages/shared-runtime/src/ops/metrics.service.ts");
 
   const required = [
     "runtime_readiness_check_total",

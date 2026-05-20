@@ -655,7 +655,7 @@ describe("Phase 25.5 — source contract + privacy invariants", () => {
 
 describe("Phase 25.5 — metric catalogue", () => {
   const src = readSource(
-    "../../../services/api/src/services/ops/metrics.service.ts",
+    "../../../packages/shared-runtime/src/ops/metrics.service.ts",
   );
 
   it("registers every Phase 25.5 reviewer + assignment counter", () => {

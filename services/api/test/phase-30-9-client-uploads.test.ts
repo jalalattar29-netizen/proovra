@@ -548,7 +548,7 @@ describe("Phase 30.9 — persistence + recovery + UI anti-leak", () => {
 
 describe("Phase 30.9 — backend client-side telemetry counters", () => {
   const metricsSrc = readSource(
-    "../../../services/api/src/services/ops/metrics.service.ts",
+    "../../../packages/shared-runtime/src/ops/metrics.service.ts",
   );
 
   it("11 client-side counters registered per brief", () => {

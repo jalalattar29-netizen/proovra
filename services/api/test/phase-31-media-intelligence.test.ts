@@ -374,7 +374,7 @@ describe("Phase 31 — pure heuristics", () => {
 
 describe("Phase 31 — analyzer source contract", () => {
   const src = readSource(
-    "../../../services/api/src/services/media-intelligence/analyzer.service.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/analyzer.service.ts",
   );
   const noComments = src
     .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -558,7 +558,7 @@ describe("Phase 31 — route source contract", () => {
 describe("Phase 31 — observability", () => {
   it("metrics catalog registers analyzer + reserved counters", () => {
     const src = readSource(
-      "../../../services/api/src/services/ops/metrics.service.ts",
+      "../../../packages/shared-runtime/src/ops/metrics.service.ts",
     );
     for (const m of [
       // Active counters

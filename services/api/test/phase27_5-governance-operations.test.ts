@@ -299,7 +299,7 @@ describe("Phase 27.5 — SecurityEvent + metrics + step-up wiring", () => {
   });
 
   it("metrics catalog includes Phase 27.5 counters + gauges", () => {
-    const src = readSource("../src/services/ops/metrics.service.ts");
+    const src = readSource("../../../packages/shared-runtime/src/ops/metrics.service.ts");
     for (const c of [
       "governance_reconciliation_runs_total",
       "governance_reconciliation_run_failed_total",

@@ -628,7 +628,7 @@ describe("Phase 25 — stuck workflow detector", () => {
 
 describe("Phase 25 — metric catalogue", () => {
   const src = readSource(
-    "../../../services/api/src/services/ops/metrics.service.ts",
+    "../../../packages/shared-runtime/src/ops/metrics.service.ts",
   );
 
   it("registers every Phase 25 counter from the brief", () => {

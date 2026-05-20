@@ -276,7 +276,7 @@ describe("Phase 25.7 — privacy + governance invariants", () => {
 
 describe("Phase 25.7 — metric registration", () => {
   const src = readSource(
-    "../../../services/api/src/services/ops/metrics.service.ts",
+    "../../../packages/shared-runtime/src/ops/metrics.service.ts",
   );
 
   it("registers the Phase 25.5 + 25.7 counters used by the new orchestration", () => {

@@ -405,7 +405,7 @@ describe("Phase 30 — schema validation registration", () => {
 describe("Phase 30 — metric + SecurityEvent catalogues", () => {
   it("metrics service registers every Phase 30 upload-session counter", () => {
     const src = readSource(
-      "../../../services/api/src/services/ops/metrics.service.ts",
+      "../../../packages/shared-runtime/src/ops/metrics.service.ts",
     );
     for (const m of [
       "upload_session_created_total",

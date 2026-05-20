@@ -240,7 +240,7 @@ describe("Phase 31.14 — MediaIntelligencePanel real-image rendering", () => {
 
 describe("Phase 31.14 — report projection derivedThumbnails wiring", () => {
   const src = readSource(
-    "../src/services/media-intelligence/report-projection.service.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/report-projection.service.ts",
   );
 
   it("now returns null only when BOTH signals + thumbnails are empty", () => {
@@ -400,7 +400,7 @@ describe("Phase 31.14 — worker processor wires verification-package intelligen
 describe("Phase 31.14 — cross-source anti-leak", () => {
   const sources = [
     "../src/routes/media-intelligence.routes.ts",
-    "../src/services/media-intelligence/report-projection.service.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/report-projection.service.ts",
     "../../../services/worker/src/verification-package-intelligence-bridge.ts",
     "../../../apps/web/lib/media-intelligence/useDerivedAssets.ts",
     "../../../apps/web/components/media-intelligence/MediaIntelligencePanel.tsx",

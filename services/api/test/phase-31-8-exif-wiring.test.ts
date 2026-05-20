@@ -260,7 +260,7 @@ describe("Phase 31.8 — worker extract_exif branch", () => {
 
 describe("Phase 31.8 — EXIF summary persistence service", () => {
   const src = readSource(
-    "../src/services/media-intelligence/exif-summary.service.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/exif-summary.service.ts",
   );
 
   it("upsert keyed by (team_id, evidence_part_id) — idempotent", () => {
@@ -308,7 +308,7 @@ describe("Phase 31.8 — EXIF summary persistence service", () => {
 
 describe("Phase 31.8 — analyzer reads persisted EXIF", () => {
   const src = readSource(
-    "../src/services/media-intelligence/analyzer.service.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/analyzer.service.ts",
   );
 
   it("imports listExifSummariesForEvidence + computeExifVsServerGapSeconds", () => {
@@ -498,7 +498,7 @@ describe("Phase 31.8 — anti-leak invariants across new surfaces", () => {
   // persistence layer + worker + analyzer are the surfaces that
   // must refuse to store / project raw GPS.
   const sources = [
-    "../src/services/media-intelligence/exif-summary.service.ts",
+    "../../../packages/shared-runtime/src/media-intelligence/exif-summary.service.ts",
     "../src/queue/media-intelligence-queue.ts",
     "../../../services/worker/src/media-intelligence.processor.ts",
   ].map(readSource);

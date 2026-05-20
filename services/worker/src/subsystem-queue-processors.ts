@@ -149,7 +149,7 @@ export async function processGraphReconcileJob(
   );
   try {
     const { reconcileTeamGraph } = await import(
-      "../../api/src/services/graph/graph-builder.service.js"
+      "@proovra/shared-runtime/graph"
     );
     const result = await reconcileTeamGraph(job.data.teamId, prisma);
     logger.info(
@@ -186,14 +186,14 @@ export async function processGraphReconcileJob(
   // the graph reconcile (which has already succeeded above).
   try {
     const { summariseProducerModes } = await import(
-      "../../api/src/services/media-intelligence/producer-mode.js"
+      "@proovra/shared-runtime/media-intelligence"
     );
     const modes = summariseProducerModes();
     const anyIndexing =
       modes.ocr !== "NOT_CONFIGURED" || modes.transcript !== "NOT_CONFIGURED";
     if (anyIndexing) {
       const { indexExistingOcrAndTranscript } = await import(
-        "../../api/src/services/media-intelligence/ocr-transcript-indexer.service.js"
+        "@proovra/shared-runtime/media-intelligence"
       );
       const indexerResult = await indexExistingOcrAndTranscript(
         { teamId: job.data.teamId },
@@ -259,7 +259,7 @@ export async function processGraphDomainSyncJob(
   // across all bounded catalog domains.
   try {
     const { DOMAIN_SYNC_DOMAINS, runDomainStaleSweep } = await import(
-      "../../api/src/services/graph/domain-sync.service.js"
+      "@proovra/shared-runtime/graph"
     );
     const targets = job.data.domain
       ? [job.data.domain]
@@ -341,7 +341,7 @@ export async function processGraphTimelineSyncJob(
   // sweep that tombstones edges whose endpoints both went stale.
   try {
     const { runTimelineSync } = await import(
-      "../../api/src/services/graph/domain-sync.service.js"
+      "@proovra/shared-runtime/graph"
     );
     const result = await runTimelineSync(job.data.teamId, prisma);
     logger.info(
@@ -388,7 +388,7 @@ export async function processGraphSearchProjectionJob(
   // (the underlying enqueue collapses dups).
   try {
     const { runSearchProjectionSync } = await import(
-      "../../api/src/services/graph/domain-sync.service.js"
+      "@proovra/shared-runtime/graph"
     );
     // Provide an explicit enqueueImpl that uses the worker's
     // already-loaded queue helper — avoids a second Redis

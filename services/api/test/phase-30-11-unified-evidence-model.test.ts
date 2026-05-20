@@ -502,7 +502,7 @@ describe("Phase 30.11 — projectForPublic", () => {
 
 describe("Phase 30.11 — observability counters", () => {
   const metricsSrc = readSource(
-    "../../../services/api/src/services/ops/metrics.service.ts",
+    "../../../packages/shared-runtime/src/ops/metrics.service.ts",
   );
 
   it("registers the 6 new counters from the brief", () => {

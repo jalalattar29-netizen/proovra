@@ -40,7 +40,7 @@ function readSource(rel: string): string {
 }
 
 const RECONCILER_SRC = readSource(
-  "../src/services/graph/graph-builder.service.ts",
+  "../../../packages/shared-runtime/src/graph/graph-builder.service.ts",
 );
 
 // =============================================================================

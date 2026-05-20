@@ -229,6 +229,22 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/shared-runtime:
+    dependencies:
+      '@prisma/client':
+        specifier: ^7.3.0
+        version: 7.4.2(prisma@7.4.2(@types/react@18.2.46)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3)
+      '@proovra/shared':
+        specifier: workspace:*
+        version: link:../shared
+      exifr:
+        specifier: ^7.1.3
+        version: 7.1.3
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/ui:
     devDependencies:
       '@eslint/js':
@@ -282,6 +298,9 @@ importers:
       '@proovra/shared-evidence-presentation':
         specifier: workspace:*
         version: link:../../packages/shared-evidence-presentation
+      '@proovra/shared-runtime':
+        specifier: workspace:*
+        version: link:../../packages/shared-runtime
       '@sentry/node':
         specifier: ^10.38.0
         version: 10.41.0
@@ -388,6 +407,9 @@ importers:
       '@proovra/shared-evidence-presentation':
         specifier: workspace:*
         version: link:../../packages/shared-evidence-presentation
+      '@proovra/shared-runtime':
+        specifier: workspace:*
+        version: link:../../packages/shared-runtime
       '@sentry/node':
         specifier: ^10.38.0
         version: 10.41.0

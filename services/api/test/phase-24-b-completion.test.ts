@@ -242,7 +242,7 @@ describe("Phase 24-B — observability dashboard surfaces a Search indexing tile
 
 describe("Phase 24-B — metric catalog completeness", () => {
   const src = readSource(
-    "../../../services/api/src/services/ops/metrics.service.ts",
+    "../../../packages/shared-runtime/src/ops/metrics.service.ts",
   );
 
   it("registers the full Phase 24-B operational counters", () => {
