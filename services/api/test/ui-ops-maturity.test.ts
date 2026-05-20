@@ -207,7 +207,11 @@ describe("AppSidebarV2 — IA + operational badges", () => {
     const primary = src.indexOf('title="Primary"');
     const ops = src.indexOf('title="Operations"');
     const gov = src.indexOf('title="Governance"');
-    const admin = src.indexOf('title={isPlatformAdmin ? "Admin" : "Admin"}');
+    // Phase 32.5 — Admin section now uses a static title (the
+    // decorative `isPlatformAdmin ? "Admin" : "Admin"` was simplified;
+    // visibility is enforced via the visibility predicate on each
+    // ADMIN_NAV item instead).
+    const admin = src.indexOf('title="Admin"');
     expect(primary).toBeGreaterThan(0);
     expect(ops).toBeGreaterThan(primary);
     expect(gov).toBeGreaterThan(ops);
@@ -233,11 +237,16 @@ describe("AppSidebarV2 — IA + operational badges", () => {
     expect(src).toMatch(/OPERATIONS_NAV_BASE[\s\S]*?label:\s*"Runbooks"/);
   });
 
-  it("Governance group lists Governance, Policy, Retention, Legal Holds", () => {
+  it("Governance group lists Governance, Lifecycle, Retention, Destruction, Policy (Phase 32.5)", () => {
+    // Phase 32.5 — replaced the two duplicate `/governance#…` anchor
+    // links with real sub-pages so each item routes to a distinct UI.
+    // `Legal Holds` is now a tab inside /governance (matches the
+    // existing hub page layout) rather than a duplicate shell.
     expect(src).toMatch(/GOVERNANCE_NAV_BASE[\s\S]*?label:\s*"Governance"/);
-    expect(src).toMatch(/GOVERNANCE_NAV_BASE[\s\S]*?label:\s*"Policy"/);
+    expect(src).toMatch(/GOVERNANCE_NAV_BASE[\s\S]*?label:\s*"Lifecycle"/);
     expect(src).toMatch(/GOVERNANCE_NAV_BASE[\s\S]*?label:\s*"Retention"/);
-    expect(src).toMatch(/GOVERNANCE_NAV_BASE[\s\S]*?label:\s*"Legal Holds"/);
+    expect(src).toMatch(/GOVERNANCE_NAV_BASE[\s\S]*?label:\s*"Destruction"/);
+    expect(src).toMatch(/GOVERNANCE_NAV_BASE[\s\S]*?label:\s*"Policy"/);
   });
 
   it("Admin group is Teams, Billing, Settings", () => {

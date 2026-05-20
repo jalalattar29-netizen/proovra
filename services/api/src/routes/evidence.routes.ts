@@ -8436,11 +8436,15 @@ if (
 
       // Phase C #12: extracted to a bounded helper so route file shrinks
       // and the artifact-readiness logic can be tested independently.
+      // Phase 32.5: pass evidenceTeamId so the helper can distinguish
+      // "package pending generation" from "package not available
+      // (personal workspace, no governance context)".
       const artifactStatus = await buildEvidenceArtifactStatus({
         evidenceId: id,
         evidenceStatus: evidenceRecord.status as
           | prismaPkg.EvidenceStatus
           | null,
+        evidenceTeamId: evidenceRecord.teamId ?? null,
       });
 
       return reply.code(200).send(artifactStatus);

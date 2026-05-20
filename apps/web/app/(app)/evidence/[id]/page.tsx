@@ -597,6 +597,116 @@ export default function EvidenceDetailPage() {
     void loadWorkflowEvents();
   }, [evidenceId]);
 
+  // Phase 32.5 — Artifact-readiness polling.
+  //
+  // Background:
+  //   Evidence transitions to SIGNED synchronously at finalize time.
+  //   The report worker then runs asynchronously (~1-5s) and updates
+  //   evidence.status to REPORTED + creates the Report row.
+  //
+  //   Previously the page did a one-shot fetch on mount, so users
+  //   saw SIGNED state with disabled download buttons and had to
+  //   manually refresh to see REPORTED. That created the impression
+  //   "downloads are broken" — even though the routes worked.
+  //
+  // Fix:
+  //   Poll the side-effect-free /v1/evidence/:id/artifacts/status
+  //   endpoint every 3s while:
+  //     * evidence is finalized (SIGNED or REPORTED), AND
+  //     * either the report is still pending OR the verification
+  //       package is still pending.
+  //
+  //   When the polling sees the pending → ready transition, it
+  //   triggers a single loadWorkspace() so the page re-hydrates
+  //   with the new state + the download buttons enable.
+  //
+  // Side-effect contract:
+  //   The artifact-status endpoint NEVER creates custody events,
+  //   reviewer audit events, or download counters (verified by the
+  //   route's contract test). Polling it is safe.
+  //
+  //   Polling pauses when the tab is hidden (document.hidden) so
+  //   inactive tabs don't burn API calls.
+  useEffect(() => {
+    if (!evidenceId) return;
+    if (!workspace?.evidence?.status) return;
+    const status = workspace.evidence.status;
+    // Only poll while we expect a transition.
+    const finalized = status === "SIGNED" || status === "REPORTED";
+    if (!finalized) return;
+
+    let cancelled = false;
+    let priorReportAvailable = workspace.artifactVersions?.latestReport?.available ?? false;
+    let priorPackageAvailable =
+      workspace.artifactVersions?.latestVerificationPackage?.available ?? false;
+
+    type ArtifactStatusResponse = {
+      report: { available: boolean; pending: boolean };
+      verificationPackage: {
+        available: boolean;
+        pending: boolean;
+        unavailable?: boolean;
+        unavailableReason?: string | null;
+      };
+    };
+
+    const pollOnce = async (): Promise<boolean> => {
+      try {
+        const r = (await apiFetch(
+          `/v1/evidence/${evidenceId}/artifacts/status`,
+        )) as ArtifactStatusResponse;
+        if (cancelled) return false;
+        const reportNowAvailable = r.report?.available === true;
+        const packageNowAvailable = r.verificationPackage?.available === true;
+        const stateChanged =
+          reportNowAvailable !== priorReportAvailable ||
+          packageNowAvailable !== priorPackageAvailable;
+        priorReportAvailable = reportNowAvailable;
+        priorPackageAvailable = packageNowAvailable;
+        if (stateChanged) {
+          await loadWorkspace();
+        }
+        // Decide whether to keep polling.
+        const reportStillPending = r.report?.pending === true;
+        const packageStillPending = r.verificationPackage?.pending === true;
+        return reportStillPending || packageStillPending;
+      } catch {
+        // Best-effort. A transient network error keeps polling
+        // alive on the next tick; we never surface an error toast
+        // from the polling path.
+        return true;
+      }
+    };
+
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let shouldContinue = true;
+    // Kick the first poll immediately, then settle into the interval.
+    void pollOnce().then((cont) => {
+      if (cancelled) return;
+      shouldContinue = cont;
+      if (!shouldContinue) return;
+      timer = setInterval(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        void pollOnce().then((cont2) => {
+          if (cancelled) return;
+          if (!cont2 && timer) {
+            clearInterval(timer);
+            timer = null;
+          }
+        });
+      }, 3000);
+    });
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [
+    evidenceId,
+    workspace?.evidence?.status,
+    workspace?.artifactVersions?.latestReport?.available,
+    workspace?.artifactVersions?.latestVerificationPackage?.available,
+  ]);
+
   const evidence = workspace?.evidence ?? null;
   const workspaceCaps = workspace?.workspaceCapabilitySnapshot ?? null;
 

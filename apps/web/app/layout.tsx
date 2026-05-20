@@ -51,6 +51,13 @@ export default function RootLayout({
       className={`${jakarta.variable} ${headerFont.variable} ${notoArabic.variable}`}
     >
       <head>
+        {/* Phase 32.5 — mobile viewport. Without this the iOS/Android
+            browsers render at desktop-virtual-width and pinch-zoom,
+            making touch targets and form inputs unusable. */}
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+        />
         <meta name="theme-color" content="#13252a" />
       </head>
 

@@ -30,6 +30,13 @@ import {
   useGlobalRuntimeState,
   type GlobalRuntimeSeverity,
 } from "../../lib/useGlobalRuntimeState";
+// Phase 32.5 — workspace profile + role-aware navigation foundation.
+import {
+  filterByVisibility,
+  type SidebarVisibility,
+  type WorkspaceProfile,
+  type WorkspaceRole,
+} from "../../lib/workspace-profile";
 
 type SidebarIcon = ForwardRefExoticComponent<
   Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>
@@ -63,6 +70,9 @@ type SidebarItem = {
     | "ops_center_runtime"
     | "observability_runtime"
     | "governance_incidents";
+  /** Phase 32.5 — bounded role / profile / platform-admin predicate.
+   *  When omitted the item is visible to all authenticated users. */
+  visibility?: SidebarVisibility;
 };
 
 type SidebarGroupDef = {
@@ -102,6 +112,14 @@ const OPERATIONS_NAV_BASE: SidebarItem[] = [
   { href: "/ops/runbooks", label: "Runbooks", Icon: BookOpen },
 ];
 
+// Phase 32.5 — Governance nav cleanup.
+//
+// Previously this exposed 4 items where 2 were anchor links to the
+// same /governance hub page (#retention, #legal-holds). That created
+// the illusion of fragmented duplicate shells. The cleaner pattern:
+// link directly to the real sub-pages that already exist
+// (/governance/retention, /governance/destruction, /governance/lifecycle).
+// Anchor deep-links are still available via the hub's section TOC.
 const GOVERNANCE_NAV_BASE: SidebarItem[] = [
   {
     href: "/governance",
@@ -109,25 +127,53 @@ const GOVERNANCE_NAV_BASE: SidebarItem[] = [
     Icon: ShieldCheck,
     badgeKey: "governance_incidents",
   },
-  { href: "/reviewer-ops/policy", label: "Policy", Icon: ClipboardList },
-  // Retention + legal holds are sections inside /governance. Keep the
-  // links to deep-link directly so operators don't have to scroll.
   {
-    href: "/governance#retention",
-    label: "Retention",
-    Icon: ScrollText,
+    href: "/governance/lifecycle",
+    label: "Lifecycle",
+    Icon: Activity,
   },
   {
-    href: "/governance#legal-holds",
-    label: "Legal Holds",
-    Icon: ShieldCheck,
+    href: "/governance/retention",
+    label: "Retention",
+    Icon: ScrollText,
+    // Retention policy management requires admin permission.
+    visibility: { roles: ["OWNER", "ADMIN"] },
+  },
+  {
+    href: "/governance/destruction",
+    label: "Destruction",
+    Icon: AlertTriangle,
+    visibility: { roles: ["OWNER", "ADMIN"] },
+  },
+  {
+    href: "/reviewer-ops/policy",
+    label: "Policy",
+    Icon: ClipboardList,
+    visibility: { roles: ["OWNER", "ADMIN"] },
   },
 ];
 
 const ADMIN_NAV: SidebarItem[] = [
-  { href: "/teams", label: "Teams", Icon: Users },
-  { href: "/billing", label: "Billing", Icon: CreditCard },
-  { href: "/settings", label: "Settings", Icon: Settings },
+  {
+    href: "/teams",
+    label: "Teams",
+    Icon: Users,
+    // Team management is admin-only at the workspace level. The
+    // platform-admin gate is intentionally NOT applied here so a
+    // workspace OWNER can still manage their own team.
+    visibility: { roles: ["OWNER", "ADMIN"] },
+  },
+  {
+    href: "/billing",
+    label: "Billing",
+    Icon: CreditCard,
+    visibility: { roles: ["OWNER", "ADMIN"] },
+  },
+  {
+    href: "/settings",
+    label: "Settings",
+    Icon: Settings,
+  },
 ];
 
 function isActiveRoute(pathname: string | null, href: string) {
@@ -264,8 +310,16 @@ function SidebarGroup({
 
 export function AppSidebarV2({
   isPlatformAdmin = false,
+  role = null,
+  workspaceProfile = null,
 }: {
   isPlatformAdmin?: boolean;
+  /** Phase 32.5 — bounded workspace role for sidebar visibility
+   *  filtering. Defaults to null which renders the "everyone"
+   *  default. Backend permissions remain authoritative. */
+  role?: WorkspaceRole | null;
+  /** Phase 32.5 — bounded workspace profile. */
+  workspaceProfile?: WorkspaceProfile | null;
 }) {
   // Phase 28-J — sidebar consumes the same runtime state as the topbar
   // pill. Counts and dots reflect real values, polled every 45s.
@@ -273,6 +327,12 @@ export function AppSidebarV2({
   const teamId =
     workspace.status === "ready" ? workspace.workspaceId : null;
   const runtime = useGlobalRuntimeState(teamId);
+  // Phase 32.5 — visibility context shared by every group.
+  const visibilityContext = {
+    isPlatformAdmin,
+    role,
+    profile: workspaceProfile,
+  };
 
   const runtimeTone = severityToTone(runtime.severity);
   const governanceIncidents = runtime.incidents.filter(
@@ -343,12 +403,25 @@ export function AppSidebarV2({
 
       <div className="app-sidebar-v2-inner">
         <div className="app-sidebar-v2-scroll">
-          <SidebarGroup title="Primary" items={PRIMARY_NAV} />
-          <SidebarGroup title="Operations" items={operationsNav} />
-          <SidebarGroup title="Governance" items={governanceNav} />
+          {/* Phase 32.5 — every group filters through the bounded
+              role / profile / platform-admin predicate. Items without
+              a `visibility` block stay visible to everyone (current
+              behavior). Admin-only items hide for non-admin roles. */}
           <SidebarGroup
-            title={isPlatformAdmin ? "Admin" : "Admin"}
-            items={ADMIN_NAV}
+            title="Primary"
+            items={filterByVisibility(PRIMARY_NAV, visibilityContext)}
+          />
+          <SidebarGroup
+            title="Operations"
+            items={filterByVisibility(operationsNav, visibilityContext)}
+          />
+          <SidebarGroup
+            title="Governance"
+            items={filterByVisibility(governanceNav, visibilityContext)}
+          />
+          <SidebarGroup
+            title="Admin"
+            items={filterByVisibility(ADMIN_NAV, visibilityContext)}
           />
         </div>
 

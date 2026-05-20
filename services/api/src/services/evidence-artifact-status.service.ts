@@ -6,9 +6,22 @@
  * the same contract as the previous inline implementation in
  * services/api/src/routes/evidence.routes.ts so behavior is identical;
  * the goal is to shrink the routes monolith without changing semantics.
+ *
+ * Phase 32.5 — Verification package availability differentiation.
+ * Personal-workspace evidence (no teamId) is deliberately NOT eligible
+ * for verification package generation: the gate requires a governance
+ * context, and personal workspaces have none. The helper now surfaces
+ * this as `unavailable: true` (vs. `pending: true`) so the frontend can
+ * render distinct copy:
+ *   * `pending: true`      → "Package is being generated…" (poll for completion)
+ *   * `unavailable: true`  → "Package not available for personal workspace evidence" (no poll, no retry)
+ *   * `available: true`    → "Package ready" (offer download)
  */
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
+
+export type VerificationPackageUnavailableReason =
+  | "personal_workspace_no_team_governance_context";
 
 export interface EvidenceArtifactStatus {
   evidenceId: string;
@@ -38,6 +51,8 @@ export interface EvidenceArtifactStatus {
         generatedAtUtc: string;
         packageType: string | null;
         pending: false;
+        unavailable: false;
+        unavailableReason: null;
       }
     | {
         available: false;
@@ -45,12 +60,19 @@ export interface EvidenceArtifactStatus {
         generatedAtUtc: null;
         packageType: null;
         pending: boolean;
+        unavailable: boolean;
+        unavailableReason: VerificationPackageUnavailableReason | null;
       };
 }
 
 export async function buildEvidenceArtifactStatus(params: {
   evidenceId: string;
   evidenceStatus: prismaPkg.EvidenceStatus | null;
+  /** Phase 32.5 — Required for verification-package availability
+   *  reasoning. When null, the evidence belongs to a personal
+   *  workspace and verification package generation is intentionally
+   *  skipped (no governance context). */
+  evidenceTeamId: string | null;
 }): Promise<EvidenceArtifactStatus> {
   const { evidenceId } = params;
   const [latestReport, latestPackage] = await Promise.all([
@@ -80,7 +102,15 @@ export async function buildEvidenceArtifactStatus(params: {
     params.evidenceStatus === prismaPkg.EvidenceStatus.REPORTED;
 
   const reportPending = finalized && !latestReport;
-  const packagePending = finalized && !latestPackage;
+
+  // Phase 32.5 — package is "unavailable" (not "pending") when the
+  // evidence has no team — the gate would deny on missing governance
+  // context, so the worker pre-skip never produced a package row.
+  // This distinct state lets the frontend render the right copy
+  // without endlessly polling.
+  const packageUnavailableForPersonalWorkspace = finalized && !params.evidenceTeamId;
+  const packagePending =
+    finalized && !latestPackage && !packageUnavailableForPersonalWorkspace;
 
   return {
     evidenceId,
@@ -111,6 +141,8 @@ export async function buildEvidenceArtifactStatus(params: {
           generatedAtUtc: latestPackage.generatedAtUtc.toISOString(),
           packageType: latestPackage.packageType ?? null,
           pending: false,
+          unavailable: false,
+          unavailableReason: null,
         }
       : {
           available: false,
@@ -118,6 +150,10 @@ export async function buildEvidenceArtifactStatus(params: {
           generatedAtUtc: null,
           packageType: null,
           pending: packagePending,
+          unavailable: packageUnavailableForPersonalWorkspace,
+          unavailableReason: packageUnavailableForPersonalWorkspace
+            ? "personal_workspace_no_team_governance_context"
+            : null,
         },
   };
 }

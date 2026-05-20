@@ -23,6 +23,7 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { runGovernanceHandler } from "./_governance-error-bound.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import {
   listLegalHoldsForEvidence,
@@ -106,8 +107,13 @@ export async function governanceRoutes(app: FastifyInstance) {
         return;
       }
 
-      const policy = await loadWorkspaceGovernancePolicy(query.teamId);
-      return reply.code(200).send({ policy: projectEffectivePolicy(policy) });
+      // Phase 32.5 — bounded schema-drift handling. When the
+      // governance schema is missing on this environment, return a
+      // bounded 503 instead of a raw Prisma error.
+      await runGovernanceHandler(reply, async () => {
+        const policy = await loadWorkspaceGovernancePolicy(query.teamId);
+        reply.code(200).send({ policy: projectEffectivePolicy(policy) });
+      });
     },
   );
 
@@ -197,13 +203,16 @@ export async function governanceRoutes(app: FastifyInstance) {
       // mutation time below.)
       void perm;
 
-      const rows = await listLegalHoldsForTeam({
-        teamId: query.teamId,
-        status: query.status,
-        limit: query.limit,
-      });
-      return reply.code(200).send({
-        legalHolds: rows.map(projectLegalHold),
+      // Phase 32.5 — bounded schema-drift handling.
+      await runGovernanceHandler(reply, async () => {
+        const rows = await listLegalHoldsForTeam({
+          teamId: query.teamId,
+          status: query.status,
+          limit: query.limit,
+        });
+        reply.code(200).send({
+          legalHolds: rows.map(projectLegalHold),
+        });
       });
     },
   );
@@ -418,14 +427,17 @@ export async function governanceRoutes(app: FastifyInstance) {
       if (!ok) return;
       // Reading list is workspace-member visible (legal hold existence
       // is a governance fact every member should see).
-      const rows = await listCaseLegalHolds({
-        teamId: query.teamId,
-        caseId: query.caseId,
-        status: query.status,
-        limit: query.limit,
-      });
-      return reply.code(200).send({
-        caseLegalHolds: rows.map(projectCaseLegalHold),
+      // Phase 32.5 — bounded schema-drift handling.
+      await runGovernanceHandler(reply, async () => {
+        const rows = await listCaseLegalHolds({
+          teamId: query.teamId,
+          caseId: query.caseId,
+          status: query.status,
+          limit: query.limit,
+        });
+        reply.code(200).send({
+          caseLegalHolds: rows.map(projectCaseLegalHold),
+        });
       });
     },
   );
@@ -710,11 +722,14 @@ export async function governanceRoutes(app: FastifyInstance) {
         denyByPermission(reply, perm.reason);
         return;
       }
-      const rows = await listRetentionCandidates({
-        teamId: query.teamId,
-        limit: query.limit,
+      // Phase 32.5 — bounded schema-drift handling.
+      await runGovernanceHandler(reply, async () => {
+        const rows = await listRetentionCandidates({
+          teamId: query.teamId,
+          limit: query.limit,
+        });
+        reply.code(200).send({ candidates: rows });
       });
-      return reply.code(200).send({ candidates: rows });
     },
   );
 

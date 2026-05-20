@@ -3312,10 +3312,44 @@ const effectiveReportEvidencePayload = {
     let finalizedVerificationZip: Buffer | null = null;
     let finalizedVerificationArtifactPresence: VerificationPackageArtifactPresence | null = null;
 
+    // Phase 32.5 — Pre-gate: verification package requires a teamId for
+    // governance-context reasoning. Personal-workspace evidence (no team)
+    // has no governance context to attest against, so we MUST NOT invoke
+    // the package gate with a null team — that path raises
+    // PackageGateDeniedError("GOVERNANCE_STATE_UNAVAILABLE",
+    //   "teamId_or_evidenceId_missing") and lights up Sentry.
+    //
+    // The correct enterprise-safe behavior for personal-workspace evidence
+    // is: report still builds, verification package is NOT produced. The
+    // frontend reads this state via /v1/evidence/:id/artifacts/status (the
+    // verificationPackage row simply stays absent) and renders the
+    // appropriate "package not available for personal workspace" copy.
+    //
+    // We log this at INFO level (NOT error / NOT Sentry) so ops can see
+    // the skip without false alarms.
+    const personalWorkspacePackageSkipped =
+      !finalized.skipped &&
+      prepared.verificationPackageIncluded &&
+      !evidence.teamId;
+    if (personalWorkspacePackageSkipped) {
+      logger.info(
+        {
+          evidenceId,
+          reportVersion: prepared.version,
+          reason: "personal_workspace_no_team_governance_context",
+        },
+        "verification_package.skipped_personal_workspace",
+      );
+    }
+
     if (
       !finalized.skipped &&
 prepared.verificationPackageIncluded &&
-      finalized.finalizedCustodyEvents.length > 0
+      finalized.finalizedCustodyEvents.length > 0 &&
+      // Phase 32.5 — skip package generation entirely when teamId is
+      // absent. The gate would deny with GOVERNANCE_STATE_UNAVAILABLE;
+      // pre-checking here avoids the false-positive Sentry alert.
+      !!evidence.teamId
     ) {
       try {
                 const finalizedLastEventHash =
