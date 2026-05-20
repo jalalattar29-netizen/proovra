@@ -7,6 +7,7 @@ import { renderIntegrityProofSection } from "./sections/integrity-proof.js";
 import { renderCustodySection } from "./sections/custody.js";
 import { renderCustodyHashChainSection } from "./sections/custody-hash-chain.js";
 import { renderForensicIntegrityStatementSection } from "./sections/forensic-integrity-statement.js";
+import { renderMediaIntelligenceSection } from "./sections/media-intelligence.js";
 import { renderLegalInterpretationSection } from "./sections/legal-interpretation.js";
 import { renderTechnicalAppendixSection } from "./sections/technical-appendix.js";
 
@@ -19,6 +20,13 @@ export function renderReportHtml(vm: ReportViewModel): string {
     renderCustodySection(vm),
     renderCustodyHashChainSection(vm),
     renderForensicIntegrityStatementSection(vm),
+    // Phase 31.10 — OPTIONAL Media Intelligence Observations section.
+    // Returns "" when vm.mediaIntelligence is null/empty, so the
+    // legacy byte output is preserved for every existing caller.
+    // Positioned AFTER the Reviewer Verification Workflow and BEFORE
+    // the Legal Interpretation & Report Boundary so the legal
+    // hierarchy is preserved.
+    renderMediaIntelligenceSection(vm),
     renderLegalInterpretationSection(vm),
     renderTechnicalAppendixSection(vm),
   ]

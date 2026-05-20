@@ -1679,6 +1679,11 @@ verificationSummaryRows: buildVerificationSummaryRows(
       technicalDataUrl: technicalQrDataUrl,
     },
 
+    // Phase 31.10 — pass-through. When the caller doesn't supply
+    // intelligence (every legacy caller), the field is null and
+    // the renderer emits NO additional HTML.
+    mediaIntelligence: input.mediaIntelligence ?? null,
+
     meta: {
       hasCoreCrypto: hasCoreCryptoMaterials(input.evidence),
       captureContext,

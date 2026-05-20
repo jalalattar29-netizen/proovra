@@ -207,6 +207,82 @@ export const COUNTER_NAMES = [
   // consumers that resolve materials via buildUnifiedEvidenceManifest.
   "unified_manifest_materials_total",
   "unified_manifest_mixed_evidence_total",
+  // Phase 31 — Media intelligence advisory layer. The 6 counters
+  // below carry the brief's full media-intelligence catalog. The
+  // graph / timeline / derived-asset / lineage / similarity
+  // counters are reserved for the future phases that implement
+  // those subsystems; we only register the ones the deterministic
+  // analyzer + read API actually bump today.
+  "media_intelligence_job_started_total",
+  "media_intelligence_job_completed_total",
+  "media_intelligence_job_failed_total",
+  "media_signal_created_total",
+  // Reserved for future async workers (derived assets, duplicates,
+  // lineage). Registering the names now keeps the metrics snapshot
+  // stable as those subsystems land.
+  "derived_asset_created_total",
+  "duplicate_candidate_created_total",
+  "lineage_candidate_created_total",
+  // Phase 32 placeholders — the graph subsystem is deferred. The
+  // names are registered so SRE dashboards can pin their tile
+  // contracts today and the values surface as zeros until the
+  // graph code ships.
+  "graph_edge_created_total",
+  "graph_edge_removed_total",
+  "graph_query_total",
+  "graph_query_denied_total",
+  "timeline_query_total",
+  // Phase 31.5 / 32 newly-active counters. The catalog above
+  // included these as reserved entries; this phase brings them
+  // live (analyzer bumps + graph builder bumps).
+  "media_signal_acknowledged_total",
+  "derived_asset_failed_total",
+  "graph_node_created_total",
+  "graph_reconcile_started_total",
+  "graph_reconcile_completed_total",
+  "graph_reconcile_failed_total",
+  // Phase 31.6 — Async media intelligence orchestration counters.
+  // `enqueue_*` fires from the API producer (route-side); `processor_*`
+  // fires from the worker consumer. `dlq_total` is bumped when an
+  // attempt exhausts retries. `run_dismissed_total` is the operator-
+  // initiated terminal transition for a permanently failed run.
+  "media_intelligence_enqueue_total",
+  "media_intelligence_enqueue_failed_total",
+  "media_intelligence_processor_started_total",
+  "media_intelligence_processor_completed_total",
+  "media_intelligence_processor_failed_total",
+  "media_intelligence_processor_deferred_total",
+  "media_intelligence_dlq_total",
+  "media_intelligence_run_dismissed_total",
+  // Phase 32.5 — Investigation graph query counters.
+  "graph_search_executed_total",
+  "graph_timeline_executed_total",
+  "graph_case_subgraph_loaded_total",
+  // Phase 31.18 — duplicate / similarity review + graph navigation
+  // explorer + reviewer intelligence console counters.
+  "graph_duplicate_list_total",
+  "graph_duplicate_list_executed_total",
+  "graph_seeds_executed_total",
+  "reviewer_console_query_total",
+  // Phase 31.20 — OCR / transcript indexing producer counters.
+  "ocr_indexer_started_total",
+  "ocr_indexer_completed_total",
+  // Phase 31.20 — three more graph subsystem queue counters.
+  "graph_domain_sync_executed_total",
+  "graph_timeline_sync_executed_total",
+  "graph_search_projection_executed_total",
+  // Phase 31.21 — tombstone count for the per-domain stale sweep.
+  "graph_node_removed_total",
+  // Phase 31.13 — derived assets pipeline (image thumbnails this
+  // phase; video frames + waveforms reserved for future ffmpeg
+  // wiring). Dedicated `mi-derived-assets` BullMQ queue.
+  "derived_assets_enqueue_total",
+  "derived_assets_enqueue_failed_total",
+  "derived_assets_processor_started_total",
+  "derived_assets_processor_completed_total",
+  "derived_assets_processor_failed_total",
+  "derived_assets_processor_unsupported_total",
+  "derived_assets_dlq_total",
   // Phase 27/28 — external reviewer grant persistence + lifecycle.
   "external_review_invited_total",
   "external_review_accepted_total",
@@ -506,6 +582,22 @@ export const GAUGE_NAMES = [
   "multipart_stale_scanned",
   "multipart_stale_aborted",
   "multipart_stale_failed",
+  // Phase 31.6 — Media intelligence async orchestration dashboards.
+  // Surfaced by the runtime readiness aggregator + /ops dashboards
+  // so SRE can pin "queue depth" and "oldest pending" tiles on the
+  // same surface as the Phase Y queue gauges.
+  "media_intelligence_runs_pending",
+  "media_intelligence_runs_processing",
+  "media_intelligence_runs_failed",
+  "media_intelligence_oldest_pending_age_seconds",
+  "media_intelligence_queue_depth",
+  // Phase 31.13 — derived assets pipeline.
+  "derived_assets_pending",
+  "derived_assets_processing",
+  "derived_assets_failed",
+  "derived_assets_completed",
+  "derived_assets_unsupported",
+  "derived_assets_oldest_pending_age_seconds",
 ] as const;
 export type GaugeName = (typeof GAUGE_NAMES)[number];
 

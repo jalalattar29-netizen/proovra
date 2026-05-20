@@ -23,6 +23,8 @@ import { reviewerOpsRoutes } from "./routes/reviewer-ops.routes.js";
 import { externalReviewRoutes } from "./routes/external-review.routes.js";
 import { uploadSessionsRoutes } from "./routes/upload-sessions.routes.js";
 import { integrationsUploadsRoutes } from "./routes/integrations-uploads.routes.js";
+import { mediaIntelligenceRoutes } from "./routes/media-intelligence.routes.js";
+import { graphRoutes } from "./routes/graph.routes.js";
 import {
   adminIdentityRoutes,
   adminIdentityRuntimeRoutes,
@@ -484,6 +486,14 @@ allowedHeaders: [
   // scope `integration.evidence.upload`. Governance + legal-hold gate
   // enforced on session creation; idempotency key required.
   await app.register(integrationsUploadsRoutes);
+  // Phase 31 — Media intelligence read API + analyzer trigger.
+  // Read-only against EvidencePart / clientSignals; never blocks
+  // evidence lifecycle on analyzer failure.
+  await app.register(mediaIntelligenceRoutes);
+  // Phase 32 — Investigation graph routes (read subgraph + manual
+  // relationship CRUD). Read-only / write-side authorizeOrFail
+  // gated; bounded traversal depth + node/edge caps.
+  await app.register(graphRoutes);
   await app.register(adminIdentityRoutes);
   await app.register(adminIdentityRuntimeRoutes);
   await app.register(scimRoutes);

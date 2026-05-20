@@ -204,6 +204,42 @@ export async function getObjectStream(params: { bucket: string; key: string }) {
   return res.Body;
 }
 
+/**
+ * Phase 31.8 — bounded byte range fetch. Used by the EXIF extractor
+ * job to pull only the first few KB of an image (EXIF data lives at
+ * the start of JPEG/TIFF). Range is an HTTP byte range string like
+ * "bytes=0-65535". Returns the bytes as a Buffer.
+ *
+ * NEVER mutates the object. NEVER touches retention. Read-only.
+ */
+export async function getObjectRange(params: {
+  bucket: string;
+  key: string;
+  range: string;
+}): Promise<Buffer> {
+  const bucket = mustClean(params.bucket, "bucket");
+  const key = mustClean(params.key, "key");
+  if (!params.range) {
+    throw new Error("getObjectRange: range is required");
+  }
+  const res = await s3.send(
+    new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Range: params.range,
+    })
+  );
+  if (!res.Body) throw new Error("S3 returned empty body");
+  const stream = res.Body as unknown as NodeJS.ReadableStream;
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(
+      typeof chunk === "string" ? Buffer.from(chunk) : (chunk as Buffer),
+    );
+  }
+  return Buffer.concat(chunks);
+}
+
 export async function putObjectBuffer(params: {
   bucket: string;
   key: string;

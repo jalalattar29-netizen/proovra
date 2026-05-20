@@ -258,6 +258,31 @@ async function runMasterReconcile(): Promise<ReconcileSummary> {
   setGauge("multipart_stale_aborted", multipartAborted);
   setGauge("multipart_stale_failed", multipartFailed);
 
+  // 10. Phase 32 — investigation graph reconciliation. Bounded to
+  // the 10 most-recently-active teams per tick (teams whose
+  // updatedAt is recent OR who have recently-finalized evidence).
+  // Failures bump metric counters inside the helper; we never let
+  // graph reconcile failures break the rest of reconcile.
+  try {
+    const recentTeams = await prisma.team.findMany({
+      orderBy: { updatedAt: "desc" },
+      take: 10,
+      select: { id: true },
+    });
+    const { reconcileTeamGraph } = await import(
+      "../services/graph/graph-builder.service.js"
+    );
+    for (const t of recentTeams) {
+      try {
+        await reconcileTeamGraph(t.id);
+      } catch {
+        /* per-team failure — keep going */
+      }
+    }
+  } catch {
+    /* best-effort */
+  }
+
   return {
     stepUpChallengesExpired: expiredStepUps.count,
     trustedDevicesExpired: expiredDevices.count,
@@ -657,6 +682,94 @@ export async function opsRoutes(app: FastifyInstance) {
         if (handleIncidentError(reply, err)) return;
         throw err;
       }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase 31.8 — Media intelligence operations actions.
+  //
+  // Two operator-triggered endpoints for the /ops/media-graph UI:
+  //
+  //   POST /v1/ops/media-intelligence/runs/:runId/retry
+  //     → requeues a single failed BullMQ job onto the
+  //       media-intelligence queue. Bounded auth. Idempotent: the
+  //       job id is deterministic per (kind, evidenceId) so a
+  //       repeat retry collapses.
+  //
+  //   POST /v1/ops/media-intelligence/dlq/replay
+  //     → walks the queue's `failed` state and requeues up to
+  //       `maxJobs` (capped at 200) entries. Never throws — returns
+  //       a bounded summary the UI can render.
+  //
+  // Hard rules:
+  //   - Both routes require Ops actor + the access-review.action
+  //     permission (canonical "operator can take corrective action").
+  //   - NEVER mutates job payloads or original evidence bytes.
+  //   - NEVER exposes storage internals — payloads are evidenceId +
+  //     kind only.
+  //   - Bounded response shape — no Redis internals leak through.
+  // ---------------------------------------------------------------------------
+
+  const RetryRunParams = z.object({ runId: z.string().min(1).max(120) });
+  const RetryRunBody = z.object({ teamId: z.string().uuid() }).strict();
+  const ReplayDlqBody = z
+    .object({
+      teamId: z.string().uuid(),
+      maxJobs: z.number().int().min(1).max(200).optional(),
+    })
+    .strict();
+
+  app.post(
+    "/v1/ops/media-intelligence/runs/:runId/retry",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { runId } = RetryRunParams.parse(req.params);
+      const body = RetryRunBody.parse(req.body ?? {});
+      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      if (!actor) return;
+      const { retryMediaIntelligenceJob } = await import(
+        "../queue/media-intelligence-queue.js"
+      );
+      const result = await retryMediaIntelligenceJob(runId);
+      if (!result.ok) {
+        // Bounded reason codes for the UI. NEVER surfaces stack
+        // traces or Redis-side internals.
+        const code = result.reason.startsWith("job_not_found")
+          ? "job_not_found"
+          : result.reason.startsWith("job_not_failed")
+            ? "job_not_failed"
+            : "queue_unavailable";
+        return reply.code(code === "job_not_found" ? 404 : 503).send({
+          error: { code, detail: result.reason },
+        });
+      }
+      return reply.code(200).send({ runId, retried: true });
+    },
+  );
+
+  app.post(
+    "/v1/ops/media-intelligence/dlq/replay",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = ReplayDlqBody.parse(req.body ?? {});
+      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      if (!actor) return;
+      const { replayMediaIntelligenceDlq } = await import(
+        "../queue/media-intelligence-queue.js"
+      );
+      const result = await replayMediaIntelligenceDlq({
+        maxJobs: body.maxJobs,
+      });
+      if (!result.ok) {
+        return reply.code(503).send({
+          error: { code: "queue_unavailable", detail: result.reason },
+        });
+      }
+      return reply.code(200).send({
+        attempted: result.attempted,
+        retried: result.retried,
+        skipped: result.skipped,
+      });
     },
   );
 

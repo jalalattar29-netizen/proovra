@@ -189,7 +189,13 @@ describe("report v2 pipeline", () => {
     expect(vm.certifications.hasAny).toBe(false);
     expect(vm.forensicRows).toHaveLength(1);
     expect(vm.presentationMode).toBe("simple");
-    expect(vm.presentation.buckets.supportingPreviewItems).toHaveLength(0);
+    // Phase 31.7 — bucket-layer model: primaryPreviewItems is always [],
+    // supportingPreviewItems carries every item with a renderable
+    // preview (role distinction lives in gallery rendering, not the
+    // bucket layer). The default single-item input has one previewable
+    // text item, so supportingPreviewItems is length 1.
+    expect(vm.presentation.buckets.primaryPreviewItems).toHaveLength(0);
+    expect(vm.presentation.buckets.supportingPreviewItems).toHaveLength(1);
   });
 
   it("renders the v2 HTML report sections in the intended order", async () => {
@@ -218,7 +224,12 @@ describe("report v2 pipeline", () => {
     expect(html).toContain("Chain of Custody");
     expect(html).toContain("Legal Interpretation");
     expect(html).toContain("Technical Appendix");
-    expect(coverHtml).toContain("reviewer-use limits appear later");
+    // Phase 31.7 — cover boundary copy was tightened to safer wording
+    // ("does not independently prove truth, authorship, context, intent,
+    // admissibility, or evidentiary weight"). The intent — that the
+    // cover advises the reader about the report's scope — is what this
+    // assertion protects.
+    expect(coverHtml).toContain("does not independently prove truth");
     expect(coverHtml).not.toContain("court acceptance");
     expect(coverHtml).not.toContain("examiner-grade forensic acquisition");
     expect(html).not.toContain("Evidence Manifest");
@@ -361,9 +372,24 @@ describe("report v2 pipeline", () => {
     // representations only..." callout body lives inline). The structural
     // requirement — that the supporting items render — is what this test
     // protects, not the exact pre-Phase-A heading text.
-    expect(vm.presentation.buckets.supportingPreviewItems).toHaveLength(2);
-    expect(html).toContain("Supporting Evidence Gallery");
-    expect(html).toContain("Supporting previews are reviewer-facing");
+    // Phase 31.7 — bucket layer is role-agnostic: every item with a
+    // renderable preview lands in supportingPreviewItems regardless of
+    // artifactRole. Here the lead photo + 2 supporting items all have
+    // preview content → length 3.
+    expect(vm.presentation.buckets.supportingPreviewItems).toHaveLength(3);
+    // Phase 31.7 — heading copy tightened from
+    // "Supporting Evidence Gallery" → "Evidence Gallery" (role
+    // distinction now lives in callout text + per-item badges, not
+    // the section heading).
+    expect(html).toContain("Evidence Gallery");
+    // Phase 31.7 — the previous gallery-side disclaimer callout was
+    // removed; the reviewer-facing disclaimer now lives in the legal
+    // sections (suppressed in compact mode, expanded in heavy mode).
+    // The integrity-proof section always emits a stable
+    // "reviewer-facing checklist" disclaimer that documents the same
+    // intent — that the report's previews and checks are reviewer-
+    // facing aids, not substitutes for the preserved original.
+    expect(html).toContain("reviewer-facing checklist");
     expect(html).toContain("supporting.pdf");
     expect(html).toContain("note.txt");
     expect(html).toContain(FULL_HASH_A);
@@ -492,14 +518,32 @@ describe("report v2 pipeline", () => {
 
     const html = renderReportHtml(vm);
 
-    expect(vm.presentation.buckets.primaryPreviewItems).toHaveLength(2);
-    expect(vm.presentation.buckets.supportingPreviewItems).toHaveLength(2);
-    expect(vm.presentation.buckets.supportingPreviewItems.some((item) => item.asset.id === "primary-1")).toBe(false);
+    // Phase 31.7 — bucket layer flattens role distinctions: all 4
+    // previewable items live in supportingPreviewItems. The view model
+    // still tracks the role for downstream rendering — verified by the
+    // "Primary Evidence Set" executive row assertion below. The
+    // primaryPreviewItems bucket is always [] in the current model.
+    expect(vm.presentation.buckets.primaryPreviewItems).toHaveLength(0);
+    expect(vm.presentation.buckets.supportingPreviewItems).toHaveLength(4);
+    expect(
+      vm.presentation.buckets.supportingPreviewItems.filter(
+        (item) => item.asset.artifactRole === "primary_evidence",
+      ),
+    ).toHaveLength(2);
+    expect(
+      vm.presentation.buckets.supportingPreviewItems.filter(
+        (item) => item.asset.artifactRole === "supporting_evidence",
+      ),
+    ).toHaveLength(2);
     expect(vm.executiveRows.some((row) => row.label === "Primary Evidence Set")).toBe(true);
     expect(html).toContain("Primary Evidence Set");
     expect(html).toContain("contract.pdf");
     expect(html).toContain("photo.jpg");
-    expect(html).toContain("Supporting Evidence Gallery");
+    // Phase 31.7 — heading copy tightened from
+    // "Supporting Evidence Gallery" → "Evidence Gallery" (role
+    // distinction now lives in callout text + per-item badges, not
+    // the section heading).
+    expect(html).toContain("Evidence Gallery");
     expect(html).toContain("note.txt");
     expect(html).toContain("receipt.pdf");
   });
@@ -570,7 +614,12 @@ describe("report v2 pipeline", () => {
         : html;
 
     expect(coverHtml).toContain("Report Boundary.");
-    expect(coverHtml).toContain("reviewer-use limits appear later");
+    // Phase 31.7 — cover boundary copy was tightened to safer wording
+    // ("does not independently prove truth, authorship, context, intent,
+    // admissibility, or evidentiary weight"). The intent — that the
+    // cover advises the reader about the report's scope — is what this
+    // assertion protects.
+    expect(coverHtml).toContain("does not independently prove truth");
     expect(coverHtml).not.toContain("court acceptance");
     expect(coverHtml).not.toContain("examiner-grade forensic acquisition");
     expect(html).toContain("Legal and evidentiary boundary");

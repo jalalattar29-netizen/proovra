@@ -26,7 +26,6 @@
  */
 
 import type { Job } from "bullmq";
-import { PrismaClient } from "@prisma/client";
 import {
   buildEvidenceProjection,
   buildWorkflowInstanceProjection,
@@ -34,9 +33,26 @@ import {
   type SearchDocumentType,
 } from "@proovra/shared";
 
+// HOTFIX — Worker startup regression.
+//
+// This processor previously instantiated its own `new PrismaClient()`
+// at module load. The schema.prisma datasource block has no `url`
+// (Prisma reads the connection via the PrismaPg driver adapter
+// wired up in ./db.ts), so a bare `new PrismaClient()` throws
+// `PrismaClientInitializationError` at import time. Because this
+// module is imported synchronously by ./index.ts (line ~24), that
+// throw kills the entire worker runtime BEFORE any processor can
+// register — taking down report generation, verification package
+// generation, search indexing, and every other queue.
+//
+// The canonical pattern (used by ./db.ts and every other worker
+// helper) is to import the shared `prisma` instance, which is
+// constructed once with `new PrismaClient({ adapter })`. Doing
+// the same here removes the bootstrap crash without changing
+// the processor's behavior — every read/write below already uses
+// the same prisma surface.
+import { prisma } from "./db.js";
 import { logger } from "./logger.js";
-
-const prisma = new PrismaClient();
 
 export type SearchIndexingDocumentKind =
   | "evidence"

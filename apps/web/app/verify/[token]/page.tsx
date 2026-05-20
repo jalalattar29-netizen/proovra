@@ -338,6 +338,15 @@ type VerifyContentExposureDecision = {
 
 type VerifyResponse = {
   evidenceId?: string | null;
+  // Phase 31.12 — OPTIONAL public-safe media intelligence advisory.
+  // When null, the Verify page renders no advisory section. When
+  // present, it carries ONLY a bounded count + a fixed disclaimer.
+  // NEVER per-signal detail, never material attribution.
+  mediaIntelligenceAdvisory?: {
+    hasObservations: boolean;
+    observationCount: number;
+    advisory: string;
+  } | null;
   tsaTokenBase64?: string | null;
 tsaMessageImprint?: string | null;
   id?: string | null;
@@ -3345,6 +3354,13 @@ export default function VerifyPage() {
   const [overview, setOverview] = useState<VerifyOverview | null>(null);
   const [humanSummary, setHumanSummary] = useState<VerifyHumanSummary | null>(null);
   const [captureContext, setCaptureContext] = useState<VerifyCaptureContext>(null);
+  // Phase 31.12 — bounded public-safe media intelligence advisory.
+  // The API returns null when no surfaceable signals exist OR when
+  // the projection fails. We render no section in either case.
+  const [mediaIntelligenceAdvisory, setMediaIntelligenceAdvisory] =
+    useState<NonNullable<VerifyResponse["mediaIntelligenceAdvisory"]> | null>(
+      null,
+    );
   const [serverTrustDecision, setServerTrustDecision] =
     useState<VerifyTrustDecision | null>(null);
   const [trustSnapshotDivergence, setTrustSnapshotDivergence] =
@@ -3412,6 +3428,10 @@ function isAccessEventType(eventType?: string | null): boolean {
         : null
     );
     setCaptureContext(data.captureContext ?? null);
+    // Phase 31.12 — set the bounded advisory state. The API has
+    // already applied the public-safety projection so we just store
+    // the shape verbatim.
+    setMediaIntelligenceAdvisory(data.mediaIntelligenceAdvisory ?? null);
 
     const reviewTrailForensic =
       data.reviewTrail?.forensicCustodyEvents ??
@@ -5710,6 +5730,73 @@ Reviewer Action
     </div>
   );
 })() : null}
+
+{/*
+  Phase 31.12 — Media intelligence public advisory.
+  Renders ONLY a bounded count + a fixed disclaimer. Never per-signal
+  detail. Never material attribution. Anyone hitting this page is
+  anonymous; surfacing per-signal detail could leak the workspace's
+  review activity. The API has already projected the public-safe
+  shape — we just present it.
+*/}
+{mediaIntelligenceAdvisory && mediaIntelligenceAdvisory.hasObservations ? (
+  <div
+    role="status"
+    data-testid="verify-media-intelligence-advisory"
+    style={{
+      border: "1px solid rgba(11,46,39,0.16)",
+      borderLeft: `5px solid ${VERIFY_BRAND.accent}`,
+      background: "rgba(11,46,39,0.045)",
+      borderRadius: 18,
+      padding: 18,
+      display: "grid",
+      gap: 10,
+    }}
+  >
+    <div
+      style={{
+        ...VERIFY_TYPO.kicker,
+        fontSize: 10.5,
+        color: VERIFY_BRAND.accent,
+      }}
+    >
+      Media intelligence
+    </div>
+    <div
+      style={{
+        ...VERIFY_TYPO.value,
+        fontSize: 15,
+        lineHeight: 1.55,
+      }}
+    >
+      Advisory observations available
+      <span
+        style={{
+          marginLeft: 8,
+          padding: "2px 10px",
+          fontSize: 12,
+          fontWeight: 600,
+          background: "rgba(11,46,39,0.08)",
+          border: "1px solid rgba(11,46,39,0.18)",
+          color: VERIFY_BRAND.ink,
+          borderRadius: 999,
+        }}
+      >
+        {mediaIntelligenceAdvisory.observationCount}
+      </span>
+    </div>
+    <div
+      style={{
+        ...VERIFY_TYPO.small,
+        fontSize: 13,
+        color: VERIFY_BRAND.ink,
+        lineHeight: 1.5,
+      }}
+    >
+      {mediaIntelligenceAdvisory.advisory}
+    </div>
+  </div>
+) : null}
 
                   <div
                     style={{

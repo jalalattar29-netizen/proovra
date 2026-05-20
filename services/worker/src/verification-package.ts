@@ -2467,6 +2467,25 @@ export async function createVerificationPackage(data: {
     upgradedAtUtc: string | null;
     failureReason: string | null;
   } | null;
+  /**
+   * Phase 31.9 — OPTIONAL advisory intelligence manifests. When
+   * `intelligence` is undefined / null / empty, the package shape is
+   * UNCHANGED from prior generations — the offline verifier still
+   * receives exactly the same files it received before this phase.
+   * When intelligence is supplied, up to 5 bounded advisory JSON
+   * files are emitted into the `intelligence/` subdirectory:
+   *   - media_intelligence.json
+   *   - derived_assets_manifest.json
+   *   - ocr_transcript_manifest.json
+   *   - graph_relationships.json
+   *   - timeline_manifest.json
+   *
+   * Each manifest is OPTIONAL — only emitted when the corresponding
+   * input array is non-empty. Manifests are advisory only and
+   * carry inline disclaimers; the offline verifier MUST NOT depend
+   * on any of them.
+   */
+  intelligence?: import("./verification-package-intelligence.js").IntelligencePackageInput | null;
 }): Promise<{ buffer: Buffer; artifactPresence: VerificationPackageArtifactPresence }> {
   // -------------------------------------------------------------------------
   // Fail-closed canonical eligibility gate.
@@ -3125,6 +3144,29 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         data.reportPdf,
         "application/pdf"
       );
+    }
+
+    // Phase 31.9 — emit OPTIONAL advisory intelligence manifests.
+    // MUST be appended BEFORE the checksums index so each manifest's
+    // SHA-256 is recorded in `package-checksums.json` alongside the
+    // canonical artifacts. The package's offline verifier ignores
+    // these files; they're operator-facing only.
+    {
+      const { buildIntelligencePackageManifests } = await import(
+        "./verification-package-intelligence.js"
+      );
+      const manifestEntries = buildIntelligencePackageManifests(
+        data.intelligence ?? null,
+      );
+      for (const entry of manifestEntries) {
+        appendPackageEntry(
+          archive,
+          packageEntries,
+          entry.path,
+          jsonBuffer(entry.json),
+          "application/json"
+        );
+      }
     }
 
     appendPackageEntry(

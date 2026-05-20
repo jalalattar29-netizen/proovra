@@ -9179,6 +9179,10 @@ action: "evidence.certification_requested",
       where: { id, deletedAt: null },
       select: {
         id: true,
+        // Phase 31.12 — needed for the public Verify media-intelligence
+        // advisory projection. NEVER surfaced in the response; used
+        // only to scope the per-team intelligence count.
+        teamId: true,
         // Phase 14 — explicit publication state gate. Records that
         // are NOT_PUBLISHED / SUSPENDED / UNPUBLISHED are not
         // returned from the public verify route.
@@ -10147,8 +10151,29 @@ const captureContext = hasCaptureLocationMetadata({
     }
   : null;
 
+// Phase 31.12 — bounded public-safe media intelligence advisory.
+// Returns null when there are no surfaceable signals OR when the
+// projection fails. NEVER throws — the verify response is unchanged
+// (other than `mediaIntelligenceAdvisory: null`) in the no-data
+// case. The projection re-uses the canonical team-scoped read.
+const mediaIntelligenceAdvisory = evidence.teamId
+  ? await (async () => {
+      try {
+        const { projectVerifyMediaIntelligence } = await import(
+          "../services/media-intelligence/verify-projection.service.js"
+        );
+        return await projectVerifyMediaIntelligence(
+          { teamId: evidence.teamId!, evidenceId: evidence.id },
+        );
+      } catch {
+        return null;
+      }
+    })()
+  : null;
+
 return reply.code(200).send({
   evidenceId: evidence.id,
+  mediaIntelligenceAdvisory,
   trustDecision,
 trustDecisionConsistency,
   verificationPackageIntegrity,

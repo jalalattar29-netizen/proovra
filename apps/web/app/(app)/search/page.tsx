@@ -772,6 +772,54 @@ function Inspector({
         ) : null}
       </Section>
 
+      {(row.evidenceId || row.caseId) ? (
+        <Section label="Investigation pivots">
+          {row.caseId ? (
+            <KeyVal
+              label="Case graph"
+              value={
+                <a
+                  href={`/investigation/cases/${row.caseId}/graph`}
+                  style={pointerLinkStyle}
+                >
+                  Open case graph
+                </a>
+              }
+            />
+          ) : null}
+          {row.evidenceId ? (
+            <KeyVal
+              label="Timeline"
+              value={
+                <a
+                  href={`/investigation/timeline?evidenceId=${encodeURIComponent(
+                    row.evidenceId
+                  )}`}
+                  style={pointerLinkStyle}
+                >
+                  Open timeline view
+                </a>
+              }
+            />
+          ) : null}
+          {row.evidenceId ? (
+            <KeyVal
+              label="Duplicates"
+              value={
+                <a
+                  href={`/investigation/duplicates?evidenceId=${encodeURIComponent(
+                    row.evidenceId
+                  )}`}
+                  style={pointerLinkStyle}
+                >
+                  Review duplicates and similars
+                </a>
+              }
+            />
+          ) : null}
+        </Section>
+      ) : null}
+
       <Section label="Lifecycle">
         <KeyVal label="Review" value={row.reviewState ?? "—"} />
         <KeyVal label="Workflow" value={row.workflowState ?? "—"} />

@@ -32,6 +32,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db.js";
+import { setGauge } from "../services/ops/metrics.service.js";
 import { runSchemaValidation, type SchemaValidationReport } from "./schema-validation.js";
 
 // -----------------------------------------------------------------------------
@@ -52,7 +53,9 @@ export type SubsystemId =
   | "sentry"
   | "cron_secrets"
   | "search_indexing"
-  | "multipart_storage";
+  | "multipart_storage"
+  | "media_intelligence"
+  | "investigation_graph";
 
 export type SubsystemReadiness = {
   id: SubsystemId;
@@ -787,6 +790,214 @@ async function checkMultipartStorage(
 }
 
 // -----------------------------------------------------------------------------
+// Phase 31 — Media intelligence advisory layer health
+//
+// Reports the deterministic-analyzer backlog. Because the analyzer
+// is invoked synchronously today (no async worker queue), this
+// subsystem is HEALTHY whenever the `media_intelligence_signals`
+// table is reachable. A future async-worker phase will surface
+// backlog / failure-rate metrics here.
+//
+// Status:
+//   * UNKNOWN if the table is missing (e.g. drift patch not yet run).
+//   * HEALTHY otherwise.
+// The core evidence path runs without this subsystem; it is
+// IMPORTANT but never CRITICAL by design.
+// -----------------------------------------------------------------------------
+
+async function checkMediaIntelligence(
+  prisma: PrismaClient,
+): Promise<SubsystemReadiness> {
+  // Signals table — the read surface. Required for the subsystem
+  // to be HEALTHY.
+  let pending = 0;
+  let acknowledged = 0;
+  let attention = 0;
+  let signalsReachable = true;
+  try {
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT
+         COUNT(*) FILTER (WHERE "status" = 'PENDING') AS "pending",
+         COUNT(*) FILTER (WHERE "status" = 'ACKNOWLEDGED') AS "acknowledged",
+         COUNT(*) FILTER (WHERE "severity" = 'ATTENTION') AS "attention"
+       FROM "media_intelligence_signals"`,
+    )) as Array<{
+      pending: bigint | number;
+      acknowledged: bigint | number;
+      attention: bigint | number;
+    }>;
+    const r = rows[0];
+    pending = r ? Number(r.pending ?? 0) : 0;
+    acknowledged = r ? Number(r.acknowledged ?? 0) : 0;
+    attention = r ? Number(r.attention ?? 0) : 0;
+  } catch {
+    signalsReachable = false;
+  }
+  if (!signalsReachable) {
+    return {
+      id: "media_intelligence",
+      status: "UNKNOWN",
+      reasonCode: "table_unreachable",
+      detail:
+        "Could not query media_intelligence_signals. Drift patch may not be applied yet.",
+      remediationHint:
+        "Apply services/api/sql/drift-patches/2026-05-20-media-intelligence-signals.sql to your database.",
+      metadata: {},
+    };
+  }
+
+  // Phase 31.6 — async runs lifecycle. The runs table is optional
+  // (Phase 31 ran the analyzer synchronously). If present we surface
+  // pending/processing/failed counts plus the oldest pending age so
+  // SRE can pin "queue is wedged" tiles on the same readiness panel.
+  let runsPending = 0;
+  let runsProcessing = 0;
+  let runsFailed = 0;
+  let oldestPendingAgeSeconds = 0;
+  let runsTableReachable = true;
+  try {
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT
+         COUNT(*) FILTER (WHERE "status" = 'PENDING') AS "pending",
+         COUNT(*) FILTER (WHERE "status" = 'PROCESSING') AS "processing",
+         COUNT(*) FILTER (WHERE "status" = 'FAILED') AS "failed",
+         COALESCE(
+           EXTRACT(
+             EPOCH FROM (
+               NOW() - MIN("created_at_utc")
+               FILTER (WHERE "status" IN ('PENDING','PROCESSING'))
+             )
+           ),
+           0
+         ) AS "oldest_pending_age_seconds"
+       FROM "media_intelligence_runs"`,
+    )) as Array<{
+      pending: bigint | number;
+      processing: bigint | number;
+      failed: bigint | number;
+      oldest_pending_age_seconds: number | string | null;
+    }>;
+    const r = rows[0];
+    runsPending = r ? Number(r.pending ?? 0) : 0;
+    runsProcessing = r ? Number(r.processing ?? 0) : 0;
+    runsFailed = r ? Number(r.failed ?? 0) : 0;
+    oldestPendingAgeSeconds = r
+      ? Math.max(0, Math.floor(Number(r.oldest_pending_age_seconds ?? 0)))
+      : 0;
+    // Surface as gauges so the /v1/ops/metrics snapshot tiles see
+    // them on the next scrape.
+    setGauge("media_intelligence_runs_pending", runsPending);
+    setGauge("media_intelligence_runs_processing", runsProcessing);
+    setGauge("media_intelligence_runs_failed", runsFailed);
+    setGauge(
+      "media_intelligence_oldest_pending_age_seconds",
+      oldestPendingAgeSeconds,
+    );
+    setGauge(
+      "media_intelligence_queue_depth",
+      runsPending + runsProcessing,
+    );
+  } catch {
+    runsTableReachable = false;
+  }
+
+  // DEGRADED if we have a meaningful backlog OR an old pending run.
+  const HOUR = 3600;
+  const backlogDegraded = runsPending + runsProcessing > 200;
+  const pendingTooOld = oldestPendingAgeSeconds > 6 * HOUR;
+  if (runsTableReachable && (backlogDegraded || pendingTooOld)) {
+    return {
+      id: "media_intelligence",
+      status: "DEGRADED",
+      reasonCode: pendingTooOld ? "run_backlog_stale" : "run_backlog_large",
+      detail: pendingTooOld
+        ? `Oldest pending media-intelligence run is ${Math.round(oldestPendingAgeSeconds / 3600)}h old.`
+        : `Media-intelligence run backlog is ${runsPending + runsProcessing}.`,
+      remediationHint:
+        "Inspect /v1/ops/metrics for media_intelligence_queue_depth + media-intelligence worker logs.",
+      metadata: {
+        pending,
+        acknowledged,
+        attention,
+        runsPending,
+        runsProcessing,
+        runsFailed,
+        oldestPendingAgeSeconds,
+        runsTableReachable,
+      },
+    };
+  }
+
+  return {
+    id: "media_intelligence",
+    status: "HEALTHY",
+    reasonCode: "ok",
+    detail: runsTableReachable
+      ? `Media intelligence reachable. signals: pending=${pending}, acknowledged=${acknowledged}, attention=${attention}. runs: pending=${runsPending}, processing=${runsProcessing}, failed=${runsFailed}`
+      : `Media intelligence advisory layer reachable. pending=${pending}, acknowledged=${acknowledged}, attention=${attention}`,
+    remediationHint: null,
+    metadata: {
+      pending,
+      acknowledged,
+      attention,
+      runsPending,
+      runsProcessing,
+      runsFailed,
+      oldestPendingAgeSeconds,
+      runsTableReachable,
+    },
+  };
+}
+
+// -----------------------------------------------------------------------------
+// Phase 32 — Investigation graph health
+//
+// Reports node/edge counts + the active vs stale split. Advisory-
+// only subsystem (never blocks evidence lifecycle). UNKNOWN if the
+// table is unreachable (drift patch not yet applied).
+// -----------------------------------------------------------------------------
+
+async function checkInvestigationGraph(
+  prisma: PrismaClient,
+): Promise<SubsystemReadiness> {
+  try {
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT
+         (SELECT COUNT(*) FROM "investigation_graph_nodes" WHERE "stale_at_utc" IS NULL) AS "active_nodes",
+         (SELECT COUNT(*) FROM "investigation_graph_edges" WHERE "stale_at_utc" IS NULL) AS "active_edges",
+         (SELECT COUNT(*) FROM "investigation_graph_edges" WHERE "stale_at_utc" IS NOT NULL) AS "stale_edges"`,
+    )) as Array<{
+      active_nodes: bigint | number;
+      active_edges: bigint | number;
+      stale_edges: bigint | number;
+    }>;
+    const r = rows[0];
+    const activeNodes = r ? Number(r.active_nodes ?? 0) : 0;
+    const activeEdges = r ? Number(r.active_edges ?? 0) : 0;
+    const staleEdges = r ? Number(r.stale_edges ?? 0) : 0;
+    return {
+      id: "investigation_graph",
+      status: "HEALTHY",
+      reasonCode: "ok",
+      detail: `Investigation graph reachable. active_nodes=${activeNodes}, active_edges=${activeEdges}, stale_edges=${staleEdges}`,
+      remediationHint: null,
+      metadata: { activeNodes, activeEdges, staleEdges },
+    };
+  } catch {
+    return {
+      id: "investigation_graph",
+      status: "UNKNOWN",
+      reasonCode: "table_unreachable",
+      detail:
+        "Could not query investigation_graph_nodes / _edges. Drift patch may not be applied yet.",
+      remediationHint:
+        "Apply services/api/sql/drift-patches/2026-05-20-investigation-graph.sql to your database.",
+      metadata: {},
+    };
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Aggregator entry
 // -----------------------------------------------------------------------------
 
@@ -808,6 +1019,8 @@ export async function runReadinessCheck(
     Promise.resolve(checkCronSecrets()),
     checkSearchIndexing(prisma),
     checkMultipartStorage(prisma),
+    checkMediaIntelligence(prisma),
+    checkInvestigationGraph(prisma),
   ]);
   return {
     status: rollUpStatus(subsystems),

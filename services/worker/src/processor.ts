@@ -72,6 +72,8 @@ import {
 } from "./storage.js";
 import { createHash, randomUUID, verify as verifySignature } from "node:crypto";
 import { buildReportPdfV2 } from "./report-v2/build-report-pdf.js";
+import { buildReportMediaIntelligence } from "./media-intelligence-report-bridge.js";
+import { buildVerificationPackageIntelligence } from "./verification-package-intelligence-bridge.js";
 import {
   enqueueEvidencePurgeJob,
   enqueueOtsUpgradeJob,
@@ -275,6 +277,9 @@ type ReportBuildParams = {
   verifyUrl?: string | null;
   downloadUrl?: string | null;
   externalMode?: boolean;
+  // Phase 31.11 — OPTIONAL projection passed through to the
+  // renderer. NULL = legacy byte-identical output.
+  mediaIntelligence?: Parameters<typeof buildReportPdfV2>[0]["mediaIntelligence"];
 };
 
 type PreparedReportArtifacts = {
@@ -2601,6 +2606,15 @@ const trustDecision = buildTrustDecision({
   custodyEvents: custodyEventsForReport,
 });
 
+  // Phase 31.11 — bounded media intelligence projection. Never throws,
+  // never blocks: a null result means the report renders byte-identical
+  // to the pre-31.10 legacy output. A non-null result means the
+  // advisory "Media Intelligence Observations" section will render.
+  const reportMediaIntelligence = await buildReportMediaIntelligence({
+    teamId: evidence.teamId ?? null,
+    evidenceId,
+  });
+
   const reportBuildParams: ReportBuildParams = {
     evidence: reportEvidencePayload,
     custodyEvents: custodyEventsForReport,
@@ -2610,6 +2624,7 @@ const trustDecision = buildTrustDecision({
     verifyUrl,
     downloadUrl: evidenceDetailUrl,
     externalMode: false,
+    mediaIntelligence: reportMediaIntelligence,
   };
 
 const reportPdf = await buildReportPdfV2(reportBuildParams);
@@ -3105,6 +3120,14 @@ const effectiveReportEvidencePayload = {
           custodyEvents: finalizedCustodyForReport,
         });
 
+        // Phase 31.11 — bounded media intelligence projection for the
+        // finalized report. Same isolation invariants as the
+        // provisional-report path above.
+        const finalizedReportMediaIntelligence = await buildReportMediaIntelligence({
+          teamId: evidence.teamId ?? null,
+          evidenceId: prepared.evidenceId,
+        });
+
         const finalizedReportPdf = await buildReportPdfV2({
           evidence: effectiveReportEvidencePayload,
           custodyEvents: finalizedCustodyForReport,
@@ -3114,6 +3137,7 @@ const effectiveReportEvidencePayload = {
           verifyUrl: prepared.verifyUrl,
           downloadUrl: prepared.downloadUrl,
           externalMode: false,
+          mediaIntelligence: finalizedReportMediaIntelligence,
         });
 
         await assertWorkspaceAllowsReportArtifact({
@@ -3309,8 +3333,19 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
   otsBitcoinTxid: prepared.reportEvidencePayload.otsBitcoinTxid ?? null,
   otsAnchoredAtUtc: prepared.reportEvidencePayload.otsAnchoredAtUtc ?? null,
 });
+        // Phase 31.14 — bounded intelligence projection for the
+        // verification package. Returns null when no surfaceable
+        // data exists OR on any failure — the package builds
+        // unchanged in either case (offline verifier independent).
+        const verificationPackageIntelligence =
+          await buildVerificationPackageIntelligence({
+            teamId: evidence.teamId ?? null,
+            evidenceId: prepared.evidenceId,
+          });
+
         const finalizedVerificationPackage = await createVerificationPackage({
           teamId: evidence.teamId ?? undefined,
+          intelligence: verificationPackageIntelligence,
           evidenceFiles: prepared.verificationEvidenceFiles,
           reportPdf: finalized.finalizedReportPdf,
           reportFileName: `proovra-verification-report-v${prepared.version}.pdf`,

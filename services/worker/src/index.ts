@@ -3,9 +3,27 @@ import { randomUUID } from "node:crypto";
 import { Worker } from "bullmq";
 import { logger, withJobContext } from "./logger.js";
 import {
+  derivedAssetsQueue,
+  derivedAssetsQueueName,
   evidencePurgeQueue,
   evidencePurgeQueueName,
+  exifQueue,
+  exifQueueName,
   generateReportJobName,
+  graphDomainSyncQueue,
+  graphDomainSyncQueueName,
+  graphReconcileQueue,
+  graphReconcileQueueName,
+  graphSearchProjectionQueue,
+  graphSearchProjectionQueueName,
+  graphTimelineSyncQueue,
+  graphTimelineSyncQueueName,
+  mediaIntelligenceQueue,
+  mediaIntelligenceQueueName,
+  miSearchIndexQueue,
+  miSearchIndexQueueName,
+  ocrQueue,
+  ocrQueueName,
   otsUpgradeQueue,
   otsUpgradeQueueName,
   purgeDeletedEvidenceJobName,
@@ -15,6 +33,8 @@ import {
   reportQueueName,
   searchIndexingQueue,
   searchIndexingQueueName,
+  transcriptQueue,
+  transcriptQueueName,
 } from "./queue.js";
 import {
   processGenerateReport,
@@ -22,6 +42,18 @@ import {
 } from "./processor.js";
 import { processOtsUpgrade } from "./ots-upgrade.processor.js";
 import { processSearchIndexingJob } from "./search-indexing.processor.js";
+import { processMediaIntelligenceJob } from "./media-intelligence.processor.js";
+import { processDerivedAssetJob } from "./derived-assets.processor.js";
+// Phase 31.19 / 31.20 — seven isolated subsystem queue processors.
+import {
+  processGraphDomainSyncJob,
+  processGraphReconcileJob,
+  processGraphSearchProjectionJob,
+  processGraphTimelineSyncJob,
+  processMiSearchIndexJob,
+  processOcrJob,
+  processTranscriptJob,
+} from "./subsystem-queue-processors.js";
 import { startHealthServer, type HealthServer } from "./health.js";
 import { captureException, initSentry } from "./sentry.js";
 import { reapExpiredCaptureDrafts } from "./capture-reaper.js";
@@ -91,7 +123,7 @@ function getErrorMessage(err: unknown): string {
 }
 
 function isExpectedOtsPendingError(
-  jobKind: "report" | "ots-upgrade" | "evidence-purge" | "search-indexing",
+  jobKind: WorkerKind,
   err: unknown
 ): boolean {
   if (jobKind !== "ots-upgrade") return false;
@@ -100,7 +132,7 @@ function isExpectedOtsPendingError(
 
 function bindWorkerEvents(
   workerInstance: Worker,
-  jobKind: "report" | "ots-upgrade" | "evidence-purge" | "search-indexing"
+  jobKind: WorkerKind
 ) {
   workerInstance.on("completed", (job) => {
     const requestId = randomUUID();
@@ -942,39 +974,216 @@ export function getLatestQueueHealthSnapshot(): unknown {
 
 initSentry();
 
-const reportWorker = new Worker(reportQueueName, processGenerateReport, {
-  connection: redisConnection,
-  concurrency: 2,
-});
+// HOTFIX — Startup readiness protection.
+//
+// A single processor that throws during `new Worker(...)`
+// construction must NOT kill the entire worker runtime. Before
+// this guard, a faulty processor (e.g. an import-time
+// PrismaClientInitializationError from `search-indexing.processor`)
+// would crash the boot sequence and take down report generation,
+// verification package generation, and every other queue —
+// triggering downstream API 404s on `/v1/evidence/:id/report/latest`
+// and `/v1/evidence/:id/verification-package`.
+//
+// safeRegisterWorker wraps each Worker construction in a try/catch
+// + binds events on success. On failure it emits a structured
+// `worker.processor_registration_failed` alert and returns null.
+// Downstream shutdown logic null-checks before closing.
+//
+// This is defense in depth: the underlying root cause must still
+// be fixed (and is — see search-indexing.processor.ts hotfix).
+// Belt + suspenders so SRE never again sees a silent total worker
+// outage from a single processor regression.
 
-const otsUpgradeWorker = new Worker(otsUpgradeQueueName, processOtsUpgrade, {
-  connection: redisConnection,
-  concurrency: 1,
-});
+type WorkerKind =
+  | "report"
+  | "ots-upgrade"
+  | "evidence-purge"
+  | "search-indexing"
+  | "media-intelligence"
+  | "derived-assets"
+  | "mi-exif"
+  | "mi-ocr"
+  | "mi-transcript"
+  | "mi-search-index"
+  | "graph-reconcile"
+  | "graph-domain-sync"
+  | "graph-timeline-sync"
+  | "graph-search-projection";
 
-const evidencePurgeWorker = new Worker(
-  evidencePurgeQueueName,
-  processPurgeDeletedEvidence,
-  {
+function safeRegisterWorker(
+  kind: WorkerKind,
+  factory: () => Worker,
+): Worker | null {
+  try {
+    const workerInstance = factory();
+    bindWorkerEvents(workerInstance, kind);
+    logger.info(
+      { processor: kind, status: "registered" },
+      "worker.processor_registered",
+    );
+    return workerInstance;
+  } catch (err) {
+    const requestId = randomUUID();
+    emitOperationalAlert({
+      requestId,
+      reason: "processor_registration_failed",
+      err,
+      context: {
+        processor: kind,
+        message:
+          err instanceof Error
+            ? err.message.slice(0, 200)
+            : "unknown",
+      },
+    });
+    captureException(err, {
+      kind: "worker.processor_registration_failed",
+      processor: kind,
+    });
+    // Return null so the rest of the worker boots. SRE sees the
+    // structured alert + the affected queue stays unprocessed
+    // (versus today where one bad processor kills every queue).
+    return null;
+  }
+}
+
+const reportWorker = safeRegisterWorker("report", () =>
+  new Worker(reportQueueName, processGenerateReport, {
+    connection: redisConnection,
+    concurrency: 2,
+  }),
+);
+
+const otsUpgradeWorker = safeRegisterWorker("ots-upgrade", () =>
+  new Worker(otsUpgradeQueueName, processOtsUpgrade, {
     connection: redisConnection,
     concurrency: 1,
-  }
+  }),
+);
+
+const evidencePurgeWorker = safeRegisterWorker("evidence-purge", () =>
+  new Worker(evidencePurgeQueueName, processPurgeDeletedEvidence, {
+    connection: redisConnection,
+    concurrency: 1,
+  }),
 );
 
 // Phase 24-J — Search Discovery indexing worker.
-const searchIndexingWorker = new Worker(
-  searchIndexingQueueName,
-  processSearchIndexingJob,
-  {
+const searchIndexingWorker = safeRegisterWorker("search-indexing", () =>
+  new Worker(searchIndexingQueueName, processSearchIndexingJob, {
     connection: redisConnection,
     concurrency: 2,
-  }
+  }),
 );
 
-bindWorkerEvents(reportWorker, "report");
-bindWorkerEvents(otsUpgradeWorker, "ots-upgrade");
-bindWorkerEvents(evidencePurgeWorker, "evidence-purge");
-bindWorkerEvents(searchIndexingWorker, "search-indexing");
+// Phase 31.6 — Media intelligence async worker. Bounded concurrency
+// (1) — the analyzer is read-only against EvidencePart + clientSignals
+// + EvidenceIntelligenceJob, so saturating the DB with parallel
+// per-evidence scans is the only realistic failure mode. One at a
+// time keeps backpressure on the queue rather than on Postgres.
+const mediaIntelligenceWorker = safeRegisterWorker("media-intelligence", () =>
+  new Worker(mediaIntelligenceQueueName, processMediaIntelligenceJob, {
+    connection: redisConnection,
+    concurrency: 1,
+  }),
+);
+
+// Phase 31.13 — dedicated derived-assets worker. ISOLATED from the
+// media-intelligence worker so a sharp-side stall can never affect
+// EXIF extraction or analyzer jobs. Concurrency 1 keeps the load
+// on sharp + S3 bounded (each job pulls up to 4MB source + writes
+// a small thumbnail).
+const derivedAssetsWorker = safeRegisterWorker("derived-assets", () =>
+  new Worker(derivedAssetsQueueName, processDerivedAssetJob, {
+    connection: redisConnection,
+    concurrency: 1,
+  }),
+);
+
+// Phase 31.18 — dedicated EXIF worker (mi-exif). ISOLATED from the
+// generic media-intelligence worker so EXIF extraction (which only
+// reads ~16KB per part and parses with `exifr`) cannot be head-of-
+// line blocked by analyzer runs. Concurrency 2 — EXIF parsing is
+// CPU-light and bounded; we can run two in parallel without
+// saturating Postgres. Reuses processMediaIntelligenceJob: the
+// processor branches on `kind`, and only `extract_exif` flows here.
+const exifWorker = safeRegisterWorker("mi-exif", () =>
+  new Worker(exifQueueName, processMediaIntelligenceJob, {
+    connection: redisConnection,
+    concurrency: 2,
+  }),
+);
+
+// Phase 31.19 — four more isolated subsystem workers.
+//
+// mi-ocr / mi-transcript: producers gated on vendor decision. The
+// processor logs receipt and completes (NOT_CONFIGURED). Concurrency
+// is bounded so a vendor that returns slowly cannot saturate the
+// worker process.
+//
+// mi-search-index: thin shim that delegates to the existing Phase
+// 24-J search-indexing queue. Lets the reviewer console / ops UI
+// trigger a bounded reindex per evidence without coupling to the
+// generic search-indexing producer.
+//
+// graph-reconcile: dedicated queue for ad-hoc graph rebuild
+// triggers (operator action, escalation hook, scheduled recurrence).
+// Worker invokes the read-only `reconcileTeamGraph` service.
+const ocrWorker = safeRegisterWorker("mi-ocr", () =>
+  new Worker(ocrQueueName, processOcrJob, {
+    connection: redisConnection,
+    concurrency: 1,
+  }),
+);
+
+const transcriptWorker = safeRegisterWorker("mi-transcript", () =>
+  new Worker(transcriptQueueName, processTranscriptJob, {
+    connection: redisConnection,
+    concurrency: 1,
+  }),
+);
+
+const miSearchIndexWorker = safeRegisterWorker("mi-search-index", () =>
+  new Worker(miSearchIndexQueueName, processMiSearchIndexJob, {
+    connection: redisConnection,
+    concurrency: 2,
+  }),
+);
+
+const graphReconcileWorker = safeRegisterWorker("graph-reconcile", () =>
+  new Worker(graphReconcileQueueName, processGraphReconcileJob, {
+    connection: redisConnection,
+    concurrency: 1,
+  }),
+);
+
+// Phase 31.20 — final three isolated subsystem workers, completing
+// the 9-queue isolation program. graph-domain-sync delegates to the
+// existing reconciler; graph-timeline-sync and graph-search-projection
+// are observable canonical targets for future incremental writers.
+const graphDomainSyncWorker = safeRegisterWorker("graph-domain-sync", () =>
+  new Worker(graphDomainSyncQueueName, processGraphDomainSyncJob, {
+    connection: redisConnection,
+    concurrency: 1,
+  }),
+);
+
+const graphTimelineSyncWorker = safeRegisterWorker("graph-timeline-sync", () =>
+  new Worker(graphTimelineSyncQueueName, processGraphTimelineSyncJob, {
+    connection: redisConnection,
+    concurrency: 2,
+  }),
+);
+
+const graphSearchProjectionWorker = safeRegisterWorker(
+  "graph-search-projection",
+  () =>
+    new Worker(graphSearchProjectionQueueName, processGraphSearchProjectionJob, {
+      connection: redisConnection,
+      concurrency: 2,
+    }),
+);
 
 let healthServer: HealthServer | null = null;
 let shuttingDown = false;
@@ -998,60 +1207,140 @@ async function shutdown(exitCode: number) {
   stopObservabilityHeartbeat();
   stopQueueHealthSampler();
 
-  try {
-    await reportWorker.pause(true);
-  } catch (err) {
-    const requestId = randomUUID();
-    logger.error({ requestId, err }, "worker.pause_report_failed");
-    captureException(err, { requestId });
+  // HOTFIX — null-check before pause/close. With startup-readiness
+  // protection (safeRegisterWorker), a failed processor returns
+  // null instead of crashing the runtime. Shutdown must skip
+  // null workers cleanly.
+
+  if (reportWorker) {
+    try {
+      await reportWorker.pause(true);
+    } catch (err) {
+      const requestId = randomUUID();
+      logger.error({ requestId, err }, "worker.pause_report_failed");
+      captureException(err, { requestId });
+    }
   }
 
-  try {
-    await otsUpgradeWorker.pause(true);
-  } catch (err) {
-    const requestId = randomUUID();
-    logger.error({ requestId, err }, "worker.pause_ots_upgrade_failed");
-    captureException(err, { requestId });
+  if (otsUpgradeWorker) {
+    try {
+      await otsUpgradeWorker.pause(true);
+    } catch (err) {
+      const requestId = randomUUID();
+      logger.error({ requestId, err }, "worker.pause_ots_upgrade_failed");
+      captureException(err, { requestId });
+    }
   }
 
-  try {
-    await evidencePurgeWorker.pause(true);
-  } catch (err) {
-    const requestId = randomUUID();
-    logger.error({ requestId, err }, "worker.pause_evidence_purge_failed");
-    captureException(err, { requestId });
+  if (evidencePurgeWorker) {
+    try {
+      await evidencePurgeWorker.pause(true);
+    } catch (err) {
+      const requestId = randomUUID();
+      logger.error({ requestId, err }, "worker.pause_evidence_purge_failed");
+      captureException(err, { requestId });
+    }
   }
 
-  try {
-    await reportWorker.close();
-  } catch (err) {
-    const requestId = randomUUID();
-    logger.error({ requestId, err }, "worker.close_report_failed");
-    captureException(err, { requestId });
+  if (reportWorker) {
+    try {
+      await reportWorker.close();
+    } catch (err) {
+      const requestId = randomUUID();
+      logger.error({ requestId, err }, "worker.close_report_failed");
+      captureException(err, { requestId });
+    }
   }
 
-  try {
-    await otsUpgradeWorker.close();
-  } catch (err) {
-    const requestId = randomUUID();
-    logger.error({ requestId, err }, "worker.close_ots_upgrade_failed");
-    captureException(err, { requestId });
+  if (otsUpgradeWorker) {
+    try {
+      await otsUpgradeWorker.close();
+    } catch (err) {
+      const requestId = randomUUID();
+      logger.error({ requestId, err }, "worker.close_ots_upgrade_failed");
+      captureException(err, { requestId });
+    }
   }
 
-  try {
-    await evidencePurgeWorker.close();
-  } catch (err) {
-    const requestId = randomUUID();
-    logger.error({ requestId, err }, "worker.close_evidence_purge_failed");
-    captureException(err, { requestId });
+  if (evidencePurgeWorker) {
+    try {
+      await evidencePurgeWorker.close();
+    } catch (err) {
+      const requestId = randomUUID();
+      logger.error({ requestId, err }, "worker.close_evidence_purge_failed");
+      captureException(err, { requestId });
+    }
   }
 
-  try {
-    await searchIndexingWorker.close();
-  } catch (err) {
-    const requestId = randomUUID();
-    logger.error({ requestId, err }, "worker.close_search_indexing_failed");
-    captureException(err, { requestId });
+  if (searchIndexingWorker) {
+    try {
+      await searchIndexingWorker.close();
+    } catch (err) {
+      const requestId = randomUUID();
+      logger.error({ requestId, err }, "worker.close_search_indexing_failed");
+      captureException(err, { requestId });
+    }
+  }
+
+  // Phase 31.6 — media intelligence worker null-checked close.
+  if (mediaIntelligenceWorker) {
+    try {
+      await mediaIntelligenceWorker.close();
+    } catch (err) {
+      const requestId = randomUUID();
+      logger.error(
+        { requestId, err },
+        "worker.close_media_intelligence_failed",
+      );
+      captureException(err, { requestId });
+    }
+  }
+
+  // Phase 31.13 — derived assets worker null-checked close.
+  if (derivedAssetsWorker) {
+    try {
+      await derivedAssetsWorker.close();
+    } catch (err) {
+      const requestId = randomUUID();
+      logger.error(
+        { requestId, err },
+        "worker.close_derived_assets_failed",
+      );
+      captureException(err, { requestId });
+    }
+  }
+
+  // Phase 31.18 — exif worker null-checked close.
+  if (exifWorker) {
+    try {
+      await exifWorker.close();
+    } catch (err) {
+      const requestId = randomUUID();
+      logger.error({ requestId, err }, "worker.close_exif_failed");
+      captureException(err, { requestId });
+    }
+  }
+
+  // Phase 31.19 / 31.20 — seven more isolated subsystem workers,
+  // each null-checked. A failed safeRegisterWorker returns null so
+  // a single processor regression cannot crash the shutdown path.
+  for (const [name, w] of [
+    ["mi-ocr", ocrWorker] as const,
+    ["mi-transcript", transcriptWorker] as const,
+    ["mi-search-index", miSearchIndexWorker] as const,
+    ["graph-reconcile", graphReconcileWorker] as const,
+    ["graph-domain-sync", graphDomainSyncWorker] as const,
+    ["graph-timeline-sync", graphTimelineSyncWorker] as const,
+    ["graph-search-projection", graphSearchProjectionWorker] as const,
+  ]) {
+    if (!w) continue;
+    try {
+      await w.close();
+    } catch (err) {
+      const requestId = randomUUID();
+      logger.error({ requestId, name, err }, "worker.close_subsystem_failed");
+      captureException(err, { requestId });
+    }
   }
 
   try {
@@ -1059,6 +1348,22 @@ async function shutdown(exitCode: number) {
     await reportDlqQueue.close();
     await otsUpgradeQueue.close();
     await evidencePurgeQueue.close();
+    await searchIndexingQueue.close();
+    // Phase 31.6 — media intelligence queue + DLQ.
+    await mediaIntelligenceQueue.close();
+    // Phase 31.13 — derived assets queue.
+    await derivedAssetsQueue.close();
+    // Phase 31.18 — exif queue.
+    await exifQueue.close();
+    // Phase 31.19 — four more isolated subsystem queues.
+    await ocrQueue.close();
+    await transcriptQueue.close();
+    await miSearchIndexQueue.close();
+    await graphReconcileQueue.close();
+    // Phase 31.20 — final three isolated subsystem queues.
+    await graphDomainSyncQueue.close();
+    await graphTimelineSyncQueue.close();
+    await graphSearchProjectionQueue.close();
   } catch (err) {
     const requestId = randomUUID();
     logger.error({ requestId, err }, "worker.queue_close_failed");

@@ -239,6 +239,45 @@ export const EXPECTED_SCHEMA: ReadonlyArray<ExpectedSchemaObject> = [
   { kind: "column", table: "evidence_upload_sessions", column: "original_file_name", severity: "critical", subsystem: "core_evidence" },
   { kind: "column", table: "evidence_upload_sessions", column: "expected_mime_type", severity: "important", subsystem: "core_evidence" },
   { kind: "column", table: "evidence_upload_sessions", column: "bridged_evidence_part_id", severity: "critical", subsystem: "core_evidence" },
+  // Phase 31 — media intelligence signals table. Important (not
+  // critical) — the platform's core evidence path runs without
+  // this table; missing it only degrades the advisory layer.
+  { kind: "table", name: "media_intelligence_signals", severity: "important", subsystem: "core_evidence" },
+  { kind: "column", table: "media_intelligence_signals", column: "signal_type", severity: "important", subsystem: "core_evidence" },
+  { kind: "column", table: "media_intelligence_signals", column: "severity", severity: "important", subsystem: "core_evidence" },
+  { kind: "index", table: "media_intelligence_signals", indexName: "media_intelligence_signals_evidence_material_type_uk", severity: "important", subsystem: "core_evidence" },
+  // Phase 31.5 — media intelligence run tracker. Important
+  // (not critical) — analyzer can fall back to synchronous mode
+  // without it, and core evidence flow never depends on it.
+  { kind: "table", name: "media_intelligence_runs", severity: "important", subsystem: "core_evidence" },
+  { kind: "column", table: "media_intelligence_runs", column: "status", severity: "important", subsystem: "core_evidence" },
+  { kind: "column", table: "media_intelligence_runs", column: "kind", severity: "important", subsystem: "core_evidence" },
+  // Phase 31.8 — bounded per-EvidencePart EXIF summary persistence.
+  // Important (not critical) — analyzer can degrade gracefully to
+  // the heuristic exifPresent flag when the table is absent.
+  { kind: "table", name: "evidence_part_exif_summaries", severity: "important", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_part_exif_summaries", column: "exif_present", severity: "important", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_part_exif_summaries", column: "has_gps", severity: "important", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_part_exif_summaries", column: "status", severity: "important", subsystem: "core_evidence" },
+  { kind: "index", table: "evidence_part_exif_summaries", indexName: "evidence_part_exif_summaries_team_part_uk", severity: "important", subsystem: "core_evidence" },
+  // Phase 31.13 — bounded derived-assets pipeline (image thumbnails
+  // this phase; video frames / waveforms reserved for the future).
+  // Important (not critical) — the report / package / verify flows
+  // all work without derived assets; absence yields "no derived
+  // previews" UI states.
+  { kind: "table", name: "evidence_part_derived_assets", severity: "important", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_part_derived_assets", column: "asset_kind", severity: "important", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_part_derived_assets", column: "status", severity: "important", subsystem: "core_evidence" },
+  { kind: "column", table: "evidence_part_derived_assets", column: "derived_sha256", severity: "important", subsystem: "core_evidence" },
+  { kind: "index", table: "evidence_part_derived_assets", indexName: "evidence_part_derived_assets_team_part_kind_uk", severity: "important", subsystem: "core_evidence" },
+  // Phase 32 — investigation graph. Important (not critical) —
+  // the graph is an advisory traversal layer; missing it doesn't
+  // block evidence lifecycle.
+  { kind: "table", name: "investigation_graph_nodes", severity: "important", subsystem: "core_evidence" },
+  { kind: "table", name: "investigation_graph_edges", severity: "important", subsystem: "core_evidence" },
+  { kind: "table", name: "manual_relationships", severity: "important", subsystem: "core_evidence" },
+  { kind: "index", table: "investigation_graph_nodes", indexName: "investigation_graph_nodes_team_kind_ext_uk", severity: "important", subsystem: "core_evidence" },
+  { kind: "index", table: "investigation_graph_edges", indexName: "investigation_graph_edges_team_triple_uk", severity: "important", subsystem: "core_evidence" },
 
   { kind: "table", name: "external_review_grants", severity: "important", subsystem: "governance_lifecycle" },
   { kind: "column", table: "external_review_grants", column: "state", severity: "critical", subsystem: "governance_lifecycle" },

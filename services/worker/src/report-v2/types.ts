@@ -302,6 +302,81 @@ export type ReportV2Input = {
   verifyUrl?: string | null;
   downloadUrl?: string | null;
   externalMode?: boolean;
+  /**
+   * Phase 31.10 — OPTIONAL advisory media intelligence bundle.
+   *
+   * When omitted (the default for every existing caller), the
+   * rendered report HTML is BYTE-IDENTICAL to the pre-Phase-31.10
+   * output. The media intelligence section emits `""` and the
+   * render pipeline filters it out before joining.
+   *
+   * When supplied, the bounded "Media Intelligence Observations"
+   * section is appended between the Reviewer Verification
+   * Workflow and the Legal Interpretation & Report Boundary
+   * sections. The section is advisory only and carries an inline
+   * disclaimer; the legal hierarchy is unchanged.
+   *
+   * Anti-leak: this input shape carries ONLY the bounded,
+   * operator-safe fields. Storage keys, signed URLs, raw GPS,
+   * private notes, multipart upload ids — none can be passed.
+   */
+  mediaIntelligence?: MediaIntelligenceReportInput | null;
+};
+
+// ===========================================================================
+// Phase 31.10 — Media Intelligence Observations report input
+// ===========================================================================
+
+/**
+ * Bounded report-side input for media intelligence. The caller
+ * (services/api evidence/report route) projects from the canonical
+ * media_intelligence_signals + evidence_part_exif_summaries +
+ * derived_assets tables INTO this shape, applying every
+ * anti-leak invariant. The report renderer never re-projects.
+ */
+export type MediaIntelligenceReportInput = {
+  signals?: ReadonlyArray<MediaIntelligenceReportSignal>;
+  /** Optional bounded derived-thumbnail data URLs. Each entry
+   *  links to a material id; the renderer displays only thumbnails
+   *  that fit a tiny size budget. Bytes themselves are inline data
+   *  URLs already produced by the caller — the renderer never
+   *  reaches out to S3. */
+  derivedThumbnails?: ReadonlyArray<MediaIntelligenceReportThumbnail>;
+  /** Optional bounded OCR / transcript availability per material.
+   *  Provenance only — never carries the actual extracted prose. */
+  ocrTranscript?: ReadonlyArray<MediaIntelligenceReportOcrTranscript>;
+};
+
+export type MediaIntelligenceReportSignal = {
+  id: string;
+  signalType: string;
+  materialId: string | null;
+  /** Bounded display label — typically the material's filename or
+   *  the safe label projected by the caller. Bounded length. */
+  materialLabel: string | null;
+  severity: "INFO" | "REVIEW_RECOMMENDED" | "ATTENTION";
+  confidence: "LOW" | "MEDIUM" | "HIGH";
+  safeSummary: string;
+  status: "PENDING" | "ACKNOWLEDGED" | "DISMISSED";
+  createdAtUtc: string;
+};
+
+export type MediaIntelligenceReportThumbnail = {
+  materialId: string;
+  /** Inline data URL — `data:image/...;base64,...`. Bounded
+   *  upstream so the report PDF stays compact. */
+  dataUrl: string;
+  /** Operator-readable kind: image_thumbnail / video_frame /
+   *  audio_waveform / low_res_proxy. */
+  assetKind: string;
+};
+
+export type MediaIntelligenceReportOcrTranscript = {
+  materialId: string;
+  ocrAvailable: boolean;
+  transcriptAvailable: boolean;
+  ocrIndexed: boolean;
+  transcriptIndexed: boolean;
 };
 
 export type Tone = TrustDecisionTone;
@@ -514,6 +589,14 @@ export type ReportViewModel = {
     publicDataUrl: string | null;
     technicalDataUrl: string | null;
   };
+
+  /**
+   * Phase 31.10 — OPTIONAL bounded media intelligence projection.
+   * When `null`, the renderer emits NO new HTML. Same data shape
+   * as `ReportV2Input.mediaIntelligence`; carried through from
+   * `buildReportViewModel` verbatim.
+   */
+  mediaIntelligence: MediaIntelligenceReportInput | null;
 
   meta: {
     hasCoreCrypto: boolean;

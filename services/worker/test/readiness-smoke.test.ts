@@ -516,8 +516,19 @@ describe("readiness/G — OTS contract preservation", () => {
       fileURLToPath(new URL("../src/index.ts", import.meta.url)),
       "utf8",
     );
-    expect(src).toMatch(/new Worker\(otsUpgradeQueueName,\s*processOtsUpgrade/);
-    expect(src).toContain('bindWorkerEvents(otsUpgradeWorker, "ots-upgrade")');
+    // HOTFIX update: worker construction is now wrapped in
+    // safeRegisterWorker(...) so an import-time processor crash
+    // can't kill the runtime. The Worker(...) call site moved
+    // inside the helper's factory closure, but the contract is
+    // unchanged: same queue name + same processor.
+    expect(src).toMatch(
+      /safeRegisterWorker\("ots-upgrade",[\s\S]*?new Worker\(otsUpgradeQueueName,\s*processOtsUpgrade/,
+    );
+    // bindWorkerEvents is now invoked from inside safeRegisterWorker
+    // — the test verifies the binding contract still holds by
+    // checking the helper itself calls bindWorkerEvents with the
+    // worker kind.
+    expect(src).toMatch(/bindWorkerEvents\(workerInstance,\s*kind\)/);
   });
 
   it("OTS upgrade processor signature is unchanged (Job<{evidenceId: string}>)", async () => {
@@ -622,21 +633,32 @@ describe("readiness/B — Boot-shape verification (source contracts)", () => {
     expect(src).toMatch(/app\.register\(governanceOperationsRoutes\)/);
   });
 
-  it("worker entrypoint registers all three BullMQ workers + binds events", async () => {
+  it("worker entrypoint registers all four BullMQ workers via safeRegisterWorker", async () => {
     const { readFileSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
     const src = readFileSync(
       fileURLToPath(new URL("../src/index.ts", import.meta.url)),
       "utf8",
     );
-    expect(src).toMatch(/new Worker\(reportQueueName/);
-    expect(src).toMatch(/new Worker\(otsUpgradeQueueName/);
-    expect(src).toMatch(/new Worker\(\s*evidencePurgeQueueName/);
-    expect(src).toMatch(/bindWorkerEvents\(reportWorker, "report"\)/);
-    expect(src).toMatch(/bindWorkerEvents\(otsUpgradeWorker, "ots-upgrade"\)/);
+    // HOTFIX update: every BullMQ Worker is constructed via the
+    // safeRegisterWorker(...) helper so an import-time processor
+    // crash can't kill the entire runtime. The (queueName, processor)
+    // contract is unchanged — just wrapped in a factory closure.
     expect(src).toMatch(
-      /bindWorkerEvents\(evidencePurgeWorker, "evidence-purge"\)/,
+      /safeRegisterWorker\("report",[\s\S]*?new Worker\(reportQueueName/,
     );
+    expect(src).toMatch(
+      /safeRegisterWorker\("ots-upgrade",[\s\S]*?new Worker\(otsUpgradeQueueName/,
+    );
+    expect(src).toMatch(
+      /safeRegisterWorker\("evidence-purge",[\s\S]*?new Worker\(evidencePurgeQueueName/,
+    );
+    expect(src).toMatch(
+      /safeRegisterWorker\("search-indexing",[\s\S]*?new Worker\(searchIndexingQueueName/,
+    );
+    // bindWorkerEvents is called inside safeRegisterWorker once per
+    // successful Worker construction.
+    expect(src).toMatch(/bindWorkerEvents\(workerInstance,\s*kind\)/);
   });
 
   it("worker entrypoint starts observability schedulers AFTER bootstrap (defensive ordering)", async () => {
