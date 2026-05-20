@@ -3340,6 +3340,15 @@ const effectiveReportEvidencePayload = {
         },
         "verification_package.skipped_personal_workspace",
       );
+      // Phase 32.6 — bounded SRE counter for the canonical skip path.
+      // Distinct from package_generation_failed_total so dashboards
+      // can separate "skipped by design" from "broken".
+      try {
+        const { bump } = await import("@proovra/shared-runtime/ops");
+        bump("package_generation_skipped_personal_workspace_total");
+      } catch {
+        /* metrics are best-effort */
+      }
     }
 
     if (
@@ -3351,6 +3360,15 @@ prepared.verificationPackageIncluded &&
       // pre-checking here avoids the false-positive Sentry alert.
       !!evidence.teamId
     ) {
+      // Phase 32.6 — bump the started counter at the canonical
+      // entry point so SRE dashboards count attempts (vs. successes
+      // tracked separately via package_generation_completed_total).
+      try {
+        const { bump } = await import("@proovra/shared-runtime/ops");
+        bump("package_generation_started_total");
+      } catch {
+        /* metrics are best-effort */
+      }
       try {
                 const finalizedLastEventHash =
           finalized.finalizedCustodyEvents.at(-1)?.eventHash ?? null;
@@ -3519,11 +3537,28 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
         finalizedVerificationZip = finalizedVerificationPackage.buffer;
         finalizedVerificationArtifactPresence =
           finalizedVerificationPackage.artifactPresence;
+        // Phase 32.6 — completion counter at the canonical success
+        // site (after artifact-presence is populated). Failures
+        // counted separately via the catch arm.
+        try {
+          const { bump } = await import("@proovra/shared-runtime/ops");
+          bump("package_generation_completed_total");
+        } catch {
+          /* metrics are best-effort */
+        }
       } catch (verificationError) {
         captureException(verificationError, {
           evidenceId,
           phase: "verification_package_prepare_finalized",
         });
+
+        // Phase 32.6 — bounded failure counter.
+        try {
+          const { bump } = await import("@proovra/shared-runtime/ops");
+          bump("package_generation_failed_total");
+        } catch {
+          /* metrics are best-effort */
+        }
 
         logger.error(
           {

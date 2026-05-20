@@ -74,15 +74,40 @@ export function buildVerificationPackageAvailability(detail?: DetailWorkspaceSta
   available: boolean;
   label: string;
 } {
+  // Phase 32.6 — fix verification-package availability check.
+  //
+  // Previously this required `detail.verificationPackage.url` to be
+  // truthy. But the `/v1/evidence/:id/review-workspace` endpoint
+  // NEVER returns a `url` field on the verification-package
+  // projection — the presigned URL is generated on-demand by the
+  // separate `/v1/evidence/:id/verification-package` endpoint when
+  // the user clicks download (avoids exposing signed URLs in the
+  // workspace projection).
+  //
+  // Result: legitimate team-workspace evidence with a real package
+  // row ALWAYS showed `available: false` and rendered the download
+  // button as "Verification package requires detail check" — even
+  // though the package existed and was downloadable.
+  //
+  // Fix: the package is `available` when EITHER:
+  //   * the projection carries a `generatedAtUtc` (the canonical
+  //     "package exists" signal), OR
+  //   * the projection carries a `version` (legacy fallback)
+  //
+  // The download click still goes through the gated endpoint, which
+  // remains the authoritative source of truth on permission and
+  // governance state. This change ONLY fixes the button enablement
+  // computation in the workspace projection.
   const available = Boolean(
-    detail?.verificationPackage?.url && detail?.verificationPackage?.generatedAtUtc
+    detail?.verificationPackage?.generatedAtUtc ||
+      detail?.verificationPackage?.version,
   );
 
   return {
     available,
     label: available
       ? "Verification package available"
-      : "Verification package requires detail check",
+      : "Verification package not recorded",
   };
 }
 

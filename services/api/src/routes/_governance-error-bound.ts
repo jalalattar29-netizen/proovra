@@ -68,6 +68,15 @@ export async function runGovernanceHandler<T>(
     return await handler();
   } catch (err) {
     if (isPrismaSchemaDriftError(err)) {
+      // Phase 32.6 — bounded SRE counter for governance schema drift.
+      // Bumped from a single canonical site so dashboards can size
+      // the impact without scraping logs.
+      try {
+        const { bump } = await import("@proovra/shared-runtime/ops");
+        bump("governance_schema_unavailable_total");
+      } catch {
+        /* metrics are best-effort */
+      }
       reply.code(503).send({
         error: {
           code: "governance_schema_unavailable",

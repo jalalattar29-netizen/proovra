@@ -499,6 +499,17 @@ export const COUNTER_NAMES = [
   "enterprise_empty_state_rendered_total",
   "governance_snapshot_ui_loaded_total",
   "operational_timeline_ui_loaded_total",
+  // Phase 32.6 — observability cleanup. Bounded counters surfaced
+  // on /metrics for SRE dashboards. Each counter has a single
+  // canonical bump site; never bumped on user-input paths.
+  "package_generation_started_total",
+  "package_generation_completed_total",
+  "package_generation_failed_total",
+  "package_generation_skipped_personal_workspace_total",
+  "artifact_status_polled_total",
+  "governance_schema_unavailable_total",
+  "worker_readiness_warming_total",
+  "worker_readiness_degraded_total",
 ] as const;
 export type CounterName = (typeof COUNTER_NAMES)[number];
 

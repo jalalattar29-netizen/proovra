@@ -410,6 +410,26 @@ async function checkWorkers(prisma: PrismaClient): Promise<SubsystemReadiness> {
   // line every interval. We can't read the log stream from the api,
   // but we CAN check the audit log: every reconcile pass writes a
   // SecurityEvent / audit row.
+  //
+  // Phase 32.6 — startup grace period.
+  //
+  // Previously this function reported DEGRADED the instant no recent
+  // audit row was found. That fired on EVERY fresh process start
+  // because the reviewer-reconciliation scheduler hasn't ticked yet
+  // (default interval 5 min). The result was a permanent "Failing
+  // subsystems: workers" banner on every fresh deploy even though
+  // the worker process was perfectly healthy and just hadn't
+  // completed its first scheduled run.
+  //
+  // The grace period: if the API process has been alive for less
+  // than 2x the reconcile interval AND no audit row exists, we
+  // report WARMING (status HEALTHY, reasonCode `worker_warming`).
+  // After the grace window passes, the original DEGRADED path
+  // continues to fire — so a worker that genuinely never ticks
+  // still surfaces as broken.
+  const intervalMs = Number(process.env.REVIEWER_OPS_RECONCILIATION_INTERVAL_MS ?? 300_000);
+  const apiUptimeMs = Math.round(process.uptime() * 1000);
+  const startupGraceMs = intervalMs * 2;
   try {
     const recent = await withTimeout(
       prisma.adminAuditLog.findFirst({
@@ -420,6 +440,37 @@ async function checkWorkers(prisma: PrismaClient): Promise<SubsystemReadiness> {
       null,
     );
     if (!recent) {
+      // Phase 32.6 — within startup grace window, treat absence as
+      // "warming up" (HEALTHY) rather than degraded. This eliminates
+      // the false-positive on every fresh process start.
+      if (apiUptimeMs < startupGraceMs) {
+        // Bounded SRE counter — warming is not an error but is
+        // worth surfacing so dashboards can spot a long-warming
+        // window (e.g. worker process never started).
+        try {
+          const { bump } = await import("@proovra/shared-runtime/ops");
+          bump("worker_readiness_warming_total");
+        } catch {
+          /* metrics are best-effort */
+        }
+        return {
+          id: "workers",
+          status: "HEALTHY",
+          reasonCode: "worker_warming",
+          detail: `API process started ${Math.round(apiUptimeMs / 1000)}s ago; awaiting first reviewer reconcile tick (interval ${Math.round(intervalMs / 60_000)}m).`,
+          remediationHint: null,
+          metadata: {
+            apiUptimeMs,
+            startupGraceMs,
+          },
+        };
+      }
+      try {
+        const { bump } = await import("@proovra/shared-runtime/ops");
+        bump("worker_readiness_degraded_total");
+      } catch {
+        /* metrics are best-effort */
+      }
       return {
         id: "workers",
         status: "DEGRADED",
@@ -428,11 +479,10 @@ async function checkWorkers(prisma: PrismaClient): Promise<SubsystemReadiness> {
           "No reviewer reconciliation has been observed. Worker may not have started yet.",
         remediationHint:
           "Confirm worker process is running and REVIEWER_OPS_RECONCILIATION_ENABLED is set.",
-        metadata: {},
+        metadata: { apiUptimeMs, startupGraceMs },
       };
     }
     const ageMs = Date.now() - recent.createdAt.getTime();
-    const intervalMs = Number(process.env.REVIEWER_OPS_RECONCILIATION_INTERVAL_MS ?? 300_000);
     // Allow 3x the interval before we flag as stuck.
     const staleThresholdMs = intervalMs * 3;
     if (ageMs > staleThresholdMs) {

@@ -8447,6 +8447,18 @@ if (
         evidenceTeamId: evidenceRecord.teamId ?? null,
       });
 
+      // Phase 32.6 — bounded SRE counter for the side-effect-free
+      // polling path. NOT bumped from the report/latest or
+      // verification-package endpoints (those record real
+      // download / custody events). Lets dashboards size the
+      // polling load + the API->worker race window.
+      try {
+        const { bump } = await import("@proovra/shared-runtime/ops");
+        bump("artifact_status_polled_total");
+      } catch {
+        /* metrics are best-effort */
+      }
+
       return reply.code(200).send(artifactStatus);
     }
   );
