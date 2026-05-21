@@ -44,6 +44,12 @@ export interface EvidenceArtifactStatus {
         verificationPackageVersion: null;
         pending: boolean;
       };
+  // Phase 32.6.1 — `blocked` state distinct from pending / unavailable.
+  //   pending     — worker is still working; client should poll
+  //   ready       — `available: true`
+  //   unavailable — won't ever generate (personal workspace, no team)
+  //   blocked     — gate denied (legal hold / destruction review / etc.);
+  //                  may become available later if gate condition resolves
   verificationPackage:
     | {
         available: true;
@@ -53,6 +59,10 @@ export interface EvidenceArtifactStatus {
         pending: false;
         unavailable: false;
         unavailableReason: null;
+        blocked: false;
+        blockedOutcome: null;
+        blockedReason: null;
+        blockedAtUtc: null;
       }
     | {
         available: false;
@@ -62,6 +72,13 @@ export interface EvidenceArtifactStatus {
         pending: boolean;
         unavailable: boolean;
         unavailableReason: VerificationPackageUnavailableReason | null;
+        // Phase 32.6.1 — gate-denial state. Reads from the bounded
+        // `evidence.verificationPackageMetadata.blocked` shape the
+        // worker writes after a PackageGateDeniedError.
+        blocked: boolean;
+        blockedOutcome: string | null;
+        blockedReason: string | null;
+        blockedAtUtc: string | null;
       };
 }
 
@@ -73,6 +90,14 @@ export async function buildEvidenceArtifactStatus(params: {
    *  workspace and verification package generation is intentionally
    *  skipped (no governance context). */
   evidenceTeamId: string | null;
+  /** Phase 32.6.1 — bounded JSON blob the worker writes after a
+   *  PackageGateDeniedError. Shape:
+   *    { blocked: true, outcome: string, reason: string,
+   *      label: string, blockedAtUtc: ISO8601 }
+   *  When null/undefined or `blocked !== true`, the package is
+   *  treated as "not blocked" (either pending, available, or
+   *  unavailable for personal workspace). */
+  evidenceVerificationPackageMetadata?: prismaPkg.Prisma.JsonValue | null;
 }): Promise<EvidenceArtifactStatus> {
   const { evidenceId } = params;
   const [latestReport, latestPackage] = await Promise.all([
@@ -109,8 +134,22 @@ export async function buildEvidenceArtifactStatus(params: {
   // This distinct state lets the frontend render the right copy
   // without endlessly polling.
   const packageUnavailableForPersonalWorkspace = finalized && !params.evidenceTeamId;
+
+  // Phase 32.6.1 — read the bounded gate-denial metadata the worker
+  // persists after PackageGateDeniedError. Distinguishes "blocked by
+  // governance" from "still pending" so the frontend doesn't poll
+  // forever for a package that will only become available when the
+  // governance condition resolves.
+  const blockedMeta = readBlockedMetadata(
+    params.evidenceVerificationPackageMetadata ?? null,
+  );
+  const packageBlocked = finalized && !latestPackage && blockedMeta !== null;
+
   const packagePending =
-    finalized && !latestPackage && !packageUnavailableForPersonalWorkspace;
+    finalized &&
+    !latestPackage &&
+    !packageUnavailableForPersonalWorkspace &&
+    !packageBlocked;
 
   return {
     evidenceId,
@@ -143,6 +182,10 @@ export async function buildEvidenceArtifactStatus(params: {
           pending: false,
           unavailable: false,
           unavailableReason: null,
+          blocked: false,
+          blockedOutcome: null,
+          blockedReason: null,
+          blockedAtUtc: null,
         }
       : {
           available: false,
@@ -154,6 +197,37 @@ export async function buildEvidenceArtifactStatus(params: {
           unavailableReason: packageUnavailableForPersonalWorkspace
             ? "personal_workspace_no_team_governance_context"
             : null,
+          blocked: packageBlocked,
+          blockedOutcome: packageBlocked ? blockedMeta!.outcome : null,
+          blockedReason: packageBlocked ? blockedMeta!.reason : null,
+          blockedAtUtc: packageBlocked ? blockedMeta!.blockedAtUtc : null,
         },
+  };
+}
+
+/**
+ * Phase 32.6.1 — bounded reader for the gate-denial JSON the worker
+ * writes after a PackageGateDeniedError. Returns null when the blob
+ * is absent / malformed / not a denial record.
+ *
+ * Defensive: NEVER throws. The shape is purely informational; if
+ * fields are missing, return null and the caller treats the package
+ * as not-blocked.
+ */
+function readBlockedMetadata(
+  raw: prismaPkg.Prisma.JsonValue | null,
+): { outcome: string; reason: string; label: string | null; blockedAtUtc: string | null } | null {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const obj = raw as Record<string, unknown>;
+  if (obj.blocked !== true) return null;
+  const outcome = typeof obj.outcome === "string" ? obj.outcome : null;
+  const reason = typeof obj.reason === "string" ? obj.reason : null;
+  if (!outcome || !reason) return null;
+  return {
+    outcome,
+    reason,
+    label: typeof obj.label === "string" ? obj.label : null,
+    blockedAtUtc:
+      typeof obj.blockedAtUtc === "string" ? obj.blockedAtUtc : null,
   };
 }

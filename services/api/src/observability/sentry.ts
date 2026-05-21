@@ -48,6 +48,26 @@ export function initSentry() {
     dsn,
     environment: process.env.NODE_ENV ?? "development",
     tracesSampleRate: 0,
+    beforeSend(event, hint) {
+      // Phase 32.6.1 — suppress transient Redis ECONNREFUSED.
+      // Mirrors the worker's beforeSend filter. See
+      // services/worker/src/sentry.ts for the full justification.
+      const err = hint?.originalException;
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "";
+      if (
+        message.includes("ECONNREFUSED") ||
+        message.includes("Connection is closed") ||
+        message.includes("Connection lost")
+      ) {
+        return null;
+      }
+      return event;
+    },
   });
 
   sentryReady = true;

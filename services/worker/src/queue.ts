@@ -64,6 +64,71 @@ export const redisConnection = new IORedis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
 });
 
+// Phase 32.6.1 — Redis connection observability.
+//
+// Background: production Sentry showed `connect ECONNREFUSED` events
+// when the Redis container was recreated. ioredis tolerated the
+// reconnect transparently (workers resumed after Redis came back),
+// but the LACK of any logged "redis.reconnected" line made it
+// impossible for SRE to confirm recovery without digging into
+// process-level diagnostics.
+//
+// We attach three bounded log lines:
+//   * `redis.connection.ready`   — first connect succeeded
+//   * `redis.connection.error`   — transient connection-layer error;
+//                                  ioredis will retry, NO action
+//                                  required from SRE
+//   * `redis.connection.close`   — connection closed; pair with the
+//                                  next `ready` to confirm recovery
+//
+// Frequency: each event fires AT MOST once per state transition.
+// We do NOT emit on every retry (ioredis fires its own retry events
+// internally and we don't want to amplify them into the log stream).
+let redisLastReadyAtMs: number | null = null;
+let redisLastErrorLoggedAtMs = 0;
+const REDIS_ERROR_LOG_THROTTLE_MS = 5_000;
+
+redisConnection.on("ready", () => {
+  redisLastReadyAtMs = Date.now();
+  // Lazy import to avoid a circular dependency on the worker's
+  // logger module during queue construction.
+  void import("./logger.js").then(({ logger }) => {
+    logger.info(
+      { event: "redis.connection.ready", at: new Date().toISOString() },
+      "redis.connection.ready",
+    );
+  });
+});
+
+redisConnection.on("error", (err: Error) => {
+  const now = Date.now();
+  if (now - redisLastErrorLoggedAtMs < REDIS_ERROR_LOG_THROTTLE_MS) return;
+  redisLastErrorLoggedAtMs = now;
+  void import("./logger.js").then(({ logger }) => {
+    logger.warn(
+      {
+        event: "redis.connection.error",
+        code: (err as NodeJS.ErrnoException).code ?? null,
+        message: err.message.slice(0, 200),
+      },
+      "redis.connection.error",
+    );
+  });
+});
+
+redisConnection.on("close", () => {
+  void import("./logger.js").then(({ logger }) => {
+    logger.warn(
+      {
+        event: "redis.connection.close",
+        lastReadyAtMs: redisLastReadyAtMs,
+        at: new Date().toISOString(),
+      },
+      "redis.connection.close",
+    );
+  });
+});
+
 export const reportQueue = new Queue(reportQueueName, {
   connection: redisConnection,
   defaultJobOptions: {

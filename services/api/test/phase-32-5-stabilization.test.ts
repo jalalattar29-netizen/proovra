@@ -106,8 +106,11 @@ describe("Phase 32.5 — artifact status `unavailable` projection", () => {
     expect(code).toMatch(
       /packageUnavailableForPersonalWorkspace = finalized && !params\.evidenceTeamId/,
     );
+    // Phase 32.6.1 — packagePending now also excludes the blocked
+    // state (gate denial), so the expression has 4 conjuncts
+    // instead of 3.
     expect(code).toMatch(
-      /packagePending\s*=\s*finalized && !latestPackage && !packageUnavailableForPersonalWorkspace/,
+      /packagePending\s*=\s*finalized &&\s*!latestPackage &&\s*!packageUnavailableForPersonalWorkspace &&\s*!packageBlocked/,
     );
   });
 

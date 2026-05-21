@@ -295,28 +295,78 @@ async function checkDatabase(prisma: PrismaClient): Promise<SubsystemReadiness> 
   }
 }
 
-function checkRedis(): SubsystemReadiness {
-  // Direct ping would require a Redis client in the api process,
-  // which we don't currently hold. We rely on env-presence + the
-  // queue-health check below as a proxy.
-  if (envPresent("REDIS_URL")) {
+// Phase 32.6.1 — live Redis ping with a one-shot, bounded-timeout
+// client. The previous implementation only checked env presence,
+// which reported HEALTHY even during a 30s outage. This new probe
+// distinguishes:
+//   * REDIS_URL not set → DEGRADED
+//   * REDIS_URL set + ping succeeds within 1s → HEALTHY
+//   * REDIS_URL set + ping times out / errors → CRITICAL
+//
+// The probe creates a SHORT-LIVED client, pings, then quits. We
+// do NOT share the worker's persistent connection because:
+//   1. The api process doesn't import worker code (Phase 31.22 boundary).
+//   2. A long-lived shared client in the api would compete with the
+//      worker's connection pool.
+//   3. The ping client is configured for fast failure (connectTimeout
+//      500ms, maxRetriesPerRequest 0) — no point retrying for a
+//      health check.
+async function checkRedis(): Promise<SubsystemReadiness> {
+  if (!envPresent("REDIS_URL")) {
+    return {
+      id: "redis",
+      status: "DEGRADED",
+      reasonCode: "redis_not_configured",
+      detail: "REDIS_URL is not set. BullMQ queues will not function.",
+      remediationHint: "Set REDIS_URL in the api environment.",
+      metadata: { configured: false },
+    };
+  }
+  let pingClient: import("ioredis").default | null = null;
+  const startedAt = Date.now();
+  try {
+    const { default: IORedis } = await import("ioredis");
+    pingClient = new IORedis(process.env.REDIS_URL as string, {
+      connectTimeout: 500,
+      maxRetriesPerRequest: 0,
+      lazyConnect: true,
+      enableOfflineQueue: false,
+      // Suppress reconnect attempts — this is a single probe.
+      retryStrategy: () => null,
+    });
+    await withTimeout(pingClient.ping(), null, 1000);
+    const latencyMs = Date.now() - startedAt;
     return {
       id: "redis",
       status: "HEALTHY",
-      reasonCode: "configured",
-      detail: "REDIS_URL configured. Live ping is performed by the worker.",
+      reasonCode: "ok",
+      detail: `Redis reachable in ${latencyMs}ms.`,
       remediationHint: null,
-      metadata: { configured: true },
+      metadata: { configured: true, reachable: true, latencyMs },
     };
+  } catch (err) {
+    return {
+      id: "redis",
+      status: "CRITICAL",
+      reasonCode: "redis_unreachable",
+      detail:
+        err instanceof Error
+          ? `Redis ping failed: ${err.message.slice(0, 120)}`
+          : "Redis ping failed.",
+      remediationHint:
+        "Restart Redis and verify REDIS_URL. If on Docker, check container status with `docker ps`.",
+      metadata: { configured: true, reachable: false },
+    };
+  } finally {
+    if (pingClient) {
+      try {
+        // disconnect() is synchronous and won't throw.
+        pingClient.disconnect();
+      } catch {
+        /* ignore */
+      }
+    }
   }
-  return {
-    id: "redis",
-    status: "DEGRADED",
-    reasonCode: "redis_not_configured",
-    detail: "REDIS_URL is not set. BullMQ queues will not function.",
-    remediationHint: "Set REDIS_URL in the api environment.",
-    metadata: { configured: false },
-  };
 }
 
 function checkS3ObjectLock(): SubsystemReadiness {

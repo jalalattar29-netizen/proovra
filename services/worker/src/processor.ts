@@ -81,7 +81,7 @@ import {
   reportDlqQueue,
 } from "./queue.js";
 import { captureException } from "./sentry.js";
-import { createVerificationPackage } from "./verification-package.js";
+import { createVerificationPackage, PackageGateDeniedError } from "./verification-package.js";
 import { createOpenTimestamp, type OtsStampResult } from "./ots.service.js";
 import { buildOtsEvidenceUpdateData } from "./ots-state.js";
 import { appendWorkerAuditLog } from "./platform-audit-append.js";
@@ -3547,26 +3547,91 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
           /* metrics are best-effort */
         }
       } catch (verificationError) {
-        captureException(verificationError, {
-          evidenceId,
-          phase: "verification_package_prepare_finalized",
-        });
-
-        // Phase 32.6 — bounded failure counter.
-        try {
-          const { bump } = await import("@proovra/shared-runtime/ops");
-          bump("package_generation_failed_total");
-        } catch {
-          /* metrics are best-effort */
-        }
-
-        logger.error(
-          {
+        // Phase 32.6.1 — distinguish PackageGateDeniedError (expected
+        // governance-blocked path) from real bugs.
+        //
+        // Background: previously every catch in this block called
+        // captureException + logger.error. That turned every
+        // legitimate governance gate denial (e.g. legal hold, active
+        // destruction review) into a Sentry "high" alert, AND left
+        // the evidence row with NO marker that a denial had occurred.
+        // The downstream /v1/evidence/:id/verification-package route
+        // then returned 404 — operators couldn't tell "blocked by
+        // policy" from "never attempted" from "actually missing".
+        //
+        // Fix:
+        //   1. PackageGateDeniedError → persist bounded `{ outcome,
+        //      reason, blockedAtUtc }` to evidence.verificationPackageMetadata,
+        //      bump `package_generation_blocked_total` (already
+        //      registered), log INFO (not error), NO captureException.
+        //   2. Any other error → keep captureException + log.error +
+        //      bump failed_total (existing behavior).
+        //
+        // Anti-leak: the persisted metadata is bounded to the gate's
+        // catalog vocabulary (outcome + reason are bounded strings
+        // from the gate). NEVER contains storage keys, signed URLs,
+        // raw stack traces, or private fields.
+        if (verificationError instanceof PackageGateDeniedError) {
+          try {
+            const { bump } = await import("@proovra/shared-runtime/ops");
+            bump("package_generation_blocked_total");
+          } catch {
+            /* metrics are best-effort */
+          }
+          try {
+            await prisma.evidence.update({
+              where: { id: evidenceId },
+              data: {
+                verificationPackageMetadata: {
+                  blocked: true,
+                  outcome: verificationError.outcome,
+                  reason: verificationError.reason,
+                  label: verificationError.label,
+                  blockedAtUtc: new Date().toISOString(),
+                },
+              },
+            });
+          } catch (writeErr) {
+            // Persistence failure here is logged separately so we
+            // can spot it without conflating with the gate denial.
+            logger.warn(
+              {
+                evidenceId,
+                err: writeErr instanceof Error ? writeErr.message : String(writeErr),
+              },
+              "verification_package.gate_denial_persist_failed",
+            );
+          }
+          logger.info(
+            {
+              evidenceId,
+              outcome: verificationError.outcome,
+              reason: verificationError.reason,
+            },
+            "verification_package.blocked_by_governance",
+          );
+        } else {
+          captureException(verificationError, {
             evidenceId,
-            err: verificationError,
-          },
-          "Verification package generation failed after finalized custody"
-        );
+            phase: "verification_package_prepare_finalized",
+          });
+
+          // Phase 32.6 — bounded failure counter.
+          try {
+            const { bump } = await import("@proovra/shared-runtime/ops");
+            bump("package_generation_failed_total");
+          } catch {
+            /* metrics are best-effort */
+          }
+
+          logger.error(
+            {
+              evidenceId,
+              err: verificationError,
+            },
+            "Verification package generation failed after finalized custody"
+          );
+        }
       }
     }
 

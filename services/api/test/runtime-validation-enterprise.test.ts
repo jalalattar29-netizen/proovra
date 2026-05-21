@@ -123,12 +123,22 @@ describe("Runtime readiness aggregator [pure helpers]", () => {
     process.env = originalEnv;
   });
 
-  it("checkRedis returns HEALTHY when REDIS_URL is set", async () => {
-    process.env.REDIS_URL = "redis://localhost:6379";
-    const { runReadinessCheck } = await import("../src/runtime/runtime-readiness.js");
-    // We can't run the full check without prisma; instead, verify the
-    // exported function returns the expected typed projection on a
-    // mocked-shape prisma client. Use a minimal stub.
+  it("checkRedis returns CRITICAL when REDIS_URL is set but the host is unreachable (Phase 32.6.1 live ping)", async () => {
+    // Phase 32.6.1 — checkRedis is now a LIVE PING, not just an env
+    // presence check. The previous version returned HEALTHY for any
+    // configured REDIS_URL, which hid 30-second outages. The live
+    // ping uses a 1s timeout, so this test runs quickly even
+    // against an unreachable host.
+    //
+    // In CI / unit-test environments there is no Redis listening at
+    // localhost:6379, so the ping correctly fails and reports
+    // CRITICAL with `reasonCode: "redis_unreachable"`. The HEALTHY
+    // path is covered by the integration suite in production-like
+    // environments.
+    process.env.REDIS_URL = "redis://127.0.0.1:1"; // bounded unreachable port
+    const { runReadinessCheck } = await import(
+      "../src/runtime/runtime-readiness.js"
+    );
     const fakePrisma = {
       $queryRawUnsafe: async () => [{ ok: 1 }],
       operationalIncident: { count: async () => 0 },
@@ -138,7 +148,8 @@ describe("Runtime readiness aggregator [pure helpers]", () => {
     } as unknown as Parameters<typeof runReadinessCheck>[0];
     const report = await runReadinessCheck(fakePrisma);
     const redis = report.subsystems.find((s) => s.id === "redis");
-    expect(redis?.status).toBe("HEALTHY");
+    expect(redis?.status).toBe("CRITICAL");
+    expect(redis?.reasonCode).toBe("redis_unreachable");
   });
 
   it("checkRedis returns DEGRADED when REDIS_URL is unset", async () => {

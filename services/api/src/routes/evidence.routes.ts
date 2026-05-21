@@ -8439,12 +8439,16 @@ if (
       // Phase 32.5: pass evidenceTeamId so the helper can distinguish
       // "package pending generation" from "package not available
       // (personal workspace, no governance context)".
+      // Phase 32.6.1: pass verificationPackageMetadata so the helper
+      // can surface gate-denial state (blocked vs pending vs failed).
       const artifactStatus = await buildEvidenceArtifactStatus({
         evidenceId: id,
         evidenceStatus: evidenceRecord.status as
           | prismaPkg.EvidenceStatus
           | null,
         evidenceTeamId: evidenceRecord.teamId ?? null,
+        evidenceVerificationPackageMetadata:
+          evidenceRecord.verificationPackageMetadata ?? null,
       });
 
       // Phase 32.6 — bounded SRE counter for the side-effect-free
@@ -8947,9 +8951,82 @@ displayName: resolvedDisplayName,
       });
 
       if (!latest) {
+        // Phase 32.6.1 — structured "not yet ready" response.
+        //
+        // The previous behavior was a flat 404 "Verification package
+        // not found", which conflated FOUR very different states:
+        //   1. Worker is still generating it (pending) → client
+        //      should keep polling /artifacts/status.
+        //   2. Personal-workspace evidence (intentionally never
+        //      generated; no governance context).
+        //   3. Gate denied (legal hold / destruction review / etc.);
+        //      blocked until the governance condition resolves.
+        //   4. Genuinely missing (truly broken state).
+        //
+        // We resolve which case we're in by reading the same bounded
+        // signals the artifact-status helper uses. Mapping:
+        //   - blocked    → 409 Conflict + bounded outcome + reason
+        //   - unavailable → 410 Gone + bounded reason
+        //   - pending    → 202 Accepted + Retry-After hint
+        //   - else       → 404 (legitimately missing)
+        //
+        // The client (already polls /artifacts/status) gets a
+        // distinct, actionable response without leaking storage
+        // internals or schema names.
+        const evidenceForState = await prisma.evidence.findUnique({
+          where: { id },
+          select: {
+            status: true,
+            teamId: true,
+            verificationPackageMetadata: true,
+          },
+        });
+        const finalized =
+          evidenceForState?.status === prismaPkg.EvidenceStatus.SIGNED ||
+          evidenceForState?.status === prismaPkg.EvidenceStatus.REPORTED;
+        const meta = evidenceForState?.verificationPackageMetadata as
+          | { blocked?: unknown; outcome?: unknown; reason?: unknown; blockedAtUtc?: unknown }
+          | null
+          | undefined;
+        const blocked =
+          meta != null && typeof meta === "object" && meta.blocked === true;
+        const unavailable = finalized && !evidenceForState?.teamId;
+        if (blocked) {
+          return reply.code(409).send({
+            code: "verification_package_blocked",
+            outcome: typeof meta?.outcome === "string" ? meta!.outcome : null,
+            reason: typeof meta?.reason === "string" ? meta!.reason : null,
+            blockedAtUtc:
+              typeof meta?.blockedAtUtc === "string" ? meta!.blockedAtUtc : null,
+            message:
+              "Verification package generation was blocked by governance policy.",
+          });
+        }
+        if (unavailable) {
+          return reply.code(410).send({
+            code: "verification_package_unavailable",
+            reason: "personal_workspace_no_team_governance_context",
+            message:
+              "Verification package is not available for personal-workspace evidence.",
+          });
+        }
+        if (finalized) {
+          // Worker is still building it. Tell the client to poll the
+          // side-effect-free /artifacts/status endpoint and retry in
+          // a few seconds.
+          reply.header("retry-after", "5");
+          return reply.code(202).send({
+            code: "verification_package_pending",
+            message:
+              "Verification package is being generated. Poll /v1/evidence/:id/artifacts/status for completion.",
+          });
+        }
         return reply
           .code(404)
-          .send({ message: "Verification package not found" });
+          .send({
+            code: "verification_package_not_found",
+            message: "Verification package not found.",
+          });
       }
 
       try {

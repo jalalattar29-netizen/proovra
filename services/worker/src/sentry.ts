@@ -48,6 +48,42 @@ export function initSentry() {
     dsn,
     environment: process.env.NODE_ENV ?? "development",
     tracesSampleRate: 0,
+    beforeSend(event, hint) {
+      // Phase 32.6.1 — suppress transient Redis ECONNREFUSED.
+      //
+      // Background: production Redis container restarts (during
+      // deploys, scaling, image updates) momentarily refuse
+      // connections. ioredis tolerates this transparently and
+      // workers resume cleanly. But every retry attempt was firing
+      // a Sentry "high" alert, drowning genuine outages in noise.
+      //
+      // This filter drops Sentry events whose error message
+      // contains the bounded `connect ECONNREFUSED` signature
+      // (Node net layer). The bounded `redis.connection.error`
+      // log line in queue.ts still records the event for SRE
+      // visibility; we just don't escalate to Sentry.
+      //
+      // Sustained outages still surface because:
+      //   1. The runtime-readiness probe pings Redis directly and
+      //      transitions to CRITICAL after the configured timeout.
+      //   2. BullMQ job failures (which throw a different error
+      //      class) continue to alert as before.
+      const err = hint?.originalException;
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "";
+      if (
+        message.includes("ECONNREFUSED") ||
+        message.includes("Connection is closed") ||
+        message.includes("Connection lost")
+      ) {
+        return null;
+      }
+      return event;
+    },
   });
 
   sentryReady = true;
