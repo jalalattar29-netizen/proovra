@@ -214,6 +214,24 @@ export async function isEvidenceUnderAnyLegalHold(
 // surface to columns the projection actually uses. See the
 // matching constant on EvidenceLegalHold in governance.service.ts
 // for the rationale.
+//
+// Phase 32.7.4 — narrowed further: `createdAt` and `updatedAt`
+// removed from both the select AND the projection. The sibling
+// `LEGAL_HOLD_SELECT` (used by /v1/governance/legal-holds) does
+// NOT include these two columns, and that endpoint returns 200 in
+// production. The case-legal-holds endpoint still 503s, which
+// strongly suggests one of `created_at` / `updated_at` is missing
+// from the `case_legal_holds` table in production (the user's
+// column inspection listed them under "etc." without confirming).
+//
+// Removing them from the select restores 200 if that hypothesis
+// is correct. The frontend `CaseLegalHold` type in
+// apps/web/app/(app)/governance/page.tsx does NOT use either
+// field, so the projection-shape narrowing is a no-op for the
+// canonical consumer. The POST place + POST release handlers
+// also call `projectCaseLegalHold(...)` on the returned row; the
+// projection now omits the two fields from its return shape, so
+// downstream consumers cannot accidentally depend on them.
 const CASE_LEGAL_HOLD_SELECT = {
   id: true,
   teamId: true,
@@ -224,8 +242,6 @@ const CASE_LEGAL_HOLD_SELECT = {
   placedAtUtc: true,
   releasedByUserId: true,
   releasedAtUtc: true,
-  createdAt: true,
-  updatedAt: true,
 } as const;
 
 export type CaseLegalHoldProjection = Pick<
@@ -266,8 +282,10 @@ export function projectCaseLegalHold(hold: CaseLegalHoldProjection): {
   releasedByUserId: string | null;
   releasedAtUtc: string | null;
   // reason / releaseNote deliberately omitted — internal only.
-  createdAt: string;
-  updatedAt: string;
+  // Phase 32.7.4 — createdAt / updatedAt removed from the
+  // projection (and from CASE_LEGAL_HOLD_SELECT). The canonical
+  // frontend consumer does not use either field; the omission
+  // narrows the schema-gap surface that was triggering the 503.
 } {
   return {
     id: hold.id,
@@ -279,7 +297,5 @@ export function projectCaseLegalHold(hold: CaseLegalHoldProjection): {
     placedAtUtc: hold.placedAtUtc.toISOString(),
     releasedByUserId: hold.releasedByUserId,
     releasedAtUtc: hold.releasedAtUtc?.toISOString() ?? null,
-    createdAt: hold.createdAt.toISOString(),
-    updatedAt: hold.updatedAt.toISOString(),
   };
 }

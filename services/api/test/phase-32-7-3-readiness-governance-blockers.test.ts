@@ -216,8 +216,11 @@ describe("Phase 32.7.3 — listCaseLegalHolds uses explicit `select`", () => {
     expect(constIdx).toBeGreaterThan(-1);
     const block = SRC.slice(constIdx, constIdx + 1500);
     expect(block).toMatch(/as const/);
-    // The case-legal-hold projection includes createdAt / updatedAt
-    // so they ARE in the select (unlike LEGAL_HOLD_SELECT).
+    // Phase 32.7.4 — createdAt / updatedAt removed from this
+    // select. The dedicated Phase 32.7.4 test file
+    // (phase-32-7-4-case-legal-holds-503-fix.test.ts) enforces
+    // that narrowing; this test now only asserts the surviving
+    // bounded set.
     for (const field of [
       "id",
       "teamId",
@@ -228,8 +231,6 @@ describe("Phase 32.7.3 — listCaseLegalHolds uses explicit `select`", () => {
       "placedAtUtc",
       "releasedByUserId",
       "releasedAtUtc",
-      "createdAt",
-      "updatedAt",
     ]) {
       const re = new RegExp(`${field}:\\s*true`);
       expect(block, `CASE_LEGAL_HOLD_SELECT missing ${field}: true`).toMatch(re);

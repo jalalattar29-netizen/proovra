@@ -52,6 +52,48 @@ function isPrismaSchemaDriftError(err: unknown): boolean {
 }
 
 /**
+ * Phase 32.7.4 — bounded structured diagnostic for the schema-drift
+ * catch path. Server-side only — the client sees the same bounded
+ * 503 body as before. The log line names the exact Prisma code +
+ * missing column/table (from `err.meta`) so operators can triage
+ * without scraping the raw Prisma exception body.
+ *
+ * Anti-leak: only Prisma-provided structured fields (code, name,
+ * meta.column, meta.table, meta.modelName) are surfaced. The raw
+ * message is bounded to 300 chars. NEVER includes row data,
+ * SQL fragments, signature bytes, custody payloads, or private
+ * note text.
+ */
+function extractPrismaDiagnostic(err: unknown): {
+  name: string;
+  code: string;
+  message: string;
+  missingColumn: string | null;
+  missingTable: string | null;
+  modelName: string | null;
+} {
+  const e = err as {
+    name?: string;
+    code?: string;
+    message?: string;
+    meta?: { column?: unknown; table?: unknown; modelName?: unknown };
+  };
+  const meta = e?.meta ?? {};
+  const readMetaString = (key: "column" | "table" | "modelName"): string | null => {
+    const v = meta[key];
+    return typeof v === "string" ? v.slice(0, 120) : null;
+  };
+  return {
+    name: typeof e?.name === "string" ? e.name : "unknown_error",
+    code: typeof e?.code === "string" ? e.code : "unknown_code",
+    message: typeof e?.message === "string" ? e.message.slice(0, 300) : "",
+    missingColumn: readMetaString("column"),
+    missingTable: readMetaString("table"),
+    modelName: readMetaString("modelName"),
+  };
+}
+
+/**
  * Wrap a governance handler body so schema-drift errors map to a
  * bounded 503 response. ALL other errors continue to propagate to
  * Fastify's default error handler (we do NOT swallow real bugs).
@@ -77,6 +119,29 @@ export async function runGovernanceHandler<T>(
       } catch {
         /* metrics are best-effort */
       }
+
+      // Phase 32.7.4 — bounded structured server-side diagnostic.
+      // Logs the EXACT Prisma error code + missing column/table so
+      // operators can identify the schema gap without enabling
+      // verbose Prisma logging in production. The client still
+      // receives the same anti-leak 503 body below.
+      const diag = extractPrismaDiagnostic(err);
+      reply.log.warn(
+        {
+          event: "governance.schema_unavailable",
+          requestId: reply.request?.id ?? null,
+          method: reply.request?.method ?? null,
+          url: reply.request?.url ?? null,
+          prismaName: diag.name,
+          prismaCode: diag.code,
+          missingColumn: diag.missingColumn,
+          missingTable: diag.missingTable,
+          modelName: diag.modelName,
+          message: diag.message,
+        },
+        "governance route returned 503 governance_schema_unavailable",
+      );
+
       reply.code(503).send({
         error: {
           code: "governance_schema_unavailable",

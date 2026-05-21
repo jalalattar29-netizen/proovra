@@ -1271,6 +1271,69 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         }
       }
 
+      // Phase 32.7.5 — sweep-level canonical heartbeat.
+      //
+      // Root cause being closed: the per-team WORKER_HEARTBEAT
+      // emission (the canonical reconcile signal — see
+      // shared-runtime canonical-events catalog) fires inside
+      // `runReconcile()` in reviewer-operations-engine.service.ts.
+      // When the production DB has ZERO teams matching
+      // `evidenceReviewWorkflows: { some: {} }`, the loop above
+      // runs zero times → no per-team heartbeat is ever written →
+      // the readiness `checkWorkers` query against `security_events`
+      // returns null → after the startup grace window, the
+      // subsystem reports DEGRADED with `no_recent_reconcile` even
+      // though the sweep itself executed correctly (the worker
+      // logs `reviewer_reconcile.completed` because this endpoint
+      // returns 200).
+      //
+      // The sweep-level heartbeat below ALWAYS fires once per
+      // sweep, regardless of how many teams were iterated. It uses
+      // the same canonical wire string the readiness reader queries
+      // (resolved via `wireStringFor("WORKER_HEARTBEAT")` in
+      // shared-runtime — Phase 32.7). `teamId: null` distinguishes
+      // it from per-team heartbeats; the reader filters by
+      // `eventType` only, so both per-team and sweep-level rows
+      // both satisfy "recent reconcile observed".
+      //
+      // No regression on the per-team heartbeats: they still fire
+      // inside `runReconcile`. The sweep-level heartbeat is purely
+      // additive — it guarantees a row lands even on the zero-team
+      // sweep path.
+      try {
+        const { wireStringFor } = await import(
+          "@proovra/shared-runtime/ops"
+        );
+        safeEmitSecurityEvent({
+          teamId: null,
+          eventType: wireStringFor("WORKER_HEARTBEAT") as "reviewer_reconcile_run",
+          severity: "INFO",
+          details: {
+            source: "sweep",
+            trigger: typeof req.headers["x-trigger"] === "string"
+              ? req.headers["x-trigger"]
+              : null,
+            correlationId:
+              typeof req.headers["x-correlation-id"] === "string"
+                ? req.headers["x-correlation-id"]
+                : null,
+            teams: teams.length,
+            failedTeams,
+            totalEscalationsCreated,
+            totalFlippedBreached,
+            totalFlippedDueSoon,
+            totalDueSoonReminders,
+            totalInactivityReminders,
+          },
+        });
+      } catch {
+        // Heartbeat emission is best-effort. The sweep response is
+        // not gated on it. If the canonical resolver or
+        // safeEmitSecurityEvent throws, the readiness will simply
+        // continue to report what it would have reported anyway
+        // (the per-team heartbeats may still cover the signal).
+      }
+
       return reply.code(200).send({
         teams: teams.length,
         failedTeams,
