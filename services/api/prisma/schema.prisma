@@ -667,10 +667,18 @@ model Team {
   verifiedAtUtc          DateTime?                      @map("verified_at_utc") @db.Timestamptz(6)
   evidenceWorkspaceLabel String?                        @map("evidence_workspace_label") @db.VarChar(180)
 
-  billingPlan            PlanType                       @default(FREE)
-  billingStatus          TeamBillingStatus              @default(INACTIVE)
-  includedSeats          Int                            @default(0)
-  overSeatLimit          Boolean                        @default(false)
+  // Phase 32.6.3 — explicit @map on the four billing fields. They shipped
+  // without @map, so the Prisma client emitted quoted camelCase column
+  // names ("billingPlan", "billingStatus", "includedSeats", "overSeatLimit").
+  // No migration ever created snake_case columns for them — production has
+  // been running on camelCase columns minted by an early `prisma db push`.
+  // The Phase 32.6.3 repair migration creates the snake_case columns and
+  // backfills from the camelCase residue. See migration
+  // 20260620300000_team_billing_naming_drift_repair.
+  billingPlan            PlanType                       @default(FREE) @map("billing_plan")
+  billingStatus          TeamBillingStatus              @default(INACTIVE) @map("billing_status")
+  includedSeats          Int                            @default(0) @map("included_seats")
+  overSeatLimit          Boolean                        @default(false) @map("over_seat_limit")
   billingActivatedAt     DateTime?                      @map("billing_activated_at") @db.Timestamptz(6)
   billingCanceledAt      DateTime?                      @map("billing_canceled_at") @db.Timestamptz(6)
   storageBytesOverride   BigInt?                        @map("storage_bytes_override")
@@ -1274,65 +1282,15 @@ model Payment {
   @@map("payments")
 }
 
-model AuditLog {
-  id             String   @id @default(cuid())
-  userId         String
-  action         AuditAction
-  resourceType   String
-  resourceId     String?
-  organizationId String?  @db.Uuid
-  changes        Json?
-  status         String
-  errorMessage   String?  @db.VarChar(512)
-  ipAddress      String?  @db.VarChar(45)
-  userAgent      String?  @db.VarChar(512)
-  metadata       Json?
-  createdAt      DateTime @default(now()) @db.Timestamptz(6)
-
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([organizationId, createdAt(sort: Desc)])
-  @@index([action, createdAt(sort: Desc)])
-  @@index([createdAt])
-  @@map("audit_logs")
-}
-
-model Webhook {
-  id              String         @id @default(cuid())
-  organizationId  String         @db.Uuid
-  url             String         @db.VarChar(2048)
-  events          String[]
-  secret          String         @db.VarChar(256)
-  isActive        Boolean        @default(true)
-  failureCount    Int            @default(0)
-  lastTriggeredAt DateTime?
-  createdAt       DateTime       @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime       @updatedAt @db.Timestamptz(6)
-  events_rel      WebhookEvent[]
-
-  @@index([organizationId, isActive])
-  @@index([isActive])
-  @@map("webhooks")
-}
-
-model WebhookEvent {
-  id           String        @id @default(cuid())
-  webhookId    String
-  type         String
-  payload      Json
-  status       WebhookStatus
-  attempt      Int           @default(1)
-  nextRetryAt  DateTime?
-  httpStatus   Int?
-  errorMessage String?       @db.VarChar(512)
-  createdAt    DateTime      @default(now()) @db.Timestamptz(6)
-  updatedAt    DateTime      @updatedAt @db.Timestamptz(6)
-  webhook      Webhook       @relation(fields: [webhookId], references: [id], onDelete: Cascade)
-
-  @@index([webhookId, status])
-  @@index([status, nextRetryAt])
-  @@index([createdAt])
-  @@map("webhook_events")
-}
+// Phase 32.6.3 — `model AuditLog`, `model Webhook`, `model WebhookEvent`
+// removed. They had no migration creating their tables and no production
+// code referenced `prisma.auditLog` / `prisma.webhook` / `prisma.webhookEvent`.
+// The live audit chain is `AdminAuditLog` + services/api/src/lib/admin-audit-chain.ts.
+// The live webhook subsystem is `WebhookEndpoint` (+ `IntegrationWebhookEndpoint`
+// / `IntegrationWebhookDelivery`) — see runtime-readiness.ts validator catalog.
+// The dead Prisma enums `AuditAction` and `WebhookStatus` were removed at the
+// same time; the local TypeScript enums in services/api/src/services/audit.service.ts
+// and webhook.service.ts (legacy in-memory implementations) remain unchanged.
 
 model PasswordResetToken {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -1951,38 +1909,9 @@ enum SubscriptionStatus {
   TRIALING
 }
 
-enum AuditAction {
-  EVIDENCE_CREATED
-  EVIDENCE_UPDATED
-  EVIDENCE_DELETED
-  EVIDENCE_VERIFIED
-  EVIDENCE_SHARED
-  MEMBER_INVITED
-  MEMBER_JOINED
-  MEMBER_REMOVED
-  MEMBER_ROLE_CHANGED
-  ORGANIZATION_CREATED
-  ORGANIZATION_UPDATED
-  API_KEY_GENERATED
-  API_KEY_ROTATED
-  API_KEY_REVOKED
-  BATCH_CREATED
-  BATCH_PROCESSED
-  BATCH_CANCELLED
-  USER_LOGIN
-  USER_LOGOUT
-  PASSWORD_CHANGED
-  WEBHOOK_CREATED
-  WEBHOOK_DELETED
-  WEBHOOK_TEST
-  SETTINGS_CHANGED
-}
-
-enum WebhookStatus {
-  PENDING
-  DELIVERED
-  FAILED
-}
+// Phase 32.6.3 — `enum AuditAction` and `enum WebhookStatus` removed alongside
+// the orphan `AuditLog` / `Webhook` / `WebhookEvent` models. See the deletion
+// note above PasswordResetToken for full context.
 
 enum StorageAddonKey {
   PERSONAL_10_GB
@@ -4919,7 +4848,12 @@ model ReviewEscalation {
 
   // Operator-readable summary. Bounded; never carries internal legal
   // text or private reviewer notes.
-  safeSummary         String   @db.VarChar(400)
+  // Phase 32.6.2 — explicit @map("safe_summary"). Without this Prisma
+  // client emits `INSERT/SELECT "safeSummary"` (quoted camelCase),
+  // but migrations create snake_case columns. The drift left two
+  // physical columns in production. Repair migration backfills
+  // `safe_summary` from `"safeSummary"` where present.
+  safeSummary         String   @map("safe_summary") @db.VarChar(400)
 
   // Actors.
   createdByUserId     String?  @map("created_by_user_id") @db.Uuid
@@ -4930,7 +4864,8 @@ model ReviewEscalation {
   acknowledgedByUserId String?  @map("acknowledged_by_user_id") @db.Uuid
   resolvedAtUtc       DateTime? @map("resolved_at_utc") @db.Timestamptz(6)
   resolvedByUserId    String?   @map("resolved_by_user_id") @db.Uuid
-  resolutionNote      String?   @db.VarChar(400)
+  // Phase 32.6.2 — explicit @map("resolution_note"). See safeSummary above.
+  resolutionNote      String?   @map("resolution_note") @db.VarChar(400)
   // SUPPRESSED escalations stay in history but stop counting toward
   // backlog metrics. The route layer requires a non-empty note.
   suppressedAtUtc     DateTime? @map("suppressed_at_utc") @db.Timestamptz(6)
@@ -4991,7 +4926,8 @@ model ReviewerWorkloadSnapshot {
 
   // Optional operator-facing note (e.g. "reviewer flagged inactive").
   // Never carries private reviewer text.
-  safeNote            String?  @db.VarChar(400)
+  // Phase 32.6.2 — explicit @map("safe_note"). See ReviewEscalation.safeSummary.
+  safeNote            String?  @map("safe_note") @db.VarChar(400)
 
   computedAtUtc       DateTime @default(now()) @map("computed_at_utc") @db.Timestamptz(6)
 
@@ -5036,7 +4972,10 @@ model ReviewerOpsReminder {
 
   /// SHA-256 prefix of `${workflowId}:${kind}:${dayBucket}` — unique
   /// per (teamId, kind, dedupKey).
-  dedupKey            String   @db.VarChar(80)
+  /// Phase 32.6.2 — explicit @map("dedup_key"). Without this Prisma
+  /// client emits `"dedupKey"` (quoted camelCase) but the migration
+  /// creates `dedup_key`. See ReviewEscalation.safeSummary comment.
+  dedupKey            String   @map("dedup_key") @db.VarChar(80)
 
   /// Optional foreign-key-style pointers. We do NOT FK these so the
   /// reminder ledger survives downstream cleanups.
@@ -5046,7 +4985,8 @@ model ReviewerOpsReminder {
 
   /// Bounded operator-safe summary; the engine scrubs forbidden
   /// overclaim phrases before persisting.
-  safeSummary         String   @db.VarChar(400)
+  /// Phase 32.6.2 — explicit @map("safe_summary"). See dedupKey above.
+  safeSummary         String   @map("safe_summary") @db.VarChar(400)
 
   /// Optional pointer at the CommunicationMessage we created on
   /// dispatch (NULL when the reminder is metric-only — e.g.
