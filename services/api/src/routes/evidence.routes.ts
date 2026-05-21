@@ -8990,7 +8990,16 @@ displayName: resolvedDisplayName,
           | undefined;
         const blocked =
           meta != null && typeof meta === "object" && meta.blocked === true;
-        const unavailable = finalized && !evidenceForState?.teamId;
+        // Phase 32.6.6 — personal-workspace 410 path retired.
+        //
+        // Previously: `finalized && !evidenceForState?.teamId` returned
+        // 410 verification_package_unavailable with reason
+        // `personal_workspace_no_team_governance_context`. That was
+        // incorrect product semantics: personal evidence MUST be able
+        // to generate a verification package (BASIC mode). The worker
+        // now produces a personal-basic package; this route therefore
+        // falls through to the standard pending/missing branches
+        // below.
         if (blocked) {
           return reply.code(409).send({
             code: "verification_package_blocked",
@@ -9000,14 +9009,6 @@ displayName: resolvedDisplayName,
               typeof meta?.blockedAtUtc === "string" ? meta!.blockedAtUtc : null,
             message:
               "Verification package generation was blocked by governance policy.",
-          });
-        }
-        if (unavailable) {
-          return reply.code(410).send({
-            code: "verification_package_unavailable",
-            reason: "personal_workspace_no_team_governance_context",
-            message:
-              "Verification package is not available for personal-workspace evidence.",
           });
         }
         if (finalized) {

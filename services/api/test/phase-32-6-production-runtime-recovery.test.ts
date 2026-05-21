@@ -84,7 +84,11 @@ describe("Phase 32.6 — workers readiness startup grace period", () => {
 
   it("after grace window the original `no_recent_reconcile` DEGRADED path still fires", () => {
     const idx = SRC.indexOf("async function checkWorkers");
-    const slice = SRC.slice(idx, idx + 4000);
+    // Phase 32.7 — the function body grew due to canonical-event
+    // commentary; the previous 4000-char window no longer reaches
+    // the DEGRADED branch. Widen to 6000 — the function ends well
+    // within that.
+    const slice = SRC.slice(idx, idx + 6000);
     expect(slice).toMatch(/reasonCode: "no_recent_reconcile"/);
     expect(slice).toMatch(/status: "DEGRADED"[\s\S]{0,400}no_recent_reconcile/);
   });
@@ -200,17 +204,26 @@ describe("Phase 32.6 — bounded observability counters", () => {
     expect(sliceAfter).toMatch(/bump\("package_generation_failed_total"\)/);
   });
 
-  it("personal-workspace skip counter is bumped at the canonical skip site (NOT the gate)", () => {
+  it("Phase 32.6.6 — personal-workspace skip site is retired (counter retained for catalog stability)", () => {
+    // Historical (Phase 32.6) behavior:
+    //   The worker pre-skipped personal-workspace evidence and bumped
+    //   `package_generation_skipped_personal_workspace_total`.
+    //
+    // Current (Phase 32.6.6) behavior:
+    //   Personal evidence generates a PERSONAL BASIC package via the
+    //   normal generation path. The pre-skip block (and its bump
+    //   call site) is removed. The counter NAME is still registered
+    //   in the shared-runtime metrics catalog for backward-compat
+    //   with historic dashboards, but it stays at zero going forward.
     const PROC_SRC = readSource("../../worker/src/processor.ts");
-    expect(PROC_SRC).toMatch(
+    expect(PROC_SRC).not.toMatch(/personalWorkspacePackageSkipped/);
+    expect(PROC_SRC).not.toMatch(
       /bump\("package_generation_skipped_personal_workspace_total"\)/,
     );
-    // The skip bump sits in the `personalWorkspacePackageSkipped`
-    // branch, NOT inside the gate denial path.
-    const skipIdx = PROC_SRC.indexOf("personalWorkspacePackageSkipped");
-    expect(skipIdx).toBeGreaterThan(0);
-    const slice = PROC_SRC.slice(skipIdx, skipIdx + 1500);
-    expect(slice).toMatch(/bump\("package_generation_skipped_personal_workspace_total"\)/);
+
+    // The counter is still in the catalog (the catalog assertion
+    // earlier in this file checks that), so historic dashboards
+    // don't break.
   });
 
   it("artifact_status_polled_total bumped from the artifact-status route (NOT report/latest)", () => {

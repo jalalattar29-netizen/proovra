@@ -270,7 +270,10 @@ describe("Escalations page (proof-point wiring)", () => {
   });
 
   it("only renders the banner when teamId is known (avoids null render)", () => {
-    expect(src).toMatch(/teamId \?\s*<RuntimeStatusBanner/);
+    // Phase 32.7 — banner usage may now wrap the JSX in `(...)` to
+    // accommodate the `forDomains` prop on a separate line. Both
+    // shapes are valid.
+    expect(src).toMatch(/teamId\s*\?\s*\(?\s*<RuntimeStatusBanner/);
   });
 });
 

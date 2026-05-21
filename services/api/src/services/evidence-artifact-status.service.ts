@@ -2,26 +2,41 @@
  * Phase C #12 — Extracted artifact-status helper.
  *
  * Side-effect-free reader for "are the post-finalization artifacts ready?".
- * Does NOT touch any custody, audit, view, or download counters. Carries
- * the same contract as the previous inline implementation in
- * services/api/src/routes/evidence.routes.ts so behavior is identical;
- * the goal is to shrink the routes monolith without changing semantics.
+ * Does NOT touch any custody, audit, view, or download counters.
  *
- * Phase 32.5 — Verification package availability differentiation.
- * Personal-workspace evidence (no teamId) is deliberately NOT eligible
- * for verification package generation: the gate requires a governance
- * context, and personal workspaces have none. The helper now surfaces
- * this as `unavailable: true` (vs. `pending: true`) so the frontend can
- * render distinct copy:
- *   * `pending: true`      → "Package is being generated…" (poll for completion)
- *   * `unavailable: true`  → "Package not available for personal workspace evidence" (no poll, no retry)
- *   * `available: true`    → "Package ready" (offer download)
+ * Phase 32.5 (historical) — Used to mark personal-workspace evidence as
+ *   `unavailable: true` because the worker pre-skipped generation. That
+ *   pre-skip was incorrect product semantics; see Phase 32.6.6 below.
+ *
+ * Phase 32.6.6 — Personal-workspace evidence now generates a PERSONAL
+ *   BASIC verification package. The `unavailable` field is therefore
+ *   always `false` for the personal-workspace case; personal packages
+ *   transition the same `pending → available` flow as team packages.
+ *   The field is retained in the public shape for backward compatibility
+ *   with the Phase 32.6.4 frontend mapping (which already handles
+ *   `unavailable: false` as the common case). The
+ *   `unavailableReason` enum stays declared but is currently never
+ *   produced; reserved for future cases (e.g., a workspace plan that
+ *   genuinely excludes packages).
+ *
+ * State machine:
+ *   * `pending: true`     → worker is generating; client should poll
+ *   * `available: true`   → package ready; offer download
+ *   * `blocked: true`     → team governance gate denied (legal hold /
+ *                             destruction review / etc.); may unblock
+ *                             when the governance condition resolves
+ *   * `unavailable: true` → reserved; not produced by current code
  */
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 
-export type VerificationPackageUnavailableReason =
-  | "personal_workspace_no_team_governance_context";
+/**
+ * Phase 32.6.6 — Currently no value is produced for this enum (personal
+ * evidence is now first-class). Kept declared for future use (e.g., a
+ * plan-tier exclusion) and for backward-compat with the Phase 32.6.4
+ * frontend mapping.
+ */
+export type VerificationPackageUnavailableReason = never;
 
 export interface EvidenceArtifactStatus {
   evidenceId: string;
@@ -128,12 +143,13 @@ export async function buildEvidenceArtifactStatus(params: {
 
   const reportPending = finalized && !latestReport;
 
-  // Phase 32.5 — package is "unavailable" (not "pending") when the
-  // evidence has no team — the gate would deny on missing governance
-  // context, so the worker pre-skip never produced a package row.
-  // This distinct state lets the frontend render the right copy
-  // without endlessly polling.
-  const packageUnavailableForPersonalWorkspace = finalized && !params.evidenceTeamId;
+  // Phase 32.6.6 — personal-workspace evidence is now first-class.
+  // The worker generates a PERSONAL BASIC package (no governance
+  // gate); the personal-workspace `unavailable` derivation is
+  // therefore retired. The field is retained on the response shape
+  // for backward-compat with the Phase 32.6.4 frontend mapping but
+  // always set to `false`.
+  const packageUnavailableForPersonalWorkspace = false;
 
   // Phase 32.6.1 — read the bounded gate-denial metadata the worker
   // persists after PackageGateDeniedError. Distinguishes "blocked by
@@ -193,10 +209,12 @@ export async function buildEvidenceArtifactStatus(params: {
           generatedAtUtc: null,
           packageType: null,
           pending: packagePending,
+          // Phase 32.6.6 — always false for personal-workspace path
+          // (personal evidence now generates a BASIC package). The
+          // field is retained for backward-compat with the Phase
+          // 32.6.4 frontend mapping.
           unavailable: packageUnavailableForPersonalWorkspace,
-          unavailableReason: packageUnavailableForPersonalWorkspace
-            ? "personal_workspace_no_team_governance_context"
-            : null,
+          unavailableReason: null,
           blocked: packageBlocked,
           blockedOutcome: packageBlocked ? blockedMeta!.outcome : null,
           blockedReason: packageBlocked ? blockedMeta!.reason : null,

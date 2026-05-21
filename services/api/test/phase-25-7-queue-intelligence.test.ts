@@ -201,8 +201,13 @@ describe("Phase 25.7 — stuck workflow sweep wired into runReconcile", () => {
   });
 
   it("the run-summary SecurityEvent carries stuckDetected + stuckEscalated counters", () => {
+    // Phase 32.7 — the literal `"reviewer_reconcile_run"` is no longer
+    // inlined. The writer resolves it through
+    // `canonicalOperationalWireStringFor("WORKER_HEARTBEAT")`. The
+    // surrounding payload shape (stuckDetected + stuckEscalated) is
+    // preserved.
     expect(src).toMatch(
-      /safeEmitSecurityEvent\(\{[\s\S]*?eventType:\s*"reviewer_reconcile_run"[\s\S]*?stuckDetected[\s\S]*?stuckEscalated/,
+      /safeEmitSecurityEvent\(\{[\s\S]*?eventType:\s*canonicalOperationalWireStringFor\([\s\S]{0,100}"WORKER_HEARTBEAT"[\s\S]*?stuckDetected[\s\S]*?stuckEscalated/,
     );
   });
 });

@@ -176,10 +176,23 @@ describe("Phase 32.6.1 — verification-package download route structured respon
     expect(ROUTES_SRC).toMatch(/reason:\s*typeof meta\?\.reason === "string"/);
   });
 
-  it("returns 410 + bounded unavailable payload for personal-workspace evidence", () => {
-    expect(ROUTES_SRC).toMatch(/return reply\.code\(410\)\.send\(\{[\s\S]{0,400}code:\s*"verification_package_unavailable"/);
-    expect(ROUTES_SRC).toMatch(
-      /reason:\s*"personal_workspace_no_team_governance_context"/,
+  it("Phase 32.6.6 — the personal-workspace 410 branch is retired (personal evidence now generates a BASIC package)", () => {
+    // Historical behavior (now removed): the route returned 410 with
+    // `verification_package_unavailable` + reason
+    // `personal_workspace_no_team_governance_context` for any
+    // finalized evidence without a teamId. That was incorrect
+    // product semantics — personal evidence MUST be able to produce
+    // and download a verification package (BASIC mode).
+    //
+    // The 410 live emit is gone; personal evidence falls through to
+    // 202 pending while the worker builds the BASIC package, then
+    // 200 download.
+    expect(ROUTES_SRC).not.toMatch(
+      /return reply\.code\(410\)\.send\(\{[\s\S]{0,400}code:\s*"verification_package_unavailable"/,
+    );
+    // No live `reason: "personal_workspace_..."` key in any reply.send().
+    expect(ROUTES_SRC).not.toMatch(
+      /^\s*reason:\s*"personal_workspace_no_team_governance_context"/m,
     );
   });
 
@@ -201,11 +214,16 @@ describe("Phase 32.6.1 — verification-package download route structured respon
     // for the actual download path).
     const idx = ROUTES_SRC.indexOf('"/v1/evidence/:id/verification-package"');
     expect(idx).toBeGreaterThan(0);
-    const slice = ROUTES_SRC.slice(idx, idx + 6000);
+    // Phase 32.6.6 — bump the slice window to 12000 (route body has
+    // grown over time; the 6000 ceiling no longer reaches the 404
+    // response).
+    const slice = ROUTES_SRC.slice(idx, idx + 12000);
     // Specifically the response objects we just added must NOT
-    // include any of these fields.
+    // include any of these fields. Phase 32.6.6 — the "unavailable"
+    // 410 branch has been retired, so the bounded enum is now
+    // blocked | pending | not_found.
     const lookAtResponses = slice.match(
-      /return reply[\s\S]{0,800}code:\s*"verification_package_(blocked|unavailable|pending|not_found)"[\s\S]{0,400}\}\)/g,
+      /return reply[\s\S]{0,800}code:\s*"verification_package_(blocked|pending|not_found)"[\s\S]{0,400}\}\)/g,
     );
     expect(lookAtResponses).toBeTruthy();
     for (const r of lookAtResponses!) {

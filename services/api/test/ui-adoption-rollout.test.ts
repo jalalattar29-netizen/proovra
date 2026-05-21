@@ -65,7 +65,14 @@ describe("Reviewer Ops landing page (full adoption)", () => {
   });
 
   it("renders RuntimeStatusBanner only when teamId is known (null-safe)", () => {
-    expect(src).toMatch(/teamId\s*\?\s*<RuntimeStatusBanner\s+teamId=\{teamId\}\s*\/>/);
+    // Phase 32.7 — banner usage now optionally includes `forDomains`
+    // for degradation isolation, and the JSX may be wrapped in `()`
+    // with intervening comments explaining the scoping decision.
+    // Accept both the legacy single-prop shape and the scoped
+    // multi-prop / multi-line shape with comments between.
+    expect(src).toMatch(
+      /teamId\s*\?\s*\(?[\s\S]{0,800}?<RuntimeStatusBanner[\s\S]{0,400}teamId=\{teamId\}/,
+    );
   });
 
   it("renders OperationalEmptyState when the review queue is empty", () => {
@@ -105,7 +112,14 @@ describe("Reviewer Ops SLA page (full adoption)", () => {
   });
 
   it("renders RuntimeStatusBanner only when teamId is known", () => {
-    expect(src).toMatch(/teamId\s*\?\s*<RuntimeStatusBanner\s+teamId=\{teamId\}\s*\/>/);
+    // Phase 32.7 — banner usage now optionally includes `forDomains`
+    // for degradation isolation, and the JSX may be wrapped in `()`
+    // with intervening comments explaining the scoping decision.
+    // Accept both the legacy single-prop shape and the scoped
+    // multi-prop / multi-line shape with comments between.
+    expect(src).toMatch(
+      /teamId\s*\?\s*\(?[\s\S]{0,800}?<RuntimeStatusBanner[\s\S]{0,400}teamId=\{teamId\}/,
+    );
   });
 
   it("renders NoWorkloadSnapshotsEmptyState when no reviewer activity is recorded", () => {
@@ -137,7 +151,14 @@ describe("Reviewer Ops policy page (full adoption)", () => {
   });
 
   it("renders RuntimeStatusBanner only when teamId is known", () => {
-    expect(src).toMatch(/teamId\s*\?\s*<RuntimeStatusBanner\s+teamId=\{teamId\}\s*\/>/);
+    // Phase 32.7 — banner usage now optionally includes `forDomains`
+    // for degradation isolation, and the JSX may be wrapped in `()`
+    // with intervening comments explaining the scoping decision.
+    // Accept both the legacy single-prop shape and the scoped
+    // multi-prop / multi-line shape with comments between.
+    expect(src).toMatch(
+      /teamId\s*\?\s*\(?[\s\S]{0,800}?<RuntimeStatusBanner[\s\S]{0,400}teamId=\{teamId\}/,
+    );
   });
 
   it("the banner sits inside the main render block (above the policy form)", () => {
@@ -169,7 +190,14 @@ describe("Governance dashboard (full adoption)", () => {
   });
 
   it("renders RuntimeStatusBanner only when teamId is known (null-safe)", () => {
-    expect(src).toMatch(/teamId\s*\?\s*<RuntimeStatusBanner\s+teamId=\{teamId\}\s*\/>/);
+    // Phase 32.7 — banner usage now optionally includes `forDomains`
+    // for degradation isolation, and the JSX may be wrapped in `()`
+    // with intervening comments explaining the scoping decision.
+    // Accept both the legacy single-prop shape and the scoped
+    // multi-prop / multi-line shape with comments between.
+    expect(src).toMatch(
+      /teamId\s*\?\s*\(?[\s\S]{0,800}?<RuntimeStatusBanner[\s\S]{0,400}teamId=\{teamId\}/,
+    );
   });
 
   it("replaces the dead 'No legal holds on record.' paragraph with OperationalEmptyState", () => {
@@ -219,7 +247,10 @@ describe("Observability dashboard (full adoption)", () => {
   });
 
   it("renders RuntimeStatusBanner inside the main render", () => {
-    expect(src).toMatch(/<RuntimeStatusBanner\s+teamId=\{teamId\}\s*\/>/);
+    // Phase 32.7 — also accepts banner usage with `forDomains` prop.
+    expect(src).toMatch(
+      /<RuntimeStatusBanner[\s\S]{0,200}teamId=\{teamId\}/,
+    );
   });
 
   it("banner is rendered above the header (operator sees runtime state first)", () => {

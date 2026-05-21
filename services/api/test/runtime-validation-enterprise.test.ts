@@ -106,7 +106,13 @@ describe("Runtime readiness aggregator [structure]", () => {
     // — which targets the security_events table, not
     // admin_audit_logs. The check now reads SecurityEvent.eventType
     // to align the reader with the existing writer.
-    expect(src).toContain('eventType: "reviewer_reconcile_run"');
+    // Phase 32.7 — the literal `"reviewer_reconcile_run"` is no longer
+    // inlined in the reader. It is resolved through
+    // `wireStringFor("WORKER_HEARTBEAT")` from shared-runtime and bound
+    // to `heartbeatWireString` before flowing into the findFirst
+    // where-clause. The wire-string value is preserved (audit-chain
+    // continuity), only the call site is canonicalized.
+    expect(src).toContain('wireStringFor("WORKER_HEARTBEAT")');
     expect(src).toContain("prisma.securityEvent.findFirst");
     expect(src).toContain("REVIEWER_OPS_RECONCILIATION_INTERVAL_MS");
   });

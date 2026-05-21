@@ -2488,43 +2488,63 @@ export async function createVerificationPackage(data: {
   intelligence?: import("./verification-package-intelligence.js").IntelligencePackageInput | null;
 }): Promise<{ buffer: Buffer; artifactPresence: VerificationPackageArtifactPresence }> {
   // -------------------------------------------------------------------------
-  // Fail-closed canonical eligibility gate.
+  // Package mode selection.
   //
-  // BEFORE any artifact is built, the worker MUST consult the canonical
-  // package-eligibility helper through the worker-side gate. Denial
-  // produces a PackageGateDeniedError that the caller MUST surface as
-  // a refusal (no metrics, no download-ready state, no artifact emit).
+  // Phase 32.6.6 — personal BASIC mode + team GOVERNED mode.
   //
-  // Gate self-denies when:
-  //   * teamId or evidenceId is missing (cannot reason about governance).
-  //   * any prisma read throws.
-  //   * canonical helper returns anything other than ALLOWED.
+  //   PERSONAL BASIC: evidence with no team context (teamId is null /
+  //     missing). No team governance policy to consult, so we do NOT
+  //     run the package-eligibility gate. The package still requires
+  //     `evidenceId` so it can anchor a real record. The archive
+  //     includes the same forensic primitives (manifest, evidence,
+  //     custody, signatures, TSA, OTS, offline verifier) but the
+  //     workspace policy / governance-audit sections are absent, and
+  //     a `package-mode.json` notice declares the personal-basic
+  //     mode for downstream consumers.
   //
-  // The gate logs / audits / records a GOVERNANCE incident internally;
-  // this call site only needs to translate the decision into an error.
+  //   TEAM GOVERNED: evidence with a teamId. The package-eligibility
+  //     gate runs as before (legal hold / destruction review /
+  //     workspace policy / etc.). Denial still surfaces as
+  //     PackageGateDeniedError; no governance enforcement weakened.
+  //
+  // Both modes still require `evidenceId` — without it we cannot
+  // anchor or attest the package to a real record.
   // -------------------------------------------------------------------------
-  if (!data.teamId || !data.evidenceId) {
+  if (!data.evidenceId) {
     throw new PackageGateDeniedError(
       "GOVERNANCE_STATE_UNAVAILABLE",
-      "teamId_or_evidenceId_missing",
-      "Governance state could not be determined — package generation denied",
+      "evidence_id_missing",
+      "evidenceId is required for package generation",
     );
   }
-  const { assertPackageEligibleOrDeny } = await import(
-    "./governance/package-eligibility-gate.js"
-  );
-  const gateDecision = await assertPackageEligibleOrDeny({
-    teamId: data.teamId,
-    evidenceId: data.evidenceId,
-    triggerSource: "createVerificationPackage",
-  });
-  if (!gateDecision.allowed) {
-    throw new PackageGateDeniedError(
-      gateDecision.outcome,
-      gateDecision.reason,
-      gateDecision.label,
+
+  const packageMode: "personal_basic" | "team_governed" = data.teamId
+    ? "team_governed"
+    : "personal_basic";
+
+  if (packageMode === "team_governed") {
+    const { assertPackageEligibleOrDeny } = await import(
+      "./governance/package-eligibility-gate.js"
     );
+    const gateDecision = await assertPackageEligibleOrDeny({
+      teamId: data.teamId as string,
+      evidenceId: data.evidenceId,
+      triggerSource: "createVerificationPackage",
+    });
+    if (!gateDecision.allowed) {
+      throw new PackageGateDeniedError(
+        gateDecision.outcome,
+        gateDecision.reason,
+        gateDecision.label,
+      );
+    }
   }
+  // Personal-basic skips the gate above — there is no team governance
+  // context to evaluate. Access checks still happen upstream (the API
+  // route's `getEvidenceWithReadAccess` confirms the caller owns the
+  // evidence). Plan/product limits are still enforced separately by
+  // `assertWorkspaceAllowsVerificationPackageArtifact` after the
+  // package is built.
 
   return new Promise((resolve, reject) => {
     const archive = archiver("zip", { zlib: { level: 9 } });
@@ -2824,6 +2844,39 @@ export async function createVerificationPackage(data: {
       "application/json"
     );
     artifactPresence.manifestPresent = true;
+
+    // Phase 32.6.6 — bounded `package-mode.json` notice declares
+    // whether this package was built in personal_basic (no team
+    // governance context) or team_governed (workspace governance
+    // policy applied at build time) mode. Consumers inspecting the
+    // archive can read this file without parsing the full manifest
+    // to know which sections to expect (e.g., team-governed
+    // packages carry workspace policy + governance audit; personal
+    // basic does not).
+    //
+    // The notice deliberately uses neutral language: it never
+    // overclaims authenticity, never asserts admissibility, and
+    // never marks personal packages as "less real" — the forensic
+    // primitives (manifest, signatures, TSA, OTS, custody export)
+    // are identical between modes. Only the team-governance
+    // sections differ.
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "package-mode.json",
+      jsonBuffer({
+        mode: packageMode,
+        notice:
+          packageMode === "personal_basic"
+            ? "No team governance context; personal package"
+            : "Team-governed package; workspace governance policy applied at build time",
+        evidenceId: data.evidenceId,
+        teamId: data.teamId ?? null,
+        reportVersion: data.reportVersion ?? null,
+        generatedAtUtc: new Date().toISOString(),
+      }),
+      "application/json"
+    );
 
     appendPackageEntry(
   archive,

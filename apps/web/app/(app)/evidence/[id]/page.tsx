@@ -1266,7 +1266,13 @@ export default function EvidenceDetailPage() {
     <div className="evidence-detail-page">
       <div className="evidence-detail-shell">
         {workspace.reviewWorkflow?.teamId ? (
-          <RuntimeStatusBanner teamId={workspace.reviewWorkflow.teamId} />
+          // Phase 32.7 — scope to the core_evidence domain so a
+          // degraded reviewer/search/governance subsystem doesn't
+          // poison the evidence detail page.
+          <RuntimeStatusBanner
+            teamId={workspace.reviewWorkflow.teamId}
+            forDomains={["core_evidence"]}
+          />
         ) : null}
         <section className="evidence-detail-hero">
           <div className="evidence-detail-hero-main">

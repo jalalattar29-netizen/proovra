@@ -49,39 +49,33 @@ function stripComments(s: string): string {
 // PART 1 — Verification package teamId pre-check (Part 2 of brief)
 // =============================================================================
 
-describe("Phase 32.5 — verification package personal-workspace pre-check", () => {
+describe("Phase 32.5 → 32.6.6 — verification package personal-workspace handling", () => {
   const PROCESSOR_SRC = readSource("../../worker/src/processor.ts");
 
-  it("worker SKIPS createVerificationPackage when evidence.teamId is null", () => {
-    // The pre-check uses `!!evidence.teamId` to gate the entire
-    // verification-package block. Without this guard the gate's
-    // `teamId_or_evidenceId_missing` denial fires for every
-    // personal-workspace evidence and lights up Sentry.
-    expect(PROCESSOR_SRC).toMatch(
-      /Phase 32\.5 — Pre-gate: verification package requires a teamId/,
-    );
-    // The condition is added to the outer `if (...)` that gates the
-    // entire createVerificationPackage block.
-    expect(PROCESSOR_SRC).toMatch(/!!evidence\.teamId/);
+  // Phase 32.6.6 — the personal-workspace pre-skip was retired.
+  // Personal evidence is now first-class and generates a PERSONAL
+  // BASIC package. The two historical assertions (worker SKIPs +
+  // logs INFO line for skip) are inverted: BOTH must no longer be
+  // present in the processor.
+
+  it("Phase 32.6.6 — worker no longer pre-skips personal-workspace evidence", () => {
+    // The `!!evidence.teamId` guard that gated package generation
+    // on team presence is gone. Personal evidence reaches
+    // createVerificationPackage and the package-mode selection
+    // there picks `personal_basic`.
+    expect(PROCESSOR_SRC).not.toMatch(/!!evidence\.teamId/);
+    expect(PROCESSOR_SRC).not.toMatch(/personalWorkspacePackageSkipped/);
   });
 
-  it("worker logs a bounded INFO line for the personal-workspace skip (NOT a Sentry error)", () => {
-    expect(PROCESSOR_SRC).toMatch(
+  it("Phase 32.6.6 — `verification_package.skipped_personal_workspace` log line is removed", () => {
+    expect(PROCESSOR_SRC).not.toMatch(
       /verification_package\.skipped_personal_workspace/,
     );
-    expect(PROCESSOR_SRC).toMatch(
-      /reason: "personal_workspace_no_team_governance_context"/,
-    );
-    // The skip uses logger.info (not logger.error / captureException).
-    const skipIdx = PROCESSOR_SRC.indexOf(
-      "verification_package.skipped_personal_workspace",
-    );
-    const sliceBefore = PROCESSOR_SRC.slice(
-      Math.max(0, skipIdx - 400),
-      skipIdx,
-    );
-    expect(sliceBefore).toMatch(/logger\.info/);
-    expect(sliceBefore).not.toMatch(/captureException/);
+  });
+
+  it("Phase 32.6.6 — PackageGateDeniedError catch arm preserved (governance still fail-closed for team evidence)", () => {
+    expect(PROCESSOR_SRC).toMatch(/instanceof PackageGateDeniedError/);
+    expect(PROCESSOR_SRC).toMatch(/package_generation_blocked_total/);
   });
 });
 
@@ -89,37 +83,48 @@ describe("Phase 32.5 — verification package personal-workspace pre-check", () 
 // PART 2 — Artifact status projection: unavailable vs pending
 // =============================================================================
 
-describe("Phase 32.5 — artifact status `unavailable` projection", () => {
+describe("Phase 32.5 → 32.6.6 — artifact status projection", () => {
   const SERVICE_SRC = readSource(
     "../src/services/evidence-artifact-status.service.ts",
   );
 
-  it("EvidenceArtifactStatus.verificationPackage carries `unavailable` + `unavailableReason`", () => {
+  it("EvidenceArtifactStatus.verificationPackage carries `unavailable` + `unavailableReason` (shape retained for backward-compat)", () => {
     expect(SERVICE_SRC).toMatch(/unavailable: false;\s*unavailableReason: null;/);
     expect(SERVICE_SRC).toMatch(
       /unavailable: boolean;\s*unavailableReason: VerificationPackageUnavailableReason \| null;/,
     );
   });
 
-  it("when finalized && evidenceTeamId == null, package is `unavailable: true, pending: false`", () => {
-    const code = stripComments(SERVICE_SRC);
-    expect(code).toMatch(
-      /packageUnavailableForPersonalWorkspace = finalized && !params\.evidenceTeamId/,
+  it("Phase 32.6.6 — `unavailable` for personal-workspace path is now always false", () => {
+    // The historical derivation `finalized && !params.evidenceTeamId`
+    // is replaced with a constant `false`. Personal evidence now
+    // generates a PERSONAL BASIC package and transitions through the
+    // normal pending → available flow.
+    expect(SERVICE_SRC).toMatch(
+      /packageUnavailableForPersonalWorkspace\s*=\s*false/,
     );
-    // Phase 32.6.1 — packagePending now also excludes the blocked
-    // state (gate denial), so the expression has 4 conjuncts
-    // instead of 3.
-    expect(code).toMatch(
-      /packagePending\s*=\s*finalized &&\s*!latestPackage &&\s*!packageUnavailableForPersonalWorkspace &&\s*!packageBlocked/,
+    expect(SERVICE_SRC).not.toMatch(
+      /packageUnavailableForPersonalWorkspace\s*=\s*finalized\s*&&\s*!params\.evidenceTeamId/,
     );
   });
 
-  it("bounded `unavailableReason` vocabulary — only personal_workspace_no_team_governance_context today", () => {
-    const m = SERVICE_SRC.match(
-      /export type VerificationPackageUnavailableReason =\s*\|\s*"([^"]+)";/,
+  it("Phase 32.6.6 — packagePending derivation still excludes blocked + unavailable", () => {
+    const code = stripComments(SERVICE_SRC);
+    expect(code).toMatch(
+      /packagePending\s*=\s*finalized\s*&&\s*\n?\s*!latestPackage\s*&&\s*\n?\s*!packageUnavailableForPersonalWorkspace\s*&&\s*\n?\s*!packageBlocked/,
     );
-    expect(m).toBeTruthy();
-    expect(m![1]).toBe("personal_workspace_no_team_governance_context");
+  });
+
+  it("Phase 32.6.6 — `unavailableReason` enum no longer emits a value (reserved for future cases)", () => {
+    // The historical enum was a single bounded value. The new declaration
+    // is `never` (no values currently produced). Match either the
+    // historical or the new shape.
+    expect(SERVICE_SRC).toMatch(
+      /export type VerificationPackageUnavailableReason\s*=\s*(never|\|\s*"[^"]+")\s*;/,
+    );
+    // The personal-workspace reason string is no longer emitted as a
+    // live value in the helper response payload.
+    expect(SERVICE_SRC).toMatch(/unavailableReason:\s*null/);
   });
 
   it("route passes evidenceTeamId through to the helper", () => {

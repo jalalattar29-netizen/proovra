@@ -174,8 +174,13 @@ describe("Phase 32.6.5 — checkWorkers queries security_events (the writer's ta
   });
 
   it("uses `eventType` field on the SecurityEvent model (not `action`)", () => {
+    // Phase 32.7 — the literal wire string is no longer inlined.
+    // The check resolves it through the canonical `wireStringFor`
+    // helper, then binds it to a local `heartbeatWireString`
+    // variable that flows into the `where` clause. Both shapes
+    // are accepted by this assertion.
     expect(fn).toMatch(
-      /where:\s*\{\s*eventType:\s*"reviewer_reconcile_run"\s*\}/,
+      /where:\s*\{\s*eventType:\s*(heartbeatWireString|"reviewer_reconcile_run")\s*\}/,
     );
   });
 
@@ -203,17 +208,24 @@ describe("Phase 32.6.5 — reconcile writer/reader alignment", () => {
     "../src/services/reviewer-ops/reviewer-operations-engine.service.ts",
   );
 
-  it("writer emits SecurityEvent with eventType `reviewer_reconcile_run`", () => {
+  it("writer emits SecurityEvent with the canonical WORKER_HEARTBEAT event", () => {
+    // Phase 32.7 — the writer no longer inlines "reviewer_reconcile_run".
+    // It calls the canonical resolver `canonicalOperationalWireStringFor("WORKER_HEARTBEAT")`
+    // which returns the wire string. The contract is enforced by the
+    // shared-runtime module.
     expect(WRITER_SRC).toMatch(
-      /safeEmitSecurityEvent\(\s*\{[\s\S]{0,400}?eventType:\s*"reviewer_reconcile_run"/,
+      /eventType:\s*canonicalOperationalWireStringFor\([\s\S]{0,100}"WORKER_HEARTBEAT"/,
     );
   });
 
-  it("reader queries the same table (SecurityEvent) with the same key (eventType)", () => {
-    // The reader fragment must reference both `securityEvent` and
-    // `eventType: "reviewer_reconcile_run"` close together.
+  it("reader queries the same table (SecurityEvent) using the canonical wire string", () => {
+    // Phase 32.7 — reader resolves the wire string through
+    // `wireStringFor("WORKER_HEARTBEAT")` from shared-runtime and
+    // binds it to `heartbeatWireString` before passing to the
+    // findFirst where-clause. Writer + reader cannot drift.
+    expect(READER_SRC).toMatch(/wireStringFor\(\s*"WORKER_HEARTBEAT"\s*\)/);
     expect(READER_SRC).toMatch(
-      /prisma\.securityEvent\.findFirst\(\s*\{\s*where:\s*\{\s*eventType:\s*"reviewer_reconcile_run"/,
+      /prisma\.securityEvent\.findFirst\(\s*\{\s*where:\s*\{\s*eventType:\s*heartbeatWireString/,
     );
   });
 

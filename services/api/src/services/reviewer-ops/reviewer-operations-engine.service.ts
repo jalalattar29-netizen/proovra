@@ -34,6 +34,13 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
+// Phase 32.7 — canonical operational event contract. The worker
+// heartbeat write site below MUST resolve the wire string through
+// this constant so the reader (`runtime-readiness.checkWorkers`)
+// cannot drift from the writer.
+import {
+  wireStringFor as canonicalOperationalWireStringFor,
+} from "@proovra/shared-runtime/ops";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
 import { recordIncident } from "../observability/incident.service.js";
@@ -1011,9 +1018,18 @@ export async function runReconcile(
       // Stuck sweep is best-effort; failure must not abort reconcile.
     }
 
+    // Phase 32.7 — canonical operational event contract.
+    // The wire string is resolved from the canonical
+    // WORKER_HEARTBEAT constant defined in
+    // packages/shared-runtime/src/ops/canonical-events.ts. The
+    // readiness check (runtime-readiness.ts::checkWorkers) reads
+    // through the SAME constant. The pair cannot drift without a
+    // single coordinated change to the contract module.
     safeEmitSecurityEvent({
       teamId: input.teamId,
-      eventType: "reviewer_reconcile_run",
+      eventType: canonicalOperationalWireStringFor(
+        "WORKER_HEARTBEAT",
+      ) as "reviewer_reconcile_run",
       severity: "INFO",
       details: {
         scanned: sla.scanned,

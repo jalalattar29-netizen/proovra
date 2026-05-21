@@ -197,7 +197,9 @@ export default function EscalationsConsolePage() {
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
-      {teamId ? <RuntimeStatusBanner teamId={teamId} /> : null}
+      {teamId ? (
+        <RuntimeStatusBanner teamId={teamId} forDomains={["reviewer_ops"]} />
+      ) : null}
 
       <section style={{ ...cardStyle, marginTop: 16, padding: 0 }}>
         {rows === null ? (

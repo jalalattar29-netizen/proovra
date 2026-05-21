@@ -377,7 +377,9 @@ export default function ReviewerOpsConsole() {
 
   return (
     <main style={pageStyle}>
-      {teamId ? <RuntimeStatusBanner teamId={teamId} /> : null}
+      {teamId ? (
+        <RuntimeStatusBanner teamId={teamId} forDomains={["reviewer_ops"]} />
+      ) : null}
       <header style={headerRowStyle}>
         <div>
           <h1 style={titleStyle}>Reviewer Operations</h1>

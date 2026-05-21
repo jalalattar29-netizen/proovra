@@ -134,11 +134,28 @@ describe("Phase 28-E [worker gate] — wiring into createVerificationPackage", (
     expect(pkgSrc).toMatch(/throw new PackageGateDeniedError/);
   });
 
-  it("denies when teamId or evidenceId missing — fail-closed at entry", () => {
+  it("denies when evidenceId is missing — fail-closed at entry (Phase 32.6.6)", () => {
+    // Phase 32.6.6 — `teamId` is no longer required at entry. Personal
+    // evidence (no team context) now generates a PERSONAL BASIC
+    // package. Only `evidenceId` is required to anchor the package to
+    // a real record. The team eligibility gate still runs for team
+    // evidence (no governance weakening — see the subsequent test).
     const fnIdx = pkgSrc.indexOf("export async function createVerificationPackage");
     const fnBody = pkgSrc.slice(fnIdx, fnIdx + 8000);
-    expect(fnBody).toMatch(/!data\.teamId\s*\|\|\s*!data\.evidenceId/);
+    expect(fnBody).toMatch(/if\s*\(\s*!data\.evidenceId\s*\)/);
     expect(fnBody).toContain("GOVERNANCE_STATE_UNAVAILABLE");
+    // The legacy compound guard (teamId missing OR evidenceId missing)
+    // is gone — only evidenceId is mandatory at entry.
+    expect(fnBody).not.toMatch(/if\s*\(\s*!data\.teamId\s*\|\|\s*!data\.evidenceId\s*\)/);
+  });
+
+  it("Phase 32.6.6 — team-governed mode still runs the eligibility gate", () => {
+    // The eligibility gate (assertPackageEligibleOrDeny) must run for
+    // any package with a teamId. Personal-basic skips it.
+    const fnIdx = pkgSrc.indexOf("export async function createVerificationPackage");
+    const fnBody = pkgSrc.slice(fnIdx, fnIdx + 8000);
+    expect(fnBody).toMatch(/if\s*\(\s*packageMode\s*===\s*"team_governed"\s*\)/);
+    expect(fnBody).toMatch(/assertPackageEligibleOrDeny/);
   });
 
   it("processor.ts now passes teamId to createVerificationPackage", () => {

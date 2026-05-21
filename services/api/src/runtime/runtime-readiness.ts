@@ -67,6 +67,64 @@ export type SubsystemReadiness = {
   remediationHint: string | null;
   /** Per-subsystem bag of safe metadata. NEVER contains secrets. */
   metadata: Record<string, string | number | boolean | null>;
+  /**
+   * Phase 32.7 — operational domain this subsystem affects. The
+   * frontend uses this to scope the RuntimeStatusBanner: a
+   * degraded `workers` subsystem only renders the banner on pages
+   * that bind to the `reviewer_ops` domain, not on every page.
+   *
+   * Populated by the readiness rollup; the per-subsystem checker
+   * functions don't need to know the domain map. Always present in
+   * the response payload; declared optional only so checker
+   * functions don't need to be edited individually.
+   */
+  affectedDomain?: SubsystemAffectedDomain;
+};
+
+/**
+ * Phase 32.7 — bounded subsystem→domain map for degradation
+ * boundaries. The constant is mirrored from the canonical catalog
+ * in shared-runtime but re-declared here as a type-level union so
+ * the api can compile without forcing every consumer to import
+ * shared-runtime at type-check time.
+ *
+ * Keep in sync with `OPERATIONAL_DOMAINS` in
+ * packages/shared-runtime/src/ops/canonical-events.ts. A
+ * regression test enforces the mirror.
+ */
+export type SubsystemAffectedDomain =
+  | "core_evidence"
+  | "reviewer_ops"
+  | "governance_lifecycle"
+  | "workflow_engine"
+  | "integrations"
+  | "identity"
+  | "operational_incidents"
+  | "search_discovery"
+  | "media_intelligence"
+  | "platform_telemetry";
+
+/**
+ * Phase 32.7 — explicit subsystem→domain assignment. Every entry
+ * in `SubsystemId` MUST appear here. This is enforced at the type
+ * level (the object literal is typed as `Record<SubsystemId, ...>`)
+ * and asserted by a regression test.
+ */
+const SUBSYSTEM_AFFECTED_DOMAIN: Record<SubsystemId, SubsystemAffectedDomain> = {
+  schema: "platform_telemetry",
+  migrations: "platform_telemetry",
+  database: "core_evidence",
+  redis: "platform_telemetry",
+  s3_object_lock: "core_evidence",
+  queues: "operational_incidents",
+  workers: "reviewer_ops",
+  metrics: "platform_telemetry",
+  sentry: "platform_telemetry",
+  cron_secrets: "platform_telemetry",
+  search_indexing: "search_discovery",
+  multipart_storage: "core_evidence",
+  media_intelligence: "media_intelligence",
+  investigation_graph: "media_intelligence",
 };
 
 export type RuntimeReadinessReport = {
@@ -526,6 +584,11 @@ async function checkQueues(prisma: PrismaClient): Promise<SubsystemReadiness> {
   }
 }
 
+// Phase 32.7 — canonical operational event constant. Lazy-imported
+// inside the function so unit tests that load this module without
+// the worker side present can still type-check. The constant
+// resolves to the SAME wire string the writer uses
+// (services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts).
 async function checkWorkers(prisma: PrismaClient): Promise<SubsystemReadiness> {
   // The worker emits a structured `reviewer_reconcile.completed` log
   // line every interval. We can't read the log stream from the api,
@@ -567,10 +630,16 @@ async function checkWorkers(prisma: PrismaClient): Promise<SubsystemReadiness> {
   const intervalMs = Number(process.env.REVIEWER_OPS_RECONCILIATION_INTERVAL_MS ?? 300_000);
   const apiUptimeMs = Math.round(process.uptime() * 1000);
   const startupGraceMs = intervalMs * 2;
+
+  // Phase 32.7 — resolve the canonical heartbeat wire string from
+  // shared-runtime so the reader cannot drift from the writer.
+  const { wireStringFor } = await import("@proovra/shared-runtime/ops");
+  const heartbeatWireString = wireStringFor("WORKER_HEARTBEAT");
+
   try {
     const recent = await withTimeout(
       prisma.securityEvent.findFirst({
-        where: { eventType: "reviewer_reconcile_run" },
+        where: { eventType: heartbeatWireString },
         orderBy: { createdAt: "desc" },
         select: { createdAt: true },
       }),
@@ -645,13 +714,22 @@ async function checkWorkers(prisma: PrismaClient): Promise<SubsystemReadiness> {
       metadata: { lastReconcileAgeMs: ageMs },
     };
   } catch {
+    // Phase 32.7 — telemetry query failure is NOT a worker failure
+    // signal. The DB query against `security_events` couldn't run;
+    // that's a platform telemetry condition. Returning UNKNOWN (not
+    // DEGRADED, not CRITICAL) is the correct fail-closed behavior:
+    // the rollup will surface UNKNOWN, the topbar pill will read
+    // UNKNOWN, but no DEGRADED/CRITICAL banner will poison pages
+    // bound to the reviewer_ops domain because workers themselves
+    // may still be healthy.
     return {
       id: "workers",
       status: "UNKNOWN",
-      reasonCode: "worker_check_unavailable",
-      detail: "Could not query worker health from audit log.",
+      reasonCode: "telemetry_query_failed",
+      detail:
+        "Worker heartbeat telemetry source could not be queried; worker health is unknown (not degraded).",
       remediationHint:
-        "Confirm AdminAuditLog table is reachable and worker writes are landing.",
+        "Confirm SecurityEvent table is reachable. The worker itself may be healthy; this signal reflects the readiness query, not the worker process.",
       metadata: {},
     };
   }
@@ -1193,7 +1271,7 @@ export async function runReadinessCheck(
   requestId: string | null = null,
 ): Promise<RuntimeReadinessReport> {
   const startedAt = Date.now();
-  const subsystems: SubsystemReadiness[] = await Promise.all([
+  const rawSubsystems: SubsystemReadiness[] = await Promise.all([
     checkSchema(prisma),
     checkMigrations(prisma),
     checkDatabase(prisma),
@@ -1209,6 +1287,16 @@ export async function runReadinessCheck(
     checkMediaIntelligence(prisma),
     checkInvestigationGraph(prisma),
   ]);
+
+  // Phase 32.7 — degradation boundary annotation. Each subsystem's
+  // result gets a typed `affectedDomain` field so the frontend can
+  // scope the runtime banner to pages that actually depend on the
+  // failing subsystem (instead of every page rendering CRITICAL).
+  const subsystems: SubsystemReadiness[] = rawSubsystems.map((s) => ({
+    ...s,
+    affectedDomain: SUBSYSTEM_AFFECTED_DOMAIN[s.id],
+  }));
+
   return {
     status: rollUpStatus(subsystems),
     ranAtUtc: new Date().toISOString(),

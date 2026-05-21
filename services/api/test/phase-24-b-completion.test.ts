@@ -122,8 +122,12 @@ describe("Phase 24-B — runtime readiness surfaces search_indexing", () => {
   });
 
   it("the aggregator runs the search_indexing check in parallel with the others", () => {
+    // Phase 32.7 — the local was renamed from `subsystems` to
+    // `rawSubsystems` to make room for a `.map(...)` step that
+    // injects `affectedDomain` per subsystem before the result is
+    // returned. The Promise.all parallel structure is unchanged.
     expect(src).toMatch(
-      /subsystems: SubsystemReadiness\[\] = await Promise\.all\(\[[\s\S]*?checkSearchIndexing\(prisma\)/,
+      /(raw)?[Ss]ubsystems(?::\s*SubsystemReadiness\[\])?\s*=\s*await Promise\.all\(\[[\s\S]*?checkSearchIndexing\(prisma\)/,
     );
   });
 

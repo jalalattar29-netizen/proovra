@@ -293,7 +293,17 @@ export default function GovernancePage() {
 
   return (
     <main style={pageStyle}>
-      {teamId ? <RuntimeStatusBanner teamId={teamId} /> : null}
+      {teamId ? (
+        // Phase 32.7 — degradation boundary. The governance page
+        // only surfaces a runtime banner when a failing subsystem
+        // is in the `governance_lifecycle` domain. A degraded
+        // worker / queue / search subsystem will no longer poison
+        // this page.
+        <RuntimeStatusBanner
+          teamId={teamId}
+          forDomains={["governance_lifecycle"]}
+        />
+      ) : null}
       <header>
         <h1 style={titleStyle}>Workspace governance</h1>
         <p style={mutedStyle}>

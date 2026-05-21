@@ -3312,53 +3312,37 @@ const effectiveReportEvidencePayload = {
     let finalizedVerificationZip: Buffer | null = null;
     let finalizedVerificationArtifactPresence: VerificationPackageArtifactPresence | null = null;
 
-    // Phase 32.5 — Pre-gate: verification package requires a teamId for
-    // governance-context reasoning. Personal-workspace evidence (no team)
-    // has no governance context to attest against, so we MUST NOT invoke
-    // the package gate with a null team — that path raises
-    // PackageGateDeniedError("GOVERNANCE_STATE_UNAVAILABLE",
-    //   "teamId_or_evidenceId_missing") and lights up Sentry.
+    // Phase 32.6.6 — personal BASIC + team GOVERNED modes (was: skip
+    // personal entirely).
     //
-    // The correct enterprise-safe behavior for personal-workspace evidence
-    // is: report still builds, verification package is NOT produced. The
-    // frontend reads this state via /v1/evidence/:id/artifacts/status (the
-    // verificationPackage row simply stays absent) and renders the
-    // appropriate "package not available for personal workspace" copy.
+    // The previous Phase 32.5 behavior was to SKIP verification
+    // package generation for any evidence without a teamId. That was
+    // overly conservative: personal evidence still needs a
+    // verification package — the user can sign, report, and verify
+    // their own record. Skipping left those users with a 410
+    // "unavailable for personal-workspace" response on the
+    // download endpoint, which is incorrect product semantics.
     //
-    // We log this at INFO level (NOT error / NOT Sentry) so ops can see
-    // the skip without false alarms.
-    const personalWorkspacePackageSkipped =
-      !finalized.skipped &&
-      prepared.verificationPackageIncluded &&
-      !evidence.teamId;
-    if (personalWorkspacePackageSkipped) {
-      logger.info(
-        {
-          evidenceId,
-          reportVersion: prepared.version,
-          reason: "personal_workspace_no_team_governance_context",
-        },
-        "verification_package.skipped_personal_workspace",
-      );
-      // Phase 32.6 — bounded SRE counter for the canonical skip path.
-      // Distinct from package_generation_failed_total so dashboards
-      // can separate "skipped by design" from "broken".
-      try {
-        const { bump } = await import("@proovra/shared-runtime/ops");
-        bump("package_generation_skipped_personal_workspace_total");
-      } catch {
-        /* metrics are best-effort */
-      }
-    }
+    // The new contract:
+    //   * `evidence.teamId == null` → createVerificationPackage builds
+    //     a PERSONAL BASIC package (no governance gate, no workspace
+    //     policy section; `package-mode.json` declares `personal_basic`).
+    //   * `evidence.teamId != null` → createVerificationPackage builds
+    //     a TEAM GOVERNED package (existing behavior unchanged; the
+    //     workspace governance gate, legal hold, and policy still
+    //     enforce — no governance weakening).
+    //
+    // The personal-workspace skip counter
+    // (`package_generation_skipped_personal_workspace_total`) is
+    // intentionally not bumped any longer; personal evidence now
+    // counts as a normal generation attempt. The counter remains
+    // registered in the catalog for backward-compat with historic
+    // dashboards.
 
     if (
       !finalized.skipped &&
-prepared.verificationPackageIncluded &&
-      finalized.finalizedCustodyEvents.length > 0 &&
-      // Phase 32.5 — skip package generation entirely when teamId is
-      // absent. The gate would deny with GOVERNANCE_STATE_UNAVAILABLE;
-      // pre-checking here avoids the false-positive Sentry alert.
-      !!evidence.teamId
+      prepared.verificationPackageIncluded &&
+      finalized.finalizedCustodyEvents.length > 0
     ) {
       // Phase 32.6 — bump the started counter at the canonical
       // entry point so SRE dashboards count attempts (vs. successes
