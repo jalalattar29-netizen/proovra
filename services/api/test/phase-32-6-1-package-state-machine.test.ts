@@ -274,7 +274,11 @@ describe("Phase 32.6.1 — runtime-readiness Redis live ping", () => {
 
   it("ping failure → CRITICAL with bounded error message slice", () => {
     const idx = SRC.indexOf("async function checkRedis");
-    const slice = SRC.slice(idx, idx + 3000);
+    // Phase 32.7.3 — function body widened with the
+    // explicit-connect race-fix comment; the previous 3000-char
+    // window no longer reaches the CRITICAL branch. Widen to 5000
+    // (consistent with the sibling `finally` test below).
+    const slice = SRC.slice(idx, idx + 5000);
     expect(slice).toMatch(/status: "CRITICAL",[\s\S]{0,400}reasonCode: "redis_unreachable"/);
     expect(slice).toMatch(/err\.message\.slice\(0, 120\)/);
   });

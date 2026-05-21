@@ -455,6 +455,36 @@ async function checkRedis(): Promise<SubsystemReadiness> {
   const startedAt = Date.now();
   try {
     const { default: IORedis } = await import("ioredis");
+    // Phase 32.7.3 — Redis readiness probe redesign.
+    //
+    // The previous combination
+    //   { lazyConnect: true, enableOfflineQueue: false }
+    // is a known ioredis antipattern for one-shot probes. When
+    // `ping()` is called on a still-connecting client, ioredis
+    // attempts to send the PING command on the not-yet-writeable
+    // stream. With `enableOfflineQueue: false` it cannot buffer
+    // the command, so it throws synchronously:
+    //   "Stream isn't writeable and enableOfflineQueue options is false"
+    // BEFORE the connect handshake has a chance to resolve.
+    //
+    // Production evidence (Phase 32.7.3 brief):
+    //   docker exec docker-redis-1 redis-cli ping returns PONG
+    //   Worker logs show redis.connection.ready
+    //   API + worker both use REDIS_URL=redis://redis:6379
+    // …yet the readiness probe consistently reported CRITICAL.
+    //
+    // Fix: explicitly call `await pingClient.connect()` BEFORE
+    // calling `ping()`. With `lazyConnect: true`, this kicks off
+    // the connect and resolves only when the stream becomes
+    // writeable (or rejects on connectTimeout). The subsequent
+    // `ping()` then runs on a known-writeable stream and never
+    // hits the offline-queue guard.
+    //
+    // We keep `enableOfflineQueue: false` because the connect is
+    // now awaited explicitly; the offline queue would be
+    // redundant. The probe still fails fast on real outage: a
+    // genuinely unreachable Redis raises ECONNREFUSED / ENOTFOUND
+    // within the 500ms connectTimeout.
     pingClient = new IORedis(process.env.REDIS_URL as string, {
       connectTimeout: 500,
       maxRetriesPerRequest: 0,
@@ -463,6 +493,11 @@ async function checkRedis(): Promise<SubsystemReadiness> {
       // Suppress reconnect attempts — this is a single probe.
       retryStrategy: () => null,
     });
+    // Explicit connect avoids the lazyConnect+offlineQueue:false
+    // race. If the connect fails, the catch arm below handles it
+    // exactly the same way as before (CRITICAL with bounded
+    // metadata).
+    await withTimeout(pingClient.connect(), null, 1000);
     await withTimeout(pingClient.ping(), null, 1000);
     const latencyMs = Date.now() - startedAt;
     return {
@@ -705,15 +740,52 @@ async function checkWorkers(prisma: PrismaClient): Promise<SubsystemReadiness> {
       } catch {
         /* metrics are best-effort */
       }
+
+      // Phase 32.7.3 — distinguish "worker process not running" from
+      // "configuration issue". The reconcile endpoint requires the
+      // worker to present `x-cron-secret` matching either
+      // REVIEWER_OPS_CRON_SECRET or INTEGRATION_CRON_SECRET. Both
+      // env names are read by the API route handler at
+      // services/api/src/routes/reviewer-ops.routes.ts:1175-1182. If
+      // neither is set on the API side, the worker cannot
+      // authenticate, the reconcile endpoint never runs, and the
+      // heartbeat never lands. The readiness should call out the
+      // env keys explicitly so operators don't waste time blaming
+      // the worker process.
+      const hasReviewerOpsCron = envPresent("REVIEWER_OPS_CRON_SECRET");
+      const hasIntegrationCron = envPresent("INTEGRATION_CRON_SECRET");
+      if (!hasReviewerOpsCron && !hasIntegrationCron) {
+        return {
+          id: "workers",
+          status: "DEGRADED",
+          reasonCode: "reconcile_cron_secret_missing",
+          detail:
+            "Reconcile endpoint cannot be authenticated — neither REVIEWER_OPS_CRON_SECRET nor INTEGRATION_CRON_SECRET is set on the API env. The worker cannot deliver a heartbeat.",
+          remediationHint:
+            "Set REVIEWER_OPS_CRON_SECRET (or INTEGRATION_CRON_SECRET) on BOTH the api and worker processes; restart both. See runbooks/reviewer-reconcile-secret-missing.md.",
+          metadata: {
+            apiUptimeMs,
+            startupGraceMs,
+            hasReviewerOpsCronSecret: false,
+            hasIntegrationCronSecret: false,
+          },
+        };
+      }
+
       return {
         id: "workers",
         status: "DEGRADED",
         reasonCode: "no_recent_reconcile",
         detail:
-          "No reviewer reconciliation has been observed. Worker may not have started yet.",
+          "No reviewer reconciliation has been observed. Worker may not have started yet, or the worker cannot reach the API.",
         remediationHint:
-          "Confirm worker process is running and REVIEWER_OPS_RECONCILIATION_ENABLED is set.",
-        metadata: { apiUptimeMs, startupGraceMs },
+          "Confirm worker process is running, REVIEWER_OPS_RECONCILIATION_ENABLED is true, INTERNAL_API_BASE_URL points at the API, and the cron secret matches on both sides.",
+        metadata: {
+          apiUptimeMs,
+          startupGraceMs,
+          hasReviewerOpsCronSecret: hasReviewerOpsCron,
+          hasIntegrationCronSecret: hasIntegrationCron,
+        },
       };
     }
     const ageMs = Date.now() - recent.createdAt.getTime();

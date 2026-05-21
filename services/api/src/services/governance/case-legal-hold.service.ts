@@ -210,6 +210,29 @@ export async function isEvidenceUnderAnyLegalHold(
 // Read helpers
 // -----------------------------------------------------------------------------
 
+// Phase 32.7.3 — explicit `select` clause to bound the query
+// surface to columns the projection actually uses. See the
+// matching constant on EvidenceLegalHold in governance.service.ts
+// for the rationale.
+const CASE_LEGAL_HOLD_SELECT = {
+  id: true,
+  teamId: true,
+  caseId: true,
+  title: true,
+  status: true,
+  placedByUserId: true,
+  placedAtUtc: true,
+  releasedByUserId: true,
+  releasedAtUtc: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+export type CaseLegalHoldProjection = Pick<
+  DbCaseHold,
+  keyof typeof CASE_LEGAL_HOLD_SELECT
+>;
+
 export async function listCaseLegalHolds(
   input: {
     teamId: string;
@@ -218,7 +241,7 @@ export async function listCaseLegalHolds(
     limit?: number;
   },
   client: PrismaClient = defaultPrisma,
-): Promise<DbCaseHold[]> {
+): Promise<CaseLegalHoldProjection[]> {
   return client.caseLegalHold.findMany({
     where: {
       teamId: input.teamId,
@@ -227,10 +250,12 @@ export async function listCaseLegalHolds(
     },
     orderBy: { placedAtUtc: "desc" },
     take: Math.min(Math.max(input.limit ?? 50, 1), 200),
+    select: CASE_LEGAL_HOLD_SELECT,
   });
 }
 
-export function projectCaseLegalHold(hold: DbCaseHold): {
+// Phase 32.7.3 — accept the bounded projection type.
+export function projectCaseLegalHold(hold: CaseLegalHoldProjection): {
   id: string;
   teamId: string;
   caseId: string;

@@ -206,6 +206,38 @@ export async function listLegalHoldsForEvidence(
   });
 }
 
+// Phase 32.7.3 — explicit `select` clause to bound the query
+// surface to columns the projection actually uses. Without this,
+// Prisma's default-select pulls every declared field of
+// `EvidenceLegalHold`, and the entire query P2022s if ANY column is
+// missing in production (even columns the route doesn't return).
+//
+// Production reality (per Phase 32.7.3 brief): the runtime schema
+// validator only confirms TABLE existence, not COLUMN existence.
+// `evidence_legal_holds` exists in production with the bounded set
+// of columns confirmed by operator inspection. The columns
+// projected here are a strict subset of that confirmed set — they
+// are the same columns `projectLegalHold` consumes.
+const LEGAL_HOLD_SELECT = {
+  id: true,
+  teamId: true,
+  evidenceId: true,
+  caseId: true,
+  title: true,
+  reason: true,
+  status: true,
+  placedByUserId: true,
+  placedAtUtc: true,
+  releasedByUserId: true,
+  releasedAtUtc: true,
+  releaseNote: true,
+} as const;
+
+export type LegalHoldProjection = Pick<
+  DbLegalHold,
+  keyof typeof LEGAL_HOLD_SELECT
+>;
+
 export async function listLegalHoldsForTeam(
   input: {
     teamId: string;
@@ -213,7 +245,7 @@ export async function listLegalHoldsForTeam(
     limit?: number;
   },
   client: PrismaClient = defaultPrisma,
-): Promise<DbLegalHold[]> {
+): Promise<LegalHoldProjection[]> {
   return client.evidenceLegalHold.findMany({
     where: {
       teamId: input.teamId,
@@ -221,6 +253,7 @@ export async function listLegalHoldsForTeam(
     },
     orderBy: { placedAtUtc: "desc" },
     take: Math.min(Math.max(input.limit ?? 100, 1), 500),
+    select: LEGAL_HOLD_SELECT,
   });
 }
 
@@ -928,7 +961,11 @@ export function projectEffectivePolicy(policy: EffectivePolicy): EffectivePolicy
   return policy;
 }
 
-export function projectLegalHold(hold: DbLegalHold): {
+// Phase 32.7.3 — accept the bounded projection type so callers
+// using the explicit `select` clause in `listLegalHoldsForTeam`
+// type-check correctly. Existing callers that pass a full
+// `DbLegalHold` continue to work (it's a superset).
+export function projectLegalHold(hold: LegalHoldProjection): {
   id: string;
   teamId: string;
   evidenceId: string;
