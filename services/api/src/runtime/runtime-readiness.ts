@@ -474,17 +474,45 @@ async function checkRedis(): Promise<SubsystemReadiness> {
       metadata: { configured: true, reachable: true, latencyMs },
     };
   } catch (err) {
+    // Phase 32.7.1 — surface bounded error class + timing on
+    // CRITICAL so operators can distinguish:
+    //   - genuine connectivity failure (ECONNREFUSED / ENOTFOUND /
+    //     ETIMEDOUT) → infrastructure issue, fix REDIS_URL or network
+    //   - "Stream isn't writeable" → 500ms connect window expired
+    //     before TCP handshake completed (genuine slow Redis)
+    //   - other errno → check Sentry breadcrumbs (the
+    //     beforeSend filter drops these but server logs retain them)
+    //
+    // The Sentry filter (services/api/src/observability/sentry.ts)
+    // already suppresses ECONNREFUSED / Connection is closed /
+    // Connection lost / Stream isn't writeable from alerting. The
+    // readiness CRITICAL signal remains as the canonical surface.
+    const errName =
+      err instanceof Error ? err.name : "non_error_throw";
+    const errCode =
+      err instanceof Error && "code" in err
+        ? (err as Error & { code?: string }).code ?? null
+        : null;
+    const elapsedMs = Date.now() - startedAt;
     return {
       id: "redis",
       status: "CRITICAL",
       reasonCode: "redis_unreachable",
       detail:
         err instanceof Error
-          ? `Redis ping failed: ${err.message.slice(0, 120)}`
+          ? `Redis ping failed after ${elapsedMs}ms: ${err.message.slice(0, 120)}`
           : "Redis ping failed.",
       remediationHint:
-        "Restart Redis and verify REDIS_URL. If on Docker, check container status with `docker ps`.",
-      metadata: { configured: true, reachable: false },
+        elapsedMs < 600
+          ? "Failed within the 500ms connect window. Verify REDIS_URL host/port reachability, TLS scheme (rediss://), and that the network policy allows egress to Redis."
+          : "Connect succeeded but ping did not respond within 1s. Redis may be CPU-saturated or under memory pressure. Check Redis logs.",
+      metadata: {
+        configured: true,
+        reachable: false,
+        elapsedMs,
+        errClass: errName,
+        errCode,
+      },
     };
   } finally {
     if (pingClient) {
@@ -713,7 +741,7 @@ async function checkWorkers(prisma: PrismaClient): Promise<SubsystemReadiness> {
       remediationHint: null,
       metadata: { lastReconcileAgeMs: ageMs },
     };
-  } catch {
+  } catch (err) {
     // Phase 32.7 — telemetry query failure is NOT a worker failure
     // signal. The DB query against `security_events` couldn't run;
     // that's a platform telemetry condition. Returning UNKNOWN (not
@@ -722,15 +750,32 @@ async function checkWorkers(prisma: PrismaClient): Promise<SubsystemReadiness> {
     // UNKNOWN, but no DEGRADED/CRITICAL banner will poison pages
     // bound to the reviewer_ops domain because workers themselves
     // may still be healthy.
+    //
+    // Phase 32.7.1 — surface the Prisma error code when present so
+    // operators can distinguish "pool exhausted" (P2024) /
+    // "transaction timeout" / "connection error" / "table missing"
+    // (P2021) etc. without expanding the bounded reasonCode catalog.
+    // The detail keeps the bounded message but appends the error
+    // code for SRE triage. NEVER includes the raw message body
+    // (which could contain SQL fragments or PII).
+    const prismaCode =
+      err instanceof Error && "code" in err
+        ? (err as Error & { code?: string }).code ?? null
+        : null;
+    const codeSuffix = prismaCode ? ` (code: ${prismaCode})` : "";
     return {
       id: "workers",
       status: "UNKNOWN",
       reasonCode: "telemetry_query_failed",
       detail:
-        "Worker heartbeat telemetry source could not be queried; worker health is unknown (not degraded).",
+        `Worker heartbeat telemetry source could not be queried${codeSuffix}; worker health is unknown (not degraded).`,
       remediationHint:
-        "Confirm SecurityEvent table is reachable. The worker itself may be healthy; this signal reflects the readiness query, not the worker process.",
-      metadata: {},
+        prismaCode === "P2024"
+          ? "Prisma connection pool exhausted (P2024). Audit hot GET routes for synchronous transactions; ensure analytics writes are fire-and-forget."
+          : "Confirm SecurityEvent table is reachable. The worker itself may be healthy; this signal reflects the readiness query, not the worker process.",
+      metadata: {
+        prismaCode: prismaCode ?? null,
+      },
     };
   }
 }

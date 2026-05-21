@@ -8754,13 +8754,32 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
 
       const accessedAt = new Date();
 
-      await prisma.evidence.update({
-        where: { id },
-        data: {
-          lastAccessedByUserId: ownerUserId,
-          lastAccessedAtUtc: accessedAt,
-        },
-      });
+      // Phase 32.7.1 — fire-and-forget the analytics update for
+      // `lastAccessedByUserId` / `lastAccessedAtUtc`. Under Neon
+      // pool pressure this synchronous update could fail to start
+      // a transaction and break the original-presign download for
+      // the user, even though the presigned URL itself was already
+      // generated. The update is pure analytics (display-side
+      // "last accessed by X on Y"); the forensic custody event is
+      // emitted separately below.
+      void prisma.evidence
+        .update({
+          where: { id },
+          data: {
+            lastAccessedByUserId: ownerUserId,
+            lastAccessedAtUtc: accessedAt,
+          },
+        })
+        .catch((err) => {
+          req.log.warn(
+            {
+              evidenceId: id,
+              err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+              surface: "evidence.lastAccessedAtUtc",
+            },
+            "original_presign.access_log_failed",
+          );
+        });
 
       await appendCustodyEvent({
         evidenceId: id,
@@ -9971,27 +9990,92 @@ const overallIntegrity =
       evidenceStatusForGate === EvidenceStatus.REPORTED;
 
     if (isFinalizedForVerify) {
-      await prisma.$transaction([
-        prisma.evidence.update({
-          where: { id },
-          data: {
-            // Analytics-only timestamp — does NOT imply a meaningful technical
-            // verification by a reviewer. lastVerifiedAtUtc is intentionally
-            // not touched here.
-            lastPublicVerifyViewAtUtc: verifiedAt,
-          },
-        }),
-        prisma.verificationView.create({
-          data: {
+      // Phase 32.7.1 — BLOCKER FIX. The previous implementation
+      // awaited a `prisma.$transaction([evidence.update,
+      // verificationView.create])` here, blocking the public verify
+      // response on two analytics writes. Under Neon connection
+      // pressure the transaction failed to start within the pooler
+      // window, raising
+      //   "Unable to start a transaction in the given time"
+      // and propagating to Sentry as a high-priority issue. The
+      // verify response then returned 500 even though the actual
+      // verification data was already read successfully above.
+      //
+      // The two writes are ANALYTICS-ONLY:
+      //   * `lastPublicVerifyViewAtUtc` is a UI timestamp; it does
+      //     NOT imply a meaningful technical verification.
+      //   * `verificationView.create()` is a view-counter row used
+      //     by the access export in the verification package.
+      //
+      // Neither needs atomicity, neither needs to block the
+      // response, and a failure on either is non-forensic.
+      //
+      // The fix:
+      //   1. Drop the `$transaction` wrapper. Each write becomes an
+      //      independent statement, releasing its pool slot as soon
+      //      as the single statement completes.
+      //   2. Fire-and-forget. The response now does not await.
+      //   3. Failures log a bounded WARN line and do NOT propagate
+      //      to Sentry (no `captureException`).
+      //
+      // Custody / audit / forensic semantics: UNCHANGED. The
+      // `auditVerificationAction()` call below remains, and it
+      // already wraps its own platform-audit-log append in a
+      // fire-and-forget `.catch(() => null)`.
+      const viewerUserAgent = readUserAgent(req);
+      const viewerIp = req.ip;
+      void (async () => {
+        const results = await Promise.allSettled([
+          prisma.evidence.update({
+            where: { id },
+            data: { lastPublicVerifyViewAtUtc: verifiedAt },
+          }),
+          prisma.verificationView.create({
+            data: {
+              evidenceId: id,
+              viewerType: VerificationViewerType.PUBLIC,
+              viewerUserId: null,
+              accessMode: "public_verify",
+              ipAddress: viewerIp,
+              userAgent: viewerUserAgent,
+            },
+          }),
+        ]);
+        const failures = results
+          .map((r, i) => (r.status === "rejected" ? { i, r } : null))
+          .filter((x): x is { i: number; r: PromiseRejectedResult } => x !== null);
+        if (failures.length > 0) {
+          for (const { i, r } of failures) {
+            const which = i === 0 ? "evidence.lastPublicVerifyViewAtUtc" : "verificationView";
+            req.log.warn(
+              {
+                evidenceId: id,
+                err:
+                  r.reason instanceof Error
+                    ? r.reason.message.slice(0, 200)
+                    : String(r.reason).slice(0, 200),
+                code:
+                  r.reason instanceof Error && "code" in r.reason
+                    ? (r.reason as { code?: string }).code ?? null
+                    : null,
+                surface: which,
+              },
+              "public_verify.access_log_failed",
+            );
+          }
+        }
+      })().catch((err) => {
+        // Defensive: the inner block already swallows. This catch
+        // exists for the truly pathological case where the IIFE
+        // itself rejects before reaching the inner try.
+        req.log.warn(
+          {
             evidenceId: id,
-            viewerType: VerificationViewerType.PUBLIC,
-            viewerUserId: null,
-            accessMode: "public_verify",
-            ipAddress: req.ip,
-            userAgent: readUserAgent(req),
+            err: err instanceof Error ? err.message : String(err),
           },
-        }),
-      ]);
+          "public_verify.access_log_iife_failed",
+        );
+      });
     }
 
     auditVerificationAction(req, {

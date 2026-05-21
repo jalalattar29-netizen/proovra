@@ -281,7 +281,10 @@ describe("Phase 32.6.1 — runtime-readiness Redis live ping", () => {
 
   it("ping client is always disconnected in a finally block (no socket leak)", () => {
     const idx = SRC.indexOf("async function checkRedis");
-    const slice = SRC.slice(idx, idx + 3000);
+    // Phase 32.7.1 — function body widened to surface triage
+    // metadata; the previous 3000-char window no longer reaches
+    // the `} finally {` block. Widen to 5000.
+    const slice = SRC.slice(idx, idx + 5000);
     expect(slice).toMatch(/} finally \{[\s\S]{0,400}pingClient\.disconnect\(\)/);
   });
 });
