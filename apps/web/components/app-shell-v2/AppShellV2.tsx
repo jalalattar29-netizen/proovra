@@ -46,6 +46,17 @@ useEffect(() => {
         onToggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
       />
 
+      {/*
+         Phase 32.6.4 — sidebar resolves its own workspace role via
+         `useActiveWorkspaceId`. We deliberately do NOT pass `role`
+         or `workspaceProfile` here: the parent shell does not have
+         access to per-workspace role data (AppShellUserV2 only
+         carries account-level fields). The sidebar's internal
+         resolver is the canonical path. Role-gated nav items
+         (Retention / Destruction / Teams / Billing / Policy) were
+         previously hidden from everyone because the predicate
+         fail-closed on a null role; the sidebar fix wires it.
+      */}
       <div className="app-shell-v2-main">
         <div className="app-shell-v2-desktop-sidebar">
           <AppSidebarV2 isPlatformAdmin={isPlatformAdmin} />

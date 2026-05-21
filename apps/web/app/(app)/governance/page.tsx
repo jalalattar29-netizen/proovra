@@ -18,11 +18,62 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { useActiveWorkspaceId } from "../../../lib/useActiveWorkspaceId";
 import {
   NoGovernanceIncidentsEmptyState,
   OperationalEmptyState,
   RuntimeStatusBanner,
 } from "../../../components/operational";
+
+// Phase 32.6.4 — bounded per-widget state machine. Replaces the
+// previous `null | data` pattern where any rejected `Promise.all`
+// branch left every widget stuck on "Loading…" forever.
+type WidgetState<T> =
+  | { status: "loading" }
+  | { status: "ready"; data: T }
+  | { status: "error"; message: string; requestId?: string };
+
+const WIDGET_LOADING = { status: "loading" } as const;
+
+function widgetErrorMessageFor(
+  surface: "policy" | "legal-holds" | "case-legal-holds" | "retention-candidates",
+  err: unknown,
+): { message: string; requestId?: string } {
+  const e = err as { statusCode?: number; code?: string; requestId?: string };
+  // Surface bounded, enterprise-safe text. We deliberately do NOT
+  // forward raw API messages — they may contain Prisma error
+  // fragments, internal table names, or stack traces.
+  if (e?.statusCode === 401) {
+    return { message: "Sign-in required to view this section.", requestId: e.requestId };
+  }
+  if (e?.statusCode === 403) {
+    return { message: "Permission required to view this section.", requestId: e.requestId };
+  }
+  if (e?.statusCode === 503 || e?.code === "governance_schema_unavailable") {
+    return {
+      message:
+        surface === "policy"
+          ? "Policy is temporarily unavailable. Operators have been notified — retry shortly."
+          : surface === "legal-holds"
+            ? "Legal holds are temporarily unavailable. Retry shortly."
+            : surface === "case-legal-holds"
+              ? "Case-level legal holds are temporarily unavailable. Retry shortly."
+              : "Retention candidates are temporarily unavailable. Retry shortly.",
+      requestId: e.requestId,
+    };
+  }
+  return {
+    message:
+      surface === "policy"
+        ? "Unable to load policy."
+        : surface === "legal-holds"
+          ? "Unable to load legal holds."
+          : surface === "case-legal-holds"
+            ? "Unable to load case-level legal holds."
+            : "Unable to load retention candidates.",
+    requestId: e?.requestId,
+  };
+}
 
 type Policy = {
   defaultRetentionDays: number | null;
@@ -75,68 +126,118 @@ type RetentionCandidate = {
 };
 
 export default function GovernancePage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
-  const [policy, setPolicy] = useState<Policy | null>(null);
-  const [holds, setHolds] = useState<LegalHold[] | null>(null);
-  const [caseHolds, setCaseHolds] = useState<CaseLegalHold[] | null>(null);
-  const [retentionCandidates, setRetentionCandidates] =
-    useState<RetentionCandidate[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Phase 32.6.4 — adopt the canonical workspace resolver. The
+  // previous open-coded `/v1/users/me` call dropped the `/v1/teams`
+  // fallback the topbar uses, so the page incorrectly rendered
+  // "Switch to a workspace" for any user whose
+  // `users.currentWorkspaceId` happened to be null even when they
+  // had memberships.
+  const workspace = useActiveWorkspaceId();
+  const teamId =
+    workspace.status === "ready" ? workspace.workspaceId : null;
+
+  // Phase 32.6.4 — per-widget independent state. A failure on one
+  // endpoint (e.g. 503 from `/policy`) MUST NOT leave the other
+  // three widgets stuck on "Loading…". The previous Promise.all
+  // pattern set `policy`/`holds`/`caseHolds`/`retentionCandidates`
+  // to `null` and only updated `setError`, so every widget rendered
+  // its "Loading…" branch forever.
+  const [policyWidget, setPolicyWidget] = useState<WidgetState<Policy>>(
+    WIDGET_LOADING,
+  );
+  const [holdsWidget, setHoldsWidget] = useState<WidgetState<LegalHold[]>>(
+    WIDGET_LOADING,
+  );
+  const [caseHoldsWidget, setCaseHoldsWidget] = useState<
+    WidgetState<CaseLegalHold[]>
+  >(WIDGET_LOADING);
+  const [retentionWidget, setRetentionWidget] = useState<
+    WidgetState<RetentionCandidate[]>
+  >(WIDGET_LOADING);
+
   const [busy, setBusy] = useState(false);
   const [releaseDialog, setReleaseDialog] = useState<LegalHold | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((res: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (cancelled) return;
-        setTeamId(res?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
-    Promise.all([
-      apiFetch(`/v1/governance/policy?teamId=${encodeURIComponent(teamId)}`, {
+
+    // Phase 32.6.4 — each widget loads independently. We use
+    // Promise.allSettled to (1) kick all four off in parallel, but
+    // (2) inspect each settled result on its own so per-widget
+    // state transitions correctly to either `ready` or `error`.
+    const enc = encodeURIComponent(teamId);
+
+    // Reset each widget to loading on teamId transition so a stale
+    // ready/error from a prior workspace can't bleed through.
+    setPolicyWidget(WIDGET_LOADING);
+    setHoldsWidget(WIDGET_LOADING);
+    setCaseHoldsWidget(WIDGET_LOADING);
+    setRetentionWidget(WIDGET_LOADING);
+
+    Promise.allSettled([
+      apiFetch(`/v1/governance/policy?teamId=${enc}`, { method: "GET" }),
+      apiFetch(`/v1/governance/legal-holds?teamId=${enc}`, { method: "GET" }),
+      apiFetch(`/v1/governance/case-legal-holds?teamId=${enc}`, {
         method: "GET",
       }),
-      apiFetch(
-        `/v1/governance/legal-holds?teamId=${encodeURIComponent(teamId)}`,
-        { method: "GET" },
-      ),
-      apiFetch(
-        `/v1/governance/case-legal-holds?teamId=${encodeURIComponent(teamId)}`,
-        { method: "GET" },
-      ).catch(() => ({ caseLegalHolds: [] })),
-      apiFetch(
-        `/v1/governance/retention-candidates?teamId=${encodeURIComponent(teamId)}`,
-        { method: "GET" },
-      ).catch(() => ({ candidates: [] })),
-    ])
-      .then(
-        ([p, h, ch, rc]: [
-          { policy: Policy },
-          { legalHolds: LegalHold[] },
-          { caseLegalHolds?: CaseLegalHold[] },
-          { candidates?: RetentionCandidate[] },
-        ]) => {
-          if (cancelled) return;
-          setPolicy(p.policy);
-          setHolds(h.legalHolds ?? []);
-          setCaseHolds(ch.caseLegalHolds ?? []);
-          setRetentionCandidates(rc.candidates ?? []);
-          setError(null);
-        },
-      )
-      .catch((err: { message?: string }) => {
-        if (cancelled) return;
-        setError(err?.message ?? "Unable to load governance data.");
-      });
+      apiFetch(`/v1/governance/retention-candidates?teamId=${enc}`, {
+        method: "GET",
+      }),
+    ]).then((results) => {
+      if (cancelled) return;
+
+      const [policyR, holdsR, caseHoldsR, retentionR] = results;
+
+      if (policyR.status === "fulfilled") {
+        const value = policyR.value as { policy: Policy };
+        setPolicyWidget({ status: "ready", data: value.policy });
+      } else {
+        setPolicyWidget({
+          status: "error",
+          ...widgetErrorMessageFor("policy", policyR.reason),
+        });
+      }
+
+      if (holdsR.status === "fulfilled") {
+        const value = holdsR.value as { legalHolds: LegalHold[] };
+        setHoldsWidget({
+          status: "ready",
+          data: value.legalHolds ?? [],
+        });
+      } else {
+        setHoldsWidget({
+          status: "error",
+          ...widgetErrorMessageFor("legal-holds", holdsR.reason),
+        });
+      }
+
+      if (caseHoldsR.status === "fulfilled") {
+        const value = caseHoldsR.value as { caseLegalHolds?: CaseLegalHold[] };
+        setCaseHoldsWidget({
+          status: "ready",
+          data: value.caseLegalHolds ?? [],
+        });
+      } else {
+        setCaseHoldsWidget({
+          status: "error",
+          ...widgetErrorMessageFor("case-legal-holds", caseHoldsR.reason),
+        });
+      }
+
+      if (retentionR.status === "fulfilled") {
+        const value = retentionR.value as { candidates?: RetentionCandidate[] };
+        setRetentionWidget({
+          status: "ready",
+          data: value.candidates ?? [],
+        });
+      } else {
+        setRetentionWidget({
+          status: "error",
+          ...widgetErrorMessageFor("retention-candidates", retentionR.reason),
+        });
+      }
+    });
     return () => {
       cancelled = true;
     };
@@ -154,7 +255,7 @@ export default function GovernancePage() {
           body: JSON.stringify({ teamId, ...patch }),
         },
       );
-      setPolicy(res.policy);
+      setPolicyWidget({ status: "ready", data: res.policy });
     } catch (err) {
       const e = err as { message?: string };
       alert(e?.message ?? "Could not save policy.");
@@ -174,9 +275,15 @@ export default function GovernancePage() {
           body: JSON.stringify({ teamId, releaseNote: note }),
         },
       );
-      setHolds((prev) =>
-        prev ? prev.map((h) => (h.id === hold.id ? res.legalHold : h)) : prev,
-      );
+      setHoldsWidget((prev) => {
+        if (prev.status !== "ready") return prev;
+        return {
+          status: "ready",
+          data: prev.data.map((h) =>
+            h.id === hold.id ? res.legalHold : h,
+          ),
+        };
+      });
       setReleaseDialog(null);
     } catch (err) {
       const e = err as { message?: string };
@@ -198,13 +305,35 @@ export default function GovernancePage() {
         </p>
       </header>
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
-
-      {!teamId ? (
+      {workspace.status === "loading" ? (
+        <p style={mutedStyle}>Loading workspace…</p>
+      ) : workspace.status === "error" ? (
+        <div style={errorBoxStyle}>{workspace.message}</div>
+      ) : !teamId ? (
         <p style={mutedStyle}>Switch to a workspace to manage governance.</p>
-      ) : policy === null ? (
+      ) : policyWidget.status === "loading" ? (
         <p style={mutedStyle}>Loading policy…</p>
-      ) : (
+      ) : policyWidget.status === "error" ? (
+        <section style={cardStyle}>
+          <h2 style={sectionTitleStyle}>Policy</h2>
+          <div style={errorBoxStyle}>
+            {policyWidget.message}
+            {policyWidget.requestId ? (
+              <div style={{ ...mutedStyle, marginTop: 6 }}>
+                Reference: {policyWidget.requestId}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : (() => {
+        // Phase 32.6.4 — bind a local form mutator that updates the
+        // widget data slot. Keeps the existing onChange shape (the
+        // form mutates `policy` locally; the network PUT happens
+        // when the operator clicks Save).
+        const policy = policyWidget.data;
+        const setPolicy = (next: Policy) =>
+          setPolicyWidget({ status: "ready", data: next });
+        return (
         <section style={cardStyle}>
           <h2 style={sectionTitleStyle}>Policy</h2>
           {policy.source === "default" ? (
@@ -300,13 +429,23 @@ export default function GovernancePage() {
             </button>
           </div>
         </section>
-      )}
+        );
+      })()}
 
       <section style={cardStyle}>
         <h2 style={sectionTitleStyle}>Legal holds</h2>
-        {holds === null ? (
+        {!teamId ? null : holdsWidget.status === "loading" ? (
           <p style={mutedStyle}>Loading legal holds…</p>
-        ) : holds.length === 0 ? (
+        ) : holdsWidget.status === "error" ? (
+          <div style={errorBoxStyle}>
+            {holdsWidget.message}
+            {holdsWidget.requestId ? (
+              <div style={{ ...mutedStyle, marginTop: 6 }}>
+                Reference: {holdsWidget.requestId}
+              </div>
+            ) : null}
+          </div>
+        ) : holdsWidget.data.length === 0 ? (
           <OperationalEmptyState
             emptyStateCode="no_evidence_legal_holds"
             kicker="Legal holds"
@@ -320,7 +459,7 @@ export default function GovernancePage() {
           />
         ) : (
           <ul style={listStyle}>
-            {holds.map((h) => (
+            {holdsWidget.data.map((h) => (
               <li key={h.id} style={holdRowStyle}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600 }}>{h.title}</div>
@@ -356,9 +495,18 @@ export default function GovernancePage() {
           internal preservation controls — they do not claim legal
           admissibility or authenticity.
         </p>
-        {caseHolds === null ? (
+        {!teamId ? null : caseHoldsWidget.status === "loading" ? (
           <p style={mutedStyle}>Loading case holds…</p>
-        ) : caseHolds.length === 0 ? (
+        ) : caseHoldsWidget.status === "error" ? (
+          <div style={errorBoxStyle}>
+            {caseHoldsWidget.message}
+            {caseHoldsWidget.requestId ? (
+              <div style={{ ...mutedStyle, marginTop: 6 }}>
+                Reference: {caseHoldsWidget.requestId}
+              </div>
+            ) : null}
+          </div>
+        ) : caseHoldsWidget.data.length === 0 ? (
           <OperationalEmptyState
             emptyStateCode="no_case_legal_holds"
             kicker="Legal holds"
@@ -369,7 +517,7 @@ export default function GovernancePage() {
           />
         ) : (
           <ul style={listStyle}>
-            {caseHolds.map((h) => (
+            {caseHoldsWidget.data.map((h) => (
               <li key={h.id} style={holdRowStyle}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600 }}>{h.title}</div>
@@ -397,13 +545,22 @@ export default function GovernancePage() {
           NOT auto-delete. Records on legal hold are excluded from this
           list.
         </p>
-        {retentionCandidates === null ? (
+        {!teamId ? null : retentionWidget.status === "loading" ? (
           <p style={mutedStyle}>Loading retention candidates…</p>
-        ) : retentionCandidates.length === 0 ? (
+        ) : retentionWidget.status === "error" ? (
+          <div style={errorBoxStyle}>
+            {retentionWidget.message}
+            {retentionWidget.requestId ? (
+              <div style={{ ...mutedStyle, marginTop: 6 }}>
+                Reference: {retentionWidget.requestId}
+              </div>
+            ) : null}
+          </div>
+        ) : retentionWidget.data.length === 0 ? (
           <NoGovernanceIncidentsEmptyState />
         ) : (
           <ul style={listStyle}>
-            {retentionCandidates.map((c) => (
+            {retentionWidget.data.map((c) => (
               <li key={c.id} style={holdRowStyle}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600 }}>

@@ -310,8 +310,8 @@ function SidebarGroup({
 
 export function AppSidebarV2({
   isPlatformAdmin = false,
-  role = null,
-  workspaceProfile = null,
+  role: explicitRole = null,
+  workspaceProfile: explicitProfile = null,
 }: {
   isPlatformAdmin?: boolean;
   /** Phase 32.5 — bounded workspace role for sidebar visibility
@@ -323,15 +323,31 @@ export function AppSidebarV2({
 }) {
   // Phase 28-J — sidebar consumes the same runtime state as the topbar
   // pill. Counts and dots reflect real values, polled every 45s.
+  // Phase 32.6.4 — sidebar now ALSO sources its role from the same
+  // workspace hook (which resolves it from `/v1/teams`). Without
+  // this wiring, the role-gated admin / governance / retention /
+  // destruction items were hidden from EVERYONE — including owners
+  // and admins — because the parent shell never passed `role` and
+  // the `filterByVisibility` predicate fail-closes on null.
   const workspace = useActiveWorkspaceId();
   const teamId =
     workspace.status === "ready" ? workspace.workspaceId : null;
   const runtime = useGlobalRuntimeState(teamId);
+
+  // Explicit prop wins; otherwise pull from the workspace hook. The
+  // role is bounded by `useActiveWorkspaceId`'s coercion, so anything
+  // we get here is a member of `WorkspaceRole` or null.
+  const resolvedRole: WorkspaceRole | null =
+    explicitRole ??
+    (workspace.status === "ready"
+      ? (workspace.role as WorkspaceRole | null)
+      : null);
+
   // Phase 32.5 — visibility context shared by every group.
   const visibilityContext = {
     isPlatformAdmin,
-    role,
-    profile: workspaceProfile,
+    role: resolvedRole,
+    profile: explicitProfile,
   };
 
   const runtimeTone = severityToTone(runtime.severity);

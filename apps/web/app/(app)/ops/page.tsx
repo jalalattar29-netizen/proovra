@@ -16,6 +16,51 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { useActiveWorkspaceId } from "../../../lib/useActiveWorkspaceId";
+
+// Phase 32.6.4 — bounded per-panel state machine. Replaces the
+// previous `null | data` pattern where a single 503 from any of the
+// three endpoints (health / incidents / metrics) blanked the entire
+// page via Promise.all rejection.
+type PanelState<T> =
+  | { status: "loading" }
+  | { status: "ready"; data: T }
+  | { status: "error"; message: string; requestId?: string };
+
+const PANEL_LOADING = { status: "loading" } as const;
+
+function panelErrorMessageFor(
+  surface: "health" | "incidents" | "metrics",
+  err: unknown,
+): { message: string; requestId?: string } {
+  const e = err as { statusCode?: number; code?: string; requestId?: string };
+  if (e?.statusCode === 401) {
+    return { message: "Sign-in required.", requestId: e.requestId };
+  }
+  if (e?.statusCode === 403) {
+    return { message: "Permission required.", requestId: e.requestId };
+  }
+  if (e?.statusCode === 503) {
+    return {
+      message:
+        surface === "health"
+          ? "System health is temporarily unavailable. Retry shortly."
+          : surface === "incidents"
+            ? "Incidents are temporarily unavailable. Retry shortly."
+            : "Metrics are temporarily unavailable. Retry shortly.",
+      requestId: e.requestId,
+    };
+  }
+  return {
+    message:
+      surface === "health"
+        ? "Unable to load system health."
+        : surface === "incidents"
+          ? "Unable to load incidents."
+          : "Unable to load metrics.",
+    requestId: e?.requestId,
+  };
+}
 
 type IncidentSeverity = "INFO" | "WARNING" | "HIGH" | "CRITICAL";
 type IncidentStatus =
@@ -80,63 +125,94 @@ const STATUSES: IncidentStatus[] = [
 ];
 
 export default function OpsPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
-  const [health, setHealth] = useState<Health | null>(null);
-  const [incidents, setIncidents] = useState<Incident[] | null>(null);
-  const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null);
+  // Phase 32.6.4 — adopt the canonical workspace resolver. Replaces
+  // the open-coded /v1/users/me call that bypassed the /v1/teams
+  // fallback (used by the topbar), which caused the same user to
+  // see a working topbar badge but a "Switch to a workspace" Ops page.
+  const workspace = useActiveWorkspaceId();
+  const teamId =
+    workspace.status === "ready" ? workspace.workspaceId : null;
+
+  // Phase 32.6.4 — per-panel independent state. A 503 from any one
+  // of (health / incidents / metrics) MUST NOT blank the other two
+  // panels.
+  const [healthPanel, setHealthPanel] =
+    useState<PanelState<Health>>(PANEL_LOADING);
+  const [incidentsPanel, setIncidentsPanel] =
+    useState<PanelState<Incident[]>>(PANEL_LOADING);
+  const [metricsPanel, setMetricsPanel] =
+    useState<PanelState<MetricsSnapshot>>(PANEL_LOADING);
+
   const [status, setStatus] = useState<IncidentStatus | "">("OPEN");
   const [severity, setSeverity] = useState<IncidentSeverity | "">("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
-    refresh();
+
+    const qs = `?teamId=${encodeURIComponent(teamId)}`;
+    const incidentsQs = `${qs}${status ? `&status=${status}` : ""}${severity ? `&severity=${severity}` : ""}`;
+
+    setHealthPanel(PANEL_LOADING);
+    setIncidentsPanel(PANEL_LOADING);
+    setMetricsPanel(PANEL_LOADING);
+
+    Promise.allSettled([
+      apiFetch(`/v1/ops/health${qs}`, { method: "GET" }),
+      apiFetch(`/v1/ops/incidents${incidentsQs}`, { method: "GET" }),
+      apiFetch(`/v1/ops/metrics${qs}`, { method: "GET" }),
+    ]).then(([healthR, incidentsR, metricsR]) => {
+      if (cancelled) return;
+
+      if (healthR.status === "fulfilled") {
+        setHealthPanel({
+          status: "ready",
+          data: healthR.value as Health,
+        });
+      } else {
+        setHealthPanel({
+          status: "error",
+          ...panelErrorMessageFor("health", healthR.reason),
+        });
+      }
+
+      if (incidentsR.status === "fulfilled") {
+        const value = incidentsR.value as { incidents: Incident[] };
+        setIncidentsPanel({
+          status: "ready",
+          data: value.incidents ?? [],
+        });
+      } else {
+        setIncidentsPanel({
+          status: "error",
+          ...panelErrorMessageFor("incidents", incidentsR.reason),
+        });
+      }
+
+      if (metricsR.status === "fulfilled") {
+        const value = metricsR.value as { metrics: MetricsSnapshot };
+        setMetricsPanel({ status: "ready", data: value.metrics });
+      } else {
+        setMetricsPanel({
+          status: "error",
+          ...panelErrorMessageFor("metrics", metricsR.reason),
+        });
+      }
+    });
+
     return () => {
       cancelled = true;
     };
-    function refresh() {
-      const qs = `?teamId=${encodeURIComponent(teamId!)}`;
-      Promise.all([
-        apiFetch(`/v1/ops/health${qs}`, { method: "GET" }),
-        apiFetch(
-          `/v1/ops/incidents${qs}${status ? `&status=${status}` : ""}${severity ? `&severity=${severity}` : ""}`,
-          { method: "GET" },
-        ),
-        apiFetch(`/v1/ops/metrics${qs}`, { method: "GET" }),
-      ])
-        .then(
-          ([h, i, m]: [
-            Health,
-            { incidents: Incident[] },
-            { metrics: MetricsSnapshot },
-          ]) => {
-            if (cancelled) return;
-            setHealth(h);
-            setIncidents(i.incidents ?? []);
-            setMetrics(m.metrics);
-            setError(null);
-          },
-        )
-        .catch((err: { message?: string }) => {
-          if (cancelled) return;
-          setError(err?.message ?? "Could not load ops data.");
-        });
-    }
   }, [teamId, status, severity]);
+
+  // Bounded helpers — JSX reads from these instead of hand-rolling
+  // every `panel.status === "ready" ? … : …` ternary.
+  const health = healthPanel.status === "ready" ? healthPanel.data : null;
+  const incidents =
+    incidentsPanel.status === "ready" ? incidentsPanel.data : null;
+  const metrics =
+    metricsPanel.status === "ready" ? metricsPanel.data : null;
 
   async function transitionIncident(
     id: string,
@@ -161,7 +237,7 @@ export default function OpsPage() {
         `/v1/ops/incidents${qs}${status ? `&status=${status}` : ""}${severity ? `&severity=${severity}` : ""}`,
         { method: "GET" },
       );
-      setIncidents(fresh.incidents ?? []);
+      setIncidentsPanel({ status: "ready", data: fresh.incidents ?? [] });
     } catch (err) {
       alert((err as { message?: string })?.message ?? "Action failed.");
     } finally {
@@ -196,17 +272,28 @@ export default function OpsPage() {
         </p>
       </header>
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
-
-      {!teamId ? (
+      {workspace.status === "loading" ? (
+        <p style={mutedStyle}>Loading workspace…</p>
+      ) : workspace.status === "error" ? (
+        <div style={errorBoxStyle}>{workspace.message}</div>
+      ) : !teamId ? (
         <p style={mutedStyle}>Switch to a workspace to use ops center.</p>
       ) : (
         <>
           <section style={cardStyle}>
             <h2 style={sectionTitleStyle}>System health</h2>
-            {!health ? (
+            {healthPanel.status === "loading" ? (
               <p style={mutedStyle}>Loading…</p>
-            ) : (
+            ) : healthPanel.status === "error" ? (
+              <div style={errorBoxStyle}>
+                {healthPanel.message}
+                {healthPanel.requestId ? (
+                  <div style={{ ...mutedStyle, marginTop: 6 }}>
+                    Reference: {healthPanel.requestId}
+                  </div>
+                ) : null}
+              </div>
+            ) : !health ? null : (
               <>
                 <div style={healthGridStyle}>
                   <Stat label="Database" value={health.database} />
@@ -258,7 +345,19 @@ export default function OpsPage() {
             )}
           </section>
 
-          {headlineCounters ? (
+          {metricsPanel.status === "error" ? (
+            <section style={cardStyle}>
+              <h2 style={sectionTitleStyle}>Headline counters</h2>
+              <div style={errorBoxStyle}>
+                {metricsPanel.message}
+                {metricsPanel.requestId ? (
+                  <div style={{ ...mutedStyle, marginTop: 6 }}>
+                    Reference: {metricsPanel.requestId}
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : headlineCounters ? (
             <section style={cardStyle}>
               <h2 style={sectionTitleStyle}>Headline counters</h2>
               <div style={healthGridStyle}>
@@ -320,9 +419,18 @@ export default function OpsPage() {
                 </select>
               </div>
             </div>
-            {incidents === null ? (
+            {incidentsPanel.status === "loading" ? (
               <p style={mutedStyle}>Loading…</p>
-            ) : incidents.length === 0 ? (
+            ) : incidentsPanel.status === "error" ? (
+              <div style={errorBoxStyle}>
+                {incidentsPanel.message}
+                {incidentsPanel.requestId ? (
+                  <div style={{ ...mutedStyle, marginTop: 6 }}>
+                    Reference: {incidentsPanel.requestId}
+                  </div>
+                ) : null}
+              </div>
+            ) : !incidents || incidents.length === 0 ? (
               <p style={mutedStyle}>No incidents match the filters.</p>
             ) : (
               <ul style={listStyle}>

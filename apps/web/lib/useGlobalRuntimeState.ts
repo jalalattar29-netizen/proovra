@@ -170,12 +170,49 @@ export function useGlobalRuntimeState(
     };
   }, []);
 
+  // Phase 32.6.4 — request-generation counter. Every effect run for
+  // a new teamId/clampedPoll/tick combination increments this. Any
+  // in-flight `tickOnce` that completes AFTER the generation has
+  // moved on (e.g. account switch, workspace switch) discards its
+  // result instead of leaking stale readiness into the new
+  // workspace's badge.
+  const generationRef = useRef(0);
+
   useEffect(() => {
+    // Phase 32.6.4 — explicit state reset when there is no teamId
+    // (logout, no-workspace account, between-workspace transitions).
+    // The previous implementation only set loading=false and left
+    // readiness/incidents/escalations holding stale data from the
+    // prior workspace, which the topbar pill then read as CRITICAL
+    // or INCIDENT_ACTIVE for the new context.
     if (!teamId) {
+      setReadiness(null);
+      setIncidents([]);
+      setEscalations([]);
+      setErrors({ readiness: false, incidents: false, escalations: false });
+      setRefreshedAtUtc(null);
       setLoading(false);
+      // Bump the generation so any in-flight previous-teamId tick
+      // discards its result on return.
+      generationRef.current += 1;
       return;
     }
+
+    const myGeneration = ++generationRef.current;
     let cancelled = false;
+
+    // Phase 32.6.4 — clear stale readiness/incidents/escalations on
+    // EVERY teamId transition, including from one valid teamId to
+    // another. Otherwise the badge can briefly render CRITICAL or
+    // INCIDENT_ACTIVE from the prior workspace while the new poll
+    // is still in flight. Loading state goes back to true so
+    // severity correctly maps to UNKNOWN during the transition.
+    setReadiness(null);
+    setIncidents([]);
+    setEscalations([]);
+    setErrors({ readiness: false, incidents: false, escalations: false });
+    setRefreshedAtUtc(null);
+    setLoading(true);
 
     async function tickOnce() {
       if (!teamId) return;
@@ -227,7 +264,14 @@ export function useGlobalRuntimeState(
         nextErrors.escalations = true;
       }
 
+      // Phase 32.6.4 — drop stale responses. Three guards in order
+      // of cheapness: the explicit cancelled flag, the component
+      // mounted flag, and the request-generation match. Generation
+      // mismatch is the only one that catches a slow response that
+      // arrives AFTER teamId has changed but BEFORE the next
+      // teardown has run.
       if (cancelled || !mountedRef.current) return;
+      if (generationRef.current !== myGeneration) return;
       setReadiness(nextReadiness);
       setIncidents(nextIncidents);
       setEscalations(nextEscalations);

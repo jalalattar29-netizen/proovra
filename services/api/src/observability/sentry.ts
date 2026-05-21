@@ -52,6 +52,21 @@ export function initSentry() {
       // Phase 32.6.1 — suppress transient Redis ECONNREFUSED.
       // Mirrors the worker's beforeSend filter. See
       // services/worker/src/sentry.ts for the full justification.
+      //
+      // Phase 32.6.5 — also suppress "Stream isn't writeable and
+      // enableOfflineQueue options is false". This ioredis error is
+      // emitted by the readiness ping client when its 500ms connect
+      // window expires (the ping is intentionally fast-fail per
+      // Phase 32.6.1). The readiness response already conveys the
+      // same signal as `redis: CRITICAL` with `redis_unreachable`
+      // reasonCode; the duplicate Sentry alert was pure noise.
+      //
+      // Sustained outages still surface because the readiness probe
+      // continues to report CRITICAL and the bounded
+      // `redis.connection.error` log in worker queue.ts retains SRE
+      // visibility. We are NOT silencing the underlying signal —
+      // only suppressing the duplicate Sentry alert that the
+      // readiness response already carries.
       const err = hint?.originalException;
       const message =
         err instanceof Error
@@ -62,7 +77,8 @@ export function initSentry() {
       if (
         message.includes("ECONNREFUSED") ||
         message.includes("Connection is closed") ||
-        message.includes("Connection lost")
+        message.includes("Connection lost") ||
+        message.includes("Stream isn't writeable")
       ) {
         return null;
       }

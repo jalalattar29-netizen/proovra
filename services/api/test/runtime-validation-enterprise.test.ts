@@ -98,8 +98,16 @@ describe("Runtime readiness aggregator [structure]", () => {
     expect(src).not.toMatch(/details:\s*process\.env/);
   });
 
-  it("worker check uses recent audit log age (no direct heartbeat dependency)", () => {
-    expect(src).toContain('action: "reviewer_reconcile_run"');
+  it("worker check uses recent audit trail age (no direct heartbeat dependency)", () => {
+    // Phase 32.6.5 — the reader was previously querying
+    // adminAuditLog.action = "reviewer_reconcile_run" but the writer
+    // (reviewer-operations-engine.service.ts) writes via
+    // safeEmitSecurityEvent({ eventType: "reviewer_reconcile_run" })
+    // — which targets the security_events table, not
+    // admin_audit_logs. The check now reads SecurityEvent.eventType
+    // to align the reader with the existing writer.
+    expect(src).toContain('eventType: "reviewer_reconcile_run"');
+    expect(src).toContain("prisma.securityEvent.findFirst");
     expect(src).toContain("REVIEWER_OPS_RECONCILIATION_INTERVAL_MS");
   });
 

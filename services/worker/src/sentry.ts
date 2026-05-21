@@ -75,10 +75,19 @@ export function initSentry() {
           : typeof err === "string"
             ? err
             : "";
+      //
+      // Phase 32.6.5 — also suppress "Stream isn't writeable and
+      // enableOfflineQueue options is false". This ioredis error is
+      // emitted by the readiness ping client on the api side when
+      // its 500ms connect window expires. The signal is already
+      // carried by the readiness CRITICAL response and the bounded
+      // `redis.connection.error` log line; the duplicate Sentry
+      // alert was pure noise.
       if (
         message.includes("ECONNREFUSED") ||
         message.includes("Connection is closed") ||
-        message.includes("Connection lost")
+        message.includes("Connection lost") ||
+        message.includes("Stream isn't writeable")
       ) {
         return null;
       }

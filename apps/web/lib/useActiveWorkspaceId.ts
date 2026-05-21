@@ -40,9 +40,52 @@ import { useEffect, useState } from "react";
 
 import { apiFetch } from "./api";
 
+/**
+ * Phase 32.6.4 — bounded workspace role surfaced alongside the
+ * workspace ID so the sidebar and downstream UX can do client-side
+ * role-aware hiding. Backend permission checks remain authoritative.
+ * The role is only populated when it could be resolved cheaply
+ * (matching the active workspace inside the `/v1/teams` response);
+ * if absent, sidebar role filters fail-closed to "hide admin items".
+ */
+export type ActiveWorkspaceRole =
+  | "OWNER"
+  | "ADMIN"
+  | "MEMBER"
+  | "REVIEWER"
+  | "VIEWER"
+  | "EXTERNAL_REVIEWER";
+
+const ACTIVE_WORKSPACE_ROLE_VALUES: ReadonlyArray<ActiveWorkspaceRole> = [
+  "OWNER",
+  "ADMIN",
+  "MEMBER",
+  "REVIEWER",
+  "VIEWER",
+  "EXTERNAL_REVIEWER",
+];
+
+function coerceActiveWorkspaceRole(
+  raw: string | null | undefined,
+): ActiveWorkspaceRole | null {
+  if (typeof raw !== "string") return null;
+  const upper = raw.toUpperCase() as ActiveWorkspaceRole;
+  return ACTIVE_WORKSPACE_ROLE_VALUES.includes(upper) ? upper : null;
+}
+
 export type ActiveWorkspaceState =
   | { status: "loading" }
-  | { status: "ready"; workspaceId: string }
+  | {
+      status: "ready";
+      workspaceId: string;
+      /**
+       * Phase 32.6.4 — bounded role on the active workspace, when the
+       * hook could resolve it from `/v1/teams`. `null` means "not
+       * determined" — client-side role filters MUST fail-closed in
+       * that case.
+       */
+      role: ActiveWorkspaceRole | null;
+    }
   | { status: "no-workspace" }
   | {
       status: "error";
@@ -58,7 +101,7 @@ type MeResponse = {
 };
 
 type TeamsResponse = {
-  items?: ReadonlyArray<{ id?: string | null }>;
+  items?: ReadonlyArray<{ id?: string | null; role?: string | null }>;
 };
 
 type ApiErrorLike = {
@@ -104,8 +147,34 @@ export function useActiveWorkspaceId(): ActiveWorkspaceState {
         const me = (await apiFetch("/v1/users/me", { method: "GET" })) as MeResponse;
         const currentWorkspaceId = me?.user?.currentWorkspaceId ?? null;
         if (cancelled) return;
+
+        // Always attempt to resolve the role from `/v1/teams` (it is
+        // the only endpoint that surfaces per-membership role). A
+        // failure here is non-fatal — the workspaceId is still
+        // usable, role just stays `null` and sidebar role filters
+        // fail-closed.
+        const resolveRoleFromTeams = async (
+          workspaceId: string,
+        ): Promise<ActiveWorkspaceRole | null> => {
+          try {
+            const teams = (await apiFetch("/v1/teams", {
+              method: "GET",
+            })) as TeamsResponse;
+            const match = teams?.items?.find((t) => t.id === workspaceId);
+            return coerceActiveWorkspaceRole(match?.role ?? null);
+          } catch {
+            return null;
+          }
+        };
+
         if (currentWorkspaceId) {
-          setState({ status: "ready", workspaceId: currentWorkspaceId });
+          const role = await resolveRoleFromTeams(currentWorkspaceId);
+          if (cancelled) return;
+          setState({
+            status: "ready",
+            workspaceId: currentWorkspaceId,
+            role,
+          });
           return;
         }
         // Fallback — server has no `currentWorkspaceId` recorded for
@@ -118,11 +187,16 @@ export function useActiveWorkspaceId(): ActiveWorkspaceState {
             method: "GET",
           })) as TeamsResponse;
           if (cancelled) return;
-          const firstId = teams?.items?.find(
+          const firstMatch = teams?.items?.find(
             (t) => typeof t.id === "string" && t.id.length > 0,
-          )?.id as string | undefined;
+          );
+          const firstId = firstMatch?.id as string | undefined;
           if (firstId) {
-            setState({ status: "ready", workspaceId: firstId });
+            setState({
+              status: "ready",
+              workspaceId: firstId,
+              role: coerceActiveWorkspaceRole(firstMatch?.role ?? null),
+            });
           } else {
             setState({ status: "no-workspace" });
           }

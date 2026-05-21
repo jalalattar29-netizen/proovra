@@ -195,12 +195,13 @@ async function checkMigrations(
           migration_name: string;
           finished_at: Date | null;
           rolled_back_at: Date | null;
+          started_at: Date;
         }>
       >(
-        `SELECT migration_name, finished_at, rolled_back_at
+        `SELECT migration_name, finished_at, rolled_back_at, started_at
          FROM "_prisma_migrations"
          ORDER BY started_at DESC
-         LIMIT 200`,
+         LIMIT 500`,
       ),
       [],
     );
@@ -217,17 +218,77 @@ async function checkMigrations(
         metadata: {},
       };
     }
-    const failed = rows.filter((r) => r.rolled_back_at != null).length;
-    const pending = rows.filter((r) => r.finished_at == null).length;
+
+    // Phase 32.6.5 — stale-rolled-back false positive repair.
+    //
+    // Before this change, the check counted EVERY row where
+    // `rolled_back_at != NULL` and treated any such row as currently
+    // rolled back. Prisma's `migrate resolve --rolled-back` followed
+    // by `migrate deploy` leaves the OLD row in place (with
+    // `rolled_back_at` set) and inserts a fresh row for the same
+    // `migration_name` with `finished_at` set. The historical row
+    // was being counted as "currently rolled back" even though the
+    // migration has since been successfully re-applied.
+    //
+    // Correct interpretation: take the MOST RECENT row per
+    // `migration_name` (by `started_at`). Only that row reflects the
+    // current state of the migration. Historical rows are kept by
+    // Prisma for audit but do not represent live drift.
+    //
+    // `prisma migrate status` uses the same per-name latest-wins
+    // interpretation; this brings the readiness check into agreement.
+    const latestPerMigration = new Map<
+      string,
+      {
+        migration_name: string;
+        finished_at: Date | null;
+        rolled_back_at: Date | null;
+        started_at: Date;
+      }
+    >();
+    for (const row of rows) {
+      // rows are already ordered by started_at DESC, so the first row
+      // we see for a given migration_name is the most recent.
+      if (!latestPerMigration.has(row.migration_name)) {
+        latestPerMigration.set(row.migration_name, row);
+      }
+    }
+    const liveRows = Array.from(latestPerMigration.values());
+
+    const failed = liveRows.filter((r) => r.rolled_back_at != null).length;
+    const pending = liveRows.filter(
+      (r) => r.finished_at == null && r.rolled_back_at == null,
+    ).length;
+    const applied = liveRows.filter(
+      (r) => r.finished_at != null && r.rolled_back_at == null,
+    ).length;
+
+    // The newest "live" row (post-dedup) by started_at — this is what
+    // `latest` should reflect, NOT the newest row in the raw table
+    // (which could be a stale rolled-back historical artifact).
+    const latestLive = liveRows.reduce<typeof liveRows[number] | null>(
+      (acc, r) =>
+        acc == null || r.started_at.getTime() > acc.started_at.getTime()
+          ? r
+          : acc,
+      null,
+    );
+
     if (failed > 0) {
       return {
         id: "migrations",
         status: "CRITICAL",
         reasonCode: "migration_rolled_back",
-        detail: `${failed} migration(s) were rolled back. DB schema may be inconsistent.`,
+        detail: `${failed} migration(s) are currently rolled back. DB schema may be inconsistent.`,
         remediationHint:
-          "Investigate the most recent rolled-back migration. Resolve manually via `prisma migrate resolve --rolled-back <name>` after fixing.",
-        metadata: { failed, pending, latest: rows[0]?.migration_name ?? "" },
+          "Investigate the most recent rolled-back migration. Resolve manually via `prisma migrate resolve --rolled-back <name>` then re-run `prisma migrate deploy`.",
+        metadata: {
+          failed,
+          pending,
+          applied,
+          totalLive: liveRows.length,
+          latest: latestLive?.migration_name ?? "",
+        },
       };
     }
     if (pending > 0) {
@@ -238,16 +299,26 @@ async function checkMigrations(
         detail: `${pending} migration(s) still pending. DB schema may be partial.`,
         remediationHint:
           "Run `prisma migrate deploy` or mark applied via `prisma migrate resolve --applied <name>` after manual SQL.",
-        metadata: { pending, latest: rows[0]?.migration_name ?? "" },
+        metadata: {
+          pending,
+          applied,
+          totalLive: liveRows.length,
+          latest: latestLive?.migration_name ?? "",
+        },
       };
     }
     return {
       id: "migrations",
       status: "HEALTHY",
       reasonCode: "ok",
-      detail: `${rows.length} migration(s) recorded; latest applied successfully.`,
+      detail: `${applied} migration(s) recorded; latest applied successfully.`,
       remediationHint: null,
-      metadata: { applied: rows.length, latest: rows[0]?.migration_name ?? "" },
+      metadata: {
+        applied,
+        totalLive: liveRows.length,
+        totalRowsScanned: rows.length,
+        latest: latestLive?.migration_name ?? "",
+      },
     };
   } catch (err) {
     return {
@@ -458,8 +529,8 @@ async function checkQueues(prisma: PrismaClient): Promise<SubsystemReadiness> {
 async function checkWorkers(prisma: PrismaClient): Promise<SubsystemReadiness> {
   // The worker emits a structured `reviewer_reconcile.completed` log
   // line every interval. We can't read the log stream from the api,
-  // but we CAN check the audit log: every reconcile pass writes a
-  // SecurityEvent / audit row.
+  // but we CAN check the audit trail: every reconcile pass writes a
+  // SecurityEvent row with `eventType = "reviewer_reconcile_run"`.
   //
   // Phase 32.6 — startup grace period.
   //
@@ -477,13 +548,29 @@ async function checkWorkers(prisma: PrismaClient): Promise<SubsystemReadiness> {
   // After the grace window passes, the original DEGRADED path
   // continues to fire — so a worker that genuinely never ticks
   // still surfaces as broken.
+  //
+  // Phase 32.6.5 — query target repair.
+  //
+  // Previously this check queried `AdminAuditLog.action =
+  // "reviewer_reconcile_run"`. But the reconcile loop's heartbeat is
+  // written by `safeEmitSecurityEvent({ eventType:
+  // "reviewer_reconcile_run", ... })` in
+  // services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts
+  // — which writes to the `security_events` table, NOT
+  // `admin_audit_logs`. The check was therefore reporting
+  // `no_recent_reconcile` indefinitely after the grace window,
+  // regardless of whether the worker was healthy.
+  //
+  // The reader now queries `SecurityEvent.eventType` to match the
+  // writer. The `admin_audit_logs` write path was never present;
+  // this aligns the existing reader with the existing writer.
   const intervalMs = Number(process.env.REVIEWER_OPS_RECONCILIATION_INTERVAL_MS ?? 300_000);
   const apiUptimeMs = Math.round(process.uptime() * 1000);
   const startupGraceMs = intervalMs * 2;
   try {
     const recent = await withTimeout(
-      prisma.adminAuditLog.findFirst({
-        where: { action: "reviewer_reconcile_run" },
+      prisma.securityEvent.findFirst({
+        where: { eventType: "reviewer_reconcile_run" },
         orderBy: { createdAt: "desc" },
         select: { createdAt: true },
       }),

@@ -954,30 +954,166 @@ export default function EvidenceDetailPage() {
     if (!evidenceId || !workspaceCaps) return;
 
     if (!workspaceCaps.verificationPackageIncluded) {
-      addToast("Verification packages are not included on the current workspace plan", "info");
+      addToast(
+        "Verification packages are not included on the current workspace plan",
+        "info",
+      );
       return;
     }
 
+    // Phase 32.6.4 — map the backend's Phase 32.6.1 state machine
+    // onto bounded, enterprise-safe user-facing messages.
+    //
+    // Backend status codes (services/api/src/routes/evidence.routes.ts):
+    //   200 → { url, version, ... }                         → download
+    //   202 verification_package_pending                    → "still being generated"
+    //   403 PACKAGE_BLOCKED_BY_POLICY                       → "blocked by governance policy"
+    //   404 verification_package_not_found                  → "not found"
+    //   409 verification_package_blocked                    → "blocked by governance policy"
+    //   410 verification_package_unavailable                → "unavailable for this workspace context"
+    //   503 GOVERNANCE_CHECK_FAILED                         → "governance check temporarily unavailable"
+    //
+    // We deliberately do NOT expose `reason`, `outcome`, `blockedAtUtc`,
+    // signed URLs, bucket names, or any other internal storage detail.
+    // Backend is authoritative.
     try {
-      const data = (await apiFetch(`/v1/evidence/${evidenceId}/verification-package`)) as {
+      // The 200 path returns a JSON body containing `url`. The 202
+      // path also returns 2xx (so `apiFetch` resolves) but with no
+      // `url` — instead it carries `{ code, message }`.
+      const data = (await apiFetch(
+        `/v1/evidence/${evidenceId}/verification-package`,
+      )) as {
         url?: string | null;
+        code?: string | null;
+        message?: string | null;
       };
 
-      if (!data.url) {
-        addToast("Verification package not available", "info");
+      if (data && typeof data.url === "string" && data.url.length > 0) {
+        const ok = await tryDownloadFile(
+          data.url,
+          `verification-package-${evidenceId}.zip`,
+        );
+        if (!ok) {
+          window.open(data.url, "_blank", "noopener,noreferrer");
+        }
         return;
       }
 
-      const ok = await tryDownloadFile(data.url, `verification-package-${evidenceId}.zip`);
-      if (!ok) {
-        window.open(data.url, "_blank", "noopener,noreferrer");
+      // 2xx without a URL — most likely a 202 "pending" body.
+      if (data && data.code === "verification_package_pending") {
+        addToast(
+          "Verification package is still being generated. Retry shortly.",
+          "info",
+        );
+        return;
       }
+
+      // Defensive: a 2xx with neither url nor pending code should
+      // never reach us under the current backend contract, but we
+      // still surface a bounded message rather than a hang.
+      addToast("Verification package is temporarily unavailable.", "info");
     } catch (downloadError) {
-      addToast("Failed to download verification package", "error");
-      captureException(downloadError, {
-        feature: "web_evidence_download_verification_package",
-        evidenceId,
-      });
+      const e = downloadError as {
+        statusCode?: number;
+        code?: string;
+        requestId?: string;
+        message?: string;
+      };
+
+      let userMessage = "Unable to download verification package.";
+      let tone: "info" | "error" = "error";
+
+      // Map by code first (more specific than status), then by status.
+      switch (e?.code) {
+        case "verification_package_pending":
+          userMessage =
+            "Verification package is still being generated. Retry shortly.";
+          tone = "info";
+          break;
+        case "verification_package_blocked":
+        case "PACKAGE_BLOCKED_BY_POLICY":
+          userMessage =
+            "Verification package is blocked by governance policy.";
+          tone = "info";
+          break;
+        case "verification_package_unavailable":
+          userMessage =
+            "Verification package is unavailable for this workspace context.";
+          tone = "info";
+          break;
+        case "verification_package_not_found":
+          userMessage = "Verification package was not found.";
+          tone = "info";
+          break;
+        case "GOVERNANCE_CHECK_FAILED":
+        case "governance_schema_unavailable":
+          userMessage =
+            "Governance check is temporarily unavailable. Retry shortly.";
+          tone = "info";
+          break;
+        default:
+          // Fall through to status-based mapping.
+          switch (e?.statusCode) {
+            case 401:
+              userMessage = "Sign-in required to download this package.";
+              tone = "info";
+              break;
+            case 403:
+              userMessage =
+                "Verification package is blocked by governance policy.";
+              tone = "info";
+              break;
+            case 404:
+              userMessage = "Verification package was not found.";
+              tone = "info";
+              break;
+            case 409:
+              userMessage =
+                "Verification package is blocked by governance policy.";
+              tone = "info";
+              break;
+            case 410:
+              userMessage =
+                "Verification package is unavailable for this workspace context.";
+              tone = "info";
+              break;
+            case 503:
+              userMessage =
+                "Verification package is temporarily unavailable. Retry shortly.";
+              tone = "info";
+              break;
+            default:
+              userMessage = "Unable to download verification package.";
+              tone = "error";
+          }
+      }
+
+      addToast(userMessage, tone);
+
+      // Only surface a Sentry breadcrumb for genuinely unexpected
+      // failures (network / parsing / 5xx that aren't the bounded
+      // governance-unavailable case). The bounded governance / state
+      // codes are expected operator-visible signals, not bugs.
+      const isExpectedBoundedSignal =
+        e?.code === "verification_package_pending" ||
+        e?.code === "verification_package_blocked" ||
+        e?.code === "verification_package_unavailable" ||
+        e?.code === "verification_package_not_found" ||
+        e?.code === "PACKAGE_BLOCKED_BY_POLICY" ||
+        e?.code === "GOVERNANCE_CHECK_FAILED" ||
+        e?.code === "governance_schema_unavailable" ||
+        e?.statusCode === 401 ||
+        e?.statusCode === 403 ||
+        e?.statusCode === 404 ||
+        e?.statusCode === 409 ||
+        e?.statusCode === 410;
+
+      if (!isExpectedBoundedSignal) {
+        captureException(downloadError, {
+          feature: "web_evidence_download_verification_package",
+          evidenceId,
+        });
+      }
     }
   };
 
