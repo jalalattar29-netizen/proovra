@@ -300,11 +300,22 @@ describe("Phase 32.7.3 — route handlers unchanged; the fix is service-side onl
     expect(routeBody).toMatch(/projectLegalHold/);
   });
 
-  it("/v1/governance/case-legal-holds still calls listCaseLegalHolds inside runGovernanceHandler", () => {
-    const routeIdx = SRC.indexOf('"/v1/governance/case-legal-holds"');
+  it("/v1/governance/case-legal-holds GET routes via per-endpoint optional-subsystem handler (Phase 32.7.6)", () => {
+    // Phase 32.7.6 — the case-legal-holds GET no longer uses
+    // runGovernanceHandler. It now uses an explicit try/catch with
+    // `isPrismaTableOrColumnMissing(err)` that returns 200 with an
+    // empty array when the underlying table/column is missing
+    // (Phase 14 feature not deployed in this environment). The
+    // service helpers `listCaseLegalHolds` + `projectCaseLegalHold`
+    // are still called.
+    const routeIdx = SRC.indexOf(
+      'app.get(\n    "/v1/governance/case-legal-holds"',
+    );
     expect(routeIdx).toBeGreaterThan(-1);
-    const routeBody = SRC.slice(routeIdx, routeIdx + 2000);
-    expect(routeBody).toMatch(/runGovernanceHandler\(reply,/);
+    const nextHandler = SRC.indexOf("app.post(", routeIdx);
+    const routeBody = SRC.slice(routeIdx, nextHandler);
+    expect(routeBody).not.toMatch(/runGovernanceHandler\(/);
+    expect(routeBody).toMatch(/isPrismaTableOrColumnMissing\(err\)/);
     expect(routeBody).toMatch(/listCaseLegalHolds/);
     expect(routeBody).toMatch(/projectCaseLegalHold/);
   });

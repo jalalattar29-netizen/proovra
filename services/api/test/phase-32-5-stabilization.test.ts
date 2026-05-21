@@ -213,12 +213,30 @@ describe("Phase 32.5 — governance route schema-drift bounded handler", () => {
     expect(HELPER_SRC).toMatch(/throw err;/);
   });
 
-  it("the 4 governance read routes all consume runGovernanceHandler", () => {
+  it("the CORE governance read routes consume runGovernanceHandler", () => {
+    // Phase 32.7.6 — `/v1/governance/case-legal-holds` was lifted
+    // OUT of the generic `runGovernanceHandler` wrapper into a
+    // per-endpoint optional-subsystem handler (P2021/P2022 → 200
+    // empty + WARN log). The 3 remaining CORE read routes still
+    // wrap with the 503 fail-closed contract:
+    //   * /v1/governance/policy
+    //   * /v1/governance/legal-holds
+    //   * /v1/governance/retention-candidates
     const wrapsCount = (
       ROUTES_SRC.match(/await runGovernanceHandler\(reply,/g) ?? []
     ).length;
-    // Policy, legal-holds, case-legal-holds, retention-candidates.
-    expect(wrapsCount).toBeGreaterThanOrEqual(4);
+    expect(wrapsCount).toBeGreaterThanOrEqual(3);
+
+    // And the case-legal-holds GET is intentionally NOT among
+    // them — that's the Phase 32.7.6 optional-subsystem
+    // contract.
+    const caseGetIdx = ROUTES_SRC.indexOf(
+      'app.get(\n    "/v1/governance/case-legal-holds"',
+    );
+    expect(caseGetIdx).toBeGreaterThan(-1);
+    const caseNextHandler = ROUTES_SRC.indexOf("app.post(", caseGetIdx);
+    const caseGetBody = ROUTES_SRC.slice(caseGetIdx, caseNextHandler);
+    expect(caseGetBody).not.toMatch(/runGovernanceHandler\(reply,/);
   });
 });
 

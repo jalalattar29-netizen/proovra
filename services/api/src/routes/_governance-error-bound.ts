@@ -52,6 +52,25 @@ function isPrismaSchemaDriftError(err: unknown): boolean {
 }
 
 /**
+ * Phase 32.7.6 — bounded helper that returns true when the error
+ * specifically signals a missing TABLE (P2021) or missing COLUMN
+ * (P2022). Used by routes that want to treat their underlying
+ * subsystem as OPTIONAL: when the table/column is absent, the
+ * route returns a HEALTHY empty payload instead of a 503 "infra
+ * unavailable" — appropriate for features that may not be
+ * deployed in every environment (e.g., the Phase 14 case-legal-
+ * holds table).
+ *
+ * P2025 ("record required") is NOT included here — that one is a
+ * data condition, not a schema condition.
+ */
+export function isPrismaTableOrColumnMissing(err: unknown): boolean {
+  if (err == null || typeof err !== "object") return false;
+  const code = (err as { code?: unknown }).code;
+  return code === "P2021" || code === "P2022";
+}
+
+/**
  * Phase 32.7.4 — bounded structured diagnostic for the schema-drift
  * catch path. Server-side only — the client sees the same bounded
  * 503 body as before. The log line names the exact Prisma code +
@@ -64,7 +83,7 @@ function isPrismaSchemaDriftError(err: unknown): boolean {
  * SQL fragments, signature bytes, custody payloads, or private
  * note text.
  */
-function extractPrismaDiagnostic(err: unknown): {
+export function extractPrismaDiagnostic(err: unknown): {
   name: string;
   code: string;
   message: string;

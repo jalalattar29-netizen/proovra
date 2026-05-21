@@ -23,7 +23,11 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { runGovernanceHandler } from "./_governance-error-bound.js";
+import {
+  runGovernanceHandler,
+  isPrismaTableOrColumnMissing,
+  extractPrismaDiagnostic,
+} from "./_governance-error-bound.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import {
   listLegalHoldsForEvidence,
@@ -427,8 +431,45 @@ export async function governanceRoutes(app: FastifyInstance) {
       if (!ok) return;
       // Reading list is workspace-member visible (legal hold existence
       // is a governance fact every member should see).
-      // Phase 32.5 — bounded schema-drift handling.
-      await runGovernanceHandler(reply, async () => {
+      //
+      // Phase 32.7.6 — case-level legal holds is an OPTIONAL
+      // subsystem.
+      //
+      // The `case_legal_holds` table and its surrounding code path
+      // were introduced in Phase 14. Some production environments
+      // were deployed before that phase, OR have a partial Phase 14
+      // schema (the table exists but is missing some columns the
+      // Prisma model declares). When that's the case, the correct
+      // operator-facing behavior is:
+      //
+      //   "No case-level legal holds placed."
+      //
+      // — NOT "Case-level legal holds temporarily unavailable.
+      // Retry shortly." (which is what the generic
+      // `runGovernanceHandler` 503 wrapper produced and what the
+      // governance page renders for 503s).
+      //
+      // This per-endpoint handler catches ONLY the two Prisma
+      // codes that signal "feature not deployed":
+      //   * P2021 — table does not exist
+      //   * P2022 — column does not exist
+      // Both → return 200 with an empty array AND a bounded
+      // `subsystemEnabled: false` marker so the frontend can
+      // future-proof if it wants a distinct "feature not
+      // configured" message. The current frontend already renders
+      // the same empty-state UI for an empty `caseLegalHolds`
+      // array, so no frontend change is required.
+      //
+      // Any OTHER thrown error continues to propagate to Fastify's
+      // default error handler (which returns 500). Real failures
+      // are NOT swallowed.
+      //
+      // The legal-holds / policy / retention-candidates endpoints
+      // are NOT touched — those are core governance features and
+      // continue to use `runGovernanceHandler` (503 on schema
+      // drift, surfaces the governance-degraded banner). Only the
+      // case-legal-holds endpoint is treated as optional.
+      try {
         const rows = await listCaseLegalHolds({
           teamId: query.teamId,
           caseId: query.caseId,
@@ -438,7 +479,35 @@ export async function governanceRoutes(app: FastifyInstance) {
         reply.code(200).send({
           caseLegalHolds: rows.map(projectCaseLegalHold),
         });
-      });
+      } catch (err) {
+        if (isPrismaTableOrColumnMissing(err)) {
+          const diag = extractPrismaDiagnostic(err);
+          reply.log.warn(
+            {
+              event: "governance.case_legal_holds.subsystem_not_deployed",
+              requestId: reply.request?.id ?? null,
+              teamId: query.teamId,
+              prismaName: diag.name,
+              prismaCode: diag.code,
+              missingTable: diag.missingTable,
+              missingColumn: diag.missingColumn,
+              modelName: diag.modelName,
+              message: diag.message,
+            },
+            "case-legal-holds subsystem not deployed (treating as empty)",
+          );
+          reply.code(200).send({
+            caseLegalHolds: [],
+            subsystemEnabled: false,
+          });
+          return;
+        }
+        // Phase 32.7.6 — non-schema-drift errors are real failures
+        // and must NOT be swallowed. They propagate to Fastify's
+        // default handler (500). Operators will see the full
+        // exception in server logs as before.
+        throw err;
+      }
     },
   );
 
