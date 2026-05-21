@@ -2944,26 +2944,73 @@ enum SecurityEventSeverity {
   HIGH
 }
 
+// Phase 32.7.2 — SecurityEvent naming-drift repair.
+//
+// Production inspection confirmed the `security_events` table uses
+// CAMELCASE column names:
+//   id, teamId, userId, eventType, severity, ipAddressHash, userAgent,
+//   requestId, metadataJson, createdAtUtc
+//
+// The previous Prisma model expected SNAKE_CASE columns (team_id,
+// event_type, created_at, etc.) via `@map(...)`. Every query emitted
+// SQL like `SELECT team_id, event_type, created_at, ... FROM
+// security_events` and the live DB raised P2022 ("column does not
+// exist"). This cascaded:
+//   * readiness `checkWorkers` SELECT on `eventType`/`createdAt`
+//     failed → workers UNKNOWN with `telemetry_query_failed`.
+//   * Worker reconcile heartbeat INSERT failed → no heartbeat row
+//     ever landed → readiness still couldn't find a recent reconcile.
+//
+// Fix is purely a Prisma-side `@map(...)` realignment. NO DB
+// migration is required. NO production columns are renamed or
+// dropped. The wire format on the bus and downstream queries is
+// preserved verbatim (the production column names are what
+// downstream dashboards already use).
+//
+// Field-level rationale:
+//   * Bounded primary fields (id, teamId, userId, eventType,
+//     severity) are mapped to their literal camelCase production
+//     columns. `@map("camelCase")` is explicit even when the Prisma
+//     field name is also camelCase — future refactors won't quietly
+//     remove the mapping thinking it's redundant.
+//   * `ipAddressHash`, `userAgent`, `requestId` are new Prisma
+//     fields. Production already had these columns; the previous
+//     Prisma model omitted them entirely. Declaring them here
+//     unblocks future writers without changing existing behavior
+//     (no current writer populates them).
+//   * `details` (Prisma field name preserved for caller compat)
+//     maps to production column `metadataJson`.
+//   * `createdAt` (Prisma field name preserved for caller compat)
+//     maps to production column `createdAtUtc`.
+//   * `evidenceId`, `apiCredentialId`, `webhookEndpointId` removed
+//     — production has no such columns. Their values are folded
+//     into the `metadataJson` blob by `emitSecurityEvent` so caller
+//     interfaces stay backward-compatible.
 model SecurityEvent {
-  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId              String?                 @map("team_id") @db.Uuid
+  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId        String?               @map("teamId") @db.Uuid
+  userId        String?               @map("userId") @db.Uuid
 
   // Stable canonical event type string. Adding one requires a code
   // change so we can keep the operator-facing labels under control.
-  eventType           String                  @map("event_type") @db.VarChar(64)
-  severity            SecurityEventSeverity   @default(INFO)
+  eventType     String                @map("eventType") @db.VarChar(64)
+  severity      SecurityEventSeverity @default(INFO)
 
-  // Optional pointers to related domain rows. None of these are
-  // required; an event may stand alone.
-  evidenceId          String?                 @map("evidence_id") @db.Uuid
-  apiCredentialId     String?                 @map("api_credential_id") @db.Uuid
-  webhookEndpointId   String?                 @map("webhook_endpoint_id") @db.Uuid
+  // Phase 32.7.2 — production already has these columns; Prisma
+  // model declares them now so future writers (e.g., audit
+  // middleware) can populate them without further schema work. No
+  // current writer is required to set them.
+  ipAddressHash String?               @map("ipAddressHash") @db.VarChar(128)
+  userAgent     String?               @map("userAgent") @db.VarChar(512)
+  requestId     String?               @map("requestId") @db.VarChar(80)
 
   // Free-form JSON, bounded by service-layer redaction. Operators
-  // should ONLY put non-sensitive details here.
-  details             Json?
+  // should ONLY put non-sensitive details here. Production column
+  // name is `metadataJson`; the Prisma field name `details` is
+  // preserved to keep caller interfaces unchanged.
+  details       Json?                 @map("metadataJson")
 
-  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt     DateTime              @default(now()) @map("createdAtUtc") @db.Timestamptz(6)
 
   @@index([teamId, createdAt(sort: Desc)])
   @@index([severity, createdAt(sort: Desc)])

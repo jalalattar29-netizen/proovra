@@ -102,15 +102,42 @@ export async function emitSecurityEvent(
   }
   if (!VALID_SEVERITIES.has(input.severity)) return null;
   try {
+    // Phase 32.7.2 — production `security_events` schema does NOT
+    // have `evidenceId / apiCredentialId / webhookEndpointId`
+    // columns. The previous Prisma model declared them via
+    // `@map("evidence_id")` etc., which produced P2022 INSERT
+    // failures and prevented ANY security event from being
+    // persisted. The Prisma model is now aligned to the
+    // production camelCase schema (see schema.prisma).
+    //
+    // Caller compatibility: the `EmitSecurityEventInput` interface
+    // still accepts these three relation IDs because many call
+    // sites already pass them. To preserve the information without
+    // requiring a DB migration, the writer FOLDS those IDs into
+    // the bounded `metadataJson` blob. Downstream consumers that
+    // need to cross-reference can read the JSON.
+    const baseDetails = safeDetails(input.details ?? null);
+    const baseAsObject =
+      baseDetails && typeof baseDetails === "object" && !Array.isArray(baseDetails)
+        ? (baseDetails as Record<string, unknown>)
+        : null;
+    const relationContext: Record<string, unknown> = {};
+    if (input.evidenceId) relationContext.evidenceId = input.evidenceId;
+    if (input.apiCredentialId) relationContext.apiCredentialId = input.apiCredentialId;
+    if (input.webhookEndpointId) relationContext.webhookEndpointId = input.webhookEndpointId;
+    const consolidatedDetails: Prisma.InputJsonValue | undefined =
+      Object.keys(relationContext).length > 0
+        ? ((baseAsObject !== null
+            ? { ...baseAsObject, ...relationContext }
+            : relationContext) as Prisma.InputJsonValue)
+        : (baseDetails as Prisma.InputJsonValue | null) ?? undefined;
+
     return await client.securityEvent.create({
       data: {
         teamId: input.teamId ?? null,
         eventType: input.eventType,
         severity: input.severity,
-        evidenceId: input.evidenceId ?? null,
-        apiCredentialId: input.apiCredentialId ?? null,
-        webhookEndpointId: input.webhookEndpointId ?? null,
-        details: safeDetails(input.details ?? null) ?? undefined,
+        details: consolidatedDetails ?? undefined,
       },
     });
   } catch {
@@ -352,14 +379,29 @@ export function projectSecurityEvent(row: DbSecurityEvent): {
   details: unknown;
   createdAt: string;
 } {
+  // Phase 32.7.2 — extract the legacy relation IDs from the
+  // consolidated `details` blob. `emitSecurityEvent` folds them in
+  // at write time (production schema has no dedicated columns for
+  // these relations). The projection round-trips the same caller-
+  // facing shape so downstream consumers don't observe a breaking
+  // change.
+  const detailsObj =
+    row.details && typeof row.details === "object" && !Array.isArray(row.details)
+      ? (row.details as Record<string, unknown>)
+      : null;
+  const readString = (key: string): string | null => {
+    if (!detailsObj) return null;
+    const v = detailsObj[key];
+    return typeof v === "string" ? v : null;
+  };
   return {
     id: row.id,
     teamId: row.teamId,
     eventType: row.eventType,
     severity: row.severity,
-    evidenceId: row.evidenceId,
-    apiCredentialId: row.apiCredentialId,
-    webhookEndpointId: row.webhookEndpointId,
+    evidenceId: readString("evidenceId"),
+    apiCredentialId: readString("apiCredentialId"),
+    webhookEndpointId: readString("webhookEndpointId"),
     details: row.details ?? null,
     createdAt: row.createdAt.toISOString(),
   };
