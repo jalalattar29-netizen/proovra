@@ -1,0 +1,326 @@
+/**
+ * Phase 32.8D — Cases experience styles.
+ *
+ * Reuses the Phase 32.8C `.cc-*` layout primitives; only the
+ * cases-specific affordances (tabs, list rows, filter chips,
+ * timeline) live here.
+ */
+
+.cases-filter-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.cases-filter-search {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.cases-filter-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cases-filter-chip {
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  color: #334155;
+}
+
+.cases-filter-chip:hover {
+  border-color: #94a3b8;
+}
+
+.cases-filter-chip.is-active {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
+.cases-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cases-row {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.cases-row-link {
+  display: block;
+  padding: 12px 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.cases-row:hover {
+  border-color: #94a3b8;
+}
+
+.cases-row-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.cases-row-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.cases-row-scope {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.cases-row-meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #64748b;
+  flex-wrap: wrap;
+}
+
+.cases-row-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.cases-row-chip[data-cases-row-chip="hold"] {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.cases-row-chip[data-cases-row-chip="review"] {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.cases-empty {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  color: #334155;
+}
+
+.cases-empty strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.cases-empty p {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* ===========================================================================
+   Tabs
+   =========================================================================== */
+
+.case-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.case-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.case-tab:hover {
+  color: #0f172a;
+}
+
+.case-tab.is-active {
+  color: #0f172a;
+  border-bottom-color: #0f172a;
+}
+
+/* ===========================================================================
+   Timeline
+   =========================================================================== */
+
+.cases-timeline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cases-timeline-row {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 4px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.cases-timeline-row:last-child {
+  border-bottom: none;
+}
+
+.cases-timeline-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 8px;
+  background: #94a3b8;
+}
+
+.cases-timeline-dot[data-case-timeline-kind-dot="case_created"] {
+  background: #3b82f6;
+}
+
+.cases-timeline-dot[data-case-timeline-kind-dot="evidence_linked"] {
+  background: #10b981;
+}
+
+.cases-timeline-dot[data-case-timeline-kind-dot="legal_hold_placed"] {
+  background: #b91c1c;
+}
+
+.cases-timeline-dot[data-case-timeline-kind-dot="legal_hold_released"] {
+  background: #6b7280;
+}
+
+.cases-timeline-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cases-timeline-label {
+  font-size: 13px;
+  color: #0f172a;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.cases-timeline-label:hover {
+  text-decoration: underline;
+}
+
+.cases-timeline-subtitle {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.cases-timeline-time {
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* ===========================================================================
+   Preservation
+   =========================================================================== */
+
+.cases-preservation-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 1024px) {
+  .cases-preservation-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.cases-preservation-heading {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+  margin: 0 0 8px;
+}
+
+/* ===========================================================================
+   Activity
+   =========================================================================== */
+
+.cases-activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cases-activity-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #ffffff;
+  font-size: 13px;
+}
+
+.cases-activity-event {
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.cases-activity-actor {
+  margin-left: 8px;
+  font-size: 11px;
+  color: #64748b;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.cases-activity-time {
+  font-size: 11px;
+  color: #64748b;
+}

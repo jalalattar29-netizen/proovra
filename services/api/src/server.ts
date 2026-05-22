@@ -61,6 +61,7 @@ import { governanceSnapshotRoutes } from "./routes/governance-snapshot.routes.js
 import { runtimeReadinessRoutes } from "./routes/runtime-readiness.routes.js";
 import { workflowInstancesRoutes } from "./routes/workflow-instances.routes.js";
 import { dashboardRoutes } from "./routes/dashboard.routes.js";
+import { caseWorkspaceRoutes } from "./routes/case-workspace.routes.js";
 import { runStartupConfigValidation } from "./config/index.js";
 import {
   AppError,
@@ -534,6 +535,12 @@ allowedHeaders: [
   // Read-only `/v1/dashboard/command-center`. Workspace-scoped,
   // bounded, partial-failure tolerant. No audit emissions.
   await app.register(dashboardRoutes);
+  // Phase 32.8D — Cases workspace + Reports artifacts aggregators.
+  // Read-only `/v1/cases/summary`, `/v1/cases/:id/workspace`,
+  // `/v1/reports/artifacts`. Same partial-failure-tolerant envelope
+  // pattern; no audit emissions; never triggers report/package
+  // generation or signed-URL creation.
+  await app.register(caseWorkspaceRoutes);
   // Phase 10 — Integration platform. Two route trees:
   //   * `integrationsRoutes` — workspace-authenticated admin surface
   //     for managing API keys and webhook endpoints.
