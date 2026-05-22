@@ -1,0 +1,92 @@
+/**
+ * Phase 32.8E — Workspace administration / governance / reviewer
+ * experience styles.
+ *
+ * Light-surface enterprise palette. Reuses the Phase 32.8C/D
+ * `.cc-*` and `.cases-*` primitives; only workspace-admin-specific
+ * affordances (permission matrix, policy summary) live here.
+ */
+
+.workspace-permission-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 13px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.workspace-permission-matrix thead {
+  background: #f8fafc;
+  color: #475569;
+}
+
+.workspace-permission-matrix th,
+.workspace-permission-matrix td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.workspace-permission-matrix th:first-child,
+.workspace-permission-matrix td:first-child {
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.workspace-permission-matrix th + th,
+.workspace-permission-matrix td + td {
+  text-align: center;
+  width: 12%;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.workspace-permission-matrix td[data-permission-cell="yes"] {
+  color: #065f46;
+  font-weight: 600;
+}
+
+.workspace-permission-matrix td[data-permission-cell="partial"] {
+  color: #92400e;
+  font-weight: 600;
+}
+
+.workspace-permission-matrix td[data-permission-cell="no"] {
+  color: #94a3b8;
+}
+
+.workspace-permission-matrix tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.governance-policy-summary {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.governance-policy-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.governance-policy-row-label {
+  color: #475569;
+}
+
+.governance-policy-row-value {
+  color: #0f172a;
+  font-weight: 500;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}

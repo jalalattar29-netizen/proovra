@@ -345,7 +345,9 @@ describe("Phase 32.7 — RuntimeStatusBanner degradation boundary", () => {
 describe("Phase 32.7 — page consumers scope the runtime banner", () => {
   const cases = [
     {
-      file: "apps/web/app/(app)/governance/page.tsx",
+      // Phase 32.8E — /governance is a thin wrapper; the banner lives
+      // inside the GovernanceControlPlane component.
+      file: "apps/web/components/governance-experience/GovernanceControlPlane.tsx",
       domain: "governance_lifecycle",
     },
     {
@@ -357,7 +359,9 @@ describe("Phase 32.7 — page consumers scope the runtime banner", () => {
       domain: "reviewer_ops",
     },
     {
-      file: "apps/web/app/(app)/reviewer-ops/page.tsx",
+      // Phase 32.8E — /reviewer-ops is a thin wrapper; the banner lives
+      // inside the ReviewerCommandConsole component.
+      file: "apps/web/components/reviewer-experience/ReviewerCommandConsole.tsx",
       domain: "reviewer_ops",
     },
     {

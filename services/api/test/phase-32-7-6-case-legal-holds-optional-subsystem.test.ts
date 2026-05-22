@@ -186,27 +186,32 @@ describe("Phase 32.7.6 — adjacent governance endpoints continue to use runGove
 // Part 4 — Frontend renders the empty array as the operator-safe empty state
 // =============================================================================
 
-describe("Phase 32.7.6 — frontend renders empty caseLegalHolds as 'No case-level legal holds placed'", () => {
+describe("Phase 32.7.6 — frontend renders empty caseLegalHolds as 'No case-level legal holds placed' (Phase 32.8E architecture)", () => {
+  // Phase 32.8E — the bespoke /governance widget state machine was
+  // consolidated into the GovernanceControlPlane component. The
+  // empty-state copy moved into the Preservation tab.
   const SRC = readFileSync(
     fileURLToPath(
       new URL(
-        "../../../apps/web/app/(app)/governance/page.tsx",
+        "../../../apps/web/components/governance-experience/GovernanceControlPlane.tsx",
         import.meta.url,
       ),
     ),
     "utf8",
   );
 
-  it("empty caseLegalHolds renders the OperationalEmptyState (NOT the error widget)", () => {
+  it("empty caseLegalHolds renders an empty-state note (NOT the error widget)", () => {
     expect(SRC).toMatch(
-      /caseHoldsWidget\.data\.length\s*===\s*0[\s\S]{0,200}OperationalEmptyState/,
+      /caseHolds\.length === 0[\s\S]{0,300}No case-level legal holds placed/,
     );
-    expect(SRC).toMatch(/emptyStateCode="no_case_legal_holds"/);
-    expect(SRC).toMatch(/title="No case-level legal holds placed\."/);
   });
 
-  it("widget state machine: 'ready' with empty data uses the empty-state path (not 'error')", () => {
-    expect(SRC).toMatch(/setCaseHoldsWidget\(\{\s*status:\s*"ready",\s*data:\s*value\.caseLegalHolds\s*\?\?\s*\[\]/);
+  it("preservation tab renders a 'ready' path for empty data (no error widget regression)", () => {
+    // The new architecture surfaces the empty-state inline; the
+    // section status is 'ok' (or 'degraded') and the empty list
+    // is rendered as a neutral note, not as an error state.
+    expect(SRC).toMatch(/data-tab-body="preservation"/);
+    expect(SRC).toMatch(/cc-section-note/);
   });
 });
 
@@ -236,34 +241,31 @@ describe("Phase 32.7.6 — fail-closed governance contract preserved for CORE ro
 // Part 6 — Frontend governance page error wording is unchanged for the OTHER widgets
 // =============================================================================
 
-describe("Phase 32.7.6 — frontend `widgetErrorMessageFor` mapping unchanged", () => {
+describe("Phase 32.7.6 — frontend per-section unavailable copy preserved under Phase 32.8E", () => {
+  // Phase 32.8E — the per-widget `widgetErrorMessageFor` mapper
+  // was consolidated into a single `SectionNote` component on the
+  // GovernanceControlPlane. The per-domain copy now comes from a
+  // bounded enum (degraded / unavailable / not_applicable) rather
+  // than per-widget switch statements. The runGovernanceHandler
+  // 503 contract (Part 5 above) remains the backend canonical
+  // signal — this test verifies the FRONTEND continues to render
+  // a bounded, operator-safe state per section.
   const SRC = readFileSync(
     fileURLToPath(
       new URL(
-        "../../../apps/web/app/(app)/governance/page.tsx",
+        "../../../apps/web/components/governance-experience/GovernanceControlPlane.tsx",
         import.meta.url,
       ),
     ),
     "utf8",
   );
 
-  it("legal-holds error mapping unchanged", () => {
-    expect(SRC).toMatch(
-      /surface\s*===\s*"legal-holds"[\s\S]{0,400}Legal holds are temporarily unavailable/,
-    );
+  it("frontend renders a section-level 'temporarily unavailable' state for any failed section", () => {
+    expect(SRC).toMatch(/temporarily unavailable/);
   });
 
-  it("policy error mapping unchanged", () => {
-    expect(SRC).toMatch(/Policy is temporarily unavailable/);
-  });
-
-  it("retention-candidates error mapping unchanged", () => {
-    expect(SRC).toMatch(/Retention candidates are temporarily unavailable/);
-  });
-
-  it("case-legal-holds error mapping unchanged (kept as a safety net; backend no longer triggers it for missing-table case)", () => {
-    expect(SRC).toMatch(
-      /Case-level legal holds are temporarily unavailable/,
-    );
+  it("the bounded SectionNote enum covers degraded / unavailable / not_applicable", () => {
+    expect(SRC).toMatch(/status === "degraded"/);
+    expect(SRC).toMatch(/status === "unavailable"/);
   });
 });

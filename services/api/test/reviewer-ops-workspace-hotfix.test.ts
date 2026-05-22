@@ -145,16 +145,59 @@ describe("WorkspaceGateState renderer", () => {
 });
 
 // -----------------------------------------------------------------------------
-// Page wiring — all five reviewer-ops pages use the shared hook
+// Phase 32.8E — main /reviewer-ops console (own Shell states, canonical hook)
+// -----------------------------------------------------------------------------
+
+describe("Phase 32.8E — /reviewer-ops main console workspace wiring", () => {
+  const src = readSource(
+    "../../../apps/web/components/reviewer-experience/ReviewerCommandConsole.tsx",
+  );
+
+  it("uses the canonical useActiveWorkspaceId hook", () => {
+    expect(src).toContain("useActiveWorkspaceId");
+  });
+
+  it("does NOT call /v1/users/me directly for workspace resolution", () => {
+    const live = src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/[^\n]*/g, "");
+    expect(live).not.toMatch(/apiFetch\(\s*['"`]\/v1\/users\/me['"`]\s*,/);
+  });
+
+  it("renders its own bounded Shell states (loading / no-workspace / auth-error / unavailable)", () => {
+    expect(src).toContain("ShellLoading");
+    expect(src).toContain("ShellNoWorkspace");
+    expect(src).toContain("ShellAuthError");
+    expect(src).toContain("ShellUnavailable");
+  });
+
+  it("never short-circuits to a bare 'Switch to a workspace' string outside its bounded Shell", () => {
+    const live = src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/[^\n]*/g, "");
+    const matches = live.match(/Switch to a workspace[^<]*</);
+    if (matches) {
+      throw new Error(
+        "Main /reviewer-ops console has an inline 'Switch to a workspace' render outside the bounded Shell.",
+      );
+    }
+  });
+});
+
+// -----------------------------------------------------------------------------
+// Page wiring — sub-route reviewer-ops pages use the shared gate-state hook
 // -----------------------------------------------------------------------------
 
 describe("Reviewer Ops pages route through useActiveWorkspaceId", () => {
+  // Phase 32.8E — the main `/reviewer-ops` page was rebuilt as the
+  // Review Orchestration & Escalation Command console. It no longer
+  // uses the shared WorkspaceGateState renderer; instead it ships
+  // its own bounded Shell states (ShellLoading / ShellNoWorkspace /
+  // ShellAuthError / ShellUnavailable) but still resolves the
+  // workspace via the canonical `useActiveWorkspaceId` hook.
+  // The remaining reviewer-ops sub-routes continue to use the
+  // shared gate renderer.
   const pages = [
-    {
-      name: "main queue",
-      rel: "../../../apps/web/app/(app)/reviewer-ops/page.tsx",
-      surface: '"Reviewer Ops"',
-    },
     {
       name: "SLA dashboard",
       rel: "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",

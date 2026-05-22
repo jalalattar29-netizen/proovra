@@ -53,46 +53,47 @@ function assertNoBannedWordingInStringLiterals(src: string, label: string) {
 // Reviewer Ops — landing page
 // =============================================================================
 
-describe("Reviewer Ops landing page (full adoption)", () => {
+describe("Reviewer Ops landing page (full adoption — Phase 32.8E architecture)", () => {
+  // Phase 32.8E — /reviewer-ops was rebuilt as the Review
+  // Orchestration & Escalation Command console (ReviewerCommandConsole).
+  // It uses its own bounded Shell states and a section-level "empty"
+  // path on the QueuePeekSection rather than the OperationalEmptyState
+  // preset. The runtime banner is still sourced from the operational
+  // barrel and scoped to reviewer_ops.
   const src = readSource(
-    "../../../apps/web/app/(app)/reviewer-ops/page.tsx",
+    "../../../apps/web/components/reviewer-experience/ReviewerCommandConsole.tsx",
   );
 
-  it("imports the empty-state preset + runtime banner from the operational barrel", () => {
+  it("imports the runtime banner from the operational barrel", () => {
     expect(src).toMatch(
-      /import\s*\{[\s\S]*?OperationalEmptyState[\s\S]*?RuntimeStatusBanner[\s\S]*?\}\s*from\s*"[\.\/]+components\/operational"/,
+      /import\s*\{[\s\S]*?RuntimeStatusBanner[\s\S]*?\}\s*from\s*"[\.\/]+\/operational"/,
     );
   });
 
-  it("renders RuntimeStatusBanner only when teamId is known (null-safe)", () => {
-    // Phase 32.7 — banner usage now optionally includes `forDomains`
-    // for degradation isolation, and the JSX may be wrapped in `()`
-    // with intervening comments explaining the scoping decision.
-    // Accept both the legacy single-prop shape and the scoped
-    // multi-prop / multi-line shape with comments between.
+  it("scopes RuntimeStatusBanner to reviewer_ops (Phase 32.7 invariant)", () => {
     expect(src).toMatch(
-      /teamId\s*\?\s*\(?[\s\S]{0,800}?<RuntimeStatusBanner[\s\S]{0,400}teamId=\{teamId\}/,
+      /<RuntimeStatusBanner[\s\S]{0,400}forDomains=\{\s*\[\s*"reviewer_ops"\s*\]/,
     );
   });
 
-  it("renders OperationalEmptyState when the review queue is empty", () => {
-    expect(src).toMatch(/rows\.length === 0[\s\S]*?<OperationalEmptyState/);
+  it("renders an empty-state note when no review workflows exist", () => {
+    expect(src).toMatch(
+      /q\.items\.length === 0[\s\S]{0,400}No open review workflows in this workspace/,
+    );
   });
 
-  it("the empty-state explains runtime dependency, not just 'no rows'", () => {
-    expect(src).toContain("emptyStateCode=\"no_review_queue\"");
-    expect(src).toMatch(/runtimeDependency=/);
-  });
-
-  it("provides actionable links from the empty-state to related operator surfaces", () => {
+  it("provides actionable links from the console to related operator surfaces", () => {
     expect(src).toMatch(/\/reviewer-ops\/escalations/);
     expect(src).toMatch(/\/reviewer-ops\/sla/);
-    expect(src).toMatch(/\/reviewer-ops\/policy/);
+    expect(src).toMatch(/\/governance\/policy/);
     expect(src).toMatch(/\/ops\/observability/);
   });
 
-  it("no banned wording in this page's string literals", () => {
-    assertNoBannedWordingInStringLiterals(src, "reviewer-ops/page.tsx");
+  it("no banned wording in this console's string literals", () => {
+    assertNoBannedWordingInStringLiterals(
+      src,
+      "reviewer-experience/ReviewerCommandConsole.tsx",
+    );
   });
 });
 
@@ -180,52 +181,57 @@ describe("Reviewer Ops policy page (full adoption)", () => {
 // Governance dashboard
 // =============================================================================
 
-describe("Governance dashboard (full adoption)", () => {
+describe("Governance dashboard (full adoption — Phase 32.8E architecture)", () => {
+  // Phase 32.8E — /governance was rebuilt as the Governance Control
+  // Plane (GovernanceControlPlane). It uses bounded per-section
+  // empty-state notes rather than the Phase 28-G OperationalEmptyState
+  // presets; the runtime banner is sourced from the operational barrel
+  // and scoped to governance_lifecycle.
   const src = readSource(
-    "../../../apps/web/app/(app)/governance/page.tsx",
+    "../../../apps/web/components/governance-experience/GovernanceControlPlane.tsx",
   );
 
-  it("imports NoGovernanceIncidentsEmptyState + OperationalEmptyState + RuntimeStatusBanner from the operational barrel", () => {
+  it("imports the runtime banner from the operational barrel", () => {
     expect(src).toMatch(
-      /import\s*\{[\s\S]*?NoGovernanceIncidentsEmptyState[\s\S]*?OperationalEmptyState[\s\S]*?RuntimeStatusBanner[\s\S]*?\}\s*from\s*"[\.\/]+components\/operational"/,
+      /import\s*\{[\s\S]*?RuntimeStatusBanner[\s\S]*?\}\s*from\s*"[\.\/]+\/operational"/,
     );
   });
 
-  it("renders RuntimeStatusBanner only when teamId is known (null-safe)", () => {
-    // Phase 32.7 — banner usage now optionally includes `forDomains`
-    // for degradation isolation, and the JSX may be wrapped in `()`
-    // with intervening comments explaining the scoping decision.
-    // Accept both the legacy single-prop shape and the scoped
-    // multi-prop / multi-line shape with comments between.
+  it("scopes RuntimeStatusBanner to governance_lifecycle (Phase 32.7 invariant)", () => {
     expect(src).toMatch(
-      /teamId\s*\?\s*\(?[\s\S]{0,800}?<RuntimeStatusBanner[\s\S]{0,400}teamId=\{teamId\}/,
+      /<RuntimeStatusBanner[\s\S]{0,400}forDomains=\{\s*\[\s*"governance_lifecycle"\s*\]/,
     );
   });
 
-  it("replaces the dead 'No legal holds on record.' paragraph with OperationalEmptyState", () => {
-    expect(src).not.toContain("No legal holds on record.");
-    expect(src).toContain("emptyStateCode=\"no_evidence_legal_holds\"");
+  it("renders an empty-state note when no evidence-level holds exist", () => {
+    expect(src).toMatch(
+      /evidenceHolds\.length === 0[\s\S]{0,400}No evidence-level holds placed/,
+    );
   });
 
-  it("replaces the dead 'No case-level holds on record.' paragraph with OperationalEmptyState", () => {
-    expect(src).not.toContain("No case-level holds on record.");
-    expect(src).toContain("emptyStateCode=\"no_case_legal_holds\"");
+  it("renders an empty-state note when no case-level holds exist", () => {
+    expect(src).toMatch(
+      /caseHolds\.length === 0[\s\S]{0,400}No case-level legal holds placed/,
+    );
   });
 
-  it("replaces the dead 'No expired records flagged.' paragraph with NoGovernanceIncidentsEmptyState", () => {
-    expect(src).not.toContain("No expired records flagged.");
-    expect(src).toContain("<NoGovernanceIncidentsEmptyState />");
+  it("renders an empty-state note when no retention candidates exist", () => {
+    expect(src).toMatch(
+      /candidates\.length === 0[\s\S]{0,400}No retention candidates awaiting review/,
+    );
   });
 
-  it("retention candidates empty-state is wired inside the retention candidates section", () => {
-    const retentionSectionIdx = src.indexOf("Retention candidates");
-    const incidentsPresetIdx = src.indexOf("<NoGovernanceIncidentsEmptyState />");
-    expect(retentionSectionIdx).toBeGreaterThan(0);
-    expect(incidentsPresetIdx).toBeGreaterThan(retentionSectionIdx);
+  it("renders an empty-state note when no pending destruction reviews exist", () => {
+    expect(src).toMatch(
+      /pendingDestructionReviews\.length === 0[\s\S]{0,400}No destruction reviews pending/,
+    );
   });
 
-  it("no banned wording in this page's string literals", () => {
-    assertNoBannedWordingInStringLiterals(src, "governance/page.tsx");
+  it("no banned wording in this control-plane's string literals", () => {
+    assertNoBannedWordingInStringLiterals(
+      src,
+      "governance-experience/GovernanceControlPlane.tsx",
+    );
   });
 });
 
@@ -443,12 +449,15 @@ describe("Download routes (authoritative governance gate)", () => {
 
 describe("Phase 28-H [cross-page wiring invariants]", () => {
   const ADOPTING_PAGES = [
-    "../../../apps/web/app/(app)/reviewer-ops/page.tsx",
+    // Phase 32.8E — /reviewer-ops and /governance are thin wrappers
+    // around their experience components; the banner + operational
+    // barrel adoption lives inside the component files.
+    "../../../apps/web/components/reviewer-experience/ReviewerCommandConsole.tsx",
+    "../../../apps/web/components/governance-experience/GovernanceControlPlane.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
     // Phase 32.8B — policy admin moved to /governance/policy.
     "../../../apps/web/app/(app)/governance/policy/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-    "../../../apps/web/app/(app)/governance/page.tsx",
     "../../../apps/web/app/(app)/ops/observability/page.tsx",
     "../../../apps/web/app/(app)/evidence/[id]/page.tsx",
   ];
@@ -456,8 +465,11 @@ describe("Phase 28-H [cross-page wiring invariants]", () => {
   it("every adopting page imports from the operational barrel exactly once", () => {
     for (const rel of ADOPTING_PAGES) {
       const src = readSource(rel);
+      // Phase 32.8E — some adopting surfaces are now component files
+      // sitting next to /operational; their relative import path is
+      // `../operational` rather than `../../../components/operational`.
       const matches =
-        src.match(/from\s*"[\.\/]+components\/operational"/g) ?? [];
+        src.match(/from\s*"(?:[\.\/]+components\/operational|\.\.\/operational)"/g) ?? [];
       expect(matches.length, `barrel import count wrong in ${rel}`).toBe(1);
     }
   });

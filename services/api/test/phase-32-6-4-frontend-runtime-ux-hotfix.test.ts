@@ -78,47 +78,73 @@ function assertNoForbiddenVocab(label: string, source: string): void {
   }
 }
 
-describe("Phase 32.6.4 — Governance page resilience", () => {
-  const src = readWebSource("app/(app)/governance/page.tsx");
+describe("Phase 32.6.4 — Governance page resilience (Phase 32.8E architecture)", () => {
+  // Phase 32.8E — /governance is now a thin wrapper around the
+  // GovernanceControlPlane component. The resilience invariants are
+  // preserved by the BACKEND aggregator (per-section try/catch +
+  // per-section status enum) rather than by client-side
+  // `Promise.allSettled`. Assert on the new component + service.
+  const pageSrc = readWebSource("app/(app)/governance/page.tsx");
+  const panelSrc = readWebSource(
+    "components/governance-experience/GovernanceControlPlane.tsx",
+  );
+  const serviceSrc = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../src/services/governance/governance-control-plane.service.ts",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
 
-  it("uses Promise.allSettled (NOT Promise.all)", () => {
-    expect(src).toContain("Promise.allSettled");
-    // The previous Promise.all line was deleted. We do allow the
-    // string "Promise.all" to appear ONLY as a docstring/comment
-    // reference — a quick check: count exact `Promise.all([` calls.
-    const allCalls = src.match(/Promise\.all\(\[/g) ?? [];
-    expect(
-      allCalls.length,
-      "Promise.all([...]) is the defect this phase closes — only Promise.allSettled([...]) is allowed.",
-    ).toBe(0);
+  it("/governance page delegates to GovernanceControlPlane (no Promise.all([...]) defect possible)", () => {
+    expect(pageSrc).toMatch(/<GovernanceControlPlane\s*\/>/);
+  });
+
+  it("backend aggregator wraps each section in try/catch (partial-failure tolerant)", () => {
+    // The previous Phase 32.6.4 client-side defect was that one
+    // failed widget killed the page. The Phase 32.8E aggregator
+    // moves that resilience to the server: each section has its
+    // own try/catch so the envelope is never half-built.
+    const tryCount = (serviceSrc.match(/try\s*\{/g) ?? []).length;
+    const catchCount = (serviceSrc.match(/catch\s*[(\{]/g) ?? []).length;
+    expect(tryCount).toBeGreaterThanOrEqual(5);
+    expect(catchCount).toBeGreaterThanOrEqual(5);
   });
 
   it("uses the canonical useActiveWorkspaceId hook", () => {
-    expect(src).toContain("useActiveWorkspaceId");
+    expect(panelSrc).toContain("useActiveWorkspaceId");
     // The previous open-coded fetch + setTeamId pattern is gone.
-    expect(src).not.toMatch(
+    expect(panelSrc).not.toMatch(
       /apiFetch\(\s*['"`]\/v1\/users\/me['"`]\s*,/,
     );
   });
 
-  it("widget state machine has loading / ready / error branches", () => {
-    expect(src).toContain('status: "loading"');
-    expect(src).toContain('status: "ready"');
-    expect(src).toContain('status: "error"');
+  it("page state machine has loading / ready / error / unavailable branches", () => {
+    expect(panelSrc).toContain('status: "loading"');
+    expect(panelSrc).toContain('status: "ready"');
+    expect(panelSrc).toContain('status: "auth_error"');
+    expect(panelSrc).toContain('status: "unavailable"');
   });
 
   it("uses bounded UX wording (no forbidden vocabulary)", () => {
-    assertNoForbiddenVocab("governance/page.tsx", src);
+    assertNoForbiddenVocab("governance/page.tsx", pageSrc);
+    assertNoForbiddenVocab(
+      "governance-experience/GovernanceControlPlane.tsx",
+      panelSrc,
+    );
   });
 
   it("preserves operator-safe error messages (no raw API leakage)", () => {
-    // The error mapper must explicitly handle 503 /
-    // governance_schema_unavailable and 401 / 403 so the page
-    // never surfaces a raw `err.message` containing Prisma fragments.
-    expect(src).toContain("governance_schema_unavailable");
-    expect(src).toMatch(/statusCode === 503/);
-    expect(src).toMatch(/statusCode === 401/);
-    expect(src).toMatch(/statusCode === 403/);
+    // The new architecture maps backend HTTP statuses to bounded
+    // client-side states (auth_error vs unavailable) — raw err.message
+    // is only surfaced inside the bounded ShellUnavailable copy.
+    expect(panelSrc).toMatch(/statusCode === 401/);
+    expect(panelSrc).toMatch(/statusCode === 403/);
+    // The Phase 14 case-legal-holds drift handling moved to the
+    // backend service — surfaced via `caseLegalHoldsEnabled`.
+    expect(serviceSrc).toContain("caseLegalHoldsEnabled");
   });
 });
 

@@ -62,6 +62,7 @@ import { runtimeReadinessRoutes } from "./routes/runtime-readiness.routes.js";
 import { workflowInstancesRoutes } from "./routes/workflow-instances.routes.js";
 import { dashboardRoutes } from "./routes/dashboard.routes.js";
 import { caseWorkspaceRoutes } from "./routes/case-workspace.routes.js";
+import { enterpriseAggregatorsRoutes } from "./routes/enterprise-aggregators.routes.js";
 import { runStartupConfigValidation } from "./config/index.js";
 import {
   AppError,
@@ -541,6 +542,14 @@ allowedHeaders: [
   // pattern; no audit emissions; never triggers report/package
   // generation or signed-URL creation.
   await app.register(caseWorkspaceRoutes);
+  // Phase 32.8E — Enterprise aggregators for Teams + Governance +
+  // ReviewerOps:
+  //   GET /v1/teams/workspace-admin
+  //   GET /v1/governance/control-plane
+  //   GET /v1/reviewer-ops/command
+  // All read-only, workspace-scoped, no audit, no custody/billing
+  // side effects, partial-failure tolerant.
+  await app.register(enterpriseAggregatorsRoutes);
   // Phase 10 — Integration platform. Two route trees:
   //   * `integrationsRoutes` — workspace-authenticated admin surface
   //     for managing API keys and webhook endpoints.
