@@ -665,7 +665,10 @@ describe("Phase 32.8C FINAL-3 — no-regression invariants", () => {
   });
 
   it("topbar fix does NOT break the workspace switcher menu", () => {
-    expect(TOPBAR_TSX).toMatch(/workspaceList\.map/);
+    // Phase 32.8C FINAL-4 — switcher is now grouped; the menu still
+    // iterates workspaceList (now via filter + per-group map) and
+    // still exposes the scope chip hook.
+    expect(TOPBAR_TSX).toMatch(/workspaceList\.filter/);
     expect(TOPBAR_TSX).toMatch(/data-workspace-scope-chip/);
   });
 

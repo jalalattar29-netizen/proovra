@@ -45,6 +45,7 @@ import type {
   SectionStatus,
   SeverityTone,
   TimelineEvent,
+  WorkspaceScope,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -132,8 +133,22 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
   const canMutate =
     role === "OWNER" || role === "ADMIN" || role === "MEMBER" || role === "REVIEWER";
 
+  // Phase 32.8C FINAL-4 — persona-aware shell. The backend resolver
+  // returns the persona + ordered list of section ids; the dashboard
+  // surfaces the persona in the hero + renders a "persona priority"
+  // strip that anchors operators directly to their relevant sections.
+  const persona =
+    envelope.capabilityMatrix?.persona ?? null;
+  const capabilities = envelope.capabilityMatrix?.capabilities ?? null;
+  const sectionOrder: string[] = envelope.capabilityMatrix?.sectionOrder ?? [];
+
   return (
-    <main className="ec-page" data-command-center>
+    <main
+      className="ec-page"
+      data-command-center
+      data-cc-persona={persona ?? "VIEWER"}
+      data-cc-workspace-scope={workspace.scope}
+    >
       {/* HERO STRIP */}
       <header className="ec-hero">
         <div className="ec-hero-titles">
@@ -152,11 +167,58 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
               : `Team · ${workspace.memberCount} members`}
           </span>
           <span data-cc-role={role}>Role · {role}</span>
+          {persona ? (
+            <span data-cc-persona-chip={persona}>
+              Persona · {persona.replace(/_/g, " ")}
+            </span>
+          ) : null}
           <span title={envelope.generatedAt}>
             Refreshed {relTime(envelope.generatedAt)}
           </span>
         </div>
       </header>
+
+      {/* Phase 32.8C FINAL-4 — persona priority strip. Renders the
+          ordered section ids the backend persona resolver returned, so
+          the operator sees their highest-priority sections at a glance
+          and can jump to them via the page-anchor links. Hidden when no
+          ordering is available (e.g. unauthenticated). */}
+      {sectionOrder.length > 0 ? (
+        <nav
+          className="ec-persona-priority"
+          data-cc-persona-priority
+          aria-label="Priority sections for this persona"
+        >
+          <span className="ec-chip-faint" data-cc-persona-priority-label>
+            {persona ? `${persona.replace(/_/g, " ")} priority` : "Priority"}
+          </span>
+          <ul className="ec-persona-priority-list">
+            {sectionOrder.slice(0, 8).map((sectionId, idx) => (
+              <li
+                key={sectionId}
+                data-cc-persona-priority-item={sectionId}
+                data-cc-persona-priority-rank={idx + 1}
+              >
+                <a href={`#${sectionId}`}>
+                  <span data-cc-persona-priority-rank-badge>{idx + 1}</span>
+                  <span>{humanizeSectionId(sectionId)}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : null}
+
+      {/* Phase 32.8C FINAL-4 — bulk action toolbar. Read-only chips
+          documenting what operator actions are available; the
+          mutation routes live on /ops/observability. The toolbar is
+          permission-aware via the capability matrix. */}
+      {capabilities ? (
+        <BulkActionsToolbar
+          capabilities={capabilities}
+          scope={workspace.scope}
+        />
+      ) : null}
 
       {/* Platform impact banner — scoped to evidence/governance/reviewer */}
       <RuntimeStatusBanner
@@ -4218,6 +4280,210 @@ function humanize(s: string): string {
     .toLowerCase()
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Phase 32.8C FINAL-4 — humanize a camelCase section id into a label.
+ * Used by the persona priority strip to render anchor link text.
+ */
+function humanizeSectionId(s: string): string {
+  return s
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (c) => c.toUpperCase())
+    .replace(/\s+v2$/i, " v2")
+    .replace(/\s+v\d+$/i, (m) => m.toUpperCase())
+    .trim();
+}
+
+/**
+ * Phase 32.8C FINAL-4 — Bulk Actions toolbar.
+ *
+ * Read-only chips showing the operator which bulk actions are
+ * available for this persona + workspace scope. Each chip links to
+ * the Operations Center where the actual mutation routes live —
+ * the dashboard never invokes bulk operations directly. Permission
+ * gating is sourced from the capability matrix.
+ */
+function BulkActionsToolbar({
+  capabilities,
+  scope,
+}: {
+  capabilities: NonNullable<
+    CommandCenterEnvelope["capabilityMatrix"]
+  >["capabilities"];
+  scope: WorkspaceScope;
+}) {
+  const actions: Array<{
+    key: string;
+    label: string;
+    canAct: boolean;
+    reason: string;
+    href: string;
+  }> = [
+    {
+      key: "bulk_assign_workflows",
+      label: "Bulk assign workflows",
+      canAct: capabilities.bulkActions && capabilities.workflowActions,
+      reason:
+        scope === "PERSONAL"
+          ? "Requires team workspace"
+          : capabilities.bulkActions
+            ? ""
+            : "Requires ADMIN or OWNER",
+      href: "/ops/observability",
+    },
+    {
+      key: "bulk_escalate_workflows",
+      label: "Bulk escalate",
+      canAct: capabilities.bulkActions && capabilities.workflowActions,
+      reason:
+        scope === "PERSONAL"
+          ? "Requires team workspace"
+          : capabilities.bulkActions
+            ? ""
+            : "Requires ADMIN or OWNER",
+      href: "/ops/observability",
+    },
+    {
+      key: "bulk_resolve_workflows",
+      label: "Bulk resolve",
+      canAct: capabilities.bulkActions && capabilities.workflowActions,
+      reason:
+        scope === "PERSONAL"
+          ? "Requires team workspace"
+          : capabilities.bulkActions
+            ? ""
+            : "Requires ADMIN or OWNER",
+      href: "/ops/observability",
+    },
+    {
+      key: "bulk_acknowledge_incidents",
+      label: "Bulk acknowledge incidents",
+      canAct: capabilities.bulkActions && capabilities.incidentActions,
+      reason:
+        scope === "PERSONAL"
+          ? "Requires team workspace"
+          : capabilities.bulkActions
+            ? ""
+            : "Requires ADMIN or OWNER",
+      href: "/ops/observability",
+    },
+    {
+      key: "bulk_suppress_incidents",
+      label: "Bulk suppress noisy incidents",
+      canAct: capabilities.bulkActions && capabilities.incidentActions,
+      reason:
+        scope === "PERSONAL"
+          ? "Requires team workspace"
+          : capabilities.bulkActions
+            ? ""
+            : "Requires ADMIN or OWNER",
+      href: "/ops/observability",
+    },
+    {
+      key: "bulk_schedule_retry",
+      label: "Bulk schedule retry review",
+      canAct: capabilities.bulkActions && capabilities.workflowActions,
+      reason:
+        scope === "PERSONAL"
+          ? "Requires team workspace"
+          : capabilities.bulkActions
+            ? "Records retry intent only — never invokes the queue."
+            : "Requires ADMIN or OWNER",
+      href: "/ops/observability",
+    },
+    {
+      key: "bulk_add_mitigation",
+      label: "Bulk add mitigation note",
+      canAct: capabilities.bulkActions && capabilities.workflowActions,
+      reason:
+        scope === "PERSONAL"
+          ? "Requires team workspace"
+          : capabilities.bulkActions
+            ? ""
+            : "Requires ADMIN or OWNER",
+      href: "/ops/observability",
+    },
+    {
+      key: "bulk_dismiss_recommendations",
+      label: "Bulk dismiss routing recommendations",
+      canAct: capabilities.bulkActions,
+      reason:
+        scope === "PERSONAL"
+          ? "Requires team workspace"
+          : capabilities.bulkActions
+            ? ""
+            : "Requires ADMIN or OWNER",
+      href: "/ops/observability",
+    },
+  ];
+  const anyAvailable = actions.some((a) => a.canAct);
+  return (
+    <section
+      className="ec-section"
+      id="bulkActions"
+      data-cc-bulk-actions-toolbar
+      data-cc-bulk-actions-available={anyAvailable ? "true" : "false"}
+      aria-label="Bulk operator actions"
+    >
+      <div className="ec-section-head" data-cc-bulk-actions-head>
+        <span className="ec-kicker">Bulk operator actions</span>
+        <span className="ec-chip-faint">
+          {anyAvailable
+            ? `${actions.filter((a) => a.canAct).length} actions available`
+            : scope === "PERSONAL"
+              ? "Switch to a team workspace to unlock bulk actions"
+              : "Requires ADMIN or OWNER role"}
+        </span>
+      </div>
+      <ul
+        className="ec-bulk-actions-list"
+        data-cc-bulk-actions-list
+        style={{
+          listStyle: "none",
+          margin: 0,
+          padding: 0,
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
+        {actions.map((a) => (
+          <li
+            key={a.key}
+            data-cc-bulk-action={a.key}
+            data-cc-bulk-action-can-act={a.canAct ? "true" : "false"}
+          >
+            {a.canAct ? (
+              <Link
+                href={a.href}
+                className="ec-chip"
+                data-cc-bulk-action-link
+                style={{ textDecoration: "none" }}
+              >
+                {a.label} →
+              </Link>
+            ) : (
+              <span
+                className="ec-chip-faint"
+                data-cc-bulk-action-disabled
+                title={a.reason}
+              >
+                {a.label} · {a.reason || "unavailable"}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      <div className="ec-section-foot">
+        Bulk actions are executed on the Operations Center page (
+        <Link href="/ops/observability">/ops/observability</Link>). The
+        dashboard is read-only — chips above link to the canonical surface.
+        Every bulk run fans out to the underlying lifecycle service and is
+        audited per-target.
+      </div>
+    </section>
+  );
 }
 
 function relTime(iso: string): string {

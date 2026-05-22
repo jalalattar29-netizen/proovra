@@ -274,25 +274,36 @@ export function AppTopbarV2({
                 <Users size={16} strokeWidth={1.9} />
               </span>
               <div className="app-topbar-v2-workspace-copy">
+                {/* Phase 32.8C FINAL-4 — enterprise workspace cluster.
+                    The name slot renders the workspace identity; the
+                    scope-line below renders the type + role. Both have
+                    distinct fallbacks so "Workspace" never appears twice
+                    in the same cluster. */}
                 <strong data-workspace-name>
                   {activeWorkspaceName
                     ? activeWorkspaceName
                     : workspace.status === "ready"
                       ? activeWorkspaceScope === "PERSONAL"
                         ? "Personal workspace"
-                        : "Workspace"
+                        : activeWorkspaceScope === "TEAM"
+                          ? "Team workspace"
+                          : "Active workspace"
                       : workspace.status === "no-workspace"
                         ? "No workspace"
                         : "Loading workspace…"}
                 </strong>
                 <span data-workspace-scope-line>
                   {activeWorkspaceScope === "PERSONAL"
-                    ? "Personal"
+                    ? workspaceRole
+                      ? `Personal • ${workspaceRole}`
+                      : "Personal"
                     : activeWorkspaceScope === "TEAM"
-                      ? `Team${workspaceRole ? ` • ${workspaceRole}` : ""}`
+                      ? workspaceRole
+                        ? `Team • ${workspaceRole}`
+                        : "Team"
                       : workspaceRole
-                        ? `Workspace • ${workspaceRole}`
-                        : "Workspace"}
+                        ? workspaceRole
+                        : "Member"}
                 </span>
               </div>
               <ChevronDown size={14} strokeWidth={1.9} />
@@ -304,45 +315,106 @@ export function AppTopbarV2({
                 role="menu"
                 data-app-topbar-workspace-menu
               >
+                {/* Phase 32.8C FINAL-4 — grouped switcher header.
+                    Subtitle reads as "Only this workspace" when there is
+                    none to switch to, instead of the bare "0 available". */}
                 <div className="app-topbar-v2-workspace-menu-header">
                   <strong>Switch workspace</strong>
-                  <span>
-                    {workspaceList.length} available
+                  <span data-workspace-menu-count>
+                    {workspaceList.length === 0
+                      ? "Only this workspace"
+                      : workspaceList.length === 1
+                        ? "1 workspace"
+                        : `${workspaceList.length} workspaces`}
                   </span>
                 </div>
+                {/* Group available workspaces: Personal first, then Team. */}
                 {workspaceList.length === 0 ? (
                   <div
                     className="app-topbar-v2-workspace-menu-empty"
                     data-workspace-menu-empty
                   >
-                    No other workspaces.
+                    You only have access to this workspace. Create or join
+                    a team workspace to switch from here.
                   </div>
                 ) : (
-                  workspaceList.map((w) => (
-                    <Link
-                      key={w.id}
-                      href={`/teams?activate=${encodeURIComponent(w.id)}`}
-                      role="menuitem"
-                      onClick={() => setWorkspaceOpen(false)}
-                      data-workspace-option={w.id}
-                      className={
-                        w.id === runtimeTeamId
-                          ? "app-topbar-v2-workspace-menu-item is-active"
-                          : "app-topbar-v2-workspace-menu-item"
-                      }
-                    >
-                      <Users size={14} strokeWidth={1.9} />
-                      <span style={{ flex: 1 }}>
-                        {w.name ??
-                          (w.scope === "PERSONAL"
-                            ? "Personal workspace"
-                            : "Workspace")}
-                      </span>
-                      <small data-workspace-scope-chip={w.scope}>
-                        {w.scope === "PERSONAL" ? "Personal" : "Team"}
-                      </small>
-                    </Link>
-                  ))
+                  <>
+                    {(["PERSONAL", "TEAM"] as const).map((groupScope) => {
+                      const items = workspaceList.filter(
+                        (w) => w.scope === groupScope,
+                      );
+                      if (items.length === 0) return null;
+                      return (
+                        <div
+                          key={groupScope}
+                          className="app-topbar-v2-workspace-menu-group"
+                          data-workspace-menu-group={groupScope}
+                        >
+                          <div
+                            className="app-topbar-v2-workspace-menu-group-label"
+                            data-workspace-menu-group-label
+                          >
+                            {groupScope === "PERSONAL"
+                              ? "Personal workspace"
+                              : "Team workspaces"}
+                          </div>
+                          {items.map((w) => (
+                            <Link
+                              key={w.id}
+                              href={`/teams?activate=${encodeURIComponent(w.id)}`}
+                              role="menuitem"
+                              onClick={() => setWorkspaceOpen(false)}
+                              data-workspace-option={w.id}
+                              aria-current={
+                                w.id === runtimeTeamId ? "true" : undefined
+                              }
+                              className={
+                                w.id === runtimeTeamId
+                                  ? "app-topbar-v2-workspace-menu-item is-active"
+                                  : "app-topbar-v2-workspace-menu-item"
+                              }
+                            >
+                              <Users size={14} strokeWidth={1.9} />
+                              <div
+                                style={{
+                                  flex: 1,
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 2,
+                                  minWidth: 0,
+                                }}
+                              >
+                                <span
+                                  data-workspace-option-name
+                                  style={{
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {w.name ??
+                                    (w.scope === "PERSONAL"
+                                      ? "Personal workspace"
+                                      : "Team workspace")}
+                                </span>
+                                {w.role ? (
+                                  <small
+                                    data-workspace-option-role
+                                    style={{ opacity: 0.7 }}
+                                  >
+                                    {w.role}
+                                  </small>
+                                ) : null}
+                              </div>
+                              <small data-workspace-scope-chip={w.scope}>
+                                {w.scope === "PERSONAL" ? "Personal" : "Team"}
+                              </small>
+                            </Link>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </>
                 )}
                 <div className="app-topbar-v2-workspace-menu-footer">
                   <Link

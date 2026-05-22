@@ -2092,6 +2092,98 @@
   opacity: 0.85;
 }
 
+/* =============================================================================
+ * Phase 32.8C FINAL-4 — Persona priority strip + bulk action toolbar.
+ *
+ * The strip renders directly under the hero with the ordered section ids
+ * returned by the backend persona resolver. The toolbar follows with
+ * permission-aware action chips. Both are pure read-only navigation
+ * surfaces — no inline mutations.
+ * ============================================================================= */
+.ec-persona-priority {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 0 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ec-persona-priority [data-cc-persona-priority-label] {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ec-persona-priority-list {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ec-persona-priority-list a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 11px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 100ms ease;
+}
+
+.ec-persona-priority-list a:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.ec-persona-priority-list [data-cc-persona-priority-rank-badge] {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Bulk actions toolbar */
+[data-cc-bulk-actions-toolbar] {
+  margin-bottom: 12px;
+}
+
+[data-cc-bulk-actions-toolbar] .ec-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.ec-bulk-actions-list [data-cc-bulk-action-link] {
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.ec-bulk-actions-list [data-cc-bulk-action-disabled] {
+  font-size: 12px;
+  opacity: 0.55;
+  border-style: dashed;
+}
+
 /* TSA timestamp intelligence chip strip */
 .ec-tsa-intel {
   display: flex;

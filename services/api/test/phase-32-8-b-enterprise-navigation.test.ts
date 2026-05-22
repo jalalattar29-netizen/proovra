@@ -376,7 +376,12 @@ describe("Phase 32.8B — topbar separates workspace context from account contex
   });
 
   it("workspace switcher lists the user's other workspaces", () => {
-    expect(TOPBAR).toMatch(/workspaceList\.map\(\(w\)/);
+    // Phase 32.8C FINAL-4 — switcher is now grouped by scope; instead
+    // of a single flat map, items are filtered into PERSONAL/TEAM
+    // groups and each group renders its own map. The data hook
+    // (`data-workspace-option`) is preserved.
+    expect(TOPBAR).toMatch(/workspaceList\.filter\(/);
+    expect(TOPBAR).toMatch(/items\.map\(\(w\)/);
     expect(TOPBAR).toMatch(/data-workspace-option/);
   });
 
