@@ -25,7 +25,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../lib/api";
-import { useActiveWorkspaceId } from "../../lib/useActiveWorkspaceId";
+import { useTeamWorkspaceGate } from "../../lib/platform-context";
 import type {
   ArtifactRow,
   LifecycleFilter,
@@ -42,7 +42,7 @@ type LoadState =
   | { status: "unavailable"; message: string };
 
 export function ReportsIndex() {
-  const workspace = useActiveWorkspaceId();
+  const workspace = useTeamWorkspaceGate();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [filter, setFilter] = useState<LifecycleFilter>("all");
   const [search, setSearch] = useState("");

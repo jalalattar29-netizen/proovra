@@ -10,9 +10,10 @@
  * `buildPermissionSnapshot`.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { useTeamId } from "../../../../../lib/platform-context";
 import {
   cardStyle,
   errorBoxStyle,
@@ -56,7 +57,7 @@ type Snapshot = {
 };
 
 export default function PermissionMatrixPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [subjectUserId, setSubjectUserId] = useState<string>("");
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,21 +65,8 @@ export default function PermissionMatrixPage() {
   const [filter, setFilter] = useState<string>("");
   const [outcomeFilter, setOutcomeFilter] = useState<Outcome | "">("");
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const load = useCallback(async () => {
+  
+const load = useCallback(async () => {
     if (!teamId || !subjectUserId) return;
     setBusy(true);
     setError(null);

@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
+import { useTeamId } from "../../../lib/platform-context";
 
 type InstanceStatus =
   | "DRAFT"
@@ -86,25 +87,14 @@ const SECTORS: ReadonlyArray<string> = [
 ];
 
 export default function WorkflowsListPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [instances, setInstances] = useState<Instance[] | null>(null);
   const [templates, setTemplates] = useState<TemplateSummary[] | null>(null);
   const [status, setStatus] = useState<InstanceStatus | "">("");
   const [sector, setSector] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;

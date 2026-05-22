@@ -318,29 +318,22 @@ describe("Phase 32.8C — role-aware quick actions (Section H)", () => {
     expect(block).toMatch(/id:\s*"reviewer-ops"[\s\S]{0,200}visible:\s*isTeam/);
   });
 
-  it("Governance hub action requires team workspace AND admin-class role", () => {
+  it("Governance hub action gated by canonical canViewGovernance capability prop", () => {
+    // Phase 32.8 Foundation cleanup — visibility uses the canonical
+    // `canViewGovernance` prop (sourced from ctx.can("GOVERNANCE_VIEW"))
+    // instead of inline role-string equality.
     const block = CC.slice(CC.indexOf("function QuickActions"));
     expect(block).toMatch(
-      /id:\s*"governance"[\s\S]{0,400}visible:\s*isTeam[\s\S]{0,200}OWNER[\s\S]{0,100}ADMIN/,
+      /id:\s*['"]governance['"][\s\S]{0,400}visible:\s*canViewGovernance/,
     );
   });
 
-  it("canMutate excludes VIEWER (read-only role)", () => {
-    // canMutate is true for OWNER / ADMIN / MEMBER / REVIEWER.
-    // VIEWER is intentionally absent — guard the literal string
-    // "VIEWER" (with quotes) so REVIEWER doesn't accidentally
-    // satisfy the pattern. Allow whitespace between `canMutate =`
-    // and the `role ===` chain (the formatter may break across
-    // multiple lines).
-    const m = CC.match(/canMutate\s*=\s*[\s\S]{0,300}role\s*===\s*"[A-Z]+"/);
-    expect(m, "canMutate definition not found").toBeTruthy();
-    const block = m![0];
-    expect(block).toContain('"OWNER"');
-    expect(block).toContain('"ADMIN"');
-    expect(block).toContain('"MEMBER"');
-    expect(block).toContain('"REVIEWER"');
-    expect(block).not.toContain('"VIEWER"');
-  });
+  // OBSOLETE — Phase 32.8 Foundation cleanup eliminated the
+  // role-string equality chain in canMutate. It now reads from
+  // canonical capabilities: ctx.can("CASES_MANAGE") || ctx.can("REVIEWER_OPS_ACT").
+  // The VIEWER exclusion is enforced server-side in the capability
+  // resolver and unit-tested in phase-32-8-foundation-cleanup.test.ts.
+  it.skip("canMutate excludes VIEWER (read-only role)", () => {});
 });
 
 // =============================================================================

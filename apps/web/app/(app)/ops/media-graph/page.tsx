@@ -25,7 +25,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
-
+import { useTeamId } from "../../../../lib/platform-context";
 type MetricsSnapshot = {
   uptimeSeconds: number;
   counters: Record<string, number>;
@@ -203,30 +203,17 @@ type ActionResult =
   | { kind: "error"; label: string; detail: string };
 
 export default function MediaGraphOpsPage() {
+  const teamId = useTeamId();
   const [snapshot, setSnapshot] = useState<MetricsSnapshot | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [teamId, setTeamId] = useState<string | null>(null);
   const [retryRunId, setRetryRunId] = useState("");
   const [actionResult, setActionResult] = useState<ActionResult>({
     kind: "idle",
   });
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
+  
+useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
 

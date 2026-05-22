@@ -26,6 +26,86 @@ import {
   buildCaseWorkspace,
 } from "../services/cases/case-workspace.service.js";
 import { listWorkspaceArtifacts } from "../services/reports/reports-aggregator.service.js";
+import { buildMatterWorkspace } from "../services/cases/matter-workspace.service.js";
+import { buildMatterQueue } from "../services/cases/matter-queue.service.js";
+import {
+  CaseError,
+  changeCaseStatus,
+  addCaseAssignment,
+  removeCaseAssignment,
+  addCaseComment,
+  resolveCaseComment,
+  addEvidenceLink,
+  removeEvidenceLink,
+  removeLegacyEvidenceCaseId,
+} from "../services/cases/case-lifecycle.service.js";
+import {
+  type CaseAccessRole,
+  type CaseMutation,
+  evaluateCaseMutationPermission,
+  getCaseAssignmentRoles,
+} from "../services/cases/case-permission.service.js";
+
+/**
+ * Phase 32.8D-frontend-closure — Canonical case mutation gate.
+ *
+ * Replaces the ad-hoc per-route `member.role !== "OPERATOR"` checks
+ * (where OPERATOR/INVESTIGATOR/AUDITOR were dead values that never
+ * appeared on `member.role`) with a single bounded matrix.
+ *
+ * Returns `null` after sending a 403 response; the caller bails.
+ */
+async function gateCaseMutation(
+  reply: FastifyReply,
+  mutation: CaseMutation,
+  caseId: string,
+  member: { userId: string; role: string },
+): Promise<{ userId: string; role: string } | null> {
+  const accessRole = member.role as CaseAccessRole;
+  const assignmentRoles = await getCaseAssignmentRoles(caseId, member.userId);
+  const decision = evaluateCaseMutationPermission({
+    mutation,
+    accessRole,
+    assignmentRoles,
+  });
+  if (!decision.allowed) {
+    reply.code(403).send({
+      error: {
+        code: "forbidden",
+        reason: decision.reason,
+      },
+    });
+    return null;
+  }
+  return member;
+}
+
+function clientIp(req: FastifyRequest): string | null {
+  return (req.ip as string) ?? null;
+}
+function clientUa(req: FastifyRequest): string | null {
+  return (req.headers["user-agent"] as string | undefined) ?? null;
+}
+
+function handleCaseError(reply: FastifyReply, err: unknown): boolean {
+  if (err instanceof CaseError) {
+    const status =
+      err.code === "case_not_found" ||
+      err.code === "evidence_not_found" ||
+      err.code === "assignment_not_found" ||
+      err.code === "comment_not_found"
+        ? 404
+        : err.code === "invalid_transition" ||
+            err.code === "active_legal_hold_blocks_closure" ||
+            err.code === "evidence_link_exists" ||
+            err.code === "assignment_exists"
+          ? 409
+          : 400;
+    reply.code(status).send({ error: { code: err.code } });
+    return true;
+  }
+  return false;
+}
 
 // ---------------------------------------------------------------------------
 // Membership helpers
@@ -168,6 +248,638 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
       return reply.code(200).send(envelope);
+    },
+  );
+
+  // =========================================================================
+  // Phase 32.8D — Matter Workspace routes
+  //
+  //   GET    /v1/cases/matter-queue           — operations queue
+  //   GET    /v1/cases/:id/matter-workspace   — 11-section workspace
+  //   GET    /v1/cases/:id/risk               — latest risk snapshot
+  //
+  // Lifecycle mutations (audited):
+  //   POST   /v1/cases/:id/status
+  //   POST   /v1/cases/:id/assignments
+  //   DELETE /v1/cases/:id/assignments/:assignmentId
+  //   POST   /v1/cases/:id/comments
+  //   POST   /v1/cases/:id/comments/:commentId/resolve
+  //   POST   /v1/cases/:id/evidence-links
+  //   DELETE /v1/cases/:id/evidence-links/:linkId
+  // =========================================================================
+
+  const MatterQueueQuery = z.object({
+    teamId: z.string().uuid(),
+    status: z
+      .enum([
+        "OPEN",
+        "INVESTIGATING",
+        "ON_HOLD",
+        "RESOLVED",
+        "CLOSED",
+        "ARCHIVED",
+      ])
+      .optional(),
+    riskLevel: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional(),
+    assignedToUserId: z.string().uuid().optional(),
+    hasOpenIncidents: z.coerce.boolean().optional(),
+    hasGovernanceBlockers: z.coerce.boolean().optional(),
+    hasOverdueWorkflows: z.coerce.boolean().optional(),
+    hasLegalHold: z.coerce.boolean().optional(),
+    missingArtifact: z.coerce.boolean().optional(),
+    search: z.string().min(1).max(80).optional(),
+    limit: z.coerce.number().int().min(1).max(200).optional(),
+  });
+
+  app.get(
+    "/v1/cases/matter-queue",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = MatterQueueQuery.parse(req.query ?? {});
+      const member = await requireWorkspaceMember(req, reply, q.teamId);
+      if (!member) return;
+      const envelope = await buildMatterQueue({
+        teamId: q.teamId,
+        userId: member.userId,
+        role: member.role,
+        limit: q.limit,
+        filter: {
+          status: q.status,
+          riskLevel: q.riskLevel,
+          assignedToUserId: q.assignedToUserId,
+          hasOpenIncidents: q.hasOpenIncidents,
+          hasGovernanceBlockers: q.hasGovernanceBlockers,
+          hasOverdueWorkflows: q.hasOverdueWorkflows,
+          hasLegalHold: q.hasLegalHold,
+          missingArtifact: q.missingArtifact,
+          search: q.search,
+        },
+      });
+      return reply.code(200).send(envelope);
+    },
+  );
+
+  app.get(
+    "/v1/cases/:id/matter-workspace",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = WorkspaceParams.parse(req.params);
+      const member = await requireCaseAccess(req, reply, params.id);
+      if (!member) return;
+      const envelope = await buildMatterWorkspace({
+        caseId: params.id,
+        userId: member.userId,
+        role: member.role,
+      });
+      if ("notFound" in envelope) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      return reply.code(200).send(envelope);
+    },
+  );
+
+  app.get(
+    "/v1/cases/:id/risk",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = WorkspaceParams.parse(req.params);
+      const member = await requireCaseAccess(req, reply, params.id);
+      if (!member) return;
+      const snap = await prisma.caseRiskSnapshot.findFirst({
+        where: { caseId: params.id },
+        orderBy: { sampledAtUtc: "desc" },
+      });
+      if (!snap) {
+        return reply
+          .code(200)
+          .send({ snapshot: null, hint: "No risk snapshot yet — open the matter workspace to compute one lazily." });
+      }
+      return reply.code(200).send({
+        snapshot: {
+          riskScore: snap.riskScore,
+          riskLevel: snap.riskLevel,
+          evidenceGapCount: snap.evidenceGapCount,
+          openIncidentCount: snap.openIncidentCount,
+          activeWorkflowCount: snap.activeWorkflowCount,
+          overdueWorkflowCount: snap.overdueWorkflowCount,
+          governanceBlockerCount: snap.governanceBlockerCount,
+          reviewerPressureScore: snap.reviewerPressureScore,
+          auditReadinessScore: snap.auditReadinessScore,
+          custodyConcernCount: snap.custodyConcernCount,
+          integrityConcernCount: snap.integrityConcernCount,
+          packageReportGapCount: snap.packageReportGapCount,
+          reasonCodes: Array.isArray(snap.reasonCodes)
+            ? (snap.reasonCodes as string[])
+            : [],
+          recommendedAction: snap.recommendedAction,
+          sampledAtUtc: snap.sampledAtUtc.toISOString(),
+        },
+      });
+    },
+  );
+
+  // ---------- Picker endpoints (read-only, side-effect-free) ----------
+  //
+  // Phase 32.8D-frontend-closure — backs the assignment picker and
+  // evidence search modals. These endpoints are deliberately distinct
+  // from the global /v1/evidence and /v1/teams/:id/members surfaces
+  // so they can stay narrow and side-effect-safe:
+  //   - no audit emission
+  //   - no signed URLs
+  //   - no enumeration of users outside the active workspace
+  //   - bounded result sizes
+  //   - case-scoped (require case access)
+
+  const AssignmentCandidatesQuery = z.object({
+    search: z.string().min(1).max(80).optional(),
+    // Phase 32.8D-frontend-closure-2 — bounded limit (hard ceiling
+    // at 50) + optional cursor for stable "load more". The cursor
+    // is the ISO timestamp of the last `TeamMember.createdAt` on the
+    // previous page; the order is `createdAt ASC` so pages stay
+    // stable across refresh.
+    limit: z.coerce.number().int().min(1).max(50).optional(),
+    cursor: z.string().min(1).max(128).optional(),
+  });
+  app.get(
+    "/v1/cases/:id/assignment-candidates",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = WorkspaceParams.parse(req.params);
+      const q = AssignmentCandidatesQuery.parse(req.query ?? {});
+      const access = await requireCaseAccess(req, reply, params.id);
+      if (!access) return;
+      const caseRow = await prisma.case.findUnique({
+        where: { id: params.id },
+        select: { id: true, teamId: true, ownerUserId: true },
+      });
+      if (!caseRow) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      // Personal cases (no teamId) — assignment is not supported by
+      // the lifecycle service. Return an explanatory empty envelope.
+      if (!caseRow.teamId) {
+        return reply.code(200).send({
+          workspaceScope: "PERSONAL",
+          items: [],
+          reason:
+            "Personal cases do not support assignments. Switch to a team workspace to coordinate work.",
+        });
+      }
+      const search = q.search?.trim() ?? "";
+      const limit = Math.min(q.limit ?? 25, 50);
+      // Cursor is the createdAt of the last row on the previous
+      // page. We fetch `limit + 1` rows to detect whether a next
+      // page exists without an extra round trip.
+      let cursorDate: Date | null = null;
+      if (q.cursor) {
+        const parsed = new Date(q.cursor);
+        if (!Number.isNaN(parsed.getTime())) cursorDate = parsed;
+      }
+      const members = await prisma.teamMember.findMany({
+        where: {
+          teamId: caseRow.teamId,
+          status: "ACTIVE",
+          ...(cursorDate ? { createdAt: { gt: cursorDate } } : {}),
+          ...(search
+            ? {
+                user: {
+                  OR: [
+                    { email: { contains: search, mode: "insensitive" } },
+                    { displayName: { contains: search, mode: "insensitive" } },
+                    { firstName: { contains: search, mode: "insensitive" } },
+                    { lastName: { contains: search, mode: "insensitive" } },
+                  ],
+                },
+              }
+            : {}),
+        },
+        select: {
+          role: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              displayName: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+        take: limit + 1,
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      });
+      const hasMore = members.length > limit;
+      const page = hasMore ? members.slice(0, limit) : members;
+      const nextCursor =
+        hasMore && page.length > 0
+          ? page[page.length - 1]!.createdAt.toISOString()
+          : null;
+      const userIds = page.map((m) => m.user.id);
+      const existing = await prisma.caseAssignment.findMany({
+        where: {
+          caseId: params.id,
+          assignedToUserId: { in: userIds },
+          status: "ACTIVE",
+        },
+        select: { assignedToUserId: true, role: true },
+      });
+      const byUser = new Map<string, string[]>();
+      for (const e of existing) {
+        const list = byUser.get(e.assignedToUserId) ?? [];
+        list.push(String(e.role));
+        byUser.set(e.assignedToUserId, list);
+      }
+      return reply.code(200).send({
+        workspaceScope: "TEAM",
+        items: page.map((m) => ({
+          userId: m.user.id,
+          displayName:
+            [m.user.firstName, m.user.lastName].filter(Boolean).join(" ").trim() ||
+            m.user.displayName ||
+            m.user.email ||
+            null,
+          email: m.user.email ?? null,
+          workspaceRole: m.role,
+          existingAssignmentRoles: byUser.get(m.user.id) ?? [],
+        })),
+        nextCursor,
+      });
+    },
+  );
+
+  const LinkableEvidenceQuery = z.object({
+    search: z.string().min(1).max(80).optional(),
+    // Phase 32.8D-frontend-closure-2 — same cursor pattern as the
+    // assignment candidates endpoint. The cursor is the ISO
+    // timestamp of the last `Evidence.createdAt` (descending order
+    // → cursor advances backward in time).
+    limit: z.coerce.number().int().min(1).max(50).optional(),
+    cursor: z.string().min(1).max(128).optional(),
+  });
+  app.get(
+    "/v1/cases/:id/linkable-evidence",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = WorkspaceParams.parse(req.params);
+      const q = LinkableEvidenceQuery.parse(req.query ?? {});
+      const access = await requireCaseAccess(req, reply, params.id);
+      if (!access) return;
+      const caseRow = await prisma.case.findUnique({
+        where: { id: params.id },
+        select: { id: true, teamId: true, ownerUserId: true },
+      });
+      if (!caseRow) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      const search = q.search?.trim() ?? "";
+      const limit = Math.min(q.limit ?? 25, 50);
+      let cursorDate: Date | null = null;
+      if (q.cursor) {
+        const parsed = new Date(q.cursor);
+        if (!Number.isNaN(parsed.getTime())) cursorDate = parsed;
+      }
+      // Bounded read: evidence belonging to the case's workspace
+      // (team or personal), filtered by free-text search on title.
+      // We never expose evidence storage keys, signed URLs, or raw
+      // content — only the bounded summary fields.
+      const where = caseRow.teamId
+        ? { teamId: caseRow.teamId }
+        : { ownerUserId: caseRow.ownerUserId };
+      const items = await prisma.evidence.findMany({
+        where: {
+          ...where,
+          ...(cursorDate ? { createdAt: { lt: cursorDate } } : {}),
+          ...(search
+            ? { title: { contains: search, mode: "insensitive" } }
+            : {}),
+        },
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          status: true,
+          verificationStatus: true,
+          lifecycleState: true,
+          createdAt: true,
+          latestReportVersion: true,
+          verificationPackageVersion: true,
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: limit + 1,
+      });
+      const hasMore = items.length > limit;
+      const page = hasMore ? items.slice(0, limit) : items;
+      const nextCursor =
+        hasMore && page.length > 0
+          ? page[page.length - 1]!.createdAt.toISOString()
+          : null;
+      const evIds = page.map((e) => e.id);
+      const existingLinks = await prisma.caseEvidenceLink.findMany({
+        where: { caseId: params.id, evidenceId: { in: evIds } },
+        select: { evidenceId: true, role: true },
+      });
+      const linkedSet = new Set(existingLinks.map((l) => l.evidenceId));
+      const linkedRoleByEv = new Map(
+        existingLinks.map((l) => [l.evidenceId, String(l.role)]),
+      );
+      return reply.code(200).send({
+        items: page.map((e) => ({
+          id: e.id,
+          title: e.title ?? "Untitled evidence",
+          type: String(e.type),
+          status: String(e.status),
+          verificationStatus: e.verificationStatus
+            ? String(e.verificationStatus)
+            : null,
+          lifecycleState: e.lifecycleState ? String(e.lifecycleState) : null,
+          createdAt: e.createdAt.toISOString(),
+          reportReady: e.latestReportVersion !== null,
+          packageReady: e.verificationPackageVersion !== null,
+          alreadyLinked: linkedSet.has(e.id),
+          existingLinkRole: linkedRoleByEv.get(e.id) ?? null,
+        })),
+        nextCursor,
+      });
+    },
+  );
+
+  // ---------- Mutations (audited) ----------
+
+  const StatusBody = z.object({
+    toStatus: z.enum([
+      "OPEN",
+      "INVESTIGATING",
+      "ON_HOLD",
+      "RESOLVED",
+      "CLOSED",
+      "ARCHIVED",
+    ]),
+    reason: z.string().min(1).max(400).optional(),
+  });
+  app.post(
+    "/v1/cases/:id/status",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = WorkspaceParams.parse(req.params);
+      const body = StatusBody.parse(req.body ?? {});
+      const access = await requireCaseAccess(req, reply, params.id);
+      if (!access) return;
+      const member = await gateCaseMutation(reply, "STATUS_CHANGE", params.id, access);
+      if (!member) return;
+      try {
+        const updated = await changeCaseStatus({
+          caseId: params.id,
+          toStatus: body.toStatus,
+          reason: body.reason ?? null,
+          actorUserId: member.userId,
+          ipAddress: clientIp(req),
+          userAgent: clientUa(req),
+        });
+        return reply.code(200).send({ case: updated });
+      } catch (err) {
+        if (handleCaseError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  const AssignmentBody = z.object({
+    assignedToUserId: z.string().uuid(),
+    role: z.enum([
+      "OWNER",
+      "INVESTIGATOR",
+      "REVIEWER",
+      "GOVERNANCE",
+      "OBSERVER",
+    ]),
+    note: z.string().min(1).max(400).optional(),
+  });
+  app.post(
+    "/v1/cases/:id/assignments",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = WorkspaceParams.parse(req.params);
+      const body = AssignmentBody.parse(req.body ?? {});
+      const access = await requireCaseAccess(req, reply, params.id);
+      if (!access) return;
+      const member = await gateCaseMutation(reply, "ASSIGN", params.id, access);
+      if (!member) return;
+      try {
+        const row = await addCaseAssignment({
+          caseId: params.id,
+          assignedToUserId: body.assignedToUserId,
+          role: body.role,
+          note: body.note ?? null,
+          actorUserId: member.userId,
+          ipAddress: clientIp(req),
+          userAgent: clientUa(req),
+        });
+        return reply.code(200).send({ assignment: row });
+      } catch (err) {
+        if (handleCaseError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  app.delete(
+    "/v1/cases/:id/assignments/:assignmentId",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = z
+        .object({ id: z.string().uuid(), assignmentId: z.string().uuid() })
+        .parse(req.params);
+      const access = await requireCaseAccess(req, reply, params.id);
+      if (!access) return;
+      const member = await gateCaseMutation(reply, "ASSIGN", params.id, access);
+      if (!member) return;
+      try {
+        const row = await removeCaseAssignment({
+          caseId: params.id,
+          assignmentId: params.assignmentId,
+          actorUserId: member.userId,
+          ipAddress: clientIp(req),
+          userAgent: clientUa(req),
+        });
+        return reply.code(200).send({ assignment: row });
+      } catch (err) {
+        if (handleCaseError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  const CommentBody = z.object({
+    body: z.string().min(1).max(4000),
+    visibility: z
+      .enum(["INTERNAL", "REVIEWERS", "ALL_MEMBERS"])
+      .optional(),
+  });
+  app.post(
+    "/v1/cases/:id/comments",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = WorkspaceParams.parse(req.params);
+      const body = CommentBody.parse(req.body ?? {});
+      const access = await requireCaseAccess(req, reply, params.id);
+      if (!access) return;
+      const member = await gateCaseMutation(reply, "COMMENT", params.id, access);
+      if (!member) return;
+      try {
+        const row = await addCaseComment({
+          caseId: params.id,
+          body: body.body,
+          visibility: body.visibility,
+          actorUserId: member.userId,
+          ipAddress: clientIp(req),
+          userAgent: clientUa(req),
+        });
+        return reply.code(200).send({ comment: row });
+      } catch (err) {
+        if (handleCaseError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/cases/:id/comments/:commentId/resolve",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = z
+        .object({ id: z.string().uuid(), commentId: z.string().uuid() })
+        .parse(req.params);
+      const access = await requireCaseAccess(req, reply, params.id);
+      if (!access) return;
+      const member = await gateCaseMutation(
+        reply,
+        "COMMENT_RESOLVE",
+        params.id,
+        access,
+      );
+      if (!member) return;
+      try {
+        const row = await resolveCaseComment({
+          caseId: params.id,
+          commentId: params.commentId,
+          actorUserId: member.userId,
+          ipAddress: clientIp(req),
+          userAgent: clientUa(req),
+        });
+        return reply.code(200).send({ comment: row });
+      } catch (err) {
+        if (handleCaseError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  const EvidenceLinkBody = z.object({
+    evidenceId: z.string().uuid(),
+    role: z
+      .enum(["PRIMARY", "SUPPORTING", "RELATED", "DUPLICATE", "DERIVED", "CONTEXT"])
+      .optional(),
+    reason: z.string().min(1).max(400).optional(),
+  });
+  app.post(
+    "/v1/cases/:id/evidence-links",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = WorkspaceParams.parse(req.params);
+      const body = EvidenceLinkBody.parse(req.body ?? {});
+      const access = await requireCaseAccess(req, reply, params.id);
+      if (!access) return;
+      const member = await gateCaseMutation(
+        reply,
+        "EVIDENCE_LINK",
+        params.id,
+        access,
+      );
+      if (!member) return;
+      try {
+        const row = await addEvidenceLink({
+          caseId: params.id,
+          evidenceId: body.evidenceId,
+          role: body.role,
+          reason: body.reason ?? null,
+          actorUserId: member.userId,
+          ipAddress: clientIp(req),
+          userAgent: clientUa(req),
+        });
+        return reply.code(200).send({ link: row });
+      } catch (err) {
+        if (handleCaseError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  // Phase 32.8D-frontend-closure-2 — audited unlink of legacy
+  // Evidence.caseId attachments (no CaseEvidenceLink row). Same
+  // permission gate as EVIDENCE_LINK. Does not delete the Evidence
+  // record itself; only clears the legacy caseId pointer with audit.
+  app.delete(
+    "/v1/cases/:id/legacy-evidence-link/:evidenceId",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = z
+        .object({ id: z.string().uuid(), evidenceId: z.string().uuid() })
+        .parse(req.params);
+      const access = await requireCaseAccess(req, reply, params.id);
+      if (!access) return;
+      const member = await gateCaseMutation(
+        reply,
+        "EVIDENCE_UNLINK_LEGACY",
+        params.id,
+        access,
+      );
+      if (!member) return;
+      try {
+        const result = await removeLegacyEvidenceCaseId({
+          caseId: params.id,
+          evidenceId: params.evidenceId,
+          actorUserId: member.userId,
+          ipAddress: clientIp(req),
+          userAgent: clientUa(req),
+        });
+        return reply.code(200).send(result);
+      } catch (err) {
+        if (handleCaseError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  app.delete(
+    "/v1/cases/:id/evidence-links/:linkId",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = z
+        .object({ id: z.string().uuid(), linkId: z.string().uuid() })
+        .parse(req.params);
+      const access = await requireCaseAccess(req, reply, params.id);
+      if (!access) return;
+      const member = await gateCaseMutation(
+        reply,
+        "EVIDENCE_LINK",
+        params.id,
+        access,
+      );
+      if (!member) return;
+      try {
+        const result = await removeEvidenceLink({
+          caseId: params.id,
+          linkId: params.linkId,
+          actorUserId: member.userId,
+          ipAddress: clientIp(req),
+          userAgent: clientUa(req),
+        });
+        return reply.code(200).send(result);
+      } catch (err) {
+        if (handleCaseError(reply, err)) return;
+        throw err;
+      }
     },
   );
 

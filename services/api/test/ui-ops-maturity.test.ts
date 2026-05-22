@@ -174,11 +174,13 @@ describe("AppTopbarV2 — runtime indicator wiring", () => {
     );
   });
 
-  it("resolves teamId via the canonical useActiveWorkspaceId hook", () => {
-    expect(src).toMatch(/useActiveWorkspaceId/);
-    expect(src).toMatch(
-      /workspace\.status === "ready" \? workspace\.workspaceId : null/,
-    );
+  it("resolves teamId via the canonical platform context", () => {
+    // Phase 32.8 Foundation — topbar reads teamId from the canonical
+    // envelope: `envelope.workspace.id` when workspace is an active
+    // TEAM. The legacy useActiveWorkspaceId fallback is no longer
+    // used by the topbar.
+    expect(src).toMatch(/usePlatformContext/);
+    expect(src).toMatch(/envelope[\s\S]{0,200}workspace\.id/);
   });
 
   it("renders the indicator inside the topbar actions, before the language switcher", () => {

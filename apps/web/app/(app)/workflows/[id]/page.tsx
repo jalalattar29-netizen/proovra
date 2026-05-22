@@ -35,6 +35,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
+import { useTeamId } from "../../../../lib/platform-context";
 
 type InstanceStatus =
   | "DRAFT"
@@ -116,10 +117,9 @@ type ExportSummary = {
 };
 
 export default function WorkflowInstancePage() {
+  const teamId = useTeamId();
   const params = useParams<{ id: string }>();
   const instanceId = params?.id ?? "";
-
-  const [teamId, setTeamId] = useState<string | null>(null);
   const [instance, setInstance] = useState<Instance | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
   const [mapped, setMapped] = useState<MappedEvidence[]>([]);
@@ -130,18 +130,7 @@ export default function WorkflowInstancePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  
   async function refresh() {
     if (!teamId || !instanceId) return;
     const qs = `?teamId=${encodeURIComponent(teamId)}`;

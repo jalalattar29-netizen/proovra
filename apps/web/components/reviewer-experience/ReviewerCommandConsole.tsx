@@ -23,7 +23,11 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../lib/api";
-import { useActiveWorkspaceId } from "../../lib/useActiveWorkspaceId";
+import {
+  CapabilityDegradedPanel,
+  usePlatformContext,
+  useTeamWorkspaceGate,
+} from "../../lib/platform-context";
 import { RuntimeStatusBanner } from "../operational";
 import type { ReviewerCommandEnvelope, SectionStatus } from "./types";
 
@@ -35,7 +39,8 @@ type LoadState =
   | { status: "unavailable"; message: string };
 
 export function ReviewerCommandConsole() {
-  const workspace = useActiveWorkspaceId();
+  const ctx = usePlatformContext();
+  const workspace = useTeamWorkspaceGate();
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
   const load = useCallback(async () => {
@@ -86,6 +91,27 @@ export function ReviewerCommandConsole() {
     }
     void load();
   }, [workspace.status, workspace.status === "ready" ? workspace.workspaceId : null, load]);
+
+  // Phase 32.8 Foundation — capability gate from the canonical
+  // context. Personal workspaces (REVIEWER_OPS_VIEW = false) render
+  // the structured CapabilityDegradedPanel instead of the legacy
+  // "no workspace" plain-text fallback.
+  if (ctx.envelope && !ctx.can("REVIEWER_OPS_VIEW")) {
+    return (
+      <main className="cc-page" data-reviewer-capability-degraded>
+        <CapabilityDegradedPanel
+          surface="Reviewer Ops"
+          requiredCapability="REVIEWER_OPS_VIEW"
+          reason="Reviewer Ops coordinates work across a team — queue triage, SLA pressure, escalations, and reviewer capacity. It activates when you switch into a team workspace."
+          alternatives={[
+            { label: "Manage your evidence", href: "/evidence" },
+            { label: "Open your cases", href: "/cases" },
+            { label: "Generate a report", href: "/reports" },
+          ]}
+        />
+      </main>
+    );
+  }
 
   if (state.status === "loading") return <ShellLoading />;
   if (state.status === "no_workspace") return <ShellNoWorkspace />;

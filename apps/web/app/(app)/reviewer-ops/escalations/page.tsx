@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
-import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
+import { useTeamWorkspaceGate } from "../../../../lib/platform-context";
 import { WorkspaceGateState } from "../WorkspaceGateState";
 import {
   NoEscalationsEmptyState,
@@ -77,8 +77,8 @@ const STATUS_FILTERS: (EscalationStatus | "ALL")[] = [
 const SEVERITY_FILTERS = ["", "INFO", "WARNING", "HIGH", "CRITICAL"];
 
 export default function EscalationsConsolePage() {
-  // Hotfix — canonical workspace resolution.
-  const workspaceState = useActiveWorkspaceId();
+  // Phase 32.8 Foundation cleanup — read from canonical context.
+  const workspaceState = useTeamWorkspaceGate();
   const teamId =
     workspaceState.status === "ready" ? workspaceState.workspaceId : null;
   const [rows, setRows] = useState<EscalationProjection[] | null>(null);
@@ -142,7 +142,11 @@ export default function EscalationsConsolePage() {
 
   if (workspaceState.status !== "ready") {
     return (
-      <WorkspaceGateState state={workspaceState} surface="Escalations" />
+      <WorkspaceGateState
+        state={workspaceState}
+        surface="Escalations"
+        requiredCapability="ESCALATIONS_VIEW"
+      />
     );
   }
 

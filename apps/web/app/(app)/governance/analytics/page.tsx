@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { useTeamId } from "../../../../lib/platform-context";
 
 type AnalyticsWindow = "1h" | "24h" | "7d" | "30d";
 
@@ -70,24 +71,12 @@ const METRIC_LABEL: Record<string, string> = {
 };
 
 export default function GovernanceAnalyticsPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [window, setWindowSel] = useState<AnalyticsWindow>("24h");
   const [data, setData] = useState<AnalyticsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((res: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (cancelled) return;
-        setTeamId(res?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;

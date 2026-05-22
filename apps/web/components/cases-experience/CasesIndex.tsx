@@ -1,59 +1,139 @@
 "use client";
 
 /**
- * Phase 32.8D — Enterprise Cases / Matters index.
+ * Phase 32.8D-frontend — Matter Operations Queue.
  *
- * Replaces the previous CRUD-style cases page. Cases are presented
- * as investigation/matter workspaces with operational summary +
- * enriched rows (linked evidence, holds, review pressure).
+ * The /cases route is no longer a CRUD card list. It is the
+ * team-scoped Matter Operations Queue, sourced from
+ * `GET /v1/cases/matter-queue`. Each row surfaces:
+ *
+ *   - case identity (name, reference number)
+ *   - status / priority chips
+ *   - operational counters (linked evidence, evidence gaps, open
+ *     incidents, active + overdue workflows, governance blockers,
+ *     legal hold count)
+ *   - risk score / risk level / risk reason codes / recommended
+ *     action
+ *   - latest activity time
  *
  * Hard rules:
- *   - Every count + indicator comes from `/v1/cases/summary`. No
- *     fake metrics, no decorative cards.
- *   - Personal workspace renders the same shape but the operational
- *     strip surfaces only the relevant cards (no broken team
- *     governance widgets — `casesWithActiveHolds` and
- *     `casesWithPendingReview` simply show 0 / are gated for
- *     personal-only workspaces).
- *   - Browse loads NEVER mutate state. Create / rename / delete go
- *     through explicit user actions and reuse the existing audited
- *     /v1/cases endpoints — Phase 32.8D does not weaken governance.
+ *
+ *   1. Authority is read from the canonical platform context only.
+ *      NO useActiveWorkspaceId, NO /v1/users/me authority fetch,
+ *      NO /v1/teams authority fetch, NO local role/scope derivation.
+ *   2. Personal workspace renders the canonical
+ *      CapabilityDegradedPanel — the matter queue is team-scoped.
+ *   3. Browsing is side-effect free. No signed URLs, no audit
+ *      events, no report/package generation on render.
+ *   4. NO fabricated metrics — every count comes verbatim from the
+ *      envelope.
+ *   5. Filters are wired client-side as query parameters; the
+ *      server is the only authority on which rows are visible.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../lib/api";
-import { useActiveWorkspaceId } from "../../lib/useActiveWorkspaceId";
+import {
+  CapabilityDegradedPanel,
+  usePlatformContext,
+  useTeamId,
+} from "../../lib/platform-context";
 import type {
-  CaseSummaryItem,
-  CasesSummaryEnvelope,
+  MatterQueueEnvelope,
+  MatterQueueItem,
+  MatterRiskLevel,
 } from "./types";
+
+// ---------------------------------------------------------------------------
+// Bounded filter vocabularies (mirror MatterQueueQuery on the backend)
+// ---------------------------------------------------------------------------
+
+const CASE_STATUSES = [
+  "OPEN",
+  "INVESTIGATING",
+  "ON_HOLD",
+  "RESOLVED",
+  "CLOSED",
+  "ARCHIVED",
+] as const;
+type CaseStatus = (typeof CASE_STATUSES)[number];
+
+const RISK_LEVELS = ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+
+type QueueFilters = {
+  search: string;
+  status: CaseStatus | "";
+  riskLevel: MatterRiskLevel | "";
+  assignedToMe: boolean;
+  hasOpenIncidents: boolean;
+  hasGovernanceBlockers: boolean;
+  hasOverdueWorkflows: boolean;
+  hasLegalHold: boolean;
+  missingArtifact: boolean;
+};
+
+const DEFAULT_FILTERS: QueueFilters = {
+  search: "",
+  status: "",
+  riskLevel: "",
+  assignedToMe: false,
+  hasOpenIncidents: false,
+  hasGovernanceBlockers: false,
+  hasOverdueWorkflows: false,
+  hasLegalHold: false,
+  missingArtifact: false,
+};
+
+// ---------------------------------------------------------------------------
+// Load state
+// ---------------------------------------------------------------------------
 
 type LoadState =
   | { status: "loading" }
-  | { status: "ready"; envelope: CasesSummaryEnvelope }
-  | { status: "no_workspace" }
+  | { status: "ready"; envelope: MatterQueueEnvelope }
   | { status: "auth_error"; code: "auth_required" | "permission_denied" }
   | { status: "unavailable"; message: string };
 
-type StatusFilter = "all" | "with_evidence" | "with_holds" | "with_review";
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export function CasesIndex() {
-  const workspace = useActiveWorkspaceId();
+  const ctx = usePlatformContext();
+  const teamId = useTeamId();
+  const viewerUserId = ctx.envelope?.user.id ?? null;
+
+  const [filters, setFilters] = useState<QueueFilters>(DEFAULT_FILTERS);
   const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [filter, setFilter] = useState<StatusFilter>("all");
-  const [search, setSearch] = useState("");
-  const [creating, setCreating] = useState(false);
+
+  // Build the canonical query string from the filter state. The
+  // matter-queue endpoint takes the bounded params verbatim.
+  const queryString = useMemo(() => {
+    if (!teamId) return "";
+    const qs = new URLSearchParams();
+    qs.set("teamId", teamId);
+    if (filters.search.trim()) qs.set("search", filters.search.trim());
+    if (filters.status) qs.set("status", filters.status);
+    if (filters.riskLevel) qs.set("riskLevel", filters.riskLevel);
+    if (filters.assignedToMe && viewerUserId)
+      qs.set("assignedToUserId", viewerUserId);
+    if (filters.hasOpenIncidents) qs.set("hasOpenIncidents", "true");
+    if (filters.hasGovernanceBlockers) qs.set("hasGovernanceBlockers", "true");
+    if (filters.hasOverdueWorkflows) qs.set("hasOverdueWorkflows", "true");
+    if (filters.hasLegalHold) qs.set("hasLegalHold", "true");
+    if (filters.missingArtifact) qs.set("missingArtifact", "true");
+    return qs.toString();
+  }, [teamId, filters, viewerUserId]);
 
   const reload = useCallback(async () => {
-    if (workspace.status !== "ready") return;
+    if (!teamId) return;
     setState({ status: "loading" });
     try {
-      const envelope = (await apiFetch(
-        `/v1/cases/summary?teamId=${encodeURIComponent(workspace.workspaceId)}`,
-        { method: "GET" },
-      )) as CasesSummaryEnvelope;
+      const envelope = (await apiFetch(`/v1/cases/matter-queue?${queryString}`, {
+        method: "GET",
+      })) as MatterQueueEnvelope;
       setState({ status: "ready", envelope });
     } catch (err) {
       const e = err as { message?: string; statusCode?: number };
@@ -64,388 +144,493 @@ export function CasesIndex() {
       } else {
         setState({
           status: "unavailable",
-          message: e.message ?? "Unable to load cases.",
+          message: e.message ?? "Unable to load matter queue.",
         });
       }
     }
-  }, [workspace.status, workspace.status === "ready" ? workspace.workspaceId : null]);
+  }, [teamId, queryString]);
 
   useEffect(() => {
-    if (workspace.status === "loading") {
-      setState({ status: "loading" });
-      return;
-    }
-    if (workspace.status === "no-workspace") {
-      setState({ status: "no_workspace" });
-      return;
-    }
-    if (workspace.status === "error") {
-      setState({
-        status:
-          workspace.code === "auth_required" ||
-          workspace.code === "permission_denied"
-            ? "auth_error"
-            : "unavailable",
-        code:
-          workspace.code === "permission_denied"
-            ? "permission_denied"
-            : "auth_required",
-        message: workspace.message,
-      } as LoadState);
-      return;
-    }
+    if (!teamId) return;
     void reload();
-  }, [workspace.status, workspace.status === "ready" ? workspace.workspaceId : null, reload]);
+  }, [reload, teamId]);
 
-  const onCreateCase = useCallback(async () => {
-    if (workspace.status !== "ready") return;
-    const name = window.prompt("Case name");
-    if (!name?.trim()) return;
-    setCreating(true);
-    try {
-      await apiFetch("/v1/cases", {
-        method: "POST",
-        body: JSON.stringify({ name: name.trim() }),
-      });
-      await reload();
-    } catch (err) {
-      const e = err as { message?: string };
-      window.alert(`Could not create case: ${e.message ?? "unknown error"}`);
-    } finally {
-      setCreating(false);
-    }
-  }, [workspace.status, reload]);
+  // Personal workspace — matter queue is team-scoped. Render the
+  // canonical structured panel rather than a plain-text fallback.
+  if (!teamId) {
+    return (
+      <main className="cc-page" data-cases-personal-mode>
+        <CapabilityDegradedPanel
+          surface="Matter Operations Queue"
+          requiredCapability="CASES_VIEW"
+          reason="The Matter Operations Queue coordinates investigation matters across a team — risk scoring, evidence gaps, open incidents, governance blockers, and reviewer pressure all live together. It activates when you switch into a team workspace."
+          alternatives={[
+            { label: "View your evidence", href: "/evidence" },
+            { label: "Generate a report", href: "/reports" },
+            { label: "Switch or create a team workspace", href: "/teams" },
+          ]}
+        />
+      </main>
+    );
+  }
 
-  if (state.status === "loading") {
-    return <CasesLoading />;
-  }
-  if (state.status === "no_workspace") {
-    return <CasesNoWorkspace />;
-  }
-  if (state.status === "auth_error") {
-    return <CasesAuthError code={state.code} />;
-  }
-  if (state.status === "unavailable") {
-    return <CasesUnavailable message={state.message} />;
-  }
+  if (state.status === "loading") return <QueueLoading />;
+  if (state.status === "auth_error") return <QueueAuthError code={state.code} />;
+  if (state.status === "unavailable")
+    return <QueueUnavailable message={state.message} onRetry={reload} />;
 
   const { envelope } = state;
-  const { workspace: ws, sections } = envelope;
-  const isTeam = ws.scope === "TEAM";
-  const canCreate =
-    ws.role === "OWNER" ||
-    ws.role === "ADMIN" ||
-    ws.role === "MEMBER" ||
-    ws.role === "REVIEWER";
-
-  const filtered = filterCases(sections.cases.items, filter, search);
-
   return (
-    <main className="cc-page" data-cases-index>
+    <main className="cc-page" data-cases-index data-matter-queue>
       <header className="cc-page-header">
         <div>
-          <div className="cc-kicker">Investigation Workspaces</div>
-          <h1 className="cc-title">Cases &amp; Matters</h1>
+          <div className="cc-kicker">Investigation Matters</div>
+          <h1 className="cc-title">Matter Operations Queue</h1>
           <p className="cc-subtitle">
-            Coordination layer for linked evidence, review workflows, and legal
-            preservation. Read-only browse — explicit actions remain authoritative.
+            Real operational state of every case in this team — risk score,
+            evidence gaps, open incidents, governance blockers, reviewer
+            pressure, and legal preservation. Browse is read-only; explicit
+            actions remain audited.
           </p>
         </div>
         <div className="cc-meta">
-          <span data-cases-workspace-scope={ws.scope}>
-            {ws.scope === "PERSONAL"
-              ? "Personal workspace"
-              : `Team workspace · ${ws.memberCount} members`}
+          <span data-matter-queue-total>
+            {envelope.total} {envelope.total === 1 ? "matter" : "matters"}
           </span>
-          {canCreate ? (
-            <button
-              type="button"
-              className="cc-quick-action is-primary"
-              onClick={onCreateCase}
-              disabled={creating}
-              data-cases-create-button
-            >
-              {creating ? "Creating…" : "Create case"}
-            </button>
-          ) : null}
+          <span title={envelope.generatedAt} data-matter-queue-generated-at>
+            Refreshed {formatRelativeTime(envelope.generatedAt)}
+          </span>
         </div>
       </header>
 
-      {/* Operational summary strip */}
-      {sections.summary.status === "ok" && sections.summary.data ? (
-        <section className="cc-section" data-cases-summary>
-          <header className="cc-section-header">
-            <h2 className="cc-section-title">Operational Summary</h2>
-          </header>
-          <div className="cc-summary-strip">
-            <div className="cc-summary-card" data-cases-summary-key="total">
-              <span className="cc-summary-card-value">
-                {sections.summary.data.totalCases}
-              </span>
-              <span className="cc-summary-card-label">Total cases</span>
-            </div>
-            <div
-              className="cc-summary-card"
-              data-cases-summary-key="with_evidence"
-            >
-              <span className="cc-summary-card-value">
-                {sections.summary.data.casesWithEvidence}
-              </span>
-              <span className="cc-summary-card-label">With evidence</span>
-            </div>
-            {isTeam ? (
-              <>
-                <div
-                  className="cc-summary-card"
-                  data-cases-summary-key="with_holds"
-                >
-                  <span className="cc-summary-card-value">
-                    {sections.summary.data.casesWithActiveHolds}
-                  </span>
-                  <span className="cc-summary-card-label">
-                    Active legal preservation
-                  </span>
-                </div>
-                <div
-                  className="cc-summary-card"
-                  data-cases-summary-key="with_review"
-                >
-                  <span className="cc-summary-card-value">
-                    {sections.summary.data.casesWithPendingReview}
-                  </span>
-                  <span className="cc-summary-card-label">
-                    With pending review
-                  </span>
-                </div>
-              </>
-            ) : null}
-          </div>
-        </section>
-      ) : (
-        <section className="cc-section">
-          <header className="cc-section-header">
-            <h2 className="cc-section-title">Operational Summary</h2>
-          </header>
-          <div
-            className="cc-section-note"
-            data-cc-section-status={sections.summary.status}
-          >
-            Summary is temporarily unavailable. The case list below remains usable.
-          </div>
-        </section>
-      )}
+      <MatterQueueFilters
+        filters={filters}
+        viewerUserId={viewerUserId}
+        onChange={setFilters}
+      />
 
-      {/* Filters */}
-      <section className="cc-section" data-cases-filters>
-        <header className="cc-section-header">
-          <h2 className="cc-section-title">Filters</h2>
-        </header>
-        <div className="cases-filter-row">
-          <input
-            type="search"
-            className="cases-filter-search"
-            placeholder="Search by case name"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            data-cases-search-input
-          />
-          <div className="cases-filter-chips" role="tablist" aria-label="Case filters">
-            <FilterChip
-              active={filter === "all"}
-              onClick={() => setFilter("all")}
-              label="All"
-              dataKey="all"
-            />
-            <FilterChip
-              active={filter === "with_evidence"}
-              onClick={() => setFilter("with_evidence")}
-              label="With evidence"
-              dataKey="with_evidence"
-            />
-            {isTeam ? (
-              <>
-                <FilterChip
-                  active={filter === "with_holds"}
-                  onClick={() => setFilter("with_holds")}
-                  label="Active preservation"
-                  dataKey="with_holds"
-                />
-                <FilterChip
-                  active={filter === "with_review"}
-                  onClick={() => setFilter("with_review")}
-                  label="Pending review"
-                  dataKey="with_review"
-                />
-              </>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      {/* Cases list */}
-      <section className="cc-section" data-cases-list>
-        <header className="cc-section-header">
-          <h2 className="cc-section-title">
-            {filtered.length === sections.cases.items.length
-              ? `Cases · ${filtered.length}`
-              : `Cases · ${filtered.length} of ${sections.cases.items.length}`}
-          </h2>
-        </header>
-        {sections.cases.status !== "ok" ? (
-          <div
-            className="cc-section-note"
-            data-cc-section-status={sections.cases.status}
-          >
-            Cases are temporarily unavailable. Retry shortly.
-          </div>
-        ) : filtered.length === 0 ? (
-          <CasesEmptyState
-            hasAny={sections.cases.items.length > 0}
-            canCreate={canCreate}
-            onCreate={onCreateCase}
-          />
-        ) : (
-          <ul className="cases-list" data-cases-list-items>
-            {filtered.map((c) => (
-              <li key={c.id} className="cases-row" data-cases-row-id={c.id}>
-                <Link href={`/cases/${c.id}`} className="cases-row-link">
-                  <div className="cases-row-main">
-                    <span className="cases-row-title">{c.name}</span>
-                    <span
-                      className="cases-row-scope"
-                      data-cases-row-scope={c.scope}
-                    >
-                      {c.scope === "PERSONAL" ? "Personal" : "Team"}
-                    </span>
-                  </div>
-                  <div className="cases-row-meta">
-                    <span data-cases-row-evidence={c.linkedEvidenceCount}>
-                      {c.linkedEvidenceCount} evidence
-                    </span>
-                    {c.hasActiveLegalHold ? (
-                      <span
-                        className="cases-row-chip"
-                        data-cases-row-chip="hold"
-                      >
-                        Legal preservation
-                      </span>
-                    ) : null}
-                    {c.pendingReviewCount > 0 ? (
-                      <span
-                        className="cases-row-chip"
-                        data-cases-row-chip="review"
-                      >
-                        {c.pendingReviewCount} pending review
-                      </span>
-                    ) : null}
-                    <time
-                      dateTime={c.updatedAt}
-                      data-cases-row-updated
-                      title={c.updatedAt}
-                    >
-                      Updated {formatRelativeTime(c.updatedAt)}
-                    </time>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <MatterQueueTable
+        items={envelope.items}
+        totalBeforeFilter={envelope.total}
+      />
     </main>
   );
 }
 
-function filterCases(
-  items: CaseSummaryItem[],
-  filter: StatusFilter,
-  search: string,
-): CaseSummaryItem[] {
-  const q = search.trim().toLowerCase();
-  let out = items;
-  if (q) {
-    out = out.filter((c) => c.name.toLowerCase().includes(q));
-  }
-  switch (filter) {
-    case "all":
-      return out;
-    case "with_evidence":
-      return out.filter((c) => c.linkedEvidenceCount > 0);
-    case "with_holds":
-      return out.filter((c) => c.hasActiveLegalHold);
-    case "with_review":
-      return out.filter((c) => c.pendingReviewCount > 0);
-  }
+// ---------------------------------------------------------------------------
+// Filters
+// ---------------------------------------------------------------------------
+
+function MatterQueueFilters({
+  filters,
+  viewerUserId,
+  onChange,
+}: {
+  filters: QueueFilters;
+  viewerUserId: string | null;
+  onChange: (f: QueueFilters) => void;
+}) {
+  const set = <K extends keyof QueueFilters>(key: K, value: QueueFilters[K]) =>
+    onChange({ ...filters, [key]: value });
+  return (
+    <section className="cc-section" data-matter-queue-filters>
+      <header className="cc-section-header">
+        <h2 className="cc-section-title">Filters</h2>
+      </header>
+      <div className="cases-filter-row">
+        <input
+          type="search"
+          className="cases-filter-search"
+          placeholder="Search by case name"
+          value={filters.search}
+          onChange={(e) => set("search", e.target.value)}
+          data-matter-queue-search-input
+        />
+        <select
+          aria-label="Status"
+          value={filters.status}
+          onChange={(e) => set("status", e.target.value as CaseStatus | "")}
+          data-matter-queue-status-select
+          className="cases-filter-chip"
+        >
+          <option value="">Any status</option>
+          {CASE_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Risk level"
+          value={filters.riskLevel}
+          onChange={(e) =>
+            set("riskLevel", e.target.value as MatterRiskLevel | "")
+          }
+          data-matter-queue-risk-select
+          className="cases-filter-chip"
+        >
+          <option value="">Any risk</option>
+          {RISK_LEVELS.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="cases-filter-chips" role="group" aria-label="Operational filters">
+        <FilterToggle
+          dataKey="assigned-to-me"
+          label="Assigned to me"
+          active={filters.assignedToMe}
+          disabled={!viewerUserId}
+          onToggle={() => set("assignedToMe", !filters.assignedToMe)}
+        />
+        <FilterToggle
+          dataKey="has-open-incidents"
+          label="Open incidents"
+          active={filters.hasOpenIncidents}
+          onToggle={() => set("hasOpenIncidents", !filters.hasOpenIncidents)}
+        />
+        <FilterToggle
+          dataKey="has-governance-blockers"
+          label="Governance blockers"
+          active={filters.hasGovernanceBlockers}
+          onToggle={() =>
+            set("hasGovernanceBlockers", !filters.hasGovernanceBlockers)
+          }
+        />
+        <FilterToggle
+          dataKey="has-overdue-workflows"
+          label="Overdue workflows"
+          active={filters.hasOverdueWorkflows}
+          onToggle={() =>
+            set("hasOverdueWorkflows", !filters.hasOverdueWorkflows)
+          }
+        />
+        <FilterToggle
+          dataKey="has-legal-hold"
+          label="Active legal hold"
+          active={filters.hasLegalHold}
+          onToggle={() => set("hasLegalHold", !filters.hasLegalHold)}
+        />
+        <FilterToggle
+          dataKey="missing-artifact"
+          label="Missing report/package"
+          active={filters.missingArtifact}
+          onToggle={() => set("missingArtifact", !filters.missingArtifact)}
+        />
+      </div>
+    </section>
+  );
 }
 
-function FilterChip({
-  active,
-  onClick,
-  label,
+function FilterToggle({
   dataKey,
+  label,
+  active,
+  disabled,
+  onToggle,
 }: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
   dataKey: string;
+  label: string;
+  active: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
 }) {
   return (
     <button
       type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
       className={`cases-filter-chip ${active ? "is-active" : ""}`}
-      data-cases-filter={dataKey}
+      data-matter-queue-filter={dataKey}
+      aria-pressed={active}
+      disabled={disabled}
+      onClick={onToggle}
     >
       {label}
     </button>
   );
 }
 
-function CasesEmptyState({
-  hasAny,
-  canCreate,
-  onCreate,
+// ---------------------------------------------------------------------------
+// Queue table
+// ---------------------------------------------------------------------------
+
+function MatterQueueTable({
+  items,
+  totalBeforeFilter,
 }: {
-  hasAny: boolean;
-  canCreate: boolean;
-  onCreate: () => void;
+  items: ReadonlyArray<MatterQueueItem>;
+  totalBeforeFilter: number;
 }) {
-  if (hasAny) {
-    return (
-      <div className="cc-section-note" data-cases-empty="filtered">
-        No cases match the current filter or search.
-      </div>
-    );
-  }
   return (
-    <div className="cases-empty" data-cases-empty="none">
-      <strong>No cases yet.</strong>
-      <p>
-        Cases coordinate evidence, review workflows, and legal preservation
-        across an investigation or matter.
-      </p>
-      {canCreate ? (
-        <button
-          type="button"
-          className="cc-quick-action is-primary"
-          onClick={onCreate}
-        >
-          Create your first case
-        </button>
-      ) : null}
-    </div>
+    <section className="cc-section" data-matter-queue-table>
+      <header className="cc-section-header">
+        <h2 className="cc-section-title">
+          {items.length === totalBeforeFilter
+            ? `Matters · ${items.length}`
+            : `Matters · ${items.length} of ${totalBeforeFilter}`}
+        </h2>
+      </header>
+      {items.length === 0 ? (
+        <div className="cc-section-note" data-matter-queue-empty>
+          No matters match the current filters. Clear filters or open a case
+          from the evidence detail to begin matter coordination.
+        </div>
+      ) : (
+        <ul className="cases-list" data-matter-queue-items>
+          {items.map((row) => (
+            <MatterQueueRow key={row.id} row={row} />
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
-function CasesLoading() {
+function MatterQueueRow({ row }: { row: MatterQueueItem }) {
+  const reasonCodes = row.riskReasonCodes ?? [];
   return (
-    <main className="cc-page" data-cases-loading>
+    <li
+      className="cases-row"
+      data-matter-queue-row
+      data-matter-queue-row-id={row.id}
+      data-matter-queue-row-risk={row.riskLevel ?? "NONE"}
+      data-matter-queue-row-status={row.status}
+    >
+      <Link href={`/cases/${row.id}`} className="cases-row-link">
+        <div className="cases-row-main">
+          <span className="cases-row-title">{row.name}</span>
+          {row.referenceNumber ? (
+            <span
+              className="cases-row-scope"
+              data-matter-queue-row-reference={row.referenceNumber}
+            >
+              {row.referenceNumber}
+            </span>
+          ) : null}
+          <RiskBadge level={row.riskLevel} score={row.riskScore} />
+          <span
+            className="cases-row-chip"
+            data-matter-queue-row-chip="status"
+            data-status={row.status}
+          >
+            {row.status}
+          </span>
+          {row.priority && row.priority !== "P2" ? (
+            <span
+              className="cases-row-chip"
+              data-matter-queue-row-chip="priority"
+              data-priority={row.priority}
+            >
+              {row.priority}
+            </span>
+          ) : null}
+        </div>
+        <div className="cases-row-meta">
+          <Counter
+            dataKey="linked-evidence"
+            value={row.linkedEvidenceCount}
+            label="evidence"
+          />
+          {row.evidenceGapCount > 0 ? (
+            <Counter
+              dataKey="evidence-gap"
+              value={row.evidenceGapCount}
+              label="gap"
+              tone="warning"
+            />
+          ) : null}
+          {row.openIncidentCount > 0 ? (
+            <Counter
+              dataKey="open-incidents"
+              value={row.openIncidentCount}
+              label="incident"
+              tone="high"
+            />
+          ) : null}
+          {row.activeWorkflowCount > 0 ? (
+            <Counter
+              dataKey="active-workflows"
+              value={row.activeWorkflowCount}
+              label="wf"
+            />
+          ) : null}
+          {row.overdueWorkflowCount > 0 ? (
+            <Counter
+              dataKey="overdue-workflows"
+              value={row.overdueWorkflowCount}
+              label="overdue"
+              tone="critical"
+            />
+          ) : null}
+          {row.governanceBlockerCount > 0 ? (
+            <Counter
+              dataKey="governance-blockers"
+              value={row.governanceBlockerCount}
+              label="gov block"
+              tone="high"
+            />
+          ) : null}
+          {row.activeLegalHoldCount > 0 ? (
+            <span
+              className="cases-row-chip"
+              data-matter-queue-row-chip="hold"
+              data-hold-count={row.activeLegalHoldCount}
+            >
+              Legal preservation
+            </span>
+          ) : null}
+          {row.activeAssignmentCount > 0 ? (
+            <Counter
+              dataKey="assignments"
+              value={row.activeAssignmentCount}
+              label="assigned"
+            />
+          ) : null}
+          <time
+            dateTime={row.latestActivityAtUtc}
+            data-matter-queue-row-latest-activity
+            title={row.latestActivityAtUtc}
+          >
+            {formatRelativeTime(row.latestActivityAtUtc)}
+          </time>
+        </div>
+        {reasonCodes.length > 0 ? (
+          <div
+            className="cases-row-reasons"
+            data-matter-queue-row-reason-codes
+            style={{
+              display: "flex",
+              gap: 6,
+              flexWrap: "wrap",
+              padding: "6px 0 0",
+            }}
+          >
+            {reasonCodes.map((code) => (
+              <span
+                key={code}
+                className="cases-row-chip"
+                data-matter-queue-row-reason={code}
+                style={{ fontSize: 11 }}
+              >
+                {reasonCodeLabel(code)}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {row.recommendedAction ? (
+          <div
+            className="cases-row-recommendation"
+            data-matter-queue-row-recommendation
+            style={{
+              padding: "6px 0 0",
+              fontSize: 12,
+              color: "#b8c7c3",
+            }}
+          >
+            Recommended: {row.recommendedAction}
+          </div>
+        ) : null}
+      </Link>
+    </li>
+  );
+}
+
+function RiskBadge({
+  level,
+  score,
+}: {
+  level: string | null;
+  score: number | null;
+}) {
+  if (!level) return null;
+  const tone =
+    level === "CRITICAL"
+      ? "critical"
+      : level === "HIGH"
+        ? "high"
+        : level === "MEDIUM"
+          ? "warning"
+          : "neutral";
+  return (
+    <span
+      className="cases-row-chip"
+      data-matter-queue-row-chip="risk"
+      data-risk-tone={tone}
+      data-risk-level={level}
+      data-risk-score={score ?? ""}
+    >
+      Risk: {level}
+      {typeof score === "number" ? ` · ${score}` : ""}
+    </span>
+  );
+}
+
+function Counter({
+  dataKey,
+  value,
+  label,
+  tone,
+}: {
+  dataKey: string;
+  value: number;
+  label: string;
+  tone?: "warning" | "high" | "critical";
+}) {
+  return (
+    <span
+      data-matter-queue-row-counter={dataKey}
+      data-counter-tone={tone ?? "neutral"}
+    >
+      {value} {label}
+    </span>
+  );
+}
+
+function reasonCodeLabel(code: string): string {
+  switch (code) {
+    case "EVIDENCE_GAP":
+      return "Evidence gap";
+    case "INCIDENT_OPEN":
+      return "Open incident";
+    case "WORKFLOW_OVERDUE":
+      return "Workflow overdue";
+    case "WORKFLOW_ACTIVE":
+      return "Active workflow";
+    case "INTEGRITY_FAILED":
+      return "Integrity failed";
+    case "INTEGRITY_REVIEW_REQUIRED":
+      return "Integrity review";
+    case "GOVERNANCE_BLOCKER":
+      return "Governance blocker";
+    case "LEGAL_HOLD_ACTIVE":
+      return "Legal preservation";
+    case "REVIEWER_OVERLOAD":
+      return "Reviewer overload";
+    case "AUDIT_GAP":
+      return "Audit gap";
+    case "PACKAGE_MISSING":
+      return "Package missing";
+    case "REPORT_MISSING":
+      return "Report missing";
+    case "CUSTODY_CONCERN":
+      return "Custody concern";
+    default:
+      return code;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shells
+// ---------------------------------------------------------------------------
+
+function QueueLoading() {
+  return (
+    <main className="cc-page" data-matter-queue-loading>
       <header className="cc-page-header">
         <div>
-          <div className="cc-kicker">Investigation Workspaces</div>
-          <h1 className="cc-title">Cases &amp; Matters</h1>
+          <div className="cc-kicker">Investigation Matters</div>
+          <h1 className="cc-title">Matter Operations Queue</h1>
         </div>
       </header>
       <section className="cc-section">
@@ -455,32 +640,16 @@ function CasesLoading() {
   );
 }
 
-function CasesNoWorkspace() {
-  return (
-    <main className="cc-page" data-cases-no-workspace>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Investigation Workspaces</div>
-          <h1 className="cc-title">No workspace selected</h1>
-          <p className="cc-subtitle">
-            Switch to a workspace to view cases.
-          </p>
-        </div>
-      </header>
-    </main>
-  );
-}
-
-function CasesAuthError({
+function QueueAuthError({
   code,
 }: {
   code: "auth_required" | "permission_denied";
 }) {
   return (
-    <main className="cc-page" data-cases-auth-error={code}>
+    <main className="cc-page" data-matter-queue-auth-error={code}>
       <header className="cc-page-header">
         <div>
-          <div className="cc-kicker">Investigation Workspaces</div>
+          <div className="cc-kicker">Investigation Matters</div>
           <h1 className="cc-title">
             {code === "auth_required"
               ? "Sign in required"
@@ -488,8 +657,8 @@ function CasesAuthError({
           </h1>
           <p className="cc-subtitle">
             {code === "auth_required"
-              ? "Sign in to view cases."
-              : "You do not have permission to view cases for this workspace."}
+              ? "Sign in to view the matter queue."
+              : "You do not have permission to view the matter queue for this workspace. Ask a workspace administrator."}
           </p>
         </div>
       </header>
@@ -497,22 +666,38 @@ function CasesAuthError({
   );
 }
 
-function CasesUnavailable({ message }: { message: string }) {
+function QueueUnavailable({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
   return (
-    <main className="cc-page" data-cases-unavailable>
+    <main className="cc-page" data-matter-queue-unavailable>
       <header className="cc-page-header">
         <div>
-          <div className="cc-kicker">Investigation Workspaces</div>
-          <h1 className="cc-title">Temporarily unavailable</h1>
+          <div className="cc-kicker">Investigation Matters</div>
+          <h1 className="cc-title">Matter queue temporarily unavailable</h1>
           <p className="cc-subtitle">{message}</p>
+        </div>
+        <div className="cc-meta">
+          <button type="button" onClick={onRetry} className="cases-filter-chip">
+            Retry
+          </button>
         </div>
       </header>
     </main>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Time helper
+// ---------------------------------------------------------------------------
+
 function formatRelativeTime(iso: string): string {
   const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "—";
   const diff = Date.now() - t;
   const minutes = Math.floor(diff / 60_000);
   if (minutes < 1) return "just now";

@@ -326,15 +326,10 @@ describe("Phase 32.5 — workspace profile + sidebar visibility", () => {
     expect(adminGroupBody).toMatch(/roles: \["OWNER", "ADMIN"\]/);
   });
 
-  it("sidebar consumes selectNavigationGroups exactly once (Phase 32.8B data-driven)", () => {
-    // Phase 32.8B — the sidebar no longer hand-rolls multiple
-    // `filterByVisibility(...)` calls. The canonical pipeline is
-    // `selectNavigationGroups(...)`, called once.
-    const calls = (
-      SIDEBAR_SRC.match(/selectNavigationGroups\(/g) ?? []
-    ).length;
-    expect(calls).toBe(1);
-  });
+  // OBSOLETE — Phase 32.8 Foundation removed `selectNavigationGroups`
+  // from the sidebar entirely. The server pre-filters navigation via
+  // /v1/platform/context. See phase-32-8-foundation-platform-context.test.ts.
+  it.skip("sidebar consumes selectNavigationGroups exactly once (Phase 32.8B data-driven)", () => {});
 });
 
 // =============================================================================

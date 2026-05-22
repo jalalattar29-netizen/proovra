@@ -1,9 +1,21 @@
 /**
+ * @deprecated Phase 32.8 Foundation cleanup
+ *
+ * This module is RETAINED FOR LEGACY TESTS ONLY. The live web shell
+ * no longer imports anything from this file — navigation is now
+ * server-resolved by `services/api/src/services/platform-context/navigation-registry.ts`
+ * and returned via /v1/platform/context.
+ *
+ * Drift tests in `services/api/test/phase-32-8-foundation-cleanup.test.ts`
+ * fail the build if any live shell file imports from this module.
+ *
+ * Historical Phase 32.8B context (retained for archeology):
+ * ----------------------------------------------------------
  * Phase 32.8B — Enterprise navigation config (data-driven).
  *
- * This module is the SINGLE source of truth for the app's sidebar
- * structure. The sidebar component (`AppSidebarV2`) consumes the
- * `NAVIGATION_GROUPS` array and the topbar consumes
+ * This module WAS the source of truth for the app's sidebar
+ * structure. The sidebar component (`AppSidebarV2`) consumed the
+ * `NAVIGATION_GROUPS` array and the topbar consumed
  * `ACCOUNT_MENU_ITEMS`. NO navigation is defined inline in JSX
  * anywhere else in the app shell — that is a hard rule.
  *

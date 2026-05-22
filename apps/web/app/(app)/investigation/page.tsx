@@ -29,7 +29,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
-
+import { useTeamId } from "../../../lib/platform-context";
 // =============================================================================
 // Types
 // =============================================================================
@@ -84,28 +84,15 @@ type MetricsSnapshot = {
 // =============================================================================
 
 export default function InvestigationOverviewPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
   const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
 
   // Resolve workspace once.
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Bounded poll: workspace data + metrics every 60 s while visible.
+  
+// Bounded poll: workspace data + metrics every 60 s while visible.
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;

@@ -8,6 +8,7 @@ import cookie from "@fastify/cookie";
 import { ZodError } from "zod";
 import { prisma } from "./db.js";
 import { usersRoutes } from "./routes/users.routes.js";
+import { platformContextRoutes } from "./routes/platform-context.routes.js";
 import { captureException, initSentry } from "./observability/sentry.js";
 import { auditMiddleware } from "./middleware/audit.middleware.js";
 import { evidenceRoutes } from "./routes/evidence.routes.js";
@@ -470,6 +471,7 @@ allowedHeaders: [
 
   await app.register(authRoutes);
   await app.register(usersRoutes);
+  await app.register(platformContextRoutes);
   await app.register(teamsRoutes);
   await app.register(billingRoutes);
   await app.register(webhooksRoutes, { prefix: "/webhooks" });

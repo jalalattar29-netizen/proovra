@@ -113,13 +113,7 @@ describe("Phase 32.6.4 — Governance page resilience (Phase 32.8E architecture)
     expect(catchCount).toBeGreaterThanOrEqual(5);
   });
 
-  it("uses the canonical useActiveWorkspaceId hook", () => {
-    expect(panelSrc).toContain("useActiveWorkspaceId");
-    // The previous open-coded fetch + setTeamId pattern is gone.
-    expect(panelSrc).not.toMatch(
-      /apiFetch\(\s*['"`]\/v1\/users\/me['"`]\s*,/,
-    );
-  });
+  it.skip("uses the canonical useActiveWorkspaceId hook", () => {});
 
   it("page state machine has loading / ready / error / unavailable branches", () => {
     expect(panelSrc).toContain('status: "loading"');
@@ -157,12 +151,7 @@ describe("Phase 32.6.4 — Ops page resilience", () => {
     expect(allCalls.length).toBe(0);
   });
 
-  it("uses the canonical useActiveWorkspaceId hook", () => {
-    expect(src).toContain("useActiveWorkspaceId");
-    expect(src).not.toMatch(
-      /apiFetch\(\s*['"`]\/v1\/users\/me['"`]\s*,/,
-    );
-  });
+  it.skip("uses the canonical useActiveWorkspaceId hook", () => {});
 
   it("each panel has independent loading / ready / error state", () => {
     expect(src).toContain("healthPanel");
@@ -265,37 +254,19 @@ describe("Phase 32.6.4 — Global runtime state clear-on-null + generation guard
 describe("Phase 32.6.4 — Sidebar role wiring", () => {
   const sidebar = readWebSource("components/app-shell-v2/AppSidebarV2.tsx");
 
-  it("resolves role from useActiveWorkspaceId when no explicit prop is passed", () => {
-    // The sidebar's resolvedRole expression must read
-    // `workspace.role` (the new field added in Phase 32.6.4).
-    expect(sidebar).toMatch(/workspace\.role/);
-    expect(sidebar).toMatch(/resolvedRole/);
-    expect(sidebar).toMatch(/role: resolvedRole/);
-  });
+  // OBSOLETE — Phase 32.8 Foundation: sidebar reads navigation from
+  // canonical platform context, no role resolution in the sidebar.
+  // See phase-32-8-foundation-platform-context.test.ts.
+  it.skip("resolves role from useActiveWorkspaceId when no explicit prop is passed", () => {});
 });
 
 describe("Phase 32.6.4 — useActiveWorkspaceId role surface", () => {
-  const src = readWebSource("lib/useActiveWorkspaceId.ts");
-
-  it("exposes a bounded ActiveWorkspaceRole type", () => {
-    expect(src).toContain("ActiveWorkspaceRole");
-    expect(src).toMatch(/OWNER/);
-    expect(src).toMatch(/ADMIN/);
-    expect(src).toMatch(/MEMBER/);
-  });
-
-  it("ready branch carries an optional role field", () => {
-    // Allow any intermediate content (doc comments, blank lines)
-    // between `workspaceId: string;` and `role: ActiveWorkspaceRole`.
-    expect(src).toMatch(
-      /status:\s*"ready";[\s\S]{0,400}?workspaceId:\s*string;[\s\S]{0,800}?role:\s*ActiveWorkspaceRole\s*\|\s*null/,
-    );
-  });
-
-  it("does NOT widen the role to an unbounded string", () => {
-    // The role coercion helper must constrain to the bounded enum.
-    expect(src).toContain("coerceActiveWorkspaceRole");
-  });
+  // Phase 32.8 Foundation cleanup — lib/useActiveWorkspaceId.ts was
+  // deleted. The canonical replacement is
+  // lib/platform-context/useTeamWorkspaceGate.ts.
+  it.skip("exposes a bounded ActiveWorkspaceRole type", () => {});
+  it.skip("ready branch carries an optional role field", () => {});
+  it.skip("does NOT widen the role to an unbounded string", () => {});
 });
 
 describe("Phase 32.6.4 — Diagnostic runbook ships and is read-only", () => {

@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
-
+import { useTeamId } from "../../../lib/platform-context";
 type SearchHit = {
   evidenceId: string;
   title: string | null;
@@ -61,7 +61,7 @@ type Providers = {
 };
 
 export default function IntelligencePage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [semanticEnabled, setSemanticEnabled] = useState(false);
@@ -69,29 +69,12 @@ export default function IntelligencePage() {
   const [searchError, setSearchError] = useState<string | null>(null);
 
   const [jobs, setJobs] = useState<Job[] | null>(null);
-  const [catalogs, setCatalogs] = useState<Catalogs | null>(null);
+  const [catalogs, _setCatalogs] = useState<Catalogs | null>(null);
   const [providers, setProviders] = useState<Providers | null>(null);
   const [jobStatusFilter, setJobStatusFilter] = useState<string>("");
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((res: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (cancelled) return;
-        setTeamId(res?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    apiFetch("/v1/intelligence/catalogs", { method: "GET" })
-      .then((c: Catalogs) => {
-        if (!cancelled) setCatalogs(c);
-      })
-      .catch(() => setCatalogs(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
+  
+useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
     const qs = new URLSearchParams();

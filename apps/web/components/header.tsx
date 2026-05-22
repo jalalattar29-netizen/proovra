@@ -1,17 +1,12 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { LanguageSwitcher } from "./language-switcher";
 
 type MarketingNavItem = {
-  href: string;
-  label: string;
-};
-
-type AppNavItem = {
   href: string;
   label: string;
 };
@@ -30,16 +25,6 @@ const MARKETING_NAV: MarketingNavItem[] = [
   { href: "/verify", label: "Verify" },
   { href: "/pricing", label: "Pricing" },
   { href: "/legal/verification-methodology", label: "Methodology" },
-];
-
-const APP_NAV: AppNavItem[] = [
-  { href: "/home", label: "Workspace" },
-  { href: "/capture", label: "Capture" },
-  { href: "/cases", label: "Cases" },
-  { href: "/teams", label: "Teams" },
-  { href: "/reports", label: "Reports" },
-  { href: "/billing", label: "Billing" },
-  { href: "/settings", label: "Settings" },
 ];
 
 function isRouteActive(pathname: string | null, href: string): boolean {
@@ -97,51 +82,9 @@ function VelvetLinkButton({
   );
 }
 
-function VelvetActionButton({
-  children,
-  dark = false,
-  onClick,
-  className = "",
-  fullWidth = false,
-}: {
-  children: React.ReactNode;
-  dark?: boolean;
-  onClick: () => void;
-  className?: string;
-  fullWidth?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group relative inline-flex h-10 items-center justify-center overflow-hidden rounded-[14px] border border-transparent px-4 sm:px-5 text-[0.9rem] font-semibold ui-transition active:scale-[0.985] ${
-        fullWidth ? "w-full" : "w-auto"
-      } ${
-        dark ? "hover-button-secondary" : "hover-button-primary"
-      } ${className}`.trim()}
-    >
-      <img
-        src="/images/site-velvet-bg.webp.png"
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover object-[50%_10%]"
-      />
-
-      <div
-        className={
-          dark
-            ? "absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.78)_0%,rgba(5,12,16,0.92)_100%)]"
-            : "absolute inset-0 bg-[linear-gradient(180deg,rgba(58,90,94,0.75)_0%,rgba(28,52,56,0.92)_100%)]"
-        }
-      />
-
-      <div className="absolute inset-0 rounded-[14px] border border-[rgba(183,157,132,0.55)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]" />
-
-      <span className="relative z-10 whitespace-nowrap text-[#e6ebea]">
-        {children}
-      </span>
-    </button>
-  );
-}
+// Phase 32.8 Foundation — VelvetActionButton was only used by the
+// deleted AppHeader. It is removed as dead code along with that
+// component.
 
 function HeaderShell({
   children,
@@ -486,108 +429,7 @@ export function MarketingHeader() {
   );
 }
 
-export function AppHeader({
-  hasSession,
-  onLogout,
-  isPlatformAdmin = false,
-}: {
-  hasSession: boolean;
-  onLogout: () => void;
-  isPlatformAdmin?: boolean;
-}) {
-  const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  const navItems = useMemo<AppNavItem[]>(() => {
-    if (!isPlatformAdmin) return APP_NAV;
-    return [...APP_NAV, { href: "/admin", label: "Admin" }];
-  }, [isPlatformAdmin]);
-
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
-  const isActive = (href: string) => isRouteActive(pathname, href);
-
-  return (
-    <HeaderShell
-      mobilePanel={
-        mobileOpen ? (
-          <MobilePanel
-            navItems={navItems}
-            activeHref={pathname ?? undefined}
-            onNavigate={() => setMobileOpen(false)}
-            extraActions={
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#b8c7c3]">
-                    Language
-                  </span>
-                  <div className="lang-button flex items-center">
-                    <LanguageSwitcher />
-                  </div>
-                </div>
-
-                {hasSession ? (
-                  <VelvetActionButton dark onClick={onLogout} fullWidth className="w-full">
-                    Sign out
-                  </VelvetActionButton>
-                ) : null}
-              </div>
-            }
-          />
-        ) : null
-      }
-    >
-      <div className="hidden lg:grid lg:w-full lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8">
-        <div className="min-w-0">
-          <Brand href="/home" />
-        </div>
-
-        <nav className="flex items-center justify-center gap-4">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`whitespace-nowrap text-[0.92rem] font-medium ${
-                isActive(item.href)
-                  ? "text-[#d6b89d]"
-                  : "hover-link-bronze text-[#dce1de]"
-              }`}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="flex items-center justify-end gap-2.5">
-          <div className="lang-button flex items-center">
-            <LanguageSwitcher />
-          </div>
-
-          {hasSession && (
-            <VelvetActionButton dark onClick={onLogout}>
-              Sign out
-            </VelvetActionButton>
-          )}
-        </div>
-      </div>
-
-      <div className="min-w-0 flex-1 lg:hidden">
-        <Brand href="/home" />
-      </div>
-
-      <div className="flex shrink-0 items-center gap-2 lg:hidden">
-        <div className="lang-button flex items-center">
-          <LanguageSwitcher />
-        </div>
-
-        <MobileMenuButton
-          open={mobileOpen}
-          onClick={() => setMobileOpen((prev) => !prev)}
-          label="Toggle app navigation menu"
-        />
-      </div>
-    </HeaderShell>
-  );
-}
+// Phase 32.8 Foundation — Legacy `AppHeader` (with its own APP_NAV)
+// was deleted. The canonical operator shell uses `AppShellV2` which
+// reads its navigation from the platform-context envelope. No part
+// of the app should declare a parallel nav array.

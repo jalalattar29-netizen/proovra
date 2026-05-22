@@ -15,7 +15,11 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../lib/api";
-import { useActiveWorkspaceId } from "../../lib/useActiveWorkspaceId";
+import {
+  CapabilityDegradedPanel,
+  usePlatformContext,
+  useTeamWorkspaceGate,
+} from "../../lib/platform-context";
 import { RuntimeStatusBanner } from "../operational";
 import type { GovernanceControlPlaneEnvelope, SectionStatus } from "./types";
 
@@ -35,7 +39,8 @@ type TabKey =
   | "incidents";
 
 export function GovernanceControlPlane() {
-  const workspace = useActiveWorkspaceId();
+  const ctx = usePlatformContext();
+  const workspace = useTeamWorkspaceGate();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [tab, setTab] = useState<TabKey>("posture");
 
@@ -88,6 +93,26 @@ export function GovernanceControlPlane() {
     void load();
   }, [workspace.status, workspace.status === "ready" ? workspace.workspaceId : null, load]);
 
+  // Phase 32.8 Foundation — canonical capability gate. Personal
+  // workspaces (GOVERNANCE_VIEW = false) render the structured
+  // CapabilityDegradedPanel instead of a plain-text fallback.
+  if (ctx.envelope && !ctx.can("GOVERNANCE_VIEW")) {
+    return (
+      <main className="cc-page" data-governance-capability-degraded>
+        <CapabilityDegradedPanel
+          surface="Governance"
+          requiredCapability="GOVERNANCE_VIEW"
+          reason="Governance Control Plane oversees evidence preservation, retention, destruction, exports, and policy posture across a team. It activates when you switch into a team workspace."
+          alternatives={[
+            { label: "View your evidence", href: "/evidence" },
+            { label: "Manage your cases", href: "/cases" },
+            { label: "Review billing & plan", href: "/billing" },
+          ]}
+        />
+      </main>
+    );
+  }
+
   if (state.status === "loading") return <ShellLoading />;
   if (state.status === "no_workspace") return <ShellNoWorkspace />;
   if (state.status === "auth_error")
@@ -96,8 +121,10 @@ export function GovernanceControlPlane() {
     return <ShellUnavailable message={state.message} />;
 
   const env = state.envelope;
-  const isTeam = env.workspace.scope === "TEAM";
-  const isAdmin = env.workspace.role === "OWNER" || env.workspace.role === "ADMIN";
+  // Phase 32.8 Foundation cleanup — visibility decisions read from
+  // the canonical capability map, not from local role string equality.
+  const isTeam = ctx.envelope?.flags.isTeamWorkspace === true;
+  const isAdmin = ctx.can("GOVERNANCE_ACT");
 
   return (
     <main className="cc-page" data-governance-control-plane>

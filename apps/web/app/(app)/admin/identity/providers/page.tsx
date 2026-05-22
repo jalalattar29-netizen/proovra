@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { useTeamId } from "../../../../../lib/platform-context";
 import {
   cardStyle,
   errorBoxStyle,
@@ -80,7 +81,7 @@ const OIDC_PROVIDERS: SsoProvider[] = [
 ];
 
 export default function ProvidersPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [providers, setProviders] = useState<SsoConnection[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -96,21 +97,8 @@ export default function ProvidersPage() {
   });
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const load = useCallback(() => {
+  
+const load = useCallback(() => {
     if (!teamId) return;
     apiFetch(
       `/v1/admin/identity/providers?teamId=${encodeURIComponent(teamId)}`,

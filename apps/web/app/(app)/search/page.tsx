@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
-
+import { useTeamId } from "../../../lib/platform-context";
 // -----------------------------------------------------------------------------
 // Wire-level types — kept loose so we don't drag the API SDK in here.
 // -----------------------------------------------------------------------------
@@ -149,7 +149,7 @@ const DEFAULT_LIMIT = 25;
 // -----------------------------------------------------------------------------
 
 export default function SearchPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [filter, setFilter] = useState<FilterState | null>(null);
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -162,23 +162,12 @@ export default function SearchPage() {
   const [savingView, setSavingView] = useState(false);
   const [qDraft, setQDraft] = useState("");
 
-  // Resolve workspace.
+  // Phase 32.8 Foundation cleanup — initialize filter when teamId
+  // resolves from the canonical platform context.
   useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (cancelled) return;
-        const id = r?.user?.currentWorkspaceId ?? null;
-        setTeamId(id);
-        if (id) setFilter({ teamId: id, sort: "UPDATED_DESC", limit: DEFAULT_LIMIT });
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!teamId) return;
+    setFilter({ teamId, sort: "UPDATED_DESC", limit: DEFAULT_LIMIT });
+  }, [teamId]);
 
   // Saved views.
   useEffect(() => {

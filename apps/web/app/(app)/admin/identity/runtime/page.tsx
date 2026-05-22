@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { useTeamId } from "../../../../../lib/platform-context";
 import {
   cardStyle,
   errorBoxStyle,
@@ -70,28 +71,15 @@ const QUARANTINE_REASONS = [
 ] as const;
 
 export default function IdentityRuntimePage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
   const [quarantined, setQuarantined] = useState<QuarantineRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const load = useCallback(() => {
+  
+const load = useCallback(() => {
     if (!teamId) return;
     Promise.all([
       apiFetch(

@@ -363,7 +363,16 @@ export async function teamsRoutes(app: FastifyInstance) {
       metadata: { count: items.length },
     });
 
-    return reply.code(200).send({ teams: items });
+    // Phase 32.8 Foundation cleanup — emit BOTH `teams` and `items`
+    // so legacy callers (that expected `items`) and current callers
+    // (that expect `teams`) keep working. Authority resolution no
+    // longer depends on this endpoint — the canonical envelope is
+    // `/v1/platform/context`. This dual-key shape exists strictly to
+    // remove the latent MEMBER-fallback regression where the legacy
+    // `useActiveWorkspaceId` read `teams.items` against a `{teams}`
+    // payload and got `undefined`. See
+    // services/api/test/phase-32-8-foundation-cleanup.test.ts.
+    return reply.code(200).send({ teams: items, items });
   });
 
   app.get(

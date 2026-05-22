@@ -21,7 +21,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
-import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
+import { useTeamWorkspaceGate } from "../../../../lib/platform-context";
 import { WorkspaceGateState } from "../../reviewer-ops/WorkspaceGateState";
 import { RuntimeStatusBanner } from "../../../../components/operational";
 import {
@@ -68,7 +68,7 @@ type ApiResponse = {
 };
 
 export default function GovernancePolicyPage() {
-  const workspaceState = useActiveWorkspaceId();
+  const workspaceState = useTeamWorkspaceGate();
   const teamId =
     workspaceState.status === "ready" ? workspaceState.workspaceId : null;
   const [policy, setPolicy] = useState<Policy | null>(null);
@@ -136,7 +136,11 @@ export default function GovernancePolicyPage() {
 
   if (workspaceState.status !== "ready") {
     return (
-      <WorkspaceGateState state={workspaceState} surface="Governance Policy" />
+      <WorkspaceGateState
+        state={workspaceState}
+        surface="Governance Policy"
+        requiredCapability="GOVERNANCE_ACT"
+      />
     );
   }
 

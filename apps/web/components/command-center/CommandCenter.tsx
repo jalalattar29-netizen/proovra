@@ -33,7 +33,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../lib/api";
-import { useActiveWorkspaceId } from "../../lib/useActiveWorkspaceId";
+import {
+  usePlatformContext,
+  useTeamWorkspaceGate,
+} from "../../lib/platform-context";
 import { RuntimeStatusBanner } from "../operational";
 import type {
   AuditReadinessCounter,
@@ -60,7 +63,7 @@ type LoadState =
   | { status: "unavailable"; message: string; requestId: string | null };
 
 export function CommandCenter() {
-  const workspace = useActiveWorkspaceId();
+  const workspace = useTeamWorkspaceGate();
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
   useEffect(() => {
@@ -127,11 +130,12 @@ export function CommandCenter() {
 // ---------------------------------------------------------------------------
 
 function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
+  const ctx = usePlatformContext();
   const { workspace, sections } = envelope;
-  const isTeam = workspace.scope === "TEAM";
-  const role = workspace.role;
-  const canMutate =
-    role === "OWNER" || role === "ADMIN" || role === "MEMBER" || role === "REVIEWER";
+  // Phase 32.8 Foundation cleanup — capability-derived visibility.
+  const isTeam = ctx.envelope?.flags.isTeamWorkspace === true;
+  const role = workspace.role; // retained for display only (badges, labels)
+  const canMutate = ctx.can("CASES_MANAGE") || ctx.can("REVIEWER_OPS_ACT");
 
   // Phase 32.8C FINAL-4 — persona-aware shell. The backend resolver
   // returns the persona + ordered list of section ids; the dashboard
@@ -431,7 +435,11 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
         >
           <IncidentsSection section={sections.incidents} />
         </div>
-        <QuickActions role={role} isTeam={isTeam} canMutate={canMutate} />
+        <QuickActions
+          isTeam={isTeam}
+          canMutate={canMutate}
+          canViewGovernance={ctx.can("GOVERNANCE_VIEW")}
+        />
       </div>
 
       {/* Phase 32.8C++ Deep Operations Intelligence */}
@@ -4092,13 +4100,13 @@ function IncidentsSection({
 }
 
 function QuickActions({
-  role,
   isTeam,
   canMutate,
+  canViewGovernance,
 }: {
-  role: string;
   isTeam: boolean;
   canMutate: boolean;
+  canViewGovernance: boolean;
 }) {
   const actions: Array<{
     id: string;
@@ -4127,8 +4135,7 @@ function QuickActions({
       id: "governance",
       label: "Governance",
       href: "/governance",
-      visible:
-        isTeam && (role === "OWNER" || role === "ADMIN" || role === "MEMBER"),
+      visible: canViewGovernance,
     },
   ];
   return (

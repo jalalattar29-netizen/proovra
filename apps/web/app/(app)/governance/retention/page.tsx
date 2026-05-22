@@ -26,6 +26,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { useTeamId } from "../../../../lib/platform-context";
 
 type PolicyStatus = "ACTIVE" | "PAUSED" | "SUPERSEDED" | "ARCHIVED";
 type PolicyScope = "WORKSPACE" | "EVIDENCE_TYPE" | "CASE" | "REGULATORY";
@@ -76,7 +77,7 @@ const SCOPE_LABEL: Record<PolicyScope, string> = {
 };
 
 export default function RetentionPoliciesPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [policies, setPolicies] = useState<Policy[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<PolicyStatus | "ALL">("ALL");
@@ -86,19 +87,7 @@ export default function RetentionPoliciesPage() {
   const [versions, setVersions] = useState<Version[] | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((res: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (cancelled) return;
-        setTeamId(res?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;

@@ -19,7 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
-
+import { usePlatformContext, useTeamId } from "../../../../lib/platform-context";
 type Stage =
   | "QUEUED"
   | "ASSIGNED"
@@ -77,8 +77,8 @@ type Counts = {
 };
 
 export default function ReviewOperationsPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
-  const [meUserId, setMeUserId] = useState<string | null>(null);
+  const teamId = useTeamId();
+  const meUserId = usePlatformContext().envelope?.user.id ?? null;
   const [counts, setCounts] = useState<Counts | null>(null);
   const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -90,25 +90,8 @@ export default function ReviewOperationsPage() {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then(
-        (res: {
-          user?: { id?: string; currentWorkspaceId?: string | null };
-        }) => {
-          if (cancelled) return;
-          setTeamId(res?.user?.currentWorkspaceId ?? null);
-          setMeUserId(res?.user?.id ?? null);
-        },
-      )
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
+  
+useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
     const qs = new URLSearchParams();

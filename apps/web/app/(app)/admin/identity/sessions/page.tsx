@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { useTeamId } from "../../../../../lib/platform-context";
 import {
   cardStyle,
   errorBoxStyle,
@@ -42,28 +43,15 @@ type ActiveSession = {
 };
 
 export default function SessionsPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [sessions, setSessions] = useState<ActiveSession[] | null>(null);
   const [includeRevoked, setIncludeRevoked] = useState(false);
   const [includeExpired, setIncludeExpired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const load = useCallback(() => {
+  
+const load = useCallback(() => {
     if (!teamId) return;
     const qs = new URLSearchParams();
     qs.set("teamId", teamId);

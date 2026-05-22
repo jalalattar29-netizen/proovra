@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { useTeamId } from "../../../lib/platform-context";
 
 type MemberStatus = "ACTIVE" | "SUSPENDED" | "REVOKED";
 type Role = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
@@ -81,7 +82,7 @@ type OrgPolicy = {
 };
 
 export default function IdentityPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [members, setMembers] = useState<Member[] | null>(null);
   const [serviceAccounts, setServiceAccounts] = useState<ServiceAccount[] | null>(
     null,
@@ -91,18 +92,7 @@ export default function IdentityPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((res: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(res?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;

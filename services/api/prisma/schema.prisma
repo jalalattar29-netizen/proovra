@@ -312,14 +312,179 @@ model Case {
   name        String       @db.VarChar(120)
   ownerUserId String       @map("owner_user_id")
   teamId      String?      @map("team_id") @db.Uuid
+
+  // Phase 32.8D — Matter lifecycle. status drives the matter queue
+  // filter + closure preservation invariant (ACTIVE legal hold blocks
+  // CLOSED / ARCHIVED transitions). priority feeds the queue sort.
+  status            CaseStatus    @default(OPEN)
+  priority          CasePriority  @default(P2)
+  description       String?       @db.VarChar(4000)
+  referenceNumber   String?       @map("reference_number") @db.VarChar(60)
+  closedAtUtc       DateTime?     @map("closed_at_utc") @db.Timestamptz(6)
+  closureReason     String?       @map("closure_reason") @db.VarChar(400)
+
   createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
-  access      CaseAccess[]
-  legalHolds  CaseLegalHold[]
 
+  access            CaseAccess[]
+  legalHolds        CaseLegalHold[]
+  // Phase 32.8D — Matter Workspace relations.
+  assignments       CaseAssignment[]
+  statusHistory     CaseStatusHistory[]
+  riskSnapshots     CaseRiskSnapshot[]
+
+  @@unique([teamId, referenceNumber], name: "case_team_reference_number_uniq")
   @@index([ownerUserId])
   @@index([teamId])
+  @@index([teamId, status])
+  @@index([teamId, priority])
   @@map("cases")
+}
+
+// =============================================================================
+// Phase 32.8D — Matter Workspace
+//
+// Three new advisory + canonical models on top of the existing Case row:
+//   1. CaseAssignment       — role-scoped operational ownership
+//   2. CaseStatusHistory    — audited status transitions
+//   3. CaseRiskSnapshot     — deterministic risk projection
+//
+// Hard rules:
+//   - CaseAssignment + CaseStatusHistory are canonical (every change is
+//     audited; lifecycle history survives).
+//   - CaseRiskSnapshot is an ADVISORY projection — writer failures
+//     NEVER block evidence/report/package/verify flows. Re-derivable
+//     from existing counters at any time.
+//   - All operator-facing strings bounded. No raw payloads.
+// =============================================================================
+
+enum CaseStatus {
+  OPEN
+  INVESTIGATING
+  ON_HOLD
+  RESOLVED
+  CLOSED
+  ARCHIVED
+}
+
+enum CasePriority {
+  P0
+  P1
+  P2
+  P3
+}
+
+enum CaseAssignmentRole {
+  OWNER
+  INVESTIGATOR
+  REVIEWER
+  GOVERNANCE
+  OBSERVER
+}
+
+enum CaseAssignmentStatus {
+  ACTIVE
+  REMOVED
+}
+
+enum CaseRiskLevel {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum CaseRiskSnapshotSource {
+  DB_DERIVED
+  WORKER_INTERNAL
+  OTHER
+}
+
+model CaseAssignment {
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId            String?                @map("team_id") @db.Uuid
+  caseId            String                 @map("case_id") @db.Uuid
+  assignedToUserId  String                 @map("assigned_to_user_id") @db.Uuid
+  assignedByUserId  String                 @map("assigned_by_user_id") @db.Uuid
+  role              CaseAssignmentRole
+  status            CaseAssignmentStatus   @default(ACTIVE)
+  assignedAtUtc     DateTime               @default(now()) @map("assigned_at_utc") @db.Timestamptz(6)
+  removedAtUtc      DateTime?              @map("removed_at_utc") @db.Timestamptz(6)
+  removedByUserId   String?                @map("removed_by_user_id") @db.Uuid
+  /// Bounded operator-safe note (e.g., "Picked up after escalation").
+  note              String?                @db.VarChar(400)
+
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  case              Case                   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, assignedToUserId, role], name: "case_assignment_role_uniq")
+  @@index([teamId, status])
+  @@index([caseId, status])
+  @@index([assignedToUserId, status])
+  @@index([role])
+  @@map("case_assignments")
+}
+
+model CaseStatusHistory {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String?       @map("team_id") @db.Uuid
+  caseId          String        @map("case_id") @db.Uuid
+  fromStatus      CaseStatus?
+  toStatus        CaseStatus
+  changedByUserId String        @map("changed_by_user_id") @db.Uuid
+  /// Bounded operator-safe reason; required for ON_HOLD / CLOSED /
+  /// ARCHIVED transitions per the lifecycle rules.
+  reason          String?       @db.VarChar(400)
+  changedAtUtc    DateTime      @default(now()) @map("changed_at_utc") @db.Timestamptz(6)
+
+  case            Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, changedAtUtc(sort: Desc)])
+  @@index([teamId, changedAtUtc(sort: Desc)])
+  @@index([toStatus])
+  @@map("case_status_history")
+}
+
+model CaseRiskSnapshot {
+  id                      String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId                  String?                 @map("team_id") @db.Uuid
+  caseId                  String                  @map("case_id") @db.Uuid
+
+  riskScore               Int                     @map("risk_score")
+  riskLevel               CaseRiskLevel           @map("risk_level")
+
+  evidenceGapCount        Int                     @default(0) @map("evidence_gap_count")
+  openIncidentCount       Int                     @default(0) @map("open_incident_count")
+  activeWorkflowCount     Int                     @default(0) @map("active_workflow_count")
+  overdueWorkflowCount    Int                     @default(0) @map("overdue_workflow_count")
+  governanceBlockerCount  Int                     @default(0) @map("governance_blocker_count")
+  reviewerPressureScore   Int                     @default(0) @map("reviewer_pressure_score")
+  auditReadinessScore     Int                     @default(0) @map("audit_readiness_score")
+  custodyConcernCount     Int                     @default(0) @map("custody_concern_count")
+  integrityConcernCount   Int                     @default(0) @map("integrity_concern_count")
+  packageReportGapCount   Int                     @default(0) @map("package_report_gap_count")
+
+  /// Bounded JSON array of reason codes (e.g., ["EVIDENCE_GAP",
+  /// "INCIDENT_OPEN", "WORKFLOW_OVERDUE"]). Catalog enforced in code.
+  reasonCodes             Json                    @map("reason_codes")
+  /// Bounded operator-safe recommended action.
+  recommendedAction       String                  @map("recommended_action") @db.VarChar(400)
+
+  sampledAtUtc            DateTime                @default(now()) @map("sampled_at_utc") @db.Timestamptz(6)
+  source                  CaseRiskSnapshotSource  @default(DB_DERIVED)
+  metadataJson            Json?                   @map("metadata_json")
+
+  createdAt               DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  case                    Case                    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, sampledAtUtc(sort: Desc)])
+  @@index([caseId, sampledAtUtc(sort: Desc)])
+  @@index([teamId, riskLevel])
+  @@map("case_risk_snapshots")
 }
 
 model CustodyEvent {

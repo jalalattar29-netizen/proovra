@@ -24,7 +24,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
-
+import { useTeamId } from "../../../../lib/platform-context";
 type GraphSeedKind = "CASE" | "INCIDENT" | "REPORT" | "EVIDENCE";
 
 type GraphSeed = {
@@ -55,27 +55,14 @@ const FILTER_OPTIONS: Array<{ value: GraphSeedKind | "ALL"; label: string }> = [
 ];
 
 export default function GraphExplorerPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [seeds, setSeeds] = useState<GraphSeed[] | null>(null);
   const [filter, setFilter] = useState<GraphSeedKind | "ALL">("ALL");
   const [error, setError] = useState<string | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
+  
+useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;

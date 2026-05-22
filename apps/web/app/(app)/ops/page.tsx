@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
-import { useActiveWorkspaceId } from "../../../lib/useActiveWorkspaceId";
+import { useTeamWorkspaceGate } from "../../../lib/platform-context";
 
 // Phase 32.6.4 — bounded per-panel state machine. Replaces the
 // previous `null | data` pattern where a single 503 from any of the
@@ -125,11 +125,9 @@ const STATUSES: IncidentStatus[] = [
 ];
 
 export default function OpsPage() {
-  // Phase 32.6.4 — adopt the canonical workspace resolver. Replaces
-  // the open-coded /v1/users/me call that bypassed the /v1/teams
-  // fallback (used by the topbar), which caused the same user to
-  // see a working topbar badge but a "Switch to a workspace" Ops page.
-  const workspace = useActiveWorkspaceId();
+  // Phase 32.8 Foundation cleanup — read team-scoped workspace from
+  // the canonical platform context. No /v1/users/me, no /v1/teams.
+  const workspace = useTeamWorkspaceGate();
   const teamId =
     workspace.status === "ready" ? workspace.workspaceId : null;
 

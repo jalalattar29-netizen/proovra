@@ -25,7 +25,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
-import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
+import { useTeamWorkspaceGate } from "../../../../lib/platform-context";
 import {
   OPS_INK,
   OPS_SURFACE,
@@ -214,7 +214,7 @@ function severityBadgeStyle(
 }
 
 export default function ObservabilityDashboardPage() {
-  const workspaceState = useActiveWorkspaceId();
+  const workspaceState = useTeamWorkspaceGate();
   const teamId =
     workspaceState.status === "ready" ? workspaceState.workspaceId : null;
   const [metrics, setMetrics] = useState<MetricsResponse["metrics"] | null>(

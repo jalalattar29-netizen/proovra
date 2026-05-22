@@ -24,6 +24,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { useTeamId } from "../../../../lib/platform-context";
 
 type Counts = Record<string, number>;
 
@@ -88,27 +89,15 @@ const STATUSES = [
 ] as const;
 
 export default function ReliabilityPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("STALLED");
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyEvidenceId, setBusyEvidenceId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((res: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (cancelled) return;
-        setTeamId(res?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
+  
+useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
     Promise.all([

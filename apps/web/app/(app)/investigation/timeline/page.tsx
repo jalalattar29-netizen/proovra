@@ -25,7 +25,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
-
+import { useTeamId } from "../../../../lib/platform-context";
 // =============================================================================
 // Types — mirror the /v1/graph/timeline projection
 // =============================================================================
@@ -81,7 +81,7 @@ const FILTER_OPTIONS: Array<{
 // =============================================================================
 
 export default function InvestigationTimelinePage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [anchorEvidenceId, setAnchorEvidenceId] = useState<string | null>(null);
   const [events, setEvents] = useState<TimelineEvent[] | null>(null);
   const [truncated, setTruncated] = useState(false);
@@ -98,21 +98,8 @@ export default function InvestigationTimelinePage() {
   }, []);
 
   // Workspace resolution.
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Bounded poll.
+  
+// Bounded poll.
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;

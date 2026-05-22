@@ -314,6 +314,7 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20260627100000_phase328c_control_plane_closure",
       "20260628100000_phase328c_workflow_causality",
       "20260629100000_phase328c_enterprise_gap_closure",
+      "20260630100000_phase328d_matter_workspace",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

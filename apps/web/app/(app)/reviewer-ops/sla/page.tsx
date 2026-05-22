@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
-import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
+import { useTeamWorkspaceGate } from "../../../../lib/platform-context";
 import { WorkspaceGateState } from "../WorkspaceGateState";
 import {
   NoWorkloadSnapshotsEmptyState,
@@ -101,8 +101,8 @@ type DashboardResponse = {
 };
 
 export default function SlaDashboardPage() {
-  // Hotfix — canonical workspace resolution.
-  const workspaceState = useActiveWorkspaceId();
+  // Phase 32.8 Foundation cleanup — read from canonical context.
+  const workspaceState = useTeamWorkspaceGate();
   const teamId =
     workspaceState.status === "ready" ? workspaceState.workspaceId : null;
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -164,7 +164,13 @@ export default function SlaDashboardPage() {
   }, [teamId, rangeDays]);
 
   if (workspaceState.status !== "ready") {
-    return <WorkspaceGateState state={workspaceState} surface="SLA" />;
+    return (
+      <WorkspaceGateState
+        state={workspaceState}
+        surface="SLA"
+        requiredCapability="SLA_VIEW"
+      />
+    );
   }
   if (!data) {
     return (

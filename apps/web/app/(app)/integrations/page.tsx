@@ -16,6 +16,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { useTeamId } from "../../../lib/platform-context";
 
 type ApiKey = {
   id: string;
@@ -69,7 +70,7 @@ const COMMON_SCOPES = [
 ] as const;
 
 export default function IntegrationsPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [apiKeys, setApiKeys] = useState<ApiKey[] | null>(null);
   const [webhooks, setWebhooks] = useState<Webhook[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,20 +82,8 @@ export default function IntegrationsPage() {
   const [showCreateKey, setShowCreateKey] = useState(false);
   const [showCreateWebhook, setShowCreateWebhook] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((res: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (cancelled) return;
-        setTeamId(res?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
+  
+useEffect(() => {
     if (!teamId) return;
     void loadAll(teamId);
   }, [teamId]);

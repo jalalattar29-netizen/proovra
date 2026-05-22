@@ -24,6 +24,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { useTeamId } from "../../../../lib/platform-context";
 
 type ReviewStatus =
   | "PENDING"
@@ -97,7 +98,7 @@ const ALLOWED_NEXT: Record<ReviewStatus, ReviewStatus[]> = {
 };
 
 export default function DestructionQueuePage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [reviews, setReviews] = useState<Review[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"ACTIVE" | "ALL" | ReviewStatus>(
@@ -106,19 +107,7 @@ export default function DestructionQueuePage() {
   const [timelineFor, setTimelineFor] = useState<Review | null>(null);
   const [timeline, setTimeline] = useState<LifecycleEvent[] | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((res: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (cancelled) return;
-        setTeamId(res?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;

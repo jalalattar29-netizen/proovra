@@ -1,4 +1,16 @@
 /**
+ * @deprecated Phase 32.8 Foundation cleanup
+ *
+ * This module is RETAINED FOR LEGACY TESTS ONLY. The live web shell
+ * no longer imports anything from this file — workspace profile and
+ * role vocabulary now live in `lib/platform-context/types.ts` and
+ * are server-resolved via /v1/platform/context.
+ *
+ * Drift tests in `services/api/test/phase-32-8-foundation-cleanup.test.ts`
+ * fail the build if any live shell file imports from this module.
+ *
+ * Historical Phase 32.5 context (retained for archeology):
+ * ---------------------------------------------------------
  * Phase 32.5 — Workspace profile + role-aware navigation foundation.
  *
  * The platform sidebar previously exposed every section to every

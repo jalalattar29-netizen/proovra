@@ -33,56 +33,46 @@ import {
   type LucideProps,
 } from "lucide-react";
 
-import { useActiveWorkspaceId } from "../../lib/useActiveWorkspaceId";
 import {
   useGlobalRuntimeState,
   type GlobalRuntimeSeverity,
 } from "../../lib/useGlobalRuntimeState";
-import type {
-  WorkspaceProfile,
-  WorkspaceRole,
-} from "../../lib/workspace-profile";
 import {
-  selectNavigationGroups,
-  type NavBadgeKey,
-  type NavGroup,
-  type NavIconKey,
-  type NavItem,
-} from "../../lib/navigation-config";
+  usePlatformContext,
+  type PlatformContextNavGroup,
+  type PlatformContextNavItem,
+} from "../../lib/platform-context";
+
+/**
+ * Phase 32.8 Foundation — Canonical sidebar.
+ *
+ * Reads the pre-filtered navigation tree from
+ * `usePlatformContext().envelope.navigation.groups`. NO local
+ * filtering, NO `selectNavigationGroups`, NO `useActiveWorkspaceId`,
+ * NO role/profile coercion. The server has already decided what this
+ * user sees.
+ *
+ * Responsibilities retained here (rendering-only):
+ *   1. Icon-key → Lucide component mapping
+ *   2. Runtime-badge hydration from `useGlobalRuntimeState` (escalations
+ *      count, runtime severity dots, governance incidents)
+ *   3. Active-route highlighting
+ *
+ * Hard rules — enforced by F-6 grep tests:
+ *   - NO `apiFetch(...)` in this file.
+ *   - NO `useActiveWorkspaceId` import.
+ *   - NO role/scope/persona/capability/platform-admin derivation here.
+ */
 
 type SidebarIcon = ForwardRefExoticComponent<
   Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>
 >;
 
-/**
- * Phase 32.8B — Enterprise sidebar (data-driven).
- *
- * This component is ONLY a renderer. The structure of the sidebar
- * (groups, items, visibility, ordering, deprecated-route metadata)
- * lives in `lib/navigation-config.ts`. Adding or modifying a nav
- * item means editing the config, NOT this file.
- *
- * What this file owns:
- *   - Icon-key → Lucide component mapping (intentionally kept here
- *     so the data layer doesn't import JSX).
- *   - Runtime-badge hydration (escalations count, runtime severity
- *     dots, governance incidents) from `useGlobalRuntimeState`.
- *   - Workspace-role resolution via `useActiveWorkspaceId` (the
- *     parent shell does not know the workspace role).
- *   - Visual rendering of groups + items with role-aware filtering.
- *
- * What this file MUST NOT do:
- *   - Define new sidebar items inline.
- *   - Override the `domain` of an item.
- *   - Skip the `selectNavigationGroups` filter (it is the canonical
- *     filter pipeline).
- */
-
 // =============================================================================
-// Icon mapping (the only JSX bridge for the data-driven config)
+// Icon mapping
 // =============================================================================
 
-const ICON_BY_KEY: Record<NavIconKey, SidebarIcon> = {
+const ICON_BY_KEY: Record<string, SidebarIcon> = {
   home: Gauge,
   capture: Camera,
   evidence: LibraryBig,
@@ -132,7 +122,6 @@ function severityToTone(
     case "INCIDENT_ACTIVE":
       return "high";
     case "DEGRADED":
-      return "warning";
     case "UNKNOWN":
       return "warning";
     default:
@@ -214,18 +203,8 @@ function BadgeView({ badge }: { badge: SidebarBadge }) {
   );
 }
 
-// =============================================================================
-// Badge hydration
-// =============================================================================
-
-/**
- * Project the data-driven `NavItem.badgeKey` to a real, hydrated
- * `SidebarBadge` using current runtime state. Returns `null` when
- * there is no real signal to show (we never fabricate a badge —
- * Phase 28-J / Phase 32.8A rule).
- */
 function hydrateBadge(
-  badgeKey: NavBadgeKey,
+  badgeKey: string,
   runtime: ReturnType<typeof useGlobalRuntimeState>,
   runtimeTone: SidebarBadgeTone | null,
   governanceIncidents: number,
@@ -264,31 +243,20 @@ function hydrateBadge(
   return null;
 }
 
-// =============================================================================
-// Active-route predicate
-// =============================================================================
-
 function isActiveRoute(pathname: string | null, href: string) {
   if (!pathname) return false;
   const route = href.split("#")[0]!.split("?")[0]!;
-  // /billing is excluded from prefix-match so /billing/invoices doesn't
-  // light up the Billing nav item incorrectly when on a sibling
-  // route. Same intent as the prior implementation.
   return (
     pathname === route ||
     (route !== "/billing" && route !== "/" && pathname.startsWith(`${route}/`))
   );
 }
 
-// =============================================================================
-// Group renderer
-// =============================================================================
-
 function SidebarGroupView({
   group,
   hydratedBadges,
 }: {
-  group: NavGroup;
+  group: PlatformContextNavGroup;
   hydratedBadges: Map<string, SidebarBadge>;
 }) {
   const pathname = usePathname();
@@ -305,7 +273,7 @@ function SidebarGroupView({
       <nav className="app-sidebar-v2-nav" aria-label={group.title}>
         {group.items.map((item) => {
           const active = isActiveRoute(pathname, item.href);
-          const Icon = ICON_BY_KEY[item.iconKey];
+          const Icon = ICON_BY_KEY[item.iconKey] ?? Gauge;
           const badge = hydratedBadges.get(item.id);
 
           return (
@@ -330,53 +298,25 @@ function SidebarGroupView({
   );
 }
 
-// =============================================================================
-// Public sidebar
-// =============================================================================
-
-export function AppSidebarV2({
-  isPlatformAdmin = false,
-  role: explicitRole = null,
-  workspaceProfile: explicitProfile = null,
-}: {
-  isPlatformAdmin?: boolean;
-  /** Phase 32.5 — bounded workspace role for sidebar visibility
-   *  filtering. Defaults to null which renders the "everyone"
-   *  default. Backend permissions remain authoritative. */
-  role?: WorkspaceRole | null;
-  /** Phase 32.5 — bounded workspace profile. */
-  workspaceProfile?: WorkspaceProfile | null;
-}) {
-  // Phase 32.6.4 — sidebar resolves role from the workspace hook so
-  // role-gated items are visible to admins even when the parent
-  // shell does not pass a role prop.
-  const workspace = useActiveWorkspaceId();
+export function AppSidebarV2() {
+  const { envelope } = usePlatformContext();
   const teamId =
-    workspace.status === "ready" ? workspace.workspaceId : null;
+    envelope?.workspace.status === "active" && envelope.workspace.scope === "TEAM"
+      ? envelope.workspace.id
+      : null;
   const runtime = useGlobalRuntimeState(teamId);
-
-  const resolvedRole: WorkspaceRole | null =
-    explicitRole ??
-    (workspace.status === "ready"
-      ? (workspace.role as WorkspaceRole | null)
-      : null);
 
   const runtimeTone = severityToTone(runtime.severity);
   const governanceIncidents = runtime.incidents.filter(
     (i) => i.category && i.category.toLowerCase().includes("governance"),
   ).length;
 
-  // 1) Filter the canonical config by role / profile / platform-admin.
-  const visibleGroups = selectNavigationGroups({
-    isPlatformAdmin,
-    role: resolvedRole,
-    profile: explicitProfile,
-  });
+  const groups = envelope?.navigation.groups ?? [];
 
-  // 2) Hydrate runtime badges for items that declared a badgeKey.
+  // Hydrate runtime badges for items that declared a badgeKey.
   const hydratedBadges = new Map<string, SidebarBadge>();
-  for (const group of visibleGroups) {
-    for (const item of group.items as NavItem[]) {
+  for (const group of groups) {
+    for (const item of group.items as ReadonlyArray<PlatformContextNavItem>) {
       if (item.badgeKey) {
         const badge = hydrateBadge(
           item.badgeKey,
@@ -395,7 +335,7 @@ export function AppSidebarV2({
 
       <div className="app-sidebar-v2-inner">
         <div className="app-sidebar-v2-scroll">
-          {visibleGroups.map((group) => (
+          {groups.map((group) => (
             <SidebarGroupView
               key={group.id}
               group={group}
@@ -409,7 +349,9 @@ export function AppSidebarV2({
             <ShieldCheck size={20} strokeWidth={2} />
           </div>
           <strong>Verification-first</strong>
-          <p>We do not store truth. We record integrity. You own the evidence.</p>
+          <p>
+            We do not store truth. We record integrity. You own the evidence.
+          </p>
           <Link href="/legal/verification-methodology">Learn more →</Link>
         </div>
 

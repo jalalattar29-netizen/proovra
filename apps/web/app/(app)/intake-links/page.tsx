@@ -26,6 +26,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { usePlatformContext } from "../../../lib/platform-context";
 
 type LinkRow = {
   id: string;
@@ -93,32 +94,19 @@ export default function IntakeLinksPage() {
     linkId: string;
   } | null>(null);
 
-  // Load current workspace (relies on existing /v1/users/me or /v1/teams/me).
-  // We use the authenticated evidence list approach: fetch user, take their
-  // current workspace. This avoids a new backend endpoint.
+  // Phase 32.8 Foundation cleanup — read team identity from the
+  // canonical platform context envelope (workspace name + id).
+  // No /v1/users/me, no /v1/teams direct fetch.
+  const ctxEnvelope = usePlatformContext().envelope;
   useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((res: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (cancelled) return;
-        const id = res?.user?.currentWorkspaceId ?? null;
-        if (!id) return;
-        return apiFetch(`/v1/teams/${id}`, { method: "GET" }).then(
-          (teamRes: { team?: { id: string; name: string } }) => {
-            if (cancelled) return;
-            if (teamRes?.team) {
-              setCurrentTeam({ id: teamRes.team.id, name: teamRes.team.name });
-            }
-          },
-        );
-      })
-      .catch(() => {
-        // currentTeam stays null — UI prompts the admin to select a workspace.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!ctxEnvelope) return;
+    const ws = ctxEnvelope.workspace;
+    if (ws.status === "active" && ws.scope === "TEAM" && ws.id) {
+      setCurrentTeam({ id: ws.id, name: ws.name ?? "Team workspace" });
+    } else {
+      setCurrentTeam(null);
+    }
+  }, [ctxEnvelope]);
 
   // Load links once we know the workspace.
   useEffect(() => {

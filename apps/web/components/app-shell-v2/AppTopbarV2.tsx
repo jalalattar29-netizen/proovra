@@ -16,83 +16,32 @@ import {
 } from "lucide-react";
 import { LanguageSwitcher } from "../language-switcher";
 import { GlobalRuntimeIndicator } from "../operational";
-import { useActiveWorkspaceId } from "../../lib/useActiveWorkspaceId";
-import { apiFetch } from "../../lib/api";
+import { usePlatformContext } from "../../lib/platform-context";
 
 /**
- * Phase 32.8B — Enterprise topbar (workspace vs account separation).
+ * Phase 32.8 Foundation — Canonical enterprise topbar.
  *
- * The topbar splits its right-hand region into TWO independent
- * controls:
+ * EVERY field rendered by this component comes from the canonical
+ * PlatformContextEnvelope via `usePlatformContext()`. No more
+ * `/v1/users/me` or `/v1/teams` fetches. No more hardcoded "Member"
+ * fallback. No more raw workspace UUID leaks.
  *
- *   1. WORKSPACE CHIP — current workspace name, scope (personal vs
- *      team), workspace role. Clicking opens a switcher menu that
- *      lists the user's other workspaces. This region is
- *      WORKSPACE-context only — it does not contain account
- *      controls (profile / settings / sign out) and does not
- *      contain platform-admin shortcuts.
+ * Hard rules — enforced by F-6 grep tests:
  *
- *   2. ACCOUNT CHIP — user identity (name + avatar + email).
- *      Clicking opens the account dropdown with profile,
- *      notifications, account settings, and sign out. This region
- *      is ACCOUNT-context only — it does not contain workspace
- *      controls.
- *
- * The two regions are visually and behaviourally independent: they
- * each manage their own open/closed state, focus, and click-outside
- * handling.
- *
- * Phase 32.8B no longer renders the deprecated horizontal top-nav
- * (Workspace / Capture / Evidence / Cases / Teams / Reports /
- * Billing / Settings). All primary navigation lives in the
- * sidebar — this matches Phase 32.8A's information architecture
- * and removes the duplicated navigation entries audit finding.
+ *   1. NO `apiFetch(...)` call in this file.
+ *   2. NO `useActiveWorkspaceId` import (the legacy hook is now a
+ *      thin alias and is forbidden from new shell components).
+ *   3. NO literal `"Member"` / `"Owner"` role fallback. The role
+ *      string is read verbatim from `envelope.workspace.membership.role`
+ *      or rendered as `null` / role-unavailable.
+ *   4. NO local platformRole derivation. We read
+ *      `envelope.platform.isPlatformAdmin`.
+ *   5. Workspace switching uses `ctx.switchWorkspace(id)`, which
+ *      drives the atomic state machine in the provider.
  */
 
-export type AppShellUserV2 = {
-  email?: string | null;
-  displayName?: string | null;
-  firstName?: string | null;
-  lastName?: string | null;
-  avatarUrl?: string | null;
-  platformRole?: string | null;
-};
-
-type WorkspaceSummary = {
-  id: string;
-  /**
-   * Phase 32.8C FINAL-3 — null when the workspace has no name. The chip
-   * renders a canonical scope label ("Personal workspace" / "Workspace")
-   * rather than the raw UUID in that case.
-   */
-  name: string | null;
-  role: string | null;
-  /** Bounded canonical scope label, derived from team type. */
-  scope: "PERSONAL" | "TEAM";
-};
-
-type TeamsListResponse = {
-  items?: ReadonlyArray<{
-    id?: string | null;
-    name?: string | null;
-    role?: string | null;
-    type?: string | null;
-    personal?: boolean | null;
-  }>;
-};
-
-function classifyScope(raw: {
-  type?: string | null;
-  personal?: boolean | null;
-}): "PERSONAL" | "TEAM" {
-  if (raw.personal === true) return "PERSONAL";
-  if (typeof raw.type === "string" && raw.type.toUpperCase() === "PERSONAL") {
-    return "PERSONAL";
-  }
-  return "TEAM";
-}
-
-function getUserDisplayName(user: AppShellUserV2 | null) {
+function getUserDisplayName(envelope: ReturnType<typeof usePlatformContext>["envelope"]) {
+  const user = envelope?.user;
   const fullName = [user?.firstName, user?.lastName]
     .filter(Boolean)
     .join(" ")
@@ -100,8 +49,8 @@ function getUserDisplayName(user: AppShellUserV2 | null) {
   return fullName || user?.displayName || user?.email || "Account";
 }
 
-function getInitials(user: AppShellUserV2 | null) {
-  const name = getUserDisplayName(user);
+function getInitials(envelope: ReturnType<typeof usePlatformContext>["envelope"]) {
+  const name = getUserDisplayName(envelope);
   const parts = name.split(/[.\s@_-]+/).filter(Boolean);
   return (
     parts
@@ -111,78 +60,73 @@ function getInitials(user: AppShellUserV2 | null) {
   );
 }
 
+/**
+ * Canonical workspace label. NEVER displays the raw workspace UUID.
+ *
+ *   - If the workspace has a name, use it.
+ *   - Otherwise use the bounded scope label ("Personal workspace" /
+ *     "Team workspace").
+ *   - While loading, render a quiet placeholder — not "Member".
+ */
+function getWorkspaceLabels(
+  envelope: ReturnType<typeof usePlatformContext>["envelope"],
+  state: ReturnType<typeof usePlatformContext>["state"],
+): { name: string; scopeLine: string } {
+  if (!envelope) {
+    if (state.name === "LOADING_CONTEXT") {
+      return { name: "Loading workspace…", scopeLine: "Resolving" };
+    }
+    if (state.name === "FAILED") {
+      return { name: "Workspace unavailable", scopeLine: "Tap to retry" };
+    }
+    return { name: "Workspace", scopeLine: "Loading" };
+  }
+
+  const { workspace } = envelope;
+  const scope = workspace.scope;
+
+  const name =
+    workspace.name ??
+    (scope === "PERSONAL"
+      ? "Personal workspace"
+      : scope === "TEAM"
+        ? "Team workspace"
+        : "Active workspace");
+
+  // Role is the verbatim envelope value. If null, the scope line
+  // reports "Role unavailable" — NEVER substitute "Member".
+  const role = workspace.membership.role;
+  const scopeLine =
+    scope === "PERSONAL"
+      ? role
+        ? `Personal • ${role}`
+        : "Personal"
+      : scope === "TEAM"
+        ? role
+          ? `Team • ${role}`
+          : "Team • Role unavailable"
+        : role ?? "Role unavailable";
+
+  return { name, scopeLine };
+}
+
 export function AppTopbarV2({
-  user,
   onLogout,
-  isPlatformAdmin = false,
   mobileSidebarOpen = false,
   onToggleMobileSidebar,
 }: {
-  user: AppShellUserV2 | null;
   onLogout: () => void;
-  isPlatformAdmin?: boolean;
   mobileSidebarOpen?: boolean;
   onToggleMobileSidebar?: () => void;
 }) {
   const pathname = usePathname();
+  const ctx = usePlatformContext();
+  const { envelope, state, switchWorkspace } = ctx;
+
   const [accountOpen, setAccountOpen] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
-
-  // Workspace-context: ID + role come from the canonical hook.
-  const workspace = useActiveWorkspaceId();
-  const runtimeTeamId =
-    workspace.status === "ready" ? workspace.workspaceId : null;
-
-  // Workspace switcher data — populated on mount, refreshed when
-  // the active workspace ID changes.
-  const [workspaceList, setWorkspaceList] = useState<
-    ReadonlyArray<WorkspaceSummary>
-  >([]);
-  const [activeWorkspaceName, setActiveWorkspaceName] = useState<string | null>(
-    null,
-  );
-  const [activeWorkspaceScope, setActiveWorkspaceScope] = useState<
-    "PERSONAL" | "TEAM" | null
-  >(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const teams = (await apiFetch("/v1/teams", {
-          method: "GET",
-        })) as TeamsListResponse;
-        if (cancelled) return;
-        const list: WorkspaceSummary[] = (teams.items ?? [])
-          .filter(
-            (t): t is { id: string; name?: string | null; role?: string | null; type?: string | null; personal?: boolean | null } =>
-              typeof t.id === "string" && t.id.length > 0,
-          )
-          .map((t) => ({
-            id: t.id,
-            // Phase 32.8C FINAL-3 — NEVER fall back to the raw UUID when
-            // the workspace has no name. The chip falls back to a
-            // canonical scope label below.
-            name: typeof t.name === "string" && t.name ? t.name : null,
-            role: typeof t.role === "string" ? t.role : null,
-            scope: classifyScope({ type: t.type, personal: t.personal }),
-          }));
-        setWorkspaceList(list);
-        if (runtimeTeamId) {
-          const match = list.find((w) => w.id === runtimeTeamId);
-          setActiveWorkspaceName(match?.name ?? null);
-          setActiveWorkspaceScope(match?.scope ?? null);
-        }
-      } catch {
-        // non-fatal; the chip falls back to the workspace id.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [runtimeTeamId]);
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -197,15 +141,20 @@ export function AppTopbarV2({
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, []);
 
-  // Close both menus on route change so we don't leak state across
-  // navigation.
+  // Close both menus on route change so we don't leak state across navigation.
   useEffect(() => {
     setAccountOpen(false);
     setWorkspaceOpen(false);
   }, [pathname]);
 
-  const workspaceRole =
-    workspace.status === "ready" ? workspace.role ?? null : null;
+  const isPlatformAdmin = envelope?.platform.isPlatformAdmin === true;
+  const runtimeTeamId =
+    envelope?.workspace.status === "active" && envelope.workspace.scope === "TEAM"
+      ? envelope.workspace.id
+      : null;
+
+  const { name: workspaceName, scopeLine } = getWorkspaceLabels(envelope, state);
+  const availableWorkspaces = envelope?.availableWorkspaces ?? [];
 
   return (
     <header className="app-topbar-v2">
@@ -252,6 +201,7 @@ export function AppTopbarV2({
           <div
             className="app-topbar-v2-workspace"
             data-app-topbar-workspace
+            data-platform-state={state.name}
             ref={workspaceRef}
           >
             <button
@@ -265,7 +215,8 @@ export function AppTopbarV2({
               }}
               aria-haspopup="menu"
               aria-expanded={workspaceOpen}
-              data-workspace-id={runtimeTeamId ?? ""}
+              data-workspace-id={envelope?.workspace.id ?? ""}
+              data-workspace-scope={envelope?.workspace.scope ?? ""}
             >
               <span
                 className="app-topbar-v2-workspace-icon"
@@ -274,37 +225,8 @@ export function AppTopbarV2({
                 <Users size={16} strokeWidth={1.9} />
               </span>
               <div className="app-topbar-v2-workspace-copy">
-                {/* Phase 32.8C FINAL-4 — enterprise workspace cluster.
-                    The name slot renders the workspace identity; the
-                    scope-line below renders the type + role. Both have
-                    distinct fallbacks so "Workspace" never appears twice
-                    in the same cluster. */}
-                <strong data-workspace-name>
-                  {activeWorkspaceName
-                    ? activeWorkspaceName
-                    : workspace.status === "ready"
-                      ? activeWorkspaceScope === "PERSONAL"
-                        ? "Personal workspace"
-                        : activeWorkspaceScope === "TEAM"
-                          ? "Team workspace"
-                          : "Active workspace"
-                      : workspace.status === "no-workspace"
-                        ? "No workspace"
-                        : "Loading workspace…"}
-                </strong>
-                <span data-workspace-scope-line>
-                  {activeWorkspaceScope === "PERSONAL"
-                    ? workspaceRole
-                      ? `Personal • ${workspaceRole}`
-                      : "Personal"
-                    : activeWorkspaceScope === "TEAM"
-                      ? workspaceRole
-                        ? `Team • ${workspaceRole}`
-                        : "Team"
-                      : workspaceRole
-                        ? workspaceRole
-                        : "Member"}
-                </span>
+                <strong data-workspace-name>{workspaceName}</strong>
+                <span data-workspace-scope-line>{scopeLine}</span>
               </div>
               <ChevronDown size={14} strokeWidth={1.9} />
             </button>
@@ -315,32 +237,26 @@ export function AppTopbarV2({
                 role="menu"
                 data-app-topbar-workspace-menu
               >
-                {/* Phase 32.8C FINAL-4 — grouped switcher header.
-                    Subtitle reads as "Only this workspace" when there is
-                    none to switch to, instead of the bare "0 available". */}
                 <div className="app-topbar-v2-workspace-menu-header">
                   <strong>Switch workspace</strong>
                   <span data-workspace-menu-count>
-                    {workspaceList.length === 0
+                    {availableWorkspaces.length <= 1
                       ? "Only this workspace"
-                      : workspaceList.length === 1
-                        ? "1 workspace"
-                        : `${workspaceList.length} workspaces`}
+                      : `${availableWorkspaces.length} workspaces`}
                   </span>
                 </div>
-                {/* Group available workspaces: Personal first, then Team. */}
-                {workspaceList.length === 0 ? (
+                {availableWorkspaces.length <= 1 ? (
                   <div
                     className="app-topbar-v2-workspace-menu-empty"
                     data-workspace-menu-empty
                   >
-                    You only have access to this workspace. Create or join
-                    a team workspace to switch from here.
+                    You only have access to this workspace. Create or join a
+                    team workspace to switch from here.
                   </div>
                 ) : (
                   <>
                     {(["PERSONAL", "TEAM"] as const).map((groupScope) => {
-                      const items = workspaceList.filter(
+                      const items = availableWorkspaces.filter(
                         (w) => w.scope === groupScope,
                       );
                       if (items.length === 0) return null;
@@ -358,59 +274,79 @@ export function AppTopbarV2({
                               ? "Personal workspace"
                               : "Team workspaces"}
                           </div>
-                          {items.map((w) => (
-                            <Link
-                              key={w.id}
-                              href={`/teams?activate=${encodeURIComponent(w.id)}`}
-                              role="menuitem"
-                              onClick={() => setWorkspaceOpen(false)}
-                              data-workspace-option={w.id}
-                              aria-current={
-                                w.id === runtimeTeamId ? "true" : undefined
-                              }
-                              className={
-                                w.id === runtimeTeamId
-                                  ? "app-topbar-v2-workspace-menu-item is-active"
-                                  : "app-topbar-v2-workspace-menu-item"
-                              }
-                            >
-                              <Users size={14} strokeWidth={1.9} />
-                              <div
+                          {items.map((w) => {
+                            const isActive =
+                              groupScope === "PERSONAL"
+                                ? envelope?.workspace.scope === "PERSONAL"
+                                : w.id === envelope?.workspace.id;
+                            const targetWorkspaceId =
+                              groupScope === "PERSONAL" ? null : w.id;
+                            return (
+                              <button
+                                key={w.id}
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setWorkspaceOpen(false);
+                                  void switchWorkspace(targetWorkspaceId);
+                                }}
+                                data-workspace-option={w.id}
+                                aria-current={isActive ? "true" : undefined}
+                                className={
+                                  isActive
+                                    ? "app-topbar-v2-workspace-menu-item is-active"
+                                    : "app-topbar-v2-workspace-menu-item"
+                                }
                                 style={{
-                                  flex: 1,
                                   display: "flex",
-                                  flexDirection: "column",
-                                  gap: 2,
-                                  minWidth: 0,
+                                  alignItems: "center",
+                                  gap: 8,
+                                  width: "100%",
+                                  border: "none",
+                                  background: "transparent",
+                                  cursor: "pointer",
+                                  padding: "8px 12px",
+                                  textAlign: "left",
                                 }}
                               >
-                                <span
-                                  data-workspace-option-name
+                                <Users size={14} strokeWidth={1.9} />
+                                <div
                                   style={{
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
+                                    flex: 1,
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 2,
+                                    minWidth: 0,
                                   }}
                                 >
-                                  {w.name ??
-                                    (w.scope === "PERSONAL"
-                                      ? "Personal workspace"
-                                      : "Team workspace")}
-                                </span>
-                                {w.role ? (
-                                  <small
-                                    data-workspace-option-role
-                                    style={{ opacity: 0.7 }}
+                                  <span
+                                    data-workspace-option-name
+                                    style={{
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                    }}
                                   >
-                                    {w.role}
-                                  </small>
-                                ) : null}
-                              </div>
-                              <small data-workspace-scope-chip={w.scope}>
-                                {w.scope === "PERSONAL" ? "Personal" : "Team"}
-                              </small>
-                            </Link>
-                          ))}
+                                    {w.name ??
+                                      (w.scope === "PERSONAL"
+                                        ? "Personal workspace"
+                                        : "Team workspace")}
+                                  </span>
+                                  {w.role ? (
+                                    <small
+                                      data-workspace-option-role
+                                      style={{ opacity: 0.7 }}
+                                    >
+                                      {w.role}
+                                    </small>
+                                  ) : null}
+                                </div>
+                                <small data-workspace-scope-chip={w.scope}>
+                                  {w.scope === "PERSONAL" ? "Personal" : "Team"}
+                                </small>
+                              </button>
+                            );
+                          })}
                         </div>
                       );
                     })}
@@ -429,10 +365,7 @@ export function AppTopbarV2({
             ) : null}
           </div>
 
-          {/* ACCOUNT chip — account context only. Strictly NO
-              workspace controls; strictly NO platform-admin
-              shortcuts (those live in the sidebar's
-              Administration group). */}
+          {/* ACCOUNT chip — account context only. */}
           <div
             className="app-topbar-v2-account"
             data-app-topbar-account
@@ -448,20 +381,20 @@ export function AppTopbarV2({
               aria-haspopup="menu"
               aria-expanded={accountOpen}
             >
-              {user?.avatarUrl ? (
+              {envelope?.user.avatarUrl ? (
                 <img
-                  src={user.avatarUrl}
+                  src={envelope.user.avatarUrl}
                   alt=""
                   className="app-topbar-v2-avatar"
                 />
               ) : (
                 <div className="app-topbar-v2-avatar-fallback">
-                  {getInitials(user)}
+                  {getInitials(envelope)}
                 </div>
               )}
 
               <div className="app-topbar-v2-user-copy">
-                <strong>{getUserDisplayName(user)}</strong>
+                <strong>{getUserDisplayName(envelope)}</strong>
                 <span>
                   {isPlatformAdmin ? (
                     <>
@@ -484,8 +417,8 @@ export function AppTopbarV2({
                 data-app-topbar-account-menu
               >
                 <div className="app-topbar-v2-account-menu-header">
-                  <strong>{getUserDisplayName(user)}</strong>
-                  <span>{user?.email ?? "Signed in account"}</span>
+                  <strong>{getUserDisplayName(envelope)}</strong>
+                  <span>{envelope?.user.email ?? "Signed in account"}</span>
                 </div>
 
                 <Link

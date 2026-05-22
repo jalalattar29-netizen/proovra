@@ -32,7 +32,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
-
+import { useTeamId } from "../../../../lib/platform-context";
 // =============================================================================
 // Types — mirror the public graph projection
 // =============================================================================
@@ -66,30 +66,16 @@ type CaseSubgraphResponse = {
 // =============================================================================
 
 export default function RelationshipInspectorPage() {
+  const teamId = useTeamId();
   const search = useSearchParams();
   const caseId = search?.get("caseId") ?? "";
   const focusedNodeId = search?.get("nodeId") ?? null;
   const focusedEdgeId = search?.get("edgeId") ?? null;
-
-  const [teamId, setTeamId] = useState<string | null>(null);
   const [data, setData] = useState<CaseSubgraphResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
+  
+useEffect(() => {
     if (!teamId || !caseId) return;
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;

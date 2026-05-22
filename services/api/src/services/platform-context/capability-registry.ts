@@ -1,0 +1,265 @@
+/**
+ * Phase 32.8 Foundation — Canonical capability registry.
+ *
+ * This module is the ONE place where (role, scope, plan, isPlatformAdmin)
+ * is converted into a CapabilityMap. The frontend MUST consume the
+ * resolved booleans only — it MUST NOT re-derive any of them locally.
+ *
+ * Hard rules:
+ *
+ *   1. Function is PURE — same input always yields the same output.
+ *
+ *   2. The result is always a complete CapabilityMap. EVERY key in
+ *      CAPABILITY_KEYS is present. No missing keys, no extras.
+ *
+ *   3. Read-only capabilities (DASHBOARD_VIEW, EVIDENCE_VIEW, etc.)
+ *      are GRANTED in personal workspaces — a user can always see
+ *      their own evidence. Team-collaboration capabilities
+ *      (TEAM_MANAGE, BULK_ACTIONS, REVIEWER_OPS_ACT) require team
+ *      scope + sufficient role.
+ *
+ *   4. PRO/TEAM plan never weakens role authority. A PRO user on a
+ *      personal workspace is the OWNER of that workspace.
+ *
+ *   5. Platform admin elevates platform-tier capabilities only
+ *      (PLATFORM_ADMIN, OBSERVABILITY_VIEW, RUNBOOKS_VIEW). It does
+ *      NOT silently grant workspace mutation across other people's
+ *      workspaces — those still require explicit membership.
+ */
+
+import {
+  CAPABILITY_KEYS,
+  type CapabilityKey,
+  type CapabilityMap,
+  type WorkspacePlan,
+  type WorkspaceRole,
+  type WorkspaceScope,
+} from "./types.js";
+
+export type CapabilityResolverInput = {
+  scope: WorkspaceScope | null;
+  role: WorkspaceRole | null;
+  plan: WorkspacePlan | null;
+  isPlatformAdmin: boolean;
+};
+
+function emptyMap(): CapabilityMap {
+  const out = {} as Record<string, boolean>;
+  for (const key of CAPABILITY_KEYS) out[key] = false;
+  return out as CapabilityMap;
+}
+
+function setMany(
+  map: CapabilityMap,
+  keys: ReadonlyArray<CapabilityKey>,
+  value: boolean,
+): void {
+  for (const k of keys) {
+    map[k] = value;
+  }
+}
+
+/**
+ * Resolve the bounded capability matrix for a viewer.
+ *
+ * Returns a CapabilityMap with every CAPABILITY_KEY mapped to a boolean.
+ */
+export function resolveCapabilities(input: CapabilityResolverInput): CapabilityMap {
+  const map = emptyMap();
+
+  const { scope, role, isPlatformAdmin } = input;
+  const isPersonal = scope === "PERSONAL";
+  const isTeam = scope === "TEAM";
+  const isOwner = role === "OWNER";
+  const isAdmin = role === "ADMIN" || role === "OWNER";
+  const isMember = role === "MEMBER" || isAdmin;
+  const isViewer = role === "VIEWER";
+  const isWriter = isMember && !isViewer;
+
+  // No workspace at all — the user can see their account surfaces only.
+  if (!scope) {
+    map.SETTINGS_VIEW = true;
+    if (isPlatformAdmin) {
+      setMany(
+        map,
+        [
+          "PLATFORM_ADMIN",
+          "OPS_CENTER_VIEW",
+          "OBSERVABILITY_VIEW",
+          "RUNBOOKS_VIEW",
+          "SECURITY_CENTER_VIEW",
+          "DASHBOARD_VIEW",
+        ],
+        true,
+      );
+    }
+    return map;
+  }
+
+  // ============================================================
+  // Universally-available (workspace-scoped read) capabilities.
+  // ============================================================
+
+  setMany(
+    map,
+    [
+      "DASHBOARD_VIEW",
+      "EVIDENCE_VIEW",
+      "EVIDENCE_CAPTURE",
+      "CASES_VIEW",
+      "REPORTS_VIEW",
+      "SEARCH_VIEW",
+      "SETTINGS_VIEW",
+    ],
+    true,
+  );
+
+  // Writers (non-viewer) get evidence & report management.
+  if (isWriter) {
+    setMany(map, ["EVIDENCE_MANAGE", "REPORTS_GENERATE"], true);
+  }
+
+  // ============================================================
+  // Personal-workspace shape
+  // ============================================================
+  //
+  // The viewer is the OWNER of their own personal workspace. They
+  // can manage their own evidence, generate their own reports,
+  // adjust their own settings. They do NOT get team-collaboration
+  // surfaces (Reviewer Ops, Governance, Teams, bulk actions).
+  if (isPersonal) {
+    setMany(
+      map,
+      [
+        "EVIDENCE_MANAGE",
+        "CASES_MANAGE",
+        "CASE_STATUS_CHANGE",
+        "CASE_EVIDENCE_LINK",
+        "CASE_COMMENT",
+        "CASE_COMMENT_RESOLVE",
+        "REPORTS_GENERATE",
+        "SETTINGS_MANAGE",
+      ],
+      true,
+    );
+    // Personal cases have no team assignments — CASE_ASSIGN stays
+    // false. No reviewer ops, no governance acts, no team manage.
+    map.OPS_CENTER_VIEW = true;
+  }
+
+  // ============================================================
+  // Team-workspace shape
+  // ============================================================
+  if (isTeam) {
+    setMany(
+      map,
+      [
+        "TEAM_VIEW",
+        "REVIEWER_OPS_VIEW",
+        "SLA_VIEW",
+        "ESCALATIONS_VIEW",
+        "GOVERNANCE_VIEW",
+        "LIFECYCLE_VIEW",
+        "OPS_CENTER_VIEW",
+        "OBSERVABILITY_VIEW",
+        "RUNBOOKS_VIEW",
+      ],
+      true,
+    );
+
+    if (isWriter) {
+      setMany(
+        map,
+        [
+          "CASES_MANAGE",
+          "REVIEWER_OPS_ACT",
+          "REVIEW_ASSIGN",
+          "REVIEW_REASSIGN",
+          "REVIEW_ESCALATE",
+          // Phase 32.8D-frontend-closure — every non-VIEWER team
+          // member can change case status, link evidence, and
+          // comment. Per-case CaseAssignment role gating is enforced
+          // server-side in the route guards.
+          "CASE_STATUS_CHANGE",
+          "CASE_EVIDENCE_LINK",
+          "CASE_COMMENT",
+          "CASE_COMMENT_RESOLVE",
+        ],
+        true,
+      );
+    }
+
+    if (isAdmin) {
+      setMany(
+        map,
+        [
+          "TEAM_MANAGE",
+          "BILLING_VIEW",
+          "BILLING_MANAGE",
+          "INTEGRATIONS_MANAGE",
+          "INTAKE_LINKS_MANAGE",
+          "SETTINGS_MANAGE",
+          "GOVERNANCE_ACT",
+          "LEGAL_HOLD_PLACE",
+          "LEGAL_HOLD_RELEASE",
+          "RETENTION_MANAGE",
+          "EXPORT_GOVERNANCE_MANAGE",
+          "SECURITY_CENTER_VIEW",
+          "BULK_ACTIONS",
+          // CASE_ASSIGN is reserved for OWNER/ADMIN. Per-case
+          // CaseAssignment OWNER also gets it server-side.
+          "CASE_ASSIGN",
+        ],
+        true,
+      );
+    }
+
+    if (isOwner) {
+      // OWNER gets everything ADMIN does + nothing extra here. Kept
+      // as a branch for clarity / future expansion.
+      map.BILLING_MANAGE = true;
+    }
+  }
+
+  // ============================================================
+  // Platform admin elevation
+  // ============================================================
+  if (isPlatformAdmin) {
+    setMany(
+      map,
+      [
+        "PLATFORM_ADMIN",
+        "OPS_CENTER_VIEW",
+        "OBSERVABILITY_VIEW",
+        "RUNBOOKS_VIEW",
+        "SECURITY_CENTER_VIEW",
+      ],
+      true,
+    );
+  }
+
+  return map;
+}
+
+/**
+ * Bounded persona resolution from (role + scope).
+ *
+ * Used for downstream UI ordering — does NOT gate capabilities.
+ */
+export function resolvePersona(input: {
+  scope: WorkspaceScope | null;
+  role: WorkspaceRole | null;
+}): "INDIVIDUAL" | "WORKSPACE_OWNER" | "TEAM_ADMIN" | "TEAM_MEMBER" | "TEAM_VIEWER" {
+  if (input.scope === "PERSONAL") return "INDIVIDUAL";
+  if (input.scope !== "TEAM") return "INDIVIDUAL";
+  switch (input.role) {
+    case "OWNER":
+      return "WORKSPACE_OWNER";
+    case "ADMIN":
+      return "TEAM_ADMIN";
+    case "VIEWER":
+      return "TEAM_VIEWER";
+    default:
+      return "TEAM_MEMBER";
+  }
+}

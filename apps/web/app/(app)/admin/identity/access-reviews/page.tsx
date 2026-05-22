@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { useTeamId } from "../../../../../lib/platform-context";
 import {
   cardStyle,
   errorBoxStyle,
@@ -57,27 +58,14 @@ const STATUS_OPTIONS = [
 ];
 
 export default function AccessReviewsPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [reviews, setReviews] = useState<AccessReview[] | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("PENDING");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const load = useCallback(() => {
+  
+const load = useCallback(() => {
     if (!teamId) return;
     const qs = new URLSearchParams();
     qs.set("teamId", teamId);

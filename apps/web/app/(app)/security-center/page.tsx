@@ -17,6 +17,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { useTeamId } from "../../../lib/platform-context";
 
 type MfaPolicyLevel =
   | "OFF"
@@ -77,7 +78,7 @@ const LEVELS: MfaPolicyLevel[] = [
 ];
 
 export default function SecurityCenterPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [requirement, setRequirement] = useState<CurrentUserRequirement | null>(
     null,
@@ -88,18 +89,7 @@ export default function SecurityCenterPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;

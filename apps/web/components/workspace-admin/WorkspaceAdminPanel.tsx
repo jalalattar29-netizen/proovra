@@ -24,7 +24,10 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../lib/api";
-import { useActiveWorkspaceId } from "../../lib/useActiveWorkspaceId";
+import {
+  usePlatformContext,
+  useTeamWorkspaceGate,
+} from "../../lib/platform-context";
 import type { WorkspaceAdminEnvelope } from "./types";
 
 type LoadState =
@@ -45,7 +48,8 @@ type TabKey =
   | "accountability";
 
 export function WorkspaceAdminPanel() {
-  const workspace = useActiveWorkspaceId();
+  const ctx = usePlatformContext();
+  const workspace = useTeamWorkspaceGate();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [tab, setTab] = useState<TabKey>("overview");
 
@@ -107,8 +111,9 @@ export function WorkspaceAdminPanel() {
     return <ShellUnavailable message={state.message} />;
 
   const env = state.envelope;
-  const isTeam = env.workspace.scope === "TEAM";
-  const canManage = env.workspace.role === "OWNER" || env.workspace.role === "ADMIN";
+  // Phase 32.8 Foundation cleanup — capability-derived visibility.
+  const isTeam = ctx.envelope?.flags.isTeamWorkspace === true;
+  const canManage = ctx.can("TEAM_MANAGE");
 
   const tabs: Array<{ key: TabKey; label: string; visible: boolean }> = [
     { key: "overview", label: "Overview", visible: true },

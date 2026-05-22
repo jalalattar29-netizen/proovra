@@ -135,14 +135,11 @@ describe("Phase 32.8C FINAL-3 — header workspace display", () => {
     expect(TOPBAR_TSX).toMatch(/"Workspace"/);
   });
 
-  it("teams fetch does NOT fall back to the raw id as the name", () => {
-    // The previous broken line was: `name: ... ? t.name : t.id`.
-    // The new line uses `: null` so the chip uses a scope-derived label.
-    expect(TOPBAR_TSX).not.toMatch(/name:\s*typeof t\.name === "string" && t\.name \? t\.name : t\.id/);
-    expect(TOPBAR_TSX).toMatch(
-      /name:\s*typeof t\.name === "string" && t\.name \? t\.name : null/,
-    );
-  });
+  // OBSOLETE — Phase 32.8 Foundation: topbar no longer fetches
+  // /v1/teams itself. The canonical envelope's
+  // `envelope.availableWorkspaces` carries pre-resolved names. See
+  // phase-32-8-foundation-platform-context.test.ts.
+  it.skip("teams fetch does NOT fall back to the raw id as the name", () => {});
 
   it("workspace switcher menu items also fall back to a label, not a UUID", () => {
     expect(TOPBAR_TSX).toMatch(
@@ -665,10 +662,9 @@ describe("Phase 32.8C FINAL-3 — no-regression invariants", () => {
   });
 
   it("topbar fix does NOT break the workspace switcher menu", () => {
-    // Phase 32.8C FINAL-4 — switcher is now grouped; the menu still
-    // iterates workspaceList (now via filter + per-group map) and
-    // still exposes the scope chip hook.
-    expect(TOPBAR_TSX).toMatch(/workspaceList\.filter/);
+    // Phase 32.8 Foundation — switcher now iterates
+    // `availableWorkspaces` and still exposes the scope chip hook.
+    expect(TOPBAR_TSX).toMatch(/availableWorkspaces/);
     expect(TOPBAR_TSX).toMatch(/data-workspace-scope-chip/);
   });
 

@@ -25,7 +25,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
-
+import { useTeamId } from "../../../../lib/platform-context";
 type WorkflowTotals = {
   notStarted: number;
   inProgress: number;
@@ -117,7 +117,7 @@ type ConsoleResponse = {
 };
 
 export default function ReviewerIntelligenceConsolePage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [data, setData] = useState<ConsoleResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
@@ -175,21 +175,8 @@ export default function ReviewerIntelligenceConsolePage() {
     }
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
+  
+useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;

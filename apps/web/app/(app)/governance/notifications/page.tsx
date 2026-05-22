@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { useTeamId } from "../../../../lib/platform-context";
 
 type Severity = "INFO" | "WARNING" | "HIGH" | "CRITICAL";
 type DeliveryStatus = "PENDING" | "SENT" | "SUPPRESSED" | "FAILED";
@@ -45,26 +46,14 @@ type Notification = {
 };
 
 export default function GovernanceNotificationsPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [notifications, setNotifications] = useState<Notification[] | null>(null);
   const [counts, setCounts] = useState<{ pending: number; failed: number } | null>(null);
   const [filter, setFilter] = useState<"unacknowledged" | "all">("unacknowledged");
   const [severityFilter, setSeverityFilter] = useState<Severity | "ALL">("ALL");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((res: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (cancelled) return;
-        setTeamId(res?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  
   function refetch(currentTeamId: string) {
     const params = new URLSearchParams({
       teamId: currentTeamId,

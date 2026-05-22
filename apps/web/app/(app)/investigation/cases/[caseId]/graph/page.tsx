@@ -27,7 +27,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { apiFetch } from "../../../../../../lib/api";
-
+import { useTeamId } from "../../../../../../lib/platform-context";
 // =============================================================================
 // Types — mirror the /v1/graph/cases/:caseId projection
 // =============================================================================
@@ -98,9 +98,9 @@ type EdgeTypeFilter = (typeof ALL_EDGE_TYPES)[number];
 // =============================================================================
 
 export default function CaseGraphExplorerPage() {
+  const teamId = useTeamId();
   const params = useParams<{ caseId: string }>();
   const caseId = typeof params?.caseId === "string" ? params.caseId : "";
-  const [teamId, setTeamId] = useState<string | null>(null);
   const [data, setData] = useState<CaseSubgraphResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
@@ -108,21 +108,8 @@ export default function CaseGraphExplorerPage() {
   const [edgeTypeFilter, setEdgeTypeFilter] = useState<EdgeTypeFilter>("ALL");
 
   // Resolve workspace.
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Bounded poll.
+  
+// Bounded poll.
   useEffect(() => {
     if (!teamId || !caseId) return;
     let cancelled = false;

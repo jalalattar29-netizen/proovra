@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
-
+import { usePlatformContext, useTeamId } from "../../../lib/platform-context";
 type ThreadStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
 type ThreadVisibility = "INTERNAL" | "CONTRIBUTOR_SCOPED";
 
@@ -57,8 +57,8 @@ type Message = {
 const STATUSES: ThreadStatus[] = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
 
 export default function CollaborationPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
-  const [meUserId, setMeUserId] = useState<string | null>(null);
+  const teamId = useTeamId();
+  const meUserId = usePlatformContext().envelope?.user.id ?? null;
   const [counts, setCounts] = useState<Counts | null>(null);
   const [threads, setThreads] = useState<Thread[] | null>(null);
   const [statusFilter, setStatusFilter] = useState<ThreadStatus | "">(
@@ -71,25 +71,8 @@ export default function CollaborationPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then(
-        (res: {
-          user?: { id?: string; currentWorkspaceId?: string | null };
-        }) => {
-          if (cancelled) return;
-          setTeamId(res?.user?.currentWorkspaceId ?? null);
-          setMeUserId(res?.user?.id ?? null);
-        },
-      )
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
+  
+useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
     const qs = new URLSearchParams();

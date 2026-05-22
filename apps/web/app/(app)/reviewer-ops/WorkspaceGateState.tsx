@@ -1,26 +1,33 @@
 "use client";
 
 /**
- * Hotfix — Reviewer Ops workspace-gate state renderer.
+ * Phase 32.8 Foundation cleanup — Reviewer Ops gate renderer.
  *
- * Renders the canonical "no workspace / auth / permission / operational
- * failure" states for the four Reviewer Ops console pages. Centralizes
- * the strings + the visual treatment so:
- *   * "Switch to a workspace" fires ONLY when the user truly has no
- *     workspace membership.
- *   * 401 → auth state.
- *   * 403 → "You do not have permission to view Review Operations."
- *   * 500 / unknown → operational error with optional requestId.
- *   * `loading` is rendered with a muted placeholder so the page
- *     doesn't flash the empty state during the readiness probe.
+ * Renders the canonical structured states for reviewer-ops sub-routes
+ * (SLA, escalations, review detail) using only the canonical
+ * platform-context model:
  *
- * The four reviewer-ops pages all read `useActiveWorkspaceId()`. If
- * the result is anything other than `{status: "ready", ...}`, they
- * render this component and bail out. If `ready`, they render their
- * own content with the resolved `workspaceId`.
+ *   - `loading`        → muted placeholder
+ *   - `no-workspace`
+ *      + reason "personal"      → CapabilityDegradedPanel
+ *      + reason "no-workspace"  → "Switch to a workspace" CTA
+ *   - `error`         → auth / permission / operational error panels
+ *
+ * Hard rules:
+ *   - This component consumes `TeamWorkspaceGateState` from the
+ *     canonical platform-context module. It does NOT import the
+ *     legacy `useActiveWorkspaceId` shape.
+ *   - Personal-workspace state renders the structured
+ *     `CapabilityDegradedPanel` — never a plain-text wall.
+ *   - `surface` + `requiredCapability` together describe what is
+ *     being gated, for analytics and a11y.
  */
 
-import type { ActiveWorkspaceState } from "../../../lib/useActiveWorkspaceId";
+import {
+  CapabilityDegradedPanel,
+  type CapabilityKey,
+  type TeamWorkspaceGateState,
+} from "../../../lib/platform-context";
 
 const wrap: React.CSSProperties = {
   maxWidth: 880,
@@ -53,17 +60,33 @@ const requestIdStyle: React.CSSProperties = {
   color: "#7f1d1d",
 };
 
+type GateSurface =
+  | "Reviewer Ops"
+  | "SLA"
+  | "Escalations"
+  | "Review Policy"
+  | "Governance Policy";
+
+const REASON_BY_SURFACE: Record<GateSurface, string> = {
+  "Reviewer Ops":
+    "Reviewer Ops coordinates work across a team — queue triage, SLA pressure, escalations, and reviewer capacity. It activates when you switch into a team workspace.",
+  SLA: "SLA tracking measures reviewer performance and overdue pressure across a team. It activates when you switch into a team workspace.",
+  Escalations:
+    "Escalations route reviewer-flagged risk to the right responder across a team. They activate when you switch into a team workspace.",
+  "Review Policy":
+    "Review policy editing controls reviewer routing, SLA thresholds, and escalation rules for a team. It activates in a team workspace.",
+  "Governance Policy":
+    "Governance policy editing controls preservation, retention, destruction, and export gates for a team. It activates in a team workspace.",
+};
+
 export function WorkspaceGateState({
   state,
   surface,
+  requiredCapability,
 }: {
-  state: Exclude<ActiveWorkspaceState, { status: "ready" }>;
-  surface:
-    | "Reviewer Ops"
-    | "SLA"
-    | "Escalations"
-    | "Review Policy"
-    | "Governance Policy";
+  state: Exclude<TeamWorkspaceGateState, { status: "ready" }>;
+  surface: GateSurface;
+  requiredCapability: CapabilityKey;
 }) {
   if (state.status === "loading") {
     return (
@@ -73,6 +96,24 @@ export function WorkspaceGateState({
     );
   }
   if (state.status === "no-workspace") {
+    // Personal workspace → structured CapabilityDegradedPanel.
+    if (state.reason === "personal") {
+      return (
+        <main style={wrap}>
+          <CapabilityDegradedPanel
+            surface={surface}
+            requiredCapability={requiredCapability}
+            reason={REASON_BY_SURFACE[surface]}
+            alternatives={[
+              { label: "Manage your evidence", href: "/evidence" },
+              { label: "Open your cases", href: "/cases" },
+              { label: "Generate a report", href: "/reports" },
+            ]}
+          />
+        </main>
+      );
+    }
+    // True "no membership" → CTA to switch / accept invite.
     return (
       <main style={wrap}>
         <h1 style={title}>No workspace selected</h1>
@@ -92,7 +133,7 @@ export function WorkspaceGateState({
         : "Unable to load";
   const body =
     state.code === "permission_denied"
-      ? "You do not have permission to view Review Operations. Ask a workspace administrator to grant access."
+      ? `You do not have permission to view ${surface}. Ask a workspace administrator to grant access.`
       : state.message;
   return (
     <main style={wrap}>

@@ -18,6 +18,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { useTeamId } from "../../../lib/platform-context";
 
 type Channel = "SMS" | "WHATSAPP" | "EMAIL" | "SYSTEM";
 type Status =
@@ -95,7 +96,7 @@ const PURPOSES: Purpose[] = [
 ];
 
 export default function CommunicationsPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [health, setHealth] = useState<ProviderHealth | null>(null);
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [channel, setChannel] = useState<Channel | "">("");
@@ -104,18 +105,7 @@ export default function CommunicationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((res: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(res?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;

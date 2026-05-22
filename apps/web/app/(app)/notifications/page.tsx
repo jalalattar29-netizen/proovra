@@ -18,7 +18,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
-
+import { useTeamId } from "../../../lib/platform-context";
 type Delivery = {
   id: string;
   eventType: string;
@@ -70,31 +70,15 @@ const RESEND_ELIGIBLE = new Set([
 ]);
 
 export default function NotificationsPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [items, setItems] = useState<Delivery[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [eventFilter, setEventFilter] = useState<string>("");
   const [resendBusyId, setResendBusyId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then(
-        (res: {
-          user?: { currentWorkspaceId?: string | null };
-        }) => {
-          if (cancelled) return;
-          setTeamId(res?.user?.currentWorkspaceId ?? null);
-        },
-      )
-      .catch(() => setTeamId(null));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const queryString = useMemo(() => {
+  
+const queryString = useMemo(() => {
     if (!teamId) return "";
     const params = new URLSearchParams({ teamId });
     if (statusFilter) params.set("status", statusFilter);

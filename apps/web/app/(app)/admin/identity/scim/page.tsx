@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { useTeamId } from "../../../../../lib/platform-context";
 import {
   cardStyle,
   errorBoxStyle,
@@ -53,7 +54,7 @@ const SCIM_SCOPE_OPTIONS = [
 ] as const;
 
 export default function ScimPage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [tokens, setTokens] = useState<ScimToken[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -64,21 +65,8 @@ export default function ScimPage() {
   );
   const [revealedToken, setRevealedToken] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const load = useCallback(() => {
+  
+const load = useCallback(() => {
     if (!teamId) return;
     apiFetch(
       `/v1/admin/identity/scim/tokens?teamId=${encodeURIComponent(teamId)}`,

@@ -16,7 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
-import { useActiveWorkspaceId } from "../../../../lib/useActiveWorkspaceId";
+import { useTeamWorkspaceGate } from "../../../../lib/platform-context";
 import { WorkspaceGateState } from "../WorkspaceGateState";
 import {
   cardStyle,
@@ -89,8 +89,8 @@ type WorkspaceResponse = {
 export default function ReviewWorkspacePage() {
   const params = useParams<{ reviewId: string }>();
   const workflowId = params?.reviewId ?? "";
-  // Hotfix — canonical workspace resolution.
-  const workspaceState = useActiveWorkspaceId();
+  // Phase 32.8 Foundation cleanup — read from canonical context.
+  const workspaceState = useTeamWorkspaceGate();
   const teamId =
     workspaceState.status === "ready" ? workspaceState.workspaceId : null;
   const [data, setData] = useState<WorkspaceResponse | null>(null);
@@ -148,7 +148,11 @@ export default function ReviewWorkspacePage() {
 
   if (workspaceState.status !== "ready") {
     return (
-      <WorkspaceGateState state={workspaceState} surface="Reviewer Ops" />
+      <WorkspaceGateState
+        state={workspaceState}
+        surface="Reviewer Ops"
+        requiredCapability="REVIEWER_OPS_VIEW"
+      />
     );
   }
 

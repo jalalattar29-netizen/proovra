@@ -36,8 +36,11 @@ const PAGE_SRC = readSource(
 // =============================================================================
 
 describe("Phase 31.9 — ops actions UI: endpoint surface", () => {
-  it("loads workspace id from /v1/users/me", () => {
-    expect(PAGE_SRC).toMatch(/apiFetch\("\/v1\/users\/me"/);
+  it("loads workspace id from the canonical platform context", () => {
+    // Phase 32.8 Foundation cleanup — the page no longer hits
+    // /v1/users/me directly; it consumes useTeamId() from the
+    // canonical platform-context module.
+    expect(PAGE_SRC).toMatch(/useTeamId\(\)/);
   });
 
   it("calls /v1/ops/media-intelligence/runs/:runId/retry exactly", () => {

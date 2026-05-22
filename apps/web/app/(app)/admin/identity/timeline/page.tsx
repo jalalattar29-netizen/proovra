@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { useTeamId } from "../../../../../lib/platform-context";
 import {
   cardStyle,
   errorBoxStyle,
@@ -114,27 +115,14 @@ const SEVERITY_BORDER: Record<TimelineEvent["severity"], string> = {
 };
 
 export default function IdentityTimelinePage() {
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const teamId = useTeamId();
   const [events, setEvents] = useState<TimelineEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filterIdx, setFilterIdx] = useState(0);
   const [severityFilter, setSeverityFilter] = useState<"" | "INFO" | "WARNING" | "HIGH">("");
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/v1/users/me", { method: "GET" })
-      .then((r: { user?: { currentWorkspaceId?: string | null } }) => {
-        if (!cancelled) setTeamId(r?.user?.currentWorkspaceId ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTeamId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const load = useCallback(() => {
+  
+const load = useCallback(() => {
     if (!teamId) return;
     const filter = FILTERS[filterIdx];
     const qs = new URLSearchParams();

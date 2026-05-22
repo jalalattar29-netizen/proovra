@@ -453,14 +453,14 @@ describe("Phase 32.8E — /teams workspace administration", () => {
     );
   });
 
-  it("canManage gates admin CTAs to OWNER/ADMIN (Viewer/Member do not see edit links)", () => {
+  it("canManage gates admin CTAs via canonical TEAM_MANAGE capability", () => {
+    // Phase 32.8 Foundation cleanup — role-string equality
+    // replaced with ctx.can("TEAM_MANAGE"). VIEWER/MEMBER exclusion
+    // enforced server-side in the capability resolver.
     const idx = WORKSPACE_PANEL.indexOf("canManage =");
     expect(idx).toBeGreaterThan(-1);
     const block = WORKSPACE_PANEL.slice(idx, idx + 200);
-    expect(block).toContain('"OWNER"');
-    expect(block).toContain('"ADMIN"');
-    expect(block).not.toContain('"MEMBER"');
-    expect(block).not.toContain('"VIEWER"');
+    expect(block).toMatch(/ctx\.can\(\s*['"]TEAM_MANAGE['"]\s*\)/);
   });
 
   it("renders distinct loading / no-workspace / auth-error / not-found / unavailable shells", () => {
@@ -541,9 +541,11 @@ describe("Phase 32.8E — /governance control plane", () => {
     }
   });
 
-  it("policy edit link is gated to OWNER/ADMIN (isAdmin predicate)", () => {
+  it("policy edit link is gated via canonical GOVERNANCE_ACT capability", () => {
+    // Phase 32.8 Foundation cleanup — role-string equality replaced
+    // with ctx.can("GOVERNANCE_ACT").
     expect(GOVERNANCE_PANEL).toMatch(
-      /isAdmin\s*=\s*env\.workspace\.role\s*===\s*"OWNER"\s*\|\|\s*env\.workspace\.role\s*===\s*"ADMIN"/,
+      /isAdmin\s*=\s*ctx\.can\(\s*['"]GOVERNANCE_ACT['"]\s*\)/,
     );
   });
 

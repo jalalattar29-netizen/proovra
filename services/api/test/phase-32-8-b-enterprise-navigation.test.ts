@@ -375,13 +375,11 @@ describe("Phase 32.8B — topbar separates workspace context from account contex
     expect(TOPBAR).toMatch(/data-workspace-scope-chip/);
   });
 
-  it("workspace switcher lists the user's other workspaces", () => {
-    // Phase 32.8C FINAL-4 — switcher is now grouped by scope; instead
-    // of a single flat map, items are filtered into PERSONAL/TEAM
-    // groups and each group renders its own map. The data hook
-    // (`data-workspace-option`) is preserved.
-    expect(TOPBAR).toMatch(/workspaceList\.filter\(/);
-    expect(TOPBAR).toMatch(/items\.map\(\(w\)/);
+  // Phase 32.8 Foundation — switcher now consumes
+  // `envelope.availableWorkspaces` (server-resolved). The local
+  // workspaceList state was removed.
+  it("workspace switcher lists workspaces from the canonical envelope", () => {
+    expect(TOPBAR).toMatch(/availableWorkspaces/);
     expect(TOPBAR).toMatch(/data-workspace-option/);
   });
 
@@ -425,46 +423,33 @@ describe("Phase 32.8B — topbar separates workspace context from account contex
 // =============================================================================
 
 describe("Phase 32.8B — sidebar renderer consumes the canonical filter pipeline", () => {
-  it("imports from lib/navigation-config (not inline nav arrays)", () => {
-    expect(SIDEBAR).toMatch(
-      /from\s+"\.\.\/\.\.\/lib\/navigation-config"/,
-    );
-    expect(SIDEBAR).toMatch(/selectNavigationGroups/);
-    expect(SIDEBAR).toMatch(/NavGroup/);
-  });
+  // OBSOLETE — Phase 32.8 Foundation: sidebar no longer imports
+  // navigation-config or calls selectNavigationGroups. It renders
+  // the server-resolved navigation tree from
+  // `envelope.navigation.groups`. See
+  // phase-32-8-foundation-platform-context.test.ts.
+  it.skip("imports from lib/navigation-config (not inline nav arrays)", () => {});
 
   it("does NOT define its own PRIMARY_NAV / OPERATIONS_NAV_BASE / GOVERNANCE_NAV_BASE / ADMIN_NAV arrays", () => {
-    // After Phase 32.8B those legacy arrays have been removed in
-    // favor of the canonical nav config.
     expect(SIDEBAR).not.toMatch(/const PRIMARY_NAV/);
     expect(SIDEBAR).not.toMatch(/const OPERATIONS_NAV_BASE/);
     expect(SIDEBAR).not.toMatch(/const GOVERNANCE_NAV_BASE/);
     expect(SIDEBAR).not.toMatch(/const ADMIN_NAV/);
   });
 
-  it("calls selectNavigationGroups exactly once with the visibility context", () => {
-    const calls = SIDEBAR.match(/selectNavigationGroups\(\s*\{/g) ?? [];
-    expect(calls.length).toBe(1);
-    expect(SIDEBAR).toMatch(/isPlatformAdmin,/);
-    expect(SIDEBAR).toMatch(/role: resolvedRole/);
-  });
+  it.skip("calls selectNavigationGroups exactly once with the visibility context", () => {});
 
-  it("renders groups via a single map over visibleGroups (uniform render path)", () => {
-    expect(SIDEBAR).toMatch(/visibleGroups\.map\(\(group\)\s*=>/);
+  it("renders groups via a single map over the canonical group tree", () => {
+    expect(SIDEBAR).toMatch(/groups\.map\(\(group\)\s*=>/);
   });
 
   it("hydrates runtime badges from real runtime state — never fabricates a badge", () => {
-    // Phase 28-J rule preserved: badges only appear when real
-    // values warrant.
     expect(SIDEBAR).toMatch(/runtime\.counts\.escalations > 0/);
     expect(SIDEBAR).toMatch(/governanceIncidents > 0/);
     expect(SIDEBAR).toMatch(/ariaLabel:\s*`Runtime \$\{runtime\.severity\.toLowerCase\(\)\}`/);
   });
 
-  it("still resolves role from useActiveWorkspaceId fallback (Phase 32.6.4 preserved)", () => {
-    expect(SIDEBAR).toMatch(/workspace\.role/);
-    expect(SIDEBAR).toMatch(/resolvedRole/);
-  });
+  it.skip("still resolves role from useActiveWorkspaceId fallback (Phase 32.6.4 preserved)", () => {});
 });
 
 // =============================================================================
