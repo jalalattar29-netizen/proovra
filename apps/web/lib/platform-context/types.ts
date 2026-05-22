@@ -154,7 +154,14 @@ export type PlatformContextNavGroup = {
 
 export type PlatformContextNavigation = {
   status: SectionStatus;
+  /**
+   * @deprecated Phase ROUTE-FIX — retained for backwards compatibility.
+   * Prefer `sidebar.groups` + `accountMenu.items` so account routes
+   * are never hidden by workspace-scoped gating.
+   */
   groups: ReadonlyArray<PlatformContextNavGroup>;
+  sidebar: { groups: ReadonlyArray<PlatformContextNavGroup> };
+  accountMenu: { items: ReadonlyArray<PlatformContextNavItem> };
 };
 
 export type PlatformContextAvailableWorkspace = {
@@ -174,6 +181,31 @@ export type PlatformContextDiagnostics = {
   };
   resolvedAt: string;
   requestId: string;
+  /**
+   * Phase EMERGENCY-RECOVERY — bounded diagnostic surface.
+   */
+  workspaceSource?:
+    | "current_workspace_id"
+    | "personal_bootstrap"
+    | "personal_bootstrap_after_stale";
+  bootstrap?: {
+    attempted: boolean;
+    reused: boolean;
+    created: boolean;
+    activeWorkspaceUpdated: boolean;
+  };
+};
+
+/**
+ * Phase EMERGENCY-RECOVERY — structured recovery actions returned by
+ * the canonical envelope when the workspace cannot be assembled
+ * normally. The frontend renders these as buttons/links in a
+ * recovery panel (never a blank shell).
+ */
+export type PlatformContextRecoveryAction = {
+  id: "create_personal_workspace" | "create_team" | "open_settings" | "retry";
+  label: string;
+  href: string | null;
 };
 
 export type PlatformContextEnvelope = {
@@ -191,6 +223,11 @@ export type PlatformContextEnvelope = {
   navigation: PlatformContextNavigation;
   availableWorkspaces: ReadonlyArray<PlatformContextAvailableWorkspace>;
   diagnostics: PlatformContextDiagnostics;
+  /**
+   * Phase EMERGENCY-RECOVERY — recovery action descriptors. Empty
+   * array for healthy envelopes.
+   */
+  recoveryActions?: ReadonlyArray<PlatformContextRecoveryAction>;
 };
 
 // =============================================================================

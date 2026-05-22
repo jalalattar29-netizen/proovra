@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
-import { useTeamId } from "../../../lib/platform-context";
+import { useWorkspaceId } from "../../../lib/platform-context";
 // -----------------------------------------------------------------------------
 // Wire-level types — kept loose so we don't drag the API SDK in here.
 // -----------------------------------------------------------------------------
@@ -149,7 +149,10 @@ const DEFAULT_LIMIT = 25;
 // -----------------------------------------------------------------------------
 
 export default function SearchPage() {
-  const teamId = useTeamId();
+  // Phase EMERGENCY-RECOVERY — search works for personal workspaces too;
+  // both personal and team modes have a real Team UUID after the
+  // workspace-bootstrap fix, so we consume the canonical workspace id.
+  const teamId = useWorkspaceId();
   const [filter, setFilter] = useState<FilterState | null>(null);
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -372,7 +375,7 @@ export default function SearchPage() {
   if (!teamId || !filter) {
     return (
       <main style={loadingScreenStyle}>
-        <p style={mutedStyle}>Switch to a workspace to use Evidence Discovery.</p>
+        <p style={mutedStyle}>Workspace setup pending — refresh shortly.</p>
       </main>
     );
   }

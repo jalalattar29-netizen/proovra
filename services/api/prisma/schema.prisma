@@ -860,6 +860,18 @@ model Team {
   // existing teams continue to behave as if categorized GENERAL.
   workspaceCategory      WorkspaceCategory?             @map("workspace_category")
 
+  // Phase EMERGENCY-RECOVERY — Personal workspace marker.
+  //
+  // When `true`, this Team row is the user's auto-bootstrapped
+  // personal workspace. The platform-context builder treats it as
+  // `scope: "PERSONAL"` and `flags.isPersonalWorkspace: true`. A
+  // partial unique index (see migration
+  // `20260720100000_personal_workspace_bootstrap`) enforces AT MOST
+  // ONE personal team per owner so the bootstrap is concurrency-safe.
+  //
+  // Defaults to `false` — all existing teams are TEAM-scoped.
+  isPersonal             Boolean                        @default(false) @map("is_personal")
+
   invites                TeamInvite[]
   members                TeamMember[]
   activities             TeamActivity[]

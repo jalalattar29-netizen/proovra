@@ -25,7 +25,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../lib/api";
-import { useTeamWorkspaceGate } from "../../lib/platform-context";
+import { usePlatformContext, useWorkspaceId } from "../../lib/platform-context";
 import type {
   ArtifactRow,
   LifecycleFilter,
@@ -42,17 +42,22 @@ type LoadState =
   | { status: "unavailable"; message: string };
 
 export function ReportsIndex() {
-  const workspace = useTeamWorkspaceGate();
+  // Phase EMERGENCY-RECOVERY — Reports works for ANY active workspace
+  // (personal Team with isPersonal=true OR a real team). Both have a
+  // valid Team UUID after the workspace-bootstrap fix, so we consume
+  // the canonical workspace id instead of gating on team-only mode.
+  const { state: ctxState } = usePlatformContext();
+  const workspaceId = useWorkspaceId();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [filter, setFilter] = useState<LifecycleFilter>("all");
   const [search, setSearch] = useState("");
 
   const reload = useCallback(
     async (currentFilter: LifecycleFilter, currentSearch: string) => {
-      if (workspace.status !== "ready") return;
+      if (!workspaceId) return;
       setState({ status: "loading" });
       const params = new URLSearchParams({
-        teamId: workspace.workspaceId,
+        teamId: workspaceId,
         lifecycle: currentFilter,
       });
       const trimmed = currentSearch.trim();
@@ -77,49 +82,45 @@ export function ReportsIndex() {
         }
       }
     },
-    [workspace.status, workspace.status === "ready" ? workspace.workspaceId : null],
+    [workspaceId],
   );
 
   useEffect(() => {
-    if (workspace.status === "loading") {
+    if (ctxState.name === "IDLE" || ctxState.name === "LOADING_CONTEXT") {
       setState({ status: "loading" });
       return;
     }
-    if (workspace.status === "no-workspace") {
-      setState({ status: "no_workspace" });
-      return;
-    }
-    if (workspace.status === "error") {
+    if (ctxState.name === "FAILED") {
+      const isAuth =
+        ctxState.errorCode === "AUTH_REQUIRED" ||
+        ctxState.errorCode === "PERMISSION_DENIED";
       setState({
-        status:
-          workspace.code === "auth_required" ||
-          workspace.code === "permission_denied"
-            ? "auth_error"
-            : "unavailable",
+        status: isAuth ? "auth_error" : "unavailable",
         code:
-          workspace.code === "permission_denied"
+          ctxState.errorCode === "PERMISSION_DENIED"
             ? "permission_denied"
             : "auth_required",
-        message: workspace.message,
+        message: ctxState.message,
       } as LoadState);
+      return;
+    }
+    if (!workspaceId) {
+      setState({ status: "no_workspace" });
       return;
     }
     void reload(filter, search);
     // Reload when the workspace switches.
-  }, [
-    workspace.status,
-    workspace.status === "ready" ? workspace.workspaceId : null,
-  ]);
+  }, [ctxState.name, workspaceId]);
 
   // Trigger a server re-query when the filter changes (server already
   // honors the `lifecycle` param). Search is debounced client-side.
   useEffect(() => {
-    if (workspace.status !== "ready") return;
+    if (!workspaceId) return;
     const t = setTimeout(() => {
       void reload(filter, search);
     }, search ? 250 : 0);
     return () => clearTimeout(t);
-  }, [filter, search, reload, workspace.status]);
+  }, [filter, search, reload, workspaceId]);
 
   if (state.status === "loading") {
     return <ReportsLoading />;
@@ -441,14 +442,19 @@ function ReportsLoading() {
 }
 
 function ReportsNoWorkspace() {
+  // Phase EMERGENCY-RECOVERY — after the personal-workspace bootstrap,
+  // an authenticated user always has at least a personal Team. Landing
+  // here means the canonical envelope itself couldn't surface a
+  // workspace. The shell renders WorkspaceRecoveryPanel above this in
+  // that case; this fallback only shows transient empty UI.
   return (
     <main className="cc-page" data-reports-no-workspace>
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">Deliverables</div>
-          <h1 className="cc-title">No workspace selected</h1>
+          <h1 className="cc-title">Workspace setup pending</h1>
           <p className="cc-subtitle">
-            Switch to a workspace to view its artifacts.
+            We're finishing workspace setup. Refresh in a moment.
           </p>
         </div>
       </header>

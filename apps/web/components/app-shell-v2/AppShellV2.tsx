@@ -6,6 +6,10 @@ import { AppSidebarV2 } from "./AppSidebarV2";
 import { AppTopbarV2 } from "./AppTopbarV2";
 import { AppFooterV2 } from "./AppFooterV2";
 import { usePathname } from "next/navigation";
+import {
+  usePlatformContext,
+  WorkspaceRecoveryPanel,
+} from "../../lib/platform-context";
 
 type AppShellV2Props = {
   children: ReactNode;
@@ -23,6 +27,7 @@ type AppShellV2Props = {
  */
 export function AppShellV2({ children, onLogout }: AppShellV2Props) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const ctx = usePlatformContext();
 
   useEffect(() => {
     document.body.classList.toggle("app-mobile-sidebar-open", mobileSidebarOpen);
@@ -38,6 +43,14 @@ export function AppShellV2({ children, onLogout }: AppShellV2Props) {
     setMobileSidebarOpen(false);
   }, [pathname]);
 
+  // Phase EMERGENCY-RECOVERY — when the canonical envelope returns
+  // structured `recoveryActions`, swap the page content for the
+  // recovery panel so a normal user never lands in a broken shell.
+  // The topbar + sidebar still render so the user can navigate to
+  // public pages (Pricing, Help) and the workspace switcher.
+  const recoveryActions = ctx.envelope?.recoveryActions ?? [];
+  const needsRecovery = recoveryActions.length > 0;
+
   return (
     <div className="app-shell-v2">
       <AppTopbarV2
@@ -52,7 +65,9 @@ export function AppShellV2({ children, onLogout }: AppShellV2Props) {
         </div>
 
         <div className="app-shell-v2-content-wrap">
-          <main className="app-shell-v2-content">{children}</main>
+          <main className="app-shell-v2-content">
+            {needsRecovery ? <WorkspaceRecoveryPanel /> : children}
+          </main>
           <AppFooterV2 />
         </div>
       </div>

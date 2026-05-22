@@ -139,6 +139,17 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
         "CASE_COMMENT_RESOLVE",
         "REPORTS_GENERATE",
         "SETTINGS_MANAGE",
+        // Phase ROUTE-FIX — Billing and Teams are ACCOUNT-LEVEL
+        // surfaces, not workspace-operator surfaces. A personal
+        // user must be able to:
+        //   - view their personal subscription/plan (BILLING_VIEW)
+        //     and upgrade to Pro / create a team
+        //   - reach the Teams page as a CREATE-team entry point
+        //     (TEAM_VIEW). TEAM_MANAGE is still gated to team
+        //     OWNER/ADMIN so personal users see a "create team"
+        //     surface rather than an operator surface.
+        "BILLING_VIEW",
+        "TEAM_VIEW",
       ],
       true,
     );
@@ -184,6 +195,11 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
           "CASE_EVIDENCE_LINK",
           "CASE_COMMENT",
           "CASE_COMMENT_RESOLVE",
+          // Phase ROUTE-FIX — Billing read access is granted to every
+          // non-VIEWER team member. Viewing the plan/seats page is
+          // account-tier; managing billing (BILLING_MANAGE) remains
+          // OWNER/ADMIN only.
+          "BILLING_VIEW",
         ],
         true,
       );

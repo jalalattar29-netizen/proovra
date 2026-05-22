@@ -214,7 +214,25 @@ export type PlatformContextNavGroup = {
 
 export type PlatformContextNavigation = {
   status: SectionStatus;
+  /**
+   * @deprecated Phase ROUTE-FIX — retained for backwards compatibility.
+   * New consumers should read `sidebar.groups` and `accountMenu.items`
+   * separately so account/billing/pricing surfaces are not hidden by
+   * workspace-scoped gating.
+   */
   groups: ReadonlyArray<PlatformContextNavGroup>;
+  /**
+   * Sidebar projection (operator surfaces). Same shape as the legacy
+   * `groups` field — included here so callers can move to the
+   * surface-aware envelope.
+   */
+  sidebar: { groups: ReadonlyArray<PlatformContextNavGroup> };
+  /**
+   * Account-menu projection (always-available account / billing /
+   * pricing / teams-entry / help items). NEVER hidden by workspace
+   * scope — every authenticated user gets a usable account menu.
+   */
+  accountMenu: { items: ReadonlyArray<PlatformContextNavItem> };
 };
 
 export type PlatformContextAvailableWorkspace = {
@@ -234,6 +252,48 @@ export type PlatformContextDiagnostics = {
   };
   resolvedAt: string;
   requestId: string;
+  /**
+   * Phase EMERGENCY-RECOVERY — bounded diagnostic surface for the
+   * personal-workspace bootstrap. Lets the frontend (and humans
+   * reading logs) know exactly how the active workspace was chosen.
+   *
+   * `workspaceSource`:
+   *   - `current_workspace_id`  — used `User.currentWorkspaceId`
+   *   - `personal_bootstrap`    — fell back to the user's personal Team
+   *   - `personal_bootstrap_after_stale` — `currentWorkspaceId` pointed
+   *     to a deleted/non-member team; cleared and used the personal Team.
+   *
+   * `bootstrap`:
+   *   - `attempted` — true iff the bootstrap helper ran
+   *   - `reused`    — true iff the bootstrap found an existing personal team
+   *   - `created`   — true iff the bootstrap created a new personal team
+   *   - `activeWorkspaceUpdated` — true iff `User.currentWorkspaceId`
+   *     was updated to point at the personal team during this request
+   */
+  workspaceSource:
+    | "current_workspace_id"
+    | "personal_bootstrap"
+    | "personal_bootstrap_after_stale";
+  bootstrap: {
+    attempted: boolean;
+    reused: boolean;
+    created: boolean;
+    activeWorkspaceUpdated: boolean;
+  };
+};
+
+/**
+ * Phase EMERGENCY-RECOVERY — recovery action descriptors.
+ *
+ * When the envelope cannot be assembled into a usable shape, the
+ * frontend renders a structured recovery panel instead of a blank
+ * shell. Each action is a bounded link/CTA. The list is empty when
+ * the envelope is healthy.
+ */
+export type PlatformContextRecoveryAction = {
+  id: "create_personal_workspace" | "create_team" | "open_settings" | "retry";
+  label: string;
+  href: string | null;
 };
 
 export type PlatformContextEnvelope = {
@@ -251,4 +311,10 @@ export type PlatformContextEnvelope = {
   navigation: PlatformContextNavigation;
   availableWorkspaces: ReadonlyArray<PlatformContextAvailableWorkspace>;
   diagnostics: PlatformContextDiagnostics;
+  /**
+   * Phase EMERGENCY-RECOVERY — bounded list of structured recovery
+   * actions the frontend can surface when the envelope is unhealthy.
+   * Empty array when the platform context resolved normally.
+   */
+  recoveryActions: ReadonlyArray<PlatformContextRecoveryAction>;
 };

@@ -66,6 +66,28 @@ export function useTeamId(): string | null {
 }
 
 /**
+ * Phase EMERGENCY-RECOVERY — `useWorkspaceId` returns the
+ * canonical workspace id REGARDLESS of scope.
+ *
+ * After the personal-workspace bootstrap, every authenticated user
+ * has a real `Team` row (with `isPersonal = true` for personal
+ * mode). This hook is the right choice for pages that operate on
+ * "whatever workspace the user is in" — Reports, Search, Cases
+ * (overview), Capture, etc.
+ *
+ * For pages that genuinely require a TEAM workspace (Reviewer Ops,
+ * Governance actions, Matter Operations Queue), use the existing
+ * `useTeamWorkspaceGate()` so personal users get a structured
+ * `CapabilityDegradedPanel` instead of an empty operator surface.
+ */
+export function useWorkspaceId(): string | null {
+  const { envelope } = usePlatformContext();
+  if (!envelope) return null;
+  if (envelope.workspace.status !== "active") return null;
+  return envelope.workspace.id ?? null;
+}
+
+/**
  * Returns the team-workspace gate state derived from the canonical
  * PlatformContextEnvelope. Pages should render the
  * `CapabilityDegradedPanel` when the status is `no-workspace`.

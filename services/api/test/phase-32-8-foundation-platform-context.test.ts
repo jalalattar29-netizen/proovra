@@ -214,7 +214,12 @@ describe("Phase 32.8 Foundation — capability registry", () => {
     expect(caps.SETTINGS_MANAGE).toBe(true);
   });
 
-  it("PERSONAL workspace does NOT grant team-only capabilities", () => {
+  it("PERSONAL workspace does NOT grant team-only operator capabilities", () => {
+    // Phase ROUTE-FIX — TEAM_VIEW and BILLING_VIEW were promoted to
+    // ACCOUNT-tier capabilities (personal users can reach a
+    // create-team entry + their personal billing). The truly
+    // team-only operator capabilities (REVIEWER_OPS, GOVERNANCE,
+    // TEAM_MANAGE, BULK_ACTIONS) remain false.
     const caps = resolveCapabilities({
       scope: "PERSONAL",
       role: "OWNER",
@@ -225,7 +230,6 @@ describe("Phase 32.8 Foundation — capability registry", () => {
     expect(caps.REVIEWER_OPS_ACT).toBe(false);
     expect(caps.GOVERNANCE_VIEW).toBe(false);
     expect(caps.GOVERNANCE_ACT).toBe(false);
-    expect(caps.TEAM_VIEW).toBe(false);
     expect(caps.TEAM_MANAGE).toBe(false);
     expect(caps.BULK_ACTIONS).toBe(false);
   });
@@ -277,17 +281,20 @@ describe("Phase 32.8 Foundation — capability registry", () => {
     expect(caps.TEAM_MANAGE).toBe(false);
   });
 
-  it("PRO plan on a personal workspace does NOT make the user a TEAM MEMBER", () => {
+  it("PRO plan on a personal workspace does NOT grant team-operator capabilities", () => {
+    // Phase ROUTE-FIX — TEAM_VIEW was promoted to an account-tier
+    // capability (personal users see a Teams create-entry). The
+    // truly team-operator capabilities (Reviewer Ops, Governance
+    // Act, Team Manage) remain false.
     const caps = resolveCapabilities({
       scope: "PERSONAL",
       role: "OWNER",
       plan: "PRO",
       isPlatformAdmin: false,
     });
-    // The user is OWNER of their personal workspace — they are NOT a
-    // team member of anything.
-    expect(caps.TEAM_VIEW).toBe(false);
     expect(caps.REVIEWER_OPS_VIEW).toBe(false);
+    expect(caps.TEAM_MANAGE).toBe(false);
+    expect(caps.GOVERNANCE_VIEW).toBe(false);
   });
 
   it("resolvePersona returns INDIVIDUAL for personal workspaces", () => {
@@ -313,13 +320,15 @@ describe("Phase 32.8 Foundation — capability registry", () => {
 // =============================================================================
 
 describe("Phase 32.8 Foundation — navigation registry", () => {
-  it("NAVIGATION_REGISTRY declares 4 domain groups in stable order", () => {
-    expect(NAVIGATION_REGISTRY.length).toBe(4);
+  it("NAVIGATION_REGISTRY declares the canonical groups in stable order (sidebar 4 + account)", () => {
+    // Phase ROUTE-FIX — added a 5th ACCOUNT group surfaced only via
+    // the account-menu projection, not the sidebar.
     expect(NAVIGATION_REGISTRY.map((g) => g.id)).toEqual([
       "workspace",
       "review_governance",
       "platform_health",
       "administration",
+      "account",
     ]);
   });
 
@@ -342,7 +351,11 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
     expect(teams!.href).toBe("/teams");
   });
 
-  it("Teams nav visible to every team member, hidden in personal workspaces", () => {
+  it("Teams nav visible to every team member AND to personal users (as create-team entry)", () => {
+    // Phase ROUTE-FIX — Teams is now an ACCOUNT-tier entry point.
+    // Personal users see it in the sidebar as a "create your first
+    // team workspace" CTA. Team management (TEAM_MANAGE) remains
+    // OWNER/ADMIN scoped inside the /teams page.
     const teamMemberNav = filterNavigationRegistry(
       resolveCapabilities({
         scope: "TEAM",
@@ -367,7 +380,7 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
     );
     expect(
       personalAdminGroup?.items.some((i) => i.id === "admin.teams") ?? false,
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("filterNavigationRegistry hides empty groups", () => {

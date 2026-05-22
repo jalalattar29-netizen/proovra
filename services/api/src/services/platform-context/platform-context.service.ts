@@ -30,19 +30,25 @@
 import { prisma } from "../../db.js";
 import { isPlatformAdmin as resolveIsPlatformAdmin } from "../platform-admin.service.js";
 import { resolveCapabilities, resolvePersona } from "./capability-registry.js";
-import { filterNavigationRegistry } from "./navigation-registry.js";
+import {
+  buildNavigationProjection,
+  filterNavigationRegistry,
+} from "./navigation-registry.js";
 import {
   AUTHORITY_SCHEMA_VERSION,
   CAPABILITY_SCHEMA_VERSION,
   NAVIGATION_SCHEMA_VERSION,
   isWorkspaceRole,
   type PlatformContextAvailableWorkspace,
+  type PlatformContextDiagnostics,
   type PlatformContextEnvelope,
+  type PlatformContextRecoveryAction,
   type PlatformContextWorkspace,
   type SectionStatus,
   type WorkspacePlan,
   type WorkspaceRole,
 } from "./types.js";
+import { ensurePersonalWorkspace } from "./workspace-bootstrap.service.js";
 
 const ENTERPRISE_PLAN_KEYS: ReadonlySet<WorkspacePlan> = new Set(["TEAM"]);
 const PRO_PLAN_KEYS: ReadonlySet<WorkspacePlan> = new Set(["PRO", "TEAM"]);
@@ -128,8 +134,23 @@ export async function buildPlatformContext(
 
   // -------------------------------------------------------------------------
   // Workspace + membership
+  //
+  // Phase EMERGENCY-RECOVERY — every authenticated user gets a real
+  // `Team` row tagged `isPersonal=true` via `ensurePersonalWorkspace`.
+  // The platform NEVER returns `workspace.status === "no-workspace"`
+  // for an authenticated user with a healthy DB. Stale or invalid
+  // `currentWorkspaceId` values fall back to the personal workspace
+  // instead of producing a broken shell.
   // -------------------------------------------------------------------------
   let workspaceStatus: SectionStatus = "ok";
+  let workspaceSource: PlatformContextDiagnostics["workspaceSource"] =
+    "personal_bootstrap";
+  const bootstrap: PlatformContextDiagnostics["bootstrap"] = {
+    attempted: false,
+    reused: false,
+    created: false,
+    activeWorkspaceUpdated: false,
+  };
   let workspace: PlatformContextWorkspace = {
     status: "no-workspace",
     id: null,
@@ -144,6 +165,25 @@ export async function buildPlatformContext(
     },
   };
 
+  // Step 1 — ensure the user has a personal workspace. This is
+  // idempotent (the loser of a concurrent insert race re-fetches the
+  // winner). The personal team is the fallback target whenever the
+  // selected `currentWorkspaceId` is missing or stale.
+  let personalTeamId: string | null = null;
+  let personalTeamName: string | null = null;
+  try {
+    bootstrap.attempted = true;
+    const personal = await ensurePersonalWorkspace({ userId: userRow.id });
+    personalTeamId = personal.teamId;
+    personalTeamName = personal.name;
+    bootstrap.created = personal.created;
+    bootstrap.reused = !personal.created;
+  } catch {
+    // Bootstrap failed — degraded but recoverable. The workspace
+    // section falls through to the synthetic personal mode below.
+    workspaceStatus = "degraded";
+  }
+
   if (userRow.currentWorkspaceId) {
     try {
       const team = await prisma.team.findUnique({
@@ -152,37 +192,54 @@ export async function buildPlatformContext(
           id: true,
           name: true,
           billingPlan: true,
+          isPersonal: true,
           _count: { select: { members: true } },
         },
       });
 
-      if (!team) {
-        // currentWorkspaceId points at a deleted/inaccessible team.
-        // Fall through to PERSONAL — the workspace switcher will let
-        // the user pick another one. Status is degraded so the
-        // frontend can surface a hint.
-        workspaceStatus = "degraded";
-      } else {
-        const membership = await prisma.teamMember.findUnique({
-          where: {
-            teamId_userId: {
-              teamId: team.id,
-              userId: userRow.id,
+      const membership = team
+        ? await prisma.teamMember.findUnique({
+            where: {
+              teamId_userId: {
+                teamId: team.id,
+                userId: userRow.id,
+              },
             },
-          },
-          select: { role: true, status: true },
-        });
+            select: { role: true, status: true },
+          })
+        : null;
 
-        const role: WorkspaceRole | null =
-          membership && membership.status === "ACTIVE"
-            ? coerceRole(membership.role as unknown as string)
-            : null;
+      const memberOk = membership && membership.status === "ACTIVE";
 
+      if (!team || !memberOk) {
+        // `currentWorkspaceId` points to a deleted team OR the user
+        // is no longer an ACTIVE member. Clear the stale pointer and
+        // fall through to the personal workspace.
+        workspaceStatus = "degraded";
+        workspaceSource = "personal_bootstrap_after_stale";
+        if (personalTeamId) {
+          try {
+            await prisma.user.update({
+              where: { id: userRow.id },
+              data: { currentWorkspaceId: personalTeamId },
+            });
+            bootstrap.activeWorkspaceUpdated = true;
+          } catch {
+            // Non-fatal: the frontend still gets a usable envelope.
+          }
+        }
+      } else {
+        // Healthy team selection. Distinguish PERSONAL vs TEAM scope
+        // via the `isPersonal` column.
+        const role: WorkspaceRole | null = coerceRole(
+          membership!.role as unknown as string,
+        );
+        workspaceSource = "current_workspace_id";
         workspace = {
           status: "active",
           id: team.id,
           name: team.name ?? null,
-          scope: "TEAM",
+          scope: team.isPersonal ? "PERSONAL" : "TEAM",
           plan: coercePlan(team.billingPlan as unknown as string),
           membership: {
             role,
@@ -195,25 +252,69 @@ export async function buildPlatformContext(
     } catch {
       workspaceStatus = "degraded";
     }
-  } else {
-    // Personal workspace — synthesize OWNER membership. PRO plan
-    // surfaces via flags but does NOT change the role.
-    workspace = {
-      status: "active",
-      id: null,
-      name: null,
-      scope: "PERSONAL",
-      plan: null,
-      membership: {
-        role: "OWNER",
-        isOwner: true,
-        isAdmin: true,
-        memberCount: 1,
-      },
-    };
+  }
 
-    // Best-effort plan resolution from the user's personal
-    // entitlement, so flags.isProAccount can be set correctly.
+  // Step 2 — if no healthy team selection was made, point the user
+  // at the personal team that the bootstrap just (re)used / created.
+  // ALWAYS produces `workspace.status === "active"` so the frontend
+  // never sees "No workspace selected" for an authenticated user.
+  if (workspace.status !== "active") {
+    if (personalTeamId) {
+      workspace = {
+        status: "active",
+        id: personalTeamId,
+        name: personalTeamName,
+        scope: "PERSONAL",
+        plan: null,
+        membership: {
+          role: "OWNER",
+          isOwner: true,
+          isAdmin: true,
+          memberCount: 1,
+        },
+      };
+      // Persist the personal team as the active workspace if not
+      // already so. Skipped silently on error — the in-memory
+      // envelope is still usable.
+      if (
+        !bootstrap.activeWorkspaceUpdated &&
+        userRow.currentWorkspaceId !== personalTeamId
+      ) {
+        try {
+          await prisma.user.update({
+            where: { id: userRow.id },
+            data: { currentWorkspaceId: personalTeamId },
+          });
+          bootstrap.activeWorkspaceUpdated = true;
+        } catch {
+          // non-fatal
+        }
+      }
+    } else {
+      // Bootstrap genuinely failed (DB unavailable etc.). Surface a
+      // synthetic personal-mode envelope so the frontend renders a
+      // recovery shell — but DO NOT pretend the workspace is broken.
+      workspace = {
+        status: "active",
+        id: null,
+        name: null,
+        scope: "PERSONAL",
+        plan: null,
+        membership: {
+          role: "OWNER",
+          isOwner: true,
+          isAdmin: true,
+          memberCount: 1,
+        },
+      };
+    }
+  }
+
+  // Best-effort plan overlay: when the active workspace is the
+  // personal team, prefer the user's `Entitlement.plan` over the
+  // team's billing plan (personal teams stay FREE — PRO entitles
+  // the USER, not the personal Team row).
+  if (workspace.scope === "PERSONAL") {
     try {
       const personalEntitlement = await prisma.entitlement.findFirst({
         where: { userId: userRow.id },
@@ -223,7 +324,9 @@ export async function buildPlatformContext(
       const personalPlan = coercePlan(
         personalEntitlement?.plan as unknown as string,
       );
-      workspace = { ...workspace, plan: personalPlan };
+      if (personalPlan) {
+        workspace = { ...workspace, plan: personalPlan };
+      }
     } catch {
       // Entitlement table missing/degraded — leave plan null.
       workspaceStatus = workspaceStatus === "ok" ? "degraded" : workspaceStatus;
@@ -275,11 +378,14 @@ export async function buildPlatformContext(
   // -------------------------------------------------------------------------
   let navigationStatus: SectionStatus = "ok";
   let navigationGroups;
+  let navigationProjection: ReturnType<typeof buildNavigationProjection>;
   try {
     navigationGroups = filterNavigationRegistry(capabilities);
+    navigationProjection = buildNavigationProjection(capabilities);
   } catch {
     navigationStatus = "degraded";
     navigationGroups = [];
+    navigationProjection = { sidebar: { groups: [] }, accountMenu: { items: [] } };
   }
 
   // -------------------------------------------------------------------------
@@ -355,7 +461,11 @@ export async function buildPlatformContext(
     capabilities,
     navigation: {
       status: navigationStatus,
+      // Legacy `groups` retained for backwards compatibility.
       groups: navigationGroups,
+      // Phase ROUTE-FIX — separate sidebar + account-menu projections.
+      sidebar: navigationProjection.sidebar,
+      accountMenu: navigationProjection.accountMenu,
     },
     availableWorkspaces,
 
@@ -369,8 +479,61 @@ export async function buildPlatformContext(
       },
       resolvedAt: generatedAt,
       requestId: input.requestId,
+      workspaceSource,
+      bootstrap,
     },
+    recoveryActions: buildRecoveryActions({
+      workspace,
+      workspaceStatus,
+      bootstrapAttempted: bootstrap.attempted,
+      personalTeamPresent: !!personalTeamId,
+    }),
   };
 
   return { ok: true, envelope };
+}
+
+/**
+ * Phase EMERGENCY-RECOVERY — bounded recovery action descriptors.
+ *
+ * Healthy envelope → empty list. Degraded or fallback states surface
+ * structured CTAs that the frontend renders in a recovery panel
+ * (never a blank shell).
+ */
+function buildRecoveryActions(input: {
+  workspace: PlatformContextWorkspace;
+  workspaceStatus: SectionStatus;
+  bootstrapAttempted: boolean;
+  personalTeamPresent: boolean;
+}): ReadonlyArray<PlatformContextRecoveryAction> {
+  // Truly broken: workspace is not active. Frontend renders the
+  // structured recovery panel with explicit next-step CTAs.
+  if (input.workspace.status !== "active") {
+    const actions: PlatformContextRecoveryAction[] = [];
+    if (!input.personalTeamPresent) {
+      actions.push({
+        id: "create_personal_workspace",
+        label: "Create personal workspace",
+        href: "/settings",
+      });
+    }
+    actions.push({
+      id: "create_team",
+      label: "Create or join a team",
+      href: "/teams",
+    });
+    actions.push({
+      id: "open_settings",
+      label: "Open account settings",
+      href: "/settings",
+    });
+    actions.push({
+      id: "retry",
+      label: "Retry",
+      href: null,
+    });
+    return actions;
+  }
+  // Healthy envelope — no recovery actions surfaced.
+  return [];
 }

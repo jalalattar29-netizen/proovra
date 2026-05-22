@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import {
   Bell,
   ChevronDown,
+  CreditCard,
+  HelpCircle,
   LogOut,
   Menu,
   X,
@@ -13,7 +15,9 @@ import {
   ShieldCheck,
   UserCircle,
   Users,
+  type LucideProps,
 } from "lucide-react";
+import type { ForwardRefExoticComponent, RefAttributes } from "react";
 import { LanguageSwitcher } from "../language-switcher";
 import { GlobalRuntimeIndicator } from "../operational";
 import { usePlatformContext } from "../../lib/platform-context";
@@ -39,6 +43,24 @@ import { usePlatformContext } from "../../lib/platform-context";
  *   5. Workspace switching uses `ctx.switchWorkspace(id)`, which
  *      drives the atomic state machine in the provider.
  */
+
+type LucideIcon = ForwardRefExoticComponent<
+  Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>
+>;
+
+const ACCOUNT_MENU_ICONS: Record<string, LucideIcon> = {
+  profile: UserCircle,
+  notifications: Bell,
+  settings: Settings,
+  billing: CreditCard,
+  teams: Users,
+  support: HelpCircle,
+};
+
+function AccountMenuIcon({ iconKey }: { iconKey: string }) {
+  const Icon = ACCOUNT_MENU_ICONS[iconKey] ?? UserCircle;
+  return <Icon size={16} strokeWidth={1.9} />;
+}
 
 function getUserDisplayName(envelope: ReturnType<typeof usePlatformContext>["envelope"]) {
   const user = envelope?.user;
@@ -421,35 +443,25 @@ export function AppTopbarV2({
                   <span>{envelope?.user.email ?? "Signed in account"}</span>
                 </div>
 
-                <Link
-                  href="/settings"
-                  role="menuitem"
-                  onClick={() => setAccountOpen(false)}
-                  data-account-menu-item="profile"
-                >
-                  <UserCircle size={16} strokeWidth={1.9} />
-                  Profile
-                </Link>
-
-                <Link
-                  href="/notifications"
-                  role="menuitem"
-                  onClick={() => setAccountOpen(false)}
-                  data-account-menu-item="notifications"
-                >
-                  <Bell size={16} strokeWidth={1.9} />
-                  Notifications
-                </Link>
-
-                <Link
-                  href="/settings"
-                  role="menuitem"
-                  onClick={() => setAccountOpen(false)}
-                  data-account-menu-item="settings"
-                >
-                  <Settings size={16} strokeWidth={1.9} />
-                  Account settings
-                </Link>
+                {/* Phase ROUTE-FIX — the account menu reads its items
+                    from the canonical envelope's
+                    `navigation.accountMenu.items`. Pricing, Billing,
+                    Teams (create-entry), and Help & Support are now
+                    surfaced here for every authenticated user
+                    regardless of workspace scope. */}
+                {(envelope?.navigation.accountMenu.items ?? []).map((item) => (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    role="menuitem"
+                    onClick={() => setAccountOpen(false)}
+                    data-account-menu-item={item.id}
+                    data-account-menu-item-domain={item.domain}
+                  >
+                    <AccountMenuIcon iconKey={item.iconKey} />
+                    {item.label}
+                  </Link>
+                ))}
 
                 <button
                   type="button"

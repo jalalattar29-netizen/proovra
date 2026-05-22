@@ -24,5 +24,7 @@ export { CapabilityDegradedPanel } from "./CapabilityDegradedPanel";
 export {
   useTeamWorkspaceGate,
   useTeamId,
+  useWorkspaceId,
   type TeamWorkspaceGateState,
 } from "./useTeamWorkspaceGate";
+export { WorkspaceRecoveryPanel } from "./WorkspaceRecoveryPanel";

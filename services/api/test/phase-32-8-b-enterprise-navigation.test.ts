@@ -383,10 +383,13 @@ describe("Phase 32.8B — topbar separates workspace context from account contex
     expect(TOPBAR).toMatch(/data-workspace-option/);
   });
 
-  it("account dropdown contains the canonical account items: Profile, Notifications, Account settings, Sign out", () => {
-    expect(TOPBAR).toMatch(/data-account-menu-item="profile"/);
-    expect(TOPBAR).toMatch(/data-account-menu-item="notifications"/);
-    expect(TOPBAR).toMatch(/data-account-menu-item="settings"/);
+  it("account dropdown consumes the canonical envelope account-menu items (Profile, Notifications, Pricing, Billing, Teams, Help, Settings) + Sign out", () => {
+    // Phase ROUTE-FIX — the account menu is now sourced from the
+    // canonical envelope's `navigation.accountMenu.items` rather
+    // than being hardcoded in the topbar. The static `data-` keys
+    // are emitted dynamically with the registry item id.
+    expect(TOPBAR).toMatch(/navigation\.accountMenu\.items/);
+    expect(TOPBAR).toMatch(/data-account-menu-item=\{item\.id\}/);
     expect(TOPBAR).toMatch(/data-account-menu-item="signout"/);
   });
 
