@@ -309,6 +309,24 @@ export type IncidentItem = {
   runbookSlug: string | null;
   occurrenceCount: number;
   lastSeenAtUtc: string;
+  /** Phase 32.8C control plane — assignment + acknowledgment fields. */
+  assignedOperatorUserId: string | null;
+  assignedAtUtc: string | null;
+  acknowledgedByUserId: string | null;
+  acknowledgedAtUtc: string | null;
+};
+
+export type IncidentCorrelationItem = {
+  id: string;
+  correlationType: string;
+  severity: string;
+  rootOperationalCause: string;
+  operationalSummary: string;
+  recommendedAction: string;
+  confidence: string;
+  linkedIncidentIds: string[];
+  firstDetectedAtUtc: string;
+  lastDetectedAtUtc: string;
 };
 
 export type CommandCenterEnvelope = {
@@ -431,9 +449,11 @@ export type CommandCenterEnvelope = {
         openEscalationsCount: number;
       } | null;
     };
+    /** Phase 32.8C control plane — active incidents + correlations. */
     incidents: {
       status: SectionStatus;
       items: IncidentItem[];
+      correlations: IncidentCorrelationItem[];
     };
     // Phase 32.8C+ intelligence-engine sections
     investigationIntelligence: {

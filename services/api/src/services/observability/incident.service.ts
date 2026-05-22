@@ -246,6 +246,70 @@ export async function suppressIncident(
   );
 }
 
+/**
+ * Phase 32.8C control plane — assignIncident.
+ *
+ * Sets `assignedOperatorUserId` + `assignedByUserId` + `assignedAtUtc`.
+ * Does NOT change `status`. Audited via the platform audit log. Idempotent:
+ * re-assigning to the same operator updates `assignedAtUtc` only.
+ */
+export async function assignIncident(
+  input: {
+    incidentId: string;
+    teamId: string;
+    assigneeUserId: string;
+  } & IncidentActorContext,
+  client: PrismaClient = defaultPrisma,
+): Promise<prismaPkg.OperationalIncident> {
+  const existing = await client.operationalIncident.findFirst({
+    where: { id: input.incidentId, teamId: input.teamId },
+  });
+  if (!existing) throw new IncidentError("incident_not_found");
+  const updated = await client.operationalIncident.update({
+    where: { id: existing.id },
+    data: {
+      assignedOperatorUserId: input.assigneeUserId,
+      assignedByUserId: input.actorUserId,
+      assignedAtUtc: new Date(),
+    },
+  });
+  try {
+    await client.operationalIncidentEvent.create({
+      data: {
+        incidentId: updated.id,
+        eventType: "assigned",
+        safeMessage: `Incident assigned to operator ${input.assigneeUserId.slice(0, 8)}.`,
+      },
+    });
+  } catch {
+    /* best-effort */
+  }
+  bump("operational_incident_assigned");
+
+  await appendPlatformAuditLog({
+    userId: input.actorUserId,
+    action: "observability.incident.assigned",
+    category: "observability.incident",
+    severity: "info",
+    source: "incident_service",
+    outcome: "success",
+    resourceType: "operational_incident",
+    resourceId: updated.id,
+    metadata: {
+      teamId: input.teamId,
+      assigneeUserId: input.assigneeUserId,
+      fingerprint: existing.fingerprint,
+      severity: existing.severity,
+      category: existing.category,
+    },
+    ipAddress: input.ipAddress ?? null,
+    userAgent: input.userAgent ?? null,
+    db: client,
+  });
+
+  return updated;
+}
+
 async function transitionIncident(
   input: { incidentId: string; teamId: string } & IncidentActorContext,
   next: prismaPkg.IncidentStatus,

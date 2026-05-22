@@ -56,6 +56,7 @@ import { buildAlertHealth } from "../services/alerts/alert.service.js";
 import {
   IncidentError,
   acknowledgeIncident,
+  assignIncident,
   listIncidents,
   projectIncident,
   resolveIncident,
@@ -673,6 +674,58 @@ export async function opsRoutes(app: FastifyInstance) {
         const updated = await suppressIncident({
           incidentId: id,
           teamId: body.teamId,
+          actorUserId: actor.userId,
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+        });
+        return reply.code(200).send({ incident: projectIncident(updated) });
+      } catch (err) {
+        if (handleIncidentError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase 32.8C control plane — assignIncident
+  //
+  // POST /v1/ops/incidents/:id/assign
+  // Body: { teamId, assigneeUserId }
+  //
+  // Sets the operator-owner for an incident. Permission-gated via
+  // `requireOpsActorAction` (ops actor + workspace member). Audited via
+  // the platform audit log inside the service.
+  // ---------------------------------------------------------------------------
+  const AssignBody = TeamIdOnly.extend({
+    assigneeUserId: z.string().uuid(),
+  });
+  app.post(
+    "/v1/ops/incidents/:id/assign",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsIncidentId.parse(req.params);
+      const body = AssignBody.parse(req.body ?? {});
+      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      if (!actor) return;
+      // The assignee must be an actual workspace member — never assign
+      // an incident to a user outside the workspace. We check the
+      // TeamMember table directly (same authoritative source other
+      // membership checks use).
+      const member = await prisma.teamMember.findFirst({
+        where: { teamId: body.teamId, userId: body.assigneeUserId },
+        select: { id: true },
+      });
+      if (!member) {
+        return reply.code(400).send({
+          error: "invalid_assignee",
+          message: "Assignee must be a member of this workspace.",
+        });
+      }
+      try {
+        const updated = await assignIncident({
+          incidentId: id,
+          teamId: body.teamId,
+          assigneeUserId: body.assigneeUserId,
           actorUserId: actor.userId,
           ipAddress: requestIp(req),
           userAgent: requestUa(req),

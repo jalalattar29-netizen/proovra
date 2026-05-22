@@ -269,7 +269,7 @@ function PredictiveRiskBoard({
 }) {
   if (section.meta.status === "unavailable") {
     return (
-      <SectionShell kicker="Predictive Risk Forecast" title="Forecast unavailable">
+      <SectionShell kicker="Predictive Risk Forecast" title="Forecast read degraded" severity="warning">
         <SectionNote status="unavailable" kind="predictive-risk" />
       </SectionShell>
     );
@@ -343,7 +343,8 @@ function OrgIntelligenceV2Board({
     return (
       <SectionShell
         kicker="Organizational Intelligence V2"
-        title="Org intelligence unavailable"
+        title="Org intelligence read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="org-intelligence-v2" />
       </SectionShell>
@@ -436,7 +437,8 @@ function RelationshipIntelligenceBoard({
     return (
       <SectionShell
         kicker="Evidence Relationship Intelligence"
-        title="Relationship intelligence unavailable"
+        title="Relationship intelligence read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="relationships" />
       </SectionShell>
@@ -512,7 +514,8 @@ function CrossCaseIntelligenceV2Board({
     return (
       <SectionShell
         kicker="Cross-Case Intelligence"
-        title="Cross-case intelligence unavailable"
+        title="Cross-case intelligence read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="cross-case-v2" />
       </SectionShell>
@@ -579,7 +582,8 @@ function DeepIntegrityWatch({
     return (
       <SectionShell
         kicker="Deep Integrity Watch"
-        title="Deep integrity unavailable"
+        title="Deep integrity read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="deep-integrity" />
       </SectionShell>
@@ -690,13 +694,22 @@ function AccessSecurityClassifierBoard({
 }: {
   section: CommandCenterEnvelope["sections"]["accessSecurityClassifier"];
 }) {
-  if (section.meta.status === "unavailable") {
+  // Phase 32.8C closure pass — distinguish:
+  //   (a) classifier read failed AND no anomalies in this fetch    → degraded read
+  //   (b) classifier read succeeded but returned 0 anomalies       → healthy (no incidents)
+  //   (c) classifier read succeeded with anomalies                 → render them
+  if (section.meta.status === "unavailable" && section.anomalies.length === 0) {
     return (
       <SectionShell
         kicker="Security Anomaly Classifier"
-        title="Classifier unavailable"
+        title="Detection running · classifier read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="security-classifier" />
+        <div className="ec-section-foot" data-cc-classifier-fallback>
+          Detection is still operational via the SecurityEvent audit log.
+          The dashboard rollup will re-classify on the next refresh.
+        </div>
       </SectionShell>
     );
   }
@@ -704,11 +717,12 @@ function AccessSecurityClassifierBoard({
     return (
       <SectionShell
         kicker="Security Anomaly Classifier"
-        title="No classified anomalies · 24h"
+        title="No security anomalies detected · 24h"
       >
         <EnterpriseEmpty
-          title="No classified security anomalies"
-          body="The classifier is rule-based on eventType strings. ML scoring is not in scope — see unsupported signals."
+          title="No suspicious activity in the last 24h"
+          body="The classifier scans SecurityEvent rows in a bounded 24h window and groups them by (category, actor, eventType). A 0-result state means: no repeated failed access, no blocked export attempts, no API credential changes, no webhook failure spikes, no step-up failures, no permission-denied bursts, no admin role changes flagged above the burst threshold."
+          hint="The classifier is rule-based — no ML scoring. The full audit trail remains on the SecurityEvent log."
         />
       </SectionShell>
     );
@@ -760,6 +774,42 @@ function AccessSecurityClassifierBoard({
  */
 const WORKER_HEARTBEAT_STALE_SECONDS = 300;
 
+/**
+ * Freshness threshold for queue snapshot samples (seconds). Samples
+ * older than this trigger the "telemetry delayed" degradation banner —
+ * the sampler is running but its last write is stale.
+ */
+const QUEUE_SAMPLE_STALE_SECONDS = 600;
+
+/**
+ * Telemetry freshness classifier.
+ *
+ * Returns:
+ *  - `healthy_empty` — no rows yet AND no observed stale samples; this
+ *    is the legitimate "platform is up but hasn't sampled yet" state.
+ *  - `healthy`       — rows exist and the freshest sample is within
+ *    the threshold.
+ *  - `delayed`       — rows exist but the freshest sample is older than
+ *    the threshold (telemetry is delayed, NOT unavailable).
+ *  - `unavailable`   — the upstream meta says the read could not
+ *    complete at all.
+ */
+type TelemetryFreshness = "healthy_empty" | "healthy" | "delayed" | "unavailable";
+
+function classifyTelemetryFreshness(opts: {
+  metaStatus: SectionStatus;
+  freshestSampleUtc: string | null;
+  staleAfterSeconds: number;
+}): TelemetryFreshness {
+  if (opts.metaStatus === "unavailable") return "unavailable";
+  if (!opts.freshestSampleUtc) return "healthy_empty";
+  const ageSeconds = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(opts.freshestSampleUtc).getTime()) / 1000),
+  );
+  return ageSeconds > opts.staleAfterSeconds ? "delayed" : "healthy";
+}
+
 function workerStatusSeverity(
   status: string,
 ): "info" | "warning" | "high" | "critical" {
@@ -780,19 +830,39 @@ function QueueWorkerTelemetryBoard({
 }: {
   section: CommandCenterEnvelope["sections"]["queueWorkerTelemetry"];
 }) {
-  if (section.meta.status === "unavailable") {
+  const d = section.data;
+  const snapshots = d?.queueSnapshots ?? [];
+  const heartbeats = d?.workerHeartbeats ?? [];
+  // Phase 32.8C closure pass — compute freshness directly so the worker
+  // being silently up but never having sampled doesn't render as a
+  // "unavailable" red card. `healthy_empty` means the platform is up
+  // but hasn't sampled yet; `delayed` means the sampler is running but
+  // its last write is older than the threshold.
+  const queueFreshness = classifyTelemetryFreshness({
+    metaStatus: section.meta.status,
+    freshestSampleUtc: snapshots[0]?.sampledAtUtc ?? null,
+    staleAfterSeconds: QUEUE_SAMPLE_STALE_SECONDS,
+  });
+  const workerFreshness = classifyTelemetryFreshness({
+    metaStatus: section.meta.status,
+    freshestSampleUtc: heartbeats[0]?.heartbeatAtUtc ?? null,
+    staleAfterSeconds: WORKER_HEARTBEAT_STALE_SECONDS * 2,
+  });
+  if (
+    section.meta.status === "unavailable" &&
+    snapshots.length === 0 &&
+    heartbeats.length === 0
+  ) {
+    // Truly unavailable: meta says read failed AND no fallback data.
     return (
       <SectionShell
         kicker="Queue / Worker Telemetry"
-        title="Queue telemetry unavailable"
+        title="Telemetry read degraded"
       >
         <SectionNote status="unavailable" kind="queue-worker-telemetry" />
       </SectionShell>
     );
   }
-  const d = section.data;
-  const snapshots = d.queueSnapshots ?? [];
-  const heartbeats = d.workerHeartbeats ?? [];
   return (
     <SectionShell
       kicker="Queue / Worker Telemetry"
@@ -805,6 +875,19 @@ function QueueWorkerTelemetryBoard({
             : "info"
       }
     >
+      {queueFreshness === "delayed" || workerFreshness === "delayed" ? (
+        <div
+          className="ec-section-note"
+          data-cc-section-status="degraded"
+          data-cc-section-kind="queue-worker-telemetry"
+          data-cc-telemetry-freshness="delayed"
+          role="status"
+        >
+          Telemetry sampler returning delayed snapshots. The worker remains
+          operational; the latest sample is older than the freshness
+          threshold.
+        </div>
+      ) : null}
       <div className="ec-tile-grid" data-cc-queue-telemetry-tiles>
         <div className="ec-tile" data-cc-queue-telemetry-tile="heartbeat" data-cc-tile-severe={d.reconcileHealth === "UNAVAILABLE" || d.reconcileHealth === "STALE" ? "true" : "false"}>
           <span className="ec-tile-value">{d.reconcileHealth}</span>
@@ -1071,7 +1154,8 @@ function CoordinationSignalsBoard({
     return (
       <SectionShell
         kicker="Coordination Signals"
-        title="Coordination signals unavailable"
+        title="Coordination read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="coordination" />
       </SectionShell>
@@ -1136,7 +1220,8 @@ function ReconstructedTimelineSection({
     return (
       <SectionShell
         kicker="Reconstructed Operational Timeline"
-        title="Reconstructed timeline unavailable"
+        title="Reconstructed timeline read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="reconstructed-timeline" />
       </SectionShell>
@@ -1285,7 +1370,8 @@ function RoutingQueueSection({
     return (
       <SectionShell
         kicker="Routing · Actionable Queue"
-        title="Routing queue unavailable"
+        title="Routing read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="routing" />
       </SectionShell>
@@ -1298,8 +1384,9 @@ function RoutingQueueSection({
         title="No actionable items in the routing queue"
       >
         <EnterpriseEmpty
-          title="Routing queue clear"
-          body="No items above warning severity require routing. The catalog of supported pressure signals is unchanged; new actionable items will appear here as they fire."
+          title="Routing queue clear · no operator action required"
+          body="No operational pressure items above WARNING severity are currently routed. The routing engine scans every pressure source (overdue reviews, stalled workflows, missing reports/packages, retry storms, governance conflicts, queue saturation, integrity anomalies, escalations) and routes only items that exceed threshold."
+          hint="The catalog of pressure sources is unchanged; new actionable items appear as soon as their threshold is crossed."
         />
       </SectionShell>
     );
@@ -1405,7 +1492,8 @@ function InvestigationRiskBoard({
     return (
       <SectionShell
         kicker="Investigation Risk Board"
-        title="Investigation intelligence unavailable"
+        title="Investigation read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="investigation" />
       </SectionShell>
@@ -1524,7 +1612,7 @@ function WorkloadEngineBoard({
   }
   if (section.meta.status === "unavailable") {
     return (
-      <SectionShell kicker="Workload Engine" title="Workload engine unavailable">
+      <SectionShell kicker="Workload Engine" title="Workload read degraded" severity="warning">
         <SectionNote status="unavailable" kind="workload-engine" />
       </SectionShell>
     );
@@ -1635,7 +1723,8 @@ function QueueCongestionSection({
     return (
       <SectionShell
         kicker="Queue Congestion"
-        title="Queue congestion unavailable"
+        title="Queue congestion read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="queue-congestion" />
       </SectionShell>
@@ -1689,7 +1778,8 @@ function CustodyIntegrityWatch({
     return (
       <SectionShell
         kicker="Custody / Integrity Watch"
-        title="Custody / integrity unavailable"
+        title="Custody/integrity read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="custody-integrity" />
       </SectionShell>
@@ -1756,11 +1846,15 @@ function AccessSecurityWatch({
 }: {
   section: CommandCenterEnvelope["sections"]["accessSecurityAnomalies"];
 }) {
+  // Phase 32.8C closure pass — read failure is rendered as a localized
+  // degraded read, not as a platform outage. The canonical SecurityEvent
+  // log remains operational regardless of this dashboard rollup.
   if (section.meta.status === "unavailable") {
     return (
       <SectionShell
         kicker="Access / Security Watch"
-        title="Security event stream unavailable"
+        title="Security watch rollup degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="security" />
       </SectionShell>
@@ -1773,8 +1867,9 @@ function AccessSecurityWatch({
         title="No high-severity security events · 24h"
       >
         <EnterpriseEmpty
-          title="No security anomalies surfaced"
-          body="The watch reads the SecurityEvent stream filtered to WARNING + HIGH severity in the last 24 hours. No DB-side anomaly classifier is in scope; operator review is the canonical path."
+          title="No suspicious access activity in the last 24 hours"
+          body="The watch reads the SecurityEvent stream filtered to WARNING + HIGH severity in a bounded 24h window. A 0-result state means: no impossible-travel sessions, no suspicious export spikes, no excessive failed access attempts, no admin-role escalations above the threshold."
+          hint="The full SecurityEvent audit trail remains canonical. Operator review is the source-of-truth path."
         />
       </SectionShell>
     );
@@ -1825,9 +1920,9 @@ function UnsupportedSignalsSection({
   if (signals.length === 0) return null;
   return (
     <details className="ec-unsupported" data-cc-unsupported-signals>
-      <summary className="ec-unsupported-summary">
-        Unsupported signals · {signals.length}
-        <small> (transparent catalog of intelligence the platform does not yet compute)</small>
+      <summary className="ec-unsupported-summary" data-cc-diagnostics-disclosure>
+        Engineering diagnostics · capability catalog · {signals.length}
+        <small> (intelligence signals the platform does not yet compute — not a platform failure)</small>
       </summary>
       <ul className="ec-unsupported-list">
         {signals.map((s, i) => (
@@ -1979,8 +2074,8 @@ function OperationalPressureSection({
       <SectionShell
         id="operational-pressure"
         kicker="Active Operational Pressure"
-        title="Operational pressure surface unavailable"
-        severity="info"
+        title="Operational pressure read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="pressure" />
       </SectionShell>
@@ -2039,9 +2134,9 @@ function OperationalPressureSection({
       </div>
       {empty ? (
         <EnterpriseEmpty
-          title="No operational pressure detected"
-          body="No overdue reviews, stalled workflows, governance conflicts, or high-severity incidents on this workspace. New pressure items will surface here in real time."
-          hint="Operational pressure is recomputed every time the dashboard loads — there is no per-row polling."
+          title="No operational pressure detected · workspace healthy"
+          body="The pressure engine scans every operational source — overdue reviews, stalled review workflows, unassigned reviews, open escalations, stuck uploads, missing reports, missing packages, failed report generations, failed package generations, retry storms, governance conflicts, policy conflicts, evidence without case linkage, unsigned aged evidence, blocked exports, and active operational incidents — and surfaces items above the severity threshold. A 0-result state means every one of these signals is currently within tolerance."
+          hint="Pressure is recomputed on every dashboard load from real platform state — there is no fake metric or cached score."
         />
       ) : (
         <ul className="ec-pressure-list" data-cc-pressure-list>
@@ -2102,7 +2197,8 @@ function CaseOperationsSection({
     return (
       <SectionShell
         kicker="2 · Investigation & Case Operations"
-        title="Case operations unavailable"
+        title="Case operations read degraded"
+        severity="warning"
       >
         <SectionNote status={section.status} kind="case-operations" />
       </SectionShell>
@@ -2252,7 +2348,8 @@ function ReviewerOrchestrationSection({
     return (
       <SectionShell
         kicker="3 · Reviewer Orchestration"
-        title="Reviewer orchestration unavailable"
+        title="Reviewer orchestration read degraded"
+        severity="warning"
       >
         <SectionNote status={section.status} kind="reviewer-orchestration" />
       </SectionShell>
@@ -2408,7 +2505,8 @@ function PipelineDetailSection({
     return (
       <SectionShell
         kicker="4 · Evidence Pipeline"
-        title="Pipeline visibility unavailable"
+        title="Pipeline read degraded"
+        severity="warning"
       >
         <SectionNote status={section.status} kind="pipeline-detail" />
       </SectionShell>
@@ -2528,7 +2626,8 @@ function GovernancePostureSection({
     return (
       <SectionShell
         kicker="5 · Governance & Compliance"
-        title="Governance posture unavailable"
+        title="Governance read degraded"
+        severity="warning"
       >
         <SectionNote status={section.status} kind="governance" />
       </SectionShell>
@@ -2620,7 +2719,8 @@ function OrganizationalIntelligenceSection({
     return (
       <SectionShell
         kicker="6 · Organizational Intelligence"
-        title="Throughput unavailable"
+        title="Throughput read degraded"
+        severity="warning"
       >
         <SectionNote status={section.status} kind="organizational" />
       </SectionShell>
@@ -2686,7 +2786,8 @@ function TimelineSection({
     return (
       <SectionShell
         kicker="7 · Operational Timeline"
-        title="Timeline unavailable"
+        title="Timeline read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="timeline" />
       </SectionShell>
@@ -2696,11 +2797,12 @@ function TimelineSection({
     return (
       <SectionShell
         kicker="7 · Operational Timeline"
-        title="No recent operational events"
+        title="No recent operational events · 14d window"
       >
         <EnterpriseEmpty
-          title="Operational heartbeat — no recent events"
-          body="The timeline aggregates evidence finalizations, report/package generations, lifecycle transitions, hold actions, escalations, and incidents from the last 14 days."
+          title="Operational heartbeat — no recent events in the last 14 days"
+          body="The timeline aggregates evidence finalizations, report + verification package generations, lifecycle transitions, legal hold actions, reviewer escalations, governance reviews, and operational incidents. A 0-result state in this window means the workspace had no operationally significant activity — not a missing log."
+          hint="The OperationalTimelineEvent projection is recomputed lazily on dashboard read; full audit trails remain on the per-evidence custody chain."
         />
       </SectionShell>
     );
@@ -2771,7 +2873,8 @@ function AuditReadinessSection({
     return (
       <SectionShell
         kicker="8 · Audit Readiness"
-        title="Audit readiness unavailable"
+        title="Audit readiness read degraded"
+        severity="warning"
       >
         <SectionNote status="unavailable" kind="audit-readiness" />
       </SectionShell>
@@ -2789,11 +2892,19 @@ function AuditReadinessSection({
           : `${flagged.length} signal${flagged.length === 1 ? "" : "s"} flagged`
       }
     >
-      <ul className="ec-audit-list" data-cc-audit-list>
-        {section.counters.map((c) => (
-          <AuditCounterRow key={c.key} counter={c} />
-        ))}
-      </ul>
+      {section.counters.length === 0 ? (
+        <EnterpriseEmpty
+          title="Audit readiness · no blockers detected"
+          body="The readiness engine inspects every audit-affecting source — unsigned finalized evidence, evidence missing verification packages, unresolved reviewer escalations, governance conflicts, incomplete lifecycle transitions, stale verification artifacts, and export governance failures. A 0-result state means every one of these surfaces is within the expected audit posture."
+          hint="Each counter sources from real workspace state — never from a cached or fabricated score."
+        />
+      ) : (
+        <ul className="ec-audit-list" data-cc-audit-list>
+          {section.counters.map((c) => (
+            <AuditCounterRow key={c.key} counter={c} />
+          ))}
+        </ul>
+      )}
       <div className="ec-section-foot">
         Audit-readiness counters surface gaps an external auditor would expect
         to find resolved. Each row sources from real workspace state.
@@ -2828,7 +2939,7 @@ function RecentEvidenceSection({
 }) {
   if (section.status !== "ok") {
     return (
-      <SectionShell kicker="Recent" title="Recent evidence unavailable">
+      <SectionShell kicker="Recent" title="Recent evidence read degraded" severity="warning">
         <SectionNote status={section.status} kind="recent-evidence" />
       </SectionShell>
     );
@@ -2873,24 +2984,100 @@ function RecentEvidenceSection({
   );
 }
 
+/**
+ * Phase 32.8C control plane — IncidentCorrelations strip.
+ *
+ * Renders root-cause correlations above the per-incident list so the
+ * operator sees the underlying pattern, not the symptoms. Hidden when
+ * the backend returns no correlations.
+ */
+function IncidentCorrelations({
+  correlations,
+}: {
+  correlations: CommandCenterEnvelope["sections"]["incidents"]["correlations"];
+}) {
+  if (!correlations || correlations.length === 0) return null;
+  return (
+    <div className="ec-subsection" data-cc-incident-correlations-block aria-label="Cross-system correlations">
+      <div className="ec-subsection-head">
+        <h3 className="ec-subsection-title">Root-cause correlations</h3>
+        <span className="ec-chip-faint">
+          {correlations.length} correlation{correlations.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <ul className="ec-telemetry-list" data-cc-incident-correlations>
+        {correlations.map((c) => (
+          <li
+            key={c.id}
+            className="ec-telemetry-row"
+            data-cc-correlation-id={c.id}
+            data-cc-correlation-type={c.correlationType}
+            data-cc-correlation-severity={c.severity}
+            data-cc-tile-severe={
+              c.severity === "CRITICAL" || c.severity === "HIGH" ? "true" : "false"
+            }
+          >
+            <div className="ec-telemetry-row-main">
+              <span className="ec-telemetry-label">{c.correlationType}</span>
+              <span
+                className="ec-chip"
+                data-cc-tile-severe={
+                  c.severity === "CRITICAL" || c.severity === "HIGH" ? "true" : "false"
+                }
+              >
+                {c.severity}
+              </span>
+              <span className="ec-chip-faint">
+                {c.linkedIncidentIds.length} incident
+                {c.linkedIncidentIds.length === 1 ? "" : "s"}
+              </span>
+              <span className="ec-chip-faint">{c.confidence} confidence</span>
+            </div>
+            <div className="ec-coord-explanation" data-cc-correlation-root>
+              {c.rootOperationalCause}
+            </div>
+            <div className="ec-telemetry-meta">
+              <span data-cc-correlation-summary>{c.operationalSummary}</span>
+              <span className="ec-chip-faint" data-cc-correlation-action>
+                Recommended: {c.recommendedAction}
+              </span>
+              <time className="ec-chip-faint" dateTime={c.lastDetectedAtUtc}>
+                detected {relTime(c.lastDetectedAtUtc)}
+              </time>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function IncidentsSection({
   section,
 }: {
   section: CommandCenterEnvelope["sections"]["incidents"];
 }) {
-  if (section.status === "unavailable") {
+  // Phase 32.8C closure pass — "unavailable" only when the read failed
+  // AND there are no items AND no correlations. Otherwise show what we have.
+  const correlations = section.correlations ?? [];
+  if (
+    section.status === "unavailable" &&
+    section.items.length === 0 &&
+    correlations.length === 0
+  ) {
     return (
-      <SectionShell kicker="Incidents" title="Incidents unavailable">
+      <SectionShell kicker="Incidents" title="Incidents read degraded" severity="warning">
         <SectionNote status="unavailable" kind="incidents" />
       </SectionShell>
     );
   }
-  if (section.items.length === 0) {
+  if (section.items.length === 0 && correlations.length === 0) {
     return (
-      <SectionShell kicker="Incidents" title="No open incidents">
+      <SectionShell kicker="Incidents" title="No open incidents · workspace healthy">
         <EnterpriseEmpty
           title="No open operational incidents"
-          body="Detailed platform health lives under Operations Center."
+          body="The incident generator scans real platform conditions on every dashboard load — report/package backlog, stale review assignments, retry storms, stale telemetry, worker heartbeat staleness, unsigned aged evidence, and stale coordination backlog. A 0-result state means every one of these thresholds is currently within tolerance."
+          hint="Detailed platform health remains accessible under Operations Center."
           actionLabel="Open observability"
           actionHref="/ops/observability"
         />
@@ -2900,15 +3087,26 @@ function IncidentsSection({
   return (
     <SectionShell
       kicker="Incidents"
-      title={`Open incidents · ${section.items.length}`}
+      title={`Open incidents · ${section.items.length}${correlations.length > 0 ? ` · ${correlations.length} correlation${correlations.length === 1 ? "" : "s"}` : ""}`}
+      severity={
+        section.items.some((i) => i.severity === "CRITICAL")
+          ? "critical"
+          : section.items.some((i) => i.severity === "HIGH")
+            ? "high"
+            : "warning"
+      }
     >
+      <IncidentCorrelations correlations={correlations} />
       <ul className="ec-incident-list" data-cc-incidents-list>
         {section.items.map((i) => (
           <li
             key={i.id}
             className="ec-incident-row"
+            data-cc-incident-id={i.id}
             data-cc-incident-severity={i.severity}
             data-cc-incident-category={i.category}
+            data-cc-incident-status={i.status}
+            data-cc-incident-assigned={i.assignedOperatorUserId ? "true" : "false"}
           >
             <Link
               href={
@@ -2921,14 +3119,31 @@ function IncidentsSection({
               <span className="ec-incident-title">{i.title}</span>
               <span className="ec-incident-meta">
                 {i.category} · {i.severity} · {i.occurrenceCount}×
+                {i.assignedOperatorUserId ? (
+                  <>
+                    {" · "}
+                    <span data-cc-incident-assigned-label>
+                      assigned {i.assignedOperatorUserId.slice(0, 8)}
+                    </span>
+                  </>
+                ) : null}
+                {i.acknowledgedByUserId && !i.assignedOperatorUserId ? (
+                  <>
+                    {" · "}
+                    <span data-cc-incident-ack-label>
+                      ack {i.acknowledgedByUserId.slice(0, 8)}
+                    </span>
+                  </>
+                ) : null}
               </span>
             </Link>
           </li>
         ))}
       </ul>
       <div className="ec-section-foot">
-        Detailed platform health lives under{" "}
-        <Link href="/ops">Operations Center</Link>.
+        Operator actions (acknowledge / assign / resolve / suppress) live on the{" "}
+        <Link href="/ops/observability">Operations Center</Link> incident detail
+        page. The dashboard is read-only.
       </div>
     </SectionShell>
   );
@@ -3028,6 +3243,171 @@ function SectionShell({
   );
 }
 
+/**
+ * Phase 32.8C closure pass — per-section operational copy.
+ *
+ * Each kind explains what "degraded" actually means for that subsystem
+ * so operators can distinguish a localized read failure from a platform
+ * outage. The copy intentionally avoids generic placeholder wording so
+ * a healthy subsystem with a transient read failure is never presented
+ * as a broken platform.
+ */
+const SECTION_OPERATIONAL_COPY: Record<
+  string,
+  { degraded: string; unavailable: string }
+> = {
+  pressure: {
+    degraded:
+      "Operational pressure read partial. Some pressure sources could not be sampled this cycle — pressure scoring may understate the workspace state.",
+    unavailable:
+      "Operational pressure read could not complete on this cycle. Other dashboard sections remain usable; pressure will reattempt on the next refresh.",
+  },
+  routing: {
+    degraded: "Action routing surface read partial; some routes may not be ranked.",
+    unavailable:
+      "Action routing read could not complete on this cycle. Existing routes remain accessible from the underlying pages.",
+  },
+  investigation: {
+    degraded:
+      "Case investigation read partial; some cross-evidence checks could not be sampled.",
+    unavailable:
+      "Investigation engine read could not complete on this cycle. Case detail pages remain authoritative.",
+  },
+  "workload-engine": {
+    degraded:
+      "Reviewer workload sampling partial; saturation score reflects the most recent successful sample only.",
+    unavailable:
+      "Reviewer workload sampling could not complete on this cycle. Reviewer ops pages remain authoritative.",
+  },
+  "queue-congestion": {
+    degraded:
+      "Queue congestion sampling partial; some queues could not be sampled this cycle.",
+    unavailable:
+      "Queue congestion read could not complete on this cycle. See Queue / Worker Telemetry for durable snapshot data.",
+  },
+  "custody-integrity": {
+    degraded:
+      "Custody/integrity anomaly read partial; some classifiers may be stale.",
+    unavailable:
+      "Custody/integrity anomaly read could not complete on this cycle. Evidence integrity panels remain authoritative.",
+  },
+  security: {
+    degraded:
+      "Security telemetry returning delayed snapshots. Detection remains operational; the latest sample is older than the freshness threshold.",
+    unavailable:
+      "Security event read could not complete on this cycle. Detection remains operational via the audit log subsystem; the dashboard rollup will reattempt next refresh.",
+  },
+  "security-classifier": {
+    degraded:
+      "Security anomaly classifier operating on a delayed snapshot. No active incidents detected from the latest sample.",
+    unavailable:
+      "Security classifier read could not complete on this cycle. The underlying SecurityEvent log remains canonical.",
+  },
+  relationships: {
+    degraded:
+      "Evidence relationship intelligence read partial; some relationship-cluster computations could not complete.",
+    unavailable:
+      "Evidence relationship intelligence read could not complete on this cycle.",
+  },
+  "cross-case-v2": {
+    degraded:
+      "Cross-case intelligence read partial; some cross-case correlations may not be surfaced.",
+    unavailable:
+      "Cross-case intelligence read could not complete on this cycle. Individual case pages remain authoritative.",
+  },
+  "deep-integrity": {
+    degraded:
+      "Deep integrity watch operating on a delayed snapshot. The persisted integrity classifier remains the source of truth.",
+    unavailable:
+      "Deep integrity read could not complete on this cycle. Per-evidence integrity panels remain authoritative.",
+  },
+  "queue-worker-telemetry": {
+    degraded:
+      "Telemetry sampler returning delayed snapshots. The worker remains operational; queue/heartbeat samples are older than the freshness threshold.",
+    unavailable:
+      "Queue/worker telemetry read could not complete on this cycle. The worker remains operational — the dashboard will resample on the next refresh.",
+  },
+  coordination: {
+    degraded:
+      "Coordination signals read partial; the backlog counters reflect only the queries that succeeded.",
+    unavailable:
+      "Coordination signals read could not complete on this cycle. Reviewer Ops + Case Detail pages remain authoritative.",
+  },
+  "reconstructed-timeline": {
+    degraded:
+      "Reconstructed timeline read partial; some source tables could not be sampled.",
+    unavailable:
+      "Reconstructed timeline read could not complete on this cycle. The OperationalTimelineEvent projection will be re-ingested on the next refresh.",
+  },
+  "predictive-risk": {
+    degraded:
+      "Predictive risk read partial; forecast is computed from the engine outputs that did succeed.",
+    unavailable:
+      "Predictive risk read could not complete on this cycle. Forecasts derive from other engines on this dashboard, all of which remain accessible directly.",
+  },
+  "org-intelligence-v2": {
+    degraded:
+      "Organizational intelligence read partial; throughput trends may reflect a narrower window.",
+    unavailable:
+      "Organizational intelligence read could not complete on this cycle. Workspace settings + reports surfaces remain authoritative.",
+  },
+  "case-operations": {
+    degraded:
+      "Case operations read partial; some case-level signals could not be aggregated.",
+    unavailable:
+      "Case operations read could not complete on this cycle. Individual case pages remain authoritative.",
+  },
+  "reviewer-orchestration": {
+    degraded:
+      "Reviewer orchestration read partial; some reviewer signals may not be surfaced.",
+    unavailable:
+      "Reviewer orchestration read could not complete on this cycle. Reviewer Ops remains the canonical surface.",
+  },
+  "pipeline-detail": {
+    degraded:
+      "Evidence pipeline read partial; some pipeline counters reflect the most recent successful sample.",
+    unavailable:
+      "Evidence pipeline read could not complete on this cycle. The Evidence list page remains authoritative.",
+  },
+  governance: {
+    degraded:
+      "Governance posture read partial; some policy counters reflect the most recent successful sample.",
+    unavailable:
+      "Governance posture read could not complete on this cycle. The Governance surface remains authoritative.",
+  },
+  organizational: {
+    degraded:
+      "Organizational intelligence read partial; some trend windows are narrower than usual.",
+    unavailable:
+      "Organizational intelligence read could not complete on this cycle.",
+  },
+  timeline: {
+    degraded:
+      "Operational timeline read partial; some source tables could not be sampled.",
+    unavailable:
+      "Operational timeline read could not complete on this cycle.",
+  },
+  "audit-readiness": {
+    degraded:
+      "Audit readiness read partial; readiness score reflects the most recent successful sample.",
+    unavailable:
+      "Audit readiness read could not complete on this cycle. The Governance + Reports surfaces remain authoritative.",
+  },
+  "recent-evidence": {
+    degraded:
+      "Recent evidence read partial; the Evidence list page remains the canonical view.",
+    unavailable:
+      "Recent evidence read could not complete on this cycle. The Evidence list page remains the canonical view.",
+  },
+};
+
+const DEFAULT_SECTION_COPY = {
+  degraded:
+    "This section's read returned partial data on this cycle. The underlying subsystem remains operational; other sections remain usable.",
+  unavailable:
+    "This section's read could not complete on this cycle. The underlying subsystem remains operational; the dashboard will reattempt this section on the next refresh.",
+};
+
 function SectionNote({
   status,
   kind,
@@ -3036,17 +3416,24 @@ function SectionNote({
   kind: string;
 }) {
   if (status === "ok") return null;
+  const operational = SECTION_OPERATIONAL_COPY[kind] ?? DEFAULT_SECTION_COPY;
   const copy =
     status === "degraded"
-      ? "This section returned partial data. Other sections remain usable."
+      ? operational.degraded
       : status === "unavailable"
-        ? "This section is temporarily unavailable. Retry shortly."
+        ? operational.unavailable
         : "Not applicable for this workspace.";
+  // Phase 32.8C closure pass — `unavailable` is rendered as a localized
+  // degraded read (data-cc-degraded-localized) rather than a full failure
+  // banner so operators see degradation context rather than a generic red
+  // wall.
   return (
     <div
       className="ec-section-note"
       data-cc-section-status={status}
       data-cc-section-kind={kind}
+      data-cc-degraded-localized={status === "unavailable" ? "true" : "false"}
+      role="status"
     >
       {copy}
     </div>
@@ -3197,7 +3584,7 @@ function UnavailableState({
       <header className="ec-hero">
         <div className="ec-hero-titles">
           <div className="ec-kicker">Evidence Operations Center</div>
-          <h1 className="ec-title">Temporarily unavailable</h1>
+          <h1 className="ec-title">Dashboard read could not complete</h1>
           <p className="ec-subtitle">{message}</p>
           {requestId ? (
             <p className="ec-subtitle">Request ID: {requestId}</p>

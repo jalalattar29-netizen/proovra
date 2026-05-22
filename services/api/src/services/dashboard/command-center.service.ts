@@ -47,6 +47,11 @@ import {
   projectWorkspaceTimeline,
 } from "./operational-timeline.service.js";
 import { getWorkspaceCaseCommentBacklog } from "./case-comment.service.js";
+import { generateIncidentsForWorkspace } from "./incident-generator.service.js";
+import {
+  correlateWorkspaceIncidents,
+  listWorkspaceCorrelations,
+} from "./incident-correlation.service.js";
 
 // ---------------------------------------------------------------------------
 // Public contract types
@@ -589,6 +594,31 @@ export type CommandCenterIncidentItem = {
   runbookSlug: string | null;
   occurrenceCount: number;
   lastSeenAtUtc: string;
+  /** Phase 32.8C control plane — assignment lifecycle. */
+  assignedOperatorUserId: string | null;
+  assignedAtUtc: string | null;
+  acknowledgedByUserId: string | null;
+  acknowledgedAtUtc: string | null;
+};
+
+/**
+ * Phase 32.8C control plane — cross-system correlation projection.
+ *
+ * An advisory grouping of N >= 2 active incidents that match a known
+ * operational pattern. Operators read the correlation to understand the
+ * root cause; the individual incidents remain accessible for action.
+ */
+export type CommandCenterCorrelationItem = {
+  id: string;
+  correlationType: string;
+  severity: string;
+  rootOperationalCause: string;
+  operationalSummary: string;
+  recommendedAction: string;
+  confidence: string;
+  linkedIncidentIds: string[];
+  firstDetectedAtUtc: string;
+  lastDetectedAtUtc: string;
 };
 
 export type CommandCenterEnvelope = {
@@ -729,6 +759,8 @@ export type CommandCenterEnvelope = {
     incidents: {
       status: SectionStatus;
       items: CommandCenterIncidentItem[];
+      /** Phase 32.8C control plane — cross-system root-cause correlations. */
+      correlations: CommandCenterCorrelationItem[];
     };
     // === Phase 32.8C+ intelligence engines ===
     investigationIntelligence: {
@@ -2455,6 +2487,19 @@ async function runRecentEvidence(
 async function runIncidents(
   teamId: string,
 ): Promise<CommandCenterEnvelope["sections"]["incidents"]> {
+  // Phase 32.8C control plane — lazy generate incidents from real
+  // pressure signals + cross-system correlate, then read. Each step
+  // is wrapped — failures never block core flows.
+  await generateIncidentsForWorkspace({ teamId }).catch(() => {});
+  await correlateWorkspaceIncidents({ teamId }).catch(() => {});
+
+  let correlations: CommandCenterCorrelationItem[] = [];
+  try {
+    correlations = await listWorkspaceCorrelations({ teamId, limit: 12 });
+  } catch {
+    correlations = [];
+  }
+
   try {
     const incidents = await prisma.operationalIncident.findMany({
       where: {
@@ -2473,6 +2518,10 @@ async function runIncidents(
         runbookSlug: true,
         occurrenceCount: true,
         lastSeenAtUtc: true,
+        assignedOperatorUserId: true,
+        assignedAtUtc: true,
+        acknowledgedByUserId: true,
+        acknowledgedAtUtc: true,
       },
     });
     return {
@@ -2487,10 +2536,15 @@ async function runIncidents(
         runbookSlug: i.runbookSlug ?? null,
         occurrenceCount: i.occurrenceCount,
         lastSeenAtUtc: i.lastSeenAtUtc.toISOString(),
+        assignedOperatorUserId: i.assignedOperatorUserId ?? null,
+        assignedAtUtc: i.assignedAtUtc?.toISOString() ?? null,
+        acknowledgedByUserId: i.acknowledgedByUserId ?? null,
+        acknowledgedAtUtc: i.acknowledgedAtUtc?.toISOString() ?? null,
       })),
+      correlations,
     };
   } catch {
-    return { status: "unavailable", items: [] };
+    return { status: "unavailable", items: [], correlations };
   }
 }
 

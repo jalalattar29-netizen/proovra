@@ -4451,6 +4451,13 @@ model OperationalIncident {
   resolvedAtUtc        DateTime?           @map("resolved_at_utc") @db.Timestamptz(6)
   resolutionNote       String?             @map("resolution_note") @db.VarChar(400)
 
+  // Phase 32.8C control plane — assignment lifecycle. NULL when no
+  // operator owns this incident. Assignment is workspace-scoped: only
+  // a user with workspace operator permission can be assigned.
+  assignedOperatorUserId String?           @map("assigned_operator_user_id") @db.Uuid
+  assignedByUserId       String?           @map("assigned_by_user_id") @db.Uuid
+  assignedAtUtc          DateTime?         @map("assigned_at_utc") @db.Timestamptz(6)
+
   // Optional pointer to a runbook (docs/runbooks/*.md). Stored as a
   // canonical slug; the UI renders the full link.
   runbookSlug          String?             @map("runbook_slug") @db.VarChar(64)
@@ -4476,7 +4483,75 @@ model OperationalIncident {
   @@index([teamId, category])
   @@index([lastSeenAtUtc(sort: Desc)])
   @@index([status])
+  @@index([assignedOperatorUserId])
   @@map("operational_incidents")
+}
+
+// =============================================================================
+// Phase 32.8C control plane — OperationalCorrelation
+//
+// Cross-system correlation rows. When the correlation engine detects N >= 2
+// OPEN/ACKNOWLEDGED incidents matching a known pattern within a bounded
+// window, it persists a correlation row so operators see the root cause,
+// not the individual symptoms.
+//
+// Hard rules:
+//   - ADVISORY operational data. Generator failures NEVER block evidence /
+//     report / package / verify core flows.
+//   - Bounded fields only — no raw payloads, no signed URLs, no secrets.
+//   - The dashboard reads correlations directly; freshness is bounded by
+//     `expiresAtUtc` so stale correlations don't pile up.
+// =============================================================================
+
+enum OperationalCorrelationType {
+  PIPELINE_DEGRADATION
+  REVIEW_BOTTLENECK
+  AUDIT_READINESS_GAP
+  GOVERNANCE_ESCALATION
+  INFRASTRUCTURE_PRESSURE
+  QUEUE_SATURATION_CHAIN
+  RETRY_STORM_CHAIN
+  OTHER
+}
+
+model OperationalCorrelation {
+  id              String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String?                     @map("team_id") @db.Uuid
+
+  /// Stable correlation key (e.g., "pipeline_degradation:team:<id>"). The
+  /// engine upserts on this so repeated detection collapses to one row.
+  correlationKey  String                      @map("correlation_key") @db.VarChar(200)
+  correlationType OperationalCorrelationType  @map("correlation_type")
+  severity        IncidentSeverity            @default(WARNING)
+
+  /// Bounded array of OperationalIncident IDs grouped under this row.
+  linkedIncidentIds Json?                     @map("linked_incident_ids")
+  linkedCaseIds     Json?                     @map("linked_case_ids")
+  linkedEvidenceIds Json?                     @map("linked_evidence_ids")
+  linkedQueues      Json?                     @map("linked_queues")
+
+  /// Operator-safe summary of the root operational cause.
+  rootOperationalCause String                 @map("root_operational_cause") @db.VarChar(400)
+  /// Operator-safe one-line summary.
+  operationalSummary   String                 @map("operational_summary") @db.VarChar(400)
+  /// Bounded recommended action (operator-facing).
+  recommendedAction    String                 @map("recommended_action") @db.VarChar(400)
+
+  confidence       String                     @db.VarChar(16)
+
+  firstDetectedAtUtc DateTime                 @default(now()) @map("first_detected_at_utc") @db.Timestamptz(6)
+  lastDetectedAtUtc  DateTime                 @default(now()) @map("last_detected_at_utc") @db.Timestamptz(6)
+  /// Auto-expiry hint so the dashboard reader can filter out stale rows.
+  expiresAtUtc       DateTime                 @map("expires_at_utc") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([teamId, correlationKey])
+  @@index([teamId, lastDetectedAtUtc(sort: Desc)])
+  @@index([teamId, severity])
+  @@index([correlationType])
+  @@map("operational_correlations")
 }
 
 // OperationalIncidentEvent — one row per occurrence after the first.

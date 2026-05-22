@@ -489,10 +489,15 @@ describe("Phase 32.8C — runtime details delegate to Platform Health", () => {
     expect(block).toMatch(/href="\/ops/);
   });
 
-  it("Incidents 'detailed platform health' footnote points at /ops (Phase 32.8A boundary preserved)", () => {
+  it("Incidents footnote points at /ops (Phase 32.8A boundary preserved)", () => {
+    // Phase 32.8C control plane — the footnote was reworded to explain
+    // that operator actions (acknowledge/assign/resolve/suppress) live
+    // on the Operations Center page, not the dashboard. The boundary
+    // is preserved (the link still points at /ops/observability).
     expect(CC).toMatch(
-      /Detailed platform health lives under[\s\S]{0,80}Operations Center/,
+      /Operator actions[\s\S]{0,200}Operations Center/,
     );
+    expect(CC).toMatch(/href="\/ops\/observability/);
   });
 
   it("CommandCenter does NOT render the Phase 28-J /admin/runtime panels inline (no duplication of /ops)", () => {
@@ -1171,8 +1176,14 @@ describe("Phase 32.8C+ — Frontend command center renders the intelligence laye
 
   it("Access/Security watch reads from SecurityEvent rows only — no synthetic events", () => {
     expect(CC).toContain("data-cc-security-event-id=");
-    // The empty-state copy honestly admits no DB-side classifier.
-    expect(CC).toMatch(/No DB-side anomaly classifier is in scope/);
+    // Phase 32.8C operational closure — the empty-state copy is operationally
+    // meaningful: it enumerates what classes of activity were scanned and
+    // explicitly states that a 0-result means none of those activities
+    // were observed.
+    expect(CC).toMatch(
+      /No suspicious access activity in the last 24 hours/,
+    );
+    expect(CC).toMatch(/no impossible-travel sessions/);
   });
 
   it("Unsupported signals section is rendered as a collapsible <details>, hidden by default", () => {

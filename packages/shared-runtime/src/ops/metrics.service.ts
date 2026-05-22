@@ -66,6 +66,8 @@ export const COUNTER_NAMES = [
   "operational_incident_acknowledged",
   "operational_incident_resolved",
   "operational_incident_suppressed",
+  // Phase 32.8C control plane — incident assignment lifecycle.
+  "operational_incident_assigned",
   "alert_sent",
   "alert_suppressed_rate_limit",
   "alert_provider_failed",
