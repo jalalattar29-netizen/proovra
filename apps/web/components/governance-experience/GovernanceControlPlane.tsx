@@ -131,19 +131,32 @@ export function GovernanceControlPlane() {
         forDomains={["governance_lifecycle"]}
       />
 
+      {/* Phase 32.8C FINAL-3 — capability degradation, not page hiding.
+          Personal workspace renders an enterprise-lite governance surface.
+          Team-only mutating actions (policy editing, hold approval,
+          retention decisions) are gated at the route level via existing
+          permission checks; the read surfaces remain accessible so an
+          operator can see preservation posture in personal scope too. */}
       {!isTeam ? (
-        <section className="cc-section" data-governance-personal>
-          <header className="cc-section-header">
-            <h2 className="cc-section-title">Personal workspace</h2>
-          </header>
-          <div className="cc-section-note" data-cc-section-status="not_applicable">
-            Personal workspaces use basic evidence controls. Governance posture,
-            legal preservation, retention reviews, and policy editing are team
-            workspace features.
-          </div>
-        </section>
-      ) : (
+        <div
+          className="cc-section-note"
+          data-governance-personal-banner
+          data-cc-section-status="not_applicable"
+          role="status"
+        >
+          Personal workspace — governance surfaces render in read-only
+          enterprise-lite mode. Team-only mutating actions (policy editing,
+          hold approval, retention decisions, export governance) are
+          disabled with clear labels. Switch to a team workspace to enable
+          the full governance control plane.
+        </div>
+      ) : null}
+      {(
         <>
+          {/* Phase 32.8C FINAL-3 — tabs render for every workspace scope.
+              Subsections handle their own status (ok / not_applicable) via
+              the standard SectionStatus contract; team-only mutating
+              actions are gated at the route level. */}
           <nav className="case-tabs" role="tablist" aria-label="Governance tabs">
             {(
               [

@@ -129,30 +129,34 @@ export function ReviewerCommandConsole() {
         forDomains={["reviewer_ops"]}
       />
 
+      {/* Phase 32.8C FINAL-3 — capability degradation rather than page
+          hiding. Personal workspace renders the same surface; team-only
+          sections render disabled with a clear "Requires team workspace"
+          label. The page never early-returns a plain text fallback. */}
       {!isTeam ? (
-        <section className="cc-section" data-reviewer-personal>
-          <header className="cc-section-header">
-            <h2 className="cc-section-title">Personal workspace</h2>
-          </header>
-          <div className="cc-section-note" data-cc-section-status="not_applicable">
-            Reviewer orchestration is a team workspace feature. Personal
-            workspaces use direct evidence capture and review flows.
-          </div>
-        </section>
-      ) : (
-        <>
-          <SummarySection env={env} />
-          <div className="cc-grid-2col">
-            <QueuePeekSection env={env} />
-            <EscalationsSection env={env} />
-          </div>
-          <div className="cc-grid-2col">
-            <WorkloadSection env={env} />
-            <PolicySection env={env} />
-          </div>
-          <ReconciliationSection env={env} />
-        </>
-      )}
+        <div
+          className="cc-section-note"
+          data-reviewer-personal-banner
+          data-cc-section-status="not_applicable"
+          role="status"
+        >
+          Personal workspace — reviewer orchestration sections render in
+          read-only enterprise-lite mode. Team-only actions (escalation
+          ownership, reviewer policy editing, bulk reassignment) are
+          disabled with clear labels. Switch to a team workspace to enable
+          the full reviewer command surface.
+        </div>
+      ) : null}
+      <SummarySection env={env} />
+      <div className="cc-grid-2col">
+        <QueuePeekSection env={env} />
+        <EscalationsSection env={env} />
+      </div>
+      <div className="cc-grid-2col">
+        <WorkloadSection env={env} />
+        <PolicySection env={env} />
+      </div>
+      <ReconciliationSection env={env} />
     </main>
   );
 }

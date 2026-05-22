@@ -60,7 +60,12 @@ export type AppShellUserV2 = {
 
 type WorkspaceSummary = {
   id: string;
-  name: string;
+  /**
+   * Phase 32.8C FINAL-3 — null when the workspace has no name. The chip
+   * renders a canonical scope label ("Personal workspace" / "Workspace")
+   * rather than the raw UUID in that case.
+   */
+  name: string | null;
   role: string | null;
   /** Bounded canonical scope label, derived from team type. */
   scope: "PERSONAL" | "TEAM";
@@ -157,7 +162,10 @@ export function AppTopbarV2({
           )
           .map((t) => ({
             id: t.id,
-            name: typeof t.name === "string" && t.name ? t.name : t.id,
+            // Phase 32.8C FINAL-3 — NEVER fall back to the raw UUID when
+            // the workspace has no name. The chip falls back to a
+            // canonical scope label below.
+            name: typeof t.name === "string" && t.name ? t.name : null,
             role: typeof t.role === "string" ? t.role : null,
             scope: classifyScope({ type: t.type, personal: t.personal }),
           }));
@@ -267,12 +275,15 @@ export function AppTopbarV2({
               </span>
               <div className="app-topbar-v2-workspace-copy">
                 <strong data-workspace-name>
-                  {activeWorkspaceName ??
-                    (workspace.status === "ready"
-                      ? workspace.workspaceId
+                  {activeWorkspaceName
+                    ? activeWorkspaceName
+                    : workspace.status === "ready"
+                      ? activeWorkspaceScope === "PERSONAL"
+                        ? "Personal workspace"
+                        : "Workspace"
                       : workspace.status === "no-workspace"
                         ? "No workspace"
-                        : "Loading workspace…")}
+                        : "Loading workspace…"}
                 </strong>
                 <span data-workspace-scope-line>
                   {activeWorkspaceScope === "PERSONAL"
@@ -321,7 +332,12 @@ export function AppTopbarV2({
                       }
                     >
                       <Users size={14} strokeWidth={1.9} />
-                      <span style={{ flex: 1 }}>{w.name}</span>
+                      <span style={{ flex: 1 }}>
+                        {w.name ??
+                          (w.scope === "PERSONAL"
+                            ? "Personal workspace"
+                            : "Workspace")}
+                      </span>
                       <small data-workspace-scope-chip={w.scope}>
                         {w.scope === "PERSONAL" ? "Personal" : "Team"}
                       </small>

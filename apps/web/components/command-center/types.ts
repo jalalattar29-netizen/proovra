@@ -329,6 +329,58 @@ export type IncidentCorrelationItem = {
   lastDetectedAtUtc: string;
 };
 
+export type OperationalWorkflowAction = {
+  actionType: string;
+  permissionRequired: string;
+  requiredRoles: string[];
+  safeActionLabel: string;
+  route: string | null;
+};
+
+export type OperationalWorkflowItem = {
+  id: string;
+  workflowType: string;
+  status: string;
+  severity: string;
+  priority: string;
+  title: string;
+  safeSummary: string;
+  sourceIncidentId: string | null;
+  sourceCorrelationId: string | null;
+  caseId: string | null;
+  evidenceId: string | null;
+  queueName: string | null;
+  assignedOwnerUserId: string | null;
+  assignedAtUtc: string | null;
+  escalationLevel: number;
+  retryCount: number;
+  dueAtUtc: string | null;
+  mitigationSummary: string | null;
+  resolutionSummary: string | null;
+  lastFailureCode: string | null;
+  nextRetryAtUtc: string | null;
+  createdAt: string;
+  updatedAt: string;
+  actions: OperationalWorkflowAction[];
+};
+
+export type OperationalCausalityChainItem = {
+  id: string;
+  chainKey: string;
+  title: string;
+  summary: string;
+  rootCauseType: string;
+  severity: string;
+  status: string;
+  linkedIncidentIds: string[];
+  linkedWorkflowIds: string[];
+  linkedCorrelationIds: string[];
+  linkedCaseIds: string[];
+  linkedEvidenceIds: string[];
+  startAtUtc: string;
+  lastSeenAtUtc: string;
+};
+
 export type CommandCenterEnvelope = {
   generatedAt: string;
   workspace: {
@@ -449,11 +501,80 @@ export type CommandCenterEnvelope = {
         openEscalationsCount: number;
       } | null;
     };
-    /** Phase 32.8C control plane — active incidents + correlations. */
+    /** Phase 32.8C FINAL-3 — reviewer capacity intelligence. */
+    reviewerCapacity?: {
+      meta: SectionMeta;
+      reviewers: Array<{
+        reviewerUserId: string;
+        assignedCount: number;
+        overdueCount: number;
+        dueSoonCount: number;
+        staleCount: number;
+        completed7d: number;
+        completed30d: number;
+        saturationLevel: string;
+        capacityScore: number;
+        sampledAtUtc: string;
+      }>;
+      recommendations: Array<{
+        id: string;
+        sourceReviewerUserId: string | null;
+        targetReviewerUserId: string | null;
+        recommendationType: string;
+        severity: string;
+        reasonCode: string;
+        explanation: string;
+        status: string;
+        createdAt: string;
+      }>;
+    };
+    /** Phase 32.8C FINAL-3 — operational graph summary. */
+    operationalGraph?: {
+      meta: SectionMeta;
+      data: {
+        nodeCountsByType: Array<{ nodeType: string; count: number }>;
+        edgeCountsByType: Array<{ edgeType: string; count: number }>;
+        topRootCauses: Array<{
+          nodeId: string;
+          nodeType: string;
+          entityId: string;
+          label: string;
+          severity: string;
+          status: string;
+          outDegree: number;
+        }>;
+        blastRadius: {
+          impactedEvidenceCount: number;
+          impactedCaseCount: number;
+          impactedReviewerCount: number;
+        };
+      };
+    };
+    /** Phase 32.8C FINAL-3 — organizational health maturity board. */
+    organizationalHealth?: {
+      meta: SectionMeta;
+      data: {
+        healthScore: number | null;
+        operationalMaturityScore: number | null;
+        governanceMaturityScore: number | null;
+        auditReadinessScore: number | null;
+        reviewerMaturityScore: number | null;
+        incidentFrequency7d: number | null;
+        workflowCompletion7d: number | null;
+        queueReliabilityScore: number | null;
+        artifactReliabilityScore: number | null;
+        sampledAtUtc: string | null;
+      };
+    };
+    /** Phase 32.8C control plane — active incidents + correlations + workflows + causality chains. */
     incidents: {
       status: SectionStatus;
       items: IncidentItem[];
       correlations: IncidentCorrelationItem[];
+      /** Phase 32.8C FINAL-2 — active operational workflows. */
+      workflows: OperationalWorkflowItem[];
+      /** Phase 32.8C FINAL-2 — root-cause causality chains. */
+      causalityChains: OperationalCausalityChainItem[];
     };
     // Phase 32.8C+ intelligence-engine sections
     investigationIntelligence: {
@@ -540,6 +661,28 @@ export type CommandCenterEnvelope = {
       meta: SectionMeta;
       data: OrgIntelligenceV2;
     };
+  };
+  /**
+   * Phase 32.8C FINAL-3 — persona-aware capability matrix. Frontend
+   * uses this to order sections + label/disable team-only actions.
+   * The matrix never weakens auth; canonical gates live at routes.
+   */
+  capabilityMatrix?: {
+    workspaceType: "PERSONAL" | "TEAM";
+    role: string;
+    persona: string;
+    capabilities: {
+      reviewerOpsRead: boolean;
+      reviewerOpsAct: boolean;
+      governanceRead: boolean;
+      governanceAct: boolean;
+      bulkActions: boolean;
+      workflowActions: boolean;
+      incidentActions: boolean;
+      orgIntelligence: boolean;
+      personaSwitching: boolean;
+    };
+    sectionOrder: string[];
   };
   unsupportedSignals: Array<{ signal: string; reason: string }>;
 };

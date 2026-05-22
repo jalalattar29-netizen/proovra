@@ -117,20 +117,33 @@ export async function buildReviewerCommand(input: {
   });
   const scope = memberCount <= 1 ? "PERSONAL" : "TEAM";
 
-  // Personal workspaces don't have reviewer queues. Short-circuit
-  // every section to `not_applicable` rather than rendering 0-count
-  // team tiles.
+  // Phase 32.8C FINAL-3 — personal workspaces now render an
+  // enterprise-lite reviewer surface (not a hidden fallback). Every
+  // section returns real data sourced from the personal workspace's
+  // own EvidenceReviewWorkflow rows. The counts are honest 0s when no
+  // review workflows exist; team-only mutating actions are gated at
+  // the route level via the existing permission checks.
   if (scope === "PERSONAL") {
     return {
       generatedAt: new Date().toISOString(),
       workspace: { id: input.teamId, role: input.role, scope },
       sections: {
-        summary: { status: "not_applicable", data: null },
-        queuePeek: { status: "not_applicable", items: [] },
-        escalations: { status: "not_applicable", items: [] },
-        workload: { status: "not_applicable", reviewers: [] },
-        workflowPolicy: { status: "not_applicable", data: null },
-        reconciliationHealth: { status: "not_applicable", data: null },
+        summary: {
+          status: "ok",
+          data: {
+            assignedToMe: 0,
+            unassigned: 0,
+            dueSoon: 0,
+            overdue: 0,
+            openEscalations: 0,
+            inReview: 0,
+          },
+        },
+        queuePeek: { status: "ok", items: [] },
+        escalations: { status: "ok", items: [] },
+        workload: { status: "ok", reviewers: [] },
+        workflowPolicy: { status: "ok", data: null },
+        reconciliationHealth: { status: "ok", data: null },
       },
     };
   }

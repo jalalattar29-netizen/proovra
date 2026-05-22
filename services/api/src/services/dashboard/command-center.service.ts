@@ -52,6 +52,31 @@ import {
   correlateWorkspaceIncidents,
   listWorkspaceCorrelations,
 } from "./incident-correlation.service.js";
+import {
+  generateWorkflowsForWorkspace,
+  listWorkspaceWorkflows,
+} from "./workflow-generator.service.js";
+import {
+  detectCausalityForWorkspace,
+  listWorkspaceCausalityChains,
+} from "./causality.service.js";
+import {
+  computeReviewerCapacityForWorkspace,
+  listReviewerCapacity,
+  listReviewerRoutingRecommendations,
+} from "./reviewer-capacity.service.js";
+import {
+  projectOperationalGraphForWorkspace,
+  getOperationalGraphSummary,
+} from "./operational-graph.service.js";
+import {
+  getLatestOrgHealthSnapshot,
+  recordOrgHealthSnapshotForWorkspace,
+} from "./org-health.service.js";
+import {
+  resolveCapabilityMatrix,
+  type CapabilityMatrix,
+} from "./persona-resolver.service.js";
 
 // ---------------------------------------------------------------------------
 // Public contract types
@@ -621,6 +646,70 @@ export type CommandCenterCorrelationItem = {
   lastDetectedAtUtc: string;
 };
 
+/**
+ * Phase 32.8C FINAL-2 — operational workflow projection.
+ *
+ * Read-only projection of an `OperationalWorkflow` for the dashboard.
+ * Includes the bounded action catalog so the dashboard can render
+ * permission-aware buttons that route to the existing ops surface.
+ */
+export type CommandCenterWorkflowItem = {
+  id: string;
+  workflowType: string;
+  status: string;
+  severity: string;
+  priority: string;
+  title: string;
+  safeSummary: string;
+  sourceIncidentId: string | null;
+  sourceCorrelationId: string | null;
+  caseId: string | null;
+  evidenceId: string | null;
+  queueName: string | null;
+  assignedOwnerUserId: string | null;
+  assignedAtUtc: string | null;
+  escalationLevel: number;
+  retryCount: number;
+  dueAtUtc: string | null;
+  mitigationSummary: string | null;
+  resolutionSummary: string | null;
+  lastFailureCode: string | null;
+  nextRetryAtUtc: string | null;
+  createdAt: string;
+  updatedAt: string;
+  actions: Array<{
+    actionType: string;
+    permissionRequired: string;
+    requiredRoles: string[];
+    safeActionLabel: string;
+    route: string | null;
+  }>;
+};
+
+/**
+ * Phase 32.8C FINAL-2 — operational causality chain projection.
+ *
+ * Idempotent grouping of related incidents + workflows + correlations
+ * with a single root-cause label. Answers "Why is this workspace
+ * unhealthy?" — not just "What happened?".
+ */
+export type CommandCenterCausalityChainItem = {
+  id: string;
+  chainKey: string;
+  title: string;
+  summary: string;
+  rootCauseType: string;
+  severity: string;
+  status: string;
+  linkedIncidentIds: string[];
+  linkedWorkflowIds: string[];
+  linkedCorrelationIds: string[];
+  linkedCaseIds: string[];
+  linkedEvidenceIds: string[];
+  startAtUtc: string;
+  lastSeenAtUtc: string;
+};
+
 export type CommandCenterEnvelope = {
   generatedAt: string;
   workspace: {
@@ -761,6 +850,10 @@ export type CommandCenterEnvelope = {
       items: CommandCenterIncidentItem[];
       /** Phase 32.8C control plane — cross-system root-cause correlations. */
       correlations: CommandCenterCorrelationItem[];
+      /** Phase 32.8C FINAL-2 — active operational workflows. */
+      workflows: CommandCenterWorkflowItem[];
+      /** Phase 32.8C FINAL-2 — causality chains (root-cause groupings). */
+      causalityChains: CommandCenterCausalityChainItem[];
     };
     // === Phase 32.8C+ intelligence engines ===
     investigationIntelligence: {
@@ -838,7 +931,87 @@ export type CommandCenterEnvelope = {
       meta: SectionMeta;
       data: OrgIntelligenceV2;
     };
+    /**
+     * Phase 32.8C FINAL-3 — Reviewer capacity board (per-reviewer
+     * saturation + bounded routing recommendations).
+     */
+    reviewerCapacity: {
+      meta: SectionMeta;
+      reviewers: Array<{
+        reviewerUserId: string;
+        assignedCount: number;
+        overdueCount: number;
+        dueSoonCount: number;
+        staleCount: number;
+        completed7d: number;
+        completed30d: number;
+        saturationLevel: string;
+        capacityScore: number;
+        sampledAtUtc: string;
+      }>;
+      recommendations: Array<{
+        id: string;
+        sourceReviewerUserId: string | null;
+        targetReviewerUserId: string | null;
+        recommendationType: string;
+        severity: string;
+        reasonCode: string;
+        explanation: string;
+        status: string;
+        createdAt: string;
+      }>;
+    };
+    /**
+     * Phase 32.8C FINAL-3 — Operational graph summary (top root causes
+     * + blast-radius counts + per-type node/edge counts).
+     */
+    operationalGraph: {
+      meta: SectionMeta;
+      data: {
+        nodeCountsByType: Array<{ nodeType: string; count: number }>;
+        edgeCountsByType: Array<{ edgeType: string; count: number }>;
+        topRootCauses: Array<{
+          nodeId: string;
+          nodeType: string;
+          entityId: string;
+          label: string;
+          severity: string;
+          status: string;
+          outDegree: number;
+        }>;
+        blastRadius: {
+          impactedEvidenceCount: number;
+          impactedCaseCount: number;
+          impactedReviewerCount: number;
+        };
+      };
+    };
+    /**
+     * Phase 32.8C FINAL-3 — Organizational maturity / health snapshot.
+     */
+    organizationalHealth: {
+      meta: SectionMeta;
+      data: {
+        healthScore: number | null;
+        operationalMaturityScore: number | null;
+        governanceMaturityScore: number | null;
+        auditReadinessScore: number | null;
+        reviewerMaturityScore: number | null;
+        incidentFrequency7d: number | null;
+        workflowCompletion7d: number | null;
+        queueReliabilityScore: number | null;
+        artifactReliabilityScore: number | null;
+        sampledAtUtc: string | null;
+      };
+    };
   };
+  /**
+   * Phase 32.8C FINAL-3 — persona-aware capability matrix. Frontend
+   * uses this to order sections + label/disable team-only actions.
+   * NEVER weakens auth; the canonical permission gates remain at the
+   * route layer.
+   */
+  capabilityMatrix: CapabilityMatrix;
   unsupportedSignals: Array<{ signal: string; reason: string }>;
 };
 
@@ -2492,12 +2665,33 @@ async function runIncidents(
   // is wrapped — failures never block core flows.
   await generateIncidentsForWorkspace({ teamId }).catch(() => {});
   await correlateWorkspaceIncidents({ teamId }).catch(() => {});
+  // Phase 32.8C FINAL-2 — generate workflows from active incidents +
+  // build deterministic causality chains. Both wrapped.
+  await generateWorkflowsForWorkspace({ teamId }).catch(() => {});
+  await detectCausalityForWorkspace({ teamId }).catch(() => {});
 
   let correlations: CommandCenterCorrelationItem[] = [];
   try {
     correlations = await listWorkspaceCorrelations({ teamId, limit: 12 });
   } catch {
     correlations = [];
+  }
+
+  let workflows: CommandCenterWorkflowItem[] = [];
+  try {
+    workflows = (await listWorkspaceWorkflows({ teamId, limit: 24 })) as CommandCenterWorkflowItem[];
+  } catch {
+    workflows = [];
+  }
+
+  let causalityChains: CommandCenterCausalityChainItem[] = [];
+  try {
+    causalityChains = await listWorkspaceCausalityChains({
+      teamId,
+      limit: 12,
+    });
+  } catch {
+    causalityChains = [];
   }
 
   try {
@@ -2542,9 +2736,17 @@ async function runIncidents(
         acknowledgedAtUtc: i.acknowledgedAtUtc?.toISOString() ?? null,
       })),
       correlations,
+      workflows,
+      causalityChains,
     };
   } catch {
-    return { status: "unavailable", items: [], correlations };
+    return {
+      status: "unavailable",
+      items: [],
+      correlations,
+      workflows,
+      causalityChains,
+    };
   }
 }
 
@@ -2732,6 +2934,26 @@ export async function buildCommandCenter(input: {
     },
   );
 
+  // Phase 32.8C FINAL-3 — reviewer capacity / operational graph /
+  // organizational health. Each runs lazy-generate then read; failures
+  // are wrapped inside the helper so they never block the envelope.
+  const [
+    reviewerCapacityResult,
+    operationalGraphResult,
+    orgHealthResult,
+  ] = await Promise.all([
+    runReviewerCapacityBoard(input.teamId, scope),
+    runOperationalGraphSection(input.teamId),
+    runOrganizationalHealthSection(input.teamId),
+  ]);
+
+  // Phase 32.8C FINAL-3 — capability matrix (deterministic; never
+  // weakens auth — used by the frontend for ordering + labelling).
+  const capabilityMatrix = resolveCapabilityMatrix({
+    role: input.role,
+    scope,
+  });
+
   // Routing queue — top-N actionable items, severity ≥ warning.
   const routingQueueItems = pressure.items
     .filter(
@@ -2890,9 +3112,125 @@ export async function buildCommandCenter(input: {
         meta: orgIntelligenceV2Result.meta,
         data: orgIntelligenceV2Result.data,
       },
+      reviewerCapacity: reviewerCapacityResult,
+      operationalGraph: operationalGraphResult,
+      organizationalHealth: orgHealthResult,
     },
+    capabilityMatrix,
     unsupportedSignals,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 32.8C FINAL-3 — Reviewer Capacity / Operational Graph /
+// Organizational Health section helpers
+// ---------------------------------------------------------------------------
+
+async function runReviewerCapacityBoard(
+  teamId: string,
+  scope: WorkspaceScope,
+): Promise<CommandCenterEnvelope["sections"]["reviewerCapacity"]> {
+  const meta: SectionMeta = {
+    status: "ok",
+    warnings: [],
+    unsupportedSignals: [],
+    sourceSummary: [
+      "ReviewerCapacitySnapshot (Phase 32.8C FINAL-3 — bounded per-reviewer saturation)",
+      "ReviewerRoutingRecommendation (Phase 32.8C FINAL-3 — REASSIGN suggestions)",
+      "EvidenceReviewWorkflow (real source)",
+    ],
+  };
+  if (scope === "PERSONAL") {
+    return {
+      meta: { ...meta, status: "not_applicable" },
+      reviewers: [],
+      recommendations: [],
+    };
+  }
+  // Lazy generate, then read.
+  await computeReviewerCapacityForWorkspace({ teamId }).catch(() => {});
+  let reviewers: CommandCenterEnvelope["sections"]["reviewerCapacity"]["reviewers"] = [];
+  let recommendations: CommandCenterEnvelope["sections"]["reviewerCapacity"]["recommendations"] =
+    [];
+  try {
+    reviewers = await listReviewerCapacity({ teamId, limit: 20 });
+  } catch {
+    /* degrade */
+  }
+  try {
+    recommendations = await listReviewerRoutingRecommendations({
+      teamId,
+      limit: 12,
+    });
+  } catch {
+    /* degrade */
+  }
+  return { meta, reviewers, recommendations };
+}
+
+async function runOperationalGraphSection(
+  teamId: string,
+): Promise<CommandCenterEnvelope["sections"]["operationalGraph"]> {
+  const meta: SectionMeta = {
+    status: "ok",
+    warnings: [],
+    unsupportedSignals: [],
+    sourceSummary: [
+      "OperationalGraphNode / OperationalGraphEdge (Phase 32.8C FINAL-3 — derived projection)",
+      "OperationalIncident / OperationalWorkflow / OperationalCorrelation (real sources)",
+    ],
+  };
+  // Lazy generate.
+  await projectOperationalGraphForWorkspace({ teamId }).catch(() => {});
+  let data: CommandCenterEnvelope["sections"]["operationalGraph"]["data"] = {
+    nodeCountsByType: [],
+    edgeCountsByType: [],
+    topRootCauses: [],
+    blastRadius: {
+      impactedEvidenceCount: 0,
+      impactedCaseCount: 0,
+      impactedReviewerCount: 0,
+    },
+  };
+  try {
+    data = await getOperationalGraphSummary({ teamId });
+  } catch {
+    /* degrade */
+  }
+  return { meta, data };
+}
+
+async function runOrganizationalHealthSection(
+  teamId: string,
+): Promise<CommandCenterEnvelope["sections"]["organizationalHealth"]> {
+  const meta: SectionMeta = {
+    status: "ok",
+    warnings: [],
+    unsupportedSignals: [],
+    sourceSummary: [
+      "OrganizationalHealthSnapshot (Phase 32.8C FINAL-3 — deterministic 0..100 scores from real counters)",
+    ],
+  };
+  // Lazy generate.
+  await recordOrgHealthSnapshotForWorkspace({ teamId }).catch(() => {});
+  let data: CommandCenterEnvelope["sections"]["organizationalHealth"]["data"] = {
+    healthScore: null,
+    operationalMaturityScore: null,
+    governanceMaturityScore: null,
+    auditReadinessScore: null,
+    reviewerMaturityScore: null,
+    incidentFrequency7d: null,
+    workflowCompletion7d: null,
+    queueReliabilityScore: null,
+    artifactReliabilityScore: null,
+    sampledAtUtc: null,
+  };
+  try {
+    data = await getLatestOrgHealthSnapshot({ teamId });
+  } catch {
+    /* degrade */
+  }
+  return { meta, data };
 }
 
 // =============================================================================

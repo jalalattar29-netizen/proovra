@@ -252,9 +252,366 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
       </div>
       <ReconstructedTimelineSection section={sections.reconstructedTimeline} />
 
+      {/* Phase 32.8C FINAL-3 — Reviewer Capacity + Operational Graph
+          + Organizational Health. These are advisory read-only surfaces;
+          all mutating operator actions remain on /ops. */}
+      <div className="ec-grid-2col">
+        <ReviewerCapacityBoard section={sections.reviewerCapacity} />
+        <OperationalGraphSummaryBoard section={sections.operationalGraph} />
+      </div>
+      <OrganizationalHealthBoard section={sections.organizationalHealth} />
+
       {/* Unsupported Signals — transparent catalog, collapsed by default */}
       <UnsupportedSignalsSection signals={envelope.unsupportedSignals} />
     </main>
+  );
+}
+
+// ============================================================================
+// Phase 32.8C FINAL-3 — Reviewer Capacity / Operational Graph /
+// Organizational Health (read-only advisory boards).
+// ============================================================================
+
+function ReviewerCapacityBoard({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["reviewerCapacity"];
+}) {
+  if (!section) return null;
+  if (section.meta.status === "not_applicable") {
+    return (
+      <SectionShell
+        kicker="Reviewer Capacity"
+        title="Personal workspace — capacity board not applicable"
+      >
+        <PersonalNote subsystem="reviewer" />
+      </SectionShell>
+    );
+  }
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Reviewer Capacity"
+        title="Capacity read degraded"
+        severity="warning"
+      >
+        <SectionNote status="unavailable" kind="workload-engine" />
+      </SectionShell>
+    );
+  }
+  const reviewers = section.reviewers ?? [];
+  const recs = section.recommendations ?? [];
+  if (reviewers.length === 0 && recs.length === 0) {
+    return (
+      <SectionShell
+        kicker="Reviewer Capacity"
+        title="No active reviewer load"
+      >
+        <EnterpriseEmpty
+          title="No reviewer with active assignments"
+          body="The capacity engine scans EvidenceReviewWorkflow rows assigned to a reviewer (ASSIGNED / IN_REVIEW / NEEDS_INFO). A 0-result state means no reviewer currently carries an active workload."
+          hint="Routing recommendations (REASSIGN / ESCALATE / SPLIT_LOAD) appear only when at least one reviewer is at HIGH or CRITICAL saturation."
+        />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Reviewer Capacity"
+      title={`Capacity · ${reviewers.length} reviewer${reviewers.length === 1 ? "" : "s"}${recs.length > 0 ? ` · ${recs.length} recommendation${recs.length === 1 ? "" : "s"}` : ""}`}
+      severity={
+        reviewers.some((r) => r.saturationLevel === "CRITICAL")
+          ? "high"
+          : reviewers.some((r) => r.saturationLevel === "HIGH")
+            ? "warning"
+            : "info"
+      }
+    >
+      <ul className="ec-telemetry-list" data-cc-reviewer-capacity>
+        {reviewers.map((r) => (
+          <li
+            key={r.reviewerUserId}
+            className="ec-telemetry-row"
+            data-cc-reviewer-id={r.reviewerUserId}
+            data-cc-reviewer-saturation={r.saturationLevel}
+            data-cc-tile-severe={
+              r.saturationLevel === "CRITICAL" || r.saturationLevel === "HIGH"
+                ? "true"
+                : "false"
+            }
+          >
+            <div className="ec-telemetry-row-main">
+              <span className="ec-telemetry-label">
+                Reviewer {r.reviewerUserId.slice(0, 8)}
+              </span>
+              <span
+                className="ec-chip"
+                data-cc-tile-severe={
+                  r.saturationLevel === "CRITICAL" || r.saturationLevel === "HIGH"
+                    ? "true"
+                    : "false"
+                }
+              >
+                {r.saturationLevel}
+              </span>
+              <span className="ec-chip-faint">capacity {r.capacityScore}</span>
+            </div>
+            <div className="ec-telemetry-meta">
+              <span>{r.assignedCount} assigned</span>
+              {r.overdueCount > 0 ? (
+                <span className="ec-chip" data-cc-tile-severe="true">
+                  {r.overdueCount} overdue
+                </span>
+              ) : null}
+              {r.dueSoonCount > 0 ? (
+                <span>{r.dueSoonCount} due soon</span>
+              ) : null}
+              {r.staleCount > 0 ? (
+                <span>{r.staleCount} stale</span>
+              ) : null}
+              <span>{r.completed7d} done · 7d</span>
+              <span>{r.completed30d} done · 30d</span>
+              <time className="ec-chip-faint" dateTime={r.sampledAtUtc}>
+                sampled {relTime(r.sampledAtUtc)}
+              </time>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {recs.length > 0 ? (
+        <div
+          className="ec-subsection"
+          data-cc-reviewer-recommendations-block
+          aria-label="Routing recommendations"
+        >
+          <div className="ec-subsection-head">
+            <h3 className="ec-subsection-title">Routing recommendations</h3>
+            <span className="ec-chip-faint">{recs.length}</span>
+          </div>
+          <ul className="ec-coord-list" data-cc-reviewer-recommendations>
+            {recs.map((r) => (
+              <li
+                key={r.id}
+                className="ec-coord-row"
+                data-cc-rec-id={r.id}
+                data-cc-rec-type={r.recommendationType}
+                data-cc-rec-severity={r.severity}
+              >
+                <div className="ec-coord-row-main">
+                  <span className="ec-coord-type">{r.recommendationType}</span>
+                  <span
+                    className="ec-chip"
+                    data-cc-tile-severe={
+                      r.severity === "CRITICAL" || r.severity === "HIGH"
+                        ? "true"
+                        : "false"
+                    }
+                  >
+                    {r.reasonCode}
+                  </span>
+                </div>
+                <div className="ec-coord-explanation">{r.explanation}</div>
+                <time className="ec-chip-faint" dateTime={r.createdAt}>
+                  {relTime(r.createdAt)}
+                </time>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </SectionShell>
+  );
+}
+
+function OperationalGraphSummaryBoard({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["operationalGraph"];
+}) {
+  if (!section) return null;
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Operational Graph"
+        title="Graph read degraded"
+        severity="warning"
+      >
+        <SectionNote status="unavailable" kind="relationships" />
+      </SectionShell>
+    );
+  }
+  const d = section.data;
+  const totalNodes = d.nodeCountsByType.reduce((acc, n) => acc + n.count, 0);
+  if (totalNodes === 0 && d.topRootCauses.length === 0) {
+    return (
+      <SectionShell kicker="Operational Graph" title="No graph topology yet">
+        <EnterpriseEmpty
+          title="Graph empty — no incidents or workflows to project"
+          body="The graph projects every active incident, workflow, correlation, and their linked cases / evidence / reviewers / queues. A 0-result state means the workspace currently has no operational pressure to model."
+        />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Operational Graph"
+      title={`${totalNodes} nodes · ${d.edgeCountsByType.reduce((a, e) => a + e.count, 0)} edges`}
+    >
+      <div className="ec-tile-grid" data-cc-graph-counts>
+        {d.nodeCountsByType.map((n) => (
+          <div
+            key={`node:${n.nodeType}`}
+            className="ec-tile"
+            data-cc-graph-node-type={n.nodeType}
+          >
+            <span className="ec-tile-value">{n.count}</span>
+            <span className="ec-tile-label">{n.nodeType}</span>
+          </div>
+        ))}
+      </div>
+      <div className="ec-tile-grid" data-cc-graph-blast-radius>
+        <div className="ec-tile" data-cc-blast-evidence>
+          <span className="ec-tile-value">{d.blastRadius.impactedEvidenceCount}</span>
+          <span className="ec-tile-label">Impacted evidence</span>
+        </div>
+        <div className="ec-tile" data-cc-blast-cases>
+          <span className="ec-tile-value">{d.blastRadius.impactedCaseCount}</span>
+          <span className="ec-tile-label">Impacted cases</span>
+        </div>
+        <div className="ec-tile" data-cc-blast-reviewers>
+          <span className="ec-tile-value">{d.blastRadius.impactedReviewerCount}</span>
+          <span className="ec-tile-label">Impacted reviewers</span>
+        </div>
+      </div>
+      {d.topRootCauses.length > 0 ? (
+        <div
+          className="ec-subsection"
+          data-cc-graph-root-causes-block
+          aria-label="Top root causes"
+        >
+          <div className="ec-subsection-head">
+            <h3 className="ec-subsection-title">Top root causes</h3>
+            <span className="ec-chip-faint">{d.topRootCauses.length}</span>
+          </div>
+          <ul className="ec-telemetry-list" data-cc-graph-root-causes>
+            {d.topRootCauses.map((r) => (
+              <li
+                key={r.nodeId}
+                className="ec-telemetry-row"
+                data-cc-graph-root-id={r.nodeId}
+                data-cc-graph-root-type={r.nodeType}
+              >
+                <div className="ec-telemetry-row-main">
+                  <span className="ec-telemetry-label">{r.label}</span>
+                  <span className="ec-chip-faint">{r.nodeType}</span>
+                  <span
+                    className="ec-chip"
+                    data-cc-tile-severe={
+                      r.severity === "CRITICAL" || r.severity === "HIGH"
+                        ? "true"
+                        : "false"
+                    }
+                  >
+                    {r.severity}
+                  </span>
+                </div>
+                <div className="ec-telemetry-meta">
+                  <span>out-degree {r.outDegree}</span>
+                  <span className="ec-chip-faint">{r.status}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </SectionShell>
+  );
+}
+
+function OrganizationalHealthBoard({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["organizationalHealth"];
+}) {
+  if (!section) return null;
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Organizational Health"
+        title="Health read degraded"
+        severity="warning"
+      >
+        <SectionNote status="unavailable" kind="org-intelligence-v2" />
+      </SectionShell>
+    );
+  }
+  const d = section.data;
+  if (d.healthScore === null) {
+    return (
+      <SectionShell kicker="Organizational Health" title="No health snapshot yet">
+        <EnterpriseEmpty
+          title="Organizational health snapshot not yet computed"
+          body="The maturity engine computes a deterministic 0..100 score per workspace from real counters (open incidents, active workflows, resolved-in-7d, queue freshness, audit-readiness blockers, reviewer overload). The first snapshot is written lazily on the next dashboard load."
+        />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Organizational Health"
+      title={`Health · ${d.healthScore}/100`}
+      severity={
+        d.healthScore !== null && d.healthScore < 40
+          ? "high"
+          : d.healthScore !== null && d.healthScore < 60
+            ? "warning"
+            : "info"
+      }
+    >
+      <div className="ec-tile-grid" data-cc-org-health-tiles>
+        <div className="ec-tile" data-cc-health-key="health">
+          <span className="ec-tile-value">{d.healthScore}</span>
+          <span className="ec-tile-label">Overall health</span>
+        </div>
+        <div className="ec-tile" data-cc-health-key="operational">
+          <span className="ec-tile-value">{d.operationalMaturityScore ?? "—"}</span>
+          <span className="ec-tile-label">Operational maturity</span>
+        </div>
+        <div className="ec-tile" data-cc-health-key="governance">
+          <span className="ec-tile-value">{d.governanceMaturityScore ?? "—"}</span>
+          <span className="ec-tile-label">Governance maturity</span>
+        </div>
+        <div className="ec-tile" data-cc-health-key="audit">
+          <span className="ec-tile-value">{d.auditReadinessScore ?? "—"}</span>
+          <span className="ec-tile-label">Audit readiness</span>
+        </div>
+        <div className="ec-tile" data-cc-health-key="reviewer">
+          <span className="ec-tile-value">{d.reviewerMaturityScore ?? "—"}</span>
+          <span className="ec-tile-label">Reviewer maturity</span>
+        </div>
+        <div className="ec-tile" data-cc-health-key="queue-reliability">
+          <span className="ec-tile-value">{d.queueReliabilityScore ?? "—"}</span>
+          <span className="ec-tile-label">Queue reliability</span>
+        </div>
+        <div className="ec-tile" data-cc-health-key="artifact-reliability">
+          <span className="ec-tile-value">{d.artifactReliabilityScore ?? "—"}</span>
+          <span className="ec-tile-label">Artifact reliability</span>
+        </div>
+        <div className="ec-tile" data-cc-health-key="workflow-completion">
+          <span className="ec-tile-value">{d.workflowCompletion7d ?? "—"}</span>
+          <span className="ec-tile-label">Workflows resolved · 7d</span>
+        </div>
+        <div className="ec-tile" data-cc-health-key="incident-frequency">
+          <span className="ec-tile-value">{d.incidentFrequency7d ?? "—"}</span>
+          <span className="ec-tile-label">Active incidents</span>
+        </div>
+      </div>
+      <div className="ec-section-foot">
+        Scores derive from real counters via deterministic thresholds — no
+        AI/ML, no fabricated metrics. Snapshot sampled{" "}
+        {d.sampledAtUtc ? relTime(d.sampledAtUtc) : "—"}.
+      </div>
+    </SectionShell>
   );
 }
 
@@ -2985,6 +3342,231 @@ function RecentEvidenceSection({
 }
 
 /**
+ * Phase 32.8C FINAL-2 — CausalityChains strip.
+ *
+ * Renders root-cause causality chains at the very top of the incidents
+ * surface so the operator reads "Why is this happening?" before
+ * "What is happening?". Each chain ties together incidents + workflows +
+ * correlations and shows a single bounded summary + severity.
+ */
+function CausalityChainsStrip({
+  chains,
+}: {
+  chains: CommandCenterEnvelope["sections"]["incidents"]["causalityChains"];
+}) {
+  if (!chains || chains.length === 0) return null;
+  return (
+    <div
+      className="ec-subsection"
+      data-cc-causality-chains-block
+      aria-label="Root-cause causality chains"
+    >
+      <div className="ec-subsection-head">
+        <h3 className="ec-subsection-title">Root-cause causality chains</h3>
+        <span className="ec-chip-faint">
+          {chains.length} active chain{chains.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <ul className="ec-telemetry-list" data-cc-causality-chains>
+        {chains.map((c) => (
+          <li
+            key={c.id}
+            className="ec-telemetry-row"
+            data-cc-chain-id={c.id}
+            data-cc-chain-key={c.chainKey}
+            data-cc-chain-root={c.rootCauseType}
+            data-cc-chain-severity={c.severity}
+            data-cc-tile-severe={
+              c.severity === "CRITICAL" || c.severity === "HIGH"
+                ? "true"
+                : "false"
+            }
+          >
+            <div className="ec-telemetry-row-main">
+              <span className="ec-telemetry-label">{c.title}</span>
+              <span
+                className="ec-chip"
+                data-cc-tile-severe={
+                  c.severity === "CRITICAL" || c.severity === "HIGH"
+                    ? "true"
+                    : "false"
+                }
+              >
+                {c.severity}
+              </span>
+              <span className="ec-chip-faint">{c.rootCauseType}</span>
+            </div>
+            <div className="ec-coord-explanation" data-cc-chain-summary>
+              {c.summary}
+            </div>
+            <div className="ec-telemetry-meta">
+              <span data-cc-chain-incident-count>
+                {c.linkedIncidentIds.length} incident
+                {c.linkedIncidentIds.length === 1 ? "" : "s"}
+              </span>
+              <span data-cc-chain-workflow-count>
+                {c.linkedWorkflowIds.length} workflow
+                {c.linkedWorkflowIds.length === 1 ? "" : "s"}
+              </span>
+              {c.linkedCorrelationIds.length > 0 ? (
+                <span data-cc-chain-correlation-count>
+                  {c.linkedCorrelationIds.length} correlation
+                  {c.linkedCorrelationIds.length === 1 ? "" : "s"}
+                </span>
+              ) : null}
+              {c.linkedCaseIds.length > 0 ? (
+                <span data-cc-chain-case-count>
+                  {c.linkedCaseIds.length} case
+                  {c.linkedCaseIds.length === 1 ? "" : "s"}
+                </span>
+              ) : null}
+              <time className="ec-chip-faint" dateTime={c.lastSeenAtUtc}>
+                last seen {relTime(c.lastSeenAtUtc)}
+              </time>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Phase 32.8C FINAL-2 — Workflows strip.
+ *
+ * Renders the active operational workflows under causality chains.
+ * Each row shows the workflow type, status, owner, severity, due
+ * pressure, escalation level, retry count, and the bounded action
+ * catalog (permission-aware labels — the dashboard renders chips, not
+ * mutation buttons; operator actions live on the Operations Center
+ * incident detail page).
+ */
+function WorkflowsStrip({
+  workflows,
+}: {
+  workflows: CommandCenterEnvelope["sections"]["incidents"]["workflows"];
+}) {
+  if (!workflows || workflows.length === 0) return null;
+  const overdue = workflows.filter(
+    (w) => w.dueAtUtc && new Date(w.dueAtUtc).getTime() < Date.now(),
+  ).length;
+  return (
+    <div
+      className="ec-subsection"
+      data-cc-workflows-block
+      aria-label="Active operational workflows"
+    >
+      <div className="ec-subsection-head">
+        <h3 className="ec-subsection-title">Active operational workflows</h3>
+        <span className="ec-chip-faint">
+          {workflows.length} active
+          {overdue > 0 ? ` · ${overdue} overdue` : ""}
+        </span>
+      </div>
+      <ul className="ec-telemetry-list" data-cc-workflows>
+        {workflows.map((w) => {
+          const isOverdue =
+            !!w.dueAtUtc && new Date(w.dueAtUtc).getTime() < Date.now();
+          const severe = w.severity === "CRITICAL" || w.severity === "HIGH";
+          return (
+            <li
+              key={w.id}
+              className="ec-telemetry-row"
+              data-cc-workflow-id={w.id}
+              data-cc-workflow-type={w.workflowType}
+              data-cc-workflow-status={w.status}
+              data-cc-workflow-severity={w.severity}
+              data-cc-workflow-priority={w.priority}
+              data-cc-workflow-assigned={
+                w.assignedOwnerUserId ? "true" : "false"
+              }
+              data-cc-workflow-overdue={isOverdue ? "true" : "false"}
+              data-cc-tile-severe={severe || isOverdue ? "true" : "false"}
+            >
+              <div className="ec-telemetry-row-main">
+                <span className="ec-telemetry-label">{w.title}</span>
+                <span
+                  className="ec-chip"
+                  data-cc-tile-severe={severe ? "true" : "false"}
+                >
+                  {w.severity}
+                </span>
+                <span className="ec-chip-faint" data-cc-workflow-priority-chip>
+                  {w.priority}
+                </span>
+                <span className="ec-chip-faint">{w.workflowType}</span>
+                <span className="ec-chip-faint" data-cc-workflow-status-chip>
+                  {w.status}
+                </span>
+                {isOverdue ? (
+                  <span className="ec-chip" data-cc-tile-severe="true">
+                    Overdue
+                  </span>
+                ) : null}
+              </div>
+              <div className="ec-coord-explanation" data-cc-workflow-summary>
+                {w.safeSummary}
+              </div>
+              <div className="ec-telemetry-meta">
+                {w.assignedOwnerUserId ? (
+                  <span data-cc-workflow-assignee>
+                    owner {w.assignedOwnerUserId.slice(0, 8)}
+                  </span>
+                ) : (
+                  <span data-cc-workflow-unassigned>Unassigned</span>
+                )}
+                {w.escalationLevel > 0 ? (
+                  <span data-cc-workflow-escalation>
+                    escalated ×{w.escalationLevel}
+                  </span>
+                ) : null}
+                {w.retryCount > 0 ? (
+                  <span data-cc-workflow-retry>retry ×{w.retryCount}</span>
+                ) : null}
+                {w.lastFailureCode ? (
+                  <span className="ec-chip" data-cc-tile-severe="true">
+                    {w.lastFailureCode}
+                  </span>
+                ) : null}
+                {w.dueAtUtc ? (
+                  <time className="ec-chip-faint" dateTime={w.dueAtUtc}>
+                    due {relTime(w.dueAtUtc)}
+                  </time>
+                ) : null}
+                {w.nextRetryAtUtc ? (
+                  <time className="ec-chip-faint" dateTime={w.nextRetryAtUtc}>
+                    next retry {relTime(w.nextRetryAtUtc)}
+                  </time>
+                ) : null}
+              </div>
+              {w.actions.length > 0 ? (
+                <div
+                  className="ec-telemetry-meta"
+                  data-cc-workflow-actions
+                  aria-label="Available operator actions"
+                >
+                  {w.actions.map((a) => (
+                    <span
+                      key={a.actionType}
+                      className="ec-chip-faint"
+                      data-cc-workflow-action={a.actionType}
+                      data-cc-workflow-action-permission={a.permissionRequired}
+                      title={`Requires ${a.requiredRoles.join(" / ")} · ${a.permissionRequired}`}
+                    >
+                      {a.safeActionLabel}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/**
  * Phase 32.8C control plane — IncidentCorrelations strip.
  *
  * Renders root-cause correlations above the per-incident list so the
@@ -3058,12 +3640,17 @@ function IncidentsSection({
   section: CommandCenterEnvelope["sections"]["incidents"];
 }) {
   // Phase 32.8C closure pass — "unavailable" only when the read failed
-  // AND there are no items AND no correlations. Otherwise show what we have.
+  // AND there are no items AND no correlations AND no workflows AND no
+  // chains. Otherwise show what we have.
   const correlations = section.correlations ?? [];
+  const workflows = section.workflows ?? [];
+  const causalityChains = section.causalityChains ?? [];
   if (
     section.status === "unavailable" &&
     section.items.length === 0 &&
-    correlations.length === 0
+    correlations.length === 0 &&
+    workflows.length === 0 &&
+    causalityChains.length === 0
   ) {
     return (
       <SectionShell kicker="Incidents" title="Incidents read degraded" severity="warning">
@@ -3071,12 +3658,17 @@ function IncidentsSection({
       </SectionShell>
     );
   }
-  if (section.items.length === 0 && correlations.length === 0) {
+  if (
+    section.items.length === 0 &&
+    correlations.length === 0 &&
+    workflows.length === 0 &&
+    causalityChains.length === 0
+  ) {
     return (
       <SectionShell kicker="Incidents" title="No open incidents · workspace healthy">
         <EnterpriseEmpty
           title="No open operational incidents"
-          body="The incident generator scans real platform conditions on every dashboard load — report/package backlog, stale review assignments, retry storms, stale telemetry, worker heartbeat staleness, unsigned aged evidence, and stale coordination backlog. A 0-result state means every one of these thresholds is currently within tolerance."
+          body="The incident generator scans real platform conditions on every dashboard load — report/package backlog, stale review assignments, retry storms, stale telemetry, worker heartbeat staleness, unsigned aged evidence, and stale coordination backlog. A 0-result state means every one of these thresholds is currently within tolerance. Workflows and causality chains follow incidents — when there are no incidents there is nothing to orchestrate."
           hint="Detailed platform health remains accessible under Operations Center."
           actionLabel="Open observability"
           actionHref="/ops/observability"
@@ -3084,10 +3676,26 @@ function IncidentsSection({
       </SectionShell>
     );
   }
+  const titleParts = [`Open incidents · ${section.items.length}`];
+  if (causalityChains.length > 0) {
+    titleParts.push(
+      `${causalityChains.length} chain${causalityChains.length === 1 ? "" : "s"}`,
+    );
+  }
+  if (workflows.length > 0) {
+    titleParts.push(
+      `${workflows.length} workflow${workflows.length === 1 ? "" : "s"}`,
+    );
+  }
+  if (correlations.length > 0) {
+    titleParts.push(
+      `${correlations.length} correlation${correlations.length === 1 ? "" : "s"}`,
+    );
+  }
   return (
     <SectionShell
       kicker="Incidents"
-      title={`Open incidents · ${section.items.length}${correlations.length > 0 ? ` · ${correlations.length} correlation${correlations.length === 1 ? "" : "s"}` : ""}`}
+      title={titleParts.join(" · ")}
       severity={
         section.items.some((i) => i.severity === "CRITICAL")
           ? "critical"
@@ -3096,7 +3704,15 @@ function IncidentsSection({
             : "warning"
       }
     >
+      {/* Phase 32.8C FINAL-2 — causality chains render FIRST so the
+          operator reads "Why is this happening?" before "What is
+          happening?". Workflows next so ownership + due pressure is
+          visible. Then correlations (cross-system root patterns).
+          Then the per-incident list. */}
+      <CausalityChainsStrip chains={causalityChains} />
+      <WorkflowsStrip workflows={workflows} />
       <IncidentCorrelations correlations={correlations} />
+      {section.items.length > 0 ? (
       <ul className="ec-incident-list" data-cc-incidents-list>
         {section.items.map((i) => (
           <li
@@ -3140,10 +3756,12 @@ function IncidentsSection({
           </li>
         ))}
       </ul>
+      ) : null}
       <div className="ec-section-foot">
-        Operator actions (acknowledge / assign / resolve / suppress) live on the{" "}
-        <Link href="/ops/observability">Operations Center</Link> incident detail
-        page. The dashboard is read-only.
+        Operator actions (acknowledge / assign / resolve / suppress, workflow
+        ownership transitions) live on the{" "}
+        <Link href="/ops/observability">Operations Center</Link> incident +
+        workflow detail pages. The dashboard is read-only.
       </div>
     </SectionShell>
   );

@@ -283,9 +283,12 @@ describe("Phase 32.8E — reviewer-command aggregator service contract", () => {
     }
   });
 
-  it("personal-workspace short-circuits ALL sections to `not_applicable` (no zero-counts confusion)", () => {
+  it("personal-workspace returns status='ok' with empty data (capability degradation, Phase 32.8C FINAL-3)", () => {
+    // Phase 32.8C FINAL-3 flipped the personal-workspace short-circuit
+    // from `not_applicable` to `ok` with bounded empty data. The frontend
+    // no longer hides the page; it renders enterprise-lite read-only
+    // surfaces and gates mutating actions at the route level.
     expect(REVIEWER_SVC).toMatch(/if \(scope === "PERSONAL"\)/);
-    // All 6 sections return not_applicable in the personal branch.
     for (const section of [
       "summary",
       "queuePeek",
@@ -298,7 +301,7 @@ describe("Phase 32.8E — reviewer-command aggregator service contract", () => {
         REVIEWER_SVC,
         `personal short-circuit missing ${section}`,
       ).toMatch(
-        new RegExp(`${section}:\\s*\\{\\s*status:\\s*"not_applicable"`),
+        new RegExp(`${section}:\\s*\\{\\s*status:\\s*"ok"`),
       );
     }
   });
@@ -504,13 +507,15 @@ describe("Phase 32.8E — /governance control plane", () => {
     }
   });
 
-  it("personal workspace renders neutral 'team workspace features' note instead of team tabs", () => {
-    expect(GOVERNANCE_PANEL).toMatch(
-      /Personal workspaces use basic evidence controls/,
-    );
-    expect(GOVERNANCE_PANEL).toMatch(
-      /Governance posture[\s\S]{0,200}team[\s\S]{0,40}workspace features/,
-    );
+  it("personal workspace renders capability-degradation banner alongside the full tabs (Phase 32.8C FINAL-3)", () => {
+    // Phase 32.8C FINAL-3 — Governance no longer hides the page for
+    // personal workspaces. It renders an inline banner explaining that
+    // team-only mutating actions are disabled, then the full tab set
+    // renders below. The banner has a `data-governance-personal-banner`
+    // hook for tests.
+    expect(GOVERNANCE_PANEL).toMatch(/data-governance-personal-banner/);
+    expect(GOVERNANCE_PANEL).toMatch(/read-only\s+enterprise-lite/);
+    expect(GOVERNANCE_PANEL).toMatch(/Team-only mutating actions/);
   });
 
   it("preservation tab includes the explicit no-admissibility / no-authenticity disclaimer", () => {
@@ -597,9 +602,13 @@ describe("Phase 32.8E — /reviewer-ops review orchestration", () => {
     }
   });
 
-  it("personal workspace renders neutral 'team workspace feature' note (no broken zero-state queue)", () => {
+  it("personal workspace renders capability-degradation banner alongside the full surface (Phase 32.8C FINAL-3)", () => {
+    // Phase 32.8C FINAL-3 — Reviewer Ops no longer hides the page for
+    // personal workspaces. An inline banner explains team-only mutating
+    // actions are disabled; the full reviewer surface renders below.
+    expect(REVIEWER_PANEL).toMatch(/data-reviewer-personal-banner/);
     expect(REVIEWER_PANEL).toMatch(
-      /Reviewer orchestration is a team workspace feature/,
+      /Personal workspace[\s\S]{0,200}read-only enterprise-lite mode/,
     );
   });
 

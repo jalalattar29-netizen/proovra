@@ -6484,3 +6484,609 @@ model CaseComment {
   @@index([resolvedAtUtc])
   @@map("case_comments")
 }
+
+// =============================================================================
+// Phase 32.8C FINAL-2 — Workflow Orchestration Engine
+//
+// First-class operational workflow layer. Distinct from EvidenceReviewWorkflow
+// (which is reviewer-side review lifecycle); these rows are platform-level
+// operational tasks: report retry, package retry, governance escalation,
+// queue recovery, integrity review, audit readiness, case-risk mitigation,
+// coordination resolution, export blocker resolution.
+//
+// Hard rules:
+//   - Generator failures NEVER block evidence / report / package / verify
+//     core flows. Workflow creation is wrapped in try/catch by callers.
+//   - workflowKey is idempotent per (teamId, source, type) — re-detecting
+//     the same condition collapses into the existing row.
+//   - Bounded operator-safe summaries only — no raw payloads, no signed
+//     URLs, no secrets.
+// =============================================================================
+
+enum OperationalWorkflowType {
+  REPORT_RETRY
+  PACKAGE_RETRY
+  REVIEW_ESCALATION
+  GOVERNANCE_ESCALATION
+  QUEUE_RECOVERY
+  TELEMETRY_RECOVERY
+  INTEGRITY_REVIEW
+  AUDIT_READINESS
+  CASE_RISK_MITIGATION
+  COORDINATION_RESOLUTION
+  EXPORT_BLOCKER_RESOLUTION
+  OTHER
+}
+
+enum OperationalWorkflowStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  WAITING_ON_SYSTEM
+  WAITING_ON_REVIEWER
+  WAITING_ON_GOVERNANCE
+  MITIGATING
+  RESOLVED
+  SUPPRESSED
+  FAILED
+}
+
+enum OperationalWorkflowSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum OperationalWorkflowPriority {
+  P0
+  P1
+  P2
+  P3
+}
+
+enum OperationalWorkflowEventType {
+  CREATED
+  ASSIGNED
+  STARTED
+  RETRY_SCHEDULED
+  RETRY_ATTEMPTED
+  ESCALATED
+  MITIGATION_ADDED
+  STATUS_CHANGED
+  RESOLVED
+  SUPPRESSED
+  FAILED
+  REOPENED
+}
+
+enum OperationalWorkflowActionType {
+  ASSIGN
+  START
+  SCHEDULE_RETRY
+  RECORD_RETRY_FAILURE
+  ESCALATE
+  ADD_MITIGATION
+  RESOLVE
+  SUPPRESS
+  REOPEN
+}
+
+model OperationalWorkflow {
+  id                   String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId               String                       @map("team_id") @db.Uuid
+
+  /// Idempotent key per (team, source, type). The generator upserts
+  /// against this unique constraint.
+  workflowKey          String                       @map("workflow_key") @db.VarChar(200)
+  workflowType         OperationalWorkflowType      @map("workflow_type")
+  status               OperationalWorkflowStatus    @default(OPEN)
+  severity             OperationalWorkflowSeverity  @default(MEDIUM)
+  priority             OperationalWorkflowPriority  @default(P2)
+
+  title                String                       @db.VarChar(180)
+  /// Bounded operator-safe summary. Never raw payloads.
+  safeSummary          String                       @map("safe_summary") @db.VarChar(400)
+
+  /// Source linkage — every workflow ties back to a real platform row.
+  sourceIncidentId     String?                      @map("source_incident_id") @db.Uuid
+  sourceCorrelationId  String?                      @map("source_correlation_id") @db.Uuid
+  caseId               String?                      @map("case_id") @db.Uuid
+  evidenceId           String?                      @map("evidence_id") @db.Uuid
+  queueName            String?                      @map("queue_name") @db.VarChar(80)
+
+  /// Ownership lifecycle.
+  assignedOwnerUserId  String?                      @map("assigned_owner_user_id") @db.Uuid
+  assignedByUserId     String?                      @map("assigned_by_user_id") @db.Uuid
+  assignedAtUtc        DateTime?                    @map("assigned_at_utc") @db.Timestamptz(6)
+
+  /// Escalation + retry state.
+  escalationLevel      Int                          @default(0) @map("escalation_level")
+  retryCount           Int                          @default(0) @map("retry_count")
+  nextRetryAtUtc       DateTime?                    @map("next_retry_at_utc") @db.Timestamptz(6)
+  lastAttemptAtUtc     DateTime?                    @map("last_attempt_at_utc") @db.Timestamptz(6)
+  lastFailureCode      String?                      @map("last_failure_code") @db.VarChar(80)
+
+  /// Bounded operator-safe notes.
+  mitigationSummary    String?                      @map("mitigation_summary") @db.VarChar(400)
+  resolutionSummary    String?                      @map("resolution_summary") @db.VarChar(400)
+
+  dueAtUtc             DateTime?                    @map("due_at_utc") @db.Timestamptz(6)
+  resolvedAtUtc        DateTime?                    @map("resolved_at_utc") @db.Timestamptz(6)
+
+  metadataJson         Json?                        @map("metadata_json")
+
+  createdAt            DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  events               OperationalWorkflowEvent[]
+  actions              OperationalWorkflowAction[]
+
+  @@unique([teamId, workflowKey])
+  @@index([teamId, status])
+  @@index([teamId, workflowType])
+  @@index([severity, status])
+  @@index([assignedOwnerUserId, status])
+  @@index([dueAtUtc])
+  @@index([sourceIncidentId])
+  @@index([sourceCorrelationId])
+  @@index([caseId])
+  @@index([evidenceId])
+  @@index([queueName])
+  @@map("operational_workflows")
+}
+
+model OperationalWorkflowEvent {
+  id              String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowId      String                          @map("workflow_id") @db.Uuid
+  teamId          String                          @map("team_id") @db.Uuid
+  eventType       OperationalWorkflowEventType    @map("event_type")
+  actorUserId     String?                         @map("actor_user_id") @db.Uuid
+  fromStatus      OperationalWorkflowStatus?      @map("from_status")
+  toStatus        OperationalWorkflowStatus?      @map("to_status")
+  /// Bounded operator-safe one-line summary.
+  summary         String                          @db.VarChar(400)
+  metadataJson    Json?                           @map("metadata_json")
+  occurredAtUtc   DateTime                        @default(now()) @map("occurred_at_utc") @db.Timestamptz(6)
+
+  workflow        OperationalWorkflow             @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId, occurredAtUtc(sort: Desc)])
+  @@index([teamId, occurredAtUtc(sort: Desc)])
+  @@index([eventType])
+  @@map("operational_workflow_events")
+}
+
+model OperationalWorkflowAction {
+  id                  String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowId          String                           @map("workflow_id") @db.Uuid
+  teamId              String                           @map("team_id") @db.Uuid
+  actionType          OperationalWorkflowActionType    @map("action_type")
+  /// Permission key required to execute this action (bounded enum-like
+  /// string referencing the routing catalog's known permission set).
+  permissionRequired  String                           @map("permission_required") @db.VarChar(80)
+  /// JSON array of role names allowed to execute this action.
+  requiredRoles       Json                             @map("required_roles")
+  safeActionLabel     String                           @map("safe_action_label") @db.VarChar(80)
+  route               String?                          @db.VarChar(400)
+  createdAt           DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workflow            OperationalWorkflow              @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@index([teamId, actionType])
+  @@map("operational_workflow_actions")
+}
+
+// =============================================================================
+// Phase 32.8C FINAL-2 — Operational Causality Engine
+//
+// Deterministic causality links + chains. Detects N >= 2 related operational
+// events / incidents / workflows and groups them under a "why is this
+// happening?" view. Every link is a bounded enum relation; chains are
+// idempotent by chainKey.
+//
+// Hard rules:
+//   - No fake root-cause text. Every chain summary is constructed from real
+//     linked entity types + counts.
+//   - Generator failures NEVER block dashboard reads.
+//   - Bounded operator-safe summaries; no raw payloads, no signed URLs.
+// =============================================================================
+
+enum OperationalCausalityRelation {
+  CAUSED_BY
+  FOLLOWED_BY
+  ESCALATED_TO
+  BLOCKED_BY
+  MITIGATED_BY
+  RETRIED_BY
+  RELATED_TO
+  PART_OF
+  ROOT_CAUSE_OF
+}
+
+enum OperationalCausalityConfidence {
+  DIRECT
+  INFERRED_HIGH
+  INFERRED_MEDIUM
+  INFERRED_LOW
+}
+
+enum OperationalCausalityChainStatus {
+  ACTIVE
+  RESOLVED
+  SUPPRESSED
+}
+
+model OperationalCausalityLink {
+  id                    String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId                String                          @map("team_id") @db.Uuid
+
+  /// Soft links — every column is nullable so a link can connect any two
+  /// of (timeline event, incident, workflow, correlation).
+  sourceEventId         String?                         @map("source_event_id") @db.Uuid
+  targetEventId         String?                         @map("target_event_id") @db.Uuid
+  sourceIncidentId      String?                         @map("source_incident_id") @db.Uuid
+  targetIncidentId      String?                         @map("target_incident_id") @db.Uuid
+  sourceWorkflowId      String?                         @map("source_workflow_id") @db.Uuid
+  targetWorkflowId      String?                         @map("target_workflow_id") @db.Uuid
+  sourceCorrelationId   String?                         @map("source_correlation_id") @db.Uuid
+  targetCorrelationId   String?                         @map("target_correlation_id") @db.Uuid
+
+  relationType          OperationalCausalityRelation    @map("relation_type")
+  confidence            OperationalCausalityConfidence  @default(INFERRED_HIGH)
+  /// Bounded reason code (e.g., "REPORT_BACKLOG_BLOCKS_PACKAGE").
+  reasonCode            String                          @map("reason_code") @db.VarChar(80)
+  /// Bounded operator-safe explanation.
+  explanation           String                          @db.VarChar(400)
+
+  createdAt             DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([teamId])
+  @@index([sourceIncidentId])
+  @@index([targetIncidentId])
+  @@index([sourceWorkflowId])
+  @@index([targetWorkflowId])
+  @@index([sourceEventId])
+  @@index([targetEventId])
+  @@index([relationType])
+  @@map("operational_causality_links")
+}
+
+enum OperationalCausalityRootCauseType {
+  PIPELINE_FAILURE
+  REVIEWER_BOTTLENECK
+  GOVERNANCE_BLOCKER
+  INTEGRITY_AUDIT
+  TELEMETRY_QUEUE
+  COORDINATION_CASE_RISK
+  OTHER
+}
+
+model OperationalCausalityChain {
+  id                  String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId              String                              @map("team_id") @db.Uuid
+
+  /// Idempotent key per (team, root cause type, scope). Re-detection
+  /// collapses into the existing chain with `lastSeenAtUtc` ticked.
+  chainKey            String                              @map("chain_key") @db.VarChar(200)
+  title               String                              @db.VarChar(180)
+  /// Bounded operator-safe summary explaining "why".
+  summary             String                              @db.VarChar(400)
+  rootCauseType       OperationalCausalityRootCauseType   @map("root_cause_type")
+  severity            OperationalWorkflowSeverity         @default(MEDIUM)
+  status              OperationalCausalityChainStatus     @default(ACTIVE)
+
+  /// Bounded JSON arrays of linked entity IDs.
+  linkedIncidentIds   Json?                               @map("linked_incident_ids")
+  linkedWorkflowIds   Json?                               @map("linked_workflow_ids")
+  linkedCorrelationIds Json?                              @map("linked_correlation_ids")
+  linkedCaseIds       Json?                               @map("linked_case_ids")
+  linkedEvidenceIds   Json?                               @map("linked_evidence_ids")
+
+  startAtUtc          DateTime                            @default(now()) @map("start_at_utc") @db.Timestamptz(6)
+  lastSeenAtUtc       DateTime                            @default(now()) @map("last_seen_at_utc") @db.Timestamptz(6)
+  resolvedAtUtc       DateTime?                           @map("resolved_at_utc") @db.Timestamptz(6)
+
+  createdAt           DateTime                            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([teamId, chainKey])
+  @@index([teamId, status])
+  @@index([teamId, lastSeenAtUtc(sort: Desc)])
+  @@index([rootCauseType])
+  @@index([severity])
+  @@map("operational_causality_chains")
+}
+
+// =============================================================================
+// Phase 32.8C FINAL-3 — Enterprise Gap Closure
+//
+// Six new advisory operational tables:
+//
+//   1. ReviewerCapacitySnapshot + ReviewerRoutingRecommendation
+//   2. BulkOperationalActionRun + BulkOperationalActionItem
+//   3. OperationalGraphNode + OperationalGraphEdge
+//   4. OrganizationalHealthSnapshot
+//
+// Hard rules:
+//   - All ADVISORY operational data. Generator failures NEVER block
+//     evidence/report/package/verify core flows.
+//   - Bounded operator-safe strings; no raw payloads, no signed URLs.
+//   - Workspace-scoped via teamId; the reviewer/graph/org-health rows
+//     populate lazily on dashboard read.
+//   - Bulk action rows are written by explicit operator POST routes —
+//     the dashboard NEVER triggers them on page load.
+// =============================================================================
+
+enum ReviewerSaturationLevel {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum ReviewerCapacitySource {
+  DB_DERIVED
+  WORKER_INTERNAL
+  OTHER
+}
+
+model ReviewerCapacitySnapshot {
+  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String                  @map("team_id") @db.Uuid
+  reviewerUserId  String                  @map("reviewer_user_id") @db.Uuid
+
+  assignedCount   Int                     @default(0) @map("assigned_count")
+  overdueCount    Int                     @default(0) @map("overdue_count")
+  dueSoonCount    Int                     @default(0) @map("due_soon_count")
+  staleCount      Int                     @default(0) @map("stale_count")
+  completed7d     Int                     @default(0) @map("completed_7d")
+  completed30d    Int                     @default(0) @map("completed_30d")
+
+  saturationLevel ReviewerSaturationLevel @default(NORMAL) @map("saturation_level")
+  /// Bounded saturation score 0..100 (computed deterministically).
+  capacityScore   Int                     @default(0) @map("capacity_score")
+
+  sampledAtUtc    DateTime                @default(now()) @map("sampled_at_utc") @db.Timestamptz(6)
+  source          ReviewerCapacitySource  @default(DB_DERIVED)
+  metadataJson    Json?                   @map("metadata_json")
+
+  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([teamId, sampledAtUtc(sort: Desc)])
+  @@index([teamId, saturationLevel])
+  @@index([reviewerUserId, sampledAtUtc(sort: Desc)])
+  @@map("reviewer_capacity_snapshots")
+}
+
+enum ReviewerRoutingRecommendationType {
+  REASSIGN
+  ESCALATE
+  SPLIT_LOAD
+  REQUEST_REVIEWER
+  PAUSE_ASSIGNMENT
+}
+
+enum ReviewerRoutingRecommendationStatus {
+  OPEN
+  ACCEPTED
+  DISMISSED
+  EXPIRED
+}
+
+model ReviewerRoutingRecommendation {
+  id                   String                                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId               String                                @map("team_id") @db.Uuid
+
+  sourceReviewerUserId String?                               @map("source_reviewer_user_id") @db.Uuid
+  targetReviewerUserId String?                               @map("target_reviewer_user_id") @db.Uuid
+  workflowId           String?                               @map("workflow_id") @db.Uuid
+  evidenceId           String?                               @map("evidence_id") @db.Uuid
+  caseId               String?                               @map("case_id") @db.Uuid
+
+  recommendationType   ReviewerRoutingRecommendationType     @map("recommendation_type")
+  severity             OperationalWorkflowSeverity           @default(MEDIUM)
+  /// Bounded reason code (e.g., "OWNER_OVERLOADED_REASSIGN_TO_LOW_SAT").
+  reasonCode           String                                @map("reason_code") @db.VarChar(80)
+  /// Bounded operator-safe explanation.
+  explanation          String                                @db.VarChar(400)
+
+  status               ReviewerRoutingRecommendationStatus   @default(OPEN)
+
+  /// Idempotent recommendation key so re-detection collapses into the
+  /// existing row.
+  recommendationKey    String                                @map("recommendation_key") @db.VarChar(200)
+
+  createdAt            DateTime                              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  resolvedAtUtc        DateTime?                             @map("resolved_at_utc") @db.Timestamptz(6)
+  resolvedByUserId     String?                               @map("resolved_by_user_id") @db.Uuid
+
+  @@unique([teamId, recommendationKey])
+  @@index([teamId, status])
+  @@index([sourceReviewerUserId, status])
+  @@index([targetReviewerUserId, status])
+  @@index([recommendationType])
+  @@map("reviewer_routing_recommendations")
+}
+
+enum BulkOperationalActionType {
+  BULK_ASSIGN_WORKFLOWS
+  BULK_ESCALATE_WORKFLOWS
+  BULK_SUPPRESS_INCIDENTS
+  BULK_RESOLVE_WORKFLOWS
+  BULK_SCHEDULE_RETRY
+  BULK_ACKNOWLEDGE_INCIDENTS
+  BULK_ADD_MITIGATION
+  BULK_DISMISS_RECOMMENDATIONS
+}
+
+enum BulkOperationalActionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  PARTIAL_FAILED
+  FAILED
+}
+
+enum BulkOperationalActionItemStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+model BulkOperationalActionRun {
+  id                  String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId              String                          @map("team_id") @db.Uuid
+
+  actionType          BulkOperationalActionType       @map("action_type")
+  status              BulkOperationalActionStatus     @default(PENDING)
+  requestedByUserId   String                          @map("requested_by_user_id") @db.Uuid
+
+  /// JSON array of target UUIDs (bounded — the route caps at 200).
+  targetIdsJson       Json                            @map("target_ids_json")
+  /// Bounded operator-safe note (e.g., the mitigation note for a bulk
+  /// "ADD_MITIGATION"). Never raw payloads.
+  noteText            String?                         @map("note_text") @db.VarChar(400)
+  /// Bounded result summary written when the run completes.
+  resultJson          Json?                           @map("result_json")
+
+  createdAt           DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAtUtc      DateTime?                       @map("completed_at_utc") @db.Timestamptz(6)
+
+  items               BulkOperationalActionItem[]
+
+  @@index([teamId, status])
+  @@index([teamId, createdAt(sort: Desc)])
+  @@index([actionType])
+  @@map("bulk_operational_action_runs")
+}
+
+model BulkOperationalActionItem {
+  id           String                            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  runId        String                            @map("run_id") @db.Uuid
+  teamId       String                            @map("team_id") @db.Uuid
+
+  targetType   String                            @map("target_type") @db.VarChar(40)
+  targetId     String                            @map("target_id") @db.Uuid
+
+  status       BulkOperationalActionItemStatus   @default(PENDING)
+  errorCode    String?                           @map("error_code") @db.VarChar(80)
+  completedAtUtc DateTime?                       @map("completed_at_utc") @db.Timestamptz(6)
+  createdAt    DateTime                          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  run          BulkOperationalActionRun          @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([teamId, status])
+  @@index([targetType, targetId])
+  @@map("bulk_operational_action_items")
+}
+
+enum OperationalGraphNodeType {
+  INCIDENT
+  WORKFLOW
+  CORRELATION
+  CASE
+  EVIDENCE
+  QUEUE
+  WORKER
+  REVIEWER
+  GOVERNANCE_POLICY
+  EXPORT
+  REPORT
+  PACKAGE
+}
+
+enum OperationalGraphEdgeType {
+  CAUSED
+  BLOCKS
+  DEPENDS_ON
+  IMPACTS
+  ESCALATES_TO
+  MITIGATES
+  OWNS
+  ASSIGNED_TO
+  RELATED_TO
+}
+
+model OperationalGraphNode {
+  id           String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId       String                       @map("team_id") @db.Uuid
+
+  nodeType     OperationalGraphNodeType     @map("node_type")
+  /// The canonical UUID of the underlying entity (incident id, workflow
+  /// id, case id, evidence id, etc). Combined with `teamId` + `nodeType`
+  /// for idempotency.
+  entityId     String                       @map("entity_id") @db.Uuid
+  /// Bounded operator-safe label.
+  label        String                       @db.VarChar(180)
+  /// Bounded severity tag (LOW/MEDIUM/HIGH/CRITICAL etc).
+  severity     String                       @db.VarChar(16)
+  /// Bounded status tag.
+  status       String                       @db.VarChar(40)
+
+  createdAt    DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([teamId, nodeType, entityId])
+  @@index([teamId, nodeType])
+  @@index([teamId, severity])
+  @@map("operational_graph_nodes")
+}
+
+model OperationalGraphEdge {
+  id            String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId        String                      @map("team_id") @db.Uuid
+
+  sourceNodeId  String                      @map("source_node_id") @db.Uuid
+  targetNodeId  String                      @map("target_node_id") @db.Uuid
+
+  edgeType      OperationalGraphEdgeType    @map("edge_type")
+  /// Bounded enum-like confidence (DIRECT / INFERRED_HIGH / etc).
+  confidence    String                      @db.VarChar(24)
+  /// Bounded reason code.
+  reasonCode    String                      @map("reason_code") @db.VarChar(80)
+
+  createdAt     DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([teamId, sourceNodeId, targetNodeId, edgeType])
+  @@index([teamId, edgeType])
+  @@index([sourceNodeId])
+  @@index([targetNodeId])
+  @@map("operational_graph_edges")
+}
+
+model OrganizationalHealthSnapshot {
+  id                          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId                      String?         @map("team_id") @db.Uuid
+  workspaceId                 String?         @map("workspace_id") @db.Uuid
+
+  /// All scores are bounded integers 0..100 — deterministic, never AI-
+  /// derived. NULL when the engine could not compute a particular
+  /// dimension on this sample.
+  healthScore                 Int?            @map("health_score")
+  operationalMaturityScore    Int?            @map("operational_maturity_score")
+  governanceMaturityScore     Int?            @map("governance_maturity_score")
+  auditReadinessScore         Int?            @map("audit_readiness_score")
+  reviewerMaturityScore       Int?            @map("reviewer_maturity_score")
+
+  incidentFrequency7d         Int?            @map("incident_frequency_7d")
+  workflowCompletion7d        Int?            @map("workflow_completion_7d")
+  queueReliabilityScore       Int?            @map("queue_reliability_score")
+  artifactReliabilityScore    Int?            @map("artifact_reliability_score")
+
+  sampledAtUtc                DateTime        @default(now()) @map("sampled_at_utc") @db.Timestamptz(6)
+  /// Bounded source label so operators can see "DB_DERIVED" vs (future)
+  /// "WORKER_INTERNAL" sample sources.
+  source                      String          @db.VarChar(40)
+  metadataJson                Json?           @map("metadata_json")
+
+  createdAt                   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([teamId, sampledAtUtc(sort: Desc)])
+  @@index([workspaceId, sampledAtUtc(sort: Desc)])
+  @@map("organizational_health_snapshots")
+}

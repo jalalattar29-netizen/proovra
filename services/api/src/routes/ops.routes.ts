@@ -739,6 +739,467 @@ export async function opsRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
+  // Phase 32.8C FINAL-2 — Workflow Orchestration routes
+  //
+  //   GET   /v1/ops/workflows                     list
+  //   GET   /v1/ops/workflows/:id                 single
+  //   POST  /v1/ops/workflows/:id/assign          assign owner
+  //   POST  /v1/ops/workflows/:id/start           transition → IN_PROGRESS
+  //   POST  /v1/ops/workflows/:id/escalate        bump escalation level
+  //   POST  /v1/ops/workflows/:id/mitigation      add mitigation note
+  //   POST  /v1/ops/workflows/:id/resolve         transition → RESOLVED
+  //   POST  /v1/ops/workflows/:id/suppress        transition → SUPPRESSED
+  //   POST  /v1/ops/workflows/:id/reopen          re-open from RESOLVED/SUPPRESSED
+  //   POST  /v1/ops/workflows/:id/schedule-retry  record retry intent (no execute)
+  //
+  //   GET   /v1/ops/causality/chains              list active chains
+  //   GET   /v1/ops/causality/chains/:id          single chain
+  //
+  // All routes:
+  //   - preHandler: requireAuth
+  //   - workspace-scoped via teamId
+  //   - mutating routes go through requireOpsActorAction + audit log
+  // ---------------------------------------------------------------------------
+
+  const ParamsWorkflowId = z.object({ id: z.string().uuid() });
+  const TeamIdOnlyWorkflow = z.object({ teamId: z.string().uuid() });
+  const AssignWorkflowBody = TeamIdOnlyWorkflow.extend({
+    assigneeUserId: z.string().uuid(),
+  });
+  const MitigationBody = TeamIdOnlyWorkflow.extend({
+    note: z.string().min(1).max(400),
+  });
+  const ResolveWorkflowBody = TeamIdOnlyWorkflow.extend({
+    note: z.string().min(1).max(400).optional(),
+  });
+  const ScheduleRetryBody = TeamIdOnlyWorkflow.extend({
+    nextRetryAtUtc: z.string().datetime(),
+  });
+
+  function handleWorkflowError(reply: FastifyReply, err: unknown): boolean {
+    const e = err as { code?: string };
+    if (e?.code === "workflow_not_found") {
+      reply.code(404).send({ error: { code: "workflow_not_found" } });
+      return true;
+    }
+    if (e?.code === "invalid_transition") {
+      reply.code(409).send({ error: { code: "invalid_transition" } });
+      return true;
+    }
+    return false;
+  }
+
+  app.get(
+    "/v1/ops/workflows",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z
+        .object({
+          teamId: z.string().uuid(),
+          status: z.string().min(1).max(40).optional(),
+          workflowType: z.string().min(1).max(40).optional(),
+          limit: z.coerce.number().int().min(1).max(500).optional(),
+        })
+        .parse(req.query ?? {});
+      const actor = await requireOpsActor(req, reply, q.teamId);
+      if (!actor) return;
+      const { listWorkflows } = await import(
+        "../services/observability/workflow.service.js"
+      );
+      const rows = await listWorkflows({
+        teamId: q.teamId,
+        status: q.status,
+        workflowType: q.workflowType,
+        limit: q.limit,
+      });
+      return reply.code(200).send({ workflows: rows });
+    },
+  );
+
+  app.get(
+    "/v1/ops/workflows/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsWorkflowId.parse(req.params);
+      const q = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.query ?? {});
+      const actor = await requireOpsActor(req, reply, q.teamId);
+      if (!actor) return;
+      const { getWorkflow } = await import(
+        "../services/observability/workflow.service.js"
+      );
+      const row = await getWorkflow({ workflowId: id, teamId: q.teamId });
+      if (!row) {
+        return reply
+          .code(404)
+          .send({ error: { code: "workflow_not_found" } });
+      }
+      return reply.code(200).send({ workflow: row });
+    },
+  );
+
+  app.post(
+    "/v1/ops/workflows/:id/assign",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsWorkflowId.parse(req.params);
+      const body = AssignWorkflowBody.parse(req.body ?? {});
+      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      if (!actor) return;
+      const member = await prisma.teamMember.findFirst({
+        where: { teamId: body.teamId, userId: body.assigneeUserId },
+        select: { id: true },
+      });
+      if (!member) {
+        return reply.code(400).send({
+          error: "invalid_assignee",
+          message: "Assignee must be a member of this workspace.",
+        });
+      }
+      try {
+        const { assignWorkflow } = await import(
+          "../services/observability/workflow.service.js"
+        );
+        const updated = await assignWorkflow({
+          workflowId: id,
+          teamId: body.teamId,
+          assigneeUserId: body.assigneeUserId,
+          actorUserId: actor.userId,
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+        });
+        return reply.code(200).send({ workflow: updated });
+      } catch (err) {
+        if (handleWorkflowError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/ops/workflows/:id/start",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsWorkflowId.parse(req.params);
+      const body = TeamIdOnlyWorkflow.parse(req.body ?? {});
+      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      if (!actor) return;
+      try {
+        const { startWorkflow } = await import(
+          "../services/observability/workflow.service.js"
+        );
+        const updated = await startWorkflow({
+          workflowId: id,
+          teamId: body.teamId,
+          actorUserId: actor.userId,
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+        });
+        return reply.code(200).send({ workflow: updated });
+      } catch (err) {
+        if (handleWorkflowError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/ops/workflows/:id/escalate",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsWorkflowId.parse(req.params);
+      const body = TeamIdOnlyWorkflow.parse(req.body ?? {});
+      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      if (!actor) return;
+      try {
+        const { escalateWorkflow } = await import(
+          "../services/observability/workflow.service.js"
+        );
+        const updated = await escalateWorkflow({
+          workflowId: id,
+          teamId: body.teamId,
+          actorUserId: actor.userId,
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+        });
+        return reply.code(200).send({ workflow: updated });
+      } catch (err) {
+        if (handleWorkflowError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/ops/workflows/:id/mitigation",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsWorkflowId.parse(req.params);
+      const body = MitigationBody.parse(req.body ?? {});
+      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      if (!actor) return;
+      try {
+        const { addMitigation } = await import(
+          "../services/observability/workflow.service.js"
+        );
+        const updated = await addMitigation({
+          workflowId: id,
+          teamId: body.teamId,
+          note: body.note,
+          actorUserId: actor.userId,
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+        });
+        return reply.code(200).send({ workflow: updated });
+      } catch (err) {
+        if (handleWorkflowError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/ops/workflows/:id/resolve",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsWorkflowId.parse(req.params);
+      const body = ResolveWorkflowBody.parse(req.body ?? {});
+      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      if (!actor) return;
+      try {
+        const { resolveWorkflow } = await import(
+          "../services/observability/workflow.service.js"
+        );
+        const updated = await resolveWorkflow({
+          workflowId: id,
+          teamId: body.teamId,
+          note: body.note ?? null,
+          actorUserId: actor.userId,
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+        });
+        return reply.code(200).send({ workflow: updated });
+      } catch (err) {
+        if (handleWorkflowError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/ops/workflows/:id/suppress",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsWorkflowId.parse(req.params);
+      const body = TeamIdOnlyWorkflow.parse(req.body ?? {});
+      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      if (!actor) return;
+      try {
+        const { suppressWorkflow } = await import(
+          "../services/observability/workflow.service.js"
+        );
+        const updated = await suppressWorkflow({
+          workflowId: id,
+          teamId: body.teamId,
+          actorUserId: actor.userId,
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+        });
+        return reply.code(200).send({ workflow: updated });
+      } catch (err) {
+        if (handleWorkflowError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/ops/workflows/:id/reopen",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsWorkflowId.parse(req.params);
+      const body = TeamIdOnlyWorkflow.parse(req.body ?? {});
+      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      if (!actor) return;
+      try {
+        const { reopenWorkflow } = await import(
+          "../services/observability/workflow.service.js"
+        );
+        const updated = await reopenWorkflow({
+          workflowId: id,
+          teamId: body.teamId,
+          actorUserId: actor.userId,
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+        });
+        return reply.code(200).send({ workflow: updated });
+      } catch (err) {
+        if (handleWorkflowError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/ops/workflows/:id/schedule-retry",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsWorkflowId.parse(req.params);
+      const body = ScheduleRetryBody.parse(req.body ?? {});
+      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      if (!actor) return;
+      try {
+        const { scheduleRetry } = await import(
+          "../services/observability/workflow.service.js"
+        );
+        const updated = await scheduleRetry({
+          workflowId: id,
+          teamId: body.teamId,
+          nextRetryAtUtc: new Date(body.nextRetryAtUtc),
+          actorUserId: actor.userId,
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+        });
+        return reply.code(200).send({ workflow: updated });
+      } catch (err) {
+        if (handleWorkflowError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  // Causality chains — read-only endpoints.
+
+  app.get(
+    "/v1/ops/causality/chains",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z
+        .object({
+          teamId: z.string().uuid(),
+          limit: z.coerce.number().int().min(1).max(50).optional(),
+        })
+        .parse(req.query ?? {});
+      const actor = await requireOpsActor(req, reply, q.teamId);
+      if (!actor) return;
+      const { listWorkspaceCausalityChains } = await import(
+        "../services/dashboard/causality.service.js"
+      );
+      const chains = await listWorkspaceCausalityChains({
+        teamId: q.teamId,
+        limit: q.limit,
+      });
+      return reply.code(200).send({ chains });
+    },
+  );
+
+  app.get(
+    "/v1/ops/causality/chains/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = z
+        .object({ id: z.string().uuid() })
+        .parse(req.params);
+      const q = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.query ?? {});
+      const actor = await requireOpsActor(req, reply, q.teamId);
+      if (!actor) return;
+      const chain = await prisma.operationalCausalityChain.findFirst({
+        where: { id, teamId: q.teamId },
+      });
+      if (!chain) {
+        return reply
+          .code(404)
+          .send({ error: { code: "chain_not_found" } });
+      }
+      return reply.code(200).send({ chain });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase 32.8C FINAL-3 — Bulk Operational Actions
+  //
+  //   POST /v1/ops/bulk-actions      run a bulk action (workspace-scoped, audited)
+  //   GET  /v1/ops/bulk-actions/:id  read run + items
+  //
+  // Every bulk action fans out to the underlying lifecycle service per
+  // target — the bulk runner is NOT a permission bypass.
+  // ---------------------------------------------------------------------------
+
+  const BulkActionBody = z.object({
+    teamId: z.string().uuid(),
+    actionType: z.enum([
+      "BULK_ASSIGN_WORKFLOWS",
+      "BULK_ESCALATE_WORKFLOWS",
+      "BULK_SUPPRESS_INCIDENTS",
+      "BULK_RESOLVE_WORKFLOWS",
+      "BULK_SCHEDULE_RETRY",
+      "BULK_ACKNOWLEDGE_INCIDENTS",
+      "BULK_ADD_MITIGATION",
+      "BULK_DISMISS_RECOMMENDATIONS",
+    ]),
+    targetIds: z.array(z.string().uuid()).min(1).max(200),
+    note: z.string().min(1).max(400).optional(),
+    assigneeUserId: z.string().uuid().optional(),
+    nextRetryAtUtc: z.string().datetime().optional(),
+  });
+
+  app.post(
+    "/v1/ops/bulk-actions",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = BulkActionBody.parse(req.body ?? {});
+      const actor = await requireOpsActorAction(req, reply, body.teamId);
+      if (!actor) return;
+      const { runBulkAction } = await import(
+        "../services/dashboard/bulk-actions.service.js"
+      );
+      const result = await runBulkAction({
+        teamId: body.teamId,
+        actionType: body.actionType,
+        targetIds: body.targetIds,
+        note: body.note ?? null,
+        assigneeUserId: body.assigneeUserId ?? null,
+        nextRetryAtUtc: body.nextRetryAtUtc ?? null,
+        actorUserId: actor.userId,
+        ipAddress: requestIp(req),
+        userAgent: requestUa(req),
+      });
+      return reply.code(200).send({ run: result });
+    },
+  );
+
+  app.get(
+    "/v1/ops/bulk-actions/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = z
+        .object({ id: z.string().uuid() })
+        .parse(req.params);
+      const q = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.query ?? {});
+      const actor = await requireOpsActor(req, reply, q.teamId);
+      if (!actor) return;
+      const { getBulkActionRun } = await import(
+        "../services/dashboard/bulk-actions.service.js"
+      );
+      const { run, items } = await getBulkActionRun({
+        runId: id,
+        teamId: q.teamId,
+      });
+      if (!run) {
+        return reply
+          .code(404)
+          .send({ error: { code: "run_not_found" } });
+      }
+      return reply.code(200).send({ run, items });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
   // Phase 31.8 — Media intelligence operations actions.
   //
   // Two operator-triggered endpoints for the /ops/media-graph UI:
