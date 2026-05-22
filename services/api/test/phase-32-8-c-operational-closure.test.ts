@@ -196,8 +196,13 @@ describe("Phase 32.8C closure — 'X unavailable' titles reframed to 'read degra
     expect(CC).toMatch(/title="Security watch rollup degraded"/);
   });
 
-  it("classifier degraded title says 'Detection running · classifier read degraded'", () => {
-    expect(CC).toMatch(/title="Detection running · classifier read degraded"/);
+  it("classifier degraded title reflects canonical-source state (Phase 32.8C+++++++ — 'rollup delayed' when canonical alive)", () => {
+    // Phase 32.8C+++++++ — the title is now derived from the canonical
+    // source state. When the SecurityEvent log is alive, the chip reads
+    // "rollup delayed" (amber); when the canonical log is also dead,
+    // it falls back to the original "classifier read degraded" (red).
+    expect(CC).toMatch(/Detection running · rollup delayed/);
+    expect(CC).toMatch(/Detection running · classifier read degraded/);
   });
 });
 
@@ -288,7 +293,7 @@ describe("Phase 32.8C closure — no false red states", () => {
 
   it("classifier degraded banner explains the canonical fallback", () => {
     expect(CC).toMatch(
-      /Detection is still operational via the SecurityEvent audit log/,
+      /Detection is operational via the canonical SecurityEvent audit\s+log/,
     );
   });
 

@@ -142,6 +142,12 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
   const capabilities = envelope.capabilityMatrix?.capabilities ?? null;
   const sectionOrder: string[] = envelope.capabilityMatrix?.sectionOrder ?? [];
 
+  // Phase 32.8C+++++++ — active-section tracking via IntersectionObserver.
+  // Persona priority chips light up as the operator scrolls, and the URL
+  // hash is synced so browser refresh + deep links land on the right
+  // section. Hash navigation also smooth-scrolls.
+  const activeSection = useActiveSection(sectionOrder);
+
   return (
     <main
       className="ec-page"
@@ -193,18 +199,52 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
             {persona ? `${persona.replace(/_/g, " ")} priority` : "Priority"}
           </span>
           <ul className="ec-persona-priority-list">
-            {sectionOrder.slice(0, 8).map((sectionId, idx) => (
-              <li
-                key={sectionId}
-                data-cc-persona-priority-item={sectionId}
-                data-cc-persona-priority-rank={idx + 1}
-              >
-                <a href={`#${sectionId}`}>
-                  <span data-cc-persona-priority-rank-badge>{idx + 1}</span>
-                  <span>{humanizeSectionId(sectionId)}</span>
-                </a>
-              </li>
-            ))}
+            {sectionOrder.slice(0, 8).map((sectionId, idx) => {
+              const isActive = activeSection === sectionId;
+              return (
+                <li
+                  key={sectionId}
+                  data-cc-persona-priority-item={sectionId}
+                  data-cc-persona-priority-rank={idx + 1}
+                  data-cc-persona-priority-active={isActive ? "true" : "false"}
+                  aria-current={isActive ? "true" : undefined}
+                >
+                  <a
+                    href={`#${sectionId}`}
+                    onClick={(ev) => {
+                      // Phase 32.8C+++++++ — soft hash navigation:
+                      // smooth-scroll the target into view, update the URL
+                      // hash without a full page jump, focus the section
+                      // for accessibility.
+                      const el = document.getElementById(sectionId);
+                      if (el) {
+                        ev.preventDefault();
+                        el.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
+                        if (typeof window !== "undefined") {
+                          history.replaceState(
+                            null,
+                            "",
+                            `#${sectionId}`,
+                          );
+                        }
+                        // Briefly mark the section so operators see
+                        // confirmation of where they landed.
+                        el.setAttribute("data-cc-section-landed", "true");
+                        window.setTimeout(() => {
+                          el.removeAttribute("data-cc-section-landed");
+                        }, 1500);
+                      }
+                    }}
+                  >
+                    <span data-cc-persona-priority-rank-badge>{idx + 1}</span>
+                    <span>{humanizeSectionId(sectionId)}</span>
+                  </a>
+                </li>
+              );
+            })}
           </ul>
         </nav>
       ) : null}
@@ -238,90 +278,266 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
       {/* SUMMARY STRIP */}
       <SummaryStrip envelope={envelope} isTeam={isTeam} />
 
+      {/* Phase 32.8C+++++++ — Each major section is wrapped in a
+          deep-link anchor div carrying `id` + `data-section` + `aria-label`.
+          The persona priority chips link here via `#sectionId`; the
+          IntersectionObserver active-section hook reads `data-section`. */}
+
       {/* 1. ACTIVE OPERATIONAL PRESSURE — full-width hero */}
-      <OperationalPressureSection
-        section={sections.operationalPressure}
-        canMutate={canMutate}
-      />
+      <div
+        id="operationalPressure"
+        data-section="operationalPressure"
+        aria-label="Operational Pressure"
+      >
+        <OperationalPressureSection
+          section={sections.operationalPressure}
+          canMutate={canMutate}
+        />
+      </div>
 
       {/* Operational Routing Queue — actionable form of pressure */}
-      <RoutingQueueSection section={sections.routingQueue} />
+      <div
+        id="routingQueue"
+        data-section="routingQueue"
+        aria-label="Routing Queue"
+      >
+        <RoutingQueueSection section={sections.routingQueue} />
+      </div>
 
       {/* Investigation Risk Board + Reviewer Workload Engine */}
       <div className="ec-grid-2col">
-        <InvestigationRiskBoard section={sections.investigationIntelligence} />
-        <WorkloadEngineBoard section={sections.workloadEngine} />
+        <div
+          id="investigationIntelligence"
+          data-section="investigationIntelligence"
+          aria-label="Investigation Risk Board"
+        >
+          <InvestigationRiskBoard section={sections.investigationIntelligence} />
+        </div>
+        <div
+          id="workloadEngine"
+          data-section="workloadEngine"
+          aria-label="Reviewer Workload Engine"
+        >
+          <WorkloadEngineBoard section={sections.workloadEngine} />
+        </div>
       </div>
 
       {/* Legacy case ops + reviewer orchestration (kept for back-compat) */}
       <div className="ec-grid-2col">
-        <CaseOperationsSection section={sections.caseOperations} />
-        <ReviewerOrchestrationSection section={sections.reviewerOrchestration} />
+        <div
+          id="caseOperations"
+          data-section="caseOperations"
+          aria-label="Case Operations"
+        >
+          <CaseOperationsSection section={sections.caseOperations} />
+        </div>
+        <div
+          id="reviewerOrchestration"
+          data-section="reviewerOrchestration"
+          aria-label="Reviewer Orchestration"
+        >
+          <ReviewerOrchestrationSection section={sections.reviewerOrchestration} />
+        </div>
       </div>
 
       {/* Pipeline & Artifact Operations + Governance & Compliance */}
       <div className="ec-grid-2col">
-        <PipelineDetailSection section={sections.pipelineDetail} />
-        <GovernancePostureSection
-          section={sections.governancePosture}
-          isTeam={isTeam}
-        />
+        <div
+          id="pipelineDetail"
+          data-section="pipelineDetail"
+          aria-label="Evidence Pipeline"
+        >
+          <PipelineDetailSection section={sections.pipelineDetail} />
+        </div>
+        <div
+          id="governancePosture"
+          data-section="governancePosture"
+          aria-label="Governance Posture"
+        >
+          <GovernancePostureSection
+            section={sections.governancePosture}
+            isTeam={isTeam}
+          />
+        </div>
       </div>
 
       {/* Queue Congestion (full-width row) */}
-      <QueueCongestionSection section={sections.queueCongestion} />
+      <div
+        id="queueCongestion"
+        data-section="queueCongestion"
+        aria-label="Queue Congestion"
+      >
+        <QueueCongestionSection section={sections.queueCongestion} />
+      </div>
 
       {/* AUDIT READINESS + ORGANIZATIONAL INTELLIGENCE */}
       <div className="ec-grid-2col">
-        <AuditReadinessSection section={sections.auditReadiness} />
-        <OrganizationalIntelligenceSection
-          section={sections.organizationalIntelligence}
-        />
+        <div
+          id="auditReadiness"
+          data-section="auditReadiness"
+          aria-label="Audit Readiness"
+        >
+          <AuditReadinessSection section={sections.auditReadiness} />
+        </div>
+        <div
+          id="organizationalIntelligence"
+          data-section="organizationalIntelligence"
+          aria-label="Organizational Intelligence"
+        >
+          <OrganizationalIntelligenceSection
+            section={sections.organizationalIntelligence}
+          />
+        </div>
       </div>
 
       {/* Custody/Integrity Watch + Access/Security Watch */}
       <div className="ec-grid-2col">
-        <CustodyIntegrityWatch
-          section={sections.custodyIntegrityAnomalies}
-        />
-        <AccessSecurityWatch section={sections.accessSecurityAnomalies} />
+        <div
+          id="custodyIntegrityAnomalies"
+          data-section="custodyIntegrityAnomalies"
+          aria-label="Custody Integrity Watch"
+        >
+          <CustodyIntegrityWatch
+            section={sections.custodyIntegrityAnomalies}
+          />
+        </div>
+        <div
+          id="accessSecurityAnomalies"
+          data-section="accessSecurityAnomalies"
+          aria-label="Access Security Watch"
+        >
+          <AccessSecurityWatch section={sections.accessSecurityAnomalies} />
+        </div>
       </div>
 
       {/* OPERATIONAL TIMELINE — full-width heartbeat */}
-      <TimelineSection section={sections.timeline} />
+      <div id="timeline" data-section="timeline" aria-label="Operational Timeline">
+        <TimelineSection section={sections.timeline} />
+      </div>
 
       {/* Activity + Incidents + Quick Actions row */}
       <div className="ec-grid-3col">
-        <RecentEvidenceSection section={sections.recentEvidence} />
-        <IncidentsSection section={sections.incidents} />
+        <div
+          id="recentEvidence"
+          data-section="recentEvidence"
+          aria-label="Recent Evidence"
+        >
+          <RecentEvidenceSection section={sections.recentEvidence} />
+        </div>
+        <div
+          id="incidents"
+          data-section="incidents"
+          aria-label="Operational Incidents"
+        >
+          <IncidentsSection section={sections.incidents} />
+        </div>
         <QuickActions role={role} isTeam={isTeam} canMutate={canMutate} />
       </div>
 
       {/* Phase 32.8C++ Deep Operations Intelligence */}
-      <PredictiveRiskBoard section={sections.predictiveRisk} />
-      <OrgIntelligenceV2Board section={sections.organizationalIntelligenceV2} />
-      <div className="ec-grid-2col">
-        <RelationshipIntelligenceBoard section={sections.relationshipIntelligence} />
-        <CrossCaseIntelligenceV2Board section={sections.crossCaseIntelligenceV2} />
+      <div
+        id="predictiveRisk"
+        data-section="predictiveRisk"
+        aria-label="Predictive Risk Forecast"
+      >
+        <PredictiveRiskBoard section={sections.predictiveRisk} />
+      </div>
+      <div
+        id="organizationalIntelligenceV2"
+        data-section="organizationalIntelligenceV2"
+        aria-label="Organizational Intelligence V2"
+      >
+        <OrgIntelligenceV2Board section={sections.organizationalIntelligenceV2} />
       </div>
       <div className="ec-grid-2col">
-        <DeepIntegrityWatch section={sections.deepIntegrityWatch} />
-        <AccessSecurityClassifierBoard section={sections.accessSecurityClassifier} />
+        <div
+          id="relationshipIntelligence"
+          data-section="relationshipIntelligence"
+          aria-label="Evidence Relationship Intelligence"
+        >
+          <RelationshipIntelligenceBoard section={sections.relationshipIntelligence} />
+        </div>
+        <div
+          id="crossCaseIntelligenceV2"
+          data-section="crossCaseIntelligenceV2"
+          aria-label="Cross-Case Intelligence"
+        >
+          <CrossCaseIntelligenceV2Board section={sections.crossCaseIntelligenceV2} />
+        </div>
       </div>
       <div className="ec-grid-2col">
-        <QueueWorkerTelemetryBoard section={sections.queueWorkerTelemetry} />
-        <CoordinationSignalsBoard section={sections.coordinationSignals} />
+        <div
+          id="deepIntegrityWatch"
+          data-section="deepIntegrityWatch"
+          aria-label="Deep Integrity Watch"
+        >
+          <DeepIntegrityWatch section={sections.deepIntegrityWatch} />
+        </div>
+        <div
+          id="accessSecurityClassifier"
+          data-section="accessSecurityClassifier"
+          aria-label="Access Security Classifier"
+        >
+          <AccessSecurityClassifierBoard
+            section={sections.accessSecurityClassifier}
+            rollupHealth={envelope.opsHealth?.securityRollup ?? null}
+          />
+        </div>
       </div>
-      <ReconstructedTimelineSection section={sections.reconstructedTimeline} />
+      <div className="ec-grid-2col">
+        <div
+          id="queueWorkerTelemetry"
+          data-section="queueWorkerTelemetry"
+          aria-label="Queue / Worker Telemetry"
+        >
+          <QueueWorkerTelemetryBoard
+            section={sections.queueWorkerTelemetry}
+            telemetryHealth={envelope.opsHealth?.telemetry ?? null}
+            reconcileHealth={envelope.opsHealth?.reconcile ?? null}
+          />
+        </div>
+        <div
+          id="coordinationSignals"
+          data-section="coordinationSignals"
+          aria-label="Coordination Signals"
+        >
+          <CoordinationSignalsBoard section={sections.coordinationSignals} />
+        </div>
+      </div>
+      <div
+        id="reconstructedTimeline"
+        data-section="reconstructedTimeline"
+        aria-label="Reconstructed Timeline"
+      >
+        <ReconstructedTimelineSection section={sections.reconstructedTimeline} />
+      </div>
 
       {/* Phase 32.8C FINAL-3 — Reviewer Capacity + Operational Graph
           + Organizational Health. These are advisory read-only surfaces;
           all mutating operator actions remain on /ops. */}
       <div className="ec-grid-2col">
-        <ReviewerCapacityBoard section={sections.reviewerCapacity} />
-        <OperationalGraphSummaryBoard section={sections.operationalGraph} />
+        <div
+          id="reviewerCapacity"
+          data-section="reviewerCapacity"
+          aria-label="Reviewer Capacity"
+        >
+          <ReviewerCapacityBoard section={sections.reviewerCapacity} />
+        </div>
+        <div
+          id="operationalGraph"
+          data-section="operationalGraph"
+          aria-label="Operational Graph"
+        >
+          <OperationalGraphSummaryBoard section={sections.operationalGraph} />
+        </div>
       </div>
-      <OrganizationalHealthBoard section={sections.organizationalHealth} />
+      <div
+        id="organizationalHealth"
+        data-section="organizationalHealth"
+        aria-label="Organizational Health"
+      >
+        <OrganizationalHealthBoard section={sections.organizationalHealth} />
+      </div>
 
       {/* Unsupported Signals — transparent catalog, collapsed by default */}
       <UnsupportedSignalsSection signals={envelope.unsupportedSignals} />
@@ -1110,24 +1326,43 @@ function DeepIntegrityWatch({
 
 function AccessSecurityClassifierBoard({
   section,
+  rollupHealth,
 }: {
   section: CommandCenterEnvelope["sections"]["accessSecurityClassifier"];
+  /** Phase 32.8C+++++++ — backend-derived health for the rollup table.
+   *  A read failure on the rollup is DEGRADED (amber), not UNAVAILABLE
+   *  (red), as long as the canonical SecurityEvent log is alive. */
+  rollupHealth?: NonNullable<CommandCenterEnvelope["opsHealth"]>["securityRollup"] | null;
 }) {
   // Phase 32.8C closure pass — distinguish:
   //   (a) classifier read failed AND no anomalies in this fetch    → degraded read
   //   (b) classifier read succeeded but returned 0 anomalies       → healthy (no incidents)
   //   (c) classifier read succeeded with anomalies                 → render them
   if (section.meta.status === "unavailable" && section.anomalies.length === 0) {
+    // Phase 32.8C+++++++ — only render the RED unavailable wall if the
+    // canonical SecurityEvent log itself is also unhealthy. Otherwise
+    // render an AMBER degraded banner that explains the canonical
+    // source is still alive.
+    const canonicalAlive =
+      rollupHealth?.canonicalSourceHealthy !== false;
     return (
       <SectionShell
         kicker="Security Anomaly Classifier"
-        title="Detection running · classifier read degraded"
-        severity="warning"
+        title={
+          canonicalAlive
+            ? "Detection running · rollup delayed"
+            : "Detection running · classifier read degraded"
+        }
+        severity={canonicalAlive ? "warning" : "high"}
       >
-        <SectionNote status="unavailable" kind="security-classifier" />
+        <OpsHealthBanner
+          title="Security rollup"
+          kind="security-rollup"
+          health={rollupHealth ?? null}
+        />
         <div className="ec-section-foot" data-cc-classifier-fallback>
-          Detection is still operational via the SecurityEvent audit log.
-          The dashboard rollup will re-classify on the next refresh.
+          Detection is operational via the canonical SecurityEvent audit
+          log. The dashboard rollup will re-classify on the next refresh.
         </div>
       </SectionShell>
     );
@@ -1246,8 +1481,14 @@ function workerStatusSeverity(
 
 function QueueWorkerTelemetryBoard({
   section,
+  telemetryHealth,
+  reconcileHealth,
 }: {
   section: CommandCenterEnvelope["sections"]["queueWorkerTelemetry"];
+  /** Phase 32.8C+++++++ — backend-derived operational health for the
+   *  worker/queue telemetry sampler and the reviewer reconcile loop. */
+  telemetryHealth?: NonNullable<CommandCenterEnvelope["opsHealth"]>["telemetry"] | null;
+  reconcileHealth?: NonNullable<CommandCenterEnvelope["opsHealth"]>["reconcile"] | null;
 }) {
   const d = section.data;
   const snapshots = d?.queueSnapshots ?? [];
@@ -1282,18 +1523,39 @@ function QueueWorkerTelemetryBoard({
       </SectionShell>
     );
   }
+  // Phase 32.8C+++++++ — prefer the structured ops-health state over
+  // the raw `reconcileHealth` enum so a stale-but-alive reconcile loop
+  // never paints as a hard UNAVAILABLE failure.
+  const reconcileLabel = reconcileHealth
+    ? humanizeOpsHealthStatus(reconcileHealth.status)
+    : `Reconcile · ${d.reconcileHealth}`;
+  const sectionSeverity = opsHealthToShellSeverity(reconcileHealth) ??
+    (d.reconcileHealth === "UNAVAILABLE"
+      ? "high"
+      : d.reconcileHealth === "STALE"
+        ? "warning"
+        : "info");
   return (
     <SectionShell
       kicker="Queue / Worker Telemetry"
-      title={`Reconcile · ${d.reconcileHealth}`}
-      severity={
-        d.reconcileHealth === "UNAVAILABLE"
-          ? "high"
-          : d.reconcileHealth === "STALE"
-            ? "warning"
-            : "info"
-      }
+      title={`Reconcile · ${reconcileLabel}`}
+      severity={sectionSeverity}
     >
+      {/* Phase 32.8C+++++++ — render the structured ops-health banner
+          if one of the evaluators reports stale/degraded/unavailable.
+          This replaces the earlier raw `UNAVAILABLE` red wall when the
+          subsystem is alive but the reconcile heartbeat is stale. */}
+      <OpsHealthBanner
+        title="Reviewer reconcile"
+        kind="reconcile"
+        health={reconcileHealth ?? null}
+      />
+      <OpsHealthBanner
+        title="Worker/queue telemetry"
+        kind="telemetry"
+        health={telemetryHealth ?? null}
+      />
+
       {queueFreshness === "delayed" || workerFreshness === "delayed" ? (
         <div
           className="ec-section-note"
@@ -4280,6 +4542,204 @@ function humanize(s: string): string {
     .toLowerCase()
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Phase 32.8C+++++++ — Operational health banner.
+ *
+ * Renders the structured OpsHealthState the backend evaluator returned.
+ * The banner colour follows the severity ladder (info / amber / warning
+ * / high / critical / muted) so a STALE telemetry sampler with the
+ * canonical source alive paints AMBER, not RED.
+ *
+ * Hidden when the health is null or HEALTHY (no banner = healthy).
+ */
+function OpsHealthBanner({
+  title,
+  kind,
+  health,
+}: {
+  title: string;
+  kind: string;
+  health:
+    | {
+        status: string;
+        severity: string;
+        reason: string;
+        recoverable: boolean;
+        canonicalSourceHealthy: boolean;
+        lastSuccessfulRunAt: string | null;
+        degradedSince: string | null;
+        retrying: boolean;
+      }
+    | null;
+}) {
+  if (!health) return null;
+  if (health.status === "HEALTHY") return null;
+  return (
+    <div
+      className="ec-section-note"
+      data-cc-ops-health-banner
+      data-cc-ops-health-kind={kind}
+      data-cc-ops-health-status={health.status}
+      data-cc-ops-health-severity={health.severity}
+      data-cc-ops-health-canonical={
+        health.canonicalSourceHealthy ? "true" : "false"
+      }
+      role="status"
+    >
+      <div className="ec-ops-health-banner-head">
+        <strong>
+          {title} · {humanizeOpsHealthStatus(health.status)}
+        </strong>
+        {health.canonicalSourceHealthy ? (
+          <span className="ec-chip-faint">canonical source healthy</span>
+        ) : null}
+      </div>
+      <div className="ec-ops-health-banner-reason">{health.reason}</div>
+      {health.lastSuccessfulRunAt ? (
+        <small className="ec-chip-faint">
+          Last successful run:{" "}
+          <time dateTime={health.lastSuccessfulRunAt}>
+            {relTime(health.lastSuccessfulRunAt)}
+          </time>
+        </small>
+      ) : null}
+    </div>
+  );
+}
+
+/** Phase 32.8C+++++++ — translate OpsHealthStatus to operator-facing label. */
+function humanizeOpsHealthStatus(status: string): string {
+  switch (status) {
+    case "HEALTHY":
+      return "Healthy";
+    case "STALE":
+      return "Telemetry stale";
+    case "DEGRADED":
+      return "Degraded read";
+    case "PARTIAL":
+      return "Partial read";
+    case "UNAVAILABLE":
+      return "Read unavailable";
+    case "FAILED":
+      return "Failed";
+    case "DISCONNECTED":
+      return "Disconnected";
+    default:
+      return status;
+  }
+}
+
+/** Phase 32.8C+++++++ — map OpsHealth severity to SectionShell severity. */
+function opsHealthToShellSeverity(
+  health: { severity: string; status: string } | null | undefined,
+): SeverityTone | undefined {
+  if (!health) return undefined;
+  switch (health.severity) {
+    case "info":
+      return "info";
+    case "amber":
+    case "warning":
+      return "warning";
+    case "high":
+      return "high";
+    case "critical":
+      return "critical";
+    case "muted":
+      return "info";
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Phase 32.8C+++++++ — active-section tracking hook.
+ *
+ * Uses an IntersectionObserver to detect which dashboard section is
+ * currently in the viewport. The persona priority chips light up the
+ * active section, and the URL hash is synced (without scroll jump) so
+ * browser refresh + deep links land on the right section.
+ *
+ * Honors a hash already present in the URL on first mount (scrolls to
+ * it once after layout settles).
+ */
+function useActiveSection(orderedIds: string[]): string | null {
+  const [active, setActive] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    // Honor an initial hash so /home#routingQueue lands on the section.
+    const initialHash = window.location.hash.replace("#", "");
+    if (initialHash) {
+      // Defer one frame so the section has rendered.
+      window.setTimeout(() => {
+        const el = document.getElementById(initialHash);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 150);
+    }
+    return undefined;
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (orderedIds.length === 0) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Pick the entry with the highest intersection ratio that's at
+        // least partly in view. Falls back to the topmost in-view entry.
+        let best: { id: string; ratio: number; top: number } | null = null;
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          const id = (e.target as HTMLElement).getAttribute("data-section");
+          if (!id) continue;
+          const r = e.intersectionRatio;
+          const top = (e.target as HTMLElement).getBoundingClientRect().top;
+          if (
+            !best ||
+            r > best.ratio ||
+            (r === best.ratio && top < best.top)
+          ) {
+            best = { id, ratio: r, top };
+          }
+        }
+        if (best) {
+          setActive(best.id);
+          // Soft-sync the URL hash so a copy-link picks up the right
+          // section. Use replaceState to avoid spamming history.
+          if (window.location.hash !== `#${best.id}`) {
+            history.replaceState(null, "", `#${best.id}`);
+          }
+        }
+      },
+      {
+        // Trigger when the section is approximately mid-viewport. The
+        // root-margin pulls the activation line down a bit so the
+        // currently focused section is the one the operator is reading.
+        rootMargin: "-30% 0px -55% 0px",
+        threshold: [0, 0.25, 0.5, 0.75, 1],
+      },
+    );
+
+    // Observe every section node we know about.
+    const els: Element[] = [];
+    for (const id of orderedIds) {
+      const el = document.getElementById(id);
+      if (el) {
+        observer.observe(el);
+        els.push(el);
+      }
+    }
+    return () => {
+      for (const el of els) observer.unobserve(el);
+      observer.disconnect();
+    };
+  }, [orderedIds.join(",")]);
+
+  return active;
 }
 
 /**

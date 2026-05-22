@@ -2160,6 +2160,107 @@
   font-weight: 600;
 }
 
+/* Phase 32.8C+++++++ — active chip styling. Lights up the chip whose
+   section is currently in view, driven by useActiveSection. */
+.ec-persona-priority-list
+  li[data-cc-persona-priority-active="true"]
+  a {
+  background: rgba(100, 200, 140, 0.16);
+  border-color: rgba(100, 200, 140, 0.45);
+  outline: 1px solid rgba(100, 200, 140, 0.45);
+}
+
+.ec-persona-priority-list
+  li[data-cc-persona-priority-active="true"]
+  [data-cc-persona-priority-rank-badge] {
+  background: rgba(100, 200, 140, 0.32);
+}
+
+/* Phase 32.8C+++++++ — OpsHealthBanner severity ladder.
+   STALE/DEGRADED render amber, UNAVAILABLE high, FAILED critical,
+   DISCONNECTED muted. Each banner exposes the canonical-source state
+   so operators see whether the underlying subsystem is alive. */
+[data-cc-ops-health-banner] {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+[data-cc-ops-health-banner][data-cc-ops-health-severity="amber"] {
+  border-color: rgba(220, 170, 60, 0.45);
+  background: rgba(220, 170, 60, 0.06);
+}
+
+[data-cc-ops-health-banner][data-cc-ops-health-severity="warning"] {
+  border-color: rgba(220, 140, 50, 0.5);
+  background: rgba(220, 140, 50, 0.08);
+}
+
+[data-cc-ops-health-banner][data-cc-ops-health-severity="high"] {
+  border-color: rgba(220, 80, 80, 0.55);
+  background: rgba(220, 80, 80, 0.08);
+}
+
+[data-cc-ops-health-banner][data-cc-ops-health-severity="critical"] {
+  border-color: rgba(220, 60, 60, 0.7);
+  background: rgba(220, 60, 60, 0.12);
+}
+
+[data-cc-ops-health-banner][data-cc-ops-health-severity="muted"] {
+  border-color: rgba(150, 150, 150, 0.35);
+  background: rgba(150, 150, 150, 0.04);
+  opacity: 0.85;
+}
+
+.ec-ops-health-banner-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ec-ops-health-banner-head strong {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.ec-ops-health-banner-reason {
+  font-size: 12px;
+  opacity: 0.85;
+  line-height: 1.5;
+}
+
+/* Phase 32.8C+++++++ — brief landed-flash when the operator clicks a
+   chip and the section scrolls into view. The flash auto-clears after
+   1.5s. */
+[data-cc-section-landed="true"] {
+  position: relative;
+}
+
+[data-cc-section-landed="true"]::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 12px;
+  border: 2px solid rgba(100, 200, 140, 0.5);
+  pointer-events: none;
+  animation: cc-section-landed-flash 1.5s ease-out forwards;
+}
+
+@keyframes cc-section-landed-flash {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* Bulk actions toolbar */
 [data-cc-bulk-actions-toolbar] {
   margin-bottom: 12px;

@@ -11,6 +11,39 @@ export type SectionStatus =
   | "unavailable"
   | "not_applicable";
 
+/**
+ * Phase 32.8C+++++++ — operational health diagnostic shape.
+ * The dashboard uses this to render the correct severity per subsystem
+ * (STALE/DEGRADED = amber, UNAVAILABLE/FAILED = red).
+ */
+export type OpsHealthStatus =
+  | "HEALTHY"
+  | "STALE"
+  | "DEGRADED"
+  | "PARTIAL"
+  | "UNAVAILABLE"
+  | "FAILED"
+  | "DISCONNECTED";
+
+export type OpsHealthSeverity =
+  | "info"
+  | "amber"
+  | "warning"
+  | "high"
+  | "critical"
+  | "muted";
+
+export type OpsHealthState = {
+  status: OpsHealthStatus;
+  severity: OpsHealthSeverity;
+  reason: string;
+  recoverable: boolean;
+  lastSuccessfulRunAt: string | null;
+  retrying: boolean;
+  degradedSince: string | null;
+  canonicalSourceHealthy: boolean;
+};
+
 export type WorkspaceScope = "PERSONAL" | "TEAM";
 
 export type SeverityTone = "info" | "warning" | "high" | "critical";
@@ -661,6 +694,17 @@ export type CommandCenterEnvelope = {
       meta: SectionMeta;
       data: OrgIntelligenceV2;
     };
+  };
+  /**
+   * Phase 32.8C+++++++ — per-subsystem operational health.
+   * Frontend uses this to render STALE/DEGRADED as AMBER and only
+   * UNAVAILABLE/FAILED as RED — so alive-but-delayed subsystems
+   * never appear as hard failures.
+   */
+  opsHealth?: {
+    telemetry: OpsHealthState;
+    reconcile: OpsHealthState;
+    securityRollup: OpsHealthState;
   };
   /**
    * Phase 32.8C FINAL-3 — persona-aware capability matrix. Frontend

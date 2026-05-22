@@ -77,6 +77,10 @@ import {
   resolveCapabilityMatrix,
   type CapabilityMatrix,
 } from "./persona-resolver.service.js";
+import { evaluateTelemetryHealth } from "../ops-health/telemetry-health.service.js";
+import { evaluateReconcileHealth } from "../ops-health/reconcile-health.service.js";
+import { evaluateSecurityRollupHealth } from "../ops-health/security-rollup-health.service.js";
+import type { OpsHealthState } from "../ops-health/types.js";
 
 // ---------------------------------------------------------------------------
 // Public contract types
@@ -1012,6 +1016,17 @@ export type CommandCenterEnvelope = {
    * route layer.
    */
   capabilityMatrix: CapabilityMatrix;
+  /**
+   * Phase 32.8C+++++++ — Per-subsystem operational health state.
+   * Frontend uses this to render the correct severity (STALE/DEGRADED
+   * AMBER rather than UNAVAILABLE RED) so an alive-but-delayed
+   * subsystem never reads as a hard failure.
+   */
+  opsHealth: {
+    telemetry: OpsHealthState;
+    reconcile: OpsHealthState;
+    securityRollup: OpsHealthState;
+  };
   unsupportedSignals: Array<{ signal: string; reason: string }>;
 };
 
@@ -2954,6 +2969,47 @@ export async function buildCommandCenter(input: {
     scope,
   });
 
+  // Phase 32.8C+++++++ — operational health evaluators. Each runs
+  // independently and never throws; failures degrade to a DEGRADED
+  // state with `canonicalSourceHealthy` set so the frontend knows
+  // the underlying subsystem is alive.
+  const [telemetryHealth, reconcileHealth, securityRollupHealth] =
+    await Promise.all([
+      evaluateTelemetryHealth({ teamId: input.teamId }).catch(() => ({
+        status: "DEGRADED" as const,
+        severity: "warning" as const,
+        reason:
+          "Telemetry health evaluator could not complete on this cycle.",
+        recoverable: true,
+        lastSuccessfulRunAt: null,
+        retrying: true,
+        degradedSince: new Date().toISOString(),
+        canonicalSourceHealthy: true,
+      })),
+      evaluateReconcileHealth({ teamId: input.teamId }).catch(() => ({
+        status: "DEGRADED" as const,
+        severity: "warning" as const,
+        reason:
+          "Reconcile health evaluator could not complete on this cycle.",
+        recoverable: true,
+        lastSuccessfulRunAt: null,
+        retrying: true,
+        degradedSince: new Date().toISOString(),
+        canonicalSourceHealthy: true,
+      })),
+      evaluateSecurityRollupHealth({ teamId: input.teamId }).catch(() => ({
+        status: "DEGRADED" as const,
+        severity: "warning" as const,
+        reason:
+          "Security rollup health evaluator could not complete on this cycle.",
+        recoverable: true,
+        lastSuccessfulRunAt: null,
+        retrying: true,
+        degradedSince: new Date().toISOString(),
+        canonicalSourceHealthy: true,
+      })),
+    ]);
+
   // Routing queue — top-N actionable items, severity ≥ warning.
   const routingQueueItems = pressure.items
     .filter(
@@ -3117,6 +3173,11 @@ export async function buildCommandCenter(input: {
       organizationalHealth: orgHealthResult,
     },
     capabilityMatrix,
+    opsHealth: {
+      telemetry: telemetryHealth,
+      reconcile: reconcileHealth,
+      securityRollup: securityRollupHealth,
+    },
     unsupportedSignals,
   };
 }
