@@ -251,6 +251,12 @@ describe("Phase 32.5 — workspace profile + sidebar visibility", () => {
   const SIDEBAR_SRC = readSource(
     "../../../apps/web/components/app-shell-v2/AppSidebarV2.tsx",
   );
+  // Phase 32.8B — sidebar items now live in the data-driven nav
+  // config. Tests that previously read structure out of the sidebar
+  // source should look here instead.
+  const NAV_CONFIG_SRC = readSource(
+    "../../../apps/web/lib/navigation-config.ts",
+  );
 
   it("workspace profile catalog has 6 bounded values including INDIVIDUAL and ENTERPRISE_ADMIN", () => {
     const m = PROFILE_SRC.match(
@@ -291,32 +297,43 @@ describe("Phase 32.5 — workspace profile + sidebar visibility", () => {
 
   it("sidebar removes the duplicate /governance#... anchor links", () => {
     // The old sidebar had /governance#retention and /governance#legal-holds.
-    expect(SIDEBAR_SRC).not.toMatch(/href: "\/governance#retention"/);
-    expect(SIDEBAR_SRC).not.toMatch(/href: "\/governance#legal-holds"/);
+    // Phase 32.8B keeps this invariant — the data-driven nav config
+    // never reintroduces those anchor links.
+    expect(NAV_CONFIG_SRC).not.toMatch(/href: "\/governance#retention"/);
+    expect(NAV_CONFIG_SRC).not.toMatch(/href: "\/governance#legal-holds"/);
   });
 
-  it("sidebar links Governance items to real sub-pages", () => {
-    expect(SIDEBAR_SRC).toMatch(/href: "\/governance\/lifecycle"/);
-    expect(SIDEBAR_SRC).toMatch(/href: "\/governance\/retention"/);
-    expect(SIDEBAR_SRC).toMatch(/href: "\/governance\/destruction"/);
+  it("sidebar links Governance items to real sub-pages (Phase 32.8B nav config)", () => {
+    // Phase 32.8B — sidebar items are declared in lib/navigation-config.ts.
+    expect(NAV_CONFIG_SRC).toMatch(/href: "\/governance\/lifecycle"/);
+    expect(NAV_CONFIG_SRC).toMatch(/href: "\/governance\/retention"/);
+    expect(NAV_CONFIG_SRC).toMatch(/href: "\/governance\/destruction"/);
   });
 
-  it("sidebar Admin items gate visibility on OWNER/ADMIN role", () => {
-    const code = stripComments(SIDEBAR_SRC);
-    // Each admin item declares visibility.roles = ["OWNER", "ADMIN"].
-    const adminBlock = code.match(
-      /const ADMIN_NAV: SidebarItem\[\] = \[([\s\S]*?)\];/,
+  it("administration items gate visibility on OWNER/ADMIN role (Phase 32.8B nav config)", () => {
+    // Phase 32.8B — Administration group lives in navigation-config.
+    // Teams, Billing, Integrations, Intake Links must require admin
+    // roles. Settings + Platform Admin have their own gates.
+    const code = stripComments(NAV_CONFIG_SRC);
+    // The Administration group block contains role-gated entries.
+    const adminGroupIdx = code.indexOf(
+      'const ADMINISTRATION_GROUP: NavGroup',
     );
-    expect(adminBlock).toBeTruthy();
-    expect(adminBlock![1]).toMatch(/roles: \["OWNER", "ADMIN"\]/);
+    expect(adminGroupIdx).toBeGreaterThan(-1);
+    const adminGroupEnd = code.indexOf("};", adminGroupIdx);
+    const adminGroupBody = code.slice(adminGroupIdx, adminGroupEnd);
+    // At least one admin-only item with the bounded role tuple.
+    expect(adminGroupBody).toMatch(/roles: \["OWNER", "ADMIN"\]/);
   });
 
-  it("sidebar feeds every group through filterByVisibility before rendering", () => {
-    const groupCount = (
-      SIDEBAR_SRC.match(/filterByVisibility\([A-Za-z_]+,\s*visibilityContext\)/g) ?? []
+  it("sidebar consumes selectNavigationGroups exactly once (Phase 32.8B data-driven)", () => {
+    // Phase 32.8B — the sidebar no longer hand-rolls multiple
+    // `filterByVisibility(...)` calls. The canonical pipeline is
+    // `selectNavigationGroups(...)`, called once.
+    const calls = (
+      SIDEBAR_SRC.match(/selectNavigationGroups\(/g) ?? []
     ).length;
-    // 4 groups: Primary, Operations, Governance, Admin.
-    expect(groupCount).toBe(4);
+    expect(calls).toBe(1);
   });
 });
 

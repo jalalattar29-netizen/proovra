@@ -60,6 +60,7 @@ import { opsSeedRoutes } from "./routes/ops-seed.routes.js";
 import { governanceSnapshotRoutes } from "./routes/governance-snapshot.routes.js";
 import { runtimeReadinessRoutes } from "./routes/runtime-readiness.routes.js";
 import { workflowInstancesRoutes } from "./routes/workflow-instances.routes.js";
+import { dashboardRoutes } from "./routes/dashboard.routes.js";
 import { runStartupConfigValidation } from "./config/index.js";
 import {
   AppError,
@@ -529,6 +530,10 @@ allowedHeaders: [
   // Phase 27.5 — Governance operationalization (analytics, notifications,
   // export lineage snapshots, reconciliation run + execution listings).
   await app.register(governanceOperationsRoutes);
+  // Phase 32.8C — Enterprise dashboard command-center aggregator.
+  // Read-only `/v1/dashboard/command-center`. Workspace-scoped,
+  // bounded, partial-failure tolerant. No audit emissions.
+  await app.register(dashboardRoutes);
   // Phase 10 — Integration platform. Two route trees:
   //   * `integrationsRoutes` — workspace-authenticated admin surface
   //     for managing API keys and webhook endpoints.

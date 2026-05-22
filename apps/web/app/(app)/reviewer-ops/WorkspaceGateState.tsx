@@ -58,7 +58,12 @@ export function WorkspaceGateState({
   surface,
 }: {
   state: Exclude<ActiveWorkspaceState, { status: "ready" }>;
-  surface: "Reviewer Ops" | "SLA" | "Escalations" | "Review Policy";
+  surface:
+    | "Reviewer Ops"
+    | "SLA"
+    | "Escalations"
+    | "Review Policy"
+    | "Governance Policy";
 }) {
   if (state.status === "loading") {
     return (

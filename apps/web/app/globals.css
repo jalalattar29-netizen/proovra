@@ -4,6 +4,7 @@
 @import "vanilla-cookieconsent/dist/cookieconsent.css";
 @import "../components/app-shell-v2/app-shell-v2.css";
 @import "../components/capture-v2/capture-v2.css";
+@import "../components/command-center/command-center.css";
 @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap");
 
 html,

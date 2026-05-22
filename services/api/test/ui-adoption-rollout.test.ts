@@ -140,8 +140,10 @@ describe("Reviewer Ops SLA page (full adoption)", () => {
 // =============================================================================
 
 describe("Reviewer Ops policy page (full adoption)", () => {
+  // Phase 32.8B — policy admin consolidated under /governance/policy
+  // per Phase 32.8A. /reviewer-ops/policy now redirects here.
   const src = readSource(
-    "../../../apps/web/app/(app)/reviewer-ops/policy/page.tsx",
+    "../../../apps/web/app/(app)/governance/policy/page.tsx",
   );
 
   it("imports RuntimeStatusBanner from the operational barrel", () => {
@@ -443,7 +445,8 @@ describe("Phase 28-H [cross-page wiring invariants]", () => {
   const ADOPTING_PAGES = [
     "../../../apps/web/app/(app)/reviewer-ops/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
-    "../../../apps/web/app/(app)/reviewer-ops/policy/page.tsx",
+    // Phase 32.8B — policy admin moved to /governance/policy.
+    "../../../apps/web/app/(app)/governance/policy/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
     "../../../apps/web/app/(app)/governance/page.tsx",
     "../../../apps/web/app/(app)/ops/observability/page.tsx",

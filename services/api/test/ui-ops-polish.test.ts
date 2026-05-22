@@ -36,35 +36,33 @@ function readSource(rel: string): string {
 // Sidebar navigation
 // =============================================================================
 
-describe("App sidebar — Operations group", () => {
+describe("App sidebar — Platform Health group (Phase 32.8B)", () => {
+  // Phase 32.8B — sidebar items live in lib/navigation-config.ts.
+  // The runtime/observability surfaces moved out of the merged
+  // "Operations" group into a dedicated Platform Health group per
+  // the Phase 32.8A information architecture.
+  const navConfig = readSource("../../../apps/web/lib/navigation-config.ts");
   const src = readSource(
     "../../../apps/web/components/app-shell-v2/AppSidebarV2.tsx",
   );
 
-  it("declares an Operations nav array (Phase 28-J renamed OPERATIONS_NAV → OPERATIONS_NAV_BASE so badges can be merged in per-render)", () => {
-    expect(src).toMatch(
-      /const\s+OPERATIONS_NAV_BASE\s*:\s*SidebarItem\[\]\s*=/,
-    );
+  it("Phase 32.8B routes /ops, /ops/observability, /ops/runbooks under Platform Health", () => {
+    expect(navConfig).toMatch(/href: "\/ops"/);
+    expect(navConfig).toMatch(/href: "\/ops\/observability"/);
+    expect(navConfig).toMatch(/href: "\/ops\/runbooks"/);
   });
 
-  it("includes /ops, /ops/observability, /ops/runbooks", () => {
-    expect(src).toMatch(/href:\s*"\/ops"/);
-    expect(src).toMatch(/href:\s*"\/ops\/observability"/);
-    expect(src).toMatch(/href:\s*"\/ops\/runbooks"/);
-  });
-
-  it("renders the Operations group inside the enterprise IA (Primary → Operations → Governance → Admin)", () => {
-    // Phase 28-J introduced semantic groups. Operations sits between
-    // Primary and Governance.
-    const primaryIdx = src.indexOf('title="Primary"');
-    const opsIdx = src.indexOf('title="Operations"');
-    const govIdx = src.indexOf('title="Governance"');
-    expect(primaryIdx).toBeGreaterThan(0);
-    expect(opsIdx).toBeGreaterThan(primaryIdx);
-    expect(govIdx).toBeGreaterThan(opsIdx);
+  it("places Platform Health between Review & Governance and Administration (Phase 32.8B canonical order)", () => {
+    const review = navConfig.indexOf('title: "Review & Governance"');
+    const platform = navConfig.indexOf('title: "Platform Health"');
+    const admin = navConfig.indexOf('title: "Administration"');
+    expect(review).toBeGreaterThan(0);
+    expect(platform).toBeGreaterThan(review);
+    expect(admin).toBeGreaterThan(platform);
   });
 
   it("never points at the broken /docs/runbooks", () => {
+    expect(navConfig).not.toContain("/docs/runbooks");
     expect(src).not.toContain("/docs/runbooks");
   });
 });

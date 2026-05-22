@@ -361,7 +361,8 @@ describe("Phase 32.7 — page consumers scope the runtime banner", () => {
       domain: "reviewer_ops",
     },
     {
-      file: "apps/web/app/(app)/reviewer-ops/policy/page.tsx",
+      // Phase 32.8B — policy admin consolidated under /governance/policy.
+      file: "apps/web/app/(app)/governance/policy/page.tsx",
       domain: "reviewer_ops",
     },
     {

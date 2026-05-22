@@ -1,0 +1,518 @@
+/**
+ * Phase 32.8B — Enterprise navigation rebuild + app shell cleanup.
+ *
+ * Source-contract regression suite. The frontend has no JS test
+ * runner; every invariant below is encoded as a structural property
+ * of the source text. The intent is to lock in the architecture
+ * Phase 32.8A specified:
+ *
+ *  PART 1 — navigation-config is the data-driven source of truth
+ *           (groups + items + metadata, NOT scattered JSX).
+ *  PART 2 — canonical 5-group hierarchy (Account in topbar, not
+ *           sidebar).
+ *  PART 3 — Phase 37 persona future-proofing.
+ *  PART 4 — Backward-compat redirects exist for every consolidated
+ *           legacy route.
+ *  PART 5 — Topbar workspace/account separation.
+ *  PART 6 — Sidebar renderer consumes the canonical filter pipeline.
+ *  PART 7 — No-regression invariants (no duplicates, no fake widgets,
+ *           verification-first card preserved).
+ */
+
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { describe, expect, it } from "vitest";
+
+function readWeb(rel: string): string {
+  return readFileSync(
+    fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url)),
+    "utf8",
+  );
+}
+
+const NAV_CONFIG = readWeb("lib/navigation-config.ts");
+const SIDEBAR = readWeb("components/app-shell-v2/AppSidebarV2.tsx");
+const TOPBAR = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
+
+// =============================================================================
+// PART 1 — navigation-config is the data-driven source of truth
+// =============================================================================
+
+describe("Phase 32.8B — navigation-config is the data-driven source of truth", () => {
+  it("exports a canonical NAV_DOMAINS catalog covering all 5 domains", () => {
+    expect(NAV_CONFIG).toMatch(
+      /export const NAV_DOMAINS\s*=\s*\[\s*"WORKSPACE",\s*"REVIEW_GOVERNANCE",\s*"PLATFORM_HEALTH",\s*"ADMINISTRATION",\s*"ACCOUNT",\s*\]\s*as const/,
+    );
+  });
+
+  it("exports a bounded NavWorkspaceScope (PERSONAL / TEAM / BOTH)", () => {
+    expect(NAV_CONFIG).toMatch(
+      /export const NAV_WORKSPACE_SCOPES\s*=\s*\[\s*"PERSONAL"\s*,\s*"TEAM"\s*,\s*"BOTH"\s*,?\s*\]\s*as const/,
+    );
+  });
+
+  it("exports a structured NavItem type with all required metadata fields", () => {
+    // Every metadata field required for Phase 37 persona filtering
+    // must be in the NavItem type definition.
+    for (const field of [
+      "id",
+      "label",
+      "href",
+      "iconKey",
+      "domain",
+      "workspaceScope",
+      "visibility",
+      "futurePersonaTags",
+      "badgeKey",
+      "deprecated",
+    ]) {
+      expect(NAV_CONFIG, `NavItem missing required metadata field ${field}`)
+        .toMatch(new RegExp(`${field}[\\?]?:`));
+    }
+  });
+
+  it("exports a NavGroup type with id, title, domain, order, items", () => {
+    expect(NAV_CONFIG).toMatch(/export type NavGroup\s*=\s*\{/);
+    for (const field of ["id", "title", "domain", "order", "items"]) {
+      expect(NAV_CONFIG).toMatch(new RegExp(`${field}[\\?]?:`));
+    }
+  });
+
+  it("exports NAVIGATION_GROUPS as the single source of truth array", () => {
+    expect(NAV_CONFIG).toMatch(
+      /export const NAVIGATION_GROUPS\s*:\s*ReadonlyArray<NavGroup>\s*=/,
+    );
+  });
+
+  it("exports selectNavigationGroups for role-aware filtering", () => {
+    expect(NAV_CONFIG).toMatch(
+      /export function selectNavigationGroups\(context:\s*\{/,
+    );
+  });
+
+  it("exports an ACCOUNT_MENU_ITEMS catalog (topbar dropdown only)", () => {
+    expect(NAV_CONFIG).toMatch(
+      /export const ACCOUNT_MENU_ITEMS\s*:\s*ReadonlyArray<AccountMenuItem>\s*=/,
+    );
+  });
+});
+
+// =============================================================================
+// PART 2 — Canonical 5-group hierarchy
+// =============================================================================
+
+describe("Phase 32.8B — canonical sidebar hierarchy (5 groups, Account in topbar)", () => {
+  it("declares the four sidebar groups in canonical order: Workspace → Review & Governance → Platform Health → Administration", () => {
+    const idxWorkspace = NAV_CONFIG.indexOf('title: "Workspace"');
+    const idxReview = NAV_CONFIG.indexOf('title: "Review & Governance"');
+    const idxPlatform = NAV_CONFIG.indexOf('title: "Platform Health"');
+    const idxAdmin = NAV_CONFIG.indexOf('title: "Administration"');
+    expect(idxWorkspace).toBeGreaterThan(-1);
+    expect(idxReview).toBeGreaterThan(idxWorkspace);
+    expect(idxPlatform).toBeGreaterThan(idxReview);
+    expect(idxAdmin).toBeGreaterThan(idxPlatform);
+  });
+
+  it("Workspace group items: Home, Capture, Evidence, Cases, Reports, Search (Phase 32.8A canonical surfaces)", () => {
+    for (const label of [
+      "Home",
+      "Capture",
+      "Evidence",
+      "Cases",
+      "Reports",
+      "Search",
+    ]) {
+      expect(NAV_CONFIG).toMatch(new RegExp(`label:\\s*"${label}"`));
+    }
+  });
+
+  it("Review & Governance group merges reviewer-ops + governance (Phase 32.8A)", () => {
+    // Both reviewer-ops queue items AND governance preservation
+    // items live under the unified Review & Governance group.
+    for (const label of [
+      "Reviewer Ops",
+      "SLA",
+      "Escalations",
+      "Governance",
+      "Lifecycle",
+      "Policy",
+      "Retention",
+      "Destruction",
+    ]) {
+      expect(NAV_CONFIG).toMatch(new RegExp(`label:\\s*"${label}"`));
+    }
+  });
+
+  it("Platform Health group is visually separated from Governance (Phase 32.8A boundary)", () => {
+    for (const label of [
+      "Operations Center",
+      "Observability",
+      "Runbooks",
+      "Security Center",
+    ]) {
+      expect(NAV_CONFIG).toMatch(new RegExp(`label:\\s*"${label}"`));
+    }
+  });
+
+  it("Administration group covers Teams, Billing, Integrations, Intake Links, Settings, Platform Admin", () => {
+    for (const label of [
+      "Teams",
+      "Billing",
+      "Integrations",
+      "Intake Links",
+      "Settings",
+      "Platform Admin",
+    ]) {
+      expect(NAV_CONFIG).toMatch(new RegExp(`label:\\s*"${label}"`));
+    }
+  });
+
+  it("Account is in the topbar dropdown, NOT the sidebar (Phase 32.8A workspace/account separation)", () => {
+    // No NAV_GROUP whose domain is ACCOUNT — Account lives in
+    // ACCOUNT_MENU_ITEMS (topbar) only.
+    const navigationGroupsBlock = NAV_CONFIG.match(
+      /export const NAVIGATION_GROUPS[\s\S]*?\]\s*;/,
+    );
+    expect(navigationGroupsBlock).toBeTruthy();
+    expect(navigationGroupsBlock![0]).not.toMatch(/ACCOUNT_GROUP/);
+    // The ACCOUNT_MENU_ITEMS catalog DOES exist (separately, for the topbar).
+    expect(NAV_CONFIG).toMatch(/export const ACCOUNT_MENU_ITEMS/);
+  });
+
+  it("no duplicate href between Workspace and Review & Governance (no Dashboard alongside Home)", () => {
+    // Specifically guard the Phase 32.8A finding that /dashboard
+    // and /home both existed. /dashboard now redirects; only
+    // /home appears in the nav config.
+    expect(NAV_CONFIG).not.toMatch(/href:\s*"\/dashboard"/);
+    // /home appears exactly once as a nav item.
+    const homeMatches = NAV_CONFIG.match(/href:\s*"\/home"/g) ?? [];
+    expect(homeMatches.length).toBe(1);
+  });
+
+  it("sidebar group titles are unique (no duplicate Operations vs Operations Center as a group)", () => {
+    const titleMatches =
+      NAV_CONFIG.match(/title:\s*"([^"]+)"/g)?.map((m) =>
+        m.replace(/title:\s*"/, "").replace(/"$/, ""),
+      ) ?? [];
+    // Filter to the canonical 4 group titles; should appear once each.
+    const groupTitles = titleMatches.filter((t) =>
+      [
+        "Workspace",
+        "Review & Governance",
+        "Platform Health",
+        "Administration",
+      ].includes(t),
+    );
+    expect(groupTitles.sort()).toEqual([
+      "Administration",
+      "Platform Health",
+      "Review & Governance",
+      "Workspace",
+    ]);
+  });
+});
+
+// =============================================================================
+// PART 3 — Phase 37 persona future-proofing
+// =============================================================================
+
+describe("Phase 32.8B — Phase 37 persona future-proofing", () => {
+  it("declares the bounded FUTURE_PERSONA_TAGS catalog (RESERVED for Phase 37)", () => {
+    expect(NAV_CONFIG).toMatch(/export const FUTURE_PERSONA_TAGS/);
+    // The list MUST include the personas Phase 37 plans to support.
+    for (const persona of [
+      "INDIVIDUAL_USER",
+      "LAWYER",
+      "INVESTIGATOR",
+      "INSURANCE_REVIEWER",
+      "JOURNALIST",
+      "ENTERPRISE_ADMIN",
+      "REVIEWER",
+      "AUDITOR",
+      "WORKSPACE_OWNER",
+    ]) {
+      expect(
+        NAV_CONFIG,
+        `FUTURE_PERSONA_TAGS missing ${persona}`,
+      ).toMatch(new RegExp(`"${persona}"`));
+    }
+  });
+
+  it("every NavItem declares a non-empty futurePersonaTags array", () => {
+    // Find every futurePersonaTags occurrence and verify NONE
+    // of them are an empty array (`[]`).
+    const empty = NAV_CONFIG.match(/futurePersonaTags:\s*\[\s*\]/g) ?? [];
+    expect(empty.length).toBe(0);
+    // And at least 20 items declare the field (lower-bound sanity).
+    const declared = NAV_CONFIG.match(/futurePersonaTags:\s*\[/g) ?? [];
+    expect(declared.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it("persona tags do NOT drive filtering today — only role/profile/platform-admin do", () => {
+    // The selectNavigationGroups body must NOT reference
+    // futurePersonaTags. Persona-aware filtering is Phase 37.
+    const selectFnIdx = NAV_CONFIG.indexOf(
+      "export function selectNavigationGroups",
+    );
+    expect(selectFnIdx).toBeGreaterThan(-1);
+    const selectFnEnd = NAV_CONFIG.indexOf("\n}\n", selectFnIdx);
+    const fn = NAV_CONFIG.slice(selectFnIdx, selectFnEnd);
+    expect(fn).not.toMatch(/futurePersonaTags/);
+  });
+
+  it("workspaceScope is declared on every NavItem (Phase 32.8C ready)", () => {
+    // The renderer doesn't filter by workspaceScope today, but
+    // every item must declare it so the future filter has data.
+    // Lower-bound sanity: at least 20 declarations.
+    const declared = NAV_CONFIG.match(/workspaceScope:\s*"(PERSONAL|TEAM|BOTH)"/g) ?? [];
+    expect(declared.length).toBeGreaterThanOrEqual(20);
+  });
+});
+
+// =============================================================================
+// PART 4 — Backward-compat redirects
+// =============================================================================
+
+describe("Phase 32.8B — backward-compat redirects for consolidated routes", () => {
+  it("exports a canonical DEPRECATED_ROUTE_REDIRECTS map", () => {
+    expect(NAV_CONFIG).toMatch(
+      /export const DEPRECATED_ROUTE_REDIRECTS\s*=\s*\{/,
+    );
+  });
+
+  const expectedRedirects: Record<string, string> = {
+    "/dashboard": "/home",
+    "/review": "/reviewer-ops",
+    "/operations": "/ops",
+    "/security": "/security-center",
+    "/locked": "/evidence?filter=locked",
+    "/deleted": "/evidence?filter=deleted",
+    "/archive": "/evidence?filter=archived",
+    "/reviewer-ops/policy": "/governance/policy",
+  };
+
+  it("includes every Phase 32.8A consolidated route", () => {
+    for (const [from, to] of Object.entries(expectedRedirects)) {
+      const escapedFrom = from.replace(/\//g, "\\/").replace(/\?/g, "\\?");
+      const escapedTo = to.replace(/\//g, "\\/").replace(/\?/g, "\\?");
+      expect(
+        NAV_CONFIG,
+        `DEPRECATED_ROUTE_REDIRECTS missing "${from}" → "${to}"`,
+      ).toMatch(new RegExp(`"${escapedFrom}":\\s*"${escapedTo}"`));
+    }
+  });
+
+  it("every consolidated legacy route has a backward-compat redirect page", () => {
+    // Maps the entry's source route to the file that must exist + the
+    // canonical target it must redirect to.
+    const cases: Array<{ source: string; expectTarget: string }> = [
+      { source: "app/(app)/dashboard/page.tsx", expectTarget: "/home" },
+      { source: "app/(app)/review/page.tsx", expectTarget: "/reviewer-ops" },
+      { source: "app/(app)/operations/page.tsx", expectTarget: "/ops" },
+      { source: "app/(app)/security/page.tsx", expectTarget: "/security-center" },
+      {
+        source: "app/(app)/locked/page.tsx",
+        expectTarget: "/evidence?filter=locked",
+      },
+      {
+        source: "app/(app)/deleted/page.tsx",
+        expectTarget: "/evidence?filter=deleted",
+      },
+      {
+        source: "app/(app)/archive/page.tsx",
+        expectTarget: "/evidence?filter=archived",
+      },
+      {
+        source: "app/(app)/reviewer-ops/policy/page.tsx",
+        expectTarget: "/governance/policy",
+      },
+    ];
+    for (const { source, expectTarget } of cases) {
+      const src = readWeb(source);
+      expect(
+        src,
+        `Redirect file ${source} should import { redirect } from next/navigation`,
+      ).toMatch(/import\s+\{\s*redirect\s*\}\s+from\s+"next\/navigation"/);
+      const escaped = expectTarget.replace(/\//g, "\\/").replace(/\?/g, "\\?");
+      expect(
+        src,
+        `Redirect file ${source} should call redirect("${expectTarget}")`,
+      ).toMatch(new RegExp(`redirect\\("${escaped}"\\)`));
+    }
+  });
+
+  it("/governance/policy is the canonical policy surface (Phase 32.8A consolidation)", () => {
+    const policy = readWeb("app/(app)/governance/policy/page.tsx");
+    // Real page with the policy controls — NOT a redirect file.
+    expect(policy).not.toMatch(/import\s+\{\s*redirect\s*\}\s+from\s+"next\/navigation"/);
+    // Real controls visible:
+    expect(policy).toMatch(/Step-up enforcement/);
+    expect(policy).toMatch(/SLA overrides/);
+    expect(policy).toMatch(/Reviewer inactivity/);
+  });
+});
+
+// =============================================================================
+// PART 5 — Topbar workspace/account separation
+// =============================================================================
+
+describe("Phase 32.8B — topbar separates workspace context from account context", () => {
+  it("renders a distinct workspace chip (data-app-topbar-workspace)", () => {
+    expect(TOPBAR).toMatch(/data-app-topbar-workspace/);
+    expect(TOPBAR).toMatch(/data-app-topbar-workspace-menu/);
+  });
+
+  it("renders a distinct account chip (data-app-topbar-account)", () => {
+    expect(TOPBAR).toMatch(/data-app-topbar-account/);
+    expect(TOPBAR).toMatch(/data-app-topbar-account-menu/);
+  });
+
+  it("workspace chip surfaces the canonical workspace metadata (name + scope + role)", () => {
+    expect(TOPBAR).toMatch(/data-workspace-name/);
+    expect(TOPBAR).toMatch(/data-workspace-scope-line/);
+    // Scope chip on each workspace option ("Personal" or "Team").
+    expect(TOPBAR).toMatch(/data-workspace-scope-chip/);
+  });
+
+  it("workspace switcher lists the user's other workspaces", () => {
+    expect(TOPBAR).toMatch(/workspaceList\.map\(\(w\)/);
+    expect(TOPBAR).toMatch(/data-workspace-option/);
+  });
+
+  it("account dropdown contains the canonical account items: Profile, Notifications, Account settings, Sign out", () => {
+    expect(TOPBAR).toMatch(/data-account-menu-item="profile"/);
+    expect(TOPBAR).toMatch(/data-account-menu-item="notifications"/);
+    expect(TOPBAR).toMatch(/data-account-menu-item="settings"/);
+    expect(TOPBAR).toMatch(/data-account-menu-item="signout"/);
+  });
+
+  it("account dropdown does NOT include workspace switching (clean separation)", () => {
+    // Locate the account menu JSX block specifically and verify
+    // it does not include the workspace switcher hooks.
+    const acctIdx = TOPBAR.indexOf('data-app-topbar-account-menu');
+    expect(acctIdx).toBeGreaterThan(-1);
+    // The account menu body ends at the next </div> or </button>
+    // closing the menu container. Take a generous slice.
+    const acctSlice = TOPBAR.slice(acctIdx, acctIdx + 2400);
+    expect(acctSlice).not.toMatch(/data-workspace-option/);
+    expect(acctSlice).not.toMatch(/Switch workspace/);
+  });
+
+  it("workspace chip does NOT include account actions (clean separation)", () => {
+    const wsIdx = TOPBAR.indexOf('data-app-topbar-workspace-menu');
+    expect(wsIdx).toBeGreaterThan(-1);
+    const wsSlice = TOPBAR.slice(wsIdx, wsIdx + 2400);
+    expect(wsSlice).not.toMatch(/data-account-menu-item/);
+    expect(wsSlice).not.toMatch(/Sign out/);
+  });
+
+  it("topbar no longer renders the deprecated horizontal duplicate-nav (Phase 32.8A finding)", () => {
+    // The legacy TOP_NAV array (Workspace/Capture/Evidence/Cases/
+    // Teams/Reports/Billing/Settings) duplicated the sidebar; the
+    // refactor removed it.
+    expect(TOPBAR).not.toMatch(/const TOP_NAV\s*=/);
+  });
+});
+
+// =============================================================================
+// PART 6 — Sidebar renderer consumes the canonical filter pipeline
+// =============================================================================
+
+describe("Phase 32.8B — sidebar renderer consumes the canonical filter pipeline", () => {
+  it("imports from lib/navigation-config (not inline nav arrays)", () => {
+    expect(SIDEBAR).toMatch(
+      /from\s+"\.\.\/\.\.\/lib\/navigation-config"/,
+    );
+    expect(SIDEBAR).toMatch(/selectNavigationGroups/);
+    expect(SIDEBAR).toMatch(/NavGroup/);
+  });
+
+  it("does NOT define its own PRIMARY_NAV / OPERATIONS_NAV_BASE / GOVERNANCE_NAV_BASE / ADMIN_NAV arrays", () => {
+    // After Phase 32.8B those legacy arrays have been removed in
+    // favor of the canonical nav config.
+    expect(SIDEBAR).not.toMatch(/const PRIMARY_NAV/);
+    expect(SIDEBAR).not.toMatch(/const OPERATIONS_NAV_BASE/);
+    expect(SIDEBAR).not.toMatch(/const GOVERNANCE_NAV_BASE/);
+    expect(SIDEBAR).not.toMatch(/const ADMIN_NAV/);
+  });
+
+  it("calls selectNavigationGroups exactly once with the visibility context", () => {
+    const calls = SIDEBAR.match(/selectNavigationGroups\(\s*\{/g) ?? [];
+    expect(calls.length).toBe(1);
+    expect(SIDEBAR).toMatch(/isPlatformAdmin,/);
+    expect(SIDEBAR).toMatch(/role: resolvedRole/);
+  });
+
+  it("renders groups via a single map over visibleGroups (uniform render path)", () => {
+    expect(SIDEBAR).toMatch(/visibleGroups\.map\(\(group\)\s*=>/);
+  });
+
+  it("hydrates runtime badges from real runtime state — never fabricates a badge", () => {
+    // Phase 28-J rule preserved: badges only appear when real
+    // values warrant.
+    expect(SIDEBAR).toMatch(/runtime\.counts\.escalations > 0/);
+    expect(SIDEBAR).toMatch(/governanceIncidents > 0/);
+    expect(SIDEBAR).toMatch(/ariaLabel:\s*`Runtime \$\{runtime\.severity\.toLowerCase\(\)\}`/);
+  });
+
+  it("still resolves role from useActiveWorkspaceId fallback (Phase 32.6.4 preserved)", () => {
+    expect(SIDEBAR).toMatch(/workspace\.role/);
+    expect(SIDEBAR).toMatch(/resolvedRole/);
+  });
+});
+
+// =============================================================================
+// PART 7 — No-regression invariants
+// =============================================================================
+
+describe("Phase 32.8B — no-regression invariants", () => {
+  it("preserves the Verification-first trust card on the sidebar (Phase 28-J)", () => {
+    expect(SIDEBAR).toMatch(/Verification-first/);
+    expect(SIDEBAR).toMatch(/We do not store truth/);
+  });
+
+  it("preserves the support link in the sidebar", () => {
+    expect(SIDEBAR).toMatch(/href="\/support"/);
+  });
+
+  it("preserves backend-canonical role enum surface (Phase 32.6.4)", () => {
+    // The visibility predicate still accepts the bounded role enum.
+    // The shape lives in workspace-profile.ts (SidebarVisibility);
+    // the nav config imports + uses it.
+    const PROFILE_SRC = readWeb("lib/workspace-profile.ts");
+    expect(PROFILE_SRC).toMatch(/roles\?:\s*ReadonlyArray<WorkspaceRole>/);
+    // And the nav config consumes the imported SidebarVisibility type.
+    expect(NAV_CONFIG).toMatch(/SidebarVisibility/);
+  });
+
+  it("never weakens governance role gating (OWNER/ADMIN remains required on policy/retention/destruction)", () => {
+    // Each of these items declares the OWNER/ADMIN role gate.
+    // We assert the literal tuple appears at LEAST three times
+    // (once per gated item).
+    const tuples = NAV_CONFIG.match(/roles:\s*\["OWNER",\s*"ADMIN"\]/g) ?? [];
+    expect(tuples.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("Platform Admin entry requires platform admin (does NOT widen to MEMBER)", () => {
+    // The Platform Admin nav item carries requiresPlatformAdmin: true.
+    expect(NAV_CONFIG).toMatch(
+      /label: "Platform Admin"[\s\S]{0,600}requiresPlatformAdmin:\s*true/,
+    );
+  });
+
+  it("no #anchor href on any nav item (Phase 32.5 anchor-link cleanup preserved)", () => {
+    const anchors = NAV_CONFIG.match(/href:\s*"[^"]*#[^"]*"/g) ?? [];
+    expect(anchors.length).toBe(0);
+  });
+
+  it("/governance/policy is the canonical Policy href (Phase 32.8A consolidation)", () => {
+    // The Policy nav item points at /governance/policy, NOT the
+    // legacy /reviewer-ops/policy.
+    expect(NAV_CONFIG).toMatch(
+      /label: "Policy"[\s\S]{0,400}href: "\/governance\/policy"/,
+    );
+    // And the legacy path is NOT referenced as a sidebar href.
+    expect(NAV_CONFIG).not.toMatch(/href:\s*"\/reviewer-ops\/policy"/);
+  });
+});

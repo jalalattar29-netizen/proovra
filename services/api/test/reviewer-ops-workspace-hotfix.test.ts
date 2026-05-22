@@ -132,11 +132,15 @@ describe("WorkspaceGateState renderer", () => {
     expect(src).toContain("Request ID");
   });
 
-  it("supports all four Reviewer Ops surfaces by name", () => {
+  it("supports all Reviewer Ops surfaces by name (Phase 32.8B widened with Governance Policy)", () => {
+    // Phase 32.8B — policy admin moved to /governance/policy; the
+    // GateState surface union was widened to add "Governance Policy"
+    // and kept "Review Policy" for the legacy redirect window.
     expect(src).toContain('"Reviewer Ops"');
     expect(src).toContain('"SLA"');
     expect(src).toContain('"Escalations"');
     expect(src).toContain('"Review Policy"');
+    expect(src).toContain('"Governance Policy"');
   });
 });
 
@@ -162,9 +166,10 @@ describe("Reviewer Ops pages route through useActiveWorkspaceId", () => {
       surface: '"Escalations"',
     },
     {
+      // Phase 32.8B — moved to /governance/policy; legacy path is a redirect.
       name: "policy admin",
-      rel: "../../../apps/web/app/(app)/reviewer-ops/policy/page.tsx",
-      surface: '"Review Policy"',
+      rel: "../../../apps/web/app/(app)/governance/policy/page.tsx",
+      surface: '"Governance Policy"',
     },
     {
       name: "review workspace [reviewId]",
@@ -230,20 +235,33 @@ describe("Reviewer Ops pages route through useActiveWorkspaceId", () => {
 // /home page is unaffected — uses session-scoped queries, not currentWorkspaceId
 // -----------------------------------------------------------------------------
 
-describe("/home is workspace-resolution-independent (does not regress)", () => {
-  const src = readSource("../../../apps/web/app/(app)/home/page.tsx");
+describe("/home is workspace-resolution-resilient (does not regress)", () => {
+  // Phase 32.8C — /home now renders the Command Center, which
+  // resolves the active workspace via the canonical hook
+  // `useActiveWorkspaceId`. That hook already carries the Phase
+  // 32.6.4 fallback (`/v1/users/me` → `/v1/teams[0]`), so the
+  // page still works even if `pickMe()` drops `currentWorkspaceId`.
+  const home = readSource("../../../apps/web/app/(app)/home/page.tsx");
+  const cc = readSource(
+    "../../../apps/web/components/command-center/CommandCenter.tsx",
+  );
 
-  it("/home calls /v1/evidence?scope=active (server resolves workspace)", () => {
-    expect(src).toContain("/v1/evidence?scope=active");
+  it("/home delegates to the Command Center component (Phase 32.8C)", () => {
+    expect(home).toMatch(/<CommandCenter\s*\/>/);
+    expect(home).toMatch(
+      /import\s*\{\s*CommandCenter\s*\}\s*from\s*"[^"]*components\/command-center\/CommandCenter"/,
+    );
   });
 
-  it("/home does NOT depend on user.currentWorkspaceId for primary load", () => {
-    // The home page must work even if pickMe is misconfigured. This
-    // pins the architectural property: home is the canonical
-    // workspace-independent surface; the reviewer-ops pages are the
-    // workspace-dependent ones. Future drift would mean a regression
-    // in either direction.
-    const live = src
+  it("Command Center routes workspace resolution through the canonical hook (which carries the Phase 32.6.4 fallback)", () => {
+    expect(cc).toMatch(/useActiveWorkspaceId\(/);
+  });
+
+  it("/home does NOT depend directly on user.currentWorkspaceId for primary load", () => {
+    // The Phase 32.6.4 invariant is preserved: the page never reads
+    // `user.currentWorkspaceId` itself — the resolution lives in
+    // `useActiveWorkspaceId`, which fails over to `/v1/teams[0]`.
+    const live = cc
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/\/\/[^\n]*/g, "");
     expect(live).not.toMatch(

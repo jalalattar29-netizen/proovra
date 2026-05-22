@@ -199,60 +199,65 @@ describe("AppTopbarV2 — runtime indicator wiring", () => {
 // =============================================================================
 
 describe("AppSidebarV2 — IA + operational badges", () => {
+  // Phase 32.8B — sidebar structure lives in the data-driven nav
+  // config. The renderer is in AppSidebarV2.tsx.
   const src = readSource(
     "../../../apps/web/components/app-shell-v2/AppSidebarV2.tsx",
   );
+  const navConfig = readSource("../../../apps/web/lib/navigation-config.ts");
 
-  it("declares the four semantic groups in the documented order", () => {
-    const primary = src.indexOf('title="Primary"');
-    const ops = src.indexOf('title="Operations"');
-    const gov = src.indexOf('title="Governance"');
-    // Phase 32.5 — Admin section now uses a static title (the
-    // decorative `isPlatformAdmin ? "Admin" : "Admin"` was simplified;
-    // visibility is enforced via the visibility predicate on each
-    // ADMIN_NAV item instead).
-    const admin = src.indexOf('title="Admin"');
-    expect(primary).toBeGreaterThan(0);
-    expect(ops).toBeGreaterThan(primary);
-    expect(gov).toBeGreaterThan(ops);
-    expect(admin).toBeGreaterThan(gov);
+  it("declares the five canonical groups in the documented order (Phase 32.8B)", () => {
+    // Phase 32.8B canonical sidebar hierarchy (Account lives in the
+    // topbar dropdown, NOT in the sidebar):
+    //   1) Workspace  2) Review & Governance  3) Platform Health
+    //   4) Administration
+    const workspace = navConfig.indexOf('title: "Workspace"');
+    const review = navConfig.indexOf('title: "Review & Governance"');
+    const platform = navConfig.indexOf('title: "Platform Health"');
+    const admin = navConfig.indexOf('title: "Administration"');
+    expect(workspace).toBeGreaterThan(0);
+    expect(review).toBeGreaterThan(workspace);
+    expect(platform).toBeGreaterThan(review);
+    expect(admin).toBeGreaterThan(platform);
   });
 
-  it("Primary group includes Dashboard, Capture, Evidence, Cases, Reports", () => {
-    expect(src).toMatch(/PRIMARY_NAV[\s\S]*?label:\s*"Dashboard"/);
-    expect(src).toMatch(/PRIMARY_NAV[\s\S]*?label:\s*"Capture"/);
-    expect(src).toMatch(/PRIMARY_NAV[\s\S]*?label:\s*"Evidence"/);
-    expect(src).toMatch(/PRIMARY_NAV[\s\S]*?label:\s*"Cases"/);
-    expect(src).toMatch(/PRIMARY_NAV[\s\S]*?label:\s*"Reports"/);
+  it("Workspace group includes Home, Capture, Evidence, Cases, Reports, Search (Phase 32.8B)", () => {
+    // Phase 32.8B: Dashboard is consolidated under /home — the
+    // canonical label is "Home", not "Dashboard". Search is
+    // promoted into the Workspace group.
+    expect(navConfig).toMatch(/label: "Home"/);
+    expect(navConfig).toMatch(/label: "Capture"/);
+    expect(navConfig).toMatch(/label: "Evidence"/);
+    expect(navConfig).toMatch(/label: "Cases"/);
+    expect(navConfig).toMatch(/label: "Reports"/);
+    expect(navConfig).toMatch(/label: "Search"/);
   });
 
-  it("Operations group lists Reviewer Ops, SLA, Escalations, Operations Center, Observability, Runbooks", () => {
-    expect(src).toMatch(/OPERATIONS_NAV_BASE[\s\S]*?label:\s*"Reviewer Ops"/);
-    expect(src).toMatch(/OPERATIONS_NAV_BASE[\s\S]*?label:\s*"SLA"/);
-    expect(src).toMatch(/OPERATIONS_NAV_BASE[\s\S]*?label:\s*"Escalations"/);
-    expect(src).toMatch(
-      /OPERATIONS_NAV_BASE[\s\S]*?label:\s*"Operations Center"/,
-    );
-    expect(src).toMatch(/OPERATIONS_NAV_BASE[\s\S]*?label:\s*"Observability"/);
-    expect(src).toMatch(/OPERATIONS_NAV_BASE[\s\S]*?label:\s*"Runbooks"/);
+  it("Review & Governance group lists Reviewer Ops, SLA, Escalations, Governance, Lifecycle, Policy, Retention, Destruction (Phase 32.8B)", () => {
+    expect(navConfig).toMatch(/label: "Reviewer Ops"/);
+    expect(navConfig).toMatch(/label: "SLA"/);
+    expect(navConfig).toMatch(/label: "Escalations"/);
+    expect(navConfig).toMatch(/label: "Governance"/);
+    expect(navConfig).toMatch(/label: "Lifecycle"/);
+    expect(navConfig).toMatch(/label: "Policy"/);
+    expect(navConfig).toMatch(/label: "Retention"/);
+    expect(navConfig).toMatch(/label: "Destruction"/);
   });
 
-  it("Governance group lists Governance, Lifecycle, Retention, Destruction, Policy (Phase 32.5)", () => {
-    // Phase 32.5 — replaced the two duplicate `/governance#…` anchor
-    // links with real sub-pages so each item routes to a distinct UI.
-    // `Legal Holds` is now a tab inside /governance (matches the
-    // existing hub page layout) rather than a duplicate shell.
-    expect(src).toMatch(/GOVERNANCE_NAV_BASE[\s\S]*?label:\s*"Governance"/);
-    expect(src).toMatch(/GOVERNANCE_NAV_BASE[\s\S]*?label:\s*"Lifecycle"/);
-    expect(src).toMatch(/GOVERNANCE_NAV_BASE[\s\S]*?label:\s*"Retention"/);
-    expect(src).toMatch(/GOVERNANCE_NAV_BASE[\s\S]*?label:\s*"Destruction"/);
-    expect(src).toMatch(/GOVERNANCE_NAV_BASE[\s\S]*?label:\s*"Policy"/);
+  it("Platform Health group lists Operations Center, Observability, Runbooks, Security Center (Phase 32.8B)", () => {
+    expect(navConfig).toMatch(/label: "Operations Center"/);
+    expect(navConfig).toMatch(/label: "Observability"/);
+    expect(navConfig).toMatch(/label: "Runbooks"/);
+    expect(navConfig).toMatch(/label: "Security Center"/);
   });
 
-  it("Admin group is Teams, Billing, Settings", () => {
-    expect(src).toMatch(/ADMIN_NAV[\s\S]*?label:\s*"Teams"/);
-    expect(src).toMatch(/ADMIN_NAV[\s\S]*?label:\s*"Billing"/);
-    expect(src).toMatch(/ADMIN_NAV[\s\S]*?label:\s*"Settings"/);
+  it("Administration group lists Teams, Billing, Integrations, Intake Links, Settings, Platform Admin (Phase 32.8B)", () => {
+    expect(navConfig).toMatch(/label: "Teams"/);
+    expect(navConfig).toMatch(/label: "Billing"/);
+    expect(navConfig).toMatch(/label: "Integrations"/);
+    expect(navConfig).toMatch(/label: "Intake Links"/);
+    expect(navConfig).toMatch(/label: "Settings"/);
+    expect(navConfig).toMatch(/label: "Platform Admin"/);
   });
 
   it("consumes the real useGlobalRuntimeState hook (real runtime data, not fake)", () => {
@@ -263,8 +268,11 @@ describe("AppSidebarV2 — IA + operational badges", () => {
   });
 
   it("escalation badge tone scales with severity (CRITICAL > HIGH > WARNING)", () => {
+    // Phase 32.8B — code was re-formatted across lines after the
+    // data-driven refactor; the assertion allows whitespace between
+    // `some(` and its arrow function.
     expect(src).toMatch(
-      /escalations\.some\(\(e\) => e\.severity === "CRITICAL"\)[\s\S]*?"critical"[\s\S]*?"high"[\s\S]*?"warning"/,
+      /escalations\.some\(\s*\(e\)\s*=>\s*e\.severity === "CRITICAL"[\s\S]*?\)[\s\S]*?"critical"[\s\S]*?"high"[\s\S]*?"warning"/,
     );
   });
 
