@@ -15,6 +15,59 @@ export type WorkspaceScope = "PERSONAL" | "TEAM";
 
 export type SeverityTone = "info" | "warning" | "high" | "critical";
 
+export type ReasonCode =
+  | "REVIEW_OVERDUE"
+  | "REVIEW_DUE_SOON"
+  | "REVIEW_UNASSIGNED"
+  | "REVIEW_STALLED"
+  | "REVIEWER_INACTIVE"
+  | "REVIEWER_OVERLOADED"
+  | "CASE_AT_RISK"
+  | "CASE_EVIDENCE_GAP"
+  | "EVIDENCE_STUCK_UPLOAD"
+  | "EVIDENCE_UNSIGNED_TOO_LONG"
+  | "EVIDENCE_NO_CASE"
+  | "REPORT_MISSING"
+  | "REPORT_FAILED"
+  | "PACKAGE_MISSING"
+  | "PACKAGE_FAILED"
+  | "PACKAGE_BLOCKED_BY_GOVERNANCE"
+  | "EXPORT_BLOCKED_BY_GOVERNANCE"
+  | "GOVERNANCE_CONFLICT"
+  | "LEGAL_HOLD_ACTIVE"
+  | "RETENTION_REVIEW_DUE"
+  | "DESTRUCTION_REVIEW_PENDING"
+  | "QUEUE_CONGESTION"
+  | "RETRY_STORM"
+  | "OPERATIONAL_INCIDENT"
+  | "INTEGRITY_REVIEW_REQUIRED"
+  | "INTEGRITY_FAILED"
+  | "CUSTODY_GAP"
+  | "ACCESS_ANOMALY";
+
+export type OperationalDomain =
+  | "review_ops"
+  | "evidence_pipeline"
+  | "reports"
+  | "packages"
+  | "governance"
+  | "custody_integrity"
+  | "security_access"
+  | "operational_health"
+  | "case_ops";
+
+export type AffectedEntityType =
+  | "evidence"
+  | "review_workflow"
+  | "escalation"
+  | "case"
+  | "case_hold"
+  | "evidence_hold"
+  | "incident"
+  | "destruction_review"
+  | "policy"
+  | "security_event";
+
 export type OperationalPressureItem = {
   id: string;
   category:
@@ -39,6 +92,114 @@ export type OperationalPressureItem = {
   subtitle: string | null;
   href: string;
   occurredAt: string | null;
+  // Phase 32.8C+ routing metadata
+  reasonCode: ReasonCode;
+  affectedDomain: OperationalDomain;
+  affectedEntityType: AffectedEntityType;
+  affectedEntityId: string | null;
+  operationalExplanation: string;
+  recommendedAction: string;
+  primaryRoute: string;
+  secondaryRoute: string | null;
+  ageMs: number | null;
+  sourceTable: string;
+  // Phase 32.8C++ action-routing permission metadata
+  requiredPermission: string | null;
+  requiredRoles: string[];
+  canCurrentUserAct: boolean;
+  safeActionLabel: string;
+  escalationPath: string | null;
+};
+
+export type SectionMeta = {
+  status: SectionStatus;
+  warnings: string[];
+  unsupportedSignals: string[];
+  sourceSummary: string[];
+};
+
+export type InvestigationRiskLevel =
+  | "CRITICAL"
+  | "HIGH"
+  | "MEDIUM"
+  | "LOW"
+  | "NONE";
+
+export type InvestigationRiskItem = {
+  caseId: string;
+  caseName: string;
+  riskLevel: InvestigationRiskLevel;
+  riskScore: number;
+  reasonCodes: string[];
+  recommendedAction: string;
+  evidenceCount: number;
+  overdueReviewCount: number;
+  openEscalationsCount: number;
+  hasActiveLegalHold: boolean;
+  lastActivityAtUtc: string | null;
+  href: string;
+};
+
+export type CrossCaseSignal = {
+  kind:
+    | "evidence_in_multiple_cases"
+    | "reviewer_overload_multi_case"
+    | "governance_block_multi_case";
+  affectedCount: number;
+  description: string;
+  href: string;
+};
+
+export type WorkloadHealth = "HEALTHY" | "WATCH" | "DEGRADED" | "CRITICAL";
+
+export type WorkloadEngineRow = {
+  userId: string;
+  displayName: string | null;
+  email: string | null;
+  assignedCount: number;
+  overdueCount: number;
+  dueSoonCount: number;
+  saturationScore: number;
+  bottleneck: boolean;
+  lastActionAtUtc: string | null;
+  inactive: boolean;
+};
+
+export type QueueCongestionItem = {
+  queueId:
+    | "review_queue"
+    | "report_queue_pending"
+    | "package_queue_pending"
+    | "destruction_review_queue"
+    | "escalation_queue";
+  label: string;
+  depth: number;
+  oldestAgeMs: number | null;
+  severity: SeverityTone;
+  source: string;
+};
+
+export type IntegrityAnomalyItem = {
+  evidenceId: string;
+  title: string;
+  reasonCode:
+    | "INTEGRITY_REVIEW_REQUIRED"
+    | "INTEGRITY_FAILED"
+    | "REPORT_BUT_NO_PACKAGE"
+    | "PACKAGE_BUT_NO_REPORT"
+    | "PACKAGE_BLOCKED";
+  severity: SeverityTone;
+  detectedAt: string;
+  href: string;
+};
+
+export type SecurityAnomalyItem = {
+  eventId: string;
+  eventType: string;
+  severity: SeverityTone;
+  detectedAt: string;
+  userId: string | null;
+  source: string;
 };
 
 export type CaseOperationsItem = {
@@ -274,5 +435,313 @@ export type CommandCenterEnvelope = {
       status: SectionStatus;
       items: IncidentItem[];
     };
+    // Phase 32.8C+ intelligence-engine sections
+    investigationIntelligence: {
+      meta: SectionMeta;
+      items: InvestigationRiskItem[];
+      crossCaseSignals: CrossCaseSignal[];
+    };
+    routingQueue: {
+      meta: SectionMeta;
+      items: OperationalPressureItem[];
+    };
+    queueCongestion: {
+      meta: SectionMeta;
+      items: QueueCongestionItem[];
+    };
+    custodyIntegrityAnomalies: {
+      meta: SectionMeta;
+      items: IntegrityAnomalyItem[];
+    };
+    accessSecurityAnomalies: {
+      meta: SectionMeta;
+      items: SecurityAnomalyItem[];
+    };
+    workloadEngine: {
+      meta: SectionMeta;
+      health: WorkloadHealth;
+      reviewers: WorkloadEngineRow[];
+      saturationScore: number;
+      bottlenecks: number;
+    };
+    timelineIntelligence: {
+      status: SectionStatus;
+      events: Array<
+        TimelineEvent & {
+          domain: OperationalDomain;
+          operationalMeaning: string;
+        }
+      >;
+      groupings: {
+        byDomain: Record<OperationalDomain, number>;
+        bySeverity: Record<SeverityTone, number>;
+        byWindow: { last24h: number; last7d: number; last30d: number };
+      };
+    };
+    pipelineIntelligence: {
+      status: SectionStatus;
+      data: PipelineDetail | null;
+    };
+    // Phase 32.8C++ deep operations intelligence
+    relationshipIntelligence: {
+      meta: SectionMeta;
+      clusters: RelationshipCluster[];
+    };
+    crossCaseIntelligenceV2: {
+      meta: SectionMeta;
+      signals: CrossCaseSignalV2[];
+    };
+    reconstructedTimeline: {
+      meta: SectionMeta;
+      events: ReconstructedTimelineEvent[];
+    };
+    deepIntegrityWatch: {
+      meta: SectionMeta;
+      items: DeepIntegritySignal[];
+    };
+    accessSecurityClassifier: {
+      meta: SectionMeta;
+      anomalies: ClassifiedSecurityAnomaly[];
+    };
+    queueWorkerTelemetry: {
+      meta: SectionMeta;
+      data: QueueWorkerTelemetryData;
+    };
+    coordinationSignals: {
+      meta: SectionMeta;
+      signals: CoordinationSignal[];
+      backlog: CoordinationBacklog;
+    };
+    predictiveRisk: {
+      meta: SectionMeta;
+      forecasts: PredictiveRiskForecast[];
+    };
+    organizationalIntelligenceV2: {
+      meta: SectionMeta;
+      data: OrgIntelligenceV2;
+    };
   };
+  unsupportedSignals: Array<{ signal: string; reason: string }>;
+};
+
+// ---------------------------------------------------------------------------
+// Phase 32.8C++ deep-intelligence shapes
+// ---------------------------------------------------------------------------
+
+export type Confidence = "direct" | "inferred" | "low" | "medium" | "high";
+
+export type RelationshipCluster = {
+  id: string;
+  kind:
+    | "duplicate_hash"
+    | "same_intake_session"
+    | "same_submitter"
+    | "explicit_relationship"
+    | "same_case";
+  reasonCode: string;
+  severity: SeverityTone;
+  evidenceIds: string[];
+  caseIds: string[];
+  operationalExplanation: string;
+  recommendedAction: string;
+  route: string;
+  confidence: Confidence;
+};
+
+export type CrossCaseSignalV2 = {
+  id: string;
+  signalType:
+    | "shared_governance_block"
+    | "shared_reviewer_overload"
+    | "shared_failed_report_pattern"
+    | "shared_failed_package_pattern"
+    | "repeated_evidence_gaps"
+    | "repeated_overdue_reviews"
+    | "stale_with_active_hold";
+  severity: SeverityTone;
+  reasonCode: string;
+  affectedCaseIds: string[];
+  affectedEvidenceIds: string[];
+  operationalMeaning: string;
+  recommendedAction: string;
+  route: string;
+};
+
+export type ReconstructedTimelineEvent = {
+  id: string;
+  type: string;
+  family:
+    | "evidence"
+    | "report"
+    | "package"
+    | "governance"
+    | "review"
+    | "incident"
+    | "audit"
+    | "security";
+  timestamp: string;
+  severity: SeverityTone;
+  actor: string | null;
+  entityType: string | null;
+  entityId: string | null;
+  caseId: string | null;
+  evidenceId: string | null;
+  operationalMeaning: string;
+  route: string | null;
+  sourceTable: string;
+  confidence: Confidence;
+  safeToDisplay: boolean;
+};
+
+export type TsaTimestampIntelligence = {
+  /** "PARSED" | "UNAVAILABLE" | "FAILED" — null when no snapshot row exists. */
+  parseStatus: string | null;
+  parseErrorCode: string | null;
+  issuerCommonName: string | null;
+  issuerOrganization: string | null;
+  policyOid: string | null;
+  parsedAtUtc: string | null;
+};
+
+export type DeepIntegritySignal = {
+  evidenceId: string;
+  title: string;
+  reasonCode:
+    | "INTEGRITY_REVIEW_REQUIRED"
+    | "INTEGRITY_FAILED"
+    | "TSA_UNAVAILABLE"
+    | "OTS_UNAVAILABLE"
+    | "OTS_FAILED"
+    | "PACKAGE_BUT_NO_REPORT"
+    | "REPORT_FINALIZED_NO_PACKAGE_AGED"
+    | "PACKAGE_BLOCKED";
+  severity: SeverityTone;
+  detectedAt: string;
+  sourceFields: string[];
+  confidence: Confidence;
+  explanation: string;
+  recommendedAction: string;
+  href: string;
+  tsaTimestampIntelligence?: TsaTimestampIntelligence;
+};
+
+export type ClassifiedSecurityAnomaly = {
+  category:
+    | "repeated_failed_access"
+    | "blocked_export_attempt"
+    | "api_credential_change"
+    | "webhook_failure_spike"
+    | "admin_role_change"
+    | "step_up_failed"
+    | "permission_denied_burst"
+    | "uncategorized";
+  severity: SeverityTone;
+  eventType: string;
+  count: number;
+  timeWindow: string;
+  userId: string | null;
+  firstSeen: string;
+  lastSeen: string;
+  explanation: string;
+  recommendedAction: string;
+  sourceTable: string;
+};
+
+export type QueueTelemetrySnapshotRow = {
+  queueName: string;
+  queueDomain: string;
+  waitingCount: number;
+  activeCount: number;
+  delayedCount: number;
+  failedCount: number;
+  retryCount: number;
+  stalledCount: number;
+  sampledAtUtc: string;
+  source: string;
+};
+
+export type WorkerTelemetryHeartbeat = {
+  workerId: string;
+  workerKind: string;
+  status: string;
+  heartbeatAtUtc: string;
+  ageSeconds: number;
+  lastErrorCode: string | null;
+  processedCount: number | null;
+  failedCount: number | null;
+};
+
+export type QueueWorkerTelemetryData = {
+  reconcileLastRunAtUtc: string | null;
+  reconcileFreshnessHours: number | null;
+  reconcileHealth: "FRESH" | "STALE" | "UNAVAILABLE";
+  reviewQueueDepth: number;
+  reportQueuePending: number;
+  packageQueuePending: number;
+  oldestQueuedAgeHours: number | null;
+  retryStormIncidents: number;
+  /** Phase 32.8C+++++ — durable QueueTelemetrySnapshot rows. */
+  queueSnapshots: QueueTelemetrySnapshotRow[];
+  /** Phase 32.8C+++++ — durable WorkerTelemetrySnapshot rows. */
+  workerHeartbeats: WorkerTelemetryHeartbeat[];
+};
+
+export type CoordinationSignal = {
+  id: string;
+  signalType:
+    | "escalation_unassigned"
+    | "annotation_requires_review"
+    | "annotation_unresolved"
+    | "reviewer_comment_unresolved"
+    | "case_comment_unresolved"
+    | "legal_note_pending"
+    | "review_without_recent_activity";
+  severity: SeverityTone;
+  reasonCode: string;
+  entityId: string;
+  entityType: "escalation" | "evidence" | "review_workflow" | "case";
+  detectedAt: string;
+  explanation: string;
+  route: string;
+};
+
+export type CoordinationBacklog = {
+  caseCommentOpenCount: number;
+  caseCommentResolvedCount: number;
+  caseCommentStaleOpenCount: number;
+  reviewerCommentOpenCount: number;
+  annotationOpenCount: number;
+};
+
+export type PredictiveRiskForecast = {
+  id: string;
+  forecastType:
+    | "sla_breach_imminent"
+    | "reviewer_capacity_breach"
+    | "report_pipeline_degradation"
+    | "package_pipeline_degradation"
+    | "governance_pressure_rising"
+    | "audit_readiness_gap";
+  severity: SeverityTone;
+  reason: string;
+  likelyImpact: string;
+  recommendedAction: string;
+  confidence: "low" | "medium" | "high";
+  evidenceCount: number;
+  caseCount: number;
+};
+
+export type OrgIntelligenceV2 = {
+  orgHealth: "HEALTHY" | "WATCH" | "DEGRADED" | "CRITICAL";
+  bottleneckDomains: Array<{
+    domain: OperationalDomain;
+    pressureItems: number;
+  }>;
+  topPressureSources: Array<{ sourceTable: string; itemCount: number }>;
+  throughputWindows: {
+    last24h: number;
+    last7d: number;
+    last30d: number;
+  };
+  recommendedActions: string[];
 };

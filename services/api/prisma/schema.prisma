@@ -206,6 +206,10 @@ model Evidence {
   governanceExportSnapshots         GovernanceExportSnapshot[]   @relation("GovernanceExportSnapshotEvidence")
   governanceNotifications           GovernanceNotification[]     @relation("GovernanceNotificationEvidence")
 
+  // Phase 32.8C++++ — Dashboard intelligence back-relations.
+  integritySnapshot                 EvidenceIntegritySnapshot?   @relation("EvidenceIntegritySnapshot")
+  accessAnomalies                   AccessAnomaly[]              @relation("AccessAnomalyEvidence")
+
   @@index([deletedAt])
   @@index([lifecycleState])
   @@index([retentionPolicyVersionId])
@@ -707,6 +711,12 @@ model Team {
   apiCredentials         ApiCredential[]
   webhookEndpoints       WebhookEndpoint[]
 
+  // Phase 32.8C++++ — Dashboard intelligence back-relation.
+  accessAnomalies        AccessAnomaly[]
+
+  // Phase 32.8C+++++ — Structural intelligence back-relations.
+  queueTelemetrySnapshots QueueTelemetrySnapshot[]
+
   // Phase 17 — identity & access platform back-relations.
   securityPolicy         OrganizationSecurityPolicy?
   accessReviews          AccessReview[]
@@ -803,12 +813,16 @@ model EvidenceReviewerComment {
   createdAt    DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt    DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  // Phase 32.8C++++ — coordination resolution tracking.
+  resolvedAtUtc      DateTime?         @map("resolved_at_utc") @db.Timestamptz(6)
+  resolvedByUserId   String?           @map("resolved_by_user_id") @db.Uuid
   author       User                    @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
   evidence     Evidence                @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
 
   @@index([evidenceId, createdAt(sort: Desc)])
   @@index([authorUserId])
   @@index([deletedAt])
+  @@index([resolvedAtUtc])
   @@map("evidence_reviewer_comments")
 }
 
@@ -847,6 +861,9 @@ model EvidenceAnnotation {
   createdAt         DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt         DateTime?                  @map("deleted_at") @db.Timestamptz(6)
+  // Phase 32.8C++++ — coordination resolution tracking.
+  resolvedAtUtc     DateTime?                  @map("resolved_at_utc") @db.Timestamptz(6)
+  resolvedByUserId  String?                    @map("resolved_by_user_id") @db.Uuid
   author            User                       @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
   evidence          Evidence                   @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
   evidencePart      EvidencePart?              @relation(fields: [evidencePartId], references: [id], onDelete: SetNull)
@@ -855,6 +872,7 @@ model EvidenceAnnotation {
   @@index([evidencePartId])
   @@index([authorUserId])
   @@index([deletedAt])
+  @@index([resolvedAtUtc])
   @@map("evidence_annotations")
 }
 
@@ -5990,4 +6008,404 @@ model GovernanceExportSnapshot {
   @@index([teamId, snapshotKind, createdAt(sort: Desc)])
   @@index([snapshotHash])
   @@map("governance_export_snapshots")
+}
+
+// =============================================================================
+// Phase 32.8C++++ — Dashboard Intelligence Closure
+// =============================================================================
+
+/// EvidenceIntegritySnapshot — durable advisory mirror of the worker's
+/// integrity classifier output for an evidence record. 1:1 with Evidence
+/// (unique evidenceId). This is an ADVISORY operational snapshot — failures
+/// in writing must NEVER block evidence/report/package core flows.
+///
+/// The dashboard reads this table for fast custody/integrity intelligence.
+/// When the row is missing (older evidence or unsupported state), the
+/// dashboard falls back to deriving signals from Evidence.verificationStatus
+/// + TSA/OTS columns. No legal-admissibility claim is ever stored here.
+model EvidenceIntegritySnapshot {
+  id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId                String   @unique @map("evidence_id") @db.Uuid
+  teamId                    String?  @map("team_id") @db.Uuid
+
+  /// nullable tri-state — true = matches, false = mismatch reported,
+  /// null = signal not computed/unavailable.
+  canonicalHashMatches      Boolean? @map("canonical_hash_matches")
+  signatureValid            Boolean? @map("signature_valid")
+  custodyChainValid         Boolean? @map("custody_chain_valid")
+  timestampDigestMatches    Boolean? @map("timestamp_digest_matches")
+  otsHashMatches            Boolean? @map("ots_hash_matches")
+
+  /// Bounded operator-facing string label for TSA/OTS state. Examples:
+  /// "OK" | "PENDING" | "UNAVAILABLE" | "FAILED" | null. Worker is the
+  /// source of truth — the dashboard never asserts these from raw bytes.
+  tsaStatus                 String?  @map("tsa_status") @db.VarChar(24)
+  otsStatus                 String?  @map("ots_status") @db.VarChar(24)
+
+  /// Bounded summary: "OK" | "REVIEW_REQUIRED" | "FAILED" | "UNKNOWN".
+  /// The dashboard's "deep integrity watch" filters on this column when
+  /// present (faster than reading 5 columns + cross-relation joins).
+  overallStatus             String?  @map("overall_status") @db.VarChar(24)
+
+  /// Catalog of bounded reason codes (e.g., TSA_UNAVAILABLE, OTS_FAILED,
+  /// PACKAGE_BLOCKED). Stored as JSON to allow multi-reason rows without
+  /// schema thrash. Operators never see raw exception text from here.
+  reasonCodes               Json?    @map("reason_codes")
+
+  /// Snapshot lineage so dashboards can show "computed N hours ago" and
+  /// detect stale advisory rows that need recomputation.
+  computedAtUtc             DateTime @default(now()) @map("computed_at_utc") @db.Timestamptz(6)
+  sourceVersion             String?  @map("source_version") @db.VarChar(32)
+
+  /// Phase 32.8C+++++ — TSA issuer parsing fields. Worker parses if a
+  /// token + parser are available; UNAVAILABLE by default. Never faked.
+  tsaIssuerCommonName       String?  @map("tsa_issuer_common_name") @db.VarChar(200)
+  tsaIssuerOrganization     String?  @map("tsa_issuer_organization") @db.VarChar(200)
+  tsaPolicyOid              String?  @map("tsa_policy_oid") @db.VarChar(80)
+  /// Bounded enum-like string: "PARSED" | "UNAVAILABLE" | "FAILED" | null.
+  tsaParseStatus            String?  @map("tsa_parse_status") @db.VarChar(24)
+  /// Operator-safe parse error code, bounded length.
+  tsaParseErrorCode         String?  @map("tsa_parse_error_code") @db.VarChar(80)
+  tsaParsedAtUtc            DateTime? @map("tsa_parsed_at_utc") @db.Timestamptz(6)
+
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  evidence                  Evidence @relation("EvidenceIntegritySnapshot", fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, overallStatus])
+  @@index([computedAtUtc(sort: Desc)])
+  @@index([overallStatus])
+  @@map("evidence_integrity_snapshots")
+}
+
+/// AccessAnomaly — persisted output of the security/access anomaly
+/// classifier. Each row represents a CLASSIFIED burst of SecurityEvent
+/// rows over a bounded window. The dashboard reads these directly;
+/// re-classification runs on a schedule (advisory operational data, not
+/// a source-of-truth security log).
+model AccessAnomaly {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String                @map("team_id") @db.Uuid
+  actorUserId     String?               @map("actor_user_id") @db.Uuid
+  evidenceId      String?               @map("evidence_id") @db.Uuid
+  caseId          String?               @map("case_id") @db.Uuid
+
+  category        AccessAnomalyCategory
+  severity        AccessAnomalySeverity @default(WARNING)
+  status          AccessAnomalyStatus   @default(OPEN)
+
+  /// Sample eventType used by the classifier when grouping events.
+  sampleEventType String                @map("sample_event_type") @db.VarChar(80)
+  count           Int                   @default(1)
+
+  windowStartUtc  DateTime              @map("window_start_utc") @db.Timestamptz(6)
+  windowEndUtc    DateTime              @map("window_end_utc") @db.Timestamptz(6)
+
+  /// Bounded array of SecurityEvent IDs the classifier folded into this
+  /// row. Stored as JSON to avoid creating a join table for a small
+  /// advisory snapshot.
+  sourceEventIds  Json?                 @map("source_event_ids")
+
+  /// Operator-safe single-line summary computed by the classifier.
+  summary         String?               @db.VarChar(400)
+
+  acknowledgedAtUtc   DateTime?         @map("acknowledged_at_utc") @db.Timestamptz(6)
+  acknowledgedByUserId String?          @map("acknowledged_by_user_id") @db.Uuid
+  resolvedAtUtc       DateTime?         @map("resolved_at_utc") @db.Timestamptz(6)
+  resolvedByUserId    String?           @map("resolved_by_user_id") @db.Uuid
+  resolutionNote      String?           @map("resolution_note") @db.VarChar(400)
+
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  team            Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  evidence        Evidence?             @relation("AccessAnomalyEvidence", fields: [evidenceId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, status])
+  @@index([teamId, category])
+  @@index([teamId, createdAt(sort: Desc)])
+  @@index([actorUserId])
+  @@index([evidenceId])
+  @@index([severity])
+  @@map("access_anomalies")
+}
+
+enum AccessAnomalyCategory {
+  REPEATED_FAILED_ACCESS
+  BLOCKED_EXPORT_ATTEMPT
+  API_CREDENTIAL_CHANGE
+  WEBHOOK_FAILURE_SPIKE
+  ADMIN_ROLE_CHANGE
+  STEP_UP_FAILED
+  PERMISSION_DENIED_BURST
+  UNCATEGORIZED
+}
+
+enum AccessAnomalySeverity {
+  INFO
+  WARNING
+  HIGH
+  CRITICAL
+}
+
+enum AccessAnomalyStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  SUPPRESSED
+}
+
+// =============================================================================
+// Phase 32.8C+++++ — Dashboard Structural Intelligence Closure
+//
+// Five durable intelligence sources:
+//   * QueueTelemetrySnapshot     — bounded sample of queue depth/backlog
+//   * WorkerTelemetrySnapshot    — bounded worker heartbeat/status sample
+//   * CaseEvidenceLink           — many-to-many case ↔ evidence linkage
+//   * OperationalTimelineEvent   — normalized projection of system timeline
+//   * CaseComment                — case-level coordination signal
+//
+// All five are ADVISORY operational data. Writer failures NEVER block core
+// evidence/report/package/verify flows — callers wrap invocations in
+// .catch(() => {}).
+//
+// Two field additions extend existing snapshots with TSA issuer metadata:
+//   * EvidenceIntegritySnapshot.tsaIssuerCommonName / Organization /
+//     PolicyOid / parseStatus / parseErrorCode
+//     (Worker parses if possible; UNAVAILABLE by default — never faked.)
+// =============================================================================
+
+enum QueueTelemetryDomain {
+  REPORT
+  PACKAGE
+  REVIEW
+  GOVERNANCE
+  INTAKE
+  WORKER
+  OTHER
+}
+
+enum QueueTelemetrySource {
+  BULLMQ
+  DB_DERIVED
+  WORKER_INTERNAL
+  OTHER
+}
+
+model QueueTelemetrySnapshot {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String?               @map("team_id") @db.Uuid
+  queueName       String                @map("queue_name") @db.VarChar(80)
+  queueDomain     QueueTelemetryDomain  @map("queue_domain")
+
+  waitingCount    Int                   @default(0) @map("waiting_count")
+  activeCount     Int                   @default(0) @map("active_count")
+  delayedCount    Int                   @default(0) @map("delayed_count")
+  failedCount     Int                   @default(0) @map("failed_count")
+  completedCount  Int?                  @map("completed_count")
+  retryCount      Int                   @default(0) @map("retry_count")
+  stalledCount    Int                   @default(0) @map("stalled_count")
+
+  oldestJobAgeMs  Int?                  @map("oldest_job_age_ms")
+  latestJobAgeMs  Int?                  @map("latest_job_age_ms")
+
+  sampledAtUtc    DateTime              @default(now()) @map("sampled_at_utc") @db.Timestamptz(6)
+  source          QueueTelemetrySource  @default(DB_DERIVED)
+  metadataJson    Json?                 @map("metadata_json")
+
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team            Team?                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([queueName, sampledAtUtc(sort: Desc)])
+  @@index([queueDomain, sampledAtUtc(sort: Desc)])
+  @@index([teamId, sampledAtUtc(sort: Desc)])
+  @@map("queue_telemetry_snapshots")
+}
+
+enum WorkerTelemetryKind {
+  API
+  WORKER
+  REPORT
+  PACKAGE
+  REVIEWER_RECONCILE
+  OTS
+  TSA
+  OTHER
+}
+
+enum WorkerTelemetryStatus {
+  HEALTHY
+  DEGRADED
+  CRITICAL
+  UNKNOWN
+}
+
+model WorkerTelemetrySnapshot {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workerId             String                @map("worker_id") @db.VarChar(120)
+  workerKind           WorkerTelemetryKind   @map("worker_kind")
+  status               WorkerTelemetryStatus @default(UNKNOWN)
+
+  heartbeatAtUtc       DateTime              @default(now()) @map("heartbeat_at_utc") @db.Timestamptz(6)
+  lastSuccessfulRunAtUtc DateTime?           @map("last_successful_run_at_utc") @db.Timestamptz(6)
+  lastFailedRunAtUtc   DateTime?             @map("last_failed_run_at_utc") @db.Timestamptz(6)
+  lastErrorCode        String?               @map("last_error_code") @db.VarChar(80)
+  /// Bounded length — operator-safe error summary only. No raw stack traces.
+  lastErrorMessage     String?               @map("last_error_message") @db.VarChar(400)
+
+  processedCount       Int?                  @map("processed_count")
+  failedCount          Int?                  @map("failed_count")
+  durationMs           Int?                  @map("duration_ms")
+
+  metadataJson         Json?                 @map("metadata_json")
+
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([workerKind, heartbeatAtUtc(sort: Desc)])
+  @@index([status, heartbeatAtUtc(sort: Desc)])
+  @@index([workerId, heartbeatAtUtc(sort: Desc)])
+  @@map("worker_telemetry_snapshots")
+}
+
+enum CaseEvidenceLinkRole {
+  PRIMARY
+  SUPPORTING
+  RELATED
+  DUPLICATE
+  DERIVED
+  CONTEXT
+}
+
+enum CaseEvidenceLinkSource {
+  USER
+  SYSTEM
+  IMPORT
+  INTAKE
+  WORKFLOW
+}
+
+/// CaseEvidenceLink — many-to-many evidence ↔ case linkage. The legacy
+/// `Evidence.caseId` singular column remains for backwards-compatible
+/// reads; new linkages go through this table.
+model CaseEvidenceLink {
+  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String                  @map("team_id") @db.Uuid
+  caseId          String                  @map("case_id") @db.Uuid
+  evidenceId      String                  @map("evidence_id") @db.Uuid
+
+  role            CaseEvidenceLinkRole    @default(SUPPORTING)
+  source          CaseEvidenceLinkSource  @default(USER)
+
+  linkedByUserId  String?                 @map("linked_by_user_id") @db.Uuid
+  linkedAtUtc     DateTime                @default(now()) @map("linked_at_utc") @db.Timestamptz(6)
+  /// Bounded operator-safe reason. Never raw evidence contents.
+  reason          String?                 @db.VarChar(400)
+
+  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([caseId, evidenceId, role])
+  @@index([teamId, linkedAtUtc(sort: Desc)])
+  @@index([caseId])
+  @@index([evidenceId])
+  @@index([role])
+  @@map("case_evidence_links")
+}
+
+enum OperationalTimelineFamily {
+  EVIDENCE
+  CASE
+  CUSTODY
+  REPORT
+  PACKAGE
+  REVIEW
+  GOVERNANCE
+  SECURITY
+  OPS
+  EXPORT
+  SYSTEM
+}
+
+enum OperationalTimelineConfidence {
+  DIRECT
+  INFERRED
+}
+
+/// OperationalTimelineEvent — normalized projection of system timeline.
+/// The projection writer reads from existing source tables (CustodyEvent,
+/// AdminAuditLog, OperationalIncident, EvidenceLifecycleEvent, etc.) and
+/// folds them into a bounded operator-safe row. Dashboard reads from
+/// this table directly; falls back to live aggregation when empty.
+model OperationalTimelineEvent {
+  id              String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String?                         @map("team_id") @db.Uuid
+  caseId          String?                         @map("case_id") @db.Uuid
+  evidenceId      String?                         @map("evidence_id") @db.Uuid
+  actorUserId     String?                         @map("actor_user_id") @db.Uuid
+
+  eventFamily     OperationalTimelineFamily       @map("event_family")
+  eventType       String                          @map("event_type") @db.VarChar(80)
+  /// Bounded severity tag (e.g., INFO, WARNING, HIGH, CRITICAL).
+  severity        String                          @db.VarChar(24)
+
+  occurredAtUtc   DateTime                        @map("occurred_at_utc") @db.Timestamptz(6)
+
+  /// Source table name (e.g., "custody_events", "admin_audit_log").
+  sourceTable     String                          @map("source_table") @db.VarChar(80)
+  /// Source row primary key (uuid string).
+  sourceId        String                          @map("source_id") @db.VarChar(80)
+
+  confidence      OperationalTimelineConfidence   @default(DIRECT)
+  /// Whether the projection can be safely surfaced to operators.
+  safeToDisplay   Boolean                         @default(true) @map("safe_to_display")
+
+  /// Bounded operator-safe summary, ≤ 400 chars.
+  summary         String                          @db.VarChar(400)
+  /// Optional in-app route operators can follow.
+  route           String?                         @db.VarChar(400)
+  metadataJson    Json?                           @map("metadata_json")
+
+  createdAt       DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([sourceTable, sourceId, eventType], name: "operational_timeline_source_uniq")
+  @@index([teamId, occurredAtUtc(sort: Desc)])
+  @@index([caseId, occurredAtUtc(sort: Desc)])
+  @@index([evidenceId, occurredAtUtc(sort: Desc)])
+  @@index([eventFamily, occurredAtUtc(sort: Desc)])
+  @@index([occurredAtUtc(sort: Desc)])
+  @@map("operational_timeline_events")
+}
+
+enum CaseCommentVisibility {
+  INTERNAL
+  REVIEWERS
+  ALL_MEMBERS
+}
+
+/// CaseComment — case-level coordination. Mirrors the EvidenceReviewerComment
+/// pattern but on a case row rather than an evidence row. Used for
+/// coordination intelligence on the dashboard.
+model CaseComment {
+  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId              String                 @map("team_id") @db.Uuid
+  caseId              String                 @map("case_id") @db.Uuid
+  authorUserId        String                 @map("author_user_id") @db.Uuid
+
+  /// Bounded operator-safe body. Never raw evidence contents.
+  body                String                 @db.VarChar(4000)
+  visibility          CaseCommentVisibility  @default(REVIEWERS)
+
+  resolvedAtUtc       DateTime?              @map("resolved_at_utc") @db.Timestamptz(6)
+  resolvedByUserId    String?                @map("resolved_by_user_id") @db.Uuid
+
+  createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([teamId, createdAt(sort: Desc)])
+  @@index([caseId, createdAt(sort: Desc)])
+  @@index([authorUserId])
+  @@index([resolvedAtUtc])
+  @@map("case_comments")
 }

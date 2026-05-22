@@ -547,13 +547,16 @@ describe("Phase 32.8C — read-only / no-side-effects contract", () => {
 
   it("envelope projects only counts + bounded titles — no raw file content / signed URLs / privileged legal text", () => {
     // Bounded list of fields that must NOT appear in the service
-    // (they would be a leak vector).
+    // envelope projection. `fileSha256` is intentionally permitted at
+    // the Prisma query layer (groupBy / where) for duplicate-hash
+    // clustering — Phase 32.8C++ — but the test still verifies it
+    // never lands in a result-object literal that would expose the
+    // raw hex to the envelope payload.
     for (const sym of [
       "storageBucket",
       "storageKey",
       "presignedUrl",
       "signedUrl",
-      "fileSha256:",
       "internalNotes",
     ]) {
       expect(
@@ -561,6 +564,12 @@ describe("Phase 32.8C — read-only / no-side-effects contract", () => {
         `service must not project ${sym} in the dashboard envelope`,
       ).not.toContain(sym);
     }
+    // fileSha256 may only appear as a query-side `by`/`where` token
+    // and as a 16-char prefix in cluster IDs — NEVER as a full
+    // payload field on a returned object (e.g., `fileSha256: row.fileSha256`).
+    expect(SERVICE).not.toMatch(/fileSha256:\s*row\.fileSha256/);
+    expect(SERVICE).not.toMatch(/fileSha256:\s*r\.fileSha256/);
+    expect(SERVICE).not.toMatch(/fileSha256:\s*e\.fileSha256/);
   });
 });
 
@@ -786,5 +795,866 @@ describe("Phase 32.8C (Full Rebuild) — enterprise frontend hierarchy + empty s
     for (const emoji of ["🙂", "🎉", "👍", "✨", "🚀"]) {
       expect(CC, `forbidden emoji ${emoji} in operator copy`).not.toContain(emoji);
     }
+  });
+});
+
+// =============================================================================
+// PART 11 — Phase 32.8C+ Operational Intelligence Engine
+// =============================================================================
+
+describe("Phase 32.8C+ — Operational routing catalog", () => {
+  it("declares the bounded ReasonCode enum covering every required signal", () => {
+    for (const reason of [
+      "REVIEW_OVERDUE",
+      "REVIEW_DUE_SOON",
+      "REVIEW_UNASSIGNED",
+      "REVIEW_STALLED",
+      "REVIEWER_INACTIVE",
+      "REVIEWER_OVERLOADED",
+      "CASE_AT_RISK",
+      "CASE_EVIDENCE_GAP",
+      "EVIDENCE_STUCK_UPLOAD",
+      "EVIDENCE_UNSIGNED_TOO_LONG",
+      "EVIDENCE_NO_CASE",
+      "REPORT_MISSING",
+      "REPORT_FAILED",
+      "PACKAGE_MISSING",
+      "PACKAGE_FAILED",
+      "PACKAGE_BLOCKED_BY_GOVERNANCE",
+      "EXPORT_BLOCKED_BY_GOVERNANCE",
+      "GOVERNANCE_CONFLICT",
+      "LEGAL_HOLD_ACTIVE",
+      "RETENTION_REVIEW_DUE",
+      "DESTRUCTION_REVIEW_PENDING",
+      "QUEUE_CONGESTION",
+      "RETRY_STORM",
+      "OPERATIONAL_INCIDENT",
+      "INTEGRITY_REVIEW_REQUIRED",
+      "INTEGRITY_FAILED",
+      "CUSTODY_GAP",
+      "ACCESS_ANOMALY",
+    ]) {
+      expect(SERVICE, `ReasonCode ${reason} missing`).toContain(`"${reason}"`);
+    }
+  });
+
+  it("declares OperationalDomain + AffectedEntityType bounded enums", () => {
+    for (const domain of [
+      "review_ops",
+      "evidence_pipeline",
+      "reports",
+      "packages",
+      "governance",
+      "custody_integrity",
+      "security_access",
+      "operational_health",
+      "case_ops",
+    ]) {
+      expect(SERVICE).toContain(`"${domain}"`);
+    }
+    for (const t of [
+      "evidence",
+      "review_workflow",
+      "escalation",
+      "case",
+      "case_hold",
+      "evidence_hold",
+      "incident",
+      "destruction_review",
+      "policy",
+      "security_event",
+    ]) {
+      expect(SERVICE).toContain(`"${t}"`);
+    }
+  });
+
+  it("ROUTING_CATALOG enriches every pressure category with reasonCode + recommendedAction + primaryRoute", () => {
+    expect(SERVICE).toMatch(
+      /const ROUTING_CATALOG:\s*Record<\s*OperationalPressureItem\["category"\],\s*RoutingMeta\s*>/,
+    );
+    // Sample a few key entries.
+    expect(SERVICE).toMatch(/overdue_review:\s*\{[\s\S]{0,400}reasonCode:\s*"REVIEW_OVERDUE"/);
+    expect(SERVICE).toMatch(/missing_report:\s*\{[\s\S]{0,400}reasonCode:\s*"REPORT_MISSING"/);
+    expect(SERVICE).toMatch(/blocked_export:\s*\{[\s\S]{0,500}reasonCode:\s*"EXPORT_BLOCKED_BY_GOVERNANCE"/);
+  });
+
+  it("enrichPressureItems is the single point of routing-field assignment", () => {
+    expect(SERVICE).toMatch(/function enrichPressureItems\(/);
+    // The routing-queue view sources from `pressure.items` already
+    // enriched — confirms a single canonical enrichment path.
+    expect(SERVICE).toMatch(/routingQueueItems = pressure\.items[\s\S]{0,200}filter/);
+  });
+});
+
+describe("Phase 32.8C+ — Investigation Intelligence engine", () => {
+  it("exports runInvestigationIntelligence + per-case risk scoring", () => {
+    expect(SERVICE).toMatch(/async function runInvestigationIntelligence\(/);
+    expect(SERVICE).toMatch(/InvestigationRiskItem/);
+    expect(SERVICE).toMatch(/InvestigationRiskLevel/);
+  });
+
+  it("risk levels are bounded (CRITICAL / HIGH / MEDIUM / LOW / NONE)", () => {
+    expect(SERVICE).toMatch(
+      /InvestigationRiskLevel\s*=[\s\S]{0,200}"CRITICAL"[\s\S]{0,80}"HIGH"[\s\S]{0,80}"MEDIUM"[\s\S]{0,80}"LOW"[\s\S]{0,80}"NONE"/,
+    );
+  });
+
+  it("risk reason codes come from real DB-derivable signals", () => {
+    // Bounded set of reason codes that the investigation engine emits.
+    for (const code of [
+      "CASE_NO_EVIDENCE",
+      "OPEN_ESCALATIONS",
+      "OVERDUE_REVIEWS",
+      "PACKAGE_BLOCKED",
+      "MISSING_REPORTS",
+      "ACTIVE_HOLD_STALE",
+    ]) {
+      expect(SERVICE).toContain(`"${code}"`);
+    }
+  });
+
+  it("cross-case signals: evidence-in-multiple-cases is now CLOSED (Phase 32.8C+++++); only cross_case_same_submitter remains unsupported", () => {
+    // Phase 32.8C+++++ — CaseEvidenceLink schema closes the many-to-many
+    // gap. The runCrossCaseIntelligenceV2 engine reads from this table.
+    // The catalog string "cross_case_evidence_linkage" may still appear
+    // in a comment explaining that it's CLOSED, but it MUST NOT appear
+    // as an unsupportedSignals push entry.
+    expect(SERVICE).not.toMatch(
+      /unsupportedSignals\.push\([^)]*cross_case_evidence_linkage/,
+    );
+    expect(SERVICE).not.toMatch(
+      /unsupportedSignals:\s*\[[^\]]*cross_case_evidence_linkage/,
+    );
+    expect(SERVICE).not.toMatch(/Evidence has a singular caseId column/);
+    expect(SERVICE).toMatch(/cross_case_same_submitter/);
+  });
+
+  it("recommendedAction is a bounded operator string (not marketing copy)", () => {
+    // Verify the engine surfaces bounded action copy.
+    expect(SERVICE).toMatch(
+      /Triage the open escalation/,
+    );
+    expect(SERVICE).toMatch(
+      /Reassign or complete the overdue review/,
+    );
+    expect(SERVICE).toMatch(
+      /Link evidence to this case/,
+    );
+  });
+});
+
+describe("Phase 32.8C+ — Queue Congestion engine", () => {
+  it("queue congestion exposes a bounded queueId enum", () => {
+    for (const q of [
+      "review_queue",
+      "report_queue_pending",
+      "package_queue_pending",
+      "destruction_review_queue",
+      "escalation_queue",
+    ]) {
+      expect(SERVICE).toContain(`"${q}"`);
+    }
+  });
+
+  it("queue congestion explicitly marks BullMQ infra queues as unsupported", () => {
+    expect(SERVICE).toContain(
+      "bullmq_infra_queues (BullMQ queue depth is in-memory; no DB snapshot)",
+    );
+    expect(SERVICE).toContain(
+      "worker_stalled_jobs (worker stall signal lives in the worker process, not DB)",
+    );
+  });
+
+  it("review queue depth derives from real Prisma queries (no fabrication)", () => {
+    expect(SERVICE).toMatch(
+      /prisma\.evidenceReviewWorkflow\.count\(\{[\s\S]{0,80}status:\s*"QUEUED"/,
+    );
+  });
+
+  it("report + package queue pending derive from real evidence/Report/VerificationPackage relations", () => {
+    expect(SERVICE).toMatch(
+      /status:\s*"SIGNED",\s*reports:\s*\{\s*none:\s*\{\}\s*\}/,
+    );
+    expect(SERVICE).toMatch(
+      /status:\s*"REPORTED",[\s\S]{0,80}verificationPackages:\s*\{\s*none:\s*\{\}\s*\}/,
+    );
+  });
+});
+
+describe("Phase 32.8C+ — Custody / Integrity Anomaly engine", () => {
+  it("exposes a bounded integrity reasonCode set", () => {
+    for (const r of [
+      "INTEGRITY_REVIEW_REQUIRED",
+      "INTEGRITY_FAILED",
+      "PACKAGE_BUT_NO_REPORT",
+      "PACKAGE_BLOCKED",
+    ]) {
+      expect(SERVICE).toContain(`"${r}"`);
+    }
+  });
+
+  it("uses the real verificationStatus enum (REVIEW_REQUIRED / FAILED) — does NOT recompute hashes from the dashboard", () => {
+    expect(SERVICE).toMatch(
+      /verificationStatus:\s*\{\s*in:\s*\["REVIEW_REQUIRED",\s*"FAILED"\]/,
+    );
+    // The engine MUST NOT call hash/signature compute logic.
+    expect(SERVICE).not.toContain("recomputeHash");
+    expect(SERVICE).not.toContain("verifySignature");
+  });
+
+  it("marks deeper custody/TSA/OTS signals as unsupported with explicit reasons", () => {
+    expect(SERVICE).toContain("custody_chain_hash_recompute");
+    expect(SERVICE).toContain("tsa_signal_unavailable");
+    expect(SERVICE).toContain("ots_signal_unavailable");
+    expect(SERVICE).toContain("signature_mismatch");
+  });
+
+  it("never makes legal-admissibility / authenticity claims in copy", () => {
+    // Custody section copy must use bounded language.
+    expect(SERVICE).toMatch(/operator-side review/);
+    for (const banned of [
+      "legally admissible",
+      "court-ready",
+      "proves authenticity",
+      "verified as real",
+    ]) {
+      expect(SERVICE, `forbidden phrase ${banned}`).not.toContain(banned);
+    }
+  });
+});
+
+describe("Phase 32.8C+ — Access / Security Anomaly engine", () => {
+  it("reads ONLY real SecurityEvent rows filtered to WARNING|HIGH in last 24h", () => {
+    expect(SERVICE).toMatch(
+      /prisma\.securityEvent\.findMany\(\{[\s\S]{0,400}severity:\s*\{\s*in:\s*\["WARNING",\s*"HIGH"\]/,
+    );
+  });
+
+  it("marks AccessAnomaly classifier + failed-login burst as unsupported with reasons", () => {
+    expect(SERVICE).toContain("access_anomaly_classifier");
+    expect(SERVICE).toContain("failed_login_burst");
+  });
+
+  it("never invents security events when SecurityEvent rows are absent", () => {
+    // Locate the function and bound the slice generously — TypeScript
+    // formatter may emit `})` patterns that match the `\n}\n` anchor
+    // before the actual function close.
+    const idx = SERVICE.indexOf("async function runAccessSecurityAnomalies");
+    expect(idx).toBeGreaterThan(-1);
+    const body = SERVICE.slice(idx, idx + 4000);
+    // Body MUST source items from a real Prisma findMany on
+    // SecurityEvent — not from a synthesized list.
+    expect(body).toMatch(/prisma\.securityEvent\.findMany/);
+    // Empty-list fallback: when query returns 0 rows the items array
+    // is `[]`, never invented data.
+    expect(body).not.toMatch(/\bsynth\b/i);
+    expect(body).not.toMatch(/\bfake\b/i);
+  });
+});
+
+describe("Phase 32.8C+ — Workload Engine", () => {
+  it("workload health enum is bounded (HEALTHY / WATCH / DEGRADED / CRITICAL)", () => {
+    expect(SERVICE).toMatch(
+      /WorkloadHealth\s*=[\s\S]{0,80}"HEALTHY"[\s\S]{0,40}"WATCH"[\s\S]{0,40}"DEGRADED"[\s\S]{0,40}"CRITICAL"/,
+    );
+  });
+
+  it("saturation score is computed from real assigned + overdue counts", () => {
+    expect(SERVICE).toMatch(
+      /saturationScore\s*=\s*Math\.min\(\s*10,\s*Math\.round\(g\._count\._all\s*\+\s*overdue\s*\*\s*1\.5\)/,
+    );
+  });
+
+  it("bottleneck detection uses thresholded counts, not arbitrary classification", () => {
+    expect(SERVICE).toMatch(/saturationScore\s*>=\s*8\s*\|\|\s*overdue\s*>=\s*4/);
+  });
+
+  it("personal-workspace short-circuits to not_applicable + HEALTHY (no broken team workload)", () => {
+    expect(SERVICE).toMatch(
+      /scope === "PERSONAL"[\s\S]{0,400}status:\s*"not_applicable"[\s\S]{0,200}health:\s*"HEALTHY"/,
+    );
+  });
+});
+
+describe("Phase 32.8C+ — Envelope contract + unsupportedSignals catalog", () => {
+  it("envelope adds the 7 new intelligence sections", () => {
+    for (const section of [
+      "investigationIntelligence",
+      "routingQueue",
+      "queueCongestion",
+      "custodyIntegrityAnomalies",
+      "accessSecurityAnomalies",
+      "workloadEngine",
+      "timelineIntelligence",
+      "pipelineIntelligence",
+    ]) {
+      expect(SERVICE).toMatch(new RegExp(`${section}:\\s*\\{`));
+    }
+  });
+
+  it("every intelligence section ships SectionMeta (status + warnings + unsupportedSignals + sourceSummary)", () => {
+    expect(SERVICE).toMatch(/type SectionMeta\s*=/);
+    expect(SERVICE).toMatch(/warnings:\s*string\[\]/);
+    expect(SERVICE).toMatch(/unsupportedSignals:\s*string\[\]/);
+    expect(SERVICE).toMatch(/sourceSummary:\s*string\[\]/);
+  });
+
+  it("envelope exposes top-level unsupportedSignals catalog (signal + reason rows)", () => {
+    expect(SERVICE).toMatch(
+      /unsupportedSignals:\s*Array<\{\s*signal:\s*string;\s*reason:\s*string\s*\}>/,
+    );
+    expect(SERVICE).toMatch(/function buildUnsupportedSignalsCatalog\(/);
+  });
+
+  it("buildCommandCenter wires every new engine into the envelope", () => {
+    const idx = SERVICE.indexOf("export async function buildCommandCenter");
+    const end = SERVICE.length;
+    const body = SERVICE.slice(idx, end);
+    for (const runner of [
+      "runInvestigationIntelligence",
+      "runQueueCongestion",
+      "runCustodyIntegrityAnomalies",
+      "runAccessSecurityAnomalies",
+      "runWorkloadEngine",
+    ]) {
+      expect(body, `buildCommandCenter must call ${runner}`).toContain(
+        runner,
+      );
+    }
+  });
+});
+
+describe("Phase 32.8C+ — Frontend command center renders the intelligence layer", () => {
+  it("renders the new section components (Critical Bar / Routing Queue / Investigation Risk / Workload / Queue / Custody / Security / Unsupported)", () => {
+    for (const fn of [
+      "CriticalOperationsBar",
+      "RoutingQueueSection",
+      "InvestigationRiskBoard",
+      "WorkloadEngineBoard",
+      "QueueCongestionSection",
+      "CustodyIntegrityWatch",
+      "AccessSecurityWatch",
+      "UnsupportedSignalsSection",
+    ]) {
+      expect(CC, `section component ${fn} missing`).toMatch(
+        new RegExp(`function ${fn}\\(`),
+      );
+    }
+  });
+
+  it("Critical Operations Bar surfaces health + headline + a next-action route", () => {
+    const block = CC.slice(CC.indexOf("function CriticalOperationsBar"));
+    expect(block).toMatch(/data-cc-critical-bar/);
+    expect(block).toMatch(/data-cc-critical-tone/);
+    expect(block).toMatch(/ec-critical-bar-action/);
+  });
+
+  it("Routing queue rows carry stable reason + domain + severity data attributes (test-friendly + operator-friendly)", () => {
+    expect(CC).toContain("data-cc-routing-reason=");
+    expect(CC).toContain("data-cc-routing-domain=");
+    expect(CC).toContain("data-cc-routing-severity=");
+    expect(CC).toContain("data-cc-routing-primary-route");
+  });
+
+  it("Investigation risk board surfaces per-case risk level + reason codes + recommended action", () => {
+    expect(CC).toContain("data-cc-investigation-risk=");
+    expect(CC).toContain("data-cc-investigation-reason=");
+    expect(CC).toMatch(/Recommended:/);
+  });
+
+  it("Custody/Integrity watch reads bounded reasonCode chips (no admissibility / authenticity claims)", () => {
+    expect(CC).toContain("data-cc-integrity-reason=");
+    expect(CC).toMatch(
+      /not a claim of authenticity or admissibility/,
+    );
+  });
+
+  it("Access/Security watch reads from SecurityEvent rows only — no synthetic events", () => {
+    expect(CC).toContain("data-cc-security-event-id=");
+    // The empty-state copy honestly admits no DB-side classifier.
+    expect(CC).toMatch(/No DB-side anomaly classifier is in scope/);
+  });
+
+  it("Unsupported signals section is rendered as a collapsible <details>, hidden by default", () => {
+    expect(CC).toMatch(/<details className="ec-unsupported"/);
+    expect(CC).toMatch(/<summary className="ec-unsupported-summary"/);
+  });
+
+  it("frontend never references hashRecompute / verifySignature / chargeBilling / signedUrl helpers", () => {
+    for (const sym of [
+      "recomputeHash",
+      "verifySignature",
+      "chargeBilling",
+      "computeBillingCharge",
+      "signedUrl",
+      "presignedUrl",
+    ]) {
+      expect(CC, `forbidden symbol ${sym}`).not.toContain(sym);
+    }
+  });
+
+  it("frontend never makes positive overclaim statements (negations + quoted disclaimers OK)", () => {
+    const positiveClaim = (phrase: string): RegExp =>
+      new RegExp(
+        `(?<!["NOT not ])\\b${phrase.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}\\b(?!["])`,
+      );
+    for (const banned of [
+      "legally admissible",
+      "court-ready",
+      "guaranteed",
+      "verified truth",
+      "proves authenticity",
+      "verified as real",
+    ]) {
+      expect(
+        CC,
+        `Command Center must not claim "${banned}"`,
+      ).not.toMatch(positiveClaim(banned));
+    }
+  });
+});
+
+// =============================================================================
+// PART 12 — Phase 32.8C++ Deep Operations Intelligence
+// =============================================================================
+
+describe("Phase 32.8C++ — Permission-aware action routing", () => {
+  it("ROUTING_CATALOG entries carry requiredRoles + requiredPermission + escalationPath", () => {
+    expect(SERVICE).toMatch(/requiredPermission:\s*("[^"]+"|null)/);
+    expect(SERVICE).toMatch(/requiredRoles:\s*\[/);
+    expect(SERVICE).toMatch(/escalationPath:\s*("[^"]+"|null)/);
+    // Sample bounded permission values.
+    for (const perm of [
+      "evidence_request.review",
+      "review.assign",
+      "review.escalation.resolve",
+      "evidence.write",
+      "evidence.finalize",
+      "case.write",
+      "governance.policy.update",
+      "governance.hold.read",
+    ]) {
+      expect(SERVICE).toContain(`"${perm}"`);
+    }
+  });
+
+  it("enrichPressureItems accepts viewerRole + computes canCurrentUserAct", () => {
+    expect(SERVICE).toMatch(/function enrichPressureItems\([\s\S]{0,1200}viewerRole:\s*string/);
+    expect(SERVICE).toMatch(
+      /canCurrentUserAct = \(meta\.requiredRoles as ReadonlyArray<string>\)\.includes\(\s*viewerRole/,
+    );
+    expect(SERVICE).toMatch(/safeActionLabel/);
+  });
+
+  it("buildCommandCenter passes the viewer role into the operational pressure engine", () => {
+    expect(SERVICE).toMatch(
+      /runOperationalPressure\(\s*input\.teamId,\s*scope,\s*input\.role\s*\)/,
+    );
+  });
+
+  it("frontend renders 'cannot act' state for routing items the viewer cannot execute", () => {
+    expect(CC).toContain("ec-routing-cannot-act");
+    expect(CC).toContain('data-cc-can-act="true"');
+    expect(CC).toContain('data-cc-can-act="false"');
+    expect(CC).toContain("data-cc-required-roles");
+  });
+});
+
+describe("Phase 32.8C++ — Relationship Intelligence engine", () => {
+  it("exports runRelationshipIntelligence + bounded cluster kinds", () => {
+    expect(SERVICE).toMatch(/async function runRelationshipIntelligence\(/);
+    for (const kind of [
+      "duplicate_hash",
+      "same_intake_session",
+      "same_submitter",
+      "explicit_relationship",
+      "same_case",
+    ]) {
+      expect(SERVICE).toContain(`"${kind}"`);
+    }
+  });
+
+  it("duplicate-hash clusters derive from real Evidence.fileSha256 groupBy + count > 1", () => {
+    expect(SERVICE).toMatch(
+      /prisma\.evidence\.groupBy\(\{[\s\S]{0,400}by:\s*\["fileSha256"\][\s\S]{0,500}having:\s*\{\s*fileSha256:\s*\{\s*_count:\s*\{\s*gt:\s*1\s*\}/,
+    );
+  });
+
+  it("explicit EvidenceRelationship rows are surfaced when present", () => {
+    expect(SERVICE).toMatch(/prisma\.evidenceRelationship\.findMany/);
+  });
+
+  it("declares intake-session + many-to-many evidence-case as unsupported with reasons", () => {
+    expect(SERVICE).toContain(
+      "intake_session_clustering (Evidence has no intakeSessionId column",
+    );
+    expect(SERVICE).toContain(
+      "evidence_in_multiple_cases (Evidence.caseId is singular; no join table)",
+    );
+  });
+});
+
+describe("Phase 32.8C++ — Cross-Case Intelligence V2 engine", () => {
+  it("exports bounded V2 signal types", () => {
+    expect(SERVICE).toMatch(/async function runCrossCaseIntelligenceV2\(/);
+    for (const t of [
+      "shared_governance_block",
+      "shared_reviewer_overload",
+      "shared_failed_report_pattern",
+      "shared_failed_package_pattern",
+      "repeated_evidence_gaps",
+      "repeated_overdue_reviews",
+      "stale_with_active_hold",
+    ]) {
+      expect(SERVICE).toContain(`"${t}"`);
+    }
+  });
+
+  it("personal-workspace short-circuits cross-case V2 to not_applicable", () => {
+    expect(SERVICE).toMatch(
+      /runCrossCaseIntelligenceV2[\s\S]{0,1200}scope === "PERSONAL"[\s\S]{0,400}status:\s*"not_applicable"/,
+    );
+  });
+
+  it("shared-governance-block signal counts real package-blocked metadata across cases", () => {
+    expect(SERVICE).toMatch(
+      /m && m\.blocked === true && row\.caseId/,
+    );
+  });
+});
+
+describe("Phase 32.8C++ — Reconstructed Timeline engine", () => {
+  it("exports runReconstructedTimeline + bounded family enum", () => {
+    expect(SERVICE).toMatch(/async function runReconstructedTimeline\(/);
+    for (const fam of [
+      '"evidence"',
+      '"report"',
+      '"package"',
+      '"governance"',
+      '"review"',
+      '"incident"',
+      '"audit"',
+      '"security"',
+    ]) {
+      expect(SERVICE).toContain(fam);
+    }
+  });
+
+  it("each event carries actor + confidence + safeToDisplay + sourceTable fields", () => {
+    expect(SERVICE).toMatch(/confidence:\s*Confidence/);
+    expect(SERVICE).toMatch(/safeToDisplay:\s*boolean/);
+    expect(SERVICE).toMatch(/sourceTable:\s*string/);
+  });
+
+  it("AdminAuditLog is INTENTIONALLY excluded from the reconstructed timeline (workspace scoping risk)", () => {
+    // The engine must NOT call prisma.adminAuditLog.findMany in
+    // the reconstructed-timeline runner — would leak cross-workspace
+    // admin actions. The unsupported declaration is the contract.
+    const idx = SERVICE.indexOf("async function runReconstructedTimeline");
+    const end = SERVICE.indexOf("\n}\n", idx + 4000);
+    const body = SERVICE.slice(idx, end > idx ? end : idx + 8000);
+    expect(body).not.toMatch(/prisma\.adminAuditLog\.findMany/);
+    expect(body).toContain("admin_audit_log_workspace_scope");
+  });
+
+  it("timeline events source from real Prisma tables (Report / VerificationPackage / EvidenceLifecycleEvent / OperationalIncident / ReviewEscalation / SecurityEvent)", () => {
+    const idx = SERVICE.indexOf("async function runReconstructedTimeline");
+    const body = SERVICE.slice(idx, idx + 8000);
+    expect(body).toMatch(/prisma\.report\.findMany/);
+    expect(body).toMatch(/prisma\.verificationPackage\.findMany/);
+    expect(body).toMatch(/prisma\.evidenceLifecycleEvent\.findMany/);
+    expect(body).toMatch(/prisma\.operationalIncident\.findMany/);
+    expect(body).toMatch(/prisma\.reviewEscalation\.findMany/);
+    expect(body).toMatch(/prisma\.securityEvent\.findMany/);
+  });
+});
+
+describe("Phase 32.8C++ — Deep Integrity Watch engine", () => {
+  it("exports bounded deep-integrity reason codes", () => {
+    expect(SERVICE).toMatch(/async function runDeepIntegrityWatch\(/);
+    for (const r of [
+      "INTEGRITY_REVIEW_REQUIRED",
+      "INTEGRITY_FAILED",
+      "TSA_UNAVAILABLE",
+      "OTS_UNAVAILABLE",
+      "OTS_FAILED",
+      "REPORT_FINALIZED_NO_PACKAGE_AGED",
+      "PACKAGE_BLOCKED",
+    ]) {
+      expect(SERVICE).toContain(`"${r}"`);
+    }
+  });
+
+  it("uses real TSA + OTS columns from Evidence (no fabricated columns)", () => {
+    expect(SERVICE).toMatch(/tsaTokenBase64:\s*null/);
+    expect(SERVICE).toMatch(/otsStatus:\s*null/);
+    expect(SERVICE).toMatch(/otsStatus:\s*\{\s*in:\s*\["PENDING",\s*"FAILED",\s*"ERRORED"\]/);
+  });
+
+  it("each signal carries sourceFields + confidence", () => {
+    expect(SERVICE).toMatch(/sourceFields:\s*string\[\]/);
+    expect(SERVICE).toMatch(/confidence:\s*Confidence/);
+  });
+
+  it("integrity columns + TSA issuer schema gap are now CLOSED (Phase 32.8C++++ + 32.8C+++++); only the worker-side ASN.1 parser remains pending deployment", () => {
+    // Phase 32.8C++++ — EvidenceIntegritySnapshot table provides
+    // canonicalHashMatches / signatureValid / custodyChainValid /
+    // timestampDigestMatches / otsHashMatches columns.
+    // Phase 32.8C+++++ — TSA issuer columns + parseStatus added; the
+    // remaining gap is the worker-side ASN.1 parser deployment.
+    expect(SERVICE).toMatch(/worker-side ASN\.1 TSA parser not yet deployed/);
+    expect(SERVICE).not.toContain("canonical_hash_recompute");
+    expect(SERVICE).not.toContain("signature_valid_per_record");
+    expect(SERVICE).not.toContain("custody_chain_valid_per_record");
+  });
+
+  it("uses legally-safe language only (no admissibility/authenticity claims)", () => {
+    const idx = SERVICE.indexOf("async function runDeepIntegrityWatch");
+    const body = SERVICE.slice(idx, idx + 6000);
+    for (const banned of [
+      "legally admissible",
+      "court-ready",
+      "proves authenticity",
+      "authentic",
+      "fraud",
+    ]) {
+      expect(body, `forbidden ${banned} in deep integrity engine`).not.toContain(banned);
+    }
+  });
+});
+
+describe("Phase 32.8C++ — Access Security Classifier", () => {
+  it("bounded anomaly category enum", () => {
+    expect(SERVICE).toMatch(/async function runAccessSecurityClassifier\(/);
+    for (const c of [
+      "repeated_failed_access",
+      "blocked_export_attempt",
+      "api_credential_change",
+      "webhook_failure_spike",
+      "admin_role_change",
+      "step_up_failed",
+      "permission_denied_burst",
+      "uncategorized",
+    ]) {
+      expect(SERVICE).toContain(`"${c}"`);
+    }
+  });
+
+  it("classifier is rule-based on eventType strings (no ML)", () => {
+    expect(SERVICE).toMatch(/function classifySecurityEventType\(eventType:\s*string\)/);
+    expect(SERVICE).toContain("ml_anomaly_score");
+  });
+
+  it("classifier reads ONLY real SecurityEvent rows last 24h with severity WARNING|HIGH", () => {
+    const idx = SERVICE.indexOf("async function runAccessSecurityClassifier");
+    const body = SERVICE.slice(idx, idx + 4000);
+    expect(body).toMatch(/prisma\.securityEvent\.findMany/);
+    expect(body).toMatch(
+      /severity:\s*\{\s*in:\s*\["WARNING",\s*"HIGH"\]/,
+    );
+  });
+});
+
+describe("Phase 32.8C++ — Queue / Worker Telemetry", () => {
+  it("reconcile health enum bounded (FRESH / STALE / UNAVAILABLE)", () => {
+    expect(SERVICE).toMatch(/async function runQueueWorkerTelemetry\(/);
+    expect(SERVICE).toMatch(
+      /reconcileHealth:\s*"FRESH"\s*\|\s*"STALE"\s*\|\s*"UNAVAILABLE"/,
+    );
+  });
+
+  it("heartbeat source is SecurityEvent with eventType=reviewer_reconcile_run", () => {
+    expect(SERVICE).toMatch(
+      /eventType:\s*"reviewer_reconcile_run"/,
+    );
+  });
+
+  it("BullMQ infra depth and worker heartbeat persistence are now CLOSED via QueueTelemetrySnapshot + WorkerTelemetrySnapshot (Phase 32.8C+++++)", () => {
+    // Phase 32.8C+++++ — durable QueueTelemetrySnapshot + WorkerTelemetrySnapshot
+    // tables replace the old "no DB-persisted snapshot" / "heartbeat not persisted"
+    // unsupportedSignals. The dashboard now reads from the persisted samples and
+    // lazy-writes DB-derived snapshots if BullMQ-source samples are missing.
+    expect(SERVICE).not.toMatch(/no DB-persisted queue snapshot/);
+    expect(SERVICE).not.toMatch(/worker process heartbeat is not persisted/);
+    expect(SERVICE).toMatch(/QueueTelemetrySnapshot[^"\n]*Phase 32\.8C\+\+\+\+\+/);
+    expect(SERVICE).toMatch(/WorkerTelemetrySnapshot[^"\n]*Phase 32\.8C\+\+\+\+\+/);
+  });
+});
+
+describe("Phase 32.8C++ — Coordination Signals", () => {
+  it("bounded coordination signal types", () => {
+    expect(SERVICE).toMatch(/async function runCoordinationSignals\(/);
+    for (const t of [
+      "escalation_unassigned",
+      "annotation_requires_review",
+      "legal_note_pending",
+      "review_without_recent_activity",
+    ]) {
+      expect(SERVICE).toContain(`"${t}"`);
+    }
+  });
+
+  it("uses real tables only (ReviewEscalation acknowledgedByUserId IS NULL / EvidenceAnnotation / EvidenceReviewerComment / CaseComment)", () => {
+    const idx = SERVICE.indexOf("async function runCoordinationSignals");
+    // Phase 32.8C+++++ grew the function — extend the body window.
+    const body = SERVICE.slice(idx, idx + 8000);
+    expect(body).toMatch(/acknowledgedByUserId:\s*null/);
+    expect(body).toMatch(/prisma\.evidenceAnnotation/);
+    expect(body).toMatch(/prisma\.evidenceReviewerComment/);
+    expect(body).toMatch(/prisma\.caseComment/);
+  });
+
+  it("case-level comments + annotation resolution tracking are now CLOSED (Phase 32.8C+++++ + Phase 32.8C++++)", () => {
+    // Phase 32.8C+++++ — CaseComment table provides case-level comments.
+    // Phase 32.8C++++ — resolvedAtUtc / resolvedByUserId added to
+    // EvidenceAnnotation + EvidenceReviewerComment.
+    // The previous "unsupported" declarations are removed; the section
+    // sourceSummary now advertises the new sources directly.
+    expect(SERVICE).not.toContain("case_level_comments (no Case-level comment table)");
+    expect(SERVICE).not.toContain(
+      "annotation_resolution_tracking (no resolved/unresolved column on EvidenceAnnotation)",
+    );
+    expect(SERVICE).toMatch(/CaseComment[^"\n]*Phase 32\.8C\+\+\+\+\+/);
+  });
+});
+
+describe("Phase 32.8C++ — Predictive Risk Forecast (deterministic)", () => {
+  it("bounded forecast type enum + confidence levels", () => {
+    expect(SERVICE).toMatch(/function runPredictiveRisk\(input:\s*\{/);
+    for (const t of [
+      "sla_breach_imminent",
+      "reviewer_capacity_breach",
+      "report_pipeline_degradation",
+      "package_pipeline_degradation",
+      "governance_pressure_rising",
+      "audit_readiness_gap",
+    ]) {
+      expect(SERVICE).toContain(`"${t}"`);
+    }
+    expect(SERVICE).toMatch(/confidence:\s*"low"\s*\|\s*"medium"\s*\|\s*"high"/);
+  });
+
+  it("uses deterministic thresholds — NOT ML predictions / NOT AI claims", () => {
+    expect(SERVICE).toMatch(/ml_probability_model/);
+    const idx = SERVICE.indexOf("function runPredictiveRisk");
+    const body = SERVICE.slice(idx, idx + 6000);
+    for (const banned of [
+      "AI predicts",
+      "ML model",
+      "artificial intelligence",
+      "machine learning",
+    ]) {
+      expect(body, `forbidden ${banned}`).not.toContain(banned);
+    }
+  });
+
+  it("forecast is derived from real engine outputs (no extra DB round-trip)", () => {
+    expect(SERVICE).toMatch(
+      /runPredictiveRisk\(\{\s*reviewer:\s*reviewerOrch,\s*governance,\s*pipeline:\s*pipelineDetail,\s*audit:\s*auditReadiness/,
+    );
+  });
+});
+
+describe("Phase 32.8C++ — Org Intelligence V2", () => {
+  it("bounded orgHealth enum (HEALTHY / WATCH / DEGRADED / CRITICAL)", () => {
+    expect(SERVICE).toMatch(/async function runOrgIntelligenceV2\(/);
+    expect(SERVICE).toMatch(
+      /orgHealth:\s*"HEALTHY"\s*\|\s*"WATCH"\s*\|\s*"DEGRADED"\s*\|\s*"CRITICAL"/,
+    );
+  });
+
+  it("bottleneck domains derived from pressure items' affectedDomain (no synthesized domains)", () => {
+    expect(SERVICE).toMatch(/for \(const item of pressure\.items\)/);
+    expect(SERVICE).toMatch(/item\.affectedDomain/);
+    expect(SERVICE).toMatch(/item\.sourceTable/);
+  });
+
+  it("throughput windows include 24h + 7d + 30d", () => {
+    expect(SERVICE).toMatch(/last24h:\s*number/);
+    expect(SERVICE).toMatch(/last7d:\s*number/);
+    expect(SERVICE).toMatch(/last30d:\s*number/);
+  });
+});
+
+describe("Phase 32.8C++ — Envelope contract + unsupported signals", () => {
+  it("envelope adds the 9 new deep-intelligence sections", () => {
+    for (const section of [
+      "relationshipIntelligence",
+      "crossCaseIntelligenceV2",
+      "reconstructedTimeline",
+      "deepIntegrityWatch",
+      "accessSecurityClassifier",
+      "queueWorkerTelemetry",
+      "coordinationSignals",
+      "predictiveRisk",
+      "organizationalIntelligenceV2",
+    ]) {
+      expect(SERVICE).toMatch(new RegExp(`${section}:\\s*\\{`));
+    }
+  });
+
+  it("buildUnsupportedSignalsCatalog aggregates all new engine metas (transparency)", () => {
+    const idx = SERVICE.indexOf("const unsupportedSignals = buildUnsupportedSignalsCatalog");
+    expect(idx).toBeGreaterThan(-1);
+    const body = SERVICE.slice(idx, idx + 1200);
+    for (const m of [
+      "relationshipResult.meta",
+      "crossCaseV2Result.meta",
+      "reconstructedTimelineResult.meta",
+      "deepIntegrityResult.meta",
+      "securityClassifierResult.meta",
+      "queueWorkerTelemetryResult.meta",
+      "coordinationResult.meta",
+      "predictiveRiskResult.meta",
+      "orgIntelligenceV2Result.meta",
+    ]) {
+      expect(body, `unsupported aggregator missing ${m}`).toContain(m);
+    }
+  });
+});
+
+describe("Phase 32.8C++ — Frontend renders the deep intelligence layer", () => {
+  it("renders the new section components", () => {
+    for (const fn of [
+      "PredictiveRiskBoard",
+      "OrgIntelligenceV2Board",
+      "RelationshipIntelligenceBoard",
+      "CrossCaseIntelligenceV2Board",
+      "DeepIntegrityWatch",
+      "AccessSecurityClassifierBoard",
+      "QueueWorkerTelemetryBoard",
+      "CoordinationSignalsBoard",
+      "ReconstructedTimelineSection",
+    ]) {
+      expect(CC, `section ${fn} missing`).toMatch(
+        new RegExp(`function ${fn}\\(`),
+      );
+    }
+  });
+
+  it("deep-intelligence sections expose stable data attributes for test + automation", () => {
+    for (const attr of [
+      "data-cc-forecast-id=",
+      "data-cc-forecast-type=",
+      "data-cc-forecast-confidence=",
+      "data-cc-org-v2-tile=",
+      "data-cc-bottleneck-list",
+      "data-cc-cluster-id=",
+      "data-cc-cross-id=",
+      "data-cc-reconstructed-id=",
+      "data-cc-deep-integrity-reason=",
+      "data-cc-classifier-category=",
+      "data-cc-queue-telemetry-tile=",
+      "data-cc-coord-id=",
+    ]) {
+      expect(CC, `attribute ${attr} missing in frontend`).toContain(attr);
+    }
+  });
+
+  it("predictive risk explicitly tells the operator it is a deterministic forecast (no AI/ML claim)", () => {
+    expect(CC).toMatch(/deterministic heuristic forecast/);
+    expect(CC).toMatch(/no ML, no AI claims/);
+    expect(CC).not.toContain("AI predicts");
+    expect(CC).not.toContain("machine learning");
   });
 });

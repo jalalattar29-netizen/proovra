@@ -59,6 +59,7 @@ import {
   processTranscriptJob,
 } from "./subsystem-queue-processors.js";
 import { startHealthServer, type HealthServer } from "./health.js";
+import { startTelemetrySampler, type TelemetrySampler } from "./telemetry.js";
 import { captureException, initSentry } from "./sentry.js";
 import { reapExpiredCaptureDrafts } from "./capture-reaper.js";
 import { runOrphanArtifactScan } from "./orphan-scan.js";
@@ -1190,6 +1191,7 @@ const graphSearchProjectionWorker = safeRegisterWorker(
 );
 
 let healthServer: HealthServer | null = null;
+let telemetrySampler: TelemetrySampler | null = null;
 let shuttingDown = false;
 
 async function shutdown(exitCode: number) {
@@ -1383,6 +1385,14 @@ async function shutdown(exitCode: number) {
   }
 
   try {
+    telemetrySampler?.stop();
+  } catch (err) {
+    const requestId = randomUUID();
+    logger.error({ requestId, err }, "worker.telemetry_stop_failed");
+    captureException(err, { requestId });
+  }
+
+  try {
     await healthServer?.close();
   } catch (err) {
     const requestId = randomUUID();
@@ -1429,6 +1439,16 @@ startHealthServer()
     // can read.
     startObservabilityHeartbeat();
     startQueueHealthSampler();
+    // Phase 32.8C+++++ — Durable queue + worker telemetry snapshots.
+    // Failure-tolerant; never blocks job processing.
+    try {
+      telemetrySampler = startTelemetrySampler({
+        intervalMs: 60_000,
+        workerId: `worker-${process.pid}`,
+      });
+    } catch (err) {
+      logger.warn({ err }, "telemetry.sampler_start_failed");
+    }
   })
   .catch((err) => {
     const requestId = randomUUID();

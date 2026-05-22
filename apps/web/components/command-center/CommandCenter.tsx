@@ -170,6 +170,9 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
         ]}
       />
 
+      {/* CRITICAL OPERATIONS BAR — top-of-page health distillation */}
+      <CriticalOperationsBar envelope={envelope} />
+
       {/* SUMMARY STRIP */}
       <SummaryStrip envelope={envelope} isTeam={isTeam} />
 
@@ -179,13 +182,22 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
         canMutate={canMutate}
       />
 
-      {/* 2 + 3. INVESTIGATION OPERATIONS + REVIEWER ORCHESTRATION */}
+      {/* Operational Routing Queue — actionable form of pressure */}
+      <RoutingQueueSection section={sections.routingQueue} />
+
+      {/* Investigation Risk Board + Reviewer Workload Engine */}
+      <div className="ec-grid-2col">
+        <InvestigationRiskBoard section={sections.investigationIntelligence} />
+        <WorkloadEngineBoard section={sections.workloadEngine} />
+      </div>
+
+      {/* Legacy case ops + reviewer orchestration (kept for back-compat) */}
       <div className="ec-grid-2col">
         <CaseOperationsSection section={sections.caseOperations} />
         <ReviewerOrchestrationSection section={sections.reviewerOrchestration} />
       </div>
 
-      {/* 4 + 5. PIPELINE DETAIL + GOVERNANCE POSTURE */}
+      {/* Pipeline & Artifact Operations + Governance & Compliance */}
       <div className="ec-grid-2col">
         <PipelineDetailSection section={sections.pipelineDetail} />
         <GovernancePostureSection
@@ -194,7 +206,10 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
         />
       </div>
 
-      {/* 8 + 6. AUDIT READINESS + ORGANIZATIONAL INTELLIGENCE */}
+      {/* Queue Congestion (full-width row) */}
+      <QueueCongestionSection section={sections.queueCongestion} />
+
+      {/* AUDIT READINESS + ORGANIZATIONAL INTELLIGENCE */}
       <div className="ec-grid-2col">
         <AuditReadinessSection section={sections.auditReadiness} />
         <OrganizationalIntelligenceSection
@@ -202,7 +217,15 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
         />
       </div>
 
-      {/* 7. OPERATIONAL TIMELINE — full-width heartbeat */}
+      {/* Custody/Integrity Watch + Access/Security Watch */}
+      <div className="ec-grid-2col">
+        <CustodyIntegrityWatch
+          section={sections.custodyIntegrityAnomalies}
+        />
+        <AccessSecurityWatch section={sections.accessSecurityAnomalies} />
+      </div>
+
+      {/* OPERATIONAL TIMELINE — full-width heartbeat */}
       <TimelineSection section={sections.timeline} />
 
       {/* Activity + Incidents + Quick Actions row */}
@@ -211,7 +234,1614 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
         <IncidentsSection section={sections.incidents} />
         <QuickActions role={role} isTeam={isTeam} canMutate={canMutate} />
       </div>
+
+      {/* Phase 32.8C++ Deep Operations Intelligence */}
+      <PredictiveRiskBoard section={sections.predictiveRisk} />
+      <OrgIntelligenceV2Board section={sections.organizationalIntelligenceV2} />
+      <div className="ec-grid-2col">
+        <RelationshipIntelligenceBoard section={sections.relationshipIntelligence} />
+        <CrossCaseIntelligenceV2Board section={sections.crossCaseIntelligenceV2} />
+      </div>
+      <div className="ec-grid-2col">
+        <DeepIntegrityWatch section={sections.deepIntegrityWatch} />
+        <AccessSecurityClassifierBoard section={sections.accessSecurityClassifier} />
+      </div>
+      <div className="ec-grid-2col">
+        <QueueWorkerTelemetryBoard section={sections.queueWorkerTelemetry} />
+        <CoordinationSignalsBoard section={sections.coordinationSignals} />
+      </div>
+      <ReconstructedTimelineSection section={sections.reconstructedTimeline} />
+
+      {/* Unsupported Signals — transparent catalog, collapsed by default */}
+      <UnsupportedSignalsSection signals={envelope.unsupportedSignals} />
     </main>
+  );
+}
+
+// ============================================================================
+// Phase 32.8C++ Deep Operations Intelligence — section components
+// ============================================================================
+
+function PredictiveRiskBoard({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["predictiveRisk"];
+}) {
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell kicker="Predictive Risk Forecast" title="Forecast unavailable">
+        <SectionNote status="unavailable" kind="predictive-risk" />
+      </SectionShell>
+    );
+  }
+  if (section.forecasts.length === 0) {
+    return (
+      <SectionShell
+        kicker="Predictive Risk Forecast"
+        title="No risk forecasts based on current signals"
+      >
+        <EnterpriseEmpty
+          title="No deterministic risk signals firing"
+          body="The forecast is computed from real engine outputs (reviewer + governance + pipeline + audit + retry-storm signals). Forecasts appear here when concrete thresholds are crossed."
+          hint="This is a deterministic heuristic forecast — not an ML prediction or AI insight."
+        />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Predictive Risk Forecast"
+      title={`${section.forecasts.length} deterministic risk forecast${section.forecasts.length === 1 ? "" : "s"}`}
+      severity={
+        section.forecasts.some((f) => f.severity === "critical")
+          ? "critical"
+          : section.forecasts.some((f) => f.severity === "high")
+            ? "high"
+            : "warning"
+      }
+    >
+      <ul className="ec-forecast-list" data-cc-forecast-list>
+        {section.forecasts.map((f) => (
+          <li
+            key={f.id}
+            className="ec-forecast-row"
+            data-cc-forecast-id={f.id}
+            data-cc-forecast-type={f.forecastType}
+            data-cc-forecast-severity={f.severity}
+            data-cc-forecast-confidence={f.confidence}
+          >
+            <div className="ec-forecast-row-head">
+              <span className="ec-forecast-type">{f.forecastType}</span>
+              <span className="ec-chip" data-cc-tile-severe={f.severity === "high" || f.severity === "critical" ? "true" : "false"}>
+                {f.severity.toUpperCase()}
+              </span>
+              <span className="ec-chip-faint">confidence · {f.confidence}</span>
+            </div>
+            <div className="ec-forecast-reason">{f.reason}</div>
+            <div className="ec-forecast-impact">
+              Likely impact: {f.likelyImpact}
+            </div>
+            <div className="ec-forecast-action">
+              Recommended: {f.recommendedAction}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="ec-section-foot">
+        Forecasts are derived from real engine outputs — no ML, no AI claims.
+      </div>
+    </SectionShell>
+  );
+}
+
+function OrgIntelligenceV2Board({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["organizationalIntelligenceV2"];
+}) {
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Organizational Intelligence V2"
+        title="Org intelligence unavailable"
+      >
+        <SectionNote status="unavailable" kind="org-intelligence-v2" />
+      </SectionShell>
+    );
+  }
+  const d = section.data;
+  const healthSeverity: SeverityTone =
+    d.orgHealth === "CRITICAL"
+      ? "critical"
+      : d.orgHealth === "DEGRADED"
+        ? "high"
+        : d.orgHealth === "WATCH"
+          ? "warning"
+          : "info";
+  return (
+    <SectionShell
+      kicker="Organizational Intelligence V2"
+      title={`Org health · ${d.orgHealth}`}
+      severity={healthSeverity}
+    >
+      <div className="ec-tile-grid" data-cc-org-v2-tiles>
+        <div className="ec-tile" data-cc-org-v2-tile="evidence_24h">
+          <span className="ec-tile-value">{d.throughputWindows.last24h}</span>
+          <span className="ec-tile-label">Evidence · 24h</span>
+        </div>
+        <div className="ec-tile" data-cc-org-v2-tile="evidence_7d">
+          <span className="ec-tile-value">{d.throughputWindows.last7d}</span>
+          <span className="ec-tile-label">Evidence · 7d</span>
+        </div>
+        <div className="ec-tile" data-cc-org-v2-tile="evidence_30d">
+          <span className="ec-tile-value">{d.throughputWindows.last30d}</span>
+          <span className="ec-tile-label">Evidence · 30d</span>
+        </div>
+      </div>
+      {d.bottleneckDomains.length > 0 ? (
+        <div className="ec-bottleneck-grid">
+          <h4 className="ec-bottleneck-title">Bottleneck domains</h4>
+          <ul className="ec-bottleneck-list" data-cc-bottleneck-list>
+            {d.bottleneckDomains.map((b) => (
+              <li
+                key={b.domain}
+                className="ec-bottleneck-row"
+                data-cc-bottleneck-domain={b.domain}
+              >
+                <span>{b.domain}</span>
+                <span className="ec-chip">
+                  {b.pressureItems} pressure item{b.pressureItems === 1 ? "" : "s"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {d.topPressureSources.length > 0 ? (
+        <div className="ec-bottleneck-grid">
+          <h4 className="ec-bottleneck-title">Top pressure sources</h4>
+          <ul className="ec-bottleneck-list" data-cc-top-sources-list>
+            {d.topPressureSources.map((s) => (
+              <li
+                key={s.sourceTable}
+                className="ec-bottleneck-row"
+                data-cc-pressure-source={s.sourceTable}
+              >
+                <code className="ec-bottleneck-source">{s.sourceTable}</code>
+                <span className="ec-chip">{s.itemCount}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {d.recommendedActions.length > 0 ? (
+        <ul className="ec-recommended-actions" data-cc-org-recommended-actions>
+          {d.recommendedActions.map((a, i) => (
+            <li key={i} className="ec-recommended-action-row">
+              · {a}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </SectionShell>
+  );
+}
+
+function RelationshipIntelligenceBoard({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["relationshipIntelligence"];
+}) {
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Evidence Relationship Intelligence"
+        title="Relationship intelligence unavailable"
+      >
+        <SectionNote status="unavailable" kind="relationships" />
+      </SectionShell>
+    );
+  }
+  if (section.clusters.length === 0) {
+    return (
+      <SectionShell
+        kicker="Evidence Relationship Intelligence"
+        title="No relationship clusters detected"
+      >
+        <EnterpriseEmpty
+          title="No evidence relationship clusters"
+          body="Relationship clusters surface when ≥ 2 evidence records share a real signal (file hash, submitter, explicit EvidenceRelationship row). The full graph view is deferred — see unsupported signals."
+        />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Evidence Relationship Intelligence"
+      title={`${section.clusters.length} relationship cluster${section.clusters.length === 1 ? "" : "s"}`}
+    >
+      <ul className="ec-cluster-list" data-cc-cluster-list>
+        {section.clusters.map((c) => (
+          <li
+            key={c.id}
+            className="ec-cluster-row"
+            data-cc-cluster-id={c.id}
+            data-cc-cluster-kind={c.kind}
+            data-cc-cluster-severity={c.severity}
+          >
+            <div className="ec-cluster-row-main">
+              <span className="ec-cluster-kind">{c.kind}</span>
+              <span className="ec-chip" data-cc-tile-severe={c.severity === "high" || c.severity === "critical" ? "true" : "false"}>
+                {c.reasonCode}
+              </span>
+              <span className="ec-chip-faint">{c.confidence}</span>
+            </div>
+            <div className="ec-cluster-explanation">
+              {c.operationalExplanation}
+            </div>
+            <div className="ec-cluster-action">
+              Recommended: {c.recommendedAction}
+            </div>
+            <div className="ec-cluster-meta">
+              {c.evidenceIds.length} evidence
+              {c.caseIds.length > 0 ? ` · ${c.caseIds.length} case${c.caseIds.length === 1 ? "" : "s"}` : ""}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </SectionShell>
+  );
+}
+
+function CrossCaseIntelligenceV2Board({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["crossCaseIntelligenceV2"];
+}) {
+  if (section.meta.status === "not_applicable") {
+    return (
+      <SectionShell
+        kicker="Cross-Case Intelligence"
+        title="Personal workspace"
+      >
+        <PersonalNote subsystem="reviewer" />
+      </SectionShell>
+    );
+  }
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Cross-Case Intelligence"
+        title="Cross-case intelligence unavailable"
+      >
+        <SectionNote status="unavailable" kind="cross-case-v2" />
+      </SectionShell>
+    );
+  }
+  if (section.signals.length === 0) {
+    return (
+      <SectionShell
+        kicker="Cross-Case Intelligence"
+        title="No cross-case signals firing"
+      >
+        <EnterpriseEmpty
+          title="No cross-case patterns detected"
+          body="Cross-case signals fire when ≥ 2 cases share a real operational condition (governance block, reviewer overload, failed pipeline pattern, stale preservation)."
+        />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Cross-Case Intelligence"
+      title={`${section.signals.length} cross-case signal${section.signals.length === 1 ? "" : "s"}`}
+    >
+      <ul className="ec-cross-list" data-cc-cross-list>
+        {section.signals.map((s) => (
+          <li
+            key={s.id}
+            className="ec-cross-row"
+            data-cc-cross-id={s.id}
+            data-cc-cross-type={s.signalType}
+            data-cc-cross-severity={s.severity}
+          >
+            <div className="ec-cross-row-main">
+              <span className="ec-cross-type">{s.signalType}</span>
+              <span className="ec-chip" data-cc-tile-severe={s.severity === "high" || s.severity === "critical" ? "true" : "false"}>
+                {s.severity.toUpperCase()}
+              </span>
+            </div>
+            <div className="ec-cross-meaning">{s.operationalMeaning}</div>
+            <div className="ec-cross-action">Recommended: {s.recommendedAction}</div>
+            <div className="ec-cross-meta">
+              {s.affectedCaseIds.length} affected case
+              {s.affectedCaseIds.length === 1 ? "" : "s"}
+              {s.affectedEvidenceIds.length > 0
+                ? ` · ${s.affectedEvidenceIds.length} evidence`
+                : ""}
+            </div>
+            <Link href={s.route} className="ec-cross-route">
+              Open
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </SectionShell>
+  );
+}
+
+function DeepIntegrityWatch({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["deepIntegrityWatch"];
+}) {
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Deep Integrity Watch"
+        title="Deep integrity unavailable"
+      >
+        <SectionNote status="unavailable" kind="deep-integrity" />
+      </SectionShell>
+    );
+  }
+  if (section.items.length === 0) {
+    return (
+      <SectionShell
+        kicker="Deep Integrity Watch"
+        title="No deep integrity signals require review"
+      >
+        <EnterpriseEmpty
+          title="No deep integrity anomalies detected"
+          body="The deep watch reads Evidence verificationStatus + TSA token + OTS status + report/package relations. Deeper hash-recompute lives in the worker pipeline."
+        />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Deep Integrity Watch"
+      title={`${section.items.length} integrity signal${section.items.length === 1 ? "" : "s"}`}
+      severity={section.items.some((i) => i.severity === "critical") ? "critical" : "high"}
+    >
+      <ul className="ec-deep-integrity-list" data-cc-deep-integrity-list>
+        {section.items.map((it) => {
+          const tsa = it.tsaTimestampIntelligence;
+          // Phase 32.8C++++++ — TSA issuer block. Operators see exactly
+          // what the worker parsed (or that parsing is unavailable).
+          // We NEVER fabricate issuer values; nulls render as "—".
+          const renderTsa = tsa && tsa.parseStatus !== null;
+          return (
+            <li
+              key={`${it.evidenceId}:${it.reasonCode}`}
+              className="ec-deep-integrity-row"
+              data-cc-deep-integrity-reason={it.reasonCode}
+              data-cc-deep-integrity-severity={it.severity}
+              data-cc-deep-integrity-confidence={it.confidence}
+              data-cc-tsa-parse-status={tsa?.parseStatus ?? "absent"}
+            >
+              <Link href={it.href} className="ec-deep-integrity-link">
+                <div className="ec-deep-integrity-row-main">
+                  <span className="ec-deep-integrity-title">{it.title}</span>
+                  <span
+                    className="ec-chip"
+                    data-cc-tile-severe={it.severity === "critical" || it.severity === "high" ? "true" : "false"}
+                  >
+                    {it.reasonCode}
+                  </span>
+                </div>
+                <div className="ec-deep-integrity-explanation">
+                  {it.explanation}
+                </div>
+                {renderTsa ? (
+                  <div
+                    className="ec-tsa-intel"
+                    data-cc-tsa-intel
+                    aria-label="TSA timestamp intelligence"
+                  >
+                    <span className="ec-chip-faint">TSA</span>
+                    {tsa!.parseStatus === "PARSED" ? (
+                      <>
+                        <span data-cc-tsa-issuer-cn>
+                          {tsa!.issuerCommonName ?? "—"}
+                        </span>
+                        <span className="ec-chip-faint" data-cc-tsa-issuer-org>
+                          {tsa!.issuerOrganization ?? "—"}
+                        </span>
+                        {tsa!.policyOid ? (
+                          <span className="ec-chip-faint" data-cc-tsa-policy-oid>
+                            policy · <code>{tsa!.policyOid}</code>
+                          </span>
+                        ) : null}
+                      </>
+                    ) : tsa!.parseStatus === "UNAVAILABLE" ? (
+                      <span className="ec-chip-faint" data-cc-tsa-unavailable>
+                        TSA issuer parsing not yet available
+                        {tsa!.parseErrorCode ? ` (${tsa!.parseErrorCode})` : ""}
+                      </span>
+                    ) : tsa!.parseStatus === "FAILED" ? (
+                      <span className="ec-chip" data-cc-tsa-failed data-cc-tile-severe="true">
+                        TSA parse failed
+                        {tsa!.parseErrorCode ? ` · ${tsa!.parseErrorCode}` : ""}
+                      </span>
+                    ) : (
+                      <span className="ec-chip-faint">TSA · {tsa!.parseStatus}</span>
+                    )}
+                  </div>
+                ) : null}
+                <div className="ec-deep-integrity-source">
+                  Source · {it.sourceFields.join(" + ")}
+                </div>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="ec-section-foot">
+        Each signal includes the exact source field(s). Language is operator-side
+        review — no claim of authenticity or admissibility.
+      </div>
+    </SectionShell>
+  );
+}
+
+function AccessSecurityClassifierBoard({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["accessSecurityClassifier"];
+}) {
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Security Anomaly Classifier"
+        title="Classifier unavailable"
+      >
+        <SectionNote status="unavailable" kind="security-classifier" />
+      </SectionShell>
+    );
+  }
+  if (section.anomalies.length === 0) {
+    return (
+      <SectionShell
+        kicker="Security Anomaly Classifier"
+        title="No classified anomalies · 24h"
+      >
+        <EnterpriseEmpty
+          title="No classified security anomalies"
+          body="The classifier is rule-based on eventType strings. ML scoring is not in scope — see unsupported signals."
+        />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Security Anomaly Classifier"
+      title={`${section.anomalies.length} classified anomal${section.anomalies.length === 1 ? "y" : "ies"} · 24h`}
+      severity={section.anomalies.some((a) => a.severity === "high") ? "high" : "warning"}
+    >
+      <ul className="ec-classifier-list" data-cc-classifier-list>
+        {section.anomalies.map((a, i) => (
+          <li
+            key={`${a.category}:${a.eventType}:${i}`}
+            className="ec-classifier-row"
+            data-cc-classifier-category={a.category}
+            data-cc-classifier-severity={a.severity}
+            data-cc-classifier-count={a.count}
+          >
+            <div className="ec-classifier-row-main">
+              <span className="ec-classifier-category">{a.category}</span>
+              <span className="ec-chip">{a.count}× · {a.timeWindow}</span>
+              <span
+                className="ec-chip"
+                data-cc-tile-severe={a.severity === "high" ? "true" : "false"}
+              >
+                {a.severity.toUpperCase()}
+              </span>
+            </div>
+            <div className="ec-classifier-explanation">{a.explanation}</div>
+            <div className="ec-classifier-action">
+              Recommended: {a.recommendedAction}
+            </div>
+            <div className="ec-classifier-source">
+              source · {a.sourceTable} · eventType:{" "}
+              <code>{a.eventType}</code>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </SectionShell>
+  );
+}
+
+/**
+ * Stale-heartbeat threshold (seconds). A worker telemetry row older than
+ * this is rendered with the `data-cc-stale="true"` flag so operators can
+ * see the silence visually.
+ */
+const WORKER_HEARTBEAT_STALE_SECONDS = 300;
+
+function workerStatusSeverity(
+  status: string,
+): "info" | "warning" | "high" | "critical" {
+  switch (status) {
+    case "CRITICAL":
+      return "critical";
+    case "DEGRADED":
+      return "high";
+    case "UNKNOWN":
+      return "warning";
+    default:
+      return "info";
+  }
+}
+
+function QueueWorkerTelemetryBoard({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["queueWorkerTelemetry"];
+}) {
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Queue / Worker Telemetry"
+        title="Queue telemetry unavailable"
+      >
+        <SectionNote status="unavailable" kind="queue-worker-telemetry" />
+      </SectionShell>
+    );
+  }
+  const d = section.data;
+  const snapshots = d.queueSnapshots ?? [];
+  const heartbeats = d.workerHeartbeats ?? [];
+  return (
+    <SectionShell
+      kicker="Queue / Worker Telemetry"
+      title={`Reconcile · ${d.reconcileHealth}`}
+      severity={
+        d.reconcileHealth === "UNAVAILABLE"
+          ? "high"
+          : d.reconcileHealth === "STALE"
+            ? "warning"
+            : "info"
+      }
+    >
+      <div className="ec-tile-grid" data-cc-queue-telemetry-tiles>
+        <div className="ec-tile" data-cc-queue-telemetry-tile="heartbeat" data-cc-tile-severe={d.reconcileHealth === "UNAVAILABLE" || d.reconcileHealth === "STALE" ? "true" : "false"}>
+          <span className="ec-tile-value">{d.reconcileHealth}</span>
+          <span className="ec-tile-label">Reconcile health</span>
+        </div>
+        <div className="ec-tile" data-cc-queue-telemetry-tile="freshness">
+          <span className="ec-tile-value">
+            {d.reconcileFreshnessHours !== null
+              ? `${d.reconcileFreshnessHours.toFixed(2)}h`
+              : "—"}
+          </span>
+          <span className="ec-tile-label">Heartbeat age</span>
+        </div>
+        <div className="ec-tile" data-cc-queue-telemetry-tile="review_queue">
+          <span className="ec-tile-value">{d.reviewQueueDepth}</span>
+          <span className="ec-tile-label">Review queue depth</span>
+        </div>
+        <div className="ec-tile" data-cc-queue-telemetry-tile="report_queue">
+          <span className="ec-tile-value">{d.reportQueuePending}</span>
+          <span className="ec-tile-label">Report queue pending</span>
+        </div>
+        <div className="ec-tile" data-cc-queue-telemetry-tile="package_queue">
+          <span className="ec-tile-value">{d.packageQueuePending}</span>
+          <span className="ec-tile-label">Package queue pending</span>
+        </div>
+        <div
+          className="ec-tile"
+          data-cc-queue-telemetry-tile="retry_storms"
+          data-cc-tile-severe={d.retryStormIncidents > 0 ? "true" : "false"}
+        >
+          <span className="ec-tile-value">{d.retryStormIncidents}</span>
+          <span className="ec-tile-label">Retry storms</span>
+        </div>
+      </div>
+
+      {/* Phase 32.8C++++++ — Worker heartbeats from WorkerTelemetrySnapshot. */}
+      <div
+        className="ec-subsection"
+        data-cc-worker-heartbeats-block
+        aria-label="Worker heartbeats"
+      >
+        <div className="ec-subsection-head">
+          <h3 className="ec-subsection-title">Worker heartbeats</h3>
+          <span className="ec-chip-faint">
+            {heartbeats.length === 0
+              ? "No worker heartbeats yet"
+              : `${heartbeats.length} active worker${heartbeats.length === 1 ? "" : "s"}`}
+          </span>
+        </div>
+        {heartbeats.length === 0 ? (
+          <EnterpriseEmpty
+            title="No worker heartbeats yet"
+            body="Worker telemetry snapshots populate once the worker sampler has emitted at least one heartbeat."
+          />
+        ) : (
+          <ul className="ec-telemetry-list" data-cc-worker-heartbeats>
+            {heartbeats.map((h) => {
+              const isStale = h.ageSeconds > WORKER_HEARTBEAT_STALE_SECONDS;
+              return (
+                <li
+                  key={`${h.workerKind}:${h.workerId}`}
+                  className="ec-telemetry-row"
+                  data-cc-worker-id={h.workerId}
+                  data-cc-worker-kind={h.workerKind}
+                  data-cc-worker-status={h.status}
+                  data-cc-stale={isStale ? "true" : "false"}
+                  data-cc-coord-severity={workerStatusSeverity(h.status)}
+                >
+                  <div className="ec-telemetry-row-main">
+                    <span className="ec-telemetry-label">{h.workerKind}</span>
+                    <span
+                      className="ec-chip"
+                      data-cc-tile-severe={
+                        h.status === "CRITICAL" || h.status === "DEGRADED" || isStale
+                          ? "true"
+                          : "false"
+                      }
+                    >
+                      {h.status}
+                    </span>
+                    {isStale ? (
+                      <span className="ec-chip" data-cc-stale-flag>
+                        Heartbeat stale
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="ec-telemetry-meta">
+                    <span data-cc-worker-id-label title={h.workerId}>
+                      {h.workerId.length > 24
+                        ? `${h.workerId.slice(0, 24)}…`
+                        : h.workerId}
+                    </span>
+                    <time dateTime={h.heartbeatAtUtc} className="ec-chip-faint">
+                      heartbeat {relTime(h.heartbeatAtUtc)}
+                    </time>
+                    {h.processedCount !== null && h.processedCount !== undefined ? (
+                      <span className="ec-chip-faint">
+                        {h.processedCount} processed
+                      </span>
+                    ) : null}
+                    {h.failedCount !== null && h.failedCount !== undefined && h.failedCount > 0 ? (
+                      <span
+                        className="ec-chip"
+                        data-cc-tile-severe="true"
+                      >
+                        {h.failedCount} failed
+                      </span>
+                    ) : null}
+                    {h.lastErrorCode ? (
+                      <span className="ec-chip" data-cc-tile-severe="true">
+                        {h.lastErrorCode}
+                      </span>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* Phase 32.8C++++++ — Queue snapshots from QueueTelemetrySnapshot. */}
+      <div
+        className="ec-subsection"
+        data-cc-queue-snapshots-block
+        aria-label="Queue snapshots"
+      >
+        <div className="ec-subsection-head">
+          <h3 className="ec-subsection-title">Queue snapshots</h3>
+          <span className="ec-chip-faint">
+            {snapshots.length === 0
+              ? "No queue samples yet"
+              : `${snapshots.length} queue${snapshots.length === 1 ? "" : "s"}`}
+          </span>
+        </div>
+        {snapshots.length === 0 ? (
+          <EnterpriseEmpty
+            title="No queue telemetry yet"
+            body="Queue snapshots populate from the worker BullMQ sampler or the API DB-derived writer on first dashboard read."
+          />
+        ) : (
+          <ul className="ec-telemetry-list" data-cc-queue-snapshots>
+            {snapshots.map((q) => (
+              <li
+                key={`${q.queueName}:${q.sampledAtUtc}`}
+                className="ec-telemetry-row"
+                data-cc-queue-name={q.queueName}
+                data-cc-queue-domain={q.queueDomain}
+                data-cc-queue-source={q.source}
+                data-cc-tile-severe={
+                  q.failedCount > 0 || q.stalledCount > 0 ? "true" : "false"
+                }
+              >
+                <div className="ec-telemetry-row-main">
+                  <span className="ec-telemetry-label">{q.queueName}</span>
+                  <span className="ec-chip-faint">{q.queueDomain}</span>
+                  <span
+                    className="ec-chip-faint"
+                    data-cc-queue-source-label
+                    title={`Sampled by ${q.source}`}
+                  >
+                    {q.source}
+                  </span>
+                </div>
+                <div className="ec-telemetry-meta">
+                  <span>{q.waitingCount} waiting</span>
+                  <span>{q.activeCount} active</span>
+                  <span>{q.delayedCount} delayed</span>
+                  {q.failedCount > 0 ? (
+                    <span className="ec-chip" data-cc-tile-severe="true">
+                      {q.failedCount} failed
+                    </span>
+                  ) : null}
+                  {q.stalledCount > 0 ? (
+                    <span className="ec-chip" data-cc-tile-severe="true">
+                      {q.stalledCount} stalled
+                    </span>
+                  ) : null}
+                  <time dateTime={q.sampledAtUtc} className="ec-chip-faint">
+                    sampled {relTime(q.sampledAtUtc)}
+                  </time>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="ec-section-foot">
+        Worker heartbeats are sampled by the worker every 60s and persisted
+        to WorkerTelemetrySnapshot. Queue depth is sampled from BullMQ when
+        the worker is online; DB-derived counts are written by the API on
+        dashboard load when no fresh BullMQ sample is available.
+      </div>
+    </SectionShell>
+  );
+}
+
+function CoordinationBacklogTiles({
+  backlog,
+}: {
+  backlog: CommandCenterEnvelope["sections"]["coordinationSignals"]["backlog"];
+}) {
+  // Phase 32.8C++++++ — bounded backlog counts from CaseComment +
+  // resolvedAtUtc-tracked reviewer comments + annotations.
+  return (
+    <div className="ec-tile-grid" data-cc-coordination-backlog>
+      <div
+        className="ec-tile"
+        data-cc-backlog-tile="case_comment_open"
+        data-cc-tile-severe={backlog.caseCommentOpenCount > 0 ? "true" : "false"}
+      >
+        <span className="ec-tile-value">{backlog.caseCommentOpenCount}</span>
+        <span className="ec-tile-label">Case comments open</span>
+      </div>
+      <div
+        className="ec-tile"
+        data-cc-backlog-tile="case_comment_stale"
+        data-cc-tile-severe={backlog.caseCommentStaleOpenCount > 0 ? "true" : "false"}
+      >
+        <span className="ec-tile-value">{backlog.caseCommentStaleOpenCount}</span>
+        <span className="ec-tile-label">Case comments stale</span>
+      </div>
+      <div
+        className="ec-tile"
+        data-cc-backlog-tile="case_comment_resolved"
+      >
+        <span className="ec-tile-value">{backlog.caseCommentResolvedCount}</span>
+        <span className="ec-tile-label">Case comments resolved</span>
+      </div>
+      <div
+        className="ec-tile"
+        data-cc-backlog-tile="reviewer_comment_open"
+        data-cc-tile-severe={backlog.reviewerCommentOpenCount > 0 ? "true" : "false"}
+      >
+        <span className="ec-tile-value">{backlog.reviewerCommentOpenCount}</span>
+        <span className="ec-tile-label">Reviewer comments open</span>
+      </div>
+      <div
+        className="ec-tile"
+        data-cc-backlog-tile="annotation_open"
+        data-cc-tile-severe={backlog.annotationOpenCount > 0 ? "true" : "false"}
+      >
+        <span className="ec-tile-value">{backlog.annotationOpenCount}</span>
+        <span className="ec-tile-label">Annotations open</span>
+      </div>
+    </div>
+  );
+}
+
+function CoordinationSignalsBoard({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["coordinationSignals"];
+}) {
+  if (section.meta.status === "not_applicable") {
+    return (
+      <SectionShell kicker="Coordination Signals" title="Personal workspace">
+        <PersonalNote subsystem="reviewer" />
+      </SectionShell>
+    );
+  }
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Coordination Signals"
+        title="Coordination signals unavailable"
+      >
+        <SectionNote status="unavailable" kind="coordination" />
+      </SectionShell>
+    );
+  }
+  const backlog = section.backlog;
+  if (section.signals.length === 0) {
+    return (
+      <SectionShell kicker="Coordination Signals" title="No coordination signals">
+        <CoordinationBacklogTiles backlog={backlog} />
+        <EnterpriseEmpty
+          title="No unresolved coordination items"
+          body="Coordination signals surface unowned escalations, unresolved reviewer comments, unresolved annotations, unresolved case comments, recent legal notes, and stale assigned reviews."
+        />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Coordination Signals"
+      title={`${section.signals.length} coordination signal${section.signals.length === 1 ? "" : "s"}`}
+    >
+      <CoordinationBacklogTiles backlog={backlog} />
+      <ul className="ec-coord-list" data-cc-coord-list>
+        {section.signals.map((s) => (
+          <li
+            key={s.id}
+            className="ec-coord-row"
+            data-cc-coord-id={s.id}
+            data-cc-coord-type={s.signalType}
+            data-cc-coord-severity={s.severity}
+            data-cc-coord-entity-type={s.entityType}
+          >
+            <Link href={s.route} className="ec-coord-link">
+              <div className="ec-coord-row-main">
+                <span className="ec-coord-type">{s.signalType}</span>
+                <span
+                  className="ec-chip"
+                  data-cc-tile-severe={s.severity === "critical" || s.severity === "high" ? "true" : "false"}
+                >
+                  {s.reasonCode}
+                </span>
+              </div>
+              <div className="ec-coord-explanation">{s.explanation}</div>
+              <time className="ec-chip-faint" dateTime={s.detectedAt}>
+                {relTime(s.detectedAt)}
+              </time>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </SectionShell>
+  );
+}
+
+function ReconstructedTimelineSection({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["reconstructedTimeline"];
+}) {
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Reconstructed Operational Timeline"
+        title="Reconstructed timeline unavailable"
+      >
+        <SectionNote status="unavailable" kind="reconstructed-timeline" />
+      </SectionShell>
+    );
+  }
+  if (section.events.length === 0) {
+    return (
+      <SectionShell
+        kicker="Reconstructed Operational Timeline"
+        title="No reconstructed events · 14d"
+      >
+        <EnterpriseEmpty
+          title="Reconstructed timeline empty"
+          body="The reconstructed view aggregates Reports, Verification Packages, EvidenceLifecycleEvents, Reviewer Escalations, Operational Incidents, and Security Events — each tagged with actor + confidence + safeToDisplay."
+        />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Reconstructed Operational Timeline"
+      title={`Reconstructed heartbeat · ${section.events.length} events · last 14d`}
+    >
+      <ul className="ec-reconstructed-timeline" data-cc-reconstructed-list>
+        {section.events.map((ev) => (
+          <li
+            key={ev.id}
+            className="ec-reconstructed-row"
+            data-cc-reconstructed-id={ev.id}
+            data-cc-reconstructed-family={ev.family}
+            data-cc-reconstructed-severity={ev.severity}
+            data-cc-reconstructed-confidence={ev.confidence}
+          >
+            <span
+              className="ec-reconstructed-dot"
+              data-cc-reconstructed-severity-dot={ev.severity}
+            />
+            <div className="ec-reconstructed-body">
+              {ev.route ? (
+                <Link href={ev.route} className="ec-reconstructed-label">
+                  {ev.operationalMeaning}
+                </Link>
+              ) : (
+                <span className="ec-reconstructed-label">
+                  {ev.operationalMeaning}
+                </span>
+              )}
+              <span className="ec-reconstructed-meta">
+                {ev.family} · {ev.type}
+                {ev.actor ? ` · actor ${ev.actor}` : ""}
+                {" · source: "}
+                {ev.sourceTable}
+              </span>
+            </div>
+            <time
+              className="ec-reconstructed-time"
+              dateTime={ev.timestamp}
+              title={ev.timestamp}
+            >
+              {relTime(ev.timestamp)}
+            </time>
+          </li>
+        ))}
+      </ul>
+    </SectionShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CRITICAL OPERATIONS BAR
+// ---------------------------------------------------------------------------
+
+function CriticalOperationsBar({
+  envelope,
+}: {
+  envelope: CommandCenterEnvelope;
+}) {
+  const pressure = envelope.sections.operationalPressure;
+  const workload = envelope.sections.workloadEngine;
+  const investigation = envelope.sections.investigationIntelligence;
+  const critical = pressure.counts.critical;
+  const high = pressure.counts.high;
+  const warning = pressure.counts.warning;
+  const topAction = envelope.sections.routingQueue.items[0] ?? null;
+
+  const healthTone: SeverityTone =
+    workload.health === "CRITICAL" || critical > 0
+      ? "critical"
+      : workload.health === "DEGRADED" || high > 0
+        ? "high"
+        : workload.health === "WATCH" || warning > 0
+          ? "warning"
+          : "info";
+
+  const headline =
+    critical > 0
+      ? `${critical} critical pressure item${critical === 1 ? "" : "s"} require attention`
+      : high > 0
+        ? `${high} high-severity item${high === 1 ? "" : "s"} require attention`
+        : warning > 0
+          ? `${warning} warning-level item${warning === 1 ? "" : "s"} require attention`
+          : "Workspace operating within bounded thresholds";
+
+  const investigationCritical = investigation.items.filter(
+    (i) => i.riskLevel === "CRITICAL" || i.riskLevel === "HIGH",
+  ).length;
+
+  return (
+    <div
+      className="ec-critical-bar"
+      data-cc-critical-bar
+      data-cc-critical-tone={healthTone}
+    >
+      <div className="ec-critical-bar-main">
+        <span className="ec-critical-bar-headline" data-cc-critical-headline>
+          {headline}
+        </span>
+        <span className="ec-critical-bar-meta">
+          Health · {workload.health} · {investigationCritical} cases at risk ·{" "}
+          {pressure.items.length} pressure items
+        </span>
+      </div>
+      {topAction ? (
+        <Link
+          href={topAction.primaryRoute}
+          className="ec-critical-bar-action"
+          data-cc-critical-action-route={topAction.primaryRoute}
+        >
+          Next: {topAction.recommendedAction}
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ROUTING QUEUE
+// ---------------------------------------------------------------------------
+
+function RoutingQueueSection({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["routingQueue"];
+}) {
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Routing · Actionable Queue"
+        title="Routing queue unavailable"
+      >
+        <SectionNote status="unavailable" kind="routing" />
+      </SectionShell>
+    );
+  }
+  if (section.items.length === 0) {
+    return (
+      <SectionShell
+        kicker="Routing · Actionable Queue"
+        title="No actionable items in the routing queue"
+      >
+        <EnterpriseEmpty
+          title="Routing queue clear"
+          body="No items above warning severity require routing. The catalog of supported pressure signals is unchanged; new actionable items will appear here as they fire."
+        />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Routing · Actionable Queue"
+      title={`Routing queue · ${section.items.length} actionable item${section.items.length === 1 ? "" : "s"}`}
+      severity={section.items.some((i) => i.severity === "critical") ? "critical" : section.items.some((i) => i.severity === "high") ? "high" : "warning"}
+    >
+      <ul className="ec-routing-list" data-cc-routing-list>
+        {section.items.map((item) => (
+          <RoutingRow key={item.id} item={item} />
+        ))}
+      </ul>
+    </SectionShell>
+  );
+}
+
+function RoutingRow({ item }: { item: OperationalPressureItem }) {
+  return (
+    <li
+      className="ec-routing-row"
+      data-cc-routing-id={item.id}
+      data-cc-routing-reason={item.reasonCode}
+      data-cc-routing-domain={item.affectedDomain}
+      data-cc-routing-severity={item.severity}
+    >
+      <div className="ec-routing-row-main">
+        <span
+          className="ec-routing-severity-dot"
+          data-cc-routing-severity-dot={item.severity}
+        />
+        <div className="ec-routing-body">
+          <Link href={item.primaryRoute} className="ec-routing-title">
+            {item.title}
+          </Link>
+          <span className="ec-routing-explanation">
+            {item.operationalExplanation}
+          </span>
+          <span className="ec-routing-meta">
+            {item.reasonCode} · {item.affectedDomain}
+            {item.ageMs !== null ? ` · ${formatAge(item.ageMs)}` : ""}
+            {" · source: "}
+            {item.sourceTable}
+          </span>
+        </div>
+      </div>
+      <div className="ec-routing-actions">
+        {item.canCurrentUserAct ? (
+          <Link
+            href={item.primaryRoute}
+            className="ec-routing-primary"
+            data-cc-routing-primary-route
+            data-cc-can-act="true"
+          >
+            {item.safeActionLabel}
+          </Link>
+        ) : (
+          <span
+            className="ec-routing-cannot-act"
+            data-cc-can-act="false"
+            data-cc-required-roles={item.requiredRoles.join(",")}
+            title={`Required roles · ${item.requiredRoles.join(" / ")}`}
+          >
+            {item.safeActionLabel}
+          </span>
+        )}
+        {item.secondaryRoute ? (
+          <Link
+            href={item.secondaryRoute}
+            className="ec-routing-secondary"
+            data-cc-routing-secondary-route
+          >
+            Open runbook
+          </Link>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+function formatAge(ms: number): string {
+  if (ms < 60_000) return "<1m";
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
+// ---------------------------------------------------------------------------
+// INVESTIGATION RISK BOARD
+// ---------------------------------------------------------------------------
+
+function InvestigationRiskBoard({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["investigationIntelligence"];
+}) {
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Investigation Risk Board"
+        title="Investigation intelligence unavailable"
+      >
+        <SectionNote status="unavailable" kind="investigation" />
+      </SectionShell>
+    );
+  }
+  if (section.items.length === 0) {
+    return (
+      <SectionShell
+        kicker="Investigation Risk Board"
+        title="No active investigations under risk"
+      >
+        <EnterpriseEmpty
+          title="No investigations flagged"
+          body="Investigation risk reads case-level evidence + reviewer + governance signals. New flagged cases will surface here as their risk score crosses the LOW threshold."
+        />
+      </SectionShell>
+    );
+  }
+  const critical = section.items.filter(
+    (i) => i.riskLevel === "CRITICAL",
+  ).length;
+  const high = section.items.filter((i) => i.riskLevel === "HIGH").length;
+  return (
+    <SectionShell
+      kicker="Investigation Risk Board"
+      title={`${section.items.length} cases scored · ${critical} critical · ${high} high`}
+      severity={critical > 0 ? "critical" : high > 0 ? "high" : "warning"}
+    >
+      <ul className="ec-risk-list" data-cc-investigation-list>
+        {section.items.map((c) => (
+          <li
+            key={c.caseId}
+            className="ec-risk-row"
+            data-cc-investigation-case={c.caseId}
+            data-cc-investigation-risk={c.riskLevel}
+          >
+            <Link href={c.href} className="ec-risk-link">
+              <div className="ec-risk-row-main">
+                <span className="ec-risk-title">{c.caseName}</span>
+                <span
+                  className="ec-chip"
+                  data-cc-investigation-risk-chip={c.riskLevel}
+                  data-cc-tile-severe={
+                    c.riskLevel === "CRITICAL" || c.riskLevel === "HIGH"
+                      ? "true"
+                      : "false"
+                  }
+                >
+                  {c.riskLevel}
+                </span>
+              </div>
+              <div className="ec-risk-meta">
+                {c.evidenceCount} evidence
+                {c.overdueReviewCount > 0
+                  ? ` · ${c.overdueReviewCount} overdue review${c.overdueReviewCount === 1 ? "" : "s"}`
+                  : ""}
+                {c.openEscalationsCount > 0
+                  ? ` · ${c.openEscalationsCount} escalation${c.openEscalationsCount === 1 ? "" : "s"}`
+                  : ""}
+                {c.hasActiveLegalHold ? " · legal preservation" : ""}
+              </div>
+              <div className="ec-risk-reasons">
+                {c.reasonCodes.map((r) => (
+                  <span key={r} className="ec-chip-faint" data-cc-investigation-reason={r}>
+                    {r}
+                  </span>
+                ))}
+              </div>
+              <div className="ec-risk-action">
+                Recommended: {c.recommendedAction}
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {section.crossCaseSignals.length > 0 ? (
+        <div className="ec-cross-case-signals" data-cc-cross-case-signals>
+          <h4 className="ec-cross-case-title">Cross-case signals</h4>
+          <ul className="ec-cross-case-list">
+            {section.crossCaseSignals.map((s) => (
+              <li
+                key={s.kind}
+                className="ec-cross-case-row"
+                data-cc-cross-case-kind={s.kind}
+              >
+                <Link href={s.href} className="ec-cross-case-link">
+                  {s.description}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <div className="ec-section-foot">
+        Source: {section.meta.sourceSummary.join(", ")}.
+      </div>
+    </SectionShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// WORKLOAD ENGINE BOARD
+// ---------------------------------------------------------------------------
+
+function WorkloadEngineBoard({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["workloadEngine"];
+}) {
+  if (section.meta.status === "not_applicable") {
+    return (
+      <SectionShell kicker="Workload Engine" title="Personal workspace">
+        <PersonalNote subsystem="reviewer" />
+      </SectionShell>
+    );
+  }
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell kicker="Workload Engine" title="Workload engine unavailable">
+        <SectionNote status="unavailable" kind="workload-engine" />
+      </SectionShell>
+    );
+  }
+  const healthSeverity: SeverityTone =
+    section.health === "CRITICAL"
+      ? "critical"
+      : section.health === "DEGRADED"
+        ? "high"
+        : section.health === "WATCH"
+          ? "warning"
+          : "info";
+  return (
+    <SectionShell
+      kicker="Workload Engine"
+      title={`Team health · ${section.health}`}
+      severity={healthSeverity}
+    >
+      <div className="ec-workload-strip" data-cc-workload-strip>
+        <div
+          className="ec-workload-tile"
+          data-cc-workload-tile="health"
+          data-cc-workload-health={section.health}
+        >
+          <span className="ec-workload-tile-value">{section.health}</span>
+          <span className="ec-workload-tile-label">Team health</span>
+        </div>
+        <div
+          className="ec-workload-tile"
+          data-cc-workload-tile="saturation"
+          data-cc-tile-severe={section.saturationScore >= 7 ? "true" : "false"}
+        >
+          <span className="ec-workload-tile-value">
+            {section.saturationScore.toFixed(1)}
+          </span>
+          <span className="ec-workload-tile-label">Saturation (0–10)</span>
+        </div>
+        <div
+          className="ec-workload-tile"
+          data-cc-workload-tile="bottlenecks"
+          data-cc-tile-severe={section.bottlenecks > 0 ? "true" : "false"}
+        >
+          <span className="ec-workload-tile-value">{section.bottlenecks}</span>
+          <span className="ec-workload-tile-label">Bottlenecks</span>
+        </div>
+      </div>
+      {section.reviewers.length === 0 ? (
+        <div className="cc-section-note">
+          No reviewer assignments active. Workload engine has no data to score.
+        </div>
+      ) : (
+        <ul className="ec-workload-list" data-cc-workload-list>
+          {section.reviewers.map((r) => (
+            <li
+              key={r.userId}
+              className="ec-workload-row"
+              data-cc-workload-user={r.userId}
+              data-cc-workload-bottleneck={r.bottleneck ? "true" : "false"}
+              data-cc-workload-inactive={r.inactive ? "true" : "false"}
+            >
+              <div className="ec-workload-row-main">
+                <span className="ec-workload-row-title">
+                  {r.displayName ?? r.email ?? r.userId.slice(0, 8)}
+                </span>
+                <span
+                  className="ec-chip"
+                  data-cc-tile-severe={r.saturationScore >= 7 ? "true" : "false"}
+                >
+                  saturation {r.saturationScore}
+                </span>
+              </div>
+              <div className="ec-workload-row-meta">
+                <span>{r.assignedCount} assigned</span>
+                {r.overdueCount > 0 ? (
+                  <span className="ec-chip" data-cc-tile-severe="true">
+                    {r.overdueCount} overdue
+                  </span>
+                ) : null}
+                {r.bottleneck ? (
+                  <span className="ec-chip" data-cc-tile-severe="true">
+                    Bottleneck
+                  </span>
+                ) : null}
+                {r.inactive ? (
+                  <span className="ec-chip" data-cc-reviewer-inactive-chip="true">
+                    Inactive
+                  </span>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </SectionShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// QUEUE CONGESTION SECTION
+// ---------------------------------------------------------------------------
+
+function QueueCongestionSection({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["queueCongestion"];
+}) {
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Queue Congestion"
+        title="Queue congestion unavailable"
+      >
+        <SectionNote status="unavailable" kind="queue-congestion" />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Queue Congestion"
+      title={`Workspace queues · ${section.items.length}`}
+    >
+      <div className="ec-queue-strip" data-cc-queue-strip>
+        {section.items.map((q) => (
+          <div
+            key={q.queueId}
+            className="ec-queue-tile"
+            data-cc-queue-id={q.queueId}
+            data-cc-queue-severity={q.severity}
+            data-cc-tile-severe={
+              q.severity === "critical" || q.severity === "high"
+                ? "true"
+                : "false"
+            }
+          >
+            <span className="ec-queue-tile-value">{q.depth}</span>
+            <span className="ec-queue-tile-label">{q.label}</span>
+            <span className="ec-queue-tile-source">{q.source}</span>
+          </div>
+        ))}
+      </div>
+      {section.meta.unsupportedSignals.length > 0 ? (
+        <div className="ec-section-foot">
+          Remaining gaps are listed in the Unsupported Signals section. BullMQ
+          depth + worker heartbeat are now persisted by Phase 32.8C+++++
+          telemetry snapshots; see the Queue / Worker Telemetry section.
+        </div>
+      ) : null}
+    </SectionShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CUSTODY / INTEGRITY WATCH
+// ---------------------------------------------------------------------------
+
+function CustodyIntegrityWatch({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["custodyIntegrityAnomalies"];
+}) {
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Custody / Integrity Watch"
+        title="Custody / integrity unavailable"
+      >
+        <SectionNote status="unavailable" kind="custody-integrity" />
+      </SectionShell>
+    );
+  }
+  if (section.items.length === 0) {
+    return (
+      <SectionShell
+        kicker="Custody / Integrity Watch"
+        title="No integrity signals require review"
+      >
+        <EnterpriseEmpty
+          title="No integrity anomalies detected"
+          body="Evidence integrity is classified by the worker pipeline (verificationStatus field). REVIEW_REQUIRED and FAILED classifications surface here. The dashboard never recomputes hashes — it surfaces existing classifier output."
+          hint="Deep custody-chain recompute is performed by the worker, not the dashboard."
+        />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Custody / Integrity Watch"
+      title={`${section.items.length} integrity signal${section.items.length === 1 ? "" : "s"} require review`}
+      severity={section.items.some((i) => i.severity === "critical") ? "critical" : "high"}
+    >
+      <ul className="ec-integrity-list" data-cc-integrity-list>
+        {section.items.map((it) => (
+          <li
+            key={`${it.evidenceId}:${it.reasonCode}`}
+            className="ec-integrity-row"
+            data-cc-integrity-evidence={it.evidenceId}
+            data-cc-integrity-reason={it.reasonCode}
+            data-cc-integrity-severity={it.severity}
+          >
+            <Link href={it.href} className="ec-integrity-link">
+              <span className="ec-integrity-title">{it.title}</span>
+              <span
+                className="ec-chip"
+                data-cc-tile-severe={it.severity === "critical" || it.severity === "high" ? "true" : "false"}
+              >
+                {it.reasonCode}
+              </span>
+              <time className="ec-chip-faint" dateTime={it.detectedAt}>
+                {relTime(it.detectedAt)}
+              </time>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <div className="ec-section-foot">
+        Bounded language: each signal reports an operator-side review request,
+        not a claim of authenticity or admissibility.
+      </div>
+    </SectionShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ACCESS / SECURITY WATCH
+// ---------------------------------------------------------------------------
+
+function AccessSecurityWatch({
+  section,
+}: {
+  section: CommandCenterEnvelope["sections"]["accessSecurityAnomalies"];
+}) {
+  if (section.meta.status === "unavailable") {
+    return (
+      <SectionShell
+        kicker="Access / Security Watch"
+        title="Security event stream unavailable"
+      >
+        <SectionNote status="unavailable" kind="security" />
+      </SectionShell>
+    );
+  }
+  if (section.items.length === 0) {
+    return (
+      <SectionShell
+        kicker="Access / Security Watch"
+        title="No high-severity security events · 24h"
+      >
+        <EnterpriseEmpty
+          title="No security anomalies surfaced"
+          body="The watch reads the SecurityEvent stream filtered to WARNING + HIGH severity in the last 24 hours. No DB-side anomaly classifier is in scope; operator review is the canonical path."
+        />
+      </SectionShell>
+    );
+  }
+  return (
+    <SectionShell
+      kicker="Access / Security Watch"
+      title={`${section.items.length} security event${section.items.length === 1 ? "" : "s"} · 24h`}
+      severity={section.items.some((i) => i.severity === "high") ? "high" : "warning"}
+    >
+      <ul className="ec-security-list" data-cc-security-list>
+        {section.items.map((s) => (
+          <li
+            key={s.eventId}
+            className="ec-security-row"
+            data-cc-security-event-id={s.eventId}
+            data-cc-security-severity={s.severity}
+          >
+            <span className="ec-security-event-type">{s.eventType}</span>
+            <span
+              className="ec-chip"
+              data-cc-tile-severe={s.severity === "high" ? "true" : "false"}
+            >
+              {s.severity.toUpperCase()}
+            </span>
+            {s.userId ? (
+              <span className="ec-chip-faint">user {s.userId.slice(0, 8)}</span>
+            ) : null}
+            <time className="ec-chip-faint" dateTime={s.detectedAt}>
+              {relTime(s.detectedAt)}
+            </time>
+          </li>
+        ))}
+      </ul>
+    </SectionShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// UNSUPPORTED SIGNALS (collapsed)
+// ---------------------------------------------------------------------------
+
+function UnsupportedSignalsSection({
+  signals,
+}: {
+  signals: CommandCenterEnvelope["unsupportedSignals"];
+}) {
+  if (signals.length === 0) return null;
+  return (
+    <details className="ec-unsupported" data-cc-unsupported-signals>
+      <summary className="ec-unsupported-summary">
+        Unsupported signals · {signals.length}
+        <small> (transparent catalog of intelligence the platform does not yet compute)</small>
+      </summary>
+      <ul className="ec-unsupported-list">
+        {signals.map((s, i) => (
+          <li
+            key={`${s.signal}:${i}`}
+            className="ec-unsupported-row"
+            data-cc-unsupported-signal={s.signal}
+          >
+            <code className="ec-unsupported-signal">{s.signal}</code>
+            <span className="ec-unsupported-reason">{s.reason}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

@@ -293,7 +293,7 @@ describe("Phase 32.7.2 — ReviewEscalation Phase-32.6.2 @maps preserved", () =>
 // =============================================================================
 
 describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
-  it("no migration directory starting with 20260620400000 or later exists", () => {
+  it("no Phase 32.7.2-attributable migration was added (later phases may add their own)", () => {
     const migrationsDir = fileURLToPath(
       new URL("../prisma/migrations/", import.meta.url),
     );
@@ -305,13 +305,18 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
         return false;
       }
     });
-    // Phase 32.6.3 migration (20260620300000_team_billing_naming_drift_repair)
-    // is the latest legitimate migration. Phase 32.7.2 must NOT add a new
-    // one (the fix is Prisma-side only).
+    // Phase 32.7.2 itself must NOT have added a migration (the fix is
+    // Prisma-side only). Later phases legitimately author their own and
+    // are allow-listed here.
+    const PERMITTED_LATER_MIGRATIONS = new Set<string>([
+      "20260625100000_phase328cpppp_dashboard_intelligence_closure",
+      "20260626100000_phase328cppppp_structural_intelligence_closure",
+    ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);
       if (!m) return false;
-      return m[1] > "20260620300000";
+      if (m[1] <= "20260620300000") return false;
+      return !PERMITTED_LATER_MIGRATIONS.has(name);
     });
     expect(newer).toEqual([]);
   });
