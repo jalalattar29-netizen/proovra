@@ -108,46 +108,55 @@ describe("Phase 32.8C — service layer composition", () => {
   });
 
   it("each section runner wraps its body in try/catch (partial-failure tolerant)", () => {
-    // The 7 section runners must each have at least one try/catch.
+    // Phase 32.8C full rebuild — the runner set now covers operational
+    // pressure, case ops, reviewer orchestration, pipeline detail,
+    // governance, organizational intelligence, timeline, audit
+    // readiness, plus the preserved auxiliary runners.
     const runners = [
-      "runSummary",
-      "runRecentEvidence",
-      "runPipeline",
-      "runReviewerWorkload",
+      "runOperationalPressure",
+      "runCaseOperations",
+      "runReviewerOrchestration",
+      "runPipelineDetail",
       "runGovernancePosture",
+      "runOrganizationalIntelligence",
+      "runTimeline",
+      "runAuditReadiness",
+      "runRecentEvidence",
       "runIncidents",
-      "runAttentionQueue",
+      "runLegacyPipelineSummary",
+      "runLegacyReviewerWorkload",
     ];
     for (const name of runners) {
       const idx = SERVICE.indexOf(`async function ${name}`);
       expect(idx, `runner ${name} not found`).toBeGreaterThan(-1);
-      // The next `\n}` closes the function. Slice the body.
       const next = SERVICE.indexOf("\n}\n", idx);
-      const body = SERVICE.slice(idx, next > idx ? next : idx + 4000);
+      const body = SERVICE.slice(idx, next > idx ? next : idx + 6000);
       expect(body, `runner ${name} missing try`).toMatch(/try\s*\{/);
-      // Allow both `catch (err)` and ES2019+ `catch {` (optional binding).
       expect(body, `runner ${name} missing catch`).toMatch(/catch\s*[\(\{]/);
     }
   });
 
   it("declares bounded limits (no `take` left unbounded)", () => {
-    // Recent evidence ≤ 10, incidents ≤ 8, attention ≤ 24, per-kind ≤ 5.
-    expect(SERVICE).toMatch(/RECENT_EVIDENCE_LIMIT\s*=\s*10/);
-    expect(SERVICE).toMatch(/INCIDENTS_LIMIT\s*=\s*8/);
-    expect(SERVICE).toMatch(/ATTENTION_TOTAL_LIMIT\s*=\s*24/);
-    expect(SERVICE).toMatch(/ATTENTION_LIMIT_PER_KIND\s*=\s*5/);
-    // Every findMany carries a `take:` argument.
+    // Phase 32.8C full rebuild — bounded limits per the new section catalog.
+    expect(SERVICE).toMatch(/RECENT_EVIDENCE_LIMIT\s*=\s*8/);
+    expect(SERVICE).toMatch(/INCIDENTS_LIMIT\s*=\s*10/);
+    expect(SERVICE).toMatch(/PRESSURE_TOTAL\s*=\s*32/);
+    expect(SERVICE).toMatch(/PRESSURE_PER_KIND\s*=\s*6/);
+    expect(SERVICE).toMatch(/TOP_CASES_LIMIT\s*=\s*8/);
+    expect(SERVICE).toMatch(/TOP_REVIEWERS_LIMIT\s*=\s*8/);
+    expect(SERVICE).toMatch(/TIMELINE_LIMIT\s*=\s*30/);
     const findMany = SERVICE.match(/\.findMany\(\{[\s\S]*?\}\)/g) ?? [];
-    expect(findMany.length).toBeGreaterThanOrEqual(4);
+    expect(findMany.length).toBeGreaterThanOrEqual(10);
     for (const block of findMany) {
       expect(block, `unbounded findMany: ${block.slice(0, 80)}`).toMatch(/take:/);
     }
   });
 
   it("personal-workspace reviewer/governance sections return `not_applicable` instead of broken data", () => {
-    // runReviewerWorkload and runGovernancePosture must early-return
-    // a `not_applicable` envelope when `scope === "PERSONAL"`.
-    const reviewerIdx = SERVICE.indexOf("async function runReviewerWorkload");
+    // The new runners are `runReviewerOrchestration` + `runGovernancePosture`.
+    const reviewerIdx = SERVICE.indexOf(
+      "async function runReviewerOrchestration",
+    );
     const reviewerEnd = SERVICE.indexOf("\n}\n", reviewerIdx);
     const reviewerBody = SERVICE.slice(reviewerIdx, reviewerEnd);
     expect(reviewerBody).toMatch(/scope === "PERSONAL"/);
@@ -160,14 +169,21 @@ describe("Phase 32.8C — service layer composition", () => {
     expect(govBody).toMatch(/status:\s*"not_applicable"/);
   });
 
-  it("envelope shape exposes the canonical sections (summary / attentionQueue / recentEvidence / pipeline / reviewerWorkload / governancePosture / incidents)", () => {
+  it("envelope shape exposes the canonical sections including the Phase 32.8C full-rebuild sections", () => {
     for (const section of [
       "summary",
+      "operationalPressure",
       "attentionQueue",
+      "caseOperations",
+      "reviewerOrchestration",
+      "pipelineDetail",
+      "governancePosture",
+      "organizationalIntelligence",
+      "timeline",
+      "auditReadiness",
       "recentEvidence",
       "pipeline",
       "reviewerWorkload",
-      "governancePosture",
       "incidents",
     ]) {
       expect(SERVICE).toMatch(new RegExp(`${section}:\\s*\\{`));
@@ -185,7 +201,7 @@ describe("Phase 32.8C — service layer composition", () => {
 // PART 3 — Frontend command center renders every required section
 // =============================================================================
 
-describe("Phase 32.8C — frontend command center renders A–H sections", () => {
+describe("Phase 32.8C — frontend command center renders all 8 mandatory operational sections (Full Rebuild)", () => {
   it("exports CommandCenter as the canonical /home renderer", () => {
     expect(CC).toMatch(/export function CommandCenter\(\)/);
     expect(HOME).toMatch(
@@ -194,15 +210,18 @@ describe("Phase 32.8C — frontend command center renders A–H sections", () =>
     expect(HOME).toMatch(/<CommandCenter\s*\/>/);
   });
 
-  it("renders the 8 canonical sections (A Summary, B Attention, C Recent Evidence, D Pipeline, E Reviewer Workload, F Governance Posture, G Platform Banner, H Quick Actions) plus Incidents", () => {
-    // Each section function exists.
+  it("renders the 8 mandatory operational sections (operational pressure, case ops, reviewer orchestration, pipeline detail, governance posture, organizational intelligence, timeline, audit readiness) plus auxiliary surfaces", () => {
     for (const fn of [
       "SummaryStrip",
-      "AttentionQueue",
-      "RecentEvidenceSection",
-      "PipelineSection",
-      "ReviewerWorkloadSection",
+      "OperationalPressureSection",
+      "CaseOperationsSection",
+      "ReviewerOrchestrationSection",
+      "PipelineDetailSection",
       "GovernancePostureSection",
+      "OrganizationalIntelligenceSection",
+      "TimelineSection",
+      "AuditReadinessSection",
+      "RecentEvidenceSection",
       "IncidentsSection",
       "QuickActions",
     ]) {
@@ -212,10 +231,9 @@ describe("Phase 32.8C — frontend command center renders A–H sections", () =>
     }
   });
 
-  it("Platform Impact Banner (G) reuses the canonical RuntimeStatusBanner with bounded forDomains scoping (not a duplicate runtime view)", () => {
+  it("Platform Impact Banner reuses the canonical RuntimeStatusBanner with bounded forDomains scoping (not a duplicate runtime view)", () => {
     expect(CC).toMatch(/RuntimeStatusBanner/);
     expect(CC).toMatch(/forDomains=\{\[/);
-    // Confirm it's scoped (not just `forDomains` with everything).
     expect(CC).toMatch(/"core_evidence"/);
     expect(CC).toMatch(/"governance_lifecycle"/);
     expect(CC).toMatch(/"reviewer_ops"/);
@@ -227,8 +245,8 @@ describe("Phase 32.8C — frontend command center renders A–H sections", () =>
   });
 
   it("renders per-section status states (ok / degraded / unavailable / not_applicable)", () => {
-    expect(CC).toMatch(/SectionStatusNote/);
-    expect(CC).toMatch(/PersonalScopeNote/);
+    expect(CC).toMatch(/function SectionNote\(/);
+    expect(CC).toMatch(/function PersonalNote\(/);
     expect(CC_TYPES).toMatch(
       /SectionStatus =\s*\|\s*"ok"\s*\|\s*"degraded"\s*\|\s*"unavailable"\s*\|\s*"not_applicable"/,
     );
@@ -256,19 +274,17 @@ describe("Phase 32.8C — personal vs team workspace behavior", () => {
       /Personal workspace uses basic evidence controls/,
     );
     // The note explicitly covers BOTH reviewer and governance.
-    expect(CC).toMatch(/Reviewer queues are a team workspace feature/);
+    expect(CC).toMatch(/Reviewer orchestration is a team workspace feature/);
     expect(CC).toMatch(/Governance posture is a team workspace feature/);
   });
 
   it("summary strip hides team-only metrics (reviewer pending, governance attention) when workspace is personal", () => {
-    // SummaryStrip filters cards by `c.visible`; the reviewer +
-    // governance cards bind visibility to `isTeam`.
     const summary = CC.slice(CC.indexOf("function SummaryStrip"));
     expect(summary).toMatch(/visible:\s*isTeam/);
   });
 
-  it("Reviewer Workload section short-circuits on `not_applicable` (no broken zero-state)", () => {
-    const block = CC.slice(CC.indexOf("function ReviewerWorkloadSection"));
+  it("Reviewer Orchestration section short-circuits on `not_applicable` (no broken zero-state)", () => {
+    const block = CC.slice(CC.indexOf("function ReviewerOrchestrationSection"));
     expect(block).toMatch(/section\.status === "not_applicable"/);
   });
 
@@ -313,10 +329,12 @@ describe("Phase 32.8C — role-aware quick actions (Section H)", () => {
     // canMutate is true for OWNER / ADMIN / MEMBER / REVIEWER.
     // VIEWER is intentionally absent — guard the literal string
     // "VIEWER" (with quotes) so REVIEWER doesn't accidentally
-    // satisfy the pattern.
-    const idx = CC.indexOf("canMutate = role ===");
-    expect(idx).toBeGreaterThan(-1);
-    const block = CC.slice(idx, idx + 200);
+    // satisfy the pattern. Allow whitespace between `canMutate =`
+    // and the `role ===` chain (the formatter may break across
+    // multiple lines).
+    const m = CC.match(/canMutate\s*=\s*[\s\S]{0,300}role\s*===\s*"[A-Z]+"/);
+    expect(m, "canMutate definition not found").toBeTruthy();
+    const block = m![0];
     expect(block).toContain('"OWNER"');
     expect(block).toContain('"ADMIN"');
     expect(block).toContain('"MEMBER"');
@@ -382,18 +400,27 @@ describe("Phase 32.8C — no fake metrics, no decorative charts, no fabricated d
     // `Math.random()` or `Date.now() % N`.
     expect(CC).not.toMatch(/Math\.random/);
     expect(CC).not.toMatch(/Date\.now\(\)\s*%/);
-    // Required backend-provided field references.
+    // Phase 32.8C Full Rebuild — the canonical envelope fields the
+    // new sections bind to.
     for (const field of [
       "evidenceActiveCount",
       "reportReadyCount",
       "reviewerPendingCount",
       "governanceAttentionCount",
       "openIncidentsCount",
-      "queuedCount",
+      "operationalPressureCount",
+      "auditReadinessFlags",
+      "queueDepth",
       "overdueCount",
       "openEscalationsCount",
+      "completedLast7dCount",
+      "completedPrev7dCount",
+      "inactiveReviewerCount",
       "activeLegalHoldsCount",
       "retentionCandidatesCount",
+      "blockedExportsCount",
+      "evidenceCreatedLast24h",
+      "evidenceCreatedLast7d",
     ]) {
       expect(CC, `field ${field} missing in CommandCenter`).toContain(field);
     }
@@ -533,6 +560,231 @@ describe("Phase 32.8C — read-only / no-side-effects contract", () => {
         SERVICE,
         `service must not project ${sym} in the dashboard envelope`,
       ).not.toContain(sym);
+    }
+  });
+});
+
+// =============================================================================
+// PART 10 — Full Rebuild operational signals
+// =============================================================================
+
+describe("Phase 32.8C (Full Rebuild) — operational pressure aggregation", () => {
+  it("operational pressure category enum covers the canonical SOC signals", () => {
+    for (const category of [
+      "overdue_review",
+      "stalled_review",
+      "unassigned_review",
+      "open_escalation",
+      "stuck_upload",
+      "missing_report",
+      "missing_package",
+      "failed_report",
+      "failed_package",
+      "retry_storm",
+      "policy_conflict",
+      "evidence_no_case",
+      "unsigned_evidence_old",
+      "blocked_export",
+      "operational_incident",
+    ]) {
+      expect(
+        SERVICE,
+        `operational pressure category ${category} missing`,
+      ).toContain(`"${category}"`);
+    }
+  });
+
+  it("operational pressure section carries severity counts (critical / high / warning / info)", () => {
+    expect(SERVICE).toMatch(
+      /counts:\s*\{[\s\S]{0,200}critical:[\s\S]{0,80}high:[\s\S]{0,80}warning:[\s\S]{0,80}info:/,
+    );
+  });
+
+  it("declares stuck-upload + stalled-review + reviewer-inactivity thresholds (bounded operational windows)", () => {
+    expect(SERVICE).toMatch(/STUCK_UPLOAD_HOURS\s*=\s*\d+/);
+    expect(SERVICE).toMatch(/STALLED_REVIEW_HOURS\s*=\s*\d+/);
+    expect(SERVICE).toMatch(/REVIEWER_INACTIVITY_HOURS\s*=\s*\d+/);
+    expect(SERVICE).toMatch(/UNSIGNED_EVIDENCE_AGE_DAYS\s*=\s*\d+/);
+    expect(SERVICE).toMatch(/RETRY_STORM_OCCURRENCE_THRESHOLD\s*=\s*\d+/);
+  });
+
+  it("missing-report + missing-package signals derive from real Prisma relations (no fabrication)", () => {
+    expect(SERVICE).toMatch(/status:\s*"SIGNED",[\s\S]{0,80}reports:\s*\{\s*none:\s*\{\}\s*\}/);
+    expect(SERVICE).toMatch(
+      /status:\s*"REPORTED",[\s\S]{0,80}verificationPackages:\s*\{\s*none:\s*\{\}\s*\}/,
+    );
+  });
+
+  it("retry-storm signal reads occurrenceCount from operationalIncident (real data)", () => {
+    expect(SERVICE).toMatch(
+      /occurrenceCount:\s*\{\s*gte:\s*RETRY_STORM_OCCURRENCE_THRESHOLD/,
+    );
+  });
+
+  it("blocked-export signal reads verificationPackageMetadata.blocked === true (no fabrication)", () => {
+    const m = SERVICE.match(/blocked === true/g) ?? [];
+    expect(m.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("Phase 32.8C (Full Rebuild) — case operations + reviewer orchestration + pipeline detail", () => {
+  it("caseOperations envelope exposes the canonical investigation signals", () => {
+    for (const field of [
+      "activeCasesCount",
+      "casesWithEvidenceGapsCount",
+      "unreviewedEvidenceCount",
+      "unlinkedEvidenceCount",
+      "topCases",
+    ]) {
+      expect(SERVICE).toMatch(new RegExp(`${field}:`));
+    }
+  });
+
+  it("reviewerOrchestration envelope exposes throughput delta + inactivity + queue depth", () => {
+    for (const field of [
+      "queueDepth",
+      "dueSoonCount",
+      "completedLast7dCount",
+      "completedPrev7dCount",
+      "inactiveReviewerCount",
+      "topReviewers",
+    ]) {
+      expect(SERVICE).toMatch(new RegExp(`${field}:`));
+    }
+  });
+
+  it("pipelineDetail envelope covers evidence + reports + packages + public-verify breakdown", () => {
+    for (const field of [
+      "evidence: {",
+      "reports: {",
+      "packages: {",
+      "publicVerify: {",
+      "stuckUploading",
+      "missingFromSigned",
+      "missingFromReported",
+    ]) {
+      expect(SERVICE).toContain(field);
+    }
+  });
+
+  it("public-verify stage breakdown reads the real PublicVerifyState enum (PUBLISHED / UNPUBLISHED / SUSPENDED)", () => {
+    expect(SERVICE).toMatch(/by:\s*\["publicVerifyState"\]/);
+    expect(SERVICE).toContain('verifyCount("PUBLISHED")');
+    expect(SERVICE).toContain('verifyCount("UNPUBLISHED")');
+    expect(SERVICE).toContain('verifyCount("SUSPENDED")');
+  });
+});
+
+describe("Phase 32.8C (Full Rebuild) — organizational intelligence + timeline + audit readiness", () => {
+  it("organizationalIntelligence envelope exposes 24h + 7d throughput windows", () => {
+    for (const field of [
+      "evidenceCreatedLast24h",
+      "evidenceCreatedLast7d",
+      "evidenceFinalizedLast7d",
+      "reportsGeneratedLast7d",
+      "packagesGeneratedLast7d",
+      "activityLast7d",
+    ]) {
+      expect(SERVICE).toMatch(new RegExp(`${field}:`));
+    }
+  });
+
+  it("timeline kinds cover the canonical operational heartbeat events", () => {
+    for (const kind of [
+      "evidence_finalized",
+      "report_generated",
+      "package_generated",
+      "lifecycle_transition",
+      "hold_placed",
+      "hold_released",
+      "destruction_review",
+      "escalation_opened",
+      "incident_opened",
+    ]) {
+      expect(SERVICE).toContain(`"${kind}"`);
+    }
+  });
+
+  it("timeline reads real-timestamp event sources (no synthetic events)", () => {
+    expect(SERVICE).toMatch(/prisma\.report\.findMany/);
+    expect(SERVICE).toMatch(/prisma\.verificationPackage\.findMany/);
+    expect(SERVICE).toMatch(/prisma\.evidenceLifecycleEvent\.findMany/);
+    expect(SERVICE).toMatch(/prisma\.reviewEscalation\.findMany/);
+    expect(SERVICE).toMatch(/prisma\.operationalIncident\.findMany/);
+  });
+
+  it("auditReadiness counters bound to a fixed key catalog (no invented signals)", () => {
+    for (const key of [
+      "unsigned_evidence_old",
+      "missing_reports",
+      "failed_packages",
+      "pending_governance_reviews",
+      "unresolved_escalations",
+      "evidence_pending_reviewer_signoff",
+      "blocked_exports",
+    ]) {
+      expect(SERVICE).toContain(`"${key}"`);
+    }
+  });
+});
+
+describe("Phase 32.8C (Full Rebuild) — enterprise frontend hierarchy + empty states", () => {
+  it("frontend uses operationally-credible empty-state copy (NOT 'Nothing needs attention 🙂')", () => {
+    expect(CC).toContain("No operational pressure detected");
+    expect(CC).toContain("No active investigations");
+    expect(CC).toContain("All reviewer queues within SLA");
+    expect(CC).toContain("No governance conflicts detected");
+    expect(CC).toContain("No recent operational events");
+    expect(CC).toContain("All audit-readiness signals nominal");
+    // The forbidden chatty empty state must NEVER appear.
+    expect(CC).not.toContain("Nothing needs attention");
+  });
+
+  it("operational pressure section is the page hero (rendered before grid sections)", () => {
+    const pressureIdx = CC.indexOf("<OperationalPressureSection");
+    const caseOpsIdx = CC.indexOf("<CaseOperationsSection");
+    const reviewerIdx = CC.indexOf("<ReviewerOrchestrationSection");
+    const pipelineIdx = CC.indexOf("<PipelineDetailSection");
+    const governanceIdx = CC.indexOf("<GovernancePostureSection");
+    const timelineIdx = CC.indexOf("<TimelineSection");
+    const auditIdx = CC.indexOf("<AuditReadinessSection");
+    expect(pressureIdx).toBeGreaterThan(0);
+    expect(caseOpsIdx).toBeGreaterThan(pressureIdx);
+    expect(reviewerIdx).toBeGreaterThan(pressureIdx);
+    expect(pipelineIdx).toBeGreaterThan(pressureIdx);
+    expect(governanceIdx).toBeGreaterThan(pressureIdx);
+    expect(timelineIdx).toBeGreaterThan(pressureIdx);
+    expect(auditIdx).toBeGreaterThan(pressureIdx);
+  });
+
+  it("pressure severity strip surfaces critical / high / warning / info pill counts", () => {
+    expect(CC).toContain('data-cc-pressure-severity="critical"');
+    expect(CC).toContain('data-cc-pressure-severity="high"');
+    expect(CC).toContain('data-cc-pressure-severity="warning"');
+    expect(CC).toContain('data-cc-pressure-severity="info"');
+  });
+
+  it("pipeline detail surfaces granular per-stage data attributes (evidence / reports / packages / public-verify)", () => {
+    expect(CC).toContain("data-cc-pipeline-evidence");
+    expect(CC).toContain("data-cc-pipeline-reports");
+    expect(CC).toContain("data-cc-pipeline-packages");
+    expect(CC).toContain("data-cc-pipeline-public-verify");
+  });
+
+  it("timeline surfaces a stable per-event data attribute", () => {
+    expect(CC).toContain("data-cc-timeline-list");
+    expect(CC).toContain("data-cc-timeline-kind=");
+    expect(CC).toContain("data-cc-timeline-severity=");
+  });
+
+  it("audit-readiness section surfaces a stable per-counter data attribute", () => {
+    expect(CC).toContain("data-cc-audit-list");
+    expect(CC).toContain("data-cc-audit-key=");
+  });
+
+  it("never uses childish empty-state emoji ('🙂' / '🎉' / '👍' etc.) in operator-facing copy", () => {
+    for (const emoji of ["🙂", "🎉", "👍", "✨", "🚀"]) {
+      expect(CC, `forbidden emoji ${emoji} in operator copy`).not.toContain(emoji);
     }
   });
 });
