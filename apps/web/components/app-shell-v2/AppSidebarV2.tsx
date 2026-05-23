@@ -1,12 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import type { ForwardRefExoticComponent, RefAttributes } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
-  AlertTriangle,
-  Bell,
   BookOpen,
   BriefcaseBusiness,
   Camera,
@@ -17,10 +16,11 @@ import {
   GaugeCircle,
   Headphones,
   Key,
+  LayoutGrid,
   LibraryBig,
   LifeBuoy,
   ListTodo,
-  LogOut,
+  Bell,
   Plug,
   Radio,
   Search,
@@ -28,7 +28,6 @@ import {
   ShieldAlert,
   ShieldCheck,
   Trash2,
-  UserCircle,
   Users,
   type LucideProps,
 } from "lucide-react";
@@ -39,29 +38,41 @@ import {
 } from "../../lib/useGlobalRuntimeState";
 import {
   usePlatformContext,
-  type PlatformContextNavGroup,
-  type PlatformContextNavItem,
+  usePersonaProfile,
+  workflowFromPersona,
+  type WorkflowProfileCode,
 } from "../../lib/platform-context";
+import { ROUTE_REGISTRY, type RouteDefinition } from "../../lib/navigation/routeRegistry";
+import {
+  resolveRouteAccess,
+  type RouteAccessResult,
+} from "../../lib/navigation/routeAccessResolver";
+import {
+  resolveWorkflowExposure,
+  type WorkflowExposureItem,
+} from "../../lib/navigation/workflowExposureResolver";
 
 /**
- * Phase 32.8 Foundation — Canonical sidebar.
+ * PHASE 38.9 — Canonical sidebar.
  *
- * Reads the pre-filtered navigation tree from
- * `usePlatformContext().envelope.navigation.groups`. NO local
- * filtering, NO `selectNavigationGroups`, NO `useActiveWorkspaceId`,
- * NO role/profile coercion. The server has already decided what this
- * user sees.
+ * Sole source of truth: ROUTE_REGISTRY + resolveRouteAccess +
+ * resolveWorkflowExposure. The legacy `envelope.navigation.groups`
+ * projection is no longer consumed here — it remains on the envelope
+ * for analytics/migration but the sidebar reads exclusively from the
+ * canonical registry.
  *
- * Responsibilities retained here (rendering-only):
- *   1. Icon-key → Lucide component mapping
- *   2. Runtime-badge hydration from `useGlobalRuntimeState` (escalations
- *      count, runtime severity dots, governance incidents)
- *   3. Active-route highlighting
+ * Workflow profile changes ORDER / BUCKETING only; capabilities and
+ * activeSpace are the only access decision. A denied-but-visible item
+ * still renders, linked to its href — the destination PageRouteGate
+ * presents the structured recovery panel.
  *
- * Hard rules — enforced by F-6 grep tests:
- *   - NO `apiFetch(...)` in this file.
- *   - NO `useActiveWorkspaceId` import.
- *   - NO role/scope/persona/capability/platform-admin derivation here.
+ * Hard rules — pinned by Phase 38.9 source-contract tests:
+ *   - imports ROUTE_REGISTRY
+ *   - imports resolveRouteAccess
+ *   - imports resolveWorkflowExposure
+ *   - does NOT consume `envelope.navigation` for rendering
+ *   - does NOT call apiFetch
+ *   - does NOT derive role/persona/platform-admin locally
  */
 
 type SidebarIcon = ForwardRefExoticComponent<
@@ -69,37 +80,41 @@ type SidebarIcon = ForwardRefExoticComponent<
 >;
 
 // =============================================================================
-// Icon mapping
+// Static per-registry-id metadata: icon + runtime badge key.
 // =============================================================================
 
-const ICON_BY_KEY: Record<string, SidebarIcon> = {
-  home: Gauge,
-  capture: Camera,
-  evidence: LibraryBig,
-  cases: BriefcaseBusiness,
-  reports: FileText,
-  search: Search,
-  reviewer_ops: ListTodo,
-  sla: GaugeCircle,
-  escalations: AlertTriangle,
-  governance: ShieldCheck,
-  lifecycle: Activity,
-  retention: ClipboardList,
-  destruction: Trash2,
-  policy: ClipboardList,
-  ops_center: Radio,
-  observability: Activity,
-  runbooks: BookOpen,
-  security_center: ShieldAlert,
-  teams: Users,
-  billing: CreditCard,
-  settings: Settings,
-  admin: Key,
-  integrations: Plug,
-  intake_links: LifeBuoy,
-  profile: UserCircle,
-  notifications: Bell,
-  logout: LogOut,
+const ICON_BY_ROUTE_ID: Record<string, SidebarIcon> = {
+  "workspace.home": Gauge,
+  "workspace.capture": Camera,
+  "workspace.evidence": LibraryBig,
+  "workspace.cases": BriefcaseBusiness,
+  "workspace.reports": FileText,
+  "workspace.search": Search,
+  "workspace.notifications": Bell,
+  "workspace.integrations": Plug,
+  "review.queue": ListTodo,
+  "review.sla": GaugeCircle,
+  "governance.hub": ShieldCheck,
+  "governance.retention": ClipboardList,
+  "platform.ops_center": Radio,
+  "platform.observability": Activity,
+  "platform.runbooks": BookOpen,
+  "platform.security_center": ShieldAlert,
+  "admin.teams": Users,
+  "account.billing": CreditCard,
+  "account.settings": Settings,
+  "account.persona": Settings,
+  "platform.admin": Key,
+  "workspace.tools": LayoutGrid,
+  "workspace.intake_links": LifeBuoy,
+  "workspace.destruction": Trash2,
+};
+
+const BADGE_KEY_BY_ROUTE_ID: Record<string, string> = {
+  "review.queue": "escalations_open",
+  "platform.ops_center": "ops_center_runtime",
+  "platform.observability": "observability_runtime",
+  "governance.hub": "governance_incidents",
 };
 
 // =============================================================================
@@ -198,7 +213,7 @@ function BadgeView({ badge }: { badge: SidebarBadge }) {
         lineHeight: "16px",
       }}
     >
-      {badge.kind === "count" ? badge.value : badge.value}
+      {badge.value}
     </span>
   );
 }
@@ -252,15 +267,172 @@ function isActiveRoute(pathname: string | null, href: string) {
   );
 }
 
+// =============================================================================
+// Group construction from resolver output.
+// =============================================================================
+
+type SidebarGroup = {
+  id: string;
+  title: string;
+  domain: string;
+  items: ReadonlyArray<WorkflowExposureItem>;
+};
+
+function buildSidebarGroups(
+  primary: ReadonlyArray<WorkflowExposureItem>,
+  secondary: ReadonlyArray<WorkflowExposureItem>,
+): {
+  groups: ReadonlyArray<SidebarGroup>;
+} {
+  const primaryGroup: SidebarGroup = {
+    id: "sidebar.primary-workflows",
+    title: "Primary workflows",
+    domain: "PRIMARY_WORKFLOWS",
+    items: primary,
+  };
+
+  const byDomain = new Map<string, WorkflowExposureItem[]>();
+  for (const item of secondary) {
+    const key = item.route.domain;
+    if (!byDomain.has(key)) byDomain.set(key, []);
+    byDomain.get(key)!.push(item);
+  }
+
+  const workspaceItems = [
+    ...(byDomain.get("PERSONAL_WORKSPACE") ?? []),
+    ...(byDomain.get("ORGANIZATION_WORKSPACE") ?? []),
+    ...(byDomain.get("TEAM_ONLY") ?? []),
+  ];
+  const opsItems = [
+    ...(byDomain.get("REVIEW_OPERATIONS") ?? []),
+    ...(byDomain.get("OPS") ?? []),
+  ];
+  const governanceItems = byDomain.get("GOVERNANCE") ?? [];
+
+  const groups: SidebarGroup[] = [];
+  if (primaryGroup.items.length > 0) groups.push(primaryGroup);
+  if (workspaceItems.length > 0) {
+    groups.push({
+      id: "sidebar.workspace",
+      title: "Workspace",
+      domain: "PERSONAL_WORKSPACE",
+      items: workspaceItems,
+    });
+  }
+  if (opsItems.length > 0) {
+    groups.push({
+      id: "sidebar.operations",
+      title: "Operations",
+      domain: "OPS",
+      items: opsItems,
+    });
+  }
+  if (governanceItems.length > 0) {
+    groups.push({
+      id: "sidebar.governance",
+      title: "Governance & Compliance",
+      domain: "GOVERNANCE",
+      items: governanceItems,
+    });
+  }
+
+  return { groups };
+}
+
+// =============================================================================
+// Per-item link with degradation badge for denied-but-visible routes.
+// =============================================================================
+
+function SidebarLink({
+  item,
+  badge,
+  active,
+  inMore,
+}: {
+  item: WorkflowExposureItem;
+  badge: SidebarBadge | null;
+  active: boolean;
+  inMore?: boolean;
+}) {
+  const route = item.route;
+  const access = item.access;
+  const Icon = ICON_BY_ROUTE_ID[route.id] ?? Gauge;
+
+  // Denied-but-visible items render with a structured degradation
+  // chip. The link still points at the route — the destination
+  // PageRouteGate renders the recovery panel canonically.
+  const degraded = !access.canLoad;
+  const degradationLabel = degraded ? degradationChip(access) : null;
+
+  return (
+    <Link
+      href={route.href}
+      className={`app-sidebar-v2-link ${active ? "is-active" : ""}`}
+      data-sidebar-link-key={BADGE_KEY_BY_ROUTE_ID[route.id] ?? route.href}
+      data-sidebar-nav-id={route.id}
+      data-sidebar-nav-domain={route.domain}
+      data-sidebar-nav-more={inMore ? "true" : undefined}
+      data-sidebar-degraded={degraded ? "true" : undefined}
+      data-sidebar-access-state={access.accessState}
+      aria-disabled={degraded ? "false" : undefined}
+    >
+      <span className="app-sidebar-v2-link-icon">
+        <Icon size={17} strokeWidth={1.9} />
+      </span>
+      <span style={{ flex: 1 }}>{route.label}</span>
+      {badge ? <BadgeView badge={badge} /> : null}
+      {degradationLabel ? (
+        <span
+          data-sidebar-degradation-chip
+          data-tone="neutral"
+          style={{
+            marginLeft: "auto",
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: 0.4,
+            textTransform: "uppercase",
+            padding: "1px 6px",
+            borderRadius: 999,
+            background: "rgba(148, 163, 184, 0.18)",
+            border: "1px solid rgba(148, 163, 184, 0.4)",
+            color: "rgba(244, 247, 245, 0.7)",
+          }}
+        >
+          {degradationLabel}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
+function degradationChip(access: RouteAccessResult): string | null {
+  switch (access.accessState) {
+    case "NEEDS_ORGANIZATION":
+      return "Org";
+    case "NEEDS_PERSONAL_OR_ORG":
+      return "Setup";
+    case "DENIED_NO_CAPABILITY":
+      return "Access";
+    case "NEEDS_UPGRADE":
+      return "Upgrade";
+    default:
+      return null;
+  }
+}
+
+// =============================================================================
+// Group view
+// =============================================================================
+
 function SidebarGroupView({
   group,
+  pathname,
   hydratedBadges,
 }: {
-  group: PlatformContextNavGroup;
+  group: SidebarGroup;
+  pathname: string | null;
   hydratedBadges: Map<string, SidebarBadge>;
 }) {
-  const pathname = usePathname();
-
   return (
     <div
       className="app-sidebar-v2-group"
@@ -269,79 +441,194 @@ function SidebarGroupView({
       data-sidebar-group-domain={group.domain}
     >
       <div className="app-sidebar-v2-group-title">{group.title}</div>
-
       <nav className="app-sidebar-v2-nav" aria-label={group.title}>
-        {group.items.map((item) => {
-          const active = isActiveRoute(pathname, item.href);
-          const Icon = ICON_BY_KEY[item.iconKey] ?? Gauge;
-          const badge = hydratedBadges.get(item.id);
-
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              className={`app-sidebar-v2-link ${active ? "is-active" : ""}`}
-              data-sidebar-link-key={item.badgeKey ?? item.href}
-              data-sidebar-nav-id={item.id}
-              data-sidebar-nav-domain={item.domain}
-            >
-              <span className="app-sidebar-v2-link-icon">
-                <Icon size={17} strokeWidth={1.9} />
-              </span>
-              <span style={{ flex: 1 }}>{item.label}</span>
-              {badge ? <BadgeView badge={badge} /> : null}
-            </Link>
-          );
-        })}
+        {group.items.map((item) => (
+          <SidebarLink
+            key={item.route.id}
+            item={item}
+            badge={hydratedBadges.get(item.route.id) ?? null}
+            active={isActiveRoute(pathname, item.route.href)}
+          />
+        ))}
       </nav>
     </div>
   );
 }
 
+function SidebarMoreView({
+  items,
+  pathname,
+  hydratedBadges,
+}: {
+  items: ReadonlyArray<WorkflowExposureItem>;
+  pathname: string | null;
+  hydratedBadges: Map<string, SidebarBadge>;
+}) {
+  const [open, setOpen] = useState(false);
+  if (items.length === 0) return null;
+  return (
+    <div
+      className="app-sidebar-v2-group"
+      data-sidebar-group="More / Advanced"
+      data-sidebar-group-id="sidebar.more-advanced"
+      data-sidebar-group-domain="MORE"
+    >
+      <div
+        className="app-sidebar-v2-more"
+        data-sidebar-more-open={open ? "true" : "false"}
+        data-sidebar-more-count={items.length}
+      >
+        <button
+          type="button"
+          className="app-sidebar-v2-link"
+          data-sidebar-more-toggle
+          aria-expanded={open}
+          onClick={() => setOpen((prev) => !prev)}
+          style={{
+            width: "100%",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            textAlign: "left",
+            fontSize: 11,
+            fontWeight: 600,
+            color: "#64748b",
+            textTransform: "uppercase",
+            letterSpacing: 0.5,
+            padding: "8px 12px",
+          }}
+        >
+          {open ? "− Hide advanced" : `+ More / Advanced (${items.length})`}
+        </button>
+        {open
+          ? items.map((item) => (
+              <SidebarLink
+                key={item.route.id}
+                item={item}
+                badge={hydratedBadges.get(item.route.id) ?? null}
+                active={isActiveRoute(pathname, item.route.href)}
+                inMore
+              />
+            ))
+          : null}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Main sidebar
+// =============================================================================
+
 export function AppSidebarV2() {
   const { envelope } = usePlatformContext();
+  const persona = usePersonaProfile();
+  const pathname = usePathname();
+
+  const activeSpaceType = envelope?.activeSpace?.type ?? null;
+  const isPlatformAdmin = envelope?.platform?.isPlatformAdmin === true;
+  const capabilities = envelope?.capabilities ?? {};
+  const accountPlan = envelope?.account?.accountPlan ?? null;
+
   const teamId =
-    envelope?.workspace.status === "active" && envelope.workspace.scope === "TEAM"
+    envelope?.workspace?.status === "active" && envelope.workspace.scope === "TEAM"
       ? envelope.workspace.id
       : null;
   const runtime = useGlobalRuntimeState(teamId);
-
   const runtimeTone = severityToTone(runtime.severity);
   const governanceIncidents = runtime.incidents.filter(
     (i) => i.category && i.category.toLowerCase().includes("governance"),
   ).length;
 
-  const groups = envelope?.navigation.groups ?? [];
+  // Resolve canonical access per registered route.
+  const resolved = ROUTE_REGISTRY.map((route: RouteDefinition) => {
+    const access = resolveRouteAccess({
+      route,
+      activeSpaceType,
+      isPlatformAdmin,
+      capabilities,
+      accountPlan,
+    });
+    return { route, access };
+  });
 
-  // Hydrate runtime badges for items that declared a badgeKey.
+  // Bucket by workflow priority. Workflow only re-orders; capabilities
+  // already decided canSeeNav/canLoad above.
+  const primaryWorkflow: WorkflowProfileCode = workflowFromPersona(
+    persona.primaryProfile,
+  ).code;
+  const secondaryWorkflows: WorkflowProfileCode[] = persona.secondaryUseCases.map(
+    (p) => workflowFromPersona(p).code,
+  );
+  const exposure = resolveWorkflowExposure({
+    routes: resolved,
+    primaryWorkflow,
+    secondaryWorkflows,
+  });
+
+  const { groups } = buildSidebarGroups(
+    exposure.primaryItems,
+    exposure.secondaryItems,
+  );
+
+  // Hydrate runtime badges per route id.
   const hydratedBadges = new Map<string, SidebarBadge>();
-  for (const group of groups) {
-    for (const item of group.items as ReadonlyArray<PlatformContextNavItem>) {
-      if (item.badgeKey) {
-        const badge = hydrateBadge(
-          item.badgeKey,
-          runtime,
-          runtimeTone,
-          governanceIncidents,
-        );
-        if (badge) hydratedBadges.set(item.id, badge);
-      }
-    }
+  for (const item of [
+    ...exposure.primaryItems,
+    ...exposure.secondaryItems,
+    ...exposure.moreAdvancedItems,
+  ]) {
+    const badgeKey = BADGE_KEY_BY_ROUTE_ID[item.route.id];
+    if (!badgeKey) continue;
+    const badge = hydrateBadge(
+      badgeKey,
+      runtime,
+      runtimeTone,
+      governanceIncidents,
+    );
+    if (badge) hydratedBadges.set(item.route.id, badge);
   }
 
   return (
     <aside className="app-sidebar-v2">
       <div className="app-sidebar-v2-bg" />
-
       <div className="app-sidebar-v2-inner">
         <div className="app-sidebar-v2-scroll">
           {groups.map((group) => (
             <SidebarGroupView
               key={group.id}
               group={group}
+              pathname={pathname}
               hydratedBadges={hydratedBadges}
             />
           ))}
+
+          <SidebarMoreView
+            items={exposure.moreAdvancedItems}
+            pathname={pathname}
+            hydratedBadges={hydratedBadges}
+          />
+
+          <div
+            className="app-sidebar-v2-group"
+            data-sidebar-group="All Tools"
+            data-sidebar-group-id="sidebar.all-tools"
+            data-sidebar-group-domain="ALL_TOOLS"
+          >
+            <nav className="app-sidebar-v2-nav" aria-label="All Tools">
+              <Link
+                href="/tools"
+                className={`app-sidebar-v2-link ${isActiveRoute(pathname, "/tools") ? "is-active" : ""}`}
+                data-sidebar-link-key="all-tools"
+                data-sidebar-nav-id="workspace.tools"
+              >
+                <span className="app-sidebar-v2-link-icon">
+                  <LayoutGrid size={17} strokeWidth={1.9} />
+                </span>
+                <span style={{ flex: 1 }}>All Tools</span>
+              </Link>
+            </nav>
+          </div>
         </div>
 
         <div className="app-sidebar-v2-trust-card">

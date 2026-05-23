@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 type AnalyticsWindow = "1h" | "24h" | "7d" | "30d";
 
@@ -70,7 +71,16 @@ const METRIC_LABEL: Record<string, string> = {
   review_overdue: "Overdue reviews",
 };
 
+// Phase 38.11 — wrap in canonical PageRouteGate.
 export default function GovernanceAnalyticsPage() {
+  return (
+    <PageRouteGate routeId="governance.analytics">
+      <GovernanceAnalyticsPageInner />
+    </PageRouteGate>
+  );
+}
+
+function GovernanceAnalyticsPageInner() {
   const teamId = useTeamId();
   const [window, setWindowSel] = useState<AnalyticsWindow>("24h");
   const [data, setData] = useState<AnalyticsResult | null>(null);

@@ -24,6 +24,8 @@
  */
 
 import { prisma } from "../../db.js";
+// Phase 37.98 — Projection-backed dashboard reads.
+import { readLatestOrgHealthProjection } from "./projections/refresh-org-health.service.js";
 import {
   backfillIntegritySnapshots,
   listWorkspaceIntegritySnapshots,
@@ -721,6 +723,38 @@ export type CommandCenterEnvelope = {
     role: string;
     scope: WorkspaceScope;
     memberCount: number;
+  };
+  /**
+   * Phase 37.98 — Projection-backed summary.
+   *
+   * Read from `OrgHealthProjection` instead of running the live aggregate
+   * cluster. Falls back to a single bounded live query when no projection
+   * row exists. NEVER reports stale data as fresh — `projectionStatus`,
+   * `projectionRefreshedAt`, and `projectionAgeSeconds` document the
+   * exact freshness so callers can render an honest staleness chip.
+   *
+   * Staleness policy:
+   *   - fresh    — projection exists, age <= PROJECTION_FRESH_THRESHOLD_SEC
+   *   - stale    — projection exists, age >  PROJECTION_FRESH_THRESHOLD_SEC
+   *   - missing  — no projection exists; counts come from a bounded live
+   *                fallback. `usedLiveFallback` is `true`.
+   */
+  projectionSummary: {
+    projectionStatus: "fresh" | "stale" | "missing";
+    projectionRefreshedAt: string | null;
+    projectionAgeSeconds: number | null;
+    usedLiveFallback: boolean;
+    teamId: string;
+    counts: {
+      evidenceCount: number;
+      caseCount: number;
+      pendingReportCount: number;
+      pendingPackageCount: number;
+      openIncidentCount: number;
+      slaBreachCount: number;
+      governanceBlockerCount: number;
+      recentVerificationCount: number;
+    };
   };
   sections: {
     // === Hero / overview ===
@@ -3061,6 +3095,11 @@ export async function buildCommandCenter(input: {
     orgIntelligenceV2Result.meta,
   ]);
 
+  // Phase 37.98 — Projection-backed summary. Reads from
+  // OrgHealthProjection (refreshed by the org-health-refresh worker).
+  // Falls back to two bounded live counts when no projection exists.
+  const projectionSummary = await buildProjectionSummary(input.teamId);
+
   // Compose summary from real sections (no fake metrics).
   const summary: CommandCenterEnvelope["sections"]["summary"] = {
     status: "ok",
@@ -3089,6 +3128,7 @@ export async function buildCommandCenter(input: {
   return {
     generatedAt: new Date().toISOString(),
     workspace: { id: input.teamId, role: input.role, scope, memberCount },
+    projectionSummary,
     sections: {
       summary,
       operationalPressure: pressure,
@@ -6363,6 +6403,102 @@ async function runOrgIntelligenceV2(
         topPressureSources: [],
         throughputWindows: { last24h: 0, last7d: 0, last30d: 0 },
         recommendedActions: [],
+      },
+    };
+  }
+}
+
+// =============================================================================
+// PHASE 37.98 — Projection-backed summary
+// =============================================================================
+
+/**
+ * Threshold for "fresh" projection rows. The refresh worker is expected to
+ * tick every 60s; anything older than 90s is reported as stale so the UI
+ * can render an honest chip.
+ */
+const PROJECTION_FRESH_THRESHOLD_SEC = 90;
+
+async function buildProjectionSummary(
+  teamId: string,
+): Promise<CommandCenterEnvelope["projectionSummary"]> {
+  // Read the most recent projection row for THIS tenant. The Prisma
+  // helper filters by teamId; cross-tenant read is impossible.
+  let row: Awaited<ReturnType<typeof readLatestOrgHealthProjection>> = null;
+  try {
+    row = await readLatestOrgHealthProjection({ teamId });
+  } catch {
+    row = null;
+  }
+
+  if (row) {
+    const ageSec = Math.max(
+      0,
+      Math.floor((Date.now() - row.sampledAtUtc.getTime()) / 1000),
+    );
+    const projectionStatus =
+      ageSec <= PROJECTION_FRESH_THRESHOLD_SEC ? "fresh" : "stale";
+    return {
+      projectionStatus,
+      projectionRefreshedAt: row.sampledAtUtc.toISOString(),
+      projectionAgeSeconds: ageSec,
+      usedLiveFallback: false,
+      teamId,
+      counts: {
+        evidenceCount: row.evidenceCount,
+        caseCount: row.caseCount,
+        pendingReportCount: row.pendingReportCount,
+        pendingPackageCount: row.pendingPackageCount,
+        openIncidentCount: row.openIncidentCount,
+        slaBreachCount: row.slaBreachCount,
+        governanceBlockerCount: row.governanceBlockerCount,
+        recentVerificationCount: row.recentVerificationCount,
+      },
+    };
+  }
+
+  // No projection — bounded live fallback. Only the two counters that
+  // live-aggregate cheaply (evidence + case totals) are queried; the
+  // other six default to 0 and the consumer renders an "unavailable"
+  // chip until the refresh worker populates the row.
+  try {
+    const [evidenceCount, caseCount] = await Promise.all([
+      prisma.evidence.count({ where: { teamId, deletedAt: null } }),
+      prisma.case.count({ where: { teamId } }),
+    ]);
+    return {
+      projectionStatus: "missing",
+      projectionRefreshedAt: null,
+      projectionAgeSeconds: null,
+      usedLiveFallback: true,
+      teamId,
+      counts: {
+        evidenceCount,
+        caseCount,
+        pendingReportCount: 0,
+        pendingPackageCount: 0,
+        openIncidentCount: 0,
+        slaBreachCount: 0,
+        governanceBlockerCount: 0,
+        recentVerificationCount: 0,
+      },
+    };
+  } catch {
+    return {
+      projectionStatus: "missing",
+      projectionRefreshedAt: null,
+      projectionAgeSeconds: null,
+      usedLiveFallback: true,
+      teamId,
+      counts: {
+        evidenceCount: 0,
+        caseCount: 0,
+        pendingReportCount: 0,
+        pendingPackageCount: 0,
+        openIncidentCount: 0,
+        slaBreachCount: 0,
+        governanceBlockerCount: 0,
+        recentVerificationCount: 0,
       },
     };
   }

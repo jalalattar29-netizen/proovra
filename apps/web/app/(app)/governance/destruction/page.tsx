@@ -25,6 +25,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 type ReviewStatus =
   | "PENDING"
@@ -97,7 +98,16 @@ const ALLOWED_NEXT: Record<ReviewStatus, ReviewStatus[]> = {
   CANCELLED: [],
 };
 
+// Phase 38.11 — wrap in canonical PageRouteGate.
 export default function DestructionQueuePage() {
+  return (
+    <PageRouteGate routeId="governance.destruction">
+      <DestructionQueuePageInner />
+    </PageRouteGate>
+  );
+}
+
+function DestructionQueuePageInner() {
   const teamId = useTeamId();
   const [reviews, setReviews] = useState<Review[] | null>(null);
   const [error, setError] = useState<string | null>(null);

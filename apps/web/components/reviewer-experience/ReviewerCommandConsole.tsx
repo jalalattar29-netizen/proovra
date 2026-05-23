@@ -25,9 +25,12 @@ import Link from "next/link";
 import { apiFetch } from "../../lib/api";
 import {
   CapabilityDegradedPanel,
+  useActiveSpaceId,
+  usePersonaProfile,
   usePlatformContext,
-  useTeamWorkspaceGate,
+  workflowFromPersona,
 } from "../../lib/platform-context";
+import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { RuntimeStatusBanner } from "../operational";
 import type { ReviewerCommandEnvelope, SectionStatus } from "./types";
 
@@ -40,15 +43,26 @@ type LoadState =
 
 export function ReviewerCommandConsole() {
   const ctx = usePlatformContext();
-  const workspace = useTeamWorkspaceGate();
+  // Phase 38.14 — migrated off the legacy workspace-gate hook. The
+  // /reviewer-ops page is already wrapped in <PageRouteGate
+  // routeId="review.queue"> (ORGANIZATION_ONLY) so by the time this
+  // component renders the actor has an active organization workspace
+  // AND the REVIEWER_OPS_VIEW capability. We read the active-space id
+  // directly; loading is a transient state.
+  const teamId = useActiveSpaceId();
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  // Phase 38.17 — workflow-aware contextual help.
+  const reviewerPersona = usePersonaProfile();
+  const reviewerWorkflowCode = workflowFromPersona(
+    reviewerPersona.primaryProfile,
+  ).code;
 
   const load = useCallback(async () => {
-    if (workspace.status !== "ready") return;
+    if (!teamId) return;
     setState({ status: "loading" });
     try {
       const envelope = (await apiFetch(
-        `/v1/reviewer-ops/command?teamId=${encodeURIComponent(workspace.workspaceId)}`,
+        `/v1/reviewer-ops/command?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
       )) as ReviewerCommandEnvelope;
       setState({ status: "ready", envelope });
@@ -64,33 +78,15 @@ export function ReviewerCommandConsole() {
           message: e.message ?? "Unable to load reviewer command center.",
         });
     }
-  }, [workspace.status, workspace.status === "ready" ? workspace.workspaceId : null]);
+  }, [teamId]);
 
   useEffect(() => {
-    if (workspace.status === "loading") {
+    if (!teamId) {
       setState({ status: "loading" });
       return;
     }
-    if (workspace.status === "no-workspace") {
-      setState({ status: "no_workspace" });
-      return;
-    }
-    if (workspace.status === "error") {
-      setState({
-        status:
-          workspace.code === "auth_required" || workspace.code === "permission_denied"
-            ? "auth_error"
-            : "unavailable",
-        code:
-          workspace.code === "permission_denied"
-            ? "permission_denied"
-            : "auth_required",
-        message: workspace.message,
-      } as LoadState);
-      return;
-    }
     void load();
-  }, [workspace.status, workspace.status === "ready" ? workspace.workspaceId : null, load]);
+  }, [teamId, load]);
 
   // Phase 32.8 Foundation — capability gate from the canonical
   // context. Personal workspaces (REVIEWER_OPS_VIEW = false) render
@@ -147,6 +143,14 @@ export function ReviewerCommandConsole() {
           <span title={env.generatedAt}>Refreshed {relTime(env.generatedAt)}</span>
         </div>
       </header>
+
+      {/* Phase 38.17 — workflow-aware contextual help, collapsed by
+          default so the reviewer triage surface stays primary. */}
+      <ContextualHelp
+        workflow={reviewerWorkflowCode}
+        surface="reviewer-ops"
+        collapsedByDefault
+      />
 
       {/* Phase 32.7 — runtime banner scoped to reviewer_ops so platform-
           internal degradations don't poison the operator view. */}

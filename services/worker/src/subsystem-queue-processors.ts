@@ -33,6 +33,7 @@ import type {
   GraphReconcileJobPayload,
   GraphSearchProjectionJobPayload,
   GraphTimelineSyncJobPayload,
+  OrgHealthRefreshJobPayload,
   MiSearchIndexJobPayload,
   OcrJobPayload,
   TranscriptJobPayload,
@@ -424,6 +425,114 @@ export async function processGraphSearchProjectionJob(
         err: err instanceof Error ? err.message : String(err),
       },
       "graph_search_projection.failed",
+    );
+    throw err;
+  }
+}
+
+// ============================================================================
+// PHASE 37.98 — Org-health projection refresh processor.
+//
+// One job payload = one teamId. The processor runs bounded count queries
+// scoped by that teamId only and upserts the latest OrgHealthProjection
+// row. Tenant safety holds:
+//
+//   - the input is a single teamId; no other tenant is touched,
+//   - every Prisma .count call carries `where: { teamId }`,
+//   - the upsert key is `(teamId, sampledAtUtc)`,
+//   - no audit/billing/legal-hold side effects.
+//
+// The processor is intentionally lean — when the API-side
+// `refresh-org-health.service.ts` grows new counters, mirror them here
+// or extract to a shared package.
+// ============================================================================
+export async function processOrgHealthRefreshJob(
+  job: Job<OrgHealthRefreshJobPayload, void, string>,
+): Promise<void> {
+  const teamId = job.data.teamId;
+  if (!teamId) {
+    logger.warn(
+      { jobId: job.id ?? null },
+      "org_health_refresh.skipped_missing_team_id",
+    );
+    return;
+  }
+  logger.info(
+    { jobId: job.id ?? null, teamId, kind: "org-health-refresh" },
+    "org_health_refresh.received",
+  );
+  try {
+    const sampledAtUtc = new Date();
+    const [
+      evidenceCount,
+      caseCount,
+      pendingReportCount,
+      pendingPackageCount,
+    ] = await Promise.all([
+      prisma.evidence.count({ where: { teamId, deletedAt: null } }),
+      prisma.case.count({ where: { teamId } }),
+      prisma.evidence.count({
+        where: { teamId, deletedAt: null, reports: { none: {} } },
+      }),
+      prisma.evidence.count({
+        where: { teamId, deletedAt: null, verificationPackages: { none: {} } },
+      }),
+    ]);
+
+    // Counters that depend on subsystem-specific tables; default to 0
+    // until those subsystems plumb in their own per-tenant counters.
+    const openIncidentCount = 0;
+    const slaBreachCount = 0;
+    const governanceBlockerCount = 0;
+    const recentVerificationCount = 0;
+
+    await prisma.orgHealthProjection.upsert({
+      where: { teamId_sampledAtUtc: { teamId, sampledAtUtc } },
+      create: {
+        teamId,
+        sampledAtUtc,
+        evidenceCount,
+        caseCount,
+        openIncidentCount,
+        slaBreachCount,
+        governanceBlockerCount,
+        recentVerificationCount,
+        pendingPackageCount,
+        pendingReportCount,
+        source: "worker_refresh_v1",
+      },
+      update: {
+        evidenceCount,
+        caseCount,
+        openIncidentCount,
+        slaBreachCount,
+        governanceBlockerCount,
+        recentVerificationCount,
+        pendingPackageCount,
+        pendingReportCount,
+        source: "worker_refresh_v1",
+      },
+    });
+
+    logger.info(
+      {
+        jobId: job.id ?? null,
+        teamId,
+        evidenceCount,
+        caseCount,
+        pendingReportCount,
+        pendingPackageCount,
+      },
+      "org_health_refresh.completed",
+    );
+  } catch (err) {
+    logger.error(
+      {
+        jobId: job.id ?? null,
+        teamId,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      "org_health_refresh.failed",
     );
     throw err;
   }

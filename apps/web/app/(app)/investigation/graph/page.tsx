@@ -25,6 +25,7 @@ import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 type GraphSeedKind = "CASE" | "INCIDENT" | "REPORT" | "EVIDENCE";
 
 type GraphSeed = {
@@ -54,7 +55,16 @@ const FILTER_OPTIONS: Array<{ value: GraphSeedKind | "ALL"; label: string }> = [
   { value: "EVIDENCE", label: "Evidence only" },
 ];
 
+// Phase 38.13 — wrap in canonical PageRouteGate.
 export default function GraphExplorerPage() {
+  return (
+    <PageRouteGate routeId="investigation.graph">
+      <GraphExplorerPageInner />
+    </PageRouteGate>
+  );
+}
+
+function GraphExplorerPageInner() {
   const teamId = useTeamId();
   const [seeds, setSeeds] = useState<GraphSeed[] | null>(null);
   const [filter, setFilter] = useState<GraphSeedKind | "ALL">("ALL");

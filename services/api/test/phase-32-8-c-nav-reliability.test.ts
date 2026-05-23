@@ -86,30 +86,34 @@ describe("Phase 32.8C+++++++ — section IDs match persona priority chip targets
     "organizationalHealth",
   ];
 
-  it("every required section id is present in the render", () => {
+  it("every required section id is registered in the SECTION_RENDERERS registry", () => {
+    // Phase 38.11 — sections moved from hand-coded JSX to a registry
+    // loop. The render loop emits `id={sectionId}` / `data-section={sectionId}`
+    // for every registry entry, so the contract is now expressed as
+    // "every required id has a SECTION_RENDERERS entry".
     for (const id of REQUIRED_SECTION_IDS) {
-      expect(CC_TSX, `missing id="${id}"`).toContain(`id="${id}"`);
+      expect(CC_TSX, `missing SECTION_RENDERERS entry for "${id}"`).toMatch(
+        new RegExp(`${id}:\\s*\\{\\s*ariaLabel:`),
+      );
     }
   });
 
-  it("every required section has a matching data-section hook", () => {
-    for (const id of REQUIRED_SECTION_IDS) {
-      expect(
-        CC_TSX,
-        `missing data-section="${id}"`,
-      ).toContain(`data-section="${id}"`);
-    }
+  it("the render loop emits id + data-section attributes per registry entry", () => {
+    // The single wrap point that produces id/data-section for every
+    // section is the registry loop. Verify the wrapper exists.
+    expect(CC_TSX).toMatch(/id=\{sectionId\}/);
+    expect(CC_TSX).toMatch(/data-section=\{sectionId\}/);
   });
 
-  it("every required section has an aria-label", () => {
-    // We sample a handful — the wrapping pattern is consistent.
+  it("every required section has an aria-label in the registry", () => {
+    // We sample a handful — the registry pattern is consistent.
     for (const id of ["incidents", "routingQueue", "queueWorkerTelemetry"]) {
       const block = CC_TSX.match(
         new RegExp(
-          `id="${id}"[\\s\\S]{0,200}aria-label="[^"]+"`,
+          `${id}:\\s*\\{\\s*ariaLabel:\\s*"[^"]+"`,
         ),
       );
-      expect(block, `aria-label missing near id="${id}"`).not.toBeNull();
+      expect(block, `ariaLabel missing for "${id}"`).not.toBeNull();
     }
   });
 });

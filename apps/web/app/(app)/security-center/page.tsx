@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 
 type MfaPolicyLevel =
   | "OFF"
@@ -77,7 +78,16 @@ const LEVELS: MfaPolicyLevel[] = [
   "HIGH_RISK_ONLY",
 ];
 
+// Phase 38.10 — wrap in canonical PageRouteGate.
 export default function SecurityCenterPage() {
+  return (
+    <PageRouteGate routeId="workspace.security_center">
+      <SecurityCenterPageInner />
+    </PageRouteGate>
+  );
+}
+
+function SecurityCenterPageInner() {
   const teamId = useTeamId();
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [requirement, setRequirement] = useState<CurrentUserRequirement | null>(

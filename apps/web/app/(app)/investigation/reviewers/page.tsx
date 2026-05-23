@@ -26,6 +26,7 @@ import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 type WorkflowTotals = {
   notStarted: number;
   inProgress: number;
@@ -116,7 +117,16 @@ type ConsoleResponse = {
   localExtractorCapability?: LocalExtractorCapability;
 };
 
+// Phase 38.13 — wrap in canonical PageRouteGate.
 export default function ReviewerIntelligenceConsolePage() {
+  return (
+    <PageRouteGate routeId="investigation.reviewers">
+      <ReviewerIntelligenceConsolePageInner />
+    </PageRouteGate>
+  );
+}
+
+function ReviewerIntelligenceConsolePageInner() {
   const teamId = useTeamId();
   const [data, setData] = useState<ConsoleResponse | null>(null);
   const [error, setError] = useState<string | null>(null);

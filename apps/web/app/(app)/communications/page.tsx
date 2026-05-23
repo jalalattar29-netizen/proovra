@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 
 type Channel = "SMS" | "WHATSAPP" | "EMAIL" | "SYSTEM";
 type Status =
@@ -95,7 +96,16 @@ const PURPOSES: Purpose[] = [
   "PREFERENCE_UPDATE",
 ];
 
+// Phase 38.12 — wrap in canonical PageRouteGate.
 export default function CommunicationsPage() {
+  return (
+    <PageRouteGate routeId="workspace.communications">
+      <CommunicationsPageInner />
+    </PageRouteGate>
+  );
+}
+
+function CommunicationsPageInner() {
   const teamId = useTeamId();
   const [health, setHealth] = useState<ProviderHealth | null>(null);
   const [messages, setMessages] = useState<Message[] | null>(null);

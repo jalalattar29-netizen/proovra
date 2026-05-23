@@ -12,6 +12,7 @@ import { LEGAL_LINKS } from "../../../lib/legalLinks";
 import { captureException } from "../../../lib/sentry";
 import { openCookiePreferences } from "../../../lib/consent";
 import { useAuth, useLocale } from "../../providers";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 
 type BillingStatusResponse = {
   entitlement?: { plan?: string | null } | null;
@@ -131,7 +132,18 @@ function getLocaleLabel(lc: Locale): string {
                 : String(lc).toUpperCase();
 }
 
+// Phase 38.9 — wrap in canonical PageRouteGate. `account.settings`
+// is an ACCOUNT-domain route (NONE active-space) so it loads for every
+// authenticated user.
 export default function SettingsPage() {
+  return (
+    <PageRouteGate routeId="account.settings">
+      <SettingsPageInner />
+    </PageRouteGate>
+  );
+}
+
+function SettingsPageInner() {
   const { t, locale, setLocale } = useLocale();
   const { user, setToken, updateUser } = useAuth();
   const { addToast } = useToast();

@@ -6,6 +6,7 @@ import { apiFetch } from "../../../../lib/api";
 import { useToast, Skeleton, Card } from "../../../../components/ui";
 import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import { dashboardStyles } from "../../../../components/dashboard/styles";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 interface Quotas {
   analyses: { limit: number; used: number; remaining: number; resetDate: string };
@@ -31,7 +32,16 @@ function safePercent(used: number, limit: number): number {
   return Math.max(0, Math.min(100, Math.round((used / limit) * 100)));
 }
 
+// Phase 38.14 — wrap in canonical PageRouteGate.
 export default function QuotasPage() {
+  return (
+    <PageRouteGate routeId="dashboard.quotas">
+      <QuotasPageInner />
+    </PageRouteGate>
+  );
+}
+
+function QuotasPageInner() {
   const { user } = useAuth();
   const { addToast } = useToast();
 

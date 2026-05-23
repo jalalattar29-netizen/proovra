@@ -27,6 +27,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
 import { usePlatformContext } from "../../../lib/platform-context";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 
 type LinkRow = {
   id: string;
@@ -80,7 +81,16 @@ const ACCEPTED_KIND_OPTIONS: Array<"PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT"> = [
   "DOCUMENT",
 ];
 
+// Phase 38.10 — wrap in canonical PageRouteGate.
 export default function IntakeLinksPage() {
+  return (
+    <PageRouteGate routeId="workspace.intake_links">
+      <IntakeLinksPageInner />
+    </PageRouteGate>
+  );
+}
+
+function IntakeLinksPageInner() {
   const [currentTeam, setCurrentTeam] = useState<CurrentTeamSummary>(null);
   const [links, setLinks] = useState<LinkRow[] | null>(null);
   const [templates, setTemplates] = useState<WorkflowTemplateRow[] | null>(null);

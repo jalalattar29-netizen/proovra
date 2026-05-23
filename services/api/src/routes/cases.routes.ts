@@ -178,9 +178,14 @@ export async function casesRoutes(app: FastifyInstance) {
       });
     }
 
+    // Phase 37.95 — enforce a server-side cap on the bare list. Larger
+    // tenants must consume `/v1/cases/matter-queue` (case-workspace.routes)
+    // which carries a cursor + bounded page size. This endpoint is the
+    // simple non-paginated index — capped at a safe default.
     const items = await prisma.case.findMany({
       where: { OR: or },
       orderBy: { createdAt: "desc" },
+      take: 200,
     });
 
     auditCaseAction(req, {

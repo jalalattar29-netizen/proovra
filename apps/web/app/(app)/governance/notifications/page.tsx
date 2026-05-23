@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 type Severity = "INFO" | "WARNING" | "HIGH" | "CRITICAL";
 type DeliveryStatus = "PENDING" | "SENT" | "SUPPRESSED" | "FAILED";
@@ -45,7 +46,16 @@ type Notification = {
   acknowledgedByUserId: string | null;
 };
 
+// Phase 38.11 — wrap in canonical PageRouteGate.
 export default function GovernanceNotificationsPage() {
+  return (
+    <PageRouteGate routeId="governance.notifications">
+      <GovernanceNotificationsPageInner />
+    </PageRouteGate>
+  );
+}
+
+function GovernanceNotificationsPageInner() {
   const teamId = useTeamId();
   const [notifications, setNotifications] = useState<Notification[] | null>(null);
   const [counts, setCounts] = useState<{ pending: number; failed: number } | null>(null);

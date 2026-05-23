@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { AppSidebarV2 } from "./AppSidebarV2";
 import { AppTopbarV2 } from "./AppTopbarV2";
 import { AppFooterV2 } from "./AppFooterV2";
+import { PersonaSetupBanner } from "./PersonaSetupBanner";
+import { CommandPalette } from "../navigation/CommandPalette";
 import { usePathname } from "next/navigation";
 import {
   usePlatformContext,
@@ -51,13 +53,35 @@ export function AppShellV2({ children, onLogout }: AppShellV2Props) {
   const recoveryActions = ctx.envelope?.recoveryActions ?? [];
   const needsRecovery = recoveryActions.length > 0;
 
+  // Phase 38.2 — operational density is a presentation-only attribute
+  // exposed on the shell root so existing CSS rules + future selectors
+  // can target it. Defaults to "comfortable" — never gates features.
+  const operationalDensity =
+    ctx.envelope?.personaProfile?.operationalDensityPreference ??
+    "comfortable";
+  const activePersona =
+    ctx.envelope?.personaProfile?.primaryProfile ?? "INDIVIDUAL";
+
   return (
-    <div className="app-shell-v2">
+    <div
+      className="app-shell-v2"
+      data-operational-density={operationalDensity}
+      data-active-persona={activePersona}
+    >
       <AppTopbarV2
         onLogout={onLogout}
         mobileSidebarOpen={mobileSidebarOpen}
         onToggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
       />
+
+      {/* Phase 38.1 — Persona setup discoverability. Dismissible; never
+          blocks the app; renders only when the active workspace lacks a
+          completed persona profile. */}
+      <PersonaSetupBanner />
+
+      {/* Phase 38.8 — Cmd+K command palette. Self-mounted; renders
+          only when open (via internal state). Never hides existing UI. */}
+      <CommandPalette />
 
       <div className="app-shell-v2-main">
         <div className="app-shell-v2-desktop-sidebar">

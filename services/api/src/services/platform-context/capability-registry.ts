@@ -254,6 +254,71 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
     );
   }
 
+  // ============================================================
+  // ENTERPRISE TENANT MODEL — account / personal / org keys.
+  //
+  // Computed from the same (scope, role, isPlatformAdmin) inputs that drove
+  // the legacy keys above. The legacy keys remain populated for backward
+  // compatibility for one phase; new pages should consume these instead.
+  //
+  //   ACCOUNT_*  — always-available to an authenticated user
+  //   PERSONAL_* — gated to scope=PERSONAL
+  //   ORG_*      — gated to scope=TEAM + role
+  // ============================================================
+
+  // Account-tier — every authenticated user can manage their identity,
+  // see billing, view upgrade paths, create or join organizations.
+  setMany(
+    map,
+    [
+      "ACCOUNT_SETTINGS_VIEW",
+      "ACCOUNT_BILLING_VIEW",
+      "ACCOUNT_UPGRADE_VIEW",
+      "ORGANIZATION_CREATE",
+      "ORGANIZATION_JOIN",
+    ],
+    true,
+  );
+
+  // Personal-space-tier — granted only when the active space is PERSONAL.
+  // Read capabilities are always granted in personal mode (the user owns
+  // their own evidence by definition).
+  if (isPersonal) {
+    setMany(
+      map,
+      [
+        "PERSONAL_CAPTURE",
+        "PERSONAL_EVIDENCE_VIEW",
+        "PERSONAL_CASES_VIEW",
+        "PERSONAL_REPORTS_VIEW",
+        "PERSONAL_SEARCH_VIEW",
+      ],
+      true,
+    );
+  }
+
+  // Organization-tier — granted only when the active space is an
+  // organization (TEAM scope). Role-aware: viewers do NOT get governance
+  // act or team manage; admins do; billing manage is OWNER/ADMIN.
+  if (isTeam) {
+    setMany(
+      map,
+      [
+        "ORG_EVIDENCE_VIEW",
+        "ORG_CASES_VIEW",
+        "ORG_REPORTS_VIEW",
+        "ORG_SEARCH_VIEW",
+        "ORG_REVIEWER_OPS_VIEW",
+        "ORG_GOVERNANCE_VIEW",
+        "ORG_OPS_VIEW",
+      ],
+      true,
+    );
+    if (isAdmin) {
+      setMany(map, ["ORG_TEAM_MANAGE", "ORG_BILLING_MANAGE"], true);
+    }
+  }
+
   return map;
 }
 

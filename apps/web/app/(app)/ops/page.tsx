@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
 import { useTeamWorkspaceGate } from "../../../lib/platform-context";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 
 // Phase 32.6.4 — bounded per-panel state machine. Replaces the
 // previous `null | data` pattern where a single 503 from any of the
@@ -124,7 +125,18 @@ const STATUSES: IncidentStatus[] = [
   "SUPPRESSED",
 ];
 
+// Phase 38.8 — wrap in canonical PageRouteGate. The inner component
+// retains its existing workspace + capability behavior; the gate
+// short-circuits denied states with the canonical structured panel.
 export default function OpsPage() {
+  return (
+    <PageRouteGate routeId="platform.ops_center">
+      <OpsPageInner />
+    </PageRouteGate>
+  );
+}
+
+function OpsPageInner() {
   // Phase 32.8 Foundation cleanup — read team-scoped workspace from
   // the canonical platform context. No /v1/users/me, no /v1/teams.
   const workspace = useTeamWorkspaceGate();

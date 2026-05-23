@@ -11,8 +11,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
-import { useTeamWorkspaceGate } from "../../../../lib/platform-context";
-import { WorkspaceGateState } from "../WorkspaceGateState";
+import { useActiveSpaceId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   NoWorkloadSnapshotsEmptyState,
   RuntimeStatusBanner,
@@ -100,11 +100,19 @@ type DashboardResponse = {
   }>;
 };
 
+// Phase 38.11 — wrap in canonical PageRouteGate. `review.sla` is
+// organization-only; the gate renders the structured recovery panel.
 export default function SlaDashboardPage() {
-  // Phase 32.8 Foundation cleanup — read from canonical context.
-  const workspaceState = useTeamWorkspaceGate();
-  const teamId =
-    workspaceState.status === "ready" ? workspaceState.workspaceId : null;
+  return (
+    <PageRouteGate routeId="review.sla">
+      <SlaDashboardPageInner />
+    </PageRouteGate>
+  );
+}
+
+function SlaDashboardPageInner() {
+  // PageRouteGate guarantees an active ORGANIZATION space here.
+  const teamId = useActiveSpaceId();
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<EscalationAnalytics | null>(null);
@@ -163,13 +171,18 @@ export default function SlaDashboardPage() {
     };
   }, [teamId, rangeDays]);
 
-  if (workspaceState.status !== "ready") {
+  // PageRouteGate already guaranteed ALLOWED. If the canonical
+  // envelope is still hydrating we render the bounded loading shell.
+  if (!teamId) {
     return (
-      <WorkspaceGateState
-        state={workspaceState}
-        surface="SLA"
-        requiredCapability="SLA_VIEW"
-      />
+      <main style={pageStyle} data-sla-loading>
+        <header style={headerRowStyle}>
+          <div>
+            <h1 style={titleStyle}>SLA Operations Dashboard</h1>
+            <p style={subtitleStyle}>Loading organization workspace…</p>
+          </div>
+        </header>
+      </main>
     );
   }
   if (!data) {

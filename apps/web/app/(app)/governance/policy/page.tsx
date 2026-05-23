@@ -21,8 +21,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
-import { useTeamWorkspaceGate } from "../../../../lib/platform-context";
-import { WorkspaceGateState } from "../../reviewer-ops/WorkspaceGateState";
+import { useActiveSpaceId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { RuntimeStatusBanner } from "../../../../components/operational";
 import {
   cardStyle,
@@ -67,10 +67,18 @@ type ApiResponse = {
   flags: Flags;
 };
 
+// Phase 38.11 — wrap in canonical PageRouteGate.
 export default function GovernancePolicyPage() {
-  const workspaceState = useTeamWorkspaceGate();
-  const teamId =
-    workspaceState.status === "ready" ? workspaceState.workspaceId : null;
+  return (
+    <PageRouteGate routeId="governance.policy">
+      <GovernancePolicyPageInner />
+    </PageRouteGate>
+  );
+}
+
+function GovernancePolicyPageInner() {
+  // PageRouteGate guarantees an active ORGANIZATION space here.
+  const teamId = useActiveSpaceId();
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [flags, setFlags] = useState<Flags | null>(null);
   const [overrides, setOverrides] = useState<Partial<Policy["policy"]>>({});
@@ -134,13 +142,13 @@ export default function GovernancePolicyPage() {
     }
   }, [teamId, overrides, flagDraft]);
 
-  if (workspaceState.status !== "ready") {
+  // PageRouteGate already guaranteed ALLOWED. If teamId is null the
+  // envelope hasn't hydrated yet — render the bounded loading shell.
+  if (!teamId) {
     return (
-      <WorkspaceGateState
-        state={workspaceState}
-        surface="Governance Policy"
-        requiredCapability="GOVERNANCE_ACT"
-      />
+      <main data-governance-policy-loading style={{ padding: 24 }}>
+        Loading organization workspace…
+      </main>
     );
   }
 

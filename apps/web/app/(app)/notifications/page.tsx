@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 type Delivery = {
   id: string;
   eventType: string;
@@ -69,7 +70,16 @@ const RESEND_ELIGIBLE = new Set([
   "SKIPPED",
 ]);
 
+// Phase 38.9 — wrap in canonical PageRouteGate.
 export default function NotificationsPage() {
+  return (
+    <PageRouteGate routeId="workspace.notifications">
+      <NotificationsPageInner />
+    </PageRouteGate>
+  );
+}
+
+function NotificationsPageInner() {
   const teamId = useTeamId();
   const [items, setItems] = useState<Delivery[] | null>(null);
   const [error, setError] = useState<string | null>(null);

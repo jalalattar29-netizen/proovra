@@ -189,29 +189,31 @@ describe("Reviewer Ops pages route through useActiveWorkspaceId", () => {
   // workspace via the canonical `useActiveWorkspaceId` hook.
   // The remaining reviewer-ops sub-routes continue to use the
   // shared gate renderer.
-  const pages = [
-    {
-      name: "SLA dashboard",
-      rel: "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
-      surface: '"SLA"',
-    },
-    {
-      name: "escalations console",
-      rel: "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-      surface: '"Escalations"',
-    },
-    {
-      // Phase 32.8B — moved to /governance/policy; legacy path is a redirect.
-      name: "policy admin",
-      rel: "../../../apps/web/app/(app)/governance/policy/page.tsx",
-      surface: '"Governance Policy"',
-    },
-    {
-      name: "review workspace [reviewId]",
-      rel: "../../../apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-      surface: '"Reviewer Ops"',
-    },
+  const pages: Array<{ name: string; rel: string; surface: string }> = [
+    // Phase 38.11 — SLA dashboard migrated to <PageRouteGate
+    // routeId="review.sla">. Canonical recovery is owned by
+    // PageRouteGate; legacy WorkspaceGateState contract no longer
+    // applies. See phase-38-11 source-contract tests.
+    // Phase 38.10 — escalations console migrated to <PageRouteGate
+    // routeId="review.escalations">. See phase-38-10 source-contract.
+    // Phase 38.11 — governance/policy migrated to <PageRouteGate
+    // routeId="governance.policy">. See phase-38-11 source-contract.
+    // Phase 38.12 — review workspace [reviewId] migrated to
+    // <PageRouteGate routeId="review.queue_detail">. See phase-38-12
+    // source-contract.
+    //
+    // All reviewer-ops pages that previously used the shared
+    // WorkspaceGateState renderer have migrated. This contract holds
+    // open in case a NEW WorkspaceGateState consumer is added.
   ];
+
+  it("all reviewer-ops pages have migrated off the legacy WorkspaceGateState contract", () => {
+    // Sentinel: as long as nothing was re-added to `pages` above, the
+    // legacy contract has zero remaining consumers in the reviewer-ops
+    // domain. New consumers must add their entry here and pass the
+    // legacy gate-state contract tests below.
+    expect(pages.length).toBe(0);
+  });
 
   for (const { name, rel, surface } of pages) {
     describe(name, () => {

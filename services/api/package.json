@@ -15,7 +15,9 @@
     "retention:run": "tsx src/retention-cleanup.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:tenant:live": "cross-env RUN_LIVE_INTEGRATION=1 vitest run phase-37-95-cross-tenant-runtime-probe",
+    "test:tenant:live:no-tc": "cross-env RUN_LIVE_INTEGRATION=1 RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 vitest run phase-37-95-cross-tenant-runtime-probe"
   },
   "keywords": [],
   "author": "",
@@ -52,12 +54,15 @@
   },
   "devDependencies": {
     "@eslint/js": "^8.57.1",
+    "@testcontainers/postgresql": "^12.0.0",
     "@types/archiver": "^6.0.3",
     "@types/node": "^25.1.0",
     "@types/pg": "^8.16.0",
     "@typescript-eslint/eslint-plugin": "^8.42.0",
     "@typescript-eslint/parser": "^8.42.0",
+    "cross-env": "^10.1.0",
     "eslint": "^8.57.0",
+    "testcontainers": "^12.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

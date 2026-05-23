@@ -287,20 +287,51 @@ describe("Phase 32.8 Foundation cleanup — reviewer/governance gate cleanup", (
   const POLICY = readWeb("app/(app)/governance/policy/page.tsx");
   const GATE = readWeb("app/(app)/reviewer-ops/WorkspaceGateState.tsx");
 
-  it("SLA page declares its required capability on the gate", () => {
-    expect(SLA).toMatch(/requiredCapability=\{?['"]SLA_VIEW['"]/);
+  it("SLA page declares its required capability via the canonical route registry", () => {
+    // Phase 38.11 — SLA page migrated from a local WorkspaceGateState
+    // gate to <PageRouteGate routeId="review.sla">. The capability is
+    // declared on the canonical ROUTE_REGISTRY entry.
+    expect(SLA).toMatch(/PageRouteGate/);
+    expect(SLA).toMatch(/routeId="review\.sla"/);
+    const registry = readWeb("lib/navigation/routeRegistry.ts");
+    expect(registry).toMatch(
+      /id:\s*"review\.sla"[\s\S]*?SLA_VIEW/,
+    );
   });
 
-  it("Escalations page declares ESCALATIONS_VIEW capability", () => {
-    expect(ESC).toMatch(/requiredCapability=\{?['"]ESCALATIONS_VIEW['"]/);
+  it("Escalations page declares ESCALATIONS_VIEW capability — via the canonical route registry", () => {
+    // Phase 38.10 — the escalations page no longer hands a
+    // `requiredCapability` prop to a local gate. It now wraps in
+    // <PageRouteGate routeId="review.escalations">, and the capability
+    // is declared once on the canonical ROUTE_REGISTRY entry.
+    expect(ESC).toMatch(/PageRouteGate/);
+    expect(ESC).toMatch(/routeId="review\.escalations"/);
+    const registry = readWeb("lib/navigation/routeRegistry.ts");
+    expect(registry).toMatch(
+      /id:\s*"review\.escalations"[\s\S]*?ESCALATIONS_VIEW/,
+    );
   });
 
-  it("Reviewer detail page declares REVIEWER_OPS_VIEW capability", () => {
-    expect(REV).toMatch(/requiredCapability=\{?['"]REVIEWER_OPS_VIEW['"]/);
+  it("Reviewer detail page declares REVIEWER_OPS_VIEW capability — via the canonical route registry", () => {
+    // Phase 38.12 — the review workspace page migrated from a local
+    // WorkspaceGateState gate to <PageRouteGate routeId="review.queue_detail">.
+    expect(REV).toMatch(/PageRouteGate/);
+    expect(REV).toMatch(/routeId="review\.queue_detail"/);
+    const registry = readWeb("lib/navigation/routeRegistry.ts");
+    expect(registry).toMatch(
+      /id:\s*"review\.queue_detail"[\s\S]*?REVIEWER_OPS_VIEW/,
+    );
   });
 
-  it("Governance policy page declares GOVERNANCE_ACT capability", () => {
-    expect(POLICY).toMatch(/requiredCapability=\{?['"]GOVERNANCE_ACT['"]/);
+  it("Governance policy page declares GOVERNANCE_ACT capability — via the canonical route registry", () => {
+    // Phase 38.11 — governance/policy migrated from a local
+    // WorkspaceGateState gate to <PageRouteGate routeId="governance.policy">.
+    expect(POLICY).toMatch(/PageRouteGate/);
+    expect(POLICY).toMatch(/routeId="governance\.policy"/);
+    const registry = readWeb("lib/navigation/routeRegistry.ts");
+    expect(registry).toMatch(
+      /id:\s*"governance\.policy"[\s\S]*?GOVERNANCE_ACT/,
+    );
   });
 
   it("WorkspaceGateState consumes the canonical TeamWorkspaceGateState shape", () => {

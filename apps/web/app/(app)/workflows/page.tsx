@@ -16,6 +16,7 @@ import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 
 type InstanceStatus =
   | "DRAFT"
@@ -86,7 +87,16 @@ const SECTORS: ReadonlyArray<string> = [
   "OTHER",
 ];
 
+// Phase 38.10 — wrap in canonical PageRouteGate.
 export default function WorkflowsListPage() {
+  return (
+    <PageRouteGate routeId="workspace.workflows">
+      <WorkflowsListPageInner />
+    </PageRouteGate>
+  );
+}
+
+function WorkflowsListPageInner() {
   const teamId = useTeamId();
   const [instances, setInstances] = useState<Instance[] | null>(null);
   const [templates, setTemplates] = useState<TemplateSummary[] | null>(null);

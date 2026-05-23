@@ -25,6 +25,7 @@ import {
   OPS_SURFACE,
   OPS_TONES,
 } from "../../../../components/operational";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 type RunbookCategory =
   | "Governance & lifecycle"
@@ -256,7 +257,16 @@ const CATEGORY_ORDER: ReadonlyArray<RunbookCategory> = [
   "Integrations & notifications",
 ];
 
+// Phase 38.10 — wrap in canonical PageRouteGate.
 export default function OpsRunbooksPage() {
+  return (
+    <PageRouteGate routeId="platform.runbooks">
+      <OpsRunbooksPageInner />
+    </PageRouteGate>
+  );
+}
+
+function OpsRunbooksPageInner() {
   const byCategory = new Map<RunbookCategory, RunbookEntry[]>();
   for (const cat of CATEGORY_ORDER) {
     byCategory.set(cat, []);

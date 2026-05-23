@@ -37,9 +37,13 @@ import Link from "next/link";
 import { apiFetch } from "../../lib/api";
 import {
   CapabilityDegradedPanel,
+  usePersonaProfile,
   usePlatformContext,
   useTeamId,
+  useTerminology,
+  workflowFromPersona,
 } from "../../lib/platform-context";
+import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import type {
   MatterQueueEnvelope,
   MatterQueueItem,
@@ -103,7 +107,13 @@ type LoadState =
 export function CasesIndex() {
   const ctx = usePlatformContext();
   const teamId = useTeamId();
+  // Phase 38.1 — consume persona terminology. UI-only; canonical labels
+  // remain unchanged on the backend.
+  const terms = useTerminology();
   const viewerUserId = ctx.envelope?.user.id ?? null;
+  // Phase 38.17 — workflow-aware contextual help.
+  const personaProfile = usePersonaProfile();
+  const workflowCode = workflowFromPersona(personaProfile.primaryProfile).code;
 
   const [filters, setFilters] = useState<QueueFilters>(DEFAULT_FILTERS);
   const [state, setState] = useState<LoadState>({ status: "loading" });
@@ -184,8 +194,12 @@ export function CasesIndex() {
     <main className="cc-page" data-cases-index data-matter-queue>
       <header className="cc-page-header">
         <div>
-          <div className="cc-kicker">Investigation Matters</div>
-          <h1 className="cc-title">Matter Operations Queue</h1>
+          <div className="cc-kicker" data-cases-kicker>
+            Investigation {terms.casePlural}
+          </div>
+          <h1 className="cc-title" data-cases-title>
+            {terms.casePlural} Operations Queue
+          </h1>
           <p className="cc-subtitle">
             Real operational state of every case in this team — risk score,
             evidence gaps, open incidents, governance blockers, reviewer
@@ -202,6 +216,21 @@ export function CasesIndex() {
           </span>
         </div>
       </header>
+
+      {/* Phase 38.17 — workflow-aware contextual help, collapsed by
+          default so the matter queue stays primary. */}
+      <ContextualHelp
+        workflow={workflowCode}
+        surface="cases"
+        collapsedByDefault
+        stateNotes={
+          envelope.total === 0
+            ? [
+                `No ${terms.casePlural.toLowerCase()} yet — create one from the operator console, or link evidence into an existing matter.`,
+              ]
+            : undefined
+        }
+      />
 
       <MatterQueueFilters
         filters={filters}
@@ -362,19 +391,24 @@ function MatterQueueTable({
   items: ReadonlyArray<MatterQueueItem>;
   totalBeforeFilter: number;
 }) {
+  // Phase 38.2 — consume persona terminology in the queue title +
+  // empty-state copy. Defaults retain "Matters" for LAWYER but switch
+  // to "Claims" for INSURANCE, "Investigations" for INVESTIGATOR, etc.
+  const terms = useTerminology();
   return (
     <section className="cc-section" data-matter-queue-table>
       <header className="cc-section-header">
-        <h2 className="cc-section-title">
+        <h2 className="cc-section-title" data-matter-queue-title>
           {items.length === totalBeforeFilter
-            ? `Matters · ${items.length}`
-            : `Matters · ${items.length} of ${totalBeforeFilter}`}
+            ? `${terms.casePlural} · ${items.length}`
+            : `${terms.casePlural} · ${items.length} of ${totalBeforeFilter}`}
         </h2>
       </header>
       {items.length === 0 ? (
         <div className="cc-section-note" data-matter-queue-empty>
-          No matters match the current filters. Clear filters or open a case
-          from the evidence detail to begin matter coordination.
+          No {terms.casePlural.toLowerCase()} match the current filters. Clear
+          filters or open a {terms.caseLower} from the {terms.evidenceLower} detail
+          to begin {terms.caseLower} coordination.
         </div>
       ) : (
         <ul className="cases-list" data-matter-queue-items>

@@ -702,10 +702,18 @@ describe("Phase 32.8 Foundation — shell rewiring (F-3)", () => {
     expect(code).not.toMatch(/['"]Member['"]/);
   });
 
-  it("AppSidebarV2 renders navigation from the canonical envelope", () => {
+  it("AppSidebarV2 renders navigation from the canonical envelope + route registry", () => {
+    // Phase 32.8 → 38.9: the sidebar still consumes the canonical
+    // platform-context envelope for capabilities + activeSpace +
+    // persona, but the navigation tree itself now comes from the
+    // canonical ROUTE_REGISTRY (rendered via resolveRouteAccess +
+    // resolveWorkflowExposure) — eliminating the dual source of nav
+    // truth that the legacy `envelope.navigation.groups` projection
+    // had introduced.
     const code = stripComments(WEB_SIDEBAR);
     expect(WEB_SIDEBAR).toMatch(/usePlatformContext/);
-    expect(WEB_SIDEBAR).toMatch(/envelope\?\.navigation\.groups/);
+    expect(WEB_SIDEBAR).toMatch(/ROUTE_REGISTRY/);
+    expect(WEB_SIDEBAR).toMatch(/resolveRouteAccess/);
     expect(code).not.toMatch(/apiFetch\(/);
     expect(code).not.toMatch(/useActiveWorkspaceId\(/);
     expect(code).not.toMatch(/selectNavigationGroups\(/);

@@ -13,8 +13,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
-import { useTeamWorkspaceGate } from "../../../../lib/platform-context";
-import { WorkspaceGateState } from "../WorkspaceGateState";
+import { useActiveSpaceId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   NoEscalationsEmptyState,
   RuntimeStatusBanner,
@@ -76,11 +76,22 @@ const STATUS_FILTERS: (EscalationStatus | "ALL")[] = [
 
 const SEVERITY_FILTERS = ["", "INFO", "WARNING", "HIGH", "CRITICAL"];
 
+// Phase 38.10 — wrap in canonical PageRouteGate. `review.escalations`
+// is organization-only; the gate renders the structured "Create or
+// switch organization" panel for personal-space users, so the inner
+// component is guaranteed an active organization id.
 export default function EscalationsConsolePage() {
-  // Phase 32.8 Foundation cleanup — read from canonical context.
-  const workspaceState = useTeamWorkspaceGate();
-  const teamId =
-    workspaceState.status === "ready" ? workspaceState.workspaceId : null;
+  return (
+    <PageRouteGate routeId="review.escalations">
+      <EscalationsConsolePageInner />
+    </PageRouteGate>
+  );
+}
+
+function EscalationsConsolePageInner() {
+  // PageRouteGate guarantees an active ORGANIZATION space at this
+  // point. We still read the id from the canonical envelope.
+  const teamId = useActiveSpaceId();
   const [rows, setRows] = useState<EscalationProjection[] | null>(null);
   const [status, setStatus] = useState<EscalationStatus | "ALL">("OPEN");
   const [severity, setSeverity] = useState<string>("");
@@ -140,13 +151,19 @@ export default function EscalationsConsolePage() {
     [teamId, load],
   );
 
-  if (workspaceState.status !== "ready") {
+  // PageRouteGate guarantees ALLOWED state here. If the envelope is
+  // still loading and teamId hasn't resolved yet, render the
+  // bounded loading shell rather than crashing.
+  if (!teamId) {
     return (
-      <WorkspaceGateState
-        state={workspaceState}
-        surface="Escalations"
-        requiredCapability="ESCALATIONS_VIEW"
-      />
+      <main style={pageStyle} data-escalations-loading>
+        <header style={headerRowStyle}>
+          <div>
+            <h1 style={titleStyle}>Escalation Console</h1>
+            <p style={subtitleStyle}>Loading organization workspace…</p>
+          </div>
+        </header>
+      </main>
     );
   }
 

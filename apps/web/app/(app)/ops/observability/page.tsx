@@ -25,7 +25,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
-import { useTeamWorkspaceGate } from "../../../../lib/platform-context";
+import { useActiveSpaceId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   OPS_INK,
   OPS_SURFACE,
@@ -213,10 +214,19 @@ function severityBadgeStyle(
   };
 }
 
+// Phase 38.11 — wrap in canonical PageRouteGate.
 export default function ObservabilityDashboardPage() {
-  const workspaceState = useTeamWorkspaceGate();
-  const teamId =
-    workspaceState.status === "ready" ? workspaceState.workspaceId : null;
+  return (
+    <PageRouteGate routeId="platform.observability">
+      <ObservabilityDashboardPageInner />
+    </PageRouteGate>
+  );
+}
+
+function ObservabilityDashboardPageInner() {
+  // PageRouteGate guarantees ALLOWED; activeSpaceId resolves the
+  // teamId without re-running the legacy workspace gate.
+  const teamId = useActiveSpaceId();
   const [metrics, setMetrics] = useState<MetricsResponse["metrics"] | null>(
     null,
   );

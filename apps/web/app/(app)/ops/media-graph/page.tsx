@@ -26,6 +26,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 type MetricsSnapshot = {
   uptimeSeconds: number;
   counters: Record<string, number>;
@@ -202,7 +203,16 @@ type ActionResult =
   | { kind: "success"; label: string; detail: string }
   | { kind: "error"; label: string; detail: string };
 
+// Phase 38.15 — wrap in canonical PageRouteGate.
 export default function MediaGraphOpsPage() {
+  return (
+    <PageRouteGate routeId="platform.media_graph">
+      <MediaGraphOpsPageInner />
+    </PageRouteGate>
+  );
+}
+
+function MediaGraphOpsPageInner() {
   const teamId = useTeamId();
   const [snapshot, setSnapshot] = useState<MetricsSnapshot | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);

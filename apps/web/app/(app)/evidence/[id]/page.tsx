@@ -23,6 +23,7 @@ import {
 import { getReviewerArtifactRoleLabel } from "@proovra/shared";
 import { Button, Modal, useToast } from "../../../../components/ui";
 import CaptureLocationMapPanel from "../../../../components/capture-location/CaptureLocationMapPanel";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -460,7 +461,17 @@ function buildRiskSignals(sourceContext: SourceContext, alerts: ReviewerAlert[])
   return signals;
 }
 
+// Phase 38.13 — wrap in canonical PageRouteGate inheriting from parent
+// `workspace.evidence` route.
 export default function EvidenceDetailPage() {
+  return (
+    <PageRouteGate routeId="workspace.evidence">
+      <EvidenceDetailPageInner />
+    </PageRouteGate>
+  );
+}
+
+function EvidenceDetailPageInner() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { addToast } = useToast();

@@ -25,8 +25,8 @@ import Link from "next/link";
 
 import { apiFetch } from "../../lib/api";
 import {
+  useActiveSpaceId,
   usePlatformContext,
-  useTeamWorkspaceGate,
 } from "../../lib/platform-context";
 import type { WorkspaceAdminEnvelope } from "./types";
 
@@ -49,16 +49,21 @@ type TabKey =
 
 export function WorkspaceAdminPanel() {
   const ctx = usePlatformContext();
-  const workspace = useTeamWorkspaceGate();
+  // Phase 38.13 — migrated off the legacy workspace-gate hook. The
+  // /teams page already wraps in <PageRouteGate routeId="admin.teams">
+  // (NONE active-space), so by the time this component renders the
+  // envelope is hydrated and the user has TEAM_VIEW capability. We
+  // read the active-space id directly; loading is a transient state.
+  const teamId = useActiveSpaceId();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [tab, setTab] = useState<TabKey>("overview");
 
   const load = useCallback(async () => {
-    if (workspace.status !== "ready") return;
+    if (!teamId) return;
     setState({ status: "loading" });
     try {
       const envelope = (await apiFetch(
-        `/v1/teams/workspace-admin?teamId=${encodeURIComponent(workspace.workspaceId)}`,
+        `/v1/teams/workspace-admin?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
       )) as WorkspaceAdminEnvelope;
       setState({ status: "ready", envelope });
@@ -75,33 +80,20 @@ export function WorkspaceAdminPanel() {
           message: e.message ?? "Unable to load workspace administration.",
         });
     }
-  }, [workspace.status, workspace.status === "ready" ? workspace.workspaceId : null]);
+  }, [teamId]);
 
   useEffect(() => {
-    if (workspace.status === "loading") {
+    if (!teamId) {
+      // Envelope still hydrating — render the loading shell. The
+      // canonical PageRouteGate wrapper on /teams already short-
+      // circuits non-loading "no workspace" cases with the structured
+      // recovery panel; if we get here with a null teamId it is
+      // transient.
       setState({ status: "loading" });
       return;
     }
-    if (workspace.status === "no-workspace") {
-      setState({ status: "no_workspace" });
-      return;
-    }
-    if (workspace.status === "error") {
-      setState({
-        status:
-          workspace.code === "auth_required" || workspace.code === "permission_denied"
-            ? "auth_error"
-            : "unavailable",
-        code:
-          workspace.code === "permission_denied"
-            ? "permission_denied"
-            : "auth_required",
-        message: workspace.message,
-      } as LoadState);
-      return;
-    }
     void load();
-  }, [workspace.status, workspace.status === "ready" ? workspace.workspaceId : null, load]);
+  }, [teamId, load]);
 
   if (state.status === "loading") return <ShellLoading />;
   if (state.status === "no_workspace") return <ShellNoWorkspace />;

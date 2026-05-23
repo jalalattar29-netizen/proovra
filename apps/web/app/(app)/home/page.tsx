@@ -14,10 +14,17 @@
  *
  * The data comes from `/v1/dashboard/command-center` — a read-only,
  * partial-failure-tolerant aggregator added in this phase.
+ *
+ * Phase 38.8 — wrapped in canonical PageRouteGate.
  */
 
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { CommandCenter } from "../../../components/command-center/CommandCenter";
 
 export default function HomePage() {
-  return <CommandCenter />;
+  return (
+    <PageRouteGate routeId="workspace.home">
+      <CommandCenter />
+    </PageRouteGate>
+  );
 }

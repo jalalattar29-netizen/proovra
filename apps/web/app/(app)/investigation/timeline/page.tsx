@@ -26,6 +26,7 @@ import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 // =============================================================================
 // Types — mirror the /v1/graph/timeline projection
 // =============================================================================
@@ -80,7 +81,16 @@ const FILTER_OPTIONS: Array<{
 // Page
 // =============================================================================
 
+// Phase 38.12 — wrap in canonical PageRouteGate.
 export default function InvestigationTimelinePage() {
+  return (
+    <PageRouteGate routeId="investigation.timeline">
+      <InvestigationTimelinePageInner />
+    </PageRouteGate>
+  );
+}
+
+function InvestigationTimelinePageInner() {
   const teamId = useTeamId();
   const [anchorEvidenceId, setAnchorEvidenceId] = useState<string | null>(null);
   const [events, setEvents] = useState<TimelineEvent[] | null>(null);

@@ -17,9 +17,12 @@ import Link from "next/link";
 import { apiFetch } from "../../lib/api";
 import {
   CapabilityDegradedPanel,
+  useActiveSpaceId,
+  usePersonaProfile,
   usePlatformContext,
-  useTeamWorkspaceGate,
+  workflowFromPersona,
 } from "../../lib/platform-context";
+import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { RuntimeStatusBanner } from "../operational";
 import type { GovernanceControlPlaneEnvelope, SectionStatus } from "./types";
 
@@ -40,16 +43,27 @@ type TabKey =
 
 export function GovernanceControlPlane() {
   const ctx = usePlatformContext();
-  const workspace = useTeamWorkspaceGate();
+  // Phase 38.15 — migrated off the legacy workspace-gate hook. The
+  // /governance page is already wrapped in <PageRouteGate
+  // routeId="governance.hub"> (ORGANIZATION_ONLY) so by the time
+  // this component renders the actor has an active organization
+  // workspace AND the GOVERNANCE_VIEW capability. We read the
+  // active-space id directly; loading is a transient state.
+  const teamId = useActiveSpaceId();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [tab, setTab] = useState<TabKey>("posture");
+  // Phase 38.17 — workflow-aware contextual help.
+  const governancePersona = usePersonaProfile();
+  const governanceWorkflowCode = workflowFromPersona(
+    governancePersona.primaryProfile,
+  ).code;
 
   const load = useCallback(async () => {
-    if (workspace.status !== "ready") return;
+    if (!teamId) return;
     setState({ status: "loading" });
     try {
       const envelope = (await apiFetch(
-        `/v1/governance/control-plane?teamId=${encodeURIComponent(workspace.workspaceId)}`,
+        `/v1/governance/control-plane?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
       )) as GovernanceControlPlaneEnvelope;
       setState({ status: "ready", envelope });
@@ -65,33 +79,15 @@ export function GovernanceControlPlane() {
           message: e.message ?? "Unable to load governance control plane.",
         });
     }
-  }, [workspace.status, workspace.status === "ready" ? workspace.workspaceId : null]);
+  }, [teamId]);
 
   useEffect(() => {
-    if (workspace.status === "loading") {
+    if (!teamId) {
       setState({ status: "loading" });
       return;
     }
-    if (workspace.status === "no-workspace") {
-      setState({ status: "no_workspace" });
-      return;
-    }
-    if (workspace.status === "error") {
-      setState({
-        status:
-          workspace.code === "auth_required" || workspace.code === "permission_denied"
-            ? "auth_error"
-            : "unavailable",
-        code:
-          workspace.code === "permission_denied"
-            ? "permission_denied"
-            : "auth_required",
-        message: workspace.message,
-      } as LoadState);
-      return;
-    }
     void load();
-  }, [workspace.status, workspace.status === "ready" ? workspace.workspaceId : null, load]);
+  }, [teamId, load]);
 
   // Phase 32.8 Foundation — canonical capability gate. Personal
   // workspaces (GOVERNANCE_VIEW = false) render the structured
@@ -150,6 +146,14 @@ export function GovernanceControlPlane() {
           <span title={env.generatedAt}>Refreshed {relTime(env.generatedAt)}</span>
         </div>
       </header>
+
+      {/* Phase 38.17 — workflow-aware contextual help, collapsed by
+          default so the governance posture surface stays primary. */}
+      <ContextualHelp
+        workflow={governanceWorkflowCode}
+        surface="governance"
+        collapsedByDefault
+      />
 
       {/* Phase 32.7 — runtime banner scoped to governance_lifecycle so
           platform-internal degradations don't poison the operator view. */}

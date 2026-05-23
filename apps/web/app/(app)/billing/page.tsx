@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Button, useToast, Skeleton } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { PersonalWorkspaceCard } from "../../../components/billing/PersonalWorkspaceCard";
 import { TeamWorkspaceCard } from "../../../components/billing/TeamWorkspaceCard";
 import { CheckoutPanel } from "../../../components/billing/CheckoutPanel";
@@ -35,7 +36,17 @@ function normalizePlanLabel(value?: string | null, fallback = "FREE"): string {
   return normalized || fallback;
 }
 
+// Phase 38.9 — wrap in canonical PageRouteGate. `account.billing` is
+// an ACCOUNT-domain route (NONE active-space).
 export default function BillingPage() {
+  return (
+    <PageRouteGate routeId="account.billing">
+      <BillingPageInner />
+    </PageRouteGate>
+  );
+}
+
+function BillingPageInner() {
   const { addToast } = useToast();
   const searchParams = useSearchParams();
 

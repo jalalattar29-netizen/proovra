@@ -37,11 +37,11 @@ const CC_CSS = readWeb("components/command-center/command-center.css");
 // =============================================================================
 
 describe("Phase 32.8C FINAL-4 — topbar workspace cluster", () => {
-  it("strong[data-workspace-name] uses distinct fallbacks per scope (no 'Workspace' twice)", () => {
-    // Phase 32.8 Foundation — fallback labels come from
-    // `getWorkspaceLabels` which uses the bounded scope vocabulary.
-    expect(TOPBAR).toMatch(/Personal workspace/);
-    expect(TOPBAR).toMatch(/Team workspace/);
+  it("strong[data-workspace-name] uses bounded labels (Personal Space / Organization workspace)", () => {
+    // ENTERPRISE TENANT MODEL — fallback labels come from
+    // `getWorkspaceLabels` which uses the canonical activeSpace section.
+    expect(TOPBAR).toMatch(/Personal Space/);
+    expect(TOPBAR).toMatch(/Organization workspace/);
     expect(TOPBAR).toMatch(/data-workspace-name/);
   });
 
@@ -69,21 +69,19 @@ describe("Phase 32.8C FINAL-4 — topbar workspace cluster", () => {
 
 describe("Phase 32.8C FINAL-4 — workspace menu count text", () => {
   it("does NOT render the bare '0 available' count text", () => {
-    // The previous bug rendered `{workspaceList.length} available` which
-    // literally produced "0 available" when empty.
     expect(TOPBAR).not.toMatch(/\{workspaceList\.length\}\s*available/);
   });
 
-  it("renders 'Only this workspace' when the list is empty", () => {
-    expect(TOPBAR).toMatch(/"Only this workspace"/);
+  it("renders 'Only Personal Space' when no organizations exist", () => {
+    // ENTERPRISE TENANT MODEL — the switcher reports "Only Personal Space"
+    // for the personal-only case (no organizations).
+    expect(TOPBAR).toMatch(/"Only Personal Space"/);
   });
 
-  it("uses correct pluralization (1 workspace vs N workspaces)", () => {
-    // Phase 32.8 Foundation — the canonical envelope's
-    // availableWorkspaces always includes the personal entry, so
-    // the count is reported as "Only this workspace" or "N workspaces".
-    expect(TOPBAR).toMatch(/Only this workspace/);
-    expect(TOPBAR).toMatch(/workspaces/);
+  it("uses 'spaces' pluralization with a counted total", () => {
+    // ENTERPRISE TENANT MODEL — the count text is "<N> spaces".
+    expect(TOPBAR).toMatch(/spaces`/);
+    expect(TOPBAR).toMatch(/totalSwitchable/);
   });
 });
 
@@ -92,36 +90,36 @@ describe("Phase 32.8C FINAL-4 — workspace menu count text", () => {
 // =============================================================================
 
 describe("Phase 32.8C FINAL-4 — grouped workspace switcher", () => {
-  it("renders separate groups for PERSONAL and TEAM workspaces", () => {
-    // The JSX uses {groupScope} for the value so the literal scope name
-    // appears in the iteration array (["PERSONAL", "TEAM"]) instead of
-    // as an attribute literal.
-    expect(TOPBAR).toMatch(/\["PERSONAL",\s*"TEAM"\]\s*as const/);
-    expect(TOPBAR).toMatch(/data-workspace-menu-group=\{groupScope\}/);
+  it("renders separate groups for PERSONAL and ORGANIZATIONS and ACTIONS", () => {
+    // ENTERPRISE TENANT MODEL — the canonical switcher renders three
+    // top-level groups: Personal Space, Organizations, Actions.
+    expect(TOPBAR).toMatch(/data-workspace-menu-group="PERSONAL"/);
+    expect(TOPBAR).toMatch(/data-workspace-menu-group="ORGANIZATIONS"/);
+    expect(TOPBAR).toMatch(/data-workspace-menu-group="ACTIONS"/);
     expect(TOPBAR).toMatch(/data-workspace-menu-group-label/);
   });
 
-  it("group labels read as 'Personal workspace' and 'Team workspaces'", () => {
-    expect(TOPBAR).toMatch(/"Personal workspace"/);
-    expect(TOPBAR).toMatch(/"Team workspaces"/);
+  it("group labels read as 'Personal' and 'Organizations' and 'Actions'", () => {
+    // Multi-line JSX — match the label literals tolerantly to whitespace.
+    expect(TOPBAR).toMatch(/>\s*Personal\s*</);
+    expect(TOPBAR).toMatch(/>\s*Organizations\s*</);
+    expect(TOPBAR).toMatch(/>\s*Actions\s*</);
   });
 
   it("active workspace is marked with aria-current='true'", () => {
-    // Phase 32.8 Foundation — active workspace is determined by
-    // envelope.workspace.id / .scope, not the local runtimeTeamId.
     expect(TOPBAR).toMatch(/aria-current=\{[^}]{0,150}\?[^:]{0,100}:\s*undefined/);
   });
 
-  it("menu items render role + scope chip per workspace", () => {
+  it("menu items expose canonical option attributes (data-personal-space-option / data-organization-option / data-workspace-scope-chip)", () => {
+    expect(TOPBAR).toMatch(/data-personal-space-option/);
+    expect(TOPBAR).toMatch(/data-organization-option/);
     expect(TOPBAR).toMatch(/data-workspace-option-name/);
-    expect(TOPBAR).toMatch(/data-workspace-option-role/);
     expect(TOPBAR).toMatch(/data-workspace-scope-chip/);
   });
 
-  it("empty state explains operational meaning (not just 'No other workspaces')", () => {
-    expect(TOPBAR).toMatch(/You only have access to this workspace/);
-    expect(TOPBAR).toMatch(/Create or join[\s\S]*team workspace/);
-    expect(TOPBAR).toMatch(/Only this workspace/);
+  it("empty state explains operational meaning (no organizations yet)", () => {
+    expect(TOPBAR).toMatch(/You don't have any organizations yet/);
+    expect(TOPBAR).toMatch(/Only Personal Space/);
   });
 });
 

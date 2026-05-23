@@ -15,6 +15,7 @@ import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
 import { usePlatformContext, useTeamId } from "../../../lib/platform-context";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 type ThreadStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
 type ThreadVisibility = "INTERNAL" | "CONTRIBUTOR_SCOPED";
 
@@ -56,7 +57,16 @@ type Message = {
 
 const STATUSES: ThreadStatus[] = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
 
+// Phase 38.15 — wrap in canonical PageRouteGate.
 export default function CollaborationPage() {
+  return (
+    <PageRouteGate routeId="workspace.collaboration">
+      <CollaborationPageInner />
+    </PageRouteGate>
+  );
+}
+
+function CollaborationPageInner() {
   const teamId = useTeamId();
   const meUserId = usePlatformContext().envelope?.user.id ?? null;
   const [counts, setCounts] = useState<Counts | null>(null);

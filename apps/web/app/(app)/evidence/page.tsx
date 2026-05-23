@@ -4,6 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
+import {
+  usePersonaProfile as useEvidencePersonaProfile,
+  workflowFromPersona as evidenceWorkflowFromPersona,
+} from "../../../lib/platform-context";
 import { captureException } from "../../../lib/sentry";
 import { EvidenceLibraryHeader } from "./components/EvidenceLibraryHeader";
 import { EvidenceMetrics } from "./components/EvidenceMetrics";
@@ -75,7 +81,18 @@ function buildEvidenceListPath(query: EvidenceListQuery) {
   return `/v1/evidence?${params.toString()}`;
 }
 
+// Phase 38.9 — wrap in canonical PageRouteGate. The inner component
+// retains its existing capability behavior; the gate short-circuits
+// denied states with the canonical structured panel.
 export default function EvidenceLibraryPage() {
+  return (
+    <PageRouteGate routeId="workspace.evidence">
+      <EvidenceLibraryPageInner />
+    </PageRouteGate>
+  );
+}
+
+function EvidenceLibraryPageInner() {
   const router = useRouter();
   const { addToast } = useToast();
   const detailCacheRef = useRef<Record<string, DetailWorkspaceState>>({});
@@ -786,10 +803,23 @@ export default function EvidenceLibraryPage() {
     setPageNumber((current) => current + 1);
   };
 
+  // Phase 38.17 — workflow-aware contextual help mount.
+  const evidencePersona = useEvidencePersonaProfile();
+  const evidenceWorkflowCode = evidenceWorkflowFromPersona(
+    evidencePersona.primaryProfile,
+  ).code;
+
   return (
     <div className="section app-section evidence-library-page">
       <div className="evidence-library-shell">
         <EvidenceLibraryHeader refreshing={refreshing} onRefresh={refreshCurrentScope} />
+        {/* Phase 38.17 — workflow-aware contextual help, collapsed
+            by default so the evidence table stays primary. */}
+        <ContextualHelp
+          workflow={evidenceWorkflowCode}
+          surface="evidence"
+          collapsedByDefault
+        />
         <EvidenceMetrics items={metrics} />
         <EvidenceFilters
           value={filters}

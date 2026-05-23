@@ -141,9 +141,13 @@ describe("Phase 32.8C FINAL-3 — header workspace display", () => {
   // phase-32-8-foundation-platform-context.test.ts.
   it.skip("teams fetch does NOT fall back to the raw id as the name", () => {});
 
-  it("workspace switcher menu items also fall back to a label, not a UUID", () => {
+  it("workspace switcher menu items render canonical labels, never raw UUIDs", () => {
+    // ENTERPRISE TENANT MODEL — the personal entry uses the bounded
+    // "Personal Space" literal; organizations fall back to their
+    // displayName / name, never to the raw id.
+    expect(TOPBAR_TSX).toMatch(/>Personal Space</);
     expect(TOPBAR_TSX).toMatch(
-      /w\.name \?\?[\s\S]{0,200}Personal workspace/,
+      /org\.displayName \?\?[\s\S]{0,200}Organization workspace/,
     );
   });
 });

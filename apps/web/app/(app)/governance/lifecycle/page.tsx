@@ -24,6 +24,7 @@ import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 type LifecycleStateCounts = {
   ACTIVE: number;
@@ -65,7 +66,16 @@ const STATE_ORDER: ReadonlyArray<keyof LifecycleStateCounts> = [
   "DESTROYED",
 ];
 
+// Phase 38.11 — wrap in canonical PageRouteGate.
 export default function GovernanceLifecycleDashboard() {
+  return (
+    <PageRouteGate routeId="governance.lifecycle">
+      <GovernanceLifecycleDashboardInner />
+    </PageRouteGate>
+  );
+}
+
+function GovernanceLifecycleDashboardInner() {
   const teamId = useTeamId();
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);

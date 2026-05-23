@@ -16,8 +16,8 @@
  *   3. The envelope shape is identical to the backend response.
  */
 
-export const AUTHORITY_SCHEMA_VERSION = 1 as const;
-export const CAPABILITY_SCHEMA_VERSION = 1 as const;
+export const AUTHORITY_SCHEMA_VERSION = 2 as const;
+export const CAPABILITY_SCHEMA_VERSION = 2 as const;
 export const NAVIGATION_SCHEMA_VERSION = 1 as const;
 
 export const WORKSPACE_ROLES = [
@@ -88,6 +88,26 @@ export const CAPABILITY_KEYS = [
   "SETTINGS_MANAGE",
   "PLATFORM_ADMIN",
   "BULK_ACTIONS",
+  // ENTERPRISE TENANT MODEL — Account / Personal Space / Organization split.
+  "ACCOUNT_SETTINGS_VIEW",
+  "ACCOUNT_BILLING_VIEW",
+  "ACCOUNT_UPGRADE_VIEW",
+  "ORGANIZATION_CREATE",
+  "ORGANIZATION_JOIN",
+  "PERSONAL_CAPTURE",
+  "PERSONAL_EVIDENCE_VIEW",
+  "PERSONAL_CASES_VIEW",
+  "PERSONAL_REPORTS_VIEW",
+  "PERSONAL_SEARCH_VIEW",
+  "ORG_EVIDENCE_VIEW",
+  "ORG_CASES_VIEW",
+  "ORG_REPORTS_VIEW",
+  "ORG_SEARCH_VIEW",
+  "ORG_REVIEWER_OPS_VIEW",
+  "ORG_GOVERNANCE_VIEW",
+  "ORG_OPS_VIEW",
+  "ORG_TEAM_MANAGE",
+  "ORG_BILLING_MANAGE",
 ] as const;
 export type CapabilityKey = (typeof CAPABILITY_KEYS)[number];
 
@@ -171,6 +191,108 @@ export type PlatformContextAvailableWorkspace = {
   role: WorkspaceRole | null;
 };
 
+// =============================================================================
+// ENTERPRISE TENANT MODEL — Account / Personal Space / Organization
+//
+// Mirrors services/api/src/services/platform-context/types.ts. The legacy
+// `workspace` + `availableWorkspaces` fields above remain on the envelope for
+// backward compatibility for one phase. New code paths must consume
+// `account`, `personalSpace`, `organizations`, and `activeSpace`.
+// =============================================================================
+
+export type PlatformContextAccount = {
+  userId: string;
+  email: string | null;
+  displayName: string | null;
+  accountPlan: WorkspacePlan | null;
+  accountStatus: "active" | "suspended" | "pending";
+};
+
+export type PlatformContextPersonalSpace = {
+  status: "active" | "degraded";
+  id: string | null;
+  label: "Personal Space";
+  ownerUserId: string;
+  plan: WorkspacePlan | null;
+};
+
+export type PlatformContextOrganization = {
+  id: string;
+  name: string | null;
+  displayName: string | null;
+  role: WorkspaceRole | null;
+  membershipStatus: "ACTIVE" | "PENDING" | "INACTIVE";
+  plan: WorkspacePlan | null;
+  memberCount: number;
+};
+
+export type PlatformContextActiveSpace =
+  | {
+      type: "PERSONAL";
+      id: string | null;
+      displayName: "Personal Space";
+      roleLabel: "Owner";
+    }
+  | {
+      type: "ORGANIZATION";
+      id: string;
+      displayName: string | null;
+      roleLabel: WorkspaceRole | null;
+    };
+
+export type PlatformContextDuplicatePersonalCandidate = {
+  teamId: string;
+  name: string | null;
+  ownerUserId: string;
+  memberCount: number;
+  reasons: ReadonlyArray<
+    | "name_matches_email_personal"
+    | "single_owner_member"
+    | "no_invites"
+    | "free_plan"
+  >;
+};
+
+// =============================================================================
+// PHASE 38 — Workspace persona profile (UX-layer only).
+//
+// The profile drives ordering, defaults, and terminology. It NEVER grants
+// capabilities — pages MUST keep gating features on `ctx.can(CAPABILITY)`
+// even when the persona prioritizes a surface.
+// =============================================================================
+
+export const WORKSPACE_PERSONA_PROFILES = [
+  "INDIVIDUAL",
+  "LAWYER",
+  "INSURANCE",
+  "INVESTIGATOR",
+  "JOURNALIST",
+  "ENTERPRISE_COMPLIANCE",
+  "ADMIN_OPERATOR",
+] as const;
+export type WorkspacePersonaProfile =
+  (typeof WORKSPACE_PERSONA_PROFILES)[number];
+
+export const OPERATIONAL_DENSITY_PREFERENCES = [
+  "compact",
+  "comfortable",
+  "spacious",
+] as const;
+export type OperationalDensityPreference =
+  (typeof OPERATIONAL_DENSITY_PREFERENCES)[number];
+
+export type PlatformContextPersonaProfile = {
+  teamId: string | null;
+  primaryProfile: WorkspacePersonaProfile;
+  secondaryUseCases: ReadonlyArray<WorkspacePersonaProfile>;
+  onboardingCompleted: boolean;
+  preferredDashboardLayout: string | null;
+  operationalDensityPreference: OperationalDensityPreference;
+  featurePriorityOverrides: ReadonlyArray<string>;
+  resolvedRolePersona: Persona;
+  source: "default" | "stored";
+};
+
 export type PlatformContextDiagnostics = {
   sectionStatus: {
     user: SectionStatus;
@@ -194,6 +316,14 @@ export type PlatformContextDiagnostics = {
     created: boolean;
     activeWorkspaceUpdated: boolean;
   };
+  // ENTERPRISE TENANT MODEL diagnostics.
+  activeSpaceSource?:
+    | "personal_space_bootstrap"
+    | "personal_space_existing"
+    | "organization"
+    | "unavailable";
+  staleWorkspaceHealed?: boolean;
+  duplicatePersonalRowsDetected?: number;
 };
 
 /**
@@ -216,12 +346,21 @@ export type PlatformContextEnvelope = {
 
   user: PlatformContextUser;
   platform: PlatformContextPlatform;
+  /** @deprecated read `activeSpace` instead. */
   workspace: PlatformContextWorkspace;
   flags: PlatformContextFlags;
   persona: PlatformContextPersona;
   capabilities: CapabilityMap;
   navigation: PlatformContextNavigation;
+  /** @deprecated read `personalSpace` + `organizations` instead. */
   availableWorkspaces: ReadonlyArray<PlatformContextAvailableWorkspace>;
+  // ENTERPRISE TENANT MODEL — canonical product model.
+  account?: PlatformContextAccount;
+  personalSpace?: PlatformContextPersonalSpace;
+  organizations?: ReadonlyArray<PlatformContextOrganization>;
+  activeSpace?: PlatformContextActiveSpace;
+  personaProfile?: PlatformContextPersonaProfile;
+  duplicatePersonalCandidates?: ReadonlyArray<PlatformContextDuplicatePersonalCandidate>;
   diagnostics: PlatformContextDiagnostics;
   /**
    * Phase EMERGENCY-RECOVERY — recovery action descriptors. Empty

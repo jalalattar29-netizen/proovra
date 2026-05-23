@@ -39,9 +39,14 @@ import {
   CAPABILITY_SCHEMA_VERSION,
   NAVIGATION_SCHEMA_VERSION,
   isWorkspaceRole,
+  type PlatformContextAccount,
+  type PlatformContextActiveSpace,
   type PlatformContextAvailableWorkspace,
   type PlatformContextDiagnostics,
+  type PlatformContextDuplicatePersonalCandidate,
   type PlatformContextEnvelope,
+  type PlatformContextOrganization,
+  type PlatformContextPersonalSpace,
   type PlatformContextRecoveryAction,
   type PlatformContextWorkspace,
   type SectionStatus,
@@ -49,6 +54,7 @@ import {
   type WorkspaceRole,
 } from "./types.js";
 import { ensurePersonalWorkspace } from "./workspace-bootstrap.service.js";
+import { readWorkspacePersonaProfile } from "./persona-profile.service.js";
 
 const ENTERPRISE_PLAN_KEYS: ReadonlySet<WorkspacePlan> = new Set(["TEAM"]);
 const PRO_PLAN_KEYS: ReadonlySet<WorkspacePlan> = new Set(["PRO", "TEAM"]);
@@ -389,40 +395,243 @@ export async function buildPlatformContext(
   }
 
   // -------------------------------------------------------------------------
-  // Available workspaces — bounded list, sourced from TeamMember
+  // ENTERPRISE TENANT MODEL — Organizations + Personal Space + duplicate
+  // detection.
+  //
+  // The TeamMember.findMany query is the source of truth for "what spaces
+  // can this user enter". We bound it to 200 rows and split it into:
+  //
+  //   - organizationRows  — `isPersonal=false` (the real organizations)
+  //   - personalRows      — `isPersonal=true` (canonical Personal Space +
+  //                         any legacy duplicates flagged by the heuristic)
+  //
+  // The legacy `availableWorkspaces` array is rebuilt at the end of the
+  // section for backward compatibility — but its TEAM entries now exclude
+  // personal rows, so the switcher no longer duplicates.
   // -------------------------------------------------------------------------
   let availableWorkspacesStatus: SectionStatus = "ok";
-  const availableWorkspaces: PlatformContextAvailableWorkspace[] = [];
+  const organizations: PlatformContextOrganization[] = [];
+  type PersonalTeamRow = {
+    id: string;
+    name: string | null;
+    ownerUserId: string;
+    memberCount: number;
+    billingPlan: string | null;
+  };
+  const personalTeams: PersonalTeamRow[] = [];
   try {
     const memberRows = await prisma.teamMember.findMany({
       where: { userId: userRow.id, status: "ACTIVE" },
       select: {
         role: true,
-        team: { select: { id: true, name: true } },
+        status: true,
+        team: {
+          select: {
+            id: true,
+            name: true,
+            isPersonal: true,
+            ownerUserId: true,
+            billingPlan: true,
+            _count: { select: { members: true } },
+          },
+        },
       },
       take: 200,
     });
 
     for (const m of memberRows) {
       if (!m.team) continue;
-      availableWorkspaces.push({
+      if (m.team.isPersonal) {
+        personalTeams.push({
+          id: m.team.id,
+          name: m.team.name ?? null,
+          ownerUserId: m.team.ownerUserId as unknown as string,
+          memberCount: m.team._count?.members ?? 0,
+          billingPlan: (m.team.billingPlan as unknown as string) ?? null,
+        });
+        continue;
+      }
+      organizations.push({
         id: m.team.id,
         name: m.team.name ?? null,
-        scope: "TEAM",
+        displayName: m.team.name ?? null,
         role: coerceRole(m.role as unknown as string),
+        membershipStatus: (m.status as unknown as string) === "ACTIVE"
+          ? "ACTIVE"
+          : (m.status as unknown as string) === "PENDING"
+            ? "PENDING"
+            : "INACTIVE",
+        plan: coercePlan(m.team.billingPlan as unknown as string),
+        memberCount: m.team._count?.members ?? 0,
       });
     }
   } catch {
     availableWorkspacesStatus = "degraded";
   }
 
-  // Always include a personal-workspace switch-back entry so the
-  // user can return from team mode without hunting through Settings.
-  availableWorkspaces.unshift({
-    id: "__personal__",
-    name: null,
-    scope: "PERSONAL",
-    role: "OWNER",
+  // ===========================================================================
+  // ENTERPRISE TENANT MODEL — duplicate personal-like candidate detection.
+  //
+  // Heuristic: an "organization" row owned by the viewer with exactly one
+  // ACTIVE member (the owner), zero pending invites, and a FREE plan is a
+  // candidate for being a legacy personal workspace. We do NOT auto-modify
+  // it — we just surface it in diagnostics so /teams can offer remediation.
+  // ===========================================================================
+  const duplicatePersonalCandidates: PlatformContextDuplicatePersonalCandidate[] = [];
+  if (userRow.email && organizations.length > 0) {
+    const emailLocal = userRow.email.toLowerCase().split("@")[0] ?? "";
+    for (const org of organizations) {
+      const name = (org.name ?? "").toLowerCase();
+      const looksLikePersonal =
+        name.includes("personal workspace") ||
+        (emailLocal.length > 0 &&
+          name.includes(emailLocal) &&
+          name.includes("personal"));
+      if (!looksLikePersonal) continue;
+      // We need ownerUserId + invite count for the full heuristic. We have
+      // ownerUserId implicitly (the org came from memberRows of THIS user)
+      // but we need to confirm the user IS the owner of the row.
+      try {
+        const teamRow = await prisma.team.findUnique({
+          where: { id: org.id },
+          select: { ownerUserId: true, billingPlan: true },
+        });
+        if (!teamRow) continue;
+        const isOwner = teamRow.ownerUserId === userRow.id;
+        const isSingleMember = org.memberCount === 1;
+        const isFreePlan = (teamRow.billingPlan ?? "").toUpperCase() === "FREE";
+        const reasons: PlatformContextDuplicatePersonalCandidate["reasons"][number][] =
+          [];
+        reasons.push("name_matches_email_personal");
+        if (isSingleMember) reasons.push("single_owner_member");
+        if (isFreePlan) reasons.push("free_plan");
+        // The heuristic requires at minimum: owner-of-row + single-member
+        // + suggestive name. We do not check pending invites here; the row
+        // having a single ACTIVE member is a stronger signal.
+        if (isOwner && isSingleMember) {
+          duplicatePersonalCandidates.push({
+            teamId: org.id,
+            name: org.name,
+            ownerUserId: teamRow.ownerUserId as unknown as string,
+            memberCount: org.memberCount,
+            reasons,
+          });
+        }
+      } catch {
+        // Non-fatal — duplicate detection degrades cleanly.
+      }
+    }
+  }
+
+  // ===========================================================================
+  // ENTERPRISE TENANT MODEL — canonical Personal Space.
+  //
+  // Exactly one personal space per user. If the bootstrap completed, we
+  // emit the real Team id; otherwise we emit a degraded shape so the
+  // recovery panel renders.
+  // ===========================================================================
+  const personalSpace: PlatformContextPersonalSpace = personalTeamId
+    ? {
+        status: "active",
+        id: personalTeamId,
+        label: "Personal Space",
+        ownerUserId: userRow.id,
+        plan: workspace.scope === "PERSONAL" ? workspace.plan : null,
+      }
+    : {
+        status: "degraded",
+        id: null,
+        label: "Personal Space",
+        ownerUserId: userRow.id,
+        plan: null,
+      };
+
+  // ===========================================================================
+  // ENTERPRISE TENANT MODEL — Account section.
+  // ===========================================================================
+  // The account-tier plan follows the user, not any one workspace. We
+  // prefer the latest Entitlement, falling back to null.
+  let accountPlan: WorkspacePlan | null = null;
+  try {
+    const ent = await prisma.entitlement.findFirst({
+      where: { userId: userRow.id },
+      orderBy: { createdAt: "desc" },
+      select: { plan: true },
+    });
+    accountPlan = coercePlan(ent?.plan as unknown as string);
+  } catch {
+    accountPlan = null;
+  }
+  const account: PlatformContextAccount = {
+    userId: userRow.id,
+    email: userRow.email ?? null,
+    displayName:
+      userRow.displayName ??
+      ([userRow.firstName, userRow.lastName].filter(Boolean).join(" ").trim() ||
+        null),
+    accountPlan,
+    accountStatus: "active",
+  };
+
+  // ===========================================================================
+  // ENTERPRISE TENANT MODEL — ActiveSpace.
+  //
+  // Derived from the legacy workspace.scope so we stay coherent with all
+  // existing per-section logic and the legacy `workspace` field. The
+  // displayName is bounded — never raw UUIDs.
+  // ===========================================================================
+  let activeSpace: PlatformContextActiveSpace;
+  if (workspace.scope === "PERSONAL") {
+    activeSpace = {
+      type: "PERSONAL",
+      id: workspace.id ?? personalSpace.id,
+      displayName: "Personal Space",
+      roleLabel: "Owner",
+    };
+  } else {
+    activeSpace = {
+      type: "ORGANIZATION",
+      id: workspace.id ?? "",
+      displayName: workspace.name ?? "Organization workspace",
+      roleLabel: workspace.membership.role,
+    };
+  }
+
+  // ===========================================================================
+  // Legacy `availableWorkspaces` — kept for backward compatibility. Rebuilt
+  // from the canonical organizations + personal space so it no longer
+  // duplicates personal rows under TEAM or pushes a synthetic id.
+  // ===========================================================================
+  const availableWorkspaces: PlatformContextAvailableWorkspace[] = [];
+  // Personal first (always uses the real Team id).
+  if (personalTeamId) {
+    availableWorkspaces.push({
+      id: personalTeamId,
+      name: personalSpace.label,
+      scope: "PERSONAL",
+      role: "OWNER",
+    });
+  }
+  // Organizations — strictly `isPersonal=false` rows.
+  for (const org of organizations) {
+    availableWorkspaces.push({
+      id: org.id,
+      name: org.name,
+      scope: "TEAM",
+      role: org.role,
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // PHASE 38 — Workspace persona profile (UX-layer only).
+  //
+  // The profile NEVER grants capabilities. It only changes ordering,
+  // defaults, and terminology on the client. The resolver always returns
+  // a complete profile (defaulted when no row exists or the read fails).
+  // -------------------------------------------------------------------------
+  const personaProfile = await readWorkspacePersonaProfile({
+    teamId: activeSpace.type === "PERSONAL" ? activeSpace.id : activeSpace.id,
+    resolvedRolePersona: resolvedPersona,
   });
 
   // -------------------------------------------------------------------------
@@ -469,6 +678,14 @@ export async function buildPlatformContext(
     },
     availableWorkspaces,
 
+    // ENTERPRISE TENANT MODEL — canonical product sections.
+    account,
+    personalSpace,
+    organizations,
+    activeSpace,
+    personaProfile,
+    duplicatePersonalCandidates,
+
     diagnostics: {
       sectionStatus: {
         user: userStatus,
@@ -481,6 +698,17 @@ export async function buildPlatformContext(
       requestId: input.requestId,
       workspaceSource,
       bootstrap,
+      activeSpaceSource:
+        activeSpace.type === "ORGANIZATION"
+          ? "organization"
+          : personalTeamId
+            ? bootstrap.created
+              ? "personal_space_bootstrap"
+              : "personal_space_existing"
+            : "unavailable",
+      staleWorkspaceHealed:
+        workspaceSource === "personal_bootstrap_after_stale",
+      duplicatePersonalRowsDetected: duplicatePersonalCandidates.length,
     },
     recoveryActions: buildRecoveryActions({
       workspace,

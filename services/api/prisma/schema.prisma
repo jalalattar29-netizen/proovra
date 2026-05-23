@@ -950,6 +950,9 @@ model Team {
   governanceNotifications   GovernanceNotification[]
   governanceExportSnapshots GovernanceExportSnapshot[]
 
+  // Phase 38 — Use-case persona profile (UX layer only; never grants caps).
+  personaProfile            WorkspacePersonaProfile?
+
   @@index([ownerUserId])
   @@index([billingOwnerUserId])
   @@index([billingPlan])
@@ -7267,3 +7270,97 @@ model OrganizationalHealthSnapshot {
   @@index([workspaceId, sampledAtUtc(sort: Desc)])
   @@map("organizational_health_snapshots")
 }
+
+// =============================================================================
+// PHASE 37.97 — Dashboard read-model projections.
+//
+// Replaces the 140+ live-aggregation Prisma calls on the Command Center
+// page-load path. Each projection is:
+//
+//   - Tenant-scoped (`teamId`). One row per (teamId) for the latest
+//     snapshot. History is preserved in `OrgHealthProjection.sampledAtUtc`
+//     time series.
+//   - Refreshed by the `org-health-refresh` queue worker every 30-90s.
+//   - Read-only from the dashboard surface. NEVER cross-tenant joined.
+//   - Optional — the dashboard may still fall back to a live aggregate
+//     if no projection row exists (e.g. immediately after team creation).
+//
+// Tenant safety: the refresh worker only writes the row for the
+// `teamId` it was scheduled with; a runtime test asserts this.
+// =============================================================================
+
+model OrgHealthProjection {
+  teamId                    String   @map("team_id") @db.Uuid
+  sampledAtUtc              DateTime @default(now()) @map("sampled_at_utc") @db.Timestamptz(6)
+
+  evidenceCount             Int      @default(0) @map("evidence_count")
+  caseCount                 Int      @default(0) @map("case_count")
+  openIncidentCount         Int      @default(0) @map("open_incident_count")
+  slaBreachCount            Int      @default(0) @map("sla_breach_count")
+  governanceBlockerCount    Int      @default(0) @map("governance_blocker_count")
+  recentVerificationCount   Int      @default(0) @map("recent_verification_count")
+  pendingPackageCount       Int      @default(0) @map("pending_package_count")
+  pendingReportCount        Int      @default(0) @map("pending_report_count")
+
+  /// Optional bounded source label (e.g., "worker_refresh_v1") for
+  /// debugging without leaking implementation detail.
+  source                    String?  @db.VarChar(40)
+
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([teamId, sampledAtUtc])
+  @@index([teamId, sampledAtUtc(sort: Desc)])
+  @@map("org_health_projections")
+}
+
+model ReviewerQueueProjection {
+  teamId          String   @id @map("team_id") @db.Uuid
+  pendingCount    Int      @default(0) @map("pending_count")
+  inReviewCount   Int      @default(0) @map("in_review_count")
+  blockedCount    Int      @default(0) @map("blocked_count")
+  escalationCount Int      @default(0) @map("escalation_count")
+  refreshedAtUtc  DateTime @default(now()) @map("refreshed_at_utc") @db.Timestamptz(6)
+
+  source          String?  @db.VarChar(40)
+
+  @@index([teamId, refreshedAtUtc(sort: Desc)])
+  @@map("reviewer_queue_projections")
+}
+
+// =============================================================================
+// PHASE 38 — Workspace persona profile.
+//
+// One row per workspace. Captures the operator-selected use-case persona
+// (LAWYER / INSURANCE / etc.) plus UX preferences that drive ordering,
+// defaults, and terminology. NEVER grants capabilities — see the source
+// contract in `phase-38-persona-foundation.test.ts`.
+//
+// PERSONAL workspaces and ORGANIZATION workspaces both use this table;
+// the personal-space default profile is INDIVIDUAL, but the operator
+// can override (e.g. a solo lawyer with a personal Pro account can pick
+// LAWYER for sensible defaults).
+// =============================================================================
+model WorkspacePersonaProfile {
+  teamId                        String   @id @map("team_id") @db.Uuid
+  primaryProfile                String   @default("INDIVIDUAL") @map("primary_profile") @db.VarChar(40)
+  /// Bounded JSON array of additional use-case codes (max 4) — e.g.
+  /// `["INVESTIGATOR"]` for a lawyer who also runs investigations.
+  secondaryUseCases             Json     @default("[]") @map("secondary_use_cases")
+  onboardingCompleted           Boolean  @default(false) @map("onboarding_completed")
+  preferredDashboardLayout      String?  @map("preferred_dashboard_layout") @db.VarChar(64)
+  /// One of: "compact" | "comfortable" | "spacious".
+  operationalDensityPreference  String   @default("comfortable") @map("operational_density_preference") @db.VarChar(20)
+  /// Bounded JSON array of feature codes the UX layer prioritises.
+  featurePriorityOverrides      Json     @default("[]") @map("feature_priority_overrides")
+  /// Bounded JSON capturing onboarding state for resumable flows.
+  onboardingState               Json     @default("{}") @map("onboarding_state")
+
+  createdAt                     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  team                          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([primaryProfile])
+  @@map("workspace_persona_profiles")
+}
+

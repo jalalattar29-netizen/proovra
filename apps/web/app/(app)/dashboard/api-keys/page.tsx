@@ -15,6 +15,7 @@ import {
   dashboardStyles,
   getStatusPillStyle,
 } from "../../../../components/dashboard/styles";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 interface APIKey {
   id: string;
@@ -48,7 +49,16 @@ function isExpiringSoon(expiresAt?: string): boolean {
   return expiry > now && expiry - now <= sevenDays;
 }
 
+// Phase 38.14 — wrap in canonical PageRouteGate.
 export default function APIKeysPage() {
+  return (
+    <PageRouteGate routeId="dashboard.api_keys">
+      <APIKeysPageInner />
+    </PageRouteGate>
+  );
+}
+
+function APIKeysPageInner() {
   const { user } = useAuth();
   const { addToast } = useToast();
 

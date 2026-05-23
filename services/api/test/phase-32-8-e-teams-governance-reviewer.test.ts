@@ -393,8 +393,12 @@ describe("Phase 32.8E — enterprise aggregator routes", () => {
 // =============================================================================
 
 describe("Phase 32.8E — /teams workspace administration", () => {
-  it("delegates the /teams page to WorkspaceAdminPanel", () => {
-    expect(TEAMS_PAGE).toMatch(/<WorkspaceAdminPanel\s*\/>/);
+  it("delegates the /teams page to the canonical WorkspaceAdministrationHome", () => {
+    // ENTERPRISE TENANT MODEL — /teams now renders the canonical home
+    // (Personal Space card + Organizations list + Create/Join CTAs +
+    // duplicate diagnostic). The per-organization admin panel renders
+    // inside the home component when an organization is the active space.
+    expect(TEAMS_PAGE).toMatch(/<WorkspaceAdministrationHome\s*\/>/);
   });
 
   it("reads from the audit-free /v1/teams/workspace-admin aggregator", () => {

@@ -28,3 +28,56 @@ export {
   type TeamWorkspaceGateState,
 } from "./useTeamWorkspaceGate";
 export { WorkspaceRecoveryPanel } from "./WorkspaceRecoveryPanel";
+// ENTERPRISE TENANT MODEL — canonical product-model hooks.
+export {
+  useAccount,
+  usePersonalSpace,
+  useOrganizations,
+  useActiveSpace,
+  useActiveSpaceId,
+  useCan,
+  useDuplicatePersonalCandidates,
+} from "./useTenantModel";
+// PHASE 38 — persona profile hook + reorder utility (UX-only).
+export {
+  usePersonaProfile,
+  usePrimaryPersona,
+  useIsOperatorPersona,
+} from "./usePersonaProfile";
+export {
+  reorderByPersona,
+  splitByPersona,
+  PERSONA_PRIORITY_PREFIXES,
+} from "./personaPriorityOrder";
+export {
+  getPersonaSectionOrder,
+  PERSONA_DASHBOARD_PRIORITY,
+} from "./personaSectionOrder";
+export { resolvePersonaHint } from "./personaHints";
+export type { PersonaHint, PersonaHintSurface } from "./personaHints";
+export {
+  WORKFLOW_PROFILE_CODES,
+  workflowFromPersona,
+  workflowFromCode,
+  listWorkflowDescriptors,
+} from "./workflowProfile";
+export type {
+  WorkflowProfileCode,
+  WorkflowProfileDescriptor,
+} from "./workflowProfile";
+export { suggestWorkflow } from "./workflowSuggestion";
+export type {
+  WorkflowUsageSignals,
+  WorkflowSuggestion,
+} from "./workflowSuggestion";
+export { resolveWorkflowHelp } from "./workflowHelp";
+export type { HelpSurface, WorkflowHelpEntry } from "./workflowHelp";
+export { useTerminology, resolveTerminology } from "./useTerminology";
+export type { TerminologyKey } from "./useTerminology";
+export {
+  resolvePersonaEmptyState,
+} from "./personaEmptyStates";
+export type {
+  EmptyStateSurface,
+  PersonaEmptyState,
+} from "./personaEmptyStates";

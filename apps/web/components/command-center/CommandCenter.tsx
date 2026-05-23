@@ -29,14 +29,18 @@
  *     authoritative.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../lib/api";
 import {
+  getPersonaSectionOrder,
+  usePersonaProfile,
   usePlatformContext,
   useTeamWorkspaceGate,
+  workflowFromPersona,
 } from "../../lib/platform-context";
+import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { RuntimeStatusBanner } from "../operational";
 import type {
   AuditReadinessCounter,
@@ -131,6 +135,7 @@ export function CommandCenter() {
 
 function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
   const ctx = usePlatformContext();
+  const personaProfile = usePersonaProfile();
   const { workspace, sections } = envelope;
   // Phase 32.8 Foundation cleanup — capability-derived visibility.
   const isTeam = ctx.envelope?.flags.isTeamWorkspace === true;
@@ -144,7 +149,39 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
   const persona =
     envelope.capabilityMatrix?.persona ?? null;
   const capabilities = envelope.capabilityMatrix?.capabilities ?? null;
-  const sectionOrder: string[] = envelope.capabilityMatrix?.sectionOrder ?? [];
+  const backendSectionOrder: string[] =
+    envelope.capabilityMatrix?.sectionOrder ?? [];
+
+  // Phase 38.10 / 38.11 — re-rank the section order client-side via
+  // the canonical `getPersonaSectionOrder` helper. Workflow profile
+  // changes the visible ordering immediately (no envelope re-fetch
+  // needed); capabilities still decide which sections are populated.
+  // The helper is a pure partition + concat — never adds or removes.
+  //
+  // The available section ids are intersected with the section
+  // component registry (CANONICAL_SECTION_IDS) and with the envelope's
+  // populated sections, so a section that isn't rendered yet (or whose
+  // renderer isn't registered yet) never appears in the priority
+  // strip / render order.
+  const sectionsKeys = new Set(Object.keys(sections));
+  const renderableSectionIds = CANONICAL_SECTION_IDS.filter(
+    (id) => sectionsKeys.has(id),
+  );
+  const clientSectionOrder: string[] = getPersonaSectionOrder({
+    persona: personaProfile.primaryProfile,
+    availableSectionIds:
+      renderableSectionIds.length > 0
+        ? renderableSectionIds
+        : backendSectionOrder,
+  }) as string[];
+  const sectionOrder: string[] =
+    clientSectionOrder.length > 0 ? clientSectionOrder : backendSectionOrder;
+  // The render loop consumes this exact ordered list. The priority
+  // strip + IntersectionObserver hook also read it, so the strip,
+  // active-section tracking, and rendered layout all move together
+  // when the workflow profile changes.
+  const finalSectionOrder: string[] = sectionOrder;
+  const workflowCode = workflowFromPersona(personaProfile.primaryProfile).code;
 
   // Phase 32.8C+++++++ — active-section tracking via IntersectionObserver.
   // Persona priority chips light up as the operator scrolls, and the URL
@@ -158,6 +195,8 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
       data-command-center
       data-cc-persona={persona ?? "VIEWER"}
       data-cc-workspace-scope={workspace.scope}
+      data-cc-workflow={workflowCode}
+      data-cc-persona-section-order={sectionOrder.join(",")}
     >
       {/* HERO STRIP */}
       <header className="ec-hero">
@@ -282,275 +321,486 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
       {/* SUMMARY STRIP */}
       <SummaryStrip envelope={envelope} isTeam={isTeam} />
 
-      {/* Phase 32.8C+++++++ — Each major section is wrapped in a
-          deep-link anchor div carrying `id` + `data-section` + `aria-label`.
-          The persona priority chips link here via `#sectionId`; the
-          IntersectionObserver active-section hook reads `data-section`. */}
+      {/* Phase 38.16 — workflow-aware contextual help, collapsed by
+          default so the operational sections stay primary. Renders
+          the bounded `resolveWorkflowHelp` entry for the dashboard
+          surface (the helper code uses "ops" for the operations
+          center, which is the closest catalog match for dashboard-
+          level operational guidance — falls back to the canonical
+          ops entry when the workflow has no override). */}
+      <ContextualHelp
+        workflow={workflowCode}
+        surface="ops"
+        collapsedByDefault
+      />
 
-      {/* 1. ACTIVE OPERATIONAL PRESSURE — full-width hero */}
-      <div
-        id="operationalPressure"
-        data-section="operationalPressure"
-        aria-label="Operational Pressure"
-      >
-        <OperationalPressureSection
-          section={sections.operationalPressure}
-          canMutate={canMutate}
-        />
-      </div>
+      {/* Phase 38.11 / 38.12 — section component registry + workflow-
+          driven render loop with grid grouping. The render ORDER is
+          set by `finalSectionOrder` (workflow-aware via
+          `getPersonaSectionOrder`). The render LAYOUT is set by the
+          `gridGroup` metadata on each registry entry: consecutive
+          sections sharing the same `gridGroup` are wrapped in a
+          multi-column grid, restoring the multi-panel command-center
+          density without losing the workflow ordering. Sections with
+          no gridGroup render full-width. */}
+      {buildSectionRenderPlan(finalSectionOrder).map((band, bandIdx) => {
+        const wrapped = band.entries.map(({ sectionId, entry }) => {
+          const node = entry.render({
+            envelope,
+            sections,
+            ctx,
+            isTeam,
+            canMutate,
+          });
+          if (!node) return null;
+          return (
+            <div
+              key={sectionId}
+              id={sectionId}
+              data-section={sectionId}
+              data-section-position={
+                finalSectionOrder.indexOf(sectionId) + 1
+              }
+              data-section-grid-group={band.gridGroup ?? "single"}
+              aria-label={entry.ariaLabel}
+            >
+              {node}
+            </div>
+          );
+        });
+        const cleaned = wrapped.filter((n) => n !== null);
+        if (cleaned.length === 0) return null;
+        // Single-column band: render children directly.
+        if (!band.gridGroup || cleaned.length === 1) {
+          return (
+            <div
+              key={`band-${bandIdx}`}
+              data-section-band={band.gridGroup ?? "single"}
+            >
+              {cleaned}
+            </div>
+          );
+        }
+        // Multi-column band: wrap in the corresponding ec-grid class.
+        const gridClass =
+          cleaned.length >= 3 ? "ec-grid-3col" : "ec-grid-2col";
+        return (
+          <div
+            key={`band-${bandIdx}`}
+            className={gridClass}
+            data-section-band={band.gridGroup}
+            data-section-band-size={cleaned.length}
+          >
+            {cleaned}
+          </div>
+        );
+      })}
 
-      {/* Operational Routing Queue — actionable form of pressure */}
-      <div
-        id="routingQueue"
-        data-section="routingQueue"
-        aria-label="Routing Queue"
-      >
-        <RoutingQueueSection section={sections.routingQueue} />
-      </div>
-
-      {/* Investigation Risk Board + Reviewer Workload Engine */}
-      <div className="ec-grid-2col">
-        <div
-          id="investigationIntelligence"
-          data-section="investigationIntelligence"
-          aria-label="Investigation Risk Board"
-        >
-          <InvestigationRiskBoard section={sections.investigationIntelligence} />
-        </div>
-        <div
-          id="workloadEngine"
-          data-section="workloadEngine"
-          aria-label="Reviewer Workload Engine"
-        >
-          <WorkloadEngineBoard section={sections.workloadEngine} />
-        </div>
-      </div>
-
-      {/* Legacy case ops + reviewer orchestration (kept for back-compat) */}
-      <div className="ec-grid-2col">
-        <div
-          id="caseOperations"
-          data-section="caseOperations"
-          aria-label="Case Operations"
-        >
-          <CaseOperationsSection section={sections.caseOperations} />
-        </div>
-        <div
-          id="reviewerOrchestration"
-          data-section="reviewerOrchestration"
-          aria-label="Reviewer Orchestration"
-        >
-          <ReviewerOrchestrationSection section={sections.reviewerOrchestration} />
-        </div>
-      </div>
-
-      {/* Pipeline & Artifact Operations + Governance & Compliance */}
-      <div className="ec-grid-2col">
-        <div
-          id="pipelineDetail"
-          data-section="pipelineDetail"
-          aria-label="Evidence Pipeline"
-        >
-          <PipelineDetailSection section={sections.pipelineDetail} />
-        </div>
-        <div
-          id="governancePosture"
-          data-section="governancePosture"
-          aria-label="Governance Posture"
-        >
-          <GovernancePostureSection
-            section={sections.governancePosture}
-            isTeam={isTeam}
-          />
-        </div>
-      </div>
-
-      {/* Queue Congestion (full-width row) */}
-      <div
-        id="queueCongestion"
-        data-section="queueCongestion"
-        aria-label="Queue Congestion"
-      >
-        <QueueCongestionSection section={sections.queueCongestion} />
-      </div>
-
-      {/* AUDIT READINESS + ORGANIZATIONAL INTELLIGENCE */}
-      <div className="ec-grid-2col">
-        <div
-          id="auditReadiness"
-          data-section="auditReadiness"
-          aria-label="Audit Readiness"
-        >
-          <AuditReadinessSection section={sections.auditReadiness} />
-        </div>
-        <div
-          id="organizationalIntelligence"
-          data-section="organizationalIntelligence"
-          aria-label="Organizational Intelligence"
-        >
-          <OrganizationalIntelligenceSection
-            section={sections.organizationalIntelligence}
-          />
-        </div>
-      </div>
-
-      {/* Custody/Integrity Watch + Access/Security Watch */}
-      <div className="ec-grid-2col">
-        <div
-          id="custodyIntegrityAnomalies"
-          data-section="custodyIntegrityAnomalies"
-          aria-label="Custody Integrity Watch"
-        >
-          <CustodyIntegrityWatch
-            section={sections.custodyIntegrityAnomalies}
-          />
-        </div>
-        <div
-          id="accessSecurityAnomalies"
-          data-section="accessSecurityAnomalies"
-          aria-label="Access Security Watch"
-        >
-          <AccessSecurityWatch section={sections.accessSecurityAnomalies} />
-        </div>
-      </div>
-
-      {/* OPERATIONAL TIMELINE — full-width heartbeat */}
-      <div id="timeline" data-section="timeline" aria-label="Operational Timeline">
-        <TimelineSection section={sections.timeline} />
-      </div>
-
-      {/* Activity + Incidents + Quick Actions row */}
-      <div className="ec-grid-3col">
-        <div
-          id="recentEvidence"
-          data-section="recentEvidence"
-          aria-label="Recent Evidence"
-        >
-          <RecentEvidenceSection section={sections.recentEvidence} />
-        </div>
-        <div
-          id="incidents"
-          data-section="incidents"
-          aria-label="Operational Incidents"
-        >
-          <IncidentsSection section={sections.incidents} />
-        </div>
-        <QuickActions
-          isTeam={isTeam}
-          canMutate={canMutate}
-          canViewGovernance={ctx.can("GOVERNANCE_VIEW")}
-        />
-      </div>
-
-      {/* Phase 32.8C++ Deep Operations Intelligence */}
-      <div
-        id="predictiveRisk"
-        data-section="predictiveRisk"
-        aria-label="Predictive Risk Forecast"
-      >
-        <PredictiveRiskBoard section={sections.predictiveRisk} />
-      </div>
-      <div
-        id="organizationalIntelligenceV2"
-        data-section="organizationalIntelligenceV2"
-        aria-label="Organizational Intelligence V2"
-      >
-        <OrgIntelligenceV2Board section={sections.organizationalIntelligenceV2} />
-      </div>
-      <div className="ec-grid-2col">
-        <div
-          id="relationshipIntelligence"
-          data-section="relationshipIntelligence"
-          aria-label="Evidence Relationship Intelligence"
-        >
-          <RelationshipIntelligenceBoard section={sections.relationshipIntelligence} />
-        </div>
-        <div
-          id="crossCaseIntelligenceV2"
-          data-section="crossCaseIntelligenceV2"
-          aria-label="Cross-Case Intelligence"
-        >
-          <CrossCaseIntelligenceV2Board section={sections.crossCaseIntelligenceV2} />
-        </div>
-      </div>
-      <div className="ec-grid-2col">
-        <div
-          id="deepIntegrityWatch"
-          data-section="deepIntegrityWatch"
-          aria-label="Deep Integrity Watch"
-        >
-          <DeepIntegrityWatch section={sections.deepIntegrityWatch} />
-        </div>
-        <div
-          id="accessSecurityClassifier"
-          data-section="accessSecurityClassifier"
-          aria-label="Access Security Classifier"
-        >
-          <AccessSecurityClassifierBoard
-            section={sections.accessSecurityClassifier}
-            rollupHealth={envelope.opsHealth?.securityRollup ?? null}
-          />
-        </div>
-      </div>
-      <div className="ec-grid-2col">
-        <div
-          id="queueWorkerTelemetry"
-          data-section="queueWorkerTelemetry"
-          aria-label="Queue / Worker Telemetry"
-        >
-          <QueueWorkerTelemetryBoard
-            section={sections.queueWorkerTelemetry}
-            telemetryHealth={envelope.opsHealth?.telemetry ?? null}
-            reconcileHealth={envelope.opsHealth?.reconcile ?? null}
-          />
-        </div>
-        <div
-          id="coordinationSignals"
-          data-section="coordinationSignals"
-          aria-label="Coordination Signals"
-        >
-          <CoordinationSignalsBoard section={sections.coordinationSignals} />
-        </div>
-      </div>
-      <div
-        id="reconstructedTimeline"
-        data-section="reconstructedTimeline"
-        aria-label="Reconstructed Timeline"
-      >
-        <ReconstructedTimelineSection section={sections.reconstructedTimeline} />
-      </div>
-
-      {/* Phase 32.8C FINAL-3 — Reviewer Capacity + Operational Graph
-          + Organizational Health. These are advisory read-only surfaces;
-          all mutating operator actions remain on /ops. */}
-      <div className="ec-grid-2col">
-        <div
-          id="reviewerCapacity"
-          data-section="reviewerCapacity"
-          aria-label="Reviewer Capacity"
-        >
-          <ReviewerCapacityBoard section={sections.reviewerCapacity} />
-        </div>
-        <div
-          id="operationalGraph"
-          data-section="operationalGraph"
-          aria-label="Operational Graph"
-        >
-          <OperationalGraphSummaryBoard section={sections.operationalGraph} />
-        </div>
-      </div>
-      <div
-        id="organizationalHealth"
-        data-section="organizationalHealth"
-        aria-label="Organizational Health"
-      >
-        <OrganizationalHealthBoard section={sections.organizationalHealth} />
-      </div>
+      {/* QuickActions — always rendered after the section loop. Not
+          part of the persona-ordered set because it is a UI action
+          surface, not a dashboard data section. */}
+      <QuickActions
+        isTeam={isTeam}
+        canMutate={canMutate}
+        canViewGovernance={ctx.can("GOVERNANCE_VIEW")}
+      />
 
       {/* Unsupported Signals — transparent catalog, collapsed by default */}
       <UnsupportedSignalsSection signals={envelope.unsupportedSignals} />
     </main>
   );
+}
+
+// ============================================================================
+// PHASE 38.11 — Canonical section component registry.
+//
+// Maps every dashboard section id to:
+//   - a `render` function that takes the envelope + the resolved
+//     sections object + context + isTeam/canMutate, and returns the
+//     section's JSX node (or null when the section is missing).
+//   - an `ariaLabel` used on the deep-link anchor wrapper.
+//
+// The registry replaces the prior hand-coded JSX layout. Adding a
+// new section requires:
+//   1. Adding it to `CommandCenterEnvelope["sections"]` in types.ts.
+//   2. Registering it here with the renderer + label.
+//   3. Optionally adding it to a persona's priority list in
+//      personaSectionOrder.ts.
+//
+// Workflow profile NEVER hides a section — it only reorders. The set
+// of rendered sections is determined by which envelope keys are
+// populated (capabilities + backend projection state).
+// ============================================================================
+
+type SectionRenderArgs = {
+  envelope: CommandCenterEnvelope;
+  sections: CommandCenterEnvelope["sections"];
+  ctx: ReturnType<typeof usePlatformContext>;
+  isTeam: boolean;
+  canMutate: boolean;
+};
+
+type SectionRendererEntry = {
+  ariaLabel: string;
+  render: (args: SectionRenderArgs) => ReactNode;
+  /**
+   * Phase 38.12 — Multi-column layout hint. Consecutive sections in
+   * the final render order that share the same `gridGroup` are
+   * wrapped in a `.ec-grid-2col` / `.ec-grid-3col` band, restoring
+   * the operational command-center density. `null` means full-width.
+   *
+   * Bounded vocabulary so the grouping logic stays predictable:
+   *
+   *   - "review-ops"  — routing queue + workload + reviewer ops
+   *   - "case-ops"    — case operations + reviewer orchestration
+   *   - "pipeline"    — pipeline + governance posture
+   *   - "intel"       — investigation + workload boards
+   *   - "audit"       — audit readiness + organizational intel
+   *   - "watch"       — custody + access security watch
+   *   - "deep-intel"  — relationship + cross-case intel
+   *   - "deep-watch"  — deep integrity + access classifier
+   *   - "ops-runtime" — queue/worker telemetry + coordination signals
+   *   - "advisory"    — reviewer capacity + operational graph
+   */
+  gridGroup?:
+    | "review-ops"
+    | "case-ops"
+    | "pipeline"
+    | "intel"
+    | "audit"
+    | "watch"
+    | "deep-intel"
+    | "deep-watch"
+    | "ops-runtime"
+    | "advisory"
+    | null;
+};
+
+const SECTION_RENDERERS: Record<string, SectionRendererEntry> = {
+  operationalPressure: {
+    ariaLabel: "Operational Pressure",
+    render: ({ sections, canMutate }) => (
+      <OperationalPressureSection
+        section={sections.operationalPressure}
+        canMutate={canMutate}
+      />
+    ),
+  },
+  routingQueue: {
+    ariaLabel: "Routing Queue",
+    render: ({ sections }) => (
+      <RoutingQueueSection section={sections.routingQueue} />
+    ),
+  },
+  investigationIntelligence: {
+    ariaLabel: "Investigation Risk Board",
+    gridGroup: "intel",
+    render: ({ sections }) => (
+      <InvestigationRiskBoard section={sections.investigationIntelligence} />
+    ),
+  },
+  workloadEngine: {
+    ariaLabel: "Reviewer Workload Engine",
+    gridGroup: "intel",
+    render: ({ sections }) => (
+      <WorkloadEngineBoard section={sections.workloadEngine} />
+    ),
+  },
+  caseOperations: {
+    ariaLabel: "Case Operations",
+    gridGroup: "case-ops",
+    render: ({ sections }) => (
+      <CaseOperationsSection section={sections.caseOperations} />
+    ),
+  },
+  reviewerOrchestration: {
+    ariaLabel: "Reviewer Orchestration",
+    gridGroup: "case-ops",
+    render: ({ sections }) => (
+      <ReviewerOrchestrationSection section={sections.reviewerOrchestration} />
+    ),
+  },
+  pipelineDetail: {
+    ariaLabel: "Evidence Pipeline",
+    gridGroup: "pipeline",
+    render: ({ sections }) => (
+      <PipelineDetailSection section={sections.pipelineDetail} />
+    ),
+  },
+  governancePosture: {
+    ariaLabel: "Governance Posture",
+    gridGroup: "pipeline",
+    render: ({ sections, isTeam }) => (
+      <GovernancePostureSection
+        section={sections.governancePosture}
+        isTeam={isTeam}
+      />
+    ),
+  },
+  queueCongestion: {
+    ariaLabel: "Queue Congestion",
+    render: ({ sections }) => (
+      <QueueCongestionSection section={sections.queueCongestion} />
+    ),
+  },
+  auditReadiness: {
+    ariaLabel: "Audit Readiness",
+    gridGroup: "audit",
+    render: ({ sections }) => (
+      <AuditReadinessSection section={sections.auditReadiness} />
+    ),
+  },
+  organizationalIntelligence: {
+    ariaLabel: "Organizational Intelligence",
+    gridGroup: "audit",
+    render: ({ sections }) => (
+      <OrganizationalIntelligenceSection
+        section={sections.organizationalIntelligence}
+      />
+    ),
+  },
+  custodyIntegrityAnomalies: {
+    ariaLabel: "Custody Integrity Watch",
+    gridGroup: "watch",
+    render: ({ sections }) => (
+      <CustodyIntegrityWatch section={sections.custodyIntegrityAnomalies} />
+    ),
+  },
+  accessSecurityAnomalies: {
+    ariaLabel: "Access Security Watch",
+    gridGroup: "watch",
+    render: ({ sections }) => (
+      <AccessSecurityWatch section={sections.accessSecurityAnomalies} />
+    ),
+  },
+  timeline: {
+    ariaLabel: "Operational Timeline",
+    render: ({ sections }) => <TimelineSection section={sections.timeline} />,
+  },
+  recentEvidence: {
+    ariaLabel: "Recent Evidence",
+    render: ({ sections }) => (
+      <RecentEvidenceSection section={sections.recentEvidence} />
+    ),
+  },
+  incidents: {
+    ariaLabel: "Operational Incidents",
+    render: ({ sections }) => <IncidentsSection section={sections.incidents} />,
+  },
+  predictiveRisk: {
+    ariaLabel: "Predictive Risk Forecast",
+    render: ({ sections }) => (
+      <PredictiveRiskBoard section={sections.predictiveRisk} />
+    ),
+  },
+  organizationalIntelligenceV2: {
+    ariaLabel: "Organizational Intelligence V2",
+    render: ({ sections }) => (
+      <OrgIntelligenceV2Board
+        section={sections.organizationalIntelligenceV2}
+      />
+    ),
+  },
+  relationshipIntelligence: {
+    ariaLabel: "Evidence Relationship Intelligence",
+    gridGroup: "deep-intel",
+    render: ({ sections }) => (
+      <RelationshipIntelligenceBoard
+        section={sections.relationshipIntelligence}
+      />
+    ),
+  },
+  crossCaseIntelligenceV2: {
+    ariaLabel: "Cross-Case Intelligence",
+    gridGroup: "deep-intel",
+    render: ({ sections }) => (
+      <CrossCaseIntelligenceV2Board
+        section={sections.crossCaseIntelligenceV2}
+      />
+    ),
+  },
+  deepIntegrityWatch: {
+    ariaLabel: "Deep Integrity Watch",
+    gridGroup: "deep-watch",
+    render: ({ sections }) => (
+      <DeepIntegrityWatch section={sections.deepIntegrityWatch} />
+    ),
+  },
+  accessSecurityClassifier: {
+    ariaLabel: "Access Security Classifier",
+    gridGroup: "deep-watch",
+    render: ({ envelope, sections }) => (
+      <AccessSecurityClassifierBoard
+        section={sections.accessSecurityClassifier}
+        rollupHealth={envelope.opsHealth?.securityRollup ?? null}
+      />
+    ),
+  },
+  queueWorkerTelemetry: {
+    ariaLabel: "Queue / Worker Telemetry",
+    gridGroup: "ops-runtime",
+    render: ({ envelope, sections }) => (
+      <QueueWorkerTelemetryBoard
+        section={sections.queueWorkerTelemetry}
+        telemetryHealth={envelope.opsHealth?.telemetry ?? null}
+        reconcileHealth={envelope.opsHealth?.reconcile ?? null}
+      />
+    ),
+  },
+  coordinationSignals: {
+    ariaLabel: "Coordination Signals",
+    gridGroup: "ops-runtime",
+    render: ({ sections }) => (
+      <CoordinationSignalsBoard section={sections.coordinationSignals} />
+    ),
+  },
+  reconstructedTimeline: {
+    ariaLabel: "Reconstructed Timeline",
+    render: ({ sections }) => (
+      <ReconstructedTimelineSection section={sections.reconstructedTimeline} />
+    ),
+  },
+  reviewerCapacity: {
+    ariaLabel: "Reviewer Capacity",
+    gridGroup: "advisory",
+    render: ({ sections }) => (
+      <ReviewerCapacityBoard section={sections.reviewerCapacity} />
+    ),
+  },
+  operationalGraph: {
+    ariaLabel: "Operational Graph",
+    gridGroup: "advisory",
+    render: ({ sections }) => (
+      <OperationalGraphSummaryBoard section={sections.operationalGraph} />
+    ),
+  },
+  organizationalHealth: {
+    ariaLabel: "Organizational Health",
+    render: ({ sections }) => (
+      <OrganizationalHealthBoard section={sections.organizationalHealth} />
+    ),
+  },
+};
+
+/**
+ * Canonical bounded ordering of every registered section. Used as the
+ * stable fallback when persona priority doesn't claim a section.
+ */
+const CANONICAL_SECTION_IDS: ReadonlyArray<string> = [
+  "operationalPressure",
+  "routingQueue",
+  "investigationIntelligence",
+  "workloadEngine",
+  "caseOperations",
+  "reviewerOrchestration",
+  "pipelineDetail",
+  "governancePosture",
+  "queueCongestion",
+  "auditReadiness",
+  "organizationalIntelligence",
+  "custodyIntegrityAnomalies",
+  "accessSecurityAnomalies",
+  "timeline",
+  "recentEvidence",
+  "incidents",
+  "predictiveRisk",
+  "organizationalIntelligenceV2",
+  "relationshipIntelligence",
+  "crossCaseIntelligenceV2",
+  "deepIntegrityWatch",
+  "accessSecurityClassifier",
+  "queueWorkerTelemetry",
+  "coordinationSignals",
+  "reconstructedTimeline",
+  "reviewerCapacity",
+  "operationalGraph",
+  "organizationalHealth",
+];
+
+// ============================================================================
+// PHASE 38.13 — Persona-aware section render plan.
+//
+// Builds the dashboard render layout in two passes:
+//
+//   1. PARTITION — every renderable section is assigned to a band:
+//      sections sharing a `gridGroup` are bundled together; sections
+//      with no group form a single-entry band of their own.
+//
+//   2. PRIORITIZE — each band's priority is `min(orderedIds.indexOf(...))`
+//      across its members. Workflow profile, via getPersonaSectionOrder,
+//      decides those indices. The band with the lowest-index member
+//      renders first.
+//
+// Result:
+//   - Paired sections ALWAYS stay grouped (no order-sensitivity bug).
+//   - Workflow priority still wins — the highest-priority member of a
+//     band promotes the whole band toward the top of the page.
+//   - Sections with no `gridGroup` render solo, in their workflow-
+//     determined order.
+//
+// Render wrappers (unchanged from 38.12):
+//   - 1-entry band     → renders children inline
+//   - 2-entry band     → `.ec-grid-2col`
+//   - ≥3-entry band    → `.ec-grid-3col`
+//
+// Pure function. Same input → same output. No DOM access.
+// ============================================================================
+
+type SectionRenderBand = {
+  gridGroup: SectionRendererEntry["gridGroup"];
+  entries: Array<{ sectionId: string; entry: SectionRendererEntry }>;
+  /** Lowest finalSectionOrder index across members — drives band sort. */
+  priority: number;
+};
+
+function buildSectionRenderPlan(
+  orderedIds: ReadonlyArray<string>,
+): ReadonlyArray<SectionRenderBand> {
+  // 1. Partition by gridGroup. Solo sections (no group) get a unique
+  //    band id so they render independently and don't merge across the
+  //    page.
+  const bandsByKey = new Map<string, SectionRenderBand>();
+  const soloIdx = { n: 0 };
+
+  for (const sectionId of orderedIds) {
+    const entry = SECTION_RENDERERS[sectionId];
+    if (!entry) continue;
+    const group = entry.gridGroup ?? null;
+    const key = group !== null ? `g:${group}` : `solo:${soloIdx.n++}`;
+    const positionIdx = orderedIds.indexOf(sectionId);
+
+    if (!bandsByKey.has(key)) {
+      bandsByKey.set(key, {
+        gridGroup: group,
+        entries: [{ sectionId, entry }],
+        priority: positionIdx,
+      });
+    } else {
+      const band = bandsByKey.get(key)!;
+      if (band.entries.length < 3) {
+        band.entries.push({ sectionId, entry });
+      } else {
+        // Band is full (≥3). Spill the extra into a fresh solo band
+        // at the section's own position so nothing is hidden.
+        bandsByKey.set(`spill:${sectionId}`, {
+          gridGroup: null,
+          entries: [{ sectionId, entry }],
+          priority: positionIdx,
+        });
+        continue;
+      }
+      if (positionIdx < band.priority) band.priority = positionIdx;
+    }
+  }
+
+  // 2. Stable sort by priority (ascending). Workflow profile picks
+  //    the priority; bands with multiple members get the lowest
+  //    member-index as their position, so a paired band where one
+  //    member is highly prioritized still wins.
+  const bands = Array.from(bandsByKey.values()).sort(
+    (a, b) => a.priority - b.priority,
+  );
+  return bands;
 }
 
 // ============================================================================

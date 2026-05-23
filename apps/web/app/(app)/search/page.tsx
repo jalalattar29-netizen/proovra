@@ -20,7 +20,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
-import { useWorkspaceId } from "../../../lib/platform-context";
+import {
+  usePersonaProfile,
+  useTerminology,
+  useWorkspaceId,
+  workflowFromPersona,
+} from "../../../lib/platform-context";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
 // -----------------------------------------------------------------------------
 // Wire-level types — kept loose so we don't drag the API SDK in here.
 // -----------------------------------------------------------------------------
@@ -148,11 +155,28 @@ const DEFAULT_LIMIT = 25;
 // Page component
 // -----------------------------------------------------------------------------
 
+// Phase 38.7 — canonical wrapper. The inner client component below
+// retains all existing logic; the gate decides whether to render it.
 export default function SearchPage() {
+  return (
+    <PageRouteGate routeId="workspace.search">
+      <SearchInner />
+    </PageRouteGate>
+  );
+}
+
+function SearchInner() {
   // Phase EMERGENCY-RECOVERY — search works for personal workspaces too;
   // both personal and team modes have a real Team UUID after the
   // workspace-bootstrap fix, so we consume the canonical workspace id.
   const teamId = useWorkspaceId();
+  // Phase 38.2 — consume persona terminology in the search header.
+  const terms = useTerminology();
+  // Phase 38.18 — workflow-aware contextual help.
+  const searchPersona = usePersonaProfile();
+  const searchWorkflowCode = workflowFromPersona(
+    searchPersona.primaryProfile,
+  ).code;
   const [filter, setFilter] = useState<FilterState | null>(null);
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -384,9 +408,11 @@ export default function SearchPage() {
     <main style={pageStyle}>
       <header style={headerStyle}>
         <div>
-          <h1 style={titleStyle}>Evidence Discovery</h1>
+          <h1 style={titleStyle} data-search-title>
+            {terms.evidence} Discovery
+          </h1>
           <p style={subtitleStyle}>
-            Operator search across evidence, workflows, audit events, and
+            Operator search across {terms.evidenceLower}, workflows, audit events, and
             communications. Results respect visibility and governance rules.
           </p>
         </div>
@@ -404,6 +430,14 @@ export default function SearchPage() {
           </button>
         </form>
       </header>
+
+      {/* Phase 38.18 — workflow-aware contextual help, collapsed by
+          default so the search results stay primary. */}
+      <ContextualHelp
+        workflow={searchWorkflowCode}
+        surface="search"
+        collapsedByDefault
+      />
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 

@@ -15,6 +15,7 @@ import {
   dashboardStyles,
   getStatusPillStyle,
 } from "../../../../components/dashboard/styles";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 interface BatchJob {
   id: string;
@@ -28,7 +29,16 @@ interface BatchJob {
   progress: number;
 }
 
+// Phase 38.14 — wrap in canonical PageRouteGate.
 export default function BatchAnalysisPage() {
+  return (
+    <PageRouteGate routeId="dashboard.batch_analysis">
+      <BatchAnalysisPageInner />
+    </PageRouteGate>
+  );
+}
+
+function BatchAnalysisPageInner() {
   const { user } = useAuth();
   const { addToast } = useToast();
 

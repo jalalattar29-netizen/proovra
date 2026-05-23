@@ -16,6 +16,7 @@ import {
   dashboardStyles,
   getStatusPillStyle,
 } from "../../../../components/dashboard/styles";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 interface Insights {
   total_analyzed: number;
@@ -37,7 +38,16 @@ interface Insights {
   }>;
 }
 
+// Phase 38.14 — wrap in canonical PageRouteGate.
 export default function InsightsPage() {
+  return (
+    <PageRouteGate routeId="dashboard.insights">
+      <InsightsPageInner />
+    </PageRouteGate>
+  );
+}
+
+function InsightsPageInner() {
   const { user } = useAuth();
   const { addToast } = useToast();
 

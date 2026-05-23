@@ -27,6 +27,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 type PolicyStatus = "ACTIVE" | "PAUSED" | "SUPERSEDED" | "ARCHIVED";
 type PolicyScope = "WORKSPACE" | "EVIDENCE_TYPE" | "CASE" | "REGULATORY";
@@ -76,7 +77,17 @@ const SCOPE_LABEL: Record<PolicyScope, string> = {
   REGULATORY: "Regulatory",
 };
 
+// Phase 38.9 — wrap in canonical PageRouteGate. `governance.retention`
+// is organization-only.
 export default function RetentionPoliciesPage() {
+  return (
+    <PageRouteGate routeId="governance.retention">
+      <RetentionPoliciesPageInner />
+    </PageRouteGate>
+  );
+}
+
+function RetentionPoliciesPageInner() {
   const teamId = useTeamId();
   const [policies, setPolicies] = useState<Policy[] | null>(null);
   const [error, setError] = useState<string | null>(null);

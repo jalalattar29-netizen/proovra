@@ -33,6 +33,7 @@ import { useSearchParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 // =============================================================================
 // Types — mirror the public graph projection
 // =============================================================================
@@ -65,7 +66,16 @@ type CaseSubgraphResponse = {
 // Page
 // =============================================================================
 
+// Phase 38.12 — wrap in canonical PageRouteGate.
 export default function RelationshipInspectorPage() {
+  return (
+    <PageRouteGate routeId="investigation.relationships">
+      <RelationshipInspectorPageInner />
+    </PageRouteGate>
+  );
+}
+
+function RelationshipInspectorPageInner() {
   const teamId = useTeamId();
   const search = useSearchParams();
   const caseId = search?.get("caseId") ?? "";

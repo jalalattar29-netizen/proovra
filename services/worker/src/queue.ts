@@ -379,6 +379,36 @@ export const graphSearchProjectionQueue = new Queue(
   },
 );
 
+// ============================================================================
+// PHASE 37.98 — Org-health projection refresh queue.
+//
+// One job payload = one teamId. The processor calls the canonical
+// `refreshOrgHealthProjection` helper which:
+//   - is idempotent (upsert keyed on `(teamId, sampledAtUtc)`),
+//   - runs only bounded `prisma.<model>.count({ where: { teamId } })`
+//     queries — no global scans, no cross-tenant joins,
+//   - writes only the projection row (no audit / billing / governance
+//     side effects).
+//
+// Retries are exponential. Failed jobs do NOT cross tenant boundaries
+// because the job payload's `teamId` is the SOLE scoping input.
+// ============================================================================
+export const orgHealthRefreshQueueName = "org-health-refresh";
+export const orgHealthRefreshJobName = "RefreshOrgHealthProjection";
+export const orgHealthRefreshQueue = new Queue(orgHealthRefreshQueueName, {
+  connection: redisConnection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: "exponential", delay: 15_000 },
+    removeOnComplete: 100,
+    removeOnFail: 100,
+  },
+});
+
+export type OrgHealthRefreshJobPayload = {
+  teamId: string;
+};
+
 export type GraphDomainSyncJobPayload = {
   teamId: string;
   /** Optional bounded domain filter. When null the job runs the

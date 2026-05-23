@@ -16,8 +16,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
-import { useTeamWorkspaceGate } from "../../../../lib/platform-context";
-import { WorkspaceGateState } from "../WorkspaceGateState";
+import { useActiveSpaceId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   cardStyle,
   emptyStateStyle,
@@ -86,13 +86,20 @@ type WorkspaceResponse = {
   allowedLifecycleTransitions: LifecycleState[];
 };
 
+// Phase 38.12 — wrap in canonical PageRouteGate.
 export default function ReviewWorkspacePage() {
+  return (
+    <PageRouteGate routeId="review.queue_detail">
+      <ReviewWorkspacePageInner />
+    </PageRouteGate>
+  );
+}
+
+function ReviewWorkspacePageInner() {
   const params = useParams<{ reviewId: string }>();
   const workflowId = params?.reviewId ?? "";
-  // Phase 32.8 Foundation cleanup — read from canonical context.
-  const workspaceState = useTeamWorkspaceGate();
-  const teamId =
-    workspaceState.status === "ready" ? workspaceState.workspaceId : null;
+  // PageRouteGate guarantees an active ORGANIZATION space here.
+  const teamId = useActiveSpaceId();
   const [data, setData] = useState<WorkspaceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -146,13 +153,18 @@ export default function ReviewWorkspacePage() {
     [teamId, workflowId, load],
   );
 
-  if (workspaceState.status !== "ready") {
+  // PageRouteGate already guaranteed ALLOWED. If the envelope is
+  // still hydrating, render the bounded loading shell.
+  if (!teamId) {
     return (
-      <WorkspaceGateState
-        state={workspaceState}
-        surface="Reviewer Ops"
-        requiredCapability="REVIEWER_OPS_VIEW"
-      />
+      <main style={pageStyle} data-review-workspace-loading>
+        <header style={headerRowStyle}>
+          <div>
+            <h1 style={titleStyle}>Review workspace</h1>
+            <p style={subtitleStyle}>Loading organization workspace…</p>
+          </div>
+        </header>
+      </main>
     );
   }
 

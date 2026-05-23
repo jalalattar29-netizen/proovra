@@ -9,10 +9,25 @@
  * The legacy /teams/[id] detail route + audited mutation endpoints
  * remain unchanged — invitation / role-change / removal flows
  * continue to live there.
+ *
+ * Phase 38.8 — wrapped in canonical PageRouteGate. `admin.teams` is
+ * an ACCOUNT-domain route (NONE active-space) so it loads for every
+ * authenticated user.
  */
 
-import { WorkspaceAdminPanel } from "../../../components/workspace-admin/WorkspaceAdminPanel";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { WorkspaceAdministrationHome } from "../../../components/workspace-admin/WorkspaceAdministrationHome";
 
+/**
+ * ENTERPRISE TENANT MODEL — /teams renders the canonical Workspace
+ * Administration index for every authenticated user. Personal users see
+ * their Personal Space card + create-organization CTA; organization
+ * members additionally see the per-organization admin panel inline.
+ */
 export default function TeamsPage() {
-  return <WorkspaceAdminPanel />;
+  return (
+    <PageRouteGate routeId="admin.teams">
+      <WorkspaceAdministrationHome />
+    </PageRouteGate>
+  );
 }

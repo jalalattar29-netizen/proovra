@@ -1961,3 +1961,243 @@
   background: rgba(255, 255, 255, 0.05);
   opacity: 1;
 }
+/* ============================================================================
+ * PHASE 38.4 — Operational density CSS.
+ *
+ * Reads the `data-operational-density` attribute set on the shell root by
+ * AppShellV2 (which reads it from `envelope.personaProfile.
+ * operationalDensityPreference`). Three modes:
+ *
+ *   compact      — dense operational tables; tighter spacing
+ *   comfortable  — default; no overrides needed
+ *   spacious     — generous whitespace; for new users / lighter workflows
+ *
+ * Rules:
+ *   - Layout / spacing only. NEVER hides features.
+ *   - NEVER changes navigation, capabilities, or copy.
+ *   - CSS variables let pages opt in without conditional JS.
+ * ============================================================================ */
+
+/* Default (comfortable) — baseline values used by descendant components. */
+.app-shell-v2[data-operational-density="comfortable"] {
+  --proovra-density-row-padding-y: 10px;
+  --proovra-density-row-gap: 8px;
+  --proovra-density-card-padding: 16px;
+  --proovra-density-section-gap: 24px;
+  --proovra-density-font-base: 13px;
+}
+
+.app-shell-v2[data-operational-density="compact"] {
+  --proovra-density-row-padding-y: 6px;
+  --proovra-density-row-gap: 4px;
+  --proovra-density-card-padding: 10px;
+  --proovra-density-section-gap: 12px;
+  --proovra-density-font-base: 12px;
+}
+
+.app-shell-v2[data-operational-density="compact"] .cc-section {
+  margin-bottom: var(--proovra-density-section-gap);
+}
+.app-shell-v2[data-operational-density="compact"] .cases-row {
+  padding-top: var(--proovra-density-row-padding-y);
+  padding-bottom: var(--proovra-density-row-padding-y);
+}
+.app-shell-v2[data-operational-density="compact"] .cc-tile-grid {
+  gap: var(--proovra-density-row-gap);
+}
+.app-shell-v2[data-operational-density="compact"] .cc-tile {
+  padding: var(--proovra-density-card-padding);
+}
+
+.app-shell-v2[data-operational-density="spacious"] {
+  --proovra-density-row-padding-y: 14px;
+  --proovra-density-row-gap: 12px;
+  --proovra-density-card-padding: 24px;
+  --proovra-density-section-gap: 36px;
+  --proovra-density-font-base: 14px;
+}
+
+.app-shell-v2[data-operational-density="spacious"] .cc-section {
+  margin-bottom: var(--proovra-density-section-gap);
+}
+.app-shell-v2[data-operational-density="spacious"] .cases-row {
+  padding-top: var(--proovra-density-row-padding-y);
+  padding-bottom: var(--proovra-density-row-padding-y);
+}
+.app-shell-v2[data-operational-density="spacious"] .cc-tile-grid {
+  gap: var(--proovra-density-row-gap);
+}
+.app-shell-v2[data-operational-density="spacious"] .cc-tile {
+  padding: var(--proovra-density-card-padding);
+}
+
+/*
+ * ============================================================================
+ * PHASE 38.16 — Density consumption for owned operational panels.
+ *
+ * Selectors target `data-*` attributes emitted by the panels I own:
+ *
+ *   - data-capture-intake-rail          (Phase 38.16)
+ *   - data-capture-workflow-guidance    (Phase 38.11)
+ *   - data-capture-readiness            (Phase 38.14)
+ *   - data-capture-suggestions          (Phase 38.15)
+ *   - data-page-route-gate              (Phase 38.6)
+ *   - data-workflow-safety-notice       (Phase 38.9)
+ *   - data-command-palette              (Phase 38.8)
+ *
+ * Compact mode tightens padding, font sizes, and gaps without
+ * touching layout structure. Spacious mode relaxes them.
+ * ============================================================================
+ */
+
+/* Default (BALANCED / comfortable) — establish bounded variables so
+   compact + spacious only need to override. */
+.app-shell-v2 [data-capture-intake-rail],
+.app-shell-v2 [data-capture-workflow-guidance],
+.app-shell-v2 [data-capture-readiness],
+.app-shell-v2 [data-capture-suggestions],
+.app-shell-v2 [data-page-route-gate],
+.app-shell-v2 [data-workflow-safety-notice],
+.app-shell-v2 [data-command-palette] {
+  --proovra-density-panel-padding: 12px 16px;
+  --proovra-density-panel-gap: 8px;
+  --proovra-density-panel-font-size: 12px;
+  --proovra-density-chip-padding: 3px 10px;
+}
+
+/* COMMAND_CENTER mode (compact) — tighter spacing, smaller chips,
+   denser type. Analyst-grade information density. */
+.app-shell-v2[data-operational-density="compact"] [data-capture-intake-rail],
+.app-shell-v2[data-operational-density="compact"] [data-capture-workflow-guidance],
+.app-shell-v2[data-operational-density="compact"] [data-capture-readiness],
+.app-shell-v2[data-operational-density="compact"] [data-capture-suggestions],
+.app-shell-v2[data-operational-density="compact"] [data-page-route-gate],
+.app-shell-v2[data-operational-density="compact"] [data-workflow-safety-notice],
+.app-shell-v2[data-operational-density="compact"] [data-command-palette] {
+  --proovra-density-panel-padding: 6px 10px;
+  --proovra-density-panel-gap: 4px;
+  --proovra-density-panel-font-size: 11px;
+  --proovra-density-chip-padding: 1px 6px;
+}
+
+/* Spacious mode — relax for new operators. */
+.app-shell-v2[data-operational-density="spacious"] [data-capture-intake-rail],
+.app-shell-v2[data-operational-density="spacious"] [data-capture-workflow-guidance],
+.app-shell-v2[data-operational-density="spacious"] [data-capture-readiness],
+.app-shell-v2[data-operational-density="spacious"] [data-capture-suggestions],
+.app-shell-v2[data-operational-density="spacious"] [data-page-route-gate],
+.app-shell-v2[data-operational-density="spacious"] [data-workflow-safety-notice],
+.app-shell-v2[data-operational-density="spacious"] [data-command-palette] {
+  --proovra-density-panel-padding: 16px 20px;
+  --proovra-density-panel-gap: 12px;
+  --proovra-density-panel-font-size: 13px;
+  --proovra-density-chip-padding: 5px 14px;
+}
+
+/*
+ * ============================================================================
+ * PHASE 38.18 — Real analyst-grade density on canonical enterprise surfaces.
+ *
+ * The Phase 38.16 rules above targeted the 7 panels I own (rail,
+ * guidance, readiness, suggestions, route gate, safety notice,
+ * command palette). Phase 38.18 extends compact/spacious modes to
+ * the canonical enterprise surface classes used by Dashboard,
+ * Cases, Reports, Governance, Reviewer Ops, Workspace Admin, and
+ * every other surface that uses the `cc-*` enterprise primitives.
+ *
+ * Selectors target:
+ *
+ *   .cc-page              — page wrapper (vertical rhythm)
+ *   .cc-page-header       — page hero strip
+ *   .cc-section           — operational sections
+ *   .cc-title             — page titles
+ *   .cc-kicker            — small uppercase kickers
+ *   .cc-subtitle          — subhead copy
+ *   .cc-meta              — page meta strip
+ *   .cc-tile-grid         — multi-tile grids
+ *   .cc-tile              — operational tiles
+ *   .cases-row            — table-style rows (cases queue + others)
+ *   .ec-grid-2col         — dashboard 2-col bands
+ *   .ec-grid-3col         — dashboard 3-col bands
+ *
+ * COMMAND_CENTER (compact) compresses ALL of these so the operator
+ * sees more information per viewport. Spacious relaxes for new
+ * operators. Comfortable uses the existing default.
+ * ============================================================================
+ */
+
+/* COMMAND_CENTER (compact) — analyst-grade compression on enterprise surfaces */
+.app-shell-v2[data-operational-density="compact"] .cc-page {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+.app-shell-v2[data-operational-density="compact"] .cc-page-header {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+}
+.app-shell-v2[data-operational-density="compact"] .cc-section {
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+.app-shell-v2[data-operational-density="compact"] .cc-title {
+  font-size: 18px;
+  line-height: 1.25;
+  margin: 0 0 2px 0;
+}
+.app-shell-v2[data-operational-density="compact"] .cc-kicker {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+.app-shell-v2[data-operational-density="compact"] .cc-subtitle {
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 4px 0 0 0;
+}
+.app-shell-v2[data-operational-density="compact"] .cc-meta {
+  gap: 6px;
+  font-size: 11px;
+}
+.app-shell-v2[data-operational-density="compact"] .cc-tile-grid {
+  gap: 6px;
+}
+.app-shell-v2[data-operational-density="compact"] .cc-tile {
+  padding: 8px 10px;
+}
+.app-shell-v2[data-operational-density="compact"] .ec-grid-2col,
+.app-shell-v2[data-operational-density="compact"] .ec-grid-3col {
+  gap: 8px;
+}
+.app-shell-v2[data-operational-density="compact"] .cases-row {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 12px;
+}
+
+/* Spacious — relax canonical surfaces for new operators */
+.app-shell-v2[data-operational-density="spacious"] .cc-page {
+  padding-top: 32px;
+  padding-bottom: 32px;
+}
+.app-shell-v2[data-operational-density="spacious"] .cc-page-header {
+  margin-bottom: 28px;
+  padding-bottom: 16px;
+}
+.app-shell-v2[data-operational-density="spacious"] .cc-section {
+  margin-top: 28px;
+  margin-bottom: 28px;
+}
+.app-shell-v2[data-operational-density="spacious"] .cc-title {
+  font-size: 26px;
+  line-height: 1.3;
+  margin: 0 0 6px 0;
+}
+.app-shell-v2[data-operational-density="spacious"] .cc-subtitle {
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 8px 0 0 0;
+}
+.app-shell-v2[data-operational-density="spacious"] .ec-grid-2col,
+.app-shell-v2[data-operational-density="spacious"] .ec-grid-3col {
+  gap: 18px;
+}

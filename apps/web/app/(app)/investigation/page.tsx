@@ -30,6 +30,7 @@ import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 // =============================================================================
 // Types
 // =============================================================================
@@ -83,7 +84,16 @@ type MetricsSnapshot = {
 // Page
 // =============================================================================
 
+// Phase 38.11 — wrap in canonical PageRouteGate.
 export default function InvestigationOverviewPage() {
+  return (
+    <PageRouteGate routeId="investigation.hub">
+      <InvestigationOverviewPageInner />
+    </PageRouteGate>
+  );
+}
+
+function InvestigationOverviewPageInner() {
   const teamId = useTeamId();
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
   const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null);

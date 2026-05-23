@@ -25,6 +25,7 @@ import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 type DuplicateEdgeKind =
   | "SAME_HASH_AS"
   | "SIMILAR_TO"
@@ -59,7 +60,16 @@ const CONFIDENCE_OPTIONS: Array<{ value: "ALL" | "LOW" | "MEDIUM" | "HIGH"; labe
   { value: "LOW", label: "Low and higher" },
 ];
 
+// Phase 38.13 — wrap in canonical PageRouteGate.
 export default function DuplicatesReviewPage() {
+  return (
+    <PageRouteGate routeId="investigation.duplicates">
+      <DuplicatesReviewPageInner />
+    </PageRouteGate>
+  );
+}
+
+function DuplicatesReviewPageInner() {
   const teamId = useTeamId();
   const [anchorEvidenceId, setAnchorEvidenceId] = useState<string | null>(null);
   const [edges, setEdges] = useState<DuplicateEdge[] | null>(null);

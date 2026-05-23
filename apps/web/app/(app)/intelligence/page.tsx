@@ -21,6 +21,7 @@ import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 type SearchHit = {
   evidenceId: string;
   title: string | null;
@@ -60,7 +61,16 @@ type Providers = {
   semanticEnabled: boolean;
 };
 
+// Phase 38.12 — wrap in canonical PageRouteGate.
 export default function IntelligencePage() {
+  return (
+    <PageRouteGate routeId="workspace.intelligence">
+      <IntelligencePageInner />
+    </PageRouteGate>
+  );
+}
+
+function IntelligencePageInner() {
   const teamId = useTeamId();
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);

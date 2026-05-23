@@ -28,6 +28,8 @@ import {
   miSearchIndexQueueName,
   ocrQueue,
   ocrQueueName,
+  orgHealthRefreshQueue,
+  orgHealthRefreshQueueName,
   otsUpgradeQueue,
   otsUpgradeQueueName,
   purgeDeletedEvidenceJobName,
@@ -56,6 +58,7 @@ import {
   processGraphTimelineSyncJob,
   processMiSearchIndexJob,
   processOcrJob,
+  processOrgHealthRefreshJob,
   processTranscriptJob,
 } from "./subsystem-queue-processors.js";
 import { startHealthServer, type HealthServer } from "./health.js";
@@ -1014,7 +1017,8 @@ type WorkerKind =
   | "graph-reconcile"
   | "graph-domain-sync"
   | "graph-timeline-sync"
-  | "graph-search-projection";
+  | "graph-search-projection"
+  | "org-health-refresh";
 
 function safeRegisterWorker(
   kind: WorkerKind,
@@ -1190,6 +1194,19 @@ const graphSearchProjectionWorker = safeRegisterWorker(
     }),
 );
 
+// Phase 37.98 — Org-health projection refresh worker. Consumes
+// `org-health-refresh` jobs (one teamId per job) and upserts the
+// projection row that the Command Center reads. Idempotent +
+// tenant-scoped by construction; see subsystem-queue-processors.ts.
+const orgHealthRefreshWorker = safeRegisterWorker(
+  "org-health-refresh",
+  () =>
+    new Worker(orgHealthRefreshQueueName, processOrgHealthRefreshJob, {
+      connection: redisConnection,
+      concurrency: 4,
+    }),
+);
+
 let healthServer: HealthServer | null = null;
 let telemetrySampler: TelemetrySampler | null = null;
 let shuttingDown = false;
@@ -1338,6 +1355,7 @@ async function shutdown(exitCode: number) {
     ["graph-domain-sync", graphDomainSyncWorker] as const,
     ["graph-timeline-sync", graphTimelineSyncWorker] as const,
     ["graph-search-projection", graphSearchProjectionWorker] as const,
+    ["org-health-refresh", orgHealthRefreshWorker] as const,
   ]) {
     if (!w) continue;
     try {
@@ -1370,6 +1388,8 @@ async function shutdown(exitCode: number) {
     await graphDomainSyncQueue.close();
     await graphTimelineSyncQueue.close();
     await graphSearchProjectionQueue.close();
+    // Phase 37.98 — org-health refresh queue.
+    await orgHealthRefreshQueue.close();
   } catch (err) {
     const requestId = randomUUID();
     logger.error({ requestId, err }, "worker.queue_close_failed");

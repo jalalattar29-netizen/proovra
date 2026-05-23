@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 
 type ApiKey = {
   id: string;
@@ -69,7 +70,16 @@ const COMMON_SCOPES = [
   "integration.evidence_request.read",
 ] as const;
 
+// Phase 38.9 — wrap in canonical PageRouteGate.
 export default function IntegrationsPage() {
+  return (
+    <PageRouteGate routeId="workspace.integrations">
+      <IntegrationsPageInner />
+    </PageRouteGate>
+  );
+}
+
+function IntegrationsPageInner() {
   const teamId = useTeamId();
   const [apiKeys, setApiKeys] = useState<ApiKey[] | null>(null);
   const [webhooks, setWebhooks] = useState<Webhook[] | null>(null);

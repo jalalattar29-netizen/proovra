@@ -36,6 +36,7 @@ import { useParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 type InstanceStatus =
   | "DRAFT"
@@ -116,7 +117,17 @@ type ExportSummary = {
   blockers: string[];
 };
 
+// Phase 38.13 — wrap in canonical PageRouteGate inheriting from parent
+// `workspace.workflows` route.
 export default function WorkflowInstancePage() {
+  return (
+    <PageRouteGate routeId="workspace.workflows">
+      <WorkflowInstancePageInner />
+    </PageRouteGate>
+  );
+}
+
+function WorkflowInstancePageInner() {
   const teamId = useTeamId();
   const params = useParams<{ id: string }>();
   const instanceId = params?.id ?? "";

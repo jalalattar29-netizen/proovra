@@ -25,6 +25,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 type Counts = Record<string, number>;
 
@@ -88,7 +89,16 @@ const STATUSES = [
   "REVIEW_REQUIRED",
 ] as const;
 
+// Phase 38.15 — wrap in canonical PageRouteGate.
 export default function ReliabilityPage() {
+  return (
+    <PageRouteGate routeId="platform.reliability">
+      <ReliabilityPageInner />
+    </PageRouteGate>
+  );
+}
+
+function ReliabilityPageInner() {
   const teamId = useTeamId();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("STALLED");
