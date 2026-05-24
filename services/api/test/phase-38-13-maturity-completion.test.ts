@@ -337,30 +337,13 @@ describe("Phase 38.13 — required workflow-safety statement still mounted", () 
 });
 
 // =============================================================================
-// PART 8 — Documented exemptions for redirect-only pages
+// PART 8 — CR1 Part 2 superseded: redirect-only page exemption check
 // =============================================================================
-
-describe("Phase 38.13 — redirect-only pages documented as exempt", () => {
-  const REDIRECTS = [
-    "app/(app)/security/page.tsx",
-    "app/(app)/archive/page.tsx",
-    "app/(app)/deleted/page.tsx",
-    "app/(app)/locked/page.tsx",
-    "app/(app)/operations/page.tsx",
-  ];
-
-  it("redirect-only pages don't need PageRouteGate (they redirect before render)", () => {
-    for (const page of REDIRECTS) {
-      const src = readWeb(page);
-      // Each redirect page should be small + use Next's redirect or
-      // useRouter().replace pattern. We don't enforce a particular
-      // pattern here — only that the file is small and doesn't render
-      // a large authenticated surface.
-      const lineCount = src.split("\n").length;
-      expect(
-        lineCount,
-        `${page} is too large for a redirect-only exemption (${lineCount} lines)`,
-      ).toBeLessThanOrEqual(80);
-    }
-  });
-});
+//
+// All five redirect-only pages this test originally guarded (security,
+// archive, deleted, locked, operations) were deleted by CR1 Part 2
+// and replaced by canonical `next.config.js` `redirects()` entries.
+// The new pin lives in `phase-cr1-legacy-purge.test.ts > CR1 Part 2`
+// (asserts file absence + next.config.js entry presence). This Phase
+// 38.13 describe block is intentionally left as a documentation
+// tombstone.

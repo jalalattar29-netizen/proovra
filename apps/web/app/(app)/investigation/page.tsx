@@ -31,6 +31,7 @@ import Link from "next/link";
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { HubQuickActionsBar } from "../../../components/hubs/HubQuickActionsBar";
 // =============================================================================
 // Types
 // =============================================================================
@@ -85,10 +86,16 @@ type MetricsSnapshot = {
 // =============================================================================
 
 // Phase 38.11 — wrap in canonical PageRouteGate.
+// R6 — Investigation Center hub bar above the existing overview
+// (unchanged). The bar is the canonical hub HEADER; the rich
+// existing Phase 31.12 overview content stays below.
 export default function InvestigationOverviewPage() {
   return (
     <PageRouteGate routeId="investigation.hub">
-      <InvestigationOverviewPageInner />
+      <div data-hub-page data-hub-page-id="investigation">
+        <HubQuickActionsBar hubId="investigation" />
+        <InvestigationOverviewPageInner />
+      </div>
     </PageRouteGate>
   );
 }

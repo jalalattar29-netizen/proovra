@@ -388,9 +388,9 @@ describe("Phase 38.6 — resolveWorkflowExposure invariants", () => {
       secondaryWorkflows: [],
     });
     function ids(set: {
-      primaryItems: { route: { id: string } }[];
-      secondaryItems: { route: { id: string } }[];
-      moreAdvancedItems: { route: { id: string } }[];
+      primaryItems: ReadonlyArray<{ route: { id: string } }>;
+      secondaryItems: ReadonlyArray<{ route: { id: string } }>;
+      moreAdvancedItems: ReadonlyArray<{ route: { id: string } }>;
     }): Set<string> {
       return new Set([
         ...set.primaryItems.map((i) => i.route.id),

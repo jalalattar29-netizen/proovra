@@ -55,6 +55,10 @@ import React, {
 
 import { apiFetch } from "../api";
 import {
+  emit as emitStateEvent,
+  redactWorkspaceId,
+} from "./state-observability";
+import {
   AUTHORITY_SCHEMA_VERSION,
   CAPABILITY_SCHEMA_VERSION,
   NAVIGATION_SCHEMA_VERSION,
@@ -225,6 +229,11 @@ export function PlatformContextProvider({
       }
       setSchemaCompatible(true);
       setState({ name: "READY", envelope });
+      // CR1.5 / R1 — dev-only observability. No-op in production.
+      emitStateEvent("platform-envelope:loaded", "PlatformContextProvider", {
+        workspaceId: redactWorkspaceId(envelope.workspace.id),
+        activeSpaceType: envelope.activeSpace?.type ?? "none",
+      });
       return "applied";
     },
     [],
@@ -251,6 +260,9 @@ export function PlatformContextProvider({
         return;
       }
       ingestEnvelope(envelope);
+      emitStateEvent("platform-envelope:refreshed", "PlatformContextProvider", {
+        workspaceId: redactWorkspaceId(envelope.workspace.id),
+      });
     } catch (err) {
       if (seq !== fetchSequenceRef.current) return;
       const cls = classifyError(err, "OPERATIONAL");

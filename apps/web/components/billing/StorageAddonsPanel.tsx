@@ -9,15 +9,19 @@ import { formatUserDate } from "../../lib/date";
 import type { WorkspaceStorageAddonSummary } from "./types";
 
 function formatAddonStatus(status?: string | null) {
+  // R4 — use the canonical operational vocabulary. The empty/missing
+  // case is "Not configured" (operationally neutral). Unmapped
+  // backend enums fall back to "Status pending" rather than exposing
+  // raw ALL_CAPS values.
   const normalized = String(status ?? "").trim().toUpperCase();
-  if (!normalized) return "Unknown";
+  if (!normalized) return "Not configured";
   if (normalized === "ACTIVE") return "Active";
   if (normalized === "PENDING") return "Pending";
   if (normalized === "PAST_DUE") return "Past due";
   if (normalized === "CANCELED") return "Canceled";
   if (normalized === "EXPIRED") return "Expired";
   if (normalized === "FAILED") return "Failed";
-  return normalized;
+  return "Status pending";
 }
 
 function toneForAddonStatus(status?: string | null) {

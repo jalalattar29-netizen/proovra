@@ -304,7 +304,10 @@ describe("Phase 25.5 — wording sweep", () => {
     "../src/services/reviewer-ops/saved-queue-views.service.ts",
     "../src/services/reviewer-ops/reminder-engine.service.ts",
     "../src/services/reviewer-ops/analytics.service.ts",
-    "../../../apps/web/app/(app)/reviewer-ops/policy/page.tsx",
+    // CR1 Part 2 deleted `reviewer-ops/policy/page.tsx` (Phase 32.8B
+    // redirect → /governance/policy is now in next.config.js). The
+    // canonical policy surface `governance/policy/page.tsx` is already
+    // wording-swept by other Phase 32.8 tests.
   ];
   for (const path of sources) {
     it(`no overclaim phrase in ${path.split("/").slice(-2).join("/")}`, () => {

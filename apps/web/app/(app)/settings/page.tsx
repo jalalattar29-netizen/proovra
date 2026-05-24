@@ -12,6 +12,7 @@ import { LEGAL_LINKS } from "../../../lib/legalLinks";
 import { captureException } from "../../../lib/sentry";
 import { openCookiePreferences } from "../../../lib/consent";
 import { useAuth, useLocale } from "../../providers";
+import { usePlatformContext } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 
 type BillingStatusResponse = {
@@ -146,6 +147,11 @@ export default function SettingsPage() {
 function SettingsPageInner() {
   const { t, locale, setLocale } = useLocale();
   const { user, setToken, updateUser } = useAuth();
+  // R1 Part 4 — pair the /v1/users/me profile PATCH with a platform
+  // envelope refresh so the canonical user fields stay in sync.
+  // Pre-R1, profile edits drifted from the envelope until manual
+  // reload.
+  const platformCtx = usePlatformContext();
   const { addToast } = useToast();
   const router = useRouter();
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
@@ -277,6 +283,17 @@ function SettingsPageInner() {
         if (updated.locale) {
           setLocale(updated.locale as Locale);
         }
+      }
+
+      // R1 Part 4 — sync canonical platform envelope so any surface
+      // that reads user.firstName / user.locale / etc. from the
+      // envelope reflects the edit immediately.
+      try {
+        await platformCtx.refresh();
+      } catch {
+        // Refresh failure is non-fatal — local AuthContext update
+        // above already reflects the change. Drift will resolve on
+        // next provider refresh.
       }
 
       addToast("Profile updated", "success");

@@ -240,8 +240,12 @@ describe("Phase 32.8C — frontend command center renders all 8 mandatory operat
   });
 
   it("fetches from `/v1/dashboard/command-center` with the active workspace id", () => {
+    // R1 Bug A — CommandCenter now reads the canonical activeSpace
+    // (Personal Space OR Organization) via useActiveSpace() rather
+    // than the legacy team-only workspace gate. The fetch URL is
+    // therefore keyed by `activeSpace.id`.
     expect(CC).toMatch(/\/v1\/dashboard\/command-center/);
-    expect(CC).toMatch(/encodeURIComponent\(workspace\.workspaceId\)/);
+    expect(CC).toMatch(/encodeURIComponent\(activeSpace\.id\)/);
   });
 
   it("renders per-section status states (ok / degraded / unavailable / not_applicable)", () => {
@@ -425,12 +429,14 @@ describe("Phase 32.8C — no fake metrics, no decorative charts, no fabricated d
 // =============================================================================
 
 describe("Phase 32.8C — old /dashboard surface disposition", () => {
-  it("/dashboard top-level redirect to /home is preserved (Phase 32.8B)", () => {
-    const dashboardPage = readWeb("app/(app)/dashboard/page.tsx");
-    expect(dashboardPage).toMatch(
-      /import\s*\{\s*redirect\s*\}\s*from\s*"next\/navigation"/,
+  it("/dashboard top-level redirect to /home is preserved (Phase 32.8B → CR1 Part 2 folded into next.config.js)", () => {
+    // CR1 Part 2 moved the JSX-level redirect into next.config.js as a
+    // canonical 308. End-user behavior is identical.
+    const cfg = readWeb("next.config.js");
+    expect(cfg).toMatch(/async\s+redirects\s*\(/);
+    expect(cfg).toMatch(
+      /source:\s*["']\/dashboard["'][\s\S]{0,200}destination:\s*["']\/home["']/,
     );
-    expect(dashboardPage).toMatch(/redirect\("\/home"\)/);
   });
 
   it("/dashboard/api-keys remains accessible (real admin functionality — Phase 32.8D will migrate)", () => {

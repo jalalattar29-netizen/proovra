@@ -25,10 +25,15 @@ import { apiFetch } from "../../../../lib/api";
 import {
   useActiveSpace,
   usePersonaProfile,
+  usePlatformContext,
   workflowFromPersona,
   WORKSPACE_PERSONA_PROFILES,
   type WorkspacePersonaProfile,
 } from "../../../../lib/platform-context";
+import {
+  emit as emitStateEvent,
+  redactWorkspaceId,
+} from "../../../../lib/platform-context/state-observability";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 type WizardStep = 1 | 2 | 3 | 4;
@@ -92,6 +97,12 @@ export default function PersonaWizardPage() {
 function PersonaWizardPageInner() {
   const activeSpace = useActiveSpace();
   const persona = usePersonaProfile();
+  // R1 (Bug B) — refresh the platform envelope after a successful
+  // PATCH so sidebar / dashboard / density / persona banner / help
+  // all update in place. CR1.5 diagnosed that the handler previously
+  // flipped the saved flag without refreshing the envelope, which
+  // left every downstream consumer stale until manual page reload.
+  const ctx = usePlatformContext();
 
   // Resume from the saved primary profile if any.
   const [step, setStep] = useState<WizardStep>(() =>
@@ -138,6 +149,26 @@ function PersonaWizardPageInner() {
             onboardingState: { goals, lastStep: step },
           }),
         });
+        // R1 (Bug B) — pull the freshly-persisted persona/density
+        // into the canonical envelope so every downstream surface
+        // (sidebar, dashboard, density CSS, persona banner, help)
+        // re-renders without a manual page reload.
+        try {
+          await ctx.refresh();
+          emitStateEvent("persona-profile:saved", "PersonaWizard", {
+            primaryProfile,
+            density,
+            onboardingCompleted:
+              overrides?.onboardingCompleted ?? false,
+            workspaceId: redactWorkspaceId(workspaceId),
+          });
+        } catch {
+          emitStateEvent(
+            "persona-profile:refresh-missing",
+            "PersonaWizard",
+            { workspaceId: redactWorkspaceId(workspaceId) },
+          );
+        }
         setSaved(true);
       } catch (err) {
         const e = err as { message?: string };
@@ -146,7 +177,7 @@ function PersonaWizardPageInner() {
         setSaving(false);
       }
     },
-    [workspaceId, primaryProfile, secondaryUseCases, density, goals, step],
+    [workspaceId, primaryProfile, secondaryUseCases, density, goals, step, ctx],
   );
 
   const toggleGoal = (id: string) => {
@@ -415,7 +446,8 @@ function PersonaWizardPageInner() {
               }}
               data-persona-wizard-saved
             >
-              Persona saved. Reload to see updated navigation and labels.
+              Workspace profile updated. Your navigation and recommendations
+              have been refreshed.
             </div>
           ) : null}
 

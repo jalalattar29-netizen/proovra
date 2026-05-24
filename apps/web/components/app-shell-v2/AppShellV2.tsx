@@ -9,9 +9,12 @@ import { PersonaSetupBanner } from "./PersonaSetupBanner";
 import { CommandPalette } from "../navigation/CommandPalette";
 import { usePathname } from "next/navigation";
 import {
+  usePersonaProfile,
   usePlatformContext,
+  workflowFromPersona,
   WorkspaceRecoveryPanel,
 } from "../../lib/platform-context";
+import { resolveWorkspaceExperience } from "../../lib/workspace-experience";
 
 type AppShellV2Props = {
   children: ReactNode;
@@ -62,11 +65,22 @@ export function AppShellV2({ children, onLogout }: AppShellV2Props) {
   const activePersona =
     ctx.envelope?.personaProfile?.primaryProfile ?? "INDIVIDUAL";
 
+  // R1.5B — workspace experience segmentation. The mode is a
+  // presentation-only data attribute (CSS, R5/R6 hooks, tests). It
+  // NEVER drives authorization — capabilities remain authoritative.
+  const personaForShell = usePersonaProfile();
+  const experienceShell = resolveWorkspaceExperience({
+    activeSpaceType: ctx.envelope?.activeSpace?.type ?? null,
+    capabilities: ctx.envelope?.capabilities ?? {},
+    primaryWorkflow: workflowFromPersona(personaForShell.primaryProfile).code,
+  });
+
   return (
     <div
       className="app-shell-v2"
       data-operational-density={operationalDensity}
       data-active-persona={activePersona}
+      data-workspace-experience-mode={experienceShell.mode}
     >
       <AppTopbarV2
         onLogout={onLogout}

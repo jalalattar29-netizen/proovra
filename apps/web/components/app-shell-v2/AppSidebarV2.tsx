@@ -51,6 +51,21 @@ import {
   resolveWorkflowExposure,
   type WorkflowExposureItem,
 } from "../../lib/navigation/workflowExposureResolver";
+import { resolveWorkspaceExperience } from "../../lib/workspace-experience";
+// R2 — canonical navigation pipeline. The disclosure resolver folds
+// in R1.5B's experience-mode demotion AND adds the bounded primary
+// constraint. The grouping resolver is the formal extraction of the
+// previously-inline buildSidebarGroups helper.
+import { resolveNavigationDisclosure } from "../../lib/navigation/navigationDisclosureResolver";
+import { resolveNavigationGroups } from "../../lib/navigation/navigationGroupingResolver";
+import { DEGRADATION_CHIP_LABELS } from "../../lib/navigation/canonicalNavigationGroups";
+// R5 — disclosure-tier metadata. Pure presentation hint surfaced as
+// data attributes; R10 visual work consumes them. Does not change
+// what is rendered.
+import { getRouteDisclosureTier } from "../../lib/navigation/disclosureModel";
+import {
+  emit as emitStateEvent,
+} from "../../lib/platform-context/state-observability";
 
 /**
  * PHASE 38.9 — Canonical sidebar.
@@ -271,73 +286,11 @@ function isActiveRoute(pathname: string | null, href: string) {
 // Group construction from resolver output.
 // =============================================================================
 
-type SidebarGroup = {
-  id: string;
-  title: string;
-  domain: string;
-  items: ReadonlyArray<WorkflowExposureItem>;
-};
-
-function buildSidebarGroups(
-  primary: ReadonlyArray<WorkflowExposureItem>,
-  secondary: ReadonlyArray<WorkflowExposureItem>,
-): {
-  groups: ReadonlyArray<SidebarGroup>;
-} {
-  const primaryGroup: SidebarGroup = {
-    id: "sidebar.primary-workflows",
-    title: "Primary workflows",
-    domain: "PRIMARY_WORKFLOWS",
-    items: primary,
-  };
-
-  const byDomain = new Map<string, WorkflowExposureItem[]>();
-  for (const item of secondary) {
-    const key = item.route.domain;
-    if (!byDomain.has(key)) byDomain.set(key, []);
-    byDomain.get(key)!.push(item);
-  }
-
-  const workspaceItems = [
-    ...(byDomain.get("PERSONAL_WORKSPACE") ?? []),
-    ...(byDomain.get("ORGANIZATION_WORKSPACE") ?? []),
-    ...(byDomain.get("TEAM_ONLY") ?? []),
-  ];
-  const opsItems = [
-    ...(byDomain.get("REVIEW_OPERATIONS") ?? []),
-    ...(byDomain.get("OPS") ?? []),
-  ];
-  const governanceItems = byDomain.get("GOVERNANCE") ?? [];
-
-  const groups: SidebarGroup[] = [];
-  if (primaryGroup.items.length > 0) groups.push(primaryGroup);
-  if (workspaceItems.length > 0) {
-    groups.push({
-      id: "sidebar.workspace",
-      title: "Workspace",
-      domain: "PERSONAL_WORKSPACE",
-      items: workspaceItems,
-    });
-  }
-  if (opsItems.length > 0) {
-    groups.push({
-      id: "sidebar.operations",
-      title: "Operations",
-      domain: "OPS",
-      items: opsItems,
-    });
-  }
-  if (governanceItems.length > 0) {
-    groups.push({
-      id: "sidebar.governance",
-      title: "Governance & Compliance",
-      domain: "GOVERNANCE",
-      items: governanceItems,
-    });
-  }
-
-  return { groups };
-}
+// R2 — the previously-inline buildSidebarGroups helper has been
+// extracted to `lib/navigation/navigationGroupingResolver.ts` as the
+// canonical pipeline step. `SidebarGroup` is the consumer-facing
+// type re-exported from that resolver.
+import type { SidebarGroup } from "../../lib/navigation/navigationGroupingResolver";
 
 // =============================================================================
 // Per-item link with degradation badge for denied-but-visible routes.
@@ -348,11 +301,14 @@ function SidebarLink({
   badge,
   active,
   inMore,
+  disclosureTier,
 }: {
   item: WorkflowExposureItem;
   badge: SidebarBadge | null;
   active: boolean;
   inMore?: boolean;
+  /** R5 — disclosure-tier hint (beginner / advanced / contextual / all-tools-only). */
+  disclosureTier?: string;
 }) {
   const route = item.route;
   const access = item.access;
@@ -374,6 +330,7 @@ function SidebarLink({
       data-sidebar-nav-more={inMore ? "true" : undefined}
       data-sidebar-degraded={degraded ? "true" : undefined}
       data-sidebar-access-state={access.accessState}
+      data-disclosure-tier={disclosureTier}
       aria-disabled={degraded ? "false" : undefined}
     >
       <span className="app-sidebar-v2-link-icon">
@@ -406,15 +363,19 @@ function SidebarLink({
 }
 
 function degradationChip(access: RouteAccessResult): string | null {
+  // R2 Part 7 — replaced raw architecture chips with operational
+  // language. Old chips ("Org", "Access") were architecture leakage;
+  // the canonical labels come from `canonicalNavigationGroups.ts`
+  // so a future copy update touches one place.
   switch (access.accessState) {
     case "NEEDS_ORGANIZATION":
-      return "Org";
+      return DEGRADATION_CHIP_LABELS.NEEDS_ORGANIZATION;
     case "NEEDS_PERSONAL_OR_ORG":
-      return "Setup";
+      return DEGRADATION_CHIP_LABELS.NEEDS_PERSONAL_OR_ORG;
     case "DENIED_NO_CAPABILITY":
-      return "Access";
+      return DEGRADATION_CHIP_LABELS.DENIED_NO_CAPABILITY;
     case "NEEDS_UPGRADE":
-      return "Upgrade";
+      return DEGRADATION_CHIP_LABELS.NEEDS_UPGRADE;
     default:
       return null;
   }
@@ -428,10 +389,16 @@ function SidebarGroupView({
   group,
   pathname,
   hydratedBadges,
+  disclosureTierByRouteId,
+  toolingTier,
 }: {
   group: SidebarGroup;
   pathname: string | null;
   hydratedBadges: Map<string, SidebarBadge>;
+  /** R5 — disclosure-tier per route id, pre-computed by the parent. */
+  disclosureTierByRouteId: Map<string, string>;
+  /** R5 — tooling tier for the entire group (CSS / R10 hook). */
+  toolingTier: string;
 }) {
   return (
     <div
@@ -439,6 +406,7 @@ function SidebarGroupView({
       data-sidebar-group={group.title}
       data-sidebar-group-id={group.id}
       data-sidebar-group-domain={group.domain}
+      data-tooling-tier={toolingTier}
     >
       <div className="app-sidebar-v2-group-title">{group.title}</div>
       <nav className="app-sidebar-v2-nav" aria-label={group.title}>
@@ -448,6 +416,7 @@ function SidebarGroupView({
             item={item}
             badge={hydratedBadges.get(item.route.id) ?? null}
             active={isActiveRoute(pathname, item.route.href)}
+            disclosureTier={disclosureTierByRouteId.get(item.route.id)}
           />
         ))}
       </nav>
@@ -459,10 +428,12 @@ function SidebarMoreView({
   items,
   pathname,
   hydratedBadges,
+  disclosureTierByRouteId,
 }: {
   items: ReadonlyArray<WorkflowExposureItem>;
   pathname: string | null;
   hydratedBadges: Map<string, SidebarBadge>;
+  disclosureTierByRouteId: Map<string, string>;
 }) {
   const [open, setOpen] = useState(false);
   if (items.length === 0) return null;
@@ -472,6 +443,7 @@ function SidebarMoreView({
       data-sidebar-group="More / Advanced"
       data-sidebar-group-id="sidebar.more-advanced"
       data-sidebar-group-domain="MORE"
+      data-tooling-tier="advanced"
     >
       <div
         className="app-sidebar-v2-more"
@@ -507,6 +479,9 @@ function SidebarMoreView({
                 item={item}
                 badge={hydratedBadges.get(item.route.id) ?? null}
                 active={isActiveRoute(pathname, item.route.href)}
+                disclosureTier={
+                  disclosureTierByRouteId.get(item.route.id) ?? "advanced"
+                }
                 inMore
               />
             ))
@@ -566,17 +541,84 @@ export function AppSidebarV2() {
     secondaryWorkflows,
   });
 
-  const { groups } = buildSidebarGroups(
-    exposure.primaryItems,
-    exposure.secondaryItems,
-  );
+  // R1.5B — workspace experience segmentation. Read the canonical
+  // mode for the current context.
+  const experience = resolveWorkspaceExperience({
+    activeSpaceType,
+    capabilities,
+    primaryWorkflow,
+  });
+
+  // R2 — canonical navigation pipeline. The disclosure resolver
+  // applies BOTH the bounded primary constraint (R2 Part 1) AND the
+  // experience-mode demotion (R1.5B). The grouping resolver then
+  // builds the bounded sidebar groups from the refined exposure.
+  // Authorization is upstream; All Tools / Cmd+K / direct links are
+  // unaffected.
+  const disclosure = resolveNavigationDisclosure({
+    exposure,
+    demotionRouteIds: experience.demotionRouteIds,
+  });
+  emitStateEvent("workspace-experience:resolved", "AppSidebarV2", {
+    mode: experience.mode,
+    demotedCount: disclosure.stats.experienceDemotedCount,
+  });
+  emitStateEvent("navigation-mode:resolved", "AppSidebarV2", {
+    mode: experience.mode,
+    primaryCount: disclosure.primaryItems.length,
+    secondaryCount: disclosure.secondaryItems.length,
+    moreAdvancedCount: disclosure.moreAdvancedItems.length,
+    primaryOverflow: disclosure.stats.primaryOverflowCount,
+  });
+  if (
+    disclosure.stats.experienceDemotedCount > 0 ||
+    disclosure.stats.primaryOverflowCount > 0
+  ) {
+    emitStateEvent("advanced-tooling:disclosed", "AppSidebarV2", {
+      mode: experience.mode,
+      demotedCount: disclosure.stats.experienceDemotedCount,
+      primaryOverflow: disclosure.stats.primaryOverflowCount,
+    });
+  }
+
+  const { groups } = resolveNavigationGroups({
+    primaryItems: disclosure.primaryItems,
+    secondaryItems: disclosure.secondaryItems,
+  });
+
+  // R5 — compute the disclosure tier per visible route. Pure
+  // presentation hint; drives `data-disclosure-tier` so CSS / R10
+  // visual work can target. No access decisions taken here.
+  const disclosureTierByRouteId = new Map<string, string>();
+  for (const item of [
+    ...disclosure.primaryItems,
+    ...disclosure.secondaryItems,
+    ...disclosure.moreAdvancedItems,
+  ]) {
+    disclosureTierByRouteId.set(
+      item.route.id,
+      getRouteDisclosureTier({
+        route: item.route,
+        mode: experience.mode,
+        capabilities,
+      }),
+    );
+  }
+
+  // R5 — map group id → bounded tooling-tier label.
+  function toolingTierFor(groupId: string): string {
+    if (groupId === "sidebar.primary-workflows") return "beginner";
+    if (groupId === "sidebar.governance") return "advanced";
+    if (groupId === "sidebar.operations") return "advanced";
+    return "beginner";
+  }
 
   // Hydrate runtime badges per route id.
   const hydratedBadges = new Map<string, SidebarBadge>();
   for (const item of [
-    ...exposure.primaryItems,
-    ...exposure.secondaryItems,
-    ...exposure.moreAdvancedItems,
+    ...disclosure.primaryItems,
+    ...disclosure.secondaryItems,
+    ...disclosure.moreAdvancedItems,
   ]) {
     const badgeKey = BADGE_KEY_BY_ROUTE_ID[item.route.id];
     if (!badgeKey) continue;
@@ -590,7 +632,10 @@ export function AppSidebarV2() {
   }
 
   return (
-    <aside className="app-sidebar-v2">
+    <aside
+      className="app-sidebar-v2"
+      data-workspace-experience-mode={experience.mode}
+    >
       <div className="app-sidebar-v2-bg" />
       <div className="app-sidebar-v2-inner">
         <div className="app-sidebar-v2-scroll">
@@ -600,13 +645,16 @@ export function AppSidebarV2() {
               group={group}
               pathname={pathname}
               hydratedBadges={hydratedBadges}
+              disclosureTierByRouteId={disclosureTierByRouteId}
+              toolingTier={toolingTierFor(group.id)}
             />
           ))}
 
           <SidebarMoreView
-            items={exposure.moreAdvancedItems}
+            items={disclosure.moreAdvancedItems}
             pathname={pathname}
             hydratedBadges={hydratedBadges}
+            disclosureTierByRouteId={disclosureTierByRouteId}
           />
 
           <div

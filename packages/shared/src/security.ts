@@ -317,6 +317,29 @@ export const SECURITY_EVENT_TYPES = [
   "governance_notification_delivery_failed",
   "governance_export_snapshot_created",
   "governance_lifecycle_drift_detected",
+  // Phase R8 — enterprise identity & security activation. Bounded
+  // identity-side event vocabulary covering MFA lifecycle, SSO login
+  // outcomes, SCIM provisioning lifecycle, and API-key lifecycle.
+  // These supplement the existing Phase 17/19 entries so SIEM
+  // exporters and operator-facing security surfaces have a single
+  // canonical event taxonomy. Payloads carry NO TOTP secrets, NO
+  // raw API keys, NO IdP private keys, NO SAML assertion contents
+  // beyond a redacted subject hash — the service layer enforces
+  // the privacy contract.
+  "mfa_enrollment_started",
+  "mfa_enrollment_completed",
+  "mfa_factor_added",
+  "mfa_factor_removed",
+  "mfa_verification_succeeded",
+  "mfa_verification_failed",
+  "auth_login_failed",
+  "sso_login_succeeded",
+  "sso_login_failed",
+  "scim_user_provisioned",
+  "scim_user_deprovisioned",
+  "scim_group_synced",
+  "api_key_issued",
+  "api_key_revoked",
 ] as const;
 export type SecurityEventType = (typeof SECURITY_EVENT_TYPES)[number];
 

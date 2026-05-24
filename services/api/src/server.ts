@@ -11,7 +11,9 @@ import { usersRoutes } from "./routes/users.routes.js";
 import { platformContextRoutes } from "./routes/platform-context.routes.js";
 import { workspacePersonaRoutes } from "./routes/workspace-persona.routes.js";
 import { captureException, initSentry } from "./observability/sentry.js";
-import { auditMiddleware } from "./middleware/audit.middleware.js";
+// CR1 Phase D — legacy `auditMiddleware` removed. The canonical audit
+// chain is wired into each route via `appendPlatformAuditLog()` from
+// `services/platform-audit-log.service.ts` (hash-chained, DB-backed).
 import { evidenceRoutes } from "./routes/evidence.routes.js";
 import { captureRoutes } from "./routes/capture.routes.js";
 import { bootstrapObjectLockVerification } from "./bootstrap/object-lock-verification.js";
@@ -36,7 +38,9 @@ import { ssoAuthRoutes } from "./routes/sso-auth.routes.js";
 import { aiRoutes } from "./routes/ai.routes.js";
 import { enterpriseRoutes } from "./routes/enterprise.routes.js";
 import { teamManagementRoutes } from "./routes/team-management.routes.js";
-import { webhookRoutes } from "./routes/webhook.routes.js";
+// CR1 Phase B — legacy `webhookRoutes` (per-org in-memory webhooks) deleted.
+// Canonical webhook management lives in `integrations.routes.ts` +
+// `services/integrations/webhooks.service.ts`.
 import analyticsRoutes from "./routes/analytics.routes.js";
 import { adminAuditRoutes } from "./routes/admin-audit.routes.js";
 import { workflowRoutes } from "./routes/workflow.routes.js";
@@ -339,7 +343,10 @@ allowedHeaders: [
     }
   });
 
-  app.addHook("onRequest", auditMiddleware);
+  // CR1 Phase D — legacy `auditMiddleware` hook removed. It wrote to the
+  // in-memory `services/audit.service.ts` tombstone on every state-
+  // mutating request. Per-route canonical audit writes via
+  // `appendPlatformAuditLog()` remain in place.
 
   app.addHook("onResponse", async (req, reply) => {
     const requestWithMeta = req as typeof req & {
@@ -466,7 +473,15 @@ allowedHeaders: [
   // /v1/ops/metrics, /v1/ops/reconcile). Registered FIRST so they're
   // available even if a later route module fails to load.
   await app.register(opsRoutes);
-  await app.register(opsSeedRoutes);
+  // CR1 Phase F — env-guarded operational seeding registration.
+  // Defense in depth: the route handlers already require
+  // requireAuth + governance.policy.manage + a shared seed secret
+  // header, but the registration itself is now gated so production
+  // deployments do not even mount the surface unless explicitly opted
+  // in via OPERATIONAL_SEEDING_ENABLED=true.
+  if (process.env.OPERATIONAL_SEEDING_ENABLED === "true") {
+    await app.register(opsSeedRoutes);
+  }
   await app.register(governanceSnapshotRoutes);
   await app.register(runtimeReadinessRoutes);
 
@@ -508,7 +523,7 @@ allowedHeaders: [
   await app.register(aiRoutes);
   await app.register(enterpriseRoutes);
   await app.register(teamManagementRoutes);
-  await app.register(webhookRoutes);
+  // CR1 Phase B — legacy `webhookRoutes` registration removed.
   await app.register(analyticsRoutes);
   await app.register(demoRequestsRoutes);
   await app.register(adminDemoRequestsRoutes);

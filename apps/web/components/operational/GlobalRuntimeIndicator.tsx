@@ -101,12 +101,16 @@ const SEVERITY_PALETTE: Record<GlobalRuntimeSeverity, Palette> = {
   },
 };
 
+// R1 Part 3 — neutral, non-alarming label for the UNKNOWN runtime
+// severity. "Unknown" reads as a red error in a primary-shell
+// indicator; the actual semantics are "no recent telemetry," which
+// is operational status not user-actionable failure.
 const SEVERITY_LABEL: Record<GlobalRuntimeSeverity, string> = {
   HEALTHY: "Healthy",
   DEGRADED: "Degraded",
   INCIDENT_ACTIVE: "Incident",
   CRITICAL: "CRITICAL",
-  UNKNOWN: "Unknown",
+  UNKNOWN: "Status pending",
 };
 
 export function GlobalRuntimeIndicator({

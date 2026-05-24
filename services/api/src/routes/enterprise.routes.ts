@@ -11,7 +11,11 @@ import { AppError, ErrorCode } from "../errors.js";
 import { apiKeyService } from "../services/api-keys.service.js";
 import { batchAnalysisService } from "../services/batch-analysis.service.js";
 import { getEmailService } from "../services/email.service.js";
-import { getWebhookService } from "../services/webhook.service.js";
+// CR1 Phase E — legacy `getWebhookService` import removed. Its only use
+// in this file was a dead try/catch that fetched the service and
+// immediately void'd it (no webhook was ever fired). Canonical webhook
+// delivery happens via `services/integrations/webhook-dispatcher.ts`
+// triggered through the integrations subsystem.
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 
@@ -830,15 +834,12 @@ export async function enterpriseRoutes(app: FastifyInstance) {
 
         processingPromise
           .then(() => {
-            try {
-              const webhookService = getWebhookService();
-              const completedJob = batchAnalysisService.getJob(userId, id);
-              if (completedJob) {
-                void webhookService;
-              }
-            } catch (error) {
-              console.error("Failed to trigger webhook event:", error);
-            }
+            // CR1 Phase E — legacy in-memory webhook trigger removed.
+            // It was a dead try/catch that fetched the legacy webhook
+            // service factory and immediately void'd the handle. Canonical
+            // webhook fan-out for batch completion belongs in the
+            // integrations subsystem (see `webhook-dispatcher.ts`); add
+            // it there if/when batch-complete events are wired.
 
             try {
               const emailService = getEmailService();

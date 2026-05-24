@@ -303,42 +303,36 @@ describe("Phase 32.8B — backward-compat redirects for consolidated routes", ()
     }
   });
 
-  it("every consolidated legacy route has a backward-compat redirect page", () => {
-    // Maps the entry's source route to the file that must exist + the
-    // canonical target it must redirect to.
-    const cases: Array<{ source: string; expectTarget: string }> = [
-      { source: "app/(app)/dashboard/page.tsx", expectTarget: "/home" },
-      { source: "app/(app)/review/page.tsx", expectTarget: "/reviewer-ops" },
-      { source: "app/(app)/operations/page.tsx", expectTarget: "/ops" },
-      { source: "app/(app)/security/page.tsx", expectTarget: "/security-center" },
-      {
-        source: "app/(app)/locked/page.tsx",
-        expectTarget: "/evidence?filter=locked",
-      },
-      {
-        source: "app/(app)/deleted/page.tsx",
-        expectTarget: "/evidence?filter=deleted",
-      },
-      {
-        source: "app/(app)/archive/page.tsx",
-        expectTarget: "/evidence?filter=archived",
-      },
-      {
-        source: "app/(app)/reviewer-ops/policy/page.tsx",
-        expectTarget: "/governance/policy",
-      },
+  it("every consolidated legacy route has a backward-compat redirect (CR1 Part 2 folded into next.config.js)", () => {
+    // CR1 Part 2 deleted the 8 per-page `next/navigation` redirect()
+    // stubs and folded them into `apps/web/next.config.js` `redirects()`
+    // (canonical 308s, exact-match). End-user behavior is identical;
+    // the redirects are now framework-native instead of JSX-level.
+    const cases: Array<{ source: string; target: string }> = [
+      { source: "/dashboard", target: "/home" },
+      { source: "/review", target: "/reviewer-ops" },
+      { source: "/operations", target: "/ops" },
+      { source: "/security", target: "/security-center" },
+      { source: "/locked", target: "/evidence?filter=locked" },
+      { source: "/deleted", target: "/evidence?filter=deleted" },
+      { source: "/archive", target: "/evidence?filter=archived" },
+      { source: "/reviewer-ops/policy", target: "/governance/policy" },
     ];
-    for (const { source, expectTarget } of cases) {
-      const src = readWeb(source);
+    const cfg = readWeb("next.config.js");
+    expect(cfg, "next.config.js must declare an async redirects() block").toMatch(
+      /async\s+redirects\s*\(/,
+    );
+    for (const { source, target } of cases) {
+      const escSource = source.replace(/\//g, "\\/");
+      const escTarget = target.replace(/[/?=]/g, (m) => `\\${m}`);
       expect(
-        src,
-        `Redirect file ${source} should import { redirect } from next/navigation`,
-      ).toMatch(/import\s+\{\s*redirect\s*\}\s+from\s+"next\/navigation"/);
-      const escaped = expectTarget.replace(/\//g, "\\/").replace(/\?/g, "\\?");
-      expect(
-        src,
-        `Redirect file ${source} should call redirect("${expectTarget}")`,
-      ).toMatch(new RegExp(`redirect\\("${escaped}"\\)`));
+        cfg,
+        `next.config.js must redirect ${source} → ${target}`,
+      ).toMatch(
+        new RegExp(
+          `source:\\s*["']${escSource}["'][\\s\\S]{0,200}destination:\\s*["']${escTarget}["']`,
+        ),
+      );
     }
   });
 

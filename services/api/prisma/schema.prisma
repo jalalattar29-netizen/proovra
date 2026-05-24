@@ -776,6 +776,10 @@ model User {
   revokedSessionsByOperator      RevokedSession[]              @relation("RevokedSessionRevokedBy")
   riskSignalsAsSubject           RiskSignal[]                  @relation("RiskSignalSubjectUser")
 
+  // Phase R8.1 — real MFA activation back-relations.
+  mfaFactors                     MfaFactor[]
+  mfaRecoveryCodes               MfaRecoveryCode[]
+
   // Phase 21 — observability back-relations.
   acknowledgedOperationalIncidents OperationalIncident[]       @relation("OperationalIncidentAcknowledgedBy")
   resolvedOperationalIncidents     OperationalIncident[]       @relation("OperationalIncidentResolvedBy")
@@ -1487,8 +1491,11 @@ model Payment {
 // The live webhook subsystem is `WebhookEndpoint` (+ `IntegrationWebhookEndpoint`
 // / `IntegrationWebhookDelivery`) — see runtime-readiness.ts validator catalog.
 // The dead Prisma enums `AuditAction` and `WebhookStatus` were removed at the
-// same time; the local TypeScript enums in services/api/src/services/audit.service.ts
-// and webhook.service.ts (legacy in-memory implementations) remain unchanged.
+// same time. CR1 Phase D + Phase E then deleted the matching legacy TypeScript
+// services (services/api/src/services/audit.service.ts and
+// services/api/src/services/webhook.service.ts) and their middleware/route
+// surfaces. Canonical audit lives in platform-audit-log.service.ts; canonical
+// webhooks live in services/integrations/webhooks.service.ts + webhook-dispatcher.ts.
 
 model PasswordResetToken {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -2108,8 +2115,10 @@ enum SubscriptionStatus {
 }
 
 // Phase 32.6.3 — `enum AuditAction` and `enum WebhookStatus` removed alongside
-// the orphan `AuditLog` / `Webhook` / `WebhookEvent` models. See the deletion
-// note above PasswordResetToken for full context.
+// the orphan `AuditLog` / `Webhook` / `WebhookEvent` models. CR1 Phase D + Phase
+// E then deleted the matching legacy TypeScript services (audit.service.ts +
+// webhook.service.ts). See the deletion note above PasswordResetToken for
+// full context.
 
 enum StorageAddonKey {
   PERSONAL_10_GB
@@ -4452,6 +4461,119 @@ model TrustedDevice {
   @@index([teamId, trustScoreDecay])
   @@index([teamId, quarantinedAtUtc])
   @@map("trusted_devices")
+}
+
+// =============================================================================
+// PHASE R8.1 — Real MFA activation (TOTP + backup recovery codes).
+//
+// Two append/lifecycle-tracked tables added by R8.1:
+//
+//   - `MfaFactor` — per-user enrolled authenticator. Holds the AES-256-GCM
+//     ciphertext of the RFC 4226 shared secret, plus the GCM IV and the
+//     KEK id used for envelope encryption. NEVER stores the plaintext
+//     secret. Status transitions: ENROLLING → ACTIVE → REVOKED (terminal).
+//
+//   - `MfaRecoveryCode` — bounded set of single-use recovery codes scoped
+//     to the user, identified by a deterministic SHA-256 lookup hash AND
+//     verified by scrypt(code, perRowSalt). The lookup hash makes the
+//     "find the matching code in O(1)" path safe; the scrypt step makes
+//     a stolen lookup hash useless without the plaintext code. Status:
+//     usedAt = NULL means available; non-NULL means consumed (one-time
+//     use). Codes are issued in BATCHES so regeneration invalidates the
+//     whole batch atomically.
+//
+// Audit + security-event emission goes through the existing
+// `platform-audit-log.service.ts` + `security-event.service.ts`. R8.1
+// adds NO new audit tables.
+// =============================================================================
+
+enum MfaFactorStatus {
+  ENROLLING
+  ACTIVE
+  REVOKED
+}
+
+enum MfaFactorKind {
+  TOTP
+}
+
+model MfaFactor {
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                   String                  @map("user_id") @db.Uuid
+
+  kind                     MfaFactorKind           @default(TOTP)
+  status                   MfaFactorStatus         @default(ENROLLING)
+
+  // User-supplied friendly label ("iPhone", "1Password vault"). Bounded
+  // so it can never bloat the row. Never includes raw device IDs or
+  // serial numbers.
+  label                    String                  @db.VarChar(60)
+
+  // AES-256-GCM envelope-encrypted RFC 4226 shared secret. The KEK id
+  // is recorded so we can rotate keys without touching the ciphertext
+  // column. The IV is 12 bytes; the auth tag is 16 bytes. NEVER stores
+  // the plaintext secret.
+  secretCiphertext         Bytes                   @map("secret_ciphertext")
+  secretIv                 Bytes                   @map("secret_iv")
+  secretAuthTag            Bytes                   @map("secret_auth_tag")
+  secretKekId              String                  @map("secret_kek_id") @db.VarChar(64)
+
+  // RFC 6238 parameters. We pin SHA-1 + 6 digits + 30s period at the
+  // service layer to match every mainstream authenticator app; the
+  // columns exist so future migrations to SHA-256 or 8-digit codes can
+  // proceed without a backfill.
+  algorithm                String                  @default("SHA1") @db.VarChar(16)
+  digits                   Int                     @default(6)
+  periodSeconds            Int                     @default(30) @map("period_seconds")
+
+  // Lifecycle timestamps.
+  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  enrolledAt               DateTime?               @map("enrolled_at") @db.Timestamptz(6)
+  lastUsedAt               DateTime?               @map("last_used_at") @db.Timestamptz(6)
+  revokedAt                DateTime?               @map("revoked_at") @db.Timestamptz(6)
+  revokedReason            String?                 @map("revoked_reason") @db.VarChar(120)
+  updatedAt                DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user                     User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // A user can have multiple authenticators (e.g. phone + hardware
+  // token). The unique constraint stops duplicate active rows; we
+  // enforce one-ACTIVE-per-label at the service layer.
+  @@index([userId, status])
+  @@index([status])
+  @@map("mfa_factors")
+}
+
+model MfaRecoveryCode {
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                   String                  @map("user_id") @db.Uuid
+
+  // Batch id — when the user regenerates codes we invalidate the whole
+  // previous batch atomically by stamping usedAt with batchInvalidatedAt.
+  batchId                  String                  @map("batch_id") @db.Uuid
+
+  // Deterministic SHA-256(code) lookup hash. Used to find the row in
+  // O(1) without a table scan. NEVER stores the plaintext code.
+  codeLookupHash           String                  @map("code_lookup_hash") @db.VarChar(64)
+  // Per-row scrypt(code, salt) verifier. A stolen lookup hash is
+  // insufficient — the scrypt step is what makes brute-forcing
+  // expensive even if the row were exfiltrated.
+  codeVerifier             Bytes                   @map("code_verifier")
+  codeVerifierSalt         Bytes                   @map("code_verifier_salt")
+
+  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  usedAt                   DateTime?               @map("used_at") @db.Timestamptz(6)
+  usedFromIp               String?                 @map("used_from_ip") @db.VarChar(64)
+  // Set when this entire batch was invalidated by regeneration; the
+  // service uses this to distinguish "consumed" from "superseded".
+  batchInvalidatedAt       DateTime?               @map("batch_invalidated_at") @db.Timestamptz(6)
+
+  user                     User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([codeLookupHash])
+  @@index([userId, batchId])
+  @@index([userId, usedAt])
+  @@map("mfa_recovery_codes")
 }
 
 // RevokedSession — the deny list checked by the auth middleware.

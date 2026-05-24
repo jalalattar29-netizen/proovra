@@ -16,11 +16,18 @@
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { ReviewerCommandConsole } from "../../../components/reviewer-experience/ReviewerCommandConsole";
+import { HubQuickActionsBar } from "../../../components/hubs/HubQuickActionsBar";
 
 export default function ReviewerOpsPage() {
+  // R6 — Reviewer Center hub bar (queue-oriented quick actions)
+  // above the existing ReviewerCommandConsole. The bar is the
+  // canonical hub HEADER; content below is unchanged.
   return (
     <PageRouteGate routeId="review.queue">
-      <ReviewerCommandConsole />
+      <div data-hub-page data-hub-page-id="reviewer">
+        <HubQuickActionsBar hubId="reviewer" />
+        <ReviewerCommandConsole />
+      </div>
     </PageRouteGate>
   );
 }

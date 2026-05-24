@@ -17,11 +17,19 @@
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { GovernanceControlPlane } from "../../../components/governance-experience/GovernanceControlPlane";
+import { HubQuickActionsBar } from "../../../components/hubs/HubQuickActionsBar";
 
 export default function GovernancePage() {
+  // R6 — Governance Center hub bar (bounded title + subtitle +
+  // ≤4 quick actions + mode-aware help) above the existing
+  // GovernanceControlPlane. No content duplication; the bar is the
+  // canonical hub HEADER.
   return (
     <PageRouteGate routeId="governance.hub">
-      <GovernanceControlPlane />
+      <div data-hub-page data-hub-page-id="governance">
+        <HubQuickActionsBar hubId="governance" />
+        <GovernanceControlPlane />
+      </div>
     </PageRouteGate>
   );
 }

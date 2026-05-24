@@ -152,8 +152,6 @@ const NON_OPERATIONAL_ROUTES: ReadonlySet<string> = new Set([
   // SCIM is token-protected via authenticateScimRequest; tenant is
   // bound by the token, not the session.
   "scim.routes.ts",
-  // Webhook receivers are token-bound; tenant comes from the token.
-  "webhook.routes.ts",
   // Legacy enterprise quota/seats surfaces are account-tier (per
   // authenticated user). The lookup of teamMembers / entitlements is
   // scoped by userId from the session.

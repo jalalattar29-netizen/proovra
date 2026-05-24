@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../lib/api";
 import { useTeamWorkspaceGate } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { HubQuickActionsBar } from "../../../components/hubs/HubQuickActionsBar";
 
 // Phase 32.6.4 — bounded per-panel state machine. Replaces the
 // previous `null | data` pattern where a single 503 from any of the
@@ -128,10 +129,16 @@ const STATUSES: IncidentStatus[] = [
 // Phase 38.8 — wrap in canonical PageRouteGate. The inner component
 // retains its existing workspace + capability behavior; the gate
 // short-circuits denied states with the canonical structured panel.
+// R6 — Operations Center hub bar above the existing Phase 21
+// operations content. The bar is the canonical hub HEADER; the
+// rich existing operations content stays below unchanged.
 export default function OpsPage() {
   return (
     <PageRouteGate routeId="platform.ops_center">
-      <OpsPageInner />
+      <div data-hub-page data-hub-page-id="operations">
+        <HubQuickActionsBar hubId="operations" />
+        <OpsPageInner />
+      </div>
     </PageRouteGate>
   );
 }

@@ -400,7 +400,10 @@ describe("Phase 28-I cross-page invariants", () => {
   const PAGES = [
     "../../../apps/web/app/(app)/reviewer-ops/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
-    "../../../apps/web/app/(app)/reviewer-ops/policy/page.tsx",
+    // CR1 Part 2 deleted `reviewer-ops/policy/page.tsx` (redirect →
+    // /governance/policy is now in next.config.js). The canonical
+    // surface `governance/policy/page.tsx` is exercised by Phase 32.8
+    // tests.
     "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
     "../../../apps/web/app/(app)/governance/page.tsx",
     "../../../apps/web/app/(app)/ops/observability/page.tsx",

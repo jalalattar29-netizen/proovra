@@ -795,9 +795,9 @@ export default function AdminDashboardPage() {
                     <div key={`${page.path}-${idx}`} className="admin-soft-row">
                       <div className="admin-row-between">
                         <div style={{ minWidth: 0, flex: 1 }}>
-                          <div className="admin-item-title">{page.path ?? "Unknown"}</div>
+                          <div className="admin-item-title">{page.path ?? "Path unavailable"}</div>
                           <div className="admin-item-sub">
-                            {page.routeType ?? "unknown"} · {page.share?.toFixed(1) ?? "0.0"}%
+                            {page.routeType ?? "unspecified"} · {page.share?.toFixed(1) ?? "0.0"}%
                             share
                           </div>
                         </div>
@@ -834,7 +834,7 @@ export default function AdminDashboardPage() {
                     <div key={`${country.countryCode}-${idx}`} className="admin-soft-row">
                       <div className="admin-row-between">
                         <div style={{ minWidth: 0, flex: 1 }}>
-                          <div className="admin-item-title">{country.name ?? "Unknown"}</div>
+                          <div className="admin-item-title">{country.name ?? "Region unavailable"}</div>
                           <div className="admin-item-sub">
                             {country.countryCode ?? "—"} ·{" "}
                             {country.share?.toFixed(1) ?? "0.0"}% share

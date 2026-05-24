@@ -384,7 +384,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "governance.analytics",
     href: "/governance/analytics",
-    label: "Governance analytics",
+    label: "Governance insights",
     description: "Bounded compliance metrics: lifecycle, retention, drift, reconciliation runs.",
     domain: "GOVERNANCE",
     requiredCapabilities: ["GOVERNANCE_VIEW"],

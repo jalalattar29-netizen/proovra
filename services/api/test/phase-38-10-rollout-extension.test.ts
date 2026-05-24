@@ -146,10 +146,21 @@ describe("Phase 38.10 — CommandCenter consumes getPersonaSectionOrder", () => 
     );
   });
 
-  it("calls getPersonaSectionOrder with the persona profile", () => {
+  it("uses the persona section order via the R3 dashboard orchestrator", () => {
+    // R3 introduced `resolveDashboardSections` which CALLS the
+    // canonical `getPersonaSectionOrder` helper internally. The
+    // CommandCenter no longer invokes the helper directly — it
+    // consumes the orchestrator which preserves the persona
+    // contract.
     expect(COMMAND_CENTER).toMatch(
-      /getPersonaSectionOrder\(\s*\{[\s\S]{0,200}persona:[\s\S]{0,200}availableSectionIds/,
+      /resolveDashboardSections\(\s*\{[\s\S]{0,200}persona:[\s\S]{0,200}availableSectionIds/,
     );
+    // Sanity-check that the orchestrator still wraps the persona
+    // helper (so the persona contract is end-to-end preserved).
+    const orchestratorSrc = readWeb(
+      "lib/dashboard/resolveDashboardSections.ts",
+    );
+    expect(orchestratorSrc).toMatch(/getPersonaSectionOrder/);
   });
 
   it("exposes the workflow profile + computed section order as data attributes", () => {

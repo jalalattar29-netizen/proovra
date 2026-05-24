@@ -35,12 +35,23 @@ import Link from "next/link";
 import { apiFetch } from "../../lib/api";
 import {
   getPersonaSectionOrder,
+  useActiveSpace,
   usePersonaProfile,
   usePlatformContext,
-  useTeamWorkspaceGate,
   workflowFromPersona,
 } from "../../lib/platform-context";
+import {
+  emit as emitStateEvent,
+  redactWorkspaceId,
+} from "../../lib/platform-context/state-observability";
+import { resolveWorkspaceExperience } from "../../lib/workspace-experience";
+import {
+  resolveDashboardOnboarding,
+  resolveDashboardQuickActions,
+  resolveDashboardSections,
+} from "../../lib/dashboard";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
+import { CommandCenterQuickActions } from "./CommandCenterQuickActions";
 import { RuntimeStatusBanner } from "../operational";
 import type {
   AuditReadinessCounter,
@@ -67,41 +78,63 @@ type LoadState =
   | { status: "unavailable"; message: string; requestId: string | null };
 
 export function CommandCenter() {
-  const workspace = useTeamWorkspaceGate();
+  // R1 (Bug A) — canonical active-space resolution. Personal Space and
+  // Organization spaces are BOTH valid workspaces; the legacy team-
+  // only workspace gate filtered out personal users and produced the
+  // "No workspace selected" mismatch with the topbar. We now read the
+  // same canonical envelope the topbar reads.
+  const ctx = usePlatformContext();
+  const activeSpace = useActiveSpace();
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
   useEffect(() => {
-    if (workspace.status === "loading") {
+    // Provider state machine owns loading + auth + transport errors.
+    if (ctx.state.name === "IDLE" || ctx.state.name === "LOADING_CONTEXT") {
       setState({ status: "loading" });
       return;
     }
-    if (workspace.status === "no-workspace") {
-      setState({ status: "no_workspace" });
-      return;
-    }
-    if (workspace.status === "error") {
-      if (
-        workspace.code === "auth_required" ||
-        workspace.code === "permission_denied"
+    if (ctx.state.name === "FAILED") {
+      const code = ctx.state.errorCode;
+      if (code === "AUTH_REQUIRED") {
+        setState({ status: "auth_error", code: "auth_required" });
+      } else if (
+        code === "PERMISSION_DENIED" ||
+        code === "WORKSPACE_MEMBERSHIP_REQUIRED"
       ) {
-        setState({ status: "auth_error", code: workspace.code });
+        setState({ status: "auth_error", code: "permission_denied" });
       } else {
         setState({
           status: "unavailable",
-          message: workspace.message,
-          requestId: workspace.requestId ?? null,
+          message: ctx.state.message,
+          requestId: ctx.state.requestId ?? null,
         });
       }
       return;
     }
+    // READY or SWITCHING — the envelope is available. If there is
+    // genuinely no active space (rare; provider bootstraps Personal
+    // Space), render the structured empty state. Otherwise the active
+    // space id drives the dashboard fetch, regardless of PERSONAL vs
+    // ORGANIZATION type.
+    if (!activeSpace) {
+      setState({ status: "no_workspace" });
+      return;
+    }
+    emitStateEvent("active-space:resolved", "CommandCenter", {
+      activeSpaceType: activeSpace.type,
+      activeSpaceId: redactWorkspaceId(activeSpace.id),
+    });
     let cancelled = false;
     setState({ status: "loading" });
     apiFetch(
-      `/v1/dashboard/command-center?teamId=${encodeURIComponent(workspace.workspaceId)}`,
+      `/v1/dashboard/command-center?teamId=${encodeURIComponent(activeSpace.id)}`,
       { method: "GET" },
     )
       .then((envelope: CommandCenterEnvelope) => {
         if (cancelled) return;
+        emitStateEvent("dashboard:resolved", "CommandCenter", {
+          activeSpaceType: activeSpace.type,
+        });
         setState({ status: "ready", envelope });
       })
       .catch((err: { message?: string; requestId?: string }) => {
@@ -116,8 +149,10 @@ export function CommandCenter() {
       cancelled = true;
     };
   }, [
-    workspace.status,
-    workspace.status === "ready" ? workspace.workspaceId : null,
+    ctx.state.name,
+    ctx.state.name === "FAILED" ? ctx.state.errorCode : null,
+    activeSpace?.id,
+    activeSpace?.type,
   ]);
 
   if (state.status === "loading") return <CommandCenterLoading />;
@@ -167,21 +202,86 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
   const renderableSectionIds = CANONICAL_SECTION_IDS.filter(
     (id) => sectionsKeys.has(id),
   );
-  const clientSectionOrder: string[] = getPersonaSectionOrder({
+  // R3 — canonical dashboard orchestration. Combines workspace
+  // experience mode + persona + availability into a single ordered
+  // section list with per-section emphasis labels. The orchestrator
+  // wraps `getPersonaSectionOrder()` (legacy persona helper) so the
+  // existing persona contract is preserved while mode emphasis
+  // layers on top. No authorization is consulted.
+  const experienceModeForSections = ctx.envelope?.activeSpace?.type
+    ? resolveWorkspaceExperience({
+        activeSpaceType: ctx.envelope.activeSpace.type,
+        capabilities: ctx.envelope.capabilities ?? {},
+        primaryWorkflow: workflowFromPersona(personaProfile.primaryProfile)
+          .code,
+      }).mode
+    : ("PERSONAL" as const);
+  const orchestratedSections = resolveDashboardSections({
+    mode: experienceModeForSections,
     persona: personaProfile.primaryProfile,
     availableSectionIds:
       renderableSectionIds.length > 0
         ? renderableSectionIds
         : backendSectionOrder,
-  }) as string[];
+  });
+  const clientSectionOrder: string[] = orchestratedSections.sectionOrder as string[];
+  const sectionEmphasisById = new Map(
+    orchestratedSections.sections.map((s) => [s.id, s.emphasis] as const),
+  );
   const sectionOrder: string[] =
     clientSectionOrder.length > 0 ? clientSectionOrder : backendSectionOrder;
+  emitStateEvent("dashboard-sections:resolved", "CommandCenterReady", {
+    mode: experienceModeForSections,
+    sectionCount: sectionOrder.length,
+  });
+  const dashboardPrimaryCount = orchestratedSections.sections.filter(
+    (s) => s.emphasis === "primary",
+  ).length;
+  emitStateEvent("dashboard-priority:resolved", "CommandCenterReady", {
+    mode: experienceModeForSections,
+    primarySectionCount: dashboardPrimaryCount,
+  });
   // The render loop consumes this exact ordered list. The priority
   // strip + IntersectionObserver hook also read it, so the strip,
   // active-section tracking, and rendered layout all move together
   // when the workflow profile changes.
   const finalSectionOrder: string[] = sectionOrder;
   const workflowCode = workflowFromPersona(personaProfile.primaryProfile).code;
+
+  // R1.5B — dashboard experience emphasis. Read the canonical mode
+  // and surface it as a data attribute + observability event. The
+  // dashboard itself is NOT redesigned in R1.5B — R3 owns the
+  // emphasis orchestration. This wires the data hook so R3 can
+  // target the mode without further refactor.
+  const dashboardExperience = resolveWorkspaceExperience({
+    activeSpaceType: ctx.envelope?.activeSpace?.type ?? null,
+    capabilities: ctx.envelope?.capabilities ?? {},
+    primaryWorkflow: workflowCode,
+  });
+  emitStateEvent("dashboard-mode:resolved", "CommandCenter", {
+    experienceMode: dashboardExperience.mode,
+    dashboardEmphasis: dashboardExperience.dashboardEmphasis,
+  });
+
+  // R3 — contextual quick actions for the current experience mode.
+  // Each action is a SHORTCUT to an existing registered route; the
+  // orchestrator never invents an href. The actions render in the
+  // hero meta strip so operators see them immediately.
+  const quickActions = resolveDashboardQuickActions({
+    mode: dashboardExperience.mode,
+  });
+  emitStateEvent("dashboard-quick-actions:resolved", "CommandCenterReady", {
+    mode: dashboardExperience.mode,
+    count: quickActions.length,
+  });
+
+  // R3 — contextual onboarding hint. Returns `null` once the operator
+  // has completed setup. The dashboard renders it as a single
+  // operationally-meaningful action — never generic emptiness.
+  const onboardingHint = resolveDashboardOnboarding({
+    mode: dashboardExperience.mode,
+    onboardingCompleted: personaProfile.onboardingCompleted,
+  });
 
   // Phase 32.8C+++++++ — active-section tracking via IntersectionObserver.
   // Persona priority chips light up as the operator scrolls, and the URL
@@ -196,6 +296,8 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
       data-cc-persona={persona ?? "VIEWER"}
       data-cc-workspace-scope={workspace.scope}
       data-cc-workflow={workflowCode}
+      data-cc-experience-mode={dashboardExperience.mode}
+      data-cc-dashboard-emphasis={dashboardExperience.dashboardEmphasis}
       data-cc-persona-section-order={sectionOrder.join(",")}
     >
       {/* HERO STRIP */}
@@ -225,6 +327,35 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
             Refreshed {relTime(envelope.generatedAt)}
           </span>
         </div>
+        {/* R3 — contextual quick actions. Bounded shortcuts to
+            existing routes. Never invents new destinations. */}
+        <CommandCenterQuickActions
+          actions={quickActions}
+          mode={dashboardExperience.mode}
+        />
+        {/* R3 — contextual onboarding hint. Renders only while
+            onboarding is incomplete. Never generic emptiness. */}
+        {onboardingHint ? (
+          <div
+            data-cc-onboarding-hint
+            data-cc-onboarding-hint-mode={dashboardExperience.mode}
+            data-cc-onboarding-hint-tone={onboardingHint.tone}
+            style={{
+              marginTop: 8,
+              fontSize: 13,
+              color:
+                onboardingHint.tone === "positive" ? "#065f46" : "#475569",
+            }}
+          >
+            <Link
+              href={onboardingHint.href}
+              className="cc-quick-action"
+              data-cc-onboarding-hint-cta
+            >
+              {onboardingHint.label}
+            </Link>
+          </div>
+        ) : null}
       </header>
 
       {/* Phase 32.8C FINAL-4 — persona priority strip. Renders the
@@ -4721,22 +4852,26 @@ function CommandCenterLoading() {
 }
 
 function NoWorkspaceState() {
+  // R1 Part 3 — neutral, actionable copy. After Bug A's fix this state
+  // is only reachable when the envelope genuinely lacks an active
+  // space (very rare; provider bootstraps Personal Space). Treat it
+  // as "setup incomplete," NOT as an error.
   return (
     <main className="ec-page" data-command-center-empty>
       <header className="ec-hero">
         <div className="ec-hero-titles">
           <div className="ec-kicker">Evidence Operations Center</div>
-          <h1 className="ec-title">No workspace selected</h1>
+          <h1 className="ec-title">Workspace setup incomplete</h1>
           <p className="ec-subtitle">
-            Select a workspace to view operational pressure, investigation
-            status, reviewer coordination, and governance posture.
+            Your workspace is still being prepared, or you can create or
+            join an organization to enable team operations.
           </p>
         </div>
       </header>
       <SectionShell kicker="Get started" title="Onboarding">
         <div className="ec-quick-grid">
           <Link href="/teams" className="ec-quick-action is-primary">
-            Create or join a workspace
+            Create or join an organization
           </Link>
           <Link href="/capture" className="ec-quick-action">
             Capture personal evidence
