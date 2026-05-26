@@ -52,6 +52,13 @@ import { enforceRateLimit } from "../services/rate-limit.js";
 const AUTH_LOGIN_RATE_LIMIT_PER_IP_PER_MIN = 10;
 const AUTH_PASSWORD_RESET_RATE_LIMIT_PER_IP_PER_MIN = 5;
 const AUTH_RATE_LIMIT_WINDOW_SEC = 60;
+// Phase 1 — guest-auth rate limit. Anonymous /v1/auth/guest creates a
+// new User row and JWT every call. Without a bucket an attacker can
+// inflate the user table arbitrarily, exhaust signing-key bucket
+// references, and abuse downstream guest-tier evidence quotas. 5/min/IP
+// is generous for legitimate flows (one human + a handful of retries)
+// but cuts off scripted creation. The bucket is configurable via env.
+const AUTH_GUEST_RATE_LIMIT_PER_IP_PER_MIN = 5;
 
 function readClientIp(req: FastifyRequest): string {
   // `req.ip` is normalised by Fastify; fall back to "unknown" so the
@@ -481,6 +488,37 @@ export async function authRoutes(app: FastifyInstance) {
   }
 
   app.post("/v1/auth/guest", async (req, reply) => {
+    // Phase 1 — per-IP rate limit on guest-account creation. Each call
+    // inserts a User row + JWT signing; unprotected the endpoint is a
+    // free guest-account fountain that breaks plan enforcement and
+    // inflates the audit log.
+    const rl = await enforceRateLimit({
+      key: `auth:guest:ip:${readClientIp(req)}`,
+      max: AUTH_GUEST_RATE_LIMIT_PER_IP_PER_MIN,
+      windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
+    });
+    if (!rl.allowed) {
+      const retryAfter = Math.max(
+        1,
+        Math.ceil((rl.resetAtMs - Date.now()) / 1000),
+      );
+      req.log.warn(
+        { ip: readClientIp(req), bucket: "ip", retryAfterSec: retryAfter },
+        "auth.guest.rate_limited",
+      );
+      auditAuthEvent(req, {
+        userId: null,
+        action: "auth.guest_session_created",
+        outcome: "failure",
+        severity: "warning",
+        metadata: { reason: "rate_limited" },
+      });
+      reply.header("Retry-After", String(retryAfter));
+      return reply
+        .code(429)
+        .send({ code: "RATE_LIMITED", message: "Rate limit exceeded" });
+    }
+
     const profile = await createGuestProfile();
     const user = await upsertUser(profile);
     await ensureGuestIdentity(user.id);

@@ -1,0 +1,206 @@
+name: schema-reproducibility
+
+# Phase 0 — platform reproducibility & schema truth guard.
+#
+# Runs `prisma migrate deploy` against a fresh, empty Postgres database
+# and asserts that:
+#
+#   1. Every migration applies cleanly (no manual SQL drift-patches
+#      required to bring up a new environment).
+#   2. The API can boot against that database with
+#      `SCHEMA_VALIDATION_FAIL_FAST=true` and the runtime validator
+#      reports `healthy` (no SCHEMA_DRIFT_CRITICAL).
+#   3. The local-pem `prisma:seed` script populates the SigningKey row
+#      so verify endpoints don't 404 on a fresh environment.
+#
+# This is INTENTIONALLY independent of the broader stack-integration
+# job in ci.yml. The goal is to catch migration-chain regressions
+# (PR-time) before they reach a deploy. A failure here means a new
+# environment cannot be brought up from source, which is a Phase 0
+# blocker — disaster recovery and onboarding both depend on this.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  clean-db-boot:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: proovra
+          POSTGRES_PASSWORD: proovra_password
+          POSTGRES_DB: proovra_repro
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U proovra -d proovra_repro"
+          --health-interval=2s
+          --health-timeout=3s
+          --health-retries=20
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=2s
+          --health-timeout=3s
+          --health-retries=20
+
+    env:
+      # NOTE: This job intentionally does NOT consume the production
+      # .env. Every value below is a sandboxed local-only stub.
+      DATABASE_URL: postgresql://proovra:proovra_password@localhost:5432/proovra_repro
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: development
+      PORT: "8081"
+      LOG_LEVEL: info
+      CORS_ORIGINS: ""
+      APP_URL: http://localhost:3000
+      APP_BASE_URL: http://localhost:3000
+      WEB_BASE_URL: http://localhost:3000
+      NEXT_PUBLIC_API_BASE: http://localhost:8081
+      NEXT_PUBLIC_WEB_BASE: http://localhost:3000
+      NEXT_PUBLIC_APP_BASE: http://localhost:3000
+
+      # Storage — leave S3_* unset; the API doesn't need to talk to S3
+      # during schema validation and we don't want to spin up MinIO for
+      # this job. The runtime validator only inspects the DB.
+      S3_ENDPOINT: http://localhost:9000
+      S3_REGION: auto
+      S3_ACCESS_KEY: ci_stub
+      S3_SECRET_KEY: ci_stub_password
+      S3_BUCKET: ci-stub-bucket
+      S3_ALLOW_INSECURE: "true"
+      S3_FORCE_PATH_STYLE: "true"
+      S3_OBJECT_LOCK_ENABLED: "false"
+      OBJECT_LOCK_VERIFICATION_BYPASS: "true"
+
+      # Signing — local-pem path so the new seed script is exercised.
+      SIGNER_PROVIDER: local-pem
+      SIGNING_KEY_ID: ci_repro_ed25519
+      SIGNING_KEY_VERSION: "1"
+      SIGNING_PRIVATE_KEY_PATH: services/api/keys/signing-private.pem
+      SIGNING_PUBLIC_KEY_PATH: services/api/keys/signing-public.pem
+      PACKAGE_SIGNING_KEY_ID: ci_repro_package_ed25519
+      PACKAGE_SIGNING_KEY_VERSION: "1"
+      PACKAGE_SIGNING_PRIVATE_KEY_PATH: services/api/keys/signing-private.pem
+      PACKAGE_SIGNING_PUBLIC_KEY_PATH: services/api/keys/signing-public.pem
+
+      AUTH_JWT_SECRET: ci_repro_jwt_secret_min_32_chars_long_for_validator_xyz
+      SCHEMA_VALIDATION_FAIL_FAST: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build shared packages (needed by API runtime imports)
+        run: pnpm run build:shared
+
+      - name: Generate Prisma client
+        working-directory: services/api
+        run: pnpm prisma generate
+
+      # ---------------------------------------------------------------
+      # PHASE 0 CORE: a clean Postgres + `prisma migrate deploy` must
+      # produce a working schema with NO out-of-band SQL applied.
+      # ---------------------------------------------------------------
+      - name: Prove clean-DB migrate deploy
+        working-directory: services/api
+        run: pnpm prisma migrate deploy
+
+      - name: Snapshot resulting schema (sanity counts)
+        run: |
+          PGPASSWORD=proovra_password psql -h localhost -U proovra -d proovra_repro -c "SELECT count(*) AS enum_count FROM pg_type WHERE typtype='e';"
+          PGPASSWORD=proovra_password psql -h localhost -U proovra -d proovra_repro -c "SELECT count(*) AS table_count FROM information_schema.tables WHERE table_schema='public';"
+          PGPASSWORD=proovra_password psql -h localhost -U proovra -d proovra_repro -c "SELECT count(*) AS applied FROM _prisma_migrations WHERE finished_at IS NOT NULL;"
+
+      - name: Seed local-pem signing key
+        working-directory: services/api
+        run: pnpm prisma:seed
+
+      # ---------------------------------------------------------------
+      # PHASE 0 ASSERTION: the API must boot against the migrated DB
+      # without SCHEMA_DRIFT_CRITICAL. We boot it in the background
+      # with fail-fast on, hit /health, and grep the log for
+      # `runtime.schema_validation.healthy`.
+      # ---------------------------------------------------------------
+      - name: Build API
+        working-directory: services/api
+        run: pnpm build
+
+      - name: Boot API and assert schema validation passes
+        working-directory: services/api
+        env:
+          # SCHEMA_VALIDATION_FAIL_FAST is intentionally NOT relaxed.
+          # If the validator finds drift, the process exits non-zero
+          # and CI fails — which is exactly the regression guard we
+          # want.
+          SCHEMA_VALIDATION_FAIL_FAST: "true"
+        run: |
+          set -e
+          nohup pnpm start > /tmp/api-repro.log 2>&1 &
+          api_pid=$!
+
+          for i in {1..30}; do
+            if curl -sSf --max-time 2 http://localhost:8081/health > /dev/null 2>&1; then
+              echo "API healthy after ${i}s"
+              break
+            fi
+            if ! kill -0 "$api_pid" 2>/dev/null; then
+              echo "API crashed during startup — log tail:"
+              tail -100 /tmp/api-repro.log || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "=== /health ==="
+          curl -sS --fail http://localhost:8081/health
+
+          echo
+          echo "=== validator outcome ==="
+          if grep -q '"msg":"runtime.schema_validation.healthy"' /tmp/api-repro.log; then
+            echo "OK — runtime.schema_validation.healthy observed."
+          else
+            echo "FAIL — runtime schema validation did not report healthy."
+            echo "--- API log (tail) ---"
+            tail -120 /tmp/api-repro.log
+            kill "$api_pid" 2>/dev/null || true
+            exit 1
+          fi
+
+          echo
+          echo "=== detect any DRIFT_CRITICAL or DRIFT_DEGRADED in log ==="
+          if grep -E '"msg":"runtime.schema_validation\.(critical|degraded)"' /tmp/api-repro.log; then
+            echo "FAIL — schema drift detected on a freshly-migrated DB."
+            tail -120 /tmp/api-repro.log
+            kill "$api_pid" 2>/dev/null || true
+            exit 1
+          fi
+
+          kill "$api_pid" 2>/dev/null || true
+          wait "$api_pid" 2>/dev/null || true
+
+      - name: Upload API log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-repro-log
+          path: /tmp/api-repro.log
+          if-no-files-found: ignore

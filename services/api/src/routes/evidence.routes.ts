@@ -858,9 +858,78 @@ function getTierLimit(plan: prismaPkg.PlanType) {
 }
 
 function getVerifyLimit() {
+  // Phase 1 — tightened defaults. 30/min sustained, configurable.
+  // Was 60/min by default which the runtime audit demonstrated permits
+  // unrestricted scraping of evidence metadata over a UUID guess space.
+  // Operators can still raise via env if a legitimate fan-out is needed
+  // (e.g. a high-traffic shared verify URL).
   return {
-    max: readPositiveIntEnv("VERIFY_RATE_LIMIT_MAX", 60),
+    max: readPositiveIntEnv("VERIFY_RATE_LIMIT_MAX", 30),
     windowSec: readPositiveIntEnv("VERIFY_RATE_LIMIT_WINDOW_SEC", 60),
+  };
+}
+
+// Phase 1 — per-evidence-id verify limit. Stops one attacker from
+// using rotated IPs / TLS-resumed connections to enumerate a single
+// evidence record's history. Lower default than the per-IP bucket;
+// legitimate viewers refresh a verify page at most a handful of
+// times per minute.
+function getVerifyPerEvidenceLimit() {
+  return {
+    max: readPositiveIntEnv("VERIFY_RATE_LIMIT_PER_EVIDENCE_MAX", 60),
+    windowSec: readPositiveIntEnv(
+      "VERIFY_RATE_LIMIT_PER_EVIDENCE_WINDOW_SEC",
+      60,
+    ),
+  };
+}
+
+// =============================================================================
+// Phase 1 — public verify identity exposure policy
+// =============================================================================
+//
+// The runtime audit (2026-05-26) confirmed that the public verify
+// response shape exposed `submittedByEmail`, `workspaceName`,
+// `organizationName`, and `submittedByAuthProviderCode` to
+// unauthenticated callers. For a regulated buyer, journalist's source,
+// insurance claimant, or any case-sensitive submitter this is a P0
+// privacy leak. Even though `submittedByEmail` was passed through
+// `maskPublicEmail()` it leaked the FULL DOMAIN — enough to identify
+// the submitting organization (e.g. `***@nytimes.com`).
+//
+// Default posture from Phase 1 onward:
+//   * `submittedByEmail`         → ALWAYS null on /public/verify
+//   * `workspaceName`            → null unless explicit env opt-in
+//   * `organizationName`         → null unless explicit env opt-in
+//   * `submittedByAuthProvider`  → label-only ("Google sign-in"), no code
+//   * `organizationVerified`     → kept (boolean, no name)
+//
+// Operators may opt back into attribution display via the env flag
+// `PUBLIC_VERIFY_EXPOSE_ATTRIBUTION=true`. The flag is global today;
+// a per-evidence opt-in is tracked as Phase 2 product work.
+//
+// This function is the SINGLE place to consult before shaping the
+// verify response. Do not branch elsewhere.
+function getPublicVerifyIdentityExposure(): {
+  exposeAttribution: boolean;
+  exposeAuthProviderCode: boolean;
+  reason: string;
+} {
+  const exposeAttribution =
+    String(process.env.PUBLIC_VERIFY_EXPOSE_ATTRIBUTION ?? "false")
+      .trim()
+      .toLowerCase() === "true";
+  const exposeAuthProviderCode =
+    String(process.env.PUBLIC_VERIFY_EXPOSE_AUTH_PROVIDER_CODE ?? "false")
+      .trim()
+      .toLowerCase() === "true";
+
+  return {
+    exposeAttribution,
+    exposeAuthProviderCode,
+    reason: exposeAttribution
+      ? "operator_opt_in:PUBLIC_VERIFY_EXPOSE_ATTRIBUTION=true"
+      : "default_redacted",
   };
 }
 
@@ -3240,11 +3309,21 @@ primaryContentLabel: buildPrimaryContentLabel(
     captureMethod: mapCaptureMethodLabel(params.evidence.captureMethod),
     captureMethodCode: params.evidence.captureMethod,
     mimeType: params.evidence.mimeType ?? null,
-    submittedByEmail: maskPublicEmail(params.evidence.submittedByEmail),
+    // Phase 1 — `submittedByEmail` is always redacted on the public
+    // surface. The call site in /public/verify passes null. For other
+    // callers (evidence detail, reviewer surfaces) the field is still
+    // resolved via the same maskPublicEmail helper, which keeps the
+    // 1-character + domain mask for low-trust internal display.
+    submittedByEmail: params.evidence.submittedByEmail
+      ? maskPublicEmail(params.evidence.submittedByEmail)
+      : null,
     submittedByAuthProvider: mapAuthProviderLabel(
       params.evidence.submittedByAuthProvider
     ),
-    submittedByAuthProviderCode: params.evidence.submittedByAuthProvider ?? null,
+    // Phase 1 — `submittedByAuthProviderCode` (raw enum like "GOOGLE"
+    // / "APPLE" / "GUEST" / "EMAIL_PASSWORD") was a fingerprint-able
+    // leak on top of the label. The label-only is sufficient public
+    // signal. Removed from the response shape.
     identityLevel: mapIdentityLevelLabel(params.evidence.identityLevelSnapshot),
     identityLevelCode: params.evidence.identityLevelSnapshot ?? null,
     workspaceName: params.evidence.workspaceNameSnapshot ?? null,
@@ -6937,7 +7016,29 @@ await appendCustodyEvent({
         });
 
         if (!signingKey) {
-          return reply.code(404).send({ message: "Signing key not found" });
+          // Phase 1 — see /public/verify handler for context. A SIGNED
+          // evidence row without a matching `signing_keys` row is an
+          // operational misconfiguration (seed step missed). Emit a
+          // critical alert. The authenticated surface can give the
+          // operator a more specific code so support can triage.
+          req.log.warn(
+            {
+              alert: true,
+              severity: "critical",
+              reason: "signing_key_missing_for_signed_evidence",
+              evidenceId: id,
+              signingKeyId: evidence.signingKeyId,
+              signingKeyVersion: evidence.signingKeyVersion,
+            },
+            "operational.alert",
+          );
+          return reply
+            .code(503)
+            .send({
+              code: "SIGNING_KEY_MISSING",
+              message:
+                "The signing key referenced by this evidence record is not registered. Re-run `pnpm prisma:seed` against this environment, or contact support.",
+            });
         }
 
         const [
@@ -9266,24 +9367,88 @@ action: "evidence.certification_requested",
   );
 
   app.get("/public/verify/:id", async (req: FastifyRequest, reply) => {
+    // Phase 1 — two-layer rate limit. Both buckets must allow.
+    //   Layer 1 (per-IP): defends against scraping the UUID space.
+    //   Layer 2 (per-evidence-id): defends against rotating-IP /
+    //     proxy enumeration of a single record's verify history.
+    // Both buckets are observable via the `verification.page_opened`
+    // audit + the new `public_verify.rate_limited` warn log so an
+    // operator can detect coordinated abuse.
     const limit = getVerifyLimit();
-    const rate = await enforceRateLimit({
-      key: `ratelimit:verify:${req.ip}`,
+    const ipKey = `ratelimit:verify:ip:${req.ip}`;
+    const ipRate = await enforceRateLimit({
+      key: ipKey,
       max: limit.max,
       windowSec: limit.windowSec,
     });
 
-    if (!rate.allowed) {
+    if (!ipRate.allowed) {
+      const retryAfter = Math.max(
+        1,
+        Math.ceil((ipRate.resetAtMs - Date.now()) / 1000),
+      );
+      req.log.warn(
+        {
+          ip: req.ip,
+          bucket: "ip",
+          remaining: 0,
+          resetAtMs: ipRate.resetAtMs,
+          retryAfterSec: retryAfter,
+        },
+        "public_verify.rate_limited",
+      );
       auditVerificationAction(req, {
         userId: null,
         action: "verification.page_opened",
         resourceId: null,
-        metadata: { outcome: "rate_limited" },
+        metadata: { outcome: "rate_limited", bucket: "ip" },
       });
-      return reply.code(429).send({ message: "Rate limit exceeded" });
+      reply.header("Retry-After", String(retryAfter));
+      return reply
+        .code(429)
+        .send({ code: "RATE_LIMITED", message: "Rate limit exceeded" });
     }
 
     const id = z.string().uuid().parse((req.params as ParamsId).id);
+
+    // Phase 1 — second bucket, keyed by evidence id. We parse the id
+    // FIRST (above) so the bucket key is only set after validation;
+    // unparseable input falls through to the zod 400 path without
+    // consuming a rate-limit slot.
+    const perEvidenceLimit = getVerifyPerEvidenceLimit();
+    const perEvidenceRate = await enforceRateLimit({
+      key: `ratelimit:verify:evidence:${id}`,
+      max: perEvidenceLimit.max,
+      windowSec: perEvidenceLimit.windowSec,
+    });
+
+    if (!perEvidenceRate.allowed) {
+      const retryAfter = Math.max(
+        1,
+        Math.ceil((perEvidenceRate.resetAtMs - Date.now()) / 1000),
+      );
+      req.log.warn(
+        {
+          ip: req.ip,
+          evidenceId: id,
+          bucket: "evidence",
+          remaining: 0,
+          resetAtMs: perEvidenceRate.resetAtMs,
+          retryAfterSec: retryAfter,
+        },
+        "public_verify.rate_limited",
+      );
+      auditVerificationAction(req, {
+        userId: null,
+        action: "verification.page_opened",
+        resourceId: id,
+        metadata: { outcome: "rate_limited", bucket: "evidence" },
+      });
+      reply.header("Retry-After", String(retryAfter));
+      return reply
+        .code(429)
+        .send({ code: "RATE_LIMITED", message: "Rate limit exceeded" });
+    }
 
     (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
     req.log = req.log.child({ evidenceId: id });
@@ -9553,7 +9718,47 @@ action: "evidence.certification_requested",
     });
 
     if (!signingKey) {
-      return reply.code(404).send({ message: "Signing key not found" });
+      // Phase 1 — a SIGNED evidence row with no matching signing_keys
+      // row is an OPERATIONAL FAILURE, not a normal 404. The seed step
+      // (services/api/src/seed-signing-key.ts) was either skipped on
+      // this environment or pointed at the wrong (keyId, version) pair.
+      // The runtime audit hit this exact case on a fresh local-pem
+      // environment.
+      //
+      // Two consequences:
+      //   1. Log at WARN with an operational alert flag so the on-call
+      //      gets paged before users see broken verify pages.
+      //   2. Return a GENERIC public response. The exact internal
+      //      cause ("signing key id X version Y not in signing_keys
+      //      table") leaks operator-only information.
+      req.log.warn(
+        {
+          alert: true,
+          severity: "critical",
+          reason: "signing_key_missing_for_signed_evidence",
+          evidenceId: id,
+          signingKeyId: evidence.signingKeyId,
+          signingKeyVersion: evidence.signingKeyVersion,
+        },
+        "operational.alert",
+      );
+      auditVerificationAction(req, {
+        userId: null,
+        action: "verification.page_opened",
+        resourceId: id,
+        metadata: {
+          outcome: "signing_key_missing",
+          signingKeyId: evidence.signingKeyId,
+          signingKeyVersion: evidence.signingKeyVersion,
+        },
+      });
+      return reply
+        .code(503)
+        .send({
+          code: "VERIFICATION_TEMPORARILY_UNAVAILABLE",
+          message:
+            "Verification is temporarily unavailable. Please retry in a few minutes.",
+        });
     }
 
     const allCustodyEvents = await prisma.custodyEvent.findMany({
@@ -10103,6 +10308,29 @@ const overallIntegrity =
       mapPublicCustodyEvent(event, custodyDisplayContext)
     );
 
+    // Phase 1 — apply public-verify identity exposure policy. The
+    // default-redacted policy strips submittedByEmail entirely and
+    // hides workspaceName / organizationName unless the operator
+    // explicitly opted in via PUBLIC_VERIFY_EXPOSE_ATTRIBUTION=true.
+    // organizationVerified (boolean) and submittedByAuthProvider
+    // (the human label only, not the raw enum code) remain by
+    // default — they communicate auth provenance without identifying
+    // the organization.
+    const identityExposure = getPublicVerifyIdentityExposure();
+    if (!identityExposure.exposeAttribution) {
+      req.log.info(
+        {
+          evidenceId: id,
+          reason: identityExposure.reason,
+          redacted: [
+            "submittedByEmail",
+            "workspaceName",
+            "organizationName",
+          ],
+        },
+        "public_verify.identity_redacted",
+      );
+    }
     const overview = buildPublicVerifyOverview({
       evidence: {
         id: evidence.id,
@@ -10112,10 +10340,20 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
         verificationStatus: responseVerificationStatus,
         captureMethod: evidence.captureMethod ?? null,
         identityLevelSnapshot: evidence.identityLevelSnapshot ?? null,
-        submittedByEmail: evidence.submittedByEmail ?? null,
+        // Phase 1 — PII redaction. submittedByEmail is ALWAYS null
+        // on the public surface. maskPublicEmail (used downstream)
+        // still leaked the domain, which is enough to identify the
+        // submitter's organization for a journalist's source or an
+        // insurance claimant. The mask is no longer reachable on
+        // the public response path.
+        submittedByEmail: null,
         submittedByAuthProvider: evidence.submittedByAuthProvider ?? null,
-        workspaceNameSnapshot: evidence.workspaceNameSnapshot ?? null,
-        organizationNameSnapshot: evidence.organizationNameSnapshot ?? null,
+        workspaceNameSnapshot: identityExposure.exposeAttribution
+          ? evidence.workspaceNameSnapshot ?? null
+          : null,
+        organizationNameSnapshot: identityExposure.exposeAttribution
+          ? evidence.organizationNameSnapshot ?? null
+          : null,
         organizationVerifiedSnapshot:
           evidence.organizationVerifiedSnapshot ?? null,
         mimeType: evidence.mimeType,

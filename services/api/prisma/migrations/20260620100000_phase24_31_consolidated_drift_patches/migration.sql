@@ -305,6 +305,7 @@ ALTER TABLE "evidence_upload_sessions"
 -- Constraints — added via DO blocks so re-runs don't fail with
 -- "constraint already exists".
 DO $$
+BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'evidence_upload_sessions_completed_size_nonneg'
@@ -363,6 +364,7 @@ ALTER TABLE "evidence_upload_session_parts"
   ADD COLUMN IF NOT EXISTS "presign_expires_at_utc" TIMESTAMPTZ(6);
 
 DO $$
+BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'evidence_upload_session_parts_part_size_nonneg'
@@ -447,6 +449,7 @@ ALTER TABLE "evidence_upload_sessions"
 -- Bounded part-index check: matches the legacy EvidencePart contract
 -- (0-indexed, non-negative). Added via DO block for idempotent re-run.
 DO $$
+BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'evidence_upload_sessions_target_part_index_nonneg'
@@ -508,6 +511,7 @@ CREATE INDEX IF NOT EXISTS "evidence_upload_sessions_bridged_part_idx"
 -- 1) The Phase 24 base table itself must exist. If it doesn't, this patch
 --    is the wrong tool — the operator should run migrations from scratch.
 DO $$
+BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.tables
     WHERE table_schema = 'public'
@@ -671,6 +675,7 @@ CREATE INDEX IF NOT EXISTS "search_audit_logs_team_fail_closed_idx"
 -- ---------------------------------------------------------------------------
 
 DO $$
+BEGIN
   IF NOT EXISTS (
     SELECT 1
     FROM information_schema.columns
@@ -700,6 +705,7 @@ CREATE INDEX IF NOT EXISTS "evidence_search_documents_tsv_gin"
 DO $$
 DECLARE
   has_pgvector BOOLEAN;
+BEGIN
   SELECT EXISTS (
     SELECT 1 FROM pg_extension WHERE extname = 'vector'
   ) INTO has_pgvector;
@@ -1989,6 +1995,7 @@ CREATE INDEX IF NOT EXISTS "review_escalations_incident_idx"
   ON "review_escalations" ("incident_id");
 
 DO $$
+BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'review_escalations_team_id_fkey'
   ) THEN
@@ -2069,6 +2076,7 @@ CREATE INDEX IF NOT EXISTS "reviewer_workload_snapshots_team_capacity_idx"
   ON "reviewer_workload_snapshots" ("team_id", "capacity_score");
 
 DO $$
+BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'reviewer_workload_snapshots_team_id_fkey'
   ) THEN

@@ -1,0 +1,200 @@
+name: playwright-e2e
+
+# Phase 1 — critical-flow E2E gate.
+#
+# Spins up a real stack (Postgres + Redis + MinIO + API + Worker + Web)
+# and runs the Playwright suite. Failure of any test tagged @critical
+# is a release blocker:
+#
+#   * evidence-flow.spec.ts — guest create → upload → sign → readback
+#                             + cross-tenant IDOR refusal
+#   * public-verify-privacy.spec.ts — PII redaction + rate-limit
+#                                     contract + 429 Retry-After
+#   * landing-pages.spec.ts — browser-visible public surfaces render
+#
+# Runs alongside `schema-reproducibility.yml` (which is the Phase 0
+# migration gate) and `ci.yml` (which is the broader build pipeline).
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: proovra
+          POSTGRES_PASSWORD: proovra_password
+          POSTGRES_DB: proovra_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U proovra -d proovra_e2e"
+          --health-interval=2s
+          --health-timeout=3s
+          --health-retries=20
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=2s
+          --health-timeout=3s
+          --health-retries=20
+
+      minio:
+        image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+        env:
+          MINIO_ROOT_USER: minio
+          MINIO_ROOT_PASSWORD: minio_password
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd="curl -f http://localhost:9000/minio/health/live || exit 1"
+          --health-interval=2s
+          --health-timeout=3s
+          --health-retries=20
+
+    env:
+      # Sandboxed local-only env. Mirrors .env.audit-local structure
+      # so the test stack never touches production secrets.
+      DATABASE_URL: postgresql://proovra:proovra_password@localhost:5432/proovra_e2e
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: development
+      PORT: "8081"
+      LOG_LEVEL: warn
+      CORS_ORIGINS: "http://localhost:3000"
+
+      APP_URL: http://localhost:3000
+      APP_BASE_URL: http://localhost:3000
+      WEB_BASE_URL: http://localhost:3000
+      NEXT_PUBLIC_API_BASE: http://localhost:8081
+      NEXT_PUBLIC_WEB_BASE: http://localhost:3000
+      NEXT_PUBLIC_APP_BASE: http://localhost:3000
+
+      S3_ENDPOINT: http://localhost:9000
+      S3_REGION: auto
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio_password
+      S3_BUCKET: proovra-e2e
+      S3_ALLOW_INSECURE: "true"
+      S3_FORCE_PATH_STYLE: "true"
+      S3_OBJECT_LOCK_ENABLED: "false"
+      OBJECT_LOCK_VERIFICATION_BYPASS: "true"
+
+      SIGNER_PROVIDER: local-pem
+      SIGNING_KEY_ID: e2e_ed25519
+      SIGNING_KEY_VERSION: "1"
+      SIGNING_PRIVATE_KEY_PATH: services/api/keys/signing-private.pem
+      SIGNING_PUBLIC_KEY_PATH: services/api/keys/signing-public.pem
+      PACKAGE_SIGNING_KEY_ID: e2e_package_ed25519
+      PACKAGE_SIGNING_KEY_VERSION: "1"
+      PACKAGE_SIGNING_PRIVATE_KEY_PATH: services/api/keys/signing-private.pem
+      PACKAGE_SIGNING_PUBLIC_KEY_PATH: services/api/keys/signing-public.pem
+
+      AUTH_JWT_SECRET: e2e_jwt_secret_min_32_chars_long_for_validator_xyz12345
+
+      # Phase 1 — keep enforcement strict for the E2E gate.
+      SCHEMA_VALIDATION_FAIL_FAST: "true"
+      VERIFY_RATE_LIMIT_MAX: "30"
+      VERIFY_RATE_LIMIT_WINDOW_SEC: "60"
+      VERIFY_RATE_LIMIT_PER_EVIDENCE_MAX: "60"
+      VERIFY_RATE_LIMIT_PER_EVIDENCE_WINDOW_SEC: "60"
+      PUBLIC_VERIFY_EXPOSE_ATTRIBUTION: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Provision MinIO bucket
+        run: |
+          docker run --rm --network host \
+            -e MC_HOST_local=http://minio:minio_password@localhost:9000 \
+            minio/mc:latest \
+            mb --ignore-existing local/proovra-e2e
+
+      - name: Build shared + API
+        run: |
+          pnpm run build:shared
+          pnpm --filter proovra-api build
+
+      - name: Run migrations + seed
+        working-directory: services/api
+        run: |
+          pnpm prisma generate
+          pnpm prisma migrate deploy
+          pnpm prisma:seed
+
+      - name: Install Playwright browser
+        run: pnpm test:e2e:playwright:install
+
+      - name: Start API (background)
+        working-directory: services/api
+        run: |
+          nohup pnpm start > /tmp/api-e2e.log 2>&1 &
+          for i in {1..30}; do
+            curl -sSf -m 2 http://localhost:8081/health > /dev/null 2>&1 && break
+            sleep 1
+          done
+          echo "=== API boot summary ==="
+          grep -E "schema_validation|listening" /tmp/api-e2e.log | head -5
+
+      - name: Start Web (background)
+        working-directory: apps/web
+        env:
+          PORT: "3000"
+          HOST: "127.0.0.1"
+        run: |
+          nohup pnpm dev > /tmp/web-e2e.log 2>&1 &
+          for i in {1..60}; do
+            curl -sSf -m 2 http://localhost:3000/pricing > /dev/null 2>&1 && break
+            sleep 1
+          done
+          echo "=== Web boot summary ==="
+          grep -E "Ready|Local:|Error" /tmp/web-e2e.log | head -10
+
+      - name: Run Playwright critical-flow suite
+        env:
+          WEB_BASE: http://localhost:3000
+          API_BASE: http://localhost:8081
+        run: pnpm test:e2e:playwright
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+
+      - name: Upload API log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-e2e-log
+          path: /tmp/api-e2e.log
+          if-no-files-found: ignore
+
+      - name: Upload Web log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-e2e-log
+          path: /tmp/web-e2e.log
+          if-no-files-found: ignore

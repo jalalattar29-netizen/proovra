@@ -53,13 +53,13 @@ CREATE TABLE "automation_webhook_destinations" (
     "name" VARCHAR(120) NOT NULL,
     "url" VARCHAR(600) NOT NULL,
     "url_origin" VARCHAR(200) NOT NULL,
-    /// Encrypted webhook secret. The plaintext is generated server-side,
-    /// shown once at creation, then encrypted with the same key
-    /// material as other server-side secrets. Stored as base64.
+    -- Encrypted webhook secret. The plaintext is generated server-side,
+    -- shown once at creation, then encrypted with the same key
+    -- material as other server-side secrets. Stored as base64.
     "encrypted_secret" TEXT NOT NULL,
-    /// Bcrypt-style hash used for fast secret-rotation comparison +
-    /// detection of misconfigured rotation. Stored separately from
-    /// the encrypted secret on purpose.
+    -- Bcrypt-style hash used for fast secret-rotation comparison +
+    -- detection of misconfigured rotation. Stored separately from
+    -- the encrypted secret on purpose.
     "secret_fingerprint" VARCHAR(80) NOT NULL,
     "enabled" BOOLEAN NOT NULL DEFAULT false,
     "created_by_user_id" UUID NOT NULL,
@@ -107,20 +107,20 @@ CREATE TABLE "automation_webhook_deliveries" (
     "team_id" UUID NOT NULL,
     "run_id" UUID NOT NULL,
     "destination_id" UUID NOT NULL,
-    /// Deterministic key derived from (runId + destinationId). Prevents
-    /// duplicate delivery rows for the same run+destination.
+    -- Deterministic key derived from (runId + destinationId). Prevents
+    -- duplicate delivery rows for the same run+destination.
     "idempotency_key" VARCHAR(120) NOT NULL,
-    /// Bounded enum: PENDING | DELIVERING | SUCCEEDED | FAILED | SKIPPED
+    -- Bounded enum: PENDING | DELIVERING | SUCCEEDED | FAILED | SKIPPED
     "status" VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     "attempt_count" INTEGER NOT NULL DEFAULT 0,
     "next_attempt_at" TIMESTAMPTZ(6),
     "last_attempt_at" TIMESTAMPTZ(6),
-    /// HTTP response status code (small int, 0 when unknown).
+    -- HTTP response status code (small int, 0 when unknown).
     "response_status" INTEGER NOT NULL DEFAULT 0,
-    /// Operator-safe failure reason, capped to 400 chars. Never the
-    /// response body, never the URL with query string, never any
-    /// payload bytes — only operator-meaningful classifications like
-    /// "timeout" / "non_2xx" / "ssrf_blocked".
+    -- Operator-safe failure reason, capped to 400 chars. Never the
+    -- response body, never the URL with query string, never any
+    -- payload bytes — only operator-meaningful classifications like
+    -- "timeout" / "non_2xx" / "ssrf_blocked".
     "failure_reason" VARCHAR(400),
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
