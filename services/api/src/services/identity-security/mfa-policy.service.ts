@@ -88,6 +88,12 @@ export type ResolvedMfaPolicy = {
   mfaRequiredFlag: boolean;
   ssoReadyFlag: boolean;
   scimReadyFlag: boolean;
+  /**
+   * PHASE R8.1.5 — per-org MFA enforcement fail-mode. `null` means
+   * "no per-org override; use the global env". One of the bounded
+   * enum values when set.
+   */
+  mfaEnforcementFailMode: "SMART" | "FAIL_OPEN" | "FAIL_CLOSED" | null;
 };
 
 const DEFAULT_STEP_UP_TTL_SECONDS = (() => {
@@ -124,6 +130,7 @@ export async function getMfaPolicy(
       scimReadyFlag: true,
       stepUpTtlSeconds: true,
       trustedDeviceTtlDays: true,
+      mfaEnforcementFailMode: true,
     },
   });
   const baseLevel = normaliseLevel(row?.mfaPolicyLevel ?? null);
@@ -132,6 +139,20 @@ export async function getMfaPolicy(
   // /security-center.
   const level: MfaPolicyLevel =
     baseLevel === "OFF" && row?.mfaRequiredFlag ? "ADMINS_ONLY" : baseLevel;
+  // R8.1.5 — normalise fail-mode for the API surface (case-insensitive,
+  // bounded values only).
+  const rawFm = row?.mfaEnforcementFailMode ?? null;
+  let mfaEnforcementFailMode:
+    | "SMART"
+    | "FAIL_OPEN"
+    | "FAIL_CLOSED"
+    | null = null;
+  if (rawFm) {
+    const upper = rawFm.toUpperCase();
+    if (upper === "SMART" || upper === "FAIL_OPEN" || upper === "FAIL_CLOSED") {
+      mfaEnforcementFailMode = upper;
+    }
+  }
   return {
     teamId,
     level,
@@ -141,6 +162,7 @@ export async function getMfaPolicy(
     mfaRequiredFlag: row?.mfaRequiredFlag ?? false,
     ssoReadyFlag: row?.ssoReadyFlag ?? false,
     scimReadyFlag: row?.scimReadyFlag ?? false,
+    mfaEnforcementFailMode,
   };
 }
 
@@ -223,6 +245,17 @@ export type UpdateMfaPolicyInput = {
   level: MfaPolicyLevel;
   stepUpTtlSeconds?: number | null;
   trustedDeviceTtlDays?: number | null;
+  /**
+   * PHASE R8.1.5 — per-org MFA enforcement fail-mode. When set,
+   * overrides the global `MFA_ENFORCEMENT_FAIL_MODE` env for users
+   * with at least one ACTIVE membership in this team. Pass `null`
+   * to clear (fall back to env). Pass `undefined` to leave the
+   * existing value untouched (partial-update semantics).
+   *
+   * Bounded values: "SMART" | "FAIL_OPEN" | "FAIL_CLOSED".
+   * Anything else is rejected with `invalid_fail_mode`.
+   */
+  mfaEnforcementFailMode?: "SMART" | "FAIL_OPEN" | "FAIL_CLOSED" | null;
   ipAddress?: string | null;
   userAgent?: string | null;
 };
@@ -240,6 +273,38 @@ export async function updateMfaPolicy(
       ? undefined
       : clampTrustedDeviceTtl(input.trustedDeviceTtlDays);
 
+  // PHASE R8.1.5 — validate per-org fail-mode if supplied. Bounded
+  // values only; anything else is rejected at the route layer
+  // before this function runs (we re-validate here for defence-
+  // in-depth).
+  let failModeForWrite:
+    | "SMART"
+    | "FAIL_OPEN"
+    | "FAIL_CLOSED"
+    | null
+    | undefined = undefined;
+  if (input.mfaEnforcementFailMode !== undefined) {
+    if (input.mfaEnforcementFailMode === null) {
+      failModeForWrite = null;
+    } else if (
+      ["SMART", "FAIL_OPEN", "FAIL_CLOSED"].includes(
+        input.mfaEnforcementFailMode,
+      )
+    ) {
+      failModeForWrite = input.mfaEnforcementFailMode;
+    } else {
+      throw new Error("invalid_fail_mode");
+    }
+  }
+
+  // Read prior fail mode so we can emit the change event only when
+  // it actually changed (avoids noisy SIEM rows).
+  const prior = await client.organizationSecurityPolicy.findUnique({
+    where: { teamId: input.teamId },
+    select: { mfaEnforcementFailMode: true },
+  });
+  const priorFailMode = prior?.mfaEnforcementFailMode ?? null;
+
   const updated = await client.organizationSecurityPolicy.upsert({
     where: { teamId: input.teamId },
     create: {
@@ -247,12 +312,17 @@ export async function updateMfaPolicy(
       mfaPolicyLevel: input.level,
       stepUpTtlSeconds: stepUpTtl ?? null,
       trustedDeviceTtlDays: deviceTtl ?? null,
+      mfaEnforcementFailMode:
+        failModeForWrite === undefined ? null : failModeForWrite,
       updatedByUserId: input.actorUserId,
     },
     update: {
       mfaPolicyLevel: input.level,
       ...(stepUpTtl !== undefined ? { stepUpTtlSeconds: stepUpTtl } : {}),
       ...(deviceTtl !== undefined ? { trustedDeviceTtlDays: deviceTtl } : {}),
+      ...(failModeForWrite !== undefined
+        ? { mfaEnforcementFailMode: failModeForWrite }
+        : {}),
       updatedByUserId: input.actorUserId,
     },
     select: {
@@ -263,6 +333,7 @@ export async function updateMfaPolicy(
       scimReadyFlag: true,
       stepUpTtlSeconds: true,
       trustedDeviceTtlDays: true,
+      mfaEnforcementFailMode: true,
     },
   });
 
@@ -280,6 +351,25 @@ export async function updateMfaPolicy(
     },
     client,
   );
+  // PHASE R8.1.5 — fail-mode change event (only when it changed).
+  if (
+    failModeForWrite !== undefined &&
+    (failModeForWrite ?? null) !== priorFailMode
+  ) {
+    safeEmitSecurityEvent(
+      {
+        teamId: input.teamId,
+        eventType: "org_mfa_fail_mode_updated",
+        severity: "INFO",
+        details: {
+          actorUserId: input.actorUserId,
+          previousFailMode: priorFailMode,
+          newFailMode: failModeForWrite ?? null,
+        },
+      },
+      client,
+    );
+  }
   await appendPlatformAuditLog({
     userId: input.actorUserId,
     action: "identity_security.mfa_policy.update",
@@ -293,12 +383,27 @@ export async function updateMfaPolicy(
       level: input.level,
       stepUpTtlSeconds: stepUpTtl ?? null,
       trustedDeviceTtlDays: deviceTtl ?? null,
+      mfaEnforcementFailMode:
+        failModeForWrite === undefined ? priorFailMode : (failModeForWrite ?? null),
     },
     ipAddress: input.ipAddress ?? null,
     userAgent: input.userAgent ?? null,
     db: client,
   });
 
+  // R8.1.5 — return the persisted fail-mode in the post-update view.
+  const persistedFm = updated.mfaEnforcementFailMode ?? null;
+  let normalisedFm:
+    | "SMART"
+    | "FAIL_OPEN"
+    | "FAIL_CLOSED"
+    | null = null;
+  if (persistedFm) {
+    const upper = persistedFm.toUpperCase();
+    if (upper === "SMART" || upper === "FAIL_OPEN" || upper === "FAIL_CLOSED") {
+      normalisedFm = upper;
+    }
+  }
   return {
     teamId: updated.teamId,
     level: normaliseLevel(updated.mfaPolicyLevel),
@@ -308,6 +413,7 @@ export async function updateMfaPolicy(
     mfaRequiredFlag: updated.mfaRequiredFlag,
     ssoReadyFlag: updated.ssoReadyFlag,
     scimReadyFlag: updated.scimReadyFlag,
+    mfaEnforcementFailMode: normalisedFm,
   };
 }
 

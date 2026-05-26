@@ -35,6 +35,9 @@ import {
 } from "./routes/admin-identity.routes.js";
 import { scimRoutes } from "./routes/scim.routes.js";
 import { ssoAuthRoutes } from "./routes/sso-auth.routes.js";
+// R8.2 — Real SAML SP routes (HTTP-Redirect + HTTP-POST ACS + SP metadata).
+// Registered separately from sso-auth.routes.ts which handles OIDC.
+import { samlAuthRoutes } from "./routes/saml-auth.routes.js";
 import { aiRoutes } from "./routes/ai.routes.js";
 import { enterpriseRoutes } from "./routes/enterprise.routes.js";
 import { teamManagementRoutes } from "./routes/team-management.routes.js";
@@ -48,6 +51,12 @@ import { workflowIntakeLinksRoutes } from "./routes/workflow-intake-links.routes
 import { externalIntakeRoutes } from "./routes/external-intake.routes.js";
 import { evidenceRequestsRoutes } from "./routes/evidence-requests.routes.js";
 import { notificationsRoutes } from "./routes/notifications.routes.js";
+import { automationRoutes } from "./routes/automation.routes.js";
+import { automationWebhooksRoutes } from "./routes/automation-webhooks.routes.js";
+// Phase E4 — bounded operational analytics. Team-scoped, capability-gated
+// (ANALYTICS_VIEW). Read-only surface, no mutations, no fake metrics —
+// every value is source-traceable to a real Prisma model.
+import { analyticsOperationsRoutes } from "./routes/analytics-operations.routes.js";
 import { governanceRoutes } from "./routes/governance.routes.js";
 import { governanceLifecycleRoutes } from "./routes/governance-lifecycle.routes.js";
 import { governanceOperationsRoutes } from "./routes/governance-operations.routes.js";
@@ -61,6 +70,14 @@ import { collaborationRoutes } from "./routes/collaboration.routes.js";
 import { identityRoutes } from "./routes/identity.routes.js";
 import { communicationsRoutes } from "./routes/communications.routes.js";
 import { identitySecurityRoutes } from "./routes/identity-security.routes.js";
+// R8.1.1 — MFA REST surface (TOTP enroll/verify, factors, recovery
+// codes, challenge). Sub-domain of the canonical identity surface;
+// not a parallel auth system.
+import { mfaRoutes } from "./routes/mfa.routes.js";
+// R8.1.4 — admin MFA lifecycle + lost-factor recovery routes. Same
+// canonical session model as the rest of the identity surface; the
+// service layer enforces org-scoped admin authorization.
+import { mfaAdminRoutes } from "./routes/mfa-admin.routes.js";
 import { opsRoutes } from "./routes/ops.routes.js";
 import { opsSeedRoutes } from "./routes/ops-seed.routes.js";
 import { governanceSnapshotRoutes } from "./routes/governance-snapshot.routes.js";
@@ -520,6 +537,9 @@ allowedHeaders: [
   await app.register(adminIdentityRuntimeRoutes);
   await app.register(scimRoutes);
   await app.register(ssoAuthRoutes);
+  // R8.2 — SAML SP routes alongside the OIDC routes. Same canonical session
+  // model; no parallel auth surface. SAML_ENABLED=false disables at runtime.
+  await app.register(samlAuthRoutes);
   await app.register(aiRoutes);
   await app.register(enterpriseRoutes);
   await app.register(teamManagementRoutes);
@@ -543,6 +563,17 @@ allowedHeaders: [
   await app.register(evidenceRequestsRoutes);
   // Phase 8.5 — Notification admin surface (authenticated only).
   await app.register(notificationsRoutes);
+  // Phase E3 — Operational automation foundation (authenticated only).
+  // Rules + runs management. Trigger dispatcher + worker execution
+  // are deferred to E3.1 (DEF-021).
+  await app.register(automationRoutes);
+  // Phase E3.2 — Webhook destination + delivery routes (authenticated
+  // only). HTTPS-only destinations, SSRF-checked, HMAC-signed delivery.
+  await app.register(automationWebhooksRoutes);
+  // Phase E4 — bounded operational analytics. Five GET endpoints under
+  // /v1/analytics/{operations,reviewer,governance,automation,artifacts}.
+  // Team-scoped + ANALYTICS_VIEW gated. Every metric is source-traceable.
+  await app.register(analyticsOperationsRoutes);
   // Phase 9 — Governance routes (policy + legal holds; authenticated only).
   await app.register(governanceRoutes);
   // Phase 27 — Governance lifecycle (retention policies, destruction
@@ -629,6 +660,11 @@ allowedHeaders: [
   // requireStepUpForSensitiveAction. Workspace-internal; public
   // verify NEVER touches these tables.
   await app.register(identitySecurityRoutes);
+  // R8.1.1 — MFA endpoints registered alongside identity-security.
+  // Same canonical session + auth model; no parallel auth surface.
+  await app.register(mfaRoutes);
+  // R8.1.4 — admin lifecycle + lost-factor recovery endpoints.
+  await app.register(mfaAdminRoutes);
 
   // Phase C #1: Object Lock startup verification.
   // Throws in production-shaped envs when S3_OBJECT_LOCK_ENABLED=true but the

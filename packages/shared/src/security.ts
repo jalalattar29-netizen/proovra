@@ -340,6 +340,155 @@ export const SECURITY_EVENT_TYPES = [
   "scim_group_synced",
   "api_key_issued",
   "api_key_revoked",
+  // Phase R8.1.3 — durable MFA challenge + org enforcement vocabulary.
+  // These supplement the R8 set so SIEM dashboards can distinguish
+  // policy-side activity (`org_mfa_*`) from individual challenge
+  // lifecycle (`mfa_challenge_*`). Payloads carry user ids,
+  // policy levels, challenge id hashes — NEVER the OTP, NEVER the
+  // recovery code, NEVER the signed token, NEVER raw IP/UA.
+  "org_mfa_policy_updated",
+  "org_mfa_policy_enforced",
+  "mfa_challenge_created",
+  "mfa_challenge_expired",
+  "mfa_challenge_replayed",
+  "mfa_challenge_consumed",
+  "mfa_enrollment_required",
+  // Phase R8.1.4 — MFA admin lifecycle + scheduled GC + circuit
+  // breaker. Operational events that close the enterprise MFA
+  // story: scheduled cleanup, enforcement degradation under
+  // database failures, admin lifecycle actions on user factors,
+  // and the lost-factor recovery workflow. Payloads carry user
+  // ids, request ids, action labels, and reason codes — never
+  // OTP / recovery code / signed token / secret / IV / auth tag.
+  "mfa_challenge_gc_completed",
+  "mfa_enforcement_degraded",
+  "mfa_enforcement_failed_closed",
+  "mfa_admin_factor_revoked",
+  "mfa_admin_reenrollment_required",
+  "mfa_trusted_devices_reset",
+  "mfa_recovery_requested",
+  "mfa_recovery_approved",
+  "mfa_recovery_completed",
+  // Phase R8.1.5 — recovery email preflight + self-cancel +
+  // per-org fail-mode events. Payloads carry user ids, request
+  // ids, mailbox-bound boolean — NEVER the raw email token, OTP,
+  // recovery code, TOTP secret, or signed pending token.
+  "mfa_recovery_email_verification_sent",
+  "mfa_recovery_email_verified",
+  "mfa_recovery_email_expired",
+  "mfa_recovery_cancelled",
+  "org_mfa_fail_mode_updated",
+  // Phase R8.1.6 — recovery throttle + pending digest events.
+  // Payloads carry user/team ids + counts + window-seconds, never
+  // raw email tokens, OTPs, recovery codes, signed pending tokens,
+  // TOTP secrets, or message body content.
+  "mfa_recovery_throttled",
+  "mfa_recovery_digest_sent",
+  // Phase R8.1.7 — recovery digest operations polish.
+  // `mfa_recovery_digest_failed` fires when the email transport
+  // returns a non-OK status for an admin's consolidated digest.
+  // `mfa_recovery_digest_preference_updated` fires when an admin
+  // changes their digest opt-in / suppress-until value. Payloads
+  // carry user/team ids + bounded counters — never raw email
+  // addresses, OTPs, recovery codes, or signed tokens.
+  "mfa_recovery_digest_failed",
+  "mfa_recovery_digest_preference_updated",
+  // Phase R8.1.9 — recovery finalization events.
+  // `mfa_recovery_digest_snooze_link_used` fires when an admin
+  // clicks the one-click snooze link in a digest email.
+  // `mfa_recovery_digest_test_sent` / `_test_failed` track the
+  // send-test digest action used by admins to preview email
+  // rendering. Payloads carry user ids + bounded counters; never
+  // raw snooze tokens, OTPs, recovery codes, or signed pending
+  // tokens.
+  "mfa_recovery_digest_snooze_link_used",
+  "mfa_recovery_digest_test_sent",
+  "mfa_recovery_digest_test_failed",
+  // Phase R8.2 — Real SAML SP activation. These events track SAML
+  // connection lifecycle and assertion validation outcomes. Payloads
+  // carry connection ids, user-id hashes, and sanitised error codes —
+  // NEVER raw assertion XML, NameID values, certificates, private keys,
+  // or session tokens. `saml_assertion_rejected` is HIGH severity
+  // because it indicates an IdP-signed assertion the SP refused — a
+  // potential attack signal.
+  "saml_connection_created",
+  "saml_connection_updated",
+  "saml_connection_revoked",
+  "saml_login_started",
+  "saml_login_succeeded",
+  "saml_login_failed",
+  "saml_assertion_rejected",
+  "saml_jit_provisioned",
+  "saml_jit_denied",
+  "saml_user_linked",
+  "saml_metadata_ingested",
+  // Phase R8.2.1 — Real IdP interoperability + SAML hardening. These
+  // events close the enterprise SAML story: test-connection flow so
+  // admins can validate IdP config without issuing a real session;
+  // certificate rotation lifecycle (rotation and expiry warning);
+  // attribute mapping failure (IdP returned no mappable email);
+  // JIT policy denial (SCIM-managed orgs or domain restrictions).
+  // Payloads carry connection ids, user-id hashes, and sanitised error
+  // codes — NEVER raw assertion XML, NameID, certificates, or private keys.
+  "saml_connection_test_started",
+  "saml_connection_test_succeeded",
+  "saml_connection_test_failed",
+  "saml_certificate_rotated",
+  "saml_certificate_expiring",
+  "saml_attribute_mapping_failed",
+  "saml_jit_policy_denied",
+
+  // ---------------------------------------------------------------------------
+  // Phase E3 — Operational Automation Foundation
+  //
+  // Bounded automation lifecycle. Payloads carry rule + run + target ids
+  // only — NEVER raw evidence content, secrets, tokens, or external
+  // payloads. Reason strings are operator-safe and truncated to 400 chars
+  // by the service layer.
+  // ---------------------------------------------------------------------------
+  "automation_rule_created",
+  "automation_rule_updated",
+  "automation_rule_enabled",
+  "automation_rule_disabled",
+  "automation_run_started",
+  "automation_run_succeeded",
+  "automation_run_failed",
+  "automation_run_skipped",
+  "automation_action_executed",
+
+  // ---------------------------------------------------------------------------
+  // Phase E3.2 — Secure Webhook Delivery
+  //
+  // Webhook destination + delivery lifecycle. Payloads carry destination
+  // id + run id + bounded reason classifications only. NEVER include
+  // the webhook secret, the full URL with query, the payload body, the
+  // response body, or evidence content. Origin (scheme + host) only
+  // when host visibility helps operators diagnose delivery failures.
+  // ---------------------------------------------------------------------------
+  "automation_webhook_destination_created",
+  "automation_webhook_destination_updated",
+  "automation_webhook_destination_disabled",
+  "automation_webhook_secret_rotated",
+  "automation_webhook_delivery_succeeded",
+  "automation_webhook_delivery_failed",
+  "automation_webhook_delivery_skipped",
+
+  // ---------------------------------------------------------------------------
+  // Phase E3.3 — Async Delivery & Retry Runtime
+  //
+  // Lifecycle events for the async webhook delivery runtime. The
+  // dispatcher transitions deliveries through PENDING → DELIVERING →
+  // (SUCCEEDED | RETRY_SCHEDULED | FAILED). RETRY_SCHEDULED rows wait
+  // for `nextAttemptAt` then re-enter DELIVERING. After the bounded
+  // attempt cap (4 total), terminal state becomes RETRY_EXHAUSTED.
+  //
+  // After 10 consecutive failures on a destination, the runtime auto-
+  // disables it + emits the destination_auto_disabled event so
+  // operators see the action explicitly (never silent).
+  // ---------------------------------------------------------------------------
+  "automation_webhook_delivery_retry_scheduled",
+  "automation_webhook_delivery_retry_exhausted",
+  "automation_webhook_destination_auto_disabled",
 ] as const;
 export type SecurityEventType = (typeof SECURITY_EVENT_TYPES)[number];
 

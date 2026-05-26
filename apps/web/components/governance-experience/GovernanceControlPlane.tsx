@@ -26,10 +26,14 @@ import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { RuntimeStatusBanner } from "../operational";
 import type { GovernanceControlPlaneEnvelope, SectionStatus } from "./types";
 
+// CR1.6 — The legacy `no_workspace` LoadState branch was removed.
+// PageRouteGate (governance.hub, ORGANIZATION_ONLY) gates entry and
+// the in-component capability check (GOVERNANCE_VIEW) renders the
+// canonical CapabilityDegradedPanel for personal users. The previous
+// `ShellNoWorkspace` render was unreachable dead code.
 type LoadState =
   | { status: "loading" }
   | { status: "ready"; envelope: GovernanceControlPlaneEnvelope }
-  | { status: "no_workspace" }
   | { status: "auth_error"; code: "auth_required" | "permission_denied" }
   | { status: "unavailable"; message: string };
 
@@ -110,7 +114,6 @@ export function GovernanceControlPlane() {
   }
 
   if (state.status === "loading") return <ShellLoading />;
-  if (state.status === "no_workspace") return <ShellNoWorkspace />;
   if (state.status === "auth_error")
     return <ShellAuthError code={state.code} />;
   if (state.status === "unavailable")
@@ -848,21 +851,10 @@ function ShellLoading() {
   );
 }
 
-function ShellNoWorkspace() {
-  return (
-    <main className="cc-page" data-governance-no-workspace>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Compliance · Preservation · Retention</div>
-          <h1 className="cc-title">No workspace selected</h1>
-          <p className="cc-subtitle">
-            Switch to a workspace to view governance posture.
-          </p>
-        </div>
-      </header>
-    </main>
-  );
-}
+// CR1.6 — `ShellNoWorkspace` removed. The canonical no-team
+// rendering path is the in-component `CapabilityDegradedPanel`
+// (GOVERNANCE_VIEW) for personal users; PageRouteGate handles
+// truly missing workspace state at route entry.
 
 function ShellAuthError({
   code,

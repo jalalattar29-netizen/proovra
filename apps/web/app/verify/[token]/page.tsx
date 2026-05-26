@@ -39,7 +39,23 @@ import CaptureLocationMapPanel from "../../../components/capture-location/Captur
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
-import { formatUserDateTime } from "../../../lib/date";
+// Phase CR4 — `formatUserDateTime` is now consumed inside the extracted
+// `formatDateTime` helper in `verify-v2/_helpers.ts`. The orchestrator
+// no longer imports it directly.
+// Phase CR4 — pure helpers extracted to a presentation-only module
+// under `apps/web/components/verify-v2/`. These functions are byte-stable
+// against the pre-CR4 inline declarations; behaviour is unchanged.
+import {
+  firstNonEmpty,
+  formatDateTime,
+  isOtsTerminalStatus,
+  normalizeBool,
+  normalizeEventLabel,
+  otsTone,
+  statusTone,
+  timestampTone,
+  truncateHash,
+} from "../../../components/verify-v2/_helpers";
 
 type VerifyTimelineEvent = {
   sequence?: number | null;
@@ -648,20 +664,6 @@ const BRONZE_RAIL_STYLE: CSSProperties = {
   borderRadius: 18,
 };
 
-function formatDateTime(value?: string | null): string {
-  if (!value) return "N/A";
-  return formatUserDateTime(value);
-}
-
-function normalizeEventLabel(value?: string | null): string {
-  if (!value) return "Unknown Event";
-  return value
-    .toLowerCase()
-    .split("_")
-    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
-    .join(" ");
-}
-
 function extractTimestampStatus(data: VerifyResponse): string | null {
   const raw =
     data.storageAndTimestamping?.tsa?.status ??
@@ -689,11 +691,6 @@ function extractOtsStatus(data: VerifyResponse): string | null {
   return String(raw).trim().toUpperCase();
 }
 
-function isOtsTerminalStatus(status?: string | null): boolean {
-  const s = (status ?? "").trim().toUpperCase();
-  return s === "ANCHORED" || s === "FAILED" || s === "DISABLED";
-}
-
 function findEventTime(
   timeline: TimelineItem[],
   eventNames: string[]
@@ -709,132 +706,6 @@ function findEventTime(
     });
 
   return matched[0]?.atUtc ?? null;
-}
-
-function statusTone(
-  status?: string | null
-): { label: string; bg: string; color: string; border: string } {
-  const s = (status ?? "").toUpperCase();
-
-  if (
-    s === "GRANTED" ||
-    s === "STAMPED" ||
-    s === "VERIFIED" ||
-    s === "SUCCEEDED" ||
-    s === "SIGNED" ||
-    s === "REPORTED" ||
-    s === "ANCHORED" ||
-    s === "RECORDED_INTEGRITY_VERIFIED"
-  ) {
-    return {
-      label: s || "VERIFIED",
-      bg: "#ECFDF3",
-      color: "#067647",
-      border: "#ABEFC6",
-    };
-  }
-
-  if (s === "PENDING" || s === "MATERIALS_AVAILABLE") {
-    return {
-      label: s || "AVAILABLE",
-      bg: "#FFFAEB",
-      color: "#B54708",
-      border: "#FAD7A0",
-    };
-  }
-
-  if (s) {
-    return {
-      label: s,
-      bg: "#FEF3F2",
-      color: "#B42318",
-      border: "#FECDCA",
-    };
-  }
-
-  return {
-    label: "AVAILABLE",
-    bg: "#F8F9FC",
-    color: "#344054",
-    border: "#D0D5DD",
-  };
-}
-
-function timestampTone(
-  status?: string | null
-): { label: string; tone: "success" | "warning" | "neutral" } {
-  const s = (status ?? "").toUpperCase();
-
-  if (s === "STAMPED" || s === "GRANTED" || s === "VERIFIED" || s === "SUCCEEDED") {
-    return { label: s, tone: "success" };
-  }
-
-  if (s === "PENDING") {
-    return { label: "PENDING", tone: "warning" };
-  }
-
-  if (s === "FAILED") {
-    return { label: "FAILED", tone: "warning" };
-  }
-
-  if (s) {
-    return { label: s, tone: "warning" };
-  }
-
-  return { label: "Unavailable", tone: "neutral" };
-}
-
-function otsTone(
-  status?: string | null,
-  bitcoinTxid?: string | null
-): { label: string; tone: "success" | "warning" | "neutral" | "info" } {
-  const s = (status ?? "").toUpperCase();
-  const hasValidBitcoinTxid =
-    typeof bitcoinTxid === "string" && /^[a-f0-9]{64}$/i.test(bitcoinTxid.trim());
-
-  if (s === "ANCHORED") {
-    return hasValidBitcoinTxid
-      ? { label: "ANCHORED", tone: "success" }
-      : { label: "PUBLICATION PENDING", tone: "warning" };
-  }
-
-  if (s === "PENDING") {
-    return { label: "PENDING", tone: "warning" };
-  }
-
-  if (s === "FAILED") {
-    return { label: "FAILED", tone: "warning" };
-  }
-
-  if (s === "DISABLED") {
-    return { label: "DISABLED", tone: "neutral" };
-  }
-
-  if (s) {
-    return { label: s, tone: "info" };
-  }
-
-  return { label: "Unavailable", tone: "neutral" };
-}
-
-function firstNonEmpty(...values: Array<string | null | undefined>): string | null {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return null;
-}
-
-function truncateHash(hash?: string | null, length = 16): string | null {
-  if (!hash) return null;
-  const normalized = hash.trim();
-  if (normalized.length <= length) return normalized;
-  const prefix = normalized.slice(0, Math.max(6, length - 8));
-  const suffix = normalized.slice(-4);
-  return `${prefix}…${suffix}`;
-}
-
-function normalizeBool(value: unknown): boolean | null {
-  return typeof value === "boolean" ? value : null;
 }
 
 function describeEvidenceAssetRole(item: VerifyEvidenceAsset): string {

@@ -1,5 +1,5 @@
 /**
- * Phase 20 — Centralized config + env validation.
+ * Phase 20 / R8.C — Centralized config + env validation.
  *
  * Single source of truth for:
  *   - feature-flag resolution (per Phase: communications, identity
@@ -21,6 +21,12 @@
  *   - `runStartupConfigValidation()` is called once from `server.ts`
  *     before any route registers. It logs the readiness snapshot and
  *     throws on missing-critical in production.
+ *
+ * R8.C additions:
+ *   - Signing provider consistency: aws-kms requires KMS_KEY_ID.
+ *   - SAML URL safety: SAML_SP_ACS_URL must not be localhost in prod.
+ *   - Storage safety: S3_ENDPOINT must not be http://localhost in prod
+ *     unless S3_ALLOW_INSECURE=true is explicitly set.
  */
 
 const PROD = (): boolean => process.env.NODE_ENV === "production";
@@ -189,7 +195,13 @@ export function getFeatureSnapshot(): FeatureSnapshot {
 
 export type StartupConfigViolation = {
   envName: string;
-  reason: "required_missing" | "feature_enabled_secret_missing";
+  reason:
+    | "required_missing"
+    | "feature_enabled_secret_missing"
+    | "signing_provider_inconsistent"
+    | "saml_url_localhost_in_production"
+    | "storage_localhost_in_production"
+    | "stripe_key_shape_invalid";
 };
 
 /**
@@ -235,6 +247,97 @@ export function collectStartupViolations(): StartupConfigViolation[] {
       });
     }
   }
+
+  // R8.C — Signing provider consistency.
+  // When SIGNER_PROVIDER=aws-kms, KMS_KEY_ID must be configured.
+  // When SIGNER_PROVIDER=local-pem, SIGNING_PRIVATE_KEY_PATH must be set.
+  const signerProvider = (process.env.SIGNER_PROVIDER ?? "local-pem")
+    .trim()
+    .toLowerCase();
+  if (signerProvider === "aws-kms") {
+    if ((process.env.KMS_KEY_ID ?? "").trim().length === 0) {
+      out.push({
+        envName: "KMS_KEY_ID",
+        reason: "signing_provider_inconsistent",
+      });
+    }
+  } else {
+    // local-pem (default)
+    if ((process.env.SIGNING_PRIVATE_KEY_PATH ?? "").trim().length === 0) {
+      out.push({
+        envName: "SIGNING_PRIVATE_KEY_PATH",
+        reason: "signing_provider_inconsistent",
+      });
+    }
+  }
+
+  // R8.C — SAML URL safety in production.
+  // SAML_SP_ACS_URL (or SAML_ACS_URL) must not be a localhost URL in
+  // production. Localhost values indicate a dev config leaked into prod.
+  if (PROD() && envBool("SAML_ENABLED")) {
+    const acsUrl = (
+      process.env.SAML_SP_ACS_URL ??
+      process.env.SAML_ACS_URL ??
+      ""
+    ).trim();
+    if (
+      acsUrl.startsWith("http://localhost") ||
+      acsUrl.startsWith("http://127.0.0.1") ||
+      acsUrl.startsWith("https://localhost")
+    ) {
+      out.push({
+        envName: "SAML_SP_ACS_URL",
+        reason: "saml_url_localhost_in_production",
+      });
+    }
+  }
+
+  // R8.C — Storage localhost safety in production.
+  // S3_ENDPOINT must not be a localhost URL in production unless
+  // S3_ALLOW_INSECURE is explicitly set to "true" (which itself
+  // indicates a misconfigured production environment).
+  if (PROD()) {
+    const s3Endpoint = (process.env.S3_ENDPOINT ?? "").trim();
+    const allowInsecure = (process.env.S3_ALLOW_INSECURE ?? "").trim() === "true";
+    if (
+      !allowInsecure &&
+      (s3Endpoint.startsWith("http://localhost") ||
+        s3Endpoint.startsWith("http://127.0.0.1") ||
+        s3Endpoint.startsWith("http://minio"))
+    ) {
+      out.push({
+        envName: "S3_ENDPOINT",
+        reason: "storage_localhost_in_production",
+      });
+    }
+  }
+
+  // Phase 32.7 — Stripe secret-key shape validation.
+  //
+  // STRIPE_SECRET_KEY must start with `sk_live_` (production) or
+  // `sk_test_` (test mode). A common ops mistake is pasting a
+  // publishable key (`pk_live_*` / `pk_test_*`) into the secret slot,
+  // which silently sends webhook auth + every Stripe API call with the
+  // wrong credential — eventually surfacing as 401 from Stripe. We
+  // catch this at startup so the misconfiguration is loud, not silent.
+  //
+  // Only checked when STRIPE_SECRET_KEY is set (Stripe is optional for
+  // dev). Applies in all environments because the shape mistake is
+  // never intended.
+  {
+    const stripeKey = (process.env.STRIPE_SECRET_KEY ?? "").trim();
+    if (stripeKey.length > 0) {
+      const isSecret =
+        stripeKey.startsWith("sk_live_") || stripeKey.startsWith("sk_test_");
+      if (!isSecret) {
+        out.push({
+          envName: "STRIPE_SECRET_KEY",
+          reason: "stripe_key_shape_invalid",
+        });
+      }
+    }
+  }
+
   return out;
 }
 

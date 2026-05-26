@@ -384,6 +384,25 @@ export const COUNTER_NAMES = [
   "idp_outage_cleared_total",
   "forced_reauth_total",
   "session_replay_detected_total",
+  // Phase R8.2 — Real SAML SP.
+  "saml_login_initiated_total",
+  "saml_relay_state_invalid_total",
+  "saml_login_succeeded_total",
+  "saml_login_failure_total",
+  "saml_jit_provisioned_total",
+  "saml_jit_denied_total",
+  // Phase R8.2.1 — Real IdP interoperability + SAML hardening.
+  "saml_connection_test_total",
+  "saml_connection_test_failure_total",
+  "saml_certificate_rotation_total",
+  "saml_attribute_mapping_failure_total",
+  "saml_jit_policy_denied_total",
+  // Phase R8.2.2 — Pilot readiness + compliance closure.
+  "saml_cert_expiry_checked_total",
+  "saml_cert_expiring_30d_total",
+  "saml_cert_expiring_60d_total",
+  "saml_cert_expiring_90d_total",
+  "saml_idp_entity_id_stored_total",
   // Phase 26.75 — Identity runtime enforcement.
   "adaptive_auth_block_total",
   "adaptive_auth_reauth_total",

@@ -53,6 +53,22 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
 
     const payload = verifyJwt(token, secret);
 
+    // PHASE R8.1.2 — refuse MFA-pending tokens. A pending token is
+    // ONLY valid for `POST /v1/auth/mfa/verify`; it must NEVER act as
+    // a full session. Tokens carrying `mfa: "pending"` reach here only
+    // if the client misuses them (e.g. places one in the session
+    // cookie). Reject with the same generic 401 to avoid leaking
+    // discriminator semantics to an attacker.
+    if (payload.mfa === "pending") {
+      req.log.info(
+        { requestId: req.id, userId: payload.sub },
+        "auth.rejected_mfa_pending_token",
+      );
+      return reply
+        .code(401)
+        .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
+    }
+
     // Phase 19 — session revocation registry check. Fast: single
     // findFirst keyed by userId. Fails CLOSED on the rare case
     // where the deny list can't be read (Prisma outage).

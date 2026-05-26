@@ -622,6 +622,124 @@ function stopOrphanScanScheduler() {
 }
 
 // -----------------------------------------------------------------------------
+// Phase R8.1.4 — MFA pending challenge / recovery-request GC scheduler.
+//
+// Bounded scheduled cleanup for the durable replay-protection store
+// (`mfa_pending_challenges`) plus the lost-factor recovery workflow
+// (`mfa_recovery_requests`). The API service has an opportunistic
+// GC path that runs on create/consume; this worker provides the
+// scheduled coverage for low-traffic or replicas that never see
+// either path.
+//
+// Default interval: 15 minutes. Disable with
+// MFA_CHALLENGE_GC_ENABLED=false. The job is idempotent and bounded
+// (200 rows per call); a missed tick is recoverable.
+// -----------------------------------------------------------------------------
+
+const mfaChallengeGcEnabled = envBoolean("MFA_CHALLENGE_GC_ENABLED", true);
+const mfaChallengeGcIntervalMs = envNumber(
+  "MFA_CHALLENGE_GC_INTERVAL_MS",
+  15 * 60 * 1000,
+);
+let mfaChallengeGcTimer: ReturnType<typeof setInterval> | null = null;
+let mfaChallengeGcRunning = false;
+
+async function runMfaChallengeGcTick(trigger: string) {
+  if (mfaChallengeGcRunning) return;
+  mfaChallengeGcRunning = true;
+  try {
+    const mod = await import("./mfa-challenge-gc.js");
+    await mod.runMfaChallengeGc({ trigger });
+  } catch (err) {
+    logger.error({ err, trigger }, "mfa.challenge_gc.failed");
+    captureException(err, { trigger });
+  } finally {
+    mfaChallengeGcRunning = false;
+  }
+}
+
+function startMfaChallengeGcScheduler() {
+  if (!mfaChallengeGcEnabled) {
+    logger.info({}, "mfa.challenge_gc.scheduler.disabled");
+    return;
+  }
+  mfaChallengeGcTimer = setInterval(() => {
+    void runMfaChallengeGcTick("interval");
+  }, mfaChallengeGcIntervalMs);
+  logger.info(
+    { intervalMs: mfaChallengeGcIntervalMs },
+    "mfa.challenge_gc.scheduler.started",
+  );
+}
+
+function stopMfaChallengeGcScheduler() {
+  if (mfaChallengeGcTimer) {
+    clearInterval(mfaChallengeGcTimer);
+    mfaChallengeGcTimer = null;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// PHASE R8.1.6 — pending MFA recovery digest scheduler.
+//
+// Daily digest emails to org owners/admins when recovery requests
+// have been sitting in PENDING_ADMIN_REVIEW for more than 24h.
+// Idempotency is enforced by the `MfaRecoveryDigestLog` row's
+// UNIQUE (teamId, sentDate); the worker can tick more often than
+// once a day without producing duplicate emails.
+//
+// Default interval: 6 hours (default ticks are cheap — most ticks
+// observe "already sent today" for each candidate team). Disable
+// with MFA_RECOVERY_DIGEST_ENABLED=false.
+// -----------------------------------------------------------------------------
+
+const mfaRecoveryDigestEnabled = envBoolean(
+  "MFA_RECOVERY_DIGEST_ENABLED",
+  true,
+);
+const mfaRecoveryDigestIntervalMs = envNumber(
+  "MFA_RECOVERY_DIGEST_INTERVAL_MS",
+  6 * 60 * 60 * 1000,
+);
+let mfaRecoveryDigestTimer: ReturnType<typeof setInterval> | null = null;
+let mfaRecoveryDigestRunning = false;
+
+async function runMfaRecoveryDigestTick(trigger: string) {
+  if (mfaRecoveryDigestRunning) return;
+  mfaRecoveryDigestRunning = true;
+  try {
+    const mod = await import("./mfa-recovery-digest.js");
+    await mod.runMfaRecoveryDigest({ trigger });
+  } catch (err) {
+    logger.error({ err, trigger }, "mfa.recovery_digest.failed");
+    captureException(err, { trigger });
+  } finally {
+    mfaRecoveryDigestRunning = false;
+  }
+}
+
+function startMfaRecoveryDigestScheduler() {
+  if (!mfaRecoveryDigestEnabled) {
+    logger.info({}, "mfa.recovery_digest.scheduler.disabled");
+    return;
+  }
+  mfaRecoveryDigestTimer = setInterval(() => {
+    void runMfaRecoveryDigestTick("interval");
+  }, mfaRecoveryDigestIntervalMs);
+  logger.info(
+    { intervalMs: mfaRecoveryDigestIntervalMs },
+    "mfa.recovery_digest.scheduler.started",
+  );
+}
+
+function stopMfaRecoveryDigestScheduler() {
+  if (mfaRecoveryDigestTimer) {
+    clearInterval(mfaRecoveryDigestTimer);
+    mfaRecoveryDigestTimer = null;
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Phase 27.5 — Governance operationalization schedulers.
 // Three workers, each with its own enable / interval env. The workers
 // are idempotent and lock-protected, so missed ticks are recoverable.
@@ -1220,6 +1338,8 @@ async function shutdown(exitCode: number) {
   stopDemoFollowUpScheduler();
   stopCaptureDraftReaperScheduler();
   stopOrphanScanScheduler();
+  stopMfaChallengeGcScheduler();
+  stopMfaRecoveryDigestScheduler();
   // Phase 27.5 — Governance schedulers.
   stopRetentionReconciliationScheduler();
   stopDestructionOrchestratorScheduler();
@@ -1444,6 +1564,8 @@ startHealthServer()
     startDemoFollowUpScheduler();
     startCaptureDraftReaperScheduler();
     startOrphanScanScheduler();
+    startMfaChallengeGcScheduler();
+    startMfaRecoveryDigestScheduler();
     // Phase 27.5 — Governance schedulers.
     startRetentionReconciliationScheduler();
     startDestructionOrchestratorScheduler();

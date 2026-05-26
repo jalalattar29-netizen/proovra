@@ -8,6 +8,8 @@
  * NOT introduce a parallel onboarding state store.
  */
 
+import type { PersonaCode } from "@proovra/shared-evidence-presentation";
+
 import type { WorkspaceExperienceMode } from "../workspace-experience/types";
 
 export const ONBOARDING_STEP_IDS = [
@@ -47,6 +49,13 @@ export interface OnboardingResolverInput {
   readonly mode: WorkspaceExperienceMode;
   /** From `envelope.personaProfile.onboardingCompleted`. Single source. */
   readonly onboardingCompleted: boolean;
+  /**
+   * Phase E7 — optional persona code. When supplied, the resolver
+   * adds a persona-specific recommended-next-step copy line drawn
+   * from the canonical persona content module. Existing callers that
+   * omit this field keep their current mode-only behaviour.
+   */
+  readonly personaCode?: PersonaCode;
 }
 
 export interface OnboardingResolverResult {
@@ -61,4 +70,10 @@ export interface OnboardingResolverResult {
   readonly totalSteps: number;
   /** Whether onboarding is considered complete for the current mode. */
   readonly isComplete: boolean;
+  /**
+   * Phase E7 — persona-specific recommended-next-step copy. Populated
+   * only when `OnboardingResolverInput.personaCode` was supplied. Pure
+   * presentation hint; does not change the canonical step sequence.
+   */
+  readonly personaRecommendedNextStep?: string;
 }

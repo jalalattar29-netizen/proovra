@@ -271,6 +271,28 @@ function LoginPageContent() {
 
       if (!isMountedRef.current) return;
 
+      // R8.1.2 — login-time MFA challenge. When the backend reports
+      // `mfaRequired: true` it has ALREADY set the short-lived
+      // `proovra_mfa_pending` HTTP-only cookie. The session cookie is
+      // NOT yet set. We bounce the operator to the canonical
+      // /auth/mfa-challenge page; the pending cookie travels along
+      // because apiFetch + the page request both send credentials.
+      // The pending token is ALSO available in `data.mfaPendingToken`
+      // for non-cookie clients (mobile) — for web we deliberately
+      // ignore that field so the secret never enters page memory
+      // outside the cookie. No localStorage persistence is performed.
+      if (data?.mfaRequired === true) {
+        authLogger.log(
+          "AUTH_MFA_REQUIRED",
+          "challenge_issued",
+          { provider, path },
+          provider,
+        );
+        const next = encodeURIComponent(currentNextUrl);
+        router.replace(`/auth/mfa-challenge?next=${next}`);
+        return;
+      }
+
       if (!data?.token) {
         throw new Error("Authentication failed: missing token");
       }

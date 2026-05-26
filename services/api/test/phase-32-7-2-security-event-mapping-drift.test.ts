@@ -318,6 +318,37 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20260720100000_personal_workspace_bootstrap",
       "20260720200000_dashboard_projections",
       "20260721000000_workspace_persona_profile",
+      // R8.1 — MFA factor + recovery-code schema migration (append-only).
+      "20260722000000_r8_1_mfa_activation",
+      // R8.1.3 — durable MFA pending challenge store (append-only).
+      "20260724000000_r8_1_3_mfa_pending_challenges",
+      // R8.1.4 — lost-factor recovery request workflow (append-only).
+      "20260725000000_r8_1_4_mfa_recovery_requests",
+      // R8.1.5 — recovery email preflight + per-org fail-mode.
+      "20260726000000_r8_1_5_recovery_email_preflight",
+      // R8.1.6 — pending-digest idempotency log.
+      "20260727000000_r8_1_6_recovery_digest_logs",
+      // R8.1.7 — admin digest preferences + per-admin digest log.
+      "20260728000000_r8_1_7_digest_preferences",
+      // Phase E3 — Operational Automation Foundation
+      // (automation_rules + automation_runs tables + bounded CHECK
+      // constraints for trigger / action / status allowlists).
+      "20260801000000_phase_e3_automation_foundation",
+      // Phase E3.2 — Secure Webhook Delivery
+      // (automation_webhook_destinations + automation_webhook_deliveries
+      // tables + extended action-type CHECK to include
+      // WEBHOOK_DELIVERY_INTERNAL_ONLY).
+      "20260802000000_phase_e3_2_webhook_delivery",
+      // Phase E3.3 — Async Delivery & Retry Runtime
+      // (extend delivery status CHECK with RETRY_SCHEDULED +
+      // RETRY_EXHAUSTED; add 3 destination-health columns:
+      // consecutive_failure_count + auto_disabled_at + disabled_reason).
+      "20260803000000_phase_e3_3_async_delivery_runtime",
+      // Phase E10.1 — DEF-038 closure. Stripe webhook event
+      // idempotency: new stripe_webhook_events table with UNIQUE
+      // index on stripe_event_id. The webhook handler turns
+      // duplicate deliveries into safe no-ops.
+      "20260804000000_phase_e10_1_stripe_webhook_idempotency",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

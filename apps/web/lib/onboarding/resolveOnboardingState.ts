@@ -21,6 +21,8 @@
  *      source; future modes require deliberate extension.
  */
 
+import { getPersonaRecommendedNextStep } from "@proovra/shared-evidence-presentation";
+
 import { ONBOARDING_STEPS_BY_MODE } from "./onboardingSteps";
 import type {
   OnboardingResolverInput,
@@ -31,12 +33,22 @@ export function resolveOnboardingState(
   input: OnboardingResolverInput,
 ): OnboardingResolverResult {
   const modeSteps = ONBOARDING_STEPS_BY_MODE[input.mode] ?? [];
+  // Phase E7 — persona is OPTIONAL and ADDITIVE. The mode-driven step
+  // sequence remains the canonical onboarding sequence (R7 contract).
+  // When a persona code is supplied, the resolver also returns a
+  // persona-specific recommended-next-step copy line that surfaces can
+  // render alongside the canonical step. The resolver never reorders
+  // or filters the steps based on persona.
+  const personaRecommendedNextStep = input.personaCode
+    ? getPersonaRecommendedNextStep(input.personaCode)
+    : undefined;
   if (input.onboardingCompleted) {
     return {
       steps: [],
       nextStep: null,
       totalSteps: modeSteps.length,
       isComplete: true,
+      personaRecommendedNextStep,
     };
   }
   return {
@@ -44,5 +56,6 @@ export function resolveOnboardingState(
     nextStep: modeSteps[0] ?? null,
     totalSteps: modeSteps.length,
     isComplete: false,
+    personaRecommendedNextStep,
   };
 }

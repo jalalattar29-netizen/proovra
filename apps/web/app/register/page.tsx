@@ -266,6 +266,16 @@ function RegisterPageContent() {
         { auth: false }
       );
 
+      // R8.1.2 — login-time MFA challenge (same flow as login page).
+      // OAuth registration may resolve to an existing user that has
+      // MFA enrolled — in that case the backend reports mfaRequired
+      // and we bounce to /auth/mfa-challenge.
+      if (data?.mfaRequired === true) {
+        const next = encodeURIComponent(currentReturnUrl);
+        router.push(`/auth/mfa-challenge?next=${next}`);
+        return;
+      }
+
       if (!data?.token) {
         throw new Error("Authentication failed: missing token");
       }

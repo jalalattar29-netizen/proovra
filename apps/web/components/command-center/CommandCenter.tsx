@@ -34,7 +34,13 @@ import Link from "next/link";
 
 import { apiFetch } from "../../lib/api";
 import {
-  getPersonaSectionOrder,
+  // R8.1A — `getPersonaSectionOrder` was removed from this file's
+  // imports in R3 when `resolveDashboardSections` took over the
+  // ordering+emphasis contract. The helper still exists and is
+  // consumed transitively by `resolveDashboardSections`; it just
+  // does not need a direct import here. Leaving the dead import
+  // surfaced an `unused-vars` ESLint error that broke the Vercel
+  // build.
   useActiveSpace,
   usePersonaProfile,
   usePlatformContext,
@@ -120,14 +126,26 @@ export function CommandCenter() {
       setState({ status: "no_workspace" });
       return;
     }
+    // R8.1A — PERSONAL spaces may legitimately carry `id === null`
+    // during the provider's first-time bootstrap (provider creates
+    // the Personal Space lazily on first command-center fetch). When
+    // that's the case we render the empty-workspace state instead
+    // of issuing a request with a literal "null" teamId, which the
+    // backend would 400. This also resolves a pre-existing
+    // `tsc --noEmit` failure that blocked the Vercel build.
+    const activeSpaceId = activeSpace.id;
+    if (activeSpaceId == null) {
+      setState({ status: "no_workspace" });
+      return;
+    }
     emitStateEvent("active-space:resolved", "CommandCenter", {
       activeSpaceType: activeSpace.type,
-      activeSpaceId: redactWorkspaceId(activeSpace.id),
+      activeSpaceId: redactWorkspaceId(activeSpaceId),
     });
     let cancelled = false;
     setState({ status: "loading" });
     apiFetch(
-      `/v1/dashboard/command-center?teamId=${encodeURIComponent(activeSpace.id)}`,
+      `/v1/dashboard/command-center?teamId=${encodeURIComponent(activeSpaceId)}`,
       { method: "GET" },
     )
       .then((envelope: CommandCenterEnvelope) => {
@@ -493,6 +511,18 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
                 finalSectionOrder.indexOf(sectionId) + 1
               }
               data-section-grid-group={band.gridGroup ?? "single"}
+              // R3 / R8.1A — per-section emphasis label sourced from
+              // the dashboard orchestrator. Drives mode-aware CSS
+              // tilts (primary / secondary / de-emphasized) and is
+              // observable by source-contract tests. `sectionEmphasisById`
+              // was constructed but never wired to the DOM until R8.1A,
+              // which produced an `unused-vars` ESLint failure on
+              // Vercel. Defaults to "secondary" for any section the
+              // orchestrator did not classify (e.g. registry-only
+              // sections rendered before R3 took ownership).
+              data-cc-section-emphasis={
+                sectionEmphasisById.get(sectionId) ?? "secondary"
+              }
               aria-label={entry.ariaLabel}
             >
               {node}

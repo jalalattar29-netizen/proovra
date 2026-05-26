@@ -13,6 +13,11 @@ import {
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
 import { formatUserDateTime } from "../../../../lib/date";
+// CR1.6 Part 4 — Replace the legacy /v1/users/me self-fetch with the
+// canonical PlatformContextEnvelope user identity. The team detail
+// page only needed `currentUserId` to derive role-from-membership;
+// the envelope already carries `user.id` (and is authoritative).
+import { usePlatformContext } from "../../../../lib/platform-context";
 
 type TeamMemberUser = {
   id?: string;
@@ -94,12 +99,9 @@ type Team = {
   billingCanceledAt?: string | null;
 };
 
-type MeResponse = {
-  user?: {
-    id?: string;
-  };
-  id?: string;
-};
+// CR1.6 Part 4 — `MeResponse` removed alongside the self-fetch. The
+// current user id is now sourced from the canonical platform envelope
+// (`envelope.user.id`).
 
 type TeamInvitesResponse = {
   invites: TeamInvite[];
@@ -420,11 +422,15 @@ export default function TeamDetailPage() {
 
   const teamId = params?.id;
 
+  // CR1.6 Part 4 — `currentUserId` is read directly from the canonical
+  // platform envelope; no parallel /v1/users/me self-fetch.
+  const platformCtx = usePlatformContext();
+  const currentUserId = platformCtx.envelope?.user?.id ?? "";
+
   const [team, setTeam] = useState<Team | null>(null);
   const [invites, setInvites] = useState<TeamInvite[]>([]);
   const [teamCases, setTeamCases] = useState<TeamCase[]>([]);
   const [activities, setActivities] = useState<TeamActivity[]>([]);
-  const [currentUserId, setCurrentUserId] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -458,9 +464,12 @@ export default function TeamDetailPage() {
     setError(null);
 
     try {
-      const [meRes, teamRes, invitesRes, casesRes, activitiesRes] =
+      // CR1.6 Part 4 — Dropped the /v1/users/me self-fetch. The
+      // current user id now comes from `platformCtx.envelope.user.id`
+      // (read above into `currentUserId`), eliminating a parallel
+      // authority source that could disagree with the envelope.
+      const [teamRes, invitesRes, casesRes, activitiesRes] =
         await Promise.all([
-          apiFetch("/v1/users/me") as Promise<MeResponse>,
           apiFetch(`/v1/teams/${teamId}`) as Promise<Team>,
           (apiFetch(`/v1/teams/${teamId}/invites`).catch(() => ({
             invites: [],
@@ -473,8 +482,6 @@ export default function TeamDetailPage() {
           })) as Promise<TeamActivitiesResponse>),
         ]);
 
-      const meId = meRes?.user?.id ?? meRes?.id ?? "";
-      setCurrentUserId(meId);
       setTeam(teamRes ?? null);
       setInvites(invitesRes?.invites ?? []);
       setTeamCases(casesRes?.items ?? []);

@@ -353,6 +353,35 @@ export async function webhooksRoutes(app: FastifyInstance) {
     verifyStripeSignature(rawBody, sig);
     const event = parseStripeEvent(rawBody);
 
+    // Phase E10.1 — DEF-038 closure. Stripe webhook event idempotency.
+    // The unique index on `stripe_event_id` makes the "seen?" check
+    // atomic — a duplicate insert raises Prisma P2002 which we
+    // translate into a safe no-op 200. The row stays in the table as
+    // the durable audit of what was acted on.
+    try {
+      await prisma.stripeWebhookEvent.create({
+        data: {
+          stripeEventId: event.id,
+          eventType: event.type,
+          processingStatus: "RECEIVED",
+        },
+      });
+    } catch (err: unknown) {
+      // P2002 = unique constraint violation = duplicate delivery.
+      // Any other error: propagate (signature already verified, so
+      // failure here is a real DB problem we want to surface).
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? (err as { code?: string }).code
+          : undefined;
+      if (code === "P2002") {
+        return reply
+          .code(200)
+          .send({ ok: true, deduplicated: true, eventId: event.id });
+      }
+      throw err;
+    }
+
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as {
         id: string;
@@ -587,6 +616,17 @@ export async function webhooksRoutes(app: FastifyInstance) {
         });
       }
     }
+
+    // Phase E10.1 — DEF-038 closure. Mark the event PROCESSED. Best
+    // effort: a failure here does NOT roll back the side-effects above
+    // (Stripe will retry; the unique-index guard turns the retry into
+    // a no-op even if this update silently fails).
+    await prisma.stripeWebhookEvent
+      .update({
+        where: { stripeEventId: event.id },
+        data: { processedAt: new Date(), processingStatus: "PROCESSED" },
+      })
+      .catch(() => null);
 
     return reply.code(200).send({ received: true });
   });

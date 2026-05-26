@@ -19,6 +19,37 @@ export type EmailService = {
     resetUrl: string
   ) => Promise<unknown>;
 
+  // PHASE R8.1.5 — verified-email preflight for lost-factor MFA
+  // recovery. The body carries a verification LINK (not the token
+  // itself in plaintext URL params — the link points to a web page
+  // that takes the user through a guided verification). Subject and
+  // body language make clear this confirms mailbox access only and
+  // does NOT replace MFA or grant a session.
+  sendMfaRecoveryVerificationEmail: (
+    email: string,
+    verificationUrl: string
+  ) => Promise<unknown>;
+
+  // PHASE R8.1.6 — pending MFA recovery digest for org admins.
+  // Plain text + simple HTML; carries ONLY a count + a deep link to
+  // the admin SPA. NEVER includes any user email, recovery reason,
+  // verification token, OTP, recovery code, secret, or signed
+  // pending token. Frequency-bounded by the worker's digest log so
+  // a given admin receives at most one digest per team per UTC day.
+  //
+  // PHASE R8.1.9 — `snoozeUrl` is an optional signed one-click URL
+  // that applies a 15-day snooze for this admin's global digest
+  // preference. When omitted (e.g. RESEND_API_KEY not configured in
+  // dev) the email is sent without the snooze link. The URL is
+  // pre-built by the caller using `buildMfaDigestSnoozeUrl`.
+  sendMfaRecoveryAdminDigestEmail: (
+    adminEmail: string,
+    teamDisplayName: string,
+    pendingCount: number,
+    adminSpaUrl: string,
+    snoozeUrl?: string | null,
+  ) => Promise<unknown>;
+
   sendTeamInvitation: (
     email: string,
     orgName: string,
@@ -443,6 +474,12 @@ export function getEmailService(): EmailService {
       async sendPasswordResetEmail() {
         throw new Error("Email service not configured: RESEND_API_KEY missing");
       },
+      async sendMfaRecoveryVerificationEmail() {
+        throw new Error("Email service not configured: RESEND_API_KEY missing");
+      },
+      async sendMfaRecoveryAdminDigestEmail() {
+        throw new Error("Email service not configured: RESEND_API_KEY missing");
+      },
       async sendTeamInvitation() {
         throw new Error("Email service not configured: RESEND_API_KEY missing");
       },
@@ -499,6 +536,132 @@ export function getEmailService(): EmailService {
         from,
         to: email,
         subject: `Reset your ${app} password`,
+        html,
+        text,
+      });
+    },
+
+    async sendMfaRecoveryAdminDigestEmail(
+      adminEmail: string,
+      teamDisplayName: string,
+      pendingCount: number,
+      adminSpaUrl: string,
+      snoozeUrl?: string | null,
+    ) {
+      const app = brandName();
+      // Bound the displayed count for safety.
+      const safeCount = Number.isFinite(pendingCount)
+        ? Math.max(0, Math.min(999, Math.floor(pendingCount)))
+        : 0;
+      // PHASE R8.1.9 — optional snooze link block embedded in the
+      // HTML body and text fallback. The URL is a pre-signed
+      // one-click endpoint; it carries NO user PII beyond the
+      // opaque signed JWT. When omitted, the block is omitted.
+      const snoozeHtmlBlock = snoozeUrl
+        ? `
+          <div style="margin:12px 0 0 0; padding:10px 14px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; color:#475569;">
+            Not ready to review now?
+            <a href="${safeHtml(snoozeUrl)}"
+               style="color:#2563eb; text-decoration:none; font-weight:600;">
+              Snooze these digest emails for 15 days
+            </a>
+            — security events and audit logs are unaffected.
+          </div>
+        `.trim()
+        : "";
+      const snoozeTextLine = snoozeUrl
+        ? `To snooze digest emails for 15 days: ${snoozeUrl}\n`
+        : "";
+      const html = emailShell({
+        title: "Pending MFA recovery requests",
+        preheader: `You have ${safeCount} pending recovery request${
+          safeCount === 1 ? "" : "s"
+        } awaiting your review.`,
+        bodyHtml: `
+          <div style="margin:0 0 10px 0;">
+            Members of <strong>${safeHtml(teamDisplayName)}</strong> have
+            requested two-factor authentication recovery and verified
+            their mailbox. Their requests have been waiting more than
+            24 hours for an administrator decision.
+          </div>
+          <div style="margin:0 0 10px 0;">
+            Open the admin console below to review and approve or
+            reject each request.
+          </div>
+          <div style="margin:0 0 10px 0;">
+            <strong>${safeCount}</strong> pending request${
+              safeCount === 1 ? "" : "s"
+            }
+          </div>
+          <div style="margin:0 0 10px 0; color:#475569; font-size:13px;">
+            Approving a request revokes the user&apos;s MFA factors and
+            forces them to re-enroll on their next sign-in. It does
+            NOT grant the user a session.
+          </div>
+          ${snoozeHtmlBlock}
+        `.trim(),
+        ctaText: "Open admin console",
+        ctaUrl: adminSpaUrl,
+        secondaryText:
+          "If you are no longer an administrator of this workspace, you can ignore this email.",
+      });
+      const text =
+        `Pending MFA recovery requests for ${teamDisplayName} on ${app}\n\n` +
+        `${safeCount} request${safeCount === 1 ? "" : "s"} awaiting review.\n` +
+        `Open the admin console: ${adminSpaUrl}\n\n` +
+        `Approving a request does NOT grant a session — the user must still re-enroll.\n` +
+        snoozeTextLine +
+        `Support: ${supportEmail()}\n`;
+      return resend.emails.send({
+        from,
+        to: adminEmail,
+        subject: `${safeCount} pending MFA recovery request${
+          safeCount === 1 ? "" : "s"
+        } — ${teamDisplayName}`,
+        html,
+        text,
+      });
+    },
+
+    async sendMfaRecoveryVerificationEmail(
+      email: string,
+      verificationUrl: string,
+    ) {
+      const app = brandName();
+      const html = emailShell({
+        title: "Verify your MFA recovery request",
+        preheader: `Confirm you initiated an MFA recovery on ${app}.`,
+        bodyHtml: `
+          <div style="margin:0 0 10px 0;">
+            We received a request to reset the two-factor
+            authentication on your <strong>${safeHtml(app)}</strong>
+            account.
+          </div>
+          <div style="margin:0 0 10px 0;">
+            Click the button below to confirm this request was you.
+            This step ONLY confirms that you can access this mailbox
+            — your organization's administrator must still approve
+            the reset before MFA is changed.
+          </div>
+          <div style="margin:0 0 10px 0;">
+            This link expires in 15 minutes.
+          </div>
+        `.trim(),
+        ctaText: "Confirm recovery request",
+        ctaUrl: verificationUrl,
+        secondaryText:
+          "If you did not initiate this recovery request, ignore this email and notify your administrator.",
+      });
+      const text =
+        `Verify your ${app} MFA recovery request\n\n` +
+        `Confirm you initiated the recovery by opening this link:\n${verificationUrl}\n\n` +
+        `This only confirms mailbox access. Your administrator must still approve the reset.\n` +
+        `If you did not request this, ignore this email and notify your administrator.\n` +
+        `Support: ${supportEmail()}\n`;
+      return resend.emails.send({
+        from,
+        to: email,
+        subject: `Verify your ${app} MFA recovery request`,
         html,
         text,
       });

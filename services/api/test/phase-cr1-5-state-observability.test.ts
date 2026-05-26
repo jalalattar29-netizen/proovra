@@ -201,13 +201,14 @@ describe("CR1.5 Test 7 — bounded /v1/users/me self-fetcher allow-list", () => 
     },
     {
       path: "app/(app)/settings/page.tsx",
-      reason: "Profile PATCH mutation. R1 Phase 2 pairs it with ctx.refresh().",
-    },
-    {
-      path: "app/(app)/teams/[id]/page.tsx",
       reason:
-        "Legacy team detail derives currentUserId. R1 Phase 2 migrates to envelope.user.id.",
+        "Profile PATCH mutation against the only /v1/users/me write endpoint. R1 Part 4 pairs it with ctx.refresh(); CR1.6 confirmed the refresh remains in place. Not a stale-read self-fetch.",
     },
+    // CR1.6 Part 4 — `teams/[id]/page.tsx` migrated off the legacy
+    // /v1/users/me self-fetch. Current user id now sourced from the
+    // canonical platform envelope (`envelope.user.id`). The entry is
+    // intentionally removed so any regression that re-adds the
+    // self-fetch fails this test.
   ];
 
   it("only the documented files self-fetch /v1/users/me", () => {

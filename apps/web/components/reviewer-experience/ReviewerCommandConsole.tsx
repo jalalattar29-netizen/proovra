@@ -34,10 +34,14 @@ import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { RuntimeStatusBanner } from "../operational";
 import type { ReviewerCommandEnvelope, SectionStatus } from "./types";
 
+// CR1.6 — The legacy `no_workspace` LoadState branch was removed.
+// PageRouteGate (review.queue, ORGANIZATION_ONLY) gates entry and
+// the in-component capability check (REVIEWER_OPS_VIEW) renders the
+// canonical CapabilityDegradedPanel for personal users. The previous
+// `ShellNoWorkspace` render was unreachable dead code.
 type LoadState =
   | { status: "loading" }
   | { status: "ready"; envelope: ReviewerCommandEnvelope }
-  | { status: "no_workspace" }
   | { status: "auth_error"; code: "auth_required" | "permission_denied" }
   | { status: "unavailable"; message: string };
 
@@ -110,7 +114,6 @@ export function ReviewerCommandConsole() {
   }
 
   if (state.status === "loading") return <ShellLoading />;
-  if (state.status === "no_workspace") return <ShellNoWorkspace />;
   if (state.status === "auth_error")
     return <ShellAuthError code={state.code} />;
   if (state.status === "unavailable")
@@ -659,21 +662,10 @@ function ShellLoading() {
   );
 }
 
-function ShellNoWorkspace() {
-  return (
-    <main className="cc-page" data-reviewer-no-workspace>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Review Orchestration · Escalation Command</div>
-          <h1 className="cc-title">No workspace selected</h1>
-          <p className="cc-subtitle">
-            Select a workspace to view reviewer orchestration.
-          </p>
-        </div>
-      </header>
-    </main>
-  );
-}
+// CR1.6 — `ShellNoWorkspace` removed. The canonical no-team
+// rendering path is the in-component `CapabilityDegradedPanel`
+// (REVIEWER_OPS_VIEW) for personal users; PageRouteGate handles
+// truly missing workspace state at route entry.
 
 function ShellAuthError({
   code,

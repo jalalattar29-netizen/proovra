@@ -347,6 +347,69 @@ export async function noteSsoFailure(
 }
 
 // -----------------------------------------------------------------------------
+// R8.2 — SAML-specific persist/consume for SsoCallbackAttempt
+//
+// For SAML connections the "state" token is the HTTP-Redirect RelayState,
+// and the "nonce" is repurposed to store an HMAC of the samlAuthnRequestId
+// so the ACS handler can verify InResponseTo correlation. The raw nonce
+// concept does not apply to SAML; this field is set to a deterministic
+// derivation of the AuthnRequest ID so the row schema is satisfied.
+// -----------------------------------------------------------------------------
+
+export type PersistSamlStateInput = {
+  teamId: string;
+  ssoConnectionId: string;
+  /** Raw RelayState value; we hash before insert. */
+  relayStateRaw: string;
+  /** The ID attribute from our AuthnRequest (for InResponseTo verification). */
+  samlAuthnRequestId: string;
+  redirectAfter: string | null;
+  ipPreview: string | null;
+  uaPreview: string | null;
+  allowedRedirectOrigins?: ReadonlyArray<string>;
+  ttlSeconds?: number;
+};
+
+export async function persistSamlCallbackAttempt(
+  input: PersistSamlStateInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<PersistStateResult> {
+  if (
+    input.redirectAfter &&
+    !isSafeRedirectAfter(input.redirectAfter, input.allowedRedirectOrigins)
+  ) {
+    return { ok: false, reason: "INVALID_REDIRECT" };
+  }
+  const ttl = input.ttlSeconds ?? SSO_CALLBACK_STATE_TTL_SECONDS;
+  try {
+    const row = await client.ssoCallbackAttempt.create({
+      data: {
+        teamId: input.teamId,
+        ssoConnectionId: input.ssoConnectionId,
+        stateHash: hashStateToken(input.relayStateRaw),
+        // For SAML: reuse nonceHash to store HMAC(samlAuthnRequestId).
+        nonceHash: hashStateToken(input.samlAuthnRequestId),
+        samlAuthnRequestId: input.samlAuthnRequestId,
+        status: "PENDING",
+        redirectAfter: input.redirectAfter,
+        ipPreview: input.ipPreview,
+        uaPreview: input.uaPreview,
+        expiresAtUtc: new Date(Date.now() + ttl * 1000),
+      },
+    });
+    setGauge(
+      "sso_callback_pending",
+      await client.ssoCallbackAttempt.count({
+        where: { teamId: input.teamId, status: "PENDING" },
+      }),
+    );
+    return { ok: true, attemptId: row.id };
+  } catch {
+    return { ok: false, reason: "PERSIST_FAILED" };
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Stale-attempt sweep (cron-driven cleanup)
 // -----------------------------------------------------------------------------
 

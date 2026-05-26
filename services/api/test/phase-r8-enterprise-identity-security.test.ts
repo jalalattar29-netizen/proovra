@@ -182,13 +182,12 @@ describe("R8 Part 4 — no parallel identity infrastructure introduced", () => {
     return out;
   }
 
-  it("no new auth route file (no `auth2.routes.ts` / `auth-v2.routes.ts` / `enterprise-auth.routes.ts`)", () => {
+  it("no new parallel auth route file (`mfa.routes.ts` is an identity sub-domain shipped by R8.1.1, NOT a parallel auth system)", () => {
     const FORBIDDEN_NAMES = [
       "auth2.routes.ts",
       "auth-v2.routes.ts",
       "enterprise-auth.routes.ts",
       "auth-enterprise.routes.ts",
-      "mfa.routes.ts",
       "totp.routes.ts",
       "saml.routes.ts",
     ];
@@ -263,10 +262,22 @@ describe("R8 Part 4 — no parallel identity infrastructure introduced", () => {
 
 describe("R8 Part 5 — canonical identity files preserved in size", () => {
   // R8 must not have modified the canonical auth / identity / SCIM
-  // route files at all. Tight ±5% bound on each.
+  // route files at all. Tight ±5% bound on each — EXCEPT auth.routes
+  // and sso-auth.routes, which were legitimately grown by R8.1.2's
+  // login-time MFA integration (verify endpoint, MFA-gate helper,
+  // pending-cookie helpers, OIDC MFA branch). Their new baselines
+  // are pinned here with the same ±5% bound around the post-R8.1.2
+  // size so further drift is still caught.
   const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/auth.routes.ts", expectedBytes: 17211 },
-    { rel: "src/routes/sso-auth.routes.ts", expectedBytes: 12496 },
+    // R8.1.3 baseline (was 32109 after R8.1.2; further grew when the
+    // durable-challenge gate + ENROLLMENT_REQUIRED branch landed).
+    // R8.1.9 rebaselined: +session-light endpoint added in R8.1.9 Part 1.
+    // Phase E10.1 rebaselined: +per-IP rate limit on login +
+    // password-reset (DEF-037 closure; ~30 lines of bounded hardening).
+    { rel: "src/routes/auth.routes.ts", expectedBytes: 42051 },
+    // R8.1.3 baseline (was 15823 after R8.1.2; grew for the SSO
+    // durable-challenge + enrollment-required branches).
+    { rel: "src/routes/sso-auth.routes.ts", expectedBytes: 18565 },
     { rel: "src/routes/identity.routes.ts", expectedBytes: 31353 },
     {
       rel: "src/routes/identity-security.routes.ts",

@@ -777,6 +777,46 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: true,
   },
+  // Phase E3 — Operational Automation Foundation. Lives UNDER the
+  // Operations Center hub (`/ops/automation`), NOT as a root nav item.
+  // No new root entries are introduced — the 32.8 canonical primaries
+  // remain bounded at 6.
+  {
+    id: "platform.automation",
+    href: "/ops/automation",
+    label: "Automation rules",
+    description:
+      "Bounded operational automation: trigger + action rules with audit history.",
+    domain: "OPS",
+    requiredCapabilities: ["AUTOMATION_VIEW"],
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "REQUEST_ACCESS",
+    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  // Phase E4 — Bounded operational analytics. Lives UNDER the Operations
+  // Center hub (`/ops/analytics`), NOT as a root nav item. The 32.8
+  // canonical primaries remain bounded at 6. Read-only surface; every
+  // metric is source-traceable to a real Prisma model, never fabricated.
+  {
+    id: "platform.analytics",
+    href: "/ops/analytics",
+    label: "Operational analytics",
+    description:
+      "Bounded operational analytics: real counts from real tables. No fake metrics, no AI predictions, no legal/admissibility scores.",
+    domain: "OPS",
+    requiredCapabilities: ["ANALYTICS_VIEW"],
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "REQUEST_ACCESS",
+    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
   {
     id: "admin.teams",
     href: "/teams",

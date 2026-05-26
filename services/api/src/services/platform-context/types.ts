@@ -238,6 +238,23 @@ export const CAPABILITY_KEYS = [
   "ORG_OPS_VIEW",
   "ORG_TEAM_MANAGE",
   "ORG_BILLING_MANAGE",
+  // ===========================================================================
+  // Phase E3 — Operational Automation Foundation
+  //
+  // VIEW: any team writer can read rules + run history (operators need
+  //   to know what automation runs in their workspace).
+  // MANAGE: owner/admin only — rule create / update / enable / disable.
+  // ===========================================================================
+  "AUTOMATION_VIEW",
+  "AUTOMATION_MANAGE",
+  // ===========================================================================
+  // Phase E4 — Analytics & Operational Intelligence
+  //
+  // Single bounded VIEW capability. Reading operational analytics is a
+  // read-only surface; no MANAGE counterpart exists because analytics
+  // is not mutable. Granted to any team writer + platform admin.
+  // ===========================================================================
+  "ANALYTICS_VIEW",
 ] as const;
 export type CapabilityKey = (typeof CAPABILITY_KEYS)[number];
 

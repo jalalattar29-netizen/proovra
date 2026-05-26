@@ -40,11 +40,16 @@ import {
  * Sealed ciphertext bundle. All three components are required to
  * decrypt — the database stores them as three separate BYTEA columns
  * (`secret_ciphertext`, `secret_iv`, `secret_auth_tag`).
+ *
+ * R8.1.2 — widened from `Buffer` to `Uint8Array` so Prisma client
+ * outputs (which are typed as Uint8Array under TS 5.7+) flow through
+ * without explicit `Buffer.from` wrapping at every call site. The
+ * crypto primitives accept either type at runtime.
  */
 export interface SealedSecret {
-  readonly ciphertext: Buffer;
-  readonly iv: Buffer;
-  readonly authTag: Buffer;
+  readonly ciphertext: Uint8Array;
+  readonly iv: Uint8Array;
+  readonly authTag: Uint8Array;
   readonly kekId: string;
 }
 
@@ -106,10 +111,17 @@ export function sealSecret(plaintext: Buffer): SealedSecret {
  */
 export function openSecret(sealed: SealedSecret): Buffer {
   const { key } = resolveKek();
-  const decipher = createDecipheriv("aes-256-gcm", key, sealed.iv);
-  decipher.setAuthTag(sealed.authTag);
+  // Buffer.from wraps the IV / auth-tag / ciphertext in case the
+  // Prisma client supplied raw Uint8Array views (TS 5.7+). The
+  // crypto methods accept either, but the typing is stricter.
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    key,
+    Buffer.from(sealed.iv),
+  );
+  decipher.setAuthTag(Buffer.from(sealed.authTag));
   return Buffer.concat([
-    decipher.update(sealed.ciphertext),
+    decipher.update(Buffer.from(sealed.ciphertext)),
     decipher.final(),
   ]);
 }

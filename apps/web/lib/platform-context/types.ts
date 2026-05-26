@@ -108,6 +108,11 @@ export const CAPABILITY_KEYS = [
   "ORG_OPS_VIEW",
   "ORG_TEAM_MANAGE",
   "ORG_BILLING_MANAGE",
+  // Phase E3 — operational automation foundation.
+  "AUTOMATION_VIEW",
+  "AUTOMATION_MANAGE",
+  // Phase E4 — operational analytics (single bounded VIEW capability).
+  "ANALYTICS_VIEW",
 ] as const;
 export type CapabilityKey = (typeof CAPABILITY_KEYS)[number];
 

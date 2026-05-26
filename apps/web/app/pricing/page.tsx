@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   detectCurrency,
@@ -187,21 +187,27 @@ export default function MarketingPricingPage() {
   const appBilling = appBase ? `${appBase}/billing` : "/billing";
   const appRegister = appBase ? `${appBase}/register` : "/register";
 
-  const buildCtaHref = (key: PlanKey) => {
-    if (!hasSession) return appRegister;
+  // R8.1A — wrapped in `useCallback` so the downstream `useMemo`
+  // (line ~353) that includes them in its dep array does not
+  // re-fire on every render. Pure builders; behavior identical.
+  const buildCtaHref = useCallback(
+    (key: PlanKey) => {
+      if (!hasSession) return appRegister;
 
-    if (key === "TEAM") {
-      return `${appBilling}?workspace=team&plan=TEAM`;
-    }
+      if (key === "TEAM") {
+        return `${appBilling}?workspace=team&plan=TEAM`;
+      }
 
-    if (key === "FREE") {
-      return `${appBilling}?workspace=personal`;
-    }
+      if (key === "FREE") {
+        return `${appBilling}?workspace=personal`;
+      }
 
-    return `${appBilling}?workspace=personal&plan=${key}`;
-  };
+      return `${appBilling}?workspace=personal&plan=${key}`;
+    },
+    [hasSession, appBilling, appRegister],
+  );
 
-  const buildCtaLabel = (key: PlanKey) => {
+  const buildCtaLabel = useCallback((key: PlanKey) => {
     if (!hasSession) {
       if (key === "FREE") return "Create free account";
       return "Create account and continue";
@@ -212,7 +218,7 @@ export default function MarketingPricingPage() {
     if (key === "PAYG") return "Open PAYG checkout";
     if (key === "PRO") return "Open PRO checkout";
     return `Choose ${key}`;
-  };
+  }, [hasSession]);
 
   const storageAddonSummary = useMemo(() => {
     if (
@@ -350,7 +356,7 @@ export default function MarketingPricingPage() {
         ctaHref: buildCtaHref("TEAM"),
       },
     ],
-    [displayCurrency, catalog, hasSession, appBilling, appRegister]
+    [displayCurrency, catalog, buildCtaLabel, buildCtaHref]
   );
 
   const enterprise = catalog?.enterprise ?? {

@@ -200,6 +200,16 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
           // account-tier; managing billing (BILLING_MANAGE) remains
           // OWNER/ADMIN only.
           "BILLING_VIEW",
+          // Phase E3 — every team writer can read automation rules +
+          // run history (visibility is part of operational discipline).
+          // AUTOMATION_MANAGE (create/edit/enable/disable) stays
+          // OWNER/ADMIN only, granted in the isAdmin branch below.
+          "AUTOMATION_VIEW",
+          // Phase E4 — operational analytics is a read-only surface;
+          // any team writer can see it. Personal-workspace owners
+          // (who are team writers in their personal space) also get
+          // the simplified-analytics view via this capability.
+          "ANALYTICS_VIEW",
         ],
         true,
       );
@@ -225,6 +235,9 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
           // CASE_ASSIGN is reserved for OWNER/ADMIN. Per-case
           // CaseAssignment OWNER also gets it server-side.
           "CASE_ASSIGN",
+          // Phase E3 — only OWNER/ADMIN may create/edit/enable/
+          // disable automation rules. Writers can VIEW but not MANAGE.
+          "AUTOMATION_MANAGE",
         ],
         true,
       );

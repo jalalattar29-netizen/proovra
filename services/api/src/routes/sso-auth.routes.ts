@@ -34,12 +34,23 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { prisma } from "../db.js";
-import { signJwt } from "../services/jwt.js";
+import {
+  signJwt,
+  signMfaPendingToken,
+  MFA_PENDING_TTL_SECONDS,
+} from "../services/jwt.js";
 import {
   handleOidcCallback,
   buildOidcAuthorizationUrl,
   SsoServiceError,
 } from "../services/access-control/sso.service.js";
+import {
+  readMfaStatus,
+  createMfaPendingChallenge,
+} from "../services/security/mfa.service.js";
+import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
   consumeCallbackAttempt,
   getConnectionForAttempt,
@@ -286,6 +297,155 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           prisma,
         );
         await noteSsoSuccess(conn.id, prisma);
+
+        // PHASE R8.1.2/R8.1.3 — second-factor gate for SSO. R8.1.3
+        // consults `resolveLoginMfaEnforcement` so org policy is
+        // honoured here exactly as it is on email / OAuth login. The
+        // resolver returns:
+        //   NOT_REQUIRED         → continue with normal SSO session
+        //   MFA_REQUIRED         → durable challenge + redirect to /auth/mfa-challenge
+        //   ENROLLMENT_REQUIRED  → 302 to /auth/mfa-challenge?enroll=1
+        //                          (page surfaces guided enrollment;
+        //                          NO session cookie is set)
+        let decision: Awaited<ReturnType<typeof resolveLoginMfaEnforcement>>;
+        try {
+          decision = await resolveLoginMfaEnforcement({
+            userId: result.user.id,
+          });
+        } catch {
+          // Fail-OPEN on transient orchestrator errors to avoid
+          // locking every operator out on a Prisma blip. Logged via
+          // sso failure note for SecOps follow-up.
+          decision = {
+            outcome: "NOT_REQUIRED",
+            activeFactorCount: 0,
+            policyTeamId: null,
+            policyLevel: null,
+          };
+        }
+        if (decision.outcome === "ENROLLMENT_REQUIRED") {
+          safeEmitSecurityEvent(
+            {
+              teamId: decision.policyTeamId,
+              eventType: "mfa_enrollment_required",
+              severity: "WARNING",
+              details: {
+                actorUserId: result.user.id,
+                loginMethod: "sso_oidc",
+                policyLevel: decision.policyLevel,
+              },
+            },
+            prisma,
+          );
+          void appendPlatformAuditLog({
+            userId: result.user.id,
+            action: "auth.mfa_enrollment_required",
+            category: "auth",
+            severity: "warning",
+            source: "api_sso",
+            outcome: "blocked",
+            resourceType: "user_auth",
+            resourceId: result.user.id,
+            requestId: req.id,
+            metadata: {
+              loginMethod: "sso_oidc",
+              policyLevel: decision.policyLevel,
+            },
+            ipAddress: req.ip,
+            userAgent: uaPreview(req),
+          }).catch(() => null);
+          const url = new URL(
+            "/auth/mfa-challenge",
+            process.env["WEB_BASE_URL"] || "https://www.proovra.com",
+          );
+          url.searchParams.set("enroll", "1");
+          url.searchParams.set(
+            "next",
+            attempt.redirectAfter ?? "/home",
+          );
+          return reply.code(302).redirect(url.toString());
+        }
+        if (decision.outcome === "MFA_REQUIRED") {
+          // Create durable challenge so SSO replay protection lives
+          // in the DB just like email/OAuth login.
+          const challenge = await createMfaPendingChallenge({
+            userId: result.user.id,
+            purpose: "LOGIN",
+            ipAddress: req.ip ?? null,
+            userAgent: uaPreview(req),
+            metadata: { loginMethod: "sso_oidc" },
+          });
+          const pendingToken = signMfaPendingToken(
+            {
+              sub: result.user.id,
+              provider: "EMAIL",
+              email: result.user.email,
+            },
+            jwtSecret,
+            challenge.jti,
+          );
+          // Reuse the same cookie-shape rules as setSessionCookie so
+          // cross-subdomain redirects work on production. NOT the
+          // session cookie — separate name, separate TTL.
+          const host = req.headers["host"] ?? "";
+          const origin = req.headers["origin"] ?? "";
+          const productionDomain =
+            process.env["SSO_COOKIE_DOMAIN"] ||
+            (host.includes("proovra.com") ||
+            origin.includes("proovra.com")
+              ? ".proovra.com"
+              : undefined);
+          const secure =
+            process.env["SSO_COOKIE_SECURE"] === "true" ||
+            !!productionDomain;
+          reply.setCookie("proovra_mfa_pending", pendingToken, {
+            httpOnly: true,
+            secure,
+            sameSite: "lax",
+            path: "/",
+            domain: productionDomain,
+            maxAge: MFA_PENDING_TTL_SECONDS,
+          });
+          if (decision.policyLevel && decision.policyTeamId) {
+            safeEmitSecurityEvent(
+              {
+                teamId: decision.policyTeamId,
+                eventType: "org_mfa_policy_enforced",
+                severity: "INFO",
+                details: {
+                  actorUserId: result.user.id,
+                  loginMethod: "sso_oidc",
+                  policyLevel: decision.policyLevel,
+                },
+              },
+              prisma,
+            );
+          }
+          void appendPlatformAuditLog({
+            userId: result.user.id,
+            action: "auth.mfa_challenge_issued",
+            category: "auth",
+            severity: "info",
+            source: "api_sso",
+            outcome: "success",
+            resourceType: "user_auth",
+            resourceId: result.user.id,
+            requestId: req.id,
+            metadata: {
+              loginMethod: "sso_oidc",
+              policyLevel: decision.policyLevel ?? null,
+            },
+            ipAddress: req.ip,
+            userAgent: uaPreview(req),
+          }).catch(() => null);
+          const next = attempt.redirectAfter ?? "/home";
+          const url = new URL(
+            "/auth/mfa-challenge",
+            process.env["WEB_BASE_URL"] || "https://www.proovra.com",
+          );
+          url.searchParams.set("next", next);
+          return reply.code(302).redirect(url.toString());
+        }
 
         // Mint the JWT. We reuse the existing token shape so the
         // auth middleware accepts the session unchanged.

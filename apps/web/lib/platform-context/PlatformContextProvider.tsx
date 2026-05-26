@@ -41,6 +41,17 @@
  *
  *   4. On any auth error (401), the provider sets FAILED. Higher-
  *      level shell components route to /login.
+ *
+ *   5. CR1.6 — Optional focus-triggered envelope refresh. When
+ *      `NEXT_PUBLIC_PLATFORM_CONTEXT_FOCUS_REFRESH_ENABLED === "true"`,
+ *      the provider listens for window focus and document
+ *      `visibilitychange` events. On a true visibility transition
+ *      (hidden → visible) OR a window focus event, if the provider is
+ *      in READY state AND more than `MIN_REFRESH_INTERVAL_MS` (60s)
+ *      has elapsed since the last refresh, a single `refresh()` is
+ *      issued. Concurrent refresh attempts are dropped via a guard
+ *      ref. The feature is OFF by default and SSR-safe (the effect
+ *      no-ops when `window` is undefined).
  */
 
 import React, {
@@ -124,6 +135,25 @@ function versionsAreCompatible(envelope: PlatformContextEnvelope): boolean {
     envelope.authoritySchemaVersion === AUTHORITY_SCHEMA_VERSION &&
     envelope.capabilitySchemaVersion === CAPABILITY_SCHEMA_VERSION &&
     envelope.navigationSchemaVersion === NAVIGATION_SCHEMA_VERSION
+  );
+}
+
+// CR1.6 — Focus-refresh tuning constants. Exported as `const` so
+// tests can reference the same values; not exported from the module.
+//   - MIN_REFRESH_INTERVAL_MS: throttle window. A focus/visibility
+//     event that lands inside this window since the last refresh is
+//     ignored. 60 s prevents thrash from rapid tab-switching and
+//     keeps API load bounded.
+//   - The feature is read from a NEXT_PUBLIC_ flag so it is statically
+//     known at build time (Next.js strips false references in prod
+//     bundles).
+const MIN_REFRESH_INTERVAL_MS = 60_000;
+
+function isFocusRefreshEnabled(): boolean {
+  // The flag is a NEXT_PUBLIC_ env var so it is inlined at build time
+  // by Next.js. Safe to read on the client. Default OFF.
+  return (
+    process.env.NEXT_PUBLIC_PLATFORM_CONTEXT_FOCUS_REFRESH_ENABLED === "true"
   );
 }
 
@@ -337,6 +367,77 @@ export function PlatformContextProvider({
     void refresh();
     // refresh's identity is stable across renders because of useCallback.
   }, [refresh, testEnvelope]);
+
+  // ----------------------------------------------------------------
+  // CR1.6 — Focus-triggered envelope refresh (opt-in, throttled).
+  //
+  // When the user returns to a tab after time away, an admin may have
+  // granted them new capabilities or moved them between workspaces.
+  // Without this hook the only way to pick up the change is a manual
+  // reload. We add a guarded, throttled refresh on focus /
+  // visibilitychange so the canonical envelope catches up
+  // automatically.
+  //
+  // Invariants:
+  //   - OFF unless NEXT_PUBLIC_PLATFORM_CONTEXT_FOCUS_REFRESH_ENABLED.
+  //   - SSR-safe: short-circuits when `window` / `document` are
+  //     undefined.
+  //   - Test-harness safe: short-circuits when `testEnvelope` is set.
+  //   - Skips while LOADING_CONTEXT, SWITCHING, IDLE, or FAILED — only
+  //     refreshes while READY (we already have an envelope and a
+  //     concurrent fetch would be wasted / confusing).
+  //   - Throttle: at most one refresh per MIN_REFRESH_INTERVAL_MS.
+  //   - Concurrency guard: a ref prevents overlapping refresh
+  //     invocations even if events arrive in fast succession.
+  // ----------------------------------------------------------------
+  const lastRefreshAtRef = useRef<number>(Date.now());
+  const focusRefreshInflightRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (testEnvelope) return;
+    if (!isFocusRefreshEnabled()) return;
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+    // Capture the current `state` and `refresh` via closure. The
+    // effect re-binds whenever those change so the latest state /
+    // refresh function is consulted on every event.
+    const onMaybeRefresh = (reason: "focus" | "visibility"): void => {
+      // Only the "hidden → visible" transition is a true return.
+      if (reason === "visibility" && document.visibilityState !== "visible") {
+        return;
+      }
+      // Concurrency guard.
+      if (focusRefreshInflightRef.current) return;
+      // Only refresh while READY — other states already own the
+      // network and a parallel refresh would race them.
+      if (state.name !== "READY") return;
+      // Throttle.
+      const now = Date.now();
+      if (now - lastRefreshAtRef.current < MIN_REFRESH_INTERVAL_MS) return;
+      focusRefreshInflightRef.current = true;
+      lastRefreshAtRef.current = now;
+      void refresh().finally(() => {
+        focusRefreshInflightRef.current = false;
+      });
+    };
+    const onFocus = (): void => onMaybeRefresh("focus");
+    const onVisibility = (): void => onMaybeRefresh("visibility");
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [refresh, state, testEnvelope]);
+
+  // Also update lastRefreshAtRef on any provider-driven refresh so the
+  // throttle starts from the actual fetch time, not the initial mount
+  // time.
+  useEffect(() => {
+    if (state.name === "READY") {
+      lastRefreshAtRef.current = Date.now();
+    }
+  }, [state.name === "READY" ? state.envelope : null]);
 
   const can = useCallback(
     (capability: CapabilityKey) => readCapability(state, capability),

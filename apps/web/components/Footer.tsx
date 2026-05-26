@@ -21,6 +21,10 @@ function legalLink(href: string, fallback: string): FooterLink {
 }
 
 const TRUST_VERIFICATION_LINKS: FooterLink[] = [
+  // Phase E5 — consolidated enterprise-facing Trust Center. Sits at the
+  // top of this column because it links DOWN into the detailed pages
+  // below, not the other way around.
+  { href: "/about/trust", label: "Trust Center" },
   legalLink("/legal/verification-methodology", "Verification Methodology"),
   legalLink("/legal/security", "Security & Responsible Disclosure"),
   legalLink("/legal/evidence-handling", "Evidence Handling Policy"),

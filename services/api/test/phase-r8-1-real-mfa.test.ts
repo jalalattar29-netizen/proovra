@@ -221,37 +221,43 @@ describe("R8.1 Part 6 — R8 event vocabulary intact", () => {
 // PART 7 — No parallel auth surfaces / no half-built orchestrator
 // =============================================================================
 
-describe("R8.1 Part 7 — bounded surface area", () => {
-  it("no parallel auth route file introduced", () => {
+describe("R8.1 Part 7 — bounded surface area (R8.1.1-aware)", () => {
+  it("no parallel auth route file introduced (mfa.routes.ts is an identity sub-domain shipped by R8.1.1, NOT a parallel auth system)", () => {
     const forbiddenFiles = [
       "src/routes/auth2.routes.ts",
       "src/routes/auth-v2.routes.ts",
-      "src/routes/mfa.routes.ts",
       "src/routes/totp.routes.ts",
     ];
     for (const rel of forbiddenFiles) {
       expect(
         existsSync(apiPath(rel)),
-        `R8.1 forbids parallel auth route file ${rel} — MFA routes belong in R8.1.1 wired through identity-security.routes.ts`,
+        `Forbidden parallel auth route file ${rel}`,
       ).toBe(false);
     }
   });
 
-  it("R8.1 does NOT ship the half-built mfa.service.ts orchestrator (R8.1.1 owns it)", () => {
-    // The orchestrator depends on Prisma client regeneration that
-    // happens at deployment time after the migration is applied.
-    // Shipping it inside the same phase as the schema would be a
-    // plumbing surprise — R8.1.1 ships it AFTER the migration is
-    // confirmed applied in the deployment.
+  it("R8.1.1 added the canonical orchestrator + REST surface (R8.1 deferral resolved)", () => {
+    // R8.1 deferred these pending `pnpm prisma generate` after the
+    // schema migration applied. R8.1.1 shipped them once the
+    // generated Prisma client exposed `mfaFactor` + `mfaRecoveryCode`.
     expect(existsSync(apiPath("src/services/security/mfa.service.ts"))).toBe(
-      false,
+      true,
     );
+    expect(existsSync(apiPath("src/routes/mfa.routes.ts"))).toBe(true);
   });
 
-  it("canonical auth route files preserved in size (no R8.1 modification)", () => {
+  it("canonical auth route files preserved in size (no R8.1 modification, R8.1.2 rebaselined)", () => {
+    // R8.1.2 deliberately grew auth.routes.ts (login-MFA gate +
+    // verify endpoint + pending-cookie helpers) and sso-auth.routes.ts
+    // (OIDC MFA branch). Both baselines bumped accordingly so this
+    // pin still detects further drift but accepts R8.1.2's known
+    // additions.
     const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-      { rel: "src/routes/auth.routes.ts", expectedBytes: 17211 },
-      { rel: "src/routes/sso-auth.routes.ts", expectedBytes: 12496 },
+      // R8.1.9 rebaselined: +session-light endpoint added in R8.1.9 Part 1.
+      // Phase E10.1 rebaselined: +per-IP rate limit on login +
+      // password-reset (DEF-037 closure).
+      { rel: "src/routes/auth.routes.ts", expectedBytes: 42051 },
+      { rel: "src/routes/sso-auth.routes.ts", expectedBytes: 18565 },
       { rel: "src/routes/identity.routes.ts", expectedBytes: 31353 },
       {
         rel: "src/routes/identity-security.routes.ts",

@@ -68,9 +68,13 @@ describe("R1 Part 1 — CommandCenter consumes canonical active-space", () => {
   });
 
   it("dashboard fetch is keyed by the canonical active-space id (personal OR org)", () => {
-    // The fetch URL must reference activeSpace.id, not workspace.workspaceId
+    // The fetch URL must reference activeSpace.id (or, post-R8.1A
+    // Part G, the narrowed const `activeSpaceId`), not
+    // workspace.workspaceId. The intent — fetch keyed by the
+    // canonical active-space id — is the same; R8.1A only added a
+    // null-narrowing local.
     expect(CC).toMatch(
-      /\/v1\/dashboard\/command-center\?teamId=\$\{encodeURIComponent\(activeSpace\.id\)\}/,
+      /\/v1\/dashboard\/command-center\?teamId=\$\{encodeURIComponent\((?:activeSpace\.id|activeSpaceId)\)\}/,
     );
   });
 
@@ -243,14 +247,19 @@ describe("R1 Part 7 — self-fetcher allow-list unchanged (no new drift)", () =>
     return out;
   }
 
-  it("exactly the 3 documented self-fetchers remain (no new drift introduced by R1)", () => {
-    // Mirrors the CR1.5 allow-list. Pinning it here in R1's own
-    // suite catches any regression where R1's envelope-drift fix
-    // accidentally added a new self-fetcher.
+  it("exactly the 2 documented self-fetchers remain (post-CR1.6 cleanup)", () => {
+    // Mirrors the post-CR1.6 allow-list. Pinning it here in R1's own
+    // suite catches any regression where a future fix accidentally
+    // adds a new self-fetcher OR re-introduces the teams/[id] one
+    // CR1.6 migrated off /v1/users/me.
+    //
+    // CR1.6 reduced the allow-list from 3 to 2:
+    //   - providers.tsx              (bootstrap; retained intentionally)
+    //   - settings/page.tsx          (PATCH mutation; not a stale-read)
+    //   - teams/[id]/page.tsx        REMOVED — migrated to envelope.user.id
     const EXPECTED_FILES = new Set([
       "/app/providers.tsx",
       "/app/(app)/settings/page.tsx",
-      "/app/(app)/teams/[id]/page.tsx",
     ]);
     const root = webPath(".");
     const all = listAllTsxFiles(root);

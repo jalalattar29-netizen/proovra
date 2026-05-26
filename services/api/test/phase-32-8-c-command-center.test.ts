@@ -245,7 +245,13 @@ describe("Phase 32.8C — frontend command center renders all 8 mandatory operat
     // than the legacy team-only workspace gate. The fetch URL is
     // therefore keyed by `activeSpace.id`.
     expect(CC).toMatch(/\/v1\/dashboard\/command-center/);
-    expect(CC).toMatch(/encodeURIComponent\(activeSpace\.id\)/);
+    // R8.1A — Part G narrowed `activeSpace.id` (which is `string | null`
+    // for PERSONAL spaces) into a local `activeSpaceId` const before
+    // using it in encodeURIComponent. The intent is preserved: the
+    // canonical active-space id keys the fetch. Accept either pattern.
+    expect(CC).toMatch(
+      /encodeURIComponent\((?:activeSpace\.id|activeSpaceId)\)/,
+    );
   });
 
   it("renders per-section status states (ok / degraded / unavailable / not_applicable)", () => {

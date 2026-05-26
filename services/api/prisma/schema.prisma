@@ -779,6 +779,21 @@ model User {
   // Phase R8.1 — real MFA activation back-relations.
   mfaFactors                     MfaFactor[]
   mfaRecoveryCodes               MfaRecoveryCode[]
+  // Phase R8.1.3 — durable pending challenge back-relation.
+  mfaPendingChallenges           MfaPendingChallenge[]
+  // Phase R8.1.4 — lost-factor recovery back-relations.
+  mfaRecoveryRequests            MfaRecoveryRequest[]           @relation("MfaRecoveryRequestUser")
+  mfaRecoveryRequestApprovals    MfaRecoveryRequestApproval[]   @relation("MfaRecoveryRequestApprover")
+  // Phase R8.1.7 — digest preferences + per-admin digest log back-relations.
+  mfaAdminDigestPreferences      MfaAdminDigestPreference[]     @relation("MfaAdminDigestPreferenceUser")
+  mfaRecoveryAdminDigestLogs     MfaRecoveryAdminDigestLog[]    @relation("MfaRecoveryAdminDigestLogUser")
+
+  // Phase E3 — operational automation back-relations.
+  createdAutomationRules         AutomationRule[]               @relation("AutomationRuleCreatedBy")
+  updatedAutomationRules         AutomationRule[]               @relation("AutomationRuleUpdatedBy")
+  // Phase E3.2 — webhook destination back-relations.
+  createdAutomationWebhookDestinations  AutomationWebhookDestination[]  @relation("AutomationWebhookDestinationCreatedBy")
+  updatedAutomationWebhookDestinations  AutomationWebhookDestination[]  @relation("AutomationWebhookDestinationUpdatedBy")
 
   // Phase 21 — observability back-relations.
   acknowledgedOperationalIncidents OperationalIncident[]       @relation("OperationalIncidentAcknowledgedBy")
@@ -956,6 +971,20 @@ model Team {
 
   // Phase 38 — Use-case persona profile (UX layer only; never grants caps).
   personaProfile            WorkspacePersonaProfile?
+
+  // Phase R8.1.4 — MFA recovery requests are scoped to a team. Back-
+  // relation lets the admin surface list pending requests per team.
+  mfaRecoveryRequests           MfaRecoveryRequest[]          @relation("MfaRecoveryRequestTeam")
+  // Phase R8.1.6 — pending-digest idempotency log back-relation.
+  mfaRecoveryDigestLogs         MfaRecoveryDigestLog[]        @relation("MfaRecoveryDigestLogTeam")
+  // Phase R8.1.7 — admin digest preference back-relation.
+  mfaAdminDigestPreferences     MfaAdminDigestPreference[]    @relation("MfaAdminDigestPreferenceTeam")
+  // Phase E3 — operational automation back-relations.
+  automationRules               AutomationRule[]
+  automationRuns                AutomationRun[]
+  // Phase E3.2 — webhook delivery back-relations.
+  automationWebhookDestinations AutomationWebhookDestination[]
+  automationWebhookDeliveries   AutomationWebhookDelivery[]
 
   @@index([ownerUserId])
   @@index([billingOwnerUserId])
@@ -1482,6 +1511,35 @@ model Payment {
   @@index([userId])
   @@index([teamId, createdAt])
   @@map("payments")
+}
+
+// Phase E10.1 — DEF-038 closure. Stripe webhook event idempotency.
+//
+// Stripe delivers webhooks at-least-once and re-fires events that the
+// receiver did not 2xx promptly. Without a deduplication record the
+// `POST /stripe` handler would re-process duplicates → duplicate
+// `Payment` rows + double subscription transitions.
+//
+// `stripeEventId` is the canonical Stripe event id (e.g.
+// `evt_1234567890abcdef`). The unique index makes the "seen?" check
+// atomic — a duplicate insert raises a Prisma P2002 which the handler
+// translates into a safe no-op 200.
+//
+// Row stays in the table after processing as the durable audit of
+// what was acted on. A future bounded retention phase may add a TTL
+// (companion to DEF-024 / DEF-031 / DEF-032).
+model StripeWebhookEvent {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stripeEventId    String    @unique @map("stripe_event_id") @db.VarChar(128)
+  eventType        String    @map("event_type") @db.VarChar(120)
+  receivedAt       DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt      DateTime? @map("processed_at") @db.Timestamptz(6)
+  processingStatus String    @default("RECEIVED") @map("processing_status") @db.VarChar(32)
+  errorReason      String?   @map("error_reason") @db.VarChar(400)
+
+  @@index([eventType, receivedAt])
+  @@index([processingStatus])
+  @@map("stripe_webhook_events")
 }
 
 // Phase 32.6.3 — `model AuditLog`, `model Webhook`, `model WebhookEvent`
@@ -3948,6 +4006,21 @@ model OrganizationSecurityPolicy {
   // existing workspaces are not retroactively gated; operators opt in
   // via /security-center.
   mfaPolicyLevel                  String                       @default("OFF") @map("mfa_policy_level") @db.VarChar(32)
+  // PHASE R8.1.5 — per-org MFA enforcement fail-mode override.
+  //
+  //   SMART       (default) personal users fail-OPEN, org-scoped
+  //               users fail-CLOSED on Prisma/policy outages.
+  //   FAIL_CLOSED every classified resolver error returns
+  //               ENROLLMENT_REQUIRED for users without a factor
+  //               or MFA_REQUIRED for users with one.
+  //   FAIL_OPEN   classified errors return NOT_REQUIRED with a
+  //               degraded warning event. NOT recommended for
+  //               enterprise; useful for demo / low-risk tenants.
+  //
+  // Resolver consults this column FIRST; the global
+  // MFA_ENFORCEMENT_FAIL_MODE env is fallback only when this row
+  // is missing or NULL.
+  mfaEnforcementFailMode          String?                      @map("mfa_enforcement_fail_mode") @db.VarChar(16)
   stepUpTtlSeconds                Int?                         @map("step_up_ttl_seconds")
   trustedDeviceTtlDays            Int?                         @map("trusted_device_ttl_days")
 
@@ -4574,6 +4647,342 @@ model MfaRecoveryCode {
   @@index([userId, batchId])
   @@index([userId, usedAt])
   @@map("mfa_recovery_codes")
+}
+
+// PHASE R8.1.3 — durable MFA pending challenge.
+//
+// R8.1.2 stored pending-challenge replay state in a process-local Map.
+// That was acceptable for single-node testing but unsafe under
+// multi-instance / serverless / multi-region deployments — two
+// replicas could each accept the same pending token once. This row is
+// the SOURCE OF TRUTH for replay protection in production.
+//
+// Lifecycle:
+//   create  → INSERT row with `consumedAt: null`, `expiresAt: now + ttl`
+//   verify  → atomic `updateMany({ id, consumedAt: null, expiresAt > now })`
+//             flips `consumedAt` in a single SQL statement. The
+//             `updateMany` rowcount tells us whether we won the race.
+//   expire  → opportunistic GC (on create + on verify-failure) deletes
+//             rows where `consumedAt IS NOT NULL` AND `consumedAt < now -
+//             CLEANUP_RETENTION` OR rows where `expiresAt < now -
+//             CLEANUP_RETENTION`. A small bounded LIMIT keeps the GC
+//             cheap.
+//
+// Hard invariants:
+//   - NEVER stores the OTP, recovery code, secret, or signed token.
+//   - `purpose` distinguishes LOGIN-time challenges (this phase) from
+//     STEP_UP challenges (which currently use the Phase 19
+//     StepUpChallenge table; future phases may unify).
+//   - `ipHash` / `userAgentHash` are SHA-256 hashes — never the raw
+//     IP/UA — so the row is safe to ship to long-term retention
+//     without privacy review.
+model MfaPendingChallenge {
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Opaque JTI (also the signed-token's `sid`). 32 hex chars from
+  // `randomBytes(16).toString("hex")`. UNIQUE so two challenges can
+  // never collide on lookup.
+  jti                      String                  @map("jti") @db.VarChar(64)
+  userId                   String                  @map("user_id") @db.Uuid
+
+  // Purpose discriminator. R8.1.3 ships LOGIN; STEP_UP is reserved
+  // for the future unification with Phase 19 step-up.
+  purpose                  MfaChallengePurpose     @default(LOGIN)
+
+  // Absolute expiry — `verify` REFUSES challenges where now >=
+  // expiresAt, even if `consumedAt IS NULL`.
+  expiresAt                DateTime                @map("expires_at") @db.Timestamptz(6)
+  // Atomic consume marker. Set in the SAME UPDATE that wins the
+  // race so a replay cannot also flip it.
+  consumedAt               DateTime?               @map("consumed_at") @db.Timestamptz(6)
+  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Hashed IP + UA at issuance. SHA-256 with the
+  // IDENTITY_SECURITY_HASH_SECRET pepper (same secret already used by
+  // sso-auth.routes.ts deviceIdHash). Optional because non-cookie
+  // mobile clients may not surface UA reliably.
+  ipHash                   String?                 @map("ip_hash") @db.VarChar(64)
+  userAgentHash            String?                 @map("user_agent_hash") @db.VarChar(64)
+
+  // Per-row failure counter — incremented atomically on each failed
+  // verify attempt against this challenge id. The route-layer rate
+  // limiter still enforces a per-user window; this counter is for
+  // forensics and for the future "give up after N attempts" path.
+  failureCount             Int                     @default(0) @map("failure_count")
+
+  // Bounded JSON for downstream policy hints — e.g.
+  // `{ "loginMethod": "google_id_token" }` or `{ "phase": "sso_oidc" }`.
+  // NEVER carries OTP / recovery code / secret material; the
+  // safeEmitSecurityEvent contract is mirrored here.
+  metadata                 Json?                   @map("metadata") @db.JsonB
+
+  user                     User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([jti])
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+  @@map("mfa_pending_challenges")
+}
+
+enum MfaChallengePurpose {
+  LOGIN
+  STEP_UP
+
+  @@map("mfa_challenge_purpose")
+}
+
+// PHASE R8.1.4 — lost-factor recovery request.
+//
+// A bounded, auditable workflow for "I lost all my MFA factors and
+// my recovery codes — please reset my MFA so I can re-enroll." It
+// is INTENTIONALLY NOT a bypass: an approved request only marks the
+// user as enrollment-required on their next login; it never issues
+// a session, never issues a one-time MFA-skipping token, and never
+// hands the operator a code they can use as a factor.
+//
+// Lifecycle:
+//   PENDING  — user requested; visible to org admins
+//   APPROVED — at least one (or two, for high-risk orgs) org-admin
+//              approval(s) recorded; previous factors revoked +
+//              trusted devices cleared atomically with the
+//              APPROVED transition. User's next login enters the
+//              enrollment-required state.
+//   REJECTED — admin denied with a bounded reason code
+//   EXPIRED  — TTL elapsed without admin action
+//   COMPLETED — user re-enrolled a factor; the request is closed.
+//
+// Hard invariants:
+//   - NEVER carries any OTP, recovery code, secret, ciphertext.
+//   - Approval rows are append-only — once an admin approves, the
+//     request id is bound to that admin (multi-admin quorum is
+//     enforced via approver count, not by mutating prior rows).
+//   - Tenant isolation: every row scopes to a single `teamId`
+//     (the org the user belongs to); admin approvers must be
+//     ACTIVE members of THAT team.
+model MfaRecoveryRequest {
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // The user whose factors are being reset.
+  userId                   String                  @map("user_id") @db.Uuid
+  // The team scope under which the request was filed. Approvers must
+  // belong to this team. Lifecycle is per-team — a user with
+  // memberships in multiple teams may have at most one PENDING
+  // request per team.
+  teamId                   String                  @map("team_id") @db.Uuid
+
+  // PHASE R8.1.5 — default is now EMAIL_VERIFICATION_PENDING. The
+  // user must click the verification link/code emailed to their
+  // account address before the request enters the admin queue.
+  status                   MfaRecoveryRequestStatus @default(EMAIL_VERIFICATION_PENDING)
+
+  // PHASE R8.1.5 — verified-email preflight columns.
+  //
+  // The raw verification token is NEVER stored — only the SHA-256
+  // hash (deterministic, hex-encoded, 64 chars). One-time use is
+  // enforced by clearing the hash on successful verification.
+  // `emailVerificationExpiresAt` short-TTL (15 min default) bounds
+  // the brute-force window even if the hash were exfiltrated.
+  // `emailVerifiedAt` is the audit timestamp set at verification.
+  // `emailResendCount` + `emailResendBlockedUntil` enforce a
+  // bounded resend throttle (max 3 sends per request).
+  emailVerificationTokenHash  String?                @map("email_verification_token_hash") @db.VarChar(64)
+  emailVerificationExpiresAt  DateTime?              @map("email_verification_expires_at") @db.Timestamptz(6)
+  emailVerifiedAt             DateTime?              @map("email_verified_at") @db.Timestamptz(6)
+  emailResendCount            Int                    @default(0) @map("email_resend_count")
+  emailResendBlockedUntil     DateTime?              @map("email_resend_blocked_until") @db.Timestamptz(6)
+
+  // PHASE R8.1.5 — user-initiated cancellation timestamp. Set when
+  // the user withdraws the request before approval.
+  cancelledAtUtc              DateTime?              @map("cancelled_at_utc") @db.Timestamptz(6)
+
+  // Bounded reason supplied by the user. Visible to admins.
+  reason                   String                  @db.VarChar(400)
+
+  // Number of admin approvals required for this request to be
+  // approved. Default 1; orgs that set `mfaRecoveryQuorum = 2` in a
+  // future policy update get higher safety. Stored on the row so
+  // policy changes mid-request do not retroactively change the bar.
+  requiredApprovals        Int                     @default(1) @map("required_approvals")
+  approvalCount            Int                     @default(0) @map("approval_count")
+
+  // Bounded reason on reject; populated only when status = REJECTED.
+  rejectedReason           String?                 @map("rejected_reason") @db.VarChar(400)
+
+  // Absolute TTL. Requests not actioned by this point flip to
+  // EXPIRED via the same scheduled GC job that cleans pending
+  // challenges. 7 days by default.
+  expiresAt                DateTime                @map("expires_at") @db.Timestamptz(6)
+
+  approvedAtUtc            DateTime?               @map("approved_at_utc") @db.Timestamptz(6)
+  rejectedAtUtc            DateTime?               @map("rejected_at_utc") @db.Timestamptz(6)
+  completedAtUtc           DateTime?               @map("completed_at_utc") @db.Timestamptz(6)
+
+  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user                     User                    @relation("MfaRecoveryRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  team                     Team                    @relation("MfaRecoveryRequestTeam", fields: [teamId], references: [id], onDelete: Cascade)
+  approvals                MfaRecoveryRequestApproval[] @relation("MfaRecoveryRequestApprovals")
+
+  @@index([userId, status])
+  @@index([teamId, status])
+  @@index([expiresAt])
+  @@map("mfa_recovery_requests")
+}
+
+// PHASE R8.1.5 — recovery state machine hardened.
+//
+// Lifecycle:
+//   EMAIL_VERIFICATION_PENDING  → user must verify mailbox before
+//                                  admin can see / action the request
+//   PENDING_ADMIN_REVIEW        → email verified; visible in admin
+//                                  queue; admin may approve/reject
+//   APPROVED                    → quorum reached; factors revoked
+//                                  in same TX; user's next login
+//                                  enters enrollment-required
+//   REJECTED                    → admin denied with bounded reason
+//   EXPIRED                     → TTL elapsed without admin action
+//   CANCELLED                   → user withdrew before approval
+//   COMPLETED                   → user re-enrolled a fresh factor
+//
+// Hard transition graph (enforced by the recovery service):
+//   EMAIL_VERIFICATION_PENDING → PENDING_ADMIN_REVIEW (verify-email)
+//   EMAIL_VERIFICATION_PENDING → CANCELLED (user cancel)
+//   EMAIL_VERIFICATION_PENDING → EXPIRED (GC)
+//   PENDING_ADMIN_REVIEW       → APPROVED (admin quorum)
+//   PENDING_ADMIN_REVIEW       → REJECTED (admin)
+//   PENDING_ADMIN_REVIEW       → CANCELLED (user cancel)
+//   PENDING_ADMIN_REVIEW       → EXPIRED (GC)
+//   APPROVED                   → COMPLETED (user re-enrolls)
+//
+// PENDING (legacy R8.1.4 value) was renamed to PENDING_ADMIN_REVIEW
+// when the email-verification gate landed. Migration backfills
+// existing rows to PENDING_ADMIN_REVIEW (they were already
+// admin-actionable under the prior contract).
+enum MfaRecoveryRequestStatus {
+  EMAIL_VERIFICATION_PENDING
+  PENDING_ADMIN_REVIEW
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+  COMPLETED
+
+  @@map("mfa_recovery_request_status")
+}
+
+// PHASE R8.1.7 — admin notification preference for MFA recovery
+// digest emails.
+//
+// Each row scopes to a single user + an optional teamId. The
+// effective preference for (user, team) is computed as:
+//
+//   1. team-specific row (userId, teamId=T) wins if present
+//   2. else, global row (userId, teamId=null)
+//   3. else, default enabled
+//
+// `suppressUntil` lets an admin pause digest emails temporarily
+// (e.g. "snooze for 7 days"). When the timestamp is past, the
+// preference reverts to whatever `digestEnabled` is set to.
+//
+// HARD INVARIANT: preferences ONLY affect the operational digest
+// EMAIL transport. They DO NOT suppress audit log rows, do NOT
+// suppress security events, and do NOT suppress the admin SPA
+// from showing the pending queue. Operator visibility is
+// preserved unconditionally.
+model MfaAdminDigestPreference {
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                   String                  @map("user_id") @db.Uuid
+  teamId                   String?                 @map("team_id") @db.Uuid
+  digestEnabled            Boolean                 @default(true) @map("digest_enabled")
+  suppressUntil            DateTime?               @map("suppress_until") @db.Timestamptz(6)
+  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user                     User                    @relation("MfaAdminDigestPreferenceUser", fields: [userId], references: [id], onDelete: Cascade)
+  team                     Team?                   @relation("MfaAdminDigestPreferenceTeam", fields: [teamId], references: [id], onDelete: Cascade)
+
+  // (user, team) is unique — there is at most one preference row
+  // per scope. NULL teamId is allowed and counts as the global
+  // preference for that user.
+  @@unique([userId, teamId])
+  @@index([userId])
+  @@map("mfa_admin_digest_preferences")
+}
+
+// PHASE R8.1.7 — per-admin-per-day digest log for multi-team
+// grouping. R8.1.6 sent one email per team per day per admin; this
+// row guarantees ONE consolidated email per admin per UTC day.
+//
+// The row is inserted ONLY AFTER the email transport returns OK,
+// so a failed send does NOT mark the admin as "delivered". The
+// next scheduler tick will retry.
+model MfaRecoveryAdminDigestLog {
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                   String                  @map("user_id") @db.Uuid
+  sentDate                 String                  @map("sent_date") @db.VarChar(10)
+  sentAtUtc                DateTime                @default(now()) @map("sent_at_utc") @db.Timestamptz(6)
+  // Number of distinct teams included in the consolidated email.
+  teamCount                Int                     @default(0) @map("team_count")
+  // Total pending request count across all teams in the digest.
+  requestCount             Int                     @default(0) @map("request_count")
+  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user                     User                    @relation("MfaRecoveryAdminDigestLogUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sentDate])
+  @@index([sentAtUtc])
+  @@map("mfa_recovery_admin_digest_logs")
+}
+
+// PHASE R8.1.6 — pending-digest idempotency log.
+//
+// Used by the worker's `runMfaRecoveryDigest` scheduler to avoid
+// emailing org owners/admins more than once per day per team. The
+// row's UNIQUE (teamId, sentDate) constraint makes the "have I
+// sent today's digest for this org?" check a single SELECT, and
+// makes the INSERT idempotent under concurrency (two workers racing
+// will see exactly one row land).
+//
+// Stores ONLY operational counters — never the user emails the
+// digest was sent to, never the recovery request reasons, never
+// any token material.
+model MfaRecoveryDigestLog {
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId                   String                  @map("team_id") @db.Uuid
+  // YYYY-MM-DD UTC string. We use a separate column rather than
+  // truncating sentAtUtc so the UNIQUE constraint is unambiguous
+  // across DST changes.
+  sentDate                 String                  @map("sent_date") @db.VarChar(10)
+  sentAtUtc                DateTime                @default(now()) @map("sent_at_utc") @db.Timestamptz(6)
+  // Number of PENDING_ADMIN_REVIEW requests that were >24h old at
+  // the time the digest was assembled.
+  pendingCount             Int                     @default(0) @map("pending_count")
+  // Number of org admin / owner recipients the digest was sent to.
+  recipientCount           Int                     @default(0) @map("recipient_count")
+
+  team                     Team                    @relation("MfaRecoveryDigestLogTeam", fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, sentDate])
+  @@index([sentAtUtc])
+  @@map("mfa_recovery_digest_logs")
+}
+
+// One admin approval. Append-only — once an approval is recorded
+// for an (admin, request) pair it is never updated. The unique
+// constraint prevents the same admin from approving the same
+// request twice.
+model MfaRecoveryRequestApproval {
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId                String                  @map("request_id") @db.Uuid
+  approverUserId           String                  @map("approver_user_id") @db.Uuid
+  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  request                  MfaRecoveryRequest      @relation("MfaRecoveryRequestApprovals", fields: [requestId], references: [id], onDelete: Cascade)
+  approver                 User                    @relation("MfaRecoveryRequestApprover", fields: [approverUserId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, approverUserId])
+  @@index([approverUserId])
+  @@map("mfa_recovery_request_approvals")
 }
 
 // RevokedSession — the deny list checked by the auth middleware.
@@ -5520,6 +5929,75 @@ model SsoConnection {
   /// parse this.
   samlMetadataJson         Json?    @map("saml_metadata_json")
 
+  /// R8.2 — SAML SP identity. The SP entityID sent in AuthnRequests.
+  /// Built as: {apiBaseUrl}/saml/metadata/{connectionId}
+  samlEntityId             String?  @map("saml_entity_id") @db.VarChar(400)
+
+  /// R8.2 — IdP SSO URL. The HTTP-Redirect binding endpoint the SP
+  /// issues AuthnRequests to. Extracted from IdP metadata.
+  samlSsoUrl               String?  @map("saml_sso_url") @db.VarChar(400)
+
+  /// R8.2 — IdP X.509 certificate in PEM format (without the header/footer
+  /// lines, base64 only). Used for XML signature verification.
+  /// Never logged; never returned to the caller.
+  samlCertificate          String?  @map("saml_certificate")
+
+  /// R8.2 — SHA-256 fingerprint of samlCertificate (hex, lowercase, no
+  /// colons). Displayed in the admin UI for operator-side verification.
+  samlCertFingerprint      String?  @map("saml_cert_fingerprint") @db.VarChar(128)
+
+  /// R8.2 — NameID format URI. Default:
+  /// urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
+  samlNameIdFormat         String?  @map("saml_name_id_format") @db.VarChar(200)
+
+  /// R8.2 — When true, the SP signs AuthnRequests with the platform SP
+  /// private key (SAML_SP_PRIVATE_KEY env). Some IdPs require this.
+  samlSignRequests         Boolean  @default(false) @map("saml_sign_requests")
+
+  /// R8.2 — Optional operator-supplied JSON mapping IdP attribute names
+  /// to profile fields: { email?: string, name?: string, externalId?: string }.
+  samlAttributeMapping     Json?    @map("saml_attribute_mapping")
+
+  /// R8.2.1 — Certificate rotation: secondary IdP certificate in
+  /// base64-only format (no PEM headers). When set, assertion
+  /// signatures are verified against BOTH active and next certificate
+  /// so IdP cert rotation does not cause login downtime.
+  samlCertificateNext      String?  @map("saml_certificate_next")
+
+  /// R8.2.1 — SHA-256 fingerprint of samlCertificateNext (hex,
+  /// lowercase, no colons). Displayed in admin UI for operator verification.
+  samlCertNextFingerprint  String?  @map("saml_cert_next_fingerprint") @db.VarChar(128)
+
+  /// R8.2.1 — Timestamp of the last admin test-connection run.
+  samlLastTestedAt         DateTime? @map("saml_last_tested_at") @db.Timestamptz(6)
+
+  /// R8.2.1 — Outcome of the last test-connection run:
+  /// "PASSED" | "FAILED". NULL means never tested.
+  samlLastTestStatus       String?  @map("saml_last_test_status") @db.VarChar(16)
+
+  /// R8.2.1 — Sanitised error code from the last failed test-connection
+  /// (e.g. "SAML_SIGNATURE_INVALID"). MAX 128 chars; no raw XML/certs.
+  samlLastTestError        String?  @map("saml_last_test_error") @db.VarChar(128)
+
+  /// R8.2.1 — When true, this team is managed by SCIM and JIT
+  /// provisioning is disabled regardless of jitDefaultRole. Admins
+  /// must manage membership exclusively through SCIM.
+  samlScimManaged          Boolean  @default(false) @map("saml_scim_managed")
+
+  /// R8.2.2 — IdP entity ID from the IdP metadata
+  /// (EntityDescriptor/@entityID). Distinct from samlEntityId which
+  /// is the SP's entity ID. Stored for display and issuer validation.
+  samlIdpEntityId          String?  @map("saml_idp_entity_id") @db.VarChar(400)
+
+  /// R8.2.2 — Parsed X.509 NotAfter for the primary IdP cert.
+  /// NULL if cert has not been ingested or expiry cannot be parsed.
+  /// Used to surface expiry warnings in the admin UI and emit
+  /// saml_certificate_expiring events.
+  samlCertNotAfter         DateTime? @map("saml_cert_not_after") @db.Timestamptz(6)
+
+  /// R8.2.2 — Parsed X.509 NotAfter for the secondary (next) cert.
+  samlCertNextNotAfter     DateTime? @map("saml_cert_next_not_after") @db.Timestamptz(6)
+
   /// Comma-separated list of email domains accepted for this
   /// connection. Empty array means any verified domain on the team.
   /// Enforced at JIT provisioning + at callback.
@@ -5741,6 +6219,12 @@ model SsoCallbackAttempt {
   /// URL. The callback verifies the IdP returned a matching nonce
   /// when we round-trip through ID-token verification.
   nonceHash                String   @map("nonce_hash") @db.VarChar(64)
+
+  /// R8.2 — For SAML connections: the AuthnRequest ID (ID attribute) we
+  /// issued. The ACS handler verifies the SAMLResponse InResponseTo
+  /// attribute matches this value before consuming the attempt. Null for
+  /// OIDC connections (which use nonce instead).
+  samlAuthnRequestId       String?  @map("saml_authn_request_id") @db.VarChar(128)
 
   /// PENDING | CONSUMED | EXPIRED | REPLAYED | FAILED. Lifecycle:
   /// PENDING is the only state from which CONSUMED / FAILED can be
@@ -7484,5 +7968,189 @@ model WorkspacePersonaProfile {
 
   @@index([primaryProfile])
   @@map("workspace_persona_profiles")
+}
+
+// =============================================================================
+// Phase E3 — Operational Automation Foundation
+//
+// Two team-scoped tables that hold bounded automation rules + per-execution
+// run records. The trigger + action types are restricted to the E3
+// allowlist (enforced both at the DB layer via CHECK constraints and at
+// the service layer via TypeScript const unions).
+//
+// Hard rules (also pinned by phase-e3-automation-foundation.test.ts):
+//   - Team-scoped: every row carries teamId with CASCADE on team delete.
+//   - Allowlist-only trigger/action types (DB CHECK + TS const).
+//   - Idempotent runs: unique on (teamId, ruleId, idempotencyKey).
+//   - Bounded status enum: PENDING / RUNNING / SUCCEEDED / FAILED / SKIPPED.
+//   - No evidence mutation, no custody mutation (the runtime dispatcher,
+//     deferred to E3.1 per DEF-021, will enforce this via the bounded
+//     action allowlist).
+// =============================================================================
+model AutomationRule {
+  id                   String   @id @default(uuid()) @db.Uuid
+  teamId               String   @map("team_id") @db.Uuid
+  name                 String   @db.VarChar(120)
+  description          String?  @db.VarChar(500)
+  enabled              Boolean  @default(false)
+  /// Bounded set — see DB CHECK constraint
+  /// `automation_rules_trigger_type_allowlist`. Adding a value requires
+  /// a coordinated migration + service update.
+  triggerType          String   @map("trigger_type") @db.VarChar(60)
+  /// Strict JSON condition tree. The service validates this against
+  /// the bounded operator/leaf schema before persistence. No `eval`,
+  /// no `vm.run`, no dynamic code execution.
+  conditionJson        Json     @default("{}") @map("condition_json")
+  /// Bounded set — see DB CHECK constraint
+  /// `automation_rules_action_type_allowlist`.
+  actionType           String   @map("action_type") @db.VarChar(60)
+  /// Strict JSON action config. Service-validated against the per-
+  /// action-type schema. Never executed as code.
+  actionConfigJson     Json     @default("{}") @map("action_config_json")
+  version              Int      @default(1)
+  createdByUserId      String   @map("created_by_user_id") @db.Uuid
+  updatedByUserId      String   @map("updated_by_user_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  disabledAt           DateTime? @map("disabled_at") @db.Timestamptz(6)
+
+  team                 Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy            User     @relation("AutomationRuleCreatedBy", fields: [createdByUserId], references: [id])
+  updatedBy            User     @relation("AutomationRuleUpdatedBy", fields: [updatedByUserId], references: [id])
+  runs                 AutomationRun[]
+
+  @@index([teamId])
+  @@index([teamId, enabled])
+  @@index([teamId, triggerType])
+  @@map("automation_rules")
+}
+
+model AutomationRun {
+  id                   String   @id @default(uuid()) @db.Uuid
+  teamId               String   @map("team_id") @db.Uuid
+  ruleId               String   @map("rule_id") @db.Uuid
+  triggerType          String   @map("trigger_type") @db.VarChar(60)
+  targetType           String   @map("target_type") @db.VarChar(60)
+  targetId             String   @map("target_id") @db.Uuid
+  /// Deterministic key derived by the service from (trigger + target).
+  /// Unique on (teamId, ruleId, idempotencyKey) — duplicate trigger
+  /// events for the same target do not duplicate runs.
+  idempotencyKey       String   @map("idempotency_key") @db.VarChar(120)
+  /// PENDING | RUNNING | SUCCEEDED | FAILED | SKIPPED — bounded enum.
+  status               String   @default("PENDING") @db.VarChar(20)
+  /// Operator-safe reason: never contains raw evidence content,
+  /// secrets, tokens, or external payloads.
+  reason               String?  @db.VarChar(400)
+  startedAt            DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt          DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team                 Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  rule                 AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  // Phase E3.2 — per-run webhook delivery audit (one row per
+  // (run, destination); see AutomationWebhookDelivery model below).
+  webhookDeliveries    AutomationWebhookDelivery[]
+
+  @@unique([teamId, ruleId, idempotencyKey], name: "automation_runs_team_rule_idempotency_uniq")
+  @@index([teamId, createdAt(sort: Desc)])
+  @@index([teamId, ruleId, createdAt(sort: Desc)])
+  @@index([teamId, status])
+  @@map("automation_runs")
+}
+
+// =============================================================================
+// Phase E3.2 — Secure Webhook Delivery
+//
+// Team-scoped outbound webhook destinations + per-delivery audit rows.
+// Backend service layer enforces:
+//   - HTTPS-only URLs
+//   - SSRF protection (localhost / private / metadata IPs blocked at
+//     create + before send)
+//   - HMAC-SHA256 signed payloads (secret stored encrypted-at-rest,
+//     one-time reveal at creation)
+//   - 32 KiB payload cap
+//   - Bounded delivery (sync single-attempt in E3.2; retry worker
+//     deferred to DEF-023)
+//   - Per-team destination cap + per-team delivery rate-limit
+// =============================================================================
+model AutomationWebhookDestination {
+  id                   String   @id @default(uuid()) @db.Uuid
+  teamId               String   @map("team_id") @db.Uuid
+  name                 String   @db.VarChar(120)
+  url                  String   @db.VarChar(600)
+  /// Pre-computed origin used to enforce one-destination-per-origin
+  /// per team (prevents outbound-spam vector via duplicate destinations).
+  urlOrigin            String   @map("url_origin") @db.VarChar(200)
+  /// Encrypted webhook signing secret. Plaintext generated server-side
+  /// at creation, shown once via the create response, then never
+  /// returned by any API. Used for HMAC-SHA256 signatures on delivery.
+  encryptedSecret      String   @map("encrypted_secret")
+  /// Short fingerprint of the secret (SHA-256 prefix) — used by the
+  /// service to detect rotation and surface to the UI without
+  /// exposing the secret itself.
+  secretFingerprint    String   @map("secret_fingerprint") @db.VarChar(80)
+  enabled              Boolean  @default(false)
+  createdByUserId      String   @map("created_by_user_id") @db.Uuid
+  updatedByUserId      String   @map("updated_by_user_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  disabledAt           DateTime? @map("disabled_at") @db.Timestamptz(6)
+  lastSuccessAt        DateTime? @map("last_success_at") @db.Timestamptz(6)
+  lastFailureAt        DateTime? @map("last_failure_at") @db.Timestamptz(6)
+  failureCount         Int      @default(0) @map("failure_count")
+  // Phase E3.3 — destination health tracking. The runtime increments
+  // `consecutiveFailureCount` on every failed delivery and resets it
+  // to 0 on every success. When it crosses the auto-disable
+  // threshold (10), the runtime flips `enabled=false`, sets
+  // `autoDisabledAt` + `disabledReason`, and emits
+  // `automation_webhook_destination_auto_disabled`. Operators can
+  // re-enable via the existing enable endpoint (which clears
+  // `autoDisabledAt` + `disabledReason` + resets the counter).
+  consecutiveFailureCount Int  @default(0) @map("consecutive_failure_count")
+  autoDisabledAt       DateTime? @map("auto_disabled_at") @db.Timestamptz(6)
+  disabledReason       String?  @map("disabled_reason") @db.VarChar(200)
+
+  team                 Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy            User     @relation("AutomationWebhookDestinationCreatedBy", fields: [createdByUserId], references: [id])
+  updatedBy            User     @relation("AutomationWebhookDestinationUpdatedBy", fields: [updatedByUserId], references: [id])
+  deliveries           AutomationWebhookDelivery[]
+
+  @@unique([teamId, urlOrigin], name: "automation_webhook_destinations_team_origin_uniq")
+  @@index([teamId, enabled])
+  @@index([teamId, consecutiveFailureCount])
+  @@map("automation_webhook_destinations")
+}
+
+model AutomationWebhookDelivery {
+  id                   String   @id @default(uuid()) @db.Uuid
+  teamId               String   @map("team_id") @db.Uuid
+  runId                String   @map("run_id") @db.Uuid
+  destinationId        String   @map("destination_id") @db.Uuid
+  /// Deterministic key from (runId + destinationId). Unique on
+  /// (team, run, destination) prevents duplicate delivery rows.
+  idempotencyKey       String   @map("idempotency_key") @db.VarChar(120)
+  /// Bounded enum: PENDING | DELIVERING | SUCCEEDED | FAILED | SKIPPED
+  status               String   @default("PENDING") @db.VarChar(20)
+  attemptCount         Int      @default(0) @map("attempt_count")
+  nextAttemptAt        DateTime? @map("next_attempt_at") @db.Timestamptz(6)
+  lastAttemptAt        DateTime? @map("last_attempt_at") @db.Timestamptz(6)
+  /// HTTP response status code (small int, 0 when unknown).
+  responseStatus       Int      @default(0) @map("response_status")
+  /// Operator-safe failure classification (e.g. "timeout" / "non_2xx"
+  /// / "ssrf_blocked" / "destination_disabled"). NEVER the response
+  /// body, NEVER the URL with query string, NEVER any payload bytes.
+  failureReason        String?  @map("failure_reason") @db.VarChar(400)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  team                 Team                          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  run                  AutomationRun                 @relation(fields: [runId], references: [id], onDelete: Cascade)
+  destination          AutomationWebhookDestination  @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, runId, destinationId], name: "automation_webhook_deliveries_team_run_dest_uniq")
+  @@index([teamId, createdAt(sort: Desc)])
+  @@index([teamId, status])
+  @@index([destinationId])
+  @@map("automation_webhook_deliveries")
 }
 

@@ -96,6 +96,27 @@ function SecurityCenterPageInner() {
   const [devices, setDevices] = useState<TrustedDevice[] | null>(null);
   const [revocations, setRevocations] = useState<RevokedSession[] | null>(null);
   const [myRisk, setMyRisk] = useState<RiskSnapshot | null>(null);
+  // R8.1.3 — per-user MFA enrollment status. Sourced from the
+  // canonical orchestrator's read-only `/v1/identity/mfa/factors`.
+  const [myMfa, setMyMfa] = useState<{
+    hasMfa: boolean;
+    activeFactors: number;
+    recoveryCodesRemaining: number;
+  } | null>(null);
+  // R8.1.4 — admin view of pending lost-factor recovery requests
+  // for the active team. Empty list when there are none OR when the
+  // operator isn't an admin of the team (the API returns 403).
+  const [pendingRecoveryRequests, setPendingRecoveryRequests] = useState<
+    ReadonlyArray<{
+      id: string;
+      userId: string;
+      reason: string;
+      requiredApprovals: number;
+      approvalCount: number;
+      expiresAt: string;
+      createdAt: string;
+    }>
+  >([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -115,13 +136,42 @@ function SecurityCenterPageInner() {
       apiFetch(`/v1/identity-security/risk/me${qs}`, { method: "GET" }).catch(
         () => null,
       ),
+      // R8.1.3 — current operator's MFA enrollment snapshot.
+      apiFetch(`/v1/identity/mfa/factors`, { method: "GET" }).catch(
+        () => null,
+      ),
+      // R8.1.4 — admin queue of lost-factor recovery requests for
+      // the active team. The endpoint enforces OWNER/ADMIN scope
+      // and returns 403 for non-admins; we treat 403 as "empty list".
+      apiFetch(
+        `/v1/identity/mfa-admin/recovery-requests/${encodeURIComponent(
+          teamId,
+        )}`,
+        { method: "GET" },
+      ).catch(() => ({ requests: [] })),
     ])
       .then(
-        ([p, d, s, r]: [
+        ([p, d, s, r, mfa, rec]: [
           { policy: Policy; currentUserRequirement: CurrentUserRequirement },
           { devices: TrustedDevice[] },
           { revoked: RevokedSession[] },
           RiskSnapshot | null,
+          {
+            hasMfa: boolean;
+            factors: ReadonlyArray<{ status: string }>;
+            recoveryCodesRemaining: number;
+          } | null,
+          {
+            requests?: ReadonlyArray<{
+              id: string;
+              userId: string;
+              reason: string;
+              requiredApprovals: number;
+              approvalCount: number;
+              expiresAt: string;
+              createdAt: string;
+            }>;
+          },
         ]) => {
           if (cancelled) return;
           setPolicy(p.policy);
@@ -129,6 +179,17 @@ function SecurityCenterPageInner() {
           setDevices(d.devices ?? []);
           setRevocations(s.revoked ?? []);
           setMyRisk(r);
+          if (mfa) {
+            setMyMfa({
+              hasMfa: mfa.hasMfa,
+              activeFactors: mfa.factors.filter((f) => f.status === "ACTIVE")
+                .length,
+              recoveryCodesRemaining: mfa.recoveryCodesRemaining,
+            });
+          } else {
+            setMyMfa(null);
+          }
+          setPendingRecoveryRequests(rec.requests ?? []);
           setError(null);
         },
       )
@@ -273,6 +334,96 @@ function SecurityCenterPageInner() {
               <p style={mutedStyle}>Loading…</p>
             )}
           </section>
+
+          {/* R8.1.3 — operator's own MFA enrollment snapshot. Surfaces
+              policy-vs-enrollment delta so an admin who turned on
+              REQUIRED_FOR_ALL can see whether THEIR own account is
+              actually compliant. */}
+          <section
+            style={cardStyle}
+            data-cc-mfa-enrollment-card
+          >
+            <h2 style={sectionTitleStyle}>Your MFA enrollment</h2>
+            {myMfa ? (
+              <>
+                <p style={mutedStyle}>
+                  Active factors: <strong>{myMfa.activeFactors}</strong>{" "}
+                  · recovery codes remaining:{" "}
+                  <strong>{myMfa.recoveryCodesRemaining}</strong>
+                </p>
+                {!myMfa.hasMfa &&
+                policy &&
+                policy.level !== "OFF" ? (
+                  <p style={warnBoxStyle} data-cc-mfa-enrollment-warning>
+                    This workspace requires MFA but you have no
+                    enrolled factor. Enroll an authenticator to keep
+                    access to sensitive operations.
+                  </p>
+                ) : null}
+                {!myMfa.hasMfa ? (
+                  <p style={mutedStyle}>
+                    Enroll an authenticator from the operator menu
+                    (Account → Two-factor) to satisfy organization
+                    policy.
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p style={mutedStyle}>Loading…</p>
+            )}
+          </section>
+
+          {/* R8.1.4 — admin queue of pending lost-factor recovery
+              requests for the active team. The API returns 403 for
+              non-admins; the empty-list render path covers both the
+              "no requests pending" AND the "not an admin" cases. */}
+          {pendingRecoveryRequests.length > 0 ? (
+            <section
+              style={cardStyle}
+              data-cc-mfa-recovery-admin-card
+            >
+              <h2 style={sectionTitleStyle}>
+                Pending MFA recovery requests
+              </h2>
+              <p style={mutedStyle}>
+                Members who have requested a lost-factor reset. Each
+                approval revokes the user's current MFA factors and
+                forces them to re-enroll on next login — it does NOT
+                grant a session.
+              </p>
+              <ul style={listStyle}>
+                {pendingRecoveryRequests.map((rq) => (
+                  <li
+                    key={rq.id}
+                    style={rowStyle}
+                    data-cc-mfa-recovery-request-row
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600 }}>
+                        User <span style={chipStyle}>{rq.userId.slice(0, 8)}…</span>
+                      </div>
+                      <div style={mutedStyle}>
+                        {rq.reason}
+                      </div>
+                      <div style={mutedStyle}>
+                        approvals {rq.approvalCount}/{rq.requiredApprovals} ·
+                        expires{" "}
+                        {new Date(rq.expiresAt).toLocaleString()}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p style={mutedStyle}>
+                Use the API (or the dedicated admin surface, R10
+                scope) to approve or reject each request:
+                <br />
+                <code>
+                  POST /v1/identity/mfa-admin/recovery-requests/:id/approve
+                </code>
+              </p>
+            </section>
+          ) : null}
 
           <section style={cardStyle}>
             <h2 style={sectionTitleStyle}>My session risk</h2>

@@ -30,10 +30,14 @@ import {
 } from "../../lib/platform-context";
 import type { WorkspaceAdminEnvelope } from "./types";
 
+// CR1.6 — The legacy `no_workspace` LoadState branch was removed.
+// PageRouteGate (admin.teams) gates access to this surface before
+// render; an envelope-less / non-team actor never reaches this
+// component. The previous `ShellNoWorkspace` render was unreachable
+// dead code and has been deleted.
 type LoadState =
   | { status: "loading" }
   | { status: "ready"; envelope: WorkspaceAdminEnvelope }
-  | { status: "no_workspace" }
   | { status: "auth_error"; code: "auth_required" | "permission_denied" }
   | { status: "not_found" }
   | { status: "unavailable"; message: string };
@@ -96,7 +100,6 @@ export function WorkspaceAdminPanel() {
   }, [teamId, load]);
 
   if (state.status === "loading") return <ShellLoading />;
-  if (state.status === "no_workspace") return <ShellNoWorkspace />;
   if (state.status === "auth_error") return <ShellAuthError code={state.code} />;
   if (state.status === "not_found") return <ShellNotFound />;
   if (state.status === "unavailable")
@@ -765,21 +768,11 @@ function ShellLoading() {
   );
 }
 
-function ShellNoWorkspace() {
-  return (
-    <main className="cc-page" data-workspace-admin-no-workspace>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Workspace Administration</div>
-          <h1 className="cc-title">No workspace selected</h1>
-          <p className="cc-subtitle">
-            Switch to a workspace to administer it.
-          </p>
-        </div>
-      </header>
-    </main>
-  );
-}
+// CR1.6 — `ShellNoWorkspace` removed. PageRouteGate (admin.teams)
+// already short-circuits non-actionable workspace states with the
+// canonical CapabilityDegradedPanel / NeedsOrganization flow before
+// this component renders. The legacy "No workspace selected" plain-
+// text render was never reached.
 
 function ShellAuthError({
   code,

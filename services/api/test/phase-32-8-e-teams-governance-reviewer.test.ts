@@ -467,16 +467,21 @@ describe("Phase 32.8E — /teams workspace administration", () => {
     expect(block).toMatch(/ctx\.can\(\s*['"]TEAM_MANAGE['"]\s*\)/);
   });
 
-  it("renders distinct loading / no-workspace / auth-error / not-found / unavailable shells", () => {
+  it("renders distinct loading / auth-error / not-found / unavailable shells", () => {
+    // CR1.6 — `ShellNoWorkspace` removed (dead-code cleanup). The
+    // no-team rendering path is now PageRouteGate + the in-component
+    // CapabilityDegradedPanel for personal users. The remaining four
+    // structured shells are still required.
     for (const fn of [
       "ShellLoading",
-      "ShellNoWorkspace",
       "ShellAuthError",
       "ShellNotFound",
       "ShellUnavailable",
     ]) {
       expect(WORKSPACE_PANEL).toMatch(new RegExp(`function ${fn}\\(`));
     }
+    // Regression pin — must not be re-introduced.
+    expect(WORKSPACE_PANEL).not.toMatch(/function ShellNoWorkspace\(/);
   });
 
   it("never contains fake numeric metric literals", () => {
@@ -652,15 +657,21 @@ describe("Phase 32.8E — /reviewer-ops review orchestration", () => {
     expect(REVIEWER_PANEL).toMatch(/href="\/ops\/observability"/);
   });
 
-  it("renders distinct loading / no-workspace / auth-error / unavailable shells", () => {
+  it("renders distinct loading / auth-error / unavailable shells", () => {
+    // CR1.6 — `ShellNoWorkspace` removed (dead-code cleanup). The
+    // no-team rendering path is now the in-component
+    // CapabilityDegradedPanel (REVIEWER_OPS_VIEW); PageRouteGate
+    // (review.queue, ORGANIZATION_ONLY) blocks entry for personal
+    // users. The remaining three structured shells are still required.
     for (const fn of [
       "ShellLoading",
-      "ShellNoWorkspace",
       "ShellAuthError",
       "ShellUnavailable",
     ]) {
       expect(REVIEWER_PANEL).toMatch(new RegExp(`function ${fn}\\(`));
     }
+    // Regression pin — must not be re-introduced.
+    expect(REVIEWER_PANEL).not.toMatch(/function ShellNoWorkspace\(/);
   });
 });
 
