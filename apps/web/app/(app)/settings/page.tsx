@@ -14,6 +14,7 @@ import { openCookiePreferences } from "../../../lib/consent";
 import { useAuth, useLocale } from "../../providers";
 import { usePlatformContext } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { AccountSecurityCard } from "./components/AccountSecurityCard";
 
 type BillingStatusResponse = {
   entitlement?: { plan?: string | null } | null;
@@ -893,6 +894,13 @@ onClick={(e) => {
                   </div>
                 </div>
               </Card>
+
+              {/* Phase 2.3 — Account security surface (MFA enroll/disable,
+                  recovery codes, password reset, sign-out everywhere).
+                  Workspace-wide security (org MFA policy, SSO, SCIM)
+                  lives in /security-center and is linked from the MFA
+                  AccessGate when admin-controlled. */}
+              <AccountSecurityCard userEmail={user?.email ?? null} />
 
               <Card
                 className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"

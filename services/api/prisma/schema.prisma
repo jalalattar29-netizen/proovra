@@ -703,6 +703,11 @@ model User {
 
   caseAccess                    CaseAccess[]
   entitlements                  Entitlement[]
+  // Phase 2.7X Stage 1 — User can have an OrganizationMembership in
+  // any number of Organizations. Membership grants org-level
+  // governance role; it does NOT grant any workspace access (those
+  // remain TeamMember-scoped).
+  organizationMemberships       OrganizationMembership[]
   claimedGuestIdentities        GuestIdentity[]                @relation("GuestClaimedBy")
   guestIdentity                 GuestIdentity?
   passwordResetTokens           PasswordResetToken[]
@@ -890,6 +895,24 @@ model Team {
   //
   // Defaults to `false` — all existing teams are TEAM-scoped.
   isPersonal             Boolean                        @default(false) @map("is_personal")
+
+  // Phase 2.7X Stage 1 — nullable Organization FK.
+  //
+  // Phase 1 of the staged Organization migration: this column is
+  // additive + nullable. Every existing Team has organizationId =
+  // NULL until the Stage 2 backfill creates a 1:1 implicit
+  // Organization per Team. No runtime code reads this column yet;
+  // Stage 3 (dual-read endpoints) will start consuming it.
+  //
+  // The FK uses `onDelete: SetNull` so deleting an Organization
+  // does NOT cascade-delete the Team's evidence — the Team
+  // detaches from its org and continues to operate. Workspace
+  // isolation guarantee survives org-row deletion.
+  // Phase 2.7X Stage 6 — NOT NULL: every team is bound to an org.
+  // FK semantics: Restrict — org deletion is refused while teams
+  // remain bound. Operators must relocate teams first.
+  organizationId         String                         @map("organization_id") @db.Uuid
+  organization           Organization                   @relation("OrganizationToTeam", fields: [organizationId], references: [id], onDelete: Restrict)
 
   invites                TeamInvite[]
   members                TeamMember[]
@@ -8154,3 +8177,166 @@ model AutomationWebhookDelivery {
   @@map("automation_webhook_deliveries")
 }
 
+// ============================================================================
+// Phase 2.7X Stage 1 — Organization domain model (additive only).
+//
+// This is the foundation for multi-workspace enterprise governance.
+// Stage 1 ships the schema; Stage 2 backfills 1:1 from existing
+// Teams; Stage 3 adds dual-read endpoints; Stage 4 adds the
+// frontend org surface. NO code reads these tables yet — Stage 1
+// is purely additive structural change that lets later stages
+// land safely.
+//
+// Hard invariants encoded in this design:
+//   - Workspace (Team) isolation is preserved: Evidence, Case,
+//     CaseAssignment, CaseAccess remain teamId-scoped. We do NOT
+//     add organizationId to those tables; doing so would invite
+//     cross-workspace queries that violate evidence isolation.
+//   - Organization membership is ORTHOGONAL to workspace
+//     membership: a user can be ORG_ADMIN without being any
+//     workspace's member, and vice versa.
+//   - All FKs from existing tables to Organization are nullable
+//     in Stage 1 (Team.organizationId). Tighter constraints land
+//     in Stage 5+ after the backfill stabilises.
+// ============================================================================
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum OrganizationRole {
+  /// Single owner per org. Can transfer ownership. Highest authority.
+  ORG_OWNER
+  /// Full admin below ownership. Can manage memberships, policies,
+  /// workspace attachment, and billing.
+  ORG_ADMIN
+  /// Manages SAML/SCIM/MFA policy at the org level. Does NOT
+  /// manage workspaces or billing on its own.
+  ORG_SECURITY_ADMIN
+  /// Manages billing relationship + seat caps. Does NOT manage
+  /// workspaces or security.
+  ORG_BILLING_ADMIN
+  /// Read-only auditor. Sees org access review, audit log,
+  /// workspace directory. Cannot mutate anything.
+  ORG_AUDITOR
+  /// Default org-level membership role. Indicates user belongs to
+  /// the organization but has no special org privilege. Workspace
+  /// privileges are managed separately via TeamMember.
+  ORG_MEMBER
+}
+
+model Organization {
+  id                 String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String                           @db.VarChar(180)
+  legalName          String?                          @map("legal_name") @db.VarChar(180)
+  legalEmail         String?                          @map("legal_email") @db.VarChar(320)
+  address            String?
+  timezone           String?                          @db.VarChar(64)
+  logoUrl            String?                          @map("logo_url") @db.VarChar(512)
+  status             OrganizationStatus               @default(ACTIVE)
+  /// Org-level billing owner. Distinct from per-Team billing
+  /// ownership; Team billing fields stay for transition compatibility
+  /// until Stage 5 cutover.
+  billingOwnerUserId String?                          @map("billing_owner_user_id") @db.Uuid
+  /// Verification state — mirrors the Team-level field so the
+  /// future Stage 5 cutover has a place to land.
+  verificationState  OrganizationVerificationState?   @map("verification_state")
+  verifiedAtUtc      DateTime?                        @map("verified_at_utc") @db.Timestamptz(6)
+  createdAt          DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  memberships        OrganizationMembership[]
+  invites            OrganizationInvite[]
+  auditEvents        OrganizationAuditEvent[]
+  workspaces         Team[]                           @relation("OrganizationToTeam")
+  policies           OrganizationPolicy[]
+
+  @@index([status])
+  @@map("organizations")
+}
+
+model OrganizationMembership {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  role           OrganizationRole @default(ORG_MEMBER)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId], name: "organization_memberships_org_user_uniq")
+  @@index([userId])
+  @@index([organizationId, role])
+  @@map("organization_memberships")
+}
+
+model OrganizationInvite {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String           @map("organization_id") @db.Uuid
+  email           String           @db.VarChar(320)
+  role            OrganizationRole
+  // Phase 2.7X Stage 6 — token security hardening.
+  // `token` is now NULLABLE — new rows write NULL; only existing
+  // (pre-Stage-6) rows keep raw token values for rollback. The
+  // authoritative lookup column is `tokenHash` (SHA-256 hex of
+  // the raw token). Stage 7+ destructive cutover will drop the
+  // raw token column once enough release cycles have proven the
+  // hash-only path stable.
+  token           String?          @unique @db.VarChar(128)
+  tokenHash       String           @unique @map("token_hash") @db.VarChar(64)
+  invitedByUserId String           @map("invited_by_user_id") @db.Uuid
+  expiresAt       DateTime         @map("expires_at") @db.Timestamptz(6)
+  acceptedAt      DateTime?        @map("accepted_at") @db.Timestamptz(6)
+  revokedAt       DateTime?        @map("revoked_at") @db.Timestamptz(6)
+  revokedByUserId String?          @map("revoked_by_user_id") @db.Uuid
+  lastResentAt    DateTime?        @map("last_resent_at") @db.Timestamptz(6)
+  resendCount     Int              @default(0) @map("resend_count")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("organization_invites")
+}
+
+model OrganizationAuditEvent {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  actorUserId    String?      @map("actor_user_id") @db.Uuid
+  /// Free-form event taxonomy (matches TeamActivity's pattern) so
+  /// new event types are write-path additions, not enum migrations.
+  eventType      String       @map("event_type")
+  targetType     String       @map("target_type")
+  targetId       String?      @map("target_id")
+  metadata       Json?
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([eventType])
+  @@map("organization_audit_events")
+}
+
+model OrganizationPolicy {
+  /// Lightweight (key, value) policy storage at the org level.
+  /// Each row is a single policy entry: no engine, no inheritance
+  /// magic. Unknown keys are ignored. Known keys live in the
+  /// frontend + backend policy registry.
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String       @map("organization_id") @db.Uuid
+  key                 String       @db.VarChar(80)
+  value               Json
+  lastUpdatedByUserId String       @map("last_updated_by_user_id") @db.Uuid
+  updatedAt           DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, key], name: "organization_policies_org_key_uniq")
+  @@map("organization_policies")
+}

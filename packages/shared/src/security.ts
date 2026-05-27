@@ -332,6 +332,12 @@ export const SECURITY_EVENT_TYPES = [
   "mfa_factor_removed",
   "mfa_verification_succeeded",
   "mfa_verification_failed",
+  // Phase 2.4 — user-self password change events. Emitted by
+  // `/v1/users/me/password/change`. Payload carries NEVER the
+  // password itself; only `actorUserId` + a coarse `reason` /
+  // `method` field.
+  "password_changed",
+  "password_change_failed",
   "auth_login_failed",
   "sso_login_succeeded",
   "sso_login_failed",

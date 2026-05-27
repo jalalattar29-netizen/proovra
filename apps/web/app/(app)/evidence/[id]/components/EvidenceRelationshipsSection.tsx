@@ -26,6 +26,11 @@ export function EvidenceRelationshipsSection({
   onRemoveCase,
   onOpenRelationshipEditor,
   onOpenLinkedEvidence,
+  // Phase 2.1 — surfaces `DELETE /v1/evidence/:id/relationships/:relId`
+  // which already existed in the backend but had no UI affordance.
+  // Optional so parents that don't yet wire it continue to render
+  // without the Remove button.
+  onRemoveRelationship,
 }: {
   caseName: string | null;
   relatedEvidenceCount: number | null;
@@ -38,6 +43,7 @@ export function EvidenceRelationshipsSection({
   onRemoveCase: (() => void) | null;
   onOpenRelationshipEditor: () => void;
   onOpenLinkedEvidence: (id: string) => void;
+  onRemoveRelationship?: (relationshipId: string) => void | Promise<void>;
 }) {
   return (
     <section id="relationships" className="evidence-detail-card">
@@ -108,6 +114,29 @@ export function EvidenceRelationshipsSection({
                   <Button variant="secondary" onClick={() => onOpenLinkedEvidence(item.linkedEvidence.id)}>
                     Open linked evidence
                   </Button>
+                  {onRemoveRelationship ? (
+                    <Button
+                      variant="secondary"
+                      disabled={actionBusy}
+                      data-evidence-relationship-remove={item.id}
+                      onClick={() => {
+                        // Confirm before destroying the relationship.
+                        // Matches the codebase pattern used for member
+                        // removal in teams/[id]. The DELETE endpoint
+                        // is audited server-side
+                        // (RELATIONSHIP_DELETED reviewer-audit event).
+                        if (
+                          window.confirm(
+                            `Remove the "${item.relationshipType.replace(/_/g, " ").toLowerCase()}" relationship with "${item.linkedEvidence.title}"? The linked evidence record itself is not affected.`,
+                          )
+                        ) {
+                          void onRemoveRelationship(item.id);
+                        }
+                      }}
+                    >
+                      Remove relationship
+                    </Button>
+                  ) : null}
                 </div>
               </article>
             ))}

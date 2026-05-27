@@ -90,6 +90,29 @@ export function AiCategorizationPanel({ evidenceId }: { evidenceId: string }) {
         ) : null}
 
         {data && data.status === "COMPLETED" ? (
+          <>
+            {/* Phase 2.1 — Re-run affordance. The Run button below is
+                conditional on null/FAILED; once a COMPLETED record
+                exists there was previously no way to ask AI for a
+                fresh advisory pass (e.g. after adding evidence parts,
+                changing case linkage, or simply wanting an updated
+                summary). The backend cost guard
+                (`evidenceAiCostGuard.canCategorizeEvidence`) still
+                enforces per-user / per-evidence limits; the UI
+                surfaces 429 messages from that guard on retry. */}
+            <div
+              className="evidence-library-panel__actions"
+              data-ai-categorization-rerun
+            >
+              <Button
+                variant="secondary"
+                onClick={() => void runCategorization()}
+                disabled={running}
+                data-ai-categorization-rerun-button
+              >
+                {running ? "Refreshing…" : "Re-run AI advisory review"}
+              </Button>
+            </div>
           <div className="evidence-library-note-grid">
             <div className="evidence-library-note-card">
               <strong>Summary</strong>
@@ -129,6 +152,7 @@ export function AiCategorizationPanel({ evidenceId }: { evidenceId: string }) {
               <p>{data.legalDisclaimer}</p>
             </div>
           </div>
+          </>
         ) : null}
       </details>
     </section>

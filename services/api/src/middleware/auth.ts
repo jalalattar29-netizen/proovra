@@ -107,6 +107,12 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
       provider: payload.provider,
       email: payload.email,
       role: payload.role ?? null,
+      // Phase 2.4 — expose the hashed session id so user-facing
+      // session routes (GET /v1/users/me/sessions) can identify the
+      // current session row. `sid` is already hashed above for the
+      // revocation check; we re-use that result by recomputing here
+      // (cheap SHA-256). If the JWT has no `sid` we leave it null.
+      sessionIdHash: sid ? hashSessionId(sid) : null,
     };
     req.log = req.log.child({ userId: payload.sub });
 

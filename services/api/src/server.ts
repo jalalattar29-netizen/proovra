@@ -19,6 +19,8 @@ import { captureRoutes } from "./routes/capture.routes.js";
 import { bootstrapObjectLockVerification } from "./bootstrap/object-lock-verification.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { teamsRoutes } from "./routes/teams.routes.js";
+// Phase 2.7X Stage 3 — Organization runtime endpoints (read-only dual-read).
+import { organizationsRoutes } from "./routes/organizations.routes.js";
 import { billingRoutes } from "./routes/billing.routes.js";
 import { webhooksRoutes } from "./routes/webhooks.routes.js";
 import { casesRoutes } from "./routes/cases.routes.js";
@@ -507,6 +509,10 @@ allowedHeaders: [
   await app.register(platformContextRoutes);
   await app.register(workspacePersonaRoutes);
   await app.register(teamsRoutes);
+  // Phase 2.7X Stage 3 — Organization runtime endpoints. Read-only.
+  // Team semantics remain operational authority; these endpoints
+  // expose governance metadata only (no evidence/case/reviewer data).
+  await app.register(organizationsRoutes);
   await app.register(billingRoutes);
   await app.register(webhooksRoutes, { prefix: "/webhooks" });
   await app.register(casesRoutes);

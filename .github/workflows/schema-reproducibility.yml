@@ -117,12 +117,52 @@ jobs:
         run: pnpm prisma generate
 
       # ---------------------------------------------------------------
+      # Phase 2.5C — Safety wrapper gate test.
+      #
+      # Before applying migrations, prove the safety wrapper refuses a
+      # known-remote DATABASE_URL. This locks the guard against being
+      # silently removed in a future PR (deleting safe-migrate.mjs or
+      # bypassing it would now cause this job to fail).
+      #
+      # We invoke the wrapper directly with a fake Neon URL. The script
+      # must exit with code 3 (REFUSED). Any other outcome — including
+      # exit 0 — fails the job.
+      # ---------------------------------------------------------------
+      - name: Verify safe-migrate refuses a remote DATABASE_URL
+        working-directory: services/api
+        env:
+          DATABASE_URL: "postgresql://x:y@ep-fake.eu-central-1.aws.neon.tech:5432/sentinel"
+        run: |
+          set +e
+          node scripts/safe-migrate.mjs deploy
+          rc=$?
+          set -e
+          if [ "$rc" != "3" ]; then
+            echo "FAIL — safe-migrate exited $rc against a fake Neon URL; expected 3 (REFUSED)."
+            exit 1
+          fi
+          echo "OK — safe-migrate refused the remote URL with exit code 3."
+
+      # ---------------------------------------------------------------
       # PHASE 0 CORE: a clean Postgres + `prisma migrate deploy` must
       # produce a working schema with NO out-of-band SQL applied.
+      #
+      # Phase 2.5C — route via the safety wrapper so the wrapper itself
+      # is exercised on every CI run. The localhost-targeted DATABASE_URL
+      # passes the wrapper's classification (LOCAL) and the wrapper
+      # delegates to `prisma migrate deploy` unchanged.
       # ---------------------------------------------------------------
-      - name: Prove clean-DB migrate deploy
+      - name: Prove clean-DB migrate deploy (via safe-migrate wrapper)
         working-directory: services/api
-        run: pnpm prisma migrate deploy
+        run: pnpm prisma:migrate
+
+      # Phase 2.5C — drift check on the freshly-migrated DB. Exits 0 on
+      # a clean apply; any other code fails the job. This proves the
+      # drift detector itself is healthy and its parsing of prisma's
+      # output works for the production migration set.
+      - name: Drift check on freshly-migrated DB
+        working-directory: services/api
+        run: pnpm db:drift-check
 
       - name: Snapshot resulting schema (sanity counts)
         run: |

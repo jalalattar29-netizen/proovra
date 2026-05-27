@@ -11,6 +11,10 @@ import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.j
 import { getAuthUserId } from "../auth.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
+import {
+  changeCaseStatus,
+  CaseError,
+} from "../services/cases/case-lifecycle.service.js";
 
 const CreateCaseBody = z.object({
   name: z.string().min(1).max(120),
@@ -1258,5 +1262,277 @@ export async function casesRoutes(app: FastifyInstance) {
 
       return reply.code(204).send();
     }
+  );
+
+  // ===========================================================================
+  // Phase 2.5B — Bulk case operations.
+  //
+  // Hard rules:
+  //   - Capped at 100 ids per call (matches the reviewer-ops bulk
+  //     pattern in `bulk-triage.service.ts`).
+  //   - Each id is processed independently. A failure on one case
+  //     never blocks the others — the caller gets a per-id outcome
+  //     so they can correct the failures and retry.
+  //   - Reuses `changeCaseStatus()` so the Phase 2.4 closure cascade
+  //     fires, legal holds are respected, audit log writes, and
+  //     transition rules apply uniformly.
+  //   - Access is checked the same way the LIST endpoint does:
+  //     ownerUserId, has access row, or member of the team. Cases
+  //     the caller cannot see are SKIPPED with `not_accessible`, not
+  //     enumerated as "found but forbidden".
+  //   - 403 / 401 only fire for the whole batch when the caller is
+  //     not authed; per-id permission failures are SKIPPED rows.
+  // ===========================================================================
+  const BulkCasesBody = z.object({
+    ids: z.array(z.string().uuid()).min(1).max(100),
+    action: z.enum(["CLOSE", "ARCHIVE", "RESOLVE"]),
+    reason: z.string().max(400).optional(),
+  });
+
+  app.post(
+    "/v1/cases/bulk",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const parsed = BulkCasesBody.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({
+          code: "INVALID_BODY",
+          message:
+            "ids (1-100 UUIDs) and action (CLOSE | ARCHIVE | RESOLVE) are required.",
+        });
+      }
+      const { ids, action, reason } = parsed.data;
+
+      // Resolve which cases the caller can actually mutate. Mirrors
+      // the access predicate in GET /v1/cases.
+      const memberTeams = await prisma.teamMember.findMany({
+        where: { userId },
+        select: { teamId: true },
+      });
+      const memberTeamIds = memberTeams.map((t) => t.teamId);
+      const accessOr: Array<Record<string, unknown>> = [
+        { ownerUserId: userId },
+        { access: { some: { userId } } },
+      ];
+      if (memberTeamIds.length > 0) {
+        accessOr.push({
+          teamId: { in: memberTeamIds },
+          access: { none: {} },
+        });
+      }
+      const accessible = await prisma.case.findMany({
+        where: { id: { in: ids }, OR: accessOr },
+        select: { id: true },
+      });
+      const accessibleSet = new Set(accessible.map((c) => c.id));
+
+      // The target status depends on the action. ARCHIVE goes through
+      // CLOSED first per the transition table; we only call
+      // changeCaseStatus once per id, so we accept ARCHIVE as a
+      // single-step input that the caller intends to be the terminal
+      // state. The transition validator will reject ARCHIVE on an
+      // OPEN case — that's an honest SKIP with `invalid_transition`.
+      const targetStatus =
+        action === "CLOSE"
+          ? "CLOSED"
+          : action === "ARCHIVE"
+            ? "ARCHIVED"
+            : "RESOLVED";
+
+      const results: Array<{
+        id: string;
+        outcome: "SUCCESS" | "SKIPPED";
+        reason?: string;
+      }> = [];
+
+      for (const id of ids) {
+        if (!accessibleSet.has(id)) {
+          results.push({
+            id,
+            outcome: "SKIPPED",
+            reason: "not_accessible",
+          });
+          continue;
+        }
+        try {
+          await changeCaseStatus({
+            caseId: id,
+            toStatus: targetStatus,
+            actorUserId: userId,
+            reason: reason ?? null,
+            ipAddress: req.ip ?? null,
+            userAgent: readUserAgent(req) ?? null,
+          });
+          results.push({ id, outcome: "SUCCESS" });
+        } catch (err) {
+          if (err instanceof CaseError) {
+            results.push({
+              id,
+              outcome: "SKIPPED",
+              reason: err.code,
+            });
+          } else {
+            // Unknown error: log internally + report a generic SKIP
+            // so the batch can continue. The audit log already
+            // captured the per-id success path; failures land in
+            // the route-level error stream.
+            req.log.warn(
+              { err, caseId: id, action },
+              "cases.bulk.case_failed",
+            );
+            results.push({
+              id,
+              outcome: "SKIPPED",
+              reason: "internal_error",
+            });
+          }
+        }
+      }
+
+      const successCount = results.filter(
+        (r) => r.outcome === "SUCCESS",
+      ).length;
+      const skippedCount = results.length - successCount;
+
+      // Single audit row summarising the bulk operation. Per-id
+      // success rows are already written by changeCaseStatus.
+      await appendPlatformAuditLog({
+        userId,
+        action: "cases.bulk_status_changed",
+        category: "cases.lifecycle",
+        severity: "info",
+        source: "cases_routes_bulk",
+        outcome: skippedCount === results.length ? "failure" : "success",
+        resourceType: "case",
+        resourceId: null,
+        metadata: {
+          action,
+          requestedCount: ids.length,
+          successCount,
+          skippedCount,
+          targetStatus,
+        },
+        ipAddress: req.ip ?? null,
+        userAgent: readUserAgent(req) ?? null,
+      });
+
+      return reply.code(200).send({
+        results,
+        summary: {
+          total: results.length,
+          success: successCount,
+          skipped: skippedCount,
+        },
+      });
+    },
+  );
+
+  // ===========================================================================
+  // Phase 2.5B — Dual case↔evidence link reconciler.
+  //
+  // The schema has two ways to associate evidence with a case:
+  //   1. `Evidence.caseId` (legacy column, kept for backwards compat).
+  //   2. `CaseEvidenceLink` (canonical join table with role / source /
+  //      reason / linkedByUserId).
+  //
+  // The Phase 2.4 inspection flagged that these can diverge silently.
+  // This endpoint is a READ-ONLY diagnostic that surfaces the
+  // divergence for a single case. It is NOT a remediation endpoint —
+  // remediation paths (`removeLegacyEvidenceCaseId`, manual link
+  // creation) already exist.
+  //
+  // Access: same as case READ (ownerUserId, access row, or team
+  // member). Returns 403 if the caller cannot see the case.
+  // ===========================================================================
+  app.get<{ Params: { id: string } }>(
+    "/v1/cases/:id/link-reconciliation",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const caseId = z.string().uuid().parse(req.params.id);
+
+      // Permission check: the case must be visible to the caller.
+      const memberTeams = await prisma.teamMember.findMany({
+        where: { userId },
+        select: { teamId: true },
+      });
+      const memberTeamIds = memberTeams.map((t) => t.teamId);
+      const accessOr: Array<Record<string, unknown>> = [
+        { ownerUserId: userId },
+        { access: { some: { userId } } },
+      ];
+      if (memberTeamIds.length > 0) {
+        accessOr.push({
+          teamId: { in: memberTeamIds },
+          access: { none: {} },
+        });
+      }
+      const caseRow = await prisma.case.findFirst({
+        where: { id: caseId, OR: accessOr },
+        select: { id: true, teamId: true },
+      });
+      if (!caseRow) {
+        return reply.code(404).send({
+          code: "CASE_NOT_FOUND",
+          message: "Case not found or not accessible.",
+        });
+      }
+
+      const [legacyAttached, canonicalLinks] = await Promise.all([
+        // Evidence rows with Evidence.caseId === this caseId.
+        prisma.evidence.findMany({
+          where: { caseId },
+          select: { id: true, displayFileName: true, title: true },
+        }),
+        // Canonical CaseEvidenceLink rows for this case.
+        prisma.caseEvidenceLink.findMany({
+          where: { caseId },
+          select: { evidenceId: true, role: true },
+        }),
+      ]);
+
+      const canonicalEvidenceIds = new Set(
+        canonicalLinks.map((l) => l.evidenceId),
+      );
+
+      // Inconsistency #1: evidence attached via legacy caseId but
+      // missing from the canonical join table.
+      const legacyOnly = legacyAttached
+        .filter((e) => !canonicalEvidenceIds.has(e.id))
+        .map((e) => ({
+          evidenceId: e.id,
+          displayName: e.title ?? e.displayFileName ?? null,
+          attachmentKind: "legacy_case_id_only" as const,
+        }));
+
+      // Inconsistency #2: canonical link rows for evidence whose
+      // Evidence.caseId !== this case (or is null). This is the
+      // "soft-linked" case — canonical join exists, but the legacy
+      // column wasn't migrated. Not an error, but useful for
+      // operators to know.
+      const legacyAttachedIds = new Set(legacyAttached.map((e) => e.id));
+      const canonicalOnly = canonicalLinks
+        .filter((l) => !legacyAttachedIds.has(l.evidenceId))
+        .map((l) => ({
+          evidenceId: l.evidenceId,
+          role: l.role,
+          attachmentKind: "canonical_link_only" as const,
+        }));
+
+      return reply.code(200).send({
+        caseId,
+        summary: {
+          legacyAttachments: legacyAttached.length,
+          canonicalLinks: canonicalLinks.length,
+          legacyOnlyCount: legacyOnly.length,
+          canonicalOnlyCount: canonicalOnly.length,
+          inSync:
+            legacyOnly.length === 0 && canonicalOnly.length === 0,
+        },
+        legacyOnly,
+        canonicalOnly,
+      });
+    },
   );
 }

@@ -52,6 +52,76 @@ jobs:
       - name: Typecheck
         run: pnpm -r typecheck
 
+      # ---------------------------------------------------------------
+      # Phase 2.5E — Hard CI enforcement of migration safety.
+      #
+      # Three blocking checks, in order of severity:
+      #
+      #   1. BLOCKED-pattern scan. Any migration containing a pattern
+      #      from the scanner's BLOCKED list (DROP DATABASE, DROP
+      #      SCHEMA CASCADE, DROP ROLE) fails the build immediately.
+      #      Exit code 9 is the signal.
+      #
+      #   2. The Phase 2.5C safety wrapper must still refuse a fake
+      #      Neon URL with exit 3. This is the regression guard
+      #      against a future PR weakening or removing the wrapper.
+      #
+      #   3. The Phase 2.5D in-process hook must still refuse a fake
+      #      Neon URL with exit 8. Regression guard for the
+      #      prisma.config.ts safety hook.
+      #
+      # Note: we intentionally do NOT fail the build on DESTRUCTIVE
+      # patterns (exit 10) because the existing migration tree contains
+      # legitimate historical DROP TABLE operations from early
+      # development. A future phase can add per-PR diff scanning so
+      # only NEW destructive content blocks; for now, the BLOCKED gate
+      # is the hard line and DESTRUCTIVE is operator-visible via
+      # `db:risk-scan` in the local workflow.
+      # ---------------------------------------------------------------
+      - name: Migration risk scan — BLOCKED patterns must not exist
+        working-directory: services/api
+        run: |
+          set +e
+          node scripts/migration-risk-scan.mjs > /tmp/risk-scan.txt 2>&1
+          rc=$?
+          set -e
+          if [ "$rc" = "9" ]; then
+            echo "FAIL — at least one migration contains a BLOCKED pattern."
+            cat /tmp/risk-scan.txt
+            exit 1
+          fi
+          echo "Risk scan exit code: $rc (0=SAFE, 10=DESTRUCTIVE-historical, 11=WARNING). No BLOCKED patterns."
+
+      - name: Safety wrapper still refuses a fake Neon URL (Phase 2.5C regression guard)
+        working-directory: services/api
+        env:
+          DATABASE_URL: "postgresql://x:y@ep-ci-sentinel.eu-central-1.aws.neon.tech:5432/sentinel"
+        run: |
+          set +e
+          node scripts/safe-migrate.mjs deploy
+          rc=$?
+          set -e
+          if [ "$rc" != "3" ]; then
+            echo "FAIL — safe-migrate.mjs exited $rc on fake Neon URL; expected 3."
+            exit 1
+          fi
+          echo "OK — wrapper refused with exit 3."
+
+      - name: In-process hook still refuses a fake Neon URL (Phase 2.5D regression guard)
+        working-directory: services/api
+        env:
+          DATABASE_URL: "postgresql://x:y@ep-ci-sentinel.eu-central-1.aws.neon.tech:5432/sentinel"
+        run: |
+          set +e
+          pnpm exec prisma migrate status
+          rc=$?
+          set -e
+          if [ "$rc" != "8" ]; then
+            echo "FAIL — prisma.config.ts hook exited $rc on fake Neon URL; expected 8."
+            exit 1
+          fi
+          echo "OK — in-process hook refused with exit 8."
+
       - name: Test
         run: pnpm -r test
 

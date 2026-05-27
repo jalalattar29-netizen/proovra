@@ -18,6 +18,10 @@ import { formatUserDateTime } from "../../../../lib/date";
 // page only needed `currentUserId` to derive role-from-membership;
 // the envelope already carries `user.id` (and is authoritative).
 import { usePlatformContext } from "../../../../lib/platform-context";
+import { MemberRemovalDialog } from "./components/MemberRemovalDialog";
+import { TeamPermissionMatrix } from "./components/TeamPermissionMatrix";
+import { DangerConfirmModal } from "./components/DangerConfirmModal";
+import { TeamAccessReviewCard } from "./components/TeamAccessReviewCard";
 
 type TeamMemberUser = {
   id?: string;
@@ -447,6 +451,24 @@ export default function TeamDetailPage() {
   const [roleSavingKey, setRoleSavingKey] = useState<string | null>(null);
   const [deletingInviteId, setDeletingInviteId] = useState<string | null>(null);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  // Phase 2.2 — Offboarding dialog. Holds the member the operator is
+  // about to remove; `null` means "dialog closed". We keep a separate
+  // state for the membership because the dialog needs the label/role
+  // even after the parent's `team.members` array has been mutated.
+  const [removalDialogMember, setRemovalDialogMember] = useState<
+    TeamMember | null
+  >(null);
+  // Phase 2.6B — replace 2 remaining window.confirm calls with the
+  // shared DangerConfirmModal. Each pending action holds its own
+  // identifier so the modal knows which target to mutate.
+  const [pendingInviteDelete, setPendingInviteDelete] = useState<{
+    inviteId: string;
+    email: string;
+  } | null>(null);
+  const [pendingCaseUnlink, setPendingCaseUnlink] = useState<{
+    caseId: string;
+    name: string;
+  } | null>(null);
 
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deletingTeam, setDeletingTeam] = useState(false);
@@ -680,24 +702,31 @@ export default function TeamDetailPage() {
     }
   };
 
-  const handleRemoveMember = async (member: TeamMember) => {
+  // Phase 2.2 — replaces the bare `window.confirm` flow. The actual
+  // DELETE now happens inside <MemberRemovalDialog>, which fetches
+  // `/removal-impact`, requires a transfer target if the member owns
+  // active records, and passes `transferToUserId` to the DELETE call.
+  // We keep the `removingMemberId` UI state so the row-level button
+  // can show "Removing..." once the dialog reports success and we
+  // start applying the optimistic local removal.
+  const handleRemoveMember = (member: TeamMember) => {
     if (!teamId || !canManageTeam || !member.userId) return;
+    setRemovalDialogMember(member);
+  };
 
-    const confirmed = window.confirm("Remove this member from the team?");
-    if (!confirmed) return;
-
+  const handleRemovalConfirmed = (member: TeamMember) => {
+    if (!member.userId) return;
+    // The DELETE already succeeded inside the dialog — just apply the
+    // optimistic local update + toast here. We do NOT issue another
+    // DELETE.
     setRemovingMemberId(member.userId);
-
     try {
-      await apiFetch(`/v1/teams/${teamId}/members/${member.userId}`, {
-        method: "DELETE",
-      });
-
       setTeam((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
-          members: prev.members?.filter((m) => m.userId !== member.userId) ?? [],
+          members:
+            prev.members?.filter((m) => m.userId !== member.userId) ?? [],
           stats: prev.stats
             ? {
                 ...prev.stats,
@@ -706,27 +735,27 @@ export default function TeamDetailPage() {
             : prev.stats,
         };
       });
-
       addToast("Member removed", "success");
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to remove member";
-      captureException(err, {
-        feature: "team_member_remove",
-        teamId,
-        memberId: member.userId,
-      });
-      addToast(message, "error");
     } finally {
       setRemovingMemberId(null);
+      setRemovalDialogMember(null);
     }
   };
 
-  const handleDeleteInvite = async (inviteId: string) => {
+  // Phase 2.6B — entry point. The actual DELETE now runs inside the
+  // DangerConfirmModal's onConfirm handler (handleConfirmDeleteInvite).
+  const handleDeleteInvite = (inviteId: string) => {
     if (!teamId || !canManageTeam) return;
+    const invite = invites.find((i) => i.id === inviteId);
+    setPendingInviteDelete({
+      inviteId,
+      email: invite?.email ?? "this invite",
+    });
+  };
 
-    const confirmed = window.confirm("Delete this pending invite?");
-    if (!confirmed) return;
+  const handleConfirmDeleteInvite = async () => {
+    if (!teamId || !canManageTeam || !pendingInviteDelete) return;
+    const inviteId = pendingInviteDelete.inviteId;
 
     setDeletingInviteId(inviteId);
 
@@ -737,11 +766,16 @@ export default function TeamDetailPage() {
 
       setInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
       addToast("Invite deleted", "success");
+      // Close the modal on success. On failure the modal stays open
+      // so the operator can retry — DangerConfirmModal surfaces the
+      // error inline via its onConfirm rejection contract.
+      setPendingInviteDelete(null);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to delete invite";
       captureException(err, { feature: "team_invite_delete", teamId, inviteId });
-      addToast(message, "error");
+      // Re-throw so DangerConfirmModal can surface the error inline.
+      throw new Error(message);
     } finally {
       setDeletingInviteId(null);
     }
@@ -857,11 +891,17 @@ export default function TeamDetailPage() {
     }
   };
 
-  const handleUnlinkTeamCase = async (caseId: string) => {
+  // Phase 2.6B — entry point. The actual DELETE runs inside the
+  // DangerConfirmModal's onConfirm handler (handleConfirmUnlinkCase).
+  const handleUnlinkTeamCase = (caseId: string) => {
     if (!teamId || !canManageTeam) return;
+    const c = teamCases.find((item) => item.id === caseId);
+    setPendingCaseUnlink({ caseId, name: c?.name ?? "this case" });
+  };
 
-    const confirmed = window.confirm("Remove this case from the team?");
-    if (!confirmed) return;
+  const handleConfirmUnlinkCase = async () => {
+    if (!teamId || !canManageTeam || !pendingCaseUnlink) return;
+    const caseId = pendingCaseUnlink.caseId;
 
     setUnlinkingCaseId(caseId);
 
@@ -883,11 +923,12 @@ export default function TeamDetailPage() {
       }
 
       addToast("Case removed from team", "success");
+      setPendingCaseUnlink(null);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to remove case from team";
       captureException(err, { feature: "team_case_unlink", teamId, caseId });
-      addToast(message, "error");
+      throw new Error(message);
     } finally {
       setUnlinkingCaseId(null);
     }
@@ -2109,6 +2150,23 @@ export default function TeamDetailPage() {
               </div>
             </Card>
 
+            {/* Phase 2.6 — Permission matrix. Read-only governance
+                reference; mirrors backend rbac enforcement so admins
+                understand what each role can actually do today. */}
+            <TeamPermissionMatrix
+              currentRole={
+                (currentRole as "OWNER" | "ADMIN" | "MEMBER" | "VIEWER") ?? null
+              }
+            />
+
+            {/* Phase 2.6C — Access review card. Consumes the Phase
+                2.6B aggregator endpoint (/v1/teams/:id/access-review)
+                to surface internal members + pending invites + external
+                collaborators in one operator-readable list. ADMIN+
+                gated by the backend; non-admin viewers see an
+                AccessGate panel explaining the restriction. */}
+            {teamId ? <TeamAccessReviewCard teamId={teamId} /> : null}
+
             <Card
               className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
               style={outerCardStyle}
@@ -2476,6 +2534,67 @@ export default function TeamDetailPage() {
           )}
         </div>
       </div>
+      {/* Phase 2.6B — DangerConfirmModal mounts for the two remaining
+          destructive flows: invite revocation + case unlink. Each
+          modal opens when its `pending*` state is non-null; the
+          handler closes the state on success and re-throws on
+          failure so the modal can surface the error inline. */}
+      <DangerConfirmModal
+        open={pendingInviteDelete !== null}
+        title="Revoke this invite?"
+        description={
+          pendingInviteDelete
+            ? `${pendingInviteDelete.email} will no longer be able to accept the invite link.`
+            : ""
+        }
+        caveat="The email recipient won't be notified. If you want to re-invite them, send a fresh invite."
+        confirmLabel="Revoke invite"
+        testid="invite-revoke-confirm"
+        onCancel={() => setPendingInviteDelete(null)}
+        onConfirm={handleConfirmDeleteInvite}
+      />
+      <DangerConfirmModal
+        open={pendingCaseUnlink !== null}
+        title="Remove case from team?"
+        description={
+          pendingCaseUnlink
+            ? `"${pendingCaseUnlink.name}" will be detached from this team workspace. The case itself is not deleted; its owner retains it.`
+            : ""
+        }
+        caveat="Existing case access grants stay on the case. To revoke individual members, manage access on the case itself."
+        confirmLabel="Remove from team"
+        testid="case-unlink-confirm"
+        onCancel={() => setPendingCaseUnlink(null)}
+        onConfirm={handleConfirmUnlinkCase}
+      />
+
+      {/* Phase 2.2 — Offboarding transfer dialog. Mounted at root so
+          the focus-trap and overlay aren't constrained by sidebar /
+          card scroll containers. Closed = dialog is unmounted.
+          NOTE: we pass `TeamMember.id` (the row PK) as `memberId`, NOT
+          `userId`. The Fastify route `:memberId` resolves by
+          TeamMember.id — passing userId there returns 404. We also
+          pass `userId` separately for telemetry / display. If
+          `member.id` is missing on a row (legacy payloads), we cannot
+          safely call the route and the dialog stays closed. */}
+      {removalDialogMember && teamId && removalDialogMember.id ? (
+        <MemberRemovalDialog
+          open
+          teamId={teamId}
+          member={{
+            memberId: removalDialogMember.id,
+            userId: removalDialogMember.userId,
+            label:
+              removalDialogMember.user?.displayName?.trim() ||
+              removalDialogMember.user?.email ||
+              removalDialogMember.label ||
+              "this member",
+            role: removalDialogMember.role,
+          }}
+          onCancel={() => setRemovalDialogMember(null)}
+          onRemoved={() => handleRemovalConfirmed(removalDialogMember)}
+        />
+      ) : null}
     </div>
   );
 }

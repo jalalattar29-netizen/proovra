@@ -394,9 +394,37 @@ async function seedFixtures(
     name: string,
     ownerId: string,
   ): Promise<{ id: string }> {
-    return prisma.team.create({
-      data: { name, ownerUserId: ownerId, isPersonal: false },
-      select: { id: true },
+    // Phase 2.7X Stage 6 — teams.organization_id is NOT NULL. Every
+    // team must be bound to an Organization. The integration harness
+    // creates one atomically so the legacy fixture (which calls this
+    // helper a "createOrg" though it actually creates a Team) stays
+    // backwards-compatible. The org is created in the same shape as
+    // the production POST /v1/teams + workspace-bootstrap code paths.
+    return prisma.$transaction(async (tx) => {
+      const org = await tx.organization.create({
+        data: {
+          name,
+          billingOwnerUserId: ownerId,
+          status: "ACTIVE",
+        },
+        select: { id: true },
+      });
+      await tx.organizationMembership.create({
+        data: {
+          organizationId: org.id,
+          userId: ownerId,
+          role: "ORG_OWNER",
+        },
+      });
+      return tx.team.create({
+        data: {
+          name,
+          ownerUserId: ownerId,
+          isPersonal: false,
+          organizationId: org.id,
+        },
+        select: { id: true },
+      });
     });
   }
   const orgA = await createOrg(`OrgA-${tag}`, userAOwner.id);

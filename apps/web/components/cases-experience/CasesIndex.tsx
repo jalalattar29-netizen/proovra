@@ -33,6 +33,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { apiFetch } from "../../lib/api";
 import {
@@ -44,6 +45,8 @@ import {
   workflowFromPersona,
 } from "../../lib/platform-context";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
+// Phase 2.1 — surfaces `POST /v1/cases` from the canonical Cases page.
+import { CreateCaseModal } from "./matter-modals";
 import type {
   MatterQueueEnvelope,
   MatterQueueItem,
@@ -117,6 +120,10 @@ export function CasesIndex() {
 
   const [filters, setFilters] = useState<QueueFilters>(DEFAULT_FILTERS);
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  // Phase 2.1 — Create Case modal local state. Toggled by the new
+  // "Create case" button in the header and by the empty-state CTA.
+  const [createOpen, setCreateOpen] = useState(false);
+  const router = useRouter();
 
   // Build the canonical query string from the filter state. The
   // matter-queue endpoint takes the bounded params verbatim.
@@ -214,6 +221,19 @@ export function CasesIndex() {
           <span title={envelope.generatedAt} data-matter-queue-generated-at>
             Refreshed {formatRelativeTime(envelope.generatedAt)}
           </span>
+          {/* Phase 2.1 — canonical Create Case CTA. Server enforces
+              permissions; the button is visible to any team member so
+              they get a structured AccessGate inside the modal on 403
+              instead of a missing button + raw 403 elsewhere. */}
+          <button
+            type="button"
+            className="btn-primary"
+            data-create-case-trigger
+            onClick={() => setCreateOpen(true)}
+            style={{ marginLeft: 12 }}
+          >
+            + Create case
+          </button>
         </div>
       </header>
 
@@ -226,7 +246,7 @@ export function CasesIndex() {
         stateNotes={
           envelope.total === 0
             ? [
-                `No ${terms.casePlural.toLowerCase()} yet — create one from the operator console, or link evidence into an existing matter.`,
+                `No ${terms.casePlural.toLowerCase()} yet — use the Create case button above, or link evidence into an existing matter.`,
               ]
             : undefined
         }
@@ -241,6 +261,24 @@ export function CasesIndex() {
       <MatterQueueTable
         items={envelope.items}
         totalBeforeFilter={envelope.total}
+      />
+
+      {/* Phase 2.1 — Create Case modal. Mounted at the page level so
+          the focus trap restores focus to the trigger button after
+          close. Navigation to the new case workspace happens on
+          successful create. */}
+      <CreateCaseModal
+        open={createOpen}
+        teamId={teamId}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(newCase) => {
+          setCreateOpen(false);
+          // The matter-queue envelope is read-only and team-scoped;
+          // navigating to the new case workspace gives the operator
+          // the next-action surface (assign reviewer, link evidence,
+          // change status) without an intermediate refresh.
+          router.push(`/cases/${newCase.id}`);
+        }}
       />
     </main>
   );

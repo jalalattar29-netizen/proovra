@@ -19,6 +19,15 @@ import { apiFetch } from "../../../../lib/api";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
+  ReviewerReasonModal,
+  type ReviewerReasonKind,
+} from "../components/ReviewerReasonModal";
+import {
+  ReviewerShortcutsHelp,
+  isShortcutTarget,
+  useReviewerHelpHotkey,
+} from "../components/ReviewerShortcutsHelp";
+import {
   cardStyle,
   emptyStateStyle,
   errorBoxStyle,
@@ -103,6 +112,18 @@ function ReviewWorkspacePageInner() {
   const [data, setData] = useState<WorkspaceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Phase 2.4 — replace 3 `window.prompt` calls with a structured modal.
+  // `reasonModal` holds the kind currently open, or null when closed.
+  const [reasonModal, setReasonModal] = useState<ReviewerReasonKind | null>(
+    null,
+  );
+  // Phase 2.5 — keyboard shortcuts + help overlay.
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  useReviewerHelpHotkey({
+    open: shortcutsOpen,
+    onOpen: () => setShortcutsOpen(true),
+    onClose: () => setShortcutsOpen(false),
+  });
 
   const load = useCallback(() => {
     if (!teamId || !workflowId) return;
@@ -152,6 +173,58 @@ function ReviewWorkspacePageInner() {
     },
     [teamId, workflowId, load],
   );
+
+  // Phase 2.5 — action shortcuts. Fire ONLY when no input/textarea is
+  // focused (isShortcutTarget) and when the review is in a state that
+  // accepts the action (mirrors the per-button `disabled` gates so the
+  // shortcut never bypasses backend transition rules). Destructive
+  // text-input actions open the structured ReviewerReasonModal rather
+  // than triggering a bare network call — preserving the Phase 2.4
+  // "no raw prompts" contract.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isShortcutTarget(e)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Ignore while the shortcuts overlay is itself open — the
+      // overlay manages its own Esc handler.
+      if (shortcutsOpen) return;
+      // Ignore while a reason modal is open — we don't want
+      // double-triggers while the user is typing a reason.
+      if (reasonModal !== null) return;
+      // Need a loaded projection to check lifecycle state.
+      if (!data) return;
+      const lifecycleState = data.projection.lifecycleState;
+      const requestableStates = ["IN_REVIEW", "NEEDS_INFORMATION", "ESCALATED"];
+
+      const k = e.key.toLowerCase();
+      if (k === "r") {
+        if (busy !== null) return;
+        if (!requestableStates.includes(lifecycleState)) return;
+        e.preventDefault();
+        setReasonModal("REQUEST_INFO");
+      } else if (k === "e") {
+        // E opens the escalations console (review-detail page has no
+        // direct "escalate" mutation; the link is the canonical
+        // operator path).
+        e.preventDefault();
+        window.location.href = "/reviewer-ops/escalations";
+      } else if (k === "c") {
+        // C = approve (the "close-positive" terminal for a review).
+        if (busy !== null) return;
+        if (!requestableStates.includes(lifecycleState)) return;
+        e.preventDefault();
+        void post("approve", "approve", {});
+      } else if (k === "a") {
+        // A = start review (claim it for the current reviewer).
+        if (busy !== null) return;
+        if (lifecycleState !== "ASSIGNED") return;
+        e.preventDefault();
+        void post("start", "start", {});
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [data, busy, shortcutsOpen, reasonModal, post]);
 
   // PageRouteGate already guaranteed ALLOWED. If the envelope is
   // still hydrating, render the bounded loading shell.
@@ -335,11 +408,8 @@ function ReviewWorkspacePageInner() {
                   p.lifecycleState,
                 )
               }
-              onClick={async () => {
-                const n = window.prompt("Note (required)");
-                if (!n) return;
-                post("request-info", "request-info", { note: n });
-              }}
+              onClick={() => setReasonModal("REQUEST_INFO")}
+              data-reviewer-action-request-info
             >
               Request info
             </button>
@@ -365,11 +435,8 @@ function ReviewWorkspacePageInner() {
                   p.lifecycleState,
                 )
               }
-              onClick={async () => {
-                const n = window.prompt("Rejection note (required)");
-                if (!n) return;
-                post("reject", "reject", { note: n });
-              }}
+              onClick={() => setReasonModal("REJECT")}
+              data-reviewer-action-reject
             >
               Reject
             </button>
@@ -377,11 +444,8 @@ function ReviewWorkspacePageInner() {
               type="button"
               style={ghostButtonStyle}
               disabled={busy !== null}
-              onClick={async () => {
-                const r = window.prompt("Pause reason (required)");
-                if (!r) return;
-                post("pause", "pause", { pausedReason: r });
-              }}
+              onClick={() => setReasonModal("PAUSE")}
+              data-reviewer-action-pause
             >
               Pause
             </button>
@@ -398,6 +462,40 @@ function ReviewWorkspacePageInner() {
           </div>
         </section>
       </div>
+
+      {/* Phase 2.5 — Keyboard shortcuts help overlay. Triggered by `?`
+          (input-safe; ignored while typing). Mounted last so its
+          z-index renders above other modals if both ever stack. */}
+      <ReviewerShortcutsHelp
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+      />
+
+      {/* Phase 2.4 — Structured reason modal. Replaces the three
+          window.prompt calls that previously gathered request-info /
+          reject / pause reasons. The modal validates + truncates and
+          delegates the POST to the existing `post()` helper. */}
+      <ReviewerReasonModal
+        kind={reasonModal}
+        open={reasonModal !== null}
+        onCancel={() => setReasonModal(null)}
+        onSubmit={async (reason) => {
+          if (!reasonModal) return;
+          if (reasonModal === "REQUEST_INFO") {
+            await post("request-info", "request-info", { note: reason });
+          } else if (reasonModal === "REJECT") {
+            await post("reject", "reject", { note: reason });
+          } else if (reasonModal === "PAUSE") {
+            await post("pause", "pause", { pausedReason: reason });
+          }
+          // Close on success. The `post()` helper handles failures by
+          // setting `error` on the page; the modal stays open in that
+          // case so the operator can retry without retyping the reason.
+          // The early returns above mean: only close when we actually
+          // dispatched.
+          setReasonModal(null);
+        }}
+      />
     </main>
   );
 }

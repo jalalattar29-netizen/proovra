@@ -43,6 +43,10 @@ import {
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+// Phase 2.5 — record the AuthenticatedSession row for non-SAML/SSO
+// login paths so the user-facing `/v1/users/me/sessions` list is not
+// empty for guest + email-password users (Phase 2.4 finding).
+import { recordAuthenticatedSession } from "../services/access-control/session-inventory.service.js";
 
 // Phase E10.1 — DEF-037 closure. Per-IP rate limits on the public,
 // unauthenticated email login and password-reset-request surfaces.
@@ -64,6 +68,85 @@ function readClientIp(req: FastifyRequest): string {
   // `req.ip` is normalised by Fastify; fall back to "unknown" so the
   // rate-limit key is always non-empty (the limiter throws otherwise).
   return (req.ip && req.ip.length > 0 ? req.ip : "unknown").slice(0, 200);
+}
+
+// Phase 2.5 — session inventory recording helpers.
+//
+// These helpers mirror the SAML / SSO route helpers (saml-auth.routes.ts:89-103)
+// so the AuthenticatedSession `ipPreview` + `uaPreview` shapes stay
+// consistent across login providers. They are display-only previews,
+// NEVER raw IP / UA.
+function authIpPreview(req: FastifyRequest): string | null {
+  const ip = req.ip ?? "";
+  if (!ip) return null;
+  if (ip.includes(".")) {
+    const parts = ip.split(".");
+    if (parts.length === 4) return `${parts[0]}.${parts[1]}.${parts[2]}.•••`;
+  }
+  return ip.slice(0, 10) + "…";
+}
+
+function authUaPreview(req: FastifyRequest): string | null {
+  const raw = req.headers["user-agent"];
+  if (typeof raw !== "string") return null;
+  return raw.trim().slice(0, 120);
+}
+
+/**
+ * Phase 2.5 — record an AuthenticatedSession row after signing a
+ * non-SAML/SSO JWT.
+ *
+ * Pre-Phase-2.5 the guest + email-password login paths called
+ * `signJwt()` directly and skipped the session-inventory write. This
+ * meant `GET /v1/users/me/sessions` returned `[]` for those users
+ * (Phase 2.4 finding). The recording is best-effort: an inventory
+ * write failure must NEVER break login.
+ *
+ * `signJwt()` already mints a random `sid` internally; we extract it
+ * by base64-decoding the resulting token payload. This avoids any
+ * change to signJwt's signature and keeps every existing caller's
+ * behavior identical for the token value.
+ *
+ * `teamId` is NULL for guest / fresh email-password tokens — the
+ * AuthenticatedSession schema permits null teamId rows (workspace-less
+ * sessions). The user-facing sessions endpoint already handles that
+ * case (Phase 2.4).
+ */
+async function recordSessionFromSignedToken(
+  req: FastifyRequest,
+  user: { id: string; currentWorkspaceId?: string | null },
+  token: string,
+): Promise<void> {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return;
+    const payloadJson = Buffer.from(parts[1] ?? "", "base64url").toString(
+      "utf8",
+    );
+    const payload = JSON.parse(payloadJson) as {
+      sid?: string;
+      iat?: number;
+      exp?: number;
+    };
+    if (
+      typeof payload.sid !== "string" ||
+      typeof payload.iat !== "number" ||
+      typeof payload.exp !== "number"
+    ) {
+      return;
+    }
+    await recordAuthenticatedSession({
+      userId: user.id,
+      teamId: user.currentWorkspaceId ?? null,
+      sid: payload.sid,
+      iat: payload.iat,
+      exp: payload.exp,
+      ipPreview: authIpPreview(req),
+      uaPreview: authUaPreview(req),
+    });
+  } catch {
+    // Best-effort. A failed inventory write must not break login.
+  }
 }
 
 const TokenBody = z.object({
@@ -524,6 +607,10 @@ export async function authRoutes(app: FastifyInstance) {
     await ensureGuestIdentity(user.id);
 
     const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
+    // Phase 2.5 — record AuthenticatedSession row so /v1/users/me/sessions
+    // surfaces guest sessions (Phase 2.4 closed the read path; this
+    // closes the write path). Best-effort; never blocks login.
+    await recordSessionFromSignedToken(req, user, token);
     maybeSetWebCookie(req, reply, token);
 
     auditAuthEvent(req, {
@@ -735,6 +822,10 @@ export async function authRoutes(app: FastifyInstance) {
     });
 
     const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
+    // Phase 2.5 — record AuthenticatedSession on first email/password
+    // register so the new user immediately sees the session in
+    // /v1/users/me/sessions. Best-effort.
+    await recordSessionFromSignedToken(req, user, token);
 
     maybeSetWebCookie(req, reply, token);
 
@@ -811,6 +902,9 @@ export async function authRoutes(app: FastifyInstance) {
     if (gate.mfaIssued) return;
 
     const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
+    // Phase 2.5 — record AuthenticatedSession for the user-facing
+    // sessions inventory. Best-effort; never blocks login.
+    await recordSessionFromSignedToken(req, user, token);
 
     fireLoginCompletedAnalytics(user.id, req, {
       provider: user.provider,

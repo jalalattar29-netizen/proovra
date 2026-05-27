@@ -129,6 +129,48 @@ export async function changeCaseStatus(
   } catch {
     /* best-effort */
   }
+
+  // Phase 2.4 — Closure cascade.
+  //
+  // When a case transitions to CLOSED or ARCHIVED, all currently
+  // ACTIVE assignments must be deactivated. Without this cascade a
+  // closed case still appears in reviewers' personal queues and
+  // permission gates that key off "assignment.status === ACTIVE"
+  // misreport access. The pre-Phase-2.4 behavior left assignments
+  // active indefinitely, which is the root cause of the
+  // "I see this closed case in my queue" bug class.
+  //
+  // We DO NOT touch:
+  //   - The Case row itself (already updated above).
+  //   - Evidence links — closed cases keep their evidence association
+  //     because the audit trail must remain intact.
+  //   - Comments — historical comments stay readable. New comments
+  //     are blocked at the route layer when the case is in a closure
+  //     state, not here.
+  //
+  // The cascade is best-effort: if it fails (extremely unlikely; this
+  // is a single updateMany), we log a critical audit row but do not
+  // roll back the status change. The next read of the assignments
+  // list still surfaces the inconsistency; an operator can manually
+  // remove residual assignments.
+  let cascadedAssignmentCount = 0;
+  if (CLOSURE_STATUSES.has(input.toStatus)) {
+    try {
+      const cascade = await client.caseAssignment.updateMany({
+        where: { caseId: existing.id, status: "ACTIVE" },
+        data: {
+          status: "REMOVED",
+          removedAtUtc: new Date(),
+          removedByUserId: input.actorUserId,
+        },
+      });
+      cascadedAssignmentCount = cascade.count;
+    } catch {
+      /* best-effort — captured in the audit metadata below */
+      cascadedAssignmentCount = -1;
+    }
+  }
+
   await appendPlatformAuditLog({
     userId: input.actorUserId,
     action: "cases.status_changed",
@@ -142,6 +184,10 @@ export async function changeCaseStatus(
       teamId: existing.teamId,
       fromStatus: from,
       toStatus: input.toStatus,
+      // Phase 2.4 — surface the cascade for SOC + audit consumers.
+      // `-1` indicates the cascade failed; `0` indicates no
+      // assignments existed to cascade.
+      cascadedAssignmentCount,
     },
     ipAddress: input.ipAddress ?? null,
     userAgent: input.userAgent ?? null,

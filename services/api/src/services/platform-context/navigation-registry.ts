@@ -139,6 +139,33 @@ const WORKSPACE_GROUP: NavRegistryGroup = {
       badgeKey: null,
       requiresCapability: "CASES_VIEW",
     },
+    // Phase 2.6 §10.5 — Workspace governance discoverability.
+    //
+    // `admin.teams` lives in the ADMINISTRATION group (order: 4) which
+    // is visually buried at the bottom of the sidebar — operators who
+    // work in the WORKSPACE flow (Evidence → Cases) miss it. We add a
+    // workspace-context entry HERE so the team/governance surface is
+    // discoverable from the daily-work mental model, without removing
+    // the admin-context entry below.
+    //
+    // This is the same dual-surface pattern that `admin.billing` +
+    // `account.billing` already use (both point to /billing under
+    // different labels). It is NOT a duplicate within the same group;
+    // each entry serves a different operator mental model.
+    //
+    // Gated by `TEAM_VIEW` — same as `admin.teams` — so capability
+    // resolution is identical. The /teams page itself renders the
+    // create-team flow when the active workspace has no team yet, so
+    // even no-workspace users see the entry as a useful CTA.
+    {
+      id: "workspace.team_governance",
+      label: "Workspace",
+      href: "/teams",
+      iconKey: "teams",
+      domain: "WORKSPACE",
+      badgeKey: null,
+      requiresCapability: "TEAM_VIEW",
+    },
     {
       id: "workspace.reports",
       label: "Reports",
@@ -196,6 +223,51 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       domain: "REVIEW_GOVERNANCE",
       badgeKey: "escalations_open",
       requiresCapability: "ESCALATIONS_VIEW",
+    },
+    // Phase 2.1 — discoverability promotion. These 4 surfaces were
+    // fully wired to backend (Phase 18 Twilio, Phase 23 workflows,
+    // Phase 15 intelligence, Phase 31.12 investigation) but absent
+    // from the sidebar. The audit confirmed real route handlers + UI
+    // for each. Gated by existing capabilities so a VIEWER who can
+    // already see Reviewer Ops will also see Workflows / Intelligence /
+    // Investigation; admins additionally see Communications.
+    //
+    // Each linked page already implements its own auth-error /
+    // unavailable / no-workspace states. The nav item only changes
+    // DISCOVERABILITY — the backend remains authoritative.
+    {
+      id: "review.workflows",
+      label: "Workflows",
+      href: "/workflows",
+      iconKey: "workflows",
+      domain: "REVIEW_GOVERNANCE",
+      badgeKey: null,
+      // Use REVIEWER_OPS_VIEW: workflow instances are part of the
+      // review/governance domain and any team member who can see
+      // reviewer ops should be able to inspect workflow state.
+      requiresCapability: "REVIEWER_OPS_VIEW",
+    },
+    {
+      id: "review.intelligence",
+      label: "Intelligence",
+      href: "/intelligence",
+      iconKey: "intelligence",
+      domain: "REVIEW_GOVERNANCE",
+      badgeKey: null,
+      // OCR / transcript / entity jobs operate on evidence the user
+      // can already view. Use EVIDENCE_VIEW.
+      requiresCapability: "EVIDENCE_VIEW",
+    },
+    {
+      id: "review.investigation",
+      label: "Investigation",
+      href: "/investigation",
+      iconKey: "investigation",
+      domain: "REVIEW_GOVERNANCE",
+      badgeKey: null,
+      // Investigation overview surfaces signal totals / graph activity
+      // for cases the user has access to. Use CASES_VIEW.
+      requiresCapability: "CASES_VIEW",
     },
     {
       id: "governance.hub",
@@ -291,6 +363,23 @@ const PLATFORM_HEALTH_GROUP: NavRegistryGroup = {
       badgeKey: null,
       requiresCapability: "SECURITY_CENTER_VIEW",
     },
+    // Phase 2.3 — Identity administration hub. The /admin/identity
+    // landing page links to: providers (SSO), SCIM, sessions, access
+    // reviews, permission matrix, identity timeline, runtime monitor.
+    // Read-only audit found these pages exist (Phase 26-26.75 ships
+    // them) but are NOT discoverable from any nav surface, so
+    // operators rely on direct URLs. SECURITY_CENTER_VIEW is the
+    // right gate: it's granted to OWNER/ADMIN and already controls
+    // the sibling /security-center page.
+    {
+      id: "platform.identity_admin",
+      label: "Identity Admin",
+      href: "/admin/identity",
+      iconKey: "security_center",
+      domain: "PLATFORM_HEALTH",
+      badgeKey: null,
+      requiresCapability: "SECURITY_CENTER_VIEW",
+    },
   ],
 };
 
@@ -350,6 +439,20 @@ const ADMINISTRATION_GROUP: NavRegistryGroup = {
       domain: "ADMINISTRATION",
       badgeKey: null,
       requiresCapability: "INTAKE_LINKS_MANAGE",
+    },
+    // Phase 2.1 — Communications surface (Twilio admin) was wired
+    // (Phase 18) but absent from the sidebar. Gated by INTEGRATIONS_MANAGE
+    // because it carries the same operational sensitivity (per-team
+    // outbound channel + retry visibility) and inherits the same
+    // admin-only audience.
+    {
+      id: "admin.communications",
+      label: "Communications",
+      href: "/communications",
+      iconKey: "communications",
+      domain: "ADMINISTRATION",
+      badgeKey: null,
+      requiresCapability: "INTEGRATIONS_MANAGE",
     },
     {
       id: "admin.settings",

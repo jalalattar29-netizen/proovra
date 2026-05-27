@@ -1378,378 +1378,3412 @@ ALTER TABLE "workspace_governance_policies" RENAME CONSTRAINT "workspace_governa
 -- RenameForeignKey
 ALTER TABLE "workspace_governance_policies" RENAME CONSTRAINT "workspace_governance_policies_updated_by_user_fkey" TO "workspace_governance_policies_updated_by_user_id_fkey";
 
--- AddForeignKey
-ALTER TABLE "evidence" ADD CONSTRAINT "evidence_guest_identity_id_fkey" FOREIGN KEY ("guest_identity_id") REFERENCES "guest_identities"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_anchors" ADD CONSTRAINT "evidence_anchors_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_parts" ADD CONSTRAINT "evidence_parts_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_certifications" ADD CONSTRAINT "evidence_certifications_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "verification_packages" ADD CONSTRAINT "verification_packages_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "verification_views" ADD CONSTRAINT "verification_views_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "teams" ADD CONSTRAINT "teams_owner_user_id_fkey" FOREIGN KEY ("owner_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "teams" ADD CONSTRAINT "teams_billing_owner_user_id_fkey" FOREIGN KEY ("billing_owner_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "workspace_storage_addons" ADD CONSTRAINT "workspace_storage_addons_owner_user_id_fkey" FOREIGN KEY ("owner_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "workspace_storage_addons" ADD CONSTRAINT "workspace_storage_addons_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "team_members" ADD CONSTRAINT "team_members_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "team_members" ADD CONSTRAINT "team_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "team_members" ADD CONSTRAINT "team_members_access_granted_by_user_id_fkey" FOREIGN KEY ("access_granted_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "team_members" ADD CONSTRAINT "team_members_suspended_by_user_id_fkey" FOREIGN KEY ("suspended_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "team_members" ADD CONSTRAINT "team_members_revoked_by_user_id_fkey" FOREIGN KEY ("revoked_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "case_access" ADD CONSTRAINT "case_access_case_id_fkey" FOREIGN KEY ("case_id") REFERENCES "cases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "case_access" ADD CONSTRAINT "case_access_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "team_invites" ADD CONSTRAINT "team_invites_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "guest_identities" ADD CONSTRAINT "guest_identities_claimed_by_user_id_fkey" FOREIGN KEY ("claimed_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "guest_identities" ADD CONSTRAINT "guest_identities_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "entitlements" ADD CONSTRAINT "entitlements_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "payments" ADD CONSTRAINT "payments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "payments" ADD CONSTRAINT "payments_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "password_reset_tokens" ADD CONSTRAINT "password_reset_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "workflow_intake_sessions" ADD CONSTRAINT "workflow_intake_sessions_revoked_by_user_id_fkey" FOREIGN KEY ("revoked_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "api_credentials" ADD CONSTRAINT "api_credentials_disabled_by_user_id_fkey" FOREIGN KEY ("disabled_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "member_capability_grants" ADD CONSTRAINT "member_capability_grants_team_member_id_fkey" FOREIGN KEY ("team_member_id") REFERENCES "team_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "member_capability_grants" ADD CONSTRAINT "member_capability_grants_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "member_capability_grants" ADD CONSTRAINT "member_capability_grants_granted_by_user_id_fkey" FOREIGN KEY ("granted_by_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "member_capability_grants" ADD CONSTRAINT "member_capability_grants_revoked_by_user_id_fkey" FOREIGN KEY ("revoked_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "member_delegated_admin_scopes" ADD CONSTRAINT "member_delegated_admin_scopes_team_member_id_fkey" FOREIGN KEY ("team_member_id") REFERENCES "team_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "member_delegated_admin_scopes" ADD CONSTRAINT "member_delegated_admin_scopes_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "member_delegated_admin_scopes" ADD CONSTRAINT "member_delegated_admin_scopes_granted_by_user_id_fkey" FOREIGN KEY ("granted_by_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "member_delegated_admin_scopes" ADD CONSTRAINT "member_delegated_admin_scopes_revoked_by_user_id_fkey" FOREIGN KEY ("revoked_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "organization_security_policies" ADD CONSTRAINT "organization_security_policies_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "organization_security_policies" ADD CONSTRAINT "organization_security_policies_updated_by_user_id_fkey" FOREIGN KEY ("updated_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "access_reviews" ADD CONSTRAINT "access_reviews_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "access_reviews" ADD CONSTRAINT "access_reviews_initiated_by_user_id_fkey" FOREIGN KEY ("initiated_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "access_reviews" ADD CONSTRAINT "access_reviews_completed_by_user_id_fkey" FOREIGN KEY ("completed_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "access_reviews" ADD CONSTRAINT "access_reviews_subject_user_id_fkey" FOREIGN KEY ("subject_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "external_identity_mappings" ADD CONSTRAINT "external_identity_mappings_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "external_identity_mappings" ADD CONSTRAINT "external_identity_mappings_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "communication_messages" ADD CONSTRAINT "communication_messages_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "communication_messages" ADD CONSTRAINT "communication_messages_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "communication_messages" ADD CONSTRAINT "communication_messages_related_evidence_id_fkey" FOREIGN KEY ("related_evidence_id") REFERENCES "evidence"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "communication_messages" ADD CONSTRAINT "communication_messages_related_evidence_request_id_fkey" FOREIGN KEY ("related_evidence_request_id") REFERENCES "evidence_requests"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "communication_messages" ADD CONSTRAINT "communication_messages_related_discussion_thread_id_fkey" FOREIGN KEY ("related_discussion_thread_id") REFERENCES "discussion_threads"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "communication_messages" ADD CONSTRAINT "communication_messages_related_intake_session_id_fkey" FOREIGN KEY ("related_intake_session_id") REFERENCES "workflow_intake_sessions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "communication_preferences" ADD CONSTRAINT "communication_preferences_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "communication_preferences" ADD CONSTRAINT "communication_preferences_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "verification_attempts" ADD CONSTRAINT "verification_attempts_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "verification_attempts" ADD CONSTRAINT "verification_attempts_initiated_by_user_id_fkey" FOREIGN KEY ("initiated_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "step_up_challenges" ADD CONSTRAINT "step_up_challenges_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "step_up_challenges" ADD CONSTRAINT "step_up_challenges_initiated_by_user_id_fkey" FOREIGN KEY ("initiated_by_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "trusted_devices" ADD CONSTRAINT "trusted_devices_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "trusted_devices" ADD CONSTRAINT "trusted_devices_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "trusted_devices" ADD CONSTRAINT "trusted_devices_revoked_by_user_id_fkey" FOREIGN KEY ("revoked_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "revoked_sessions" ADD CONSTRAINT "revoked_sessions_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "revoked_sessions" ADD CONSTRAINT "revoked_sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "revoked_sessions" ADD CONSTRAINT "revoked_sessions_revoked_by_user_id_fkey" FOREIGN KEY ("revoked_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_signals" ADD CONSTRAINT "risk_signals_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_signals" ADD CONSTRAINT "risk_signals_subject_user_id_fkey" FOREIGN KEY ("subject_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "operational_incidents" ADD CONSTRAINT "operational_incidents_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "operational_incidents" ADD CONSTRAINT "operational_incidents_acknowledged_by_user_id_fkey" FOREIGN KEY ("acknowledged_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "operational_incidents" ADD CONSTRAINT "operational_incidents_resolved_by_user_id_fkey" FOREIGN KEY ("resolved_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "operational_incident_events" ADD CONSTRAINT "operational_incident_events_incident_id_fkey" FOREIGN KEY ("incident_id") REFERENCES "operational_incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_workflow_instances" ADD CONSTRAINT "evidence_workflow_instances_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_workflow_instances" ADD CONSTRAINT "evidence_workflow_instances_template_id_fkey" FOREIGN KEY ("template_id") REFERENCES "evidence_workflow_templates"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_workflow_instances" ADD CONSTRAINT "evidence_workflow_instances_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_workflow_instances" ADD CONSTRAINT "evidence_workflow_instances_assigned_reviewer_user_id_fkey" FOREIGN KEY ("assigned_reviewer_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_workflow_instances" ADD CONSTRAINT "evidence_workflow_instances_evidence_request_id_fkey" FOREIGN KEY ("evidence_request_id") REFERENCES "evidence_requests"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_workflow_instances" ADD CONSTRAINT "evidence_workflow_instances_intake_session_id_fkey" FOREIGN KEY ("intake_session_id") REFERENCES "workflow_intake_sessions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_workflow_instance_evidence" ADD CONSTRAINT "evidence_workflow_instance_evidence_workflow_instance_id_fkey" FOREIGN KEY ("workflow_instance_id") REFERENCES "evidence_workflow_instances"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_workflow_step_instances" ADD CONSTRAINT "evidence_workflow_step_instances_workflow_instance_id_fkey" FOREIGN KEY ("workflow_instance_id") REFERENCES "evidence_workflow_instances"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_workflow_step_instances" ADD CONSTRAINT "evidence_workflow_step_instances_completed_by_user_id_fkey" FOREIGN KEY ("completed_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_workflow_step_instances" ADD CONSTRAINT "evidence_workflow_step_instances_mapped_evidence_id_fkey" FOREIGN KEY ("mapped_evidence_id") REFERENCES "evidence"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_workflow_visibility_decisions" ADD CONSTRAINT "evidence_workflow_visibility_decisions_workflow_instance_i_fkey" FOREIGN KEY ("workflow_instance_id") REFERENCES "evidence_workflow_instances"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_workflow_visibility_decisions" ADD CONSTRAINT "evidence_workflow_visibility_decisions_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_search_documents" ADD CONSTRAINT "evidence_search_documents_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "saved_search_views" ADD CONSTRAINT "saved_search_views_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "saved_search_views" ADD CONSTRAINT "saved_search_views_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "review_escalations" ADD CONSTRAINT "review_escalations_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "review_escalations" ADD CONSTRAINT "review_escalations_workflow_id_fkey" FOREIGN KEY ("workflow_id") REFERENCES "evidence_review_workflows"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "review_escalations" ADD CONSTRAINT "review_escalations_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "review_escalations" ADD CONSTRAINT "review_escalations_assigned_to_user_id_fkey" FOREIGN KEY ("assigned_to_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "review_escalations" ADD CONSTRAINT "review_escalations_acknowledged_by_user_id_fkey" FOREIGN KEY ("acknowledged_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "review_escalations" ADD CONSTRAINT "review_escalations_resolved_by_user_id_fkey" FOREIGN KEY ("resolved_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "reviewer_workload_snapshots" ADD CONSTRAINT "reviewer_workload_snapshots_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "reviewer_workload_snapshots" ADD CONSTRAINT "reviewer_workload_snapshots_reviewer_user_id_fkey" FOREIGN KEY ("reviewer_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "reviewer_ops_reminders" ADD CONSTRAINT "reviewer_ops_reminders_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "sso_connections" ADD CONSTRAINT "sso_connections_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "sso_connections" ADD CONSTRAINT "sso_connections_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "scim_provisioning_tokens" ADD CONSTRAINT "scim_provisioning_tokens_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "scim_provisioning_tokens" ADD CONSTRAINT "scim_provisioning_tokens_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "authenticated_sessions" ADD CONSTRAINT "authenticated_sessions_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "authenticated_sessions" ADD CONSTRAINT "authenticated_sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "sso_callback_attempts" ADD CONSTRAINT "sso_callback_attempts_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "sso_callback_attempts" ADD CONSTRAINT "sso_callback_attempts_sso_connection_id_fkey" FOREIGN KEY ("sso_connection_id") REFERENCES "sso_connections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "scim_groups" ADD CONSTRAINT "scim_groups_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_retention_policies" ADD CONSTRAINT "evidence_retention_policies_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_retention_policies" ADD CONSTRAINT "evidence_retention_policies_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_retention_policy_versions" ADD CONSTRAINT "evidence_retention_policy_versions_retention_policy_id_fkey" FOREIGN KEY ("retention_policy_id") REFERENCES "evidence_retention_policies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_retention_policy_versions" ADD CONSTRAINT "evidence_retention_policy_versions_authored_by_user_id_fkey" FOREIGN KEY ("authored_by_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "destruction_reviews" ADD CONSTRAINT "destruction_reviews_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "destruction_reviews" ADD CONSTRAINT "destruction_reviews_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "destruction_reviews" ADD CONSTRAINT "destruction_reviews_initiated_by_user_id_fkey" FOREIGN KEY ("initiated_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "destruction_reviews" ADD CONSTRAINT "destruction_reviews_decided_by_user_id_fkey" FOREIGN KEY ("decided_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_lifecycle_events" ADD CONSTRAINT "evidence_lifecycle_events_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_lifecycle_events" ADD CONSTRAINT "evidence_lifecycle_events_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "governance_reconciliation_runs" ADD CONSTRAINT "governance_reconciliation_runs_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "governance_reconciliation_runs" ADD CONSTRAINT "governance_reconciliation_runs_triggered_by_user_id_fkey" FOREIGN KEY ("triggered_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "destruction_executions" ADD CONSTRAINT "destruction_executions_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "destruction_executions" ADD CONSTRAINT "destruction_executions_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "destruction_executions" ADD CONSTRAINT "destruction_executions_destruction_review_id_fkey" FOREIGN KEY ("destruction_review_id") REFERENCES "destruction_reviews"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "destruction_executions" ADD CONSTRAINT "destruction_executions_executed_by_user_id_fkey" FOREIGN KEY ("executed_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "immutable_storage_checks" ADD CONSTRAINT "immutable_storage_checks_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "immutable_storage_checks" ADD CONSTRAINT "immutable_storage_checks_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "governance_notifications" ADD CONSTRAINT "governance_notifications_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "governance_notifications" ADD CONSTRAINT "governance_notifications_related_evidence_id_fkey" FOREIGN KEY ("related_evidence_id") REFERENCES "evidence"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "governance_export_snapshots" ADD CONSTRAINT "governance_export_snapshots_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "governance_export_snapshots" ADD CONSTRAINT "governance_export_snapshots_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "governance_export_snapshots" ADD CONSTRAINT "governance_export_snapshots_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "workspace_persona_profiles" ADD CONSTRAINT "workspace_persona_profiles_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- =============================================================================
+-- Phase 2.7Z patch — guarded FK type normalization (idempotent).
+-- 
+-- The original Phase 0 catchup migration assumed all FK child columns
+-- arrived at this step as UUID. On some production-like environments
+-- (notably Neon) legacy tables persisted child columns as TEXT, which
+-- causes "foreign key constraint cannot be implemented: incompatible
+-- types text and uuid" (PostgreSQL error 42804, surfaced as Prisma P3018).
+-- 
+-- This prelude normalizes every FK child column to UUID *only if* it is
+-- currently TEXT, and only if every non-null row already holds a valid
+-- canonical UUID (8-4-4-4-12 hex). If any row holds a non-UUID text
+-- value, RAISE EXCEPTION halts the migration loudly — never silently
+-- destroys data. The block is idempotent: when the column is already
+-- UUID (e.g. on already-migrated environments), every guard short-circuits.
+-- 
+-- Audit reference: docs/product/PHASE_2_7Z_FK_TYPE_NORMALIZATION.md
+-- =============================================================================
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'access_reviews'
+      AND column_name = 'completed_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "access_reviews"
+      WHERE "completed_by_user_id" IS NOT NULL
+        AND "completed_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'access_reviews', 'completed_by_user_id';
+    END IF;
+    ALTER TABLE "access_reviews" ALTER COLUMN "completed_by_user_id" TYPE UUID USING "completed_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'access_reviews'
+      AND column_name = 'initiated_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "access_reviews"
+      WHERE "initiated_by_user_id" IS NOT NULL
+        AND "initiated_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'access_reviews', 'initiated_by_user_id';
+    END IF;
+    ALTER TABLE "access_reviews" ALTER COLUMN "initiated_by_user_id" TYPE UUID USING "initiated_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'access_reviews'
+      AND column_name = 'subject_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "access_reviews"
+      WHERE "subject_user_id" IS NOT NULL
+        AND "subject_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'access_reviews', 'subject_user_id';
+    END IF;
+    ALTER TABLE "access_reviews" ALTER COLUMN "subject_user_id" TYPE UUID USING "subject_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'access_reviews'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "access_reviews"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'access_reviews', 'team_id';
+    END IF;
+    ALTER TABLE "access_reviews" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'api_credentials'
+      AND column_name = 'disabled_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "api_credentials"
+      WHERE "disabled_by_user_id" IS NOT NULL
+        AND "disabled_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'api_credentials', 'disabled_by_user_id';
+    END IF;
+    ALTER TABLE "api_credentials" ALTER COLUMN "disabled_by_user_id" TYPE UUID USING "disabled_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'authenticated_sessions'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "authenticated_sessions"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'authenticated_sessions', 'team_id';
+    END IF;
+    ALTER TABLE "authenticated_sessions" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'authenticated_sessions'
+      AND column_name = 'user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "authenticated_sessions"
+      WHERE "user_id" IS NOT NULL
+        AND "user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'authenticated_sessions', 'user_id';
+    END IF;
+    ALTER TABLE "authenticated_sessions" ALTER COLUMN "user_id" TYPE UUID USING "user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'case_access'
+      AND column_name = 'case_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "case_access"
+      WHERE "case_id" IS NOT NULL
+        AND "case_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'case_access', 'case_id';
+    END IF;
+    ALTER TABLE "case_access" ALTER COLUMN "case_id" TYPE UUID USING "case_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'case_access'
+      AND column_name = 'user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "case_access"
+      WHERE "user_id" IS NOT NULL
+        AND "user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'case_access', 'user_id';
+    END IF;
+    ALTER TABLE "case_access" ALTER COLUMN "user_id" TYPE UUID USING "user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'communication_messages'
+      AND column_name = 'created_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "communication_messages"
+      WHERE "created_by_user_id" IS NOT NULL
+        AND "created_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'communication_messages', 'created_by_user_id';
+    END IF;
+    ALTER TABLE "communication_messages" ALTER COLUMN "created_by_user_id" TYPE UUID USING "created_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'communication_messages'
+      AND column_name = 'related_discussion_thread_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "communication_messages"
+      WHERE "related_discussion_thread_id" IS NOT NULL
+        AND "related_discussion_thread_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'communication_messages', 'related_discussion_thread_id';
+    END IF;
+    ALTER TABLE "communication_messages" ALTER COLUMN "related_discussion_thread_id" TYPE UUID USING "related_discussion_thread_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'communication_messages'
+      AND column_name = 'related_evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "communication_messages"
+      WHERE "related_evidence_id" IS NOT NULL
+        AND "related_evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'communication_messages', 'related_evidence_id';
+    END IF;
+    ALTER TABLE "communication_messages" ALTER COLUMN "related_evidence_id" TYPE UUID USING "related_evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'communication_messages'
+      AND column_name = 'related_evidence_request_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "communication_messages"
+      WHERE "related_evidence_request_id" IS NOT NULL
+        AND "related_evidence_request_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'communication_messages', 'related_evidence_request_id';
+    END IF;
+    ALTER TABLE "communication_messages" ALTER COLUMN "related_evidence_request_id" TYPE UUID USING "related_evidence_request_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'communication_messages'
+      AND column_name = 'related_intake_session_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "communication_messages"
+      WHERE "related_intake_session_id" IS NOT NULL
+        AND "related_intake_session_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'communication_messages', 'related_intake_session_id';
+    END IF;
+    ALTER TABLE "communication_messages" ALTER COLUMN "related_intake_session_id" TYPE UUID USING "related_intake_session_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'communication_messages'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "communication_messages"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'communication_messages', 'team_id';
+    END IF;
+    ALTER TABLE "communication_messages" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'communication_preferences'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "communication_preferences"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'communication_preferences', 'team_id';
+    END IF;
+    ALTER TABLE "communication_preferences" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'communication_preferences'
+      AND column_name = 'user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "communication_preferences"
+      WHERE "user_id" IS NOT NULL
+        AND "user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'communication_preferences', 'user_id';
+    END IF;
+    ALTER TABLE "communication_preferences" ALTER COLUMN "user_id" TYPE UUID USING "user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'destruction_executions'
+      AND column_name = 'destruction_review_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "destruction_executions"
+      WHERE "destruction_review_id" IS NOT NULL
+        AND "destruction_review_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'destruction_executions', 'destruction_review_id';
+    END IF;
+    ALTER TABLE "destruction_executions" ALTER COLUMN "destruction_review_id" TYPE UUID USING "destruction_review_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'destruction_executions'
+      AND column_name = 'evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "destruction_executions"
+      WHERE "evidence_id" IS NOT NULL
+        AND "evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'destruction_executions', 'evidence_id';
+    END IF;
+    ALTER TABLE "destruction_executions" ALTER COLUMN "evidence_id" TYPE UUID USING "evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'destruction_executions'
+      AND column_name = 'executed_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "destruction_executions"
+      WHERE "executed_by_user_id" IS NOT NULL
+        AND "executed_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'destruction_executions', 'executed_by_user_id';
+    END IF;
+    ALTER TABLE "destruction_executions" ALTER COLUMN "executed_by_user_id" TYPE UUID USING "executed_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'destruction_executions'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "destruction_executions"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'destruction_executions', 'team_id';
+    END IF;
+    ALTER TABLE "destruction_executions" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'destruction_reviews'
+      AND column_name = 'decided_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "destruction_reviews"
+      WHERE "decided_by_user_id" IS NOT NULL
+        AND "decided_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'destruction_reviews', 'decided_by_user_id';
+    END IF;
+    ALTER TABLE "destruction_reviews" ALTER COLUMN "decided_by_user_id" TYPE UUID USING "decided_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'destruction_reviews'
+      AND column_name = 'evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "destruction_reviews"
+      WHERE "evidence_id" IS NOT NULL
+        AND "evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'destruction_reviews', 'evidence_id';
+    END IF;
+    ALTER TABLE "destruction_reviews" ALTER COLUMN "evidence_id" TYPE UUID USING "evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'destruction_reviews'
+      AND column_name = 'initiated_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "destruction_reviews"
+      WHERE "initiated_by_user_id" IS NOT NULL
+        AND "initiated_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'destruction_reviews', 'initiated_by_user_id';
+    END IF;
+    ALTER TABLE "destruction_reviews" ALTER COLUMN "initiated_by_user_id" TYPE UUID USING "initiated_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'destruction_reviews'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "destruction_reviews"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'destruction_reviews', 'team_id';
+    END IF;
+    ALTER TABLE "destruction_reviews" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'entitlements'
+      AND column_name = 'user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "entitlements"
+      WHERE "user_id" IS NOT NULL
+        AND "user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'entitlements', 'user_id';
+    END IF;
+    ALTER TABLE "entitlements" ALTER COLUMN "user_id" TYPE UUID USING "user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_anchors'
+      AND column_name = 'evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_anchors"
+      WHERE "evidence_id" IS NOT NULL
+        AND "evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_anchors', 'evidence_id';
+    END IF;
+    ALTER TABLE "evidence_anchors" ALTER COLUMN "evidence_id" TYPE UUID USING "evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_certifications'
+      AND column_name = 'evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_certifications"
+      WHERE "evidence_id" IS NOT NULL
+        AND "evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_certifications', 'evidence_id';
+    END IF;
+    ALTER TABLE "evidence_certifications" ALTER COLUMN "evidence_id" TYPE UUID USING "evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_lifecycle_events'
+      AND column_name = 'evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_lifecycle_events"
+      WHERE "evidence_id" IS NOT NULL
+        AND "evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_lifecycle_events', 'evidence_id';
+    END IF;
+    ALTER TABLE "evidence_lifecycle_events" ALTER COLUMN "evidence_id" TYPE UUID USING "evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_lifecycle_events'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_lifecycle_events"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_lifecycle_events', 'team_id';
+    END IF;
+    ALTER TABLE "evidence_lifecycle_events" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_parts'
+      AND column_name = 'evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_parts"
+      WHERE "evidence_id" IS NOT NULL
+        AND "evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_parts', 'evidence_id';
+    END IF;
+    ALTER TABLE "evidence_parts" ALTER COLUMN "evidence_id" TYPE UUID USING "evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_retention_policies'
+      AND column_name = 'created_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_retention_policies"
+      WHERE "created_by_user_id" IS NOT NULL
+        AND "created_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_retention_policies', 'created_by_user_id';
+    END IF;
+    ALTER TABLE "evidence_retention_policies" ALTER COLUMN "created_by_user_id" TYPE UUID USING "created_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_retention_policies'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_retention_policies"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_retention_policies', 'team_id';
+    END IF;
+    ALTER TABLE "evidence_retention_policies" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_retention_policy_versions'
+      AND column_name = 'authored_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_retention_policy_versions"
+      WHERE "authored_by_user_id" IS NOT NULL
+        AND "authored_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_retention_policy_versions', 'authored_by_user_id';
+    END IF;
+    ALTER TABLE "evidence_retention_policy_versions" ALTER COLUMN "authored_by_user_id" TYPE UUID USING "authored_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_retention_policy_versions'
+      AND column_name = 'retention_policy_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_retention_policy_versions"
+      WHERE "retention_policy_id" IS NOT NULL
+        AND "retention_policy_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_retention_policy_versions', 'retention_policy_id';
+    END IF;
+    ALTER TABLE "evidence_retention_policy_versions" ALTER COLUMN "retention_policy_id" TYPE UUID USING "retention_policy_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_search_documents'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_search_documents"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_search_documents', 'team_id';
+    END IF;
+    ALTER TABLE "evidence_search_documents" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_workflow_instance_evidence'
+      AND column_name = 'workflow_instance_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_workflow_instance_evidence"
+      WHERE "workflow_instance_id" IS NOT NULL
+        AND "workflow_instance_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_workflow_instance_evidence', 'workflow_instance_id';
+    END IF;
+    ALTER TABLE "evidence_workflow_instance_evidence" ALTER COLUMN "workflow_instance_id" TYPE UUID USING "workflow_instance_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_workflow_instances'
+      AND column_name = 'assigned_reviewer_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_workflow_instances"
+      WHERE "assigned_reviewer_user_id" IS NOT NULL
+        AND "assigned_reviewer_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_workflow_instances', 'assigned_reviewer_user_id';
+    END IF;
+    ALTER TABLE "evidence_workflow_instances" ALTER COLUMN "assigned_reviewer_user_id" TYPE UUID USING "assigned_reviewer_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_workflow_instances'
+      AND column_name = 'created_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_workflow_instances"
+      WHERE "created_by_user_id" IS NOT NULL
+        AND "created_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_workflow_instances', 'created_by_user_id';
+    END IF;
+    ALTER TABLE "evidence_workflow_instances" ALTER COLUMN "created_by_user_id" TYPE UUID USING "created_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_workflow_instances'
+      AND column_name = 'evidence_request_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_workflow_instances"
+      WHERE "evidence_request_id" IS NOT NULL
+        AND "evidence_request_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_workflow_instances', 'evidence_request_id';
+    END IF;
+    ALTER TABLE "evidence_workflow_instances" ALTER COLUMN "evidence_request_id" TYPE UUID USING "evidence_request_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_workflow_instances'
+      AND column_name = 'intake_session_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_workflow_instances"
+      WHERE "intake_session_id" IS NOT NULL
+        AND "intake_session_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_workflow_instances', 'intake_session_id';
+    END IF;
+    ALTER TABLE "evidence_workflow_instances" ALTER COLUMN "intake_session_id" TYPE UUID USING "intake_session_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_workflow_instances'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_workflow_instances"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_workflow_instances', 'team_id';
+    END IF;
+    ALTER TABLE "evidence_workflow_instances" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_workflow_instances'
+      AND column_name = 'template_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_workflow_instances"
+      WHERE "template_id" IS NOT NULL
+        AND "template_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_workflow_instances', 'template_id';
+    END IF;
+    ALTER TABLE "evidence_workflow_instances" ALTER COLUMN "template_id" TYPE UUID USING "template_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_workflow_step_instances'
+      AND column_name = 'completed_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_workflow_step_instances"
+      WHERE "completed_by_user_id" IS NOT NULL
+        AND "completed_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_workflow_step_instances', 'completed_by_user_id';
+    END IF;
+    ALTER TABLE "evidence_workflow_step_instances" ALTER COLUMN "completed_by_user_id" TYPE UUID USING "completed_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_workflow_step_instances'
+      AND column_name = 'mapped_evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_workflow_step_instances"
+      WHERE "mapped_evidence_id" IS NOT NULL
+        AND "mapped_evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_workflow_step_instances', 'mapped_evidence_id';
+    END IF;
+    ALTER TABLE "evidence_workflow_step_instances" ALTER COLUMN "mapped_evidence_id" TYPE UUID USING "mapped_evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_workflow_step_instances'
+      AND column_name = 'workflow_instance_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_workflow_step_instances"
+      WHERE "workflow_instance_id" IS NOT NULL
+        AND "workflow_instance_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_workflow_step_instances', 'workflow_instance_id';
+    END IF;
+    ALTER TABLE "evidence_workflow_step_instances" ALTER COLUMN "workflow_instance_id" TYPE UUID USING "workflow_instance_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_workflow_visibility_decisions'
+      AND column_name = 'evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_workflow_visibility_decisions"
+      WHERE "evidence_id" IS NOT NULL
+        AND "evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_workflow_visibility_decisions', 'evidence_id';
+    END IF;
+    ALTER TABLE "evidence_workflow_visibility_decisions" ALTER COLUMN "evidence_id" TYPE UUID USING "evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence_workflow_visibility_decisions'
+      AND column_name = 'workflow_instance_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence_workflow_visibility_decisions"
+      WHERE "workflow_instance_id" IS NOT NULL
+        AND "workflow_instance_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence_workflow_visibility_decisions', 'workflow_instance_id';
+    END IF;
+    ALTER TABLE "evidence_workflow_visibility_decisions" ALTER COLUMN "workflow_instance_id" TYPE UUID USING "workflow_instance_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evidence'
+      AND column_name = 'guest_identity_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "evidence"
+      WHERE "guest_identity_id" IS NOT NULL
+        AND "guest_identity_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'evidence', 'guest_identity_id';
+    END IF;
+    ALTER TABLE "evidence" ALTER COLUMN "guest_identity_id" TYPE UUID USING "guest_identity_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'external_identity_mappings'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "external_identity_mappings"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'external_identity_mappings', 'team_id';
+    END IF;
+    ALTER TABLE "external_identity_mappings" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'external_identity_mappings'
+      AND column_name = 'user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "external_identity_mappings"
+      WHERE "user_id" IS NOT NULL
+        AND "user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'external_identity_mappings', 'user_id';
+    END IF;
+    ALTER TABLE "external_identity_mappings" ALTER COLUMN "user_id" TYPE UUID USING "user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'governance_export_snapshots'
+      AND column_name = 'created_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "governance_export_snapshots"
+      WHERE "created_by_user_id" IS NOT NULL
+        AND "created_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'governance_export_snapshots', 'created_by_user_id';
+    END IF;
+    ALTER TABLE "governance_export_snapshots" ALTER COLUMN "created_by_user_id" TYPE UUID USING "created_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'governance_export_snapshots'
+      AND column_name = 'evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "governance_export_snapshots"
+      WHERE "evidence_id" IS NOT NULL
+        AND "evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'governance_export_snapshots', 'evidence_id';
+    END IF;
+    ALTER TABLE "governance_export_snapshots" ALTER COLUMN "evidence_id" TYPE UUID USING "evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'governance_export_snapshots'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "governance_export_snapshots"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'governance_export_snapshots', 'team_id';
+    END IF;
+    ALTER TABLE "governance_export_snapshots" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'governance_notifications'
+      AND column_name = 'related_evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "governance_notifications"
+      WHERE "related_evidence_id" IS NOT NULL
+        AND "related_evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'governance_notifications', 'related_evidence_id';
+    END IF;
+    ALTER TABLE "governance_notifications" ALTER COLUMN "related_evidence_id" TYPE UUID USING "related_evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'governance_notifications'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "governance_notifications"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'governance_notifications', 'team_id';
+    END IF;
+    ALTER TABLE "governance_notifications" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'governance_reconciliation_runs'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "governance_reconciliation_runs"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'governance_reconciliation_runs', 'team_id';
+    END IF;
+    ALTER TABLE "governance_reconciliation_runs" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'governance_reconciliation_runs'
+      AND column_name = 'triggered_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "governance_reconciliation_runs"
+      WHERE "triggered_by_user_id" IS NOT NULL
+        AND "triggered_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'governance_reconciliation_runs', 'triggered_by_user_id';
+    END IF;
+    ALTER TABLE "governance_reconciliation_runs" ALTER COLUMN "triggered_by_user_id" TYPE UUID USING "triggered_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'guest_identities'
+      AND column_name = 'claimed_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "guest_identities"
+      WHERE "claimed_by_user_id" IS NOT NULL
+        AND "claimed_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'guest_identities', 'claimed_by_user_id';
+    END IF;
+    ALTER TABLE "guest_identities" ALTER COLUMN "claimed_by_user_id" TYPE UUID USING "claimed_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'guest_identities'
+      AND column_name = 'user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "guest_identities"
+      WHERE "user_id" IS NOT NULL
+        AND "user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'guest_identities', 'user_id';
+    END IF;
+    ALTER TABLE "guest_identities" ALTER COLUMN "user_id" TYPE UUID USING "user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'immutable_storage_checks'
+      AND column_name = 'evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "immutable_storage_checks"
+      WHERE "evidence_id" IS NOT NULL
+        AND "evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'immutable_storage_checks', 'evidence_id';
+    END IF;
+    ALTER TABLE "immutable_storage_checks" ALTER COLUMN "evidence_id" TYPE UUID USING "evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'immutable_storage_checks'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "immutable_storage_checks"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'immutable_storage_checks', 'team_id';
+    END IF;
+    ALTER TABLE "immutable_storage_checks" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'member_capability_grants'
+      AND column_name = 'granted_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "member_capability_grants"
+      WHERE "granted_by_user_id" IS NOT NULL
+        AND "granted_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'member_capability_grants', 'granted_by_user_id';
+    END IF;
+    ALTER TABLE "member_capability_grants" ALTER COLUMN "granted_by_user_id" TYPE UUID USING "granted_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'member_capability_grants'
+      AND column_name = 'revoked_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "member_capability_grants"
+      WHERE "revoked_by_user_id" IS NOT NULL
+        AND "revoked_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'member_capability_grants', 'revoked_by_user_id';
+    END IF;
+    ALTER TABLE "member_capability_grants" ALTER COLUMN "revoked_by_user_id" TYPE UUID USING "revoked_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'member_capability_grants'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "member_capability_grants"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'member_capability_grants', 'team_id';
+    END IF;
+    ALTER TABLE "member_capability_grants" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'member_capability_grants'
+      AND column_name = 'team_member_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "member_capability_grants"
+      WHERE "team_member_id" IS NOT NULL
+        AND "team_member_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'member_capability_grants', 'team_member_id';
+    END IF;
+    ALTER TABLE "member_capability_grants" ALTER COLUMN "team_member_id" TYPE UUID USING "team_member_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'member_delegated_admin_scopes'
+      AND column_name = 'granted_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "member_delegated_admin_scopes"
+      WHERE "granted_by_user_id" IS NOT NULL
+        AND "granted_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'member_delegated_admin_scopes', 'granted_by_user_id';
+    END IF;
+    ALTER TABLE "member_delegated_admin_scopes" ALTER COLUMN "granted_by_user_id" TYPE UUID USING "granted_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'member_delegated_admin_scopes'
+      AND column_name = 'revoked_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "member_delegated_admin_scopes"
+      WHERE "revoked_by_user_id" IS NOT NULL
+        AND "revoked_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'member_delegated_admin_scopes', 'revoked_by_user_id';
+    END IF;
+    ALTER TABLE "member_delegated_admin_scopes" ALTER COLUMN "revoked_by_user_id" TYPE UUID USING "revoked_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'member_delegated_admin_scopes'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "member_delegated_admin_scopes"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'member_delegated_admin_scopes', 'team_id';
+    END IF;
+    ALTER TABLE "member_delegated_admin_scopes" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'member_delegated_admin_scopes'
+      AND column_name = 'team_member_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "member_delegated_admin_scopes"
+      WHERE "team_member_id" IS NOT NULL
+        AND "team_member_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'member_delegated_admin_scopes', 'team_member_id';
+    END IF;
+    ALTER TABLE "member_delegated_admin_scopes" ALTER COLUMN "team_member_id" TYPE UUID USING "team_member_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'operational_incident_events'
+      AND column_name = 'incident_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "operational_incident_events"
+      WHERE "incident_id" IS NOT NULL
+        AND "incident_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'operational_incident_events', 'incident_id';
+    END IF;
+    ALTER TABLE "operational_incident_events" ALTER COLUMN "incident_id" TYPE UUID USING "incident_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'operational_incidents'
+      AND column_name = 'acknowledged_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "operational_incidents"
+      WHERE "acknowledged_by_user_id" IS NOT NULL
+        AND "acknowledged_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'operational_incidents', 'acknowledged_by_user_id';
+    END IF;
+    ALTER TABLE "operational_incidents" ALTER COLUMN "acknowledged_by_user_id" TYPE UUID USING "acknowledged_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'operational_incidents'
+      AND column_name = 'resolved_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "operational_incidents"
+      WHERE "resolved_by_user_id" IS NOT NULL
+        AND "resolved_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'operational_incidents', 'resolved_by_user_id';
+    END IF;
+    ALTER TABLE "operational_incidents" ALTER COLUMN "resolved_by_user_id" TYPE UUID USING "resolved_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'operational_incidents'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "operational_incidents"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'operational_incidents', 'team_id';
+    END IF;
+    ALTER TABLE "operational_incidents" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'organization_security_policies'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "organization_security_policies"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'organization_security_policies', 'team_id';
+    END IF;
+    ALTER TABLE "organization_security_policies" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'organization_security_policies'
+      AND column_name = 'updated_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "organization_security_policies"
+      WHERE "updated_by_user_id" IS NOT NULL
+        AND "updated_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'organization_security_policies', 'updated_by_user_id';
+    END IF;
+    ALTER TABLE "organization_security_policies" ALTER COLUMN "updated_by_user_id" TYPE UUID USING "updated_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'password_reset_tokens'
+      AND column_name = 'user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "password_reset_tokens"
+      WHERE "user_id" IS NOT NULL
+        AND "user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'password_reset_tokens', 'user_id';
+    END IF;
+    ALTER TABLE "password_reset_tokens" ALTER COLUMN "user_id" TYPE UUID USING "user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'payments'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "payments"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'payments', 'team_id';
+    END IF;
+    ALTER TABLE "payments" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'payments'
+      AND column_name = 'user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "payments"
+      WHERE "user_id" IS NOT NULL
+        AND "user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'payments', 'user_id';
+    END IF;
+    ALTER TABLE "payments" ALTER COLUMN "user_id" TYPE UUID USING "user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'review_escalations'
+      AND column_name = 'acknowledged_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "review_escalations"
+      WHERE "acknowledged_by_user_id" IS NOT NULL
+        AND "acknowledged_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'review_escalations', 'acknowledged_by_user_id';
+    END IF;
+    ALTER TABLE "review_escalations" ALTER COLUMN "acknowledged_by_user_id" TYPE UUID USING "acknowledged_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'review_escalations'
+      AND column_name = 'assigned_to_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "review_escalations"
+      WHERE "assigned_to_user_id" IS NOT NULL
+        AND "assigned_to_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'review_escalations', 'assigned_to_user_id';
+    END IF;
+    ALTER TABLE "review_escalations" ALTER COLUMN "assigned_to_user_id" TYPE UUID USING "assigned_to_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'review_escalations'
+      AND column_name = 'created_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "review_escalations"
+      WHERE "created_by_user_id" IS NOT NULL
+        AND "created_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'review_escalations', 'created_by_user_id';
+    END IF;
+    ALTER TABLE "review_escalations" ALTER COLUMN "created_by_user_id" TYPE UUID USING "created_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'review_escalations'
+      AND column_name = 'resolved_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "review_escalations"
+      WHERE "resolved_by_user_id" IS NOT NULL
+        AND "resolved_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'review_escalations', 'resolved_by_user_id';
+    END IF;
+    ALTER TABLE "review_escalations" ALTER COLUMN "resolved_by_user_id" TYPE UUID USING "resolved_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'review_escalations'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "review_escalations"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'review_escalations', 'team_id';
+    END IF;
+    ALTER TABLE "review_escalations" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'review_escalations'
+      AND column_name = 'workflow_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "review_escalations"
+      WHERE "workflow_id" IS NOT NULL
+        AND "workflow_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'review_escalations', 'workflow_id';
+    END IF;
+    ALTER TABLE "review_escalations" ALTER COLUMN "workflow_id" TYPE UUID USING "workflow_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'reviewer_ops_reminders'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "reviewer_ops_reminders"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'reviewer_ops_reminders', 'team_id';
+    END IF;
+    ALTER TABLE "reviewer_ops_reminders" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'reviewer_workload_snapshots'
+      AND column_name = 'reviewer_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "reviewer_workload_snapshots"
+      WHERE "reviewer_user_id" IS NOT NULL
+        AND "reviewer_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'reviewer_workload_snapshots', 'reviewer_user_id';
+    END IF;
+    ALTER TABLE "reviewer_workload_snapshots" ALTER COLUMN "reviewer_user_id" TYPE UUID USING "reviewer_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'reviewer_workload_snapshots'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "reviewer_workload_snapshots"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'reviewer_workload_snapshots', 'team_id';
+    END IF;
+    ALTER TABLE "reviewer_workload_snapshots" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'revoked_sessions'
+      AND column_name = 'revoked_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "revoked_sessions"
+      WHERE "revoked_by_user_id" IS NOT NULL
+        AND "revoked_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'revoked_sessions', 'revoked_by_user_id';
+    END IF;
+    ALTER TABLE "revoked_sessions" ALTER COLUMN "revoked_by_user_id" TYPE UUID USING "revoked_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'revoked_sessions'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "revoked_sessions"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'revoked_sessions', 'team_id';
+    END IF;
+    ALTER TABLE "revoked_sessions" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'revoked_sessions'
+      AND column_name = 'user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "revoked_sessions"
+      WHERE "user_id" IS NOT NULL
+        AND "user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'revoked_sessions', 'user_id';
+    END IF;
+    ALTER TABLE "revoked_sessions" ALTER COLUMN "user_id" TYPE UUID USING "user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'risk_signals'
+      AND column_name = 'subject_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "risk_signals"
+      WHERE "subject_user_id" IS NOT NULL
+        AND "subject_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'risk_signals', 'subject_user_id';
+    END IF;
+    ALTER TABLE "risk_signals" ALTER COLUMN "subject_user_id" TYPE UUID USING "subject_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'risk_signals'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "risk_signals"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'risk_signals', 'team_id';
+    END IF;
+    ALTER TABLE "risk_signals" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'saved_search_views'
+      AND column_name = 'created_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "saved_search_views"
+      WHERE "created_by_user_id" IS NOT NULL
+        AND "created_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'saved_search_views', 'created_by_user_id';
+    END IF;
+    ALTER TABLE "saved_search_views" ALTER COLUMN "created_by_user_id" TYPE UUID USING "created_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'saved_search_views'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "saved_search_views"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'saved_search_views', 'team_id';
+    END IF;
+    ALTER TABLE "saved_search_views" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'scim_groups'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "scim_groups"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'scim_groups', 'team_id';
+    END IF;
+    ALTER TABLE "scim_groups" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'scim_provisioning_tokens'
+      AND column_name = 'created_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "scim_provisioning_tokens"
+      WHERE "created_by_user_id" IS NOT NULL
+        AND "created_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'scim_provisioning_tokens', 'created_by_user_id';
+    END IF;
+    ALTER TABLE "scim_provisioning_tokens" ALTER COLUMN "created_by_user_id" TYPE UUID USING "created_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'scim_provisioning_tokens'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "scim_provisioning_tokens"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'scim_provisioning_tokens', 'team_id';
+    END IF;
+    ALTER TABLE "scim_provisioning_tokens" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'sso_callback_attempts'
+      AND column_name = 'sso_connection_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "sso_callback_attempts"
+      WHERE "sso_connection_id" IS NOT NULL
+        AND "sso_connection_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'sso_callback_attempts', 'sso_connection_id';
+    END IF;
+    ALTER TABLE "sso_callback_attempts" ALTER COLUMN "sso_connection_id" TYPE UUID USING "sso_connection_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'sso_callback_attempts'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "sso_callback_attempts"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'sso_callback_attempts', 'team_id';
+    END IF;
+    ALTER TABLE "sso_callback_attempts" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'sso_connections'
+      AND column_name = 'created_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "sso_connections"
+      WHERE "created_by_user_id" IS NOT NULL
+        AND "created_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'sso_connections', 'created_by_user_id';
+    END IF;
+    ALTER TABLE "sso_connections" ALTER COLUMN "created_by_user_id" TYPE UUID USING "created_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'sso_connections'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "sso_connections"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'sso_connections', 'team_id';
+    END IF;
+    ALTER TABLE "sso_connections" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'step_up_challenges'
+      AND column_name = 'initiated_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "step_up_challenges"
+      WHERE "initiated_by_user_id" IS NOT NULL
+        AND "initiated_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'step_up_challenges', 'initiated_by_user_id';
+    END IF;
+    ALTER TABLE "step_up_challenges" ALTER COLUMN "initiated_by_user_id" TYPE UUID USING "initiated_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'step_up_challenges'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "step_up_challenges"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'step_up_challenges', 'team_id';
+    END IF;
+    ALTER TABLE "step_up_challenges" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'subscriptions'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "subscriptions"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'subscriptions', 'team_id';
+    END IF;
+    ALTER TABLE "subscriptions" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'subscriptions'
+      AND column_name = 'user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "subscriptions"
+      WHERE "user_id" IS NOT NULL
+        AND "user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'subscriptions', 'user_id';
+    END IF;
+    ALTER TABLE "subscriptions" ALTER COLUMN "user_id" TYPE UUID USING "user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'team_invites'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "team_invites"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'team_invites', 'team_id';
+    END IF;
+    ALTER TABLE "team_invites" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'team_members'
+      AND column_name = 'access_granted_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "team_members"
+      WHERE "access_granted_by_user_id" IS NOT NULL
+        AND "access_granted_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'team_members', 'access_granted_by_user_id';
+    END IF;
+    ALTER TABLE "team_members" ALTER COLUMN "access_granted_by_user_id" TYPE UUID USING "access_granted_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'team_members'
+      AND column_name = 'revoked_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "team_members"
+      WHERE "revoked_by_user_id" IS NOT NULL
+        AND "revoked_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'team_members', 'revoked_by_user_id';
+    END IF;
+    ALTER TABLE "team_members" ALTER COLUMN "revoked_by_user_id" TYPE UUID USING "revoked_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'team_members'
+      AND column_name = 'suspended_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "team_members"
+      WHERE "suspended_by_user_id" IS NOT NULL
+        AND "suspended_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'team_members', 'suspended_by_user_id';
+    END IF;
+    ALTER TABLE "team_members" ALTER COLUMN "suspended_by_user_id" TYPE UUID USING "suspended_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'team_members'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "team_members"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'team_members', 'team_id';
+    END IF;
+    ALTER TABLE "team_members" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'team_members'
+      AND column_name = 'user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "team_members"
+      WHERE "user_id" IS NOT NULL
+        AND "user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'team_members', 'user_id';
+    END IF;
+    ALTER TABLE "team_members" ALTER COLUMN "user_id" TYPE UUID USING "user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'teams'
+      AND column_name = 'billing_owner_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "teams"
+      WHERE "billing_owner_user_id" IS NOT NULL
+        AND "billing_owner_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'teams', 'billing_owner_user_id';
+    END IF;
+    ALTER TABLE "teams" ALTER COLUMN "billing_owner_user_id" TYPE UUID USING "billing_owner_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'teams'
+      AND column_name = 'owner_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "teams"
+      WHERE "owner_user_id" IS NOT NULL
+        AND "owner_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'teams', 'owner_user_id';
+    END IF;
+    ALTER TABLE "teams" ALTER COLUMN "owner_user_id" TYPE UUID USING "owner_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'trusted_devices'
+      AND column_name = 'revoked_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "trusted_devices"
+      WHERE "revoked_by_user_id" IS NOT NULL
+        AND "revoked_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'trusted_devices', 'revoked_by_user_id';
+    END IF;
+    ALTER TABLE "trusted_devices" ALTER COLUMN "revoked_by_user_id" TYPE UUID USING "revoked_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'trusted_devices'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "trusted_devices"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'trusted_devices', 'team_id';
+    END IF;
+    ALTER TABLE "trusted_devices" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'trusted_devices'
+      AND column_name = 'user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "trusted_devices"
+      WHERE "user_id" IS NOT NULL
+        AND "user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'trusted_devices', 'user_id';
+    END IF;
+    ALTER TABLE "trusted_devices" ALTER COLUMN "user_id" TYPE UUID USING "user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'verification_attempts'
+      AND column_name = 'initiated_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "verification_attempts"
+      WHERE "initiated_by_user_id" IS NOT NULL
+        AND "initiated_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'verification_attempts', 'initiated_by_user_id';
+    END IF;
+    ALTER TABLE "verification_attempts" ALTER COLUMN "initiated_by_user_id" TYPE UUID USING "initiated_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'verification_attempts'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "verification_attempts"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'verification_attempts', 'team_id';
+    END IF;
+    ALTER TABLE "verification_attempts" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'verification_packages'
+      AND column_name = 'evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "verification_packages"
+      WHERE "evidence_id" IS NOT NULL
+        AND "evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'verification_packages', 'evidence_id';
+    END IF;
+    ALTER TABLE "verification_packages" ALTER COLUMN "evidence_id" TYPE UUID USING "evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'verification_views'
+      AND column_name = 'evidence_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "verification_views"
+      WHERE "evidence_id" IS NOT NULL
+        AND "evidence_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'verification_views', 'evidence_id';
+    END IF;
+    ALTER TABLE "verification_views" ALTER COLUMN "evidence_id" TYPE UUID USING "evidence_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'workflow_intake_sessions'
+      AND column_name = 'revoked_by_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "workflow_intake_sessions"
+      WHERE "revoked_by_user_id" IS NOT NULL
+        AND "revoked_by_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'workflow_intake_sessions', 'revoked_by_user_id';
+    END IF;
+    ALTER TABLE "workflow_intake_sessions" ALTER COLUMN "revoked_by_user_id" TYPE UUID USING "revoked_by_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'workspace_persona_profiles'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "workspace_persona_profiles"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'workspace_persona_profiles', 'team_id';
+    END IF;
+    ALTER TABLE "workspace_persona_profiles" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'workspace_storage_addons'
+      AND column_name = 'owner_user_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "workspace_storage_addons"
+      WHERE "owner_user_id" IS NOT NULL
+        AND "owner_user_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'workspace_storage_addons', 'owner_user_id';
+    END IF;
+    ALTER TABLE "workspace_storage_addons" ALTER COLUMN "owner_user_id" TYPE UUID USING "owner_user_id"::uuid;
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'workspace_storage_addons'
+      AND column_name = 'team_id'
+      AND udt_name = 'text'
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM "workspace_storage_addons"
+      WHERE "team_id" IS NOT NULL
+        AND "team_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RAISE EXCEPTION 'Cannot cast %.% to uuid: non-UUID text values exist', 'workspace_storage_addons', 'team_id';
+    END IF;
+    ALTER TABLE "workspace_storage_addons" ALTER COLUMN "team_id" TYPE UUID USING "team_id"::uuid;
+  END IF;
+END $$;
+
+-- ----------------------------------------------------------------------------
+-- End Phase 2.7Z guarded normalization prelude.
+-- ----------------------------------------------------------------------------
+
+-- ============================================================================
+-- Phase 2.7Z patch — idempotent FK creation.
+-- 
+-- Each ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY is wrapped in a
+-- DO $$ ... IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '...')
+-- guard so partial-success retries (after migrate resolve --rolled-back)
+-- don't error on already-added FKs. ON DELETE / ON UPDATE semantics are
+-- preserved verbatim from the original migration.
+-- ============================================================================
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_guest_identity_id_fkey') THEN
+    ALTER TABLE "evidence" ADD CONSTRAINT "evidence_guest_identity_id_fkey" FOREIGN KEY ("guest_identity_id") REFERENCES "guest_identities"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_anchors_evidence_id_fkey') THEN
+    ALTER TABLE "evidence_anchors" ADD CONSTRAINT "evidence_anchors_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_parts_evidence_id_fkey') THEN
+    ALTER TABLE "evidence_parts" ADD CONSTRAINT "evidence_parts_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_certifications_evidence_id_fkey') THEN
+    ALTER TABLE "evidence_certifications" ADD CONSTRAINT "evidence_certifications_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'verification_packages_evidence_id_fkey') THEN
+    ALTER TABLE "verification_packages" ADD CONSTRAINT "verification_packages_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'verification_views_evidence_id_fkey') THEN
+    ALTER TABLE "verification_views" ADD CONSTRAINT "verification_views_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'teams_owner_user_id_fkey') THEN
+    ALTER TABLE "teams" ADD CONSTRAINT "teams_owner_user_id_fkey" FOREIGN KEY ("owner_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'teams_billing_owner_user_id_fkey') THEN
+    ALTER TABLE "teams" ADD CONSTRAINT "teams_billing_owner_user_id_fkey" FOREIGN KEY ("billing_owner_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workspace_storage_addons_owner_user_id_fkey') THEN
+    ALTER TABLE "workspace_storage_addons" ADD CONSTRAINT "workspace_storage_addons_owner_user_id_fkey" FOREIGN KEY ("owner_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workspace_storage_addons_team_id_fkey') THEN
+    ALTER TABLE "workspace_storage_addons" ADD CONSTRAINT "workspace_storage_addons_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'team_members_team_id_fkey') THEN
+    ALTER TABLE "team_members" ADD CONSTRAINT "team_members_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'team_members_user_id_fkey') THEN
+    ALTER TABLE "team_members" ADD CONSTRAINT "team_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'team_members_access_granted_by_user_id_fkey') THEN
+    ALTER TABLE "team_members" ADD CONSTRAINT "team_members_access_granted_by_user_id_fkey" FOREIGN KEY ("access_granted_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'team_members_suspended_by_user_id_fkey') THEN
+    ALTER TABLE "team_members" ADD CONSTRAINT "team_members_suspended_by_user_id_fkey" FOREIGN KEY ("suspended_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'team_members_revoked_by_user_id_fkey') THEN
+    ALTER TABLE "team_members" ADD CONSTRAINT "team_members_revoked_by_user_id_fkey" FOREIGN KEY ("revoked_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'case_access_case_id_fkey') THEN
+    ALTER TABLE "case_access" ADD CONSTRAINT "case_access_case_id_fkey" FOREIGN KEY ("case_id") REFERENCES "cases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'case_access_user_id_fkey') THEN
+    ALTER TABLE "case_access" ADD CONSTRAINT "case_access_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'team_invites_team_id_fkey') THEN
+    ALTER TABLE "team_invites" ADD CONSTRAINT "team_invites_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'guest_identities_claimed_by_user_id_fkey') THEN
+    ALTER TABLE "guest_identities" ADD CONSTRAINT "guest_identities_claimed_by_user_id_fkey" FOREIGN KEY ("claimed_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'guest_identities_user_id_fkey') THEN
+    ALTER TABLE "guest_identities" ADD CONSTRAINT "guest_identities_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'entitlements_user_id_fkey') THEN
+    ALTER TABLE "entitlements" ADD CONSTRAINT "entitlements_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'subscriptions_user_id_fkey') THEN
+    ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'subscriptions_team_id_fkey') THEN
+    ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payments_user_id_fkey') THEN
+    ALTER TABLE "payments" ADD CONSTRAINT "payments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payments_team_id_fkey') THEN
+    ALTER TABLE "payments" ADD CONSTRAINT "payments_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'password_reset_tokens_user_id_fkey') THEN
+    ALTER TABLE "password_reset_tokens" ADD CONSTRAINT "password_reset_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workflow_intake_sessions_revoked_by_user_id_fkey') THEN
+    ALTER TABLE "workflow_intake_sessions" ADD CONSTRAINT "workflow_intake_sessions_revoked_by_user_id_fkey" FOREIGN KEY ("revoked_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'api_credentials_disabled_by_user_id_fkey') THEN
+    ALTER TABLE "api_credentials" ADD CONSTRAINT "api_credentials_disabled_by_user_id_fkey" FOREIGN KEY ("disabled_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'member_capability_grants_team_member_id_fkey') THEN
+    ALTER TABLE "member_capability_grants" ADD CONSTRAINT "member_capability_grants_team_member_id_fkey" FOREIGN KEY ("team_member_id") REFERENCES "team_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'member_capability_grants_team_id_fkey') THEN
+    ALTER TABLE "member_capability_grants" ADD CONSTRAINT "member_capability_grants_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'member_capability_grants_granted_by_user_id_fkey') THEN
+    ALTER TABLE "member_capability_grants" ADD CONSTRAINT "member_capability_grants_granted_by_user_id_fkey" FOREIGN KEY ("granted_by_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'member_capability_grants_revoked_by_user_id_fkey') THEN
+    ALTER TABLE "member_capability_grants" ADD CONSTRAINT "member_capability_grants_revoked_by_user_id_fkey" FOREIGN KEY ("revoked_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'member_delegated_admin_scopes_team_member_id_fkey') THEN
+    ALTER TABLE "member_delegated_admin_scopes" ADD CONSTRAINT "member_delegated_admin_scopes_team_member_id_fkey" FOREIGN KEY ("team_member_id") REFERENCES "team_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'member_delegated_admin_scopes_team_id_fkey') THEN
+    ALTER TABLE "member_delegated_admin_scopes" ADD CONSTRAINT "member_delegated_admin_scopes_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'member_delegated_admin_scopes_granted_by_user_id_fkey') THEN
+    ALTER TABLE "member_delegated_admin_scopes" ADD CONSTRAINT "member_delegated_admin_scopes_granted_by_user_id_fkey" FOREIGN KEY ("granted_by_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'member_delegated_admin_scopes_revoked_by_user_id_fkey') THEN
+    ALTER TABLE "member_delegated_admin_scopes" ADD CONSTRAINT "member_delegated_admin_scopes_revoked_by_user_id_fkey" FOREIGN KEY ("revoked_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'organization_security_policies_team_id_fkey') THEN
+    ALTER TABLE "organization_security_policies" ADD CONSTRAINT "organization_security_policies_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'organization_security_policies_updated_by_user_id_fkey') THEN
+    ALTER TABLE "organization_security_policies" ADD CONSTRAINT "organization_security_policies_updated_by_user_id_fkey" FOREIGN KEY ("updated_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'access_reviews_team_id_fkey') THEN
+    ALTER TABLE "access_reviews" ADD CONSTRAINT "access_reviews_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'access_reviews_initiated_by_user_id_fkey') THEN
+    ALTER TABLE "access_reviews" ADD CONSTRAINT "access_reviews_initiated_by_user_id_fkey" FOREIGN KEY ("initiated_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'access_reviews_completed_by_user_id_fkey') THEN
+    ALTER TABLE "access_reviews" ADD CONSTRAINT "access_reviews_completed_by_user_id_fkey" FOREIGN KEY ("completed_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'access_reviews_subject_user_id_fkey') THEN
+    ALTER TABLE "access_reviews" ADD CONSTRAINT "access_reviews_subject_user_id_fkey" FOREIGN KEY ("subject_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'external_identity_mappings_team_id_fkey') THEN
+    ALTER TABLE "external_identity_mappings" ADD CONSTRAINT "external_identity_mappings_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'external_identity_mappings_user_id_fkey') THEN
+    ALTER TABLE "external_identity_mappings" ADD CONSTRAINT "external_identity_mappings_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'communication_messages_team_id_fkey') THEN
+    ALTER TABLE "communication_messages" ADD CONSTRAINT "communication_messages_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'communication_messages_created_by_user_id_fkey') THEN
+    ALTER TABLE "communication_messages" ADD CONSTRAINT "communication_messages_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'communication_messages_related_evidence_id_fkey') THEN
+    ALTER TABLE "communication_messages" ADD CONSTRAINT "communication_messages_related_evidence_id_fkey" FOREIGN KEY ("related_evidence_id") REFERENCES "evidence"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'communication_messages_related_evidence_request_id_fkey') THEN
+    ALTER TABLE "communication_messages" ADD CONSTRAINT "communication_messages_related_evidence_request_id_fkey" FOREIGN KEY ("related_evidence_request_id") REFERENCES "evidence_requests"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'communication_messages_related_discussion_thread_id_fkey') THEN
+    ALTER TABLE "communication_messages" ADD CONSTRAINT "communication_messages_related_discussion_thread_id_fkey" FOREIGN KEY ("related_discussion_thread_id") REFERENCES "discussion_threads"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'communication_messages_related_intake_session_id_fkey') THEN
+    ALTER TABLE "communication_messages" ADD CONSTRAINT "communication_messages_related_intake_session_id_fkey" FOREIGN KEY ("related_intake_session_id") REFERENCES "workflow_intake_sessions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'communication_preferences_team_id_fkey') THEN
+    ALTER TABLE "communication_preferences" ADD CONSTRAINT "communication_preferences_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'communication_preferences_user_id_fkey') THEN
+    ALTER TABLE "communication_preferences" ADD CONSTRAINT "communication_preferences_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'verification_attempts_team_id_fkey') THEN
+    ALTER TABLE "verification_attempts" ADD CONSTRAINT "verification_attempts_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'verification_attempts_initiated_by_user_id_fkey') THEN
+    ALTER TABLE "verification_attempts" ADD CONSTRAINT "verification_attempts_initiated_by_user_id_fkey" FOREIGN KEY ("initiated_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'step_up_challenges_team_id_fkey') THEN
+    ALTER TABLE "step_up_challenges" ADD CONSTRAINT "step_up_challenges_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'step_up_challenges_initiated_by_user_id_fkey') THEN
+    ALTER TABLE "step_up_challenges" ADD CONSTRAINT "step_up_challenges_initiated_by_user_id_fkey" FOREIGN KEY ("initiated_by_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'trusted_devices_team_id_fkey') THEN
+    ALTER TABLE "trusted_devices" ADD CONSTRAINT "trusted_devices_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'trusted_devices_user_id_fkey') THEN
+    ALTER TABLE "trusted_devices" ADD CONSTRAINT "trusted_devices_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'trusted_devices_revoked_by_user_id_fkey') THEN
+    ALTER TABLE "trusted_devices" ADD CONSTRAINT "trusted_devices_revoked_by_user_id_fkey" FOREIGN KEY ("revoked_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'revoked_sessions_team_id_fkey') THEN
+    ALTER TABLE "revoked_sessions" ADD CONSTRAINT "revoked_sessions_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'revoked_sessions_user_id_fkey') THEN
+    ALTER TABLE "revoked_sessions" ADD CONSTRAINT "revoked_sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'revoked_sessions_revoked_by_user_id_fkey') THEN
+    ALTER TABLE "revoked_sessions" ADD CONSTRAINT "revoked_sessions_revoked_by_user_id_fkey" FOREIGN KEY ("revoked_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_signals_team_id_fkey') THEN
+    ALTER TABLE "risk_signals" ADD CONSTRAINT "risk_signals_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_signals_subject_user_id_fkey') THEN
+    ALTER TABLE "risk_signals" ADD CONSTRAINT "risk_signals_subject_user_id_fkey" FOREIGN KEY ("subject_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'operational_incidents_team_id_fkey') THEN
+    ALTER TABLE "operational_incidents" ADD CONSTRAINT "operational_incidents_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'operational_incidents_acknowledged_by_user_id_fkey') THEN
+    ALTER TABLE "operational_incidents" ADD CONSTRAINT "operational_incidents_acknowledged_by_user_id_fkey" FOREIGN KEY ("acknowledged_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'operational_incidents_resolved_by_user_id_fkey') THEN
+    ALTER TABLE "operational_incidents" ADD CONSTRAINT "operational_incidents_resolved_by_user_id_fkey" FOREIGN KEY ("resolved_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'operational_incident_events_incident_id_fkey') THEN
+    ALTER TABLE "operational_incident_events" ADD CONSTRAINT "operational_incident_events_incident_id_fkey" FOREIGN KEY ("incident_id") REFERENCES "operational_incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_workflow_instances_team_id_fkey') THEN
+    ALTER TABLE "evidence_workflow_instances" ADD CONSTRAINT "evidence_workflow_instances_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_workflow_instances_template_id_fkey') THEN
+    ALTER TABLE "evidence_workflow_instances" ADD CONSTRAINT "evidence_workflow_instances_template_id_fkey" FOREIGN KEY ("template_id") REFERENCES "evidence_workflow_templates"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_workflow_instances_created_by_user_id_fkey') THEN
+    ALTER TABLE "evidence_workflow_instances" ADD CONSTRAINT "evidence_workflow_instances_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_workflow_instances_assigned_reviewer_user_id_fkey') THEN
+    ALTER TABLE "evidence_workflow_instances" ADD CONSTRAINT "evidence_workflow_instances_assigned_reviewer_user_id_fkey" FOREIGN KEY ("assigned_reviewer_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_workflow_instances_evidence_request_id_fkey') THEN
+    ALTER TABLE "evidence_workflow_instances" ADD CONSTRAINT "evidence_workflow_instances_evidence_request_id_fkey" FOREIGN KEY ("evidence_request_id") REFERENCES "evidence_requests"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_workflow_instances_intake_session_id_fkey') THEN
+    ALTER TABLE "evidence_workflow_instances" ADD CONSTRAINT "evidence_workflow_instances_intake_session_id_fkey" FOREIGN KEY ("intake_session_id") REFERENCES "workflow_intake_sessions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_workflow_instance_evidence_workflow_instance_id_fkey') THEN
+    ALTER TABLE "evidence_workflow_instance_evidence" ADD CONSTRAINT "evidence_workflow_instance_evidence_workflow_instance_id_fkey" FOREIGN KEY ("workflow_instance_id") REFERENCES "evidence_workflow_instances"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_workflow_step_instances_workflow_instance_id_fkey') THEN
+    ALTER TABLE "evidence_workflow_step_instances" ADD CONSTRAINT "evidence_workflow_step_instances_workflow_instance_id_fkey" FOREIGN KEY ("workflow_instance_id") REFERENCES "evidence_workflow_instances"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_workflow_step_instances_completed_by_user_id_fkey') THEN
+    ALTER TABLE "evidence_workflow_step_instances" ADD CONSTRAINT "evidence_workflow_step_instances_completed_by_user_id_fkey" FOREIGN KEY ("completed_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_workflow_step_instances_mapped_evidence_id_fkey') THEN
+    ALTER TABLE "evidence_workflow_step_instances" ADD CONSTRAINT "evidence_workflow_step_instances_mapped_evidence_id_fkey" FOREIGN KEY ("mapped_evidence_id") REFERENCES "evidence"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_workflow_visibility_decisions_workflow_instance_i_fkey') THEN
+    ALTER TABLE "evidence_workflow_visibility_decisions" ADD CONSTRAINT "evidence_workflow_visibility_decisions_workflow_instance_i_fkey" FOREIGN KEY ("workflow_instance_id") REFERENCES "evidence_workflow_instances"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_workflow_visibility_decisions_evidence_id_fkey') THEN
+    ALTER TABLE "evidence_workflow_visibility_decisions" ADD CONSTRAINT "evidence_workflow_visibility_decisions_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_search_documents_team_id_fkey') THEN
+    ALTER TABLE "evidence_search_documents" ADD CONSTRAINT "evidence_search_documents_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'saved_search_views_team_id_fkey') THEN
+    ALTER TABLE "saved_search_views" ADD CONSTRAINT "saved_search_views_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'saved_search_views_created_by_user_id_fkey') THEN
+    ALTER TABLE "saved_search_views" ADD CONSTRAINT "saved_search_views_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'review_escalations_team_id_fkey') THEN
+    ALTER TABLE "review_escalations" ADD CONSTRAINT "review_escalations_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'review_escalations_workflow_id_fkey') THEN
+    ALTER TABLE "review_escalations" ADD CONSTRAINT "review_escalations_workflow_id_fkey" FOREIGN KEY ("workflow_id") REFERENCES "evidence_review_workflows"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'review_escalations_created_by_user_id_fkey') THEN
+    ALTER TABLE "review_escalations" ADD CONSTRAINT "review_escalations_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'review_escalations_assigned_to_user_id_fkey') THEN
+    ALTER TABLE "review_escalations" ADD CONSTRAINT "review_escalations_assigned_to_user_id_fkey" FOREIGN KEY ("assigned_to_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'review_escalations_acknowledged_by_user_id_fkey') THEN
+    ALTER TABLE "review_escalations" ADD CONSTRAINT "review_escalations_acknowledged_by_user_id_fkey" FOREIGN KEY ("acknowledged_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'review_escalations_resolved_by_user_id_fkey') THEN
+    ALTER TABLE "review_escalations" ADD CONSTRAINT "review_escalations_resolved_by_user_id_fkey" FOREIGN KEY ("resolved_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reviewer_workload_snapshots_team_id_fkey') THEN
+    ALTER TABLE "reviewer_workload_snapshots" ADD CONSTRAINT "reviewer_workload_snapshots_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reviewer_workload_snapshots_reviewer_user_id_fkey') THEN
+    ALTER TABLE "reviewer_workload_snapshots" ADD CONSTRAINT "reviewer_workload_snapshots_reviewer_user_id_fkey" FOREIGN KEY ("reviewer_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reviewer_ops_reminders_team_id_fkey') THEN
+    ALTER TABLE "reviewer_ops_reminders" ADD CONSTRAINT "reviewer_ops_reminders_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sso_connections_team_id_fkey') THEN
+    ALTER TABLE "sso_connections" ADD CONSTRAINT "sso_connections_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sso_connections_created_by_user_id_fkey') THEN
+    ALTER TABLE "sso_connections" ADD CONSTRAINT "sso_connections_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scim_provisioning_tokens_team_id_fkey') THEN
+    ALTER TABLE "scim_provisioning_tokens" ADD CONSTRAINT "scim_provisioning_tokens_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scim_provisioning_tokens_created_by_user_id_fkey') THEN
+    ALTER TABLE "scim_provisioning_tokens" ADD CONSTRAINT "scim_provisioning_tokens_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'authenticated_sessions_team_id_fkey') THEN
+    ALTER TABLE "authenticated_sessions" ADD CONSTRAINT "authenticated_sessions_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'authenticated_sessions_user_id_fkey') THEN
+    ALTER TABLE "authenticated_sessions" ADD CONSTRAINT "authenticated_sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sso_callback_attempts_team_id_fkey') THEN
+    ALTER TABLE "sso_callback_attempts" ADD CONSTRAINT "sso_callback_attempts_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sso_callback_attempts_sso_connection_id_fkey') THEN
+    ALTER TABLE "sso_callback_attempts" ADD CONSTRAINT "sso_callback_attempts_sso_connection_id_fkey" FOREIGN KEY ("sso_connection_id") REFERENCES "sso_connections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scim_groups_team_id_fkey') THEN
+    ALTER TABLE "scim_groups" ADD CONSTRAINT "scim_groups_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_retention_policies_team_id_fkey') THEN
+    ALTER TABLE "evidence_retention_policies" ADD CONSTRAINT "evidence_retention_policies_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_retention_policies_created_by_user_id_fkey') THEN
+    ALTER TABLE "evidence_retention_policies" ADD CONSTRAINT "evidence_retention_policies_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_retention_policy_versions_retention_policy_id_fkey') THEN
+    ALTER TABLE "evidence_retention_policy_versions" ADD CONSTRAINT "evidence_retention_policy_versions_retention_policy_id_fkey" FOREIGN KEY ("retention_policy_id") REFERENCES "evidence_retention_policies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_retention_policy_versions_authored_by_user_id_fkey') THEN
+    ALTER TABLE "evidence_retention_policy_versions" ADD CONSTRAINT "evidence_retention_policy_versions_authored_by_user_id_fkey" FOREIGN KEY ("authored_by_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'destruction_reviews_team_id_fkey') THEN
+    ALTER TABLE "destruction_reviews" ADD CONSTRAINT "destruction_reviews_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'destruction_reviews_evidence_id_fkey') THEN
+    ALTER TABLE "destruction_reviews" ADD CONSTRAINT "destruction_reviews_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'destruction_reviews_initiated_by_user_id_fkey') THEN
+    ALTER TABLE "destruction_reviews" ADD CONSTRAINT "destruction_reviews_initiated_by_user_id_fkey" FOREIGN KEY ("initiated_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'destruction_reviews_decided_by_user_id_fkey') THEN
+    ALTER TABLE "destruction_reviews" ADD CONSTRAINT "destruction_reviews_decided_by_user_id_fkey" FOREIGN KEY ("decided_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_lifecycle_events_team_id_fkey') THEN
+    ALTER TABLE "evidence_lifecycle_events" ADD CONSTRAINT "evidence_lifecycle_events_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_lifecycle_events_evidence_id_fkey') THEN
+    ALTER TABLE "evidence_lifecycle_events" ADD CONSTRAINT "evidence_lifecycle_events_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'governance_reconciliation_runs_team_id_fkey') THEN
+    ALTER TABLE "governance_reconciliation_runs" ADD CONSTRAINT "governance_reconciliation_runs_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'governance_reconciliation_runs_triggered_by_user_id_fkey') THEN
+    ALTER TABLE "governance_reconciliation_runs" ADD CONSTRAINT "governance_reconciliation_runs_triggered_by_user_id_fkey" FOREIGN KEY ("triggered_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'destruction_executions_team_id_fkey') THEN
+    ALTER TABLE "destruction_executions" ADD CONSTRAINT "destruction_executions_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'destruction_executions_evidence_id_fkey') THEN
+    ALTER TABLE "destruction_executions" ADD CONSTRAINT "destruction_executions_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'destruction_executions_destruction_review_id_fkey') THEN
+    ALTER TABLE "destruction_executions" ADD CONSTRAINT "destruction_executions_destruction_review_id_fkey" FOREIGN KEY ("destruction_review_id") REFERENCES "destruction_reviews"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'destruction_executions_executed_by_user_id_fkey') THEN
+    ALTER TABLE "destruction_executions" ADD CONSTRAINT "destruction_executions_executed_by_user_id_fkey" FOREIGN KEY ("executed_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'immutable_storage_checks_team_id_fkey') THEN
+    ALTER TABLE "immutable_storage_checks" ADD CONSTRAINT "immutable_storage_checks_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'immutable_storage_checks_evidence_id_fkey') THEN
+    ALTER TABLE "immutable_storage_checks" ADD CONSTRAINT "immutable_storage_checks_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'governance_notifications_team_id_fkey') THEN
+    ALTER TABLE "governance_notifications" ADD CONSTRAINT "governance_notifications_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'governance_notifications_related_evidence_id_fkey') THEN
+    ALTER TABLE "governance_notifications" ADD CONSTRAINT "governance_notifications_related_evidence_id_fkey" FOREIGN KEY ("related_evidence_id") REFERENCES "evidence"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'governance_export_snapshots_team_id_fkey') THEN
+    ALTER TABLE "governance_export_snapshots" ADD CONSTRAINT "governance_export_snapshots_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'governance_export_snapshots_evidence_id_fkey') THEN
+    ALTER TABLE "governance_export_snapshots" ADD CONSTRAINT "governance_export_snapshots_evidence_id_fkey" FOREIGN KEY ("evidence_id") REFERENCES "evidence"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'governance_export_snapshots_created_by_user_id_fkey') THEN
+    ALTER TABLE "governance_export_snapshots" ADD CONSTRAINT "governance_export_snapshots_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workspace_persona_profiles_team_id_fkey') THEN
+    ALTER TABLE "workspace_persona_profiles" ADD CONSTRAINT "workspace_persona_profiles_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 

@@ -20,6 +20,10 @@ import {
   RuntimeStatusBanner,
 } from "../../../../components/operational";
 import {
+  ReviewerReasonModal,
+  type ReviewerReasonKind,
+} from "../components/ReviewerReasonModal";
+import {
   cardStyle,
   emptyStateStyle,
   errorBoxStyle,
@@ -97,6 +101,13 @@ function EscalationsConsolePageInner() {
   const [severity, setSeverity] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Phase 2.4 — structured reason modal replaces 3 window.prompt calls
+  // (reassign / resolve / suppress). `reasonModal` holds the kind +
+  // the escalation id the action targets.
+  const [reasonModal, setReasonModal] = useState<{
+    kind: ReviewerReasonKind;
+    escalationId: string;
+  } | null>(null);
 
   const load = useCallback(() => {
     if (!teamId) return;
@@ -313,13 +324,13 @@ function EscalationsConsolePageInner() {
                             type="button"
                             style={smallButton}
                             disabled={busy !== null}
-                            onClick={async () => {
-                              const u = window.prompt("New assignee user id");
-                              if (!u) return;
-                              act("reassign", e.id, "reassign", {
-                                newAssigneeUserId: u,
-                              });
-                            }}
+                            onClick={() =>
+                              setReasonModal({
+                                kind: "ESCALATION_REASSIGN",
+                                escalationId: e.id,
+                              })
+                            }
+                            data-escalation-action-reassign
                           >
                             Reassign
                           </button>
@@ -327,15 +338,13 @@ function EscalationsConsolePageInner() {
                             type="button"
                             style={smallButton}
                             disabled={busy !== null}
-                            onClick={async () => {
-                              const n = window.prompt(
-                                "Resolution note (required)",
-                              );
-                              if (!n) return;
-                              act("resolve", e.id, "resolve", {
-                                resolutionNote: n,
-                              });
-                            }}
+                            onClick={() =>
+                              setReasonModal({
+                                kind: "ESCALATION_RESOLVE",
+                                escalationId: e.id,
+                              })
+                            }
+                            data-escalation-action-resolve
                           >
                             Resolve
                           </button>
@@ -343,15 +352,13 @@ function EscalationsConsolePageInner() {
                             type="button"
                             style={smallButton}
                             disabled={busy !== null}
-                            onClick={async () => {
-                              const n = window.prompt(
-                                "Suppression reason (required)",
-                              );
-                              if (!n) return;
-                              act("suppress", e.id, "suppress", {
-                                suppressionReason: n,
-                              });
-                            }}
+                            onClick={() =>
+                              setReasonModal({
+                                kind: "ESCALATION_SUPPRESS",
+                                escalationId: e.id,
+                              })
+                            }
+                            data-escalation-action-suppress
                           >
                             Suppress
                           </button>
@@ -365,6 +372,32 @@ function EscalationsConsolePageInner() {
           </table>
         )}
       </section>
+
+      {/* Phase 2.4 — structured reason modal for reassign / resolve /
+          suppress. Replaces 3 window.prompt calls. */}
+      <ReviewerReasonModal
+        kind={reasonModal?.kind ?? null}
+        open={reasonModal !== null}
+        onCancel={() => setReasonModal(null)}
+        onSubmit={async (reason) => {
+          if (!reasonModal) return;
+          const { kind, escalationId } = reasonModal;
+          if (kind === "ESCALATION_REASSIGN") {
+            await act("reassign", escalationId, "reassign", {
+              newAssigneeUserId: reason,
+            });
+          } else if (kind === "ESCALATION_RESOLVE") {
+            await act("resolve", escalationId, "resolve", {
+              resolutionNote: reason,
+            });
+          } else if (kind === "ESCALATION_SUPPRESS") {
+            await act("suppress", escalationId, "suppress", {
+              suppressionReason: reason,
+            });
+          }
+          setReasonModal(null);
+        }}
+      />
     </main>
   );
 }

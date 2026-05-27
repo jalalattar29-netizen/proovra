@@ -33,6 +33,9 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+// Phase 2.3 — adopt AccessGate for the workspace-required + permission
+// states. Previously these rendered bare grey text with no next step.
+import { AccessGate } from "../../../../components/access/AccessGate";
 
 type SsoProvider = {
   id: string;
@@ -324,7 +327,17 @@ function SsoAdminContent() {
       {loadError ? <div style={errorBoxStyle}>{loadError}</div> : null}
 
       {!teamId ? (
-        <p style={mutedStyle}>Switch to a workspace to manage SSO connections.</p>
+        <AccessGate
+          kind="WORKSPACE_REQUIRED"
+          surface="SSO"
+          headline="Switch to a team workspace to manage SSO"
+          reason="SAML connections are per-workspace. Open a team workspace you administer to configure or test SSO."
+          actions={[
+            { label: "Open team workspaces", href: "/teams", variant: "primary" },
+            { label: "Review plans", href: "/billing", variant: "secondary" },
+          ]}
+          testid="sso-access-gate-no-workspace"
+        />
       ) : providers === null && !loadError ? (
         <p style={mutedStyle}>Loading SSO providers…</p>
       ) : providers && providers.length === 0 ? (

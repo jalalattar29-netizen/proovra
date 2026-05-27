@@ -2,6 +2,12 @@ node_modules
 .env
 .env.*
 !.env.example
+# Phase 2.5F — ship safe-default example env files for fresh checkouts.
+# The corresponding non-example files (.env.audit-local etc.) stay
+# gitignored because they carry actual credentials.
+!.env.audit-local.example
+!.env.staging.example
+!.env.production.example
 
 dist
 build

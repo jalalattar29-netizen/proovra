@@ -34,6 +34,7 @@ import {
 } from "../../lib/platform-context";
 import { HintCallout } from "../persona/HintCallout";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
+import { AccessGate } from "../access/AccessGate";
 import type {
   ArtifactRow,
   LifecycleFilter,
@@ -316,10 +317,10 @@ export function ReportsIndex() {
 
       <section className="cc-section" data-reports-footnote>
         <div className="cc-section-note" data-cc-section-status="not_applicable">
-          Browsing this page never triggers report or package generation,
-          never generates a signed download URL, and never marks any artifact
-          as viewed. Use the per-evidence detail page to explicitly download a
-          deliverable.
+          Browsing this page never triggers report or package generation
+          and never marks any artifact as viewed. Signed download URLs are
+          only minted on explicit per-row action (the Download buttons
+          above), the same gated path used by the evidence-detail page.
         </div>
       </section>
     </main>
@@ -399,7 +400,189 @@ function ArtifactRowView({ row }: { row: ArtifactRow }) {
           ) : null}
         </div>
       </Link>
+      {/* Phase 2.1 — Explicit per-row download actions. The page
+          remains side-effect-free on browse (mount does NOT call any
+          download endpoint). These buttons only fire on EXPLICIT user
+          click, mirroring the evidence-detail download flow. The
+          backend (`/v1/evidence/:id/report/latest`,
+          `/v1/evidence/:id/verification-package`) still gates on
+          workspace policy + retention; this UI never simulates
+          permission. */}
+      <ArtifactRowActions row={row} />
     </li>
+  );
+}
+
+/**
+ * Phase 2.1 — per-row download actions. Only renders buttons for
+ * states that have an actionable next step. Non-actionable states
+ * (pending / not_requested / unavailable) get a quiet help label
+ * instead — never a dead button.
+ */
+function ArtifactRowActions({ row }: { row: ArtifactRow }) {
+  const [busy, setBusy] = useState<null | "report" | "package">(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const triggerReport = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (busy) return;
+    setBusy("report");
+    setError(null);
+    try {
+      const resp = (await apiFetch(
+        `/v1/evidence/${row.evidenceId}/report/latest`,
+        { method: "GET" },
+      )) as { url?: string };
+      if (resp.url) {
+        // Open in a new tab so the operator keeps the Reports queue
+        // intact behind the download.
+        window.open(resp.url, "_blank", "noopener,noreferrer");
+      } else {
+        setError("Report URL is unavailable.");
+      }
+    } catch (err) {
+      const e = err as { statusCode?: number; message?: string };
+      if (e.statusCode === 202) {
+        setError("Report is still generating. Try again in a moment.");
+      } else if (e.statusCode === 403) {
+        setError("You don't have permission to download this report.");
+      } else if (e.statusCode === 409) {
+        setError(
+          e.message ?? "Report download blocked by workspace policy.",
+        );
+      } else {
+        setError(e.message ?? "Could not start download.");
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const triggerPackage = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (busy) return;
+    setBusy("package");
+    setError(null);
+    try {
+      const resp = (await apiFetch(
+        `/v1/evidence/${row.evidenceId}/verification-package`,
+        { method: "GET" },
+      )) as { url?: string; code?: string; message?: string };
+      if (resp.url) {
+        window.open(resp.url, "_blank", "noopener,noreferrer");
+      } else if (resp.code === "verification_package_pending") {
+        setError(resp.message ?? "Package is still generating.");
+      } else {
+        setError("Package URL is unavailable.");
+      }
+    } catch (err) {
+      const e = err as { statusCode?: number; message?: string };
+      if (e.statusCode === 202) {
+        setError("Package is still generating. Try again in a moment.");
+      } else if (e.statusCode === 403) {
+        setError("You don't have permission to download this package.");
+      } else if (e.statusCode === 409) {
+        setError(e.message ?? "Package blocked by workspace policy.");
+      } else {
+        setError(e.message ?? "Could not start download.");
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const reportReady = row.report.state === "ready";
+  const packageReady = row.package.state === "ready";
+
+  return (
+    <div
+      className="cases-row-actions"
+      data-reports-row-actions={row.evidenceId}
+      style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}
+    >
+      {reportReady ? (
+        <button
+          type="button"
+          className="btn-secondary"
+          data-reports-download-report={row.evidenceId}
+          onClick={triggerReport}
+          disabled={busy !== null}
+        >
+          {busy === "report" ? "Opening…" : "Download report PDF"}
+        </button>
+      ) : (
+        <span
+          className="cases-row-chip"
+          data-reports-report-action-status={row.report.state}
+          style={{ opacity: 0.7 }}
+        >
+          {row.report.state === "pending"
+            ? "Report generating — refresh later"
+            : row.report.state === "failed"
+              ? "Report generation failed — see evidence detail"
+              : row.report.state === "not_requested"
+                ? "Report not requested for this evidence"
+                : "Report unavailable on this plan"}
+        </span>
+      )}
+      {packageReady ? (
+        <button
+          type="button"
+          className="btn-secondary"
+          data-reports-download-package={row.evidenceId}
+          onClick={triggerPackage}
+          disabled={busy !== null}
+        >
+          {busy === "package" ? "Opening…" : "Download verification package"}
+        </button>
+      ) : row.package.state === "blocked" ? (
+        <span
+          className="cases-row-chip"
+          data-reports-package-action-status="blocked"
+          style={{ opacity: 0.7 }}
+        >
+          Package blocked — {row.package.blockedReason ?? "governance policy"}
+        </span>
+      ) : (
+        <span
+          className="cases-row-chip"
+          data-reports-package-action-status={row.package.state}
+          style={{ opacity: 0.7 }}
+        >
+          {row.package.state === "pending"
+            ? "Package generating — refresh later"
+            : row.package.state === "failed"
+              ? "Package generation failed — see evidence detail"
+              : row.package.state === "not_requested"
+                ? "Package not yet generated"
+                : "Package unavailable"}
+        </span>
+      )}
+      <Link
+        href={`/evidence/${row.evidenceId}`}
+        className="btn-secondary"
+        data-reports-open-evidence={row.evidenceId}
+        onClick={(e) => e.stopPropagation()}
+      >
+        Open evidence
+      </Link>
+      {error ? (
+        <span
+          role="alert"
+          data-reports-row-error={row.evidenceId}
+          style={{
+            color: "#f6c8c8",
+            fontSize: 12,
+            width: "100%",
+            marginTop: 4,
+          }}
+        >
+          {error}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -485,17 +668,30 @@ function ReportsNoWorkspace() {
   // here means the canonical envelope itself couldn't surface a
   // workspace. The shell renders WorkspaceRecoveryPanel above this in
   // that case; this fallback only shows transient empty UI.
+  //
+  // Phase 2.2 — replace dead-end text with a structured AccessGate so
+  // the operator can browse / switch workspaces or open settings.
   return (
     <main className="cc-page" data-reports-no-workspace>
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">Deliverables</div>
-          <h1 className="cc-title">Workspace setup pending</h1>
-          <p className="cc-subtitle">
-            We're finishing workspace setup. Refresh in a moment.
-          </p>
+          <h1 className="cc-title">Reports &amp; Artifacts</h1>
         </div>
       </header>
+      <section className="cc-section">
+        <AccessGate
+          kind="WORKSPACE_REQUIRED"
+          surface="Reports"
+          headline="Workspace setup pending"
+          reason="We're finishing workspace setup, or you haven't picked one yet. Reports + verification packages are scoped to a workspace — pick one to continue."
+          actions={[
+            { label: "Open workspaces", href: "/teams", variant: "primary" },
+            { label: "Open settings", href: "/settings", variant: "secondary" },
+          ]}
+          testid="reports-access-gate-no-workspace"
+        />
+      </section>
     </main>
   );
 }
@@ -505,23 +701,46 @@ function ReportsAuthError({
 }: {
   code: "auth_required" | "permission_denied";
 }) {
+  // Phase 2.2 — replace dead-end text with a structured AccessGate.
+  // The page itself is wrapped in PageRouteGate at the route layer; this
+  // surface fires only when /v1/reports/artifacts itself returns 401 or
+  // 403 (which can happen for cross-workspace access). AccessGate gives
+  // the operator an explicit next step instead of "permission required"
+  // text with nothing to click.
   return (
     <main className="cc-page" data-reports-auth-error={code}>
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">Deliverables</div>
-          <h1 className="cc-title">
-            {code === "auth_required"
-              ? "Sign in required"
-              : "Permission required"}
-          </h1>
-          <p className="cc-subtitle">
-            {code === "auth_required"
-              ? "Sign in to view artifacts."
-              : "You do not have permission to view artifacts for this workspace."}
-          </p>
+          <h1 className="cc-title">Reports &amp; Artifacts</h1>
         </div>
       </header>
+      <section className="cc-section">
+        {code === "auth_required" ? (
+          <AccessGate
+            kind="PERMISSION_REQUIRED"
+            surface="Reports"
+            headline="Sign in to view artifacts"
+            reason="Your session has expired or you aren't signed in. Sign in to load this workspace's report and verification-package state."
+            actions={[
+              { label: "Sign in", href: "/login", variant: "primary" },
+            ]}
+            testid="reports-access-gate-auth"
+          />
+        ) : (
+          <AccessGate
+            kind="REQUEST_ACCESS"
+            surface="Reports"
+            headline="You don't have access to this workspace's reports"
+            reason="Your role doesn't include report and verification-package access for this workspace. An admin can grant it, or you can switch to a workspace you have access to."
+            actions={[
+              { label: "Switch workspace", href: "/teams", variant: "primary" },
+              { label: "Open settings", href: "/settings", variant: "secondary" },
+            ]}
+            testid="reports-access-gate-permission"
+          />
+        )}
+      </section>
     </main>
   );
 }

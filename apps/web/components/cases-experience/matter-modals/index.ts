@@ -16,3 +16,6 @@ export {
 } from "./EvidenceLinkModal";
 export { StatusChangeModal, type AllowedStatus } from "./StatusChangeModal";
 export { ConfirmModal } from "./ConfirmModal";
+// Phase 2.1 — surfaces `POST /v1/cases` (which already existed but was
+// not reachable from the canonical Cases page).
+export { CreateCaseModal } from "./CreateCaseModal";

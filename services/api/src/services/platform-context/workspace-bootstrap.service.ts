@@ -147,11 +147,33 @@ export async function ensurePersonalWorkspace(
 
   try {
     const created = await client.$transaction(async (tx) => {
+      // Phase 2.7X Stage 6 — atomically create the Organization
+      // alongside the personal Team so the team is never observed
+      // with a NULL `organization_id`. Stage 7 will tighten the
+      // schema constraint; this code path makes that tightening
+      // safe ahead of time.
+      const org = await tx.organization.create({
+        data: {
+          name, // mirrors team name; operator can rename later
+          billingOwnerUserId: input.userId,
+          status: "ACTIVE",
+        },
+        select: { id: true },
+      });
+      await tx.organizationMembership.create({
+        data: {
+          organizationId: org.id,
+          userId: input.userId,
+          role: "ORG_OWNER",
+        },
+      });
+
       const team = await tx.team.create({
         data: {
           name,
           ownerUserId: input.userId,
           isPersonal: true,
+          organizationId: org.id,
         },
         select: { id: true, name: true },
       });

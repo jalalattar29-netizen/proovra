@@ -862,6 +862,37 @@ function EvidenceDetailPageInner() {
     }
   };
 
+  // Phase 2.1 — Evidence relationship removal. The DELETE endpoint
+  // already existed (services/api/src/routes/evidence.routes.ts:6739)
+  // with full audit emission, but had no UI affordance. Confirmation
+  // is done in the child component before this handler fires.
+  const handleRemoveRelationship = async (relationshipId: string) => {
+    if (!evidenceId) return;
+    setActionBusy(true);
+    try {
+      await apiFetch(
+        `/v1/evidence/${evidenceId}/relationships/${relationshipId}`,
+        { method: "DELETE" },
+      );
+      addToast("Relationship removed", "success");
+      await loadWorkspace();
+    } catch (deleteError) {
+      captureException(deleteError, {
+        feature: "web_evidence_relationship_delete",
+        evidenceId,
+        relationshipId,
+      });
+      addToast(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Failed to remove relationship",
+        "error",
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   const handleSaveLabel = async () => {
     if (!evidenceId || !labelDraft.trim()) return;
 
@@ -1938,6 +1969,7 @@ function EvidenceDetailPageInner() {
                   onRemoveCase={workspace.relationships.caseId ? () => void removeCase() : null}
                   onOpenRelationshipEditor={() => setRelationshipOpen(true)}
                   onOpenLinkedEvidence={(id) => router.push(`/evidence/${id}`)}
+                  onRemoveRelationship={handleRemoveRelationship}
                 />
 
                 <ReviewerWorkflowCard
