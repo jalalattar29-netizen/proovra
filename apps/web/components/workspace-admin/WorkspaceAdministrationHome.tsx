@@ -59,7 +59,16 @@ export function WorkspaceAdministrationHome() {
           <p className="cc-subtitle">
             Your Personal Space is private to you. Organizations are
             collaborative tenants — members, roles, governance, and billing
-            live there.
+            live there. For org-level governance (members, invites,
+            audit timeline), open{" "}
+            <Link
+              href="/organizations"
+              data-action="cross-link-organizations"
+              data-workspace-admin-cross-link="organizations"
+            >
+              Organizations
+            </Link>
+            .
           </p>
         </div>
       </header>
@@ -172,6 +181,19 @@ export function WorkspaceAdministrationHome() {
                     {isActive ? (
                       <span data-organization-active-chip>Active</span>
                     ) : null}
+                    {/* Phase A.1B — direct deep-link into the
+                        canonical org governance surface. Closes the
+                        cross-surface continuity gap between
+                        admin.teams (workspace admin) and
+                        account.organizations (governance hub). */}
+                    <Link
+                      href={`/organizations/${org.id}`}
+                      data-action="open-org-governance"
+                      data-organization-governance-link={org.id}
+                      className="cc-quick-action"
+                    >
+                      Manage governance
+                    </Link>
                   </div>
                 </li>
               );
@@ -202,6 +224,17 @@ export function WorkspaceAdministrationHome() {
             data-workspace-action="join_organization"
           >
             Join an organization
+          </Link>
+          {/* Phase A.1B — cross-link to the canonical org governance
+              hub. The two surfaces are intentionally distinct: this
+              page is workspace administration, /organizations is
+              org-level governance (members / invites / audit). */}
+          <Link
+            href="/organizations"
+            className="cc-quick-action"
+            data-workspace-action="view_all_organizations"
+          >
+            View all organizations
           </Link>
           <Link
             href="/billing"

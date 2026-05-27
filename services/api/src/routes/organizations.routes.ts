@@ -158,9 +158,24 @@ export async function organizationsRoutes(app: FastifyInstance) {
   // GET /v1/me/orgs
   //
   // List the orgs the calling user belongs to, with their role in
-  // each. No org metadata beyond what's needed for an org-switcher
-  // UI (id, name, role, createdAt). No member counts here; that
-  // belongs on the per-org endpoint.
+  // each, AND the small set of governance counts the org-list
+  // surface needs to render with operational density: member count,
+  // workspace count, pending-invite count.
+  //
+  // Phase A.1B operational completion — earlier we deferred these
+  // counts to the per-org endpoint, which forced the org list page
+  // to either N+1 fetch or render flat cards with no operational
+  // signal. The counts here are CHEAP aggregations the dual-read
+  // architecture already uses on the per-org endpoint; surfacing
+  // them on the list endpoint is the right scope.
+  //
+  // Strict hard rules preserved:
+  //   - No evidence/case/reviewer aggregates leak through. We only
+  //     return governance counts (members, workspaces, invites).
+  //   - `pendingInviteCount` is returned to EVERY caller (visibility
+  //     is a governance signal, not an audit signal). The list
+  //     surface uses it to indicate "this org has X open invites";
+  //     the actual invite metadata stays gated behind ORG_ADMIN+.
   // -------------------------------------------------------------------------
   app.get(
     "/v1/me/orgs",
@@ -184,6 +199,56 @@ export async function organizationsRoutes(app: FastifyInstance) {
         orderBy: { createdAt: "asc" },
       });
 
+      const orgIds = rows.map((r) => r.organization.id);
+      // Aggregate the three governance counts in parallel. groupBy
+      // returns ONE row per org-id-that-has-at-least-one-record, so
+      // we hydrate a Map<orgId, count> and default missing keys to 0.
+      const now = new Date();
+      const [memberCounts, workspaceCounts, pendingInviteCounts] =
+        orgIds.length === 0
+          ? [[], [], []]
+          : await Promise.all([
+              prisma.organizationMembership.groupBy({
+                by: ["organizationId"],
+                where: { organizationId: { in: orgIds } },
+                _count: { id: true },
+              }),
+              prisma.team.groupBy({
+                by: ["organizationId"],
+                where: { organizationId: { in: orgIds } },
+                _count: { id: true },
+              }),
+              prisma.organizationInvite.groupBy({
+                by: ["organizationId"],
+                where: {
+                  organizationId: { in: orgIds },
+                  // Only invites that are still actionable count as
+                  // "pending" for governance visibility: not accepted,
+                  // not revoked, not expired.
+                  acceptedAt: null,
+                  revokedAt: null,
+                  expiresAt: { gt: now },
+                },
+                _count: { id: true },
+              }),
+            ]);
+
+      const memberCountByOrg = new Map<string, number>();
+      for (const r of memberCounts) {
+        if (r.organizationId)
+          memberCountByOrg.set(r.organizationId, r._count.id);
+      }
+      const workspaceCountByOrg = new Map<string, number>();
+      for (const r of workspaceCounts) {
+        if (r.organizationId)
+          workspaceCountByOrg.set(r.organizationId, r._count.id);
+      }
+      const pendingInviteByOrg = new Map<string, number>();
+      for (const r of pendingInviteCounts) {
+        if (r.organizationId)
+          pendingInviteByOrg.set(r.organizationId, r._count.id);
+      }
+
       return reply.code(200).send({
         summary: { totalOrgs: rows.length },
         orgs: rows.map((r) => ({
@@ -193,6 +258,9 @@ export async function organizationsRoutes(app: FastifyInstance) {
           role: r.role,
           orgCreatedAt: r.organization.createdAt.toISOString(),
           memberSince: r.createdAt.toISOString(),
+          memberCount: memberCountByOrg.get(r.organization.id) ?? 0,
+          workspaceCount: workspaceCountByOrg.get(r.organization.id) ?? 0,
+          pendingInviteCount: pendingInviteByOrg.get(r.organization.id) ?? 0,
         })),
       });
     },
@@ -229,6 +297,9 @@ export async function organizationsRoutes(app: FastifyInstance) {
           name: true,
           legalName: true,
           legalEmail: true,
+          address: true,
+          timezone: true,
+          logoUrl: true,
           status: true,
           billingOwnerUserId: true,
           verificationState: true,
@@ -245,18 +316,35 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
       // Aggregate counts at the GOVERNANCE level only — member count
       // (org-level), workspace count (number of teams linked to the
-      // org). Both are explicit governance signals; neither reveals
-      // workspace-internal counts (evidence/case/reviewer).
-      const [memberCount, workspaceCount] = await Promise.all([
-        prisma.organizationMembership.count({ where: { organizationId: orgId } }),
-        prisma.team.count({ where: { organizationId: orgId } }),
-      ]);
+      // org), pending-invite count (Phase A.1B operational signal).
+      // None reveals workspace-internal data (evidence/case/reviewer).
+      const [memberCount, workspaceCount, pendingInviteCount] =
+        await Promise.all([
+          prisma.organizationMembership.count({
+            where: { organizationId: orgId },
+          }),
+          prisma.team.count({ where: { organizationId: orgId } }),
+          prisma.organizationInvite.count({
+            where: {
+              organizationId: orgId,
+              acceptedAt: null,
+              revokedAt: null,
+              expiresAt: { gt: new Date() },
+            },
+          }),
+        ]);
 
       return reply.code(200).send({
         organizationId: org.id,
         name: org.name,
         legalName: org.legalName,
         legalEmail: org.legalEmail,
+        // Phase A.1B — fields the PATCH endpoint already supports
+        // round-trip on the GET so the Settings form can prefill
+        // them.
+        address: org.address,
+        timezone: org.timezone,
+        logoUrl: org.logoUrl,
         status: org.status,
         billingOwnerUserId: org.billingOwnerUserId,
         verificationState: org.verificationState,
@@ -267,6 +355,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
         summary: {
           memberCount,
           workspaceCount,
+          pendingInviteCount,
         },
       });
     },
@@ -321,15 +410,24 @@ export async function organizationsRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------------
   // GET /v1/orgs/:id/workspaces
   //
-  // Workspaces (= teams) bound to the org. Returns ONLY:
+  // Workspaces (= teams) bound to the org. Always returns:
   //   - team id, name, isPersonal, createdAt
-  // Does NOT return:
+  //
+  // Phase A.1B Wave 2 — for callers with ORG_ADMIN+ role, also returns
+  // the workspace's billing plan, billing status, and seat configuration.
+  // This is real data the Team model already owns. Surfacing it on the
+  // org governance surface closes the "billing visibility" gap without
+  // inventing org-level billing.
+  //
+  // Still does NOT return:
   //   - evidence counts (would leak workspace size)
   //   - team member counts (would leak access topology)
   //   - case counts (would leak governance load)
-  //   - retention policy / billing plan / verification state
-  //     (those are workspace-private governance attributes that
-  //     org-level membership doesn't authorize)
+  //   - retention policy / verification state (workspace-private
+  //     governance attributes; not yet promoted to the org surface)
+  //
+  // ORG_MEMBER / ORG_AUDITOR callers see workspace identity only; the
+  // billing fields are omitted from their response payload.
   // -------------------------------------------------------------------------
   app.get(
     "/v1/orgs/:id/workspaces",
@@ -343,6 +441,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
+      const canSeeBilling =
+        access.role === "ORG_OWNER" ||
+        access.role === "ORG_ADMIN" ||
+        access.role === "ORG_BILLING_ADMIN";
+
       const workspaces = await prisma.team.findMany({
         where: { organizationId: orgId },
         select: {
@@ -350,6 +453,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
           name: true,
           isPersonal: true,
           createdAt: true,
+          billingPlan: canSeeBilling,
+          billingStatus: canSeeBilling,
+          includedSeats: canSeeBilling,
+          overSeatLimit: canSeeBilling,
+          billingOwnerUserId: canSeeBilling,
         },
         orderBy: { createdAt: "asc" },
       });
@@ -357,11 +465,23 @@ export async function organizationsRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         organizationId: orgId,
         summary: { totalWorkspaces: workspaces.length },
+        callerCanSeeBilling: canSeeBilling,
         workspaces: workspaces.map((w) => ({
           workspaceId: w.id,
           name: w.name,
           isPersonal: w.isPersonal,
           createdAt: w.createdAt.toISOString(),
+          ...(canSeeBilling
+            ? {
+                billing: {
+                  plan: w.billingPlan,
+                  status: w.billingStatus,
+                  includedSeats: w.includedSeats,
+                  overSeatLimit: w.overSeatLimit,
+                  billingOwnerUserId: w.billingOwnerUserId,
+                },
+              }
+            : {}),
         })),
       });
     },

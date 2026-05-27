@@ -92,6 +92,16 @@ export const MODE_QUICK_ACTIONS: Record<
       href: "/reports",
       intent: "secondary",
     },
+    // Phase A.1C — quick discoverability of organizations from the
+    // personal-workspace dashboard. The /organizations page itself is
+    // safe for any authenticated user (it shows their orgs or an
+    // empty-state with create/join CTAs).
+    {
+      id: "personal.organizations",
+      label: "Open Organizations",
+      href: "/organizations",
+      intent: "secondary",
+    },
   ],
   ORGANIZATION: [
     {

@@ -727,6 +727,8 @@ model User {
   initiatedEvidenceReviewWorkflows EvidenceReviewWorkflow[]    @relation("EvidenceWorkflowAssignedBy")
   escalatedEvidenceReviewWorkflows EvidenceReviewWorkflow[]    @relation("EvidenceWorkflowEscalatedBy")
   reopenedEvidenceReviewWorkflows  EvidenceReviewWorkflow[]    @relation("EvidenceWorkflowReopenedBy")
+  // Phase B.2 — multi-stage review decisions back-relation.
+  workflowReviewDecisions       WorkflowReviewDecision[]     @relation("WorkflowReviewDecisionReviewer")
   evidenceReviewWorkflowEvents  EvidenceReviewWorkflowEvent[]
   createdEvidenceRelationships  EvidenceRelationship[]
   evidenceReviewerAuditEvents   EvidenceReviewerAuditEvent[]
@@ -1205,6 +1207,99 @@ model EvidenceReviewWorkflow {
   @@index([assignmentDueAtUtc])
   @@index([completionDueAtUtc])
   @@map("evidence_review_workflows")
+
+  // Phase B.2 — multi-stage review back-relation. New rows are
+  // additive; existing workflows simply have an empty relation.
+  reviewDecisions WorkflowReviewDecision[]
+}
+
+// =============================================================================
+// Phase B.2 — Multi-stage review governance.
+//
+// `WorkflowReviewDecision` is the canonical per-stage decision row.
+// State is DERIVED from these rows (not stored as an enum on the
+// workflow), so this is a purely additive migration: no column on
+// EvidenceReviewWorkflow changes, no enum is mutated.
+//
+// State machine the API enforces server-side:
+//
+//   no decisions                          → state: "first_required"
+//   FIRST decided                         → state: "second_required"   (if requires_second_review)
+//                                         → state: "resolved"          (otherwise)
+//   FIRST + SECOND, decisions match       → state: "resolved"
+//   FIRST + SECOND, decisions DIFFER      → state: "conflict_detected"
+//   FIRST + SECOND + ADJUDICATION         → state: "resolved"
+//
+// Same-reviewer guard: server rejects a SECOND decision by the same
+// userId who made the FIRST. Adjudication is only allowed when the
+// state is conflict_detected, and only by callers with elevated role
+// (team OWNER/ADMIN). All transitions emit audit events.
+// =============================================================================
+
+enum WorkflowReviewStage {
+  FIRST
+  SECOND
+  ADJUDICATION
+
+  @@map("workflow_review_stage")
+}
+
+enum WorkflowReviewDecisionKind {
+  APPROVE
+  REJECT
+  REQUEST_INFO
+  UPHOLD_FIRST
+  UPHOLD_SECOND
+  NEEDS_MORE_INFO
+  UNRESOLVED
+
+  @@map("workflow_review_decision_kind")
+}
+
+enum WorkflowReviewReasonCode {
+  EVIDENCE_INCOMPLETE
+  REPORT_FAILED
+  INTEGRITY_CONCERN
+  CUSTODY_CONCERN
+  MISSING_CONTEXT
+  LEGAL_HOLD_ISSUE
+  REDACTION_REQUIRED
+  REVIEWER_DISAGREEMENT
+  OTHER
+
+  @@map("workflow_review_reason_code")
+}
+
+model WorkflowReviewDecision {
+  id             String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowId     String                     @map("workflow_id") @db.Uuid
+  /// Denormalised teamId for cheap indexed lookups by workspace. Always
+  /// equal to the workflow's teamId at the moment of decision; never
+  /// updated after insert (so a workflow that moves workspaces — not
+  /// currently supported — would keep its decision lineage tied to the
+  /// workspace where the decision was actually made).
+  teamId         String                     @map("team_id") @db.Uuid
+  stage          WorkflowReviewStage
+  reviewerUserId String                     @map("reviewer_user_id") @db.Uuid
+  decision       WorkflowReviewDecisionKind
+  reasonCode     WorkflowReviewReasonCode?  @map("reason_code")
+  /// Operator-readable rationale. REQUIRED for non-approve decisions
+  /// (REJECT, REQUEST_INFO, UPHOLD_*, NEEDS_MORE_INFO, UNRESOLVED) and
+  /// for all ADJUDICATION rows. Optional for APPROVE at FIRST stage.
+  rationale      String                     @db.VarChar(4000)
+  decidedAt      DateTime                   @default(now()) @map("decided_at") @db.Timestamptz(6)
+
+  workflow EvidenceReviewWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  reviewer User                   @relation("WorkflowReviewDecisionReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict)
+
+  // One row per (workflow, stage). Resubmissions are forbidden; the
+  // existing row carries the audit-of-record. A new stage requires a
+  // new row.
+  @@unique([workflowId, stage])
+  @@index([workflowId, decidedAt(sort: Desc)])
+  @@index([teamId, stage])
+  @@index([reviewerUserId])
+  @@map("workflow_review_decisions")
 }
 
 model EvidenceReviewWorkflowEvent {

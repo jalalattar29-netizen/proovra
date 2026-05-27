@@ -67,6 +67,7 @@ import {
   EscalationEngineError,
   acknowledgeEscalation,
   createEscalation,
+  findOpenEscalationForWorkflow,
   listEscalations,
   reassignEscalation,
   resolveEscalation,
@@ -392,7 +393,80 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           teamId: q.teamId,
           workflowId,
         });
-        return reply.code(200).send(ws);
+        // Phase B-2 — surface real governance signals the engine
+        // projection doesn't carry: ACTIVE legal holds on the
+        // underlying evidence, and the `requiresRedaction` flag on
+        // the workflow event itself. Both are workspace-scoped reads
+        // gated by the same `requireReviewerActor` check above; they
+        // never leak cross-workspace data because we filter on
+        // `teamId = q.teamId`.
+        //
+        // legalHolds is intentionally surfaced as a COUNT + a single
+        // most-recent ACTIVE hold for in-page operational density.
+        // The full list lives on the existing governance surfaces
+        // (/governance/lifecycle, /governance/retention) and is
+        // gated by a separate capability there. ORG_MEMBER reviewers
+        // see the SIGNAL (hold present) but not necessarily the full
+        // metadata, which preserves the existing governance gating.
+        const evidenceId = ws.projection.evidenceId;
+        const [activeHoldsCount, mostRecentHold, redactionRequiredFieldCount] =
+          evidenceId
+            ? await Promise.all([
+                prisma.evidenceLegalHold.count({
+                  where: {
+                    teamId: q.teamId,
+                    evidenceId,
+                    status: "ACTIVE",
+                  },
+                }),
+                prisma.evidenceLegalHold.findFirst({
+                  where: {
+                    teamId: q.teamId,
+                    evidenceId,
+                    status: "ACTIVE",
+                  },
+                  orderBy: { placedAtUtc: "desc" },
+                  select: {
+                    id: true,
+                    title: true,
+                    placedAtUtc: true,
+                  },
+                }),
+                // Phase B-2 — `requiresRedaction` lives on the
+                // per-field `EvidenceWorkflowVisibilityDecision`
+                // table, not on the workflow event. A single TRUE
+                // row on this evidence means at least one field's
+                // visibility policy decided redaction is required
+                // before export — a real governance signal.
+                prisma.evidenceWorkflowVisibilityDecision.count({
+                  where: {
+                    evidenceId,
+                    requiresRedaction: true,
+                  },
+                }),
+              ])
+            : [0, null, null];
+
+        return reply.code(200).send({
+          ...ws,
+          // Phase B-2 — additive governance block. Existing consumers
+          // ignore this; new consumers (the reviewer detail page UI)
+          // render it as a small read-only badge strip.
+          governance: {
+            legalHold: {
+              activeCount: activeHoldsCount,
+              mostRecent: mostRecentHold
+                ? {
+                    id: mostRecentHold.id,
+                    title: mostRecentHold.title,
+                    placedAtUtc: mostRecentHold.placedAtUtc.toISOString(),
+                  }
+                : null,
+            },
+            requiresRedaction: (redactionRequiredFieldCount ?? 0) > 0,
+            requiresRedactionFieldCount: redactionRequiredFieldCount ?? 0,
+          },
+        });
       } catch (err) {
         if (sendEngineError(reply, err)) return;
         throw err;
@@ -1343,6 +1417,775 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         totalDueSoonReminders,
         totalInactivityReminders,
         perTeam,
+      });
+    },
+  );
+
+  // ===========================================================================
+  // Phase B.1 — Reviewer notes (structured, evidence-scoped).
+  //
+  // We REUSE the existing `EvidenceReviewerComment` model (Phase
+  // 32.8C++++ coordination tracking) rather than introduce a new
+  // notes table. The model already carries authorUserId, body,
+  // timestamps, soft-delete, and resolution tracking. To support the
+  // structured note types Phase B.1 calls for (observation,
+  // concern, request_info, escalation_context, decision_rationale,
+  // legal_hold_context, redaction_context) WITHOUT a schema
+  // migration, we serialize the note shape into the existing `body`
+  // text column as a JSON envelope:
+  //
+  //   { v: 1, type: "<noteType>", body: "<operator-written text>" }
+  //
+  // Reads parse the envelope and tolerate legacy plain-string bodies
+  // (treated as `type: "general"`). Writes always produce v1 JSON.
+  //
+  // RBAC: reviewer-actor on the workflow's team (same gate as the
+  // existing workspace detail endpoint). Anyone who can SEE the
+  // review workspace can create + list notes; we do not gate writes
+  // separately because note content is operator-readable governance,
+  // not a privileged decision.
+  //
+  // Audit: emits a TeamActivity row on every create so the action is
+  // permanently traceable in the workspace audit feed. The
+  // EvidenceReviewerComment row is the canonical artifact.
+  // ===========================================================================
+  const ReviewerNoteTypeSchema = z.enum([
+    "observation",
+    "concern",
+    "request_info",
+    "escalation_context",
+    "decision_rationale",
+    "legal_hold_context",
+    "redaction_context",
+  ]);
+
+  const CreateNoteBody = z.object({
+    teamId: z.string().uuid(),
+    type: ReviewerNoteTypeSchema,
+    body: z.string().trim().min(1).max(4000),
+  });
+
+  function parseStoredNoteBody(stored: string): {
+    type: string;
+    body: string;
+    isLegacy: boolean;
+  } {
+    // Heuristic: tagged envelopes start with `{"v":1` after trim.
+    // We try JSON.parse and validate shape; on any failure we treat
+    // as legacy plain text. This is safe because pre-Phase-B.1
+    // comments are never JSON envelopes.
+    if (!stored.trim().startsWith("{")) {
+      return { type: "general", body: stored, isLegacy: true };
+    }
+    try {
+      const parsed = JSON.parse(stored) as {
+        v?: number;
+        type?: string;
+        body?: string;
+      };
+      if (
+        parsed &&
+        parsed.v === 1 &&
+        typeof parsed.type === "string" &&
+        typeof parsed.body === "string"
+      ) {
+        return {
+          type: parsed.type,
+          body: parsed.body,
+          isLegacy: false,
+        };
+      }
+    } catch {
+      /* fallthrough to legacy */
+    }
+    return { type: "general", body: stored, isLegacy: true };
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /v1/reviewer-ops/workspace/:workflowId/notes
+  //
+  // Lists the most recent N reviewer notes on the evidence underlying
+  // the given review workflow. Workflow-scoped via the workflow's
+  // teamId; never returns notes for evidence outside the workflow's
+  // workspace.
+  //
+  // Returns operator-readable shape: id, authorUserId, type, body,
+  // createdAt, deletedAt (always null in this list — we filter
+  // soft-deleted rows server-side). Pagination by cursor (`since`).
+  // ---------------------------------------------------------------------------
+  app.get(
+    "/v1/reviewer-ops/workspace/:workflowId/notes",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { workflowId } = ParamsWorkflowId.parse(req.params);
+      const q = z
+        .object({
+          teamId: z.string().uuid(),
+          limit: z.coerce.number().int().min(1).max(200).optional(),
+        })
+        .parse(req.query ?? {});
+      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      if (!ctx) return;
+
+      // Resolve the evidenceId behind the workflow within the same team.
+      const workflow = await prisma.evidenceReviewWorkflow.findFirst({
+        where: { id: workflowId, teamId: q.teamId },
+        select: { id: true, evidenceId: true },
+      });
+      if (!workflow) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+
+      const take = q.limit ?? 50;
+      const rows = await prisma.evidenceReviewerComment.findMany({
+        where: {
+          evidenceId: workflow.evidenceId,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          authorUserId: true,
+          body: true,
+          visibility: true,
+          createdAt: true,
+          resolvedAtUtc: true,
+          resolvedByUserId: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take,
+      });
+
+      // Denormalize author identity for operator-readable display.
+      const authorIds = Array.from(new Set(rows.map((r) => r.authorUserId)));
+      const authors = authorIds.length
+        ? await prisma.user.findMany({
+            where: { id: { in: authorIds } },
+            select: { id: true, email: true, displayName: true },
+          })
+        : [];
+      const authorById = new Map(authors.map((a) => [a.id, a]));
+
+      const items = rows.map((r) => {
+        const parsed = parseStoredNoteBody(r.body);
+        const a = authorById.get(r.authorUserId) ?? null;
+        return {
+          id: r.id,
+          type: parsed.type,
+          body: parsed.body,
+          isLegacyPlainText: parsed.isLegacy,
+          visibility: r.visibility,
+          author: a
+            ? {
+                userId: a.id,
+                email: a.email,
+                displayName: a.displayName,
+              }
+            : { userId: r.authorUserId, email: null, displayName: null },
+          createdAt: r.createdAt.toISOString(),
+          resolvedAt: r.resolvedAtUtc?.toISOString() ?? null,
+          resolvedByUserId: r.resolvedByUserId,
+        };
+      });
+
+      return reply.code(200).send({
+        workflowId,
+        evidenceId: workflow.evidenceId,
+        summary: { total: items.length },
+        items,
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /v1/reviewer-ops/workspace/:workflowId/notes
+  //
+  // Creates a reviewer note bound to the workflow's evidence. Stores
+  // the type + body as a v1 JSON envelope in
+  // EvidenceReviewerComment.body so we don't need a schema migration.
+  //
+  // Emits TeamActivity for the note creation so the action is
+  // permanently traceable.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/reviewer-ops/workspace/:workflowId/notes",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { workflowId } = ParamsWorkflowId.parse(req.params);
+      const parsed = CreateNoteBody.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: {
+            code: "validation_error",
+            detail: parsed.error.flatten(),
+          },
+        });
+      }
+      const body = parsed.data;
+      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      if (!ctx) return;
+
+      // Resolve the evidenceId behind the workflow within the team.
+      const workflow = await prisma.evidenceReviewWorkflow.findFirst({
+        where: { id: workflowId, teamId: body.teamId },
+        select: { id: true, evidenceId: true },
+      });
+      if (!workflow) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+
+      const envelope = JSON.stringify({
+        v: 1,
+        type: body.type,
+        body: body.body.trim(),
+      });
+
+      const created = await prisma.evidenceReviewerComment.create({
+        data: {
+          evidenceId: workflow.evidenceId,
+          authorUserId: ctx.actorUserId,
+          body: envelope,
+          // visibility defaults to INTERNAL — reviewer notes are
+          // operator-readable within the team workspace. Promoting
+          // to TEAM/external broadcast is a separate workflow.
+        },
+        select: {
+          id: true,
+          authorUserId: true,
+          body: true,
+          visibility: true,
+          createdAt: true,
+        },
+      });
+
+      // Audit emission — workspace-scoped TeamActivity row so the
+      // note creation appears in the existing workspace audit feed.
+      // We do NOT include the note body in metadata (the body lives
+      // on the comment row); we do include the structured type so
+      // the audit feed renders "Reviewer note: <type> added".
+      try {
+        await prisma.teamActivity.create({
+          data: {
+            teamId: body.teamId,
+            actorUserId: ctx.actorUserId,
+            eventType: "REVIEWER_NOTE_CREATED",
+            targetType: "evidence_reviewer_comment",
+            targetId: created.id,
+            metadata: {
+              workflowId,
+              evidenceId: workflow.evidenceId,
+              noteType: body.type,
+            },
+          },
+        });
+      } catch {
+        // Audit emission is best-effort; the note creation already
+        // succeeded. A separate background sweep can backfill audit.
+      }
+
+      const decoded = parseStoredNoteBody(created.body);
+      return reply.code(201).send({
+        workflowId,
+        evidenceId: workflow.evidenceId,
+        note: {
+          id: created.id,
+          type: decoded.type,
+          body: decoded.body,
+          isLegacyPlainText: decoded.isLegacy,
+          visibility: created.visibility,
+          authorUserId: created.authorUserId,
+          createdAt: created.createdAt.toISOString(),
+        },
+      });
+    },
+  );
+
+  // ===========================================================================
+  // Phase B.2 — Multi-stage review governance.
+  //
+  // Endpoints:
+  //   GET  /v1/reviewer-ops/workspace/:workflowId/decisions
+  //        returns decision lineage + derived state machine + caller's
+  //        next allowed action.
+  //   POST /v1/reviewer-ops/workspace/:workflowId/decisions
+  //        body { teamId, decision, reasonCode?, rationale }
+  //        infers stage from existing rows (FIRST → SECOND →
+  //        ADJUDICATION). Server enforces:
+  //          - rationale required for non-APPROVE decisions
+  //          - same reviewer cannot submit SECOND on their own FIRST
+  //          - only conflict_detected state allows ADJUDICATION
+  //          - ADJUDICATION only by team OWNER/ADMIN (elevated role)
+  //          - one decision per (workflow, stage) — DB unique constraint
+  //            is the source of truth; the API surfaces 409 cleanly
+  //
+  // The state machine is DERIVED from rows, not stored on the
+  // workflow. Phase B.2 adds zero columns to existing tables.
+  //
+  // RBAC: same `requireReviewerActor` as the rest of reviewer-ops;
+  // ADJUDICATION additionally checks role precedence on the team.
+  // ===========================================================================
+  const DecisionKindSchema = z.enum([
+    "APPROVE",
+    "REJECT",
+    "REQUEST_INFO",
+    "UPHOLD_FIRST",
+    "UPHOLD_SECOND",
+    "NEEDS_MORE_INFO",
+    "UNRESOLVED",
+  ]);
+  const ReasonCodeSchema = z.enum([
+    "EVIDENCE_INCOMPLETE",
+    "REPORT_FAILED",
+    "INTEGRITY_CONCERN",
+    "CUSTODY_CONCERN",
+    "MISSING_CONTEXT",
+    "LEGAL_HOLD_ISSUE",
+    "REDACTION_REQUIRED",
+    "REVIEWER_DISAGREEMENT",
+    "OTHER",
+  ]);
+  const CreateDecisionBody = z.object({
+    teamId: z.string().uuid(),
+    decision: DecisionKindSchema,
+    reasonCode: ReasonCodeSchema.optional(),
+    rationale: z.string().trim().min(1).max(4000),
+  });
+
+  /**
+   * Phase B.2 — derive whether a workflow currently requires a second
+   * review. We compute this at read-time from the existing workflow
+   * state so we don't need a new column. The brief listed the
+   * triggers; we map them:
+   *
+   *   - workflow.status === ESCALATED → second review required
+   *   - workflow has an open escalation → second review required
+   *   - workflow's evidence has an ACTIVE legal hold → second review required
+   *   - workflow's evidence has at least one redaction-required
+   *     visibility decision → second review required
+   *
+   * Manual operator override (a workflow-level flag) is deferred to a
+   * future migration; the existing triggers above cover the
+   * highest-leverage real cases.
+   */
+  async function requiresSecondReview(input: {
+    workflowId: string;
+    teamId: string;
+    evidenceId: string;
+  }): Promise<{ required: boolean; reason: string | null }> {
+    const [wf, openEsc, holdCount, redactionCount] = await Promise.all([
+      prisma.evidenceReviewWorkflow.findUnique({
+        where: { id: input.workflowId },
+        select: { status: true },
+      }),
+      findOpenEscalationForWorkflow(
+        { teamId: input.teamId, workflowId: input.workflowId },
+        prisma,
+      ),
+      prisma.evidenceLegalHold.count({
+        where: {
+          teamId: input.teamId,
+          evidenceId: input.evidenceId,
+          status: "ACTIVE",
+        },
+      }),
+      prisma.evidenceWorkflowVisibilityDecision.count({
+        where: {
+          evidenceId: input.evidenceId,
+          requiresRedaction: true,
+        },
+      }),
+    ]);
+    if (wf?.status === "ESCALATED") return { required: true, reason: "workflow_escalated" };
+    if (openEsc) return { required: true, reason: "open_escalation" };
+    if (holdCount > 0) return { required: true, reason: "active_legal_hold" };
+    if (redactionCount > 0)
+      return { required: true, reason: "redaction_required" };
+    return { required: false, reason: null };
+  }
+
+  type ReviewState =
+    | "first_required"
+    | "second_required"
+    | "conflict_detected"
+    | "adjudication_required"
+    | "resolved";
+
+  function deriveReviewState(input: {
+    decisions: ReadonlyArray<{ stage: string; decision: string }>;
+    requiresSecond: boolean;
+  }): ReviewState {
+    const first = input.decisions.find((d) => d.stage === "FIRST");
+    const second = input.decisions.find((d) => d.stage === "SECOND");
+    const adj = input.decisions.find((d) => d.stage === "ADJUDICATION");
+    if (adj) return "resolved";
+    if (first && second) {
+      // Conflict when the two stage decisions disagree. APPROVE vs
+      // REJECT vs REQUEST_INFO are the three primary outcomes the
+      // brief calls out; any mismatch among them is a conflict.
+      if (first.decision !== second.decision) return "conflict_detected";
+      return "resolved";
+    }
+    if (first) {
+      return input.requiresSecond ? "second_required" : "resolved";
+    }
+    return "first_required";
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /v1/reviewer-ops/workspace/:workflowId/decisions
+  // ---------------------------------------------------------------------------
+  app.get(
+    "/v1/reviewer-ops/workspace/:workflowId/decisions",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { workflowId } = ParamsWorkflowId.parse(req.params);
+      const q = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.query ?? {});
+      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      if (!ctx) return;
+
+      const wf = await prisma.evidenceReviewWorkflow.findFirst({
+        where: { id: workflowId, teamId: q.teamId },
+        select: { id: true, evidenceId: true, status: true },
+      });
+      if (!wf) return reply.code(404).send({ error: { code: "not_found" } });
+
+      const [rows, secondReview] = await Promise.all([
+        prisma.workflowReviewDecision.findMany({
+          where: { workflowId, teamId: q.teamId },
+          orderBy: { decidedAt: "asc" },
+          select: {
+            id: true,
+            stage: true,
+            decision: true,
+            reasonCode: true,
+            rationale: true,
+            decidedAt: true,
+            reviewerUserId: true,
+          },
+        }),
+        requiresSecondReview({
+          workflowId,
+          teamId: q.teamId,
+          evidenceId: wf.evidenceId,
+        }),
+      ]);
+
+      // Denormalise reviewer identity for operator-readable display.
+      const reviewerIds = Array.from(
+        new Set(rows.map((r) => r.reviewerUserId)),
+      );
+      const reviewers = reviewerIds.length
+        ? await prisma.user.findMany({
+            where: { id: { in: reviewerIds } },
+            select: { id: true, email: true, displayName: true },
+          })
+        : [];
+      const reviewerById = new Map(reviewers.map((r) => [r.id, r]));
+
+      const state = deriveReviewState({
+        decisions: rows,
+        requiresSecond: secondReview.required,
+      });
+
+      // Determine what the caller can do next, given the current state
+      // and their role on the team. ADJUDICATION requires team
+      // OWNER/ADMIN; other stages require any reviewer-capable member
+      // (already enforced by requireReviewerActor).
+      const teamMember = await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId: q.teamId, userId: ctx.actorUserId } },
+        select: { role: true },
+      });
+      const isAdjudicator =
+        teamMember?.role === "OWNER" || teamMember?.role === "ADMIN";
+
+      const firstReviewerId = rows.find((r) => r.stage === "FIRST")
+        ?.reviewerUserId;
+      const callerIsFirstReviewer =
+        firstReviewerId === ctx.actorUserId;
+
+      let nextAction:
+        | "submit_first"
+        | "submit_second"
+        | "submit_adjudication"
+        | "blocked_same_reviewer"
+        | "blocked_not_adjudicator"
+        | "no_action_resolved" = "no_action_resolved";
+      if (state === "first_required") nextAction = "submit_first";
+      else if (state === "second_required")
+        nextAction = callerIsFirstReviewer
+          ? "blocked_same_reviewer"
+          : "submit_second";
+      else if (state === "conflict_detected")
+        nextAction = isAdjudicator
+          ? "submit_adjudication"
+          : "blocked_not_adjudicator";
+
+      return reply.code(200).send({
+        workflowId,
+        evidenceId: wf.evidenceId,
+        state,
+        secondReviewRequirement: {
+          required: secondReview.required,
+          reason: secondReview.reason,
+        },
+        callerContext: {
+          userId: ctx.actorUserId,
+          teamRole: teamMember?.role ?? null,
+          isAdjudicator,
+          callerIsFirstReviewer,
+          nextAction,
+        },
+        decisions: rows.map((r) => {
+          const rv = reviewerById.get(r.reviewerUserId) ?? null;
+          return {
+            id: r.id,
+            stage: r.stage,
+            decision: r.decision,
+            reasonCode: r.reasonCode,
+            rationale: r.rationale,
+            decidedAt: r.decidedAt.toISOString(),
+            reviewer: rv
+              ? {
+                  userId: rv.id,
+                  email: rv.email,
+                  displayName: rv.displayName,
+                }
+              : {
+                  userId: r.reviewerUserId,
+                  email: null,
+                  displayName: null,
+                },
+          };
+        }),
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /v1/reviewer-ops/workspace/:workflowId/decisions
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/reviewer-ops/workspace/:workflowId/decisions",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { workflowId } = ParamsWorkflowId.parse(req.params);
+      const parsed = CreateDecisionBody.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: {
+            code: "validation_error",
+            detail: parsed.error.flatten(),
+          },
+        });
+      }
+      const body = parsed.data;
+      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      if (!ctx) return;
+
+      const wf = await prisma.evidenceReviewWorkflow.findFirst({
+        where: { id: workflowId, teamId: body.teamId },
+        select: { id: true, evidenceId: true },
+      });
+      if (!wf) return reply.code(404).send({ error: { code: "not_found" } });
+
+      // Derive current state from existing rows.
+      const existing = await prisma.workflowReviewDecision.findMany({
+        where: { workflowId, teamId: body.teamId },
+        select: { stage: true, decision: true, reviewerUserId: true },
+      });
+      const secondReview = await requiresSecondReview({
+        workflowId,
+        teamId: body.teamId,
+        evidenceId: wf.evidenceId,
+      });
+      const state = deriveReviewState({
+        decisions: existing,
+        requiresSecond: secondReview.required,
+      });
+
+      // Determine which stage this submission targets.
+      let targetStage: "FIRST" | "SECOND" | "ADJUDICATION";
+      if (state === "first_required") targetStage = "FIRST";
+      else if (state === "second_required") targetStage = "SECOND";
+      else if (state === "conflict_detected") targetStage = "ADJUDICATION";
+      else {
+        return reply.code(409).send({
+          error: {
+            code: "decision_not_allowed",
+            reason: "review_is_resolved",
+            currentState: state,
+          },
+        });
+      }
+
+      // Same-reviewer guard (server-enforced).
+      if (targetStage === "SECOND") {
+        const first = existing.find((d) => d.stage === "FIRST");
+        if (first && first.reviewerUserId === ctx.actorUserId) {
+          return reply.code(409).send({
+            error: {
+              code: "same_reviewer_blocked",
+              reason:
+                "The reviewer who submitted the FIRST decision cannot submit the SECOND. Independence is required.",
+              firstReviewerUserId: first.reviewerUserId,
+            },
+          });
+        }
+      }
+
+      // Adjudicator role guard.
+      if (targetStage === "ADJUDICATION") {
+        const teamMember = await prisma.teamMember.findUnique({
+          where: {
+            teamId_userId: {
+              teamId: body.teamId,
+              userId: ctx.actorUserId,
+            },
+          },
+          select: { role: true },
+        });
+        const isAdjudicator =
+          teamMember?.role === "OWNER" || teamMember?.role === "ADMIN";
+        if (!isAdjudicator) {
+          return reply.code(403).send({
+            error: {
+              code: "adjudicator_role_required",
+              reason:
+                "Adjudication requires team OWNER or ADMIN role on this workspace.",
+              callerRole: teamMember?.role ?? null,
+            },
+          });
+        }
+      }
+
+      // Rationale required for any non-APPROVE decision (and always
+      // required for ADJUDICATION). The zod schema already enforces
+      // min(1); this is a redundant explicit check for first-stage
+      // APPROVE which is the only decision that COULD be rationale-
+      // optional in some configurations. Phase B.2 keeps it required
+      // uniformly — every decision row has an operator-visible
+      // rationale.
+      if (body.rationale.trim().length === 0) {
+        return reply.code(400).send({
+          error: {
+            code: "rationale_required",
+            reason: "All review decisions must include a rationale.",
+          },
+        });
+      }
+
+      // Specific decision-kind constraints:
+      //   - UPHOLD_FIRST / UPHOLD_SECOND only valid at ADJUDICATION
+      //   - At FIRST / SECOND, decision must be one of APPROVE /
+      //     REJECT / REQUEST_INFO / NEEDS_MORE_INFO
+      const adjOnlyKinds = new Set([
+        "UPHOLD_FIRST",
+        "UPHOLD_SECOND",
+        "UNRESOLVED",
+      ]);
+      if (targetStage !== "ADJUDICATION" && adjOnlyKinds.has(body.decision)) {
+        return reply.code(400).send({
+          error: {
+            code: "decision_kind_not_allowed",
+            reason: `${body.decision} is only valid at ADJUDICATION stage.`,
+            stage: targetStage,
+          },
+        });
+      }
+
+      // Create the decision row. The DB unique (workflow_id, stage)
+      // constraint is the source of truth for "one decision per stage" —
+      // a concurrent duplicate write fails at the DB layer with P2002,
+      // which we surface as 409.
+      let created;
+      try {
+        created = await prisma.workflowReviewDecision.create({
+          data: {
+            workflowId,
+            teamId: body.teamId,
+            stage: targetStage,
+            reviewerUserId: ctx.actorUserId,
+            decision: body.decision,
+            reasonCode: body.reasonCode ?? null,
+            rationale: body.rationale.trim(),
+          },
+          select: {
+            id: true,
+            stage: true,
+            decision: true,
+            reasonCode: true,
+            rationale: true,
+            decidedAt: true,
+            reviewerUserId: true,
+          },
+        });
+      } catch (err: unknown) {
+        // Prisma unique violation when a concurrent writer landed
+        // first.
+        const code = (err as { code?: string }).code;
+        if (code === "P2002") {
+          return reply.code(409).send({
+            error: {
+              code: "duplicate_stage_decision",
+              reason: "A decision for this stage already exists.",
+              stage: targetStage,
+            },
+          });
+        }
+        throw err;
+      }
+
+      // Audit emission — workspace-scoped TeamActivity row so the
+      // multi-stage decision appears in the existing audit feed.
+      const auditEventType =
+        targetStage === "FIRST"
+          ? "REVIEWER_DECISION_FIRST"
+          : targetStage === "SECOND"
+            ? "REVIEWER_DECISION_SECOND"
+            : "REVIEWER_DECISION_ADJUDICATION";
+      try {
+        await prisma.teamActivity.create({
+          data: {
+            teamId: body.teamId,
+            actorUserId: ctx.actorUserId,
+            eventType: auditEventType,
+            targetType: "workflow_review_decision",
+            targetId: created.id,
+            metadata: {
+              workflowId,
+              evidenceId: wf.evidenceId,
+              stage: targetStage,
+              decision: body.decision,
+              reasonCode: body.reasonCode ?? null,
+            },
+          },
+        });
+      } catch {
+        /* audit best-effort */
+      }
+
+      // Compute the new state for the response so the UI doesn't need
+      // a separate GET round-trip.
+      const newExisting = [...existing, { stage: targetStage, decision: body.decision, reviewerUserId: ctx.actorUserId }];
+      const newState = deriveReviewState({
+        decisions: newExisting,
+        requiresSecond: secondReview.required,
+      });
+
+      return reply.code(201).send({
+        workflowId,
+        evidenceId: wf.evidenceId,
+        state: newState,
+        decision: {
+          id: created.id,
+          stage: created.stage,
+          decision: created.decision,
+          reasonCode: created.reasonCode,
+          rationale: created.rationale,
+          decidedAt: created.decidedAt.toISOString(),
+          reviewerUserId: created.reviewerUserId,
+        },
       });
     },
   );

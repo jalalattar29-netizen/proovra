@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
 import { apiFetch } from "../../../../../lib/api";
+import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 
 type State =
   | { kind: "idle" }
@@ -29,6 +30,17 @@ type State =
   | { kind: "error"; status: number; message: string };
 
 export default function OrgInviteAcceptPage() {
+  // Phase A.1 — wrapped in PageRouteGate per `account.org-invite-accept`
+  // registry entry. The PageRouteGate handles unauth / envelope-loading
+  // states consistently; the inner component owns the accept flow.
+  return (
+    <PageRouteGate routeId="account.org-invite-accept">
+      <OrgInviteAcceptPageInner />
+    </PageRouteGate>
+  );
+}
+
+function OrgInviteAcceptPageInner() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
   const token = params?.token ?? "";

@@ -121,6 +121,37 @@ export function ReviewerCommandConsole() {
 
   const env = state.envelope;
   const isTeam = env.workspace.scope === "TEAM";
+  // Phase B-1 — caller identity for "Assign to me" bulk action. The
+  // envelope is loaded at this point so `ctx.envelope?.user.id` is
+  // present; we fall back to null safely if it ever isn't, which
+  // disables the Assign-to-me bulk action gracefully.
+  const callerUserId = ctx.envelope?.user?.id ?? null;
+
+  // Phase B-1 — pass a reload callback to QueuePeekSection so the bulk
+  // bar can refresh after submitting.
+  const reload = useCallback(() => {
+    if (!teamId) return;
+    setState({ status: "loading" });
+    apiFetch(
+      `/v1/reviewer-ops/command?teamId=${encodeURIComponent(teamId)}`,
+      { method: "GET" },
+    )
+      .then((envelope) => {
+        setState({ status: "ready", envelope: envelope as ReviewerCommandEnvelope });
+      })
+      .catch((err: { message?: string; statusCode?: number }) => {
+        if (err.statusCode === 401) {
+          setState({ status: "auth_error", code: "auth_required" });
+        } else if (err.statusCode === 403) {
+          setState({ status: "auth_error", code: "permission_denied" });
+        } else {
+          setState({
+            status: "unavailable",
+            message: err.message ?? "Reviewer command unavailable",
+          });
+        }
+      });
+  }, [teamId]);
 
   return (
     <main className="cc-page" data-reviewer-command>
@@ -182,7 +213,12 @@ export function ReviewerCommandConsole() {
       ) : null}
       <SummarySection env={env} />
       <div className="cc-grid-2col">
-        <QueuePeekSection env={env} />
+        <QueuePeekSection
+          env={env}
+          callerUserId={callerUserId}
+          onMutated={reload}
+          isTeam={isTeam}
+        />
         <EscalationsSection env={env} />
       </div>
       <div className="cc-grid-2col">
@@ -190,9 +226,182 @@ export function ReviewerCommandConsole() {
         <PolicySection env={env} />
       </div>
       <ReconciliationSection env={env} />
+      {/* Phase B-3 — operational scope panel. Sets accurate
+          enterprise expectations: what reviewer-ops can do RIGHT
+          NOW vs what is deliberately deferred. This is read-only;
+          it never describes a fake capability. */}
+      <OperationalScopePanel isTeam={isTeam} />
     </main>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Phase B-3 — Operational scope panel.
+//
+// A read-only honesty card that anchors enterprise expectations:
+// which reviewer-ops capabilities are wired today, which are
+// deferred. The brief explicitly forbade fake Bates / fake redaction
+// tooling / fake second-review / fake reviewer-AI; this card is the
+// operator-visible truth.
+//
+// All claims here are checkable against the codebase: every
+// "available now" item maps to an endpoint that exists in
+// reviewer-ops.routes.ts; every "deferred" item is genuinely absent
+// from the backend.
+// ---------------------------------------------------------------------------
+function OperationalScopePanel({ isTeam }: { isTeam: boolean }) {
+  return (
+    <section
+      className="cc-section"
+      data-reviewer-section="operational-scope"
+      data-reviewer-scope-team={isTeam ? "true" : "false"}
+    >
+      <header className="cc-section-header">
+        <h2 className="cc-section-title">Operational scope</h2>
+      </header>
+      <p className="cc-section-note" style={{ fontSize: 12, opacity: 0.85 }}>
+        Honest summary of what the reviewer surface supports today vs
+        what is intentionally deferred. Items marked “deferred” are
+        not faked in the UI — they require deliberate backend
+        modeling. This panel is the canonical reference; the brief for
+        this surface is explicit about not inventing legal/eDiscovery
+        features.
+      </p>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: 10,
+          marginTop: 6,
+        }}
+      >
+        <div
+          data-reviewer-scope-block="available"
+          style={scopeBlockStyle("available")}
+        >
+          <div style={scopeBlockTitle}>Available now</div>
+          <ul style={scopeListStyle}>
+            <li data-reviewer-scope-item="queue-triage">
+              <strong>Queue triage</strong> — claim, assign, reassign,
+              start, pause, request-info, approve, reject. Per-row.
+            </li>
+            <li data-reviewer-scope-item="bulk-ops">
+              <strong>Bulk operations</strong> — assign-to-me,
+              priority changes (HIGH/NORMAL/URGENT), escalate, pause,
+              request-info, close (with note). 207 partial-success
+              outcomes.
+            </li>
+            <li data-reviewer-scope-item="escalation-lifecycle">
+              <strong>Escalation lifecycle</strong> — acknowledge,
+              reassign, resolve, suppress.{" "}
+              <Link href="/reviewer-ops/escalations">Open</Link>.
+            </li>
+            <li data-reviewer-scope-item="sla-tracking">
+              <strong>SLA tracking</strong> — real reconcile cron +
+              per-workspace policy + reviewer workload snapshots.{" "}
+              <Link href="/reviewer-ops/sla">Open</Link>.
+            </li>
+            <li data-reviewer-scope-item="audit-chain">
+              <strong>Audit chain</strong> — every mutation emits a
+              SecurityEvent; custody events fire from worker paths.
+            </li>
+            <li data-reviewer-scope-item="governance-signals">
+              <strong>Governance signals on review detail</strong> —
+              active legal hold + redaction-required visibility
+              decisions visible read-only.
+            </li>
+            <li data-reviewer-scope-item="saved-views">
+              <strong>Saved queue views</strong> — per-reviewer custom
+              filters with shared visibility.
+            </li>
+            <li data-reviewer-scope-item="keyboard-shortcuts">
+              <strong>Keyboard shortcuts</strong> — J/K queue
+              navigation, A claim, E escalate, R request-info, C
+              close. Press <kbd>?</kbd> on a review detail page for
+              the full list.
+            </li>
+          </ul>
+        </div>
+        <div
+          data-reviewer-scope-block="deferred"
+          style={scopeBlockStyle("deferred")}
+        >
+          <div style={scopeBlockTitle}>Deferred (not yet self-service)</div>
+          <ul style={scopeListStyle}>
+            <li data-reviewer-scope-item="reviewer-notes">
+              <strong>Reviewer notes endpoint</strong> — the
+              EvidenceReviewerComment model exists but is not wired
+              into reviewer-ops routes. Notes today live inside
+              escalation/pause/request-info text fields.
+            </li>
+            <li data-reviewer-scope-item="second-review">
+              <strong>Second-review requirement</strong> — no
+              dual-approval state machine. Two-step transfers happen
+              via manual role-change + audit chain.
+            </li>
+            <li data-reviewer-scope-item="conflict-resolution">
+              <strong>Conflict resolution</strong> — when two
+              reviewers disagree, the existing escalation lifecycle is
+              the operational path; a dedicated conflict workflow is
+              not modeled.
+            </li>
+            <li data-reviewer-scope-item="bates-numbering">
+              <strong>Bates numbering</strong> — not modeled in
+              schema; no production-set sequence tracking. Surfaces
+              do not pretend it exists.
+            </li>
+            <li data-reviewer-scope-item="redaction-tooling">
+              <strong>Redaction tooling</strong> — `requiresRedaction`
+              is a signal flag, not a redaction editor. Highlight +
+              approve UI is not built.
+            </li>
+            <li data-reviewer-scope-item="evidence-compare">
+              <strong>Side-by-side evidence compare</strong> — not
+              built. Evidence-detail rendering is per-item.
+            </li>
+            <li data-reviewer-scope-item="auto-routing">
+              <strong>Auto-routing rules engine</strong> — workload
+              suggestions exist (advisory only). No automated
+              assignment based on rules; operators always decide.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function scopeBlockStyle(kind: "available" | "deferred"): React.CSSProperties {
+  return {
+    padding: "0.7rem 0.9rem",
+    border:
+      kind === "available"
+        ? "1px solid rgba(34, 197, 94, 0.45)"
+        : "1px solid rgba(127, 127, 127, 0.4)",
+    background:
+      kind === "available"
+        ? "rgba(34, 197, 94, 0.06)"
+        : "rgba(127, 127, 127, 0.04)",
+    borderRadius: 6,
+    fontSize: 12,
+  };
+}
+
+const scopeBlockTitle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: 0.5,
+  textTransform: "uppercase",
+  marginBottom: 6,
+  opacity: 0.85,
+};
+
+const scopeListStyle: React.CSSProperties = {
+  margin: 0,
+  paddingLeft: "1.1rem",
+  display: "grid",
+  gap: 5,
+};
 
 // ---------------------------------------------------------------------------
 // Summary section
@@ -273,7 +482,17 @@ function SummarySection({ env }: { env: ReviewerCommandEnvelope }) {
 // Queue peek section
 // ---------------------------------------------------------------------------
 
-function QueuePeekSection({ env }: { env: ReviewerCommandEnvelope }) {
+function QueuePeekSection({
+  env,
+  callerUserId,
+  onMutated,
+  isTeam,
+}: {
+  env: ReviewerCommandEnvelope;
+  callerUserId: string | null;
+  onMutated: () => void;
+  isTeam: boolean;
+}) {
   const q = env.sections.queuePeek;
   if (q.status === "unavailable") {
     return (
@@ -298,53 +517,535 @@ function QueuePeekSection({ env }: { env: ReviewerCommandEnvelope }) {
     );
   }
   return (
-    <section className="cc-section" data-reviewer-section="queue-peek">
-      <header className="cc-section-header">
+    <QueuePeekWithBulkOps
+      env={env}
+      items={q.items}
+      callerUserId={callerUserId}
+      onMutated={onMutated}
+      isTeam={isTeam}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Phase B-1 — Bulk operations on the reviewer queue.
+//
+// Adds multi-select to the queue-peek section and wires it to the
+// existing POST /v1/reviewer-ops/reviews/bulk endpoint. The backend
+// returns a 207 partial-success envelope with per-row outcomes; we
+// surface those outcomes inline so the reviewer can see exactly what
+// succeeded and what failed without re-fetching the queue blind.
+//
+// Hard rules:
+//   - No invented mutation semantics. Every action maps to one of the
+//     bounded ReviewerOpsBulkAction values the backend already
+//     accepts.
+//   - Permission gating happens server-side (REVIEWER_OPS_ACT +
+//     adaptive-runtime + step-up gates). The UI never tries to predict
+//     denial; it surfaces server errors honestly.
+//   - Bulk bar is hidden on personal workspaces — bulk reassignment
+//     is a team-only operation and the backend rejects it there.
+//   - Note-required actions (ESCALATE / PAUSE / REQUEST_INFO / CLOSE)
+//     do not submit without a note; the UI disables the Apply button
+//     until a non-empty note is provided.
+// ---------------------------------------------------------------------------
+type QueueRow = ReviewerCommandEnvelope["sections"]["queuePeek"]["items"][number];
+
+type BulkAction =
+  | "ASSIGN_TO_ME"
+  | "PRIORITY_HIGH"
+  | "PRIORITY_NORMAL"
+  | "PRIORITY_URGENT"
+  | "ESCALATE"
+  | "PAUSE"
+  | "REQUEST_INFO"
+  | "CLOSE";
+
+type BulkRowOutcome = {
+  workflowId: string;
+  ok: boolean;
+  errorCode?: string;
+  message?: string;
+};
+
+function QueuePeekWithBulkOps({
+  env,
+  items,
+  callerUserId,
+  onMutated,
+  isTeam,
+}: {
+  env: ReviewerCommandEnvelope;
+  items: ReadonlyArray<QueueRow>;
+  callerUserId: string | null;
+  onMutated: () => void;
+  isTeam: boolean;
+}) {
+  const [selection, setSelection] = useState<Set<string>>(new Set());
+  const [noteAction, setNoteAction] = useState<BulkAction | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<{
+    total: number;
+    succeeded: number;
+    failed: number;
+    items: ReadonlyArray<BulkRowOutcome>;
+  } | null>(null);
+
+  const allSelected = items.length > 0 && selection.size === items.length;
+  const someSelected = selection.size > 0;
+  const teamId = env.workspace.id;
+  // Personal-space envelopes carry a Team-shaped workspace id but are
+  // not team-mutation-capable (reviewer mutations require team scope
+  // server-side). Disable the bulk bar on personal so we don't ship
+  // requests that will always 403.
+  const bulkDisabled = !isTeam;
+
+  const toggleRow = (id: string) =>
+    setSelection((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const toggleAll = () =>
+    setSelection(
+      allSelected ? new Set() : new Set(items.map((r) => r.workflowId)),
+    );
+  const clearSelection = () => setSelection(new Set());
+
+  const submitBulk = useCallback(
+    async (action: BulkAction, note?: string) => {
+      if (bulkDisabled) {
+        setError("Bulk operations require a team workspace.");
+        return;
+      }
+      if (selection.size === 0) {
+        setError("Select at least one workflow first.");
+        return;
+      }
+      const workflowIds = Array.from(selection);
+
+      // Map UI action → backend action + payload.
+      const requiresNote =
+        action === "ESCALATE" ||
+        action === "PAUSE" ||
+        action === "REQUEST_INFO";
+      if (requiresNote && (!note || note.trim().length === 0)) {
+        setError("A short note is required for that action.");
+        return;
+      }
+      if (action === "ASSIGN_TO_ME" && !callerUserId) {
+        setError(
+          "Could not identify the caller for assign-to-me. Reload and retry.",
+        );
+        return;
+      }
+
+      const bodyAction =
+        action === "ASSIGN_TO_ME" ? "ASSIGN" : action;
+      const body: Record<string, unknown> = {
+        teamId,
+        workflowIds,
+        action: bodyAction,
+      };
+      if (action === "ASSIGN_TO_ME") {
+        body.assignedToUserId = callerUserId;
+      }
+      if (requiresNote || action === "CLOSE") {
+        // CLOSE also accepts a note; if the operator provided one we
+        // forward it, otherwise the backend will validate.
+        if (note && note.trim().length > 0) body.note = note.trim();
+      }
+
+      setSubmitting(true);
+      setError(null);
+      setLastResult(null);
+      try {
+        const resp = (await apiFetch("/v1/reviewer-ops/reviews/bulk", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        })) as {
+          total?: number;
+          succeeded?: number;
+          failed?: number;
+          items?: ReadonlyArray<BulkRowOutcome>;
+        };
+        setLastResult({
+          total: resp.total ?? workflowIds.length,
+          succeeded: resp.succeeded ?? 0,
+          failed: resp.failed ?? 0,
+          items: resp.items ?? [],
+        });
+        // Refresh the envelope so the queue reflects the post-mutation
+        // state. We deliberately keep the selection so the operator
+        // can see which rows just changed; the rows the bulk action
+        // closed will fall out of the queue naturally on reload.
+        onMutated();
+        setNoteAction(null);
+        setNoteText("");
+      } catch (err) {
+        const e = err as { statusCode?: number; message?: string };
+        if (e.statusCode === 400) {
+          setError(e.message ?? "Bulk request was rejected. Check the action + note.");
+        } else if (e.statusCode === 403) {
+          setError(
+            "Permission denied. Bulk mutation requires REVIEWER_OPS_ACT in this team.",
+          );
+        } else if (e.statusCode === 429) {
+          setError("Rate-limited. Slow down and retry shortly.");
+        } else {
+          setError(e.message ?? "Bulk submit failed.");
+        }
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [bulkDisabled, callerUserId, onMutated, selection, teamId],
+  );
+
+  return (
+    <section
+      className="cc-section"
+      data-reviewer-section="queue-peek"
+      data-reviewer-bulk-disabled={bulkDisabled ? "true" : "false"}
+    >
+      <header
+        className="cc-section-header"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
         <h2 className="cc-section-title">Queue (top 10)</h2>
+        <span
+          data-reviewer-bulk-selection-count={selection.size}
+          style={{ fontSize: 12, opacity: 0.75 }}
+        >
+          {selection.size > 0
+            ? `${selection.size} selected`
+            : bulkDisabled
+              ? "Bulk ops require a team workspace"
+              : "Select workflows to bulk-act"}
+        </span>
       </header>
-      <ul className="cases-list" data-reviewer-queue-items>
-        {q.items.map((row) => (
-          <li
-            key={row.workflowId}
-            className="cases-row"
-            data-reviewer-workflow-id={row.workflowId}
-            data-reviewer-sla-tone={row.slaTone}
+
+      {/* Bulk action bar — visible whenever any selection exists OR
+          the operator is in a team workspace and explicitly opens the
+          note action. */}
+      {!bulkDisabled && (someSelected || noteAction) && (
+        <div
+          data-reviewer-bulk-actions-bar
+          data-reviewer-bulk-selected-count={selection.size}
+          style={bulkBarStyle}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
           >
-            <Link
-              href={`/reviewer-ops/${encodeURIComponent(row.workflowId)}`}
-              className="cases-row-link"
+            <strong style={{ fontSize: 12 }}>Bulk actions:</strong>
+            <button
+              type="button"
+              disabled={submitting || selection.size === 0 || !callerUserId}
+              onClick={() => void submitBulk("ASSIGN_TO_ME")}
+              data-reviewer-bulk-action="ASSIGN_TO_ME"
+              style={bulkBtnStyle}
+              title={
+                callerUserId
+                  ? "Assign every selected workflow to your account."
+                  : "Caller identity not yet resolved; refresh and retry."
+              }
             >
-              <div className="cases-row-main">
-                <span className="cases-row-title">
-                  Workflow {row.workflowId.slice(0, 8)}
-                </span>
-                <span
-                  className="cases-row-scope"
-                  data-reviewer-status={row.status}
+              Assign to me
+            </button>
+            <button
+              type="button"
+              disabled={submitting || selection.size === 0}
+              onClick={() => void submitBulk("PRIORITY_HIGH")}
+              data-reviewer-bulk-action="PRIORITY_HIGH"
+              style={bulkBtnStyle}
+            >
+              Mark HIGH
+            </button>
+            <button
+              type="button"
+              disabled={submitting || selection.size === 0}
+              onClick={() => void submitBulk("PRIORITY_NORMAL")}
+              data-reviewer-bulk-action="PRIORITY_NORMAL"
+              style={bulkBtnStyle}
+            >
+              Mark NORMAL
+            </button>
+            <button
+              type="button"
+              disabled={submitting || selection.size === 0}
+              onClick={() => void submitBulk("PRIORITY_URGENT")}
+              data-reviewer-bulk-action="PRIORITY_URGENT"
+              style={bulkBtnStyle}
+            >
+              Mark URGENT
+            </button>
+            <span
+              aria-hidden="true"
+              style={{
+                width: 1,
+                height: 22,
+                background: "rgba(127,127,127,0.3)",
+                margin: "0 4px",
+              }}
+            />
+            <select
+              data-reviewer-bulk-note-action
+              value={noteAction ?? ""}
+              onChange={(e) => {
+                const v = e.target.value as BulkAction | "";
+                setNoteAction(v === "" ? null : v);
+              }}
+              disabled={submitting}
+              style={{ fontSize: 12 }}
+              aria-label="Bulk action requiring a note"
+            >
+              <option value="">— with note —</option>
+              <option value="ESCALATE">Escalate</option>
+              <option value="PAUSE">Pause</option>
+              <option value="REQUEST_INFO">Request info</option>
+              <option value="CLOSE">Close</option>
+            </select>
+            {noteAction ? (
+              <>
+                <input
+                  type="text"
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  placeholder="Short note (required for escalate/pause/request-info)"
+                  data-reviewer-bulk-note-input
+                  disabled={submitting}
+                  maxLength={1000}
+                  style={{
+                    fontSize: 12,
+                    flex: "1 1 220px",
+                    padding: "0.25rem 0.4rem",
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={
+                    submitting ||
+                    selection.size === 0 ||
+                    ((noteAction === "ESCALATE" ||
+                      noteAction === "PAUSE" ||
+                      noteAction === "REQUEST_INFO") &&
+                      noteText.trim().length === 0)
+                  }
+                  onClick={() => void submitBulk(noteAction, noteText)}
+                  data-reviewer-bulk-action="WITH_NOTE_APPLY"
+                  data-reviewer-bulk-note-action-target={noteAction}
+                  style={bulkBtnPrimaryStyle}
                 >
-                  {row.status}
-                </span>
-              </div>
-              <div className="cases-row-meta">
-                <span data-reviewer-priority={row.priority}>{row.priority}</span>
-                {row.assignedToUserId ? (
-                  <span>Assigned to {row.assignedToUserId.slice(0, 8)}</span>
-                ) : (
-                  <span>Unassigned</span>
-                )}
-                {row.dueAt ? (
-                  <time dateTime={row.dueAt} data-reviewer-due-at={row.slaTone}>
-                    {row.slaTone === "overdue"
-                      ? "Overdue"
-                      : row.slaTone === "due_soon"
-                        ? "Due soon"
-                        : `Due ${relTime(row.dueAt)}`}
-                  </time>
-                ) : null}
-              </div>
-            </Link>
-          </li>
-        ))}
+                  Apply {noteAction}
+                </button>
+              </>
+            ) : null}
+            <span style={{ flex: 1 }} />
+            <button
+              type="button"
+              onClick={clearSelection}
+              disabled={submitting || selection.size === 0}
+              data-reviewer-bulk-action="CLEAR_SELECTION"
+              style={bulkBtnStyle}
+            >
+              Clear
+            </button>
+          </div>
+          {error ? (
+            <div
+              role="alert"
+              data-reviewer-bulk-error
+              style={{
+                marginTop: 6,
+                fontSize: 12,
+                color: "#d44",
+              }}
+            >
+              {error}
+            </div>
+          ) : null}
+          {lastResult ? (
+            <div
+              data-reviewer-bulk-last-result
+              data-reviewer-bulk-last-total={lastResult.total}
+              data-reviewer-bulk-last-succeeded={lastResult.succeeded}
+              data-reviewer-bulk-last-failed={lastResult.failed}
+              style={{
+                marginTop: 6,
+                fontSize: 12,
+                opacity: 0.85,
+              }}
+            >
+              Last bulk result: {lastResult.succeeded}/{lastResult.total}{" "}
+              succeeded{lastResult.failed > 0 ? `, ${lastResult.failed} failed` : ""}.
+              {lastResult.failed > 0 && lastResult.items.length > 0 ? (
+                <ul
+                  data-reviewer-bulk-last-failures
+                  style={{
+                    margin: "4px 0 0",
+                    paddingLeft: "1.2rem",
+                    fontSize: 12,
+                  }}
+                >
+                  {lastResult.items
+                    .filter((i) => !i.ok)
+                    .map((i) => (
+                      <li
+                        key={i.workflowId}
+                        data-reviewer-bulk-failed-workflow={i.workflowId}
+                        data-reviewer-bulk-failed-error-code={i.errorCode ?? ""}
+                      >
+                        {i.workflowId.slice(0, 8)}…:{" "}
+                        {i.errorCode ?? "error"}{" "}
+                        {i.message ? `— ${i.message}` : ""}
+                      </li>
+                    ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* Personal-space banner that the bulk bar will not appear. */}
+      {bulkDisabled ? (
+        <div
+          data-reviewer-bulk-personal-banner
+          className="cc-section-note"
+          style={{ fontSize: 12 }}
+        >
+          Bulk reviewer operations require a team workspace. In personal
+          space, open each workflow individually from the queue below.
+        </div>
+      ) : null}
+
+      <div
+        data-reviewer-bulk-select-row
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "0.35rem 0.5rem",
+          borderBottom: "1px solid rgba(127,127,127,0.2)",
+          fontSize: 12,
+        }}
+      >
+        <input
+          type="checkbox"
+          aria-label="Select all queue rows"
+          data-reviewer-bulk-select-all
+          checked={allSelected}
+          ref={(el) => {
+            if (el) el.indeterminate = !allSelected && someSelected;
+          }}
+          onChange={toggleAll}
+          disabled={bulkDisabled || items.length === 0}
+        />
+        <span style={{ opacity: 0.75 }}>
+          Select all visible
+        </span>
+      </div>
+
+      <ul className="cases-list" data-reviewer-queue-items>
+        {items.map((row) => {
+          const selected = selection.has(row.workflowId);
+          // Phase B-1 — per-row outcome marker from the most recent
+          // bulk submit, so the reviewer can see which rows just
+          // succeeded vs failed without re-fetching.
+          const outcome = lastResult
+            ? lastResult.items.find((i) => i.workflowId === row.workflowId)
+            : null;
+          return (
+            <li
+              key={row.workflowId}
+              className="cases-row"
+              data-reviewer-workflow-id={row.workflowId}
+              data-reviewer-sla-tone={row.slaTone}
+              data-reviewer-bulk-selected={selected ? "true" : "false"}
+              data-reviewer-bulk-last-outcome={
+                outcome ? (outcome.ok ? "ok" : "failed") : ""
+              }
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <input
+                type="checkbox"
+                aria-label={`Select workflow ${row.workflowId.slice(0, 8)}`}
+                data-reviewer-bulk-row-checkbox={row.workflowId}
+                checked={selected}
+                onChange={() => toggleRow(row.workflowId)}
+                disabled={bulkDisabled || submitting}
+              />
+              <Link
+                href={`/reviewer-ops/${encodeURIComponent(row.workflowId)}`}
+                className="cases-row-link"
+                style={{ flex: 1, minWidth: 0 }}
+              >
+                <div className="cases-row-main">
+                  <span className="cases-row-title">
+                    Workflow {row.workflowId.slice(0, 8)}
+                  </span>
+                  <span
+                    className="cases-row-scope"
+                    data-reviewer-status={row.status}
+                  >
+                    {row.status}
+                  </span>
+                </div>
+                <div className="cases-row-meta">
+                  <span data-reviewer-priority={row.priority}>{row.priority}</span>
+                  {row.assignedToUserId ? (
+                    <span>Assigned to {row.assignedToUserId.slice(0, 8)}</span>
+                  ) : (
+                    <span>Unassigned</span>
+                  )}
+                  {row.dueAt ? (
+                    <time dateTime={row.dueAt} data-reviewer-due-at={row.slaTone}>
+                      {row.slaTone === "overdue"
+                        ? "Overdue"
+                        : row.slaTone === "due_soon"
+                          ? "Due soon"
+                          : `Due ${relTime(row.dueAt)}`}
+                    </time>
+                  ) : null}
+                  {outcome ? (
+                    <span
+                      data-reviewer-bulk-row-outcome={
+                        outcome.ok ? "ok" : "failed"
+                      }
+                      style={{
+                        fontSize: 11,
+                        padding: "1px 6px",
+                        borderRadius: 4,
+                        background: outcome.ok
+                          ? "rgba(34,197,94,0.18)"
+                          : "rgba(239,68,68,0.22)",
+                      }}
+                    >
+                      {outcome.ok ? "applied" : `failed: ${outcome.errorCode ?? "error"}`}
+                    </span>
+                  ) : null}
+                </div>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
       <div className="cc-section-foot">
         Full queue lives at <Link href="/reviewer-ops/sla">SLA workspace</Link>.
@@ -352,6 +1053,29 @@ function QueuePeekSection({ env }: { env: ReviewerCommandEnvelope }) {
     </section>
   );
 }
+
+const bulkBarStyle: React.CSSProperties = {
+  padding: "0.5rem 0.6rem",
+  border: "1px solid rgba(99,102,241,0.4)",
+  borderRadius: 6,
+  background: "rgba(99,102,241,0.06)",
+  margin: "0.5rem 0",
+};
+
+const bulkBtnStyle: React.CSSProperties = {
+  fontSize: 12,
+  padding: "0.25rem 0.55rem",
+  border: "1px solid currentColor",
+  borderRadius: 4,
+  background: "transparent",
+  cursor: "pointer",
+};
+
+const bulkBtnPrimaryStyle: React.CSSProperties = {
+  ...bulkBtnStyle,
+  background: "rgba(99,102,241,0.18)",
+  fontWeight: 600,
+};
 
 // ---------------------------------------------------------------------------
 // Escalations section

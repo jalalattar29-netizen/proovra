@@ -4886,6 +4886,12 @@ function NoWorkspaceState() {
   // is only reachable when the envelope genuinely lacks an active
   // space (very rare; provider bootstraps Personal Space). Treat it
   // as "setup incomplete," NOT as an error.
+  //
+  // Phase A.1C — the account-level priorities banner is rendered
+  // separately by /home so this state stays compact. We expand the
+  // onboarding card to the FULL three operational steps a first-time
+  // user actually needs, with real registered destinations + the
+  // workspace-administration deep link.
   return (
     <main className="ec-page" data-command-center-empty>
       <header className="ec-hero">
@@ -4894,16 +4900,62 @@ function NoWorkspaceState() {
           <h1 className="ec-title">Workspace setup incomplete</h1>
           <p className="ec-subtitle">
             Your workspace is still being prepared, or you can create or
-            join an organization to enable team operations.
+            join an organization to enable team operations. The account
+            priorities above show what is waiting for you across all
+            your contexts.
           </p>
         </div>
       </header>
-      <SectionShell kicker="Get started" title="Onboarding">
-        <div className="ec-quick-grid">
-          <Link href="/teams" className="ec-quick-action is-primary">
-            Create or join an organization
+      <SectionShell kicker="Get started" title="Three operational steps">
+        <ol
+          data-cc-empty-onboarding-steps
+          style={{
+            margin: 0,
+            paddingLeft: "1.2rem",
+            display: "grid",
+            gap: 8,
+            fontSize: 13.5,
+          }}
+        >
+          <li data-cc-empty-step="organize">
+            <strong>Create or join an organization.</strong>{" "}
+            Organizations are the governance + identity tenant.{" "}
+            <Link href="/organizations" data-action="empty-open-organizations">
+              Open Organizations →
+            </Link>
+          </li>
+          <li data-cc-empty-step="capture">
+            <strong>Capture evidence.</strong>{" "}
+            Personal workspace is available immediately — record
+            hashed, signed media without waiting for an org.{" "}
+            <Link href="/capture" data-action="empty-open-capture">
+              Start a capture →
+            </Link>
+          </li>
+          <li data-cc-empty-step="govern">
+            <strong>Manage workspaces.</strong>{" "}
+            Set retention, invite members, configure governance from{" "}
+            <Link href="/teams" data-action="empty-open-teams">
+              Workspace administration →
+            </Link>
+          </li>
+        </ol>
+        <div
+          className="ec-quick-grid"
+          style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}
+        >
+          <Link
+            href="/organizations"
+            className="ec-quick-action is-primary"
+            data-cc-empty-primary-cta
+          >
+            Open Organizations
           </Link>
-          <Link href="/capture" className="ec-quick-action">
+          <Link
+            href="/capture"
+            className="ec-quick-action"
+            data-cc-empty-secondary-cta
+          >
             Capture personal evidence
           </Link>
         </div>

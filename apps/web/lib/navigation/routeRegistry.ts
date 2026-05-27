@@ -146,6 +146,86 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: false,
   },
+  // Phase A.1 — Operational cohesion: register the Phase 2.7X Stage 3+4+5
+  // Organization surfaces in the canonical route registry. They were
+  // intentionally NOT registered when the Stage 3 surface first shipped
+  // ("reachable only by URL for now" per the Stage 3 readiness doc).
+  // Registration here gives them the same PageRouteGate / loading /
+  // denied / command-palette / discoverability treatment every other
+  // canonical surface gets. Sidebar promotion remains OFF — the
+  // existing `admin.teams` Workspace Administration index is still the
+  // primary entry point for org management, matching the dual-read
+  // discipline the Stage 3 readiness doc established. Command-palette
+  // (cmd-K) + deep links from CommandCenter are the discoverability
+  // path for power users.
+  {
+    id: "account.organizations",
+    href: "/organizations",
+    label: "Organizations",
+    description:
+      "Organizations you belong to (governance, members, workspaces, audit).",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.organization-detail",
+    href: "/organizations/:id",
+    label: "Organization detail",
+    description: "Members, workspaces, pending invites, and audit timeline.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.org-invite-accept",
+    href: "/org-invites/:token/accept",
+    label: "Accept organization invite",
+    description:
+      "Accept an invitation token issued by an organization administrator.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+  // Phase C — Operational Inbox. Caller-scoped unified attention
+  // stream. Domain ACCOUNT because it's identity-level, not workspace-
+  // scoped; the underlying inbox endpoint already filters to data the
+  // caller is authorized to see. Command-palette eligible so power
+  // users can jump straight there.
+  {
+    id: "account.inbox",
+    href: "/inbox",
+    label: "Inbox",
+    description:
+      "Operational items that require your attention (pending invites, governance events, admin signals).",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
 
   // ---------------------------------------------------------------------------
   // Personal-OR-org workspace surfaces.

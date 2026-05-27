@@ -563,6 +563,39 @@ const ACCOUNT_GROUP: NavRegistryGroup = {
       // create flow when no team workspace exists.
       requiresCapability: "TEAM_VIEW",
     },
+    // Phase A.1B — Organizations governance surface. The /organizations
+    // route is the Phase 2.7X canonical governance hub (members, invites,
+    // audit). It is intentionally NOT eligible for the sidebar (CR0
+    // bounded group contract: the sidebar Workspace/Operations/Governance
+    // groups are pinned), so the account menu is the discoverability
+    // path for every authenticated user. Capability gate is `null` —
+    // org membership itself is the gate; non-members see the empty
+    // state on the /organizations page (no fake 403).
+    {
+      id: "account.organizations",
+      label: "Organizations",
+      href: "/organizations",
+      iconKey: "teams",
+      domain: "ACCOUNT",
+      badgeKey: null,
+      surface: "ACCOUNT_MENU",
+      requiresCapability: null,
+    },
+    // Phase C — Operational Inbox. Caller-scoped unified attention
+    // stream. Surfaced in the account menu so every authenticated
+    // user can find it; capability gate is `null` because the
+    // underlying endpoint already filters to the caller's
+    // authorization scope.
+    {
+      id: "account.inbox",
+      label: "Inbox",
+      href: "/inbox",
+      iconKey: "notifications",
+      domain: "ACCOUNT",
+      badgeKey: null,
+      surface: "ACCOUNT_MENU",
+      requiresCapability: null,
+    },
     {
       id: "account.help",
       label: "Help & support",

@@ -29,6 +29,32 @@ COPY services/api/prisma services/api/prisma
 COPY services/api/prisma.config.ts services/api/prisma.config.ts
 COPY services/api/tsconfig.json services/api/tsconfig.json
 COPY services/api/tsconfig.build.json services/api/tsconfig.build.json
+# Phase 2.7Z+ — Deployment scripts must be present in the runtime image so
+# operators can invoke `pnpm prisma:migrate`, `pnpm deploy:safe`,
+# `pnpm db:preflight`, `pnpm db:risk-scan`, `pnpm db:drift-check`,
+# `pnpm db:check-org-consistency`, and `pnpm db:not-null-readiness`
+# directly inside the running container WITHOUT needing `docker cp` to
+# patch the image post-hoc. The runner stage's
+# `COPY --from=build /app/services/api /app/services/api` (below) carries
+# this directory into the final image.
+#
+# Files in this directory are pure .mjs (no transpile step) and depend
+# only on packages already present in the runner's node_modules:
+#   - safe-migrate.mjs            → ./db-host-policy.mjs (sibling)
+#   - db-preflight.mjs            → ./db-host-policy.mjs, ./migration-risk-scan.mjs,
+#                                    ./drift-check.mjs, ./protected-runtime-tables.mjs
+#   - deploy-safe.mjs             → spawns the above siblings via `node scripts/X.mjs`
+#   - check-org-consistency.mjs   → @prisma/client + @prisma/adapter-pg + pg
+#                                    (all in deps stage)
+#   - migration-risk-scan.mjs     → ./protected-runtime-tables.mjs
+#   - drift-check.mjs             → pnpm exec prisma (CLI; in deps)
+#   - not-null-readiness.mjs      → @prisma/client (in deps)
+#   - backfill-organizations.mjs  → @prisma/client (in deps)
+#   - protected-runtime-tables.mjs → exported list, no runtime deps
+#
+# All of those sibling files are inside scripts/; the recursive COPY
+# below picks them up in one directive.
+COPY services/api/scripts services/api/scripts
 
 COPY packages/shared/src packages/shared/src
 COPY packages/shared/tsconfig.json packages/shared/tsconfig.json

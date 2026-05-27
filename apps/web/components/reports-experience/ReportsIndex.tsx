@@ -420,8 +420,13 @@ function ArtifactRowView({ row }: { row: ArtifactRow }) {
  * instead — never a dead button.
  */
 function ArtifactRowActions({ row }: { row: ArtifactRow }) {
-  const [busy, setBusy] = useState<null | "report" | "package">(null);
+  // Phase A.1D — busy tag widened to include the "regen" retry path
+  // for the new `POST /v1/evidence/:id/reports/regenerate` endpoint.
+  const [busy, setBusy] = useState<null | "report" | "package" | "regen">(null);
   const [error, setError] = useState<string | null>(null);
+  // Phase A.1D — explicit notice when a regen has just been enqueued
+  // so the operator sees acknowledgement without leaving the row.
+  const [regenNotice, setRegenNotice] = useState<string | null>(null);
 
   const triggerReport = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -493,8 +498,61 @@ function ArtifactRowActions({ row }: { row: ArtifactRow }) {
     }
   };
 
+  // Phase A.1D — operational retry/regenerate CTA. The endpoint
+  // re-queues report generation (which in-process re-builds the
+  // verification package). Surfaced ONLY for rows where regenerate
+  // makes operational sense: a failed report OR a failed package.
+  // For "pending" we don't surface retry — generation is still in
+  // flight. For "blocked" we don't surface retry — the block is a
+  // governance decision, not a generation failure.
+  const triggerRegenerate = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (busy) return;
+    setBusy("regen");
+    setError(null);
+    setRegenNotice(null);
+    try {
+      const resp = (await apiFetch(
+        `/v1/evidence/${row.evidenceId}/reports/regenerate`,
+        { method: "POST" },
+      )) as { enqueued?: boolean; message?: string; reason?: string | null };
+      if (resp.enqueued) {
+        setRegenNotice(
+          resp.message ??
+            "Report regeneration enqueued. Refresh shortly for updated state.",
+        );
+      } else {
+        setRegenNotice(
+          resp.message ??
+            (resp.reason
+              ? `Regeneration not enqueued: ${resp.reason}`
+              : "An active job already exists; no new job enqueued."),
+        );
+      }
+    } catch (err) {
+      const e = err as { statusCode?: number; message?: string };
+      if (e.statusCode === 403) {
+        setError(
+          "Only the evidence owner can regenerate this report. Ask the owner to retry.",
+        );
+      } else if (e.statusCode === 404) {
+        setError("Evidence not found.");
+      } else {
+        setError(e.message ?? "Could not enqueue regeneration.");
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const reportReady = row.report.state === "ready";
   const packageReady = row.package.state === "ready";
+  // Phase A.1D — operational signal: regenerate is offered when either
+  // artifact failed. The endpoint refreshes BOTH so one button covers
+  // both failures.
+  const canRegenerate =
+    row.report.state === "failed" || row.package.state === "failed";
 
   return (
     <div
@@ -560,6 +618,22 @@ function ArtifactRowActions({ row }: { row: ArtifactRow }) {
                 : "Package unavailable"}
         </span>
       )}
+      {/* Phase A.1D — operational retry CTA. Fires the new audited
+          POST /v1/evidence/:id/reports/regenerate endpoint. Visible
+          only for failed report OR failed package states. */}
+      {canRegenerate ? (
+        <button
+          type="button"
+          className="btn-secondary"
+          data-reports-regenerate={row.evidenceId}
+          data-reports-regenerate-trigger-report-state={row.report.state}
+          data-reports-regenerate-trigger-package-state={row.package.state}
+          onClick={triggerRegenerate}
+          disabled={busy !== null}
+        >
+          {busy === "regen" ? "Enqueuing…" : "Retry generation"}
+        </button>
+      ) : null}
       <Link
         href={`/evidence/${row.evidenceId}`}
         className="btn-secondary"
@@ -580,6 +654,20 @@ function ArtifactRowActions({ row }: { row: ArtifactRow }) {
           }}
         >
           {error}
+        </span>
+      ) : null}
+      {regenNotice ? (
+        <span
+          role="status"
+          data-reports-row-regen-notice={row.evidenceId}
+          style={{
+            color: "#bcd0bc",
+            fontSize: 12,
+            width: "100%",
+            marginTop: 4,
+          }}
+        >
+          {regenNotice}
         </span>
       ) : null}
     </div>

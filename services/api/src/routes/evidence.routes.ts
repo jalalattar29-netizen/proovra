@@ -59,6 +59,10 @@ import {
 } from "../storage.js";
 import { verifyJwt } from "../services/jwt.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+// Phase A.1D — explicit retry/regenerate path for report artifacts.
+// The same enqueue function the evidence-complete service already uses
+// on first finalize, surfaced as an audited owner-only mutation.
+import { enqueueGenerateReportJob } from "../queue/report-queue.js";
 import {
   appendCustodyEvent,
   evaluateCustodyChain,
@@ -8565,6 +8569,123 @@ if (
       }
 
       return reply.code(200).send(artifactStatus);
+    }
+  );
+
+  /**
+   * Phase A.1D — POST /v1/evidence/:id/reports/regenerate
+   *
+   * Operational retry / regenerate path for the evidence report
+   * artifact pair (report PDF + verification package). Wraps the same
+   * `enqueueGenerateReportJob()` the `evidence-complete.service`
+   * already uses on first finalize, with `forceRegenerate: true` so
+   * the BullMQ job:
+   *   1. supersedes any existing queued/processing job for this
+   *      evidence id (the enqueue function handles dedup), AND
+   *   2. runs with the 3-attempt budget reserved for retries
+   *      (vs the 5-attempt budget for first generation).
+   *
+   * Verification package generation happens IN-PROCESS during report
+   * generation (see worker `processor.ts`), so a single regenerate
+   * call refreshes BOTH artifacts. There is no separate package-only
+   * regenerate endpoint by design.
+   *
+   * RBAC:
+   *   - Owner-only. The caller must be the evidence owner. We use the
+   *     same `getEvidenceWithOwnerAccess` helper the existing
+   *     owner-only mutations use (label, archive, restore, etc.).
+   *   - Team admins on collaborative content do NOT yet get a
+   *     regenerate path through this endpoint. That is a deliberate
+   *     scoping decision; a Team-level "regenerate as admin" would
+   *     require a new policy decision about cross-owner overrides
+   *     and is intentionally deferred.
+   *
+   * Audit:
+   *   - Emits a platform audit log row with action
+   *     `evidence.report.regenerate_requested`. No CustodyEvent is
+   *     appended here — custody tracks the actual GENERATED artifact,
+   *     not the regenerate REQUEST. When the worker completes, the
+   *     normal `REPORT_GENERATED` + `VERIFICATION_PACKAGE_GENERATED`
+   *     custody events fire from the worker's existing path.
+   *
+   * Responses:
+   *   - 202 Accepted with `{ enqueued: true | false, reason?: string }`.
+   *     `enqueued: false` is returned when an active job already
+   *     exists and the dedup helper decided to skip; the response is
+   *     STILL 202 because from the caller's perspective the regen has
+   *     been requested.
+   *   - 403 Forbidden if the caller is not the evidence owner.
+   *   - 404 Not Found if the evidence id does not exist.
+   */
+  app.post(
+    "/v1/evidence/:id/reports/regenerate",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      // Ownership gate — same helper the existing owner-only
+      // mutations use. Translates not-found → 404 and not-owner → 403.
+      let evidenceRecord: SelectedEvidence;
+      try {
+        evidenceRecord = await getEvidenceWithOwnerAccess(userId, id);
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
+      }
+
+      // Enqueue with `forceRegenerate: true`. The enqueue helper
+      // handles existing-job dedup; if an active job already exists it
+      // returns `{ enqueued: false, reason }` and we surface that.
+      let result: { enqueued: boolean; reason?: string };
+      try {
+        result = await enqueueGenerateReportJob(id, {
+          forceRegenerate: true,
+        });
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Failed to enqueue report regenerate job.";
+        auditEvidenceAction(req, {
+          userId,
+          action: "evidence.report.regenerate_requested",
+          outcome: "failure",
+          resourceId: id,
+          severity: "warning",
+          metadata: { error: message },
+        });
+        return reply.code(500).send({ message });
+      }
+
+      auditEvidenceAction(req, {
+        userId,
+        action: "evidence.report.regenerate_requested",
+        outcome: result.enqueued ? "success" : "blocked",
+        resourceId: id,
+        metadata: {
+          enqueued: result.enqueued,
+          reason: result.reason ?? null,
+          evidenceStatus: evidenceRecord.status ?? null,
+          evidenceTeamId: evidenceRecord.teamId ?? null,
+        },
+      });
+
+      return reply.code(202).send({
+        evidenceId: id,
+        enqueued: result.enqueued,
+        reason: result.reason ?? null,
+        message: result.enqueued
+          ? "Report regeneration enqueued. Poll /v1/evidence/:id/artifacts/status for progress."
+          : "An active report job already exists for this evidence. No new job enqueued.",
+      });
     }
   );
 
