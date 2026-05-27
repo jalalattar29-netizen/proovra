@@ -325,6 +325,21 @@ export type ReportResponse = {
   version?: number | null;
   url?: string | null;
   generatedAtUtc?: string | null;
+  // Phase A2 — bounded PDF artifact signature projection. NULL on
+  // legacy reports that pre-date A2 columns. The UI MUST render the
+  // signed badge ONLY when `pdfSignature.status === "SIGNED"`. Any
+  // other value is rendered as an explicit unsigned artifact.
+  pdfSignature?: {
+    status:
+      | "SIGNED"
+      | "UNSIGNED_OPT_OUT"
+      | "SIGNING_UNAVAILABLE"
+      | "SIGNING_FAILED"
+      | "NOT_APPLICABLE";
+    signedAtUtc: string | null;
+    signerKeyId: string | null;
+    warning: string | null;
+  } | null;
 };
 
 export type VerificationPackageResponse = {
@@ -336,6 +351,13 @@ export type VerificationPackageResponse = {
   generatedAtUtc?: string | null;
   storage?: StorageProtectionSummary;
   trustDecision?: unknown;
+  // Phase A2 — Verification Package manifest signature. Distinct
+  // from the Report PDF signature. Today the worker always signs
+  // the manifest; the union reserves UNSIGNED for a future opt-out.
+  manifestSignature?: {
+    status: "SIGNED" | "UNSIGNED" | "NOT_APPLICABLE";
+    signerKeyId: string | null;
+  } | null;
 };
 
 export type CollaborativeAuthor = {

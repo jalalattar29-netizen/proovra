@@ -400,7 +400,14 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
     expect(admin?.items.some((i) => i.id === "admin.settings")).toBe(true);
   });
 
-  it("Reviewer Ops nav hidden in personal workspaces, visible in team workspaces", () => {
+  it("Reviewer Ops nav: review.queue hidden in personal workspaces, visible in team workspaces", () => {
+    // Phase 2.1 promoted EVIDENCE_VIEW-gated surfaces (Intelligence,
+    // Workflows, Investigation) inside the review_governance group
+    // and granted EVIDENCE_VIEW universally. The GROUP therefore
+    // still surfaces in PERSONAL mode — but the REVIEWER_OPS_VIEW
+    // capability (which gates the actual review queue) is NOT
+    // granted to PERSONAL operators, so `review.queue` is hidden in
+    // personal and visible only in team workspaces.
     const personalNav = filterNavigationRegistry(
       resolveCapabilities({
         scope: "PERSONAL",
@@ -412,7 +419,9 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
     const personalReview = personalNav.find(
       (g) => g.id === "review_governance",
     );
-    expect(personalReview).toBeUndefined();
+    expect(
+      personalReview?.items.some((i) => i.id === "review.queue") ?? false,
+    ).toBe(false);
 
     const teamNav = filterNavigationRegistry(
       resolveCapabilities({

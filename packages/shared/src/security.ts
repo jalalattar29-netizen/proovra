@@ -277,6 +277,9 @@ export const SECURITY_EVENT_TYPES = [
   "emergency_org_session_revoke",
   "trusted_device_decayed",
   "trusted_device_auto_invalidated",
+  // Phase G3.1 — operator notification preferences (workspace-aware
+  // toggles for the bounded set of operational event types).
+  "notification_preference_updated",
   // Phase 27 — Retention + legal hold + lifecycle.
   "retention_policy_created",
   "retention_policy_updated",
@@ -495,6 +498,48 @@ export const SECURITY_EVENT_TYPES = [
   "automation_webhook_delivery_retry_scheduled",
   "automation_webhook_delivery_retry_exhausted",
   "automation_webhook_destination_auto_disabled",
+
+  // ---------------------------------------------------------------------------
+  // Phase A0 — Integrity hard-gate.
+  //
+  // Emitted alongside the INTEGRITY_REJECTED_HASH_MISMATCH custody
+  // event when a recomputed SHA-256 disagrees with the stored
+  // `Evidence.fileSha256`. Severity is HIGH because the event is
+  // never expected during normal operation: completion has already
+  // run a server-side stream hash, so a later mismatch indicates the
+  // stored object changed under us, the wrong evidence row was
+  // touched, or a storage-layer integrity event. The payload carries
+  // `expectedSha256` and `computedSha256` truncated to first/last 8
+  // hex chars (full hashes already live on the custody-event payload
+  // and in structured logs), plus `source` ("worker.report" |
+  // "reconciler") so operators can route the alert.
+  "evidence_integrity_rejected",
+
+  // ---------------------------------------------------------------------------
+  // Phase A3 — Operational hardening.
+  //
+  // Webhook signature failure. Emitted by the Stripe / PayPal /
+  // Twilio webhook routes when signature verification refuses the
+  // delivery. Severity HIGH because every signed-webhook failure
+  // either indicates a misconfigured deployment (clock skew, wrong
+  // secret) or an active attack. Payload carries: provider
+  // ("stripe" | "paypal" | "twilio"), reason category (one of the
+  // bounded WEBHOOK_SIGNATURE_FAILURE_REASONS below), request id.
+  // NEVER carries the raw signature, the secret, the assertion body,
+  // or any header that could re-enable the attack on replay.
+  "webhook_signature_failure",
+
+  // Analytics endpoint abuse. Emitted when the bounded analytics
+  // event allowlist + payload validator rejects a request. Severity
+  // INFO (cardinality is bounded; this is a routing signal, not an
+  // attack signal). Payload carries the rejection reason category.
+  "analytics_request_rejected",
+
+  // AI chat abuse. Emitted when the per-user rate limit, the payload
+  // bounds, or the upstream timeout cuts off a chat request.
+  // Severity INFO unless the rate-limit hits exceed the daily cost-
+  // guard threshold (then escalate via the cost guard's own path).
+  "ai_chat_abuse_signal",
 ] as const;
 export type SecurityEventType = (typeof SECURITY_EVENT_TYPES)[number];
 

@@ -86,19 +86,25 @@ const SIDEBAR_SRC = readWeb("components/app-shell-v2/AppSidebarV2.tsx");
 // PART 1 — Root nav stays bounded
 // ===========================================================================
 
-describe("32.8 Test 1 — root nav stays bounded to the 6 canonical primaries", () => {
-  // The CR0 baseline pin + R2 Part 1 set the canonical primary route ids
-  // to exactly 6. Any new entry would broaden root nav.
+describe("32.8 Test 1 — root nav stays bounded to the canonical primaries", () => {
+  // Phase G0 (B.1) — the canonical primary set expanded from the
+  // original R2 six (Home, Capture, Evidence, Cases, Reports,
+  // Search) to the Phase B nine. The Workspace group now lifts
+  // Review, Intake, and Inbox to primary so reviewers + intake
+  // operators + mention-recipients have first-class navigation.
   const EXPECTED_PRIMARIES = [
     "workspace.home",
-    "workspace.capture",
-    "workspace.evidence",
+    "workspace.review",
     "workspace.cases",
-    "workspace.reports",
+    "workspace.evidence",
+    "workspace.capture",
+    "workspace.intake_links",
+    "account.inbox",
     "workspace.search",
+    "workspace.reports",
   ];
 
-  it("CANONICAL_PRIMARY_ROUTE_IDS contains exactly 6 ids", () => {
+  it("CANONICAL_PRIMARY_ROUTE_IDS contains exactly the Phase B canonical set", () => {
     // Extract the array between `new Set([` and `])`.
     const m = GROUPS_SRC.match(
       /CANONICAL_PRIMARY_ROUTE_IDS[\s\S]*?new Set\(\[([\s\S]*?)\]\)/,
@@ -117,11 +123,14 @@ describe("32.8 Test 1 — root nav stays bounded to the 6 canonical primaries", 
 // ===========================================================================
 
 describe("32.8 Test 2 — sidebar root groups bounded by ALLOWED_ROOT_GROUP_TITLES", () => {
+  // Phase G0 (B.1) — the R2 group titles were collapsed into the
+  // Phase B canonical operational hierarchy. Source of truth:
+  // `apps/web/lib/navigation/canonicalNavigationGroups.ts`.
   const REQUIRED_GROUP_TITLES = [
-    "Primary workflows",
     "Workspace",
-    "Operations",
-    "Governance & Compliance",
+    "Governance",
+    "Outputs",
+    "System",
     "All Tools",
     "More / Advanced",
   ];

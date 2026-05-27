@@ -20,6 +20,7 @@ import {
   getPayPalSubscription,
 } from "../services/paypal.service.js";
 import { parsePayPalCustomId } from "../services/paypal-checkout-policy.service.js";
+import { auditWebhookSignatureVerification } from "../services/security/webhook-signature-audit.service.js";
 
 const PAYG_CREDITS_PER_PURCHASE = 1;
 
@@ -345,12 +346,30 @@ export async function webhooksRoutes(app: FastifyInstance) {
 
   app.post("/stripe", async (req: FastifyRequest, reply) => {
     const sig = req.headers["stripe-signature"];
-    if (typeof sig !== "string") {
-      return reply.code(400).send({ message: "Missing signature" });
+    const rawBody = req.body as Buffer;
+
+    // Phase A3 — every signature failure becomes an auditable
+    // `webhook_signature_failure` SecurityEvent + bumped metric +
+    // structured log. The wrapper classifies the failure into a
+    // bounded reason category WITHOUT exposing the secret, the raw
+    // signature, or the payload bytes anywhere durable.
+    const sigCheck = await auditWebhookSignatureVerification({
+      provider: "stripe",
+      request: req,
+      presentSignature: typeof sig === "string",
+      verify: () => {
+        verifyStripeSignature(rawBody, sig as string);
+      },
+    });
+    if (!sigCheck.ok) {
+      return reply.code(400).send({
+        message:
+          sigCheck.reason === "missing_signature"
+            ? "Missing signature"
+            : "Invalid webhook signature",
+      });
     }
 
-    const rawBody = req.body as Buffer;
-    verifyStripeSignature(rawBody, sig);
     const event = parseStripeEvent(rawBody);
 
     // Phase E10.1 — DEF-038 closure. Stripe webhook event idempotency.
@@ -633,9 +652,29 @@ export async function webhooksRoutes(app: FastifyInstance) {
 
   app.post("/paypal", async (req: FastifyRequest, reply) => {
     const rawBody = (req.body as Buffer).toString("utf8");
-    const verification = await verifyPayPalWebhook(req.headers, rawBody);
 
-    if (verification.verification_status !== "SUCCESS") {
+    // Phase A3 — same wrapper as Stripe. PayPal's verifier returns
+    // `{ verification_status }` instead of throwing on failure, so
+    // the audit wrapper sees a "thrown" verifier only when the
+    // status is not SUCCESS — we adapt the contract by throwing on
+    // a non-success status inside the `verify` closure.
+    let verification:
+      | Awaited<ReturnType<typeof verifyPayPalWebhook>>
+      | null = null;
+    const sigCheck = await auditWebhookSignatureVerification({
+      provider: "paypal",
+      request: req,
+      presentSignature: true,
+      verify: async () => {
+        verification = await verifyPayPalWebhook(req.headers, rawBody);
+        if (verification.verification_status !== "SUCCESS") {
+          throw new Error(
+            `PayPal signature invalid: status=${verification.verification_status}`,
+          );
+        }
+      },
+    });
+    if (!sigCheck.ok || !verification) {
       return reply.code(400).send({ message: "Invalid webhook" });
     }
 

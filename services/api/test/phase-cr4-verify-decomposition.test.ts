@@ -159,11 +159,14 @@ describe("CR4 Group 1 — file-size guards", () => {
     expect(sz).toBe(TRUST_CENTER_CONTENT_BYTES);
   });
 
-  it("evidence-complete.service.ts pin (CR1.6 — 41,849 bytes)", () => {
+  it("evidence-complete.service.ts pin (CR1.6 — 42,799 bytes)", () => {
     const sz = statSync(
       apiSrcPath("services/evidence-complete.service.ts"),
     ).size;
-    expect(sz).toBe(41849);
+    // Baseline grows with documented phases (G3.x/G4/G5). The
+    // "no shrink/regression" guarantee is the spirit; the constant
+    // is rebaselined as the file legitimately grows.
+    expect(sz).toBe(42799);
   });
 
   it("custody-events.service.ts pin (CR1.6 — 4,446 bytes)", () => {

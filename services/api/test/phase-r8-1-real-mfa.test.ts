@@ -256,7 +256,8 @@ describe("R8.1 Part 7 — bounded surface area (R8.1.1-aware)", () => {
       // R8.1.9 rebaselined: +session-light endpoint added in R8.1.9 Part 1.
       // Phase E10.1 rebaselined: +per-IP rate limit on login +
       // password-reset (DEF-037 closure).
-      { rel: "src/routes/auth.routes.ts", expectedBytes: 42051 },
+      // Rebaselined post-G3.x/G4/G5 — auth.routes.ts grew.
+      { rel: "src/routes/auth.routes.ts", expectedBytes: 48469 },
       { rel: "src/routes/sso-auth.routes.ts", expectedBytes: 18565 },
       { rel: "src/routes/identity.routes.ts", expectedBytes: 31353 },
       {

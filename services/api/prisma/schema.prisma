@@ -210,6 +210,15 @@ model Evidence {
   integritySnapshot                 EvidenceIntegritySnapshot?   @relation("EvidenceIntegritySnapshot")
   accessAnomalies                   AccessAnomaly[]              @relation("AccessAnomalyEvidence")
 
+  // Phase A1 — declared organization relation. Until the Phase A1
+  // backfill completes, this field remains nullable; the matching
+  // CHECK constraint added by the A1 migration prevents the
+  // "team_id IS NOT NULL AND organization_id IS NULL" combination so
+  // tenancy stays deterministic even before the column is fully
+  // tightened. After backfill verifies zero NULLs across all
+  // workspaces, a future migration may set this NOT NULL.
+  organization                      Organization?                @relation("EvidenceOrganization", fields: [organizationId], references: [id], onDelete: Restrict)
+
   @@index([deletedAt])
   @@index([lifecycleState])
   @@index([retentionPolicyVersionId])
@@ -563,6 +572,40 @@ model Report {
   contentAccessPolicySnapshot                Json?               @map("content_access_policy_snapshot")
   embeddedPreviewsSnapshot                   Json?               @map("embedded_previews_snapshot")
 
+  // Phase A2 — explicit PDF artifact signature status. Distinct
+  // from `Evidence.signatureBase64` (which is the Ed25519 signature
+  // over the canonical fingerprint, never the PDF artifact). The
+  // PDF artifact signature is a separate cryptographic act handled
+  // by `@signpdf/signer-p12`. Recording the status explicitly on
+  // the Report row keeps the API contract honest: the frontend reads
+  // this field rather than inferring from labels.
+  //
+  // Bounded vocabulary (mirrored in `@proovra/shared`):
+  //   SIGNED               — the PDF artifact carries a valid PKCS#12
+  //                          signature attached at worker time.
+  //   UNSIGNED_OPT_OUT     — the operator explicitly acknowledged
+  //                          the unsigned-artifact path via
+  //                          PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK=true.
+  //                          UI must label the artifact accordingly.
+  //   SIGNING_UNAVAILABLE  — non-production environment with signing
+  //                          disabled (local dev, preview). The
+  //                          response surfaces this distinct from
+  //                          UNSIGNED_OPT_OUT.
+  //   SIGNING_FAILED       — reserved. Today the worker DLQ's on
+  //                          signing failure and no Report row is
+  //                          written. Kept in the enum so a future
+  //                          partial-success path can record it.
+  //   NOT_APPLICABLE       — reserved for non-PDF artifacts.
+  pdfSignatureStatus                         String?             @map("pdf_signature_status") @db.VarChar(32)
+  pdfSignedAtUtc                             DateTime?           @map("pdf_signed_at_utc") @db.Timestamptz(6)
+  /// Operator-facing key id label, NEVER the certificate or private
+  /// key material. Surfaced in audit metadata and the API response.
+  pdfSignerKeyId                             String?             @map("pdf_signer_key_id") @db.VarChar(120)
+  /// Free-form (bounded) reason string when the artifact is
+  /// UNSIGNED_OPT_OUT / SIGNING_FAILED / SIGNING_UNAVAILABLE.
+  /// Operator-readable; NEVER carries secrets or stack traces.
+  pdfSigningWarning                          String?             @map("pdf_signing_warning") @db.VarChar(400)
+
   evidence                                   Evidence            @relation(fields: [evidenceId], references: [id])
 
   @@unique([evidenceId, version])
@@ -774,6 +817,8 @@ model User {
   initiatedCommunicationMessages CommunicationMessage[]        @relation("CommunicationMessageCreatedBy")
   communicationPreferences       CommunicationPreference[]     @relation("CommunicationPreferenceUser")
   initiatedVerificationAttempts  VerificationAttempt[]         @relation("VerificationAttemptInitiatedBy")
+  // Phase G3.1 — operator notification preferences (per-workspace toggles).
+  workspaceNotificationPreferences WorkspaceNotificationPreference[] @relation("WorkspaceNotificationPreferenceUser")
 
   // Phase 19 — identity security back-relations.
   initiatedStepUpChallenges      StepUpChallenge[]             @relation("StepUpChallengeInitiatedBy")
@@ -949,6 +994,8 @@ model Team {
   communicationMessages    CommunicationMessage[]
   communicationPreferences CommunicationPreference[]
   verificationAttempts     VerificationAttempt[]
+  // Phase G3.1 — operator notification preferences (per-workspace toggles).
+  workspaceNotificationPreferences WorkspaceNotificationPreference[] @relation("WorkspaceNotificationPreferenceTeam")
 
   // Phase 19 — identity security back-relations.
   stepUpChallenges         StepUpChallenge[]
@@ -1961,6 +2008,20 @@ enum EvidenceStatus {
   UPLOADED
   SIGNED
   REPORTED
+  // Phase A0 — integrity hard-gate terminal state. Reached when the
+  // server-side recomputed SHA-256 of the uploaded bytes disagrees
+  // with the stored `fileSha256` (the value persisted at completion
+  // from the API's server-side stream-hash). A record in this state:
+  //   * never produces a Report or VerificationPackage
+  //   * never appears on /public/verify (the route 404s with no
+  //     metadata leak; anti-enumeration)
+  //   * cannot transition back to SIGNED / REPORTED. Recovery is
+  //     re-capture / re-upload as a NEW Evidence row; the failed row
+  //     is preserved for forensic inspection.
+  // Status carries no factual judgement about WHO altered the bytes
+  // — it is a mechanical statement that the recomputed digest does
+  // not match what completion recorded.
+  FAILED_HASH_MISMATCH
 }
 
 enum VerificationStatus {
@@ -2104,6 +2165,35 @@ enum CustodyEventType {
   PUBLIC_VERIFY_RESTORED
   RETENTION_CANDIDATE_IDENTIFIED
   RETENTION_ARCHIVED
+  // Phase A2 — PDF artifact signature events. Distinct from the
+  // existing REPORT_GENERATED event so reviewers can see the PDF
+  // signing decision explicitly in the custody timeline.
+  //
+  //   REPORT_PDF_SIGNED              — Successful PDF artifact
+  //                                    signature recorded against
+  //                                    the Report row.
+  //   REPORT_PDF_UNSIGNED_OPT_OUT    — Operator-acknowledged unsigned
+  //                                    artifact path was taken. The
+  //                                    custody entry is the audit
+  //                                    record of that choice.
+  //
+  // SIGNING_FAILED is intentionally NOT a custody event: when the
+  // worker's signing call throws, no Report row is written, so no
+  // evidence custody chain entry is appropriate. The failure surfaces
+  // through the existing worker DLQ + Sentry path.
+  REPORT_PDF_SIGNED
+  REPORT_PDF_UNSIGNED_OPT_OUT
+  // Phase A0 — integrity rejection event. Appended when the worker (or
+  // any future reconciler) recomputes the SHA-256 of the stored object
+  // and finds it does not match the `fileSha256` recorded at completion.
+  // Payload is bounded and operationally specific — `expectedSha256`,
+  // `computedSha256`, `source` ("worker.report" | "completion" |
+  // "reconciler"), `detectedAtUtc`. The hash chain links this event to
+  // the prior custody event the same way every other event does; a
+  // FAILED_HASH_MISMATCH terminal state is then set on Evidence. The
+  // event itself does NOT claim tampering, authorship, or legal
+  // status — it states a mechanical mismatch.
+  INTEGRITY_REJECTED_HASH_MISMATCH
 }
 
 enum AuthProvider {
@@ -4460,6 +4550,72 @@ model CommunicationPreference {
   @@index([teamId])
   @@index([externalContactHash])
   @@map("communication_preferences")
+}
+
+/// Phase G3.1 — operator notification preferences.
+///
+/// Per-(user, workspace, preferenceType) toggle controlling whether
+/// operators receive in-app + email notifications for a bounded set of
+/// operational events. Distinct from `CommunicationPreference` (which
+/// controls outbound SMS / WhatsApp channels for *contact* notifications,
+/// not operator inbox surfacing).
+///
+/// Defaults are operator-friendly: every preference is enabled in-app
+/// unless explicitly disabled. Email is opt-in (the `enabled` row must
+/// be created explicitly with `channel = EMAIL`).
+///
+/// Hard rules (enforced by service-layer write paths):
+///   * Bounded enum: only the values in `NotificationPreferenceType`
+///     are accepted.
+///   * Workspace-scoped: `teamId` is required to keep preferences
+///     workspace-aware. Account-tier defaults live in a future model
+///     if needed.
+///   * No PII beyond user id + workspace id. No raw event content is
+///     persisted on this table.
+///   * Audit-safe: writes are bounded toggles; the route layer
+///     records `notification_preference.updated` security events so
+///     governance admins can review unusual disable patterns.
+model WorkspaceNotificationPreference {
+  id                String                            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String                            @map("user_id") @db.Uuid
+  teamId            String                            @map("team_id") @db.Uuid
+  preferenceType    NotificationPreferenceType        @map("preference_type")
+  channel           NotificationPreferenceChannel     @default(IN_APP)
+  enabled           Boolean                           @default(true)
+  createdAt         DateTime                          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user              User                              @relation("WorkspaceNotificationPreferenceUser", fields: [userId], references: [id])
+  team              Team                              @relation("WorkspaceNotificationPreferenceTeam", fields: [teamId], references: [id])
+
+  @@unique([userId, teamId, preferenceType, channel])
+  @@index([userId])
+  @@index([teamId])
+  @@map("workspace_notification_preferences")
+}
+
+enum NotificationPreferenceType {
+  /// You were @-mentioned in a discussion thread.
+  MENTION
+  /// A discussion thread was assigned to you.
+  ASSIGNED_THREAD
+  /// A reviewer-ops workflow was assigned to you.
+  REVIEWER_ASSIGNMENT
+  /// A reviewer escalation was opened or routed to you.
+  ESCALATION
+  /// An SLA timer is approaching its breach window.
+  SLA_NEAR_BREACH
+  /// An evidence request you own has new activity.
+  EVIDENCE_REQUEST_UPDATE
+  /// A governance event (destruction, retention) affecting your scope.
+  GOVERNANCE_UPDATE
+}
+
+enum NotificationPreferenceChannel {
+  /// Visible in the in-app inbox / topbar indicator.
+  IN_APP
+  /// Delivered via the existing email infrastructure (opt-in only).
+  EMAIL
 }
 
 // VerificationAttempt — Twilio Verify OTP audit. The code value is
@@ -8347,6 +8503,10 @@ model Organization {
   auditEvents        OrganizationAuditEvent[]
   workspaces         Team[]                           @relation("OrganizationToTeam")
   policies           OrganizationPolicy[]
+  // Phase A1 — back-relation for the Evidence organization relation
+  // declared above. Cascades are not used (Restrict) so an
+  // Organization with active Evidence cannot be deleted by accident.
+  evidence           Evidence[]                       @relation("EvidenceOrganization")
 
   @@index([status])
   @@map("organizations")

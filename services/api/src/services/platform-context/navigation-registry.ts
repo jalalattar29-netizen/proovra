@@ -395,7 +395,12 @@ const ADMINISTRATION_GROUP: NavRegistryGroup = {
   items: [
     {
       id: "admin.teams",
-      label: "Teams",
+      // Phase B0 — operational vocabulary is "Workspaces". The
+      // sidebar surfaces this label; the URL keeps `/teams` for
+      // backwards-compat (the new `/v1/workspaces/*` aliases route
+      // to the same controllers). A future migration can flip the
+      // URL once every consumer is on the v3 envelope.
+      label: "Workspaces",
       href: "/teams",
       iconKey: "teams",
       domain: "ADMINISTRATION",
@@ -552,15 +557,16 @@ const ACCOUNT_GROUP: NavRegistryGroup = {
     },
     {
       id: "account.teams",
-      label: "Teams",
+      // Phase B0 — operational vocabulary is "Workspaces".
+      label: "Workspaces",
       href: "/teams",
       iconKey: "teams",
       domain: "ACCOUNT",
       badgeKey: null,
       surface: "ACCOUNT_MENU",
-      // Teams is reachable from the account menu as a CREATE-team
-      // entry point for personal users. The /teams page renders the
-      // create flow when no team workspace exists.
+      // Reachable from the account menu as a CREATE-workspace entry
+      // point for personal users. The /teams page renders the create
+      // flow when no team workspace exists.
       requiresCapability: "TEAM_VIEW",
     },
     // Phase A.1B — Organizations governance surface. The /organizations

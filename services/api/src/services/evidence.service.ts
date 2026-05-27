@@ -278,7 +278,16 @@ data: {
   originalFileName: resolvedFileNames.originalFileName,
   displayFileName: resolvedFileNames.displayFileName,
   teamId: scope.teamId,
-  organizationId: scope.teamId,
+  // Phase A1 — write the resolved organization id, NOT the team id.
+  // The earlier `organizationId: scope.teamId` was a real bug: it
+  // stored the Team uuid in the Organization column. The A1
+  // migration's CHECK constraint now rejects
+  // `team_id IS NOT NULL AND organization_id IS NULL`, and the FK
+  // rejects an organization id that does not exist. With this
+  // assignment the column carries the genuine
+  // `teams.organization_id` value resolved by the workspace scope
+  // helper, so tenancy is structurally correct from creation onward.
+  organizationId: scope.organizationId,
   type: params.type,
   status: EvidenceStatus.CREATED,
   verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,

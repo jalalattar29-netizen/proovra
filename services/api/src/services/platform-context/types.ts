@@ -32,8 +32,21 @@
 // Authority schema versions
 // =============================================================================
 
-/** Bumped when the envelope outer shape changes. */
-export const AUTHORITY_SCHEMA_VERSION = 2 as const;
+/**
+ * Bumped when the envelope outer shape changes.
+ *
+ * Phase B0 — server now accepts an `x-platform-context-version`
+ * request header. When the client sends `3` the server stamps the
+ * response with `authoritySchemaVersion = 3`; otherwise it stamps
+ * `2` (the pre-B0 default). The wire data still carries both legacy
+ * `workspace` and canonical `account` / `personalSpace` /
+ * `organizations[]` / `activeSpace` for compatibility — clients on
+ * v3 are expected to consume only the canonical sections.
+ *
+ * The value emitted on the wire is `number` (not the `as const`
+ * literal) because the server runtime decides v2 vs v3 per request.
+ */
+export const AUTHORITY_SCHEMA_VERSION: number = 3;
 /** Bumped when CAPABILITY_KEYS is extended or semantics change. */
 export const CAPABILITY_SCHEMA_VERSION = 2 as const;
 /** Bumped when NAVIGATION groups/items/ids shift. */

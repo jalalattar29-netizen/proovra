@@ -56,8 +56,10 @@ describe("Phase 32.7.1 — public verify analytics writes are fire-and-forget", 
   const routeIdx = SRC.indexOf('app.get("/public/verify/:id"');
   expect(routeIdx).toBeGreaterThan(-1);
   // The route body is large; widen the window to capture the
-  // entire handler.
-  const routeBody = SRC.slice(routeIdx, routeIdx + 30000);
+  // entire handler. Post-A3 / G4.x growth pushed the analytics
+  // IIFE further down the handler, so the previous 30,000-byte
+  // window no longer reached it — widened to 60,000.
+  const routeBody = SRC.slice(routeIdx, routeIdx + 60000);
 
   it("the load-bearing `await prisma.$transaction([evidence.update, verificationView.create])` is gone", () => {
     // Look specifically for the SHAPE that was failing: an awaited

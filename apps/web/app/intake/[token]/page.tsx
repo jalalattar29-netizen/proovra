@@ -33,6 +33,12 @@
 import { use, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { IntakeChecklist } from "../../../components/intake/IntakeChecklist";
+import {
+  IntakeCompletionProgress,
+  type IntakeCompletion,
+} from "../../../components/intake/IntakeCompletionProgress";
+import { IntakeReReviewBanner } from "../../../components/intake/IntakeReReviewBanner";
 
 type AcceptedKind = "PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT";
 
@@ -73,7 +79,11 @@ type RequestView = {
   title: string;
   instructions: string;
   requestType: string;
+  /** Phase C3 — request-level status surfaced for re-request banner. */
+  status: string;
   dueAtUtc: string | null;
+  /** Phase C3 — deterministic completion summary. */
+  completion: IntakeCompletion;
   deliverables: Array<{
     id: string;
     title: string;
@@ -83,9 +93,13 @@ type RequestView = {
     minCount: number;
     maxCount: number | null;
     locationRequirement: string;
+    /** Phase C3 — capture-fresh guidance hint. */
+    captureAfterRequest: boolean;
     workflowStepId: string | null;
     sortOrder: number;
     status: string;
+    /** Phase C3 — count of accepted submissions against this deliverable. */
+    fulfilledCount: number;
   }>;
 };
 
@@ -412,10 +426,44 @@ export default function ExternalIntakePage({
   }
 
   if (phase === "error" || !link || !session) {
+    // Phase C3 — operationally meaningful empty/error states. The
+    // contributor sees a clear next step rather than a generic
+    // failure message, and the operator can recognise the error
+    // class from the data attribute.
+    const errorClass =
+      errorMessage?.toLowerCase().includes("expired") ||
+      errorMessage?.toLowerCase().includes("revoked")
+        ? "expired-or-revoked"
+        : errorMessage?.toLowerCase().includes("not valid")
+          ? "invalid"
+          : errorMessage?.toLowerCase().includes("not enabled")
+            ? "feature-disabled"
+            : errorMessage?.toLowerCase().includes("too many")
+              ? "rate-limited"
+              : "generic";
     return (
-      <main style={pageStyle}>
+      <main style={pageStyle} data-intake-error-class={errorClass}>
         <h1 style={titleStyle}>Secure intake link</h1>
-        <p style={paragraphStyle}>{errorMessage ?? "This link cannot be opened."}</p>
+        <p style={paragraphStyle}>
+          {errorMessage ?? "This link cannot be opened."}
+        </p>
+        {errorClass === "expired-or-revoked" ? (
+          <p style={mutedStyle}>
+            If you still need to submit evidence, contact the workspace that
+            sent you this link — they can issue a new one.
+          </p>
+        ) : errorClass === "invalid" ? (
+          <p style={mutedStyle}>
+            Check the link you were sent for typos or expired characters. If
+            the problem persists, the workspace that sent the link can issue a
+            new one.
+          </p>
+        ) : errorClass === "rate-limited" ? (
+          <p style={mutedStyle}>
+            For security, this link briefly limits repeated requests. Wait a
+            moment and reload the page.
+          </p>
+        ) : null}
       </main>
     );
   }
@@ -497,30 +545,47 @@ export default function ExternalIntakePage({
       {phase === "upload" || phase === "submitting" ? (
         <section>
           {request ? (
-            <div
-              style={{
-                marginBottom: 16,
-                padding: 16,
-                background: "#eff6ff",
-                border: "1px solid #bfdbfe",
-                borderRadius: 8,
-              }}
-            >
-              <p style={{ ...mutedStyle, marginBottom: 4 }}>
-                You were asked to provide
-              </p>
-              <h3 style={{ fontSize: 16, fontWeight: 600, margin: "4px 0" }}>
-                {request.title}
-              </h3>
-              {request.instructions ? (
-                <p style={paragraphStyle}>{request.instructions}</p>
-              ) : null}
-              {request.dueAtUtc ? (
-                <p style={mutedStyle}>
-                  Please respond by {new Date(request.dueAtUtc).toLocaleString()}.
+            <>
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: 16,
+                  background: "#eff6ff",
+                  border: "1px solid #bfdbfe",
+                  borderRadius: 8,
+                }}
+              >
+                <p style={{ ...mutedStyle, marginBottom: 4 }}>
+                  You were asked to provide
                 </p>
+                <h3 style={{ fontSize: 16, fontWeight: 600, margin: "4px 0" }}>
+                  {request.title}
+                </h3>
+                {request.instructions ? (
+                  <p style={paragraphStyle}>{request.instructions}</p>
+                ) : null}
+                {request.dueAtUtc ? (
+                  <p style={mutedStyle}>
+                    Please respond by{" "}
+                    {new Date(request.dueAtUtc).toLocaleString()}.
+                  </p>
+                ) : null}
+              </div>
+
+              {/* Phase C3 — operational re-request banner. Surfaces when
+                  the workspace has marked the request NEEDS_MORE_INFO. */}
+              {request.completion.needsMoreInfo ? (
+                <IntakeReReviewBanner deliverables={request.deliverables} />
               ) : null}
-            </div>
+
+              {/* Phase C3 — deterministic completion bar driven by the
+                  backend `completion` summary. Never fakes percentages. */}
+              <IntakeCompletionProgress completion={request.completion} />
+
+              {/* Phase C3 — operational checklist (primary intake driver). */}
+              <h2 style={sectionTitleStyle}>What this request needs</h2>
+              <IntakeChecklist deliverables={request.deliverables} />
+            </>
           ) : null}
           <h2 style={sectionTitleStyle}>Files</h2>
           <p style={paragraphStyle}>

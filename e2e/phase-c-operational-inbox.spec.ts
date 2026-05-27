@@ -277,7 +277,13 @@ test.describe("Phase C — operational inbox @critical", () => {
       ),
       "utf8",
     );
-    expect(src).toContain('app.get(\n    "/v1/me/inbox"');
+    // CRLF-tolerant assertion: the routes file uses CRLF endings on
+    // Windows checkouts. The literal `app.get(\n    "/v1/me/inbox"`
+    // miscompares against `app.get(\r\n    "/v1/me/inbox"`. The
+    // regex tolerates either line ending while still anchoring on
+    // the two-line `app.get(...)` shape that proves the inbox route
+    // is registered (not just mentioned in a comment).
+    expect(src).toMatch(/app\.get\(\r?\n\s*"\/v1\/me\/inbox"/);
     expect(src).toContain("requireAuthAndLegal");
     expect(src).toContain("organizationMembership.findMany");
     expect(src).toContain("teamMember.findMany");

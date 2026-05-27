@@ -580,7 +580,10 @@ const ADMINISTRATION_GROUP: NavGroup = {
   items: [
     {
       id: "admin.teams",
-      label: "Teams",
+      // Phase B0 — operational vocabulary is "Workspaces". URL
+      // stays `/teams` for backwards-compat (the API now exposes
+      // `/v1/workspaces/*` aliases via the workspace-alias plugin).
+      label: "Workspaces",
       href: "/teams",
       iconKey: "teams",
       domain: "ADMINISTRATION",

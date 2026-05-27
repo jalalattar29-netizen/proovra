@@ -148,9 +148,15 @@ describe("Capture scope hotfix — assertWorkspaceAllowsEvidenceCreation typed e
       workspaceType,
       ownerUserId: "00000000-0000-0000-0000-000000000001",
       teamId: workspaceType === "TEAM" ? "00000000-0000-0000-0000-000000000002" : null,
-      // The function only reads `plan` and `workspaceType` for the
+      // Phase A1 — organizationId mirrors the Team's bound org for
+      // TEAM scope; null for legacy PERSONAL scope. The function
+      // under test only reads `plan` and `workspaceType` for the
       // TEAM gate; the personal-bucket branch reads `credits` and
       // `evidenceCount` but only fires when workspaceType === PERSONAL.
+      organizationId:
+        workspaceType === "TEAM"
+          ? "00000000-0000-0000-0000-000000000003"
+          : null,
       plan: plan as WorkspaceScope["plan"],
       credits: 0,
       teamSeats: 0,
@@ -300,6 +306,11 @@ describe("Capture scope matrix — 6 templates × 3 scopes", () => {
       workspaceType,
       ownerUserId: "00000000-0000-0000-0000-000000000001",
       teamId: workspaceType === "TEAM" ? "00000000-0000-0000-0000-000000000002" : null,
+      // Phase A1 — see comment in the first `scope()` factory above.
+      organizationId:
+        workspaceType === "TEAM"
+          ? "00000000-0000-0000-0000-000000000003"
+          : null,
       plan: plan as WorkspaceScope["plan"],
       credits: 0,
       teamSeats: 0,

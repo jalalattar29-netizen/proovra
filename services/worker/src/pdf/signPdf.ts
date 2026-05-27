@@ -170,3 +170,102 @@ export async function signPdfIfEnabled(pdf: Buffer): Promise<Buffer> {
 
   return signPdfBuffer(pdf);
 }
+
+/**
+ * Phase A2 — Bounded outcome of the PDF artifact signing step.
+ *
+ * The worker reports one of four signature outcomes per generated
+ * Report PDF. The Report row persists the chosen status so the API
+ * + frontend can render artifact trust without inferring from copy.
+ *
+ * Vocabulary intentionally matches `PdfSignatureStatus` in
+ * `@proovra/shared` so the wire shape is identical and a future
+ * frontend type-check can prove it.
+ */
+export type PdfSigningOutcome =
+  | {
+      status: "SIGNED";
+      pdf: Buffer;
+      signedAtUtc: Date;
+      signerKeyId: string | null;
+    }
+  | {
+      status: "UNSIGNED_OPT_OUT";
+      pdf: Buffer;
+      warning: string;
+    }
+  | {
+      status: "SIGNING_UNAVAILABLE";
+      pdf: Buffer;
+      warning: string;
+    };
+
+function readSignerKeyIdLabel(): string | null {
+  // Operator-facing key id LABEL. Never the certificate or private
+  // key. The env var lets operators tag a rotation; if unset, we
+  // fall back to a stable default.
+  const explicit = env("PDF_SIGNING_KEY_ID_LABEL");
+  if (explicit) return explicit.slice(0, 120);
+  if (env("PDF_SIGNING_P12_PATH")) {
+    return "operator_pkcs12";
+  }
+  return null;
+}
+
+/**
+ * Phase A2 — Sign the PDF AND return the structured outcome.
+ *
+ * Behaviour vs the legacy `signPdfIfEnabled`:
+ *   * When signing is enabled and succeeds → status SIGNED with the
+ *     signed bytes, the moment of signing, and the operator-facing
+ *     key id label.
+ *   * When signing is disabled AND opt-out ACK is set → status
+ *     UNSIGNED_OPT_OUT with the canonical operator warning copy.
+ *   * When signing is disabled in a non-production environment
+ *     without opt-out ACK → status SIGNING_UNAVAILABLE. The
+ *     `assertPdfSigningProductionSafetyOrThrow` invariant means
+ *     this can never happen in production — the assertion would
+ *     have already thrown before reaching this point.
+ *   * When signing is enabled but the actual signing call throws,
+ *     the error propagates as before. The worker DLQ's the job.
+ *     We do not invent a "SIGNING_FAILED" status to silently store
+ *     an unsigned artifact — that's the wrong default for an
+ *     evidence platform.
+ */
+export async function signPdfAndProjectOutcome(
+  pdf: Buffer,
+): Promise<PdfSigningOutcome> {
+  if (isPdfSigningEnabled()) {
+    const signed = await signPdfBuffer(pdf);
+    return {
+      status: "SIGNED",
+      pdf: signed,
+      signedAtUtc: new Date(),
+      signerKeyId: readSignerKeyIdLabel(),
+    };
+  }
+
+  const optOutAcknowledged =
+    (env("PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK") ?? "").toLowerCase() === "true";
+
+  if (optOutAcknowledged) {
+    return {
+      status: "UNSIGNED_OPT_OUT",
+      pdf,
+      warning:
+        "This Report PDF artifact was generated without a PDF signature. The recorded integrity state and Verification Package ZIP remain independent of this artifact's signature.",
+    };
+  }
+
+  // The production safety assertion in `buildReportPdfV2` runs
+  // BEFORE we get here; reaching this branch means we are in a
+  // non-production environment without signing configured. Surface
+  // it as a distinct status the API can render so QA + operators
+  // can distinguish dev/preview from a real opt-out.
+  return {
+    status: "SIGNING_UNAVAILABLE",
+    pdf,
+    warning:
+      "This Report PDF was generated in a non-production environment where PDF artifact signing is not configured. Production deployments require PDF artifact signing or an explicit acknowledged opt-out.",
+  };
+}

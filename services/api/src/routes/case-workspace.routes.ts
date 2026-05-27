@@ -378,6 +378,264 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
     },
   );
 
+  // ---------------------------------------------------------------------
+  // Phase C2 — Matter-level discussion thread aggregator.
+  //
+  // GET /v1/cases/:id/discussion-threads
+  //
+  // Returns the union of Phase 16 discussion threads anchored to the
+  // evidence linked to this matter, plus matter-level discussion
+  // threads (DiscussionThread.kind = INVESTIGATION_COORDINATION whose
+  // evidenceId resolves to a case-linked evidence). Read-only, never
+  // emits audit (browsing the aggregator is not an auditable action —
+  // explicit thread reads inside the per-evidence inspector retain
+  // their existing audit semantics).
+  //
+  // Workspace isolation: the case's teamId binds the entire query.
+  // No cross-workspace thread can be surfaced through this aggregator.
+  //
+  // Bounded: at most 50 most-recently-updated threads. The Matter
+  // Workspace Communications tab uses this for surfacing; a future
+  // C2.x can add pagination if 50 ever becomes operationally
+  // insufficient.
+  // ---------------------------------------------------------------------
+  app.get(
+    "/v1/cases/:id/discussion-threads",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = WorkspaceParams.parse(req.params);
+      const member = await requireCaseAccess(req, reply, params.id);
+      if (!member) return;
+
+      const caseRow = await prisma.case.findUnique({
+        where: { id: params.id },
+        select: { id: true, teamId: true },
+      });
+      if (!caseRow || !caseRow.teamId) {
+        return reply.code(200).send({
+          caseId: params.id,
+          teamId: caseRow?.teamId ?? null,
+          threads: [],
+          counts: {
+            total: 0,
+            open: 0,
+            inProgress: 0,
+            resolved: 0,
+            closed: 0,
+            escalated: 0,
+          },
+        });
+      }
+
+      const links = await prisma.caseEvidenceLink.findMany({
+        where: { caseId: params.id },
+        select: { evidenceId: true },
+      });
+      const evidenceIds = links.map((l) => l.evidenceId);
+      if (evidenceIds.length === 0) {
+        return reply.code(200).send({
+          caseId: params.id,
+          teamId: caseRow.teamId,
+          threads: [],
+          counts: {
+            total: 0,
+            open: 0,
+            inProgress: 0,
+            resolved: 0,
+            closed: 0,
+            escalated: 0,
+          },
+        });
+      }
+
+      const threads = await prisma.discussionThread.findMany({
+        where: {
+          teamId: caseRow.teamId,
+          evidenceId: { in: evidenceIds },
+          visibility: "INTERNAL",
+        },
+        select: {
+          id: true,
+          evidenceId: true,
+          kind: true,
+          status: true,
+          title: true,
+          assignedToUserId: true,
+          escalatedAtUtc: true,
+          resolvedAtUtc: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 50,
+      });
+
+      const counts = {
+        total: threads.length,
+        open: threads.filter((t) => t.status === "OPEN").length,
+        inProgress: threads.filter((t) => t.status === "IN_PROGRESS").length,
+        resolved: threads.filter((t) => t.status === "RESOLVED").length,
+        closed: threads.filter((t) => t.status === "CLOSED").length,
+        escalated: threads.filter((t) => t.escalatedAtUtc !== null).length,
+      };
+
+      return reply.code(200).send({
+        caseId: params.id,
+        teamId: caseRow.teamId,
+        threads: threads.map((t) => ({
+          id: t.id,
+          evidenceId: t.evidenceId,
+          kind: t.kind,
+          status: t.status,
+          title: t.title,
+          assignedToUserId: t.assignedToUserId,
+          escalatedAtUtc: t.escalatedAtUtc?.toISOString() ?? null,
+          resolvedAtUtc: t.resolvedAtUtc?.toISOString() ?? null,
+          createdAt: t.createdAt.toISOString(),
+          updatedAt: t.updatedAt.toISOString(),
+        })),
+        counts,
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------
+  // Phase C3 — Matter-level evidence-request aggregator.
+  //
+  // GET /v1/cases/:id/evidence-requests
+  //
+  // Returns the case's evidence requests with bounded per-request
+  // completion summary so the reviewer console / Matter Workspace can
+  // surface intake readiness at a glance. Read-only, never emits
+  // audit — clicking through to /evidence-requests/[id] retains the
+  // existing audit semantics for explicit per-request reads.
+  //
+  // Workspace isolation: query narrows by the case's teamId. A
+  // request from another workspace can never be surfaced through
+  // this aggregator even if it references the same caseId by
+  // accident (caseId is a soft reference in the request model).
+  //
+  // Bounded: at most 50 most-recently-updated requests. Pagination
+  // is a C3.x deferred follow-up.
+  // ---------------------------------------------------------------------
+  app.get(
+    "/v1/cases/:id/evidence-requests",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = WorkspaceParams.parse(req.params);
+      const member = await requireCaseAccess(req, reply, params.id);
+      if (!member) return;
+
+      const caseRow = await prisma.case.findUnique({
+        where: { id: params.id },
+        select: { id: true, teamId: true },
+      });
+      if (!caseRow || !caseRow.teamId) {
+        return reply.code(200).send({
+          caseId: params.id,
+          teamId: caseRow?.teamId ?? null,
+          requests: [],
+          counts: {
+            total: 0,
+            open: 0,
+            sent: 0,
+            inProgress: 0,
+            needsMoreInfo: 0,
+            fulfilled: 0,
+            closed: 0,
+          },
+        });
+      }
+
+      const requests = await prisma.evidenceRequest.findMany({
+        where: {
+          teamId: caseRow.teamId,
+          caseId: params.id,
+        },
+        include: {
+          deliverables: {
+            select: { required: true, status: true },
+          },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 50,
+      });
+
+      const isSatisfied = (status: string) =>
+        status === "FULFILLED" || status === "WAIVED";
+
+      const rows = requests.map((r) => {
+        const required = r.deliverables.filter((d) => d.required);
+        const optional = r.deliverables.filter((d) => !d.required);
+        const requiredFulfilled = required.filter((d) =>
+          isSatisfied(d.status),
+        ).length;
+        const optionalFulfilled = optional.filter((d) =>
+          isSatisfied(d.status),
+        ).length;
+        const total = r.deliverables.length;
+        const satisfied = r.deliverables.filter((d) =>
+          isSatisfied(d.status),
+        ).length;
+        const completionPercent =
+          total === 0 ? 0 : Math.round((satisfied / total) * 100);
+        const reviewReady =
+          required.length === 0 || requiredFulfilled === required.length;
+        return {
+          id: r.id,
+          title: r.title,
+          status: r.status,
+          priority: r.priority,
+          requestType: r.requestType,
+          dueAtUtc: r.dueAtUtc?.toISOString() ?? null,
+          sentAtUtc: r.sentAtUtc?.toISOString() ?? null,
+          intakeLinkId: r.intakeLinkId,
+          assignedReviewerUserId: r.assignedReviewerUserId,
+          requestedByUserId: r.requestedByUserId,
+          createdAt: r.createdAt.toISOString(),
+          updatedAt: r.updatedAt.toISOString(),
+          completion: {
+            requiredTotal: required.length,
+            requiredFulfilled,
+            optionalTotal: optional.length,
+            optionalFulfilled,
+            completionPercent,
+            reviewReady,
+            needsMoreInfo: r.status === "NEEDS_MORE_INFO",
+          },
+        };
+      });
+
+      const counts = {
+        total: rows.length,
+        open: rows.filter((r) => r.status === "OPEN" || r.status === "DRAFT")
+          .length,
+        sent: rows.filter((r) => r.status === "SENT" || r.status === "VIEWED")
+          .length,
+        inProgress: rows.filter(
+          (r) =>
+            r.status === "IN_PROGRESS" ||
+            r.status === "RESPONSE_RECEIVED" ||
+            r.status === "UNDER_REVIEW" ||
+            r.status === "PARTIALLY_FULFILLED",
+        ).length,
+        needsMoreInfo: rows.filter((r) => r.status === "NEEDS_MORE_INFO")
+          .length,
+        fulfilled: rows.filter((r) => r.status === "FULFILLED").length,
+        closed: rows.filter(
+          (r) => r.status === "CLOSED" || r.status === "CANCELLED",
+        ).length,
+      };
+
+      return reply.code(200).send({
+        caseId: params.id,
+        teamId: caseRow.teamId,
+        requests: rows,
+        counts,
+      });
+    },
+  );
+
   // ---------- Picker endpoints (read-only, side-effect-free) ----------
   //
   // Phase 32.8D-frontend-closure — backs the assignment picker and

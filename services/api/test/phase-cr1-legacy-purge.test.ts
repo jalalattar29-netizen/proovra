@@ -195,13 +195,16 @@ describe("CR1 Phase F — opsSeedRoutes registration env-guarded", () => {
 // =============================================================================
 
 describe("CR1 Part 2 — 8 backward-compat redirect pages folded into next.config.js", () => {
+  // Phase G0 (B.1) — `/review` is no longer a redirect target.
+  // Phase C0 re-installed the canonical Reviewer Console at the
+  // same path; the CR1 purge of `app/(app)/review/page.tsx` is
+  // superseded.
   const DELETED_REDIRECT_PAGES = [
     "app/(app)/dashboard/page.tsx",
     "app/(app)/archive/page.tsx",
     "app/(app)/deleted/page.tsx",
     "app/(app)/locked/page.tsx",
     "app/(app)/operations/page.tsx",
-    "app/(app)/review/page.tsx",
     "app/(app)/reviewer-ops/policy/page.tsx",
     "app/(app)/security/page.tsx",
   ];
@@ -212,16 +215,19 @@ describe("CR1 Part 2 — 8 backward-compat redirect pages folded into next.confi
     });
   }
 
-  it("next.config.js declares a redirects() block with all 8 canonical entries", () => {
+  it("next.config.js declares a redirects() block with all canonical entries", () => {
     const cfg = readWeb("next.config.js");
     expect(cfg).toMatch(/async\s+redirects\s*\(/);
+    // Phase G0 (B.1) — the `/review → /reviewer-ops` redirect is
+    // explicitly retired (it was bypassing the Phase C0 canonical
+    // Reviewer Console). The rest of the CR1 redirect table is
+    // preserved.
     const expected: Array<[string, string]> = [
       ["/dashboard", "/home"],
       ["/archive", "/evidence?filter=archived"],
       ["/deleted", "/evidence?filter=deleted"],
       ["/locked", "/evidence?filter=locked"],
       ["/operations", "/ops"],
-      ["/review", "/reviewer-ops"],
       ["/reviewer-ops/policy", "/governance/policy"],
       ["/security", "/security-center"],
     ];

@@ -20,6 +20,7 @@ import {
 import type { ForwardRefExoticComponent, RefAttributes } from "react";
 import { LanguageSwitcher } from "../language-switcher";
 import { GlobalRuntimeIndicator } from "../operational";
+import { InboxIndicator } from "./InboxIndicator";
 import {
   usePlatformContext,
   workflowFromPersona,
@@ -230,6 +231,10 @@ export function AppTopbarV2({
           >
             <GlobalRuntimeIndicator teamId={runtimeTeamId} />
           </div>
+          {/* Phase C2 — bounded inbox / mention indicator. Polls
+              /v1/me/inbox/summary on a slow interval and deep-links to
+              the canonical inbox surface. Workspace-scoped server-side. */}
+          <InboxIndicator />
           <div className="app-topbar-v2-language">
             <LanguageSwitcher />
           </div>
@@ -313,6 +318,65 @@ export function AppTopbarV2({
                       : `${totalSwitchable} spaces`}
                   </span>
                 </div>
+                {/* Phase G0 (B0.3) — workspace switcher explainer. The
+                    enterprise tenant model is intentionally minimal:
+                    a Workspace is the operational unit; an
+                    Organization is the optional governance overlay.
+                    The block is suppressed for solo personal-only
+                    accounts to avoid org-shaped noise. */}
+                {organizations.length > 0 || personalSpace?.id ? (
+                  <div
+                    className="app-topbar-v2-workspace-menu-help"
+                    data-workspace-menu-help
+                    style={{
+                      padding: "8px 12px",
+                      borderBottom: "1px solid rgba(127,127,127,0.18)",
+                      fontSize: 12,
+                      color: "#475569",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    <strong style={{ display: "block", marginBottom: 2 }}>
+                      Workspace vs Organization
+                    </strong>
+                    Workspace = where evidence work happens.
+                    {organizations.length > 0
+                      ? " Organization = governance over one or more Workspaces."
+                      : ""}{" "}
+                    <Link
+                      href="/about/trust"
+                      data-workspace-menu-help-link
+                      onClick={() => setWorkspaceOpen(false)}
+                      style={{ textDecoration: "underline" }}
+                    >
+                      Learn more
+                    </Link>
+                  </div>
+                ) : null}
+                {/* Phase G0 (B0.3) — degraded-context recovery banner.
+                    When the platform-context provider is in FAILED
+                    state, surface an explicit recovery action inside
+                    the switcher rather than a silently-blank shell. */}
+                {state.name === "FAILED" ? (
+                  <div
+                    className="app-topbar-v2-workspace-menu-degraded"
+                    data-workspace-menu-degraded
+                    role="alert"
+                    style={{
+                      padding: "8px 12px",
+                      background: "#fef2f2",
+                      borderBottom: "1px solid #fecaca",
+                      fontSize: 12,
+                      color: "#7f1d1d",
+                    }}
+                  >
+                    <strong style={{ display: "block" }}>
+                      Workspace context unavailable
+                    </strong>
+                    Reload the page or contact support if the issue
+                    persists.
+                  </div>
+                ) : null}
 
                 {/* ENTERPRISE TENANT MODEL — Personal Space group.
                     Exactly one entry. Never labeled TEAM. Never under
@@ -487,7 +551,7 @@ export function AppTopbarV2({
                     Actions
                   </div>
                   <Link
-                    href="/teams?action=create"
+                    href="/workspaces?action=create"
                     role="menuitem"
                     onClick={() => setWorkspaceOpen(false)}
                     data-workspace-action="create_organization"
@@ -496,7 +560,7 @@ export function AppTopbarV2({
                     Create organization
                   </Link>
                   <Link
-                    href="/teams?action=join"
+                    href="/workspaces?action=join"
                     role="menuitem"
                     onClick={() => setWorkspaceOpen(false)}
                     data-workspace-action="join_organization"
@@ -505,7 +569,7 @@ export function AppTopbarV2({
                     Join organization
                   </Link>
                   <Link
-                    href="/teams"
+                    href="/workspaces"
                     role="menuitem"
                     onClick={() => setWorkspaceOpen(false)}
                     data-workspace-action="manage_organizations"

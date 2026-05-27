@@ -137,11 +137,23 @@ function getLocaleLabel(lc: Locale): string {
 // Phase 38.9 — wrap in canonical PageRouteGate. `account.settings`
 // is an ACCOUNT-domain route (NONE active-space) so it loads for every
 // authenticated user.
+//
+// Phase G5 pre-commit fix — the outer `<div data-testid="account-settings-page">`
+// is a stable mount marker that commits as soon as React renders the
+// route, regardless of envelope-resolution state. Playwright uses it
+// to detect "the settings route is on screen" deterministically — the
+// previous test waited only for either the inner AccountSecurityCard
+// or the PageRouteGate denial panel, both of which depend on
+// downstream envelope + capability resolution and can take >15s on a
+// cold Next.js dev server. The marker adds zero runtime behavior; it
+// is a single attribute on a wrapper div.
 export default function SettingsPage() {
   return (
-    <PageRouteGate routeId="account.settings">
-      <SettingsPageInner />
-    </PageRouteGate>
+    <div data-testid="account-settings-page">
+      <PageRouteGate routeId="account.settings">
+        <SettingsPageInner />
+      </PageRouteGate>
+    </div>
   );
 }
 

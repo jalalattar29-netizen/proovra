@@ -314,16 +314,27 @@ describe("Phase 32.5 — workspace profile + sidebar visibility", () => {
     // Phase 32.8B — Administration group lives in navigation-config.
     // Teams, Billing, Integrations, Intake Links must require admin
     // roles. Settings + Platform Admin have their own gates.
-    const code = stripComments(NAV_CONFIG_SRC);
+    //
+    // NOTE: we deliberately do NOT call stripComments() here — the
+    // file contains line-comments referencing `/v1/workspaces/*`,
+    // which the block-comment regex inside stripComments would
+    // misread as an opening block comment and consume the body. The
+    // assertion is robust without comment stripping because the
+    // `roles: ["OWNER", "ADMIN"]` literal appears nowhere in any
+    // comment text.
+    const code = NAV_CONFIG_SRC;
     // The Administration group block contains role-gated entries.
     const adminGroupIdx = code.indexOf(
-      'const ADMINISTRATION_GROUP: NavGroup',
+      "const ADMINISTRATION_GROUP: NavGroup",
     );
     expect(adminGroupIdx).toBeGreaterThan(-1);
-    const adminGroupEnd = code.indexOf("};", adminGroupIdx);
+    // Match the canonical closing for an exported `const FOO: T = { ... };`.
+    // The body contains nested `{...}` (per-item objects) but the
+    // top-level group object terminates with `\n};` at column 0.
+    const adminGroupEnd = code.indexOf("\n};", adminGroupIdx);
     const adminGroupBody = code.slice(adminGroupIdx, adminGroupEnd);
     // At least one admin-only item with the bounded role tuple.
-    expect(adminGroupBody).toMatch(/roles: \["OWNER", "ADMIN"\]/);
+    expect(adminGroupBody).toMatch(/roles:\s*\["OWNER",\s*"ADMIN"\]/);
   });
 
   // OBSOLETE — Phase 32.8 Foundation removed `selectNavigationGroups`

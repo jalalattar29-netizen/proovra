@@ -41,7 +41,10 @@ type InboxCategory =
   | "org_invite"
   | "org_admin"
   | "governance"
-  | "review_decision";
+  | "review_decision"
+  // Phase C2 — operational evidence collaboration signals.
+  | "discussion_mention"
+  | "discussion_assigned";
 
 type InboxItem = {
   id: string;
@@ -114,6 +117,9 @@ const CATEGORY_LABELS: Record<InboxCategory, string> = {
   org_admin: "Org governance",
   governance: "Workspace governance",
   review_decision: "Review decision",
+  // Phase C2 — operational discussion routing.
+  discussion_mention: "Mention",
+  discussion_assigned: "Assigned thread",
 };
 
 export default function InboxPage() {

@@ -314,12 +314,18 @@ describe("Evidence detail page (full adoption)", () => {
     // governance snapshot is missing, 403, or transiently unavailable.
     expect(src).toMatch(/const\s+\[exportDisabled,\s*setExportDisabled\]\s*=\s*useState\(false\)/);
     expect(src).toMatch(/const\s+\[packageDisabled,\s*setPackageDisabled\]\s*=\s*useState\(false\)/);
-    // Both buttons consume the disabled state.
+    // Both buttons consume the disabled state. Phase A0 added an
+    // `|| isIntegrityFailed` short-circuit so failed-hash records
+    // cannot be downloaded even if the eligibility check says yes
+    // — the disabled expression became `exportDisabled ||
+    // isIntegrityFailed`. The contract we still want to assert is
+    // that the eligibility-derived flag participates in the disabled
+    // gate.
     expect(src).toMatch(
-      /<Button[\s\S]*?onClick=\{\(\) => void downloadReport\(\)\}[\s\S]*?disabled=\{exportDisabled\}/,
+      /<Button[\s\S]*?onClick=\{\(\) => void downloadReport\(\)\}[\s\S]*?disabled=\{exportDisabled\b/,
     );
     expect(src).toMatch(
-      /<Button[\s\S]*?onClick=\{\(\) => void downloadVerificationPackage\(\)\}[\s\S]*?disabled=\{packageDisabled\}/,
+      /<Button[\s\S]*?onClick=\{\(\) => void downloadVerificationPackage\(\)\}[\s\S]*?disabled=\{packageDisabled\b/,
     );
   });
 

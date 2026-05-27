@@ -35,6 +35,12 @@ import {
 import { HintCallout } from "../persona/HintCallout";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { AccessGate } from "../access/AccessGate";
+// Phase G3.2 — every Report PDF / Verification Package ZIP download
+// MUST route through the governance pre-flight wrapper. The wrapper
+// keys on the same `/v1/governance/export-eligibility` endpoint the
+// evidence detail page already consumes; blocked verdicts disable the
+// button + surface the reason inline.
+import { GovernedExportAction } from "../governance/GovernedExportAction";
 import type {
   ArtifactRow,
   LifecycleFilter,
@@ -303,7 +309,11 @@ export function ReportsIndex() {
         ) : (
           <ul className="cases-list" data-reports-list-items>
             {sections.artifacts.items.map((row) => (
-              <ArtifactRowView key={row.evidenceId} row={row} />
+              <ArtifactRowView
+                key={row.evidenceId}
+                row={row}
+                teamId={workspaceId}
+              />
             ))}
           </ul>
         )}
@@ -350,7 +360,13 @@ function SummaryTile({
   );
 }
 
-function ArtifactRowView({ row }: { row: ArtifactRow }) {
+function ArtifactRowView({
+  row,
+  teamId,
+}: {
+  row: ArtifactRow;
+  teamId: string | null;
+}) {
   return (
     <li className="cases-row" data-reports-row-id={row.evidenceId}>
       <Link href={`/evidence/${row.evidenceId}`} className="cases-row-link">
@@ -408,7 +424,7 @@ function ArtifactRowView({ row }: { row: ArtifactRow }) {
           `/v1/evidence/:id/verification-package`) still gates on
           workspace policy + retention; this UI never simulates
           permission. */}
-      <ArtifactRowActions row={row} />
+      <ArtifactRowActions row={row} teamId={teamId} />
     </li>
   );
 }
@@ -419,7 +435,13 @@ function ArtifactRowView({ row }: { row: ArtifactRow }) {
  * (pending / not_requested / unavailable) get a quiet help label
  * instead — never a dead button.
  */
-function ArtifactRowActions({ row }: { row: ArtifactRow }) {
+function ArtifactRowActions({
+  row,
+  teamId,
+}: {
+  row: ArtifactRow;
+  teamId: string | null;
+}) {
   // Phase A.1D — busy tag widened to include the "regen" retry path
   // for the new `POST /v1/evidence/:id/reports/regenerate` endpoint.
   const [busy, setBusy] = useState<null | "report" | "package" | "regen">(null);
@@ -561,15 +583,33 @@ function ArtifactRowActions({ row }: { row: ArtifactRow }) {
       style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}
     >
       {reportReady ? (
-        <button
-          type="button"
-          className="btn-secondary"
-          data-reports-download-report={row.evidenceId}
-          onClick={triggerReport}
-          disabled={busy !== null}
-        >
-          {busy === "report" ? "Opening…" : "Download report PDF"}
-        </button>
+        // Phase G3.2 — every Report PDF download is governed by the
+        // export-eligibility preflight. Blocked verdicts disable the
+        // button + surface the reason inline; this is the same gate
+        // the evidence detail page applies.
+        <GovernedExportAction
+          evidenceId={row.evidenceId}
+          teamId={teamId}
+          actionLabel="Download Report PDF"
+          compactWhenAllowed
+          onAction={() =>
+            void triggerReport({
+              preventDefault() {},
+              stopPropagation() {},
+            } as unknown as React.MouseEvent)
+          }
+          renderAction={({ disabled, onClick }) => (
+            <button
+              type="button"
+              className="btn-secondary"
+              data-reports-download-report={row.evidenceId}
+              onClick={onClick}
+              disabled={busy !== null || disabled}
+            >
+              {busy === "report" ? "Opening…" : "Download report PDF"}
+            </button>
+          )}
+        />
       ) : (
         <span
           className="cases-row-chip"
@@ -586,15 +626,29 @@ function ArtifactRowActions({ row }: { row: ArtifactRow }) {
         </span>
       )}
       {packageReady ? (
-        <button
-          type="button"
-          className="btn-secondary"
-          data-reports-download-package={row.evidenceId}
-          onClick={triggerPackage}
-          disabled={busy !== null}
-        >
-          {busy === "package" ? "Opening…" : "Download verification package"}
-        </button>
+        <GovernedExportAction
+          evidenceId={row.evidenceId}
+          teamId={teamId}
+          actionLabel="Download Verification Package ZIP"
+          compactWhenAllowed
+          onAction={() =>
+            void triggerPackage({
+              preventDefault() {},
+              stopPropagation() {},
+            } as unknown as React.MouseEvent)
+          }
+          renderAction={({ disabled, onClick }) => (
+            <button
+              type="button"
+              className="btn-secondary"
+              data-reports-download-package={row.evidenceId}
+              onClick={onClick}
+              disabled={busy !== null || disabled}
+            >
+              {busy === "package" ? "Opening…" : "Download verification package"}
+            </button>
+          )}
+        />
       ) : row.package.state === "blocked" ? (
         <span
           className="cases-row-chip"

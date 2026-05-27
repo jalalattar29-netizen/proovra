@@ -28,6 +28,9 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
+import { RetentionInheritanceSummary } from "../../../../components/governance/RetentionInheritanceSummary";
+import { RetentionConflictAlert } from "../../../../components/governance/RetentionConflictAlert";
 
 type PolicyStatus = "ACTIVE" | "PAUSED" | "SUPERSEDED" | "ARCHIVED";
 type PolicyScope = "WORKSPACE" | "EVIDENCE_TYPE" | "CASE" | "REGULATORY";
@@ -181,6 +184,13 @@ function RetentionPoliciesPageInner() {
 
   return (
     <main style={pageStyle}>
+      <OperationalBreadcrumb
+        routeId="governance.retention"
+        items={[
+          { label: "Governance", href: "/governance" },
+          { label: "Retention policies" },
+        ]}
+      />
       <header>
         <h1 style={titleStyle}>Retention policies</h1>
         <p style={mutedStyle}>
@@ -198,6 +208,19 @@ function RetentionPoliciesPageInner() {
           Destruction queue →
         </Link>
       </nav>
+
+      {/* Phase F — surface the Phase B0 inheritance resolver so
+          operators see at a glance whether this workspace is
+          governed by a local policy, an inherited org template, or
+          no policy at all. */}
+      <div style={{ marginBottom: 16 }}>
+        <RetentionInheritanceSummary teamId={teamId ?? null} />
+      </div>
+
+      {/* Phase G1 (F.4) — surface retention policy conflicts so
+          governance admins see them at the top of the page instead
+          of buried in the dashboard signal. */}
+      <RetentionConflictAlert teamId={teamId ?? null} />
 
       <div style={toolbarStyle}>
         <label style={filterLabelStyle}>

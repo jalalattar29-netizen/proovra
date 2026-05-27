@@ -274,7 +274,9 @@ describe("R8 Part 5 — canonical identity files preserved in size", () => {
     // R8.1.9 rebaselined: +session-light endpoint added in R8.1.9 Part 1.
     // Phase E10.1 rebaselined: +per-IP rate limit on login +
     // password-reset (DEF-037 closure; ~30 lines of bounded hardening).
-    { rel: "src/routes/auth.routes.ts", expectedBytes: 42051 },
+    // Rebaselined post-G3.x/G4/G5 — auth.routes.ts grew with MFA
+    // step-up + per-IP rate-limit + governance-aware enrollment.
+    { rel: "src/routes/auth.routes.ts", expectedBytes: 48469 },
     // R8.1.3 baseline (was 15823 after R8.1.2; grew for the SSO
     // durable-challenge + enrollment-required branches).
     { rel: "src/routes/sso-auth.routes.ts", expectedBytes: 18565 },

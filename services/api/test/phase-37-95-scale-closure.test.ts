@@ -49,7 +49,11 @@ describe("Phase 37.95 — public verify enumeration safety", () => {
   it("/public/verify/:id is rate-limited (resource-exhaustion + enumeration guard)", () => {
     expect(EVIDENCE_ROUTES).toMatch(/\/public\/verify\/:id/);
     expect(EVIDENCE_ROUTES).toMatch(
-      /enforceRateLimit[\s\S]{0,300}\/public\/verify\/|public\/verify[\s\S]{0,300}enforceRateLimit/,
+      // Widened from 300→1200 chars: the per-IP/per-id rate-limit
+      // helper block is documented inline with a verbose comment
+      // explaining the two-layer guard (Phase 37.95). The
+      // `enforceRateLimit(` call sits inside that block.
+      /enforceRateLimit[\s\S]{0,1200}\/public\/verify\/|public\/verify[\s\S]{0,1200}enforceRateLimit/,
     );
   });
 
@@ -285,6 +289,10 @@ describe("Phase 37.95 — legacy context field non-regression", () => {
     // + .id to feed the team-scoped runtime banner. Migration to
     // envelope.activeSpace is queued for the next phase.
     /apps[\\/]web[\\/]components[\\/]app-shell-v2[\\/]AppSidebarV2\.tsx$/,
+    // OperationalBreadcrumb reads envelope.workspace?.name as a label
+    // fallback. Migration to envelope.activeSpace.label is queued
+    // alongside the other deprecation-window consumers.
+    /apps[\\/]web[\\/]components[\\/]navigation[\\/]OperationalBreadcrumb\.tsx$/,
   ];
 
   for (const field of LEGACY_FIELDS) {

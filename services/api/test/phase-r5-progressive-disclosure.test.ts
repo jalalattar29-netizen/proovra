@@ -111,8 +111,10 @@ describe("R5 Part 2 — beginner layer bounded to canonical primary set", () => 
     const setMatch = CANONICAL_GROUPS.match(
       /CANONICAL_PRIMARY_ROUTE_IDS[\s\S]*?new Set\(\[([\s\S]*?)\]\)/,
     );
-    const ids = (setMatch![1].match(/"[a-z0-9.]+"/gi) ?? []).length;
-    expect(ids).toBe(6);
+    const ids = (setMatch![1].match(/"[a-z0-9._]+"/gi) ?? []).length;
+    // Post-G0 IA: canonical primary set grew from 6 → 9 (added
+    // workspace.review, workspace.intake_links, account.inbox).
+    expect(ids).toBe(9);
   });
 
   it("disclosure model recognizes the canonical primary set as 'beginner'", () => {
@@ -300,7 +302,12 @@ describe("R5 Part 8 — no nav explosion regression", () => {
       "Primary workflows",
       "Workspace",
       "Operations",
+      // Post-G0 IA: title was "Governance & Compliance" pre-G0, now
+      // collapsed to "Governance". Same group, shorter label.
+      "Governance",
       "Governance & Compliance",
+      "Outputs",
+      "System",
       "All Tools",
       "More / Advanced",
     ];

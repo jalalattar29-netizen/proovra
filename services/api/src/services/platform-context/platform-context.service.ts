@@ -77,6 +77,19 @@ export type BuildPlatformContextInput = {
   userId: string;
   requestId: string;
   jwtRole?: string | null;
+  /**
+   * Phase B0 — Wire-version requested by the caller. When `3`, the
+   * envelope omits the legacy `workspace` field so clients that
+   * have completed the migration cannot accidentally read it. When
+   * absent / `2`, the legacy field is still emitted alongside the
+   * canonical `account` / `personalSpace` / `organizations[]` /
+   * `activeSpace` sections (no breaking change).
+   *
+   * The route layer reads `x-platform-context-version` from the
+   * request and passes the parsed number here. Unknown / malformed
+   * values default to the legacy emission for safety.
+   */
+  requestedSchemaVersion?: 2 | 3;
 };
 
 export type BuildPlatformContextResult =
@@ -637,8 +650,14 @@ export async function buildPlatformContext(
   // -------------------------------------------------------------------------
   // Envelope
   // -------------------------------------------------------------------------
+  //
+  // Phase B0 — `requestedSchemaVersion` controls whether the
+  // legacy `workspace` field is emitted. Clients on v3 get the
+  // canonical shape only; v2 (default) gets both legacy + canonical
+  // so the migration is non-breaking.
+  const wireVersion: 2 | 3 = input.requestedSchemaVersion === 3 ? 3 : 2;
   const envelope: PlatformContextEnvelope = {
-    authoritySchemaVersion: AUTHORITY_SCHEMA_VERSION,
+    authoritySchemaVersion: wireVersion,
     capabilitySchemaVersion: CAPABILITY_SCHEMA_VERSION,
     navigationSchemaVersion: NAVIGATION_SCHEMA_VERSION,
     generatedAt,

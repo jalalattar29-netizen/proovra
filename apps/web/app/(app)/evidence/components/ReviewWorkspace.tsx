@@ -140,6 +140,8 @@ export function ReviewWorkspace({
       <ArtifactPanel
         item={item}
         detail={detail}
+        evidenceId={item.id}
+        teamId={item.teamId ?? null}
         onDownloadReport={onDownloadReport}
         onDownloadVerificationPackage={onDownloadVerificationPackage}
         onCopyVerificationLink={onCopyVerificationLink}

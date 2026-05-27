@@ -143,6 +143,44 @@ export type {
 
 export type { VerificationPackageMetadata } from "./verification-package-metadata.js";
 
+// Phase A2 — Report artifact + signature bounded vocabulary.
+export {
+  ARTIFACT_TYPES,
+  PDF_SIGNATURE_STATUSES,
+  VERIFICATION_PACKAGE_SIGNATURE_STATUSES,
+  ARTIFACT_LABELS,
+  PDF_UNSIGNED_OPT_OUT_WARNING_COPY,
+  PDF_SIGNING_UNAVAILABLE_COPY,
+  FORBIDDEN_ARTIFACT_PHRASES,
+} from "./report-artifact.js";
+export type {
+  ArtifactType,
+  PdfSignatureStatus,
+  VerificationPackageSignatureStatus,
+  ReportPdfSignatureProjection,
+  VerificationPackageSignatureProjection,
+  ArtifactLabel,
+} from "./report-artifact.js";
+
+// Phase A3 — Operational hardening bounded vocabularies.
+export {
+  ANALYTICS_EVENT_NAMES,
+  ANALYTICS_REJECTION_REASONS,
+  ANALYTICS_LIMITS,
+  AI_CHAT_ABUSE_REASONS,
+  AI_CHAT_LIMITS,
+  WEBHOOK_SIGNATURE_FAILURE_REASONS,
+  WEBHOOK_PROVIDERS,
+  VERIFY_VIEWED_LIMITS,
+} from "./operational-hardening.js";
+export type {
+  AnalyticsEventName,
+  AnalyticsRejectionReason,
+  AiChatAbuseReason,
+  WebhookSignatureFailureReason,
+  WebhookProvider,
+} from "./operational-hardening.js";
+
 export {
   isCompleteOtsAnchor,
   isValidOtsBitcoinTxid,

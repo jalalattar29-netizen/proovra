@@ -62,6 +62,10 @@ import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
+import {
+  isPreferenceEnabled,
+  type NotificationPreferenceType,
+} from "../services/notifications/notification-preferences.service.js";
 
 async function requireAuthAndLegal(
   req: FastifyRequest,
@@ -77,7 +81,18 @@ type InboxCategory =
   | "org_invite"
   | "org_admin"
   | "governance"
-  | "review_decision";
+  | "review_decision"
+  // Phase C2 — operational evidence collaboration signals.
+  // `discussion_mention` — the caller is @-mentioned in a workspace
+  //   discussion thread and has not yet been notified
+  //   (DiscussionMention.notifiedAtUtc IS NULL).
+  // `discussion_assigned` — a discussion thread in the caller's
+  //   workspace has assignedToUserId = caller AND status is not
+  //   RESOLVED or CLOSED.
+  // Deep-link metadata in `context` lets the inbox row open the
+  // exact evidence/matter surface anchored to the thread.
+  | "discussion_mention"
+  | "discussion_assigned";
 
 type InboxItem = {
   /**
@@ -381,6 +396,74 @@ export async function meInboxRoutes(app: FastifyInstance) {
             });
 
       // -----------------------------------------------------------------
+      // Source 4: Phase C2 — unread discussion mentions for the caller.
+      //
+      // A row in DiscussionMention with notifiedAtUtc IS NULL represents
+      // an unread @-mention. The query is scoped to teamIds the caller
+      // is a member of so cross-workspace mentions cannot leak. Each
+      // mention rolls up to one inbox item with deep-link metadata
+      // (evidenceId + threadId + messageId) so the frontend opens the
+      // exact thread.
+      // -----------------------------------------------------------------
+      const unreadMentions =
+        teamIds.length === 0
+          ? []
+          : await prisma.discussionMention.findMany({
+              where: {
+                teamId: { in: teamIds },
+                mentionedUserId: userId,
+                notifiedAtUtc: null,
+              },
+              select: {
+                id: true,
+                teamId: true,
+                threadId: true,
+                messageId: true,
+                createdAt: true,
+                message: {
+                  select: {
+                    thread: {
+                      select: {
+                        id: true,
+                        title: true,
+                        evidenceId: true,
+                        status: true,
+                      },
+                    },
+                  },
+                },
+              },
+              orderBy: { createdAt: "desc" },
+              take: 100,
+            });
+
+      // -----------------------------------------------------------------
+      // Source 5: Phase C2 — unresolved discussion threads assigned to
+      // the caller. Threads in status RESOLVED or CLOSED do not surface.
+      // -----------------------------------------------------------------
+      const assignedThreads =
+        teamIds.length === 0
+          ? []
+          : await prisma.discussionThread.findMany({
+              where: {
+                teamId: { in: teamIds },
+                assignedToUserId: userId,
+                status: { notIn: ["RESOLVED", "CLOSED"] },
+              },
+              select: {
+                id: true,
+                teamId: true,
+                evidenceId: true,
+                title: true,
+                status: true,
+                escalatedAtUtc: true,
+                updatedAt: true,
+              },
+              orderBy: { updatedAt: "desc" },
+              take: 100,
+            });
+
+      // -----------------------------------------------------------------
       // Assemble the unified items array.
       // -----------------------------------------------------------------
       const items: InboxItem[] = [];
@@ -522,6 +605,92 @@ export async function meInboxRoutes(app: FastifyInstance) {
       }
 
       // -----------------------------------------------------------------
+      // Phase G3.1 — notification preference filter. Per-workspace
+      // toggles control which discussion mentions and assignment
+      // items surface in the inbox. The mapping is bounded:
+      //   * discussion_mention → MENTION
+      //   * discussion_assigned → ASSIGNED_THREAD
+      // The aggregator caches the per-workspace verdict so a 100-row
+      // mention list does not produce 100 round-trips.
+      // -----------------------------------------------------------------
+      const preferenceCache = new Map<string, boolean>();
+      async function isAllowed(
+        teamIdLookup: string | null,
+        type: NotificationPreferenceType,
+      ): Promise<boolean> {
+        // No teamId → fall back to the global default (in-app
+        // enabled). This handles legacy rows where the teamId field
+        // may be nullable on the source.
+        if (!teamIdLookup) return true;
+        const key = `${teamIdLookup}|${type}`;
+        const cached = preferenceCache.get(key);
+        if (cached !== undefined) return cached;
+        const allowed = await isPreferenceEnabled({
+          userId,
+          teamId: teamIdLookup,
+          preferenceType: type,
+          channel: "IN_APP",
+        });
+        preferenceCache.set(key, allowed);
+        return allowed;
+      }
+
+      // -----------------------------------------------------------------
+      // Phase C2 — unread discussion mentions (one inbox item per
+      // mention). Tone = high because an explicit @-mention is the
+      // strongest operational coordination signal Phase 16 emits.
+      // -----------------------------------------------------------------
+      for (const m of unreadMentions) {
+        const thread = m.message?.thread;
+        if (!thread) continue;
+        // Phase G3.1 — respect per-workspace MENTION toggle.
+        if (!(await isAllowed(m.teamId, "MENTION"))) continue;
+        items.push({
+          id: `discussion_mention:${m.id}`,
+          category: "discussion_mention",
+          tone: "high",
+          title: `You were mentioned in "${thread.title}"`,
+          body: `A reviewer or investigator @-mentioned you in a workspace discussion. Open the thread to respond.`,
+          href: `/evidence/${encodeURIComponent(thread.evidenceId)}?tab=discussion&thread=${encodeURIComponent(thread.id)}`,
+          occurredAt: m.createdAt.toISOString(),
+          context: {
+            teamId: m.teamId,
+            evidenceId: thread.evidenceId,
+            threadId: thread.id,
+            messageId: m.messageId,
+            threadStatus: thread.status,
+          },
+        });
+      }
+
+      // -----------------------------------------------------------------
+      // Phase C2 — unresolved threads assigned to the caller. Tone =
+      // warning by default; escalated threads bump to high.
+      // Phase G3.1 — respect per-workspace ASSIGNED_THREAD toggle.
+      // -----------------------------------------------------------------
+      for (const t of assignedThreads) {
+        if (!(await isAllowed(t.teamId, "ASSIGNED_THREAD"))) continue;
+        items.push({
+          id: `discussion_assigned:${t.id}`,
+          category: "discussion_assigned",
+          tone: t.escalatedAtUtc ? "high" : "warning",
+          title: `Discussion assigned to you: "${t.title}"`,
+          body: t.escalatedAtUtc
+            ? `An escalated discussion is assigned to you. Status: ${t.status}.`
+            : `An open discussion is assigned to you. Status: ${t.status}.`,
+          href: `/evidence/${encodeURIComponent(t.evidenceId)}?tab=discussion&thread=${encodeURIComponent(t.id)}`,
+          occurredAt: t.updatedAt.toISOString(),
+          context: {
+            teamId: t.teamId,
+            evidenceId: t.evidenceId,
+            threadId: t.id,
+            threadStatus: t.status,
+            escalated: t.escalatedAtUtc ? 1 : 0,
+          },
+        });
+      }
+
+      // -----------------------------------------------------------------
       // Severity-first ordering.
       // -----------------------------------------------------------------
       const tonePriority: Record<InboxTone, number> = {
@@ -556,6 +725,12 @@ export async function meInboxRoutes(app: FastifyInstance) {
           review_decision: items.filter(
             (i) => i.category === "review_decision",
           ).length,
+          discussion_mention: items.filter(
+            (i) => i.category === "discussion_mention",
+          ).length,
+          discussion_assigned: items.filter(
+            (i) => i.category === "discussion_assigned",
+          ).length,
         },
       };
 
@@ -568,6 +743,74 @@ export async function meInboxRoutes(app: FastifyInstance) {
         },
         summary,
         items,
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------
+  // Phase C2 — topbar summary endpoint.
+  //
+  // GET /v1/me/inbox/summary
+  //
+  // Bounded counters for the global topbar mention indicator. This is
+  // a tiny, cheap projection: caller's unread discussion mentions and
+  // unresolved assigned discussion threads. The frontend polls this on
+  // a slow interval to drive a small badge — full inbox content is
+  // fetched only when the user clicks through to /inbox.
+  //
+  // Workspace-scoped (caller's teamIds). No cross-workspace leak.
+  // No full inbox aggregation, no joins beyond the two count queries.
+  // ---------------------------------------------------------------------
+  app.get(
+    "/v1/me/inbox/summary",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const now = new Date();
+
+      const teamMemberships = await prisma.teamMember.findMany({
+        where: { userId },
+        select: { teamId: true },
+      });
+      const ownedPersonalTeams = await prisma.team.findMany({
+        where: { ownerUserId: userId },
+        select: { id: true },
+      });
+      const teamIdSet = new Set<string>([
+        ...teamMemberships.map((tm) => tm.teamId),
+        ...ownedPersonalTeams.map((t) => t.id),
+      ]);
+      const teamIds = Array.from(teamIdSet);
+
+      if (teamIds.length === 0) {
+        return reply.code(200).send({
+          generatedAt: now.toISOString(),
+          unreadMentions: 0,
+          openAssignments: 0,
+        });
+      }
+
+      const [unreadMentions, openAssignments] = await Promise.all([
+        prisma.discussionMention.count({
+          where: {
+            teamId: { in: teamIds },
+            mentionedUserId: userId,
+            notifiedAtUtc: null,
+          },
+        }),
+        prisma.discussionThread.count({
+          where: {
+            teamId: { in: teamIds },
+            assignedToUserId: userId,
+            status: { notIn: ["RESOLVED", "CLOSED"] },
+          },
+        }),
+      ]);
+
+      return reply.code(200).send({
+        generatedAt: now.toISOString(),
+        unreadMentions,
+        openAssignments,
       });
     },
   );

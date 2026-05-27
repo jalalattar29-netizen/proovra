@@ -317,7 +317,8 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
   // E10.1 closed at auth.routes.ts = 42051 bytes + webhooks.routes.ts at
   // its post-E10.1 size. E10.2 must NOT have drifted these.
   const POST_E10_1_PINS: ReadonlyArray<{ rel: string; expected: number; tolerance: number }> = [
-    { rel: "src/routes/auth.routes.ts", expected: 42051, tolerance: 0.05 },
+    // Rebaselined post-G3.x/G4/G5 — auth.routes.ts grew.
+    { rel: "src/routes/auth.routes.ts", expected: 48469, tolerance: 0.05 },
   ];
   for (const { rel, expected, tolerance } of POST_E10_1_PINS) {
     it(`${rel} unchanged at the post-E10.1 baseline`, () => {
@@ -368,7 +369,7 @@ describe("E10.2 Test 7 — 32.8 IA preserved", () => {
     const ids = Array.from(m![1]!.matchAll(/["']([^"']+)["']/g)).map(
       (mm) => mm[1]!,
     );
-    expect(ids).toHaveLength(6);
+    expect(ids).toHaveLength(9); // baseline grew with G0+ IA — was 6 pre-G0, now 9 canonical primaries
   });
 });
 

@@ -53,6 +53,10 @@ export const ORG_AUDIT_EVENT_TYPES = [
   // Phase 2.7X Stage 5 — record rejected accept attempts so the
   // governance timeline shows enumeration / hijack pressure.
   "ORG_INVITE_ACCEPT_REJECTED",
+  // Phase B0 — Org governance policy publish events. Today only the
+  // retention policy ships; the catalog reserves slots for future
+  // governance policies so the audit feed has stable categories.
+  "ORG_POLICY_RETENTION_PUBLISHED",
 ] as const;
 
 export type OrgAuditEventType = (typeof ORG_AUDIT_EVENT_TYPES)[number];

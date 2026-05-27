@@ -782,11 +782,17 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // ---------------------------------------------------------------------------
   // ORGANIZATION-only operator surfaces.
   // ---------------------------------------------------------------------------
+  // Phase B — Phase C0 made `/review` the canonical reviewer console
+  // (Queue · Mine · Escalations · SLA · Workload). The legacy
+  // `/reviewer-ops` per-workflow inspector continues to exist (still the
+  // canonical mutation surface for individual reviews) but the operator
+  // entry-point is now `/review`. Phase B registers both so navigation
+  // and All Tools can surface them with their correct semantics.
   {
-    id: "review.queue",
-    href: "/reviewer-ops",
-    label: "Reviewer Operations",
-    description: "Routing queues, SLA tracking, escalations.",
+    id: "workspace.review",
+    href: "/review",
+    label: "Review",
+    description: "Canonical reviewer console — queue, escalations, SLA, workload.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
@@ -796,6 +802,53 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     commandPaletteVisible: true,
     allToolsVisible: true,
     sidebarEligible: true,
+  },
+  {
+    id: "review.queue",
+    href: "/reviewer-ops",
+    label: "Reviewer queues",
+    description: "Legacy reviewer queues + per-workflow inspector (still the canonical mutation surface).",
+    domain: "REVIEW_OPERATIONS",
+    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "CREATE_ORG",
+    workflowTags: ["REVIEW_OPERATIONS", "OPERATIONAL_ADMINISTRATION"],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: true,
+  },
+  // Phase B — Phase 13 per-evidence review operations queue.
+  {
+    id: "review.operations",
+    href: "/review/operations",
+    label: "Review operations",
+    description: "Per-evidence review stage queue (Phase 13).",
+    domain: "REVIEW_OPERATIONS",
+    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "CREATE_ORG",
+    workflowTags: ["REVIEW_OPERATIONS"],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  // Phase B — Phase C3 intake inspector.
+  {
+    id: "workspace.evidence_requests",
+    href: "/evidence-requests",
+    label: "Evidence requests",
+    description: "Phase C3 intake-request inspector — checklist fulfillment, response review, re-request.",
+    domain: "PERSONAL_WORKSPACE",
+    requiredCapabilities: ["INTAKE_LINKS_MANAGE"],
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "REQUEST_ACCESS",
+    workflowTags: ["LEGAL_CASEWORK", "REVIEW_OPERATIONS"],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
   },
   {
     id: "review.sla",
@@ -897,11 +950,20 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: false,
   },
+  // Phase G0 (B0.5) — canonical frontend route is now `/workspaces`.
+  // The legacy `/teams` page file continues to render the same
+  // `WorkspaceAdministrationHome` component as a backward-compatible
+  // alias so deep links + old bookmarks never break. Backend
+  // `/v1/teams/*` endpoints are unchanged; that migration belongs in
+  // a separate backend phase. The route id remains `admin.teams`
+  // because tests + capability mappings key off the literal — only
+  // the user-facing href flipped.
   {
     id: "admin.teams",
-    href: "/teams",
+    href: "/workspaces",
     label: "Workspaces",
-    description: "Personal space + organizations management.",
+    description:
+      "Personal Workspace + organization-governed Workspaces management.",
     domain: "ACCOUNT",
     requiredCapabilities: ["TEAM_VIEW"],
     requiredActiveSpace: "NONE",

@@ -349,6 +349,18 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // index on stripe_event_id. The webhook handler turns
       // duplicate deliveries into safe no-ops.
       "20260804000000_phase_e10_1_stripe_webhook_idempotency",
+      // Phases following E10.1 — each documented under its own
+      // phase doc. Added here so the 32.7.2 guard keeps detecting
+      // unattributed migrations; these are deliberate.
+      "20260925000000_phase0_schema_catchup",
+      "20260926000000_p2_7x_stage1_org_model_additive",
+      "20260927000000_p2_7x_stage6_invite_token_hash",
+      "20260928000000_p2_7x_stage6_teams_org_not_null",
+      "20260929000000_phase_b2_workflow_review_decisions",
+      "20260930000000_phase_a0_integrity_hard_gate",
+      "20261001000000_phase_a1_evidence_org_tenancy",
+      "20261002000000_phase_a2_pdf_artifact_status",
+      "20261003000000_phase_g3_1_notification_preferences",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

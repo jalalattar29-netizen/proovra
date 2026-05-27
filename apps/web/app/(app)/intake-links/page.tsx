@@ -28,6 +28,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../lib/api";
 import { usePlatformContext } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { OperationalBreadcrumb } from "../../../components/navigation/OperationalBreadcrumb";
 
 type LinkRow = {
   id: string;
@@ -224,6 +225,10 @@ function IntakeLinksPageInner() {
 
   return (
     <main style={pageStyle}>
+      <OperationalBreadcrumb
+        routeId="workspace.intake_links"
+        items={[{ label: "Intake links" }]}
+      />
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 style={titleStyle}>External Intake Links</h1>

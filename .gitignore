@@ -28,6 +28,16 @@ Thumbs.db
 _tmp_*
 _tmp_report.pdf
 
+# TypeScript incremental build artifacts — produced by tsc + Next.js
+# typecheck. They are per-environment cache files; committing them
+# causes spurious diff churn and rebase conflicts.
+*.tsbuildinfo
+
+# Playwright + vitest run artifacts — produced fresh on every run.
+# Never intentionally tracked.
+test-results/
+playwright-report/
+
 # allow API prisma migrations to be committed (required for dev/CI)
 !services/api/prisma/migrations/
 !services/api/prisma/migrations/**

@@ -155,9 +155,12 @@ describe("Phase 32.8B — canonical sidebar hierarchy (5 groups, Account in topb
     }
   });
 
-  it("Administration group covers Teams, Billing, Integrations, Intake Links, Settings, Platform Admin", () => {
+  it("Administration group covers Workspaces, Billing, Integrations, Intake Links, Settings, Platform Admin", () => {
+    // Phase B0.5 renamed the nav label from "Teams" to "Workspaces"
+    // (workspace-operating-model-runbook.md). DB model name and
+    // route paths (`/teams`) are unchanged; only the visible label.
     for (const label of [
-      "Teams",
+      "Workspaces",
       "Billing",
       "Integrations",
       "Intake Links",
@@ -304,13 +307,13 @@ describe("Phase 32.8B — backward-compat redirects for consolidated routes", ()
   });
 
   it("every consolidated legacy route has a backward-compat redirect (CR1 Part 2 folded into next.config.js)", () => {
-    // CR1 Part 2 deleted the 8 per-page `next/navigation` redirect()
-    // stubs and folded them into `apps/web/next.config.js` `redirects()`
-    // (canonical 308s, exact-match). End-user behavior is identical;
-    // the redirects are now framework-native instead of JSX-level.
+    // Phase B SUPERSEDES the `/review → /reviewer-ops` redirect.
+    // Phase C0 made `/review` the canonical Reviewer Console; the
+    // CR1 redirect was bouncing operators away from it. Phase B's
+    // contract test (`phase-b-ia-reset`) asserts the redirect is
+    // gone. The rest of the CR1 redirect table is preserved.
     const cases: Array<{ source: string; target: string }> = [
       { source: "/dashboard", target: "/home" },
-      { source: "/review", target: "/reviewer-ops" },
       { source: "/operations", target: "/ops" },
       { source: "/security", target: "/security-center" },
       { source: "/locked", target: "/evidence?filter=locked" },

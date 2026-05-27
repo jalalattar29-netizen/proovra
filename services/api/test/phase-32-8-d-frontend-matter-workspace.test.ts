@@ -135,7 +135,11 @@ describe("Phase 32.8D-frontend — Matter Operations Queue", () => {
 // ===========================================================================
 
 describe("Phase 32.8D-frontend — Matter Workspace", () => {
-  it("/cases/:id page delegates to the CaseWorkspace component", () => {
+  // OBSOLETE — Phase C1 made /cases/[id] the canonical tabbed Matter
+  // Workspace component. CaseWorkspace continues to mount on
+  // /cases/[id]/classic. See phase-c1-matter-workspace.test.ts for the
+  // current canonical mount contract.
+  it.skip("/cases/:id page delegates to the CaseWorkspace component", () => {
     expect(DETAIL_PAGE).toMatch(/<CaseWorkspace[\s\S]*caseId/);
   });
 

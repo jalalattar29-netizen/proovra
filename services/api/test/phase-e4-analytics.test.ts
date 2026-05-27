@@ -363,7 +363,7 @@ describe("E4 Test 5 — route registry entry", () => {
     const ids = Array.from(m![1]!.matchAll(/["']([^"']+)["']/g)).map(
       (mm) => mm[1]!,
     );
-    expect(ids).toHaveLength(6);
+    expect(ids).toHaveLength(9); // baseline grew with G0+ IA — was 6 pre-G0, now 9 canonical primaries
   });
 });
 

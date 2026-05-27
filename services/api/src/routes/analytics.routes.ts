@@ -1,5 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
+import {
+  ANALYTICS_EVENT_NAMES,
+  ANALYTICS_LIMITS,
+  type AnalyticsEventName,
+  type AnalyticsRejectionReason,
+} from "@proovra/shared";
 import { prisma } from "../db.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { verifyJwt } from "../services/jwt.js";
@@ -12,6 +19,8 @@ import {
 import { classifyRouteType } from "../lib/route-classification.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import { getPlanCapabilities } from "../services/plan-catalog.service.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
+import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 
 type AnalyticsTrackBody = {
   eventType?: string;
@@ -930,43 +939,254 @@ async function getFunnel(query: AdminAnalyticsQuery) {
   return steps;
 }
 
-export default async function analyticsRoutes(app: FastifyInstance) {
-  app.post("/v1/analytics/track", async (request, reply) => {
-    try {
-      const body = (request.body ?? {}) as AnalyticsTrackBody;
+// =============================================================================
+// Phase A3 — Hardened analytics intake helpers.
+// =============================================================================
 
-      if (!body.eventType || !body.sessionId || !body.visitorId) {
-        return reply.code(400).send({
-          success: false,
-          error: "Missing required analytics fields",
-        });
+/**
+ * Bounded schema for `POST /v1/analytics/track`. The intake surface
+ * accepts ONLY shapes the platform actually uses; arbitrary
+ * eventType strings and free-form metadata are rejected.
+ */
+const AnalyticsMetadataValueSchema: z.ZodType<unknown> = z.lazy(() =>
+  z.union([
+    z.string().max(ANALYTICS_LIMITS.MAX_STRING),
+    z.number().finite(),
+    z.boolean(),
+    z.null(),
+    z
+      .array(z.union([z.string().max(ANALYTICS_LIMITS.MAX_STRING), z.number().finite(), z.boolean(), z.null()]))
+      .max(16),
+    z
+      .record(
+        z.string().max(80),
+        z.union([
+          z.string().max(ANALYTICS_LIMITS.MAX_STRING),
+          z.number().finite(),
+          z.boolean(),
+          z.null(),
+        ]),
+      )
+      .refine(
+        (r) => Object.keys(r).length <= ANALYTICS_LIMITS.MAX_METADATA_KEYS,
+        { message: "metadata_too_large" },
+      ),
+  ]),
+);
+
+const AnalyticsTrackSchema = z
+  .object({
+    eventType: z.enum(ANALYTICS_EVENT_NAMES),
+    userId: z
+      .string()
+      .uuid()
+      .nullish()
+      .transform((v) => v ?? null),
+    sessionId: z.string().trim().min(1).max(120),
+    visitorId: z.string().trim().min(1).max(120),
+    path: z
+      .string()
+      .trim()
+      .max(ANALYTICS_LIMITS.MAX_STRING)
+      .nullish()
+      .transform((v) => v ?? null),
+    referrer: z
+      .string()
+      .trim()
+      .max(ANALYTICS_LIMITS.MAX_STRING)
+      .nullish()
+      .transform((v) => v ?? null),
+    entityType: z
+      .string()
+      .trim()
+      .max(80)
+      .nullish()
+      .transform((v) => v ?? null),
+    entityId: z
+      .string()
+      .trim()
+      .max(ANALYTICS_LIMITS.MAX_STRING)
+      .nullish()
+      .transform((v) => v ?? null),
+    // metadata is intentionally narrow — top-level keys ≤8, depth ≤2,
+    // string values ≤256 chars.
+    metadata: AnalyticsMetadataValueSchema.nullish().transform(
+      (v) => v ?? null,
+    ),
+  })
+  .strict();
+
+function classifyAnalyticsValidationFailure(
+  err: z.ZodError,
+): AnalyticsRejectionReason {
+  // First issue wins — operators get a single bounded reason per
+  // rejection, never the raw Zod tree (which can include user input).
+  const first = err.issues[0];
+  if (!first) return "schema_invalid";
+  const path = first.path.join(".");
+  if (path === "eventType") return "invalid_event_name";
+  if (path.startsWith("metadata")) {
+    if (first.message?.includes("metadata_too_large")) {
+      return "metadata_too_large";
+    }
+    return "metadata_too_deep";
+  }
+  return "schema_invalid";
+}
+
+async function bumpAnalyticsMetric(
+  name:
+    | "analytics_rejected_total"
+    | "analytics_rate_limited_total"
+    | "analytics_invalid_payload_total",
+): Promise<void> {
+  try {
+    const mod = await import("@proovra/shared-runtime/ops");
+    mod.bump(name);
+  } catch {
+    /* metrics are best-effort */
+  }
+}
+
+async function emitAnalyticsRejection(
+  request: FastifyRequest,
+  reason: AnalyticsRejectionReason,
+): Promise<void> {
+  // Bounded SecurityEvent — never the raw payload.
+  safeEmitSecurityEvent({
+    teamId: null,
+    eventType: "analytics_request_rejected",
+    severity: "INFO",
+    details: {
+      reason,
+      // Truncated client identifiers; never the payload itself.
+      ipPrefix: request.ip ? request.ip.split(".").slice(0, 3).join(".") + ".x" : null,
+      path: request.url.split("?")[0]?.slice(0, 80) ?? null,
+    },
+  });
+}
+
+export default async function analyticsRoutes(app: FastifyInstance) {
+  // Phase A3 — Hardened analytics intake.
+  //
+  // The endpoint accepts ONLY the bounded
+  // `ANALYTICS_EVENT_NAMES` allowlist. Every other request shape
+  // is rejected with 422 and emits a structured security signal so
+  // operators can detect floods, replay spam, and accidental
+  // frontend loops. The handler:
+  //
+  //   1. enforces a per-IP and per-visitorId rate limit BEFORE
+  //      Zod parses the body — cheap requests should bounce
+  //      cheaply,
+  //   2. validates body shape against `AnalyticsTrackSchema` — the
+  //      schema is intentionally narrow,
+  //   3. bumps an operationally meaningful counter on rejection so
+  //      a flood is visible via metrics, not via log spam,
+  //   4. caps body size via `bodyLimit` so a giant payload is
+  //      rejected by Fastify before reaching our handler.
+  app.post(
+    "/v1/analytics/track",
+    {
+      // Body limit ahead of Zod so giant payloads bounce in Fastify.
+      bodyLimit: ANALYTICS_LIMITS.MAX_BODY_BYTES,
+    },
+    async (request, reply) => {
+      // Rate-limit layer 1: per-IP.
+      const ipKey = `ratelimit:analytics:ip:${request.ip}`;
+      const ipRate = await enforceRateLimit({
+        key: ipKey,
+        max: ANALYTICS_LIMITS.RATE_LIMIT_IP_PER_MIN,
+        windowSec: 60,
+      });
+      if (!ipRate.allowed) {
+        await bumpAnalyticsMetric("analytics_rate_limited_total");
+        await emitAnalyticsRejection(request, "rate_limited_ip");
+        const retryAfter = Math.max(
+          1,
+          Math.ceil((ipRate.resetAtMs - Date.now()) / 1000),
+        );
+        reply.header("Retry-After", String(retryAfter));
+        return reply
+          .code(429)
+          .send({ success: false, error: "Rate limit exceeded" });
+      }
+
+      // Validate body shape. Unknown event names, oversized
+      // metadata, deep nesting, oversized strings all get rejected
+      // with 422 + bounded reason.
+      const parsed = AnalyticsTrackSchema.safeParse(request.body ?? {});
+      if (!parsed.success) {
+        const reason = classifyAnalyticsValidationFailure(parsed.error);
+        await bumpAnalyticsMetric("analytics_invalid_payload_total");
+        await emitAnalyticsRejection(request, reason);
+        return reply
+          .code(422)
+          .send({ success: false, error: "Invalid analytics payload" });
+      }
+
+      const body = parsed.data;
+
+      // Rate-limit layer 2: per-visitorId. A single IP behind a
+      // CGNAT may legitimately host many visitors; the visitor
+      // bucket protects per-browser spam without false positives.
+      const visitorKey = `ratelimit:analytics:visitor:${body.visitorId}`;
+      const visitorRate = await enforceRateLimit({
+        key: visitorKey,
+        max: ANALYTICS_LIMITS.RATE_LIMIT_VISITOR_PER_MIN,
+        windowSec: 60,
+      });
+      if (!visitorRate.allowed) {
+        await bumpAnalyticsMetric("analytics_rate_limited_total");
+        await emitAnalyticsRejection(request, "rate_limited_visitor");
+        const retryAfter = Math.max(
+          1,
+          Math.ceil((visitorRate.resetAtMs - Date.now()) / 1000),
+        );
+        reply.header("Retry-After", String(retryAfter));
+        return reply
+          .code(429)
+          .send({ success: false, error: "Rate limit exceeded" });
       }
 
       const resolvedUserId = resolveTrackUserId(request, body.userId ?? null);
 
-      await writeAnalyticsEvent({
-        eventType: body.eventType,
-        userId: resolvedUserId,
-        sessionId: body.sessionId,
-        visitorId: body.visitorId,
-        path: body.path ?? null,
-        referrer: body.referrer ?? null,
-        entityType: body.entityType ?? null,
-        entityId: body.entityId ?? null,
-        metadata: body.metadata ?? null,
-        req: request,
-      });
+      try {
+        await writeAnalyticsEvent({
+          eventType: body.eventType,
+          userId: resolvedUserId,
+          sessionId: body.sessionId,
+          visitorId: body.visitorId,
+          path: body.path ?? null,
+          referrer: body.referrer ?? null,
+          entityType: body.entityType ?? null,
+          entityId: body.entityId ?? null,
+          metadata:
+            body.metadata != null
+              ? (body.metadata as Prisma.InputJsonValue)
+              : null,
+          req: request,
+        });
+      } catch (err: unknown) {
+        await bumpAnalyticsMetric("analytics_rejected_total");
+        // Bounded log: never log the raw payload, only the failure
+        // shape. Analytics is best-effort; we return 200 to the
+        // client so a transient DB hiccup does not cascade into
+        // frontend retry storms.
+        request.log.warn(
+          {
+            err: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+            code:
+              err instanceof Error && "code" in err
+                ? (err as { code?: string }).code ?? null
+                : null,
+          },
+          "analytics.track.write_failed",
+        );
+      }
 
       return reply.code(200).send({ success: true });
-    } catch (err: unknown) {
-      request.log.error({ err }, "analytics.track.failed");
-
-      return reply.code(500).send({
-        success: false,
-        error: "Analytics tracking failed",
-      });
-    }
-  });
+    },
+  );
 
   app.get(
     "/v1/admin/analytics/dashboard",

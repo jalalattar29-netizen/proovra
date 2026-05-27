@@ -18,6 +18,12 @@ import { useParams } from "next/navigation";
 import { apiFetch } from "../../../../lib/api";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+// Phase G3.2 — Presence + collision wiring for the reviewer
+// inspector. Mirrors the evidence detail page's presence surfacing
+// so reviewers see when a peer is acting on the same workflow + when
+// the workflow has moved under them.
+import { PresenceIndicator } from "../../../../components/presence/PresenceIndicator";
+import { CollisionWarning } from "../../../../components/presence/CollisionWarning";
 import {
   ReviewerReasonModal,
   type ReviewerReasonKind,
@@ -118,6 +124,19 @@ export default function ReviewWorkspacePage() {
   );
 }
 
+function deriveSignature(r: WorkspaceResponse | null): string | null {
+  if (!r) return null;
+  const p = r.projection;
+  return [
+    p.lifecycleState,
+    p.assignedToUserId ?? "",
+    p.slaRollupState,
+    p.assignedAtUtc ?? "",
+    r.openEscalation?.id ?? "",
+    r.openEscalation?.status ?? "",
+  ].join("|");
+}
+
 function ReviewWorkspacePageInner() {
   const params = useParams<{ reviewId: string }>();
   const workflowId = params?.reviewId ?? "";
@@ -126,6 +145,14 @@ function ReviewWorkspacePageInner() {
   const [data, setData] = useState<WorkspaceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Phase G3.2 — collision detection. The reviewer workspace
+  // projection doesn't surface `updatedAt` directly, so we derive a
+  // stable signature from the fields that mutating actions move
+  // (lifecycle, assignment, SLA, escalation). String equality on the
+  // signature is the same check CollisionWarning performs against an
+  // ISO timestamp — both modes are honest, neither claims false
+  // precision.
+  const [initialSignature, setInitialSignature] = useState<string | null>(null);
   // Phase 2.4 — replace 3 `window.prompt` calls with a structured modal.
   // `reasonModal` holds the kind currently open, or null when closed.
   const [reasonModal, setReasonModal] = useState<ReviewerReasonKind | null>(
@@ -150,6 +177,9 @@ function ReviewWorkspacePageInner() {
       .then((r: WorkspaceResponse) => {
         setData(r);
         setError(null);
+        // Capture the first signature; subsequent reloads update
+        // `data` (the current side) but never overwrite this snapshot.
+        setInitialSignature((prev) => prev ?? deriveSignature(r));
       })
       .catch((err: { message?: string }) =>
         setError(err?.message ?? "Could not load workspace."),
@@ -300,6 +330,29 @@ function ReviewWorkspacePageInner() {
       </header>
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
+
+      {/* Phase G3.2 — Presence + collision wiring for the inspector. */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          marginBottom: 8,
+        }}
+      >
+        <PresenceIndicator
+          teamId={teamId}
+          resourceKind="reviewer_workflow"
+          resourceId={workflowId}
+        />
+      </div>
+      <CollisionWarning
+        entityLabel="Review workflow"
+        initialUpdatedAtUtc={initialSignature}
+        currentUpdatedAtUtc={deriveSignature(data)}
+        onReload={() => load()}
+      />
 
       {/* Phase B-2 — governance signals strip. Surfaces ACTIVE legal
           hold count + redaction-required visibility decisions for the

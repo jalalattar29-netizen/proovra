@@ -201,7 +201,12 @@ export type StartupConfigViolation = {
     | "signing_provider_inconsistent"
     | "saml_url_localhost_in_production"
     | "storage_localhost_in_production"
-    | "stripe_key_shape_invalid";
+    | "stripe_key_shape_invalid"
+    // Phase A2 — PDF artifact signing safety. Production must
+    // either have PDF_SIGNING_ENABLED=true OR carry an explicit
+    // PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK=true. Both unset is a
+    // structurally unsafe config; the API refuses to start.
+    | "pdf_signing_unconfigured_in_production";
 };
 
 /**
@@ -312,6 +317,39 @@ export function collectStartupViolations(): StartupConfigViolation[] {
     }
   }
 
+  // Phase A2 — PDF artifact signing safety in production.
+  //
+  // Reaching this branch means we are in NODE_ENV=production. The
+  // platform MUST either:
+  //   * have PDF_SIGNING_ENABLED=true (the default for serious
+  //     evidence operators), or
+  //   * have PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK=true to explicitly
+  //     acknowledge the unsigned-artifact path (operator-recorded
+  //     in the runbook).
+  //
+  // Both unset is structurally unsafe — the worker would emit an
+  // unsigned PDF in production whose status the API has no way to
+  // honestly describe. We refuse to start so the misconfiguration
+  // is loud, not silent. The existing worker-side
+  // `assertPdfSigningProductionSafetyOrThrow` covers the per-job
+  // path; this validator covers the API boot path so the
+  // misconfiguration surfaces on the first deploy, not the first
+  // report job.
+  if (PROD()) {
+    const pdfSigningOn =
+      (process.env.PDF_SIGNING_ENABLED ?? "").trim().toLowerCase() === "true";
+    const pdfOptOutAck =
+      (process.env.PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK ?? "")
+        .trim()
+        .toLowerCase() === "true";
+    if (!pdfSigningOn && !pdfOptOutAck) {
+      out.push({
+        envName: "PDF_SIGNING_ENABLED",
+        reason: "pdf_signing_unconfigured_in_production",
+      });
+    }
+  }
+
   // Phase 32.7 — Stripe secret-key shape validation.
   //
   // STRIPE_SECRET_KEY must start with `sk_live_` (production) or
@@ -358,6 +396,35 @@ export function runStartupConfigValidation(log: {
     },
     "phase20.startup.config_snapshot",
   );
+
+  // Phase A2 — loud production warning when the operator has
+  // acknowledged the unsigned-PDF opt-out. The validator above
+  // accepts the opt-out as a legitimate config; this log makes the
+  // acknowledgement visible on EVERY API boot so it never slips
+  // unnoticed past an ops handoff.
+  if (PROD()) {
+    const pdfSigningOn =
+      (process.env.PDF_SIGNING_ENABLED ?? "").trim().toLowerCase() === "true";
+    const pdfOptOutAck =
+      (process.env.PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK ?? "")
+        .trim()
+        .toLowerCase() === "true";
+    if (!pdfSigningOn && pdfOptOutAck) {
+      log.warn(
+        {
+          pdfArtifactSignatureOptOutAcknowledged: true,
+          pdfSigningEnabled: false,
+        },
+        "phase_a2.startup.pdf_signing_opt_out_active",
+      );
+    } else if (pdfSigningOn) {
+      log.info(
+        { pdfSigningEnabled: true },
+        "phase_a2.startup.pdf_signing_enabled",
+      );
+    }
+  }
+
   const violations = collectStartupViolations();
   if (violations.length === 0) return;
   if (PROD()) {

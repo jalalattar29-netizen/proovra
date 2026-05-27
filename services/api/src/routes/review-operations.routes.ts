@@ -47,6 +47,10 @@ import {
   recordReviewDecision,
   updateReviewSla,
 } from "../services/review-operations/review-operations.service.js";
+// Phase C0 — Sensitive review decision step-up enforcement.
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import type { StepUpPurpose } from "@proovra/shared";
+import { loadWorkspaceReviewerOpsFlags } from "../services/reviewer-ops/sla-policy.service.js";
 
 const ParamsEvidenceId = z.object({ evidenceId: z.string().uuid() });
 
@@ -258,6 +262,51 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
       if (!workflow || workflow.teamId !== body.teamId) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+
+      // Phase C0 — Sensitive reviewer decision step-up gate. When
+      // the workspace governance flag for the chosen decision is
+      // set (`requireStepUpForApprove` / `requireStepUpForReject`),
+      // the request must carry a fresh step-up token for the
+      // matching purpose. Mirrors the existing gate on the
+      // `/v1/reviewer-ops/*` workflow surface. When the flag is
+      // off, this is a no-op and the request proceeds.
+      //
+      // Decision-to-gate mapping uses the canonical Phase 13
+      // decision vocabulary (`APPROVE_INTERNAL`, `REJECT_INSUFFICIENT`,
+      // etc.). The two terminal-trust decisions are the ones
+      // protected: any "internal approval" or "insufficient
+      // rejection" carries enough operational weight to warrant
+      // the step-up gate when the workspace opts in.
+      const stepUpGateKey: "approve" | "reject" | null =
+        body.decision === "APPROVE_INTERNAL"
+          ? "approve"
+          : body.decision === "REJECT_INSUFFICIENT"
+            ? "reject"
+            : null;
+      if (stepUpGateKey) {
+        const flags = await loadWorkspaceReviewerOpsFlags(body.teamId);
+        const flagKey =
+          stepUpGateKey === "approve"
+            ? "requireStepUpForApprove"
+            : "requireStepUpForReject";
+        if (flags[flagKey]) {
+          const purpose: StepUpPurpose =
+            stepUpGateKey === "approve"
+              ? "REVIEW_APPROVAL_HIGH_RISK"
+              : "REVIEWER_OPS_REJECT";
+          const result = await requireStepUpForSensitiveAction({
+            req,
+            reply,
+            teamId: body.teamId,
+            userId: ok.userId,
+            purpose,
+            resourceKind: "evidence_review_decision",
+            resourceId: evidenceId,
+          });
+          if (result.sent) return;
+        }
+      }
+
       try {
         const updated = await recordReviewDecision({
           evidenceId,

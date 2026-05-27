@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ClipboardCheck,
@@ -10,6 +10,7 @@ import {
   History,
   ImageIcon,
   LayoutGrid,
+  MessageSquare,
   Package,
   ShieldCheck,
   TriangleAlert,
@@ -45,6 +46,7 @@ import { EvidenceReviewActionsPanel } from "./components/EvidenceReviewActionsPa
 import { EvidenceRelationshipsSection } from "./components/EvidenceRelationshipsSection";
 import { ArtifactHistorySection } from "./components/ArtifactHistorySection";
 import { ReviewerAuditTrailSection } from "./components/ReviewerAuditTrailSection";
+import EvidenceDiscussionPanel from "./components/EvidenceDiscussionPanel";
 // Phase 6 — surfaces "Source: External intake" + safe reviewer status
 // controls when (and only when) the evidence row arrived via the external
 // intake pipeline. Returns null for every other evidence record, so this
@@ -58,12 +60,20 @@ import EvidenceRequestPanel from "./components/EvidenceRequestPanel";
 // Phase 9.5 — workspace governance indicators (legal hold, retention,
 // policy gates). Renders null when no constraint is active.
 import GovernanceIndicators from "./components/GovernanceIndicators";
+import { GovernanceSummary } from "../../../../components/governance/GovernanceSummary";
 import {
   ExportPackageEligibilityBadge,
   GovernanceSnapshotPanel,
   OperationalTimelinePanel,
   RuntimeStatusBanner,
 } from "../../../../components/operational";
+// Phase G3.2 — Presence + collision wiring. PresenceIndicator
+// surfaces other operators viewing this evidence (bounded 30s
+// heartbeat poll). CollisionWarning compares the workflow
+// updatedAt captured at mount with the freshest envelope read so
+// operators see when the record has changed under them.
+import { PresenceIndicator } from "../../../../components/presence/PresenceIndicator";
+import { CollisionWarning } from "../../../../components/presence/CollisionWarning";
 import "./evidence-detail.css";
 
 type EvidenceDetailTab =
@@ -72,6 +82,7 @@ type EvidenceDetailTab =
   | "custody"
   | "review"
   | "artifacts"
+  | "discussion"
   | "technical";
 
 const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string; icon: LucideIcon }> = [
@@ -80,6 +91,10 @@ const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string; icon: LucideIco
   { id: "custody", label: "Custody", icon: History },
   { id: "review", label: "Review", icon: ClipboardCheck },
   { id: "artifacts", label: "Artifacts", icon: Package },
+  // Phase C2 — Discussion tab. Surfaces the Phase 16 discussion
+  // backend that already exists (threads / messages / mentions)
+  // as a first-class evidence-context collaboration surface.
+  { id: "discussion", label: "Discussion", icon: MessageSquare },
   { id: "technical", label: "Technical Appendix", icon: FileText },
 ];
 
@@ -474,10 +489,30 @@ export default function EvidenceDetailPage() {
 function EvidenceDetailPageInner() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { addToast } = useToast();
   const evidenceId = params?.id ?? "";
 
-  const [activeTab, setActiveTab] = useState<EvidenceDetailTab>("overview");
+  // Phase C2 — deep-link initial tab from `?tab=discussion&thread=:id`.
+  // Inbox rows + topbar mention links land here; the initial tab must
+  // honor the explicit operator intent.
+  const initialTab: EvidenceDetailTab = (() => {
+    const raw = searchParams?.get("tab");
+    switch (raw) {
+      case "overview":
+      case "integrity":
+      case "custody":
+      case "review":
+      case "artifacts":
+      case "discussion":
+      case "technical":
+        return raw as EvidenceDetailTab;
+      default:
+        return "overview";
+    }
+  })();
+  const initialThreadId = searchParams?.get("thread") ?? null;
+  const [activeTab, setActiveTab] = useState<EvidenceDetailTab>(initialTab);
   const [workspace, setWorkspace] = useState<ReviewWorkspaceResponse | null>(null);
   const [cases, setCases] = useState<CaseOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -520,6 +555,12 @@ function EvidenceDetailPageInner() {
   // and let the backend respond.
   const [exportDisabled, setExportDisabled] = useState(false);
   const [packageDisabled, setPackageDisabled] = useState(false);
+  // Phase G3.2 — collision detection. `initialUpdatedAtUtc` is
+  // captured on the FIRST successful load and never moves; the
+  // CollisionWarning compares it against the freshest envelope.
+  const [initialUpdatedAtUtc, setInitialUpdatedAtUtc] = useState<
+    string | null
+  >(null);
 
   const loadWorkflowEvents = async () => {
     if (!evidenceId) return;
@@ -569,6 +610,13 @@ function EvidenceDetailPageInner() {
       const workspaceData = workspaceResult.value as ReviewWorkspaceResponse;
 
       setWorkspace(workspaceData);
+      // Phase G3.2 — capture the workflow updatedAt the first time
+      // the page loads. Subsequent reloads update `workspace` (which
+      // CollisionWarning treats as the current side); the initial
+      // side is the snapshot the operator opened with.
+      setInitialUpdatedAtUtc((prev) =>
+        prev ?? workspaceData.reviewWorkflow.updatedAt ?? null,
+      );
       setLabelDraft(workspaceData.evidence.displayTitle || workspaceData.evidence.title);
       setWorkflowStatusDraft(workspaceData.reviewWorkflow.status || "NOT_STARTED");
       setWorkflowPriorityDraft(workspaceData.reviewWorkflow.priority || "NORMAL");
@@ -1304,6 +1352,14 @@ function EvidenceDetailPageInner() {
     buildShareUrl(workspace.publicVerificationSummary.sharePath) ||
     workspace.publicVerificationSummary.publicUrl;
 
+  // Phase A0 — integrity hard-gate exposure. The terminal state set
+  // by the worker when a recomputed SHA-256 disagreed with the value
+  // recorded at completion. We disable every report / package /
+  // share / publish action and render an operationally-specific
+  // banner. The status pill above already renders with the "danger"
+  // tone via the existing `pillTone()` helper.
+  const isIntegrityFailed = evidence.status === "FAILED_HASH_MISMATCH";
+
   return (
     <div className="evidence-detail-page">
       <div className="evidence-detail-shell">
@@ -1315,6 +1371,62 @@ function EvidenceDetailPageInner() {
             teamId={workspace.reviewWorkflow.teamId}
             forDomains={["core_evidence"]}
           />
+        ) : null}
+        {/* Phase G3.2 — Presence + collision wiring. PresenceIndicator
+            polls every 30s; CollisionWarning fires when another
+            operator's mutation moves the workflow updatedAt past the
+            snapshot the operator opened with. */}
+        {workspace.reviewWorkflow?.teamId ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+              marginBottom: 8,
+            }}
+          >
+            <PresenceIndicator
+              teamId={workspace.reviewWorkflow.teamId}
+              resourceKind="evidence"
+              resourceId={evidenceId}
+            />
+          </div>
+        ) : null}
+        <CollisionWarning
+          entityLabel="Evidence record"
+          initialUpdatedAtUtc={initialUpdatedAtUtc}
+          currentUpdatedAtUtc={workspace.reviewWorkflow.updatedAt ?? null}
+          onReload={() => void loadWorkspace()}
+        />
+        {isIntegrityFailed ? (
+          <aside
+            className="evidence-detail-integrity-banner"
+            role="alert"
+            aria-live="polite"
+            style={{
+              border: "1px solid rgba(176, 50, 50, 0.55)",
+              background: "rgba(176, 50, 50, 0.06)",
+              color: "#5a1414",
+              borderRadius: 12,
+              padding: "16px 18px",
+              marginBottom: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+            }}
+          >
+            <strong style={{ fontSize: 14, letterSpacing: 0.02 }}>
+              Integrity check failed
+            </strong>
+            <span style={{ fontSize: 13, lineHeight: 1.5 }}>
+              The uploaded file&rsquo;s SHA-256 does not match the
+              recomputed server-side fingerprint. This evidence record
+              cannot be used. Re-upload or recapture the source
+              material as a new evidence record. The original record is
+              preserved for forensic inspection.
+            </span>
+          </aside>
         ) : null}
         <section className="evidence-detail-hero">
           <div className="evidence-detail-hero-main">
@@ -1394,23 +1506,35 @@ function EvidenceDetailPageInner() {
           <div className="evidence-detail-hero-actions">
             <Button
               onClick={() => void downloadReport()}
-              disabled={exportDisabled}
+              disabled={exportDisabled || isIntegrityFailed}
             >
-              Download report
+              {/* Phase A2 — disambiguated label. The downloadable
+                  artifact behind this button is the Report PDF
+                  specifically (a separate file from the Verification
+                  Package ZIP). */}
+              Download Report PDF
             </Button>
             <Button
               onClick={() => void downloadVerificationPackage()}
-              disabled={packageDisabled}
+              disabled={packageDisabled || isIntegrityFailed}
             >
-              Download package
+              Download Verification Package ZIP
             </Button>
-            <Button variant="secondary" onClick={() => void copyShareLink()}>
+            <Button
+              variant="secondary"
+              onClick={() => void copyShareLink()}
+              disabled={isIntegrityFailed}
+            >
               Copy verification link
             </Button>
             <Button
               variant="secondary"
               onClick={() => setLockOpen(true)}
-              disabled={Boolean(evidence.lockedAt) || evidence.deletedAt != null}
+              disabled={
+                Boolean(evidence.lockedAt) ||
+                evidence.deletedAt != null ||
+                isIntegrityFailed
+              }
             >
               {evidence.lockedAt ? "Record locked" : "Lock record"}
             </Button>
@@ -1439,6 +1563,16 @@ function EvidenceDetailPageInner() {
           <main className="evidence-detail-main">
             {activeTab === "overview" ? (
               <>
+                {/* Phase G3 (G2.x closure) — Evidence governance
+                    summary mount. The Phase G1 GovernanceSummary
+                    component aggregates lifecycle / retention / holds
+                    / destruction / export eligibility into one
+                    deterministic block. Existing LifecycleIndicators
+                    + GovernanceSnapshotPanel below are retained for
+                    backward compatibility — they surface
+                    domain-specific drill-down that the summary's
+                    bounded row list does not. */}
+                <GovernanceSummary variant="evidence" />
                 <GovernanceIndicators
                   evidenceId={evidenceId}
                   teamId={workspace.reviewWorkflow?.teamId ?? null}
@@ -2176,6 +2310,26 @@ function EvidenceDetailPageInner() {
                   formatDateTime={formatUserDateTime}
                 />
               </>
+            ) : null}
+
+            {activeTab === "discussion" ? (
+              <section
+                className="evidence-detail-section"
+                data-evidence-discussion-section
+              >
+                <div className="evidence-detail-section-header">
+                  <SectionHeading
+                    kicker="Discussion"
+                    title="Operational evidence coordination"
+                    icon={MessageSquare}
+                  />
+                </div>
+                <EvidenceDiscussionPanel
+                  evidenceId={evidenceId}
+                  teamId={workspace.reviewWorkflow?.teamId ?? null}
+                  initialThreadId={initialThreadId}
+                />
+              </section>
             ) : null}
 
             {activeTab === "technical" ? (

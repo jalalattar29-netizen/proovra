@@ -32,7 +32,21 @@ const nextConfig = {
         permanent: true,
       },
       { source: "/operations", destination: "/ops", permanent: true },
-      { source: "/review", destination: "/reviewer-ops", permanent: true },
+      // Phase B — removed the legacy `/review → /reviewer-ops` redirect.
+      // Phase C0 made `/review` the canonical reviewer console, but the
+      // legacy redirect was intercepting navigation and bouncing
+      // operators away from it. The page at `app/(app)/review/page.tsx`
+      // is now the canonical landing surface.
+      // Phase B — alias `/ops/reliability` to the existing
+      // `/operations/reliability` page so the operations URL family
+      // appears consistent (`/ops/*`). A future phase may rename the
+      // filesystem path; for now the redirect masks the inconsistency
+      // without breaking the actual route.
+      {
+        source: "/ops/reliability",
+        destination: "/operations/reliability",
+        permanent: true,
+      },
       {
         source: "/reviewer-ops/policy",
         destination: "/governance/policy",

@@ -71,7 +71,10 @@ import {
   putObjectBuffer,
 } from "./storage.js";
 import { createHash, randomUUID, verify as verifySignature } from "node:crypto";
-import { buildReportPdfV2 } from "./report-v2/build-report-pdf.js";
+import {
+  buildReportPdfV2,
+  buildReportPdfV2WithSignatureOutcome,
+} from "./report-v2/build-report-pdf.js";
 import { buildReportMediaIntelligence } from "./media-intelligence-report-bridge.js";
 import { buildVerificationPackageIntelligence } from "./verification-package-intelligence-bridge.js";
 import {
@@ -85,6 +88,7 @@ import { createVerificationPackage, PackageGateDeniedError } from "./verificatio
 import { createOpenTimestamp, type OtsStampResult } from "./ots.service.js";
 import { buildOtsEvidenceUpdateData } from "./ots-state.js";
 import { appendWorkerAuditLog } from "./platform-audit-append.js";
+import { rejectEvidenceIntegrity } from "./integrity-rejection.service.js";
 
 type GenerateReportJobData = {
   evidenceId: string;
@@ -284,6 +288,12 @@ type ReportBuildParams = {
 
 type PreparedReportArtifacts = {
   reportPdf: Buffer;
+  // Phase A2 — bounded outcome of the PDF artifact signing step.
+  // Persisted on the Report row so the API can surface artifact
+  // trust without inferring from labels. Always non-null; the
+  // worker chooses one of SIGNED / UNSIGNED_OPT_OUT /
+  // SIGNING_UNAVAILABLE.
+  pdfSigningOutcome: import("./pdf/signPdf.js").PdfSigningOutcome;
   verificationZip: Buffer | null;
   verifyUrl: string;
   downloadUrl: string;
@@ -1780,6 +1790,12 @@ async function prepareReportArtifacts(
   options?: {
     allowReported?: boolean;
     refreshReason?: string | null;
+    // Phase A0 — surfaced to the integrity-rejection helper so a
+    // mismatch's SecurityEvent + structured log carry the originating
+    // job context. Optional because the helper degrades gracefully
+    // when absent.
+    jobId?: string | number | null;
+    attempt?: number | null;
   }
 ): Promise<PreparedReportArtifacts> {
   const evidence = await prisma.evidence.findFirst({
@@ -2182,6 +2198,21 @@ if (
   fileSha256 !== evidence.fileSha256 &&
   legacySinglePartCompositeSha !== evidence.fileSha256
 ) {
+  // Phase A0 — integrity hard-gate. Before we throw, transition the
+  // Evidence row to FAILED_HASH_MISMATCH + append the custody
+  // rejection event + emit the security event. The throw still moves
+  // the BullMQ job to the DLQ (non-retriable) but downstream
+  // workflows can no longer accidentally promote the row. The helper
+  // is idempotent — a duplicate worker run finds the terminal state
+  // and short-circuits.
+  await rejectEvidenceIntegrity({
+    evidenceId: evidence.id,
+    expectedSha256: evidence.fileSha256 ?? null,
+    computedSha256: fileSha256,
+    source: "worker.report.multipart",
+    jobId: options?.jobId ?? null,
+    attempt: options?.attempt ?? null,
+  });
   throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
 }
   } else {
@@ -2208,6 +2239,18 @@ if (
       .digest("hex");
 
     if (singleSha256 !== evidence.fileSha256) {
+      // Phase A0 — integrity hard-gate (single-file path). See the
+      // multipart branch above for the contract: status flip + custody
+      // event + security event happen before the throw so a tampered
+      // (or storage-mutated) object never produces a Report.
+      await rejectEvidenceIntegrity({
+        evidenceId: evidence.id,
+        expectedSha256: evidence.fileSha256 ?? null,
+        computedSha256: singleSha256,
+        source: "worker.report.single_file",
+        jobId: options?.jobId ?? null,
+        attempt: options?.attempt ?? null,
+      });
       throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
     }
 
@@ -2627,8 +2670,14 @@ const trustDecision = buildTrustDecision({
     mediaIntelligence: reportMediaIntelligence,
   };
 
-const reportPdf = await buildReportPdfV2(reportBuildParams);
-    
+// Phase A2 — call the signature-aware variant so the Report row
+// can persist the explicit pdfSignatureStatus + signedAtUtc +
+// signerKeyId + warning. The legacy bytes-only signature
+// (`buildReportPdfV2`) is preserved for callers that only need
+// the PDF; new code paths use the outcome variant.
+const pdfSigningOutcome = await buildReportPdfV2WithSignatureOutcome(reportBuildParams);
+const reportPdf = pdfSigningOutcome.pdf;
+
 const verificationZip: Buffer | null = null;
 
   if (verificationEvidenceFiles.length > 0 && !verificationPackageIncluded) {
@@ -2643,6 +2692,10 @@ const verificationZip: Buffer | null = null;
 
 return {
   reportPdf,
+  // Phase A2 — propagate the signing outcome to the finalize
+  // transaction below so the Report row carries the structured
+  // signature status.
+  pdfSigningOutcome,
   verificationZip,
   verifyUrl,
   downloadUrl: evidenceDetailUrl,
@@ -2770,6 +2823,10 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     const prepared = await prepareReportArtifacts(evidenceId, otsData, {
       allowReported: forceRegenerate,
       refreshReason: regenerateReason,
+      // Phase A0 — pass job context through so the integrity-rejection
+      // helper can tag any SecurityEvent / log with the originating job.
+      jobId: job.id ?? null,
+      attempt: job.attemptsMade + 1,
     });
 
     const finalized = await prisma.$transaction(
@@ -3280,6 +3337,52 @@ const effectiveReportEvidencePayload = {
                   previewTextExcerpt: item.previewTextExcerpt ?? null,
                   previewCaption: item.previewCaption ?? null,
                 })) as unknown as Prisma.InputJsonValue,
+            // Phase A2 — explicit PDF artifact signature columns.
+            // Backend writes these from the bounded signing outcome
+            // so the API + frontend can render artifact trust
+            // without inferring from copy.
+            pdfSignatureStatus: prepared.pdfSigningOutcome.status,
+            pdfSignedAtUtc:
+              prepared.pdfSigningOutcome.status === "SIGNED"
+                ? prepared.pdfSigningOutcome.signedAtUtc
+                : null,
+            pdfSignerKeyId:
+              prepared.pdfSigningOutcome.status === "SIGNED"
+                ? prepared.pdfSigningOutcome.signerKeyId
+                : null,
+            pdfSigningWarning:
+              prepared.pdfSigningOutcome.status === "SIGNED"
+                ? null
+                : prepared.pdfSigningOutcome.warning,
+          },
+        });
+
+        // Phase A2 — emit a distinct custody event for the PDF
+        // signing decision. Distinct from REPORT_GENERATED so the
+        // forensic timeline records what trust the artifact carries.
+        // SIGNING_UNAVAILABLE rolls into REPORT_PDF_UNSIGNED_OPT_OUT
+        // because both are "operator-acknowledged non-signed paths"
+        // from the custody-chain perspective; the precise distinction
+        // (opt-out vs dev-env) lives on the Report row + API.
+        const pdfCustodyEventType =
+          prepared.pdfSigningOutcome.status === "SIGNED"
+            ? prismaPkg.CustodyEventType.REPORT_PDF_SIGNED
+            : prismaPkg.CustodyEventType.REPORT_PDF_UNSIGNED_OPT_OUT;
+        await appendCustodyEventTx(tx, {
+          evidenceId: prepared.evidenceId,
+          eventType: pdfCustodyEventType,
+          atUtc: prepared.now,
+          payload: {
+            reportVersion: prepared.version,
+            pdfSignatureStatus: prepared.pdfSigningOutcome.status,
+            pdfSignerKeyId:
+              prepared.pdfSigningOutcome.status === "SIGNED"
+                ? prepared.pdfSigningOutcome.signerKeyId
+                : null,
+            pdfSignedAtUtc:
+              prepared.pdfSigningOutcome.status === "SIGNED"
+                ? prepared.pdfSigningOutcome.signedAtUtc.toISOString()
+                : null,
           },
         });
 

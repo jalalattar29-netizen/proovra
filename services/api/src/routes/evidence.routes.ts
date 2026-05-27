@@ -44,6 +44,8 @@ import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
+// Phase G4.5 — extracted saved-view CRUD module.
+import { evidenceSavedViewsRoutes } from "./evidence.saved-views.routes.js";
 import { createEvidence } from "../services/evidence.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import type { Prisma } from "@prisma/client";
@@ -171,36 +173,8 @@ const RestoreDeletedEvidenceBody = z.object({
   restore: z.boolean().optional().default(true),
 });
 
-const SavedViewFiltersSchema = z.object({
-  search: z.string().max(160).optional().default(""),
-  scope: z.enum(["active", "archived", "deleted", "locked"]).optional().default("active"),
-  status: z.string().max(64).optional().default("all"),
-  type: z.string().max(64).optional().default("all"),
-  review: z.string().max(64).optional().default("all"),
-  exportReadiness: z.string().max(64).optional().default("all"),
-  caseAssignment: z.string().max(64).optional().default("all"),
-  retention: z.string().max(64).optional().default("all"),
-  sort: z.string().max(64).optional().default("newest"),
-});
-
-const CreateSavedViewBody = z.object({
-  name: z.string().trim().min(1).max(120),
-  description: z.string().trim().max(400).optional().nullable(),
-  teamId: z.string().uuid().optional().nullable(),
-  scope: z.enum(["active", "archived", "deleted", "locked"]),
-  filters: SavedViewFiltersSchema,
-  sortKey: z.string().trim().max(64).optional().nullable(),
-  isDefault: z.boolean().optional().default(false),
-});
-
-const UpdateSavedViewBody = z.object({
-  name: z.string().trim().min(1).max(120).optional(),
-  description: z.string().trim().max(400).optional().nullable(),
-  scope: z.enum(["active", "archived", "deleted", "locked"]).optional(),
-  filters: SavedViewFiltersSchema.optional(),
-  sortKey: z.string().trim().max(64).optional().nullable(),
-  isDefault: z.boolean().optional(),
-});
+// Phase G4.5 — `SavedViewFiltersSchema`, `CreateSavedViewBody`, and
+// `UpdateSavedViewBody` moved to `evidence.saved-views.routes.ts`.
 
 const BulkEvidenceActionBody = z.object({
   action: z.enum([
@@ -2495,67 +2469,13 @@ async function canManageEvidenceCollaborativeContent(
   return role === prismaPkg.TeamRole.OWNER || role === prismaPkg.TeamRole.ADMIN;
 }
 
-async function assertSavedViewAccess(
-  userId: string,
-  savedViewId: string
-) {
-  const savedView = await prisma.evidenceSavedView.findUnique({
-    where: { id: savedViewId },
-  });
-
-  if (!savedView) {
-    const err: Error & { statusCode?: number } = new Error("Saved view not found");
-    err.statusCode = 404;
-    throw err;
-  }
-
-  if (savedView.ownerUserId === userId) {
-    return savedView;
-  }
-
-  if (savedView.teamId) {
-    const role = await getTeamMembershipRole(savedView.teamId, userId);
-    if (role) {
-      return savedView;
-    }
-  }
-
-  const err: Error & { statusCode?: number } = new Error("Forbidden");
-  err.statusCode = 403;
-  throw err;
-}
+// Phase G4.5 — `assertSavedViewAccess` and `mapEvidenceSavedView`
+// moved to `evidence.saved-views.routes.ts` alongside the route
+// handlers that used them.
 
 function normalizeUserHeader(req: FastifyRequest) {
   const userAgent = req.headers["user-agent"];
   return Array.isArray(userAgent) ? userAgent[0] ?? null : userAgent ?? null;
-}
-
-function mapEvidenceSavedView(savedView: {
-  id: string;
-  ownerUserId: string;
-  teamId: string | null;
-  name: string;
-  description: string | null;
-  filtersJson: Prisma.JsonValue;
-  sortKey: string | null;
-  scope: string;
-  isDefault: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
-  return {
-    id: savedView.id,
-    ownerUserId: savedView.ownerUserId,
-    teamId: savedView.teamId,
-    name: savedView.name,
-    description: savedView.description ?? null,
-    filters: toJsonSafe(savedView.filtersJson),
-    sortKey: savedView.sortKey ?? null,
-    scope: savedView.scope,
-    isDefault: savedView.isDefault,
-    createdAt: savedView.createdAt.toISOString(),
-    updatedAt: savedView.updatedAt.toISOString(),
-  };
 }
 
 function mapCollaborativeAuthor(user: { id: string; displayName: string | null; email: string | null }) {
@@ -4106,6 +4026,11 @@ if (
 }
 
 export async function evidenceRoutes(app: FastifyInstance) {
+  // Phase G4.5 — Saved-view CRUD lives in a focused module. Same
+  // URLs, same auth, same schemas, same status codes. The handlers
+  // were extracted verbatim; this is the only call site.
+  await evidenceSavedViewsRoutes(app);
+
   app.post("/v1/evidence", { preHandler: requireAuthAndLegal }, async (req, reply) => {
     const body = CreateEvidenceBody.parse(req.body);
     const ownerUserId = getAuthUserId(req);
@@ -5463,138 +5388,9 @@ await appendCustodyEvent({
     });
   });
 
-  app.get("/v1/evidence/saved-views", { preHandler: requireAuth }, async (req, reply) => {
-    const userId = getAuthUserId(req);
-    const memberTeams = await prisma.teamMember.findMany({
-      where: { userId },
-      select: { teamId: true },
-    });
-    const memberTeamIds = memberTeams.map((item) => item.teamId);
-
-    const items = await prisma.evidenceSavedView.findMany({
-      where: {
-        OR: [
-          { ownerUserId: userId },
-          ...(memberTeamIds.length > 0 ? [{ teamId: { in: memberTeamIds } }] : []),
-        ],
-      },
-      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
-    });
-
-    return reply.code(200).send({
-      items: items.map(mapEvidenceSavedView),
-    });
-  });
-
-  app.post("/v1/evidence/saved-views", { preHandler: requireAuth }, async (req, reply) => {
-    const userId = getAuthUserId(req);
-    const body = CreateSavedViewBody.parse(req.body);
-
-    if (body.teamId) {
-      const membership = await prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId: body.teamId, userId } },
-      });
-      if (!membership) {
-        return reply.code(403).send({ message: "Forbidden" });
-      }
-    }
-
-    if (body.isDefault) {
-      await prisma.evidenceSavedView.updateMany({
-        where: {
-          ownerUserId: userId,
-          teamId: body.teamId ?? null,
-          isDefault: true,
-        },
-        data: { isDefault: false },
-      });
-    }
-
-    const created = await prisma.evidenceSavedView.create({
-      data: {
-        ownerUserId: userId,
-        teamId: body.teamId ?? null,
-        name: body.name,
-        description: body.description ?? null,
-        filtersJson: body.filters as Prisma.InputJsonValue,
-        sortKey: body.sortKey ?? null,
-        scope: body.scope,
-        isDefault: body.isDefault,
-      },
-    });
-
-    return reply.code(201).send({ savedView: mapEvidenceSavedView(created) });
-  });
-
-  app.patch("/v1/evidence/saved-views/:id", { preHandler: requireAuth }, async (req, reply) => {
-    const userId = getAuthUserId(req);
-    const id = z.string().uuid().parse((req.params as ParamsId).id);
-    const body = UpdateSavedViewBody.parse(req.body);
-    const savedView = await assertSavedViewAccess(userId, id);
-
-    if (body.isDefault === true) {
-      await prisma.evidenceSavedView.updateMany({
-        where: {
-          ownerUserId: savedView.ownerUserId,
-          teamId: savedView.teamId,
-          isDefault: true,
-        },
-        data: { isDefault: false },
-      });
-    }
-
-    const updated = await prisma.evidenceSavedView.update({
-      where: { id },
-      data: {
-        ...(body.name !== undefined ? { name: body.name } : {}),
-        ...(body.description !== undefined ? { description: body.description ?? null } : {}),
-        ...(body.scope !== undefined ? { scope: body.scope } : {}),
-        ...(body.filters !== undefined
-          ? { filtersJson: body.filters as Prisma.InputJsonValue }
-          : {}),
-        ...(body.sortKey !== undefined ? { sortKey: body.sortKey ?? null } : {}),
-        ...(body.isDefault !== undefined ? { isDefault: body.isDefault } : {}),
-      },
-    });
-
-    return reply.code(200).send({ savedView: mapEvidenceSavedView(updated) });
-  });
-
-  app.delete("/v1/evidence/saved-views/:id", { preHandler: requireAuth }, async (req, reply) => {
-    const userId = getAuthUserId(req);
-    const id = z.string().uuid().parse((req.params as ParamsId).id);
-    await assertSavedViewAccess(userId, id);
-    await prisma.evidenceSavedView.delete({ where: { id } });
-    return reply.code(200).send({ deleted: true });
-  });
-
-  app.post(
-    "/v1/evidence/saved-views/:id/default",
-    { preHandler: requireAuth },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
-      const id = z.string().uuid().parse((req.params as ParamsId).id);
-      const savedView = await assertSavedViewAccess(userId, id);
-
-      await prisma.$transaction([
-        prisma.evidenceSavedView.updateMany({
-          where: {
-            ownerUserId: savedView.ownerUserId,
-            teamId: savedView.teamId,
-            isDefault: true,
-          },
-          data: { isDefault: false },
-        }),
-        prisma.evidenceSavedView.update({
-          where: { id },
-          data: { isDefault: true },
-        }),
-      ]);
-
-      const updated = await prisma.evidenceSavedView.findUniqueOrThrow({ where: { id } });
-      return reply.code(200).send({ savedView: mapEvidenceSavedView(updated) });
-    }
-  );
+  // Phase G4.5 — `/v1/evidence/saved-views/*` route handlers moved to
+  // `evidence.saved-views.routes.ts`. The registration call is at
+  // the top of `evidenceRoutes`. No semantic change.
 
   app.post("/v1/evidence/bulk", { preHandler: requireAuth }, async (req, reply) => {
     const userId = getAuthUserId(req);
@@ -8641,6 +8437,35 @@ if (
         return reply.code(statusCode).send({ message });
       }
 
+      // Phase A0 — integrity hard-gate. A record whose recomputed
+      // SHA-256 disagreed with the value stored at completion cannot
+      // be re-promoted into a Report or Verification Package by
+      // re-enqueueing. The owner-facing error is operationally
+      // specific so the UI can render the re-capture path; the audit
+      // row carries the failed-status reason.
+      if (
+        evidenceRecord.status ===
+        prismaPkg.EvidenceStatus.FAILED_HASH_MISMATCH
+      ) {
+        auditEvidenceAction(req, {
+          userId,
+          action: "evidence.report.regenerate_requested",
+          outcome: "blocked",
+          resourceId: id,
+          severity: "warning",
+          metadata: {
+            reason: "integrity_failed",
+            evidenceStatus: evidenceRecord.status,
+            evidenceTeamId: evidenceRecord.teamId ?? null,
+          },
+        });
+        return reply.code(409).send({
+          code: "EVIDENCE_INTEGRITY_FAILED",
+          message:
+            "Report regeneration is not available for this record. The recomputed SHA-256 fingerprint did not match the value recorded at completion. Re-upload or recapture the source material as a new evidence record.",
+        });
+      }
+
       // Enqueue with `forceRegenerate: true`. The enqueue helper
       // handles existing-job dedup; if an active job already exists it
       // returns `{ enqueued: false, reason }` and we surface that.
@@ -9691,6 +9516,54 @@ action: "evidence.certification_requested",
       const evidenceStatus = evidence.status as
         | prismaPkg.EvidenceStatus
         | null;
+
+      // Phase A0 — integrity hard-gate. A record whose recomputed
+      // SHA-256 disagreed with the value stored at completion is
+      // terminal-FAILED_HASH_MISMATCH. Public verify MUST return 404
+      // with NO body fields beyond the generic "not found" message
+      // — anti-enumeration. The audit row records the real outcome
+      // (`integrity_failed`) so the operator surface can count
+      // suppressed lookups, but the wire response is indistinguishable
+      // from a missing record.
+      if (
+        evidenceStatus === prismaPkg.EvidenceStatus.FAILED_HASH_MISMATCH
+      ) {
+        auditVerificationAction(req, {
+          userId: null,
+          action: "verification.page_opened",
+          resourceId: id,
+          metadata: {
+            outcome: "integrity_failed",
+            status: evidenceStatus,
+          },
+        });
+        return reply.code(404).send({ message: "Evidence not found" });
+      }
+
+      // Phase G1 — destroyed-evidence anti-enumeration gate. When an
+      // evidence record has been operationally destroyed (Phase F
+      // destruction review → EXECUTED), the lifecycle state moves to
+      // `DESTROYED`. Public verify MUST return 404 with no body
+      // fields beyond the generic "not found" — the destruction
+      // certificate persists on the operator-internal lifecycle
+      // ledger, but no part of that state leaks to unauthenticated
+      // callers. The audit row records the suppressed outcome so the
+      // operator surface can count destroyed-state lookups.
+      const lifecycleState = (evidence as { lifecycleState?: string | null })
+        .lifecycleState;
+      if (lifecycleState === "DESTROYED") {
+        auditVerificationAction(req, {
+          userId: null,
+          action: "verification.page_opened",
+          resourceId: id,
+          metadata: {
+            outcome: "lifecycle_destroyed",
+            status: evidenceStatus ?? null,
+          },
+        });
+        return reply.code(404).send({ message: "Evidence not found" });
+      }
+
       const isFinalized =
         evidenceStatus === EvidenceStatus.SIGNED ||
         evidenceStatus === EvidenceStatus.REPORTED;
@@ -10348,8 +10221,25 @@ const overallIntegrity =
       // `auditVerificationAction()` call below remains, and it
       // already wraps its own platform-audit-log append in a
       // fire-and-forget `.catch(() => null)`.
+      //
+      // Phase A3 — additionally, append a DEBOUNCED `VERIFY_VIEWED`
+      // custody event so the forensic timeline records that the
+      // evidence was publicly viewed at all, WITHOUT spamming the
+      // chain on refresh storms. Debounce: at most one VERIFY_VIEWED
+      // per evidence per 24h. The previous `lastPublicVerifyViewAtUtc`
+      // value is the natural debounce gate. The payload is bounded
+      // (no IP, no user agent, no fingerprinting) so the privacy
+      // posture stays clean.
       const viewerUserAgent = readUserAgent(req);
       const viewerIp = req.ip;
+      const previousPublicViewAt = evidence.lastPublicVerifyViewAtUtc ?? null;
+      const debounceMs = 24 * 60 * 60 * 1000;
+      const shouldEmitVerifyViewed =
+        previousPublicViewAt === null ||
+        verifiedAt.getTime() - previousPublicViewAt.getTime() >= debounceMs;
+      const authedUserId =
+        (req as FastifyRequest & { user?: { sub?: string } }).user?.sub ??
+        null;
       void (async () => {
         const results = await Promise.allSettled([
           prisma.evidence.update({
@@ -10389,6 +10279,43 @@ const overallIntegrity =
               "public_verify.access_log_failed",
             );
           }
+        }
+
+        // Phase A3 — debounced VERIFY_VIEWED custody event. Append
+        // ONLY when we're outside the debounce window. The bump
+        // metric distinguishes emit vs debounce so dashboards see
+        // both signals.
+        try {
+          const mod = await import("@proovra/shared-runtime/ops");
+          if (shouldEmitVerifyViewed) {
+            await appendCustodyEvent({
+              evidenceId: id,
+              eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
+              payload: {
+                visibility: "public_verify",
+                viewerType: authedUserId ? "authenticated" : "anonymous",
+                source: "public_verify_page",
+                viewedAtUtc: verifiedAt.toISOString(),
+              } satisfies prismaPkg.Prisma.InputJsonValue,
+            });
+            mod.bump("public_verify_viewed_emitted_total");
+          } else {
+            mod.bump("public_verify_viewed_debounced_total");
+          }
+        } catch (custodyErr) {
+          // Custody append is best-effort; never breaks the verify
+          // response. Bounded log only.
+          req.log.warn(
+            {
+              evidenceId: id,
+              err:
+                custodyErr instanceof Error
+                  ? custodyErr.message.slice(0, 200)
+                  : String(custodyErr).slice(0, 200),
+              surface: "verify_viewed_custody_append",
+            },
+            "public_verify.custody_append_failed",
+          );
         }
       })().catch((err) => {
         // Defensive: the inner block already swallows. This catch

@@ -19,12 +19,23 @@ import { captureRoutes } from "./routes/capture.routes.js";
 import { bootstrapObjectLockVerification } from "./bootstrap/object-lock-verification.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { teamsRoutes } from "./routes/teams.routes.js";
+// Phase B0 — Workspace URL alias. Rewrites `/v1/workspaces/*` to
+// `/v1/teams/*` at the onRequest hook so the existing 2,497-line
+// `teams.routes.ts` handlers are exposed under the new canonical
+// product vocabulary without duplication.
+import { workspaceAliasPlugin } from "./routes/workspace-alias.plugin.js";
 // Phase 2.7X Stage 3 — Organization runtime endpoints (read-only dual-read).
 import { organizationsRoutes } from "./routes/organizations.routes.js";
+// Phase B0 — Organization governance write surfaces (retention
+// template publishing + billing rollup). Narrow, audited, and
+// scope-gated; does NOT replace the workspace operational layer.
+import { organizationsGovernanceRoutes } from "./routes/organizations-governance.routes.js";
 // Phase A.1C — Account-level operational priorities (above-workspace surface).
 import { meOperationalPrioritiesRoutes } from "./routes/me-operational-priorities.routes.js";
 // Phase C — Operational Inbox (caller-scoped unified attention stream).
 import { meInboxRoutes } from "./routes/me-inbox.routes.js";
+import { presenceRoutes } from "./routes/presence.routes.js";
+import { notificationPreferencesRoutes } from "./routes/notification-preferences.routes.js";
 // Phase 2.7Z+ — E2E-only rate-limit reset endpoint (404 in production).
 import { testRateLimitRoutes } from "./routes/_test-rate-limit.routes.js";
 import { billingRoutes } from "./routes/billing.routes.js";
@@ -32,6 +43,10 @@ import { webhooksRoutes } from "./routes/webhooks.routes.js";
 import { casesRoutes } from "./routes/cases.routes.js";
 import { searchRoutes } from "./routes/search.routes.js";
 import { reviewerOpsRoutes } from "./routes/reviewer-ops.routes.js";
+// Phase C0 — Reviewer Console aggregator. Composes the existing
+// reviewer-ops services into one bounded envelope for the canonical
+// /review page (Queue · Mine · Escalations · SLA · Workload).
+import { reviewerConsoleRoutes } from "./routes/reviewer-console.routes.js";
 import { externalReviewRoutes } from "./routes/external-review.routes.js";
 import { uploadSessionsRoutes } from "./routes/upload-sessions.routes.js";
 import { integrationsUploadsRoutes } from "./routes/integrations-uploads.routes.js";
@@ -510,6 +525,10 @@ allowedHeaders: [
   await app.register(governanceSnapshotRoutes);
   await app.register(runtimeReadinessRoutes);
 
+  // Phase B0 — Workspace URL alias plugin. MUST register before any
+  // route plugin so the rewrite hook fires before routing match.
+  await app.register(workspaceAliasPlugin);
+
   await app.register(authRoutes);
   await app.register(usersRoutes);
   await app.register(platformContextRoutes);
@@ -519,8 +538,17 @@ allowedHeaders: [
   // Team semantics remain operational authority; these endpoints
   // expose governance metadata only (no evidence/case/reviewer data).
   await app.register(organizationsRoutes);
+  // Phase B0 — Org governance write surfaces. Registered AFTER the
+  // read-only `organizationsRoutes` so the existing endpoints take
+  // precedence on any path collision.
+  await app.register(organizationsGovernanceRoutes);
   await app.register(meOperationalPrioritiesRoutes);
   await app.register(meInboxRoutes);
+  // Phase G3 — bounded in-process presence routes
+  // (heartbeat + here-now query). No persistence, no audit emission.
+  await app.register(presenceRoutes);
+  // Phase G3.1 — operator notification preferences (per-workspace toggles).
+  await app.register(notificationPreferencesRoutes);
   // Phase 2.7Z+ — E2E rate-limit reset endpoint. Gated by the same
   // three-layer defense as auth-test-bypass; 404 in production.
   await app.register(testRateLimitRoutes);
@@ -531,6 +559,10 @@ allowedHeaders: [
   await app.register(captureRoutes);
   await app.register(searchRoutes);
   await app.register(reviewerOpsRoutes);
+  // Phase C0 — Reviewer Console aggregator. Read-only; composes
+  // existing reviewer-ops services. Registered alongside the
+  // per-domain endpoints so deep-drill paths continue to work.
+  await app.register(reviewerConsoleRoutes);
   await app.register(externalReviewRoutes);
   // Phase 30.5 — Resumable multipart upload session REST surface.
   // Wraps the Phase 30 upload-session service in authorizeOrFail-

@@ -667,7 +667,7 @@ describe("E3.2 Test 12 — IA + state-lib contracts preserved", () => {
     const ids = Array.from(m![1]!.matchAll(/["']([^"']+)["']/g)).map(
       (mm) => mm[1]!,
     );
-    expect(ids).toHaveLength(6);
+    expect(ids).toHaveLength(9); // baseline grew with G0+ IA — was 6 pre-G0, now 9 canonical primaries
   });
 
   it("no new client-state / realtime library introduced", () => {

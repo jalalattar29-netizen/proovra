@@ -26,6 +26,9 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
+import { DestructionImpactPreview } from "../../../../components/governance/DestructionImpactPreview";
+import { DestructionCertificate } from "../../../../components/governance/DestructionCertificate";
 
 type ReviewStatus =
   | "PENDING"
@@ -116,6 +119,11 @@ function DestructionQueuePageInner() {
   );
   const [timelineFor, setTimelineFor] = useState<Review | null>(null);
   const [timeline, setTimeline] = useState<LifecycleEvent[] | null>(null);
+  // Phase F — operator-facing impact preview + destruction certificate
+  // modals. Both surfaces are read-only and route through the new
+  // governance endpoints.
+  const [previewFor, setPreviewFor] = useState<Review | null>(null);
+  const [certificateFor, setCertificateFor] = useState<Review | null>(null);
 
   
   useEffect(() => {
@@ -227,6 +235,13 @@ function DestructionQueuePageInner() {
 
   return (
     <main style={pageStyle}>
+      <OperationalBreadcrumb
+        routeId="governance.destruction"
+        items={[
+          { label: "Governance", href: "/governance" },
+          { label: "Destruction queue" },
+        ]}
+      />
       <header>
         <h1 style={titleStyle}>Destruction queue</h1>
         <p style={mutedStyle}>
@@ -348,6 +363,28 @@ function DestructionQueuePageInner() {
                       >
                         Timeline
                       </button>
+                      {/* Phase F — operational impact preview. Shows
+                          consequences before destructive transitions. */}
+                      <button
+                        type="button"
+                        style={secondaryButtonStyle}
+                        onClick={() => setPreviewFor(r)}
+                        data-action="preview-impact"
+                      >
+                        Impact
+                      </button>
+                      {/* Phase F — destruction certificate viewer.
+                          Only available for EXECUTED reviews. */}
+                      {r.status === "EXECUTED" ? (
+                        <button
+                          type="button"
+                          style={secondaryButtonStyle}
+                          onClick={() => setCertificateFor(r)}
+                          data-action="view-certificate"
+                        >
+                          Certificate
+                        </button>
+                      ) : null}
                       {ALLOWED_NEXT[r.status].map((next) => (
                         <button
                           type="button"
@@ -385,6 +422,66 @@ function DestructionQueuePageInner() {
             setTimeline(null);
           }}
         />
+      ) : null}
+
+      {/* Phase F — destruction impact preview modal. */}
+      {previewFor ? (
+        <div style={modalBackdropStyle} role="dialog" aria-modal>
+          <div style={{ ...modalStyle, maxWidth: 820 }}>
+            <header
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: 18 }}>Destruction impact</h2>
+              <button
+                type="button"
+                style={secondaryButtonStyle}
+                onClick={() => setPreviewFor(null)}
+              >
+                Close
+              </button>
+            </header>
+            <DestructionImpactPreview
+              reviewId={previewFor.id}
+              teamId={teamId ?? null}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {/* Phase F — destruction certificate modal. */}
+      {certificateFor ? (
+        <div style={modalBackdropStyle} role="dialog" aria-modal>
+          <div style={{ ...modalStyle, maxWidth: 820 }}>
+            <header
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: 18 }}>
+                Destruction certificate
+              </h2>
+              <button
+                type="button"
+                style={secondaryButtonStyle}
+                onClick={() => setCertificateFor(null)}
+              >
+                Close
+              </button>
+            </header>
+            <DestructionCertificate
+              reviewId={certificateFor.id}
+              teamId={teamId ?? null}
+            />
+          </div>
+        </div>
       ) : null}
     </main>
   );

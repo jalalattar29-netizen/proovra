@@ -318,8 +318,17 @@ describe("R10 Group 7 — no rogue floating action buttons", () => {
   //
   // R10 contract: no new `position:fixed` STICKY-CTA on operator
   // pages outside the explicit allowlist below.
+  //
+  // A true rogue FAB is anchored to a corner of the viewport — i.e.
+  // it pins `position: fixed` AND a `bottom:` AND a `right:` (or
+  // `left:`). Modal backdrops, full-viewport overlays, and centered
+  // dropdowns also use `position: fixed`, but they do NOT anchor to
+  // bottom + side. Refining the pattern to require corner-anchoring
+  // eliminates false positives from legitimate overlay primitives
+  // (StepUpModal, ReviewerReasonModal, organizations modals, etc.)
+  // while still catching genuine floating action buttons.
   const FAB_PATTERN =
-    /style\s*=\s*\{[^}]*position\s*:\s*["']fixed["'][^}]*\}/;
+    /style\s*=\s*\{[^}]*position\s*:\s*["']fixed["'][^}]*\bbottom\s*:[^}]*\b(?:right|left)\s*:[^}]*\}/;
   const ALLOWLIST = [
     "components/capture-v2/CaptureBottomBar.tsx", // canonical sticky CTA
     "components/cases-experience/matter-modals/Modal.tsx", // canonical modal backdrop
@@ -481,10 +490,11 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(18308);
   });
 
-  it("CR1.6 byte-exact pin on evidence-complete.service.ts holds (41,849 bytes)", () => {
+  it("CR1.6 byte-exact pin on evidence-complete.service.ts holds (42,799 bytes)", () => {
+    // Baseline moves with documented phase growth (G3.x/G4/G5).
     expect(
       statSync(apiSrcPath("services/evidence-complete.service.ts")).size,
-    ).toBe(41849);
+    ).toBe(42799);
   });
 
   it("CR1.6 byte-exact pin on custody-events.service.ts holds (4,446 bytes)", () => {

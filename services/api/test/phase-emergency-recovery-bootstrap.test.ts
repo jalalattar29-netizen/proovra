@@ -247,8 +247,13 @@ describe("Phase EMERGENCY-RECOVERY — frontend wiring", () => {
   it("Reports migrated from useTeamWorkspaceGate → useWorkspaceId", () => {
     expect(WEB_REPORTS).not.toMatch(/useTeamWorkspaceGate/);
     expect(WEB_REPORTS).toMatch(/useWorkspaceId/);
-    // Empty-state copy must no longer say "Switch to a workspace"
-    expect(WEB_REPORTS).not.toMatch(/Switch to a workspace/i);
+    // Empty-state CTA copy must no longer say "Switch to a workspace
+    // to use ..." (the legacy team-gated marker). Permission-denied
+    // reasons may still mention "switch to a workspace you have
+    // access to" as a corrective hint — that's an authorisation
+    // explanation, not a workspace-gate banner. We assert the
+    // legacy CTA phrasing specifically.
+    expect(WEB_REPORTS).not.toMatch(/Switch to a workspace to use/i);
   });
 
   it("Search migrated from useTeamId → useWorkspaceId", () => {

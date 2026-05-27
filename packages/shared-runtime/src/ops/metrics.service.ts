@@ -430,6 +430,16 @@ export const COUNTER_NAMES = [
   "retention_policy_updated_total",
   "retention_policy_superseded_total",
   "retention_recomputed_total",
+  // Phase G1 (B0.4) — bounded counters for retention inheritance
+  // enforcement + tenancy observability. Each counter is bumped from
+  // exactly one site (no high-cardinality labels).
+  "retention_policy_inherited_total",
+  "tenancy_resolution_failure_total",
+  "tenancy_disagreement_total",
+  "governance_inheritance_fallback_total",
+  "governance_inheritance_error_total",
+  "orphan_governance_object_total",
+  "cross_org_resolution_blocked_total",
   "destruction_review_created_total",
   "destruction_review_approved_total",
   "destruction_review_denied_total",
@@ -531,6 +541,32 @@ export const COUNTER_NAMES = [
   "governance_schema_unavailable_total",
   "worker_readiness_warming_total",
   "worker_readiness_degraded_total",
+  // Phase A0 — integrity hard-gate. Bumped by the worker each time
+  // `rejectEvidenceIntegrity` flips an Evidence row to
+  // FAILED_HASH_MISMATCH because the recomputed SHA-256 disagreed
+  // with the value stored at completion. Used by operators to spot
+  // repeated mismatch patterns and distinguish user error from
+  // tampering. Not exposed on any public surface.
+  "evidence_integrity_rejections_total",
+  // Phase A3 — operational hardening counters. Bounded vocabulary;
+  // each metric is documented inline so the analytics-vs-security
+  // intent is explicit. NONE of these surface on any public route.
+  //
+  // Analytics endpoint abuse-resistance:
+  "analytics_rejected_total",
+  "analytics_rate_limited_total",
+  "analytics_invalid_payload_total",
+  // AI chat abuse-resistance:
+  "ai_chat_rate_limited_total",
+  "ai_chat_rejected_total",
+  "ai_chat_timeout_total",
+  // Webhook signature failures (bounded reason categories live on
+  // the SecurityEvent details, not metric labels):
+  "webhook_signature_failures_total",
+  "webhook_replay_rejections_total",
+  // Public verify custody-chain debounced VERIFY_VIEWED accounting:
+  "public_verify_viewed_emitted_total",
+  "public_verify_viewed_debounced_total",
 ] as const;
 export type CounterName = (typeof COUNTER_NAMES)[number];
 

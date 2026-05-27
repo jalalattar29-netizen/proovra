@@ -42,6 +42,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { resolveTeamRetentionPolicy } from "../organization/retention-inheritance.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -529,6 +530,45 @@ export type ResolveEffectivePolicyInput = {
 export type EffectiveRetentionDecision = {
   policy: RetentionPolicyProjection | null;
   reason: string;
+  /**
+   * Phase G1 (B0.4) — source attribution for the effective retention
+   * decision. Mirrors the Phase B0 `resolveTeamRetentionPolicy` verdict
+   * so callers can render inheritance state without a second round-trip:
+   *
+   *   * `team_policy`         — an explicit `EvidenceRetentionPolicy`
+   *                             row matched (scope-based pick winner).
+   *   * `org_policy_inherited` — no explicit policy matched; the engine
+   *                              fell back to the parent organization's
+   *                              published retention template.
+   *   * `none`                 — no policy at any tier; indefinite
+   *                              retention default applies.
+   */
+  source: "team_policy" | "org_policy_inherited" | "none";
+  /**
+   * Phase G1 (B0.4) — when `source === "org_policy_inherited"`, this
+   * carries the inherited template's retention horizon + immutable
+   * flag so downstream callers don't need to recompute it from the
+   * inheritance resolver.
+   */
+  inheritedTemplate?: {
+    organizationId: string;
+    retentionDays: number | null;
+    immutable: boolean;
+    description: string | null;
+  };
+  /**
+   * Phase G1 — bounded conflict surface. The engine emits structured
+   * conflict codes whenever an operational rule fires (same-scope
+   * duplicate, weaker-than-inherited workspace override, etc.). UI
+   * consumers can render these without inventing copy.
+   */
+  conflicts: ReadonlyArray<{
+    code:
+      | "duplicate_same_scope"
+      | "workspace_weaker_than_inherited"
+      | "workspace_overrides_immutable";
+    detail: string;
+  }>;
 };
 
 export async function resolveEffectiveRetentionPolicy(
@@ -562,13 +602,55 @@ export async function resolveEffectiveRetentionPolicy(
       ],
     },
   });
+
+  const conflicts: Array<{
+    code:
+      | "duplicate_same_scope"
+      | "workspace_weaker_than_inherited"
+      | "workspace_overrides_immutable";
+    detail: string;
+  }> = [];
+
+  // -------------------------------------------------------------------
+  // Phase G1 (B0.4) — no explicit policy → consult the Phase B0
+  // inheritance resolver before declaring "no_active_policy". This is
+  // the operational enforcement of the inheritance contract that B0
+  // shipped as a UI-only display.
+  // -------------------------------------------------------------------
   if (candidates.length === 0) {
-    return { policy: null, reason: "no_active_policy" };
+    const inheritance = await resolveTeamRetentionPolicy(input.teamId, client);
+    if (inheritance.source === "org_policy_inherited") {
+      bump("retention_policy_inherited_total");
+      return {
+        policy: null,
+        reason: "inherited_from_org",
+        source: "org_policy_inherited",
+        inheritedTemplate: {
+          organizationId: inheritance.organizationId,
+          retentionDays: inheritance.template.retentionDays,
+          immutable: inheritance.template.immutable,
+          description: inheritance.template.description,
+        },
+        conflicts,
+      };
+    }
+    return {
+      policy: null,
+      reason: "no_active_policy",
+      source: "none",
+      conflicts,
+    };
   }
+
   const projected = candidates.map(projectPolicy);
   const winner = pickHighestPrecedencePolicy(projected);
   if (!winner) {
-    return { policy: null, reason: "no_winner" };
+    return {
+      policy: null,
+      reason: "no_winner",
+      source: "none",
+      conflicts,
+    };
   }
   // Check for genuine conflict at the SAME scope (two ACTIVE policies
   // at the same scope is a config error worth surfacing).
@@ -585,8 +667,57 @@ export async function resolveEffectiveRetentionPolicy(
         conflictCount: sameScopeMatches.length,
       },
     });
+    conflicts.push({
+      code: "duplicate_same_scope",
+      detail: `${sameScopeMatches.length} ACTIVE policies at scope ${winner.scope}${winner.scopeQualifier ? `/${winner.scopeQualifier}` : ""}`,
+    });
   }
-  return { policy: winner, reason: `picked_${winner.scope.toLowerCase()}` };
+
+  // -------------------------------------------------------------------
+  // Phase G1 (B0.4) — when a workspace-scoped policy exists, compare
+  // it against the org template (if any). Operationally relevant
+  // conflicts:
+  //
+  //   * workspace_overrides_immutable — the parent organization
+  //     published an immutable template, and the workspace's local
+  //     policy effectively bypasses it. The local policy is still
+  //     served (the engine cannot retroactively delete operator
+  //     intent), but the conflict is surfaced so governance admins
+  //     can resolve it.
+  //
+  //   * workspace_weaker_than_inherited — the local policy's
+  //     retention horizon is shorter than the inherited template.
+  // -------------------------------------------------------------------
+  if (winner.scope === "WORKSPACE") {
+    const inheritance = await resolveTeamRetentionPolicy(input.teamId, client);
+    if (inheritance.source === "org_policy_inherited") {
+      const tmpl = inheritance.template;
+      if (tmpl.immutable) {
+        conflicts.push({
+          code: "workspace_overrides_immutable",
+          detail:
+            "The parent organization template is marked immutable; the local workspace policy is currently active alongside it. Resolve at the organization level.",
+        });
+      }
+      if (
+        typeof tmpl.retentionDays === "number" &&
+        typeof winner.retentionDays === "number" &&
+        winner.retentionDays < tmpl.retentionDays
+      ) {
+        conflicts.push({
+          code: "workspace_weaker_than_inherited",
+          detail: `Local workspace retention (${winner.retentionDays} days) is shorter than the inherited organization template (${tmpl.retentionDays} days).`,
+        });
+      }
+    }
+  }
+
+  return {
+    policy: winner,
+    reason: `picked_${winner.scope.toLowerCase()}`,
+    source: "team_policy",
+    conflicts,
+  };
 }
 
 // -----------------------------------------------------------------------------

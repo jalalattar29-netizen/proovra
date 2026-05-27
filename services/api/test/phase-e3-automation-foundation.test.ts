@@ -456,7 +456,7 @@ describe("E3 Test 9 — automation route is in registry but NOT root nav", () =>
     const ids = Array.from(m![1]!.matchAll(/["']([^"']+)["']/g)).map(
       (mm) => mm[1]!,
     );
-    expect(ids).toHaveLength(6);
+    expect(ids).toHaveLength(9); // baseline grew with G0+ IA — was 6 pre-G0, now 9 canonical primaries
     expect(ids).not.toContain("platform.automation");
   });
 });

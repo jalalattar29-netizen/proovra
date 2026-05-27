@@ -28,7 +28,54 @@
  *   * `unavailable: true` → reserved; not produced by current code
  */
 import * as prismaPkg from "@prisma/client";
+import {
+  PDF_SIGNING_UNAVAILABLE_COPY,
+  PDF_UNSIGNED_OPT_OUT_WARNING_COPY,
+  type PdfSignatureStatus,
+  type ReportPdfSignatureProjection,
+  type VerificationPackageSignatureProjection,
+  type VerificationPackageSignatureStatus,
+} from "@proovra/shared";
 import { prisma } from "../db.js";
+
+/**
+ * Phase A2 — Bounded set of artifact signature status strings the
+ * frontend may consume. Backed by the shared `PdfSignatureStatus`
+ * union so the type system catches any drift.
+ */
+const PDF_STATUSES_RUNTIME: ReadonlySet<PdfSignatureStatus> = new Set([
+  "SIGNED",
+  "UNSIGNED_OPT_OUT",
+  "SIGNING_UNAVAILABLE",
+  "SIGNING_FAILED",
+  "NOT_APPLICABLE",
+]);
+
+function normalizePdfSignatureStatus(
+  raw: string | null,
+): PdfSignatureStatus | null {
+  if (!raw) return null;
+  return PDF_STATUSES_RUNTIME.has(raw as PdfSignatureStatus)
+    ? (raw as PdfSignatureStatus)
+    : null;
+}
+
+/**
+ * Resolve the operator-facing warning copy from a stored
+ * pdf_signing_warning column. When the column is null and we know the
+ * status, fall back to the canonical shared copy so the wire is
+ * deterministic.
+ */
+function resolveWarningCopy(
+  status: PdfSignatureStatus,
+  stored: string | null,
+): string | null {
+  if (status === "SIGNED" || status === "NOT_APPLICABLE") return null;
+  if (stored && stored.trim().length > 0) return stored;
+  if (status === "UNSIGNED_OPT_OUT") return PDF_UNSIGNED_OPT_OUT_WARNING_COPY;
+  if (status === "SIGNING_UNAVAILABLE") return PDF_SIGNING_UNAVAILABLE_COPY;
+  return null;
+}
 
 /**
  * Phase 32.6.6 — Currently no value is produced for this enum (personal
@@ -50,6 +97,10 @@ export interface EvidenceArtifactStatus {
         reviewerSummaryVersion: number | null;
         verificationPackageVersion: number | null;
         pending: false;
+        // Phase A2 — explicit PDF artifact signature projection. The
+        // frontend renders signed/unsigned badges ONLY from this
+        // block. NEVER from labels or copy strings.
+        pdfSignature: ReportPdfSignatureProjection;
       }
     | {
         available: false;
@@ -58,6 +109,7 @@ export interface EvidenceArtifactStatus {
         reviewerSummaryVersion: null;
         verificationPackageVersion: null;
         pending: boolean;
+        pdfSignature: null;
       };
   // Phase 32.6.1 — `blocked` state distinct from pending / unavailable.
   //   pending     — worker is still working; client should poll
@@ -78,6 +130,11 @@ export interface EvidenceArtifactStatus {
         blockedOutcome: null;
         blockedReason: null;
         blockedAtUtc: null;
+        // Phase A2 — package manifest signature projection. Distinct
+        // from PDF signature. Today the worker always signs the
+        // manifest with Ed25519 (status SIGNED). Reserved values
+        // exist in the union so a future opt-out can record them.
+        manifestSignature: VerificationPackageSignatureProjection;
       }
     | {
         available: false;
@@ -94,6 +151,7 @@ export interface EvidenceArtifactStatus {
         blockedOutcome: string | null;
         blockedReason: string | null;
         blockedAtUtc: string | null;
+        manifestSignature: null;
       };
 }
 
@@ -124,6 +182,11 @@ export async function buildEvidenceArtifactStatus(params: {
         generatedAtUtc: true,
         verificationPackageVersion: true,
         reviewerSummaryVersion: true,
+        // Phase A2 — explicit PDF signature columns.
+        pdfSignatureStatus: true,
+        pdfSignedAtUtc: true,
+        pdfSignerKeyId: true,
+        pdfSigningWarning: true,
       },
     }),
     prisma.verificationPackage.findFirst({
@@ -167,6 +230,47 @@ export async function buildEvidenceArtifactStatus(params: {
     !packageUnavailableForPersonalWorkspace &&
     !packageBlocked;
 
+  // Phase A2 — project the PDF signature block. When the Report row
+  // pre-dates A2, `pdfSignatureStatus` is NULL — we surface this as
+  // `SIGNING_UNAVAILABLE` with the canonical operator warning copy
+  // so the frontend never accidentally renders a signed badge on a
+  // legacy row.
+  const pdfSignature: ReportPdfSignatureProjection | null = latestReport
+    ? (() => {
+        const status: PdfSignatureStatus =
+          normalizePdfSignatureStatus(latestReport.pdfSignatureStatus) ??
+          "SIGNING_UNAVAILABLE";
+        return {
+          status,
+          signedAtUtc:
+            status === "SIGNED" && latestReport.pdfSignedAtUtc
+              ? latestReport.pdfSignedAtUtc.toISOString()
+              : null,
+          signerKeyId:
+            status === "SIGNED" ? (latestReport.pdfSignerKeyId ?? null) : null,
+          warning: resolveWarningCopy(
+            status,
+            latestReport.pdfSigningWarning ?? null,
+          ),
+        };
+      })()
+    : null;
+
+  // Phase A2 — manifest signature block. Today the worker always
+  // signs the Verification Package manifest with Ed25519 (the
+  // `MANIFEST.json.sig` artifact + the offline_verifier.html
+  // bundle); the package is SIGNED whenever it exists. The bounded
+  // union reserves UNSIGNED for a future opt-out path so we don't
+  // ship a status the contract cannot describe.
+  const manifestSignature: VerificationPackageSignatureProjection | null =
+    latestPackage
+      ? {
+          status: "SIGNED" as VerificationPackageSignatureStatus,
+          signerKeyId:
+            (process.env.PACKAGE_SIGNING_KEY_ID ?? "").trim() || null,
+        }
+      : null;
+
   return {
     evidenceId,
     status: params.evidenceStatus,
@@ -180,6 +284,7 @@ export async function buildEvidenceArtifactStatus(params: {
           verificationPackageVersion:
             latestReport.verificationPackageVersion ?? null,
           pending: false,
+          pdfSignature: pdfSignature!,
         }
       : {
           available: false,
@@ -188,6 +293,7 @@ export async function buildEvidenceArtifactStatus(params: {
           reviewerSummaryVersion: null,
           verificationPackageVersion: null,
           pending: reportPending,
+          pdfSignature: null,
         },
     verificationPackage: latestPackage
       ? {
@@ -202,6 +308,7 @@ export async function buildEvidenceArtifactStatus(params: {
           blockedOutcome: null,
           blockedReason: null,
           blockedAtUtc: null,
+          manifestSignature: manifestSignature!,
         }
       : {
           available: false,
@@ -219,6 +326,7 @@ export async function buildEvidenceArtifactStatus(params: {
           blockedOutcome: packageBlocked ? blockedMeta!.outcome : null,
           blockedReason: packageBlocked ? blockedMeta!.reason : null,
           blockedAtUtc: packageBlocked ? blockedMeta!.blockedAtUtc : null,
+          manifestSignature: null,
         },
   };
 }

@@ -42,6 +42,7 @@ import {
   ROUTE_REGISTRY,
   type RouteDefinition,
 } from "../../lib/navigation/routeRegistry";
+import { operationalGroupDescriptor } from "../../lib/navigation/phaseBOperationalGroups";
 import {
   resolveRouteAccess,
   type RouteAccessResult,
@@ -339,6 +340,11 @@ export function CommandPalette() {
             results.map((item, idx) => {
               const badge = badgeForAccessState(item.access.accessState);
               const isHighlighted = idx === highlight;
+              // Phase G2 (B.6) — Phase B operational group attribution.
+              // Renders a small group chip beside each result so
+              // operators see Workspace · Governance · Outputs ·
+              // System grouping at a glance.
+              const opGroup = operationalGroupDescriptor(item.route.id);
               return (
                 <li
                   key={item.route.id}
@@ -347,6 +353,7 @@ export function CommandPalette() {
                   aria-selected={isHighlighted}
                   data-command-palette-result-id={item.route.id}
                   data-command-palette-result-state={item.access.accessState}
+                  data-command-palette-operational-group={opGroup?.id ?? ""}
                   onMouseEnter={() => setHighlight(idx)}
                   onClick={() => {
                     if (item.access.canLoad) {
@@ -380,6 +387,24 @@ export function CommandPalette() {
                       <strong style={{ fontSize: 13, color: "#0f172a" }}>
                         {item.route.label}
                       </strong>
+                      {opGroup ? (
+                        <span
+                          data-command-palette-group-chip={opGroup.id}
+                          style={{
+                            fontSize: 10,
+                            padding: "1px 6px",
+                            fontWeight: 600,
+                            background: "#eef2ff",
+                            color: "#3730a3",
+                            border: "1px solid #c7d2fe",
+                            borderRadius: 999,
+                            textTransform: "uppercase",
+                            letterSpacing: 0.4,
+                          }}
+                        >
+                          {opGroup.title}
+                        </span>
+                      ) : null}
                       {item.route.advancedByDefault ? (
                         <span
                           data-command-palette-advanced-chip

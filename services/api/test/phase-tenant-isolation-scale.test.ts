@@ -159,6 +159,12 @@ const NON_OPERATIONAL_ROUTES: ReadonlySet<string> = new Set([
   // Legacy team-management uses the separate Organization model; it
   // scopes by organizationId, which is its tenant key.
   "team-management.routes.ts",
+  // Test-only rate-limit reset endpoint. Gated three ways: refuses
+  // when NODE_ENV === "production", requires E2E_AUTH_BYPASS_SECRET
+  // (>=32 chars), and is gated by a bypass header. Holds no tenant
+  // data — it scrubs Redis rate-limit buckets only. Not an
+  // operational data path.
+  "_test-rate-limit.routes.ts",
 ]);
 
 function isRouteFile(name: string): boolean {

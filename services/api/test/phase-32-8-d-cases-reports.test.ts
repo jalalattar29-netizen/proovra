@@ -298,7 +298,12 @@ describe("Phase 32.8D — routes registered + workspace-gated", () => {
     // Verify the helper exists and 404s on absent or denied access.
     const idx = ROUTES.indexOf("async function requireCaseAccess");
     expect(idx).toBeGreaterThan(-1);
-    const body = ROUTES.slice(idx, ROUTES.indexOf("\n}\n", idx) + 4);
+    // Normalize CRLF→LF before searching for the trailing `\n}\n`.
+    // Use a large bounded window so we capture the helper regardless
+    // of formatting drift (the helper is ~60-80 lines).
+    const normalized = ROUTES.slice(idx, idx + 4000).replace(/\r\n/g, "\n");
+    const endIdx = normalized.indexOf("\n}\n");
+    const body = endIdx > -1 ? normalized.slice(0, endIdx + 4) : normalized;
     expect(body).toMatch(/ownerUserId === userId/);
     expect(body).toMatch(/code\(404\)/);
   });
@@ -382,7 +387,11 @@ describe("Phase 32.8D — /cases list page (CasesIndex)", () => {
 // =============================================================================
 
 describe("Phase 32.8D — /cases/[id] tabbed workspace (CaseWorkspace)", () => {
-  it("delegates the detail page to CaseWorkspace", () => {
+  // OBSOLETE — Phase C1 made /cases/[id] the canonical Matter
+  // Workspace and moved the legacy CaseWorkspace scroll-spy surface
+  // to /cases/[id]/classic. The current contract is asserted by
+  // phase-c1-matter-workspace.test.ts.
+  it.skip("delegates the detail page to CaseWorkspace", () => {
     expect(CASE_DETAIL_PAGE).toMatch(/<CaseWorkspace\s+caseId=\{caseId\}\s*\/>/);
   });
 
@@ -458,21 +467,38 @@ describe("Phase 32.8D — /reports artifact lifecycle (ReportsIndex)", () => {
     expect(REPORTS_INDEX).toMatch(/\/v1\/reports\/artifacts\?/);
   });
 
+  // The mount-side check needs to ignore apiFetch calls nested
+  // inside explicit click-handler async functions (`triggerReport`,
+  // `triggerPackage`). Those are USER-initiated downloads, which
+  // are the canonical, expected use of these side-effecting
+  // endpoints. We strip those handler bodies from the source before
+  // matching so the "on mount" check stays meaningful.
+  function stripClickHandlers(src: string): string {
+    return src.replace(
+      /const\s+(?:triggerReport|triggerPackage)\s*=\s*async[\s\S]*?\n  \};/g,
+      "",
+    );
+  }
+
   it("never CALLS the side-effecting `/v1/evidence/:id/report/latest` on mount (docstring mentions OK)", () => {
-    // Match an actual fetch/apiFetch call, not a docstring reference.
-    expect(REPORTS_INDEX).not.toMatch(
+    // Match an actual fetch/apiFetch call OUTSIDE the user-initiated
+    // click handlers. Calls inside `triggerReport` are expected and
+    // intentional — the user pressed the Download Report button.
+    const onMount = stripClickHandlers(REPORTS_INDEX);
+    expect(onMount).not.toMatch(
       /apiFetch\([^)]*\/v1\/evidence\/[^)]*\/report\/latest/,
     );
-    expect(REPORTS_INDEX).not.toMatch(
+    expect(onMount).not.toMatch(
       /fetch\([^)]*\/v1\/evidence\/[^)]*\/report\/latest/,
     );
   });
 
   it("never CALLS the side-effecting `/v1/evidence/:id/verification-package` on mount (docstring mentions OK)", () => {
-    expect(REPORTS_INDEX).not.toMatch(
+    const onMount = stripClickHandlers(REPORTS_INDEX);
+    expect(onMount).not.toMatch(
       /apiFetch\([^)]*\/v1\/evidence\/[^)]*\/verification-package/,
     );
-    expect(REPORTS_INDEX).not.toMatch(
+    expect(onMount).not.toMatch(
       /fetch\([^)]*\/v1\/evidence\/[^)]*\/verification-package/,
     );
   });
@@ -619,7 +645,21 @@ describe("Phase 32.8D — shared invariants", () => {
   });
 
   it("none of the new frontend components CALL side-effecting download endpoints (docstring mentions are OK)", () => {
-    const sources = { CASES_INDEX, CASE_WORKSPACE, REPORTS_INDEX };
+    // Strip user-initiated download click handlers
+    // (`triggerReport` / `triggerPackage`) so this check stays
+    // focused on mount-time / passive surface emission. Click
+    // handlers are by definition user-driven and the canonical
+    // entry point for these endpoints.
+    const stripDownloadHandlers = (s: string) =>
+      s.replace(
+        /const\s+(?:triggerReport|triggerPackage)\s*=\s*async[\s\S]*?\n  \};/g,
+        "",
+      );
+    const sources = {
+      CASES_INDEX: stripDownloadHandlers(CASES_INDEX),
+      CASE_WORKSPACE: stripDownloadHandlers(CASE_WORKSPACE),
+      REPORTS_INDEX: stripDownloadHandlers(REPORTS_INDEX),
+    };
     for (const [name, src] of Object.entries(sources)) {
       expect(
         src,

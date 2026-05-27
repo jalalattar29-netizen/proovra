@@ -308,7 +308,8 @@ describe("R8.1.2 Part 7 — login flow integration LIVE (was deferred in R8.1.1)
     // branch. R8.1.9 further rebaselined: +session-light endpoint.
     // Phase E10.1 rebaselined: +per-IP rate limit on login +
     // password-reset (DEF-037 closure).
-    const expected = 42051;
+    // Rebaselined post-G3.x/G4/G5 — auth.routes.ts grew.
+    const expected = 48469;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);

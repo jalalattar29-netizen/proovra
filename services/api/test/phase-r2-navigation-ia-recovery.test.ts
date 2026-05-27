@@ -57,15 +57,22 @@ const WORKFLOW_EXPOSURE = readWeb(
 // PART 1 — Canonical root primary navigation is bounded
 // =============================================================================
 
-describe("R2 Part 1 — root primary navigation is bounded to the canonical six", () => {
-  it("CANONICAL_PRIMARY_ROUTE_IDS contains exactly Home, Capture, Evidence, Cases, Reports, Search", () => {
+describe("R2 Part 1 — root primary navigation is bounded to the Phase B canonical set", () => {
+  it("CANONICAL_PRIMARY_ROUTE_IDS contains the Phase B canonical primaries", () => {
+    // Phase G0 (B.1) — the R2 canonical-six was expanded to the
+    // Phase B nine. Review, Intake links, and Inbox are now first-
+    // class primaries so reviewers, intake operators, and
+    // mention-recipients have direct navigation.
     const EXPECTED = [
       "workspace.home",
-      "workspace.capture",
-      "workspace.evidence",
+      "workspace.review",
       "workspace.cases",
-      "workspace.reports",
+      "workspace.evidence",
+      "workspace.capture",
+      "workspace.intake_links",
+      "account.inbox",
       "workspace.search",
+      "workspace.reports",
     ];
     for (const id of EXPECTED) {
       expect(CANONICAL_GROUPS).toMatch(
@@ -78,11 +85,13 @@ describe("R2 Part 1 — root primary navigation is bounded to the canonical six"
     );
     expect(setMatch, "CANONICAL_PRIMARY_ROUTE_IDS literal must be present").toBeTruthy();
     const setBody = setMatch![1];
-    const quotedIds = (setBody.match(/"[a-z0-9.]+"/gi) ?? []).length;
+    // Phase G0 — id alphabet now includes `_` (e.g.
+    // `workspace.intake_links`); update the lexer accordingly.
+    const quotedIds = (setBody.match(/"[a-z0-9._]+"/gi) ?? []).length;
     expect(
       quotedIds,
-      "canonical primary set must contain exactly 6 ids (R2 Part 1)",
-    ).toBe(6);
+      "canonical primary set must contain exactly the Phase B canonical ids",
+    ).toBe(EXPECTED.length);
   });
 });
 
@@ -98,11 +107,14 @@ describe("R2 Part 2 — operational groups + title vocabulary bounded", () => {
     expect(CANONICAL_GROUPS).toMatch(/SIDEBAR_GROUP_GOVERNANCE/);
   });
 
-  it("the canonical group module pins the bounded title vocabulary", () => {
-    expect(CANONICAL_GROUPS).toMatch(/"Primary workflows"/);
+  it("the canonical group module pins the bounded Phase B title vocabulary", () => {
+    // Phase G0 (B.1) — the R2 titles were collapsed into the Phase
+    // B canonical operational hierarchy. Source of truth:
+    // `apps/web/lib/navigation/canonicalNavigationGroups.ts`.
     expect(CANONICAL_GROUPS).toMatch(/"Workspace"/);
-    expect(CANONICAL_GROUPS).toMatch(/"Operations"/);
-    expect(CANONICAL_GROUPS).toMatch(/"Governance & Compliance"/);
+    expect(CANONICAL_GROUPS).toMatch(/"Governance"/);
+    expect(CANONICAL_GROUPS).toMatch(/"Outputs"/);
+    expect(CANONICAL_GROUPS).toMatch(/"System"/);
     expect(CANONICAL_GROUPS).toMatch(/"More \/ Advanced"/);
     expect(CANONICAL_GROUPS).toMatch(/"All Tools"/);
   });

@@ -253,8 +253,13 @@ describe("AppSidebarV2 — IA + operational badges", () => {
     expect(navConfig).toMatch(/label: "Security Center"/);
   });
 
-  it("Administration group lists Teams, Billing, Integrations, Intake Links, Settings, Platform Admin (Phase 32.8B)", () => {
-    expect(navConfig).toMatch(/label: "Teams"/);
+  it("Administration group lists Workspaces, Billing, Integrations, Intake Links, Settings, Platform Admin (Phase B0 vocabulary)", () => {
+    // Phase B0.5 renamed the operational nav label from "Teams" to
+    // "Workspaces" (see apps/web/lib/navigation-config.ts line 583
+    // and docs/operations/workspace-operating-model-runbook.md).
+    // The DB-level Team model name is unchanged; only the
+    // operator-visible label moved.
+    expect(navConfig).toMatch(/label: "Workspaces"/);
     expect(navConfig).toMatch(/label: "Billing"/);
     expect(navConfig).toMatch(/label: "Integrations"/);
     expect(navConfig).toMatch(/label: "Intake Links"/);

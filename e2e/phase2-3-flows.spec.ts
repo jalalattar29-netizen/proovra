@@ -55,34 +55,40 @@ test.describe("Phase 2.3 — enterprise governance @critical", () => {
       `expected 2xx from /settings, got ${resp?.status()}`,
     ).toBe(true);
 
-    // The (app) layout renders an empty placeholder div while
-    // `authReady === false`, then re-renders into either:
-    //   (a) the AccountSecurityCard (when the envelope grants access)
-    //   (b) the PageRouteGate denial panel for `account.settings`
-    //       (when the unauthenticated browser is denied by the gate)
+    // Two-stage wait, deterministic against dev-server cold-compile:
     //
-    // The previous version of this test used
-    // `waitForLoadState("networkidle")` followed by a synchronous
-    // `.count()`. That race-condition'd against React's commit
-    // phase: networkidle fires when /v1/users/me + /v1/platform/context
-    // both settle, but the resulting layout re-render is a microtask
-    // away; the synchronous count read 0 before the gate or card
-    // mounted.
+    //   Stage 1: wait for the page's stable mount marker
+    //     `[data-testid="account-settings-page"]`. This commits as
+    //     soon as React mounts SettingsPage, BEFORE the envelope
+    //     resolves or the access decision is made. On a cold
+    //     Next.js dev server the first /settings request can compile
+    //     for >15s before any markup renders — Stage 1 absorbs that
+    //     compile + initial-mount window.
     //
-    // The fix uses Playwright's polling `expect.toBeVisible`, which
-    // actively retries the locator until either marker appears or
-    // the timeout elapses. Stable `data-testid` attributes on both
-    // the AccountSecurityCard root and the PageRouteGate denial
-    // panel root anchor the assertion to product-stable markers
-    // (independent of access-state classification, dynamic class
-    // names, or runtime envelope shape).
+    //   Stage 2: assert that AFTER the page is mounted, EITHER the
+    //     AccountSecurityCard (envelope grants access) OR the
+    //     PageRouteGate denial panel (envelope denies) is visible.
+    //     This is the original Phase 2.3 contract — we just have a
+    //     clean baseline to anchor it to.
+    //
+    // The two-stage shape removes the implicit race where a cold
+    // compile burned the entire 15s budget before any marker existed.
+    //
+    // Pre-warm the bundle once (extra dev-server hit) so the first
+    // observation is more representative.
+    await page.waitForLoadState("networkidle");
+    await expect(
+      page.locator('[data-testid="account-settings-page"]'),
+      "expected /settings to mount its stable page marker within 60s (dev-server compile + first paint)",
+    ).toBeVisible({ timeout: 60_000 });
+
     const sawSecurityOrGate = page.locator(
       '[data-testid="account-security-card"], [data-testid="route-gate-account.settings"]',
     );
     await expect(
       sawSecurityOrGate.first(),
-      "expected the security card OR the PageRouteGate panel for /settings to be visible within 15s",
-    ).toBeVisible({ timeout: 15_000 });
+      "expected the security card OR the PageRouteGate panel for /settings to be visible after the page mounts",
+    ).toBeVisible({ timeout: 30_000 });
   });
 
   test("/security-center reachable", async ({ page }) => {

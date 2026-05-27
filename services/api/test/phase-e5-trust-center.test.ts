@@ -363,7 +363,7 @@ describe("E5 Test 6 — IA preservation", () => {
     const ids = Array.from(m![1]!.matchAll(/["']([^"']+)["']/g)).map(
       (mm) => mm[1]!,
     );
-    expect(ids).toHaveLength(6);
+    expect(ids).toHaveLength(9); // baseline grew with G0+ IA — was 6 pre-G0, now 9 canonical primaries
   });
 
   it("footer Trust & Verification column links the Trust Center as the entry point", () => {

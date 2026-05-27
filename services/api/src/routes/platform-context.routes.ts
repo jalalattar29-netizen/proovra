@@ -33,6 +33,22 @@ const SwitchWorkspaceBody = z.object({
   workspaceId: z.string().uuid().nullable(),
 });
 
+/**
+ * Phase B0 — Read the `x-platform-context-version` request header.
+ * Returns `3` when the client opts into the canonical post-B0
+ * envelope (legacy `workspace` field deprecated); otherwise `2`
+ * (the pre-B0 shape, unchanged). Unknown / malformed values fall
+ * back to `2` for safety.
+ */
+function readRequestedSchemaVersion(req: {
+  headers: Record<string, string | string[] | undefined>;
+}): 2 | 3 {
+  const raw = req.headers["x-platform-context-version"];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (value === "3") return 3;
+  return 2;
+}
+
 export async function platformContextRoutes(app: FastifyInstance) {
   app.get(
     "/v1/platform/context",
@@ -46,6 +62,7 @@ export async function platformContextRoutes(app: FastifyInstance) {
         userId,
         requestId: req.id,
         jwtRole,
+        requestedSchemaVersion: readRequestedSchemaVersion(req),
       });
 
       if (!result.ok) {
@@ -104,6 +121,7 @@ export async function platformContextRoutes(app: FastifyInstance) {
         userId,
         requestId: req.id,
         jwtRole,
+        requestedSchemaVersion: readRequestedSchemaVersion(req),
       });
 
       if (!result.ok) {

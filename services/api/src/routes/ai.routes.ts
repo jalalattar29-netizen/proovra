@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { AI_CHAT_LIMITS, type AiChatAbuseReason } from "@proovra/shared";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { AppError, ErrorCode } from "../errors.js";
@@ -9,6 +10,8 @@ import { createAiProvider } from "../services/ai/ai-provider.js";
 import { AiCostGuard } from "../services/ai/ai-cost-guard.js";
 import { AiChatService } from "../services/ai/ai-chat.service.js";
 import { AiCaptureService } from "../services/ai/ai-capture.service.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
+import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 
 const aiProvider = createAiProvider();
 const aiCostGuard = new AiCostGuard();
@@ -171,15 +174,163 @@ const CaptureItemReviewBody = z.object({
   selectedStep: CapturePlanStepSchema,
 });
 
+/**
+ * Phase A3 — Hardened AI chat abuse-resistance helpers.
+ */
+async function bumpAiChatMetric(
+  name:
+    | "ai_chat_rate_limited_total"
+    | "ai_chat_rejected_total"
+    | "ai_chat_timeout_total",
+): Promise<void> {
+  try {
+    const mod = await import("@proovra/shared-runtime/ops");
+    mod.bump(name);
+  } catch {
+    /* metrics are best-effort */
+  }
+}
+
+function emitAiChatAbuseSignal(
+  req: FastifyRequest,
+  userId: string,
+  reason: AiChatAbuseReason,
+): void {
+  // Bounded; never the prompt text.
+  safeEmitSecurityEvent({
+    teamId: null,
+    eventType: "ai_chat_abuse_signal",
+    severity: reason === "cost_guard_exceeded" ? "WARNING" : "INFO",
+    details: {
+      reason,
+      userId,
+      ipPrefix: req.ip ? req.ip.split(".").slice(0, 3).join(".") + ".x" : null,
+    },
+  });
+}
+
+/**
+ * Phase A3 — Hard timeout wrapper for the upstream AI call. Returns
+ * a rejected promise on timeout so the route handler can translate
+ * it into a typed 504 + ai_chat_timeout_total bump. Never lets a
+ * hung provider turn the AI surface into an operational dependency
+ * for capture / report / verify.
+ */
+async function withAiTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+): Promise<T> {
+  let timeoutHandle: NodeJS.Timeout | null = null;
+  try {
+    return await new Promise<T>((resolve, reject) => {
+      timeoutHandle = setTimeout(() => {
+        reject(new Error("AI_REQUEST_TIMEOUT"));
+      }, ms);
+      promise.then(
+        (value) => resolve(value),
+        (err) => reject(err),
+      );
+    });
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
+}
+
 export async function aiRoutes(app: FastifyInstance) {
   app.post(
     "/v1/ai/chat",
     { preHandler: [requireAuthAndLegal] },
-    async (req) => {
+    async (req, reply) => {
       const userId = getAuthUserId(req);
-      const body = ChatRequestBody.parse(req.body);
 
-      const result = await aiChatService.analyzeChat(userId, body);
+      // Phase A3 — Per-user rate limit BEFORE the cost guard. The
+      // cost guard enforces a daily cap; this enforces a
+      // minute-scale burst cap so a single user cannot exhaust the
+      // daily quota in seconds. Per-IP is a defense-in-depth fallback
+      // for credential stuffing across multiple compromised accounts.
+      const userRate = await enforceRateLimit({
+        key: `ratelimit:ai-chat:user:${userId}`,
+        max: AI_CHAT_LIMITS.RATE_LIMIT_USER_PER_MIN,
+        windowSec: 60,
+      });
+      if (!userRate.allowed) {
+        await bumpAiChatMetric("ai_chat_rate_limited_total");
+        emitAiChatAbuseSignal(req, userId, "rate_limited_user");
+        const retryAfter = Math.max(
+          1,
+          Math.ceil((userRate.resetAtMs - Date.now()) / 1000),
+        );
+        reply.header("Retry-After", String(retryAfter));
+        return reply
+          .code(429)
+          .send({
+            code: "AI_CHAT_RATE_LIMITED",
+            message: "Too many AI chat requests. Please slow down.",
+          });
+      }
+
+      const ipRate = await enforceRateLimit({
+        key: `ratelimit:ai-chat:ip:${req.ip}`,
+        max: AI_CHAT_LIMITS.RATE_LIMIT_IP_PER_MIN,
+        windowSec: 60,
+      });
+      if (!ipRate.allowed) {
+        await bumpAiChatMetric("ai_chat_rate_limited_total");
+        emitAiChatAbuseSignal(req, userId, "rate_limited_ip");
+        const retryAfter = Math.max(
+          1,
+          Math.ceil((ipRate.resetAtMs - Date.now()) / 1000),
+        );
+        reply.header("Retry-After", String(retryAfter));
+        return reply
+          .code(429)
+          .send({
+            code: "AI_CHAT_RATE_LIMITED",
+            message: "Too many AI chat requests. Please slow down.",
+          });
+      }
+
+      let body: z.infer<typeof ChatRequestBody>;
+      try {
+        body = ChatRequestBody.parse(req.body);
+      } catch (err) {
+        await bumpAiChatMetric("ai_chat_rejected_total");
+        emitAiChatAbuseSignal(req, userId, "payload_too_large");
+        if (err instanceof z.ZodError) {
+          throw err;
+        }
+        throw new AppError(
+          ErrorCode.VALIDATION_ERROR,
+          "Invalid AI chat payload",
+        );
+      }
+
+      // Phase A3 — bounded timeout. The cost guard cannot save us
+      // from a provider that simply never responds; this does.
+      let result: Awaited<ReturnType<typeof aiChatService.analyzeChat>>;
+      try {
+        result = await withAiTimeout(
+          aiChatService.analyzeChat(userId, body),
+          AI_CHAT_LIMITS.REQUEST_TIMEOUT_MS,
+        );
+      } catch (err) {
+        const isTimeout =
+          err instanceof Error && err.message === "AI_REQUEST_TIMEOUT";
+        if (isTimeout) {
+          await bumpAiChatMetric("ai_chat_timeout_total");
+          emitAiChatAbuseSignal(req, userId, "timeout");
+          // AI failure NEVER cascades into the rest of the system.
+          // We return an advisory error and let the UI surface it as
+          // "AI temporarily unavailable" — capture / report / verify
+          // flows remain unaffected.
+          return reply.code(504).send({
+            code: "AI_CHAT_TIMEOUT",
+            message:
+              "AI assistant timed out. Try again in a moment. Evidence workflows are unaffected.",
+          });
+        }
+        throw err;
+      }
 
       auditAiAction(req, {
         userId,
@@ -200,6 +351,13 @@ export async function aiRoutes(app: FastifyInstance) {
           status: result.status,
         },
       });
+
+      if (result.status === "blocked") {
+        // The cost guard refused — count it as an abuse signal at
+        // INFO severity so dashboards can spot a user repeatedly
+        // hitting the daily ceiling.
+        emitAiChatAbuseSignal(req, userId, "cost_guard_exceeded");
+      }
 
       fireAiAnalytics({
         eventType: "ai_chat_request",

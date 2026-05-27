@@ -62,9 +62,12 @@ const WEB_TEAMS_HOME = readWeb(
 // =============================================================================
 
 describe("ENTERPRISE TENANT MODEL — types", () => {
-  it("authority + capability schema versions are bumped to 2", () => {
-    expect(AUTHORITY_SCHEMA_VERSION).toBe(2);
-    expect(CAPABILITY_SCHEMA_VERSION).toBe(2);
+  it("authority + capability schema versions are bumped (>=2)", () => {
+    // Schema versions are monotonic; later phases (A2 / G5) bumped
+    // them further. The contract is "must be >= 2 after the
+    // enterprise-tenant-model migration", not pinned to exactly 2.
+    expect(AUTHORITY_SCHEMA_VERSION).toBeGreaterThanOrEqual(2);
+    expect(CAPABILITY_SCHEMA_VERSION).toBeGreaterThanOrEqual(2);
   });
 
   it("backend declares Account / PersonalSpace / Organization / ActiveSpace types", () => {

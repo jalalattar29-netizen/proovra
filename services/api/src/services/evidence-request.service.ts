@@ -1143,7 +1143,35 @@ export type ExternalRequestPublicView = {
   title: string;
   instructions: string;
   requestType: string;
+  /**
+   * Phase C3 — request-level status surfaced to the public intake
+   * page so the contributor can see when the workspace has explicitly
+   * asked for more information (`NEEDS_MORE_INFO`), is reviewing
+   * (`UNDER_REVIEW`), or has fulfilled it (`FULFILLED`). This NEVER
+   * exposes reviewer notes — only the bounded status enum. Operators
+   * never have their internal correspondence leaked to the
+   * contributor.
+   */
+  status: string;
   dueAtUtc: string | null;
+  /**
+   * Phase C3 — deterministic completion summary computed across all
+   * deliverables. Drives the intake progress bar and the
+   * review-readiness chip. The contributor sees the same numbers the
+   * reviewer sees so expectations stay aligned.
+   */
+  completion: {
+    requiredTotal: number;
+    requiredFulfilled: number;
+    optionalTotal: number;
+    optionalFulfilled: number;
+    /** 0-100 integer percentage of all deliverables in FULFILLED or WAIVED state. */
+    completionPercent: number;
+    /** All REQUIRED deliverables are FULFILLED or WAIVED. */
+    reviewReady: boolean;
+    /** Request-level `NEEDS_MORE_INFO` — the workspace has asked for more. */
+    needsMoreInfo: boolean;
+  };
   deliverables: Array<{
     id: string;
     title: string;
@@ -1153,9 +1181,22 @@ export type ExternalRequestPublicView = {
     minCount: number;
     maxCount: number | null;
     locationRequirement: string;
+    /**
+     * Phase C3 — capture guidance flag from the deliverable's template
+     * step. When `true`, the workspace expects the contributor to
+     * capture fresh evidence rather than upload an existing file.
+     */
+    captureAfterRequest: boolean;
     workflowStepId: string | null;
     sortOrder: number;
     status: string;
+    /**
+     * Phase C3 — count of accepted submissions against this
+     * deliverable. The intake page renders `fulfilledCount/minCount`
+     * (or `fulfilledCount/maxCount` if a maximum is set) so the
+     * contributor can see exactly how many files they still owe.
+     */
+    fulfilledCount: number;
   }>;
 };
 
@@ -1171,13 +1212,49 @@ export async function projectRequestForExternalView(
   });
   if (!request) return null;
 
+  // -----------------------------------------------------------------
+  // Phase C3 — deterministic completion summary.
+  //
+  // Required deliverables in {FULFILLED, WAIVED} count as satisfied.
+  // Optional deliverables in {FULFILLED, WAIVED} also count toward
+  // overall percent but never block review-readiness.
+  // -----------------------------------------------------------------
+  const deliverables = request.deliverables ?? [];
+  const requiredItems = deliverables.filter((d) => d.required);
+  const optionalItems = deliverables.filter((d) => !d.required);
+  const isSatisfied = (status: string) =>
+    status === "FULFILLED" || status === "WAIVED";
+  const requiredFulfilled = requiredItems.filter((d) =>
+    isSatisfied(d.status),
+  ).length;
+  const optionalFulfilled = optionalItems.filter((d) =>
+    isSatisfied(d.status),
+  ).length;
+  const allItems = deliverables.length;
+  const allSatisfied = deliverables.filter((d) => isSatisfied(d.status)).length;
+  const completionPercent =
+    allItems === 0 ? 0 : Math.round((allSatisfied / allItems) * 100);
+  const reviewReady =
+    requiredItems.length === 0 || requiredFulfilled === requiredItems.length;
+  const needsMoreInfo = request.status === "NEEDS_MORE_INFO";
+
   return {
     id: request.id,
     title: request.title,
     instructions: request.instructions,
     requestType: request.requestType,
+    status: request.status,
     dueAtUtc: request.dueAtUtc?.toISOString() ?? null,
-    deliverables: (request.deliverables ?? []).map((d) => ({
+    completion: {
+      requiredTotal: requiredItems.length,
+      requiredFulfilled,
+      optionalTotal: optionalItems.length,
+      optionalFulfilled,
+      completionPercent,
+      reviewReady,
+      needsMoreInfo,
+    },
+    deliverables: deliverables.map((d) => ({
       id: d.id,
       title: d.title,
       description: d.description,
@@ -1186,9 +1263,11 @@ export async function projectRequestForExternalView(
       minCount: d.minCount,
       maxCount: d.maxCount,
       locationRequirement: d.locationRequirement,
+      captureAfterRequest: d.captureAfterRequest,
       workflowStepId: d.workflowStepId,
       sortOrder: d.sortOrder,
       status: d.status,
+      fulfilledCount: d.fulfilledCount,
     })),
   };
 }

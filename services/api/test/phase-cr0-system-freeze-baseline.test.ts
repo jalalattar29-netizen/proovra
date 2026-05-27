@@ -123,6 +123,12 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
     { page: "investigation/cases/[caseId]/graph/page.tsx", reason: "inherits investigation.graph access", revisitPhase: "CR1" },
     { page: "teams/[id]/page.tsx", reason: "inherits admin.teams access", revisitPhase: "CR1" },
 
+    // Phase G4.2 — Classic Matter Workspace retired. The
+    // `/cases/[id]/classic` page is a server-side redirect to the
+    // canonical Matter Workspace; no PageRouteGate is needed because
+    // there is no body to gate.
+    { page: "cases/[id]/classic/page.tsx", reason: "G4.2 retirement redirect — no body to gate", revisitPhase: "PERMANENT" },
+
     // Legacy operator pages. CR1 inspected both and deferred them:
     // each is a real ~600 LoC operational console (not dead code).
     // Folding them requires UX-level decisions (target gate or
@@ -174,11 +180,16 @@ describe("Phase CR0 — sidebar root groups bounded to canonical vocabulary", ()
    * a new root-level group must go through CR6 (Product Orchestration
    * Layer), not be done ad-hoc.
    */
+  // Phase G0 (B.1) — sidebar rewrite. The R2 group titles were
+  // consolidated into the Phase B canonical operational hierarchy
+  // (Workspace · Governance · Outputs · System). Source of truth:
+  // `apps/web/lib/navigation/canonicalNavigationGroups.ts`
+  // (`ALLOWED_ROOT_GROUP_TITLES`) + `phaseBOperationalGroups.ts`.
   const ALLOWED_ROOT_GROUP_TITLES = [
-    "Primary workflows",
     "Workspace",
-    "Operations",
-    "Governance & Compliance",
+    "Governance",
+    "Outputs",
+    "System",
     "All Tools",
     // The collapsed More disclosure is rendered as a group:
     "More / Advanced",

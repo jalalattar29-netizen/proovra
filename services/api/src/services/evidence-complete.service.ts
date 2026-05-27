@@ -487,6 +487,25 @@ export async function completeEvidence(params: {
         };
       }
 
+      // Phase A0 — integrity hard-gate terminal short-circuit.
+      // FAILED_HASH_MISMATCH is set by the worker (or any future
+      // reconciler) when a server-recomputed SHA-256 disagreed with
+      // the value persisted at completion. A retry POST to /complete
+      // must NOT re-promote this row: completion is single-shot in
+      // its current design (it OVERWRITES `fileSha256` from the
+      // server-recomputed stream), and a successful retry here would
+      // silently re-flip the row to SIGNED even though the worker had
+      // recorded a real mismatch. Refuse with 409 and a bounded
+      // operator-readable code; the route layer surfaces this to the
+      // owner.
+      if (evidence.status === EvidenceStatus.FAILED_HASH_MISMATCH) {
+        const err: HttpError = Object.assign(
+          new Error("EVIDENCE_INTEGRITY_FAILED"),
+          { statusCode: 409 },
+        );
+        throw err;
+      }
+
       if (evidence.status === EvidenceStatus.SIGNED) {
         // Phase 12 — duplicate finalize detected. Audit so operators
         // can spot retry storms; the response is still the canonical

@@ -71,6 +71,7 @@ import {
   transitionLifecycle,
 } from "../services/governance-lifecycle/lifecycle-orchestrator.service.js";
 import { checkExportEligibility } from "../services/governance-lifecycle/export-governance.service.js";
+import { resolveTeamRetentionPolicy } from "../services/organization/retention-inheritance.service.js";
 import {
   DESTRUCTION_REVIEW_REASONS,
   DESTRUCTION_REVIEW_STATUSES,
@@ -458,6 +459,365 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           return mapDestructionError(reply, err);
         throw err;
       }
+    },
+  );
+
+  // ---------------------------------------------------------------------
+  // Phase F — Governance impact preview for a destruction review.
+  //
+  // GET /v1/governance/destruction-reviews/:id/preview?teamId=...
+  //
+  // Returns a deterministic projection of the operational consequences
+  // of executing this review. Read-only — no audit emission, no state
+  // mutation, no certificate generation. Operators see exactly what
+  // will happen BEFORE they click "Approve" or "Execute".
+  //
+  // The preview NEVER claims legal admissibility. It is an operational
+  // impact summary: what evidence is in scope, what blocks the
+  // destruction, what audit references will persist, what is
+  // irreversible.
+  //
+  // Workspace isolation: same `requireMember(teamId)` + permission
+  // gate as the rest of the destruction-review surface.
+  // ---------------------------------------------------------------------
+  app.get(
+    "/v1/governance/destruction-reviews/:id/preview",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsId.parse(req.params);
+      const query = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.query ?? {});
+      const ok = await requireMember(req, reply, query.teamId);
+      if (!ok) return;
+      const perm = requirePermission(ok.role, "governance.policy.read");
+      if (!perm.allowed) return denyByPermission(reply, perm.reason);
+
+      const review = await prisma.destructionReview.findFirst({
+        where: { id, teamId: query.teamId },
+        select: {
+          id: true,
+          teamId: true,
+          evidenceId: true,
+          retentionPolicyId: true,
+          retentionPolicyVersion: true,
+          status: true,
+          reason: true,
+          decisionNote: true,
+          deferredUntilUtc: true,
+          executedAtUtc: true,
+          certificateHash: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      if (!review) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+
+      const evidence = await prisma.evidence.findFirst({
+        where: { id: review.evidenceId, teamId: query.teamId },
+        select: {
+          id: true,
+          title: true,
+          lifecycleState: true,
+          retentionPolicyVersionId: true,
+          activeDestructionReviewId: true,
+          createdAt: true,
+        },
+      });
+
+      const linkedCaseIds = evidence
+        ? (
+            await prisma.caseEvidenceLink.findMany({
+              where: { teamId: query.teamId, evidenceId: evidence.id },
+              select: { caseId: true },
+            })
+          ).map((l) => l.caseId)
+        : [];
+
+      const [evidenceHolds, caseHolds] = await Promise.all([
+        prisma.evidenceLegalHold.findMany({
+          where: {
+            teamId: query.teamId,
+            evidenceId: review.evidenceId,
+            status: "ACTIVE",
+          },
+          select: {
+            id: true,
+            title: true,
+            placedAtUtc: true,
+            caseId: true,
+          },
+        }),
+        // Case-level holds are inherited via the evidence's case
+        // links. We resolve via `CaseEvidenceLink` because there is
+        // no `Case.evidenceLinks` back-relation declared in the
+        // schema.
+        linkedCaseIds.length > 0
+          ? prisma.caseLegalHold.findMany({
+              where: {
+                teamId: query.teamId,
+                status: "ACTIVE",
+                caseId: { in: linkedCaseIds },
+              },
+              select: { id: true, title: true, placedAtUtc: true, caseId: true },
+            })
+          : Promise.resolve([]),
+      ]);
+
+      let policy: {
+        id: string;
+        displayName: string;
+        retentionDays: number | null;
+        immutable: boolean;
+        status: string;
+      } | null = null;
+      if (review.retentionPolicyId) {
+        const p = await prisma.evidenceRetentionPolicy.findFirst({
+          where: { id: review.retentionPolicyId, teamId: query.teamId },
+          select: {
+            id: true,
+            displayName: true,
+            retentionDays: true,
+            immutable: true,
+            status: true,
+          },
+        });
+        if (p) policy = p;
+      }
+
+      const lifecycleEventCount = await prisma.evidenceLifecycleEvent.count({
+        where: { teamId: query.teamId, evidenceId: review.evidenceId },
+      });
+
+      const blockedBy: string[] = [];
+      if (evidenceHolds.length > 0) blockedBy.push("evidence_legal_hold");
+      if (caseHolds.length > 0) blockedBy.push("case_legal_hold");
+      if (policy?.immutable) blockedBy.push("retention_policy_immutable");
+      if (
+        evidence?.lifecycleState === "DESTROYED" ||
+        review.status === "EXECUTED"
+      ) {
+        blockedBy.push("already_destroyed");
+      }
+
+      return reply.code(200).send({
+        review: {
+          id: review.id,
+          status: review.status,
+          reason: review.reason,
+          decisionNote: review.decisionNote,
+          deferredUntilUtc: review.deferredUntilUtc?.toISOString() ?? null,
+          executedAtUtc: review.executedAtUtc?.toISOString() ?? null,
+          certificateHash: review.certificateHash,
+          createdAt: review.createdAt.toISOString(),
+          updatedAt: review.updatedAt.toISOString(),
+        },
+        evidence: evidence
+          ? {
+              id: evidence.id,
+              title: evidence.title,
+              lifecycleState: evidence.lifecycleState,
+              createdAt: evidence.createdAt.toISOString(),
+            }
+          : null,
+        policy,
+        holds: {
+          evidence: evidenceHolds.map((h) => ({
+            id: h.id,
+            title: h.title,
+            placedAtUtc: h.placedAtUtc.toISOString(),
+            source: "evidence",
+            caseId: h.caseId,
+          })),
+          case: caseHolds.map((h) => ({
+            id: h.id,
+            title: h.title,
+            placedAtUtc: h.placedAtUtc.toISOString(),
+            source: "case",
+            caseId: h.caseId,
+          })),
+        },
+        impact: {
+          // What will be removed when EXECUTED.
+          willDelete: [
+            "evidence_storage_object",
+            "evidence_part_references",
+          ],
+          // What will PERSIST as operational traceability. The
+          // operator must understand that destruction is NOT total
+          // erasure — the audit trail, lifecycle ledger, and
+          // certificate stay.
+          willPersist: [
+            "evidence_record_tombstone",
+            "lifecycle_event_ledger",
+            "destruction_certificate",
+            "audit_log_references",
+          ],
+          irreversible: review.status !== "EXECUTED",
+          lifecycleEventCount,
+        },
+        blockedBy,
+        guidance:
+          blockedBy.length === 0
+            ? "No blockers detected. Destruction will proceed when an authorised reviewer transitions this review to EXECUTED with a step-up token."
+            : "One or more blockers prevent destruction. Release holds and / or supersede immutable policy before retrying.",
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------
+  // Phase F — Destruction certificate retrieval.
+  //
+  // GET /v1/governance/destruction-reviews/:id/certificate?teamId=...
+  //
+  // Returns the operational destruction certificate for an EXECUTED
+  // review. The certificate is composed from:
+  //   * the EXECUTED review row (decision metadata + cert hash),
+  //   * the lifecycle event with eventType = "destruction_executed"
+  //     (which carries the canonical certificate body + lineage hash
+  //     in `metadata`).
+  //
+  // The certificate is OPERATIONAL TRACEABILITY — never a legal
+  // admissibility statement, never a cryptographic proof of total
+  // erasure, never a guarantee of downstream deletion in caches,
+  // backups, or third-party systems. Those caveats are surfaced as
+  // structured `caveats` so the frontend renders them verbatim.
+  //
+  // Workspace isolation: same `requireMember(teamId)` + permission
+  // gate as the rest of the destruction-review surface.
+  // ---------------------------------------------------------------------
+  app.get(
+    "/v1/governance/destruction-reviews/:id/certificate",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsId.parse(req.params);
+      const query = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.query ?? {});
+      const ok = await requireMember(req, reply, query.teamId);
+      if (!ok) return;
+      const perm = requirePermission(ok.role, "governance.policy.read");
+      if (!perm.allowed) return denyByPermission(reply, perm.reason);
+
+      const review = await prisma.destructionReview.findFirst({
+        where: { id, teamId: query.teamId },
+        select: {
+          id: true,
+          teamId: true,
+          evidenceId: true,
+          status: true,
+          reason: true,
+          decisionNote: true,
+          decidedByUserId: true,
+          decidedAtUtc: true,
+          executedAtUtc: true,
+          certificateHash: true,
+          retentionPolicyId: true,
+          retentionPolicyVersion: true,
+          createdAt: true,
+        },
+      });
+      if (!review) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      if (review.status !== "EXECUTED") {
+        return reply.code(409).send({
+          error: {
+            code: "certificate_unavailable",
+            message:
+              "Destruction certificates are only generated for EXECUTED reviews.",
+          },
+        });
+      }
+
+      // The canonical certificate body + lineage hash live on the
+      // destruction_executed lifecycle event's metadata. Fall back to
+      // a minimal projection if the event is unexpectedly absent
+      // (defensive — shouldn't happen, but the certificate must still
+      // be retrievable for audit).
+      const executedEvent = await prisma.evidenceLifecycleEvent.findFirst({
+        where: {
+          teamId: query.teamId,
+          evidenceId: review.evidenceId,
+          eventType: "destruction_executed",
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          createdAt: true,
+          summary: true,
+          metadata: true,
+          actorUserId: true,
+        },
+      });
+
+      const certificate = {
+        // === IDENTIFIERS ===
+        reviewId: review.id,
+        evidenceId: review.evidenceId,
+        teamId: review.teamId,
+        // === EXECUTION FACTS ===
+        executedAtUtc: review.executedAtUtc?.toISOString() ?? null,
+        decidedAtUtc: review.decidedAtUtc?.toISOString() ?? null,
+        decidedByUserId: review.decidedByUserId,
+        reason: review.reason,
+        decisionNote: review.decisionNote,
+        // === GOVERNING POLICY ===
+        retentionPolicyId: review.retentionPolicyId,
+        retentionPolicyVersion: review.retentionPolicyVersion,
+        // === LINEAGE / INTEGRITY ===
+        certificateHash: review.certificateHash,
+        lifecycleEventId: executedEvent?.id ?? null,
+        lineageHash:
+          executedEvent?.metadata && typeof executedEvent.metadata === "object"
+            ? (executedEvent.metadata as Record<string, unknown>)["lineageHash"]
+              ?? null
+            : null,
+        // === REVIEW PROVENANCE ===
+        reviewCreatedAt: review.createdAt.toISOString(),
+        eventSummary: executedEvent?.summary ?? null,
+      };
+
+      return reply.code(200).send({
+        certificate,
+        caveats: [
+          // The frontend renders these verbatim — DO NOT alter the
+          // wording without coordinating with the governance UX
+          // copy review.
+          "This certificate is an operational traceability record. It is not a legal admissibility statement.",
+          "Destruction removes the original storage object. Evidence record tombstones, lifecycle event ledger entries, and destruction audit logs PERSIST and are intentionally not erased.",
+          "This certificate does not assert cryptographic proof of total erasure across replicas, backups, or downstream third-party systems. Coordinate with platform operations for compliance attestations.",
+        ],
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------
+  // Phase F — Retention inheritance resolver projection.
+  //
+  // GET /v1/governance/retention/inheritance?teamId=...
+  //
+  // Surfaces the Phase B0 `resolveTeamRetentionPolicy` resolver so the
+  // retention UI can render the inheritance source ("team_policy" /
+  // "org_policy_inherited" / "none") with provenance instead of
+  // operators inferring it from the policy list.
+  // ---------------------------------------------------------------------
+  app.get(
+    "/v1/governance/retention/inheritance",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const query = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.query ?? {});
+      const ok = await requireMember(req, reply, query.teamId);
+      if (!ok) return;
+      const perm = requirePermission(ok.role, "governance.policy.read");
+      if (!perm.allowed) return denyByPermission(reply, perm.reason);
+
+      const resolution = await resolveTeamRetentionPolicy(query.teamId);
+      return reply.code(200).send({ resolution });
     },
   );
 
