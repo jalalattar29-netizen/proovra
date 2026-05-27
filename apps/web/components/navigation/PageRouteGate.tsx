@@ -68,6 +68,13 @@ export function PageRouteGate({
       data-page-route-gate
       data-page-route-gate-state={access.accessState}
       data-page-route-gate-route-id={routeId}
+      // Phase 2.7Z+ — stable e2e testid. The existing
+      // `data-page-route-gate-*` attributes encode runtime state
+      // (which is useful for visual debugging but varies per
+      // envelope shape). The testid here is route-stable so e2e
+      // can wait for "the route gate panel is on screen for this
+      // route id" without coupling to access state.
+      data-testid={`route-gate-${routeId}`}
       style={{ maxWidth: 640, margin: "0 auto" }}
     >
       <header className="cc-page-header">

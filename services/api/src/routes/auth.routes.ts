@@ -43,6 +43,13 @@ import {
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+// Phase 2.7Z+ — E2E auth rate-limit bypass (env-gated, production-safe).
+// See services/api/src/services/auth-test-bypass.ts for the three
+// layers of defense and the operational rules.
+import {
+  shouldBypassAuthRateLimit,
+  buildBypassLogPayload,
+} from "../services/auth-test-bypass.js";
 // Phase 2.5 — record the AuthenticatedSession row for non-SAML/SSO
 // login paths so the user-facing `/v1/users/me/sessions` list is not
 // empty for guest + email-password users (Phase 2.4 finding).
@@ -575,11 +582,29 @@ export async function authRoutes(app: FastifyInstance) {
     // inserts a User row + JWT signing; unprotected the endpoint is a
     // free guest-account fountain that breaks plan enforcement and
     // inflates the audit log.
-    const rl = await enforceRateLimit({
-      key: `auth:guest:ip:${readClientIp(req)}`,
-      max: AUTH_GUEST_RATE_LIMIT_PER_IP_PER_MIN,
-      windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
-    });
+    //
+    // Phase 2.7Z+ — E2E bypass: when `E2E_AUTH_BYPASS_SECRET` is set
+    // (test environments only) AND the request includes a matching
+    // `X-E2E-Auth-Bypass` header AND `NODE_ENV !== "production"`,
+    // the rate limit is skipped for this request only. Each bypass
+    // is logged so any unexpected use in non-test environments is
+    // discoverable post-hoc. Production NEVER honors the bypass
+    // regardless of env or header.
+    const bypassed = shouldBypassAuthRateLimit(req);
+    if (bypassed) {
+      req.log.info(
+        buildBypassLogPayload(req),
+        "auth.guest.rate_limit_bypassed_e2e",
+      );
+    }
+
+    const rl = bypassed
+      ? { allowed: true, remaining: AUTH_GUEST_RATE_LIMIT_PER_IP_PER_MIN, resetAtMs: Date.now() }
+      : await enforceRateLimit({
+          key: `auth:guest:ip:${readClientIp(req)}`,
+          max: AUTH_GUEST_RATE_LIMIT_PER_IP_PER_MIN,
+          windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
+        });
     if (!rl.allowed) {
       const retryAfter = Math.max(
         1,

@@ -52,8 +52,8 @@ import {
 const FAKE_UUID_A = "00000000-0000-4000-8000-000000000001";
 const FAKE_UUID_B = "00000000-0000-4000-8000-000000000002";
 
-test.beforeEach(() => {
-  clearTestRateLimits();
+test.beforeEach(async () => {
+  await clearTestRateLimits();
 });
 
 test.describe("Phase 2.2 — workspace completion @critical", () => {

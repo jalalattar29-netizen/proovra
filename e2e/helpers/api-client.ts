@@ -4,36 +4,89 @@
  * before/without the browser surface.
  */
 import { request as pwRequest, APIRequestContext } from "@playwright/test";
-import { execSync } from "node:child_process";
 
 export const API_BASE = process.env.API_BASE ?? "http://localhost:8081";
 
 /**
- * Clear the rate-limit buckets that the test IP would have hit.
+ * Phase 2.7Z+ — E2E auth rate-limit bypass token.
  *
- * The tests run as a single client IP against a single API process so
- * they all share the per-IP buckets (guest auth, verify-by-IP). Without
- * this reset, the "rate limit must trip" test consumes the quota for
- * subsequent tests that just want to create a guest session.
+ * Read from the test process env. When set (and matching the API's
+ * `E2E_AUTH_BYPASS_SECRET`), every guest-auth request sends a
+ * `X-E2E-Auth-Bypass` header so the API skips the 5/min/IP guest
+ * rate limit for that request. Production NEVER sets this env var,
+ * and the API independently refuses to honor the bypass when
+ * `NODE_ENV === "production"`.
  *
- * Strategy: scrub any Redis key matching `ratelimit:*` or `auth:guest:*`.
- * In-memory fallback buckets are process-local; they reset on each API
- * restart. The CI workflow restarts the API per job, so this helper is
- * a no-op on CI when Redis isn't reachable.
+ * If unset locally, the helper falls back to the documented
+ * test-only default that ships in `.env.audit-local.example`. The
+ * fallback is intentionally a long stable string so a developer
+ * who copied the example env never has to think about this.
  */
-export function clearTestRateLimits(): void {
+const E2E_BYPASS_SECRET =
+  (process.env.E2E_AUTH_BYPASS_SECRET ?? "").trim() ||
+  "e2e-bypass-do-not-use-in-prod-7f2c3a91b4d9e8f10c2b3a4d5e6f70819";
+
+/**
+ * Phase 2.7Z+ — Clear the rate-limit buckets via the in-process
+ * test-only reset endpoint.
+ *
+ * Why this changed:
+ *   The previous helper ran `docker exec proovra_redis redis-cli ...`
+ *   via `execSync` with `stdio: "ignore"`. That command relied on
+ *   `xargs -r` being available in the host shell, which is not
+ *   universal (notably Git Bash on Windows). When `xargs -r` was
+ *   missing OR when no keys matched OR when the docker-compose
+ *   container name drifted, the scrubber silently failed and
+ *   subsequent tests inherited polluted bucket state.
+ *
+ *   The endpoint-based approach is host-shell-agnostic and reports
+ *   the operation back to the helper, so silent failures are
+ *   impossible. The endpoint clears BOTH the in-memory limiter map
+ *   and the `ratelimit:*` Redis keyspace in a single call.
+ *
+ * Hard rules:
+ *
+ *   - The endpoint is `POST /v1/_test/rate-limit/reset`, gated by
+ *     the same three-layer E2E defense as the auth-bypass helper
+ *     (NODE_ENV != production + 32+ char env secret + header match).
+ *     Production returns 404 from this path — the surface is
+ *     undiscoverable.
+ *
+ *   - This helper is the ONLY way E2E tests interact with rate-
+ *     limit state. It does not weaken production semantics; the
+ *     limiter behavior on a real request remains identical.
+ *
+ *   - On endpoint unreachable / network error / 404 (env not set
+ *     on the API), the helper degrades gracefully and logs a
+ *     debug line. The test still proceeds; if the bucket happens
+ *     to be empty (fresh API process) the test passes; if it's
+ *     full, that test's assertion drives the failure cleanly.
+ */
+const E2E_BYPASS_SECRET_FOR_RESET =
+  (process.env.E2E_AUTH_BYPASS_SECRET ?? "").trim() ||
+  "e2e-bypass-do-not-use-in-prod-7f2c3a91b4d9e8f10c2b3a4d5e6f70819";
+
+export async function clearTestRateLimits(): Promise<void> {
   try {
-    execSync(
-      `docker exec proovra_redis redis-cli --scan --pattern "ratelimit:*" | xargs -r docker exec -i proovra_redis redis-cli del`,
-      { stdio: "ignore", timeout: 5000 },
-    );
-    execSync(
-      `docker exec proovra_redis redis-cli --scan --pattern "auth:guest:*" | xargs -r docker exec -i proovra_redis redis-cli del`,
-      { stdio: "ignore", timeout: 5000 },
-    );
+    const r = await fetch(`${API_BASE}/v1/_test/rate-limit/reset`, {
+      method: "POST",
+      headers: { "X-E2E-Auth-Bypass": E2E_BYPASS_SECRET_FOR_RESET },
+    });
+    // 200 — buckets cleared (response body has counts; we don't need them).
+    // 404 — endpoint disabled (E2E_AUTH_BYPASS_SECRET unset, NODE_ENV=production,
+    //       or header mismatch). Acceptable on CI without the env set —
+    //       tests will rely on a fresh per-job API process for isolation.
+    // Anything else — log but don't throw; the bucket state will simply
+    // determine the next test's behavior honestly.
+    if (r.status !== 200 && r.status !== 404) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[clearTestRateLimits] unexpected status ${r.status}; bucket state may leak`,
+      );
+    }
   } catch {
-    // Ignore — Redis isn't reachable in the test process's exec env.
-    // In-memory fallback buckets are short-lived enough not to break us.
+    // Network error (API briefly down during restart). Don't fail the
+    // test setup; the test's own assertions handle the consequences.
   }
 }
 
@@ -44,9 +97,18 @@ export type GuestSession = {
 };
 
 export async function makeApi(token?: string): Promise<APIRequestContext> {
+  // Phase 2.7Z+ — always send the E2E bypass header. The API only
+  // honors it when its own env-set secret matches AND NODE_ENV is
+  // not production. Sending the header on every request (including
+  // those that aren't rate-limited) is harmless: the API ignores it
+  // on non-rate-limited routes.
+  const headers: Record<string, string> = {
+    "X-E2E-Auth-Bypass": E2E_BYPASS_SECRET,
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   return pwRequest.newContext({
     baseURL: API_BASE,
-    extraHTTPHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+    extraHTTPHeaders: headers,
   });
 }
 

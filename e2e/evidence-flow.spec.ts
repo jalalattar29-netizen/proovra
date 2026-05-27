@@ -24,8 +24,8 @@ import {
   disposeSession,
 } from "./helpers/api-client";
 
-test.beforeEach(() => {
-  clearTestRateLimits();
+test.beforeEach(async () => {
+  await clearTestRateLimits();
 });
 
 test.describe("evidence flow @critical", () => {

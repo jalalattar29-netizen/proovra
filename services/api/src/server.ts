@@ -21,6 +21,8 @@ import { authRoutes } from "./routes/auth.routes.js";
 import { teamsRoutes } from "./routes/teams.routes.js";
 // Phase 2.7X Stage 3 — Organization runtime endpoints (read-only dual-read).
 import { organizationsRoutes } from "./routes/organizations.routes.js";
+// Phase 2.7Z+ — E2E-only rate-limit reset endpoint (404 in production).
+import { testRateLimitRoutes } from "./routes/_test-rate-limit.routes.js";
 import { billingRoutes } from "./routes/billing.routes.js";
 import { webhooksRoutes } from "./routes/webhooks.routes.js";
 import { casesRoutes } from "./routes/cases.routes.js";
@@ -513,6 +515,9 @@ allowedHeaders: [
   // Team semantics remain operational authority; these endpoints
   // expose governance metadata only (no evidence/case/reviewer data).
   await app.register(organizationsRoutes);
+  // Phase 2.7Z+ — E2E rate-limit reset endpoint. Gated by the same
+  // three-layer defense as auth-test-bypass; 404 in production.
+  await app.register(testRateLimitRoutes);
   await app.register(billingRoutes);
   await app.register(webhooksRoutes, { prefix: "/webhooks" });
   await app.register(casesRoutes);

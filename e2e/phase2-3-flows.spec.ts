@@ -43,8 +43,8 @@ import {
   disposeSession,
 } from "./helpers/api-client";
 
-test.beforeEach(() => {
-  clearTestRateLimits();
+test.beforeEach(async () => {
+  await clearTestRateLimits();
 });
 
 test.describe("Phase 2.3 — enterprise governance @critical", () => {
@@ -55,24 +55,34 @@ test.describe("Phase 2.3 — enterprise governance @critical", () => {
       `expected 2xx from /settings, got ${resp?.status()}`,
     ).toBe(true);
 
-    // The (app) layout may render an auth gate for an unauthenticated
-    // browser, hiding the security card. We give the page a chance to
-    // hydrate, then check for EITHER the security card OR the auth-
-    // gate shell — anything but a 5xx + empty render is acceptable.
-    // The point of this test is to prove the page itself loads with
-    // the new component in scope.
-    await page.waitForLoadState("networkidle").catch(() => {});
-
-    const sawSecurityOrGate =
-      (await page
-        .locator(
-          '[data-account-security-card], [data-page-route-gate-route-id="account.settings"]',
-        )
-        .count()) > 0;
-    expect(
-      sawSecurityOrGate,
-      "expected the security card OR the page-route-gate marker on /settings",
-    ).toBe(true);
+    // The (app) layout renders an empty placeholder div while
+    // `authReady === false`, then re-renders into either:
+    //   (a) the AccountSecurityCard (when the envelope grants access)
+    //   (b) the PageRouteGate denial panel for `account.settings`
+    //       (when the unauthenticated browser is denied by the gate)
+    //
+    // The previous version of this test used
+    // `waitForLoadState("networkidle")` followed by a synchronous
+    // `.count()`. That race-condition'd against React's commit
+    // phase: networkidle fires when /v1/users/me + /v1/platform/context
+    // both settle, but the resulting layout re-render is a microtask
+    // away; the synchronous count read 0 before the gate or card
+    // mounted.
+    //
+    // The fix uses Playwright's polling `expect.toBeVisible`, which
+    // actively retries the locator until either marker appears or
+    // the timeout elapses. Stable `data-testid` attributes on both
+    // the AccountSecurityCard root and the PageRouteGate denial
+    // panel root anchor the assertion to product-stable markers
+    // (independent of access-state classification, dynamic class
+    // names, or runtime envelope shape).
+    const sawSecurityOrGate = page.locator(
+      '[data-testid="account-security-card"], [data-testid="route-gate-account.settings"]',
+    );
+    await expect(
+      sawSecurityOrGate.first(),
+      "expected the security card OR the PageRouteGate panel for /settings to be visible within 15s",
+    ).toBeVisible({ timeout: 15_000 });
   });
 
   test("/security-center reachable", async ({ page }) => {

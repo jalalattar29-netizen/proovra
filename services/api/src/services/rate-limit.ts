@@ -187,3 +187,66 @@ export async function enforceRateLimit(params: {
     redisClient,
   });
 }
+
+/**
+ * Phase 2.7Z+ — Test-only helper: wipe ALL rate-limit state.
+ *
+ * Clears the in-memory map AND scan-deletes every `ratelimit:*`
+ * Redis key, so callers don't need to know which store is active.
+ *
+ * Hard rules:
+ *
+ *   - This module exports the helper UNCONDITIONALLY. Gating is the
+ *     route layer's job — see `services/api/src/routes/_test-rate-limit.routes.ts`
+ *     for the three-layer defense (NODE_ENV != production +
+ *     E2E_AUTH_BYPASS_SECRET set + matching header). Without that
+ *     gating the helper has no business being callable.
+ *
+ *   - The function is read-only with respect to limiter SEMANTICS:
+ *     it doesn't change limits, windows, or store selection. It
+ *     ONLY drops the count state. New requests after the reset
+ *     start counting from zero, exactly as on a fresh process.
+ *
+ *   - SCAN+DEL avoids the O(N) KEYS-blocking pitfall. Cursor-based
+ *     iteration is safe to call concurrently with normal limiter
+ *     traffic (limiter races just count from the new zero baseline).
+ */
+export async function clearAllRateLimitBuckets(): Promise<{
+  memoryCleared: number;
+  redisCleared: number;
+}> {
+  const memoryCleared = memoryStore.size;
+  memoryStore.clear();
+
+  let redisCleared = 0;
+  const client = getRedis();
+  if (client) {
+    try {
+      if (client.status === "wait") {
+        await client.connect();
+      }
+      let cursor = "0";
+      do {
+        const result = (await client.scan(
+          cursor,
+          "MATCH",
+          "ratelimit:*",
+          "COUNT",
+          200,
+        )) as [string, string[]];
+        cursor = result[0];
+        const keys = result[1];
+        if (keys.length > 0) {
+          redisCleared += keys.length;
+          await client.del(...keys);
+        }
+      } while (cursor !== "0");
+    } catch {
+      // Redis unavailable mid-clear → mark unhealthy + fall through.
+      // The memory store has already been cleared above.
+      markRedisUnavailable();
+    }
+  }
+
+  return { memoryCleared, redisCleared };
+}

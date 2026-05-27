@@ -154,6 +154,7 @@ export function AccountSecurityCard({ userEmail }: { userEmail: string | null })
       className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
       style={cardShellStyle()}
       data-account-security-card
+      data-testid="account-security-card"
     >
       <div className="settings-silver-card__bg" />
       <div className="settings-silver-card__overlay" />

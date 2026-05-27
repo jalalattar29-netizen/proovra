@@ -26,24 +26,55 @@ import {
 
 // Phase 1 — clear shared rate-limit buckets between tests so the
 // "must trip 429" specs don't starve their successors.
-test.beforeEach(() => {
-  clearTestRateLimits();
+test.beforeEach(async () => {
+  await clearTestRateLimits();
 });
 
 async function signedEvidence(session: Awaited<ReturnType<typeof createGuestSession>>) {
+  // Phase 2.7Z+ hardening: validate each step of the finalize chain so a
+  // silent PUT/complete failure can't return an "unfinalized" id that
+  // makes downstream /public/verify assertions look like 409/ok=false
+  // regressions. If any step fails, throw with the full diagnostic.
   const create = await session.api.post("/v1/evidence", {
     data: { type: "PHOTO", mimeType: "text/plain" },
   });
+  if (!create.ok()) {
+    throw new Error(
+      `signedEvidence: POST /v1/evidence failed (HTTP ${create.status()}): ${await create.text()}`,
+    );
+  }
   const c = (await create.json()) as {
     id: string;
     upload: { putUrl: string };
   };
-  await fetch(c.upload.putUrl, {
+
+  const putRes = await fetch(c.upload.putUrl, {
     method: "PUT",
     body: `verify-privacy ${Date.now()}\n`,
     headers: { "Content-Type": "text/plain" },
   });
-  await session.api.post(`/v1/evidence/${c.id}/complete`, { data: {} });
+  if (!putRes.ok) {
+    throw new Error(
+      `signedEvidence: direct PUT to presigned URL failed (HTTP ${putRes.status}): ${await putRes.text()}`,
+    );
+  }
+
+  const complete = await session.api.post(
+    `/v1/evidence/${c.id}/complete`,
+    { data: {} },
+  );
+  if (!complete.ok()) {
+    throw new Error(
+      `signedEvidence: POST /v1/evidence/${c.id}/complete failed (HTTP ${complete.status()}): ${await complete.text()}`,
+    );
+  }
+  const completed = (await complete.json()) as { status?: string };
+  if (completed.status !== "SIGNED") {
+    throw new Error(
+      `signedEvidence: complete returned status=${completed.status}, expected SIGNED`,
+    );
+  }
+
   return c.id;
 }
 
@@ -101,6 +132,45 @@ test.describe("public verify privacy @critical", () => {
     }
   });
 
+  test("unfinalized evidence returns 409 (not enumerable as 'real')", async ({
+    request,
+  }) => {
+    const session = await createGuestSession();
+    try {
+      // Create evidence but do NOT upload + complete.
+      const create = await session.api.post("/v1/evidence", {
+        data: { type: "PHOTO", mimeType: "text/plain" },
+      });
+      const { id } = (await create.json()) as { id: string };
+
+      const res = await request.get(`${API_BASE}/public/verify/${id}`);
+      // 404 (not-published gate) OR 409 (not-finalized) are both
+      // acceptable. The one thing that's NOT acceptable is a 200
+      // — that would leak the existence of an unfinalized record.
+      expect([404, 409]).toContain(res.status());
+    } finally {
+      await disposeSession(session);
+    }
+  });
+
+  test("invalid token / non-uuid path returns 400 — no info leak", async ({
+    request,
+  }) => {
+    const res = await request.get(`${API_BASE}/public/verify/not-a-uuid`);
+    expect(res.status()).toBe(400);
+  });
+
+  // ===========================================================================
+  // ZZZ — intentional 429 tests run LAST in this file.
+  //
+  // Defense in depth: the global beforeEach calls `clearTestRateLimits`
+  // which hits POST /v1/_test/rate-limit/reset before every test, so
+  // ordering shouldn't matter. But if that endpoint is ever disabled
+  // (E2E_AUTH_BYPASS_SECRET unset / NODE_ENV=production / header
+  // mismatch → 404), the bucket-saturating tests stay confined to the
+  // tail of this file and cannot pollute downstream specs.
+  // ===========================================================================
+
   test("per-IP rate limit returns 429 + Retry-After", async ({ request }) => {
     const session = await createGuestSession();
     try {
@@ -141,33 +211,5 @@ test.describe("public verify privacy @critical", () => {
     }
     expect(saw429, "guest auth should rate-limit after 5/min").toBe(true);
     expect(retryAfter).not.toBeNull();
-  });
-
-  test("unfinalized evidence returns 409 (not enumerable as 'real')", async ({
-    request,
-  }) => {
-    const session = await createGuestSession();
-    try {
-      // Create evidence but do NOT upload + complete.
-      const create = await session.api.post("/v1/evidence", {
-        data: { type: "PHOTO", mimeType: "text/plain" },
-      });
-      const { id } = (await create.json()) as { id: string };
-
-      const res = await request.get(`${API_BASE}/public/verify/${id}`);
-      // 404 (not-published gate) OR 409 (not-finalized) are both
-      // acceptable. The one thing that's NOT acceptable is a 200
-      // — that would leak the existence of an unfinalized record.
-      expect([404, 409]).toContain(res.status());
-    } finally {
-      await disposeSession(session);
-    }
-  });
-
-  test("invalid token / non-uuid path returns 400 — no info leak", async ({
-    request,
-  }) => {
-    const res = await request.get(`${API_BASE}/public/verify/not-a-uuid`);
-    expect(res.status()).toBe(400);
   });
 });
