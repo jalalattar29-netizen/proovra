@@ -2189,4 +2189,236 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       });
     },
   );
+
+  // ===========================================================================
+  // Phase B.3 — Review-state queue summary.
+  //
+  // GET /v1/reviewer-ops/decisions/summary?teamId=<uuid>
+  //
+  // Returns workspace-scoped counts of workflows by multi-stage review
+  // state (derived from WorkflowReviewDecision rows + the same policy
+  // triggers used by the per-workflow `decisions` endpoint).
+  //
+  // Used by:
+  //   - `/reviewer-ops` console summary card ("X conflicts pending
+  //     adjudication, Y awaiting second review")
+  //   - `/v1/me/inbox` for caller-relevant counts (when the caller is
+  //     an admin in the team)
+  //
+  // Hard rules:
+  //   - Workspace-scoped via `requireReviewerActor(teamId)` — no
+  //     cross-workspace leak.
+  //   - Counts derived live; no caching, no stale state. The cost is
+  //     one join per call which the existing indexes handle.
+  //   - Top-N preview rows per state are bounded to 5 by default
+  //     (operator-readable preview, not full queue) to keep this
+  //     endpoint a *summary*. The full filtered queue is a future
+  //     deliverable (Phase B.3 deferred section).
+  // ===========================================================================
+  app.get(
+    "/v1/reviewer-ops/decisions/summary",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z
+        .object({
+          teamId: z.string().uuid(),
+          previewLimit: z.coerce.number().int().min(0).max(50).optional(),
+        })
+        .parse(req.query ?? {});
+      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      if (!ctx) return;
+      const previewLimit = q.previewLimit ?? 5;
+
+      // Pull every workflow in the team that has at least one decision
+      // row OR is in a state that could require multi-stage review.
+      // The cheap path: list workflows + their decisions in one go.
+      //
+      // We bound this to workflows updated in the last 90 days so the
+      // summary stays operationally relevant; older completed workflows
+      // are not surfaced.
+      const SUMMARY_WINDOW_DAYS = 90;
+      const windowStart = new Date(
+        Date.now() - SUMMARY_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+      );
+
+      const workflows = await prisma.evidenceReviewWorkflow.findMany({
+        where: {
+          teamId: q.teamId,
+          updatedAt: { gte: windowStart },
+        },
+        select: {
+          id: true,
+          evidenceId: true,
+          status: true,
+          priority: true,
+          assignedToUserId: true,
+          updatedAt: true,
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 500, // hard upper bound on the summary's input set
+      });
+
+      const workflowIds = workflows.map((w) => w.id);
+      const evidenceIds = workflows.map((w) => w.evidenceId);
+
+      const [decisions, openEscalations, legalHolds, redactionDecisions] =
+        workflowIds.length === 0
+          ? [[], [], [], []]
+          : await Promise.all([
+              prisma.workflowReviewDecision.findMany({
+                where: {
+                  workflowId: { in: workflowIds },
+                  teamId: q.teamId,
+                },
+                select: {
+                  workflowId: true,
+                  stage: true,
+                  decision: true,
+                  reviewerUserId: true,
+                },
+              }),
+              prisma.reviewEscalation.findMany({
+                where: {
+                  teamId: q.teamId,
+                  workflowId: { in: workflowIds },
+                  status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+                },
+                select: { workflowId: true },
+              }),
+              prisma.evidenceLegalHold.groupBy({
+                by: ["evidenceId"],
+                where: {
+                  teamId: q.teamId,
+                  evidenceId: { in: evidenceIds },
+                  status: "ACTIVE",
+                },
+                _count: { id: true },
+              }),
+              prisma.evidenceWorkflowVisibilityDecision.groupBy({
+                by: ["evidenceId"],
+                where: {
+                  evidenceId: { in: evidenceIds },
+                  requiresRedaction: true,
+                },
+                _count: { id: true },
+              }),
+            ]);
+
+      const decisionsByWorkflow = new Map<
+        string,
+        Array<{ stage: string; decision: string; reviewerUserId: string }>
+      >();
+      for (const d of decisions) {
+        const arr = decisionsByWorkflow.get(d.workflowId) ?? [];
+        arr.push({
+          stage: d.stage,
+          decision: d.decision,
+          reviewerUserId: d.reviewerUserId,
+        });
+        decisionsByWorkflow.set(d.workflowId, arr);
+      }
+      const escalatedSet = new Set<string>(
+        openEscalations
+          .map((e) => e.workflowId)
+          .filter((id): id is string => id !== null),
+      );
+      const legalHoldEvidenceSet = new Set<string>(
+        legalHolds
+          .filter((h) => (h._count?.id ?? 0) > 0)
+          .map((h) => h.evidenceId),
+      );
+      const redactionEvidenceSet = new Set<string>(
+        redactionDecisions
+          .filter((r) => (r._count?.id ?? 0) > 0)
+          .map((r) => r.evidenceId)
+          .filter((id): id is string => id !== null),
+      );
+
+      // For each workflow, compute the same derived state the per-
+      // workflow endpoint computes (deriveReviewState) so the summary
+      // is *exactly consistent* with what an operator sees on the
+      // detail page.
+      type StateBucket =
+        | "first_required"
+        | "second_required"
+        | "conflict_detected"
+        | "resolved";
+      const buckets: Record<
+        StateBucket,
+        Array<{
+          workflowId: string;
+          evidenceId: string;
+          status: string;
+          priority: string;
+          assignedToUserId: string | null;
+          updatedAt: string;
+        }>
+      > = {
+        first_required: [],
+        second_required: [],
+        conflict_detected: [],
+        resolved: [],
+      };
+
+      for (const wf of workflows) {
+        const rows = decisionsByWorkflow.get(wf.id) ?? [];
+        const first = rows.find((r) => r.stage === "FIRST");
+        const second = rows.find((r) => r.stage === "SECOND");
+        const adjudication = rows.find((r) => r.stage === "ADJUDICATION");
+
+        const requiresSecond =
+          wf.status === "ESCALATED" ||
+          escalatedSet.has(wf.id) ||
+          legalHoldEvidenceSet.has(wf.evidenceId) ||
+          redactionEvidenceSet.has(wf.evidenceId);
+
+        let state: StateBucket;
+        if (adjudication) state = "resolved";
+        else if (first && second) {
+          state =
+            first.decision !== second.decision ? "conflict_detected" : "resolved";
+        } else if (first) {
+          state = requiresSecond ? "second_required" : "resolved";
+        } else {
+          state = "first_required";
+        }
+
+        // Only push to a bucket if we still have room for preview rows
+        // OR if we're counting (always counted).
+        buckets[state].push({
+          workflowId: wf.id,
+          evidenceId: wf.evidenceId,
+          status: wf.status,
+          priority: wf.priority,
+          assignedToUserId: wf.assignedToUserId,
+          updatedAt: wf.updatedAt.toISOString(),
+        });
+      }
+
+      // Slice preview rows per state but preserve the full count.
+      const summary = {
+        windowDays: SUMMARY_WINDOW_DAYS,
+        workflowsInWindow: workflows.length,
+        byState: {
+          first_required: buckets.first_required.length,
+          second_required: buckets.second_required.length,
+          conflict_detected: buckets.conflict_detected.length,
+          resolved: buckets.resolved.length,
+        },
+      };
+      const preview = {
+        first_required: buckets.first_required.slice(0, previewLimit),
+        second_required: buckets.second_required.slice(0, previewLimit),
+        conflict_detected: buckets.conflict_detected.slice(0, previewLimit),
+        resolved: buckets.resolved.slice(0, previewLimit),
+      };
+
+      return reply.code(200).send({
+        teamId: q.teamId,
+        generatedAt: new Date().toISOString(),
+        summary,
+        preview,
+      });
+    },
+  );
 }

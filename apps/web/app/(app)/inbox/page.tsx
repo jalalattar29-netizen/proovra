@@ -40,7 +40,8 @@ type InboxCategory =
   | "onboarding"
   | "org_invite"
   | "org_admin"
-  | "governance";
+  | "governance"
+  | "review_decision";
 
 type InboxItem = {
   id: string;
@@ -112,6 +113,7 @@ const CATEGORY_LABELS: Record<InboxCategory, string> = {
   org_invite: "Invite",
   org_admin: "Org governance",
   governance: "Workspace governance",
+  review_decision: "Review decision",
 };
 
 export default function InboxPage() {

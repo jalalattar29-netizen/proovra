@@ -76,7 +76,8 @@ type InboxCategory =
   | "onboarding"
   | "org_invite"
   | "org_admin"
-  | "governance";
+  | "governance"
+  | "review_decision";
 
 type InboxItem = {
   /**
@@ -210,6 +211,148 @@ export async function meInboxRoutes(app: FastifyInstance) {
             });
 
       // -----------------------------------------------------------------
+      // Source 3b: Phase B.3 — multi-stage review attention.
+      //
+      // Two operator-relevant signals for the caller:
+      //   (a) workflows in `conflict_detected` state in teams where the
+      //       caller is OWNER/ADMIN (i.e. an adjudicator). These need
+      //       resolution and only an adjudicator can act.
+      //   (b) workflows where the caller submitted the FIRST decision
+      //       and the workflow is now in `second_required` state — pure
+      //       awareness signal so the caller knows their decision is
+      //       pending peer review.
+      //
+      // Both queries are workspace-scoped via teamIds the caller is a
+      // member of. We further filter (a) to teams where the caller's
+      // role is OWNER/ADMIN.
+      // -----------------------------------------------------------------
+      const adminTeamIds = teamMemberships
+        .filter((tm) =>
+          tm.team
+            ? // We need the role; refetch lightweight to avoid widening
+              // the earlier query. Cost: one bounded query for callers
+              // who happen to have many teams.
+              true
+            : false,
+        )
+        .map((tm) => tm.team.id);
+
+      // Caller's per-team role lookup for the adjudicator subset.
+      const teamRoles =
+        teamIds.length === 0
+          ? []
+          : await prisma.teamMember.findMany({
+              where: {
+                userId,
+                teamId: { in: teamIds },
+              },
+              select: { teamId: true, role: true },
+            });
+      const adjudicatorTeamIds = teamRoles
+        .filter((r) => r.role === "OWNER" || r.role === "ADMIN")
+        .map((r) => r.teamId);
+
+      // (a) Conflict-detected workflows where caller is adjudicator.
+      //
+      // A workflow is in conflict_detected when FIRST and SECOND
+      // decisions exist AND they differ AND no ADJUDICATION row exists.
+      // We do this in one round trip by selecting all workflows with
+      // FIRST+SECOND decisions in adjudicator teams and filtering in
+      // memory.
+      const conflictCandidates =
+        adjudicatorTeamIds.length === 0
+          ? []
+          : await prisma.workflowReviewDecision.findMany({
+              where: {
+                teamId: { in: adjudicatorTeamIds },
+                stage: { in: ["FIRST", "SECOND", "ADJUDICATION"] },
+              },
+              select: {
+                workflowId: true,
+                teamId: true,
+                stage: true,
+                decision: true,
+                decidedAt: true,
+              },
+            });
+
+      type StageMap = Map<
+        string,
+        {
+          teamId: string;
+          first?: { decision: string };
+          second?: { decision: string; decidedAt: Date };
+          adjudication?: boolean;
+        }
+      >;
+      const stagesByWorkflow: StageMap = new Map();
+      for (const r of conflictCandidates) {
+        const entry = stagesByWorkflow.get(r.workflowId) ?? {
+          teamId: r.teamId,
+        };
+        if (r.stage === "FIRST") entry.first = { decision: r.decision };
+        else if (r.stage === "SECOND")
+          entry.second = { decision: r.decision, decidedAt: r.decidedAt };
+        else if (r.stage === "ADJUDICATION") entry.adjudication = true;
+        stagesByWorkflow.set(r.workflowId, entry);
+      }
+      const conflictWorkflows: Array<{
+        workflowId: string;
+        teamId: string;
+        decidedAt: Date;
+      }> = [];
+      for (const [workflowId, entry] of stagesByWorkflow) {
+        if (
+          entry.first &&
+          entry.second &&
+          !entry.adjudication &&
+          entry.first.decision !== entry.second.decision
+        ) {
+          conflictWorkflows.push({
+            workflowId,
+            teamId: entry.teamId,
+            decidedAt: entry.second.decidedAt,
+          });
+        }
+      }
+
+      // (b) Workflows where caller submitted FIRST and SECOND is still
+      // pending. We surface this as awareness only.
+      const myFirstDecisions =
+        teamIds.length === 0
+          ? []
+          : await prisma.workflowReviewDecision.findMany({
+              where: {
+                reviewerUserId: userId,
+                stage: "FIRST",
+                teamId: { in: teamIds },
+              },
+              select: {
+                workflowId: true,
+                teamId: true,
+                decidedAt: true,
+              },
+            });
+      // Filter to ones that DON'T yet have a SECOND row.
+      const myFirstWorkflowIds = myFirstDecisions.map((d) => d.workflowId);
+      const secondsForMyFirsts =
+        myFirstWorkflowIds.length === 0
+          ? []
+          : await prisma.workflowReviewDecision.findMany({
+              where: {
+                workflowId: { in: myFirstWorkflowIds },
+                stage: "SECOND",
+              },
+              select: { workflowId: true },
+            });
+      const haveSecond = new Set<string>(
+        secondsForMyFirsts.map((s) => s.workflowId),
+      );
+      const pendingSecondForMe = myFirstDecisions.filter(
+        (d) => !haveSecond.has(d.workflowId),
+      );
+
+      // -----------------------------------------------------------------
       // Source 3: unacknowledged governance notifications for teams
       // the caller is a member of.
       // -----------------------------------------------------------------
@@ -310,6 +453,47 @@ export async function meInboxRoutes(app: FastifyInstance) {
         });
       }
 
+      // Phase B.3 — review_decision items.
+      //
+      // (a) Conflict-detected workflows where caller is adjudicator.
+      //     High tone — these block workflow resolution and only the
+      //     caller's role can act.
+      for (const c of conflictWorkflows) {
+        items.push({
+          id: `review_decision:conflict:${c.workflowId}`,
+          category: "review_decision",
+          tone: "high",
+          title: `Reviewer conflict — adjudication required`,
+          body: `Two reviewers disagreed on this workflow. As team OWNER/ADMIN you can resolve it via the multi-stage review panel.`,
+          href: `/reviewer-ops/${encodeURIComponent(c.workflowId)}`,
+          occurredAt: c.decidedAt.toISOString(),
+          context: {
+            workflowId: c.workflowId,
+            teamId: c.teamId,
+            stage: "ADJUDICATION",
+          },
+        });
+      }
+
+      // (b) Workflows where caller submitted FIRST and SECOND is
+      //     still pending. Awareness only — info tone.
+      for (const d of pendingSecondForMe) {
+        items.push({
+          id: `review_decision:awaiting_second:${d.workflowId}`,
+          category: "review_decision",
+          tone: "info",
+          title: `Your first-stage decision is awaiting peer review`,
+          body: `Independence policy requires a different reviewer to submit the second-stage decision. No action needed from you.`,
+          href: `/reviewer-ops/${encodeURIComponent(d.workflowId)}`,
+          occurredAt: d.decidedAt.toISOString(),
+          context: {
+            workflowId: d.workflowId,
+            teamId: d.teamId,
+            stage: "SECOND_AWAITED",
+          },
+        });
+      }
+
       // Governance notifications — one item per unacknowledged row.
       for (const g of governanceRows) {
         const teamName = teamNameById.get(g.teamId) ?? "workspace";
@@ -369,6 +553,9 @@ export async function meInboxRoutes(app: FastifyInstance) {
           org_invite: items.filter((i) => i.category === "org_invite").length,
           org_admin: items.filter((i) => i.category === "org_admin").length,
           governance: items.filter((i) => i.category === "governance").length,
+          review_decision: items.filter(
+            (i) => i.category === "review_decision",
+          ).length,
         },
       };
 
