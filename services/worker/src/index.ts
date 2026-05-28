@@ -1,4 +1,8 @@
 import "./env-loader.js";
+// Phase P2.0B — OTEL bootstrap must be among the first imports so
+// auto-instrumentations patch http / ioredis / pg before BullMQ /
+// Prisma load. No-op when OTEL_ENABLED is not "true".
+import "./otel-bootstrap.js";
 // Phase 31.22 — register the worker's Prisma instance with the
 // @proovra/shared-runtime registry BEFORE any processor module
 // loads. Side-effect import; do not remove or reorder.

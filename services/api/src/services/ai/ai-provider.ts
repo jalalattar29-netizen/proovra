@@ -1,6 +1,9 @@
 import type { AiProvider } from "./ai-types.js";
 import { NoopAiProvider } from "./noop-ai-provider.js";
 import { OpenAiProvider } from "./openai-provider.js";
+// Phase P2.0 — OPENAI_API_KEY is in the migrated set. Prefer AWS
+// Secrets Manager; fall back to env when AWS is disabled / missing.
+import { getSecret } from "../../config/runtime-secrets.js";
 
 export type { AiProvider } from "./ai-types.js";
 
@@ -13,7 +16,7 @@ export type AiProviderConfig = {
 };
 
 export function createAiProvider(): AiProvider {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  const apiKey = getSecret("OPENAI_API_KEY")?.trim();
   const enabled = process.env.OPENAI_AI_ENABLED === "true" && Boolean(apiKey);
 
   const chatModel =

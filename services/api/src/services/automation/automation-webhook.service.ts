@@ -32,6 +32,8 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import { lookup as dnsLookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
+import { getSecret } from "../../config/runtime-secrets.js";
+
 // ---------------------------------------------------------------------------
 // Bounded constants
 // ---------------------------------------------------------------------------
@@ -213,7 +215,12 @@ function resolveStorageKeyMaterial(): Buffer {
   // Reuse the existing AUTH_JWT_SECRET key material. In production this
   // is set by R8.C startup validation; in dev / test the deterministic
   // fallback keeps existing behaviour stable.
-  const raw = process.env.AUTH_JWT_SECRET ?? "dev-jwt-secret-not-for-production";
+  //
+  // Phase P2.0 — AUTH_JWT_SECRET is in the migrated set; prefer the
+  // AWS Secrets Manager cache, fall back to env, fall back to the
+  // dev-only deterministic seed.
+  const raw =
+    getSecret("AUTH_JWT_SECRET") ?? "dev-jwt-secret-not-for-production";
   return createHash("sha256").update(`e3.2-webhook-secret-wrap|${raw}`).digest();
 }
 

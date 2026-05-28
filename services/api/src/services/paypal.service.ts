@@ -5,12 +5,23 @@ import {
   type PayPalRecurringPlan,
 } from "./paypal-plan-map.service.js";
 import { buildPayPalCustomId } from "./paypal-checkout-policy.service.js";
+// Phase P2.0 — PAYPAL_SECRET is in the migrated set. Other PayPal env
+// names (PAYPAL_CLIENT_ID, PAYPAL_WEBHOOK_ID, PAYPAL_API_BASE) are NOT
+// migrated yet — they keep reading process.env directly via the
+// non-migrated branch of `must()`.
+import {
+  MIGRATED_SECRETS,
+  requireSecret,
+} from "../config/runtime-secrets.js";
 
 type PayPalToken = {
   access_token: string;
 };
 
 function must(name: string): string {
+  if ((MIGRATED_SECRETS as readonly string[]).includes(name)) {
+    return requireSecret(name);
+  }
   const value = process.env[name];
   if (!value || !value.trim()) {
     throw new Error(`${name} is not set`);

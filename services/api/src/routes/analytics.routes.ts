@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+
+import { getSecret } from "../config/runtime-secrets.js";
 import {
   ANALYTICS_EVENT_NAMES,
   ANALYTICS_LIMITS,
@@ -164,7 +166,8 @@ function resolveTrackUserId(
   request: FastifyRequest,
   bodyUserId: string | null | undefined
 ): string | null {
-  const secret = process.env.AUTH_JWT_SECRET;
+  // Phase P2.0 — prefer AWS Secrets Manager; env fallback preserved.
+  const secret = getSecret("AUTH_JWT_SECRET");
 
   if (secret) {
     const auth = request.headers.authorization ?? "";

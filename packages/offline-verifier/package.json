@@ -1,0 +1,40 @@
+{
+  "name": "@proovra/offline-verifier",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Portable offline verifier for PROOVRA Verification Packages. Runs in Node (CLI) or the browser (static page). NEVER calls PROOVRA APIs.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node-adapter.d.ts",
+      "import": "./dist/node-adapter.js"
+    }
+  },
+  "bin": {
+    "proovra-verify": "./bin/proovra-verify.mjs"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
+    "@types/node": "^25.5.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

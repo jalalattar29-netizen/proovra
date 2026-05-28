@@ -147,10 +147,49 @@ describe("Phase 32.6.5 — Sentry filter catches `Stream isn't writeable`", () =
       expect(src).toMatch(
         /if\s*\(\s*\n?\s*message\.includes\([\s\S]{0,400}?\)\s*\)\s*\{\s*\n?\s*return\s+null;/,
       );
-      // And there must be exactly one `return event` (the fallthrough
-      // for ALL events that did NOT match any bounded signature).
-      const returnEventCount = (src.match(/return\s+event;/g) ?? []).length;
+      // Phase P2.0B added a sibling `beforeSendTransaction(event)`
+      // callback that scrubs request headers and returns the
+      // transaction event. That hook is unrelated to the
+      // beforeSend bounded-signature filter — its `return event;`
+      // is expected and intentional. To keep the original
+      // protection (exactly one fallthrough `return event;` inside
+      // the bounded beforeSend filter), scope the count to the
+      // `beforeSend(event, hint)` block only.
+      const beforeSendStart = src.indexOf("beforeSend(event, hint)");
+      expect(beforeSendStart).toBeGreaterThan(-1);
+      // Find the matching closing brace of the beforeSend block by
+      // walking braces forward from the opening one.
+      const openBrace = src.indexOf("{", beforeSendStart);
+      let depth = 0;
+      let cursor = openBrace;
+      let closeBrace = -1;
+      while (cursor < src.length) {
+        const ch = src[cursor];
+        if (ch === "{") depth++;
+        else if (ch === "}") {
+          depth--;
+          if (depth === 0) {
+            closeBrace = cursor;
+            break;
+          }
+        }
+        cursor++;
+      }
+      expect(closeBrace).toBeGreaterThan(openBrace);
+      const beforeSendBlock = src.slice(openBrace, closeBrace + 1);
+      // There must be exactly one `return event;` inside the
+      // bounded beforeSend filter (the fallthrough for ALL events
+      // that did NOT match any bounded signature). The fact that
+      // `beforeSendTransaction` also returns event is fine — that's
+      // a separate hook with its own intentional return.
+      const returnEventCount =
+        (beforeSendBlock.match(/return\s+event;/g) ?? []).length;
       expect(returnEventCount).toBe(1);
+      // And there must still be exactly one `return null;` inside
+      // the bounded filter (the bounded-signature drop).
+      const returnNullCount =
+        (beforeSendBlock.match(/return\s+null;/g) ?? []).length;
+      expect(returnNullCount).toBe(1);
     }
   });
 });

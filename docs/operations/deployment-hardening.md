@@ -220,3 +220,45 @@ Before announcing a release in production:
 - Post-deploy verification: [POST_DEPLOY_VERIFICATION.md](./POST_DEPLOY_VERIFICATION.md)
 - Phase A1 runbook: [phase-a1-runbook.md](./phase-a1-runbook.md)
 - Shared presence: [shared-presence-deployment.md](./shared-presence-deployment.md)
+
+---
+
+## 8. Phase P2.0B — Observability wiring closure checklist
+
+### 8.1 Pre-deploy
+
+- [ ] `.env` contains all blocks from `docs/operations/observability.md` §B.2 (Sentry / OTEL / AWS Secrets Manager).
+- [ ] `OTEL_EXPORTER_OTLP_HEADERS` carries the **rotated** Grafana token (the initial setup token is considered exposed).
+- [ ] `AWS_SECRETS_REGION=us-east-1` AND `AWS_REGION=eu-north-1` — KMS must stay on `eu-north-1`.
+- [ ] `SENTRY_TRACES_SAMPLE_RATE` ≤ 0.5 (never 1.0 in production).
+- [ ] `SENTRY_PROFILES_SAMPLE_RATE` ≤ 0.2.
+- [ ] No hardcoded Grafana token in `infra/docker/docker-compose.prod.yml`.
+
+### 8.2 Apply
+
+```bash
+docker compose --env-file /opt/proovra/app/.env \
+  -f infra/docker/docker-compose.prod.yml \
+  up -d --force-recreate
+```
+
+### 8.3 Post-deploy verification
+
+- [ ] `docker logs docker-proovra-api-1 --tail 100` shows `otel.bootstrap_succeeded` with `serviceName=proovra-api`.
+- [ ] `docker logs docker-proovra-worker-1 --tail 100` shows `otel.bootstrap_succeeded` with `serviceName=proovra-worker`.
+- [ ] No `otel.bootstrap_failed` lines.
+- [ ] `aws_secrets.hydration_succeeded` with `keyCount > 0`, OR `aws_secrets.disabled` (if intentionally off).
+- [ ] `GET /v1/runtime/secrets-health?teamId=<UUID>` → `health.degraded == false`, `otel.started == true`, `otel.serviceName == "proovra-api"`, `otel.endpointConfigured == true`.
+- [ ] No OTEL endpoint URL or `Authorization` value appears anywhere in `docker logs` output.
+- [ ] Within 3 minutes Grafana Cloud shows traces under both `proovra-api` and `proovra-worker` service buckets.
+- [ ] Sentry dashboard shows performance transactions for both services with the expected `serverName`.
+
+### 8.4 Rollback
+
+| Toggle | Effect |
+| --- | --- |
+| `OTEL_ENABLED=false` | OTEL no-op; spans suppressed. Errors still captured. |
+| `SENTRY_TRACES_SAMPLE_RATE=0` | Sentry performance suppressed. Errors still captured. |
+| `AWS_SECRETS_ENABLED=false` | App reads all secrets from `process.env`. |
+
+None of these require a code rollback. See `docs/operations/observability.md` §B.9 for the full rollback table.

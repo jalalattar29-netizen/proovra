@@ -1,0 +1,70 @@
+{
+  "uid": "proovra-exports-reproducibility",
+  "title": "PROOVRA — Exports & Reproducibility",
+  "description": "WORM export generation, manifest creation, reproducibility verification, SIU export pipeline. Phase O1.2.",
+  "tags": ["proovra", "exports", "o1.2"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "30s",
+  "timezone": "utc",
+  "time": { "from": "now-12h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "WORM export generation",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(export_generation_total[10m]))", "legendFormat": "generated" },
+        { "expr": "sum(rate(export_generation_failed_total[10m]))", "legendFormat": "failed" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Reproducibility verification",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(export_reproducibility_verify_total[10m]))", "legendFormat": "verified" },
+        { "expr": "sum(rate(export_reproducibility_failure_total[10m]))", "legendFormat": "failed" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "SIU export pipeline",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(siu_export_generated_total[10m]))", "legendFormat": "generated" },
+        { "expr": "sum(rate(siu_export_failed_total[10m]))", "legendFormat": "failed" },
+        { "expr": "sum(rate(siu_export_download_total[10m]))", "legendFormat": "downloaded" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "SIU export upload failures (1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "increase(siu_export_upload_failure_total[1h])" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Object Lock status checks",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(object_lock_status_checked_total[15m]))", "legendFormat": "checks" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "text",
+      "title": "Runbooks",
+      "options": {
+        "content": "Export failures → docs/operations/observability-runbooks.md#export-failures\nSIU export upload failure → docs/operations/observability-runbooks.md#siu-export-upload-failure"
+      }
+    }
+  ]
+}

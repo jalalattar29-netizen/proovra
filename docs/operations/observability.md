@@ -248,3 +248,171 @@ Recommended pattern (gap — see §5.2):
 - Worker logger: [services/worker/src/logger.ts](../../services/worker/src/logger.ts)
 - API logger: [services/api/src/utils/logger.ts](../../services/api/src/utils/logger.ts)
 - Health endpoints (worker): [services/worker/src/health.ts](../../services/worker/src/health.ts)
+
+---
+
+# Part B — Grafana OpenTelemetry + Sentry performance (Phase P2.0B)
+
+## B.1 Service identity
+
+| Service | OTEL service name | Sentry `serverName` |
+| --- | --- | --- |
+| API | `proovra-api` | `proovra-api` |
+| Worker | `proovra-worker` | `proovra-worker` |
+| Web | `proovra-web` (when instrumented) | (existing) |
+
+Per-container `OTEL_SERVICE_NAME` is pinned in `docker-compose.prod.yml`. The api and worker can share a single `.env` block for everything else.
+
+## B.2 Env contract (production)
+
+```env
+# Sentry — errors + performance + profiling
+SENTRY_ENABLED=true
+SENTRY_DSN=<existing>
+SENTRY_ENVIRONMENT=production
+SENTRY_TRACES_SAMPLE_RATE=0.2       # bounded; clamped to [0,1]; default 0.2
+SENTRY_PROFILES_SAMPLE_RATE=0.1     # bounded; clamped to [0,1]; default 0.1
+SENTRY_RELEASE=                      # falls back to APP_RELEASE_SHA / GIT_SHA
+
+# OTEL (Grafana Cloud)
+OTEL_ENABLED=true
+OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-eu-west-2.grafana.net/otlp
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <ROTATED_GRAFANA_TOKEN>
+OTEL_RESOURCE_ATTRIBUTES=service.namespace=proovra,deployment.environment=production
+LOG_AGGREGATION_ENABLED=true
+
+# AWS Secrets Manager — see docs/security/secrets-manager.md
+AWS_SECRETS_ENABLED=true
+AWS_SECRET_NAME=proovra/prod/app-secrets
+AWS_SECRETS_REGION=us-east-1
+AWS_SECRETS_REFRESH_TTL_MS=3600000
+AWS_REGION=eu-north-1                # KMS continues to use this
+```
+
+## B.3 Grafana OTLP token handling
+
+The Grafana OTLP `Authorization` header value is a SECRET.
+
+- **Never commit it.** It lives only in `/opt/proovra/app/.env`.
+- **Never log it.** `services/api/src/observability/otel.ts` parses headers but never emits their values; `getOtelStatus()` reports only `endpointConfigured: true|false`.
+- **Rotate after exposure.** Treat the initial setup token as exposed. Procedure:
+  1. Grafana Cloud → OpenTelemetry → rotate credential.
+  2. Update `OTEL_EXPORTER_OTLP_HEADERS` in `/opt/proovra/app/.env`.
+  3. `docker compose ... up -d --force-recreate` to roll both containers.
+
+## B.4 PROOVRA span vocabulary
+
+Bounded custom span names — referenced from `PROOVRA_SPAN_NAMES` (single source of truth in both `services/api/src/observability/otel.ts` and `services/worker/src/otel.ts`):
+
+| Span | Originator |
+| --- | --- |
+| `proovra.report.generate` | worker `processor.ts` |
+| `proovra.package.generate` | worker `verification-package.ts` |
+| `proovra.export.manifest.create` | api `export-manifest.service.ts` (P2.1) |
+| `proovra.export.reproducibility.verify` | api `export-reproducibility.service.ts` (P2.1) |
+| `proovra.queue.job.replay` | api queue-ops routes (P2.3) |
+| `proovra.queue.job.retry` | api queue-ops routes (P2.3) |
+| `proovra.recovery.backup.validate` | api DR routes (P2.5) |
+| `proovra.recovery.restore.validate` | api DR routes (P2.5) |
+| `proovra.tsa.timestamp` | worker TSA path |
+| `proovra.ots.anchor` | worker OTS path |
+
+## B.5 Attribute safety
+
+Allowed: `service`, `environment`, `queue name`, `job type`, `operation type`, `status`, `duration`, `workspaceId`, `orgId`.
+
+Forbidden: evidence content / file names / SHA-256 hashes (unless already public-safe) / user emails / authorization headers / SAML assertions / payment data / Grafana token.
+
+Sentry transactions are scrubbed via `beforeSendTransaction` — inbound headers matching `authorization` / `cookie` / `token` / `secret` / `api-key` are redacted before the payload leaves the process.
+
+## B.6 Sample rate guidance
+
+- `SENTRY_TRACES_SAMPLE_RATE=0.2` — 20% transaction capture. Right starting point for staging + production.
+- `SENTRY_PROFILES_SAMPLE_RATE=0.1` — profiles only for SAMPLED transactions, so the **effective** profile rate is `0.2 × 0.1 = 0.02` (2%).
+- Set `SENTRY_TRACES_SAMPLE_RATE=0` to disable performance entirely; errors keep flowing.
+
+## B.7 Validation commands
+
+```bash
+# 1. Apply env + recreate containers
+docker compose --env-file /opt/proovra/app/.env \
+  -f infra/docker/docker-compose.prod.yml \
+  up -d --force-recreate
+
+# 2. Confirm boot logs
+docker logs docker-proovra-api-1 --tail 100 | \
+  grep -E "otel.bootstrap_(succeeded|disabled|failed)|aws_secrets.hydration_(succeeded|failed)"
+
+docker logs docker-proovra-worker-1 --tail 100 | \
+  grep -E "otel.bootstrap_(succeeded|disabled|failed)"
+
+# 3. Verify secrets-health (auth required)
+curl -s http://127.0.0.1:8080/v1/runtime/secrets-health?teamId=<UUID> \
+  -H "Authorization: Bearer <admin-token>" | jq '.health.degraded, .otel'
+```
+
+Expected JSON shape (values vary):
+
+```json
+{
+  "health": {
+    "awsEnabled": true,
+    "awsConnected": true,
+    "fallbackMode": "aws_primary",
+    "region": "us-east-1",
+    "degraded": false
+  },
+  "otel": {
+    "enabled": true,
+    "started": true,
+    "serviceName": "proovra-api",
+    "endpointConfigured": true
+  }
+}
+```
+
+The response NEVER includes the OTLP endpoint URL, the Grafana token, or any secret value.
+
+## B.8 Failure modes
+
+| Symptom | Cause | Recovery |
+| --- | --- | --- |
+| `otel.bootstrap_failed` log line | Bad header format / unreachable endpoint at boot | Bounded `code` field in the log. App keeps running; only telemetry suppressed. |
+| OTEL 401 / 403 from the exporter | Token expired / rotated / wrong workspace | Rotate `OTEL_EXPORTER_OTLP_HEADERS`; rolling-restart. |
+| Sentry quota spike | Sample rate too high | Set `SENTRY_TRACES_SAMPLE_RATE=0` immediately; investigate; reset to 0.2 once safe. |
+| `health.degraded == true` | AWS Secrets Manager unreachable | App continues via env fallback. See `docs/security/secrets-manager.md` §6. |
+
+## B.9 Rollback
+
+- `OTEL_ENABLED=false` → roll containers. Tracing off. No code change.
+- `SENTRY_TRACES_SAMPLE_RATE=0` → roll containers. Performance off. Errors still captured.
+- `AWS_SECRETS_ENABLED=false` → roll containers. App reads from env exclusively.
+
+---
+
+# Appendix C — Phase O1.1 update (production OTEL wiring)
+
+Phase O1.1 hardened the OTEL bootstrap and added the runtime-visible state:
+
+- Bootstrap emits four bounded log lines: `otel.bootstrap_started` / `succeeded` / `disabled` / `failed`.
+- Bounded `withProovraSpan(name, attrs, fn)` helper wires the critical entry points (SIU preflight + generate, C2PA detect + summary, signer health, recovery backup + restore validate).
+- New endpoint `GET /v1/runtime/otel-health` returns the bounded `getOtelStatus()` snapshot — `started` / `degraded` / `lastBootstrapAtUtc` / `lastBootstrapOutcome` / `lastBootstrapFailureCode` / `lastExportErrorCode` / `spansCreatedCount` / `resourceAttributes`. Never returns the OTLP endpoint URL, headers, or Grafana token.
+
+Full runbook: `docs/operations/otel-runtime-wiring.md`. Closure report: `docs/operations/phase-o1-1-otel-runtime-closure.md`.
+
+---
+
+# Appendix D — Phase O1.2 update (observability coverage closure)
+
+Phase O1.2 added:
+
+- **Span coverage**: `proovra.queue.job.retry` / `.replay` and `proovra.custody.attestation.sign` / `.verify` / `.backfill` wired into the api services.
+- **Metric registry additions** (18 bounded names): `queue_retry_total`, `queue_retry_failure_total`, `queue_replay_duration_ms`, `custody_attestation_sign_failure_total`, `siu_export_generated_total`, `siu_export_failed_total`, `siu_export_download_total`, `siu_export_upload_failure_total`, `package_generation_total`, `package_generation_failed_total`, `export_generation_total`, `export_generation_failed_total`, `export_reproducibility_verify_total`, `recovery_backup_validation_total`, `recovery_restore_validation_total`, `recovery_validation_failed_total`, `c2pa_backfill_run_failure_total`, `siu_pii_revealed_total`.
+- **Four Grafana dashboards** at `infra/grafana/dashboards/`: PROOVRA — Operations Overview / Queue Operations / Exports & Reproducibility / Recovery.
+- **Eleven alert rules** at `infra/grafana/alerts/proovra-operations-alerts.yaml`. Every rule's `runbook_url` resolves to an anchor in `observability-runbooks.md`.
+- **Internal SLO model** at `slo-model.md`. Six bounded internal targets. Bounded copy "internal target — not a customer SLA".
+- **Bounded Sentry tag set** (`service` / `operation` / `queueName` / `jobType` / `errorCode` / `environment`). Bounded copy in §B.6.
+- **OTEL health extensions**: `lastSpanName` + `lastSpanAtUtc` returned by `/v1/runtime/otel-health`.
+
+Full closure: `phase-o1-2-observability-coverage-closure.md`.

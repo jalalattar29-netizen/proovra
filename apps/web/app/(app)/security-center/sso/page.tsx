@@ -31,6 +31,15 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+// Phase P1.4 — step-up gating on certificate rotation. Cert
+// promotion replaces the active IdP cert; mistakes lock users out
+// of SSO. The backend's `enforceStepUpIfFlagged` returns 401
+// STEP_UP_REQUIRED when the workspace flag is set; the hook
+// surfaces the modal + retries once.
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 // Phase 2.3 — adopt AccessGate for the workspace-required + permission
@@ -91,6 +100,12 @@ export default function SsoAdminPage() {
 
 function SsoAdminContent() {
   const teamId = useTeamId();
+  // P1.4 — step-up control wraps SAML certificate rotation. A 401
+  // STEP_UP_REQUIRED surfaces the modal + retries with the
+  // challenge header. Cert promotion replaces the live IdP cert
+  // and is the most dangerous SAML mutation; this is the right
+  // gate.
+  const stepUp = useStepUpAction({ teamId });
   const [providers, setProviders] = useState<SsoProvider[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [metadataXml, setMetadataXml] = useState<Record<string, string>>({});
@@ -246,10 +261,17 @@ function SsoAdminContent() {
     setCertResult((prev) => ({ ...prev, [connectionId]: null }));
     setCertError((prev) => ({ ...prev, [connectionId]: null }));
     try {
-      const result = await apiFetch(
-        `/v1/auth/saml/${encodeURIComponent(connectionId)}/certificate-next`,
-        { method: "DELETE" },
-      ) as { ok: boolean; certFingerprint: string };
+      // P1.4 — step-up wraps the promotion. Cert promotion replaces
+      // the active IdP cert on a live connection; if the workspace
+      // step-up flag is set the backend returns 401 STEP_UP_REQUIRED
+      // and the modal collects the re-auth before the operation
+      // proceeds.
+      const result = (await stepUp.runStepUpAction(async (headers) =>
+        apiFetch(
+          `/v1/auth/saml/${encodeURIComponent(connectionId)}/certificate-next`,
+          { method: "DELETE", headers: { ...(headers ?? {}) } },
+        ),
+      )) as { ok: boolean; certFingerprint: string };
       setCertResult((prev) => ({
         ...prev,
         [connectionId]: `Certificate promoted. New primary fingerprint: ${result.certFingerprint}`,
@@ -263,9 +285,13 @@ function SsoAdminContent() {
           .catch(() => null);
       }
     } catch (err) {
+      const code = (err as { code?: string })?.code;
       setCertError((prev) => ({
         ...prev,
-        [connectionId]: (err as { message?: string })?.message ?? "Failed to promote certificate.",
+        [connectionId]:
+          code === "STEP_UP_CANCEL"
+            ? "Step-up cancelled — certificate was not promoted."
+            : (err as { message?: string })?.message ?? "Failed to promote certificate.",
       }));
     } finally {
       setCertBusy((prev) => ({ ...prev, [connectionId]: false }));
@@ -322,6 +348,26 @@ function SsoAdminContent() {
           certificate fingerprints. The SP metadata URL below must be registered
           with your IdP.
         </p>
+        {/* Phase P1.1 — links to the new SSO Health + Visual Mapping pages.
+            These are sibling routes; this main page stays the canonical
+            place to ingest metadata / rotate certs. */}
+        <nav
+          aria-label="SSO operations"
+          style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 13 }}
+        >
+          <a
+            href="/security-center/sso/health"
+            style={{ color: "#1e40af", textDecoration: "underline" }}
+          >
+            SSO Health dashboard →
+          </a>
+          <a
+            href="/security-center/sso/mapping"
+            style={{ color: "#1e40af", textDecoration: "underline" }}
+          >
+            Visual attribute mapping →
+          </a>
+        </nav>
       </header>
 
       {loadError ? <div style={errorBoxStyle}>{loadError}</div> : null}
@@ -765,6 +811,10 @@ function SsoAdminContent() {
           </section>
         ))
       )}
+      {/* P1.4 — step-up modal surfaces only when a destructive SAML
+          operation (cert promotion) triggers 401 STEP_UP_REQUIRED.
+          Otherwise dormant. */}
+      <StepUpModal control={stepUp} />
     </main>
   );
 }

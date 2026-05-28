@@ -831,6 +831,80 @@ function appendPackageEntry(
   archive.append(buffer, { name });
 }
 
+/**
+ * Phase M1 — text content for `OFFLINE-VERIFICATION.md` bundled at
+ * the package root. Bounded; no legal claims; references the canonical
+ * CLI + browser verifier.
+ */
+function buildOfflineVerificationReadme(): string {
+  return [
+    "# Offline verification of this Verification Package",
+    "",
+    "This package can be verified WITHOUT logging into PROOVRA and",
+    "WITHOUT calling any PROOVRA APIs.",
+    "",
+    "## Option A — Command line (recommended)",
+    "",
+    "```",
+    "npx @proovra/offline-verifier <path-to-this-package.zip>",
+    "```",
+    "",
+    "Useful flags:",
+    "- `--json` — emit the full machine-readable result to stdout.",
+    "- `--strict` — exit non-zero when overall is `partial`.",
+    "- `--out result.json` — write the result to a file.",
+    "",
+    "Exit codes:",
+    "- `0` — overall=`verified` (or `partial` without `--strict`)",
+    "- `1` — overall=`failed`",
+    "- `2` — overall=`partial` AND `--strict`",
+    "",
+    "## Option B — Browser",
+    "",
+    "Open the static PROOVRA Offline Verifier (`apps/offline-verifier/index.html`)",
+    "in any modern browser. Select this ZIP file. Verification runs",
+    "entirely in your browser; the package is NEVER uploaded.",
+    "",
+    "## What is verified offline",
+    "",
+    "- `package-checksums.json` — every file's SHA-256 is recomputed and",
+    "  compared to the canonical index.",
+    "- `package-manifest.json` — schema sanity.",
+    "- `package-manifest.sig` — Ed25519 signature over the manifest hash",
+    "  (verified with the bundled `package-manifest-public-key.pem`).",
+    "- `custody/attestations.json` — bounded structural integrity of every",
+    "  detached custody attestation envelope.",
+    "- `signers/signer-registry-snapshot.json` — bounded shape sanity.",
+    "- `timestamps/tsa.tsr` / `opentimestamps-proof.ots` — presence and",
+    "  bounded structural sanity only.",
+    "",
+    "## What is NOT verified offline (honest limitations)",
+    "",
+    "- RFC3161 TSA signature chain — requires the issuing TSA's certificate",
+    "  chain. Use an RFC3161-capable tool with the published TSA cert.",
+    "- OpenTimestamps Bitcoin anchor — requires either the OpenTimestamps",
+    "  client (`ots verify`) and Bitcoin network access, or a calendar-server",
+    "  call.",
+    "- Custody attestation signatures — the signer's public material is",
+    "  referenced from `signers/signer-registry-snapshot.json` but is NOT",
+    "  bundled inside the package. The PROOVRA API endpoint",
+    "  `/v1/operations/custody-attestations/:id/verify` is the canonical",
+    "  verifier when bound to the live deployment.",
+    "- Embedded PDF signature — use a PDF-signing toolchain (e.g. Adobe",
+    "  Acrobat, `pdfsig`).",
+    "",
+    "## What this verifier does NOT claim",
+    "",
+    "- Legal admissibility of the package in any jurisdiction.",
+    "- Authorship or authenticity of the evidence content.",
+    "- That the underlying events occurred as described.",
+    "",
+    "All output uses bounded enum values. See",
+    "`docs/verification/offline-verification-result-schema.md` for the",
+    "complete result schema.",
+  ].join("\n");
+}
+
 function buildPackageChecksums(entries: PackageEntry[]) {
   return {
     schema: "PROOVRA_PACKAGE_CHECKSUMS",
@@ -2486,6 +2560,31 @@ export async function createVerificationPackage(data: {
    * on any of them.
    */
   intelligence?: import("./verification-package-intelligence.js").IntelligencePackageInput | null;
+  /**
+   * Phase M2 — optional C2PA evidence summary. When supplied, the
+   * builder bundles `provenance/c2pa-summary.json` directly from this
+   * projection. When omitted, the builder emits an honest bounded
+   * default (`disabled` or `not_present`) based on the worker's
+   * configured C2PA provider mode.
+   *
+   * NEVER carries raw manifest bytes — only the bounded summary.
+   */
+  c2paSummary?: import("@proovra/shared").C2paEvidenceSummary | null;
+  /**
+   * Phase M2.1 — optional bounded raw C2PA manifest bundles. When
+   * supplied, the builder writes each entry to its
+   * `packageRelativePath` (which MUST start with
+   * `provenance/c2pa-manifests/`). Each bundle's bytes are typically
+   * a verbatim C2PA manifest sidecar.
+   *
+   * Caller is responsible for honoring the operator-configured cap
+   * (`C2PA_RAW_MANIFEST_MAX_BYTES`) — the package builder enforces
+   * only the path-prefix safety check, not the size cap.
+   */
+  c2paRawManifestBundles?: ReadonlyArray<{
+    packageRelativePath: string;
+    bytes: Buffer;
+  }> | null;
 }): Promise<{ buffer: Buffer; artifactPresence: VerificationPackageArtifactPresence }> {
   // -------------------------------------------------------------------------
   // Package mode selection.
@@ -3221,6 +3320,155 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         );
       }
     }
+
+    // Phase P3.1.1 — emit OPTIONAL detached custody attestations +
+    // the signer registry snapshot. ADDITIVE only — existing files
+    // are NOT modified. Default mode is best-effort: package
+    // generation continues with a `degradedReason` recorded inside
+    // `custody/attestations.json` if the attestation lookup is
+    // unavailable. Strict mode (env
+    // `VERIFICATION_PACKAGE_REQUIRE_CUSTODY_ATTESTATIONS=true`)
+    // makes the collector throw `AttestationStrictModeFailureError`
+    // when attestations would be degraded.
+    //
+    // The new files are appended BEFORE `package-checksums.json` so
+    // their SHA-256 is recorded in the canonical checksums index.
+    // We do NOT emit duplicate `.sha256` companions — the checksums
+    // index is the single source of file-hash truth.
+    {
+      const { collectVerificationPackageAttestations } = await import(
+        "./verification-package-attestations.js"
+      );
+      // `data.evidenceId` is guaranteed to be a string by the
+      // `PackageGateDeniedError` throw at the top of this function.
+      const attestationFiles = await collectVerificationPackageAttestations({
+        teamId: data.teamId ?? null,
+        evidenceId: data.evidenceId as string,
+        packageId: null,
+      });
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "custody/attestations.json",
+        jsonBuffer(attestationFiles.attestationsJson),
+        "application/json"
+      );
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "custody/attestation-verification.md",
+        Buffer.from(attestationFiles.verificationReadme, "utf8"),
+        "text/markdown"
+      );
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "signers/signer-registry-snapshot.json",
+        jsonBuffer(attestationFiles.signerSnapshotJson),
+        "application/json"
+      );
+    }
+
+    // Phase M1.1 — historical verification material. Bounded snapshot
+    // of PUBLIC signer material so a third party running the offline
+    // verifier can actually verify signatures without calling
+    // PROOVRA APIs. NEVER contains private keys. ALWAYS marked
+    // historical-only. Failure to extract is best-effort and does
+    // NOT fail the package build.
+    {
+      const { buildHistoricalVerificationMaterial } = await import(
+        "./verification-package-historical-material.js"
+      );
+      const historicalFile = await buildHistoricalVerificationMaterial({
+        evidenceId: data.evidenceId as string,
+        packageId: null,
+      });
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "signers/historical-verification-material.json",
+        jsonBuffer(historicalFile),
+        "application/json"
+      );
+    }
+
+    // Phase M2 — bundle the bounded C2PA provenance summary. ALWAYS
+    // emitted (additive, deterministic) so the offline verifier can
+    // mechanically distinguish "C2PA was checked and is absent" from
+    // "C2PA was never evaluated for this package". When no prior
+    // summary exists (no extraction has run for this evidence), the
+    // builder emits an honest `disabled` / `not_present` aggregate.
+    //
+    // Phase M2.1 — optionally bundle raw C2PA manifests under
+    // `provenance/c2pa-manifests/<item>.c2pa` when the operator has
+    // opted into raw-manifest export AND the per-file manifest is
+    // under the configured byte cap.
+    //
+    // Hard rules:
+    //   * Original evidence bytes are NOT re-read here.
+    //   * No external tooling is invoked here.
+    //   * Failure is fully soft — a thrown error is caught and we
+    //     omit only the C2PA files. The package generation does NOT
+    //     fail. Old packages remain compatible.
+    try {
+      const { buildC2paPackageSummary, buildC2paPackageReadme } =
+        await import("./c2pa/package-summary.js");
+      const existing = data.c2paSummary ?? null;
+      const c2paSummary = buildC2paPackageSummary({
+        evidenceId: (data.evidenceId as string) ?? "",
+        existingSummary: existing,
+      });
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "provenance/c2pa-summary.json",
+        jsonBuffer(c2paSummary),
+        "application/json"
+      );
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "provenance/c2pa-verification.md",
+        Buffer.from(buildC2paPackageReadme(), "utf8"),
+        "text/markdown"
+      );
+      // Phase M2.1 — additive raw-manifest bundling. The summary
+      // carries the bounded references; the bytes (when present and
+      // bundled) are written here under `provenance/c2pa-manifests/`.
+      // Bytes are sourced ONLY from the optional `c2paRawManifestBundles`
+      // input. No tooling is invoked.
+      if (data.c2paRawManifestBundles) {
+        for (const bundle of data.c2paRawManifestBundles) {
+          if (!bundle?.packageRelativePath || !bundle.bytes) continue;
+          // Defense in depth: refuse anything outside the canonical
+          // `provenance/c2pa-manifests/` prefix.
+          if (!bundle.packageRelativePath.startsWith("provenance/c2pa-manifests/")) {
+            continue;
+          }
+          appendPackageEntry(
+            archive,
+            packageEntries,
+            bundle.packageRelativePath,
+            bundle.bytes,
+            "application/octet-stream"
+          );
+        }
+      }
+    } catch {
+      // Soft-fail: omit the C2PA section rather than break the
+      // package. Offline verifier handles missing files gracefully.
+    }
+
+    // Phase M1 — bundle the offline verification quickstart.
+    // Operator + procurement-readable; references CLI + browser
+    // verifier; restates the bounded scope and honest limitations.
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "OFFLINE-VERIFICATION.md",
+      Buffer.from(buildOfflineVerificationReadme(), "utf8"),
+      "text/markdown"
+    );
 
     appendPackageEntry(
       archive,

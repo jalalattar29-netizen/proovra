@@ -71,6 +71,39 @@ const EnvSchema = z.object({
   WORKER_BUILD_INFO: optionalTrimmedString,
 
   WORKER_PORT: z.coerce.number().int().positive().default(8090),
+
+  // Phase M2 — C2PA provenance interoperability. Default disabled.
+  // All inputs validated; nothing logged or sent to telemetry unless
+  // explicitly enabled.
+  C2PA_ENABLED: z.enum(["true", "false"]).optional().default("false"),
+  C2PA_PROVIDER_MODE: z
+    .enum(["disabled", "detect_only", "validate", "embed_supported"])
+    .optional()
+    .default("detect_only"),
+  C2PA_BIN: optionalTrimmedString,
+  C2PA_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  C2PA_MAX_BYTES: z.coerce.number().int().positive().default(524288000),
+  C2PA_GENERATE_MANIFESTS: z
+    .enum(["true", "false"])
+    .optional()
+    .default("false"),
+  C2PA_SIGNING_ENABLED: z
+    .enum(["true", "false"])
+    .optional()
+    .default("false"),
+  C2PA_SIGNING_CERT_PATH: optionalTrimmedString,
+  C2PA_SIGNING_KEY_PATH: optionalTrimmedString,
+  // Phase M2.1 — bounded raw-manifest export + generation targets.
+  C2PA_RAW_MANIFEST_EXPORT_ENABLED: z
+    .enum(["true", "false"])
+    .optional()
+    .default("false"),
+  C2PA_RAW_MANIFEST_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5_242_880),
+  C2PA_GENERATION_TARGETS: optionalTrimmedString,
 });
 
 export const env = EnvSchema.parse(process.env);

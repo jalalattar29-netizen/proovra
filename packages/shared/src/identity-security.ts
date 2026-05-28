@@ -131,6 +131,48 @@ export const STEP_UP_PURPOSES = [
   // External contributor phone verification before upload, when the
   // org policy demands it. NEVER triggers workspace MFA.
   "CONTRIBUTOR_PHONE_VERIFICATION",
+  // Phase P1.1 — Identity operations completion pass.
+  //   SCIM_RECONCILIATION_EXECUTE: destructive reconcile actions
+  //     (suspend membership, archive token, archive group) require
+  //     step-up regardless of org policy.
+  //   SAML_MAPPING_PRIVILEGE_UPDATE: when a SAML attribute mapping
+  //     change is flagged as privilege-affecting (group→OWNER/ADMIN,
+  //     external-id override, default role downgrade) we require
+  //     step-up before persisting the new mapping.
+  "SCIM_RECONCILIATION_EXECUTE",
+  "SAML_MAPPING_PRIVILEGE_UPDATE",
+  // Phase P2.3 / P2.5 — Operations console.
+  //   QUEUE_JOB_REPLAY: any replay of a job classified as
+  //     `requires_step_up` in the replay safety matrix.
+  //   RESTORE_VALIDATION_EXECUTE: running the restore-readiness
+  //     validation actually exercises the recovery path (read-only,
+  //     but expensive) and is gated so the operator confirms intent.
+  "QUEUE_JOB_REPLAY",
+  "RESTORE_VALIDATION_EXECUTE",
+  // Phase P3.1 — Signer governance + custody attestation.
+  //   SIGNER_PROMOTE: promoting a staged signer to active changes
+  //     which key will sign future artifacts.
+  //   SIGNER_RETIRE: marking a signer retired means no future
+  //     artifacts will be signed with it.
+  //   SIGNER_REVOKE: revocation is the most destructive transition
+  //     and disables an active or staged signer outright.
+  //   CUSTODY_ATTESTATION_BACKFILL: bulk-signing historical custody
+  //     events for attestation coverage; potentially expensive.
+  "SIGNER_PROMOTE",
+  "SIGNER_RETIRE",
+  "SIGNER_REVOKE",
+  "CUSTODY_ATTESTATION_BACKFILL",
+  // Phase M2.1 — C2PA bulk backfill is potentially expensive across a
+  // large evidence corpus and the operator must confirm intent.
+  "C2PA_BACKFILL_START",
+  // Phase M3 — generating an insurer-ready SIU export bundle compiles
+  // sensitive case material; the operator must confirm intent.
+  "SIU_EXPORT_GENERATE",
+  // Phase M3.2 — revealing or exporting claimant PII (name + contact)
+  // is independently audited. Re-using SIU_EXPORT_GENERATE would
+  // conflate two distinct sensitive actions, so PROOVRA tracks them
+  // separately.
+  "SIU_PII_REVEAL",
 ] as const;
 export const StepUpPurposeSchema = z.enum(STEP_UP_PURPOSES);
 export type StepUpPurpose = z.infer<typeof StepUpPurposeSchema>;

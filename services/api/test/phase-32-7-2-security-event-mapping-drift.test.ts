@@ -361,6 +361,15 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20261001000000_phase_a1_evidence_org_tenancy",
       "20261002000000_phase_a2_pdf_artifact_status",
       "20261003000000_phase_g3_1_notification_preferences",
+      // Phase M3.1 — SIU durability (Prisma persistence for SIU
+      // profiles + saved views + export rows, replacing the
+      // in-memory registry). Additive: new tables only, no
+      // destructive changes to protected runtime tables.
+      "20261004000000_phase_m3_1_siu_durability",
+      // Phase M3.2 — SIU governance / export persistence.
+      // Persists SIU saved views + SIU export ZIP rows + adds the
+      // SIU_PII_REVEAL step-up purpose. Additive.
+      "20261005000000_phase_m3_2_siu_governance_export",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

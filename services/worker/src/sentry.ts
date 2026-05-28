@@ -1,6 +1,17 @@
 import * as Sentry from "@sentry/node";
+// Phase P2.0B — Sentry profiling on the worker. Same env knobs as
+// the api so a single deployment env-block controls both.
+import { nodeProfilingIntegration } from "@sentry/profiling-node";
 
 let sentryReady = false;
+
+function readSampleRate(name: string, fallback: number): number {
+  const raw = (process.env[name] ?? "").trim();
+  if (raw.length === 0) return fallback;
+  const n = Number.parseFloat(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 1) return fallback;
+  return n;
+}
 
 function redactValue(value: unknown): unknown {
   if (typeof value === "string") {
@@ -43,11 +54,51 @@ function redactValue(value: unknown): unknown {
 export function initSentry() {
   const dsn = process.env.SENTRY_DSN;
   if (!dsn || sentryReady) return;
+  // Phase P2.0B — env-driven sample rates + release tag.
+  const tracesSampleRate = readSampleRate(
+    "SENTRY_TRACES_SAMPLE_RATE",
+    0.2,
+  );
+  const profilesSampleRate = readSampleRate(
+    "SENTRY_PROFILES_SAMPLE_RATE",
+    0.1,
+  );
+  const environment =
+    (process.env.SENTRY_ENVIRONMENT ?? "").trim() ||
+    process.env.NODE_ENV ||
+    "development";
+  const release =
+    (process.env.SENTRY_RELEASE ?? "").trim() ||
+    (process.env.APP_RELEASE_SHA ?? "").trim() ||
+    (process.env.GIT_SHA ?? "").trim() ||
+    undefined;
 
   Sentry.init({
     dsn,
-    environment: process.env.NODE_ENV ?? "development",
-    tracesSampleRate: 0,
+    environment,
+    release,
+    serverName: "proovra-worker",
+    tracesSampleRate,
+    profilesSampleRate,
+    integrations: [nodeProfilingIntegration()],
+    beforeSendTransaction(event) {
+      if (event.request?.headers) {
+        const h = event.request.headers as Record<string, unknown>;
+        for (const key of Object.keys(h)) {
+          const k = key.toLowerCase();
+          if (
+            k.includes("authorization") ||
+            k.includes("cookie") ||
+            k.includes("token") ||
+            k.includes("secret") ||
+            k.includes("api-key")
+          ) {
+            h[key] = "[REDACTED]";
+          }
+        }
+      }
+      return event;
+    },
     beforeSend(event, hint) {
       // Phase 32.6.1 — suppress transient Redis ECONNREFUSED.
       //

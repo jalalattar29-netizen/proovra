@@ -1,3 +1,7 @@
+// Phase P2.0B — OTEL must initialise BEFORE Fastify / Prisma /
+// BullMQ load so HTTP / pg / ioredis are auto-instrumented. This
+// side-effect import is a no-op when OTEL_ENABLED is not "true".
+import "./observability/otel-bootstrap.js";
 import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import type { FastifyBaseLogger } from "fastify";
@@ -101,6 +105,26 @@ import { mfaRoutes } from "./routes/mfa.routes.js";
 // canonical session model as the rest of the identity surface; the
 // service layer enforces org-scoped admin authorization.
 import { mfaAdminRoutes } from "./routes/mfa-admin.routes.js";
+import { identityOperationsCompletionRoutes } from "./routes/identity-operations-completion.routes.js";
+// Phase P2.1 — WORM export operations routes (list / detail / manifest /
+// reproducibility verify / Object Lock status). Mounted alongside the
+// existing `opsRoutes` cluster; these handle immutable export surfacing.
+import { operationsExportsRoutes } from "./routes/operations-exports.routes.js";
+// P2.3 — queue operations (inventory, failed-jobs, replay safety matrix,
+// retry/replay/cancel, worker health). P2.5 — DR recovery (backup +
+// restore validation, recovery reports).
+import { operationsQueuesRoutes } from "./routes/operations-queues.routes.js";
+import { operationsRecoveryRoutes } from "./routes/operations-recovery.routes.js";
+// Phase M2.1 — C2PA operations (provider status, backfill, generation
+// readiness). Routes are auth + step-up gated identically to other
+// operations console surfaces.
+import { operationsC2paRoutes } from "./routes/operations-c2pa.routes.js";
+// Phase M3 — Insurance SIU bundle (profile + checklist + indicators +
+// follow-ups + export bundle). Workspace-scoped and step-up gated on
+// the export action.
+import { siuRoutes } from "./routes/siu.routes.js";
+// P3.1 — signer governance + detached custody attestations.
+import { operationsSignersRoutes } from "./routes/operations-signers.routes.js";
 import { opsRoutes } from "./routes/ops.routes.js";
 import { opsSeedRoutes } from "./routes/ops-seed.routes.js";
 import { governanceSnapshotRoutes } from "./routes/governance-snapshot.routes.js";
@@ -110,6 +134,14 @@ import { dashboardRoutes } from "./routes/dashboard.routes.js";
 import { caseWorkspaceRoutes } from "./routes/case-workspace.routes.js";
 import { enterpriseAggregatorsRoutes } from "./routes/enterprise-aggregators.routes.js";
 import { runStartupConfigValidation } from "./config/index.js";
+// Phase P2.0 — AWS Secrets Manager hydration + runtime health route.
+// Both are no-ops when AWS_SECRETS_ENABLED is not "true" — the call
+// is safe to leave in place for local dev / Docker.
+import { initSecretsManager } from "./config/secrets-manager.js";
+import { runtimeSecretsHealthRoutes } from "./routes/runtime-secrets-health.routes.js";
+// Phase O1.1 — dedicated OTEL runtime health endpoint so operators can
+// verify the bootstrap fired without parsing container logs.
+import { runtimeOtelHealthRoutes } from "./routes/runtime-otel-health.routes.js";
 import {
   AppError,
   ErrorCode,
@@ -499,10 +531,21 @@ allowedHeaders: [
     }
   });
 
+  // Phase P2.0 — AWS Secrets Manager hydration. Runs ONCE at boot.
+  // No-op when AWS_SECRETS_ENABLED is not "true". On AWS failure we
+  // log a bounded warning and continue — fallback to env keeps the
+  // app booting. NEVER throws to the bootstrap.
+  await initSecretsManager({
+    info: (obj, msg) => app.log.info(obj as Record<string, unknown>, msg),
+    warn: (obj, msg) => app.log.warn(obj as Record<string, unknown>, msg),
+  });
+
   // Phase 20 — startup config validation. Logs the safe feature
   // snapshot and throws in production when critical config is
   // missing. Non-prod downgrades to a warning so local dev still
   // works.
+  // NOTE: this runs AFTER `initSecretsManager` so future validators
+  // that consult `getSecret()` see the populated cache.
   runStartupConfigValidation({
     info: (obj, msg) => app.log.info(obj as Record<string, unknown>, msg),
     warn: (obj, msg) => app.log.warn(obj as Record<string, unknown>, msg),
@@ -513,6 +556,12 @@ allowedHeaders: [
   // /v1/ops/metrics, /v1/ops/reconcile). Registered FIRST so they're
   // available even if a later route module fails to load.
   await app.register(opsRoutes);
+  // Phase P2.0 — runtime secrets-health route (/v1/runtime/secrets-health).
+  // Operator-only view of AWS Secrets Manager hydration state. NEVER
+  // returns secret values.
+  await app.register(runtimeSecretsHealthRoutes);
+  // Phase O1.1 — OTEL runtime health endpoint.
+  await app.register(runtimeOtelHealthRoutes);
   // CR1 Phase F — env-guarded operational seeding registration.
   // Defense in depth: the route handlers already require
   // requireAuth + governance.policy.manage + a shared seed secret
@@ -714,6 +763,27 @@ allowedHeaders: [
   await app.register(mfaRoutes);
   // R8.1.4 — admin lifecycle + lost-factor recovery endpoints.
   await app.register(mfaAdminRoutes);
+  // P1.1 — identity operations completion (SCIM drift + reconciliation,
+  // SAML mapping preview/update, SSO health snapshot, bounded session
+  // identity timeline). Reuses the existing auth + audit + step-up
+  // infrastructure.
+  await app.register(identityOperationsCompletionRoutes);
+  // P2.1 — immutable export operations routes (`/v1/operations/exports/*`).
+  // Deterministic manifest envelope + reproducibility verifier + honest
+  // Object Lock surfacing.
+  await app.register(operationsExportsRoutes);
+  // P2.3 + P2.5 — queue operations + DR recovery routes.
+  await app.register(operationsQueuesRoutes);
+  await app.register(operationsRecoveryRoutes);
+  // Phase M2.1 — C2PA operations + bulk backfill + generation
+  // readiness routes. Auth + workspace-scoped + step-up gated.
+  await app.register(operationsC2paRoutes);
+  // Phase M3 — Insurance SIU bundle routes (profile, checklist,
+  // indicators, follow-ups, export preflight + bundle). Auth +
+  // workspace-scoped + step-up gated on export.
+  await app.register(siuRoutes);
+  // P3.1 — signer governance + detached custody attestations.
+  await app.register(operationsSignersRoutes);
 
   // Phase C #1: Object Lock startup verification.
   // Throws in production-shaped envs when S3_OBJECT_LOCK_ENABLED=true but the

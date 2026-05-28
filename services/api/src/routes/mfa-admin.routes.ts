@@ -56,6 +56,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
+import { getSecret } from "../config/runtime-secrets.js";
 import { getAuthUserId } from "../auth.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { prisma } from "../db.js";
@@ -120,7 +121,7 @@ function readOptionalSessionUserId(req: FastifyRequest): string | null {
         ?.proovra_session ?? null;
     const token = bearer || cookieToken;
     if (!token) return null;
-    const secret = process.env.AUTH_JWT_SECRET;
+    const secret = getSecret("AUTH_JWT_SECRET");
     if (!secret) return null;
     const payload = verifyJwt(token, secret);
     // Pending tokens never carry session authority — refuse them
@@ -959,7 +960,7 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         reply.code(400);
         return { ok: false, error: "missing_token" };
       }
-      const jwtSecret = process.env.AUTH_JWT_SECRET;
+      const jwtSecret = getSecret("AUTH_JWT_SECRET");
       if (!jwtSecret) {
         reply.code(500);
         return { ok: false, error: "server_misconfigured" };

@@ -1,0 +1,79 @@
+{
+  "uid": "proovra-queue-operations",
+  "title": "PROOVRA — Queue Operations",
+  "description": "BullMQ queue health, replay safety, retry, and operator action surface. All metrics map to real `bump()` calls in the api or worker. Phase O1.2.",
+  "tags": ["proovra", "queues", "o1.2"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "30s",
+  "timezone": "utc",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Failed jobs by queue",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum by (queue_name) (rate(dlq_job_total[5m]))", "legendFormat": "{{queue_name}}" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Queue replay vs retry",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(queue_replay_total[5m]))", "legendFormat": "replay" },
+        { "expr": "sum(rate(queue_retry_total[5m]))", "legendFormat": "retry" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Forbidden replay (1h)",
+      "description": "Number of replays denied by the replay-safety matrix.",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "increase(queue_replay_forbidden_total[1h])" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Step-up replay (1h)",
+      "description": "Number of replays that required step-up confirmation.",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "increase(queue_replay_step_up_total[1h])" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Worker stalled / missing heartbeat",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(worker_stalled_total[5m]))", "legendFormat": "stalled" },
+        { "expr": "sum(rate(worker_heartbeat_missing_total[5m]))", "legendFormat": "missing_heartbeat" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Retry failure rate (10m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(queue_retry_failure_total[10m]))" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "text",
+      "title": "Runbooks",
+      "options": {
+        "content": "Worker degraded → docs/operations/observability-runbooks.md#worker-degraded\nQueue failures → docs/operations/observability-runbooks.md#queue-failures\nForbidden replay spike → docs/operations/observability-runbooks.md#forbidden-replay-attempted"
+      }
+    }
+  ]
+}

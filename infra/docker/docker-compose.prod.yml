@@ -25,7 +25,10 @@ services:
         condition: service_healthy
     environment:
       PORT: "8080"
-      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      # NOTE: AUTH_JWT_SECRET is sourced from the env_file (and, in
+      # production, may be backed by AWS Secrets Manager via P2.0).
+      # We no longer pass it explicitly here so it does not appear in
+      # `docker inspect` output.
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
       DIRECT_URL: ${DIRECT_URL}
@@ -51,12 +54,35 @@ services:
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       DEMO_REQUEST_AUTO_REPLY_ENABLED: ${DEMO_REQUEST_AUTO_REPLY_ENABLED}
       DEMO_REQUEST_NOTIFICATION_EMAIL: ${DEMO_REQUEST_NOTIFICATION_EMAIL}
-      # Phase Y — Observability config. All optional; safe defaults
-      # apply when unset (no token = public scrape, no DSN = Sentry
-      # no-op). Leaving these wired-but-empty lets operators flip
-      # them via the .env file without touching this file.
+      # Observability — Sentry + Grafana OTEL. All optional; safe
+      # defaults apply when unset.
       METRICS_SCRAPE_TOKEN: ${METRICS_SCRAPE_TOKEN:-}
+      # Sentry (errors + performance + profiling) — see
+      # `services/api/src/observability/sentry.ts`. Sample rates are
+      # capped per env so production never accidentally runs at 1.0.
+      SENTRY_ENABLED: ${SENTRY_ENABLED:-true}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.2}
+      SENTRY_PROFILES_SAMPLE_RATE: ${SENTRY_PROFILES_SAMPLE_RATE:-0.1}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      # OTEL (Grafana Cloud OTLP gateway). Service-name is fixed to
+      # `proovra-api` on this container so the api and worker report
+      # as distinct services even with a shared `.env`.
+      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_SERVICE_NAME: proovra-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.namespace=proovra,deployment.environment=production}
+      LOG_AGGREGATION_ENABLED: ${LOG_AGGREGATION_ENABLED:-true}
+      # AWS Secrets Manager — Secrets Manager region is decoupled from
+      # the app-wide AWS_REGION (which KMS uses on eu-north-1).
+      AWS_SECRETS_ENABLED: ${AWS_SECRETS_ENABLED:-false}
+      AWS_SECRET_NAME: ${AWS_SECRET_NAME:-proovra/prod/app-secrets}
+      AWS_SECRETS_REGION: ${AWS_SECRETS_REGION:-us-east-1}
+      AWS_SECRETS_REFRESH_TTL_MS: ${AWS_SECRETS_REFRESH_TTL_MS:-3600000}
+      AWS_REGION: ${AWS_REGION:-eu-north-1}
 
     ports:
       - "127.0.0.1:8080:8080"
@@ -118,12 +144,35 @@ services:
       DEMO_FOLLOW_UP_INTERVAL_MS: ${DEMO_FOLLOW_UP_INTERVAL_MS}
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
       PUPPETEER_SKIP_DOWNLOAD: "true"
-      # Phase Y — Observability config (worker side). Defaults apply
-      # when unset: heartbeat every 30s, queue health sampler every
-      # 60s. SENTRY_DSN unset = Sentry no-op.
-      SENTRY_DSN: ${SENTRY_DSN:-}
+      # Observability — heartbeat / queue-health sampler defaults.
       WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-30000}
       WORKER_QUEUE_HEALTH_INTERVAL_MS: ${WORKER_QUEUE_HEALTH_INTERVAL_MS:-60000}
+      # Sentry — same env knobs as api so a single .env covers both.
+      # `serverName` is set in code to `proovra-worker` so the
+      # Sentry UI separates worker errors from api errors.
+      SENTRY_ENABLED: ${SENTRY_ENABLED:-true}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.2}
+      SENTRY_PROFILES_SAMPLE_RATE: ${SENTRY_PROFILES_SAMPLE_RATE:-0.1}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      # OTEL — service-name pinned to `proovra-worker` so api and
+      # worker telemetry are distinguishable even with a shared .env.
+      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_SERVICE_NAME: proovra-worker
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.namespace=proovra,deployment.environment=production}
+      LOG_AGGREGATION_ENABLED: ${LOG_AGGREGATION_ENABLED:-true}
+      # AWS Secrets Manager — same pattern as api. KMS still uses the
+      # app-wide AWS_REGION (eu-north-1); Secrets Manager uses
+      # AWS_SECRETS_REGION (us-east-1).
+      AWS_SECRETS_ENABLED: ${AWS_SECRETS_ENABLED:-false}
+      AWS_SECRET_NAME: ${AWS_SECRET_NAME:-proovra/prod/app-secrets}
+      AWS_SECRETS_REGION: ${AWS_SECRETS_REGION:-us-east-1}
+      AWS_SECRETS_REFRESH_TTL_MS: ${AWS_SECRETS_REFRESH_TTL_MS:-3600000}
+      AWS_REGION: ${AWS_REGION:-eu-north-1}
     volumes:
       - /opt/proovra/app/services/worker/keys:/app/services/worker/keys:ro
       - /opt/proovra/app/services/worker/src/pdf/assets:/app/services/worker/src/pdf/assets:ro

@@ -1,0 +1,194 @@
+# PROOVRA — Operations alert rules (Phase O1.2)
+#
+# Every alert below maps to a real metric emitted by `services/api` or
+# `services/worker`. Every alert links a runbook in
+# `docs/operations/observability-runbooks.md`.
+#
+# Suggested thresholds are conservative defaults. Operators MUST tune
+# them to their workload before enabling on-call paging. Severity
+# `warning` and `critical` follow the existing PROOVRA conventions.
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: proovra-api
+    folder: PROOVRA
+    interval: 60s
+    rules:
+      - uid: proovra-api-down
+        title: API down
+        condition: api_down
+        for: 2m
+        data:
+          - refId: api_down
+            datasourceUid: prometheus
+            model:
+              expr: |
+                avg_over_time(up{job="proovra-api"}[2m]) < 0.5
+        annotations:
+          summary: PROOVRA API is not responding to scrapes.
+          runbook_url: docs/operations/observability-runbooks.md#api-down
+        labels:
+          severity: critical
+
+      - uid: proovra-worker-degraded
+        title: Worker degraded
+        condition: worker_missing_heartbeat
+        for: 5m
+        data:
+          - refId: worker_missing_heartbeat
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(increase(worker_heartbeat_missing_total[5m])) > 0
+        annotations:
+          summary: PROOVRA worker missed heartbeats in the last 5 minutes.
+          runbook_url: docs/operations/observability-runbooks.md#worker-degraded
+        labels:
+          severity: warning
+
+      - uid: proovra-queue-failed-jobs-spike
+        title: Queue failed jobs spike
+        condition: dlq_spike
+        for: 10m
+        data:
+          - refId: dlq_spike
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum by (queue_name) (rate(dlq_job_total[10m])) > 1
+        annotations:
+          summary: Queue {{$labels.queue_name}} is producing failed jobs above the 1/s threshold.
+          runbook_url: docs/operations/observability-runbooks.md#queue-failures
+        labels:
+          severity: warning
+
+      - uid: proovra-export-failure-spike
+        title: Export failure spike
+        condition: export_failure_spike
+        for: 15m
+        data:
+          - refId: export_failure_spike
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(export_generation_failed_total[15m]))
+                  + sum(rate(siu_export_failed_total[15m])) > 0.05
+        annotations:
+          summary: Export failure rate above threshold for 15m.
+          runbook_url: docs/operations/observability-runbooks.md#export-failures
+        labels:
+          severity: critical
+
+      - uid: proovra-package-generation-failure
+        title: Verification Package generation failure
+        condition: package_gen_fail
+        for: 15m
+        data:
+          - refId: package_gen_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(package_generation_failed_total[15m])) > 0.05
+        annotations:
+          summary: Verification Package generation failure rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#package-generation-failures
+        labels:
+          severity: critical
+
+      - uid: proovra-recovery-validation-failure
+        title: Recovery validation failure
+        condition: recovery_fail
+        for: 30m
+        data:
+          - refId: recovery_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(increase(recovery_validation_failed_total[30m])) > 0
+        annotations:
+          summary: Recovery validation produced at least one failure in the last 30 minutes.
+          runbook_url: docs/operations/observability-runbooks.md#recovery-validation-failures
+        labels:
+          severity: warning
+
+      - uid: proovra-siu-export-upload-failure
+        title: SIU export upload failure
+        condition: siu_upload_fail
+        for: 5m
+        data:
+          - refId: siu_upload_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(increase(siu_export_upload_failure_total[5m])) > 0
+        annotations:
+          summary: SIU export ZIP upload to S3 failed.
+          runbook_url: docs/operations/observability-runbooks.md#siu-export-upload-failure
+        labels:
+          severity: critical
+
+      - uid: proovra-c2pa-backfill-failure
+        title: C2PA backfill failure
+        condition: c2pa_backfill_fail
+        for: 15m
+        data:
+          - refId: c2pa_backfill_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(c2pa_backfill_run_failure_total[15m])) > 0.05
+        annotations:
+          summary: C2PA backfill failure rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#c2pa-backfill-failure
+        labels:
+          severity: warning
+
+      - uid: proovra-signer-health-degraded
+        title: Signer health degraded
+        condition: signer_degraded
+        for: 5m
+        data:
+          - refId: signer_degraded
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(increase(signer_health_degraded_total[5m])) > 0
+        annotations:
+          summary: Signer health probe returned a degraded state.
+          runbook_url: docs/operations/observability-runbooks.md#signer-health-degraded
+        labels:
+          severity: critical
+
+      - uid: proovra-forbidden-replay-attempted
+        title: Forbidden replay attempted
+        condition: forbidden_replay
+        for: 5m
+        data:
+          - refId: forbidden_replay
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(increase(queue_replay_forbidden_total[5m])) > 0
+        annotations:
+          summary: An operator attempted to replay a forbidden job category.
+          runbook_url: docs/operations/observability-runbooks.md#forbidden-replay-attempted
+        labels:
+          severity: warning
+
+      - uid: proovra-pii-reveal-spike
+        title: SIU PII reveal spike
+        condition: pii_reveal_spike
+        for: 30m
+        data:
+          - refId: pii_reveal_spike
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(siu_pii_revealed_total[30m])) > 0.05
+        annotations:
+          summary: SIU claimant PII has been revealed at an elevated rate.
+          runbook_url: docs/operations/observability-runbooks.md#siu-pii-reveal-spike
+        labels:
+          severity: warning

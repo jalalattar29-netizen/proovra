@@ -1,0 +1,118 @@
+{
+  "uid": "proovra-operations-overview",
+  "title": "PROOVRA — Operations Overview",
+  "description": "Bounded operator dashboard. Every panel maps to a real Prometheus metric emitted by services/api or services/worker. No PII, no tokens, no evidence content. Phase O1.2.",
+  "tags": ["proovra", "operations", "o1.2"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "30s",
+  "timezone": "utc",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "custom",
+        "current": { "text": "proovra-api", "value": "proovra-api" },
+        "options": [
+          { "text": "proovra-api", "value": "proovra-api" },
+          { "text": "proovra-worker", "value": "proovra-worker" }
+        ],
+        "query": "proovra-api,proovra-worker"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "API health",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(http_server_requests_total{service=\"proovra-api\",status_class=\"2xx\"}[5m])) / clamp_min(sum(rate(http_server_requests_total{service=\"proovra-api\"}[5m])), 1)" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "min": 0, "max": 1 }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Worker bootstrap status",
+      "description": "1 = bootstrap succeeded; 0 = degraded.",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "max(otel_bootstrap_started{service=\"proovra-worker\"})" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Queue failed jobs (5m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum by (queue_name) (rate(dlq_job_total[5m]))", "legendFormat": "{{queue_name}}" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Report generation",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(package_generation_total[5m]))", "legendFormat": "verification_package" },
+        { "expr": "sum(rate(package_generation_failed_total[5m]))", "legendFormat": "verification_package_failed" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Export failures",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(export_generation_failed_total[10m]))", "legendFormat": "worm_export_failed" },
+        { "expr": "sum(rate(siu_export_failed_total[10m]))", "legendFormat": "siu_export_failed" },
+        { "expr": "sum(rate(siu_export_upload_failure_total[10m]))", "legendFormat": "siu_export_upload_failed" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Recovery validation",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(recovery_backup_validation_total[10m]))", "legendFormat": "backup_validate" },
+        { "expr": "sum(rate(recovery_restore_validation_total[10m]))", "legendFormat": "restore_validate" },
+        { "expr": "sum(rate(recovery_validation_failed_total[10m]))", "legendFormat": "validate_failed" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "C2PA backfill run failures",
+      "description": "Bumps once per failed backfill run (see c2pa_backfill_run_failure_total). Started / processed counts live in operator UI run history; not emitted as bounded counters.",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(c2pa_backfill_run_failure_total[15m]))", "legendFormat": "failed runs" }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "SIU exports (last 1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "increase(siu_export_generated_total[1h])", "legendFormat": "generated" },
+        { "expr": "increase(siu_export_failed_total[1h])", "legendFormat": "failed" }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "text",
+      "title": "Sentry reference",
+      "options": {
+        "content": "Sentry errors live in the Sentry project — link from the operator runbook (`docs/operations/observability-runbooks.md`)."
+      }
+    }
+  ]
+}

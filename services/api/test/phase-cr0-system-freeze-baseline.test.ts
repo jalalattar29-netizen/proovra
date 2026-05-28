@@ -129,6 +129,16 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
     // there is no body to gate.
     { page: "cases/[id]/classic/page.tsx", reason: "G4.2 retirement redirect — no body to gate", revisitPhase: "PERMANENT" },
 
+    // Phase P1.1 / P1.2 — Identity Operations canonical redirects.
+    // `/settings/security/saml` and `/settings/security/scim` are
+    // pure server-side redirects to the existing procurement-grade
+    // surfaces (`/security-center/sso` and `/admin/identity/scim`
+    // respectively). They have no body to gate; the underlying
+    // surfaces are themselves gated.
+    { page: "settings/security/saml/page.tsx", reason: "P1.1 canonical redirect to /security-center/sso — no body to gate", revisitPhase: "PERMANENT" },
+    { page: "settings/security/scim/page.tsx", reason: "P1.2 canonical redirect to /admin/identity/scim — no body to gate", revisitPhase: "PERMANENT" },
+    { page: "settings/security/audit/page.tsx", reason: "P1.3 canonical redirect to /admin/identity/timeline — no body to gate", revisitPhase: "PERMANENT" },
+
     // Legacy operator pages. CR1 inspected both and deferred them:
     // each is a real ~600 LoC operational console (not dead code).
     // Folding them requires UX-level decisions (target gate or

@@ -1,4 +1,11 @@
 import crypto from "node:crypto";
+// Phase P2.0 — STRIPE_SECRET_KEY is in the migrated set. The `must()`
+// helper below now consults AWS Secrets Manager before falling back to
+// env. Behaviour for non-migrated names is unchanged.
+import {
+  MIGRATED_SECRETS,
+  requireSecret,
+} from "../config/runtime-secrets.js";
 
 type StripeEvent = {
   id: string;
@@ -7,6 +14,11 @@ type StripeEvent = {
 };
 
 function must(name: string): string {
+  // For migrated secrets, prefer the runtime-secrets resolver so AWS
+  // Secrets Manager values take precedence over env.
+  if ((MIGRATED_SECRETS as readonly string[]).includes(name)) {
+    return requireSecret(name);
+  }
   const value = process.env[name];
   if (!value) throw new Error(`${name} is not set`);
   return value;

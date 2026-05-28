@@ -6,6 +6,7 @@ import {
   isSessionRevoked,
 } from "../services/identity-security/session-revocation.service.js";
 import { recordHeartbeat } from "../services/access-control/session-inventory.service.js";
+import { getSecret } from "../config/runtime-secrets.js";
 
 function readCookie(header: string | undefined, name: string): string | null {
   if (!header) return null;
@@ -46,7 +47,11 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
         .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
     }
 
-    const secret = process.env.AUTH_JWT_SECRET;
+    // Phase P2.0 — AUTH_JWT_SECRET is in the migrated set. Resolved
+    // via the typed accessor: AWS Secrets Manager cache first, env
+    // fallback. Synchronous in-memory lookup on the hot path; no
+    // per-request network calls.
+    const secret = getSecret("AUTH_JWT_SECRET");
     if (!secret) {
       throw new Error("AUTH_JWT_SECRET is not set");
     }

@@ -121,7 +121,19 @@ export type EmailService = {
   }) => Promise<unknown>;
 };
 
+// Phase P2.0 — RESEND_API_KEY is in the migrated set. Migrated names
+// are resolved through `getSecret()` (AWS first, env fallback). All
+// other names (RESEND_FROM, ADMIN_CONTACT_EMAIL, ...) are kept on env.
+import {
+  getSecret,
+  MIGRATED_SECRETS,
+} from "../config/runtime-secrets.js";
+
 function env(name: string): string | undefined {
+  if ((MIGRATED_SECRETS as readonly string[]).includes(name)) {
+    const v = getSecret(name);
+    return v && v.trim() ? v.trim() : undefined;
+  }
   const v = process.env[name];
   const t = typeof v === "string" ? v.trim() : "";
   return t ? t : undefined;

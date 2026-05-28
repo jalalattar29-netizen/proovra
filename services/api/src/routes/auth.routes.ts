@@ -20,6 +20,7 @@ import {
 } from "../services/email-password-auth.service.js";
 
 import { getEmailService } from "../services/email.service.js";
+import { getSecret } from "../config/runtime-secrets.js";
 import { requireAuth } from "../middleware/auth.js";
 import { prisma } from "../db.js";
 import {
@@ -296,7 +297,9 @@ function fireRegisterCompletedAnalytics(
 }
 
 export async function authRoutes(app: FastifyInstance) {
-  const jwtSecret = process.env.AUTH_JWT_SECRET;
+  // Phase P2.0 — read once at route-registration time (after
+  // `initSecretsManager` has run). AWS first, env fallback.
+  const jwtSecret = getSecret("AUTH_JWT_SECRET");
   if (!jwtSecret) {
     throw new Error("AUTH_JWT_SECRET is not set");
   }

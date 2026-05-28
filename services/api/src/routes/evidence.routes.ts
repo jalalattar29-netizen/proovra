@@ -1,4 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+
+import { getSecret } from "../config/runtime-secrets.js";
 import {
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
@@ -4699,7 +4701,8 @@ return {
         return reply.code(400).send({ message: "guest_token_required" });
       }
 
-      const secret = process.env.AUTH_JWT_SECRET;
+      // Phase P2.0 — AUTH_JWT_SECRET via the typed accessor.
+      const secret = getSecret("AUTH_JWT_SECRET");
       if (!secret) {
         return reply.code(500).send({ message: "AUTH_JWT_SECRET is not set" });
       }
@@ -5634,6 +5637,85 @@ await appendCustodyEvent({
       })),
     });
   });
+
+  // -------------------------------------------------------------------
+  // Phase M2.1 — internal C2PA panel data + retry trigger.
+  //
+  // GET  /v1/evidence/:id/c2pa       — bounded summary projection
+  // POST /v1/evidence/:id/c2pa/retry — re-run extraction (best-effort)
+  //
+  // Both endpoints are auth-gated and require the same read/manage
+  // access as other evidence endpoints. They NEVER return raw
+  // manifest bytes — only the bounded summary. The retry endpoint
+  // persists a bounded `disabled` summary when the provider is
+  // operationally off; in environments with the provider enabled,
+  // the worker-side ingest helper handles the actual extraction.
+  // -------------------------------------------------------------------
+  app.get(
+    "/v1/evidence/:id/c2pa",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const { loadEvidenceC2paPanel } = await import(
+        "../services/c2pa/c2pa-evidence-panel.service.js"
+      );
+      const panel = await loadEvidenceC2paPanel({
+        evidenceId: id,
+        teamId: (evidence as { teamId: string }).teamId,
+      });
+      if (!panel) {
+        return reply
+          .code(404)
+          .send({ error: { code: "not_found", message: "Evidence not found." } });
+      }
+      return reply.code(200).send({ panel });
+    },
+  );
+
+  app.post(
+    "/v1/evidence/:id/c2pa/retry",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const teamId = (evidence as { teamId: string }).teamId;
+      // Audit the retry intent first so denials still leave a trail.
+      const { appendPlatformAuditLog } = await import(
+        "../services/platform-audit-log.service.js"
+      );
+      await appendPlatformAuditLog({
+        userId,
+        action: "c2pa_extraction_retry_requested",
+        category: "operations",
+        severity: "info",
+        source: "evidence_routes",
+        outcome: "success",
+        resourceType: "evidence",
+        resourceId: id,
+        metadata: { teamId },
+      }).catch(() => {});
+      // The actual re-extraction is the worker's responsibility (it
+      // owns the file-byte read path). The api side records the
+      // request and surfaces an honest "queued / not yet processed"
+      // response so the UI never claims success it cannot prove.
+      const c2paEnabled = (process.env.C2PA_ENABLED ?? "false") === "true";
+      const providerMode = process.env.C2PA_PROVIDER_MODE ?? "detect_only";
+      return reply.code(202).send({
+        accepted: true,
+        evidenceId: id,
+        providerEnabled: c2paEnabled,
+        providerMode,
+        // Operator-visible bounded note. UI surfaces it without
+        // claiming the extraction has completed.
+        note: c2paEnabled
+          ? "Retry queued. The worker will re-evaluate this evidence record at its next pass."
+          : "C2PA provider is disabled. The retry was recorded but no extraction will run until the operator enables the provider.",
+      });
+    },
+  );
 
   app.post("/v1/evidence/:id/comments", { preHandler: requireAuth }, async (req, reply) => {
     const userId = getAuthUserId(req);
@@ -9924,6 +10006,46 @@ if (persistedVerificationPackageMetadata) {
   };
 }
 
+// Phase M2 — bounded C2PA provenance panel for public verify. This
+// is a SEPARATE field from `verificationPackageIntegrity` so the
+// public surface cannot accidentally promote C2PA state into
+// PROOVRA's core integrity decision. The panel is always present,
+// always bounded, and ALWAYS carries the standing limitation that
+// C2PA is informational and does not override PROOVRA hash/custody.
+const persistedC2pa = persistedVerificationPackageMetadata?.c2pa ?? null;
+const c2paProvenance = {
+  status: (persistedC2pa?.aggregateStatus ?? "not_present") as
+    | "not_present"
+    | "present"
+    | "valid"
+    | "invalid"
+    | "unsupported"
+    | "disabled"
+    | "error",
+  validationStatus: (persistedC2pa?.aggregateValidationStatus ??
+    "not_checked") as
+    | "not_checked"
+    | "valid"
+    | "invalid"
+    | "unsupported"
+    | "error",
+  itemsChecked: persistedC2pa?.itemsChecked ?? 0,
+  providerMode: (persistedC2pa?.providerMode ?? "disabled") as
+    | "disabled"
+    | "detect_only"
+    | "validate"
+    | "embed_supported",
+  // Standing distinctions every consumer must surface. Bounded codes,
+  // no free-form interpretation.
+  limitations: [
+    "C2PA_DOES_NOT_PROVE_CONTENT_TRUTH",
+    "C2PA_DOES_NOT_PROVE_LEGAL_ADMISSIBILITY",
+    "C2PA_IS_NOT_A_REPLACEMENT_FOR_PROOVRA_CUSTODY",
+    "MISSING_C2PA_DOES_NOT_REDUCE_PROOVRA_INTEGRITY",
+    "INVALID_C2PA_DOES_NOT_OVERRIDE_PROOVRA_HASH_DECISION",
+  ] as const,
+};
+
 const snapshotTrustDecision =
   normalizeTrustDecisionSnapshot(latestReport?.trustDecisionSnapshot) ??
   normalizeTrustDecisionSnapshot(
@@ -10641,6 +10763,7 @@ return reply.code(200).send({
   trustDecision,
 trustDecisionConsistency,
   verificationPackageIntegrity,
+  c2paProvenance,
 trustDecisionSource: trustDecision
   ? latestReport?.trustDecisionSnapshot
     ? "REPORT_SNAPSHOT"

@@ -8595,3 +8595,223 @@ model OrganizationPolicy {
   @@unique([organizationId, key], name: "organization_policies_org_key_uniq")
   @@map("organization_policies")
 }
+
+// =============================================================================
+// Phase M3.1 — Insurance SIU durability.
+//
+// Five additive tables that replace the M3 in-memory registry with a
+// durable Prisma projection. Hard rules:
+//   * Workspace-scoped via `teamId`. No cross-tenant scan.
+//   * Additive only — no existing column / constraint changes.
+//   * Bounded operator-facing strings (varchar caps mirror existing
+//     PROOVRA conventions).
+//   * Claimant PII is bounded by length AND access-gated at the
+//     service layer; the SIU profile carries a `piiVisibilityPolicy`
+//     enum so policy lives next to the data.
+// =============================================================================
+
+model CaseSiuProfile {
+  id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId                    String   @unique @map("case_id") @db.Uuid
+  teamId                    String   @map("team_id") @db.Uuid
+  /// Bounded claim type — mirrors `SIU_CLAIM_TYPES` in @proovra/shared.
+  claimType                 String   @map("claim_type") @db.VarChar(24)
+  /// Bounded investigation status — mirrors `SIU_INVESTIGATION_STATUSES`.
+  investigationStatus       String   @map("investigation_status") @db.VarChar(24)
+  claimNumber               String?  @map("claim_number") @db.VarChar(80)
+  policyReference           String?  @map("policy_reference") @db.VarChar(120)
+  incidentDate              DateTime? @map("incident_date") @db.Timestamptz(6)
+  /// Bounded structured incident-location projection (lat/lng/locality).
+  incidentLocationJson      Json?    @map("incident_location_json")
+  lossDescription           String?  @map("loss_description") @db.VarChar(2000)
+  assignedAdjusterUserId    String?  @map("assigned_adjuster_user_id") @db.Uuid
+  assignedSiuReviewerUserId String?  @map("assigned_siu_reviewer_user_id") @db.Uuid
+  /// Privacy-gated claimant name. Bounded to 200 chars. Redacted by
+  /// default at the service layer unless caller has `siu.pii.view`.
+  claimantName              String?  @map("claimant_name") @db.VarChar(200)
+  /// Privacy-gated claimant contact. Bounded to 200 chars.
+  claimantContact           String?  @map("claimant_contact") @db.VarChar(200)
+  /// Bounded PII visibility policy enum (text — see
+  /// `SIU_PII_VISIBILITY_POLICIES` in @proovra/shared).
+  piiVisibilityPolicy       String   @default("redacted_by_default") @map("pii_visibility_policy") @db.VarChar(40)
+  /// Bounded intake-template id mirrored from @proovra/shared.
+  intakeTemplateId          String?  @map("intake_template_id") @db.VarChar(60)
+  createdByUserId           String?  @map("created_by_user_id") @db.Uuid
+  updatedByUserId           String?  @map("updated_by_user_id") @db.Uuid
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  checklistItems            CaseSiuChecklistItem[]
+  followUps                 CaseSiuFollowUp[]
+  reviewIndicators          CaseSiuReviewIndicator[]
+  exports                   CaseSiuExport[]
+
+  @@index([teamId])
+  @@index([teamId, investigationStatus])
+  @@index([teamId, claimType])
+  @@index([assignedAdjusterUserId])
+  @@index([assignedSiuReviewerUserId])
+  @@map("case_siu_profiles")
+}
+
+model CaseSiuChecklistItem {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  siuProfileId       String   @map("siu_profile_id") @db.Uuid
+  /// Bounded template-item id from the SIU intake template.
+  templateItemId     String   @map("template_item_id") @db.VarChar(120)
+  label              String   @db.VarChar(120)
+  description        String?  @db.VarChar(480)
+  required           Boolean  @default(false)
+  /// Bounded list of accepted evidence kinds (`PHOTO|VIDEO|AUDIO|DOCUMENT`).
+  acceptedKindsJson  Json     @map("accepted_kinds_json")
+  /// Bounded status — mirrors `SIU_CHECKLIST_ITEM_STATUSES`.
+  status             String   @default("missing") @db.VarChar(24)
+  /// Bounded JSON array of evidence ids mapped to this item.
+  mappedEvidenceIdsJson Json  @default("[]") @map("mapped_evidence_ids_json")
+  note               String?  @db.VarChar(480)
+  dueAt              DateTime? @map("due_at") @db.Timestamptz(6)
+  satisfiedAt        DateTime? @map("satisfied_at") @db.Timestamptz(6)
+  satisfiedByUserId  String?  @map("satisfied_by_user_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  siuProfile         CaseSiuProfile @relation(fields: [siuProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([siuProfileId, templateItemId], name: "case_siu_checklist_profile_item_uniq")
+  @@index([siuProfileId])
+  @@index([siuProfileId, status])
+  @@map("case_siu_checklist_items")
+}
+
+model CaseSiuFollowUp {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  siuProfileId             String   @map("siu_profile_id") @db.Uuid
+  checklistItemId          String   @map("checklist_item_id") @db.VarChar(120)
+  intakeLinkId             String?  @map("intake_link_id") @db.Uuid
+  /// Bounded recipient role label (≤32 chars).
+  recipientRole            String?  @map("recipient_role") @db.VarChar(32)
+  /// Bounded recipient contact, ALWAYS pre-redacted (never raw PII).
+  recipientContactRedacted String?  @map("recipient_contact_redacted") @db.VarChar(120)
+  /// Bounded status — mirrors `SIU_FOLLOW_UP_STATUSES`.
+  status                   String   @default("open") @db.VarChar(24)
+  dueByUtc                 DateTime? @map("due_by_utc") @db.Timestamptz(6)
+  requestedByUserId        String?  @map("requested_by_user_id") @db.Uuid
+  requestedAtUtc           DateTime @default(now()) @map("requested_at_utc") @db.Timestamptz(6)
+  receivedAtUtc            DateTime? @map("received_at_utc") @db.Timestamptz(6)
+  satisfiedAtUtc           DateTime? @map("satisfied_at_utc") @db.Timestamptz(6)
+  /// Bounded message-template key for downstream comms (≤80 chars).
+  messageTemplateKey       String?  @map("message_template_key") @db.VarChar(80)
+  privateNotes             String?  @map("private_notes") @db.VarChar(480)
+  /// Bounded JSON array of evidence ids returned via this follow-up.
+  returnedEvidenceIdsJson  Json     @default("[]") @map("returned_evidence_ids_json")
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  siuProfile               CaseSiuProfile @relation(fields: [siuProfileId], references: [id], onDelete: Cascade)
+
+  @@index([siuProfileId])
+  @@index([siuProfileId, status])
+  @@index([siuProfileId, dueByUtc])
+  @@map("case_siu_follow_ups")
+}
+
+model CaseSiuReviewIndicator {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  siuProfileId    String   @map("siu_profile_id") @db.Uuid
+  /// Bounded code from `SIU_REVIEW_INDICATOR_CODES` in @proovra/shared.
+  code            String   @db.VarChar(80)
+  /// Bounded severity ∈ `info|warning|block_export`.
+  severity        String   @db.VarChar(16)
+  evidenceId      String?  @map("evidence_id") @db.Uuid
+  checklistItemId String?  @map("checklist_item_id") @db.VarChar(120)
+  title           String?  @db.VarChar(120)
+  explanation     String   @db.VarChar(240)
+  /// Bounded source ∈ `system|reviewer|provider`.
+  source          String   @default("reviewer") @db.VarChar(24)
+  /// Bounded resolution status ∈ `open|resolved|cancelled`.
+  status          String   @default("open") @db.VarChar(16)
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  observedAtUtc   DateTime @default(now()) @map("observed_at_utc") @db.Timestamptz(6)
+  resolvedAtUtc   DateTime? @map("resolved_at_utc") @db.Timestamptz(6)
+  resolvedByUserId String? @map("resolved_by_user_id") @db.Uuid
+
+  siuProfile      CaseSiuProfile @relation(fields: [siuProfileId], references: [id], onDelete: Cascade)
+
+  @@index([siuProfileId])
+  @@index([siuProfileId, severity])
+  @@index([siuProfileId, status])
+  @@map("case_siu_review_indicators")
+}
+
+model CaseSiuExport {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  siuProfileId        String   @map("siu_profile_id") @db.Uuid
+  caseId              String   @map("case_id") @db.Uuid
+  /// Bounded export status — generated|downloaded|failed|cancelled.
+  exportStatus        String   @default("generated") @map("export_status") @db.VarChar(24)
+  /// Bounded readiness state captured at generation time.
+  readinessState      String   @map("readiness_state") @db.VarChar(40)
+  /// Bounded JSON list of warning + blocker codes from preflight.
+  warningCodesJson    Json     @default("[]") @map("warning_codes_json")
+  blockerCodesJson    Json     @default("[]") @map("blocker_codes_json")
+  /// Bounded operator-supplied reason when `ready_with_warnings`.
+  warningExportReason String?  @map("warning_export_reason") @db.VarChar(240)
+  /// S3 location where the bundle ZIP was persisted (when configured).
+  artifactStorageBucket String? @map("artifact_storage_bucket") @db.VarChar(255)
+  artifactStorageKey    String? @map("artifact_storage_key") @db.VarChar(512)
+  artifactSha256        String? @map("artifact_sha256") @db.VarChar(64)
+  artifactSizeBytes     BigInt? @map("artifact_size_bytes")
+  manifestSha256        String? @map("manifest_sha256") @db.VarChar(64)
+  /// Bounded set of artifact-inclusion notes (e.g.
+  /// `report_pdf_included=true` / `verification_package_included=false`).
+  artifactInclusionJson Json    @default("{}") @map("artifact_inclusion_json")
+  generatedByUserId   String?  @map("generated_by_user_id") @db.Uuid
+  generatedAtUtc      DateTime @default(now()) @map("generated_at_utc") @db.Timestamptz(6)
+  downloadedAtUtc     DateTime? @map("downloaded_at_utc") @db.Timestamptz(6)
+  errorCode           String?  @map("error_code") @db.VarChar(80)
+  errorMessage        String?  @map("error_message") @db.VarChar(480)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  siuProfile          CaseSiuProfile @relation(fields: [siuProfileId], references: [id], onDelete: Cascade)
+
+  @@index([siuProfileId, generatedAtUtc(sort: Desc)])
+  @@index([caseId, generatedAtUtc(sort: Desc)])
+  @@index([siuProfileId, exportStatus])
+  @@map("case_siu_exports")
+}
+
+// =============================================================================
+// Phase M3.2 — Insurance SIU durable saved views.
+//
+// A bounded per-team saved-view table backing custom SIU dashboards
+// in addition to the bounded preset registry shipped from
+// @proovra/shared. Workspace-scoped; bounded JSON filters + sort.
+// =============================================================================
+model CaseSiuSavedView {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String   @map("team_id") @db.Uuid
+  organizationId  String?  @map("organization_id") @db.Uuid
+  /// Bounded display name (≤120 chars).
+  name            String   @db.VarChar(120)
+  /// Bounded description (≤400 chars).
+  description     String?  @db.VarChar(400)
+  /// Bounded filter projection — interpreted by the SIU list service.
+  filterJson      Json     @map("filter_json")
+  /// Bounded sort projection (key + direction).
+  sortJson        Json     @map("sort_json")
+  /// Bounded visibility — private | team | organization.
+  visibility      String   @default("private") @db.VarChar(16)
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  lastUsedAtUtc   DateTime? @map("last_used_at_utc") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([teamId, createdByUserId, name], name: "case_siu_saved_view_team_owner_name_uniq")
+  @@index([teamId])
+  @@index([teamId, visibility])
+  @@index([createdByUserId])
+  @@index([organizationId])
+  @@map("case_siu_saved_views")
+}

@@ -1,0 +1,77 @@
+{
+  "uid": "proovra-recovery",
+  "title": "PROOVRA — Recovery",
+  "description": "DR backup + restore validation pipeline. Includes Object Lock status + signer health + custody attestation outcomes. Phase O1.2.",
+  "tags": ["proovra", "recovery", "o1.2"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "1m",
+  "timezone": "utc",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Backup validation runs",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(recovery_backup_validation_total[30m]))", "legendFormat": "backup_validate" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Restore validation runs",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(recovery_restore_validation_total[30m]))", "legendFormat": "restore_validate" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Validation failures (24h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "increase(recovery_validation_failed_total[24h])" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "text",
+      "title": "Unsupported DR domains",
+      "description": "Documented honestly in the recovery service. PROOVRA's DR scope: backup hash sampling, restore hash sampling, Object Lock readiness. NOT: full disaster-recovery rehearsal, cross-region failover, infrastructure-layer restore orchestration.",
+      "options": {
+        "content": "See `docs/operations/observability-runbooks.md#recovery-validation-failures` and the bounded `unsupportedDomains` list returned by `GET /v1/operations/recovery`."
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Recovery reports generated (24h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "increase(recovery_report_generation_total[24h])" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Signer health degraded",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(signer_health_degraded_total[15m]))", "legendFormat": "degraded" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Custody attestation verifications",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(custody_attestation_verified_total[15m]))", "legendFormat": "verified" },
+        { "expr": "sum(rate(custody_attestation_verification_failure_total[15m]))", "legendFormat": "verification_failed" }
+      ]
+    }
+  ]
+}

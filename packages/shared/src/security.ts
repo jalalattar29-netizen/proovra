@@ -280,6 +280,55 @@ export const SECURITY_EVENT_TYPES = [
   // Phase G3.1 — operator notification preferences (workspace-aware
   // toggles for the bounded set of operational event types).
   "notification_preference_updated",
+  // Phase P1.1 — identity operations completion (SCIM drift +
+  // reconciliation, SAML mapping preview/update, SSO health, bounded
+  // session identity timeline).
+  "scim_drift_scan_completed",
+  "scim_reconciliation_executed",
+  "scim_reconciliation_token_archived",
+  "scim_reconciliation_membership_suspended",
+  "scim_reconciliation_group_archived",
+  "scim_sync_replayed",
+  "saml_mapping_previewed",
+  "saml_mapping_updated",
+  "saml_mapping_privilege_warning",
+  "sso_health_checked",
+  "identity_session_timeline_viewed",
+  // Phase P2.1 — Immutable export operations + reproducibility.
+  "export_reproducibility_verified",
+  "object_lock_status_checked",
+  // Phase P2.3 — Queue operations + replay safety.
+  "queue_job_replay_attempted",
+  "queue_job_replay_forbidden",
+  "queue_job_replay_succeeded",
+  "queue_job_replay_failed",
+  "queue_worker_stalled_detected",
+  // Phase P2.5 — DR validation.
+  "backup_validation_started",
+  "backup_validation_completed",
+  "restore_validation_started",
+  "restore_validation_completed",
+  "restore_validation_failed",
+  "recovery_report_generated",
+  // Phase P3.1 — Signer governance + detached custody attestations.
+  "signer_staged",
+  "signer_health_checked",
+  "signer_health_degraded",
+  "signer_rotation_previewed",
+  "signer_promoted",
+  "signer_retired",
+  "signer_revoked",
+  "signer_signature_failure",
+  "custody_attestation_signed",
+  "custody_attestation_verified",
+  "custody_attestation_backfill_started",
+  "custody_attestation_backfill_completed",
+  // Phase P3.1.1 — Verification Package attestation closure.
+  "verification_package_attestations_included",
+  "verification_package_attestations_degraded",
+  "verification_package_attestations_missing",
+  "signer_snapshot_included",
+  "package_attestation_verification_failed",
   // Phase 27 — Retention + legal hold + lifecycle.
   "retention_policy_created",
   "retention_policy_updated",
