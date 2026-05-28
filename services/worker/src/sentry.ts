@@ -5,6 +5,27 @@ import { nodeProfilingIntegration } from "@sentry/profiling-node";
 
 let sentryReady = false;
 
+/**
+ * Phase O1.3 — Sentry / OTEL coexistence.
+ *
+ * Mirror of the API-side helper. When `OTEL_ENABLED=true`, the
+ * worker's `otel-bootstrap.ts` has already registered the global
+ * TracerProvider / ContextManager / Propagator. Sentry MUST NOT
+ * register them again, otherwise the @opentelemetry/api emits:
+ *
+ *     Attempted duplicate registration of API: trace / propagation / context
+ *
+ * in production. `skipOpenTelemetrySetup: true` is the bounded
+ * Sentry v10 escape hatch that keeps error reporting + scrubbing +
+ * sample rates while skipping the duplicate global registration.
+ *
+ * NEVER read / log the env var into output — only use it as a
+ * boolean gate.
+ */
+function isOtelEnabled(): boolean {
+  return (process.env.OTEL_ENABLED ?? "").trim().toLowerCase() === "true";
+}
+
 function readSampleRate(name: string, fallback: number): number {
   const raw = (process.env[name] ?? "").trim();
   if (raw.length === 0) return fallback;
@@ -73,6 +94,11 @@ export function initSentry() {
     (process.env.GIT_SHA ?? "").trim() ||
     undefined;
 
+  // Phase O1.3 — gate Sentry's internal OTEL setup behind
+  // OTEL_ENABLED so the worker has exactly one global provider
+  // registration path (`otel-bootstrap.ts`).
+  const skipOtelSetup = isOtelEnabled();
+
   Sentry.init({
     dsn,
     environment,
@@ -80,6 +106,11 @@ export function initSentry() {
     serverName: "proovra-worker",
     tracesSampleRate,
     profilesSampleRate,
+    // Phase O1.3 — see `isOtelEnabled()` JSDoc. Skips ONLY the
+    // OTEL provider/propagator/context global registration; error
+    // reporting, beforeSend, beforeSendTransaction, sample rates,
+    // and serverName are unaffected.
+    skipOpenTelemetrySetup: skipOtelSetup,
     integrations: [nodeProfilingIntegration()],
     beforeSendTransaction(event) {
       if (event.request?.headers) {
