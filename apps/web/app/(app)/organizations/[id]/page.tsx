@@ -251,8 +251,8 @@ function OrganizationDetailInner() {
   const safeFetch = useCallback(
     async <T,>(path: string): Promise<Loadable<T>> => {
       try {
-        const res = await apiFetch(path);
-        const data = (await res.json()) as T;
+        // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+        const data = (await apiFetch(path)) as T;
         return { kind: "ready", data };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to load.";
@@ -348,12 +348,12 @@ function OrganizationDetailInner() {
     setInviteBusy(true);
     setInviteError(null);
     try {
-      const res = await apiFetch(`/v1/orgs/${orgId}/invites`, {
+      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+      const data = (await apiFetch(`/v1/orgs/${orgId}/invites`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, role: inviteRole }),
-      });
-      const data = (await res.json()) as { token: string };
+      })) as { token: string };
       setLastInviteToken(data.token);
       setInviteEmail("");
       await fetchAll();

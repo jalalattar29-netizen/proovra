@@ -211,8 +211,8 @@ export default function AdminAuditPage() {
 
   return (
     <DashboardShell
-      eyebrow="Admin Audit"
-      title="Tamper-evident audit log and"
+      eyebrow="Platform Audit"
+      title="Tamper-evident platform audit log and"
       highlight="chain integrity."
       description={
         <>

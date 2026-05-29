@@ -97,10 +97,10 @@ export function NotificationPreferencesPanel({
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch(
+      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+      const json = (await apiFetch(
         `/v1/me/notification-preferences?teamId=${encodeURIComponent(teamId)}`,
-      );
-      const json = (await res.json()) as Response;
+      )) as Response;
       setData(json);
     } catch (err) {
       const e = err as { message?: string };

@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "../../../../../components/ui";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 
 type RelationshipItem = {
   id: string;
@@ -45,6 +46,7 @@ export function EvidenceRelationshipsSection({
   onOpenLinkedEvidence: (id: string) => void;
   onRemoveRelationship?: (relationshipId: string) => void | Promise<void>;
 }) {
+  const { confirm } = useConfirmAction();
   return (
     <section id="relationships" className="evidence-detail-card">
       <div className="evidence-detail-card-header">
@@ -120,18 +122,20 @@ export function EvidenceRelationshipsSection({
                       disabled={actionBusy}
                       data-evidence-relationship-remove={item.id}
                       onClick={() => {
-                        // Confirm before destroying the relationship.
-                        // Matches the codebase pattern used for member
-                        // removal in teams/[id]. The DELETE endpoint
-                        // is audited server-side
+                        // D-3 closure — destructive relationship removal
+                        // routed through ConfirmActionModal. The DELETE
+                        // endpoint is audited server-side
                         // (RELATIONSHIP_DELETED reviewer-audit event).
-                        if (
-                          window.confirm(
-                            `Remove the "${item.relationshipType.replace(/_/g, " ").toLowerCase()}" relationship with "${item.linkedEvidence.title}"? The linked evidence record itself is not affected.`,
-                          )
-                        ) {
-                          void onRemoveRelationship(item.id);
-                        }
+                        void (async () => {
+                          const ok = await confirm({
+                            title: "Remove this relationship?",
+                            description: `Remove the "${item.relationshipType.replace(/_/g, " ").toLowerCase()}" relationship with "${item.linkedEvidence.title}"? The linked evidence record itself is not affected.`,
+                            confirmLabel: "Remove relationship",
+                            tone: "warning",
+                            testId: "evidence-relationship-remove",
+                          });
+                          if (ok) await onRemoveRelationship(item.id);
+                        })();
                       }}
                     >
                       Remove relationship

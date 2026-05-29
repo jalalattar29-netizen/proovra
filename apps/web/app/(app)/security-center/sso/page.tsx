@@ -31,6 +31,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 // Phase P1.4 — step-up gating on certificate rotation. Cert
 // promotion replaces the active IdP cert; mistakes lock users out
 // of SSO. The backend's `enforceStepUpIfFlagged` returns 401
@@ -122,6 +123,7 @@ function SsoAdminContent() {
   const [certBusy, setCertBusy] = useState<Record<string, boolean>>({});
   const [certResult, setCertResult] = useState<Record<string, string | null>>({});
   const [certError, setCertError] = useState<Record<string, string | null>>({});
+  const { confirm } = useConfirmAction();
 
   useEffect(() => {
     if (!teamId) return;
@@ -253,10 +255,16 @@ function SsoAdminContent() {
 
   // R8.2.1 — Promote next cert to primary (rotation phase 3)
   async function handlePromoteNextCert(connectionId: string) {
-    if (!window.confirm(
-      "Promote the rotation certificate to primary? The current primary cert will be replaced. " +
-      "Only do this after confirming the IdP has switched to the new certificate.",
-    )) return;
+    const ok = await confirm({
+      title: "Promote the rotation certificate to primary?",
+      description:
+        "The current primary cert will be replaced. Only do this after confirming the IdP has switched to the new certificate. Mistakes lock users out of SSO.",
+      confirmLabel: "Promote certificate",
+      tone: "danger",
+      requireConfirmText: "PROMOTE",
+      testId: "sso-cert-promote",
+    });
+    if (!ok) return;
     setCertBusy((prev) => ({ ...prev, [connectionId]: true }));
     setCertResult((prev) => ({ ...prev, [connectionId]: null }));
     setCertError((prev) => ({ ...prev, [connectionId]: null }));

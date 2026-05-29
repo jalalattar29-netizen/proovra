@@ -129,6 +129,75 @@ export async function loginWithEmailPassword(params: {
   return user;
 }
 
+/**
+ * D-5 closure — operator-initiated password change.
+ *
+ * Requires the current password (defense against session-takeover ->
+ * silent password change). Validates the new password using the same
+ * floor as registration. Returns a discriminated result so the route
+ * layer can emit precise audit signals without leaking which branch
+ * failed back to the caller.
+ *
+ * NOTE: This service does NOT rate-limit; that is the route layer's
+ * job (IP + user-id bucket). It also does NOT decide whether to
+ * revoke other sessions — the route fans that out via
+ * `revokeAllSessionsForUser` when the caller asks.
+ */
+export type ChangePasswordResult =
+  | { ok: true }
+  | { ok: false; reason: "user_not_found" }
+  | { ok: false; reason: "not_email_user" }
+  | { ok: false; reason: "no_password_set" }
+  | { ok: false; reason: "current_password_mismatch" }
+  | { ok: false; reason: "weak_new_password" }
+  | { ok: false; reason: "same_as_current" };
+
+const MIN_NEW_PASSWORD_LEN = 12;
+
+export function isPasswordPolicyCompliant(newPassword: string): boolean {
+  if (typeof newPassword !== "string") return false;
+  if (newPassword.length < MIN_NEW_PASSWORD_LEN) return false;
+  // Require at least one lowercase, one uppercase, one digit. No
+  // exotic symbol requirement (NIST 800-63B aligned).
+  if (!/[a-z]/.test(newPassword)) return false;
+  if (!/[A-Z]/.test(newPassword)) return false;
+  if (!/\d/.test(newPassword)) return false;
+  return true;
+}
+
+export async function changePasswordForUser(params: {
+  userId: string;
+  currentPassword: string;
+  newPassword: string;
+}): Promise<ChangePasswordResult> {
+  const user = await prisma.user.findUnique({
+    where: { id: params.userId },
+  });
+  if (!user) return { ok: false, reason: "user_not_found" };
+  if (user.provider !== AuthProvider.EMAIL) {
+    return { ok: false, reason: "not_email_user" };
+  }
+  if (!user.passwordHash) {
+    return { ok: false, reason: "no_password_set" };
+  }
+  if (!verifyPassword(params.currentPassword, user.passwordHash)) {
+    return { ok: false, reason: "current_password_mismatch" };
+  }
+  if (verifyPassword(params.newPassword, user.passwordHash)) {
+    return { ok: false, reason: "same_as_current" };
+  }
+  if (!isPasswordPolicyCompliant(params.newPassword)) {
+    return { ok: false, reason: "weak_new_password" };
+  }
+
+  const newHash = hashPassword(params.newPassword);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash: newHash },
+  });
+  return { ok: true };
+}
+
 export async function createPasswordResetTokenForEmail(emailRaw: string) {
   const email = normalizeEmail(emailRaw);
 

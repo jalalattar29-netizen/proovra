@@ -5,6 +5,7 @@ import { type Locale, type LocaleMode, resolveInitialLocale, translations } from
 import { apiFetch } from "../lib/api";
 import { initSentry } from "../lib/sentry";
 import { ToastProvider } from "../components/ui";
+import { ConfirmActionProvider } from "../components/ui/ConfirmActionModal";
 import {
   getCookieConsentEventName,
   readCookieConsentState,
@@ -264,7 +265,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={authValue}>
       <LocaleContext.Provider value={localeValue}>
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <ConfirmActionProvider>{children}</ConfirmActionProvider>
+        </ToastProvider>
       </LocaleContext.Provider>
     </AuthContext.Provider>
   );

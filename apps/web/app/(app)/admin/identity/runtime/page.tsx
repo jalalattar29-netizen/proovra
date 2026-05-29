@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import {
   cardStyle,
   errorBoxStyle,
@@ -77,8 +78,8 @@ export default function IdentityRuntimePage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const { confirm } = useConfirmAction();
 
-  
 const load = useCallback(() => {
     if (!teamId) return;
     Promise.all([
@@ -202,13 +203,17 @@ const load = useCallback(() => {
       setError("Reason must be at least 8 chars.");
       return;
     }
-    if (
-      !window.confirm(
-        "This will revoke EVERY active session in this workspace. Continue?",
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Emergency org-wide session revoke?",
+      description:
+        "EVERY active session in this workspace will be terminated. All users will be signed out. This action is logged with the incident reason and cannot be undone.",
+      confirmLabel: "Revoke ALL sessions",
+      cancelLabel: "Cancel emergency",
+      tone: "danger",
+      requireConfirmText: "REVOKE ALL",
+      testId: "identity-runtime-emergency-revoke",
+    });
+    if (!ok) return;
     setBusy("emergency");
     try {
       const res = await apiFetch("/v1/admin/identity/emergency-revoke", {

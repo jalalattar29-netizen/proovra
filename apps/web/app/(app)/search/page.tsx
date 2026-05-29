@@ -28,6 +28,7 @@ import {
 } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
+import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 // -----------------------------------------------------------------------------
 // Wire-level types — kept loose so we don't drag the API SDK in here.
 // -----------------------------------------------------------------------------
@@ -188,6 +189,7 @@ function SearchInner() {
   const [savedViews, setSavedViews] = useState<SavedView[] | null>(null);
   const [savingView, setSavingView] = useState(false);
   const [qDraft, setQDraft] = useState("");
+  const { confirm } = useConfirmAction();
 
   // Phase 32.8 Foundation cleanup — initialize filter when teamId
   // resolves from the canonical platform context.
@@ -364,7 +366,14 @@ function SearchInner() {
   const deleteSavedView = useCallback(
     async (id: string) => {
       if (!teamId) return;
-      if (!window.confirm("Delete this saved view?")) return;
+      const ok = await confirm({
+        title: "Delete this saved view?",
+        description: "The view will be removed from your search rail. Existing results are not affected.",
+        confirmLabel: "Delete view",
+        tone: "warning",
+        testId: "search-saved-view-delete",
+      });
+      if (!ok) return;
       try {
         await apiFetch(
           `/v1/search/saved-views/${encodeURIComponent(

@@ -158,7 +158,7 @@ const load = useCallback(() => {
     <main style={pageStyle}>
       <header style={headerRowStyle}>
         <div>
-          <h1 style={titleStyle}>Identity Event Timeline</h1>
+          <h1 style={titleStyle}>Identity Audit</h1>
           <p style={subtitleStyle}>
             Workspace-wide identity events: SSO logins, SCIM syncs,
             session revocations, suspicious sessions, temporary

@@ -88,6 +88,10 @@ import {
   evaluateCustodyChain,
   classifyCustodyEventType,
 } from "../services/custody-events.service.js";
+// Phase O-blockers / B-4 — observable custody-append failure handler.
+// Replaces the legacy `.catch(() => null)` silent-swallow pattern.
+// See `custody-events-observability.ts` for the rationale.
+import { noteCustodyFailure } from "../services/custody-events-observability.js";
 import { buildEvidenceIntelligence } from "../services/evidence-intelligence.service.js";
 import {
   attestEvidenceCertification,
@@ -964,7 +968,7 @@ function auditEvidenceAction(
     metadata: params.metadata ?? {},
     ipAddress: req.ip,
     userAgent: readUserAgent(req),
-  }).catch(() => null);
+  }).catch(noteCustodyFailure);
 }
 
 function auditVerificationAction(
@@ -990,7 +994,7 @@ function auditVerificationAction(
     metadata: params.metadata ?? {},
     ipAddress: req.ip,
     userAgent: readUserAgent(req),
-  }).catch(() => null);
+  }).catch(noteCustodyFailure);
 }
 
 function fireEvidenceAnalyticsEvent(params: {
@@ -1012,7 +1016,7 @@ function fireEvidenceAnalyticsEvent(params: {
     metadata: params.metadata ?? {},
     req: params.req,
     skipSessionUpsert: true,
-  }).catch(() => null);
+  }).catch(noteCustodyFailure);
 }
 
 async function getUserPlan(userId: string) {
@@ -4790,7 +4794,7 @@ return {
           payload: { fromUserId: guestUserId, toUserId: userId },
           ip: req.ip,
           userAgent: req.headers["user-agent"],
-        }).catch(() => null);
+        }).catch(noteCustodyFailure);
 
         auditEvidenceAction(req, {
           userId,
@@ -4861,7 +4865,7 @@ return {
           payload: { lockedByUserId: ownerUserId },
           ip: req.ip,
           userAgent: req.headers["user-agent"],
-        }).catch(() => null);
+        }).catch(noteCustodyFailure);
 
         auditEvidenceAction(req, {
           userId: ownerUserId,
@@ -4986,7 +4990,7 @@ return {
         payload: { archivedByUserId: ownerUserId },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -5084,7 +5088,7 @@ await appendCustodyEvent({
   },
   ip: req.ip,
   userAgent: req.headers["user-agent"],
-}).catch(() => null);
+}).catch(noteCustodyFailure);
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -5213,7 +5217,7 @@ await appendCustodyEvent({
         },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -5300,7 +5304,7 @@ await appendCustodyEvent({
         payload: { restoredByUserId: ownerUserId, restoreSource: "trash" },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -5525,7 +5529,7 @@ await appendCustodyEvent({
               payload: { archivedByUserId: userId, source: "bulk" },
               ip: req.ip,
               userAgent: normalizeUserHeader(req),
-            }).catch(() => null);
+            }).catch(noteCustodyFailure);
             updatedItems.push(mapEvidenceListItem(updated));
             break;
           }
@@ -5542,7 +5546,7 @@ await appendCustodyEvent({
               payload: { restoredByUserId: userId, restoreSource: "archive_bulk" },
               ip: req.ip,
               userAgent: normalizeUserHeader(req),
-            }).catch(() => null);
+            }).catch(noteCustodyFailure);
             updatedItems.push(mapEvidenceListItem(updated));
             break;
           }
@@ -5572,7 +5576,7 @@ await appendCustodyEvent({
               },
               ip: req.ip,
               userAgent: normalizeUserHeader(req),
-            }).catch(() => null);
+            }).catch(noteCustodyFailure);
             updatedItems.push(mapEvidenceListItem(updated));
             break;
           }
@@ -5597,7 +5601,7 @@ await appendCustodyEvent({
               payload: { restoredByUserId: userId, restoreSource: "trash_bulk" },
               ip: req.ip,
               userAgent: normalizeUserHeader(req),
-            }).catch(() => null);
+            }).catch(noteCustodyFailure);
             updatedItems.push(mapEvidenceListItem(updated));
             break;
           }
@@ -5778,7 +5782,7 @@ await appendCustodyEvent({
         commentId: created.id,
         visibility: created.visibility,
       } as Prisma.InputJsonValue,
-    }).catch(() => null);
+    }).catch(noteCustodyFailure);
 
     return reply.code(201).send({
       comment: {
@@ -5833,7 +5837,7 @@ await appendCustodyEvent({
           commentId: updated.id,
           visibility: updated.visibility,
         } as Prisma.InputJsonValue,
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({
         comment: {
@@ -5881,7 +5885,7 @@ await appendCustodyEvent({
         actorUserId: userId,
         eventType: prismaPkg.EvidenceReviewerAuditEventType.COMMENT_DELETED,
         metadata: { commentId } as Prisma.InputJsonValue,
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({ deleted: true });
     }
@@ -5936,7 +5940,7 @@ await appendCustodyEvent({
         legalNoteId: created.id,
         noteType: created.noteType,
       } as Prisma.InputJsonValue,
-    }).catch(() => null);
+    }).catch(noteCustodyFailure);
 
     return reply.code(201).send({
       legalNote: {
@@ -5991,7 +5995,7 @@ await appendCustodyEvent({
           legalNoteId: updated.id,
           noteType: updated.noteType,
         } as Prisma.InputJsonValue,
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({
         legalNote: {
@@ -6039,7 +6043,7 @@ await appendCustodyEvent({
         actorUserId: userId,
         eventType: prismaPkg.EvidenceReviewerAuditEventType.LEGAL_NOTE_DELETED,
         metadata: { legalNoteId: noteId } as Prisma.InputJsonValue,
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({ deleted: true });
     }
@@ -6118,7 +6122,7 @@ await appendCustodyEvent({
         annotationType: created.annotationType,
         evidencePartId: created.evidencePartId ?? null,
       } as Prisma.InputJsonValue,
-    }).catch(() => null);
+    }).catch(noteCustodyFailure);
 
     return reply.code(201).send({
       annotation: {
@@ -6197,7 +6201,7 @@ await appendCustodyEvent({
           annotationType: updated.annotationType,
           evidencePartId: updated.evidencePartId ?? null,
         } as Prisma.InputJsonValue,
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({
         annotation: {
@@ -6256,7 +6260,7 @@ await appendCustodyEvent({
         actorUserId: userId,
         eventType: prismaPkg.EvidenceReviewerAuditEventType.ANNOTATION_DELETED,
         metadata: { annotationId } as Prisma.InputJsonValue,
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({ deleted: true });
     }
@@ -6509,7 +6513,7 @@ await appendCustodyEvent({
           priority: body.priority ?? undefined,
           dueAt: body.dueAt ?? undefined,
         } as Prisma.InputJsonValue,
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       return reply.code(200).send(summary);
     }
@@ -6599,7 +6603,7 @@ await appendCustodyEvent({
           targetEvidenceId: target.id,
           relationshipType: relationship.relationshipType,
         } as Prisma.InputJsonValue,
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       return reply.code(201).send({
         relationshipId: relationship.id,
@@ -6646,7 +6650,7 @@ await appendCustodyEvent({
           relationshipId,
           relationshipType: body.relationshipType ?? undefined,
         } as Prisma.InputJsonValue,
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({
         items: await listEvidenceRelationships(id),
@@ -6684,7 +6688,7 @@ await appendCustodyEvent({
         actorUserId: userId,
         eventType: prismaPkg.EvidenceReviewerAuditEventType.RELATIONSHIP_DELETED,
         metadata: { relationshipId } as Prisma.InputJsonValue,
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({ deleted: true });
     }
@@ -6888,7 +6892,7 @@ await appendCustodyEvent({
           status: persisted.status,
           model: persisted.model ?? null,
         } as Prisma.InputJsonValue,
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({
         categorization: {
@@ -8103,7 +8107,7 @@ try {
               },
               ip: req.ip,
               userAgent: req.headers["user-agent"],
-            }).catch(() => null);
+            }).catch(noteCustodyFailure);
             const statusCode =
               decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 409;
             return reply.code(statusCode).send({
@@ -8128,7 +8132,7 @@ try {
   } as Prisma.InputJsonValue,
   ip: req.ip,
   userAgent: req.headers["user-agent"],
-}).catch(() => null);
+}).catch(noteCustodyFailure);
 
         // Initialize the EvidenceReviewWorkflow at NOT_STARTED so the
         // evidence shows up in the reviewer queue immediately on completion.
@@ -8704,7 +8708,7 @@ if (
               },
               ip: req.ip,
               userAgent: req.headers["user-agent"],
-            }).catch(() => null);
+            }).catch(noteCustodyFailure);
             return reply
               .code(decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
               .send({
@@ -8773,7 +8777,7 @@ limitationsSnapshot: true,
         payload: { reportVersion: latest.version },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -8910,7 +8914,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
             },
             ip: req.ip,
             userAgent: req.headers["user-agent"],
-          }).catch(() => null);
+          }).catch(noteCustodyFailure);
           return reply
             .code(decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
             .send({
@@ -8968,7 +8972,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -9125,7 +9129,7 @@ displayName: resolvedDisplayName,
               },
               ip: req.ip,
               userAgent: req.headers["user-agent"],
-            }).catch(() => null);
+            }).catch(noteCustodyFailure);
             return reply
               .code(decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
               .send({
@@ -9279,7 +9283,7 @@ displayName: resolvedDisplayName,
         },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
-      }).catch(() => null);
+      }).catch(noteCustodyFailure);
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -9370,7 +9374,7 @@ void appendCustodyEvent({
   } as Prisma.InputJsonValue,
   ip: req.ip,
   userAgent: req.headers["user-agent"],
-}).catch(() => null);
+}).catch(noteCustodyFailure);
         auditEvidenceAction(req, {
           userId: ownerUserId,
 action: "evidence.certification_requested",
@@ -9426,7 +9430,7 @@ action: "evidence.certification_requested",
           } as Prisma.InputJsonValue,
           ip: req.ip,
           userAgent: req.headers["user-agent"],
-        }).catch(() => null);
+        }).catch(noteCustodyFailure);
 
         auditEvidenceAction(req, {
           userId: ownerUserId,

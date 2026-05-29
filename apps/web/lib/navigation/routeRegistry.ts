@@ -658,21 +658,10 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: true,
   },
-  {
-    id: "dashboard.api_keys",
-    href: "/dashboard/api-keys",
-    label: "API keys",
-    description: "Workspace API keys and rate-limit settings.",
-    domain: "PERSONAL_WORKSPACE",
-    requiredCapabilities: ["SETTINGS_VIEW"],
-    requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
-    advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
-    sidebarEligible: false,
-  },
+  // Phase Final-A3-PT2 — `/dashboard/api-keys` retired. The canonical
+  // surface is `/integrations` (team-scoped, durable, audit-backed).
+  // The old route now redirects via `next.config.js`. Registry entry
+  // removed so cmd-K + "all tools" no longer surface it.
   {
     id: "dashboard.quotas",
     href: "/dashboard/quotas",
@@ -782,12 +771,17 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // ---------------------------------------------------------------------------
   // ORGANIZATION-only operator surfaces.
   // ---------------------------------------------------------------------------
-  // Phase B — Phase C0 made `/review` the canonical reviewer console
-  // (Queue · Mine · Escalations · SLA · Workload). The legacy
-  // `/reviewer-ops` per-workflow inspector continues to exist (still the
-  // canonical mutation surface for individual reviews) but the operator
-  // entry-point is now `/review`. Phase B registers both so navigation
-  // and All Tools can surface them with their correct semantics.
+  // Phase Final-Vocab-Alignment — `/review` is the single canonical
+  // reviewer console (Queue · Mine · Escalations · SLA · Workload).
+  // The legacy `/reviewer-ops` index has been retired:
+  //   * the page file was deleted
+  //   * `next.config.js` redirects `/reviewer-ops` → `/review`
+  //   * the legacy registry entry below was removed so cmd-K + "all
+  //     tools" no longer surface a competing reviewer entry-point
+  // The per-workflow mutation inspector `/reviewer-ops/[reviewId]` is
+  // a DIFFERENT surface and remains. The SLA / escalations sub-routes
+  // also remain at their canonical `/reviewer-ops/*` paths and are
+  // registered separately below.
   {
     id: "workspace.review",
     href: "/review",
@@ -803,20 +797,30 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: true,
   },
+  // Phase Final-Vocab-Alignment — `review.queue` retained as an id
+  // because the sidebar (AppSidebarV2), hub landing routes
+  // (hubDefinitions.ts), persona priority lists, the disclosure model,
+  // and the permission matrix all reference it. Its `href` now points
+  // at the canonical `/review` console (the old `/reviewer-ops` index
+  // was deleted and redirects to `/review` via next.config.js). To
+  // avoid two competing sidebar entries with the same href, this
+  // entry is `commandPaletteVisible: false` + `sidebarEligible: false`
+  // — it is a pure id-binding kept for backward compatibility with
+  // the persona/hub machinery.
   {
     id: "review.queue",
-    href: "/reviewer-ops",
-    label: "Reviewer queues",
-    description: "Legacy reviewer queues + per-workflow inspector (still the canonical mutation surface).",
+    href: "/review",
+    label: "Reviewer queue",
+    description: "Reviewer queue (canonical surface; legacy /reviewer-ops index redirects here).",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "CREATE_ORG",
     workflowTags: ["REVIEW_OPERATIONS", "OPERATIONAL_ADMINISTRATION"],
-    advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
-    sidebarEligible: true,
+    advancedByDefault: false,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
   },
   // Phase B — Phase 13 per-evidence review operations queue.
   {

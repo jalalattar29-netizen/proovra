@@ -50,7 +50,18 @@ export type CaseMutation =
   | "COMMENT"
   | "COMMENT_RESOLVE"
   | "EVIDENCE_LINK"
-  | "EVIDENCE_UNLINK_LEGACY";
+  | "EVIDENCE_UNLINK_LEGACY"
+  // Phase O-blockers / A-1 — destructive case mutation. Tighter than
+  // every other action in this matrix: ONLY workspace OWNER or ADMIN
+  // (or, for personal cases, the synthetic owner returned by
+  // `requireCaseAccess`) may delete a case. Reviewer / assigned
+  // INVESTIGATOR / MEMBER all receive 403.
+  | "DELETE"
+  // Phase O-blockers / A-1 sister — rename / settings PATCH carries
+  // identical destructive-attribute risk to DELETE (e.g., changing
+  // title obscures audit). Reuses the same OWNER/ADMIN gate so the
+  // matrix is the single source of truth.
+  | "MANAGE_SETTINGS";
 
 /**
  * The narrow role surface this helper accepts. `requireCaseAccess`
@@ -187,6 +198,19 @@ export function evaluateCaseMutationPermission(input: {
         reason: "A non-viewer team role or an active case assignment is required to resolve comments.",
       };
 
+    case "DELETE":
+    case "MANAGE_SETTINGS":
+      // Phase O-blockers / A-1 — destructive: workspace OWNER or
+      // ADMIN only. The synthetic "OWNER" returned for personal
+      // cases by `requireCaseAccess` IS allowed (personal owner can
+      // delete their own case). VIEWER was already rejected above.
+      // MEMBER and CaseAssignment-only access are explicitly denied.
+      if (isOwnerOrAdmin) return { allowed: true };
+      return {
+        allowed: false,
+        reason: "Only workspace OWNER or ADMIN may delete or rename a case.",
+      };
+
     default:
       // Exhaustiveness — TypeScript catches missing cases at build.
       return {
@@ -229,6 +253,123 @@ export type CaseViewerCapabilities = {
     resolveComment: string;
   }>;
 };
+
+/**
+ * Phase O-blockers / A-1 + A-2 — single helper that resolves the
+ * caller's CaseAccessRole for a `Case` row AND runs the destructive
+ * mutation gate in one shot. Used by `DELETE /v1/cases/:id` and
+ * `PATCH /v1/cases/:id` to enforce OWNER/ADMIN-only access.
+ *
+ * Returns the resolved `accessRole` so the audit log can record the
+ * caller's actual privilege level (helps the security team trace
+ * REVIEWER / MEMBER attempts).
+ */
+export type CaseRowForGate = {
+  id: string;
+  ownerUserId: string | null;
+  teamId: string | null;
+};
+
+export type DestructiveGateResult =
+  | { allowed: true; accessRole: CaseAccessRole }
+  | { allowed: false; reason: string; accessRole: CaseAccessRole | "NONE" };
+
+export async function resolveCaseDestructiveGate(input: {
+  caseRow: CaseRowForGate;
+  userId: string;
+  mutation: "DELETE" | "MANAGE_SETTINGS";
+}): Promise<DestructiveGateResult> {
+  const { caseRow, userId, mutation } = input;
+
+  // Personal case (no teamId): only the case owner is privileged
+  // (synthetic OWNER). Anyone else is denied with no access role.
+  if (!caseRow.teamId) {
+    if (caseRow.ownerUserId === userId) {
+      const result = evaluateCaseMutationPermission({
+        mutation,
+        accessRole: "OWNER",
+        assignmentRoles: [],
+      });
+      if (result.allowed) {
+        return { allowed: true, accessRole: "OWNER" };
+      }
+      return {
+        allowed: false,
+        reason: result.reason,
+        accessRole: "OWNER",
+      };
+    }
+    return {
+      allowed: false,
+      reason: "Personal cases can only be modified by their owner.",
+      accessRole: "NONE",
+    };
+  }
+
+  // Team case: look up the caller's workspace role.
+  const member = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId: caseRow.teamId, userId } },
+  });
+  if (!member) {
+    return {
+      allowed: false,
+      reason: "Caller is not a member of the case's workspace.",
+      accessRole: "NONE",
+    };
+  }
+  const accessRole = member.role as CaseAccessRole;
+  const result = evaluateCaseMutationPermission({
+    mutation,
+    accessRole,
+    assignmentRoles: [],
+  });
+  if (result.allowed) {
+    return { allowed: true, accessRole };
+  }
+  return { allowed: false, reason: result.reason, accessRole };
+}
+
+/**
+ * Phase O-blockers / A-2 — Cross-team evidence attach guard. Returns
+ * `{ allowed: false, reason }` when the evidence row's `teamId` does
+ * not match the case row's `teamId`. The handler emits a
+ * `CROSS_TEAM_ATTACH_BLOCKED` audit event on rejection so the
+ * security team can investigate. Personal-case attachment (case has
+ * `teamId === null`) is allowed only when the evidence is also
+ * personal (`teamId === null`) — otherwise we'd leak team-scoped
+ * evidence into a personal case.
+ */
+export function evaluateCrossTeamAttach(input: {
+  caseTeamId: string | null;
+  evidenceTeamId: string | null;
+}): { allowed: true } | { allowed: false; reason: string; code: string } {
+  if (input.caseTeamId === input.evidenceTeamId) {
+    return { allowed: true };
+  }
+  // The strict UUID equality above means null-vs-uuid is also blocked.
+  if (input.caseTeamId === null) {
+    return {
+      allowed: false,
+      reason:
+        "Cannot attach team-scoped evidence to a personal case. Personal cases may only hold personal evidence.",
+      code: "CROSS_TEAM_ATTACH_BLOCKED",
+    };
+  }
+  if (input.evidenceTeamId === null) {
+    return {
+      allowed: false,
+      reason:
+        "Cannot attach personal evidence to a team case. Move the evidence into the workspace first.",
+      code: "CROSS_TEAM_ATTACH_BLOCKED",
+    };
+  }
+  return {
+    allowed: false,
+    reason:
+      "Evidence and case belong to different workspaces. Cross-workspace attachment is not permitted.",
+    code: "CROSS_TEAM_ATTACH_BLOCKED",
+  };
+}
 
 export function resolveCaseViewerCapabilities(input: {
   accessRole: CaseAccessRole;

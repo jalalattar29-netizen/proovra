@@ -636,6 +636,14 @@ export const COUNTER_NAMES = [
   // Public verify custody-chain debounced VERIFY_VIEWED accounting:
   "public_verify_viewed_emitted_total",
   "public_verify_viewed_debounced_total",
+  // Phase O-blockers / B-4 — custody-event append failures. Bumped by
+  // `swallowCustodyAppendError` whenever a best-effort
+  // `appendCustodyEvent(...)` promise rejects on a mutating route.
+  // The mutating action still completes (custody append is
+  // intentionally non-blocking on those routes), but the failure is
+  // no longer silent: structured log + this counter + bounded
+  // forensic detail for the SRE team.
+  "custody_event_append_failed_total",
 ] as const;
 export type CounterName = (typeof COUNTER_NAMES)[number];
 

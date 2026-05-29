@@ -37,8 +37,11 @@ import {
   otsUpgradeQueue,
   otsUpgradeQueueName,
   purgeDeletedEvidenceJobName,
+  mediaIntelligenceDlqQueue,
+  mediaIntelligenceDlqQueueName,
   redisConnection,
   reportDlqQueue,
+  reportDlqQueueName,
   reportQueue,
   reportQueueName,
   searchIndexingQueue,
@@ -1069,10 +1072,40 @@ function stopObservabilityHeartbeat() {
 
 async function sampleQueueHealthOnce() {
   try {
+    // Phase Final-Worker-Visibility — heartbeat sampler now covers
+    // EVERY live queue declared in `queue.ts`. Prior to this change
+    // the sampler reported only `report` / `ots-upgrade` /
+    // `evidence-purge`, so the 11 newer queues (`mi-*`, `graph-*`,
+    // `org-health-refresh`, `search-indexing`, `media-intelligence`,
+    // `mi-derived-assets`) were invisible to ops via the heartbeat
+    // signal. The dedicated `worker_telemetry_snapshots` sampler
+    // already covered them but the heartbeat log line was misleading.
+    //
+    // `mi-ocr` / `mi-transcript` are intentionally listed even though
+    // no producer ships today — the sample will return zeros, which
+    // is the truthful operator signal ("nothing using OCR/transcript
+    // right now" vs "I don't see them at all").
     const snapshot = await snapshotQueueHealth([
       { name: reportQueueName, queue: reportQueue },
+      { name: reportDlqQueueName, queue: reportDlqQueue },
       { name: otsUpgradeQueueName, queue: otsUpgradeQueue },
       { name: evidencePurgeQueueName, queue: evidencePurgeQueue },
+      { name: searchIndexingQueueName, queue: searchIndexingQueue },
+      { name: mediaIntelligenceQueueName, queue: mediaIntelligenceQueue },
+      { name: mediaIntelligenceDlqQueueName, queue: mediaIntelligenceDlqQueue },
+      { name: derivedAssetsQueueName, queue: derivedAssetsQueue },
+      { name: exifQueueName, queue: exifQueue },
+      { name: ocrQueueName, queue: ocrQueue },
+      { name: transcriptQueueName, queue: transcriptQueue },
+      { name: miSearchIndexQueueName, queue: miSearchIndexQueue },
+      { name: graphReconcileQueueName, queue: graphReconcileQueue },
+      { name: graphDomainSyncQueueName, queue: graphDomainSyncQueue },
+      { name: graphTimelineSyncQueueName, queue: graphTimelineSyncQueue },
+      {
+        name: graphSearchProjectionQueueName,
+        queue: graphSearchProjectionQueue,
+      },
+      { name: orgHealthRefreshQueueName, queue: orgHealthRefreshQueue },
     ]);
     lastQueueHealthSample = snapshot;
     logger.info(

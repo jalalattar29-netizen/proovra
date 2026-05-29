@@ -19,6 +19,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import {
   badgeStyle,
   cardStyle,
@@ -84,6 +85,7 @@ export default function SessionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [timelineFor, setTimelineFor] = useState<string | null>(null);
+  const { confirm } = useConfirmAction();
 
   const load = useCallback(() => {
     if (!teamId) return;
@@ -111,7 +113,15 @@ export default function SessionsPage() {
   const revoke = useCallback(
     async (id: string) => {
       if (!teamId) return;
-      if (!window.confirm("Revoke this session?")) return;
+      const ok = await confirm({
+        title: "Revoke this session?",
+        description:
+          "The user will be signed out from this device immediately. They can sign back in if their account is otherwise active.",
+        confirmLabel: "Revoke session",
+        tone: "danger",
+        testId: "identity-session-revoke",
+      });
+      if (!ok) return;
       setBusy(id);
       try {
         await apiFetch(
@@ -140,13 +150,14 @@ export default function SessionsPage() {
   const revokeAllForUser = useCallback(
     async (userId: string) => {
       if (!teamId) return;
-      if (
-        !window.confirm(
-          `Revoke ALL sessions for user ${userId.slice(0, 12)}…? This will require step-up.`,
-        )
-      ) {
-        return;
-      }
+      const ok = await confirm({
+        title: "Revoke ALL sessions for this user?",
+        description: `User ${userId.slice(0, 12)}… will be signed out from every device. This requires step-up authentication on the next request.`,
+        confirmLabel: "Revoke all sessions",
+        tone: "danger",
+        testId: "identity-session-revoke-all-for-user",
+      });
+      if (!ok) return;
       setBusy(`all-${userId}`);
       try {
         await apiFetch(

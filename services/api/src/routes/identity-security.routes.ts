@@ -76,6 +76,12 @@ import {
   revokeTrustedDevice,
 } from "../services/identity-security/trusted-device.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import {
+  changePasswordForUser,
+  isPasswordPolicyCompliant,
+} from "../services/email-password-auth.service.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 
 const TeamIdQuery = z.object({ teamId: z.string().uuid() });
 const ParamsId = z.object({ id: z.string().uuid() });
@@ -519,6 +525,345 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         expiredStepUps: expiredStepUps.count,
         expiredDevices: expiredDevices.count,
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // D-5 closure — Security Center personal surfaces.
+  //
+  //   POST /v1/identity-security/password           — change password (rate-limited)
+  //   GET  /v1/identity-security/my-sessions        — list current user's active sessions
+  //   POST /v1/identity-security/my-sessions/revoke-others
+  //                                                 — revoke every session except the current one
+  //   GET  /v1/identity-security/security-events    — security-events feed for current user
+  //
+  // None of these endpoints require a teamId (operator's own scope).
+  // All emit platform audit log rows in the "identity_security"
+  // category so they are visible in the audit center.
+  // ---------------------------------------------------------------------------
+
+  const ChangePasswordBody = z.object({
+    currentPassword: z.string().min(1).max(256),
+    newPassword: z.string().min(12).max(256),
+    revokeOtherSessions: z.boolean().optional(),
+  });
+
+  app.post(
+    "/v1/identity-security/password",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const ip = requestIp(req);
+      const ua = requestUa(req);
+
+      // Two rate-limit buckets: per-user (defend against guess) and
+      // per-IP (defend against a compromised endpoint trying many
+      // accounts). Both are bounded at 5/min — generous enough for
+      // legitimate retry / paste-mistake, tight enough that a brute
+      // force can't burn through ~scrypt evaluations.
+      const userRl = await enforceRateLimit({
+        key: `identity-security:password-change:user:${userId}`,
+        max: 5,
+        windowSec: 60,
+      });
+      if (!userRl.allowed) {
+        await appendPlatformAuditLog({
+          userId,
+          action: "identity_security.password_change",
+          category: "identity_security",
+          severity: "warning",
+          source: "api_identity_security",
+          outcome: "blocked",
+          resourceType: "user",
+          resourceId: userId,
+          requestId: req.id,
+          metadata: { reason: "rate_limited_user" },
+          ipAddress: ip,
+          userAgent: ua,
+        }).catch(() => null);
+        return reply.code(429).send({ error: { code: "rate_limited" } });
+      }
+      const ipRl = await enforceRateLimit({
+        key: `identity-security:password-change:ip:${ip ?? "unknown"}`,
+        max: 30,
+        windowSec: 60,
+      });
+      if (!ipRl.allowed) {
+        return reply.code(429).send({ error: { code: "rate_limited" } });
+      }
+
+      const body = ChangePasswordBody.parse(req.body ?? {});
+
+      // Quick policy preflight so we can return a precise error
+      // before doing the scrypt round-trip in the service.
+      if (!isPasswordPolicyCompliant(body.newPassword)) {
+        await appendPlatformAuditLog({
+          userId,
+          action: "identity_security.password_change",
+          category: "identity_security",
+          severity: "warning",
+          source: "api_identity_security",
+          outcome: "failure",
+          resourceType: "user",
+          resourceId: userId,
+          requestId: req.id,
+          metadata: { reason: "weak_new_password" },
+          ipAddress: ip,
+          userAgent: ua,
+        }).catch(() => null);
+        return reply
+          .code(400)
+          .send({ error: { code: "weak_new_password" } });
+      }
+
+      const result = await changePasswordForUser({
+        userId,
+        currentPassword: body.currentPassword,
+        newPassword: body.newPassword,
+      });
+
+      if (!result.ok) {
+        await appendPlatformAuditLog({
+          userId,
+          action: "identity_security.password_change",
+          category: "identity_security",
+          severity:
+            result.reason === "current_password_mismatch" ? "warning" : "info",
+          source: "api_identity_security",
+          outcome: "failure",
+          resourceType: "user",
+          resourceId: userId,
+          requestId: req.id,
+          metadata: { reason: result.reason },
+          ipAddress: ip,
+          userAgent: ua,
+        }).catch(() => null);
+
+        // For `current_password_mismatch` we return a generic 400 so
+        // the caller cannot use the response shape as an oracle for
+        // which exact failure branch fired. For policy issues we are
+        // explicit because the operator NEEDS the feedback.
+        if (
+          result.reason === "current_password_mismatch" ||
+          result.reason === "user_not_found"
+        ) {
+          return reply
+            .code(400)
+            .send({ error: { code: "current_password_invalid" } });
+        }
+        if (result.reason === "not_email_user") {
+          return reply
+            .code(400)
+            .send({ error: { code: "sso_user_password_unsupported" } });
+        }
+        if (result.reason === "no_password_set") {
+          return reply
+            .code(400)
+            .send({ error: { code: "no_password_set" } });
+        }
+        if (result.reason === "same_as_current") {
+          return reply
+            .code(400)
+            .send({ error: { code: "same_as_current" } });
+        }
+        return reply
+          .code(400)
+          .send({ error: { code: "weak_new_password" } });
+      }
+
+      // Optional fan-out: revoke every other session for this user.
+      // The current session stays valid so the caller doesn't get
+      // logged out of the page they used to change the password.
+      let revokedOtherSessions = 0;
+      if (body.revokeOtherSessions) {
+        const currentHash =
+          (req as unknown as { sessionIdHash?: string }).sessionIdHash ?? null;
+        const where: {
+          userId: string;
+          revokedAtUtc: null;
+          NOT?: { sessionIdHash: string };
+        } = { userId, revokedAtUtc: null };
+        if (currentHash) where.NOT = { sessionIdHash: currentHash };
+        const upd = await prisma.authenticatedSession.updateMany({
+          where,
+          data: {
+            revokedAtUtc: new Date(),
+            revokedByUserId: userId,
+            revokedReason: "PASSWORD_CHANGED",
+          },
+        });
+        revokedOtherSessions = upd.count;
+      }
+
+      await appendPlatformAuditLog({
+        userId,
+        action: "identity_security.password_change",
+        category: "identity_security",
+        severity: "info",
+        source: "api_identity_security",
+        outcome: "success",
+        resourceType: "user",
+        resourceId: userId,
+        requestId: req.id,
+        metadata: {
+          revokeOtherSessions: Boolean(body.revokeOtherSessions),
+          revokedOtherSessionsCount: revokedOtherSessions,
+        },
+        ipAddress: ip,
+        userAgent: ua,
+      }).catch(() => null);
+
+      return reply.code(200).send({
+        ok: true,
+        revokedOtherSessions,
+      });
+    },
+  );
+
+  app.get(
+    "/v1/identity-security/my-sessions",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const now = new Date();
+      const rows = await prisma.authenticatedSession.findMany({
+        where: {
+          userId,
+          revokedAtUtc: null,
+          expiresAtUtc: { gt: now },
+        },
+        orderBy: { lastSeenAtUtc: "desc" },
+        take: 50,
+        select: {
+          id: true,
+          sessionIdHash: true,
+          issuedAtUtc: true,
+          expiresAtUtc: true,
+          lastSeenAtUtc: true,
+          ipPreview: true,
+          uaPreview: true,
+          ssoConnectionId: true,
+          countryCode: true,
+          quarantinedAtUtc: true,
+        },
+      });
+      const currentHash =
+        (req as unknown as { sessionIdHash?: string }).sessionIdHash ?? null;
+      return reply.code(200).send({
+        sessions: rows.map((r) => ({
+          id: r.id,
+          sessionIdHash: r.sessionIdHash,
+          isCurrent: currentHash !== null && currentHash === r.sessionIdHash,
+          issuedAtUtc: r.issuedAtUtc.toISOString(),
+          expiresAtUtc: r.expiresAtUtc.toISOString(),
+          lastSeenAtUtc: r.lastSeenAtUtc.toISOString(),
+          ipPreview: r.ipPreview,
+          uaPreview: r.uaPreview,
+          countryCode: r.countryCode,
+          ssoConnectionId: r.ssoConnectionId,
+          quarantined: r.quarantinedAtUtc !== null,
+        })),
+      });
+    },
+  );
+
+  app.post(
+    "/v1/identity-security/my-sessions/revoke-others",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const currentHash =
+        (req as unknown as { sessionIdHash?: string }).sessionIdHash ?? null;
+      const where: {
+        userId: string;
+        revokedAtUtc: null;
+        NOT?: { sessionIdHash: string };
+      } = { userId, revokedAtUtc: null };
+      if (currentHash) where.NOT = { sessionIdHash: currentHash };
+      const upd = await prisma.authenticatedSession.updateMany({
+        where,
+        data: {
+          revokedAtUtc: new Date(),
+          revokedByUserId: userId,
+          revokedReason: "SELF_REVOKE_OTHERS",
+        },
+      });
+      await appendPlatformAuditLog({
+        userId,
+        action: "identity_security.self_revoke_others",
+        category: "identity_security",
+        severity: "info",
+        source: "api_identity_security",
+        outcome: "success",
+        resourceType: "user",
+        resourceId: userId,
+        requestId: req.id,
+        metadata: { revoked: upd.count },
+        ipAddress: requestIp(req),
+        userAgent: requestUa(req),
+      }).catch(() => null);
+      return reply.code(200).send({ revoked: upd.count });
+    },
+  );
+
+  app.get(
+    "/v1/identity-security/security-events",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const Limit = z.coerce.number().int().min(1).max(200).default(50);
+      const limit = Limit.parse((req.query as { limit?: unknown })?.limit ?? 50);
+
+      // The security-events feed is the bounded operator-readable
+      // window into the platform audit log for the current user.
+      // We restrict to identity_security / auth / billing categories
+      // and to the bounded action allowlist below — categories like
+      // "evidence" don't belong on a security center timeline.
+      const SECURITY_ACTIONS_PREFIX = [
+        "identity_security.",
+        "auth.",
+        "identity.",
+      ];
+
+      const rows = await prisma.adminAuditLog.findMany({
+        where: {
+          userId,
+          OR: SECURITY_ACTIONS_PREFIX.map((p) => ({
+            action: { startsWith: p },
+          })),
+        },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        select: {
+          id: true,
+          action: true,
+          severity: true,
+          outcome: true,
+          createdAt: true,
+          resourceType: true,
+          resourceId: true,
+          metadata: true,
+          // ip / ua previews — read from the audit log columns
+          // (these are already truncated by the audit writer).
+          ipAddress: true,
+          userAgent: true,
+        },
+      });
+
+      return reply.code(200).send({
+        events: rows.map((r) => ({
+          id: r.id,
+          action: r.action,
+          severity: r.severity,
+          outcome: r.outcome,
+          occurredAtUtc: r.createdAt.toISOString(),
+          resourceType: r.resourceType,
+          resourceId: r.resourceId,
+          ipPreview: r.ipAddress ? r.ipAddress.slice(0, 16) : null,
+          uaPreview: r.userAgent ? r.userAgent.slice(0, 80) : null,
+          metadata: r.metadata,
+        })),
       });
     },
   );

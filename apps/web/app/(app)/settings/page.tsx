@@ -14,7 +14,10 @@ import { openCookiePreferences } from "../../../lib/consent";
 import { useAuth, useLocale } from "../../providers";
 import { usePlatformContext } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-import { AccountSecurityCard } from "./components/AccountSecurityCard";
+// Phase Final-D5-PT2 — `AccountSecurityCard` retired. Personal security
+// (password change, active sessions, security events) now lives at the
+// canonical `/security-center` route. The Security card below is a
+// link-card pointing operators there.
 
 type BillingStatusResponse = {
   entitlement?: { plan?: string | null } | null;
@@ -907,12 +910,40 @@ onClick={(e) => {
                 </div>
               </Card>
 
-              {/* Phase 2.3 — Account security surface (MFA enroll/disable,
-                  recovery codes, password reset, sign-out everywhere).
-                  Workspace-wide security (org MFA policy, SSO, SCIM)
-                  lives in /security-center and is linked from the MFA
-                  AccessGate when admin-controlled. */}
-              <AccountSecurityCard userEmail={user?.email ?? null} />
+              {/* Phase Final-D5-PT2 — Personal security operations
+                  (password change, active sessions, sign-out everywhere,
+                  MFA enrollment, security event feed) live in the
+                  canonical Security Center. The card below is a link
+                  card; no parallel surface here. */}
+              <Card
+                className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                style={cardShellStyle()}
+                data-cc-security-link-card
+              >
+                <div className="settings-silver-card__bg" />
+                <div className="settings-silver-card__overlay" />
+
+                <div className="settings-silver-card__content p-6 md:p-7">
+                  {sectionHeader(<Icons.Security />, "Security Center")}
+
+                  <div className="grid gap-4">
+                    <p className="m-0 text-[13px] text-[#5d6d71]">
+                      Change your password, review active sessions, sign
+                      out of other devices, manage MFA, and view recent
+                      security events.
+                    </p>
+
+                    <Link href="/security-center">
+                      <Button
+                        variant="secondary"
+                        className={`${velvetButtonClass()} settings-primary-btn`}
+                      >
+                        Open Security Center
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </Card>
 
               <Card
                 className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"

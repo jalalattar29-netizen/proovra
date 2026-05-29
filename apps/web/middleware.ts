@@ -185,7 +185,57 @@ export function middleware(req: NextRequest) {
     }
 
     // web app-pages -> app host
-    const APP_PREFIXES = ["/home", "/capture", "/cases", "/teams", "/reports", "/billing", "/settings"];
+    // Phase Final-Vocab-Alignment — APP_PREFIXES brought in line with the
+    // live `app/(app)/` page tree. Operators hitting any of these on
+    // the marketing host get punted to the app host. Order does not
+    // matter (we use `some(...)`). Routes intentionally NOT in this
+    // list:
+    //   * `/auth` — auth callback lives on the app host already
+    //   * `/share/[id]`, `/verify/[token]`, `/verify/demo`,
+    //     `/offline-verifier`, `/intake/[token]`, `/release-notes` —
+    //     public surfaces that live on the marketing host
+    //   * `/admin`, `/ops`, `/operations`, `/reviewer-ops`,
+    //     `/governance`, `/integrations`, `/intelligence`,
+    //     `/investigation`, `/security-center`, `/intake-links`,
+    //     `/search`, `/communications`, `/collaboration`,
+    //     `/notifications`, `/inbox`, `/identity`, `/organizations`,
+    //     `/workflows`, `/evidence`, `/evidence-requests`, `/review`,
+    //     `/workspaces`, `/tools`, `/persona` — all live under
+    //     `app/(app)/` and therefore on the app host.
+    const APP_PREFIXES = [
+      "/home",
+      "/capture",
+      "/cases",
+      "/teams",
+      "/reports",
+      "/billing",
+      "/settings",
+      "/admin",
+      "/ops",
+      "/operations",
+      "/review",
+      "/reviewer-ops",
+      "/governance",
+      "/integrations",
+      "/intelligence",
+      "/investigation",
+      "/security-center",
+      "/intake-links",
+      "/search",
+      "/communications",
+      "/collaboration",
+      "/notifications",
+      "/inbox",
+      "/identity",
+      "/organizations",
+      "/workflows",
+      "/evidence",
+      "/evidence-requests",
+      "/workspaces",
+      "/tools",
+      "/persona",
+      "/dashboard",
+    ];
     const isAppPath = APP_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
     if (isWebHost && isAppPath && appBaseUrl) {

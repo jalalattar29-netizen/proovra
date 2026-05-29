@@ -1,5 +1,5 @@
 {
-  "generatedAtUtc": "2026-05-29T01:35:17.028Z",
+  "generatedAtUtc": "2026-05-29T03:44:13.017Z",
   "entries": [
     {
       "migration": "20260404193000_add_analytics_tables",
@@ -168,7 +168,67 @@
       "identifier": "userId",
       "altSnake": "user_id",
       "detail": "Migration uses quoted camelCase identifier \"userId\". PROOVRA's convention is snake_case (Prisma @map)."
+    },
+    {
+      "migration": "20261007000000_phase_o_live_schema_compatibility_repair",
+      "identifier": "teamId",
+      "altSnake": "team_id",
+      "detail": "Migration uses quoted camelCase identifier \"teamId\". PROOVRA's convention is snake_case (Prisma @map)."
+    },
+    {
+      "migration": "20261007000000_phase_o_live_schema_compatibility_repair",
+      "identifier": "filtersJson",
+      "altSnake": "filters_json",
+      "detail": "Migration uses quoted camelCase identifier \"filtersJson\". PROOVRA's convention is snake_case (Prisma @map)."
+    },
+    {
+      "migration": "20261007000000_phase_o_live_schema_compatibility_repair",
+      "identifier": "ownerUserId",
+      "altSnake": "owner_user_id",
+      "detail": "Migration uses quoted camelCase identifier \"ownerUserId\". PROOVRA's convention is snake_case (Prisma @map)."
+    },
+    {
+      "migration": "20261007000000_phase_o_live_schema_compatibility_repair",
+      "identifier": "incidentId",
+      "altSnake": "incident_id",
+      "detail": "Migration uses quoted camelCase identifier \"incidentId\". PROOVRA's convention is snake_case (Prisma @map)."
+    },
+    {
+      "migration": "20261007000000_phase_o_live_schema_compatibility_repair",
+      "identifier": "eventType",
+      "altSnake": "event_type",
+      "detail": "Migration uses quoted camelCase identifier \"eventType\". PROOVRA's convention is snake_case (Prisma @map)."
+    },
+    {
+      "migration": "20261007000000_phase_o_live_schema_compatibility_repair",
+      "identifier": "safeMessage",
+      "altSnake": "safe_message",
+      "detail": "Migration uses quoted camelCase identifier \"safeMessage\". PROOVRA's convention is snake_case (Prisma @map)."
+    },
+    {
+      "migration": "20261007000000_phase_o_live_schema_compatibility_repair",
+      "identifier": "metadataJson",
+      "altSnake": "metadata_json",
+      "detail": "Migration uses quoted camelCase identifier \"metadataJson\". PROOVRA's convention is snake_case (Prisma @map)."
+    },
+    {
+      "migration": "20261008000000_phase_o_workflow_join_table_final_repair",
+      "identifier": "workflowInstanceId",
+      "altSnake": "workflow_instance_id",
+      "detail": "Migration uses quoted camelCase identifier \"workflowInstanceId\". PROOVRA's convention is snake_case (Prisma @map)."
+    },
+    {
+      "migration": "20261008000000_phase_o_workflow_join_table_final_repair",
+      "identifier": "evidenceId",
+      "altSnake": "evidence_id",
+      "detail": "Migration uses quoted camelCase identifier \"evidenceId\". PROOVRA's convention is snake_case (Prisma @map)."
+    },
+    {
+      "migration": "20261008000000_phase_o_workflow_join_table_final_repair",
+      "identifier": "createdAt",
+      "altSnake": "created_at",
+      "detail": "Migration uses quoted camelCase identifier \"createdAt\". PROOVRA's convention is snake_case (Prisma @map)."
     }
   ],
-  "count": 28
+  "count": 38
 }

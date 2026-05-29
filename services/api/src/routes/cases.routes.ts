@@ -15,6 +15,13 @@ import {
   changeCaseStatus,
   CaseError,
 } from "../services/cases/case-lifecycle.service.js";
+// Phase O-blockers / A-1 + A-2 — destructive-case mutation gate and
+// cross-team evidence attach gate. Single source of truth in the
+// case-permission matrix.
+import {
+  resolveCaseDestructiveGate,
+  evaluateCrossTeamAttach,
+} from "../services/cases/case-permission.service.js";
 
 const CreateCaseBody = z.object({
   name: z.string().min(1).max(120),
@@ -613,25 +620,33 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      let hasPermission = item.ownerUserId === userId;
-
-      if (!hasPermission && item.teamId) {
-        const member = await prisma.teamMember.findUnique({
-          where: { teamId_userId: { teamId: item.teamId, userId } },
-        });
-        hasPermission = Boolean(member);
-      }
-
-      if (!hasPermission) {
+      // Phase O-blockers / A-1 — destructive case mutation requires
+      // workspace OWNER or ADMIN. Personal-case owner is allowed via
+      // the synthetic OWNER role from the access resolver.
+      const renameGate = await resolveCaseDestructiveGate({
+        caseRow: item,
+        userId,
+        mutation: "MANAGE_SETTINGS",
+      });
+      if (!renameGate.allowed) {
         auditCaseAction(req, {
           userId,
           action: "cases.rename",
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
-          metadata: { reason: "forbidden" },
+          metadata: {
+            reason: "forbidden",
+            denyReason: renameGate.reason,
+            denyCode: "CASE_RENAME_DENIED",
+            accessRole: renameGate.accessRole,
+          },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({
+          message: "Forbidden",
+          code: "CASE_RENAME_DENIED",
+          detail: renameGate.reason,
+        });
       }
 
       const updated = await prisma.case.update({
@@ -679,25 +694,37 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      let hasPermission = item.ownerUserId === userId;
-
-      if (!hasPermission && item.teamId) {
-        const member = await prisma.teamMember.findUnique({
-          where: { teamId_userId: { teamId: item.teamId, userId } },
-        });
-        hasPermission = Boolean(member);
-      }
-
-      if (!hasPermission) {
+      // Phase O-blockers / A-1 — destructive case mutation. Replaces
+      // the prior "any team member can delete" check with the bounded
+      // case-permission matrix: OWNER / ADMIN only, plus the
+      // synthetic OWNER role for personal-case owners. Emits a
+      // CaseDeleteDenied audit row on rejection so the security team
+      // can trace attempted destructive actions.
+      const deleteGate = await resolveCaseDestructiveGate({
+        caseRow: item,
+        userId,
+        mutation: "DELETE",
+      });
+      if (!deleteGate.allowed) {
         auditCaseAction(req, {
           userId,
           action: "cases.delete",
           outcome: "blocked",
-          severity: "warning",
+          severity: "critical",
           resourceId: id,
-          metadata: { reason: "forbidden" },
+          metadata: {
+            reason: "forbidden",
+            denyReason: deleteGate.reason,
+            denyCode: "CASE_DELETE_DENIED",
+            accessRole: deleteGate.accessRole,
+            eventKind: "CaseDeleteDenied",
+          },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({
+          message: "Forbidden",
+          code: "CASE_DELETE_DENIED",
+          detail: deleteGate.reason,
+        });
       }
 
       await prisma.evidence.updateMany({
@@ -794,6 +821,42 @@ export async function casesRoutes(app: FastifyInstance) {
           metadata: { reason: "evidence_not_owned", evidenceId: body.evidenceId },
         });
         return reply.code(403).send({ message: "Evidence does not belong to you" });
+      }
+
+      // Phase O-blockers / A-2 — Cross-team IDOR fix. Before this
+      // check, a user who is a member of team A and team B could
+      // attach team-A evidence into a team-B case (any evidence they
+      // owned, into any case they could write). The strict equality
+      // of `evidence.teamId === case.teamId` (including null === null
+      // for personal cases) closes the cross-workspace leak. Emits a
+      // `CROSS_TEAM_ATTACH_BLOCKED` audit event so the security team
+      // can investigate the attempt.
+      const crossTeam = evaluateCrossTeamAttach({
+        caseTeamId: caseItem.teamId,
+        evidenceTeamId: evidence.teamId,
+      });
+      if (!crossTeam.allowed) {
+        auditCaseAction(req, {
+          userId,
+          action: "cases.add_evidence",
+          outcome: "blocked",
+          severity: "critical",
+          resourceId: id,
+          metadata: {
+            reason: "forbidden",
+            denyCode: crossTeam.code,
+            denyReason: crossTeam.reason,
+            eventKind: "CROSS_TEAM_ATTACH_BLOCKED",
+            evidenceId: body.evidenceId,
+            caseTeamId: caseItem.teamId,
+            evidenceTeamId: evidence.teamId,
+          },
+        });
+        return reply.code(403).send({
+          message: "Cross-workspace attach is not permitted.",
+          code: crossTeam.code,
+          detail: crossTeam.reason,
+        });
       }
 
       if (evidence.deletedAt) {

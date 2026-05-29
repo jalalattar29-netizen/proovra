@@ -148,7 +148,12 @@ export async function auditWebhookSignatureVerification(input: {
   } catch (err) {
     const reason = classifyError(err);
     await bumpWebhookFailureMetric();
-    if (reason === "replay_detected") {
+    // Phase O-blockers / A-4 — `timestamp_out_of_range` IS a replay
+    // vector (the captured signed payload was re-presented outside
+    // the documented Stripe 5-minute tolerance window). Surface both
+    // categories on the replay counter so dashboards see the full
+    // replay-attempt rate.
+    if (reason === "replay_detected" || reason === "timestamp_out_of_range") {
       await bumpReplayRejectionMetric();
     }
     const errMessage =

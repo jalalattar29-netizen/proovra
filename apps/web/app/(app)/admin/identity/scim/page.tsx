@@ -33,6 +33,7 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import {
   cardStyle,
   errorBoxStyle,
@@ -236,6 +237,7 @@ export default function ScimPage() {
 
 function TokensTab({ teamId }: { teamId: string }) {
   const stepUp = useStepUpAction({ teamId });
+  const { confirm } = useConfirmAction();
   const [tokens, setTokens] = useState<ScimToken[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -302,8 +304,15 @@ function TokensTab({ teamId }: { teamId: string }) {
 
   const revoke = useCallback(
     async (id: string) => {
-      if (!window.confirm("Revoke this SCIM token? This is irreversible."))
-        return;
+      const ok = await confirm({
+        title: "Revoke this SCIM token?",
+        description:
+          "Provisioning requests using this token will fail immediately. This is irreversible — issue a new token if the IdP still needs sync.",
+        confirmLabel: "Revoke token",
+        tone: "danger",
+        testId: "scim-token-revoke",
+      });
+      if (!ok) return;
       setBusy(id);
       try {
         await stepUp.runStepUpAction(async (headers) => {
@@ -557,6 +566,7 @@ function riskBadge(level: ScimDriftRiskLevel) {
 
 function DriftTab({ teamId }: { teamId: string }) {
   const stepUp = useStepUpAction({ teamId });
+  const { confirm } = useConfirmAction();
   const [report, setReport] = useState<ScimDriftReport | null>(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -602,13 +612,15 @@ function DriftTab({ teamId }: { teamId: string }) {
       setError("Pick at least one row to reconcile.");
       return;
     }
-    if (
-      !window.confirm(
-        `Reconcile ${selected.size} row(s)? Destructive rows demote memberships, archive tokens, or archive groups. Requires step-up.`,
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Reconcile ${selected.size} drift row(s)?`,
+      description:
+        "Destructive rows demote memberships, archive tokens, or archive groups. Step-up authentication is required on the next request.",
+      confirmLabel: "Reconcile selected",
+      tone: "danger",
+      testId: "scim-drift-reconcile",
+    });
+    if (!ok) return;
     setExecuting(true);
     setError(null);
     try {

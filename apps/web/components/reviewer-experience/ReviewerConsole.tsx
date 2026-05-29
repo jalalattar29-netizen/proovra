@@ -72,6 +72,7 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../identity-security/StepUpModal";
+import { useConfirmAction } from "../ui/ConfirmActionModal";
 
 const DEFAULT_TEAM_PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
 
@@ -1424,6 +1425,7 @@ function SavedViewsPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { confirm } = useConfirmAction();
 
   const create = useCallback(async () => {
     if (!name.trim()) return;
@@ -1636,8 +1638,17 @@ function SavedViewsPanel({
                   data-reviewer-saved-view-delete={vid}
                   disabled={!vid || deleting}
                   onClick={() => {
-                    if (vid && confirm(`Delete saved view "${v.name ?? vid}"?`))
-                      void remove(vid);
+                    if (!vid) return;
+                    void (async () => {
+                      const ok = await confirm({
+                        title: "Delete saved view?",
+                        description: `Delete saved view "${v.name ?? vid}"?`,
+                        confirmLabel: "Delete view",
+                        tone: "warning",
+                        testId: "reviewer-saved-view-delete",
+                      });
+                      if (ok) void remove(vid);
+                    })();
                   }}
                   style={{
                     background: "transparent",

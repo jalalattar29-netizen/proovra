@@ -29,6 +29,7 @@ import { apiFetch } from "../../../lib/api";
 import { usePlatformContext } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../components/navigation/OperationalBreadcrumb";
+import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 
 type LinkRow = {
   id: string;
@@ -104,6 +105,7 @@ function IntakeLinksPageInner() {
     intakeUrl: string;
     linkId: string;
   } | null>(null);
+  const { confirm } = useConfirmAction();
 
   // Phase 32.8 Foundation cleanup — read team identity from the
   // canonical platform context envelope (workspace name + id).
@@ -182,7 +184,15 @@ function IntakeLinksPageInner() {
   }, [templates]);
 
   async function revokeLink(linkId: string) {
-    if (!confirm("Revoke this link? Anyone holding it will be denied access.")) return;
+    const ok = await confirm({
+      title: "Revoke this intake link?",
+      description:
+        "Anyone holding the link will be denied access. This cannot be undone.",
+      confirmLabel: "Revoke link",
+      tone: "danger",
+      testId: "intake-link-revoke",
+    });
+    if (!ok) return;
     try {
       const res: { link: LinkRow } = await apiFetch(
         `/v1/workflow/intake-links/${linkId}/revoke`,

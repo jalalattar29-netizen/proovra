@@ -64,10 +64,10 @@ export function RetentionInheritanceSummary({
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch(
+      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+      const json = (await apiFetch(
         `/v1/governance/retention/inheritance?teamId=${encodeURIComponent(teamId)}`,
-      );
-      const json = (await res.json()) as Response;
+      )) as Response;
       setData(json.resolution);
     } catch (err) {
       const e = err as { message?: string };

@@ -117,12 +117,12 @@ export function DestructionImpactPreview({
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch(
+      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+      const json = (await apiFetch(
         `/v1/governance/destruction-reviews/${encodeURIComponent(
           reviewId,
         )}/preview?teamId=${encodeURIComponent(teamId)}`,
-      );
-      const json = (await res.json()) as DestructionImpactResponse;
+      )) as DestructionImpactResponse;
       setData(json);
     } catch (err) {
       const e = err as { message?: string };

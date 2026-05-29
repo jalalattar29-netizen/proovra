@@ -3,14 +3,10 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getUserLegalAcceptanceStatus, recordLegalAcceptances } from "../services/legal-acceptance.service.js";
-import {
-  listActiveSessions,
-  revokeActiveSession,
-} from "../services/access-control/session-inventory.service.js";
-import {
-  hashPassword,
-  verifyPassword,
-} from "../services/email-password-auth.service.js";
+// Final-D5-PT2 — legacy session/password helpers retired (see bottom of
+// file). The canonical surface lives in `identity-security.routes.ts`,
+// backed by `email-password-auth.service.ts::changePasswordForUser` and
+// the session-revocation services.
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 
 const LegalAcceptanceBody = z.object({
@@ -232,285 +228,99 @@ export async function usersRoutes(app: FastifyInstance) {
   });
 
   // ===========================================================================
-  // Phase 2.4 — User-facing session inventory
+  // Phase Final-D5-PT2 — Legacy personal-security surface RETIRED.
   //
-  // The admin side already had `/v1/admin/identity/sessions` for SOC
-  // operators. Phase 2.4 closes the obvious "I can't see where I'm
-  // signed in" gap by exposing the SAME `AuthenticatedSession` table
-  // to its OWN owner with a strict `userId === self` filter.
+  // The three endpoints below used to live here:
   //
-  // Hard rules:
-  //   - Returns only rows belonging to the caller. Never any other user.
-  //   - Returns only display-safe fields: no raw IP, no raw UA, no
-  //     deviceIdHash (the hash itself is internal). The `ipPreview` /
-  //     `uaPreview` are pre-truncated by the admin path's same code.
-  //   - Marks the caller's current session with `current: true` using
-  //     `req.user.sessionIdHash` so the UI can render "this device"
-  //     correctly without disclosing other sessions' raw ids.
+  //   GET    /v1/users/me/sessions
+  //   DELETE /v1/users/me/sessions/:id
+  //   POST   /v1/users/me/password/change
+  //
+  // They were a parallel implementation alongside the canonical Phase 19
+  // identity-security surface:
+  //
+  //   GET    /v1/identity-security/my-sessions
+  //   POST   /v1/identity-security/my-sessions/revoke-others
+  //   POST   /v1/identity-security/sessions/revoke  (operator)
+  //   POST   /v1/identity-security/password
+  //
+  // The Final-D5 closure (this session) shipped the canonical surface
+  // and a real Security Center UI. Leaving the legacy endpoints alive
+  // left two ways for a caller to mutate the same auth state — the same
+  // parallel-surface security finding-shape that justified the A-3
+  // retirement of `/v1/api-keys*`. So they are now retired:
+  //
+  //   - All three handlers return HTTP 410 Gone with
+  //     `code: "PERSONAL_SECURITY_LEGACY_RETIRED"`.
+  //   - Each retired call emits a security event so SOC sees attempted
+  //     use and can spot stuck FE callers.
+  //   - Callers are redirected to `/v1/identity-security/*` via the
+  //     `canonicalSurface` payload field.
+  //
+  // The legacy `AccountSecurityCard.tsx` (which was the only FE caller)
+  // is deleted in the same phase; `/settings/security/page.tsx` now
+  // links to `/security-center` instead.
   // ===========================================================================
+
+  const LEGACY_RETIRED_BODY = {
+    code: "PERSONAL_SECURITY_LEGACY_RETIRED" as const,
+    detail:
+      "The legacy /v1/users/me personal-security surface has been retired. " +
+      "Use /v1/identity-security/* (canonical Security Center surface). " +
+      "See docs/operations/audit-closure-ledger.md → D-5 / Final-D5-PT2.",
+    canonicalPassword: "/v1/identity-security/password",
+    canonicalSessionsList: "/v1/identity-security/my-sessions",
+    canonicalSessionsRevokeOthers:
+      "/v1/identity-security/my-sessions/revoke-others",
+  };
+
+  function emitPersonalSecurityLegacyEvent(
+    req: FastifyRequest,
+    legacyAction: string,
+  ) {
+    const userId = ((req as any)?.user?.sub as string) ?? null;
+    // Re-use the existing `high_risk_action_blocked` taxonomy: a call
+    // to a retired auth-mutation endpoint IS a high-risk action that
+    // we are blocking. The `details.reason` field discriminates this
+    // case from other high-risk blocks for SOC + audit.
+    safeEmitSecurityEvent({
+      teamId: null,
+      eventType: "high_risk_action_blocked",
+      severity: "WARNING",
+      details: {
+        actorUserId: userId,
+        reason: "personal_security_legacy_endpoint_called",
+        legacyAction,
+        method: req.method,
+        canonicalSurface: "/v1/identity-security/*",
+      },
+    });
+  }
+
   app.get(
     "/v1/users/me/sessions",
     { preHandler: requireAuth },
-    async (req: any) => {
-      const userId = req.user.sub as string;
-      const currentSessionIdHash =
-        typeof req.user.sessionIdHash === "string"
-          ? (req.user.sessionIdHash as string)
-          : null;
-
-      // Direct prisma query — the existing `listActiveSessions` requires
-      // a teamId filter (admin per-team view). For the user-facing list
-      // we want every session the caller has, across all workspaces.
-      const now = new Date();
-      const rows = await prisma.authenticatedSession.findMany({
-        where: { userId },
-        orderBy: [{ lastSeenAtUtc: "desc" }],
-        take: 200,
-        select: {
-          id: true,
-          teamId: true,
-          ssoConnectionId: true,
-          sessionIdHash: true,
-          issuedAtUtc: true,
-          expiresAtUtc: true,
-          lastSeenAtUtc: true,
-          ipPreview: true,
-          uaPreview: true,
-          revokedAtUtc: true,
-          revokedReason: true,
-        },
-      });
-
-      const sessions = rows.map((row) => {
-        const isActive =
-          row.revokedAtUtc == null && row.expiresAtUtc > now;
-        return {
-          id: row.id,
-          teamId: row.teamId,
-          ssoConnectionId: row.ssoConnectionId,
-          issuedAtUtc: row.issuedAtUtc.toISOString(),
-          expiresAtUtc: row.expiresAtUtc.toISOString(),
-          lastSeenAtUtc: row.lastSeenAtUtc.toISOString(),
-          ipPreview: row.ipPreview,
-          uaPreview: row.uaPreview,
-          revoked: row.revokedAtUtc != null,
-          revokedAtUtc: row.revokedAtUtc?.toISOString() ?? null,
-          revokedReason: row.revokedReason,
-          active: isActive,
-          current:
-            currentSessionIdHash != null &&
-            row.sessionIdHash === currentSessionIdHash,
-        };
-      });
-
-      return { sessions };
-    }
+    async (req, reply) => {
+      emitPersonalSecurityLegacyEvent(req, "sessions_list");
+      return reply.code(410).send(LEGACY_RETIRED_BODY);
+    },
   );
 
   app.delete<{ Params: { id: string } }>(
     "/v1/users/me/sessions/:id",
     { preHandler: requireAuth },
-    async (req: any, reply) => {
-      const userId = req.user.sub as string;
-      const sessionId = String(req.params?.id ?? "");
-      const parsed = z.string().uuid().safeParse(sessionId);
-      if (!parsed.success) {
-        return reply.code(400).send({
-          code: "INVALID_SESSION_ID",
-          message: "Session id must be a valid UUID.",
-        });
-      }
-
-      // Strict ownership check: the row must belong to the caller.
-      // Without this an attacker who learns another user's session id
-      // (the id is internal and not surfaced anywhere public, but defense
-      // in depth) could revoke them. We also accept revoking the caller's
-      // own current session — they will be signed out on the next
-      // request, which is the expected behavior.
-      const row = await prisma.authenticatedSession.findFirst({
-        where: { id: parsed.data, userId },
-        select: {
-          id: true,
-          teamId: true,
-          sessionIdHash: true,
-          revokedAtUtc: true,
-        },
-      });
-      if (!row) {
-        return reply.code(404).send({
-          code: "SESSION_NOT_FOUND",
-          message: "No active session with that id belongs to you.",
-        });
-      }
-      if (row.revokedAtUtc != null) {
-        // Idempotent — already revoked is success.
-        return reply.code(200).send({ ok: true, alreadyRevoked: true });
-      }
-
-      // Reuse the existing revocation service so the RevokedSession
-      // registry stays the canonical source of truth + the
-      // authenticated_sessions row gets its pointer set in the same call.
-      // We pass teamId only when the row has one (some sessions are
-      // workspace-less, e.g. fresh guest tokens before workspace
-      // bootstrap completes).
-      if (row.teamId) {
-        const revoked = await revokeActiveSession({
-          teamId: row.teamId,
-          sessionId: row.id,
-          actorUserId: userId,
-          reason: "USER_LOGGED_OUT",
-        });
-        if (!revoked) {
-          return reply.code(404).send({
-            code: "SESSION_NOT_FOUND",
-            message: "Session disappeared during revocation.",
-          });
-        }
-      } else {
-        // Fallback path for workspace-less rows. Mark the active-session
-        // row revoked and write a RevokedSession entry directly via
-        // prisma. Best-effort security event emission.
-        await prisma.authenticatedSession.update({
-          where: { id: row.id },
-          data: {
-            revokedAtUtc: new Date(),
-            revokedByUserId: userId,
-            revokedReason: "USER_LOGGED_OUT",
-          },
-        });
-        await prisma.revokedSession.create({
-          data: {
-            userId,
-            sessionIdHash: row.sessionIdHash,
-            reason: "USER_LOGGED_OUT",
-            revokedByUserId: userId,
-          },
-        });
-      }
-
-      // Reuse the existing `session_revoked` taxonomy. The `details`
-      // payload carries `actorUserId === targetUserId` so SOC analysts
-      // can distinguish operator-initiated from self-revocation.
-      safeEmitSecurityEvent({
-        teamId: row.teamId ?? null,
-        eventType: "session_revoked",
-        severity: "INFO",
-        details: {
-          actorUserId: userId,
-          targetUserId: userId,
-          targetSessionId: row.id,
-          reason: "user_revoked_from_account_settings",
-        },
-      });
-
-      return { ok: true };
-    }
+    async (req, reply) => {
+      emitPersonalSecurityLegacyEvent(req, "session_revoke");
+      return reply.code(410).send(LEGACY_RETIRED_BODY);
+    },
   );
-
-  // ===========================================================================
-  // Phase 2.4 — Direct password change for email-password users.
-  //
-  // Hard rules:
-  //   - Only `provider === EMAIL` accounts can use this route. OAuth /
-  //     guest accounts must use their identity provider's password flow
-  //     (Google / Apple) or are not password-backed at all (guest). We
-  //     return 409 PROVIDER_UNSUPPORTED so the AccountSecurityCard can
-  //     render an honest "managed by Google" panel instead of pretending
-  //     the change worked.
-  //   - The current password is verified using the existing
-  //     `verifyPassword(...)` helper. A failed match returns 403 with the
-  //     same generic copy as a wrong-password login, NEVER discloses
-  //     "user has no password set".
-  //   - The new password is enforced with the same minimum length (>= 8)
-  //     as `EmailRegisterBody` (auth.routes.ts:84). We do not extend the
-  //     policy beyond what the registration path already enforces —
-  //     consistency between flows matters more than ad-hoc tightening.
-  //   - The new hash is written; we do NOT touch sessions in this PR.
-  //     A separate follow-up can add an opt-in "sign out all other
-  //     sessions" body flag once we have a UI affordance.
-  //   - A SecurityEvent is emitted on success so SOC / audit can see
-  //     password rotations.
-  // ===========================================================================
-  const PasswordChangeBody = z.object({
-    currentPassword: z.string().min(1).max(256),
-    newPassword: z.string().min(8).max(256),
-  });
 
   app.post(
     "/v1/users/me/password/change",
     { preHandler: requireAuth },
-    async (req: any, reply) => {
-      const userId = req.user.sub as string;
-      const parsed = PasswordChangeBody.safeParse(req.body ?? {});
-      if (!parsed.success) {
-        return reply.code(400).send({
-          code: "INVALID_BODY",
-          message:
-            "currentPassword and newPassword (min 8 chars) are required.",
-        });
-      }
-
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          provider: true,
-          passwordHash: true,
-        },
-      });
-      if (!user) {
-        return reply.code(404).send({
-          code: "USER_NOT_FOUND",
-          message: "User not found.",
-        });
-      }
-
-      // Only EMAIL-provider users can change a password here. Any other
-      // provider (GOOGLE, APPLE, GUEST) does not have a local password
-      // by construction.
-      if (user.provider !== "EMAIL" || !user.passwordHash) {
-        return reply.code(409).send({
-          code: "PROVIDER_UNSUPPORTED",
-          message:
-            "Your account is managed by an identity provider — change your password there.",
-          details: { provider: user.provider },
-        });
-      }
-
-      const ok = verifyPassword(parsed.data.currentPassword, user.passwordHash);
-      if (!ok) {
-        safeEmitSecurityEvent({
-          teamId: null,
-          eventType: "password_change_failed",
-          severity: "WARNING",
-          details: {
-            actorUserId: userId,
-            reason: "current_password_mismatch",
-          },
-        });
-        return reply.code(403).send({
-          code: "CURRENT_PASSWORD_INVALID",
-          message: "Current password is incorrect.",
-        });
-      }
-
-      const newHash = hashPassword(parsed.data.newPassword);
-      await prisma.user.update({
-        where: { id: userId },
-        data: { passwordHash: newHash },
-      });
-
-      safeEmitSecurityEvent({
-        teamId: null,
-        eventType: "password_changed",
-        severity: "INFO",
-        details: {
-          actorUserId: userId,
-          method: "self_service",
-        },
-      });
-
-      return { ok: true };
-    }
+    async (req, reply) => {
+      emitPersonalSecurityLegacyEvent(req, "password_change");
+      return reply.code(410).send(LEGACY_RETIRED_BODY);
+    },
   );
 }

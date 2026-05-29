@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 
 type ApiKey = {
   id: string;
@@ -91,8 +92,8 @@ function IntegrationsPageInner() {
   >(null);
   const [showCreateKey, setShowCreateKey] = useState(false);
   const [showCreateWebhook, setShowCreateWebhook] = useState(false);
+  const { confirm } = useConfirmAction();
 
-  
 useEffect(() => {
     if (!teamId) return;
     void loadAll(teamId);
@@ -157,7 +158,15 @@ useEffect(() => {
 
   async function revokeApiKey(id: string) {
     if (!teamId) return;
-    if (!confirm("Revoke this API key? This cannot be undone.")) return;
+    const ok = await confirm({
+      title: "Revoke this API key?",
+      description:
+        "Requests using this key will start failing immediately. This cannot be undone.",
+      confirmLabel: "Revoke key",
+      tone: "danger",
+      testId: "integrations-api-key-revoke",
+    });
+    if (!ok) return;
     try {
       const res: { apiKey: ApiKey } = await apiFetch(
         `/v1/integrations/api-keys/${id}/revoke`,
@@ -211,12 +220,15 @@ useEffect(() => {
 
   async function rotateWebhookSecret(id: string, url: string) {
     if (!teamId) return;
-    if (
-      !confirm(
-        "Rotate this signing secret? The old secret will stop signing immediately.",
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: "Rotate this signing secret?",
+      description:
+        "The old secret will stop signing immediately. You will see the new raw secret once — save it somewhere safe.",
+      confirmLabel: "Rotate secret",
+      tone: "warning",
+      testId: "integrations-webhook-rotate",
+    });
+    if (!ok) return;
     try {
       const res: { webhook: Webhook; rawSecret: string } = await apiFetch(
         `/v1/integrations/webhooks/${id}/rotate-secret`,
@@ -238,8 +250,15 @@ useEffect(() => {
 
   async function disableWebhook(id: string) {
     if (!teamId) return;
-    if (!confirm("Disable this webhook? Subscribers will stop receiving events."))
-      return;
+    const ok = await confirm({
+      title: "Disable this webhook?",
+      description:
+        "Subscribers will stop receiving events from this endpoint until it is re-enabled.",
+      confirmLabel: "Disable webhook",
+      tone: "warning",
+      testId: "integrations-webhook-disable",
+    });
+    if (!ok) return;
     try {
       const res: { webhook: Webhook } = await apiFetch(
         `/v1/integrations/webhooks/${id}/disable`,

@@ -96,12 +96,12 @@ export function GovernedExportAction({
     }
     setLoading(true);
     try {
-      const res = await apiFetch(
+      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+      const json = (await apiFetch(
         `/v1/governance/export-eligibility?teamId=${encodeURIComponent(
           teamId,
         )}&evidenceId=${encodeURIComponent(evidenceId)}`,
-      );
-      const json = (await res.json()) as EligibilityResult;
+      )) as EligibilityResult;
       if (mountedRef.current) setData(json);
     } catch {
       if (mountedRef.current) setData(null);

@@ -37,6 +37,7 @@ import { useParams } from "next/navigation";
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 
 type InstanceStatus =
   | "DRAFT"
@@ -140,8 +141,8 @@ function WorkflowInstancePageInner() {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { confirm } = useConfirmAction();
 
-  
   async function refresh() {
     if (!teamId || !instanceId) return;
     const qs = `?teamId=${encodeURIComponent(teamId)}`;
@@ -192,7 +193,16 @@ function WorkflowInstancePageInner() {
     confirmMessage?: string,
   ) {
     if (!teamId) return;
-    if (confirmMessage && !window.confirm(confirmMessage)) return;
+    if (confirmMessage) {
+      const ok = await confirm({
+        title: "Confirm workflow action",
+        description: confirmMessage,
+        confirmLabel: "Confirm",
+        tone: "warning",
+        testId: "workflow-action",
+      });
+      if (!ok) return;
+    }
     setBusy(true);
     try {
       const res: { error?: { code?: string; reason?: string } } = await apiFetch(

@@ -8,7 +8,11 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { prisma } from "../db.js";
 import { AppError, ErrorCode } from "../errors.js";
-import { apiKeyService } from "../services/api-keys.service.js";
+// A-3 closure — legacy in-memory `apiKeyService` import retired.
+// The Phase 17 `ApiCredential` model + `/v1/integrations/api-keys`
+// (team-scoped, durable, audit-backed) is the single source of truth.
+// The five `/v1/api-keys*` handlers below now return HTTP 410 Gone
+// and the quota counter reads directly from Prisma.
 import { batchAnalysisService } from "../services/batch-analysis.service.js";
 import { getEmailService } from "../services/email.service.js";
 // CR1 Phase E — legacy `getWebhookService` import removed. Its only use
@@ -190,9 +194,15 @@ async function getRealUsageStats(userId: string) {
     topEvidenceTypes[String(row.type).toLowerCase()] = row._count.type;
   }
 
-  const activeApiKeys = apiKeyService
-    .listKeys(userId)
-    .filter((key) => key.isActive).length;
+  // A-3 closure — count durable, team-scoped `ApiCredential`s
+  // (status = ACTIVE) for teams owned by this user. The legacy
+  // in-memory user-scoped key store has been retired.
+  const activeApiKeys = await prisma.apiCredential.count({
+    where: {
+      status: "ACTIVE",
+      team: { ownerUserId: userId },
+    },
+  });
 
   const activeBatches = batchAnalysisService
     .listJobs(userId)
@@ -229,7 +239,14 @@ async function getRealQuotas(userId: string) {
   });
 
   const batchJobsUsed = batchAnalysisService.listJobs(userId).length;
-  const apiKeysUsed = apiKeyService.listKeys(userId).filter((key) => key.isActive).length;
+  // A-3 closure — quota counter sources from canonical `ApiCredential`
+  // (Phase 17). Legacy in-memory key-store enumeration is retired.
+  const apiKeysUsed = await prisma.apiCredential.count({
+    where: {
+      status: "ACTIVE",
+      team: { ownerUserId: userId },
+    },
+  });
 
   let teamMembersUsed = 0;
 
@@ -289,309 +306,71 @@ const teamMembersLimit =
 }
 
 export async function enterpriseRoutes(app: FastifyInstance) {
-  app.post<{
-    Body: { name: string; scopes?: string[]; expiresInDays?: number };
-  }>(
-    "/v1/api-keys",
-    { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      const userId = req.user!.sub;
-      const { name, scopes, expiresInDays } = req.body;
+  // ---------------------------------------------------------------------------
+  // A-3 CLOSURE — `/v1/api-keys*` legacy surface retired (HTTP 410 Gone).
+  //
+  // The previous handlers wrote to an in-memory `Map<>` in
+  // `services/api-keys.service.ts`. That store was user-scoped, not durable,
+  // had no audit trail, and was a parallel implementation to the canonical
+  // Phase 17 `ApiCredential` model surfaced at `/v1/integrations/api-keys`
+  // (team-scoped, durable, audit-backed, scoped to canonical permissions).
+  //
+  // Two-surface key management is a security finding (parallel auth state),
+  // so the legacy surface is now retired:
+  //
+  //   - All 5 handlers below (`POST`, `GET`, `DELETE`, `POST /rotate`,
+  //     `PATCH /rate-limit`) return HTTP 410 Gone.
+  //   - Each retired call emits a `enterprise.api_key_legacy_endpoint_called`
+  //     platform audit event tagged with the original method/path so
+  //     operators can watch for residual clients that still try these.
+  //   - Callers are redirected to `/v1/integrations/api-keys` via the
+  //     `code: "API_KEYS_LEGACY_RETIRED"` payload.
+  //
+  // The legacy `services/api-keys.service.ts` file has been deleted and
+  // `phase-cr1-legacy-purge.test.ts` now asserts BOTH the deletion and
+  // these 410 responders.
+  // ---------------------------------------------------------------------------
 
-      if (!name || name.trim().length === 0) {
-        throw new AppError(ErrorCode.VALIDATION_ERROR, "API key name is required");
-      }
+  const LEGACY_RETIRED_BODY = {
+    code: "API_KEYS_LEGACY_RETIRED" as const,
+    detail:
+      "The legacy /v1/api-keys surface (in-memory, user-scoped) has been retired. " +
+      "Use /v1/integrations/api-keys (team-scoped, durable, audit-backed). " +
+      "See docs/recovery/audit-closure-ledger.md → A-3.",
+    canonicalSurface: "/v1/integrations/api-keys",
+  };
 
-      try {
-        const { raw, metadata } = await apiKeyService.createKey(
-          userId,
-          name,
-          scopes || ["analyze:read"],
-          expiresInDays
-        );
+  function emitLegacyEndpointAuditAndRespond(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    legacyAction: string,
+  ) {
+    const userId = (req as any).user?.sub ?? null;
+    auditEnterpriseAction(req, {
+      userId,
+      action: "enterprise.api_key_legacy_endpoint_called",
+      outcome: "blocked",
+      severity: "warning",
+      resourceType: "api_key",
+      metadata: {
+        legacyAction,
+        method: req.method,
+        path: getRequestPath(req),
+        canonicalSurface: LEGACY_RETIRED_BODY.canonicalSurface,
+      },
+    });
+    return reply.code(410).send(LEGACY_RETIRED_BODY);
+  }
 
-        auditEnterpriseAction(req, {
-          userId,
-          action: "enterprise.api_key_create",
-          outcome: "success",
-          resourceType: "api_key",
-          resourceId: metadata.id,
-          metadata: {
-            name: metadata.name,
-            scopes: metadata.scopes,
-            expiresAt: metadata.expiresAt,
-          },
-        });
-
-        fireEnterpriseAnalyticsEvent({
-          eventType: "api_key_created",
-          userId,
-          req,
-          entityType: "api_key",
-          entityId: metadata.id,
-          metadata: { scopes: metadata.scopes.length },
-        });
-
-        return {
-          data: {
-            id: metadata.id,
-            name: metadata.name,
-            createdAt: metadata.createdAt,
-            expiresAt: metadata.expiresAt,
-            rateLimit: metadata.rateLimit,
-            scopes: metadata.scopes,
-            isActive: metadata.isActive,
-            apiKey: raw,
-            secret: raw,
-          },
-          message: "Save your API key securely. You won't be able to see it again.",
-        };
-      } catch (_error) {
-        auditEnterpriseAction(req, {
-          userId,
-          action: "enterprise.api_key_create",
-          outcome: "failure",
-          severity: "critical",
-          resourceType: "api_key",
-          metadata: { name },
-        });
-
-        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to generate API key");
-      }
-    }
+  // Phase Final-A3-PT2 — collapse the 5 explicit 410 handlers
+  // (POST/GET on `/v1/api-keys`, DELETE/POST/PATCH on `/v1/api-keys/:id*`)
+  // into two wildcard registrations covering every method + sub-path.
+  // The closure audit ledger row for A-3 references this collapse.
+  app.all("/v1/api-keys", { preHandler: [requireAuthAndLegal] }, async (req, reply) =>
+    emitLegacyEndpointAuditAndRespond(req, reply, "api_keys_root"),
   );
-
-  app.get(
-    "/v1/api-keys",
-    { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      const userId = req.user!.sub;
-
-      try {
-        const keys = apiKeyService.listKeys(userId);
-
-        auditEnterpriseAction(req, {
-          userId,
-          action: "enterprise.api_keys_list",
-          outcome: "success",
-          resourceType: "api_key",
-          metadata: { count: keys.length },
-        });
-
-        return {
-          data: keys.map((key) => ({
-            id: key.id,
-            name: key.name,
-            createdAt: key.createdAt,
-            lastUsedAt: key.lastUsedAt,
-            expiresAt: key.expiresAt,
-            rateLimit: key.rateLimit,
-            scopes: key.scopes,
-            isActive: key.isActive,
-            preview: `${key.keyHash.slice(0, 8)}...`,
-          })),
-        };
-      } catch (_error) {
-        auditEnterpriseAction(req, {
-          userId,
-          action: "enterprise.api_keys_list",
-          outcome: "failure",
-          severity: "critical",
-          resourceType: "api_key",
-        });
-
-        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to list API keys");
-      }
-    }
-  );
-
-  app.delete<{ Params: { id: string } }>(
-    "/v1/api-keys/:id",
-    { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      const userId = req.user!.sub;
-      const { id } = req.params;
-
-      try {
-        const revoked = apiKeyService.revokeKey(userId, id);
-
-        if (!revoked) {
-          auditEnterpriseAction(req, {
-            userId,
-            action: "enterprise.api_key_revoke",
-            outcome: "failure",
-            severity: "warning",
-            resourceType: "api_key",
-            resourceId: id,
-            metadata: { reason: "not_found" },
-          });
-          throw new AppError(ErrorCode.NOT_FOUND, "API key not found");
-        }
-
-        auditEnterpriseAction(req, {
-          userId,
-          action: "enterprise.api_key_revoke",
-          outcome: "success",
-          resourceType: "api_key",
-          resourceId: id,
-        });
-
-        fireEnterpriseAnalyticsEvent({
-          eventType: "api_key_revoked",
-          userId,
-          req,
-          entityType: "api_key",
-          entityId: id,
-        });
-
-        return { message: "API key revoked successfully" };
-      } catch (error) {
-        if (error instanceof AppError) {
-          throw error;
-        }
-
-        auditEnterpriseAction(req, {
-          userId,
-          action: "enterprise.api_key_revoke",
-          outcome: "failure",
-          severity: "critical",
-          resourceType: "api_key",
-          resourceId: id,
-        });
-
-        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to revoke API key");
-      }
-    }
-  );
-
-  app.post<{ Params: { id: string }; Body: { name?: string } }>(
-    "/v1/api-keys/:id/rotate",
-    { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      const userId = req.user!.sub;
-      const { id } = req.params;
-      const { name } = req.body;
-
-      try {
-        const result = await apiKeyService.rotateKey(userId, id, name || "Rotated Key");
-
-        if (!result) {
-          auditEnterpriseAction(req, {
-            userId,
-            action: "enterprise.api_key_rotate",
-            outcome: "failure",
-            severity: "warning",
-            resourceType: "api_key",
-            resourceId: id,
-            metadata: { reason: "not_found" },
-          });
-          throw new AppError(ErrorCode.NOT_FOUND, "API key not found");
-        }
-
-        auditEnterpriseAction(req, {
-          userId,
-          action: "enterprise.api_key_rotate",
-          outcome: "success",
-          resourceType: "api_key",
-          resourceId: result.metadata.id,
-          metadata: { name: result.metadata.name },
-        });
-
-        fireEnterpriseAnalyticsEvent({
-          eventType: "api_key_rotated",
-          userId,
-          req,
-          entityType: "api_key",
-          entityId: result.metadata.id,
-        });
-
-        return {
-          data: {
-            id: result.metadata.id,
-            name: result.metadata.name,
-            apiKey: result.raw,
-            secret: result.raw,
-          },
-          message: "API key rotated. Old key is now invalid.",
-        };
-      } catch (error) {
-        if (error instanceof AppError) {
-          throw error;
-        }
-
-        auditEnterpriseAction(req, {
-          userId,
-          action: "enterprise.api_key_rotate",
-          outcome: "failure",
-          severity: "critical",
-          resourceType: "api_key",
-          resourceId: id,
-        });
-
-        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to rotate API key");
-      }
-    }
-  );
-
-  app.patch<{
-    Params: { id: string };
-    Body: { requestsPerMinute: number; requestsPerDay: number };
-  }>(
-    "/v1/api-keys/:id/rate-limit",
-    { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      const userId = req.user!.sub;
-      const { id } = req.params;
-      const { requestsPerMinute, requestsPerDay } = req.body;
-
-      try {
-        const updated = apiKeyService.updateRateLimit(
-          userId,
-          id,
-          requestsPerMinute,
-          requestsPerDay
-        );
-
-        if (!updated) {
-          auditEnterpriseAction(req, {
-            userId,
-            action: "enterprise.api_key_rate_limit_update",
-            outcome: "failure",
-            severity: "warning",
-            resourceType: "api_key",
-            resourceId: id,
-            metadata: { reason: "not_found" },
-          });
-          throw new AppError(ErrorCode.NOT_FOUND, "API key not found");
-        }
-
-        auditEnterpriseAction(req, {
-          userId,
-          action: "enterprise.api_key_rate_limit_update",
-          outcome: "success",
-          resourceType: "api_key",
-          resourceId: id,
-          metadata: { requestsPerMinute, requestsPerDay },
-        });
-
-        return { message: "Rate limits updated successfully" };
-      } catch (error) {
-        if (error instanceof AppError) {
-          throw error;
-        }
-
-        auditEnterpriseAction(req, {
-          userId,
-          action: "enterprise.api_key_rate_limit_update",
-          outcome: "failure",
-          severity: "critical",
-          resourceType: "api_key",
-          resourceId: id,
-        });
-
-        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to update rate limits");
-      }
-    }
+  app.all("/v1/api-keys/*", { preHandler: [requireAuthAndLegal] }, async (req, reply) =>
+    emitLegacyEndpointAuditAndRespond(req, reply, "api_keys_subpath"),
   );
 
   app.post<{

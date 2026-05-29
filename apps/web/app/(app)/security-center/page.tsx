@@ -19,6 +19,8 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
+import { PersonalSecuritySections } from "./components/PersonalSecuritySections";
 
 type MfaPolicyLevel =
   | "OFF"
@@ -119,8 +121,8 @@ function SecurityCenterPageInner() {
   >([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { confirm } = useConfirmAction();
 
-  
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
@@ -256,12 +258,15 @@ function SecurityCenterPageInner() {
 
   async function revokeAllForUser(userId: string) {
     if (!teamId) return;
-    if (
-      !window.confirm(
-        "Revoke ALL active sessions for this user? They will be signed out everywhere.",
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: "Revoke ALL active sessions for this user?",
+      description:
+        "The user will be signed out from every device. They can sign back in if their account is otherwise active.",
+      confirmLabel: "Revoke all sessions",
+      tone: "danger",
+      testId: "security-center-revoke-all-for-user",
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await apiFetch("/v1/identity-security/sessions/revoke-all", {
@@ -294,6 +299,12 @@ function SecurityCenterPageInner() {
       </header>
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
+
+      {/* D-5 closure — personal security surface (password, sessions,
+          events) is user-scoped and does not require a team. We mount
+          it above the MFA / workspace cards so the operator always
+          has a reachable change-password + active-sessions surface. */}
+      <PersonalSecuritySections />
 
       {!teamId ? (
         <p style={mutedStyle}>Switch to a workspace to use security center.</p>

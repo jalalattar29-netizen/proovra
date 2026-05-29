@@ -36,10 +36,10 @@ export function RetentionConflictAlert({ teamId }: { teamId: string | null }) {
     if (!teamId) return;
     setErrored(false);
     try {
-      const res = await apiFetch(
+      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+      const json = (await apiFetch(
         `/v1/governance/dashboard?teamId=${encodeURIComponent(teamId)}`,
-      );
-      const json = (await res.json()) as DashboardResponse;
+      )) as DashboardResponse;
       const next = typeof json.policyConflictCount === "number"
         ? json.policyConflictCount
         : 0;

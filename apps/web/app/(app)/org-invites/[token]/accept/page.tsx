@@ -58,10 +58,10 @@ function OrgInviteAcceptPageInner() {
     }
     setState({ kind: "accepting" });
     try {
-      const res = await apiFetch(`/v1/org-invites/${token}/accept`, {
+      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+      const data = (await apiFetch(`/v1/org-invites/${token}/accept`, {
         method: "POST",
-      });
-      const data = (await res.json()) as {
+      })) as {
         organizationId: string;
         role: string;
       };

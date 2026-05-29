@@ -981,6 +981,16 @@ _Tables touched_: `password_reset_tokens`, `users`
 | `20260925000000_phase0_schema_catchup` | `teamId` | `team_id` |
 | `20260925000000_phase0_schema_catchup` | `userAgent` | `user_agent` |
 | `20260925000000_phase0_schema_catchup` | `userId` | `user_id` |
+| `20261007000000_phase_o_live_schema_compatibility_repair` | `teamId` | `team_id` |
+| `20261007000000_phase_o_live_schema_compatibility_repair` | `filtersJson` | `filters_json` |
+| `20261007000000_phase_o_live_schema_compatibility_repair` | `ownerUserId` | `owner_user_id` |
+| `20261007000000_phase_o_live_schema_compatibility_repair` | `incidentId` | `incident_id` |
+| `20261007000000_phase_o_live_schema_compatibility_repair` | `eventType` | `event_type` |
+| `20261007000000_phase_o_live_schema_compatibility_repair` | `safeMessage` | `safe_message` |
+| `20261007000000_phase_o_live_schema_compatibility_repair` | `metadataJson` | `metadata_json` |
+| `20261008000000_phase_o_workflow_join_table_final_repair` | `workflowInstanceId` | `workflow_instance_id` |
+| `20261008000000_phase_o_workflow_join_table_final_repair` | `evidenceId` | `evidence_id` |
+| `20261008000000_phase_o_workflow_join_table_final_repair` | `createdAt` | `created_at` |
 
 ## Required tests
 - `services/api/test/phase-o-migration-safety-gate.test.ts` — CI gate that fails any NEW migration added after the configured baseline timestamp if it introduces a CRITICAL pattern.

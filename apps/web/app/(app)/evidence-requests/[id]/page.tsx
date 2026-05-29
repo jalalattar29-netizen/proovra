@@ -127,10 +127,10 @@ function Inner() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch(
+      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+      const json = (await apiFetch(
         `/v1/evidence-requests/${encodeURIComponent(requestId)}`,
-      );
-      const json = (await res.json()) as { request: AuthRequestView };
+      )) as { request: AuthRequestView };
       setData(json.request);
     } catch (err) {
       const e = err as { message?: string; statusCode?: number };

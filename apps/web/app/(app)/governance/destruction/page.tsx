@@ -29,6 +29,7 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
 import { DestructionImpactPreview } from "../../../../components/governance/DestructionImpactPreview";
 import { DestructionCertificate } from "../../../../components/governance/DestructionCertificate";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 
 type ReviewStatus =
   | "PENDING"
@@ -124,8 +125,8 @@ function DestructionQueuePageInner() {
   // governance endpoints.
   const [previewFor, setPreviewFor] = useState<Review | null>(null);
   const [certificateFor, setCertificateFor] = useState<Review | null>(null);
+  const { confirm } = useConfirmAction();
 
-  
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
@@ -186,10 +187,25 @@ function DestructionQueuePageInner() {
     }
     const isDestructive = nextStatus === "APPROVED" || nextStatus === "EXECUTED";
     if (isDestructive) {
-      const confirmed = window.confirm(
+      const confirmed = await confirm(
         nextStatus === "EXECUTED"
-          ? "EXECUTE destruction? This is irreversible. A destruction certificate will be emitted and the evidence will move to DESTROYED. You will be asked to step-up authenticate."
-          : "Approve destruction? You will be asked to step-up authenticate.",
+          ? {
+              title: "Execute destruction?",
+              description:
+                "This is irreversible. A destruction certificate will be emitted and the evidence will move to DESTROYED. Step-up authentication is required on the next request.",
+              confirmLabel: "Execute destruction",
+              tone: "danger",
+              requireConfirmText: "EXECUTE",
+              testId: "destruction-execute",
+            }
+          : {
+              title: "Approve destruction?",
+              description:
+                "Approval queues the evidence for destruction execution. Step-up authentication is required on the next request.",
+              confirmLabel: "Approve",
+              tone: "warning",
+              testId: "destruction-approve",
+            },
       );
       if (!confirmed) return;
     }

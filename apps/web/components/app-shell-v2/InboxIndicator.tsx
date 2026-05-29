@@ -53,8 +53,12 @@ export function InboxIndicator() {
 
     async function tick() {
       try {
-        const res = await apiFetch("/v1/me/inbox/summary");
-        const data = (await res.json()) as SummaryResponse;
+        // `apiFetch` already returns the parsed JSON body (see
+        // `apps/web/lib/api.ts:233`). Calling `.json()` on the result
+        // throws `TypeError: e.json is not a function`. Same bug as
+        // the visible /inbox page; this indicator silently caught it
+        // and rendered no badge.
+        const data = (await apiFetch("/v1/me/inbox/summary")) as SummaryResponse;
         if (alive) {
           setSummary(data);
           setErrored(false);

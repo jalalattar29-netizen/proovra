@@ -137,8 +137,11 @@ function InboxPageInner() {
   const load = useCallback(async () => {
     setState({ kind: "loading" });
     try {
-      const res = await apiFetch("/v1/me/inbox");
-      const data = (await res.json()) as InboxEnvelope;
+      // `apiFetch` already returns the parsed JSON body (see
+      // `apps/web/lib/api.ts:233`). Calling `.json()` on the result
+      // throws `TypeError: e.json is not a function` in production
+      // (the local variable is minified to `e`).
+      const data = (await apiFetch("/v1/me/inbox")) as InboxEnvelope;
       setState({ kind: "ready", data });
     } catch (err: unknown) {
       const status =

@@ -25,10 +25,12 @@
  *   - identity/page.tsx + review/operations/page.tsx
  *     (~600 LoC operational consoles; folding is a UX-level decision
  *     deferred to CR2).
- *   - services/api-keys.service.ts (root, in-memory) — has live
- *     consumers via enterprise.routes.ts that feed dashboard/api-keys
- *     and dashboard/batch-analysis. Deletion requires migration which
- *     CR1 forbids. Deferred to R8 / R9.
+ *   - services/api-keys.service.ts (root, in-memory) — deferral
+ *     CLOSED by Phase Final-A3 (2026-05). The legacy file is now
+ *     deleted and the 5 enterprise.routes.ts handlers return
+ *     HTTP 410 Gone with a pointer to the canonical Phase 17
+ *     surface at `/v1/integrations/api-keys`. See the A-3 pin at
+ *     the bottom of this file.
  *
  * If a regression PR re-introduces any deleted surface, the matching
  * pin below FAILS — that's the forcing function.
@@ -246,9 +248,15 @@ describe("CR1 Part 2 — 8 backward-compat redirect pages folded into next.confi
   it("subroutes of consolidated paths still exist (next.config redirect is exact-match)", () => {
     // Phase 32.8B kept these working surfaces; the redirect on the
     // parent path must NOT have taken them out.
-    expect(existsSync(webPath("app/(app)/dashboard/api-keys/page.tsx"))).toBe(
-      true,
-    );
+    //
+    // Phase Final-A3-PT2 — `/dashboard/api-keys` was RETIRED (the
+    // legacy in-memory key store was deleted; redirect now goes to
+    // `/integrations`). The pin was moved to
+    // `phase-final-d5-pt2-no-legacy-personal-security.test.ts`.
+    //
+    // Phase Final-Vocab-Alignment — `/reviewer-ops/page.tsx` (the
+    // legacy index) was RETIRED; redirect goes to `/review`. Same
+    // closure file holds the new pin.
     expect(
       existsSync(webPath("app/(app)/dashboard/batch-analysis/page.tsx")),
     ).toBe(true);
@@ -258,7 +266,10 @@ describe("CR1 Part 2 — 8 backward-compat redirect pages folded into next.confi
     expect(existsSync(webPath("app/(app)/review/operations/page.tsx"))).toBe(
       true,
     );
-    expect(existsSync(webPath("app/(app)/reviewer-ops/page.tsx"))).toBe(true);
+    // `/reviewer-ops/[reviewId]` mutation inspector is preserved.
+    expect(
+      existsSync(webPath("app/(app)/reviewer-ops/[reviewId]")),
+    ).toBe(true);
   });
 });
 
@@ -277,14 +288,65 @@ describe("CR1 — documented deferrals: legacy operator pages NOT folded by CR1"
     );
   });
 
-  it("services/api-keys.service.ts deletion is deferred — file remains because enterprise.routes.ts still consumes it", () => {
-    // This is an HONEST PIN: the file is in-memory and dead long-term,
-    // but it has a live consumer chain (enterprise.routes.ts →
-    // dashboard/api-keys page). Removing it requires migration which
-    // CR1 forbids. The pin asserts that no one quietly deleted it
-    // without first migrating the consumer (which would 500 the page).
-    expect(existsSync(apiPath("src/services/api-keys.service.ts"))).toBe(true);
+  // CR1 deferral CLOSED by Phase Final-A3. The legacy
+  // services/api-keys.service.ts has been deleted and the
+  // enterprise.routes.ts `/v1/api-keys*` handlers now return
+  // HTTP 410 Gone. The closure pins live in the dedicated
+  // section below ("PART 8 — Phase Final-A3").
+});
+
+// =============================================================================
+// PART 8 — Phase Final-A3: legacy api-keys.service.ts retired
+// =============================================================================
+
+describe("Phase Final-A3 — legacy api-keys.service.ts retired", () => {
+  it("services/api-keys.service.ts no longer exists", () => {
+    expect(existsSync(apiPath("src/services/api-keys.service.ts"))).toBe(false);
+  });
+
+  it("enterprise.routes.ts no longer imports the legacy apiKeyService", () => {
     const enterprise = readApi("src/routes/enterprise.routes.ts");
-    expect(enterprise).toMatch(/apiKeyService/);
+    // Code-context matching only — explanatory deletion / closure
+    // comments are allowed to mention the symbol by name.
+    expect(enterprise).not.toMatch(
+      /^import[^\n]*\bapiKeyService\b/m,
+    );
+    expect(enterprise).not.toMatch(
+      /from\s+["'][^"']*\/api-keys\.service\.js["']/,
+    );
+    // No invocation of the legacy service in code.
+    expect(enterprise).not.toMatch(/\bapiKeyService\.(createKey|listKeys|revokeKey|rotateKey|updateRateLimit|validateKey)\b/);
+  });
+
+  it("the legacy /v1/api-keys surface returns HTTP 410 via the wildcard closure handler", () => {
+    const enterprise = readApi("src/routes/enterprise.routes.ts");
+    // The closure body and the 410 reply must be in place.
+    expect(enterprise).toMatch(/API_KEYS_LEGACY_RETIRED/);
+    expect(enterprise).toMatch(/reply\.code\(410\)/);
+    expect(enterprise).toMatch(/emitLegacyEndpointAuditAndRespond/);
+    // Phase Final-A3-PT2 — the 5 explicit handlers are now collapsed
+    // into 2 wildcard registrations (`app.all("/v1/api-keys", ...)` +
+    // `app.all("/v1/api-keys/*", ...)`). Both registrations are
+    // required: Fastify's wildcard pattern does NOT match the bare
+    // root path, so the root + subpath pair covers every request shape
+    // that used to hit the 5 explicit handlers.
+    expect(enterprise).toMatch(/app\.all\(\s*["']\/v1\/api-keys["']/);
+    expect(enterprise).toMatch(/app\.all\(\s*["']\/v1\/api-keys\/\*["']/);
+    // No leftover typed handlers (POST/GET/DELETE/POST rotate/PATCH).
+    expect(enterprise).not.toMatch(/app\.(post|get|delete|patch)<[^>]*>\s*\(\s*["']\/v1\/api-keys/);
+  });
+
+  it("canonical Phase 17 surface (services/integrations/api-keys.service.ts) is still in place", () => {
+    expect(
+      existsSync(apiPath("src/services/integrations/api-keys.service.ts")),
+    ).toBe(true);
+  });
+
+  it("enterprise.routes.ts quota counter reads from the canonical ApiCredential model (no in-memory key store)", () => {
+    const enterprise = readApi("src/routes/enterprise.routes.ts");
+    // Two call-sites: usage stats + quota. Both must read from
+    // Prisma's `apiCredential` (canonical) — never from `apiKeyService`.
+    const matches = enterprise.match(/prisma\.apiCredential\.count/g) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 });

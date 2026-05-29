@@ -120,8 +120,8 @@ function OrganizationsListPageInner() {
   const load = useCallback(async () => {
     setState({ kind: "loading" });
     try {
-      const res = await apiFetch("/v1/me/orgs");
-      const data = (await res.json()) as MeOrgsResponse;
+      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+      const data = (await apiFetch("/v1/me/orgs")) as MeOrgsResponse;
       setState({ kind: "ready", data });
     } catch (err: unknown) {
       const message =
@@ -147,12 +147,12 @@ function OrganizationsListPageInner() {
     setCreateBusy(true);
     setCreateError(null);
     try {
-      const res = await apiFetch("/v1/orgs", {
+      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+      const created = (await apiFetch("/v1/orgs", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: trimmed }),
-      });
-      const created = (await res.json()) as { organizationId: string };
+      })) as { organizationId: string };
       setCreateOpen(false);
       setCreateName("");
       await load();
@@ -177,10 +177,11 @@ function OrganizationsListPageInner() {
     setJoinBusy(true);
     setJoinError(null);
     try {
-      const res = await apiFetch(`/v1/org-invites/${encodeURIComponent(token)}/accept`, {
-        method: "POST",
-      });
-      const data = (await res.json()) as { organizationId: string };
+      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+      const data = (await apiFetch(
+        `/v1/org-invites/${encodeURIComponent(token)}/accept`,
+        { method: "POST" },
+      )) as { organizationId: string };
       setJoinOpen(false);
       setJoinToken("");
       await load();

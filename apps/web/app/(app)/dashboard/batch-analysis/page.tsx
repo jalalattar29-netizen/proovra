@@ -16,6 +16,7 @@ import {
   getStatusPillStyle,
 } from "../../../../components/dashboard/styles";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 
 interface BatchJob {
   id: string;
@@ -41,6 +42,7 @@ export default function BatchAnalysisPage() {
 function BatchAnalysisPageInner() {
   const { user } = useAuth();
   const { addToast } = useToast();
+  const { confirm } = useConfirmAction();
 
   const [jobs, setJobs] = useState<BatchJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,7 +121,16 @@ function BatchAnalysisPageInner() {
   };
 
   const handleCancelJob = async (jobId: string) => {
-    if (!window.confirm("Cancel this batch job?")) return;
+    const ok = await confirm({
+      title: "Cancel this batch job?",
+      description:
+        "In-progress items will stop. Already completed items keep their results.",
+      confirmLabel: "Cancel job",
+      cancelLabel: "Keep running",
+      tone: "warning",
+      testId: "batch-cancel",
+    });
+    if (!ok) return;
 
     try {
       await apiFetch(`/v1/batch-analysis/${jobId}/cancel`, {

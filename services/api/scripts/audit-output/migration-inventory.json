@@ -1,10 +1,10 @@
 {
-  "generatedAtUtc": "2026-05-29T01:35:17.026Z",
-  "migrationCount": 96,
+  "generatedAtUtc": "2026-05-29T03:44:13.015Z",
+  "migrationCount": 98,
   "summary": {
     "CRITICAL": 172,
     "HIGH": 416,
-    "MEDIUM": 134,
+    "MEDIUM": 138,
     "LOW": 0,
     "findingsByKind": {
       "CREATE_INDEX_NO_IF_NOT_EXISTS": 220,
@@ -15,15 +15,15 @@
       "ADD_COLUMN_NO_IF_NOT_EXISTS": 24,
       "ALTER_COLUMN_TYPE": 128,
       "CREATE_TABLE_IF_NOT_EXISTS": 113,
-      "ALTER_COLUMN_SET_DEFAULT": 3,
+      "ALTER_COLUMN_SET_DEFAULT": 5,
       "ALTER_TABLE_RENAME": 1,
       "INDEX_COLUMN_RISK": 40,
       "SET_NOT_NULL_NO_READINESS": 2,
-      "CREATE_INDEX_GUARDED": 3
+      "CREATE_INDEX_GUARDED": 5
     }
   },
   "verdicts": {
-    "SAFE": 15,
+    "SAFE": 17,
     "RISKY": 36,
     "UNSAFE": 45
   },
@@ -6278,6 +6278,83 @@
           "risk": "MEDIUM",
           "detail": "Default change affects only future inserts; existing rows unchanged.",
           "lineHint": 76
+        }
+      ]
+    },
+    {
+      "migration": "20261007000000_phase_o_live_schema_compatibility_repair",
+      "timestamp": "20261007000000",
+      "slug": "phase_o_live_schema_compatibility_repair",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "discussion_messages",
+        "discussion_participants",
+        "discussion_threads",
+        "evidence_entities",
+        "evidence_extracted_texts",
+        "evidence_intelligence_jobs",
+        "evidence_legal_holds",
+        "evidence_saved_views",
+        "evidence_search_documents",
+        "evidence_semantic_chunks",
+        "evidence_similarities",
+        "evidence_workflow_instances",
+        "evidence_workflow_step_instances",
+        "evidence_workflow_visibility_decisions",
+        "operational_incident_events",
+        "trusted_devices",
+        "upload_sessions"
+      ],
+      "totalColumnsAdded": 17,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20261008000000_phase_o_workflow_join_table_final_repair",
+      "timestamp": "20261008000000",
+      "slug": "phase_o_workflow_join_table_final_repair",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "evidence_workflow_instance_evidence"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 4,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 195,
+          "detail": "Index evidence_workflow_instance_evidence_evidence_id_idx ON evidence_workflow_instance_evidence(evidence_id) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {evidence_id}."
+        },
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 205,
+          "detail": "Index evidence_workflow_instance_evidence_step_instance_id_idx ON evidence_workflow_instance_evidence(step_instance_id) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {step_instance_id}."
+        },
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 80
+        },
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 81
         }
       ]
     },

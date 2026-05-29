@@ -26,6 +26,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 
 type Counts = Record<string, number>;
 
@@ -105,8 +106,8 @@ function ReliabilityPageInner() {
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyEvidenceId, setBusyEvidenceId] = useState<string | null>(null);
+  const { confirm } = useConfirmAction();
 
-  
 useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
@@ -139,12 +140,15 @@ useEffect(() => {
 
   async function markAbandoned(evidenceId: string) {
     if (!teamId) return;
-    if (
-      !confirm(
-        "Mark this upload as ABANDONED? This is a terminal operator action.",
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: "Mark this upload as ABANDONED?",
+      description:
+        "This is a terminal operator action. The upload session will be closed and no further pieces will be accepted.",
+      confirmLabel: "Mark abandoned",
+      tone: "warning",
+      testId: "reliability-mark-abandoned",
+    });
+    if (!ok) return;
     setBusyEvidenceId(evidenceId);
     try {
       const res: { session: Session } = await apiFetch(

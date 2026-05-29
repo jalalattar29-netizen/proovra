@@ -183,12 +183,12 @@ export default function EvidenceDiscussionPanel({
     setLoadingThreads(true);
     setError(null);
     try {
-      const res = await apiFetch(
+      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+      const data = (await apiFetch(
         `/v1/collaboration/threads?teamId=${encodeURIComponent(
           teamId,
         )}&evidenceId=${encodeURIComponent(evidenceId)}`,
-      );
-      const data = (await res.json()) as ThreadsResponse;
+      )) as ThreadsResponse;
       setThreads(data.threads ?? []);
     } catch (err) {
       const e = err as { message?: string };
@@ -212,12 +212,12 @@ export default function EvidenceDiscussionPanel({
       if (!teamId) return;
       setLoadingMessages(true);
       try {
-        const res = await apiFetch(
+        // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+        const data = (await apiFetch(
           `/v1/collaboration/threads/${encodeURIComponent(
             threadId,
           )}/messages?teamId=${encodeURIComponent(teamId)}`,
-        );
-        const data = (await res.json()) as MessagesResponse;
+        )) as MessagesResponse;
         setMessages(data.messages ?? []);
       } catch (err) {
         const e = err as { message?: string };

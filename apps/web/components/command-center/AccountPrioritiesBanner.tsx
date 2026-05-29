@@ -118,8 +118,8 @@ export function AccountPrioritiesBanner() {
   const load = useCallback(async () => {
     setState({ kind: "loading" });
     try {
-      const res = await apiFetch("/v1/me/operational-priorities");
-      const data = (await res.json()) as PriorityEnvelope;
+      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
+      const data = (await apiFetch("/v1/me/operational-priorities")) as PriorityEnvelope;
       setState({ kind: "ready", data });
     } catch (err: unknown) {
       const status =
