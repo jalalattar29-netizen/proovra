@@ -383,6 +383,14 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // wrapped in DO blocks. See
       // `docs/operations/live-schema-compatibility-repair.md`.
       "20261007000000_phase_o_live_schema_compatibility_repair",
+      // Phase O — Final additive repair for the last CRITICAL table
+      // (`evidence_workflow_instance_evidence`). Closes the 5
+      // remaining live-audit CRITICAL findings: missing id +
+      // step_instance_id, naming drift on workflowInstanceId /
+      // evidenceId / createdAt. PK promotion + unique index deferred
+      // until operator verifies no duplicates. See
+      // `docs/operations/live-schema-compatibility-repair.md`.
+      "20261008000000_phase_o_workflow_join_table_final_repair",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

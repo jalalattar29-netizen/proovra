@@ -215,12 +215,125 @@ The recommended rollback for any production incident is **Neon
 snapshot restore** to the snapshot captured in step 3, NOT manual
 DROP COLUMN.
 
+## Final repair migration — `20261008000000_phase_o_workflow_join_table_final_repair`
+
+After `20261006000000` and `20261007000000` were applied, the live
+audit reported **5 remaining CRITICAL findings**, all on the
+`evidence_workflow_instance_evidence` join table:
+
+| # | Kind | Detail |
+| --- | --- | --- |
+| 1 | MISSING_COLUMN | `id uuid` |
+| 2 | NAMING_DRIFT | `workflowInstanceId` → expected `workflow_instance_id` |
+| 3 | NAMING_DRIFT | `evidenceId` → expected `evidence_id` |
+| 4 | MISSING_COLUMN | `step_instance_id uuid` (nullable in Prisma) |
+| 5 | NAMING_DRIFT | `createdAt` → expected `created_at` |
+
+The final migration closes EXACTLY these 5 findings. It:
+
+- Adds `id`, `workflow_instance_id`, `evidence_id`, `step_instance_id`,
+  `created_at` — all NULLABLE, all `IF NOT EXISTS`.
+- Sets `DEFAULT gen_random_uuid()` on `id` and `DEFAULT NOW()` on
+  `created_at` so future Prisma INSERTs get a non-NULL value.
+- Backfills:
+  - `id ← gen_random_uuid()` where `id IS NULL` (idempotent).
+  - `workflow_instance_id ← workflowInstanceId` (camelCase legacy),
+    inside a DO block that first verifies the source column exists.
+  - `evidence_id ← evidenceId`, same pattern.
+  - `created_at ← createdAt`, same pattern.
+  - `step_instance_id` has no source column (introduced in Phase 22
+    after the legacy shape existed); left NULL — Prisma marks the
+    field optional.
+- Creates non-unique indexes on `evidence_id` and `step_instance_id`
+  inside column-existence DO blocks (Phase O-Final pattern).
+
+**What this migration deliberately does NOT do (operator scope):**
+
+- ❌ NO `ADD PRIMARY KEY`. Adding a PK to a populated table requires
+  verifying every row has a non-NULL, unique `id`. The operator must
+  run a verification query and author a separate promotion migration.
+- ❌ NO `CREATE UNIQUE INDEX` on `(workflow_instance_id, evidence_id)`.
+  Production may carry duplicate rows from the legacy camelCase
+  shape. Adding the unique index would error mid-migration. The
+  operator confirms uniqueness first.
+- ❌ NO `SET NOT NULL`. Even after the backfill, NOT NULL promotion is
+  deferred — operator verifies 100% non-NULL via SELECT before any
+  promotion migration.
+
+### Production commands for the final migration
+
+```bash
+# After commit/push, on the production server:
+cd /opt/proovra/app
+git pull --ff-only origin main
+PROOVRA_IMAGE_TAG=<new-git-sha> \
+  docker compose -f infra/docker/docker-compose.prod.yml pull proovra-api
+
+# 1. Pre-flight audit — confirms only the 5 expected CRITICAL findings.
+docker exec -it docker-proovra-api-1 sh -lc '
+  cd /app/services/api
+  node scripts/full-production-schema-audit.mjs
+'
+
+# 2. Take a Neon snapshot. Capture the snapshot ID. STOP if you cannot.
+
+# 3. Apply the final migration.
+docker exec -it docker-proovra-api-1 sh -lc '
+  cd /app/services/api
+  MIGRATE_ALLOW_REMOTE=1 \
+    MIGRATE_BACKUP_ID=<real-neon-snapshot-id> \
+    node scripts/safe-migrate.mjs deploy --allow-remote
+'
+
+# 4. Re-run the audit. ACCEPTANCE: CRITICAL: 0.
+docker exec -it docker-proovra-api-1 sh -lc '
+  cd /app/services/api
+  node scripts/full-production-schema-audit.mjs
+'
+
+# 5. Operator checklist BEFORE authoring PK / unique-index promotion:
+docker exec -it docker-proovra-api-1 sh -lc '
+  cd /app/services/api
+  pnpm exec prisma db execute --schema prisma/schema.prisma --stdin <<SQL
+SELECT
+  COUNT(*) AS total_rows,
+  COUNT(*) FILTER (WHERE id IS NULL) AS null_id_count,
+  COUNT(*) FILTER (WHERE workflow_instance_id IS NULL) AS null_wfid_count,
+  COUNT(*) FILTER (WHERE evidence_id IS NULL) AS null_evid_count,
+  (SELECT COUNT(*) FROM (
+     SELECT workflow_instance_id, evidence_id
+       FROM evidence_workflow_instance_evidence
+      GROUP BY workflow_instance_id, evidence_id
+     HAVING COUNT(*) > 1
+   ) d) AS duplicate_pair_count
+FROM evidence_workflow_instance_evidence;
+SQL
+'
+# Acceptance for PK + unique index promotion:
+#   null_id_count = 0
+#   null_wfid_count = 0
+#   null_evid_count = 0
+#   duplicate_pair_count = 0
+# Only when all four are zero is the operator authorised to write
+# the next migration adding PRIMARY KEY ("id") + UNIQUE INDEX on
+# (workflow_instance_id, evidence_id).
+
+# 6. Restart and verify no runtime errors.
+docker restart docker-proovra-api-1 docker-proovra-worker-1
+docker logs docker-proovra-api-1 --tail 250 | grep -iE "P2022|P2021|does not exist|failed|error"
+```
+
 ## Verdict
 
 - Audit parser: **fixed** (relation fields excluded; no `TYPE_TBD`).
-- Migration: **authored**, additive-only, contract-tested.
-- Tests: **passing** locally; structural contracts enforced.
-- Production apply: **PENDING operator snapshot + safe-migrate**.
+- Migrations: **3 authored**, all additive-only, all contract-tested.
+  - `20261006000000_phase_o_final_production_column_repair` (already applied)
+  - `20261007000000_phase_o_live_schema_compatibility_repair`
+  - `20261008000000_phase_o_workflow_join_table_final_repair`
+- Tests: **passing** locally; structural contracts enforced (no DROP /
+  RENAME / DELETE / TRUNCATE / SET NOT NULL / PK / UNIQUE INDEX).
+- Production apply for the latest two: **PENDING operator snapshot
+  + safe-migrate + post-audit confirming CRITICAL: 0**.
 
 ```
 LIVE SCHEMA COMPATIBILITY REPAIR: READY FOR PRODUCTION APPLY
@@ -229,5 +342,4 @@ LIVE SCHEMA COMPATIBILITY REPAIR: READY FOR PRODUCTION APPLY
 This verdict applies only to the contents of this repository.
 Production is fixed **only after** the operator (1) takes a Neon
 snapshot, (2) applies the migration via safe-migrate, (3) re-runs the
-live audit confirming zero CRITICAL findings on any REPAIR_NOW
-column.
+live audit confirming **CRITICAL: 0** on every table.
