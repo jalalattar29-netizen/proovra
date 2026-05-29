@@ -205,9 +205,14 @@ function parseModelBody(name, body, modelNames, enumNames) {
     // List fields are virtual relations — no DB column.
     if (isList) continue;
 
-    // Relation field (typed as a model + carries @relation).
-    const isRelation = modelNames.has(baseType) && /@relation\b/.test(attrs);
-    if (isRelation) continue;
+    // Relation field — ANY field whose type matches a known model is a
+    // relation regardless of whether `@relation` is present. Reverse
+    // 1-to-1 relations (e.g. `reviewWorkflow EvidenceReviewWorkflow?`)
+    // declare the type without an `@relation` attribute because the
+    // forward side carries the relation declaration. These NEVER map
+    // to scalar DB columns and must be excluded from the audit so they
+    // do not appear as MISSING_COLUMN false-positives.
+    if (modelNames.has(baseType)) continue;
 
     // Resolve column name.
     const mapMatch = /@map\("([^"]+)"\)/.exec(attrs);

@@ -325,6 +325,14 @@ export function parsePrismaModelMap(schemaSrc) {
     })
     .join("\n");
 
+  // Pass 0 — collect all model names so we can recognise reverse 1-to-1
+  // relation fields (typed as a known model name but with no
+  // `@relation` attribute, e.g. `reviewWorkflow EvidenceReviewWorkflow?`).
+  const allModelNames = new Set();
+  for (const m of cleaned.matchAll(/\bmodel\s+(\w+)\s*\{/g)) {
+    allModelNames.add(m[1]);
+  }
+
   const modelHeader = /\bmodel\s+(\w+)\s*\{/g;
   let scanFrom = 0;
   while (scanFrom < cleaned.length) {
@@ -354,10 +362,16 @@ export function parsePrismaModelMap(schemaSrc) {
       const fm = /^(\w+)\s+(\w+)(\?)?(\[\])?(.*)$/.exec(line);
       if (!fm) continue;
       const fname = fm[1];
+      const baseType = fm[2];
       const attrs = fm[5] || "";
       if (/@ignore\b/.test(attrs)) continue;
       if (fm[4] === "[]") continue; // virtual list
       if (/@relation\b/.test(attrs)) continue;
+      // Reverse 1-to-1 relation: typed as a known model name but no
+      // `@relation` attribute (the forward side declares it). Never a
+      // scalar column. See `full-production-schema-audit.mjs` for the
+      // detailed rationale.
+      if (allModelNames.has(baseType)) continue;
       const mapMatch = /@map\("([^"]+)"\)/.exec(attrs);
       columns.add(mapMatch ? mapMatch[1] : fname);
     }

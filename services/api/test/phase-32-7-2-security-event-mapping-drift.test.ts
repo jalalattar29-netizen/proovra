@@ -377,6 +377,12 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // + sister at-risk columns. See
       // `docs/operations/production-schema-repair.md`.
       "20261006000000_phase_o_final_production_column_repair",
+      // Phase O — Live schema compatibility repair. Pure-additive
+      // (ADD COLUMN IF NOT EXISTS) for live-audit-confirmed scalar
+      // mismatches, plus deterministic camelCase→snake_case backfills
+      // wrapped in DO blocks. See
+      // `docs/operations/live-schema-compatibility-repair.md`.
+      "20261007000000_phase_o_live_schema_compatibility_repair",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);
