@@ -64,10 +64,15 @@ describe("O-Final — additive repair migration", () => {
     expect.soft(src).not.toMatch(/\bDROP\s+(TABLE|COLUMN|INDEX|CONSTRAINT)\b/i);
     expect.soft(src).not.toMatch(/\bTRUNCATE\b/i);
     expect.soft(src).not.toMatch(/\bDELETE\s+FROM\b/i);
-    expect.soft(src).not.toMatch(/\bUPDATE\s+\S+\s+SET\b/i);
     expect.soft(src).not.toMatch(/\bRENAME\s+(TABLE|COLUMN|TO)\b/i);
     expect.soft(src).not.toMatch(/\bSET\s+NOT\s+NULL\b/i);
     expect.soft(src).not.toMatch(/\bREVOKE\b/i);
+    // Note: UPDATE is allowed for deterministic backfill of newly-added
+    // columns (e.g. mentioned_user_id ← user_id). The
+    // "Production-variant" describe block below specifically verifies
+    // that UPDATEs are wrapped in column-existence DO blocks and target
+    // only nullable repair columns we just added.
+    //
     // Every ADD COLUMN MUST be guarded by IF NOT EXISTS.
     const addColumnLines = src.match(/ADD\s+COLUMN\s+(?!IF\s+NOT\s+EXISTS)/gi);
     expect(addColumnLines).toBeNull();
@@ -90,6 +95,177 @@ describe("O-Final — additive repair migration", () => {
       expect.soft(src).toMatch(
         new RegExp(`ALTER\\s+TABLE\\s+IF\\s+EXISTS\\s+"${table}"`, "i"),
       );
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Production-variant coverage — added after the operator reported P3018
+// (SQL 42703) on the prior revision of this migration. Production's
+// `discussion_mentions` table had the legacy pre-Phase-16 shape
+// [id, message_id, user_id, created_at_utc], so the previous CREATE
+// INDEX on `(message_id, mentioned_user_id)` failed because the column
+// did not exist.
+//
+// These tests assert the revised migration:
+//   * Adds every Prisma-required column to discussion_mentions.
+//   * Backfills mentioned_user_id from the legacy `user_id` column
+//     deterministically (and idempotently — only NULL rows).
+//   * Backfills thread_id via JOIN on discussion_messages.
+//   * Backfills created_at from the legacy `created_at_utc` column.
+//   * Wraps every CREATE INDEX in a column-existence DO block so the
+//     SQL 42703 cannot recur.
+// ---------------------------------------------------------------------------
+
+describe("O-Final — production-variant coverage", () => {
+  const src = read(REPAIR_MIGRATION);
+
+  it("adds every Prisma-required column to discussion_mentions", () => {
+    // The Prisma DiscussionMention model declares 7 column-bearing
+    // fields. id + message_id are pre-existing; the other 5 are added
+    // by this migration.
+    for (const col of [
+      "team_id",
+      "thread_id",
+      "mentioned_user_id",
+      "notified_at_utc",
+      "created_at",
+    ]) {
+      expect.soft(src).toMatch(
+        new RegExp(`ADD\\s+COLUMN\\s+IF\\s+NOT\\s+EXISTS\\s+"${col}"`),
+      );
+    }
+  });
+
+  it("deterministically backfills mentioned_user_id from legacy user_id", () => {
+    // The UPDATE is wrapped in a DO block that verifies the SOURCE
+    // column exists before running. Defensive AND idempotent.
+    expect(src).toMatch(
+      /information_schema\.columns[\s\S]*?column_name\s*=\s*'user_id'/i,
+    );
+    expect(src).toMatch(
+      /UPDATE\s+"discussion_mentions"[\s\S]*?SET\s+"mentioned_user_id"\s*=\s*"user_id"/i,
+    );
+    // Idempotency clause — only fills rows where the new column is NULL.
+    expect(src).toMatch(/WHERE\s+"mentioned_user_id"\s+IS\s+NULL/i);
+  });
+
+  it("backfills thread_id via JOIN on discussion_messages (FK ensures totality)", () => {
+    expect(src).toMatch(
+      /information_schema\.tables[\s\S]*?table_name\s*=\s*'discussion_messages'/i,
+    );
+    expect(src).toMatch(
+      /UPDATE\s+"discussion_mentions"\s+dm[\s\S]*?FROM\s+"discussion_messages"\s+m[\s\S]*?WHERE\s+m\."id"\s*=\s*dm\."message_id"/i,
+    );
+    expect(src).toMatch(/AND\s+dm\."thread_id"\s+IS\s+NULL/i);
+  });
+
+  it("backfills created_at from legacy created_at_utc", () => {
+    expect(src).toMatch(
+      /information_schema\.columns[\s\S]*?column_name\s*=\s*'created_at_utc'/i,
+    );
+    expect(src).toMatch(
+      /SET\s+"created_at"\s*=\s*"created_at_utc"/i,
+    );
+  });
+
+  it("sets DEFAULT NOW() on created_at so future inserts get a non-NULL value", () => {
+    expect(src).toMatch(
+      /ALTER\s+COLUMN\s+"created_at"\s+SET\s+DEFAULT\s+NOW\(\)/i,
+    );
+  });
+
+  it("every backfill UPDATE is wrapped in a column-existence DO block", () => {
+    // Each UPDATE must appear inside a `DO $$ ... END $$` block that
+    // verifies the SOURCE column exists via information_schema. Count
+    // the UPDATE statements and the DO blocks containing UPDATE — they
+    // must match.
+    const updateCount = (src.match(/\bUPDATE\s+"discussion_mentions"/gi) ?? []).length;
+    expect(updateCount).toBeGreaterThanOrEqual(3); // mentioned_user_id, thread_id, created_at
+    // Each UPDATE is inside an EXECUTE statement (indirect call) inside
+    // a DO block.
+    const executeUpdates = (
+      src.match(/EXECUTE\s+\$upd\$[\s\S]*?UPDATE\s+"discussion_mentions"[\s\S]*?\$upd\$/gi) ?? []
+    ).length;
+    expect(executeUpdates).toBe(updateCount);
+  });
+
+  it("every CREATE INDEX is wrapped in a column-existence DO block", () => {
+    // The specific defense against SQL 42703: every CREATE INDEX runs
+    // only after we verify EVERY referenced column exists. Compare
+    // counts AFTER stripping SQL `--` comments so doc lines that
+    // mention "CREATE INDEX" don't false-positive.
+    const stripped = stripSqlComments(src);
+    const createIndexLines = stripped.match(/CREATE\s+(?:UNIQUE\s+)?INDEX/gi) ?? [];
+    expect(createIndexLines.length).toBeGreaterThanOrEqual(3); // 3 on discussion_mentions + 1 on evidence_saved_views
+    // Each CREATE INDEX appears inside an EXECUTE call (which is itself
+    // inside a DO block). Counting EXECUTE 'CREATE INDEX...' matches.
+    const executeIndexes = (
+      stripped.match(/EXECUTE\s+'CREATE\s+(?:UNIQUE\s+)?INDEX/gi) ?? []
+    ).length;
+    expect(executeIndexes).toBe(createIndexLines.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Index column-safety contract — added per the operator brief:
+// "Add a test that forbids indexes on columns not added/known by the
+// migration." The repair migration must never reference a column in
+// a CREATE INDEX that the same migration does not add (or that is not
+// in a small allowlist of always-present pre-existing columns).
+// ---------------------------------------------------------------------------
+
+describe("O-Final — index column safety", () => {
+  const src = read(REPAIR_MIGRATION);
+
+  // Columns the prior Phase 16 / Phase G2 / etc. migrations declared
+  // as part of the original CREATE TABLE block. Indexes may safely
+  // reference these without this migration adding them, because they
+  // are present in every non-drifted production.
+  const KNOWN_PREEXISTING: Record<string, string[]> = {
+    discussion_mentions: ["id", "message_id"],
+    evidence_saved_views: ["id", "owner_user_id", "created_at"],
+  };
+
+  function columnsAddedByMigrationToTable(src: string, table: string): Set<string> {
+    const block = new RegExp(
+      `ALTER\\s+TABLE\\s+IF\\s+EXISTS\\s+"${table}"([\\s\\S]*?)(?=ALTER\\s+TABLE|DO\\s+\\$\\$|$)`,
+      "gi",
+    );
+    const out = new Set<string>();
+    for (const m of src.matchAll(block)) {
+      const body = m[1];
+      for (const cm of body.matchAll(/ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+"(\w+)"/gi)) {
+        out.add(cm[1]);
+      }
+    }
+    return out;
+  }
+
+  it("every CREATE INDEX references only columns this migration adds or pre-existing known-safe columns", () => {
+    const indexes = [
+      ...src.matchAll(
+        /CREATE\s+(?:UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS\s+"[\w]+"\s+ON\s+"(\w+)"\s+\(([^)]+)\)/gi,
+      ),
+    ];
+    expect(indexes.length).toBeGreaterThan(0);
+    for (const m of indexes) {
+      const table = m[1];
+      const colList = m[2];
+      const cols = colList
+        .split(",")
+        .map((c) => c.trim().replace(/"/g, "").replace(/\s+(ASC|DESC)$/i, ""));
+      const added = columnsAddedByMigrationToTable(src, table);
+      const allowed = new Set([
+        ...added,
+        ...(KNOWN_PREEXISTING[table] ?? []),
+      ]);
+      for (const col of cols) {
+        expect.soft(
+          allowed.has(col),
+          `CREATE INDEX on ${table}(${colList}) references column "${col}" that this migration does not add and is not in the known-pre-existing allowlist.`,
+        ).toBe(true);
+      }
     }
   });
 });

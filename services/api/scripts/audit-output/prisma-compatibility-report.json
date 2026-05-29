@@ -1,0 +1,663 @@
+{
+  "generatedAtUtc": "2026-05-29T01:35:17.027Z",
+  "modelsParsed": 156,
+  "issuesCount": 82,
+  "issues": [
+    {
+      "migration": "20260131235343_init",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence",
+      "model": "Evidence",
+      "column": "device_time_utc",
+      "detail": "Migration ADDs column evidence.device_time_utc but Prisma model Evidence no longer references it."
+    },
+    {
+      "migration": "20260131235343_init",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence",
+      "model": "Evidence",
+      "column": "timezone_offset_min",
+      "detail": "Migration ADDs column evidence.timezone_offset_min but Prisma model Evidence no longer references it."
+    },
+    {
+      "migration": "20260131235343_init",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "custody_events",
+      "model": "CustodyEvent",
+      "column": "actor_type",
+      "detail": "Migration ADDs column custody_events.actor_type but Prisma model CustodyEvent no longer references it."
+    },
+    {
+      "migration": "20260131235343_init",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "custody_events",
+      "model": "CustodyEvent",
+      "column": "actor_id",
+      "detail": "Migration ADDs column custody_events.actor_id but Prisma model CustodyEvent no longer references it."
+    },
+    {
+      "migration": "20260131235343_init",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "reports",
+      "model": "Report",
+      "column": "report_sha256",
+      "detail": "Migration ADDs column reports.report_sha256 but Prisma model Report no longer references it."
+    },
+    {
+      "migration": "20260131235343_init",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "reports",
+      "model": "Report",
+      "column": "created_at",
+      "detail": "Migration ADDs column reports.created_at but Prisma model Report no longer references it."
+    },
+    {
+      "migration": "20260215095541_email_password_auth",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "password_reset_tokens",
+      "model": "PasswordResetToken",
+      "column": "ON",
+      "detail": "Migration ADDs column password_reset_tokens.ON but Prisma model PasswordResetToken no longer references it."
+    },
+    {
+      "migration": "20260407_add_legal_acceptance_and_cookie_consent",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "user_legal_acceptances",
+      "model": "UserLegalAcceptance",
+      "column": "ON",
+      "detail": "Migration ADDs column user_legal_acceptances.ON but Prisma model UserLegalAcceptance no longer references it."
+    },
+    {
+      "migration": "20260407_add_legal_acceptance_and_cookie_consent",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "cookie_consent_records",
+      "model": "CookieConsentRecord",
+      "column": "ON",
+      "detail": "Migration ADDs column cookie_consent_records.ON but Prisma model CookieConsentRecord no longer references it."
+    },
+    {
+      "migration": "20260510120000_add_capture_sessions",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "capture_session_events",
+      "model": "CaptureSessionEvent",
+      "column": "ON",
+      "detail": "Migration ADDs column capture_session_events.ON but Prisma model CaptureSessionEvent no longer references it."
+    },
+    {
+      "migration": "20260516120000_add_workflow_template_foundation",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_workflow_templates",
+      "model": "EvidenceWorkflowTemplate",
+      "column": "intake_modes",
+      "detail": "Migration ADDs column evidence_workflow_templates.intake_modes but Prisma model EvidenceWorkflowTemplate no longer references it."
+    },
+    {
+      "migration": "20260516120000_add_workflow_template_foundation",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_workflow_templates",
+      "model": "EvidenceWorkflowTemplate",
+      "column": "allowed_roles",
+      "detail": "Migration ADDs column evidence_workflow_templates.allowed_roles but Prisma model EvidenceWorkflowTemplate no longer references it."
+    },
+    {
+      "migration": "20260516120000_add_workflow_template_foundation",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_workflow_templates",
+      "model": "EvidenceWorkflowTemplate",
+      "column": "ON",
+      "detail": "Migration ADDs column evidence_workflow_templates.ON but Prisma model EvidenceWorkflowTemplate no longer references it."
+    },
+    {
+      "migration": "20260516180000_add_workflow_intake_links_phase4",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "workflow_intake_links",
+      "model": "WorkflowIntakeLink",
+      "column": "allowed_accepted_kinds",
+      "detail": "Migration ADDs column workflow_intake_links.allowed_accepted_kinds but Prisma model WorkflowIntakeLink no longer references it."
+    },
+    {
+      "migration": "20260516180000_add_workflow_intake_links_phase4",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "workflow_intake_links",
+      "model": "WorkflowIntakeLink",
+      "column": "ip_allowlist_cidrs",
+      "detail": "Migration ADDs column workflow_intake_links.ip_allowlist_cidrs but Prisma model WorkflowIntakeLink no longer references it."
+    },
+    {
+      "migration": "20260516180000_add_workflow_intake_links_phase4",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "workflow_intake_links",
+      "model": "WorkflowIntakeLink",
+      "column": "ON",
+      "detail": "Migration ADDs column workflow_intake_links.ON but Prisma model WorkflowIntakeLink no longer references it."
+    },
+    {
+      "migration": "20260516180000_add_workflow_intake_links_phase4",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "workflow_intake_sessions",
+      "model": "WorkflowIntakeSession",
+      "column": "ON",
+      "detail": "Migration ADDs column workflow_intake_sessions.ON but Prisma model WorkflowIntakeSession no longer references it."
+    },
+    {
+      "migration": "20260516220000_add_evidence_requests_phase7",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_requests",
+      "model": "EvidenceRequest",
+      "column": "ON",
+      "detail": "Migration ADDs column evidence_requests.ON but Prisma model EvidenceRequest no longer references it."
+    },
+    {
+      "migration": "20260516220000_add_evidence_requests_phase7",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_request_deliverables",
+      "model": "EvidenceRequestDeliverable",
+      "column": "accepted_kinds",
+      "detail": "Migration ADDs column evidence_request_deliverables.accepted_kinds but Prisma model EvidenceRequestDeliverable no longer references it."
+    },
+    {
+      "migration": "20260516220000_add_evidence_requests_phase7",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_request_deliverables",
+      "model": "EvidenceRequestDeliverable",
+      "column": "ON",
+      "detail": "Migration ADDs column evidence_request_deliverables.ON but Prisma model EvidenceRequestDeliverable no longer references it."
+    },
+    {
+      "migration": "20260516220000_add_evidence_requests_phase7",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_request_responses",
+      "model": "EvidenceRequestResponse",
+      "column": "ON",
+      "detail": "Migration ADDs column evidence_request_responses.ON but Prisma model EvidenceRequestResponse no longer references it."
+    },
+    {
+      "migration": "20260516220000_add_evidence_requests_phase7",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_request_events",
+      "model": "EvidenceRequestEvent",
+      "column": "ON",
+      "detail": "Migration ADDs column evidence_request_events.ON but Prisma model EvidenceRequestEvent no longer references it."
+    },
+    {
+      "migration": "20260517020000_add_notification_deliveries_phase8",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "notification_deliveries",
+      "model": "NotificationDelivery",
+      "column": "ON",
+      "detail": "Migration ADDs column notification_deliveries.ON but Prisma model NotificationDelivery no longer references it."
+    },
+    {
+      "migration": "20260517100000_add_governance_phase9",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "workspace_governance_policies",
+      "model": "WorkspaceGovernancePolicy",
+      "column": "ON",
+      "detail": "Migration ADDs column workspace_governance_policies.ON but Prisma model WorkspaceGovernancePolicy no longer references it."
+    },
+    {
+      "migration": "20260517100000_add_governance_phase9",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_legal_holds",
+      "model": "EvidenceLegalHold",
+      "column": "ON",
+      "detail": "Migration ADDs column evidence_legal_holds.ON but Prisma model EvidenceLegalHold no longer references it."
+    },
+    {
+      "migration": "20260517140000_add_integrations_phase10",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "api_credentials",
+      "model": "ApiCredential",
+      "column": "scopes",
+      "detail": "Migration ADDs column api_credentials.scopes but Prisma model ApiCredential no longer references it."
+    },
+    {
+      "migration": "20260517140000_add_integrations_phase10",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "api_credentials",
+      "model": "ApiCredential",
+      "column": "ON",
+      "detail": "Migration ADDs column api_credentials.ON but Prisma model ApiCredential no longer references it."
+    },
+    {
+      "migration": "20260517140000_add_integrations_phase10",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "integration_webhook_endpoints",
+      "model": "WebhookEndpoint",
+      "column": "event_types",
+      "detail": "Migration ADDs column integration_webhook_endpoints.event_types but Prisma model WebhookEndpoint no longer references it."
+    },
+    {
+      "migration": "20260517140000_add_integrations_phase10",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "integration_webhook_endpoints",
+      "model": "WebhookEndpoint",
+      "column": "ON",
+      "detail": "Migration ADDs column integration_webhook_endpoints.ON but Prisma model WebhookEndpoint no longer references it."
+    },
+    {
+      "migration": "20260517140000_add_integrations_phase10",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "integration_webhook_deliveries",
+      "model": "IntegrationWebhookDelivery",
+      "column": "ON",
+      "detail": "Migration ADDs column integration_webhook_deliveries.ON but Prisma model IntegrationWebhookDelivery no longer references it."
+    },
+    {
+      "migration": "20260518100000_add_integrations_phase10_5",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "api_credential_usage_logs",
+      "model": "ApiCredentialUsageLog",
+      "column": "ON",
+      "detail": "Migration ADDs column api_credential_usage_logs.ON but Prisma model ApiCredentialUsageLog no longer references it."
+    },
+    {
+      "migration": "20260519100000_add_security_hardening_phase11",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "file_security_scans",
+      "model": "FileSecurityScan",
+      "column": "ON",
+      "detail": "Migration ADDs column file_security_scans.ON but Prisma model FileSecurityScan no longer references it."
+    },
+    {
+      "migration": "20260519100000_add_security_hardening_phase11",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "security_events",
+      "model": "SecurityEvent",
+      "column": "team_id",
+      "detail": "Migration ADDs column security_events.team_id but Prisma model SecurityEvent no longer references it."
+    },
+    {
+      "migration": "20260519100000_add_security_hardening_phase11",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "security_events",
+      "model": "SecurityEvent",
+      "column": "event_type",
+      "detail": "Migration ADDs column security_events.event_type but Prisma model SecurityEvent no longer references it."
+    },
+    {
+      "migration": "20260519100000_add_security_hardening_phase11",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "security_events",
+      "model": "SecurityEvent",
+      "column": "evidence_id",
+      "detail": "Migration ADDs column security_events.evidence_id but Prisma model SecurityEvent no longer references it."
+    },
+    {
+      "migration": "20260519100000_add_security_hardening_phase11",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "security_events",
+      "model": "SecurityEvent",
+      "column": "api_credential_id",
+      "detail": "Migration ADDs column security_events.api_credential_id but Prisma model SecurityEvent no longer references it."
+    },
+    {
+      "migration": "20260519100000_add_security_hardening_phase11",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "security_events",
+      "model": "SecurityEvent",
+      "column": "webhook_endpoint_id",
+      "detail": "Migration ADDs column security_events.webhook_endpoint_id but Prisma model SecurityEvent no longer references it."
+    },
+    {
+      "migration": "20260519100000_add_security_hardening_phase11",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "security_events",
+      "model": "SecurityEvent",
+      "column": "details",
+      "detail": "Migration ADDs column security_events.details but Prisma model SecurityEvent no longer references it."
+    },
+    {
+      "migration": "20260519100000_add_security_hardening_phase11",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "security_events",
+      "model": "SecurityEvent",
+      "column": "created_at",
+      "detail": "Migration ADDs column security_events.created_at but Prisma model SecurityEvent no longer references it."
+    },
+    {
+      "migration": "20260520100000_add_reliability_phase12",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "upload_sessions",
+      "model": "UploadSession",
+      "column": "ON",
+      "detail": "Migration ADDs column upload_sessions.ON but Prisma model UploadSession no longer references it."
+    },
+    {
+      "migration": "20260523100000_add_governance_platform_phase14",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "case_legal_holds",
+      "model": "CaseLegalHold",
+      "column": "ON",
+      "detail": "Migration ADDs column case_legal_holds.ON but Prisma model CaseLegalHold no longer references it."
+    },
+    {
+      "migration": "20260524100000_add_intelligence_phase15",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_intelligence_jobs",
+      "model": "EvidenceIntelligenceJob",
+      "column": "ON",
+      "detail": "Migration ADDs column evidence_intelligence_jobs.ON but Prisma model EvidenceIntelligenceJob no longer references it."
+    },
+    {
+      "migration": "20260524100000_add_intelligence_phase15",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_extracted_texts",
+      "model": "EvidenceExtractedText",
+      "column": "ON",
+      "detail": "Migration ADDs column evidence_extracted_texts.ON but Prisma model EvidenceExtractedText no longer references it."
+    },
+    {
+      "migration": "20260524100000_add_intelligence_phase15",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_entities",
+      "model": "EvidenceEntity",
+      "column": "ON",
+      "detail": "Migration ADDs column evidence_entities.ON but Prisma model EvidenceEntity no longer references it."
+    },
+    {
+      "migration": "20260524100000_add_intelligence_phase15",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_semantic_chunks",
+      "model": "EvidenceSemanticChunk",
+      "column": "ON",
+      "detail": "Migration ADDs column evidence_semantic_chunks.ON but Prisma model EvidenceSemanticChunk no longer references it."
+    },
+    {
+      "migration": "20260524100000_add_intelligence_phase15",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_similarities",
+      "model": "EvidenceSimilarity",
+      "column": "ON",
+      "detail": "Migration ADDs column evidence_similarities.ON but Prisma model EvidenceSimilarity no longer references it."
+    },
+    {
+      "migration": "20260525100000_add_collaboration_phase16",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "discussion_threads",
+      "model": "DiscussionThread",
+      "column": "ON",
+      "detail": "Migration ADDs column discussion_threads.ON but Prisma model DiscussionThread no longer references it."
+    },
+    {
+      "migration": "20260525100000_add_collaboration_phase16",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "discussion_messages",
+      "model": "DiscussionMessage",
+      "column": "ON",
+      "detail": "Migration ADDs column discussion_messages.ON but Prisma model DiscussionMessage no longer references it."
+    },
+    {
+      "migration": "20260525100000_add_collaboration_phase16",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "discussion_mentions",
+      "model": "DiscussionMention",
+      "column": "ON",
+      "detail": "Migration ADDs column discussion_mentions.ON but Prisma model DiscussionMention no longer references it."
+    },
+    {
+      "migration": "20260525100000_add_collaboration_phase16",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "discussion_participants",
+      "model": "DiscussionParticipant",
+      "column": "ON",
+      "detail": "Migration ADDs column discussion_participants.ON but Prisma model DiscussionParticipant no longer references it."
+    },
+    {
+      "migration": "20260526100000_add_identity_phase17",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "organization_security_policies",
+      "model": "OrganizationSecurityPolicy",
+      "column": "allowed_email_domains",
+      "detail": "Migration ADDs column organization_security_policies.allowed_email_domains but Prisma model OrganizationSecurityPolicy no longer references it."
+    },
+    {
+      "migration": "20260526100000_add_identity_phase17",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "organization_security_policies",
+      "model": "OrganizationSecurityPolicy",
+      "column": "restricted_ip_ranges",
+      "detail": "Migration ADDs column organization_security_policies.restricted_ip_ranges but Prisma model OrganizationSecurityPolicy no longer references it."
+    },
+    {
+      "migration": "20260603100000_phase26_identity_governance",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "sso_connections",
+      "model": "SsoConnection",
+      "column": "allowed_email_domains",
+      "detail": "Migration ADDs column sso_connections.allowed_email_domains but Prisma model SsoConnection no longer references it."
+    },
+    {
+      "migration": "20260603100000_phase26_identity_governance",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "scim_provisioning_tokens",
+      "model": "ScimProvisioningToken",
+      "column": "scopes",
+      "detail": "Migration ADDs column scim_provisioning_tokens.scopes but Prisma model ScimProvisioningToken no longer references it."
+    },
+    {
+      "migration": "20260603100000_phase26_identity_governance",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "scim_provisioning_tokens",
+      "model": "ScimProvisioningToken",
+      "column": "ip_allowlist",
+      "detail": "Migration ADDs column scim_provisioning_tokens.ip_allowlist but Prisma model ScimProvisioningToken no longer references it."
+    },
+    {
+      "migration": "20260613100000_phase27_5_governance_operationalization",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "governance_notifications",
+      "model": "GovernanceNotification",
+      "column": "channels",
+      "detail": "Migration ADDs column governance_notifications.channels but Prisma model GovernanceNotification no longer references it."
+    },
+    {
+      "migration": "20260613100000_phase27_5_governance_operationalization",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "governance_notifications",
+      "model": "GovernanceNotification",
+      "column": "recipient_user_ids",
+      "detail": "Migration ADDs column governance_notifications.recipient_user_ids but Prisma model GovernanceNotification no longer references it."
+    },
+    {
+      "migration": "20260613100000_phase27_5_governance_operationalization",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "governance_export_snapshots",
+      "model": "GovernanceExportSnapshot",
+      "column": "active_hold_ids",
+      "detail": "Migration ADDs column governance_export_snapshots.active_hold_ids but Prisma model GovernanceExportSnapshot no longer references it."
+    },
+    {
+      "migration": "20260613100000_phase27_5_governance_operationalization",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "governance_export_snapshots",
+      "model": "GovernanceExportSnapshot",
+      "column": "governance_incident_ids",
+      "detail": "Migration ADDs column governance_export_snapshots.governance_incident_ids but Prisma model GovernanceExportSnapshot no longer references it."
+    },
+    {
+      "migration": "20260620100000_phase24_31_consolidated_drift_patches",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_search_documents",
+      "model": "EvidenceSearchDocument",
+      "column": "tsv",
+      "detail": "Migration ADDs column evidence_search_documents.tsv but Prisma model EvidenceSearchDocument no longer references it."
+    },
+    {
+      "migration": "20260620100000_phase24_31_consolidated_drift_patches",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_search_documents",
+      "model": "EvidenceSearchDocument",
+      "column": "embedding",
+      "detail": "Migration ADDs column evidence_search_documents.embedding but Prisma model EvidenceSearchDocument no longer references it."
+    },
+    {
+      "migration": "20260625100000_phase328cpppp_dashboard_intelligence_closure",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_integrity_snapshots",
+      "model": "EvidenceIntegritySnapshot",
+      "column": "ON",
+      "detail": "Migration ADDs column evidence_integrity_snapshots.ON but Prisma model EvidenceIntegritySnapshot no longer references it."
+    },
+    {
+      "migration": "20260625100000_phase328cpppp_dashboard_intelligence_closure",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "access_anomalies",
+      "model": "AccessAnomaly",
+      "column": "ON",
+      "detail": "Migration ADDs column access_anomalies.ON but Prisma model AccessAnomaly no longer references it."
+    },
+    {
+      "migration": "20260626100000_phase328cppppp_structural_intelligence_closure",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "queue_telemetry_snapshots",
+      "model": "QueueTelemetrySnapshot",
+      "column": "ON",
+      "detail": "Migration ADDs column queue_telemetry_snapshots.ON but Prisma model QueueTelemetrySnapshot no longer references it."
+    },
+    {
+      "migration": "20260628100000_phase328c_workflow_causality",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "operational_workflow_events",
+      "model": "OperationalWorkflowEvent",
+      "column": "ON",
+      "detail": "Migration ADDs column operational_workflow_events.ON but Prisma model OperationalWorkflowEvent no longer references it."
+    },
+    {
+      "migration": "20260628100000_phase328c_workflow_causality",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "operational_workflow_actions",
+      "model": "OperationalWorkflowAction",
+      "column": "ON",
+      "detail": "Migration ADDs column operational_workflow_actions.ON but Prisma model OperationalWorkflowAction no longer references it."
+    },
+    {
+      "migration": "20260629100000_phase328c_enterprise_gap_closure",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "bulk_operational_action_items",
+      "model": "BulkOperationalActionItem",
+      "column": "ON",
+      "detail": "Migration ADDs column bulk_operational_action_items.ON but Prisma model BulkOperationalActionItem no longer references it."
+    },
+    {
+      "migration": "20260630100000_phase328d_matter_workspace",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "case_assignments",
+      "model": "CaseAssignment",
+      "column": "ON",
+      "detail": "Migration ADDs column case_assignments.ON but Prisma model CaseAssignment no longer references it."
+    },
+    {
+      "migration": "20260630100000_phase328d_matter_workspace",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "case_status_history",
+      "model": "CaseStatusHistory",
+      "column": "from_status",
+      "detail": "Migration ADDs column case_status_history.from_status but Prisma model CaseStatusHistory no longer references it."
+    },
+    {
+      "migration": "20260630100000_phase328d_matter_workspace",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "case_status_history",
+      "model": "CaseStatusHistory",
+      "column": "to_status",
+      "detail": "Migration ADDs column case_status_history.to_status but Prisma model CaseStatusHistory no longer references it."
+    },
+    {
+      "migration": "20260630100000_phase328d_matter_workspace",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "case_status_history",
+      "model": "CaseStatusHistory",
+      "column": "ON",
+      "detail": "Migration ADDs column case_status_history.ON but Prisma model CaseStatusHistory no longer references it."
+    },
+    {
+      "migration": "20260630100000_phase328d_matter_workspace",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "case_risk_snapshots",
+      "model": "CaseRiskSnapshot",
+      "column": "ON",
+      "detail": "Migration ADDs column case_risk_snapshots.ON but Prisma model CaseRiskSnapshot no longer references it."
+    },
+    {
+      "migration": "20260726000000_r8_1_5_recovery_email_preflight",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "mfa_recovery_requests",
+      "model": "MfaRecoveryRequest",
+      "column": "mfa_enforcement_fail_mode",
+      "detail": "Migration ADDs column mfa_recovery_requests.mfa_enforcement_fail_mode but Prisma model MfaRecoveryRequest no longer references it."
+    },
+    {
+      "migration": "20260803000000_phase_e3_3_async_delivery_runtime",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "automation_webhook_deliveries",
+      "model": "AutomationWebhookDelivery",
+      "column": "consecutive_failure_count",
+      "detail": "Migration ADDs column automation_webhook_deliveries.consecutive_failure_count but Prisma model AutomationWebhookDelivery no longer references it."
+    },
+    {
+      "migration": "20260925000000_phase0_schema_catchup",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "access_reviews",
+      "model": "AccessReview",
+      "column": "fromStatus",
+      "detail": "Migration ADDs column access_reviews.fromStatus but Prisma model AccessReview no longer references it."
+    },
+    {
+      "migration": "20260925000000_phase0_schema_catchup",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "cases",
+      "model": "Case",
+      "column": "event_hash",
+      "detail": "Migration ADDs column cases.event_hash but Prisma model Case no longer references it."
+    },
+    {
+      "migration": "20260925000000_phase0_schema_catchup",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "destruction_reviews",
+      "model": "DestructionReview",
+      "column": "capture_method",
+      "detail": "Migration ADDs column destruction_reviews.capture_method but Prisma model DestructionReview no longer references it."
+    },
+    {
+      "migration": "20260925000000_phase0_schema_catchup",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_ai_categorizations",
+      "model": "EvidenceAiCategorization",
+      "column": "original_file_name",
+      "detail": "Migration ADDs column evidence_ai_categorizations.original_file_name but Prisma model EvidenceAiCategorization no longer references it."
+    },
+    {
+      "migration": "20260925000000_phase0_schema_catchup",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence_relationships",
+      "model": "EvidenceRelationship",
+      "column": "eventTypes",
+      "detail": "Migration ADDs column evidence_relationships.eventTypes but Prisma model EvidenceRelationship no longer references it."
+    },
+    {
+      "migration": "20260925000000_phase0_schema_catchup",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "review_escalations",
+      "model": "ReviewEscalation",
+      "column": "createdAtUtc",
+      "detail": "Migration ADDs column review_escalations.createdAtUtc but Prisma model ReviewEscalation no longer references it."
+    },
+    {
+      "migration": "20260925000000_phase0_schema_catchup",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "trusted_devices",
+      "model": "TrustedDevice",
+      "column": "avatar_url",
+      "detail": "Migration ADDs column trusted_devices.avatar_url but Prisma model TrustedDevice no longer references it."
+    },
+    {
+      "migration": "email_password_auth",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "password_reset_tokens",
+      "model": "PasswordResetToken",
+      "column": "ON",
+      "detail": "Migration ADDs column password_reset_tokens.ON but Prisma model PasswordResetToken no longer references it."
+    }
+  ]
+}

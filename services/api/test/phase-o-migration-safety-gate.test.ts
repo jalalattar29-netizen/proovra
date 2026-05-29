@@ -1,0 +1,426 @@
+/**
+ * Phase O — Migration safety CI gate.
+ *
+ * Two contracts enforced:
+ *
+ *   1. **CI gate on FUTURE migrations.** Any migration added after the
+ *      configured BASELINE_TIMESTAMP must contain ZERO CRITICAL
+ *      findings as classified by `full-migration-audit.mjs`. This is
+ *      the pre-commit guardrail that prevents the next
+ *      `mentioned_user_id does not exist` class of failure from
+ *      shipping.
+ *
+ *      Historical migrations (timestamp <= BASELINE) are explicitly
+ *      grandfathered: they have already been applied to production
+ *      and we cannot rewrite history without breaking
+ *      `_prisma_migrations`. Their findings are inventoried (see
+ *      `docs/operations/migration-inventory.md`) but do NOT fail CI.
+ *
+ *   2. **Audit script behaviour contract.** The script must:
+ *        - Live at the documented path.
+ *        - Be READ-ONLY by construction (no `pool.query`, no
+ *          `new PrismaClient`, no mutating SQL keywords in real
+ *          executable code).
+ *        - Export pure detectFindings / parseMigrationName /
+ *          stripSqlComments / classifyMigration helpers.
+ *        - Correctly detect the documented dangerous patterns on
+ *          synthetic SQL fixtures.
+ *        - Correctly detect the Phase O-Final guarded-INDEX pattern
+ *          and classify it as MEDIUM (CREATE_INDEX_GUARDED), not
+ *          CRITICAL (INDEX_COLUMN_RISK).
+ */
+
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { describe, expect, it } from "vitest";
+
+const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+function read(rel: string): string {
+  return readFileSync(REPO_ROOT + rel, "utf8");
+}
+function exists(rel: string): boolean {
+  return existsSync(REPO_ROOT + rel);
+}
+
+const AUDIT_SCRIPT = "services/api/scripts/full-migration-audit.mjs";
+const MIGRATIONS_DIR = "services/api/prisma/migrations";
+const INVENTORY_MD = "docs/operations/migration-inventory.md";
+const REPAIR_PLAN_MD = "docs/operations/migration-repair-plan.md";
+
+// ---------------------------------------------------------------------------
+// BASELINE — every migration with timestamp STRICTLY GREATER than this
+// value must pass the strict gate (zero CRITICAL findings).
+//
+// 20261006000000 is the Phase O-Final repair migration. Any new
+// migration authored after Phase O-Final must follow the
+// additive-only + DO-block-guarded-index pattern documented in
+// `docs/operations/production-schema-repair.md`.
+// ---------------------------------------------------------------------------
+const BASELINE_TIMESTAMP = "20261006000000";
+
+// ---------------------------------------------------------------------------
+// Lazy import of the audit script's exported core functions.
+// ---------------------------------------------------------------------------
+
+type AuditModule = {
+  stripSqlComments: (src: string) => string;
+  camelToSnake: (s: string) => string;
+  parseMigrationName: (name: string) => { timestamp: string | null; slug: string };
+  detectFindings: (sql: string) => {
+    findings: Array<{ kind: string; risk: string; lineHint?: number; detail: string }>;
+    columnsAddedByTable: Map<string, Set<string>>;
+  };
+  classifyMigration: (
+    findings: Array<{ kind: string; risk: string }>,
+  ) => { verdict: "SAFE" | "RISKY" | "UNSAFE"; rationale: string };
+  detectNamingDriftInSql: (sql: string) => Array<{
+    identifier: string;
+    altSnake: string;
+    detail: string;
+  }>;
+  parsePrismaModelMap: (
+    schemaSrc: string,
+  ) => Map<string, { table: string; columns: Set<string> }>;
+};
+
+async function loadAudit(): Promise<AuditModule> {
+  return (await import(REPO_ROOT + AUDIT_SCRIPT)) as AuditModule;
+}
+
+// ---------------------------------------------------------------------------
+// 1. Audit script contract — exists + read-only.
+// ---------------------------------------------------------------------------
+
+describe("Phase O — audit script contract", () => {
+  it("ships at the documented path", () => {
+    expect(exists(AUDIT_SCRIPT)).toBe(true);
+    expect(statSync(REPO_ROOT + AUDIT_SCRIPT).size).toBeGreaterThan(3000);
+  });
+
+  it("is read-only by construction: no pg.Pool, no PrismaClient, no DB I/O", () => {
+    const src = read(AUDIT_SCRIPT);
+    // The audit script does fs-only work. It must not import a DB
+    // client, even transitively. (full-production-schema-audit.mjs is
+    // the sibling that DOES connect; this script never does.)
+    expect.soft(src).not.toMatch(/new\s+Pool\(/);
+    expect.soft(src).not.toMatch(/new\s+PrismaClient\(/);
+    expect.soft(src).not.toMatch(/from\s+["']pg["']/);
+    expect.soft(src).not.toMatch(/import\(\s*["']pg["']\s*\)/);
+    expect.soft(src).not.toMatch(/from\s+["']@prisma\/client["']/);
+  });
+
+  it("exports the documented helpers", async () => {
+    const mod = await loadAudit();
+    expect(typeof mod.detectFindings).toBe("function");
+    expect(typeof mod.classifyMigration).toBe("function");
+    expect(typeof mod.parseMigrationName).toBe("function");
+    expect(typeof mod.stripSqlComments).toBe("function");
+    expect(typeof mod.detectNamingDriftInSql).toBe("function");
+    expect(typeof mod.parsePrismaModelMap).toBe("function");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. detectFindings — synthetic-fixture coverage of every documented
+//    dangerous pattern.
+// ---------------------------------------------------------------------------
+
+describe("Phase O — detectFindings", () => {
+  it("flags CREATE TABLE IF NOT EXISTS as CRITICAL", async () => {
+    const { detectFindings } = await loadAudit();
+    const { findings } = detectFindings(
+      `CREATE TABLE IF NOT EXISTS "widgets" (id UUID PRIMARY KEY);`,
+    );
+    const f = findings.find((x) => x.kind === "CREATE_TABLE_IF_NOT_EXISTS");
+    expect(f?.risk).toBe("CRITICAL");
+  });
+
+  it("flags ALTER TABLE DROP COLUMN as CRITICAL", async () => {
+    const { detectFindings } = await loadAudit();
+    const { findings } = detectFindings(
+      `ALTER TABLE "widgets" DROP COLUMN "x";`,
+    );
+    expect(findings.some((f) => f.kind === "ALTER_TABLE_DROP_COLUMN" && f.risk === "CRITICAL")).toBe(true);
+  });
+
+  it("flags ALTER TABLE RENAME as CRITICAL", async () => {
+    const { detectFindings } = await loadAudit();
+    const { findings } = detectFindings(
+      `ALTER TABLE "widgets" RENAME COLUMN "a" TO "b";`,
+    );
+    expect(findings.some((f) => f.kind === "ALTER_TABLE_RENAME" && f.risk === "CRITICAL")).toBe(true);
+  });
+
+  it("flags DROP TABLE, DROP INDEX, DROP TYPE, TRUNCATE, DELETE FROM as CRITICAL", async () => {
+    const { detectFindings } = await loadAudit();
+    for (const stmt of [
+      `DROP TABLE "x";`,
+      `DROP INDEX "i";`,
+      `DROP TYPE "t";`,
+      `TRUNCATE TABLE "x";`,
+      `DELETE FROM "x" WHERE id = 1;`,
+    ]) {
+      const { findings } = detectFindings(stmt);
+      expect.soft(
+        findings.some((f) => f.risk === "CRITICAL"),
+        `expected CRITICAL on: ${stmt}`,
+      ).toBe(true);
+    }
+  });
+
+  it("flags UPDATE without WHERE as CRITICAL", async () => {
+    const { detectFindings } = await loadAudit();
+    const { findings } = detectFindings(`UPDATE "widgets" SET x = 1;`);
+    expect(findings.some((f) => f.kind === "UPDATE_WITHOUT_WHERE")).toBe(true);
+  });
+
+  it("does NOT flag UPDATE with WHERE", async () => {
+    const { detectFindings } = await loadAudit();
+    const { findings } = detectFindings(
+      `UPDATE "widgets" SET x = 1 WHERE x IS NULL;`,
+    );
+    expect(findings.some((f) => f.kind === "UPDATE_WITHOUT_WHERE")).toBe(false);
+  });
+
+  it("flags SET NOT NULL without readiness marker as CRITICAL, with marker as MEDIUM", async () => {
+    const { detectFindings } = await loadAudit();
+    const bare = detectFindings(`ALTER TABLE "x" ALTER COLUMN "y" SET NOT NULL;`);
+    expect(bare.findings.some((f) => f.kind === "SET_NOT_NULL_NO_READINESS")).toBe(true);
+
+    const marked = detectFindings(
+      `-- backfill verified complete\n-- NOT NULL readiness asserted\nALTER TABLE "x" ALTER COLUMN "y" SET NOT NULL;`,
+    );
+    // Comments are stripped before detection. The current rule looks
+    // at the RAW sql surrounding context, so the marker is detected.
+    expect(marked.findings.some((f) => f.kind === "SET_NOT_NULL_WITH_READINESS")).toBe(true);
+  });
+
+  it("flags CREATE INDEX referencing unguarded columns as INDEX_COLUMN_RISK (CRITICAL)", async () => {
+    const { detectFindings } = await loadAudit();
+    const { findings } = detectFindings(
+      `CREATE INDEX IF NOT EXISTS "i" ON "widgets" ("team_id");`,
+    );
+    const f = findings.find((x) => x.kind === "INDEX_COLUMN_RISK");
+    expect(f?.risk).toBe("CRITICAL");
+  });
+
+  it("ACCEPTS CREATE INDEX wrapped in a DO/information_schema column-existence guard as MEDIUM", async () => {
+    const { detectFindings } = await loadAudit();
+    // The Phase O-Final pattern — every index reference is preceded
+    // by an information_schema.columns existence check for the same
+    // column name.
+    const sql = `
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema='public' AND table_name='widgets'
+       AND column_name='team_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS "widgets_team_idx" ON "widgets" ("team_id")';
+  END IF;
+END $$;
+`;
+    const { findings } = detectFindings(sql);
+    expect(findings.some((f) => f.kind === "INDEX_COLUMN_RISK")).toBe(false);
+    expect(findings.some((f) => f.kind === "CREATE_INDEX_GUARDED" && f.risk === "MEDIUM")).toBe(true);
+  });
+
+  it("flags ADD COLUMN without IF NOT EXISTS as HIGH", async () => {
+    const { detectFindings } = await loadAudit();
+    const { findings } = detectFindings(
+      `ALTER TABLE "x" ADD COLUMN "y" UUID;`,
+    );
+    expect(findings.some((f) => f.kind === "ADD_COLUMN_NO_IF_NOT_EXISTS" && f.risk === "HIGH")).toBe(true);
+  });
+
+  it("accepts ADD COLUMN IF NOT EXISTS as clean", async () => {
+    const { detectFindings } = await loadAudit();
+    const { findings } = detectFindings(
+      `ALTER TABLE IF EXISTS "x" ADD COLUMN IF NOT EXISTS "y" UUID;`,
+    );
+    expect(findings.some((f) => f.kind === "ADD_COLUMN_NO_IF_NOT_EXISTS")).toBe(false);
+  });
+
+  it("flags CREATE INDEX without IF NOT EXISTS as HIGH", async () => {
+    const { detectFindings } = await loadAudit();
+    const { findings } = detectFindings(
+      `ALTER TABLE IF EXISTS "x" ADD COLUMN IF NOT EXISTS "y" UUID;\nCREATE INDEX "x_y_idx" ON "x" ("y");`,
+    );
+    expect(findings.some((f) => f.kind === "CREATE_INDEX_NO_IF_NOT_EXISTS")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. classifyMigration — verdict logic.
+// ---------------------------------------------------------------------------
+
+describe("Phase O — classifyMigration", () => {
+  it("UNSAFE for any CRITICAL pattern", async () => {
+    const { classifyMigration } = await loadAudit();
+    const v = classifyMigration([
+      { kind: "CREATE_TABLE_IF_NOT_EXISTS", risk: "CRITICAL" },
+    ]);
+    expect(v.verdict).toBe("UNSAFE");
+  });
+  it("RISKY for HIGH-only idempotency gaps", async () => {
+    const { classifyMigration } = await loadAudit();
+    const v = classifyMigration([
+      { kind: "ADD_COLUMN_NO_IF_NOT_EXISTS", risk: "HIGH" },
+    ]);
+    expect(v.verdict).toBe("RISKY");
+  });
+  it("SAFE when no high-risk findings", async () => {
+    const { classifyMigration } = await loadAudit();
+    const v = classifyMigration([
+      { kind: "ALTER_COLUMN_SET_DEFAULT", risk: "MEDIUM" },
+    ]);
+    expect(v.verdict).toBe("SAFE");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. CI GATE — every migration NEWER than BASELINE must be clean.
+//    Historical migrations are grandfathered and only logged.
+// ---------------------------------------------------------------------------
+
+describe("Phase O — CI gate on post-baseline migrations", () => {
+  it(`baseline timestamp is the Phase O-Final repair: ${BASELINE_TIMESTAMP}`, () => {
+    // The baseline must match Phase O-Final so the gate's reasoning
+    // is unambiguous in the audit/repair-plan docs.
+    expect(BASELINE_TIMESTAMP).toBe("20261006000000");
+  });
+
+  it("every migration with timestamp > baseline has ZERO CRITICAL findings", async () => {
+    const { detectFindings, parseMigrationName } = await loadAudit();
+    const root = REPO_ROOT + MIGRATIONS_DIR;
+    const dirs = readdirSync(root, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+
+    const violations: Array<{
+      migration: string;
+      criticalCount: number;
+      kinds: string[];
+    }> = [];
+
+    for (const name of dirs) {
+      const { timestamp } = parseMigrationName(name);
+      if (!timestamp) continue;
+      if (timestamp <= BASELINE_TIMESTAMP) continue;
+      const sqlPath = `${root}/${name}/migration.sql`;
+      if (!existsSync(sqlPath)) continue;
+      const sql = readFileSync(sqlPath, "utf8");
+      const { findings } = detectFindings(sql);
+      const crit = findings.filter((f) => f.risk === "CRITICAL");
+      if (crit.length > 0) {
+        violations.push({
+          migration: name,
+          criticalCount: crit.length,
+          kinds: [...new Set(crit.map((f) => f.kind))],
+        });
+      }
+    }
+
+    if (violations.length > 0) {
+      const msg = violations
+        .map(
+          (v) =>
+            `  ${v.migration}: ${v.criticalCount} CRITICAL findings — ${v.kinds.join(", ")}`,
+        )
+        .join("\n");
+      throw new Error(
+        `Post-baseline migration(s) introduced CRITICAL findings. Fix or wrap in Phase O-Final-style DO blocks before commit:\n${msg}`,
+      );
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("the Phase O-Final repair migration itself passes the gate", async () => {
+    const { detectFindings } = await loadAudit();
+    const sql = read(
+      "services/api/prisma/migrations/20261006000000_phase_o_final_production_column_repair/migration.sql",
+    );
+    const { findings } = detectFindings(sql);
+    const crit = findings.filter((f) => f.risk === "CRITICAL");
+    expect(crit, `Phase O-Final must be the gate's precedent: zero CRITICAL findings.`).toEqual(
+      [],
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Documentation outputs from the audit script must exist and be
+//    non-empty (so the repair plan and inventory ride along with the
+//    code review).
+// ---------------------------------------------------------------------------
+
+describe("Phase O — committed audit outputs", () => {
+  it(`${INVENTORY_MD} exists and is non-empty`, () => {
+    expect(exists(INVENTORY_MD)).toBe(true);
+    expect(statSync(REPO_ROOT + INVENTORY_MD).size).toBeGreaterThan(500);
+  });
+
+  it(`${REPAIR_PLAN_MD} exists and is non-empty`, () => {
+    expect(exists(REPAIR_PLAN_MD)).toBe(true);
+    expect(statSync(REPO_ROOT + REPAIR_PLAN_MD).size).toBeGreaterThan(500);
+  });
+
+  it("inventory documents the 4 verdict buckets and CRITICAL kind table", () => {
+    const src = read(INVENTORY_MD);
+    expect(src).toMatch(/Verdict SAFE/);
+    expect(src).toMatch(/Verdict RISKY/);
+    expect(src).toMatch(/Verdict UNSAFE/);
+    expect(src).toMatch(/CRITICAL findings/);
+  });
+
+  it("repair plan documents Prisma compatibility + naming drift sections", () => {
+    const src = read(REPAIR_PLAN_MD);
+    expect(src).toMatch(/Prisma compatibility/);
+    expect(src).toMatch(/Naming drift/);
+    expect(src).toMatch(/Required tests/);
+    expect(src).toMatch(/Required production validation/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. parsePrismaModelMap smoke — verify the helper extracts model+table
+//    mappings against the real PROOVRA schema without crashing.
+// ---------------------------------------------------------------------------
+
+describe("Phase O — parsePrismaModelMap smoke", () => {
+  it("parses the real PROOVRA schema and finds DiscussionMention → discussion_mentions", async () => {
+    const { parsePrismaModelMap } = await loadAudit();
+    const src = read("services/api/prisma/schema.prisma");
+    const map = parsePrismaModelMap(src);
+    expect(map.size).toBeGreaterThan(100);
+    const dm = map.get("DiscussionMention");
+    expect(dm?.table).toBe("discussion_mentions");
+    expect(dm?.columns.has("mentioned_user_id")).toBe(true);
+    expect(dm?.columns.has("team_id")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Naming-drift detector smoke
+// ---------------------------------------------------------------------------
+
+describe("Phase O — detectNamingDriftInSql", () => {
+  it("flags quoted camelCase identifiers as drift", async () => {
+    const { detectNamingDriftInSql } = await loadAudit();
+    const drift = detectNamingDriftInSql(
+      `ALTER TABLE "widgets" ADD COLUMN "teamId" UUID;`,
+    );
+    expect(drift.length).toBeGreaterThanOrEqual(1);
+    const teamId = drift.find((d) => d.identifier === "teamId");
+    expect(teamId?.altSnake).toBe("team_id");
+  });
+  it("does not flag pure snake_case identifiers", async () => {
+    const { detectNamingDriftInSql } = await loadAudit();
+    const drift = detectNamingDriftInSql(
+      `ALTER TABLE "widgets" ADD COLUMN "team_id" UUID;`,
+    );
+    expect(drift.length).toBe(0);
+  });
+});
