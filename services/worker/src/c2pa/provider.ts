@@ -61,7 +61,7 @@ import {
 } from "@proovra/shared";
 import { env } from "../config.js";
 import { logger } from "../logger.js";
-import { PROOVRA_SPAN_NAMES, withProovraSpan } from "../otel.js";
+import { PROOVRA_SPAN_NAMES, withProovraSpan, withProovraSpanSync } from "../otel.js";
 
 // ---------------------------------------------------------------------------
 // Provider entry points
@@ -404,6 +404,14 @@ function parseToolStdoutToFileResult(input: {
   let status: C2paStatus = "present";
   let failureReason: C2paFailureReason | null = null;
   if (input.mode === "validate" || input.mode === "embed_supported") {
+    // Phase O1.5D — bounded c2pa.validate span (sync — this function
+    // is sync, so we use the sync helper). NEVER raw manifest content
+    // in attributes.
+    withProovraSpanSync(
+      PROOVRA_SPAN_NAMES.C2PA_VALIDATE,
+      { "proovra.operation": "c2pa_validate", "proovra.stage": String(input.mode) },
+      () => undefined,
+    );
     const validation = activeObj["validation_status"];
     const signatureInfo = activeObj["signature_info"];
     const sigStatus =

@@ -1,0 +1,92 @@
+{
+  "uid": "proovra-capture-evidence",
+  "title": "PROOVRA — Capture & Evidence",
+  "description": "Phase O1.6 — Capture session lifecycle + evidence create/upload/finalize. Every panel references a real emitted span (asserted by phase-o1-6-dashboard-coverage.test.ts). NEVER PII / GPS / file bytes / signed URLs.",
+  "tags": ["proovra", "capture", "evidence", "o1.6"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "30s",
+  "timezone": "utc",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "custom",
+        "current": { "text": "proovra-api", "value": "proovra-api" },
+        "options": [
+          { "text": "proovra-api", "value": "proovra-api" },
+          { "text": "proovra-worker", "value": "proovra-worker" }
+        ],
+        "query": "proovra-api,proovra-worker"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Capture session lifecycle throughput (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=\"proovra.capture.session.create\"}[5m]))", "legendFormat": "session.create" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=\"proovra.capture.review.begin\"}[5m]))", "legendFormat": "review.begin" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=\"proovra.capture.finish_sign\"}[5m]))", "legendFormat": "finish_sign" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Capture item operations (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=\"proovra.capture.item.add\"}[5m]))", "legendFormat": "item.add" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=\"proovra.capture.item.remove\"}[5m]))", "legendFormat": "item.remove" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=\"proovra.capture.item.map\"}[5m]))", "legendFormat": "item.map" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Evidence lifecycle throughput (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=\"proovra.evidence.create\"}[5m]))", "legendFormat": "create" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=\"proovra.evidence.upload.presign\"}[5m]))", "legendFormat": "upload.presign" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=\"proovra.evidence.upload.complete\"}[5m]))", "legendFormat": "upload.complete" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=\"proovra.evidence.finalize\"}[5m]))", "legendFormat": "finalize" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Evidence verify + report/package status reads (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=\"proovra.evidence.verify.public\"}[5m]))", "legendFormat": "verify.public" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=\"proovra.evidence.report.latest\"}[5m]))", "legendFormat": "report.latest" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=\"proovra.evidence.package.status\"}[5m]))", "legendFormat": "package.status" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Evidence finalize p95/p99 latency (ms)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.evidence.finalize\"}[5m])))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.evidence.finalize\"}[5m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Evidence failure rate (status=error, 5m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=~\"proovra.evidence..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "evidence errors" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-api\",span_name=~\"proovra.capture..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "capture errors" }
+      ]
+    }
+  ]
+}

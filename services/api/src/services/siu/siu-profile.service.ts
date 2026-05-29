@@ -36,6 +36,12 @@ import {
 } from "@proovra/shared";
 
 import { prisma } from "../../db.js";
+// Phase O1.5D — bounded siu.followup.request span. NEVER claimant
+// PII or contact details in attributes.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+} from "../../observability/otel.js";
 
 // ---------------------------------------------------------------------------
 // Tenancy guards
@@ -466,6 +472,26 @@ export async function addReviewIndicator(input: {
 // ---------------------------------------------------------------------------
 
 export async function createFollowUpRequest(input: {
+  caseId: string;
+  teamId: string;
+  checklistItemId: string;
+  dueByUtc?: string | null;
+  note?: string | null;
+  intakeLinkId?: string | null;
+  actorUserId: string | null;
+}): Promise<SiuFollowUpRequest | null> {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.SIU_FOLLOWUP_REQUEST,
+    {
+      "proovra.team_id": input.teamId,
+      "proovra.case_id": input.caseId,
+      "proovra.operation": "siu_followup_request",
+    },
+    () => createFollowUpRequestInner(input),
+  );
+}
+
+async function createFollowUpRequestInner(input: {
   caseId: string;
   teamId: string;
   checklistItemId: string;

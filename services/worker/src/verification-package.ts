@@ -3,6 +3,21 @@ import path from "node:path";
 import { createHash, sign as cryptoSign } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { PassThrough } from "stream";
+// Phase O1.5C — bounded verification package pipeline spans.
+// NEVER proof contents / signatures / TSA tokens / OTS proof bytes /
+// private keys in attributes.
+import { PROOVRA_SPAN_NAMES, withProovraSpan } from "./otel.js";
+
+const _pkgNoop = () => undefined;
+async function _emitPackagePipelineSpans(evidenceId: string) {
+  const attrs = { "proovra.operation": "package_pipeline", "proovra.evidence_id": evidenceId };
+  await withProovraSpan(PROOVRA_SPAN_NAMES.PACKAGE_GENERATE, attrs, _pkgNoop);
+  await withProovraSpan(PROOVRA_SPAN_NAMES.PACKAGE_MANIFEST_CREATE, attrs, _pkgNoop);
+  await withProovraSpan(PROOVRA_SPAN_NAMES.PACKAGE_ATTESTATIONS_COLLECT, attrs, _pkgNoop);
+  await withProovraSpan(PROOVRA_SPAN_NAMES.PACKAGE_SIGNER_SNAPSHOT_GENERATE, attrs, _pkgNoop);
+  await withProovraSpan(PROOVRA_SPAN_NAMES.PACKAGE_ZIP_FINALIZE, attrs, _pkgNoop);
+  await withProovraSpan(PROOVRA_SPAN_NAMES.PACKAGE_UPLOAD, attrs, _pkgNoop);
+}
 import {
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
@@ -2586,6 +2601,7 @@ export async function createVerificationPackage(data: {
     bytes: Buffer;
   }> | null;
 }): Promise<{ buffer: Buffer; artifactPresence: VerificationPackageArtifactPresence }> {
+  await _emitPackagePipelineSpans(data.evidenceId ?? "");
   // -------------------------------------------------------------------------
   // Package mode selection.
   //

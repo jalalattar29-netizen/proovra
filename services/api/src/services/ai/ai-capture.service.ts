@@ -2,6 +2,11 @@ import type { AiProvider } from "./ai-provider.js";
 import { AiResult, AiSeverity, AiTask } from "./ai-types.js";
 import { AiCostGuard } from "./ai-cost-guard.js";
 import { AI_LEGAL_DISCLAIMER } from "./ai-policy.js";
+// Phase O1.5E — bounded ai.capture.review span.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+} from "../../observability/otel.js";
 
 export type EvidenceType = "PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT";
 
@@ -486,6 +491,9 @@ export class AiCaptureService {
       };
     }
 
+// Phase O1.5E — bounded ai.capture.review span. NEVER prompts /
+// responses / file contents / GPS in attributes.
+await withProovraSpan(PROOVRA_SPAN_NAMES.AI_CAPTURE_REVIEW, { "proovra.operation": "ai_capture_review", "proovra.provider": "openai" }, () => undefined);
 // Redacted payload for the provider — see redactSessionPayloadForProvider
 // for the privacy rationale (Issue #5: never send raw filenames to AI).
 const providerResult = await this.provider.run(

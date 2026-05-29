@@ -521,8 +521,14 @@ describe("readiness/G — OTS contract preservation", () => {
     // can't kill the runtime. The Worker(...) call site moved
     // inside the helper's factory closure, but the contract is
     // unchanged: same queue name + same processor.
+    //
+    // Phase O1.3 update: the processor is additionally wrapped in
+    // `wrapJobHandlerWithOtelContext(...)` so the BullMQ handler
+    // inherits the parent OTEL context from the API enqueue side.
+    // The processor name still appears inside the wrap, so we only
+    // require it to appear AFTER the queue name (lazy [\s\S]*?).
     expect(src).toMatch(
-      /safeRegisterWorker\("ots-upgrade",[\s\S]*?new Worker\(otsUpgradeQueueName,\s*processOtsUpgrade/,
+      /safeRegisterWorker\("ots-upgrade",[\s\S]*?new Worker\(\s*otsUpgradeQueueName,[\s\S]*?processOtsUpgrade/,
     );
     // bindWorkerEvents is now invoked from inside safeRegisterWorker
     // — the test verifies the binding contract still holds by
@@ -644,17 +650,23 @@ describe("readiness/B — Boot-shape verification (source contracts)", () => {
     // safeRegisterWorker(...) helper so an import-time processor
     // crash can't kill the entire runtime. The (queueName, processor)
     // contract is unchanged — just wrapped in a factory closure.
+    //
+    // Phase O1.3 update: the Worker constructor moved to a multi-line
+    // form so the processor can be wrapped in
+    // `wrapJobHandlerWithOtelContext(...)` for distributed trace
+    // propagation. Allow whitespace between `new Worker(` and the
+    // queue-name identifier.
     expect(src).toMatch(
-      /safeRegisterWorker\("report",[\s\S]*?new Worker\(reportQueueName/,
+      /safeRegisterWorker\("report",[\s\S]*?new Worker\(\s*reportQueueName/,
     );
     expect(src).toMatch(
-      /safeRegisterWorker\("ots-upgrade",[\s\S]*?new Worker\(otsUpgradeQueueName/,
+      /safeRegisterWorker\("ots-upgrade",[\s\S]*?new Worker\(\s*otsUpgradeQueueName/,
     );
     expect(src).toMatch(
-      /safeRegisterWorker\("evidence-purge",[\s\S]*?new Worker\(evidencePurgeQueueName/,
+      /safeRegisterWorker\("evidence-purge",[\s\S]*?new Worker\(\s*evidencePurgeQueueName/,
     );
     expect(src).toMatch(
-      /safeRegisterWorker\("search-indexing",[\s\S]*?new Worker\(searchIndexingQueueName/,
+      /safeRegisterWorker\("search-indexing",[\s\S]*?new Worker\(\s*searchIndexingQueueName/,
     );
     // bindWorkerEvents is called inside safeRegisterWorker once per
     // successful Worker construction.

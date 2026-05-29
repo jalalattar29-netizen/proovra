@@ -370,6 +370,13 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Persists SIU saved views + SIU export ZIP rows + adds the
       // SIU_PII_REVEAL step-up purpose. Additive.
       "20261005000000_phase_m3_2_siu_governance_export",
+      // Phase O-Final — Production column repair. Pure-additive
+      // (ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS) on
+      // tables created with `CREATE TABLE IF NOT EXISTS` in their
+      // original migration. Repairs missing `discussion_mentions.team_id`
+      // + sister at-risk columns. See
+      // `docs/operations/production-schema-repair.md`.
+      "20261006000000_phase_o_final_production_column_repair",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

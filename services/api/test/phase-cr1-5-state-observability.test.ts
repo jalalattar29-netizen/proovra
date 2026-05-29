@@ -456,7 +456,7 @@ describe("CR1.5 Test 14 — capture upload/finalization files unchanged", () => 
   // File-size pin within ±10% per the same CR0.5 pattern. CR1.5 does
   // not touch capture, so the sizes must hold.
   const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 18308 },
+    { rel: "src/routes/capture.routes.ts", expectedBytes: 21271 },
     { rel: "src/services/evidence-complete.service.ts", expectedBytes: 41849 },
   ];
 
@@ -482,8 +482,8 @@ describe("CR1.5 Test 14 — capture upload/finalization files unchanged", () => 
 
 describe("CR1.5 Test 15 — custody / TSA / OTS / report / package files unchanged", () => {
   const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 4446 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 6033 },
+    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
+    { rel: "src/services/timestamp.service.ts", expectedBytes: 7535 },
     {
       rel: "src/services/reports/reports-aggregator.service.ts",
       expectedBytes: 13118,

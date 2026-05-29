@@ -265,33 +265,101 @@ export function getOtelStatus(): {
 }
 
 export const PROOVRA_SPAN_NAMES = {
-  REPORT_GENERATE: "proovra.report.generate",
-  PACKAGE_GENERATE: "proovra.package.generate",
-  EXPORT_MANIFEST_CREATE: "proovra.export.manifest.create",
-  EXPORT_REPRODUCIBILITY_VERIFY: "proovra.export.reproducibility.verify",
+  // Phase O1.1 / O1.2 / O1.3 / O1.4 — bounded runtime emission (mirror
+  // of api/otel.ts). EVERY entry below is wired by a real
+  // `withProovraSpan(PROOVRA_SPAN_NAMES.X, …)` call OR a
+  // `wrapJobHandlerWithOtelContext(PROOVRA_SPAN_NAMES.X, …)`
+  // registration. The contract test
+  // `services/worker/test/phase-o1-4-span-emission.test.ts` asserts
+  // every entry has a real call site. Per the O1.4 hard rule, no
+  // enum-only entries are permitted. See
+  // `docs/operations/phase-o1-4-business-flow-instrumentation.md` §6
+  // for the list of pre-O1.4 entries that were REMOVED because they
+  // were enum-only (historical drift from O1.1 / O1.2 / O1.3).
   QUEUE_JOB_REPLAY: "proovra.queue.job.replay",
   QUEUE_JOB_RETRY: "proovra.queue.job.retry",
   RECOVERY_BACKUP_VALIDATE: "proovra.recovery.backup.validate",
   RECOVERY_RESTORE_VALIDATE: "proovra.recovery.restore.validate",
-  TSA_TIMESTAMP: "proovra.tsa.timestamp",
-  OTS_ANCHOR: "proovra.ots.anchor",
-  // Phase O1.1
   SIGNER_HEALTH_CHECK: "proovra.signer.health_check",
   SIGNER_ROTATION_PREVIEW: "proovra.signer.rotation.preview",
   SIGNER_ROTATION_PROMOTE: "proovra.signer.rotation.promote",
   CUSTODY_ATTESTATION_SIGN: "proovra.custody.attestation.sign",
   CUSTODY_ATTESTATION_VERIFY: "proovra.custody.attestation.verify",
   CUSTODY_ATTESTATION_BACKFILL: "proovra.custody.attestation.backfill",
-  PACKAGE_ATTESTATIONS_COLLECT: "proovra.package.attestations.collect",
-  PACKAGE_SIGNER_SNAPSHOT_GENERATE:
-    "proovra.package.signer_snapshot.generate",
   C2PA_DETECT: "proovra.c2pa.detect",
-  C2PA_VALIDATE: "proovra.c2pa.validate",
   C2PA_PACKAGE_SUMMARY: "proovra.c2pa.package_summary",
   SIU_EXPORT_PREFLIGHT: "proovra.siu.export.preflight",
   SIU_EXPORT_GENERATE: "proovra.siu.export.generate",
+  WORKER_REPORT_GENERATE: "proovra.worker.report.generate",
+  WORKER_OTS_UPGRADE: "proovra.worker.ots.upgrade",
+  WORKER_GRAPH_RECONCILE: "proovra.worker.graph.reconcile",
+  CUSTODY_EVENT_APPEND: "proovra.custody.event.append",
+  S3_PUT_OBJECT: "proovra.s3.put_object",
+  S3_GET_OBJECT: "proovra.s3.get_object",
+  S3_HEAD_OBJECT: "proovra.s3.head_object",
+  WEBHOOK_DISPATCH: "proovra.webhook.dispatch",
+  // Phase O1.5A — Capture + Evidence + Upload + Finalize (mirror).
+  CAPTURE_SESSION_CREATE: "proovra.capture.session.create",
+  CAPTURE_ITEM_ADD: "proovra.capture.item.add",
+  CAPTURE_ITEM_REMOVE: "proovra.capture.item.remove",
+  CAPTURE_ITEM_MAP: "proovra.capture.item.map",
+  CAPTURE_REVIEW_BEGIN: "proovra.capture.review.begin",
+  CAPTURE_FINISH_SIGN: "proovra.capture.finish_sign",
+  EVIDENCE_CREATE: "proovra.evidence.create",
+  EVIDENCE_UPLOAD_PRESIGN: "proovra.evidence.upload.presign",
+  EVIDENCE_UPLOAD_COMPLETE: "proovra.evidence.upload.complete",
+  EVIDENCE_FINALIZE: "proovra.evidence.finalize",
+  EVIDENCE_VERIFY_PUBLIC: "proovra.evidence.verify.public",
+  EVIDENCE_REPORT_LATEST: "proovra.evidence.report.latest",
+  EVIDENCE_PACKAGE_STATUS: "proovra.evidence.package.status",
+  // Phase O1.5B — Integrity + Custody chain + TSA + OTS (mirror).
+  INTEGRITY_HASH_COMPUTE: "proovra.integrity.hash.compute",
+  INTEGRITY_CANONICAL_DIGEST: "proovra.integrity.canonical.digest",
+  INTEGRITY_SIGNATURE_VERIFY: "proovra.integrity.signature.verify",
+  INTEGRITY_TIMESTAMP_VERIFY: "proovra.integrity.timestamp.verify",
+  INTEGRITY_PUBLIC_ANCHOR_VERIFY: "proovra.integrity.public_anchor.verify",
+  CUSTODY_CHAIN_VERIFY: "proovra.custody.chain.verify",
+  TSA_TIMESTAMP_REQUEST: "proovra.tsa.timestamp.request",
+  TSA_TIMESTAMP_VERIFY: "proovra.tsa.timestamp.verify",
+  OTS_ANCHOR: "proovra.ots.anchor",
+  OTS_UPGRADE: "proovra.ots.upgrade",
+  OTS_VERIFY: "proovra.ots.verify",
+  // Phase O1.5C — Report pipeline.
+  REPORT_GENERATE: "proovra.report.generate",
+  REPORT_RENDER_HTML: "proovra.report.render.html",
+  REPORT_RENDER_PDF: "proovra.report.render.pdf",
+  REPORT_UPLOAD: "proovra.report.upload",
+  REPORT_PUBLISH: "proovra.report.publish",
+  // Phase O1.5C — Verification Package pipeline.
+  PACKAGE_GENERATE: "proovra.package.generate",
+  PACKAGE_MANIFEST_CREATE: "proovra.package.manifest.create",
+  PACKAGE_ATTESTATIONS_COLLECT: "proovra.package.attestations.collect",
+  PACKAGE_SIGNER_SNAPSHOT_GENERATE: "proovra.package.signer_snapshot.generate",
+  PACKAGE_ZIP_FINALIZE: "proovra.package.zip.finalize",
+  PACKAGE_UPLOAD: "proovra.package.upload",
+  // Phase O1.5D — Reviewer Ops.
+  REVIEWER_ASSIGNMENT_CREATE: "proovra.reviewer.assignment.create",
+  REVIEWER_ASSIGNMENT_COMPLETE: "proovra.reviewer.assignment.complete",
+  REVIEWER_QUEUE_BUILD: "proovra.reviewer.queue.build",
+  REVIEWER_CONSOLE_LOAD: "proovra.reviewer.console.load",
+  REVIEWER_RECONCILE: "proovra.reviewer.reconcile",
+  // Phase O1.5D — Graph.
+  GRAPH_RECONCILE: "proovra.graph.reconcile",
+  GRAPH_TIMELINE_BUILD: "proovra.graph.timeline.build",
+  GRAPH_DOMAIN_SYNC: "proovra.graph.domain.sync",
+  GRAPH_SEARCH_PROJECTION: "proovra.graph.search.projection",
+  // Phase O1.5D — C2PA validate + SIU followup/timeline.
+  C2PA_VALIDATE: "proovra.c2pa.validate",
   SIU_FOLLOWUP_REQUEST: "proovra.siu.followup.request",
   SIU_TIMELINE_BUILD: "proovra.siu.timeline.build",
+  // Phase O1.5E — AI.
+  OPENAI_AI_REQUEST: "proovra.openai.ai_request",
+  AI_CHAT: "proovra.ai.chat",
+  AI_CAPTURE_REVIEW: "proovra.ai.capture.review",
+  AI_SUPPORT_RESPONSE: "proovra.ai.support.response",
+  // Phase O1.5E — SMTP + external review.
+  SMTP_EMAIL_SEND: "proovra.smtp.email_send",
+  EXTERNAL_REVIEW_NOTIFY: "proovra.external.review.notify",
 } as const;
 
 export type ProovraSpanName =
@@ -317,6 +385,44 @@ export async function withProovraSpan<T>(
         }
       }
       const result = await fn(span);
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (err) {
+      const code =
+        err instanceof Error ? err.name.slice(0, 40) : "unknown";
+      lastExportErrorCode = code;
+      span.setStatus({ code: SpanStatusCode.ERROR, message: code });
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
+}
+
+/**
+ * Phase O1.5B — sync-safe bounded span helper (mirror of api/otel.ts).
+ * Preserves return type for sync code paths that cannot be made async.
+ */
+export function withProovraSpanSync<T>(
+  name: ProovraSpanName,
+  attributes: Record<string, string | number | boolean | null | undefined>,
+  fn: (span: Span) => T,
+): T {
+  const tracer = trace.getTracer("proovra");
+  return tracer.startActiveSpan(name, (span) => {
+    spansCreatedCount++;
+    lastSpanName = name;
+    lastSpanAtUtc = new Date().toISOString();
+    try {
+      const bounded = boundedAttributes(attributes);
+      for (const [k, v] of Object.entries(bounded)) {
+        try {
+          span.setAttribute(k, v);
+        } catch {
+          // ignore
+        }
+      }
+      const result = fn(span);
       span.setStatus({ code: SpanStatusCode.OK });
       return result;
     } catch (err) {

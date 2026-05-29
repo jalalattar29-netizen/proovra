@@ -68,6 +68,11 @@ import {
 import { startHealthServer, type HealthServer } from "./health.js";
 import { startTelemetrySampler, type TelemetrySampler } from "./telemetry.js";
 import { captureException, initSentry } from "./sentry.js";
+// Phase O1.3 — cross-service trace propagation helper + bounded span
+// enum. The helper wraps the BullMQ job processor so it inherits the
+// parent OTEL context injected by the API at enqueue time.
+import { wrapJobHandlerWithOtelContext } from "./observability/queue-otel-context.js";
+import { PROOVRA_SPAN_NAMES } from "./otel.js";
 import { reapExpiredCaptureDrafts } from "./capture-reaper.js";
 import { runOrphanArtifactScan } from "./orphan-scan.js";
 // Phase 27.5 — Governance operationalization workers.
@@ -1179,33 +1184,70 @@ function safeRegisterWorker(
   }
 }
 
+// Phase O1.3 — wrap the two highest-value job handlers in the
+// bounded OTEL context extractor + child-span helper. This makes the
+// API enqueue → worker handler chain visible as ONE distributed
+// trace in Grafana Tempo. Other queues are wired in follow-up phases;
+// see `docs/operations/phase-o1-3-otel-final-closure.md` §5.
 const reportWorker = safeRegisterWorker("report", () =>
-  new Worker(reportQueueName, processGenerateReport, {
-    connection: redisConnection,
-    concurrency: 2,
-  }),
+  new Worker(
+    reportQueueName,
+    wrapJobHandlerWithOtelContext(
+      PROOVRA_SPAN_NAMES.WORKER_REPORT_GENERATE,
+      reportQueueName,
+      processGenerateReport,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 2,
+    },
+  ),
 );
 
 const otsUpgradeWorker = safeRegisterWorker("ots-upgrade", () =>
-  new Worker(otsUpgradeQueueName, processOtsUpgrade, {
-    connection: redisConnection,
-    concurrency: 1,
-  }),
+  new Worker(
+    otsUpgradeQueueName,
+    wrapJobHandlerWithOtelContext(
+      PROOVRA_SPAN_NAMES.WORKER_OTS_UPGRADE,
+      otsUpgradeQueueName,
+      processOtsUpgrade,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 1,
+    },
+  ),
 );
 
 const evidencePurgeWorker = safeRegisterWorker("evidence-purge", () =>
-  new Worker(evidencePurgeQueueName, processPurgeDeletedEvidence, {
-    connection: redisConnection,
-    concurrency: 1,
-  }),
+  new Worker(
+    evidencePurgeQueueName,
+    wrapJobHandlerWithOtelContext(
+      "proovra.worker.evidence_purge",
+      evidencePurgeQueueName,
+      processPurgeDeletedEvidence,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 1,
+    },
+  ),
 );
 
 // Phase 24-J — Search Discovery indexing worker.
 const searchIndexingWorker = safeRegisterWorker("search-indexing", () =>
-  new Worker(searchIndexingQueueName, processSearchIndexingJob, {
-    connection: redisConnection,
-    concurrency: 2,
-  }),
+  new Worker(
+    searchIndexingQueueName,
+    wrapJobHandlerWithOtelContext(
+      "proovra.worker.search_indexing",
+      searchIndexingQueueName,
+      processSearchIndexingJob,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 2,
+    },
+  ),
 );
 
 // Phase 31.6 — Media intelligence async worker. Bounded concurrency
@@ -1214,10 +1256,18 @@ const searchIndexingWorker = safeRegisterWorker("search-indexing", () =>
 // per-evidence scans is the only realistic failure mode. One at a
 // time keeps backpressure on the queue rather than on Postgres.
 const mediaIntelligenceWorker = safeRegisterWorker("media-intelligence", () =>
-  new Worker(mediaIntelligenceQueueName, processMediaIntelligenceJob, {
-    connection: redisConnection,
-    concurrency: 1,
-  }),
+  new Worker(
+    mediaIntelligenceQueueName,
+    wrapJobHandlerWithOtelContext(
+      "proovra.worker.media_intelligence",
+      mediaIntelligenceQueueName,
+      processMediaIntelligenceJob,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 1,
+    },
+  ),
 );
 
 // Phase 31.13 — dedicated derived-assets worker. ISOLATED from the
@@ -1226,10 +1276,18 @@ const mediaIntelligenceWorker = safeRegisterWorker("media-intelligence", () =>
 // on sharp + S3 bounded (each job pulls up to 4MB source + writes
 // a small thumbnail).
 const derivedAssetsWorker = safeRegisterWorker("derived-assets", () =>
-  new Worker(derivedAssetsQueueName, processDerivedAssetJob, {
-    connection: redisConnection,
-    concurrency: 1,
-  }),
+  new Worker(
+    derivedAssetsQueueName,
+    wrapJobHandlerWithOtelContext(
+      "proovra.worker.derived_assets",
+      derivedAssetsQueueName,
+      processDerivedAssetJob,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 1,
+    },
+  ),
 );
 
 // Phase 31.18 — dedicated EXIF worker (mi-exif). ISOLATED from the
@@ -1240,10 +1298,18 @@ const derivedAssetsWorker = safeRegisterWorker("derived-assets", () =>
 // saturating Postgres. Reuses processMediaIntelligenceJob: the
 // processor branches on `kind`, and only `extract_exif` flows here.
 const exifWorker = safeRegisterWorker("mi-exif", () =>
-  new Worker(exifQueueName, processMediaIntelligenceJob, {
-    connection: redisConnection,
-    concurrency: 2,
-  }),
+  new Worker(
+    exifQueueName,
+    wrapJobHandlerWithOtelContext(
+      "proovra.worker.mi_exif",
+      exifQueueName,
+      processMediaIntelligenceJob,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 2,
+    },
+  ),
 );
 
 // Phase 31.19 — four more isolated subsystem workers.
@@ -1262,31 +1328,63 @@ const exifWorker = safeRegisterWorker("mi-exif", () =>
 // triggers (operator action, escalation hook, scheduled recurrence).
 // Worker invokes the read-only `reconcileTeamGraph` service.
 const ocrWorker = safeRegisterWorker("mi-ocr", () =>
-  new Worker(ocrQueueName, processOcrJob, {
-    connection: redisConnection,
-    concurrency: 1,
-  }),
+  new Worker(
+    ocrQueueName,
+    wrapJobHandlerWithOtelContext(
+      "proovra.worker.mi_ocr",
+      ocrQueueName,
+      processOcrJob,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 1,
+    },
+  ),
 );
 
 const transcriptWorker = safeRegisterWorker("mi-transcript", () =>
-  new Worker(transcriptQueueName, processTranscriptJob, {
-    connection: redisConnection,
-    concurrency: 1,
-  }),
+  new Worker(
+    transcriptQueueName,
+    wrapJobHandlerWithOtelContext(
+      "proovra.worker.mi_transcript",
+      transcriptQueueName,
+      processTranscriptJob,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 1,
+    },
+  ),
 );
 
 const miSearchIndexWorker = safeRegisterWorker("mi-search-index", () =>
-  new Worker(miSearchIndexQueueName, processMiSearchIndexJob, {
-    connection: redisConnection,
-    concurrency: 2,
-  }),
+  new Worker(
+    miSearchIndexQueueName,
+    wrapJobHandlerWithOtelContext(
+      "proovra.worker.mi_search_index",
+      miSearchIndexQueueName,
+      processMiSearchIndexJob,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 2,
+    },
+  ),
 );
 
 const graphReconcileWorker = safeRegisterWorker("graph-reconcile", () =>
-  new Worker(graphReconcileQueueName, processGraphReconcileJob, {
-    connection: redisConnection,
-    concurrency: 1,
-  }),
+  new Worker(
+    graphReconcileQueueName,
+    wrapJobHandlerWithOtelContext(
+      PROOVRA_SPAN_NAMES.WORKER_GRAPH_RECONCILE,
+      graphReconcileQueueName,
+      processGraphReconcileJob,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 1,
+    },
+  ),
 );
 
 // Phase 31.20 — final three isolated subsystem workers, completing
@@ -1294,26 +1392,50 @@ const graphReconcileWorker = safeRegisterWorker("graph-reconcile", () =>
 // existing reconciler; graph-timeline-sync and graph-search-projection
 // are observable canonical targets for future incremental writers.
 const graphDomainSyncWorker = safeRegisterWorker("graph-domain-sync", () =>
-  new Worker(graphDomainSyncQueueName, processGraphDomainSyncJob, {
-    connection: redisConnection,
-    concurrency: 1,
-  }),
+  new Worker(
+    graphDomainSyncQueueName,
+    wrapJobHandlerWithOtelContext(
+      "proovra.worker.graph_domain_sync",
+      graphDomainSyncQueueName,
+      processGraphDomainSyncJob,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 1,
+    },
+  ),
 );
 
 const graphTimelineSyncWorker = safeRegisterWorker("graph-timeline-sync", () =>
-  new Worker(graphTimelineSyncQueueName, processGraphTimelineSyncJob, {
-    connection: redisConnection,
-    concurrency: 2,
-  }),
+  new Worker(
+    graphTimelineSyncQueueName,
+    wrapJobHandlerWithOtelContext(
+      "proovra.worker.graph_timeline_sync",
+      graphTimelineSyncQueueName,
+      processGraphTimelineSyncJob,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 2,
+    },
+  ),
 );
 
 const graphSearchProjectionWorker = safeRegisterWorker(
   "graph-search-projection",
   () =>
-    new Worker(graphSearchProjectionQueueName, processGraphSearchProjectionJob, {
-      connection: redisConnection,
-      concurrency: 2,
-    }),
+    new Worker(
+      graphSearchProjectionQueueName,
+      wrapJobHandlerWithOtelContext(
+        "proovra.worker.graph_search_projection",
+        graphSearchProjectionQueueName,
+        processGraphSearchProjectionJob,
+      ),
+      {
+        connection: redisConnection,
+        concurrency: 2,
+      },
+    ),
 );
 
 // Phase 37.98 — Org-health projection refresh worker. Consumes
@@ -1323,10 +1445,18 @@ const graphSearchProjectionWorker = safeRegisterWorker(
 const orgHealthRefreshWorker = safeRegisterWorker(
   "org-health-refresh",
   () =>
-    new Worker(orgHealthRefreshQueueName, processOrgHealthRefreshJob, {
-      connection: redisConnection,
-      concurrency: 4,
-    }),
+    new Worker(
+      orgHealthRefreshQueueName,
+      wrapJobHandlerWithOtelContext(
+        "proovra.worker.org_health_refresh",
+        orgHealthRefreshQueueName,
+        processOrgHealthRefreshJob,
+      ),
+      {
+        connection: redisConnection,
+        concurrency: 4,
+      },
+    ),
 );
 
 let healthServer: HealthServer | null = null;

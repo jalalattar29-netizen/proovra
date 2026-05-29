@@ -1,0 +1,75 @@
+{
+  "uid": "proovra-communications",
+  "title": "PROOVRA — Communications",
+  "description": "Phase O1.6 — SMTP email send + external review notify + webhook dispatch. Bounded spans only. NEVER recipient / subject / body / token / URL.",
+  "tags": ["proovra", "communications", "o1.6"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "30s",
+  "timezone": "utc",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Communications throughput (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.smtp.email_send\"}[5m]))", "legendFormat": "smtp.email_send" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.external.review.notify\"}[5m]))", "legendFormat": "external.review.notify" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.webhook.dispatch\"}[5m]))", "legendFormat": "webhook.dispatch" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "SMTP email send p95/p99 latency (ms)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.smtp.email_send\"}[5m])))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.smtp.email_send\"}[5m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Webhook dispatch p95/p99 latency (ms)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.webhook.dispatch\"}[5m])))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.webhook.dispatch\"}[5m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Communications failure rate (status=error, 5m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.smtp.email_send\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "smtp errors" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.external.review.notify\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "external review notify errors" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.webhook.dispatch\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "webhook errors" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "SMTP send success ratio (1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.smtp.email_send\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.smtp.email_send\"}[1h])), 1))", "legendFormat": "smtp success" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Webhook dispatch success ratio (1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.webhook.dispatch\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.webhook.dispatch\"}[1h])), 1))", "legendFormat": "webhook success" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    }
+  ]
+}

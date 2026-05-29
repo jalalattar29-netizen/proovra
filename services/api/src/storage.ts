@@ -12,6 +12,17 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createHash } from "node:crypto";
+// Phase O1.4 — bounded S3 spans. Attributes carry the bucket name +
+// bounded key prefix (first 64 chars). NEVER the signed URL, body
+// bytes, or credentials.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+} from "./observability/otel.js";
+
+function boundedKeyAttr(key: string): string {
+  return key.length > 64 ? key.slice(0, 64) + "…" : key;
+}
 
 function must(name: string): string {
   const v = process.env[name];
@@ -364,25 +375,38 @@ export async function putObjectBuffer(params: {
   const checksumSha256Base64 = sha256Base64(params.body);
   const contentMd5Base64 = md5Base64(params.body);
 
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: params.body,
-      ContentType: normalizeContentType(params.contentType),
-      ContentLength: params.body.length,
-      Metadata: metadata,
-      ChecksumSHA256: checksumSha256Base64,
-      ContentMD5: contentMd5Base64,
-      ...(tagging ? { Tagging: tagging } : {}),
-      ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
-      ...(objectLock.retainUntilDate
-        ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
-        : {}),
-      ...(objectLock.legalHold
-        ? { ObjectLockLegalHoldStatus: objectLock.legalHold }
-        : {}),
-    })
+  // Phase O1.4 — bounded S3 PUT span.
+  await withProovraSpan(
+    PROOVRA_SPAN_NAMES.S3_PUT_OBJECT,
+    {
+      "proovra.bucket": bucket,
+      "proovra.s3.key_prefix": boundedKeyAttr(key),
+      "proovra.operation": "put_object",
+      "proovra.size_bytes": params.body.length,
+      "proovra.immutable": Boolean(params.immutable),
+    },
+    async () => {
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: params.body,
+          ContentType: normalizeContentType(params.contentType),
+          ContentLength: params.body.length,
+          Metadata: metadata,
+          ChecksumSHA256: checksumSha256Base64,
+          ContentMD5: contentMd5Base64,
+          ...(tagging ? { Tagging: tagging } : {}),
+          ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
+          ...(objectLock.retainUntilDate
+            ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
+            : {}),
+          ...(objectLock.legalHold
+            ? { ObjectLockLegalHoldStatus: objectLock.legalHold }
+            : {}),
+        }),
+      );
+    },
   );
 }
 
@@ -464,22 +488,33 @@ export async function headObject(params: { bucket: string; key: string }) {
     throw new Error("headObject: bucket/key are required");
   }
 
-  const res = await s3.send(
-    new HeadObjectCommand({
-      Bucket: bucket,
-      Key: key,
-    })
-  );
+  // Phase O1.4 — bounded S3 HEAD span.
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.S3_HEAD_OBJECT,
+    {
+      "proovra.bucket": bucket,
+      "proovra.s3.key_prefix": boundedKeyAttr(key),
+      "proovra.operation": "head_object",
+    },
+    async () => {
+      const res = await s3.send(
+        new HeadObjectCommand({
+          Bucket: bucket,
+          Key: key,
+        })
+      );
 
-  return {
-    sizeBytes: res.ContentLength ?? null,
-    contentType: res.ContentType ?? null,
-    etag: res.ETag ?? null,
-    metadata: res.Metadata ?? null,
-    objectLockMode: res.ObjectLockMode ?? null,
-    objectLockRetainUntilDate: res.ObjectLockRetainUntilDate ?? null,
-    objectLockLegalHoldStatus: res.ObjectLockLegalHoldStatus ?? null,
-  };
+      return {
+        sizeBytes: res.ContentLength ?? null,
+        contentType: res.ContentType ?? null,
+        etag: res.ETag ?? null,
+        metadata: res.Metadata ?? null,
+        objectLockMode: res.ObjectLockMode ?? null,
+        objectLockRetainUntilDate: res.ObjectLockRetainUntilDate ?? null,
+        objectLockLegalHoldStatus: res.ObjectLockLegalHoldStatus ?? null,
+      };
+    },
+  );
 }
 
 export async function getObjectStream(params: {
@@ -493,15 +528,26 @@ export async function getObjectStream(params: {
     throw new Error("getObjectStream: bucket/key are required");
   }
 
-  const res = await s3.send(
-    new GetObjectCommand({
-      Bucket: bucket,
-      Key: key,
-    })
-  );
+  // Phase O1.4 — bounded S3 GET span.
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.S3_GET_OBJECT,
+    {
+      "proovra.bucket": bucket,
+      "proovra.s3.key_prefix": boundedKeyAttr(key),
+      "proovra.operation": "get_object",
+    },
+    async () => {
+      const res = await s3.send(
+        new GetObjectCommand({
+          Bucket: bucket,
+          Key: key,
+        })
+      );
 
-  if (!res.Body) throw new Error("S3 returned empty body");
-  return res.Body as unknown as NodeJS.ReadableStream;
+      if (!res.Body) throw new Error("S3 returned empty body");
+      return res.Body as unknown as NodeJS.ReadableStream;
+    },
+  );
 }
 
 export async function getObjectRange(params: {

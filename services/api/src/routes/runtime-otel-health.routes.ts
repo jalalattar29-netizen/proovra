@@ -33,6 +33,7 @@ import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { getOtelStatus } from "../observability/otel.js";
+import { getOtelRuntimeDiagnostics } from "../observability/otel-diagnostics.js";
 
 async function requireOpsReader(
   req: FastifyRequest,
@@ -81,7 +82,13 @@ export async function runtimeOtelHealthRoutes(app: FastifyInstance) {
       const ctx = await requireOpsReader(req, reply, q.teamId);
       if (!ctx) return;
       const otel = getOtelStatus();
-      return reply.code(200).send({ otel });
+      // Phase O1.3 — extended runtime diagnostics for the Grafana
+      // operator: OTEL package version summary, OTLP exporter kind,
+      // auth-header presence + scheme + token length (NEVER the
+      // token), and the Sentry skipOpenTelemetrySetup gate state.
+      // All values are bounded; no env values are returned verbatim.
+      const diagnostics = getOtelRuntimeDiagnostics();
+      return reply.code(200).send({ otel, diagnostics });
     },
   );
 }

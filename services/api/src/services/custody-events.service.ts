@@ -1,6 +1,13 @@
 import * as prismaPkg from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
+// Phase O1.5B — bounded custody chain verify + canonical digest spans.
+// NEVER the payload contents.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+  withProovraSpanSync,
+} from "../observability/otel.js";
 import {
   classifyCustodyEventType,
   isAccessCustodyEventType,
@@ -97,6 +104,22 @@ export async function appendCustodyEvent(params: AppendCustodyEventParams) {
 }
 
 export function evaluateCustodyChain(params: {
+  evidenceId: string;
+  records: CustodyChainRecord[];
+}) {
+  // Phase O1.5B — sync-safe bounded custody.chain.verify span.
+  return withProovraSpanSync(
+    PROOVRA_SPAN_NAMES.CUSTODY_CHAIN_VERIFY,
+    {
+      "proovra.evidence_id": params.evidenceId,
+      "proovra.operation": "custody_chain_verify",
+      "proovra.size_bytes": params.records.length,
+    },
+    () => evaluateCustodyChainInner(params),
+  );
+}
+
+function evaluateCustodyChainInner(params: {
   evidenceId: string;
   records: CustodyChainRecord[];
 }) {

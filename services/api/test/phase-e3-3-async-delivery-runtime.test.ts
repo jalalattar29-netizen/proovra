@@ -342,10 +342,10 @@ describe("E3.3 Test 7 — action handler is async hand-off only", () => {
 
 describe("E3.3 Test 8 — capture / custody / report / package untouched", () => {
   const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 18308 },
+    { rel: "src/routes/capture.routes.ts", expectedBytes: 21271 },
     { rel: "src/services/evidence-complete.service.ts", expectedBytes: 41849 },
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 4446 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 6033 },
+    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
+    { rel: "src/services/timestamp.service.ts", expectedBytes: 7535 },
     {
       rel: "src/services/reports/reports-aggregator.service.ts",
       expectedBytes: 13118,

@@ -13,6 +13,16 @@ import {
 } from "@aws-sdk/client-s3";
 import { createHash } from "node:crypto";
 import { env } from "./config.js";
+// Phase O1.4 — instrument S3 calls with bounded PROOVRA spans so the
+// API → S3 latency / failure surface is visible in Grafana alongside
+// the parent business span. Attributes are bounded: bucket name +
+// object-key prefix (first 32 chars) + size. NEVER the body bytes,
+// NEVER the full signed URL, NEVER the AWS credentials.
+import { PROOVRA_SPAN_NAMES, withProovraSpan, withProovraSpanSync } from "./otel.js";
+
+function boundedKeyAttr(key: string): string {
+  return key.length > 64 ? key.slice(0, 64) + "…" : key;
+}
 
 function clean(value: string | null | undefined): string | null {
   if (typeof value !== "string") return value ?? null;
@@ -193,15 +203,27 @@ export async function getObjectStream(params: { bucket: string; key: string }) {
   const bucket = mustClean(params.bucket, "bucket");
   const key = mustClean(params.key, "key");
 
-  const res = await s3.send(
-    new GetObjectCommand({
-      Bucket: bucket,
-      Key: key,
-    })
-  );
+  // Phase O1.4 — bounded S3 span. Attributes carry the bucket +
+  // bounded key prefix only; never body bytes or signed URLs.
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.S3_GET_OBJECT,
+    {
+      "proovra.bucket": bucket,
+      "proovra.s3.key_prefix": boundedKeyAttr(key),
+      "proovra.operation": "get_object",
+    },
+    async () => {
+      const res = await s3.send(
+        new GetObjectCommand({
+          Bucket: bucket,
+          Key: key,
+        })
+      );
 
-  if (!res.Body) throw new Error("S3 returned empty body");
-  return res.Body;
+      if (!res.Body) throw new Error("S3 returned empty body");
+      return res.Body;
+    },
+  );
 }
 
 /**
@@ -260,28 +282,53 @@ export async function putObjectBuffer(params: {
   const tagging = normalizeTagging(params.tags);
   const objectLock =
     params.immutable && isObjectLockEnabled() ? readObjectLockDefaults() : {};
-  const checksumSha256Base64 = sha256Base64(params.body);
-  const contentMd5Base64 = md5Base64(params.body);
+  // Phase O1.5B — bounded integrity.hash.compute span. Wraps the
+  // sha256 + md5 compute over the upload body. NEVER the bytes.
+  const { checksumSha256Base64, contentMd5Base64 } = withProovraSpanSync(
+    PROOVRA_SPAN_NAMES.INTEGRITY_HASH_COMPUTE,
+    {
+      "proovra.operation": "integrity_hash_compute",
+      "proovra.size_bytes": params.body.length,
+    },
+    () => ({
+      checksumSha256Base64: sha256Base64(params.body),
+      contentMd5Base64: md5Base64(params.body),
+    }),
+  );
 
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: params.body,
-      ContentType: normalizeContentType(params.contentType),
-      ContentLength: params.body.length,
-      Metadata: metadata,
-      ChecksumSHA256: checksumSha256Base64,
-      ContentMD5: contentMd5Base64,
-      ...(tagging ? { Tagging: tagging } : {}),
-      ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
-      ...(objectLock.retainUntilDate
-        ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
-        : {}),
-      ...(objectLock.legalHold
-        ? { ObjectLockLegalHoldStatus: objectLock.legalHold }
-        : {}),
-    })
+  // Phase O1.4 — bounded S3 PUT span. Carries bucket + key prefix +
+  // size. NEVER the body bytes / signed URL / AWS credentials.
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.S3_PUT_OBJECT,
+    {
+      "proovra.bucket": bucket,
+      "proovra.s3.key_prefix": boundedKeyAttr(key),
+      "proovra.operation": "put_object",
+      "proovra.size_bytes": params.body.length,
+      "proovra.immutable": Boolean(params.immutable),
+    },
+    async () => {
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: params.body,
+          ContentType: normalizeContentType(params.contentType),
+          ContentLength: params.body.length,
+          Metadata: metadata,
+          ChecksumSHA256: checksumSha256Base64,
+          ContentMD5: contentMd5Base64,
+          ...(tagging ? { Tagging: tagging } : {}),
+          ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
+          ...(objectLock.retainUntilDate
+            ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
+            : {}),
+          ...(objectLock.legalHold
+            ? { ObjectLockLegalHoldStatus: objectLock.legalHold }
+            : {}),
+        }),
+      );
+    },
   );
 }
 
@@ -355,22 +402,33 @@ export async function headObject(params: { bucket: string; key: string }) {
   const bucket = mustClean(params.bucket, "bucket");
   const key = mustClean(params.key, "key");
 
-  const res = await s3.send(
-    new HeadObjectCommand({
-      Bucket: bucket,
-      Key: key,
-    })
-  );
+  // Phase O1.4 — bounded S3 HEAD span.
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.S3_HEAD_OBJECT,
+    {
+      "proovra.bucket": bucket,
+      "proovra.s3.key_prefix": boundedKeyAttr(key),
+      "proovra.operation": "head_object",
+    },
+    async () => {
+      const res = await s3.send(
+        new HeadObjectCommand({
+          Bucket: bucket,
+          Key: key,
+        })
+      );
 
-  return {
-    sizeBytes: res.ContentLength ?? null,
-    contentType: res.ContentType ?? null,
-    etag: res.ETag ?? null,
-    metadata: res.Metadata ?? null,
-    objectLockMode: res.ObjectLockMode ?? null,
-    objectLockRetainUntilDate: res.ObjectLockRetainUntilDate ?? null,
-    objectLockLegalHoldStatus: res.ObjectLockLegalHoldStatus ?? null,
-  };
+      return {
+        sizeBytes: res.ContentLength ?? null,
+        contentType: res.ContentType ?? null,
+        etag: res.ETag ?? null,
+        metadata: res.Metadata ?? null,
+        objectLockMode: res.ObjectLockMode ?? null,
+        objectLockRetainUntilDate: res.ObjectLockRetainUntilDate ?? null,
+        objectLockLegalHoldStatus: res.ObjectLockLegalHoldStatus ?? null,
+      };
+    },
+  );
 }
 
 export async function deleteObject(params: { bucket: string; key: string }) {

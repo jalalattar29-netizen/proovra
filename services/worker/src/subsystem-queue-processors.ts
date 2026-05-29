@@ -28,6 +28,9 @@ import type { Job } from "bullmq";
 
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
+// Phase O1.5D — bounded graph spans. Attributes carry only the
+// bounded teamId + operation. NEVER raw graph data or PII.
+import { PROOVRA_SPAN_NAMES, withProovraSpan } from "./otel.js";
 import type {
   GraphDomainSyncJobPayload,
   GraphReconcileJobPayload,
@@ -139,6 +142,19 @@ export async function processMiSearchIndexJob(
 export async function processGraphReconcileJob(
   job: Job<GraphReconcileJobPayload, void, string>,
 ): Promise<void> {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.GRAPH_RECONCILE,
+    {
+      "proovra.team_id": job.data.teamId,
+      "proovra.operation": "graph_reconcile",
+    },
+    () => processGraphReconcileJobInner(job),
+  );
+}
+
+async function processGraphReconcileJobInner(
+  job: Job<GraphReconcileJobPayload, void, string>,
+): Promise<void> {
   logger.info(
     {
       jobId: job.id ?? null,
@@ -245,6 +261,19 @@ export async function processGraphReconcileJob(
 export async function processGraphDomainSyncJob(
   job: Job<GraphDomainSyncJobPayload, void, string>,
 ): Promise<void> {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.GRAPH_DOMAIN_SYNC,
+    {
+      "proovra.team_id": job.data.teamId,
+      "proovra.operation": "graph_domain_sync",
+    },
+    () => processGraphDomainSyncJobInner(job),
+  );
+}
+
+async function processGraphDomainSyncJobInner(
+  job: Job<GraphDomainSyncJobPayload, void, string>,
+): Promise<void> {
   logger.info(
     {
       jobId: job.id ?? null,
@@ -328,6 +357,19 @@ export async function processGraphDomainSyncJob(
 export async function processGraphTimelineSyncJob(
   job: Job<GraphTimelineSyncJobPayload, void, string>,
 ): Promise<void> {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.GRAPH_TIMELINE_BUILD,
+    {
+      "proovra.team_id": job.data.teamId,
+      "proovra.operation": "graph_timeline_build",
+    },
+    () => processGraphTimelineSyncJobInner(job),
+  );
+}
+
+async function processGraphTimelineSyncJobInner(
+  job: Job<GraphTimelineSyncJobPayload, void, string>,
+): Promise<void> {
   logger.info(
     {
       jobId: job.id ?? null,
@@ -371,6 +413,19 @@ export async function processGraphTimelineSyncJob(
 }
 
 export async function processGraphSearchProjectionJob(
+  job: Job<GraphSearchProjectionJobPayload, void, string>,
+): Promise<void> {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.GRAPH_SEARCH_PROJECTION,
+    {
+      "proovra.team_id": job.data.teamId,
+      "proovra.operation": "graph_search_projection",
+    },
+    () => processGraphSearchProjectionJobInner(job),
+  );
+}
+
+async function processGraphSearchProjectionJobInner(
   job: Job<GraphSearchProjectionJobPayload, void, string>,
 ): Promise<void> {
   logger.info(

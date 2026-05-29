@@ -1,6 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { buildCustodyEventHash } from "@proovra/shared/custody-hash";
+// Phase O1.4 — bounded custody.event.append span. Attributes carry
+// the evidence id + bounded event type + sequence. NEVER the
+// payload contents, IP, or user agent.
+import { PROOVRA_SPAN_NAMES, withProovraSpan, withProovraSpanSync } from "./otel.js";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -14,6 +18,30 @@ function normalizePayload(
 }
 
 export async function appendCustodyEventTx(
+  tx: TxClient,
+  params: {
+    evidenceId: string;
+    eventType: prismaPkg.CustodyEventType;
+    atUtc?: Date;
+    payload?: Prisma.InputJsonValue | null;
+    ip?: string | null;
+    userAgent?: string | null;
+  }
+) {
+  // Phase O1.4 — bounded custody.event.append span. Carries the
+  // bounded event type + evidence id. NEVER the payload, IP, UA.
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.CUSTODY_EVENT_APPEND,
+    {
+      "proovra.evidence_id": params.evidenceId,
+      "proovra.operation": "custody_event_append",
+      "proovra.event_type": String(params.eventType),
+    },
+    () => appendCustodyEventTxInner(tx, params),
+  );
+}
+
+async function appendCustodyEventTxInner(
   tx: TxClient,
   params: {
     evidenceId: string;
@@ -43,14 +71,24 @@ export async function appendCustodyEventTx(
   const prevEventHash = last?.eventHash ?? null;
   const payload = normalizePayload(params.payload);
 
-  const eventHash = buildCustodyEventHash({
-    evidenceId: params.evidenceId,
-    sequence: nextSequence,
-    eventType: params.eventType,
-    atUtc,
-    payload,
-    prevEventHash,
-  });
+  // Phase O1.5B — bounded canonical digest span. evidenceId + sequence
+  // only; NEVER the payload contents.
+  const eventHash = withProovraSpanSync(
+    PROOVRA_SPAN_NAMES.INTEGRITY_CANONICAL_DIGEST,
+    {
+      "proovra.evidence_id": params.evidenceId,
+      "proovra.operation": "integrity_canonical_digest",
+    },
+    () =>
+      buildCustodyEventHash({
+        evidenceId: params.evidenceId,
+        sequence: nextSequence,
+        eventType: params.eventType,
+        atUtc,
+        payload,
+        prevEventHash,
+      }),
+  );
 
   return tx.custodyEvent.create({
     data: {
@@ -68,6 +106,31 @@ export async function appendCustodyEventTx(
 }
 
 export function evaluateCustodyChain(params: {
+  evidenceId: string;
+  records: Array<{
+    sequence: number;
+    eventType: string;
+    atUtc: Date;
+    payload: Prisma.JsonValue | null;
+    prevEventHash: string | null;
+    eventHash: string | null;
+  }>;
+}) {
+  // Phase O1.5B — sync-safe bounded custody.chain.verify span.
+  // NEVER the payload contents — only bounded evidenceId + record
+  // count + sequence numeric range.
+  return withProovraSpanSync(
+    PROOVRA_SPAN_NAMES.CUSTODY_CHAIN_VERIFY,
+    {
+      "proovra.evidence_id": params.evidenceId,
+      "proovra.operation": "custody_chain_verify",
+      "proovra.size_bytes": params.records.length,
+    },
+    () => evaluateCustodyChainInner(params),
+  );
+}
+
+function evaluateCustodyChainInner(params: {
   evidenceId: string;
   records: Array<{
     sequence: number;

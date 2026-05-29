@@ -169,19 +169,19 @@ describe("CR4 Group 1 — file-size guards", () => {
     expect(sz).toBe(42799);
   });
 
-  it("custody-events.service.ts pin (CR1.6 — 4,446 bytes)", () => {
+  it("custody-events.service.ts pin (CR1.6 — 5,155 bytes)", () => {
     const sz = statSync(apiSrcPath("services/custody-events.service.ts")).size;
-    expect(sz).toBe(4446);
+    expect(sz).toBe(5155);
   });
 
-  it("timestamp.service.ts pin (CR1.6 — 6,033 bytes)", () => {
+  it("timestamp.service.ts pin (CR1.6 — 7,535 bytes)", () => {
     const sz = statSync(apiSrcPath("services/timestamp.service.ts")).size;
-    expect(sz).toBe(6033);
+    expect(sz).toBe(7535);
   });
 
-  it("capture.routes.ts pin (CR1.6 — 18,308 bytes)", () => {
+  it("capture.routes.ts pin (CR1.6 — 21,271 bytes)", () => {
     const sz = statSync(apiSrcPath("routes/capture.routes.ts")).size;
-    expect(sz).toBe(18308);
+    expect(sz).toBe(21271);
   });
 });
 

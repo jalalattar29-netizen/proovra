@@ -38,6 +38,13 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+// Phase O1.4 — bounded webhook-dispatch span. Attributes are
+// bounded: eventType + endpointId hash prefix + status. NEVER the
+// payload, signature, or destination URL.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+} from "../../observability/otel.js";
 import { isIntegrationsFeatureEnabled } from "./api-keys.service.js";
 import {
   decryptWebhookSecret,
@@ -271,6 +278,25 @@ export async function emitWebhookEvent(
 // -----------------------------------------------------------------------------
 
 export async function attemptDelivery(
+  row: DbDelivery,
+  endpoint: DbEndpoint,
+  client: PrismaClient,
+): Promise<"delivered" | "transient" | "permanent"> {
+  // Phase O1.4 — emit a bounded webhook.dispatch span. NEVER carries
+  // raw payload / signature / destination URL.
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.WEBHOOK_DISPATCH,
+    {
+      "proovra.operation": "webhook_dispatch",
+      "proovra.event_type": row.eventType,
+      "proovra.attempt": row.attemptCount + 1,
+      "proovra.team_id": row.teamId,
+    },
+    () => attemptDeliveryInner(row, endpoint, client),
+  );
+}
+
+async function attemptDeliveryInner(
   row: DbDelivery,
   endpoint: DbEndpoint,
   client: PrismaClient,

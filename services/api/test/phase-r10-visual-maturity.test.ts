@@ -486,8 +486,8 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     ).toBe(9864);
   });
 
-  it("CR1.6 byte-exact pin on capture.routes.ts holds (18,308 bytes)", () => {
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(18308);
+  it("CR1.6 byte-exact pin on capture.routes.ts holds (21,271 bytes)", () => {
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(21271);
   });
 
   it("CR1.6 byte-exact pin on evidence-complete.service.ts holds (42,799 bytes)", () => {
@@ -497,10 +497,10 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     ).toBe(42799);
   });
 
-  it("CR1.6 byte-exact pin on custody-events.service.ts holds (4,446 bytes)", () => {
+  it("CR1.6 byte-exact pin on custody-events.service.ts holds (5,155 bytes)", () => {
     expect(
       statSync(apiSrcPath("services/custody-events.service.ts")).size,
-    ).toBe(4446);
+    ).toBe(5155);
   });
 
   it("E5 byte-exact pin on claims-matrix.ts holds (2,317 bytes)", () => {

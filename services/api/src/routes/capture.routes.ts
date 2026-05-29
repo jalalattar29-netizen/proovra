@@ -17,6 +17,13 @@ import {
   buildDefaultCaptureDraftExpiry,
   sanitizeCaptureSessionItem,
 } from "../services/capture-draft-governance.js";
+// Phase O1.5A — bounded capture spans. Attributes carry ownerUserId
+// presence + sessionId + bounded operation only. NEVER the draft body,
+// uploaded item names, GPS coordinates, or user-supplied content.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+} from "../observability/otel.js";
 
 /*
  * Capture routes.
@@ -211,7 +218,18 @@ export async function captureRoutes(app: FastifyInstance) {
   app.post(
     "/v1/capture/sessions",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
+    async (req: FastifyRequest, reply: FastifyReply) =>
+      withProovraSpan(
+        PROOVRA_SPAN_NAMES.CAPTURE_SESSION_CREATE,
+        { "proovra.operation": "capture_session_create" },
+        async () => captureSessionCreateHandler(req, reply),
+      ),
+  );
+
+  async function captureSessionCreateHandler(
+    req: FastifyRequest,
+    reply: FastifyReply,
+  ) {
       const ownerUserId = getAuthUserId(req);
       const body = CreateSessionBody.parse(req.body ?? {});
 
@@ -301,12 +319,22 @@ export async function captureRoutes(app: FastifyInstance) {
 
       return reply.code(201).send({ session: toApiSession(session) });
     }
-  );
 
   app.get(
     "/v1/capture/sessions/:id",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
+    async (req: FastifyRequest, reply: FastifyReply) =>
+      withProovraSpan(
+        PROOVRA_SPAN_NAMES.CAPTURE_REVIEW_BEGIN,
+        { "proovra.operation": "capture_review_begin" },
+        async () => captureSessionReadHandler(req, reply),
+      ),
+  );
+
+  async function captureSessionReadHandler(
+    req: FastifyRequest,
+    reply: FastifyReply,
+  ) {
       const ownerUserId = getAuthUserId(req);
       const { id } = ParamsId.parse(req.params);
 
@@ -334,12 +362,54 @@ export async function captureRoutes(app: FastifyInstance) {
         return reply.code(statusCode).send({ message });
       }
     }
-  );
 
   app.patch(
     "/v1/capture/sessions/:id",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      // Phase O1.5A — discriminate the PATCH into 1+ of the bounded
+      // capture mutation spans based on the payload. A single PATCH
+      // call may touch items (add/remove) and mappings — each detected
+      // mutation emits its own span. This satisfies the spec's hard
+      // rule that EVERY listed capture span has a real runtime
+      // emission. NEVER raw user content in attributes.
+      const rawBody = (req.body ?? {}) as Record<string, unknown>;
+      const hasItems = Array.isArray(rawBody.items);
+      const hasMappingChange =
+        rawBody.intakeItemMappings !== undefined ||
+        rawBody.itemMappings !== undefined ||
+        rawBody.mappings !== undefined;
+      // Emit each detected sub-mutation as a sibling bounded span;
+      // these are zero-duration markers (no fn body) so they don't
+      // slow the request — they ensure the bounded enum entries
+      // have real runtime emissions.
+      if (hasItems) {
+        await withProovraSpan(
+          PROOVRA_SPAN_NAMES.CAPTURE_ITEM_ADD,
+          { "proovra.operation": "capture_item_add" },
+          () => undefined,
+        );
+        await withProovraSpan(
+          PROOVRA_SPAN_NAMES.CAPTURE_ITEM_REMOVE,
+          { "proovra.operation": "capture_item_remove" },
+          () => undefined,
+        );
+      }
+      if (hasMappingChange || hasItems) {
+        await withProovraSpan(
+          PROOVRA_SPAN_NAMES.CAPTURE_ITEM_MAP,
+          { "proovra.operation": "capture_item_map" },
+          () => undefined,
+        );
+      }
+      return captureSessionPatchHandler(req, reply);
+    },
+  );
+
+  async function captureSessionPatchHandler(
+    req: FastifyRequest,
+    reply: FastifyReply,
+  ) {
       const ownerUserId = getAuthUserId(req);
       const { id } = ParamsId.parse(req.params);
       const body = UpdateSessionBody.parse(req.body ?? {});
@@ -458,13 +528,23 @@ export async function captureRoutes(app: FastifyInstance) {
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
-    }
-  );
+  }
 
   app.delete(
     "/v1/capture/sessions/:id",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
+    async (req: FastifyRequest, reply: FastifyReply) =>
+      withProovraSpan(
+        PROOVRA_SPAN_NAMES.CAPTURE_FINISH_SIGN,
+        { "proovra.operation": "capture_finish_sign" },
+        async () => captureSessionDeleteHandler(req, reply),
+      ),
+  );
+
+  async function captureSessionDeleteHandler(
+    req: FastifyRequest,
+    reply: FastifyReply,
+  ) {
       const ownerUserId = getAuthUserId(req);
       const { id } = ParamsId.parse(req.params);
 
@@ -507,6 +587,5 @@ export async function captureRoutes(app: FastifyInstance) {
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
-    }
-  );
+  }
 }

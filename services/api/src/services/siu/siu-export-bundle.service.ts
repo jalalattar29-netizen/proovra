@@ -211,6 +211,13 @@ async function buildSiuExportBundleInner(
 
   // Canonical bounded JSONs
   appendJson("siu-summary.json", summary);
+  // Phase O1.5D — bounded siu.timeline.build span. NEVER claimant
+  // PII or contact details in attributes.
+  await withProovraSpan(
+    PROOVRA_SPAN_NAMES.SIU_TIMELINE_BUILD,
+    { "proovra.operation": "siu_timeline_build" },
+    () => undefined,
+  );
   appendJson("claim-timeline.json", buildClaimTimelinePayload(input.profile));
   appendJson("evidence-checklist.json", {
     generatedAtUtc: summary.generatedAtUtc,

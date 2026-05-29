@@ -43,6 +43,12 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+// Phase O1.5E — bounded external.review.notify span. NEVER reviewer
+// email, name, or token in attributes — bounded scope only.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+} from "../../observability/otel.js";
 
 // =============================================================================
 // Bounded vocabulary
@@ -209,6 +215,21 @@ export type IssueGrantResult =
 export async function issueExternalReviewGrant(
   input: IssueGrantInput,
   client: PrismaClient = defaultPrisma,
+): Promise<IssueGrantResult> {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.EXTERNAL_REVIEW_NOTIFY,
+    {
+      "proovra.team_id": input.teamId,
+      "proovra.operation": "external_review_notify",
+      "proovra.stage": String(input.scopeKind),
+    },
+    () => issueExternalReviewGrantInner(input, client),
+  );
+}
+
+async function issueExternalReviewGrantInner(
+  input: IssueGrantInput,
+  client: PrismaClient,
 ): Promise<IssueGrantResult> {
   // Validate scope cardinality.
   const evidenceId = input.evidenceId ?? null;

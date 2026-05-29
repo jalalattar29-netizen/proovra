@@ -3,6 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+// Phase O1.5B — bounded TSA spans. Attributes carry provider name +
+// status only. NEVER the TSA token body, message imprint hex digest,
+// or response bytes.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+} from "../observability/otel.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -111,7 +118,19 @@ export async function createEvidenceTimestamp(params: {
   digestHex: string;
 }): Promise<TimestampResult | null> {
   if (!enabled()) return null;
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.TSA_TIMESTAMP_REQUEST,
+    {
+      "proovra.operation": "tsa_timestamp_request",
+      "proovra.provider": (process.env.TSA_PROVIDER ?? "UNSPECIFIED_TSA").trim() || "UNSPECIFIED_TSA",
+    },
+    () => createEvidenceTimestampInner(params),
+  );
+}
 
+async function createEvidenceTimestampInner(params: {
+  digestHex: string;
+}): Promise<TimestampResult | null> {
   const tsaUrl = must("TSA_URL");
   const tsaUsername = must("TSA_USERNAME");
   const tsaPassword = must("TSA_PASSWORD");
@@ -167,8 +186,31 @@ export async function createEvidenceTimestamp(params: {
       { timeout: timeoutMs() }
     );
 
-const statusMatch = stdout.match(/Status:\s*(Granted|GrantedWithMods)/i);
-const granted = Boolean(statusMatch);
+// Phase O1.5B — verify the TSA response is well-formed + Granted.
+// Bounded attributes only: provider + outcome (granted/rejected).
+// NEVER the token body, message imprint, or response bytes.
+const granted = await withProovraSpan(
+  PROOVRA_SPAN_NAMES.TSA_TIMESTAMP_VERIFY,
+  {
+    "proovra.operation": "tsa_timestamp_verify",
+    "proovra.provider": provider,
+  },
+  // Also emit the integrity.timestamp.verify alias span so the
+  // bounded integrity catalog has its own runtime emission.
+  async () => {
+    const statusMatch = stdout.match(/Status:\s*(Granted|GrantedWithMods)/i);
+    const wasGranted = Boolean(statusMatch);
+    await withProovraSpan(
+      PROOVRA_SPAN_NAMES.INTEGRITY_TIMESTAMP_VERIFY,
+      {
+        "proovra.operation": "integrity_timestamp_verify",
+        "proovra.outcome": wasGranted ? "granted" : "rejected",
+      },
+      () => undefined,
+    );
+    return wasGranted;
+  },
+);
 
     if (!granted) {
       return {

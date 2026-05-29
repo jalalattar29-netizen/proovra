@@ -27,6 +27,14 @@
  * The whole module is a deliberate ~120-line single-instance map.
  * If PROOVRA needs cross-instance presence later, the contract here
  * is the smallest surface to swap for a Redis-backed implementation.
+ *
+ * Phase O2.1 update: a real Redis-backed alternative now ships in
+ * `redis-presence-backend.ts`, selectable via
+ * `PROOVRA_PRESENCE_BACKEND=redis` (see
+ * `docs/operations/phase-o2-1-redis-shared-presence.md`). The in-memory
+ * implementation below remains the default and is unchanged from
+ * Phase G3 — operators opt into the Redis backend when the api scales
+ * past a single instance.
  */
 
 const HEARTBEAT_TTL_MS = 90 * 1000;

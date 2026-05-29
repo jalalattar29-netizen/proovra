@@ -1,4 +1,9 @@
 import { Resend } from "resend";
+// Phase O1.5E — bounded smtp.email_send span.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+} from "../observability/otel.js";
 
 export type DemoRequestQuickLinks = {
   replyToLeadMailto: string;
@@ -427,6 +432,25 @@ export type SendCustomEmailResult =
  * caller can downgrade to FAILED without entering a retry loop.
  */
 export async function sendCustomEmailViaResend(input: {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<SendCustomEmailResult> {
+  // Phase O1.5E — bounded smtp.email_send span. NEVER recipient,
+  // subject, body, or sender in attributes — operation only.
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.SMTP_EMAIL_SEND,
+    {
+      "proovra.operation": "smtp_email_send",
+      "proovra.provider": "resend",
+    },
+    () => sendCustomEmailViaResendInner(input),
+  );
+}
+
+async function sendCustomEmailViaResendInner(input: {
   from: string;
   to: string;
   subject: string;

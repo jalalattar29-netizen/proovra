@@ -2,6 +2,13 @@ import OpenAI from "openai";
 import { AiProvider, AiResult, AiTask } from "./ai-types.js";
 import { applyAiPolicy, AI_LEGAL_DISCLAIMER } from "./ai-policy.js";
 import { AiResultSchema } from "./ai-types.js";
+// Phase O1.5E — bounded openai.ai_request span. NEVER prompts,
+// responses, file contents, GPS, or raw user text in attributes.
+// Only the bounded task name + outcome.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+} from "../../observability/otel.js";
 
 type OpenAiProviderConfig = {
   apiKey: string;
@@ -159,6 +166,18 @@ private buildUserPrompt(task: AiTask, input: unknown): string {
 }
 
   async run(task: AiTask, input: unknown): Promise<AiResult> {
+    return withProovraSpan(
+      PROOVRA_SPAN_NAMES.OPENAI_AI_REQUEST,
+      {
+        "proovra.operation": "openai_ai_request",
+        "proovra.provider": "openai",
+        "proovra.stage": String(task),
+      },
+      () => this.runInner(task, input),
+    );
+  }
+
+  private async runInner(task: AiTask, input: unknown): Promise<AiResult> {
     const model =
       task === AiTask.SUPPORT_CHAT
         ? this.chatModel

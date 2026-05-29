@@ -25,6 +25,13 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { bump } from "../ops/metrics.service.js";
+// Phase O1.5 — bounded signer rotation spans. Attributes carry only
+// bounded fields (teamId, signerPurpose, compatibility outcome).
+// NEVER the key material, KMS credentials, or actor PII.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+} from "../../observability/otel.js";
 import {
   getCurrentActiveSigners,
   listStagedSigners,
@@ -158,6 +165,23 @@ export async function previewRotation(
   | { ok: true; preview: RotationPreview }
   | { ok: false; code: "staged_not_found"; message: string }
 > {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.SIGNER_ROTATION_PREVIEW,
+    {
+      "proovra.team_id": input.teamId,
+      "proovra.operation": "signer_rotation_preview",
+    },
+    () => previewRotationInner(input, client),
+  );
+}
+
+async function previewRotationInner(
+  input: { teamId: string; signerId: string; actorUserId: string },
+  client: PrismaClient,
+): Promise<
+  | { ok: true; preview: RotationPreview }
+  | { ok: false; code: "staged_not_found"; message: string }
+> {
   const staged = await listStagedSigners({ teamId: input.teamId }, client);
   const target = staged.find(
     (s) => s.signerId === input.signerId && s.status === "staged",
@@ -240,6 +264,28 @@ export async function promoteStagedSigner(
     reason: string;
   },
   client: PrismaClient = defaultPrisma,
+): Promise<
+  | { ok: true; promotedAtUtc: string }
+  | { ok: false; code: "staged_not_found" | "reason_required"; message: string }
+> {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.SIGNER_ROTATION_PROMOTE,
+    {
+      "proovra.team_id": input.teamId,
+      "proovra.operation": "signer_rotation_promote",
+    },
+    () => promoteStagedSignerInner(input, client),
+  );
+}
+
+async function promoteStagedSignerInner(
+  input: {
+    teamId: string;
+    actorUserId: string;
+    signerId: string;
+    reason: string;
+  },
+  client: PrismaClient,
 ): Promise<
   | { ok: true; promotedAtUtc: string }
   | { ok: false; code: "staged_not_found" | "reason_required"; message: string }

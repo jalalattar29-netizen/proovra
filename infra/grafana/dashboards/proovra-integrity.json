@@ -1,0 +1,79 @@
+{
+  "uid": "proovra-integrity",
+  "title": "PROOVRA — Integrity",
+  "description": "Phase O1.6 — Hash compute + canonical digest + signature/timestamp/anchor verify + custody chain. Bounded spans only.",
+  "tags": ["proovra", "integrity", "o1.6"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "30s",
+  "timezone": "utc",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Integrity ops throughput (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.integrity.hash.compute\"}[5m]))", "legendFormat": "hash.compute" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.integrity.canonical.digest\"}[5m]))", "legendFormat": "canonical.digest" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.integrity.signature.verify\"}[5m]))", "legendFormat": "signature.verify" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.integrity.timestamp.verify\"}[5m]))", "legendFormat": "timestamp.verify" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.integrity.public_anchor.verify\"}[5m]))", "legendFormat": "public_anchor.verify" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.custody.chain.verify\"}[5m]))", "legendFormat": "custody.chain.verify" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Integrity success ratio (last 1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{span_name=~\"proovra.integrity..*|proovra.custody.chain.verify\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(increase(traces_spanmetrics_calls_total{span_name=~\"proovra.integrity..*|proovra.custody.chain.verify\"}[1h])), 1))", "legendFormat": "success ratio" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Custody attestation sign / verify / backfill (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.custody.attestation.sign\"}[5m]))", "legendFormat": "sign" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.custody.attestation.verify\"}[5m]))", "legendFormat": "verify" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.custody.attestation.backfill\"}[5m]))", "legendFormat": "backfill" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "TSA timestamp request + verify (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.tsa.timestamp.request\"}[5m]))", "legendFormat": "request" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.tsa.timestamp.verify\"}[5m]))", "legendFormat": "verify" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "OTS anchor / upgrade / verify (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.ots.anchor\"}[5m]))", "legendFormat": "anchor" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.ots.upgrade\"}[5m]))", "legendFormat": "upgrade" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.ots.verify\"}[5m]))", "legendFormat": "verify" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "TSA / OTS failure rate (5m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.tsa..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "tsa errors" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.ots..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "ots errors" }
+      ]
+    }
+  ]
+}

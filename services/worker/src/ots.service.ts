@@ -8,6 +8,10 @@ import {
   parseOtsUpgradeOutput,
   shouldTreatOtsAsAnchored,
 } from "./ots-upgrade-output.js";
+// Phase O1.5B — bounded OTS spans. Attributes carry calendar URL,
+// status, and bitcoinTxid presence (boolean). NEVER the proof bytes,
+// content bytes, or calendar credentials.
+import { PROOVRA_SPAN_NAMES, withProovraSpan } from "./otel.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -160,6 +164,22 @@ export async function createOpenTimestamp(params: {
     };
   }
 
+  // Phase O1.5B — bounded OTS anchor span. Calendar URL is OK (no
+  // creds), size only as a bounded number. NEVER content bytes.
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.OTS_ANCHOR,
+    {
+      "proovra.operation": "ots_anchor",
+      "proovra.size_bytes": params.content.length,
+    },
+    () => createOpenTimestampInner(params),
+  );
+}
+
+async function createOpenTimestampInner(params: {
+  content: Buffer;
+  filenameStem?: string;
+}): Promise<OtsStampResult> {
   const bin = resolveOtsBin();
   const calendar = calendarUrl();
   const workDir = await mkWorkDir();
@@ -192,11 +212,18 @@ const stampArgs = [
     let bitcoinTxid: string | null = null;
 
     try {
-      const upgradeArgs = ["upgrade", proofFile];
-      const { stdout, stderr } = await execFileAsync(bin, upgradeArgs, {
-        timeout: resolveOtsTimeoutMs(),
-        cwd: workDir,
-      });
+      // Phase O1.5B — bounded OTS upgrade span. NEVER the proof bytes.
+      const { stdout, stderr } = await withProovraSpan(
+        PROOVRA_SPAN_NAMES.OTS_UPGRADE,
+        { "proovra.operation": "ots_upgrade" },
+        async () => {
+          const upgradeArgs = ["upgrade", proofFile];
+          return execFileAsync(bin, upgradeArgs, {
+            timeout: resolveOtsTimeoutMs(),
+            cwd: workDir,
+          });
+        },
+      );
 
       const parsedUpgrade = parseOtsUpgradeOutput(stdout, stderr);
       upgradedAtUtc = nowIso();
@@ -205,11 +232,35 @@ const stampArgs = [
       const upgradedBuffer = await fs.readFile(proofFile);
       const upgradedProofBase64 = upgradedBuffer.toString("base64");
 
+      // Phase O1.5B — bounded OTS verify + integrity.public_anchor.verify.
+      // We treat `shouldTreatOtsAsAnchored` as the verify-step gate.
+      const anchored = await withProovraSpan(
+        PROOVRA_SPAN_NAMES.OTS_VERIFY,
+        {
+          "proovra.operation": "ots_verify",
+          "proovra.outcome": shouldTreatOtsAsAnchored(parsedUpgrade)
+            ? "anchored"
+            : "pending",
+        },
+        async () => {
+          const ok = shouldTreatOtsAsAnchored(parsedUpgrade);
+          await withProovraSpan(
+            PROOVRA_SPAN_NAMES.INTEGRITY_PUBLIC_ANCHOR_VERIFY,
+            {
+              "proovra.operation": "integrity_public_anchor_verify",
+              "proovra.outcome": ok ? "verified" : "pending",
+            },
+            () => undefined,
+          );
+          return ok;
+        },
+      );
+
       // Legal boundary: an OTS proof can reach an anchored state before we have
       // a defensible public receipt such as a Bitcoin txid. We preserve the
       // anchored proof state here, but downstream trust scoring only awards full
       // public-anchoring credit when additional public anchor material exists.
-      if (shouldTreatOtsAsAnchored(parsedUpgrade)) {
+      if (anchored) {
         anchoredAtUtc = upgradedAtUtc;
 
         return {

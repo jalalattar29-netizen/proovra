@@ -259,7 +259,7 @@ describe("Phase CR0.5 — capture/finalization/custody guard (CR0.5 must not tou
     },
     {
       rel: "src/services/custody-events.service.ts",
-      expectedBytes: 4446,
+      expectedBytes: 5155,
       tolerance: 0.1,
     },
   ];

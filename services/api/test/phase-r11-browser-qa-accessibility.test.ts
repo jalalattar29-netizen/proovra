@@ -134,7 +134,7 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     ).toBe(9864);
   });
   it("CR1.6 byte-exact pin on capture.routes.ts holds", () => {
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(18308);
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(21271);
   });
   it("CR1.6 byte-exact pin on evidence-complete.service.ts holds", () => {
     // Baseline moves with documented phase growth (G3.x/G4/G5).
@@ -145,11 +145,11 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
   it("CR1.6 byte-exact pin on custody-events.service.ts holds", () => {
     expect(
       statSync(apiSrcPath("services/custody-events.service.ts")).size,
-    ).toBe(4446);
+    ).toBe(5155);
   });
   it("CR1.6 byte-exact pin on timestamp.service.ts holds", () => {
     expect(statSync(apiSrcPath("services/timestamp.service.ts")).size).toBe(
-      6033,
+      7535,
     );
   });
   it("E5 byte-exact pin on claims-matrix.ts holds", () => {

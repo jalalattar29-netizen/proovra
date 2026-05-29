@@ -1,0 +1,64 @@
+{
+  "uid": "proovra-graph",
+  "title": "PROOVRA — Graph",
+  "description": "Phase O1.6 — Graph reconcile / timeline build / domain sync / search projection. Bounded spans only.",
+  "tags": ["proovra", "graph", "o1.6"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "30s",
+  "timezone": "utc",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Graph operations throughput (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.graph.reconcile\"}[5m]))", "legendFormat": "reconcile" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.graph.timeline.build\"}[5m]))", "legendFormat": "timeline.build" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.graph.domain.sync\"}[5m]))", "legendFormat": "domain.sync" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.graph.search.projection\"}[5m]))", "legendFormat": "search.projection" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Worker graph reconcile throughput + failures (5m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-worker\",span_name=\"proovra.worker.graph.reconcile\"}[5m]))", "legendFormat": "worker.graph.reconcile" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-worker\",span_name=\"proovra.worker.graph.reconcile\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "worker.graph.reconcile errors" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Graph reconcile p95/p99 latency (ms)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.graph.reconcile\"}[5m])))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.graph.reconcile\"}[5m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Graph operations success ratio (1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{span_name=~\"proovra.graph..*|proovra.worker.graph..*\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(increase(traces_spanmetrics_calls_total{span_name=~\"proovra.graph..*|proovra.worker.graph..*\"}[1h])), 1))", "legendFormat": "graph success" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Graph failure rate (status=error, 5m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.graph..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "graph errors" }
+      ]
+    }
+  ]
+}

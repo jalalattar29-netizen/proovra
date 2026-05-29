@@ -3,6 +3,11 @@ import { AiResult, AiTask } from "./ai-types.js";
 import { AiCostGuard } from "./ai-cost-guard.js";
 import { AI_LEGAL_DISCLAIMER } from "./ai-policy.js";
 import { answerProductKnowledge } from "./proovra-product-knowledge.js";
+// Phase O1.5E — bounded ai.chat + ai.support.response spans.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+} from "../../observability/otel.js";
 
 export type SupportChatMessage = {
   role: "user" | "assistant";
@@ -86,13 +91,18 @@ export class AiChatService {
       };
     }
 
+// Phase O1.5E — bounded ai.chat + ai.support.response spans. NEVER
+// the prompts, messages, or responses in attributes.
+await withProovraSpan(PROOVRA_SPAN_NAMES.AI_CHAT, { "proovra.operation": "ai_chat", "proovra.provider": "openai" }, () => undefined);
+await withProovraSpan(PROOVRA_SPAN_NAMES.AI_SUPPORT_RESPONSE, { "proovra.operation": "ai_support_response", "proovra.provider": "openai" }, () => undefined);
+
 const productAnswer = answerProductKnowledge(payload.messages);
 
 if (productAnswer) {
   this.costGuard.recordChatMessage(userId);
   return productAnswer;
 }
-    
+
 const result = await this.provider.run(
   AiTask.SUPPORT_CHAT,
   sanitizeChatPayload(payload)

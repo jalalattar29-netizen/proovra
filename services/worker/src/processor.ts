@@ -71,6 +71,10 @@ import {
   putObjectBuffer,
 } from "./storage.js";
 import { createHash, randomUUID, verify as verifySignature } from "node:crypto";
+// Phase O1.5B — bounded integrity.signature.verify span on the
+// Ed25519 verification of report signing artifacts.
+// Phase O1.5C — report pipeline spans.
+import { PROOVRA_SPAN_NAMES, withProovraSpan, withProovraSpanSync } from "./otel.js";
 import {
   buildReportPdfV2,
   buildReportPdfV2WithSignatureOutcome,
@@ -809,11 +813,22 @@ function verifyEd25519HexSignature(params: {
     throw new Error("verifyEd25519HexSignature: publicKeyPem is invalid");
   }
 
-  return verifySignature(
-    null,
-    Buffer.from(normalizedHex, "hex"),
-    `${publicKeyPem}\n`,
-    Buffer.from(params.signatureBase64, "base64")
+  // Phase O1.5B — bounded integrity.signature.verify span. Algorithm
+  // name + outcome only. NEVER the signature bytes, public key, or
+  // message hex.
+  return withProovraSpanSync(
+    PROOVRA_SPAN_NAMES.INTEGRITY_SIGNATURE_VERIFY,
+    {
+      "proovra.operation": "integrity_signature_verify",
+      "proovra.provider": "ed25519",
+    },
+    () =>
+      verifySignature(
+        null,
+        Buffer.from(normalizedHex, "hex"),
+        `${publicKeyPem}\n`,
+        Buffer.from(params.signatureBase64, "base64")
+      ),
   );
 }
 
@@ -2739,6 +2754,12 @@ packageMetadataContext: {
 }
 
 export async function processGenerateReport(job: Job<GenerateReportJobData>) {
+  // Phase O1.5C — emit bounded report.generate + render.html span at
+  // entry. The inner render.pdf / upload / publish spans are emitted
+  // at their actual call sites below. NEVER report contents / PDF
+  // bytes / signed URLs in attributes.
+  await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_GENERATE, { "proovra.operation": "report_generate", "proovra.evidence_id": job.data.evidenceId }, () => undefined);
+  await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_RENDER_HTML, { "proovra.operation": "report_render_html", "proovra.evidence_id": job.data.evidenceId }, () => undefined);
   const start = Date.now();
   const evidenceId = job.data.evidenceId;
   const forceRegenerate = job.data.forceRegenerate === true;
@@ -3185,6 +3206,8 @@ const effectiveReportEvidencePayload = {
           evidenceId: prepared.evidenceId,
         });
 
+        // Phase O1.5C — bounded report.render.pdf span.
+        await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_RENDER_PDF, { "proovra.operation": "report_render_pdf", "proovra.evidence_id": prepared.evidenceId }, () => undefined);
         const finalizedReportPdf = await buildReportPdfV2({
           evidence: effectiveReportEvidencePayload,
           custodyEvents: finalizedCustodyForReport,
@@ -3203,6 +3226,9 @@ const effectiveReportEvidencePayload = {
           incomingBytes: BigInt(finalizedReportPdf.length),
         });
 
+        // Phase O1.5C — bounded report.upload span. NEVER PDF bytes
+        // or signed URL in attributes.
+        await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_UPLOAD, { "proovra.operation": "report_upload", "proovra.evidence_id": prepared.evidenceId, "proovra.size_bytes": finalizedReportPdf.length }, () => undefined);
         await putObjectBuffer({
           bucket: env.S3_BUCKET,
           key: prepared.reportKey,
@@ -3220,6 +3246,8 @@ const effectiveReportEvidencePayload = {
             immutable: "true",
           },
         });
+        // Phase O1.5C — bounded report.publish span emitted post-upload.
+        await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_PUBLISH, { "proovra.operation": "report_publish", "proovra.evidence_id": prepared.evidenceId }, () => undefined);
 
         await applyRetentionOrThrow([
           {

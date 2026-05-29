@@ -1,0 +1,72 @@
+{
+  "uid": "proovra-reviewer-ops",
+  "title": "PROOVRA — Reviewer Ops",
+  "description": "Phase O1.6 — Reviewer assignment lifecycle + queue build + console load + reconcile. Bounded spans only.",
+  "tags": ["proovra", "reviewer", "o1.6"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "30s",
+  "timezone": "utc",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Reviewer assignment throughput (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.reviewer.assignment.create\"}[5m]))", "legendFormat": "assignment.create" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.reviewer.assignment.complete\"}[5m]))", "legendFormat": "assignment.complete" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Reviewer queue build + console load (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.reviewer.queue.build\"}[5m]))", "legendFormat": "queue.build" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.reviewer.console.load\"}[5m]))", "legendFormat": "console.load" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Reviewer console load p95/p99 latency (ms)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.reviewer.console.load\"}[5m])))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.reviewer.console.load\"}[5m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Reviewer reconcile rate + failures (5m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.reviewer.reconcile\"}[5m]))", "legendFormat": "reconcile" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.reviewer.reconcile\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "reconcile errors" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Reviewer assignment success ratio (1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{span_name=~\"proovra.reviewer.assignment..*\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(increase(traces_spanmetrics_calls_total{span_name=~\"proovra.reviewer.assignment..*\"}[1h])), 1))", "legendFormat": "assignment success" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Reviewer failure rate (all spans, status=error, 5m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.reviewer..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "reviewer errors" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "uid": "proovra-report",
+  "title": "PROOVRA — Report Pipeline",
+  "description": "Phase O1.6 — Report generate / render html / render pdf / upload / publish. Worker spans only.",
+  "tags": ["proovra", "report", "o1.6"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "30s",
+  "timezone": "utc",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Report pipeline throughput (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-worker\",span_name=\"proovra.report.generate\"}[5m]))", "legendFormat": "generate" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-worker\",span_name=\"proovra.report.render.html\"}[5m]))", "legendFormat": "render.html" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-worker\",span_name=\"proovra.report.render.pdf\"}[5m]))", "legendFormat": "render.pdf" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-worker\",span_name=\"proovra.report.upload\"}[5m]))", "legendFormat": "upload" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-worker\",span_name=\"proovra.report.publish\"}[5m]))", "legendFormat": "publish" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Worker report-generate p95/p99 latency (ms)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.worker.report.generate\"}[5m])))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.worker.report.generate\"}[5m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Queue wait — dlq_job_total + worker job retry failure (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum by (queue_name) (rate(dlq_job_total{queue_name=\"report\"}[5m]))", "legendFormat": "report DLQ {{queue_name}}" },
+        { "expr": "sum(rate(queue_retry_failure_total[5m]))", "legendFormat": "queue retry failure" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Report failures (status=error, 5m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.report..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "report errors" },
+        { "expr": "sum(rate(package_generation_failed_total[5m]))", "legendFormat": "package gen failed (legacy counter)" }
+      ]
+    }
+  ]
+}

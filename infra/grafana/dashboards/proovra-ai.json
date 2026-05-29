@@ -1,0 +1,63 @@
+{
+  "uid": "proovra-ai",
+  "title": "PROOVRA — AI",
+  "description": "Phase O1.6 — AI request (openai) + chat + support response + capture review. Bounded spans only. NEVER prompts / responses / file bytes / PII.",
+  "tags": ["proovra", "ai", "o1.6"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "30s",
+  "timezone": "utc",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "AI service entry throughput (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.ai.chat\"}[5m]))", "legendFormat": "ai.chat" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.ai.support.response\"}[5m]))", "legendFormat": "ai.support.response" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.ai.capture.review\"}[5m]))", "legendFormat": "ai.capture.review" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "OpenAI provider call throughput (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.openai.ai_request\"}[5m]))", "legendFormat": "openai.ai_request" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "OpenAI provider p95/p99 latency (ms)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.openai.ai_request\"}[5m])))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.openai.ai_request\"}[5m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "AI failure rate (status=error, 5m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.openai.ai_request\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "openai errors" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.ai..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "ai entry errors" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "OpenAI success ratio (1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.openai.ai_request\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.openai.ai_request\"}[1h])), 1))", "legendFormat": "openai success" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    }
+  ]
+}

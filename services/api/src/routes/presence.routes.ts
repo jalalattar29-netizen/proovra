@@ -27,10 +27,15 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+// Phase O2.1 — route through the backend selector so the same
+// endpoints work against either the in-memory Phase G3 store or the
+// opt-in Redis backend (`PROOVRA_PRESENCE_BACKEND=redis`). The
+// selection is invisible to the route handlers — see
+// `services/presence/presence-selector.ts`.
 import {
-  listViewers,
-  recordHeartbeat,
-} from "../services/presence/presence.service.js";
+  listViewersAsyncViaSelector as listViewers,
+  recordHeartbeatViaSelector as recordHeartbeat,
+} from "../services/presence/presence-selector.js";
 
 const HeartbeatBody = z.object({
   teamId: z.string().uuid(),
@@ -93,7 +98,7 @@ export async function presenceRoutes(app: FastifyInstance) {
         displayName,
       });
 
-      const viewers = listViewers({
+      const viewers = await listViewers({
         teamId: body.teamId,
         resourceKind: body.resourceKind,
         resourceId: body.resourceId,
@@ -126,7 +131,7 @@ export async function presenceRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
 
-      const viewers = listViewers({
+      const viewers = await listViewers({
         teamId: query.teamId,
         resourceKind: query.resourceKind,
         resourceId: query.resourceId,

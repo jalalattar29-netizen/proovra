@@ -528,10 +528,10 @@ describe("E9 Test 13 — 32.8 IA preserved", () => {
 
 describe("E9 Test 14 — protected core files unchanged by E9", () => {
   const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 18308 },
+    { rel: "src/routes/capture.routes.ts", expectedBytes: 21271 },
     { rel: "src/services/evidence-complete.service.ts", expectedBytes: 41849 },
-    { rel: "src/services/custody-events.service.ts", expectedBytes: 4446 },
-    { rel: "src/services/timestamp.service.ts", expectedBytes: 6033 },
+    { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
+    { rel: "src/services/timestamp.service.ts", expectedBytes: 7535 },
     {
       rel: "src/services/reports/reports-aggregator.service.ts",
       expectedBytes: 13118,

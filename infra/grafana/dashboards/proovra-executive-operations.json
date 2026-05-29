@@ -1,0 +1,113 @@
+{
+  "uid": "proovra-executive-operations",
+  "title": "PROOVRA — Executive Operations",
+  "description": "Phase O1.6 — Cross-domain executive KPI rollup. Top-line throughput + success ratios for evidence/integrity/report/package/reviewer/SIU pipelines + AI + Communications. Bounded spans only.",
+  "tags": ["proovra", "executive", "o1.6"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "1m",
+  "timezone": "utc",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Evidence finalize success (1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.evidence.finalize\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.evidence.finalize\"}[1h])), 1))", "legendFormat": "evidence.finalize" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Integrity success (1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{span_name=~\"proovra.integrity..*|proovra.custody.chain.verify\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(increase(traces_spanmetrics_calls_total{span_name=~\"proovra.integrity..*|proovra.custody.chain.verify\"}[1h])), 1))", "legendFormat": "integrity" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Report generate success (1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.report.generate\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.report.generate\"}[1h])), 1))", "legendFormat": "report.generate" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Package generate success (1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.package.generate\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.package.generate\"}[1h])), 1))", "legendFormat": "package.generate" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Top-line pipeline throughput (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.evidence.finalize\"}[5m]))", "legendFormat": "evidence.finalize" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.report.generate\"}[5m]))", "legendFormat": "report.generate" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.package.generate\"}[5m]))", "legendFormat": "package.generate" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.reviewer.assignment.complete\"}[5m]))", "legendFormat": "reviewer.assignment.complete" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.siu.export.generate\"}[5m]))", "legendFormat": "siu.export.generate" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Cross-domain failure rate (status=error, 5m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.evidence..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "evidence" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.integrity..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "integrity" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.report..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "report" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.package..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "package" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.reviewer..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "reviewer" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.siu..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "siu" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.ai..*|proovra.openai..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "ai" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.smtp..*|proovra.external.review..*|proovra.webhook..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "comms" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "DLQ / queue retry failure rate (5m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum by (queue_name) (rate(dlq_job_total[5m]))", "legendFormat": "dlq {{queue_name}}" },
+        { "expr": "sum(rate(queue_retry_failure_total[5m]))", "legendFormat": "retry failure" },
+        { "expr": "sum(rate(package_generation_failed_total[5m]))", "legendFormat": "package gen failed (legacy)" }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Reviewer assignment success (1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{span_name=~\"proovra.reviewer.assignment..*\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(increase(traces_spanmetrics_calls_total{span_name=~\"proovra.reviewer.assignment..*\"}[1h])), 1))", "legendFormat": "reviewer.assignment" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "SIU export success (1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{span_name=~\"proovra.siu.export..*\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(increase(traces_spanmetrics_calls_total{span_name=~\"proovra.siu.export..*\"}[1h])), 1))", "legendFormat": "siu.export" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    }
+  ]
+}

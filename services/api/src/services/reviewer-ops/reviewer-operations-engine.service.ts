@@ -34,6 +34,12 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
+// Phase O1.5D — bounded reviewer-ops spans. NEVER reviewer notes,
+// PII, or workflow body content; bounded teamId + workflowId only.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+} from "../../observability/otel.js";
 // Phase 32.7 — canonical operational event contract. The worker
 // heartbeat write site below MUST resolve the wire string through
 // this constant so the reader (`runtime-readiness.checkWorkers`)
@@ -249,6 +255,20 @@ export async function listReviewerOpsQueue(
   rows: ReadonlyArray<ReviewerOpsQueueRow>;
   nextCursor: string | null;
 }> {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.REVIEWER_QUEUE_BUILD,
+    { "proovra.team_id": input.teamId, "proovra.operation": "reviewer_queue_build" },
+    () => listReviewerOpsQueueInner(input, client),
+  );
+}
+
+async function listReviewerOpsQueueInner(
+  input: ReviewerOpsQueueInput,
+  client: PrismaClient,
+): Promise<{
+  rows: ReadonlyArray<ReviewerOpsQueueRow>;
+  nextCursor: string | null;
+}> {
   const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
   const baseWhere: Record<string, unknown> = { teamId: input.teamId };
   switch (input.queue) {
@@ -369,6 +389,17 @@ export type ReviewerOpsDashboard = {
 export async function buildDashboard(
   input: { teamId: string; meUserId: string },
   client: PrismaClient = defaultPrisma,
+): Promise<ReviewerOpsDashboard> {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.REVIEWER_CONSOLE_LOAD,
+    { "proovra.team_id": input.teamId, "proovra.operation": "reviewer_console_load" },
+    () => buildDashboardInner(input, client),
+  );
+}
+
+async function buildDashboardInner(
+  input: { teamId: string; meUserId: string },
+  client: PrismaClient,
 ): Promise<ReviewerOpsDashboard> {
   const [counts, openEsc, critEsc, workloadTop, suggestions] = await Promise.all(
     [
@@ -507,6 +538,21 @@ export async function assignReviewerToWorkflow(
   ctx: LifecycleActorContext,
   input: { workflowId: string; assignedToUserId: string; note?: string | null },
   client: PrismaClient = defaultPrisma,
+): Promise<ReviewerOpsWorkflowProjection> {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.REVIEWER_ASSIGNMENT_CREATE,
+    {
+      "proovra.team_id": ctx.teamId,
+      "proovra.operation": "reviewer_assignment_create",
+    },
+    () => assignReviewerToWorkflowInner(ctx, input, client),
+  );
+}
+
+async function assignReviewerToWorkflowInner(
+  ctx: LifecycleActorContext,
+  input: { workflowId: string; assignedToUserId: string; note?: string | null },
+  client: PrismaClient,
 ): Promise<ReviewerOpsWorkflowProjection> {
   requireHuman(ctx);
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
@@ -695,6 +741,22 @@ export async function approveReview(
   input: { workflowId: string; note?: string | null },
   client: PrismaClient = defaultPrisma,
 ): Promise<ReviewerOpsWorkflowProjection> {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.REVIEWER_ASSIGNMENT_COMPLETE,
+    {
+      "proovra.team_id": ctx.teamId,
+      "proovra.operation": "reviewer_assignment_complete",
+      "proovra.outcome": "approved",
+    },
+    () => approveReviewInner(ctx, input, client),
+  );
+}
+
+async function approveReviewInner(
+  ctx: LifecycleActorContext,
+  input: { workflowId: string; note?: string | null },
+  client: PrismaClient,
+): Promise<ReviewerOpsWorkflowProjection> {
   requireHuman(ctx);
   if (input.note && stringContainsForbiddenOverclaim(input.note)) {
     throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", {
@@ -780,6 +842,17 @@ export type ReconcileResult = {
 export async function runReconcile(
   input: { teamId: string; batchSize?: number },
   client: PrismaClient = defaultPrisma,
+): Promise<ReconcileResult> {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.REVIEWER_RECONCILE,
+    { "proovra.team_id": input.teamId, "proovra.operation": "reviewer_reconcile" },
+    () => runReconcileInner(input, client),
+  );
+}
+
+async function runReconcileInner(
+  input: { teamId: string; batchSize?: number },
+  client: PrismaClient,
 ): Promise<ReconcileResult> {
   bump("reviewer_reconcile_run_total");
   let escalationsCreated = 0;

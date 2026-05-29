@@ -192,3 +192,430 @@ groups:
           runbook_url: docs/operations/observability-runbooks.md#siu-pii-reveal-spike
         labels:
           severity: warning
+
+  # =====================================================================
+  # Phase O1.6 — trace-derived alert rules. Every rule references a real
+  # emitted span from `PROOVRA_SPAN_NAMES` (see services/{api,worker}/src/
+  # ...otel.ts) OR a real counter from packages/shared-runtime/src/ops/
+  # metrics.service.ts. The contract test
+  # `services/api/test/phase-o1-6-dashboard-coverage.test.ts` asserts each
+  # rule references a real span / counter name (no phantoms).
+  #
+  # Thresholds below are conservative defaults — operators MUST tune
+  # them post-deploy once trace volume establishes a noise floor. The
+  # honest-copy rule from `docs/operations/observability-runbooks.md` is
+  # preserved: thresholds are NOT fabricated to look precise; they are
+  # set to the smallest value that flags any sustained failure burst.
+  # =====================================================================
+
+  - orgId: 1
+    name: proovra-infrastructure
+    folder: PROOVRA
+    interval: 60s
+    rules:
+      - uid: proovra-redis-unavailable
+        title: Redis unavailable
+        condition: redis_down
+        for: 2m
+        data:
+          - refId: redis_down
+            datasourceUid: prometheus
+            model:
+              expr: |
+                avg_over_time(up{job=~"proovra-redis|redis"}[2m]) < 0.5
+        annotations:
+          summary: Redis is not responding to scrapes. BullMQ + presence + caches are degraded.
+          runbook_url: docs/operations/observability-runbooks.md#redis-unavailable
+        labels:
+          severity: critical
+
+      - uid: proovra-queue-backlog-spike
+        title: Queue backlog spike (stalled jobs)
+        condition: queue_stalled_spike
+        for: 10m
+        data:
+          - refId: queue_stalled_spike
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(worker_stalled_total[10m]))
+                  + sum(rate(queue_job_stalled_total[10m])) > 0.05
+        annotations:
+          summary: Worker BullMQ stalled-job rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#queue-backlog-spike
+        labels:
+          severity: warning
+
+      - uid: proovra-queue-retry-failure-spike
+        title: Queue retry failure spike
+        condition: queue_retry_fail
+        for: 15m
+        data:
+          - refId: queue_retry_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(queue_retry_failure_total[15m])) > 0.05
+        annotations:
+          summary: Operator-initiated queue retries are failing above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#queue-retry-failure-spike
+        labels:
+          severity: warning
+
+  - orgId: 1
+    name: proovra-integrity
+    folder: PROOVRA
+    interval: 60s
+    rules:
+      - uid: proovra-signature-verify-failure
+        title: Signature verify failure spike
+        condition: sig_verify_fail
+        for: 10m
+        data:
+          - refId: sig_verify_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.integrity.signature.verify",status_code="STATUS_CODE_ERROR"}[10m])) > 0.05
+        annotations:
+          summary: Integrity signature verification failure rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#signature-verify-failure
+        labels:
+          severity: critical
+
+      - uid: proovra-custody-chain-verify-failure
+        title: Custody chain verify failure spike
+        condition: custody_chain_fail
+        for: 10m
+        data:
+          - refId: custody_chain_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.custody.chain.verify",status_code="STATUS_CODE_ERROR"}[10m])) > 0.05
+        annotations:
+          summary: Custody chain verification failure rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#custody-chain-verify-failure
+        labels:
+          severity: critical
+
+      - uid: proovra-tsa-failure-spike
+        title: TSA timestamp failure spike
+        condition: tsa_fail
+        for: 15m
+        data:
+          - refId: tsa_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name=~"proovra.tsa\\..*",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+        annotations:
+          summary: TSA timestamp request/verify failure rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#tsa-failure-spike
+        labels:
+          severity: warning
+
+      - uid: proovra-ots-failure-spike
+        title: OTS anchor/upgrade/verify failure spike
+        condition: ots_fail
+        for: 30m
+        data:
+          - refId: ots_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name=~"proovra.ots\\..*",status_code="STATUS_CODE_ERROR"}[30m])) > 0.05
+        annotations:
+          summary: OpenTimestamps anchor/upgrade/verify failure rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#ots-failure-spike
+        labels:
+          severity: warning
+
+      - uid: proovra-c2pa-validate-failure
+        title: C2PA validate failure spike
+        condition: c2pa_validate_fail
+        for: 15m
+        data:
+          - refId: c2pa_validate_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.c2pa.validate",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+        annotations:
+          summary: C2PA manifest validation failure rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#c2pa-validate-failure
+        labels:
+          severity: warning
+
+  - orgId: 1
+    name: proovra-report-package
+    folder: PROOVRA
+    interval: 60s
+    rules:
+      - uid: proovra-report-generate-failure
+        title: Report generate failure spike
+        condition: report_gen_fail
+        for: 15m
+        data:
+          - refId: report_gen_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.report.generate",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+        annotations:
+          summary: Report generate failure rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#report-generate-failure
+        labels:
+          severity: critical
+
+      - uid: proovra-report-upload-failure
+        title: Report upload failure spike
+        condition: report_upload_fail
+        for: 15m
+        data:
+          - refId: report_upload_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.report.upload",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+        annotations:
+          summary: Report upload to object storage failure rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#report-upload-failure
+        labels:
+          severity: warning
+
+      - uid: proovra-package-upload-failure
+        title: Package upload failure spike
+        condition: package_upload_fail
+        for: 15m
+        data:
+          - refId: package_upload_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.package.upload",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+        annotations:
+          summary: Verification package upload to S3 failure rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#package-upload-failure
+        labels:
+          severity: critical
+
+      - uid: proovra-package-attestation-degraded
+        title: Package attestation degraded
+        condition: package_attestation_degraded
+        for: 30m
+        data:
+          - refId: package_attestation_degraded
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(package_attestations_degraded_total[30m]))
+                  + sum(rate(package_attestation_generation_failure_total[30m])) > 0.05
+        annotations:
+          summary: Verification package attestations are being skipped or failing.
+          runbook_url: docs/operations/observability-runbooks.md#package-attestation-degraded
+        labels:
+          severity: warning
+
+  - orgId: 1
+    name: proovra-reviewer-graph
+    folder: PROOVRA
+    interval: 60s
+    rules:
+      - uid: proovra-reviewer-reconcile-failure
+        title: Reviewer reconcile failure spike
+        condition: reviewer_reconcile_fail
+        for: 15m
+        data:
+          - refId: reviewer_reconcile_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(reviewer_reconcile_failed_total[15m])) > 0.05
+                  or sum(rate(traces_spanmetrics_calls_total{span_name="proovra.reviewer.reconcile",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+        annotations:
+          summary: Reviewer reconcile loop is producing failures above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#reviewer-reconcile-failure
+        labels:
+          severity: warning
+
+      - uid: proovra-reviewer-assignment-backlog
+        title: Reviewer assignment backlog spike
+        condition: reviewer_assignment_backlog
+        for: 30m
+        data:
+          - refId: reviewer_assignment_backlog
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(reviewer_queue_pressure_total[30m]))
+                  + sum(rate(reviewer_assignment_overload_detected_total[30m])) > 0.1
+        annotations:
+          summary: Reviewer queue pressure / overload events elevated.
+          runbook_url: docs/operations/observability-runbooks.md#reviewer-assignment-backlog
+        labels:
+          severity: warning
+
+      - uid: proovra-graph-reconcile-failure
+        title: Graph reconcile failure spike
+        condition: graph_reconcile_fail
+        for: 15m
+        data:
+          - refId: graph_reconcile_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(graph_reconcile_failed_total[15m])) > 0.05
+                  or sum(rate(traces_spanmetrics_calls_total{span_name="proovra.graph.reconcile",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+        annotations:
+          summary: Graph reconcile loop is producing failures above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#graph-reconcile-failure
+        labels:
+          severity: warning
+
+  - orgId: 1
+    name: proovra-siu
+    folder: PROOVRA
+    interval: 60s
+    rules:
+      - uid: proovra-siu-export-generate-failure
+        title: SIU export generate failure spike
+        condition: siu_export_gen_fail
+        for: 15m
+        data:
+          - refId: siu_export_gen_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.siu.export.generate",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+                  or sum(rate(siu_export_failed_total[15m])) > 0.05
+        annotations:
+          summary: SIU export generation is failing above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#siu-export-generate-failure
+        labels:
+          severity: critical
+
+      - uid: proovra-siu-followup-failure
+        title: SIU follow-up request failure spike
+        condition: siu_followup_fail
+        for: 30m
+        data:
+          - refId: siu_followup_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.siu.followup.request",status_code="STATUS_CODE_ERROR"}[30m])) > 0.05
+        annotations:
+          summary: SIU follow-up request emission failing above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#siu-followup-failure
+        labels:
+          severity: warning
+
+  - orgId: 1
+    name: proovra-ai
+    folder: PROOVRA
+    interval: 60s
+    rules:
+      - uid: proovra-openai-failure-spike
+        title: OpenAI request failure spike
+        condition: openai_fail
+        for: 15m
+        data:
+          - refId: openai_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.openai.ai_request",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+        annotations:
+          summary: OpenAI provider is failing above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#openai-failure-spike
+        labels:
+          severity: warning
+
+      - uid: proovra-openai-latency-elevated
+        title: OpenAI request p95 latency elevated
+        condition: openai_p95
+        for: 15m
+        data:
+          - refId: openai_p95
+            datasourceUid: prometheus
+            model:
+              expr: |
+                histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name="proovra.openai.ai_request"}[15m]))) > 15000
+        annotations:
+          summary: OpenAI provider p95 latency above 15s for 15 minutes.
+          runbook_url: docs/operations/observability-runbooks.md#openai-latency-elevated
+        labels:
+          severity: warning
+
+      - uid: proovra-ai-chat-rate-limited
+        title: AI chat rate-limit spike
+        condition: ai_chat_rl
+        for: 15m
+        data:
+          - refId: ai_chat_rl
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(ai_chat_rate_limited_total[15m])) > 0.1
+        annotations:
+          summary: AI chat is rate-limiting requests above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#ai-chat-rate-limited
+        labels:
+          severity: warning
+
+  - orgId: 1
+    name: proovra-communications
+    folder: PROOVRA
+    interval: 60s
+    rules:
+      - uid: proovra-smtp-failure-spike
+        title: SMTP send failure spike
+        condition: smtp_fail
+        for: 15m
+        data:
+          - refId: smtp_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.smtp.email_send",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+                  or sum(rate(communication_message_failed[15m])) > 0.05
+        annotations:
+          summary: SMTP (Resend) send failure rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#smtp-failure-spike
+        labels:
+          severity: warning
+
+      - uid: proovra-external-review-notify-failure
+        title: External review notify failure spike
+        condition: external_review_fail
+        for: 15m
+        data:
+          - refId: external_review_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.external.review.notify",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+                  or sum(rate(external_review_grant_issue_failed_total[15m])) > 0.05
+        annotations:
+          summary: External reviewer grant / notification failure rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#external-review-notify-failure
+        labels:
+          severity: warning
+
+      - uid: proovra-webhook-dispatch-failure
+        title: Webhook dispatch failure spike
+        condition: webhook_dispatch_fail
+        for: 15m
+        data:
+          - refId: webhook_dispatch_fail
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.webhook.dispatch",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
+                  or sum(rate(webhook_delivery_failed[15m])) > 0.05
+        annotations:
+          summary: Webhook dispatch failure rate above threshold.
+          runbook_url: docs/operations/observability-runbooks.md#webhook-dispatch-failure
+        labels:
+          severity: warning

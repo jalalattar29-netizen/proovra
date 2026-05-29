@@ -1,0 +1,57 @@
+{
+  "uid": "proovra-verification-package",
+  "title": "PROOVRA — Verification Package Pipeline",
+  "description": "Phase O1.6 — Package generate / manifest / attestations / signer snapshot / zip finalize / upload.",
+  "tags": ["proovra", "package", "o1.6"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "30s",
+  "timezone": "utc",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Package pipeline throughput (5m rate)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-worker\",span_name=\"proovra.package.generate\"}[5m]))", "legendFormat": "generate" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-worker\",span_name=\"proovra.package.manifest.create\"}[5m]))", "legendFormat": "manifest.create" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-worker\",span_name=\"proovra.package.attestations.collect\"}[5m]))", "legendFormat": "attestations.collect" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-worker\",span_name=\"proovra.package.signer_snapshot.generate\"}[5m]))", "legendFormat": "signer_snapshot" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-worker\",span_name=\"proovra.package.zip.finalize\"}[5m]))", "legendFormat": "zip.finalize" },
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"proovra-worker\",span_name=\"proovra.package.upload\"}[5m]))", "legendFormat": "upload" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Package generate p95/p99 duration (ms)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.package.generate\"}[5m])))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(traces_spanmetrics_duration_milliseconds_bucket{span_name=\"proovra.package.generate\"}[5m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Package failures (status=error, 5m)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=~\"proovra.package..*\",status_code=\"STATUS_CODE_ERROR\"}[5m]))", "legendFormat": "package errors" },
+        { "expr": "sum(rate(package_generation_failed_total[5m]))", "legendFormat": "package gen failed counter" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Package upload success ratio (1h)",
+      "datasource": "prometheus",
+      "targets": [
+        { "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.package.upload\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(increase(traces_spanmetrics_calls_total{span_name=\"proovra.package.upload\"}[1h])), 1))", "legendFormat": "upload success" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    }
+  ]
+}

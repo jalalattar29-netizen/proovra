@@ -1,6 +1,11 @@
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
 import { env } from "./config.js";
+// Phase O1.3 — bounded OTEL context injection for cross-service
+// trace propagation (API enqueue → worker handler). See
+// `observability/queue-otel-context.ts` for the bounded carrier
+// shape and the "not yet propagated" deferred list.
+import { injectOtelContextIntoJobData } from "./observability/queue-otel-context.js";
 import {
   buildReportJobId,
   buildReportJobPayload,
@@ -568,7 +573,15 @@ async function genericIdempotentEnqueue<P extends { teamId: string }>(
         // ignore race
       }
     }
-    await queue.add(jobName, payload, {
+    // Phase O1.4 — inject OTEL context for cross-service trace
+    // continuity. genericIdempotentEnqueue is shared by graph-domain-sync,
+    // graph-timeline-sync, graph-search-projection, mi-ocr, mi-transcript,
+    // mi-search-index, graph-reconcile — so this single injection covers
+    // 7 of the deferred queues from O1.3 in one move.
+    const wrappedPayload = injectOtelContextIntoJobData(
+      payload as unknown as Record<string, unknown>,
+    );
+    await queue.add(jobName, wrappedPayload, {
       jobId,
       delay: Math.max(0, options.delayMs ?? 0),
     });
@@ -680,7 +693,11 @@ export async function enqueueSearchIndexingJob(
         // ignore race
       }
     }
-    await searchIndexingQueue.add(searchIndexingJobName, payload, {
+    // Phase O1.4 — inject OTEL context.
+    const wrappedPayload = injectOtelContextIntoJobData(
+      payload as unknown as Record<string, unknown>,
+    );
+    await searchIndexingQueue.add(searchIndexingJobName, wrappedPayload, {
       jobId,
       delay: Math.max(0, options.delayMs ?? 0),
       attempts: 5,
@@ -776,9 +793,14 @@ export async function enqueueOtsUpgradeJob(
     return { enqueued: false, reason: `job_${state}` };
   }
 
+  // Phase O1.3 — inject the current OTEL trace context so the
+  // worker's `processOtsUpgrade` handler runs as a child span of the
+  // request that triggered the enqueue. No-op when OTEL is disabled.
+  const otsPayload = injectOtelContextIntoJobData({ evidenceId });
+
   await otsUpgradeQueue.add(
     otsUpgradeJobName,
-    { evidenceId },
+    otsPayload,
     {
       jobId,
       delay: Math.max(0, options?.delayMs ?? 5 * 60 * 1000),
@@ -819,7 +841,15 @@ export async function enqueueReportJob(
     }
   }
 
-  await reportQueue.add(generateReportJobName, payload, {
+  // Phase O1.3 — inject the current OTEL trace context so the
+  // worker's `processGenerateReport` handler runs as a child span
+  // of the request that triggered the enqueue. No-op when OTEL is
+  // disabled or no active span is in context.
+  const reportPayload = injectOtelContextIntoJobData(
+    payload as unknown as Record<string, unknown>,
+  );
+
+  await reportQueue.add(generateReportJobName, reportPayload, {
     jobId,
     attempts: options?.forceRegenerate ? 3 : 5,
     backoff: { type: "exponential", delay: 1000 },
@@ -887,9 +917,13 @@ export async function enqueueEvidencePurgeJob(
       teamId: options.teamId ?? null,
     });
 
+  // Phase O1.4 — inject OTEL context.
+  const wrappedEnvelope = injectOtelContextIntoJobData(
+    envelope as unknown as Record<string, unknown>,
+  );
   await evidencePurgeQueue.add(
     purgeDeletedEvidenceJobName,
-    envelope,
+    wrappedEnvelope,
     {
       jobId,
       delay,
@@ -975,7 +1009,11 @@ export async function enqueueMediaIntelligenceJob(
         // ignore race
       }
     }
-    await mediaIntelligenceQueue.add(mediaIntelligenceJobName, payload, {
+    // Phase O1.4 — inject OTEL context.
+    const wrappedMiPayload = injectOtelContextIntoJobData(
+      payload as unknown as Record<string, unknown>,
+    );
+    await mediaIntelligenceQueue.add(mediaIntelligenceJobName, wrappedMiPayload, {
       jobId,
       delay: Math.max(0, options.delayMs ?? 0),
       attempts: 3,
@@ -1049,7 +1087,11 @@ export async function enqueueExifJob(
         // ignore race
       }
     }
-    await exifQueue.add(exifJobName, payload, {
+    // Phase O1.4 — inject OTEL context.
+    const wrappedExifPayload = injectOtelContextIntoJobData(
+      payload as unknown as Record<string, unknown>,
+    );
+    await exifQueue.add(exifJobName, wrappedExifPayload, {
       jobId,
       delay: Math.max(0, options.delayMs ?? 0),
       attempts: 3,

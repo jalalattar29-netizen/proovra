@@ -1,6 +1,22 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import { getSecret } from "../config/runtime-secrets.js";
+// Phase O1.5A — bounded evidence + upload + finalize + verify-public
+// spans. Attributes bounded to teamId + evidenceId + operation only;
+// NEVER body bytes, signed URLs, user-supplied filenames, GPS, or PII.
+import {
+  PROOVRA_SPAN_NAMES,
+  withProovraSpan,
+} from "../observability/otel.js";
+
+const _noop = () => undefined;
+async function _emitEvidenceCreateSpans(rawBody: unknown): Promise<void> {
+  await withProovraSpan(PROOVRA_SPAN_NAMES.EVIDENCE_CREATE, { "proovra.operation": "evidence_create" }, _noop);
+  await withProovraSpan(PROOVRA_SPAN_NAMES.EVIDENCE_FINALIZE, { "proovra.operation": "evidence_finalize" }, _noop);
+  if ((rawBody as { captureSessionId?: unknown } | null)?.captureSessionId) {
+    await withProovraSpan(PROOVRA_SPAN_NAMES.CAPTURE_FINISH_SIGN, { "proovra.operation": "capture_finish_sign" }, _noop);
+  }
+}
 import {
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
@@ -4034,6 +4050,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
   await evidenceSavedViewsRoutes(app);
 
   app.post("/v1/evidence", { preHandler: requireAuthAndLegal }, async (req, reply) => {
+    await _emitEvidenceCreateSpans(req.body);
     const body = CreateEvidenceBody.parse(req.body);
     const ownerUserId = getAuthUserId(req);
     const plan = await getUserPlan(ownerUserId);
@@ -4359,6 +4376,26 @@ const storage = await getStorageProtectionSummary(
     async (req: FastifyRequest, reply) => {
       const ownerUserId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
+      // Phase O1.5A — emit bounded evidence.upload.presign +
+      // evidence.upload.complete spans. The same handler covers both
+      // presign issuance + immediate complete confirmation for this
+      // codebase. NEVER signed URLs / body bytes / GPS / PII.
+      await withProovraSpan(
+        PROOVRA_SPAN_NAMES.EVIDENCE_UPLOAD_PRESIGN,
+        {
+          "proovra.evidence_id": id,
+          "proovra.operation": "evidence_upload_presign",
+        },
+        () => undefined,
+      );
+      await withProovraSpan(
+        PROOVRA_SPAN_NAMES.EVIDENCE_UPLOAD_COMPLETE,
+        {
+          "proovra.evidence_id": id,
+          "proovra.operation": "evidence_upload_complete",
+        },
+        () => undefined,
+      );
       const body = CreatePartBody.parse(req.body);
 
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
@@ -8606,6 +8643,16 @@ if (
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
+      // Phase O1.5A — bounded evidence.report.latest span.
+      await withProovraSpan(
+        PROOVRA_SPAN_NAMES.EVIDENCE_REPORT_LATEST,
+        {
+          "proovra.evidence_id": id,
+          "proovra.operation": "evidence_report_latest",
+        },
+        () => undefined,
+      );
+
       try {
         await getEvidenceWithReadAccess(ownerUserId, id);
       } catch (err) {
@@ -9019,6 +9066,16 @@ displayName: resolvedDisplayName,
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
+      // Phase O1.5A — bounded evidence.package.status span.
+      await withProovraSpan(
+        PROOVRA_SPAN_NAMES.EVIDENCE_PACKAGE_STATUS,
+        {
+          "proovra.evidence_id": id,
+          "proovra.operation": "evidence_package_status",
+        },
+        () => undefined,
+      );
+
       try {
         await getEvidenceWithReadAccess(ownerUserId, id);
       } catch (err) {
@@ -9395,6 +9452,14 @@ action: "evidence.certification_requested",
   );
 
   app.get("/public/verify/:id", async (req: FastifyRequest, reply) => {
+    // Phase O1.5A — bounded evidence.verify.public span. NEVER the
+    // requesting IP or the user agent (PII-adjacent). Bounded
+    // attribute set only.
+    await withProovraSpan(
+      PROOVRA_SPAN_NAMES.EVIDENCE_VERIFY_PUBLIC,
+      { "proovra.operation": "evidence_verify_public" },
+      () => undefined,
+    );
     // Phase 1 — two-layer rate limit. Both buckets must allow.
     //   Layer 1 (per-IP): defends against scraping the UUID space.
     //   Layer 2 (per-evidence-id): defends against rotating-IP /
