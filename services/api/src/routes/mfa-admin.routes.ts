@@ -73,6 +73,7 @@ import {
   cancelRecoveryRequest,
   createRecoveryRequest,
   listPendingRecoveryRequests,
+  listRecoveryRequestApprovals,
   readRecoveryRequestDetail,
   rejectRecoveryRequest,
   resendRecoveryRequestEmail,
@@ -682,6 +683,35 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         return { error: "not_authorized" };
       }
       return { detail: result.detail };
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase Final-Hidden-Feature-Surfacing — recovery approval history
+  // (read-only). Permits both the subject of the request AND any
+  // OWNER/ADMIN of the team to read the full approver list. SOC
+  // operators reviewing a recovery now see who approved and when.
+  // ---------------------------------------------------------------------------
+  app.get(
+    "/v1/identity/mfa-admin/recovery-requests/:requestId/approvals",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const actorUserId = getAuthUserId(req);
+      if (!actorUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
+      const params = RequestIdParams.parse(req.params);
+      const result = await listRecoveryRequestApprovals({
+        requestId: params.requestId,
+        actorUserId,
+      });
+      if (!result.ok) {
+        if (result.reason === "request_not_found") {
+          reply.code(404);
+          return { error: "request_not_found" };
+        }
+        reply.code(403);
+        return { error: "not_authorized" };
+      }
+      return { approvals: result.approvals };
     },
   );
 

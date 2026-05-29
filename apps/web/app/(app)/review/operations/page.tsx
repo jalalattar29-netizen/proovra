@@ -20,6 +20,11 @@ import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
 import { usePlatformContext, useTeamId } from "../../../../lib/platform-context";
+// Closure verification Part C — Phase 13 review operations queue is a
+// high-trust reviewer surface (REVIEWER_OPS_VIEW, ORGANIZATION_ONLY).
+// Wrap in the canonical PageRouteGate so the UX layer matches the
+// backend RBAC boundary.
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 type Stage =
   | "QUEUED"
   | "ASSIGNED"
@@ -76,7 +81,7 @@ type Counts = {
   assignedToMe: number;
 };
 
-export default function ReviewOperationsPage() {
+function ReviewOperationsPageBody() {
   const teamId = useTeamId();
   const meUserId = usePlatformContext().envelope?.user.id ?? null;
   const [counts, setCounts] = useState<Counts | null>(null);
@@ -263,7 +268,7 @@ useEffect(() => {
                   onChange={(e) => setStage(e.target.value as Stage | "")}
                   style={selectStyle}
                 >
-                  <option value="">All stages</option>
+                  <option value="">All statuses</option>
                   {STAGES.map((s) => (
                     <option key={s} value={s}>
                       {s} ({counts.byStage[s]})
@@ -630,4 +635,13 @@ function slaBadgeStyle(sla: string): React.CSSProperties {
     borderColor: "#86efac",
     color: "#166534",
   };
+}
+
+// Closure verification Part C — canonical PageRouteGate wrapper.
+export default function ReviewOperationsPage() {
+  return (
+    <PageRouteGate routeId="review.operations">
+      <ReviewOperationsPageBody />
+    </PageRouteGate>
+  );
 }

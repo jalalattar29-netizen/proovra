@@ -94,7 +94,8 @@ export const ONBOARDING_STEPS_BY_MODE: Record<
     {
       id: "org.review-queues",
       label: "Review queues and escalations",
-      href: "/reviewer-ops",
+      // Phase Final-Vocab-Alignment — canonical reviewer console.
+      href: "/review",
       intent: "secondary",
     },
     {
@@ -108,7 +109,8 @@ export const ONBOARDING_STEPS_BY_MODE: Record<
     {
       id: "reviewer.open-queue",
       label: "Open the reviewer queue",
-      href: "/reviewer-ops",
+      // Phase Final-Vocab-Alignment — canonical reviewer console.
+      href: "/review",
       intent: "primary",
     },
     {

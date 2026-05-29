@@ -44,7 +44,12 @@ const RESOLVER = readWeb("lib/hubs/resolveHubContext.ts");
 const BAR = readWeb("components/hubs/HubQuickActionsBar.tsx");
 const INVESTIGATION_PAGE = readWeb("app/(app)/investigation/page.tsx");
 const GOVERNANCE_PAGE = readWeb("app/(app)/governance/page.tsx");
-const REVIEWER_PAGE = readWeb("app/(app)/reviewer-ops/page.tsx");
+// Phase Final-Vocab-Alignment — `/reviewer-ops/page.tsx` was deleted;
+// the canonical reviewer console moved to `/review/page.tsx`. The
+// canonical reviewer page now uses `<ReviewerConsole>` (keyboard-first
+// consolidated queue) instead of the HubQuickActionsBar wrapper used
+// by the other hubs. The PageRouteGate invariant still applies.
+const REVIEWER_PAGE = readWeb("app/(app)/review/page.tsx");
 const OPS_PAGE = readWeb("app/(app)/ops/page.tsx");
 const REGISTRY = readWeb("lib/navigation/routeRegistry.ts");
 
@@ -134,10 +139,18 @@ describe("R6 Part 3 — HubQuickActionsBar mounted on each hub page", () => {
     expect(GOVERNANCE_PAGE).toMatch(/data-hub-page-id="governance"/);
   });
 
-  it("reviewer-ops page mounts the hub bar with hubId='reviewer'", () => {
-    expect(REVIEWER_PAGE).toMatch(/HubQuickActionsBar/);
-    expect(REVIEWER_PAGE).toMatch(/hubId="reviewer"/);
-    expect(REVIEWER_PAGE).toMatch(/data-hub-page-id="reviewer"/);
+  it("canonical reviewer page mounts the consolidated reviewer console (Phase Final-Vocab-Alignment supersedes the HubQuickActionsBar mount on `/reviewer-ops/page.tsx`)", () => {
+    // Phase Final-Vocab-Alignment retired `/reviewer-ops/page.tsx` (the
+    // legacy queue index) and made `/review/page.tsx` the canonical
+    // reviewer console. The new canonical surface uses the
+    // keyboard-first `<ReviewerConsole>` component instead of the
+    // HubQuickActionsBar wrapper used by Investigation / Governance /
+    // Ops. The hub-bar invariant therefore no longer applies to the
+    // reviewer surface; the canonical mount is asserted instead.
+    expect(REVIEWER_PAGE).toMatch(/<ReviewerConsole\b/);
+    // PageRouteGate still wraps the canonical surface with the
+    // `review.queue` route id (asserted again under PART 6 below).
+    expect(REVIEWER_PAGE).toMatch(/routeId="review\.queue"/);
   });
 
   it("ops page mounts the hub bar with hubId='operations'", () => {

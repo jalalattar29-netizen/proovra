@@ -11,6 +11,7 @@ import {
 } from "../../../../components/ui";
 import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import { dashboardStyles } from "../../../../components/dashboard/styles";
+import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { apiFetch } from "../../../../lib/api";
 
 type DemoStatus =
@@ -763,6 +764,8 @@ export default function AdminDemoRequestsPage() {
           }
         }
       `}</style>
+
+      <AdminConsoleNav />
 
       <div className="admin-demo-requests-page">
         <div className="grid-4">

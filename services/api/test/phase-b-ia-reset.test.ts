@@ -195,9 +195,16 @@ describe("Phase B — route registry additions", () => {
     );
   });
 
-  it("keeps the legacy review.queue entry (per Phase C0 design — both routes coexist)", () => {
+  it("keeps the legacy review.queue entry (per Phase Final-Vocab-Alignment, the id-binding survives but its href is the canonical /review console)", () => {
+    // Phase Final-Vocab-Alignment retired the legacy `/reviewer-ops`
+    // index page and made `/review` the single canonical reviewer
+    // console. The `review.queue` route id is retained for back-
+    // compat with persona/hub machinery and other consumers, but its
+    // `href` now points at the canonical `/review` console (the same
+    // target as `workspace.review`). `next.config.js` redirects the
+    // old `/reviewer-ops` URL to `/review`.
     expect(ROUTE_REGISTRY_SRC).toMatch(
-      /id:\s*"review\.queue"[\s\S]*?href:\s*"\/reviewer-ops"/,
+      /id:\s*"review\.queue"[\s\S]*?href:\s*"\/review"/,
     );
   });
 });

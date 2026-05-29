@@ -6,6 +6,7 @@ import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
 import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import { dashboardStyles } from "../../../../components/dashboard/styles";
+import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 
 type AdminSummary = {
   totalUsers: number;
@@ -615,6 +616,8 @@ export default function AdminDashboardPage() {
           }
         }
       `}</style>
+
+      <AdminConsoleNav />
 
       {loading ? (
         <div className="admin-dashboard-page">

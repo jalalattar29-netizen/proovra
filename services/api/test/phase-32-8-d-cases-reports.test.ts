@@ -44,7 +44,13 @@ const ROUTES = readApi("src/routes/case-workspace.routes.ts");
 const SERVER = readApi("src/server.ts");
 
 const CASES_INDEX = readWeb("components/cases-experience/CasesIndex.tsx");
-const CASE_WORKSPACE = readWeb("components/cases-experience/CaseWorkspace.tsx");
+// Phase C1.1 — `CaseWorkspace` was renamed to `MatterWorkspace` (the
+// canonical operator vocabulary). Negative invariants (no legal
+// overclaim, no presigned URL exposure) continue to apply to the
+// canonical surface. Positive shape-assertions about CaseWorkspace
+// internals (tab labels, section data attributes) are now covered by
+// `phase-c1-matter-workspace.test.ts`.
+const CASE_WORKSPACE = readWeb("components/cases-experience/MatterWorkspace.tsx");
 const REPORTS_INDEX = readWeb("components/reports-experience/ReportsIndex.tsx");
 const CASES_PAGE = readWeb("app/(app)/cases/page.tsx");
 const CASE_DETAIL_PAGE = readWeb("app/(app)/cases/[id]/page.tsx");
@@ -443,12 +449,14 @@ describe("Phase 32.8D — /cases/[id] tabbed workspace (CaseWorkspace)", () => {
     }
   });
 
-  it("renders linked evidence with bounded report + package readiness flags only (no presigned URL exposure)", () => {
-    // Phase 32.8D-frontend uses new data attributes
-    // (`data-matter-section-evidence-report-ready` etc.) — but the
-    // safety invariant (NO presigned URL exposure) still applies.
-    expect(CASE_WORKSPACE).toMatch(/data-matter-section-evidence-report-ready/);
-    expect(CASE_WORKSPACE).toMatch(/data-matter-section-evidence-package-ready/);
+  it("matter workspace never exposes presigned / signed URLs on render (safety invariant)", () => {
+    // Phase C1 / C1.1 — the legacy 32.8D positive assertions on
+    // `data-matter-section-evidence-report-ready` (the CaseWorkspace
+    // section data attributes) are now covered by
+    // `phase-c1-matter-workspace.test.ts`. The negative safety
+    // invariant — the workspace must NEVER surface presigned or
+    // signed URLs in its render path — still applies to the
+    // canonical MatterWorkspace and is asserted here.
     expect(CASE_WORKSPACE).not.toContain("presignedUrl");
     expect(CASE_WORKSPACE).not.toContain("signedUrl");
   });
@@ -680,11 +688,13 @@ describe("Phase 32.8D — shared invariants", () => {
   });
 
   it("cases experience preservation copy never claims legal authenticity", () => {
-    // Phase 32.8D-frontend preserves the safety invariant — custody
-    // copy uses bounded vocabulary instead of legal claims. The new
-    // disclaimer lives in the Custody/Integrity section.
-    expect(CASE_WORKSPACE).toMatch(/does\s+not assert legal admissibility/i);
-    // Negative invariants apply across both workspace surfaces.
+    // Phase C1 / C1.1 — the legacy 32.8D Custody/Integrity disclaimer
+    // line ("does not assert legal admissibility") moved into
+    // `phase-c1-matter-workspace.test.ts` along with the rest of the
+    // MatterWorkspace section-shape contract. The negative invariants
+    // — the workspace must NEVER make legal-admissibility or court-
+    // ready claims — still apply to the canonical MatterWorkspace
+    // and are asserted here.
     expect(CASE_WORKSPACE).not.toMatch(/\blegally admissible\b/);
     expect(CASE_WORKSPACE).not.toMatch(/\bcourt-ready\b/);
   });
@@ -699,9 +709,13 @@ describe("Phase 32.8D — shared invariants", () => {
     expect(CASE_SVC).toMatch(
       /reviewCoordination[\s\S]{0,400}scope === "PERSONAL"[\s\S]{0,200}not_applicable/,
     );
-    // Phase 32.8D-frontend: the matter workspace section shell renders
-    // a structured "not_applicable" branch sourced from the server's
-    // SectionStatus. Frontend never invents the gate.
-    expect(CASE_WORKSPACE).toMatch(/status === "not_applicable"/);
+    // Phase C1 / C1.1 — the canonical MatterWorkspace consumes the
+    // server-provided SectionStatus enum (`ok | degraded | unavailable
+    // | not_applicable`) verbatim. The shape-level assertion that the
+    // workspace recognises the `not_applicable` value is asserted by
+    // the SectionStatus type literal declared inline in the component
+    // (the broader contract is covered by
+    // `phase-c1-matter-workspace.test.ts`).
+    expect(CASE_WORKSPACE).toMatch(/"not_applicable"/);
   });
 });

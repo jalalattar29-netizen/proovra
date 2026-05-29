@@ -17,6 +17,7 @@ import Link from "next/link";
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { statusBadgeStyle } from "../../../components/ui/StatusBadge";
 
 type InstanceStatus =
   | "DRAFT"
@@ -386,36 +387,7 @@ const selectStyle: React.CSSProperties = {
   color: "#0f172a",
 };
 
-function statusBadgeStyle(status: InstanceStatus): React.CSSProperties {
-  const base: React.CSSProperties = {
-    padding: "4px 10px",
-    fontSize: 12,
-    fontWeight: 600,
-    borderRadius: 999,
-    border: "1px solid",
-    whiteSpace: "nowrap",
-  };
-  if (
-    status === "APPROVED" ||
-    status === "REPORT_READY" ||
-    status === "PACKAGE_READY" ||
-    status === "SHARED_EXTERNALLY"
-  ) {
-    return { ...base, background: "#f0fdf4", borderColor: "#86efac", color: "#166534" };
-  }
-  if (
-    status === "NEEDS_REVIEW" ||
-    status === "CHANGES_REQUESTED" ||
-    status === "SUBMITTED"
-  ) {
-    return { ...base, background: "#fffbeb", borderColor: "#fcd34d", color: "#92400e" };
-  }
-  if (
-    status === "LEGAL_HOLD" ||
-    status === "CANCELLED" ||
-    status === "ARCHIVED"
-  ) {
-    return { ...base, background: "#fef2f2", borderColor: "#fca5a5", color: "#7f1d1d" };
-  }
-  return { ...base, background: "#eff6ff", borderColor: "#93c5fd", color: "#1e40af" };
-}
+// Phase Final-Closure — local statusBadgeStyle removed; the canonical
+// version lives in components/ui/StatusBadge.tsx. ARCHIVED / LEGAL_HOLD
+// / CANCELLED now render neutral slate (they are terminal-passive, not
+// danger states).

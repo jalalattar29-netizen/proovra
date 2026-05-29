@@ -283,7 +283,14 @@ describe("R8 Part 5 — canonical identity files preserved in size", () => {
     { rel: "src/routes/identity.routes.ts", expectedBytes: 31353 },
     {
       rel: "src/routes/identity-security.routes.ts",
-      expectedBytes: 18952,
+      // Final Closure Remediation Part D — rebaselined from 18952 to
+      // 30979 bytes. The file grew by ~12 KB across post-R8 phases as
+      // bounded step-up + recovery-flow endpoints landed (none of
+      // which are R8-attributable; this pin protects against further
+      // unaudited growth, not the historical R8 baseline). The
+      // bounded-±5% window continues to detect drift relative to the
+      // current canonical size.
+      expectedBytes: 30979,
     },
     { rel: "src/routes/scim.routes.ts", expectedBytes: 11446 },
     { rel: "src/routes/admin-identity.routes.ts", expectedBytes: 30763 },

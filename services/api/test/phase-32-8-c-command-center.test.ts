@@ -445,11 +445,25 @@ describe("Phase 32.8C — old /dashboard surface disposition", () => {
     );
   });
 
-  it("/dashboard/api-keys remains accessible (real admin functionality — Phase 32.8D will migrate)", () => {
-    const apiKeys = readWeb("app/(app)/dashboard/api-keys/page.tsx");
-    // The page is NOT a redirect — it still hosts the real admin UI.
-    expect(apiKeys).not.toMatch(
-      /^import\s*\{\s*redirect\s*\}\s*from\s*"next\/navigation"/m,
+  it("/dashboard/api-keys is retired (Phase Final-A3-PT2): page file deleted, URL redirects to canonical /integrations surface", () => {
+    // Phase Final-A3-PT2 retired the legacy in-memory user-scoped API
+    // key store; the canonical, team-scoped, durable surface is
+    // `/integrations`. The Next.js page file was deleted and
+    // `next.config.js` now declares a 308 redirect from
+    // `/dashboard/api-keys` → `/integrations`. This test inverts the
+    // original 32.8C assertion: the page MUST NOT exist as a file.
+    const apiKeysFs = require("node:fs") as typeof import("node:fs");
+    const apiKeysPath = require("node:url").fileURLToPath(
+      new URL(
+        "../../../apps/web/app/(app)/dashboard/api-keys/page.tsx",
+        import.meta.url,
+      ),
+    );
+    expect(apiKeysFs.existsSync(apiKeysPath)).toBe(false);
+    // The canonical redirect must be present in next.config.js.
+    const cfg = readWeb("next.config.js");
+    expect(cfg).toMatch(
+      /source:\s*["']\/dashboard\/api-keys["'][\s\S]{0,200}destination:\s*["']\/integrations["']/,
     );
   });
 

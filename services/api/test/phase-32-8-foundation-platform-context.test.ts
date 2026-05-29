@@ -77,7 +77,14 @@ const WEB_LAYOUT = readWeb("app/(app)/layout.tsx");
 // Phase 32.8 Foundation cleanup — legacy useActiveWorkspaceId.ts
 // was deleted. The canonical replacement is useTeamWorkspaceGate.
 const WEB_LEGACY_HOOK = readWeb("lib/platform-context/useTeamWorkspaceGate.ts");
-const WEB_TEAMS_PAGE = readWeb("app/(app)/teams/page.tsx");
+// Phase Final-Closure-Remediation — the legacy `/teams` page file
+// was deleted (it duplicated `/workspaces/page.tsx`). The canonical
+// `admin.teams` route resolves to `/workspaces`, and the legacy
+// `/teams` URL now redirects there via `next.config.js`. The
+// per-team detail page `/teams/[id]` is untouched (it is the active
+// admin detail surface).
+const WEB_WORKSPACES_PAGE = readWeb("app/(app)/workspaces/page.tsx");
+const WEB_NEXT_CONFIG = readWeb("next.config.js");
 const WEB_TEAMS_DETAIL = readWeb("app/(app)/teams/[id]/page.tsx");
 const API_TEAMS_ROUTES = readApi("src/routes/teams.routes.ts");
 
@@ -748,8 +755,16 @@ describe("Phase 32.8 Foundation — Teams restoration (F-4)", () => {
     expect(NAV).toMatch(/requiresCapability:\s*['"]TEAM_VIEW['"]/);
   });
 
-  it("/teams page renders the workspace administration panel", () => {
-    expect(WEB_TEAMS_PAGE).toMatch(/WorkspaceAdminPanel/);
+  it("/teams URL resolves to the workspace administration panel via canonical /workspaces", () => {
+    // Phase Final-Closure-Remediation — the canonical surface for the
+    // workspace administration panel is `/workspaces/page.tsx`; the
+    // legacy `/teams` URL is now a permanent 308 redirect declared in
+    // `next.config.js`. Behaviour parity preserved; routing layer is
+    // the single source of truth.
+    expect(WEB_WORKSPACES_PAGE).toMatch(/WorkspaceAdministrationHome/);
+    expect(WEB_NEXT_CONFIG).toMatch(
+      /source:\s*["']\/teams["'][\s\S]{0,200}destination:\s*["']\/workspaces["']/,
+    );
   });
 
   it("/teams/[id] surface retains invite + members + roles + seats functionality", () => {

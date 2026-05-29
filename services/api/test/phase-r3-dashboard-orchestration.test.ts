@@ -136,13 +136,16 @@ describe("R3 Part 3 — organization mode emphasizes operational queues", () => 
 
   it("ORGANIZATION quick actions emphasize reviewer + intake operations", () => {
     // Same anchor pattern as the PERSONAL block — MODE_QUICK_ACTIONS
-    // scope only.
+    // scope only. Phase Final-Vocab-Alignment retired `/reviewer-ops`
+    // (the legacy queue index) and made `/review` the canonical
+    // reviewer console; quick action hrefs follow that move. The
+    // escalations sub-route remains at `/reviewer-ops/escalations`.
     const qaBlock = RULES.match(
       /MODE_QUICK_ACTIONS[\s\S]*?ORGANIZATION:\s*\[([\s\S]*?)\],\s*REVIEW_OPS:/,
     );
     expect(qaBlock).toBeTruthy();
     const block = qaBlock![1];
-    expect(block).toMatch(/"\/reviewer-ops"/);
+    expect(block).toMatch(/"\/review"/);
     expect(block).toMatch(/"\/reviewer-ops\/escalations"/);
     expect(block).toMatch(/"\/intake-links"/);
     const idCount = (block.match(/\bid:\s*"org\./g) ?? []).length;

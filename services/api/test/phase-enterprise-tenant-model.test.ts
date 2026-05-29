@@ -52,7 +52,12 @@ const WEB_TYPES = readWeb("lib/platform-context/types.ts");
 const WEB_HOOKS = readWeb("lib/platform-context/useTenantModel.ts");
 const WEB_INDEX = readWeb("lib/platform-context/index.ts");
 const WEB_TOPBAR = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
-const WEB_TEAMS_PAGE = readWeb("app/(app)/teams/page.tsx");
+// Phase Final-Closure-Remediation — the legacy duplicate
+// `app/(app)/teams/page.tsx` was deleted in favour of the canonical
+// `app/(app)/workspaces/page.tsx`. The `/teams` URL now redirects
+// there via `next.config.js`.
+const WEB_WORKSPACES_PAGE = readWeb("app/(app)/workspaces/page.tsx");
+const WEB_NEXT_CONFIG = readWeb("next.config.js");
 const WEB_TEAMS_HOME = readWeb(
   "components/workspace-admin/WorkspaceAdministrationHome.tsx",
 );
@@ -356,9 +361,16 @@ describe("ENTERPRISE TENANT MODEL — workspace switcher", () => {
 // =============================================================================
 
 describe("ENTERPRISE TENANT MODEL — /teams page", () => {
-  it("/teams renders the canonical WorkspaceAdministrationHome", () => {
-    expect(WEB_TEAMS_PAGE).toMatch(/WorkspaceAdministrationHome/);
-    expect(WEB_TEAMS_PAGE).not.toMatch(/^\s*export\s+default[\s\S]{0,200}WorkspaceAdminPanel/m);
+  it("/teams URL renders the canonical WorkspaceAdministrationHome via redirect to /workspaces", () => {
+    // Phase Final-Closure-Remediation — the duplicate /teams page was
+    // deleted; the canonical /workspaces surface owns the
+    // WorkspaceAdministrationHome mount. The legacy /teams URL is
+    // preserved as a permanent 308 redirect declared in next.config.js.
+    expect(WEB_WORKSPACES_PAGE).toMatch(/WorkspaceAdministrationHome/);
+    expect(WEB_WORKSPACES_PAGE).not.toMatch(/^\s*export\s+default[\s\S]{0,200}WorkspaceAdminPanel/m);
+    expect(WEB_NEXT_CONFIG).toMatch(
+      /source:\s*["']\/teams["'][\s\S]{0,200}destination:\s*["']\/workspaces["']/,
+    );
   });
 
   it("WorkspaceAdministrationHome renders Personal Space card + Organizations + Actions", () => {

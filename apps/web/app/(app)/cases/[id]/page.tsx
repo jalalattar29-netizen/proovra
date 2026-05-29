@@ -60,7 +60,7 @@ function CaseDetailPageInner() {
       <OperationalBreadcrumb
         routeId="workspace.cases"
         items={[
-          { label: "Matters", href: "/cases" },
+          { label: "Cases", href: "/cases" },
           { label: caseId },
         ]}
       />

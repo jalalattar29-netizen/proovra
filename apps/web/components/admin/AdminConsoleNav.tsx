@@ -3,21 +3,23 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const ITEMS = [
-  { href: "/admin", label: "Overview" },
-  { href: "/admin/dashboard", label: "Dashboard" },
-  { href: "/admin/audit", label: "Audit" },
-];
+import { ADMIN_NAV_ITEMS } from "./admin-nav-config";
 
 export default function AdminConsoleNav() {
   const pathname = usePathname();
 
-  const isActive = (href: string) =>
-    pathname === href || pathname?.startsWith(`${href}/`);
+  // `/admin` must match exactly so it does not light up on every nested
+  // route. Every other entry treats a sub-path as active so that, e.g.,
+  // `/admin/identity/providers` still highlights the "Identity Governance"
+  // entry.
+  const isActive = (href: string) => {
+    if (href === "/admin") return pathname === "/admin";
+    return pathname === href || pathname?.startsWith(`${href}/`);
+  };
 
   return (
     <div className="mb-6 flex flex-wrap gap-3">
-      {ITEMS.map((item) => (
+      {ADMIN_NAV_ITEMS.map((item) => (
         <Link
           key={item.href}
           href={item.href}

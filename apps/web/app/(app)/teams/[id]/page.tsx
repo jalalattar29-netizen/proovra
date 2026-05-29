@@ -22,6 +22,11 @@ import { MemberRemovalDialog } from "./components/MemberRemovalDialog";
 import { TeamPermissionMatrix } from "./components/TeamPermissionMatrix";
 import { DangerConfirmModal } from "./components/DangerConfirmModal";
 import { TeamAccessReviewCard } from "./components/TeamAccessReviewCard";
+// Closure verification Part C — the per-team detail page (workspace
+// admin: members, invites, danger actions) must use the canonical
+// PageRouteGate, matching the gated list page at /teams (routeId
+// `admin.teams`, capability TEAM_VIEW).
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 type TeamMemberUser = {
   id?: string;
@@ -419,7 +424,7 @@ function TeamRoleDropdown({
   );
 }
 
-export default function TeamDetailPage() {
+function TeamDetailPageBody() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { addToast } = useToast();
@@ -2596,5 +2601,14 @@ export default function TeamDetailPage() {
         />
       ) : null}
     </div>
+  );
+}
+
+// Closure verification Part C — canonical PageRouteGate wrapper.
+export default function TeamDetailPage() {
+  return (
+    <PageRouteGate routeId="admin.teams">
+      <TeamDetailPageBody />
+    </PageRouteGate>
   );
 }

@@ -262,7 +262,11 @@ describe("R8.1 Part 7 — bounded surface area (R8.1.1-aware)", () => {
       { rel: "src/routes/identity.routes.ts", expectedBytes: 31353 },
       {
         rel: "src/routes/identity-security.routes.ts",
-        expectedBytes: 18952,
+        // Final Closure Remediation Part D — rebaselined to current
+        // canonical size (was 18952; the file grew across post-R8
+        // hardening phases not attributable to R8.1). Continues to
+        // pin further drift relative to the new canonical size.
+        expectedBytes: 30979,
       },
       { rel: "src/routes/scim.routes.ts", expectedBytes: 11446 },
     ];

@@ -33,6 +33,10 @@ import {
 import { ROUTE_REGISTRY } from "../../../lib/navigation/routeRegistry";
 import { resolveRouteAccess } from "../../../lib/navigation/routeAccessResolver";
 import { resolveWorkflowExposure } from "../../../lib/navigation/workflowExposureResolver";
+// Closure verification Part C — All Tools is an ACCOUNT-domain route
+// (capability ACCOUNT_SETTINGS_VIEW). The canonical PageRouteGate
+// enforces UX-layer access for parity with the other gated /app pages.
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 
 type GroupId =
   | "capture-records"
@@ -75,7 +79,7 @@ function groupForRoute(domain: string): GroupId {
   }
 }
 
-export default function AllToolsPage() {
+function AllToolsPageBody() {
   const { envelope } = usePlatformContext();
   const persona = usePersonaProfile();
   const [query, setQuery] = useState("");
@@ -383,4 +387,13 @@ function badgeForAccess(state: string): {
         border: "#cbd5e1",
       };
   }
+}
+
+// Closure verification Part C — canonical PageRouteGate wrapper.
+export default function AllToolsPage() {
+  return (
+    <PageRouteGate routeId="workspace.tools">
+      <AllToolsPageBody />
+    </PageRouteGate>
+  );
 }

@@ -67,8 +67,11 @@ const EVIDENCE_SAVED_VIEWS = readSource(
 const TENANCY_RESOLVER = readSource(
   "../src/services/organization/tenancy-resolver.service.ts",
 );
-const CLASSIC_PAGE = readSource(
-  "../../../apps/web/app/(app)/cases/[id]/classic/page.tsx",
+// Phase Final-Closure-Remediation — the classic redirect page was
+// deleted. Its behaviour now lives as a permanent redirect rule in
+// `apps/web/next.config.js` (`/cases/:id/classic → /cases/:id`).
+const NEXT_CONFIG = readSource(
+  "../../../apps/web/next.config.js",
 );
 const CASE_DETAIL_PAGE = readSource(
   "../../../apps/web/app/(app)/cases/[id]/page.tsx",
@@ -225,9 +228,13 @@ describe("Phase G4.6 — Personal-mode evidence resolves deterministically (G4.1
 // ---------------------------------------------------------------------------
 
 describe("Phase G4.6 — Classic matter view retired safely (G4.2)", () => {
-  it("classic page is now a redirect to the canonical Matter Workspace", () => {
-    expect(CLASSIC_PAGE).toContain("import { redirect }");
-    expect(CLASSIC_PAGE).toContain('redirect(`/cases/');
+  it("classic URL is now a permanent redirect in next.config.js to the canonical Matter Workspace", () => {
+    // Phase Final-Closure-Remediation collapsed the redirect-only
+    // page file into a routing-layer redirect — same external
+    // behaviour, no JSX shim.
+    expect(NEXT_CONFIG).toMatch(
+      /source:\s*["']\/cases\/:id\/classic["'][\s\S]{0,200}destination:\s*["']\/cases\/:id["']/,
+    );
   });
 
   it("the canonical /cases/[id] page no longer plumbs onOpenClassic", () => {

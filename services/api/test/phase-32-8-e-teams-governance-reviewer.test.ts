@@ -62,9 +62,21 @@ const GOVERNANCE_PANEL = readWeb(
 const REVIEWER_PANEL = readWeb(
   "components/reviewer-experience/ReviewerCommandConsole.tsx",
 );
-const TEAMS_PAGE = readWeb("app/(app)/teams/page.tsx");
+// Phase Final-Closure-Remediation — the legacy `app/(app)/teams/page.tsx`
+// was deleted (duplicate of `app/(app)/workspaces/page.tsx`). The
+// canonical surface is `/workspaces`; the `/teams` URL now redirects
+// there via `next.config.js`. We read the canonical surface instead.
+const WORKSPACES_PAGE = readWeb("app/(app)/workspaces/page.tsx");
+const NEXT_CONFIG = readWeb("next.config.js");
 const GOVERNANCE_PAGE = readWeb("app/(app)/governance/page.tsx");
-const REVIEWER_PAGE = readWeb("app/(app)/reviewer-ops/page.tsx");
+// Phase Final-Vocab-Alignment — the legacy `/reviewer-ops/page.tsx`
+// was deleted. The canonical reviewer console moved to `/review/page.tsx`
+// (Phase C0). The page still mounts a reviewer command surface; the
+// component is now `<ReviewerConsole>` (the consolidated keyboard-first
+// queue) rather than the older `<ReviewerCommandConsole>` panel. Tests
+// that asserted the older panel name are now keyed on the canonical
+// reviewer console mount instead.
+const REVIEWER_PAGE = readWeb("app/(app)/review/page.tsx");
 
 // =============================================================================
 // PART 1 — workspace-admin service
@@ -393,12 +405,17 @@ describe("Phase 32.8E — enterprise aggregator routes", () => {
 // =============================================================================
 
 describe("Phase 32.8E — /teams workspace administration", () => {
-  it("delegates the /teams page to the canonical WorkspaceAdministrationHome", () => {
-    // ENTERPRISE TENANT MODEL — /teams now renders the canonical home
+  it("the /teams URL resolves to the canonical WorkspaceAdministrationHome via /workspaces", () => {
+    // ENTERPRISE TENANT MODEL — /teams renders the canonical home
     // (Personal Space card + Organizations list + Create/Join CTAs +
-    // duplicate diagnostic). The per-organization admin panel renders
-    // inside the home component when an organization is the active space.
-    expect(TEAMS_PAGE).toMatch(/<WorkspaceAdministrationHome\s*\/>/);
+    // duplicate diagnostic). Phase Final-Closure-Remediation deleted
+    // the duplicate `app/(app)/teams/page.tsx` shim and routed the
+    // legacy URL via `next.config.js` `redirects()` to the canonical
+    // `/workspaces` surface; behaviour parity preserved.
+    expect(WORKSPACES_PAGE).toMatch(/<WorkspaceAdministrationHome\s*\/>/);
+    expect(NEXT_CONFIG).toMatch(
+      /source:\s*["']\/teams["'][\s\S]{0,200}destination:\s*["']\/workspaces["']/,
+    );
   });
 
   it("reads from the audit-free /v1/teams/workspace-admin aggregator", () => {
@@ -591,9 +608,15 @@ describe("Phase 32.8E — /governance control plane", () => {
 // PART 7 — Frontend /reviewer-ops review orchestration
 // =============================================================================
 
-describe("Phase 32.8E — /reviewer-ops review orchestration", () => {
-  it("delegates the /reviewer-ops page to ReviewerCommandConsole", () => {
-    expect(REVIEWER_PAGE).toMatch(/<ReviewerCommandConsole\s*\/>/);
+describe("Phase 32.8E — /review canonical reviewer console mount", () => {
+  it("delegates the canonical reviewer page to a reviewer console component", () => {
+    // Phase Final-Vocab-Alignment — `/review/page.tsx` is now the
+    // canonical reviewer surface (the legacy `/reviewer-ops/page.tsx`
+    // was deleted). The consolidated keyboard-first console is
+    // `<ReviewerConsole>`; the older `<ReviewerCommandConsole>` panel
+    // remains as a building block for future re-mount but is no
+    // longer the page-level component. Accept either canonical mount.
+    expect(REVIEWER_PAGE).toMatch(/<Reviewer(Command)?Console\b/);
   });
 
   it("reads from /v1/reviewer-ops/command", () => {

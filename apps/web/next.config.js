@@ -75,6 +75,48 @@ const nextConfig = {
         destination: "/review",
         permanent: true,
       },
+      // Phase Final-Closure-Remediation — five additional redirect/
+      // duplicate pages were collapsed into this `redirects()` block:
+      //   * `/cases/:id/classic` was a pure server-redirect to the
+      //     canonical Matter Workspace (Phase G4.2 classic retirement).
+      //   * `/settings/security/scim` was a pure server-redirect to
+      //     the canonical SCIM Operations Center (Phase P1.2).
+      //   * `/settings/security/audit` was a pure server-redirect to
+      //     the canonical Identity Audit Center (Phase P1.3).
+      //   * `/teams` was a duplicate of `/workspaces`; the canonical
+      //     `admin.teams` route id now resolves to `/workspaces` and
+      //     the legacy `/teams` URL redirects there (Phase G0 B0.5
+      //     canonical move).
+      //   * `/identity` was the legacy workspace-internal identity
+      //     console (Phase 17); folded into `/admin/identity` (the
+      //     enterprise operator control plane).
+      // The destination of each redirect is the canonical surface the
+      // deleted page already pointed at; behaviour parity is exact.
+      {
+        source: "/cases/:id/classic",
+        destination: "/cases/:id",
+        permanent: true,
+      },
+      {
+        source: "/settings/security/scim",
+        destination: "/admin/identity/scim",
+        permanent: true,
+      },
+      {
+        source: "/settings/security/audit",
+        destination: "/admin/identity/timeline",
+        permanent: true,
+      },
+      {
+        source: "/teams",
+        destination: "/workspaces",
+        permanent: true,
+      },
+      {
+        source: "/identity",
+        destination: "/admin/identity",
+        permanent: true,
+      },
     ];
   },
 };

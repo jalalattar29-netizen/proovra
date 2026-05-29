@@ -172,8 +172,14 @@ describe("Phase 38.14 — ReviewerCommandConsole migrated to useActiveSpaceId", 
 // =============================================================================
 
 describe("Phase 38.14 — dashboard subroute migrations", () => {
+  // Phase Final-A3-PT2 retired `dashboard.api_keys` (the legacy
+  // in-memory user-scoped API key store). The canonical surface is
+  // `/integrations` (team-scoped, durable, audit-backed). The page
+  // file was deleted; `next.config.js` redirects the URL to
+  // `/integrations`; the route id was removed from `ROUTE_REGISTRY`.
+  // The three remaining dashboard subroutes still exist and remain
+  // wrapped in PageRouteGate.
   const NEW_ROUTES: Array<{ id: string; href: string }> = [
-    { id: "dashboard.api_keys", href: "/dashboard/api-keys" },
     { id: "dashboard.quotas", href: "/dashboard/quotas" },
     { id: "dashboard.insights", href: "/dashboard/insights" },
     {
@@ -193,11 +199,26 @@ describe("Phase 38.14 — dashboard subroute migrations", () => {
     });
   }
 
+  it("dashboard.api_keys is retired — the route id is no longer registered", () => {
+    // The legacy `/dashboard/api-keys` surface was retired in Phase
+    // Final-A3-PT2. ROUTE_REGISTRY must NOT declare the id any more
+    // (cmd-K + All Tools therefore no longer surface a stale entry).
+    expect(REGISTRY).not.toMatch(/id:\s*"dashboard\.api_keys"/);
+  });
+
+  it("dashboard/api-keys page file is deleted (canonical surface is /integrations)", () => {
+    const fs = require("node:fs") as typeof import("node:fs");
+    const url = require("node:url") as typeof import("node:url");
+    const apiKeysPath = url.fileURLToPath(
+      new URL(
+        `../../../apps/web/app/(app)/dashboard/api-keys/page.tsx`,
+        import.meta.url,
+      ),
+    );
+    expect(fs.existsSync(apiKeysPath)).toBe(false);
+  });
+
   const MIGRATIONS: Array<{ page: string; routeId: string }> = [
-    {
-      page: "app/(app)/dashboard/api-keys/page.tsx",
-      routeId: "dashboard.api_keys",
-    },
     {
       page: "app/(app)/dashboard/quotas/page.tsx",
       routeId: "dashboard.quotas",
@@ -238,9 +259,14 @@ describe("Phase 38.14 — cumulative <PageRouteGate> adoption", () => {
       // Phase 38.8
       "app/(app)/home/page.tsx",
       "app/(app)/governance/page.tsx",
-      "app/(app)/reviewer-ops/page.tsx",
+      // Phase Final-Vocab-Alignment — canonical reviewer console is
+      // `/review/page.tsx`; the legacy `/reviewer-ops/page.tsx` was
+      // deleted and the URL redirects via `next.config.js`.
+      "app/(app)/review/page.tsx",
       "app/(app)/ops/page.tsx",
-      "app/(app)/teams/page.tsx",
+      // Phase Final-Closure-Remediation — canonical surface is
+      // `/workspaces`; the duplicate `/teams/page.tsx` was deleted.
+      "app/(app)/workspaces/page.tsx",
       // Phase 38.9
       "app/(app)/evidence/page.tsx",
       "app/(app)/capture/page.tsx",
@@ -278,11 +304,21 @@ describe("Phase 38.14 — cumulative <PageRouteGate> adoption", () => {
       "app/(app)/investigation/graph/page.tsx",
       "app/(app)/investigation/duplicates/page.tsx",
       "app/(app)/investigation/reviewers/page.tsx",
-      // Phase 38.14
-      "app/(app)/dashboard/api-keys/page.tsx",
+      // Phase 38.14 — `dashboard/api-keys/page.tsx` was deleted in
+      // Phase Final-A3-PT2 (route id removed, URL redirects to the
+      // canonical `/integrations`). The remaining three dashboard
+      // subroutes are still PageRouteGate-wrapped.
       "app/(app)/dashboard/quotas/page.tsx",
       "app/(app)/dashboard/insights/page.tsx",
       "app/(app)/dashboard/batch-analysis/page.tsx",
+      // Final Closure Remediation Part A — new PageRouteGate adoptions
+      // added this session to compensate for the deleted `api-keys`
+      // page so the cumulative tally still clears the ≥ 44 threshold
+      // honestly (each of these is a canonical, gated surface).
+      "app/(app)/review/operations/page.tsx",
+      "app/(app)/teams/[id]/page.tsx",
+      "app/(app)/tools/page.tsx",
+      "app/(app)/security-center/mfa-recovery/page.tsx",
     ];
     for (const page of PAGES) {
       const src = readWeb(page);
@@ -299,11 +335,14 @@ describe("Phase 38.14 — cumulative <PageRouteGate> adoption", () => {
 // =============================================================================
 
 describe("Phase 38.14 — copy safety locks (positive overclaim ban)", () => {
+  // Phase Final-A3-PT2 deleted `dashboard/api-keys/page.tsx`; its
+  // canonical replacement is `/integrations`. The overclaim ban now
+  // covers the integrations surface in its place.
   const FILES = [
     "app/(app)/capture/_lib/captureReadiness.ts",
     "app/(app)/capture/_lib/CaptureReadinessPanel.tsx",
     "components/reviewer-experience/ReviewerCommandConsole.tsx",
-    "app/(app)/dashboard/api-keys/page.tsx",
+    "app/(app)/integrations/page.tsx",
     "app/(app)/dashboard/quotas/page.tsx",
     "app/(app)/dashboard/insights/page.tsx",
     "app/(app)/dashboard/batch-analysis/page.tsx",

@@ -131,6 +131,11 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "governance.analytics",
       "account.organization-detail",
       "account.org-invite-accept",
+      // Final Closure Remediation Part A — `security_center.mfa_recovery`
+      // is the MFA-recovery approvals console reached from the Security
+      // Center. It belongs to the Governance group (member-identity
+      // oversight) and is discoverable via cmd-K + All Tools.
+      "security_center.mfa_recovery",
     ],
   },
 
@@ -165,7 +170,9 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
     ],
     secondary: [
       "account.persona",
-      "dashboard.api_keys",
+      // Phase Final-A3-PT2 retired `dashboard.api_keys` (route id and
+      // page deleted; canonical surface is `workspace.integrations`,
+      // already in `primary` above).
       "dashboard.quotas",
       "dashboard.insights",
       "dashboard.batch_analysis",
@@ -176,6 +183,12 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "platform.media_graph",
       "platform.automation",
       "platform.analytics",
+      // Phase Final-Closure-Verification — `platform.queue_ops` (the
+      // BullMQ queue triage surface at `/operations/queues`) was
+      // promoted from typed-URL-only to a discoverable canonical
+      // surface; map it to SYSTEM/secondary so the Phase B coverage
+      // contract still holds.
+      "platform.queue_ops",
       "platform.admin",
     ],
   },

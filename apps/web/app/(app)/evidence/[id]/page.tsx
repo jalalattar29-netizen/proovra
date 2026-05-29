@@ -31,6 +31,7 @@ import { formatUserDateTime } from "../../../../lib/date";
 import { ReviewerCommentsPanel } from "../components/ReviewerCommentsPanel";
 import { LegalNotesPanel } from "../components/LegalNotesPanel";
 import { AnnotationPanel } from "../components/AnnotationPanel";
+import { EvidenceAiCategorizationCard } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
 import { ComparisonPanel } from "../components/ComparisonPanel";
 import { DuplicateDetectionPanel } from "../components/DuplicateDetectionPanel";
 import { AiCategorizationPanel } from "../components/AiCategorizationPanel";
@@ -2170,6 +2171,10 @@ function EvidenceDetailPageInner() {
                     <ReviewerCommentsPanel evidenceId={evidence.id} />
                     <LegalNotesPanel evidenceId={evidence.id} />
                     <AnnotationPanel evidenceId={evidence.id} defaultPartId={workspace.parts[0]?.id ?? null} />
+                    {/* Phase Final-Hidden-Feature-Surfacing — AI
+                        categorization advisory card. Reviewer must
+                        verify any classification — copy is explicit. */}
+                    <EvidenceAiCategorizationCard evidenceId={evidence.id} />
                   </div>
                 </section>
 

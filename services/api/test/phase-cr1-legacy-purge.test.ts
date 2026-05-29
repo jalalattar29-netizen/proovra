@@ -278,8 +278,23 @@ describe("CR1 Part 2 — 8 backward-compat redirect pages folded into next.confi
 // =============================================================================
 
 describe("CR1 — documented deferrals: legacy operator pages NOT folded by CR1", () => {
-  it("identity/page.tsx is preserved (UX-level folding is CR2's call)", () => {
-    expect(existsSync(webPath("app/(app)/identity/page.tsx"))).toBe(true);
+  // Phase Final-Closure-Remediation CLOSED the CR1 `/identity` page
+  // deferral. The Phase 17 workspace-internal identity console was
+  // deleted; the legacy URL now redirects to the canonical
+  // `/admin/identity` enterprise operator control plane via
+  // `apps/web/next.config.js` `redirects()` (permanent 308). The pin
+  // below was previously: `expect(existsSync(...identity/page.tsx)).toBe(true)`
+  // — that pin is now inverted to prevent a regression that would
+  // bring the legacy console back.
+  it("identity/page.tsx is REMOVED (closure: legacy console folded into /admin/identity)", () => {
+    expect(existsSync(webPath("app/(app)/identity/page.tsx"))).toBe(false);
+  });
+
+  it("next.config.js redirects /identity → /admin/identity (preserves deep links)", () => {
+    const cfg = readWeb("next.config.js");
+    expect(cfg).toMatch(
+      /source:\s*["']\/identity["'][\s\S]{0,200}destination:\s*["']\/admin\/identity["']/,
+    );
   });
 
   it("review/operations/page.tsx is preserved (UX-level folding is CR2's call)", () => {

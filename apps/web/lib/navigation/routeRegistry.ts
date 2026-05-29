@@ -416,6 +416,29 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: true,
   },
+  // Final Closure Remediation Part A — MfaRecoveryRequestApproval was
+  // HARD_TO_FIND: backend service + UI page existed but no registry
+  // entry, no command-palette entry, only a deep link from /settings/
+  // security. Now a first-class route so cmd-K + All Tools both
+  // surface it. `sidebarEligible: false` because /security-center is
+  // already in the sidebar — the parent page now links to this
+  // console with an explicit "Open MFA recovery console" button.
+  {
+    id: "security_center.mfa_recovery",
+    href: "/security-center/mfa-recovery",
+    label: "MFA recovery approvals",
+    description:
+      "Approve or reject member MFA recovery requests with full audit history.",
+    domain: "ORGANIZATION_WORKSPACE",
+    requiredCapabilities: ["SECURITY_CENTER_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
+    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
   {
     id: "platform.runbooks",
     href: "/ops/runbooks",
@@ -626,7 +649,33 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: false,
+    // Final Closure Remediation Part E — flipped from false to true so
+    // SREs see Reliability ops in the sidebar's Operations group
+    // without prior knowledge.
+    sidebarEligible: true,
+  },
+  // Phase Final-Closure-Verification — `/operations/queues` was the
+  // canonical BullMQ queue-triage surface but lived only at typed URL;
+  // not in sidebar, not in cmd-K, not in "all tools". Operators
+  // discovered it through tribal knowledge. Now `commandPaletteVisible:
+  // true` so SREs can jump to it from anywhere.
+  {
+    id: "platform.queue_ops",
+    href: "/operations/queues",
+    label: "Queue operations",
+    description:
+      "BullMQ queue triage — failed jobs, replay safety, DLQ, stuck OTS.",
+    domain: "OPS",
+    requiredCapabilities: ["OPS_CENTER_VIEW"],
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "REQUEST_ACCESS",
+    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    // Final Closure Remediation Part E — flipped from false to true so
+    // Queue Operations sits in the canonical Operations sidebar group.
+    sidebarEligible: true,
   },
   {
     id: "platform.media_graph",
@@ -852,7 +901,11 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: false,
+    // Final Closure Remediation Part A — Evidence Requests was reachable
+    // only via deep link from MatterWorkspace. Now in the sidebar's
+    // workspace group so operators see Intake → Evidence Requests
+    // → Cases as a coherent triage flow.
+    sidebarEligible: true,
   },
   {
     id: "review.sla",

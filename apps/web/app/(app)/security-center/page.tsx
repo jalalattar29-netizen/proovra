@@ -15,12 +15,17 @@
  */
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 import { PersonalSecuritySections } from "./components/PersonalSecuritySections";
+import {
+  AccessAnomaliesCard,
+  OrgHealthSnapshotCard,
+} from "../../../components/hidden-feature-panels/HiddenFeaturePanels";
 
 type MfaPolicyLevel =
   | "OFF"
@@ -310,6 +315,17 @@ function SecurityCenterPageInner() {
         <p style={mutedStyle}>Switch to a workspace to use security center.</p>
       ) : (
         <>
+          {/* Phase Final-Hidden-Feature-Surfacing — AccessAnomaly card.
+              Workspace anomaly detector output (OPEN + ACKNOWLEDGED)
+              read from the canonical service via the thin
+              `/v1/security-center/access-anomalies` route. */}
+          <AccessAnomaliesCard teamId={teamId} />
+
+          {/* Phase Final-Hidden-Feature-Surfacing — workspace health
+              snapshot. Reads the latest OrganizationalHealthSnapshot
+              row via the new `/v1/dashboard/org-health` route. */}
+          <OrgHealthSnapshotCard teamId={teamId} />
+
           <section style={cardStyle}>
             <h2 style={sectionTitleStyle}>MFA policy</h2>
             {policy ? (
@@ -426,12 +442,27 @@ function SecurityCenterPageInner() {
                 ))}
               </ul>
               <p style={mutedStyle}>
-                Use the API (or the dedicated admin surface, R10
-                scope) to approve or reject each request:
-                <br />
-                <code>
-                  POST /v1/identity/mfa-admin/recovery-requests/:id/approve
-                </code>
+                Approve, reject, or audit each request from the
+                dedicated admin console.
+              </p>
+              <p>
+                <Link
+                  href="/security-center/mfa-recovery"
+                  data-cc-link="mfa-recovery-console"
+                  style={{
+                    display: "inline-block",
+                    padding: "8px 14px",
+                    fontWeight: 600,
+                    color: "#fff",
+                    background: "#0f172a",
+                    border: 0,
+                    borderRadius: 8,
+                    textDecoration: "none",
+                    fontSize: 13,
+                  }}
+                >
+                  Open MFA recovery console →
+                </Link>
               </p>
             </section>
           ) : null}

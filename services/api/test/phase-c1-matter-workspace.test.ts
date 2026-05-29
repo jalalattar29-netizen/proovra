@@ -36,9 +36,10 @@ const MATTER_UI = readSource(
 const CANONICAL_PAGE = readSource(
   "../../../apps/web/app/(app)/cases/[id]/page.tsx",
 );
-const CLASSIC_PAGE = readSource(
-  "../../../apps/web/app/(app)/cases/[id]/classic/page.tsx",
-);
+// Phase Final-Closure-Remediation — the classic redirect page was
+// deleted. Its behaviour now lives as a permanent redirect rule in
+// `apps/web/next.config.js` (`/cases/:id/classic → /cases/:id`).
+const NEXT_CONFIG = readSource("../../../apps/web/next.config.js");
 const ROUTES = readSource("../src/routes/case-workspace.routes.ts");
 
 describe("Phase C1 — canonical /cases/[id] mounts MatterWorkspace", () => {
@@ -71,16 +72,16 @@ describe("Phase C1 — canonical /cases/[id] mounts MatterWorkspace", () => {
 });
 
 describe("Phase C1 — /cases/[id]/classic redirects to canonical surface (Phase G4.2)", () => {
-  it("classic fallback page redirects to the canonical /cases/[id]", () => {
-    // Phase G4.2 retired the classic scroll-spy view. The route
-    // remains live for deep-link compatibility but redirects via
-    // Next.js server-side `redirect()` to `/cases/[id]`.
-    expect(CLASSIC_PAGE).toContain("import { redirect }");
-    expect(CLASSIC_PAGE).toMatch(/redirect\(`\/cases\//);
-  });
-
-  it("classic fallback does NOT mount CaseWorkspace anymore", () => {
-    expect(CLASSIC_PAGE).not.toMatch(/<CaseWorkspace[\s\S]*?caseId=/);
+  it("classic fallback URL redirects to the canonical /cases/[id] via next.config.js", () => {
+    // Phase G4.2 retired the classic scroll-spy view. Phase
+    // Final-Closure-Remediation deleted the redirect-only page file
+    // (`apps/web/app/(app)/cases/[id]/classic/page.tsx`) and moved the
+    // redirect into `next.config.js` `redirects()` as a permanent 308
+    // — behaviourally equivalent, but routing becomes the single
+    // source of truth instead of a 14-line JSX shim.
+    expect(NEXT_CONFIG).toMatch(
+      /source:\s*["']\/cases\/:id\/classic["'][\s\S]{0,200}destination:\s*["']\/cases\/:id["']/,
+    );
   });
 });
 

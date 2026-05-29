@@ -198,10 +198,19 @@ export function middleware(req: NextRequest) {
     //     `/governance`, `/integrations`, `/intelligence`,
     //     `/investigation`, `/security-center`, `/intake-links`,
     //     `/search`, `/communications`, `/collaboration`,
-    //     `/notifications`, `/inbox`, `/identity`, `/organizations`,
+    //     `/notifications`, `/inbox`, `/organizations`,
     //     `/workflows`, `/evidence`, `/evidence-requests`, `/review`,
     //     `/workspaces`, `/tools`, `/persona` — all live under
     //     `app/(app)/` and therefore on the app host.
+    //
+    // Phase Final-Closure-Remediation — `/identity` was removed from
+    // the live route tree (folded into `/admin/identity`). The legacy
+    // URL is now an exact-match redirect in `next.config.js` and is
+    // intentionally NOT in this list so any www-host hit to /identity
+    // 404s cleanly instead of bouncing through the app host first.
+    // `/teams` remains because the legacy URL is still reachable as a
+    // redirect (next.config.js → /workspaces) but the canonical
+    // `/teams/[id]` admin detail surface still exists on the app host.
     const APP_PREFIXES = [
       "/home",
       "/capture",
@@ -226,7 +235,6 @@ export function middleware(req: NextRequest) {
       "/collaboration",
       "/notifications",
       "/inbox",
-      "/identity",
       "/organizations",
       "/workflows",
       "/evidence",

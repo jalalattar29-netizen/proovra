@@ -212,8 +212,12 @@ describe("E2 Test 5 — collaboration UI surfaces present", () => {
       description: "/collaboration thread console",
     },
     {
-      rel: "components/cases-experience/CaseWorkspace.tsx",
-      description: "case workspace with assignment + comments",
+      // Phase C1.1 — `CaseWorkspace` was renamed to `MatterWorkspace`
+      // (canonical operator vocabulary: "matter" is the legal/casework
+      // primitive). The component is unchanged in capability; only the
+      // module/file name moved.
+      rel: "components/cases-experience/MatterWorkspace.tsx",
+      description: "matter workspace with assignment + comments",
     },
     {
       rel: "components/cases-experience/matter-modals/AssignmentPickerModal.tsx",

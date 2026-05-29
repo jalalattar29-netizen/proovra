@@ -6,13 +6,16 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, Button, Skeleton, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { dashboardStyles } from "../../../components/dashboard/styles";
-
-const ADMIN_NAV = [
-  { href: "/admin", label: "Console Home" },
-  { href: "/admin/dashboard", label: "Platform Analytics" },
-  { href: "/admin/audit", label: "Audit Integrity" },
-  { href: "/admin/demo-requests", label: "Demo Requests" },
-] as const;
+import { ADMIN_NAV_ITEMS } from "../../../components/admin/admin-nav-config";
+// Phase Final-PageGate-Closure — `/admin/*` gate lives in
+// `apps/web/app/(app)/admin/layout.tsx` so EVERY admin page (root +
+// subroutes) inherits the canonical `platform.admin` gate without
+// the risk of mismatched per-page wrappers. Backend RBAC remains
+// the authoritative gate; this is the UX layer.
+//
+// Nav list is sourced from a single canonical config so this landing
+// page and `AdminConsoleNav` (rendered on every admin sub-page) cannot
+// drift. See `components/admin/admin-nav-config.ts`.
 
 type AdminSummary = {
   totalUsers: number;
@@ -271,7 +274,7 @@ export default function AdminPage() {
 
     return {
       modules: cards.length,
-      routes: ADMIN_NAV.length,
+      routes: ADMIN_NAV_ITEMS.length,
       totalUsers: summary?.totalUsers ?? 0,
       totalEvidence: summary?.totalEvidence ?? 0,
       activeSubscriptions: summary?.billing.activeSubscriptions ?? 0,
@@ -556,7 +559,7 @@ export default function AdminPage() {
       <div className="app-body app-body-full">
         <div className="container admin-shell">
           <div className="admin-nav-row">
-            {ADMIN_NAV.map((item) => {
+            {ADMIN_NAV_ITEMS.map((item) => {
               const active = pathname === item.href;
 
               return (
@@ -627,8 +630,8 @@ export default function AdminPage() {
                         {headlineStats.routes}
                       </div>
                       <div className="admin-hero-note-copy">
-                        Navigate quickly across console home, dashboard, audit, and demo
-                        request pages.
+                        Navigate quickly across console home, platform analytics, audit
+                        integrity, demo requests, and identity governance.
                       </div>
                     </div>
 

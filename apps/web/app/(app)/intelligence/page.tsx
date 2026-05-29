@@ -22,6 +22,7 @@ import Link from "next/link";
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { statusBadgeStyle } from "../../../components/ui/StatusBadge";
 type SearchHit = {
   evidenceId: string;
   title: string | null;
@@ -397,43 +398,5 @@ const hitBadgeStyle: React.CSSProperties = {
   border: "1px solid #93c5fd",
 };
 
-function statusBadgeStyle(status: string): React.CSSProperties {
-  const base: React.CSSProperties = {
-    padding: "4px 10px",
-    fontSize: 12,
-    fontWeight: 600,
-    borderRadius: 999,
-    border: "1px solid",
-    whiteSpace: "nowrap",
-  };
-  if (status === "COMPLETED") {
-    return {
-      ...base,
-      background: "#f0fdf4",
-      borderColor: "#86efac",
-      color: "#166534",
-    };
-  }
-  if (status === "FAILED") {
-    return {
-      ...base,
-      background: "#fef2f2",
-      borderColor: "#fca5a5",
-      color: "#991b1b",
-    };
-  }
-  if (status === "SKIPPED") {
-    return {
-      ...base,
-      background: "#f1f5f9",
-      borderColor: "#cbd5e1",
-      color: "#475569",
-    };
-  }
-  return {
-    ...base,
-    background: "#eff6ff",
-    borderColor: "#93c5fd",
-    color: "#1e40af",
-  };
-}
+// Phase Final-Closure — local statusBadgeStyle removed; canonical
+// version lives in components/ui/StatusBadge.tsx.

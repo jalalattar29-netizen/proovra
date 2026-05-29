@@ -15,6 +15,8 @@
 
 import Link from "next/link";
 
+import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
+
 import {
   cardStyle,
   headerRowStyle,
@@ -73,6 +75,7 @@ const PAGES = [
 export default function AdminIdentityConsole() {
   return (
     <main style={pageStyle}>
+      <AdminConsoleNav />
       <header style={headerRowStyle}>
         <div>
           <h1 style={titleStyle}>Identity Governance</h1>

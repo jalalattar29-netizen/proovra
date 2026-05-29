@@ -107,7 +107,11 @@ export const MODE_QUICK_ACTIONS: Record<
     {
       id: "org.review",
       label: "Open reviewer queue",
-      href: "/reviewer-ops",
+      // Phase Final-Vocab-Alignment — `/reviewer-ops` (the legacy
+      // queue index) was retired in favor of the canonical reviewer
+      // console at `/review`. `next.config.js` redirects the legacy
+      // URL. The escalations + SLA sub-routes remain at `/reviewer-ops/*`.
+      href: "/review",
       intent: "primary",
     },
     {
@@ -133,7 +137,8 @@ export const MODE_QUICK_ACTIONS: Record<
     {
       id: "reviewops.queue",
       label: "Open reviewer queue",
-      href: "/reviewer-ops",
+      // Phase Final-Vocab-Alignment — canonical reviewer console.
+      href: "/review",
       intent: "primary",
     },
     {
@@ -192,7 +197,8 @@ export const MODE_ONBOARDING_HINTS: Record<
   },
   REVIEW_OPS: {
     label: "Open the reviewer queue to assign your first workflow",
-    href: "/reviewer-ops",
+    // Phase Final-Vocab-Alignment — canonical reviewer console.
+    href: "/review",
     tone: "neutral",
   },
   GOVERNANCE: {

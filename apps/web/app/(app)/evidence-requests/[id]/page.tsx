@@ -33,6 +33,7 @@ import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "../../../../lib/api";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
+import { EvidenceRequestEventsTab } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
 
 type AuthRequestView = {
   id: string;
@@ -286,7 +287,7 @@ function Inner() {
           ...(data.caseId
             ? [
                 {
-                  label: "Matter",
+                  label: "Case",
                   href: `/cases/${encodeURIComponent(data.caseId)}`,
                 },
               ]
@@ -613,6 +614,14 @@ function Inner() {
             ))}
           </ol>
         )}
+      </section>
+
+      {/* Phase Final-Hidden-Feature-Surfacing — EvidenceRequestEvent
+          activity timeline. Wired to the existing
+          `/v1/evidence-requests/:id/events` endpoint; real backend
+          data, no mock. */}
+      <section style={{ marginTop: 24 }}>
+        <EvidenceRequestEventsTab requestId={data.id} />
       </section>
 
       <footer style={{ marginTop: 24 }}>

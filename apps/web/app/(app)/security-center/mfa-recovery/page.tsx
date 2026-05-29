@@ -26,6 +26,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useTeamId } from "../../../../lib/platform-context";
 import { apiFetch, ApiError } from "../../../../lib/api";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { MfaRecoveryApprovalHistoryBlock } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
 
 type AdminRecoveryRequest = {
   id: string;
@@ -728,6 +729,14 @@ function MfaRecoveryAdminBody() {
               <strong>Reason:</strong>
               <p style={{ marginTop: 6 }}>{selected.reason}</p>
             </div>
+
+            {/* Phase Final-Hidden-Feature-Surfacing — approval history.
+                Reads the (previously orphaned) MfaRecoveryRequestApproval
+                rows via the new bounded admin-on-team endpoint. */}
+            <div style={{ marginTop: 16 }}>
+              <MfaRecoveryApprovalHistoryBlock requestId={selected.id} />
+            </div>
+
             <div style={{ marginTop: 16, textAlign: "right" }}>
               <button
                 type="button"

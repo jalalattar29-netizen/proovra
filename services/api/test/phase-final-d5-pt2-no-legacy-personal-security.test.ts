@@ -270,6 +270,11 @@ describe("Phase Final-Dead-Code — 7 dead frontend/backend files removed", () =
 
 describe("Phase Final-Vocab-Alignment — middleware APP_PREFIXES coverage", () => {
   it("middleware.ts APP_PREFIXES lists every live (app)-tree prefix", () => {
+    // Phase Final-Closure-Remediation — `/identity` was removed from
+    // APP_PREFIXES because the route was deleted from the live (app)
+    // tree (folded into `/admin/identity` via next.config.js redirect).
+    // Hitting www.proovra.com/identity should 404 cleanly rather than
+    // bouncing through the app host first.
     const m = readRepo("apps/web/middleware.ts");
     const required = [
       "/home",
@@ -295,7 +300,6 @@ describe("Phase Final-Vocab-Alignment — middleware APP_PREFIXES coverage", () 
       "/collaboration",
       "/notifications",
       "/inbox",
-      "/identity",
       "/organizations",
       "/workflows",
       "/evidence",
@@ -310,5 +314,15 @@ describe("Phase Final-Vocab-Alignment — middleware APP_PREFIXES coverage", () 
         new RegExp(`["']${p.replace(/\//g, "\\/")}["']`),
       );
     }
+  });
+
+  it("middleware.ts APP_PREFIXES does NOT include the retired /identity prefix", () => {
+    // Phase Final-Closure-Remediation — the `/identity` legacy console
+    // was deleted; the URL is now a `next.config.js` redirect to
+    // `/admin/identity`. Removing it from APP_PREFIXES ensures the
+    // www-host hit 404s cleanly instead of routing through the app
+    // host.
+    const m = readRepo("apps/web/middleware.ts");
+    expect(m).not.toMatch(/^\s*"\/identity",\s*$/m);
   });
 });

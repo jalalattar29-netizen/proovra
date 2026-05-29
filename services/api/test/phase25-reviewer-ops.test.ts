@@ -311,7 +311,12 @@ describe("Phase 25 — wording sweep", () => {
     "../src/services/reviewer-ops/escalation-engine.service.ts",
     "../src/services/reviewer-ops/workload.service.ts",
     "../src/routes/reviewer-ops.routes.ts",
-    "../../../apps/web/app/(app)/reviewer-ops/page.tsx",
+    // Phase Final-Vocab-Alignment: legacy `/reviewer-ops/page.tsx` was
+    // deleted; the canonical reviewer console is now `/review/page.tsx`
+    // (registered as `review.queue`). next.config.js redirects the
+    // legacy URL. The wording sweep continues to cover the per-workflow
+    // mutation inspector + SLA + escalations sub-routes, which remain.
+    "../../../apps/web/app/(app)/review/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",

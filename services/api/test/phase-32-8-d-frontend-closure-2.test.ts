@@ -54,7 +54,15 @@ const MATTER_WS_SVC = readApi(
   "src/services/cases/matter-workspace.service.ts",
 );
 
-const WS = readWeb("components/cases-experience/CaseWorkspace.tsx");
+// Phase C1.1 — `CaseWorkspace` was renamed to `MatterWorkspace`. The
+// negative safety invariants (no window.prompt / no signed URLs / no
+// legal overclaim / no /v1/users/me authority fetches) continue to
+// apply to the canonical surface and are asserted below. Positive
+// shape-assertions about CaseWorkspace internals (legacy unlink
+// wiring, viewer.canX reads) are now retired here — phase-c1 +
+// phase-32-8-d-frontend-matter-workspace cover the canonical
+// MatterWorkspace contract.
+const WS = readWeb("components/cases-experience/MatterWorkspace.tsx");
 const WS_TYPES = readWeb("components/cases-experience/types.ts");
 const MODAL = readWeb("components/cases-experience/matter-modals/Modal.tsx");
 const ASSIGN_PICKER = readWeb(
@@ -139,27 +147,20 @@ describe("Phase 32.8D-frontend-closure-2 — legacy Evidence.caseId unlink", () 
     expect(slice).not.toMatch(/enqueue[A-Z]\w*\(/);
   });
 
-  it("frontend wires a separate audited mutation for the legacy endpoint", () => {
-    expect(WS).toMatch(/removeLegacyEvidenceLink/);
-    expect(WS).toMatch(
-      /apiFetch\([^)]+\/v1\/cases\/\$\{encodeURIComponent\(caseId\)\}\/legacy-evidence-link\/\$\{encodeURIComponent\(evidenceId\)\}/,
-    );
-  });
-
-  it("Evidence Board routes legacy rows (linkId === null) through the legacy modal flow", () => {
-    expect(WS).toMatch(/onOpenUnlinkLegacyConfirm\(/);
-    // Disabled gate reads from envelope viewer (canonical).
-    expect(WS).toMatch(/canUnlinkLegacyEvidence/);
-  });
-
-  it("legacy unlink confirm modal explains evidence is preserved", () => {
-    // ConfirmModal renders `data-matter-modal={testid}` — assert the
-    // testid is passed verbatim at the call site.
-    expect(WS).toMatch(/testid="confirm-unlink-legacy-evidence"/);
-    expect(WS).toMatch(
-      /removes the legacy case association from[\s\S]{0,200}only\. The evidence/,
-    );
-  });
+  // Phase C1.1 retired the legacy `CaseWorkspace`. The three
+  // positive shape-assertions previously here ("frontend wires a
+  // separate audited mutation for the legacy endpoint", "Evidence
+  // Board routes legacy rows through the legacy modal flow", and
+  // "legacy unlink confirm modal explains evidence is preserved")
+  // referenced internals of the deleted CaseWorkspace component
+  // (`removeLegacyEvidenceLink`, `onOpenUnlinkLegacyConfirm`,
+  // `canUnlinkLegacyEvidence`, the confirm-modal testid +
+  // explainer copy). The canonical replacement is the tabbed
+  // `MatterWorkspace` whose evidence-linking flow uses a different
+  // internal contract; that contract is covered by
+  // `phase-c1-matter-workspace.test.ts`. The backend legacy-unlink
+  // route + audited mutation are still asserted by the `LIFECYCLE`
+  // + `ROUTES` checks above in PART 1.
 });
 
 // ===========================================================================
@@ -327,20 +328,15 @@ describe("Phase 32.8D-frontend-closure-2 — per-case viewer capabilities", () =
     expect(ok.disabledReasons.comment).toBeUndefined();
   });
 
-  it("frontend reads from envelope.viewer.* — NOT from ctx.can() per-case", () => {
+  it("canonical case-mutation surfaces never gate on role-string equality (negative invariant carries across the rename)", () => {
+    // Phase C1.1 — the positive viewer.canX assertions previously here
+    // referenced the CaseWorkspace per-action gate reads; those reads
+    // exist on the canonical MatterWorkspace via a different shape and
+    // are covered by `phase-c1-matter-workspace.test.ts`. The negative
+    // invariant — no inline role-string equality drift on the canonical
+    // workspace surface — continues to apply post-rename and is the
+    // safety guard worth pinning here.
     const live = stripComments(WS);
-    expect(live).toMatch(/viewer\.canChangeStatus/);
-    expect(live).toMatch(/viewer\.canAssign/);
-    expect(live).toMatch(/viewer\.canLinkEvidence/);
-    expect(live).toMatch(/viewer\.canUnlinkEvidence/);
-    expect(live).toMatch(/viewer\.canUnlinkLegacyEvidence/);
-    expect(live).toMatch(/viewer\.canComment/);
-    expect(live).toMatch(/viewer\.canResolveComment/);
-    // Tooltip text comes from server-provided reasons map.
-    expect(live).toMatch(/reasons\.changeStatus/);
-    expect(live).toMatch(/reasons\.assign/);
-    expect(live).toMatch(/reasons\.unlinkLegacyEvidence/);
-    // No inline role-string equality drift.
     expect(live).not.toMatch(/role\s*===\s*['"]OWNER['"]/);
     expect(live).not.toMatch(/role\s*===\s*['"]ADMIN['"]/);
     expect(live).not.toMatch(/role\s*===\s*['"]MEMBER['"]/);

@@ -45,14 +45,13 @@ describe("Phase 37.97 — projection schema + migration", () => {
     expect(SCHEMA).toMatch(/@@map\("org_health_projections"\)/);
   });
 
-  it("declares ReviewerQueueProjection keyed by teamId with refreshedAtUtc", () => {
-    expect(SCHEMA).toMatch(/model ReviewerQueueProjection\s*\{/);
-    expect(SCHEMA).toMatch(/teamId\s+String\s+@id/);
-    expect(SCHEMA).toMatch(/refreshedAtUtc\s+DateTime/);
-    expect(SCHEMA).toMatch(
-      /@@index\(\[teamId, refreshedAtUtc\(sort: Desc\)\]\)/,
-    );
-    expect(SCHEMA).toMatch(/@@map\("reviewer_queue_projections"\)/);
+  it("ReviewerQueueProjection model has been removed (orphan dropped)", () => {
+    // The reviewer queue projection was added in 37.97 but never wired
+    // into any service or worker. It was dropped in the
+    // 20261009000000_drop_reviewer_queue_projection migration. The
+    // schema must no longer declare the model or its table mapping.
+    expect(SCHEMA).not.toMatch(/model ReviewerQueueProjection\s*\{/);
+    expect(SCHEMA).not.toMatch(/@@map\("reviewer_queue_projections"\)/);
   });
 
   it("migration is additive (IF NOT EXISTS) on every CREATE", () => {
@@ -68,9 +67,6 @@ describe("Phase 37.97 — projection schema + migration", () => {
   it("migration declares the tenant-keyed indexes", () => {
     expect(MIGRATION).toMatch(
       /CREATE INDEX IF NOT EXISTS "org_health_projections_team_sampled_desc_idx"/,
-    );
-    expect(MIGRATION).toMatch(
-      /CREATE INDEX IF NOT EXISTS "reviewer_queue_projections_team_refreshed_desc_idx"/,
     );
   });
 });

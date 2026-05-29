@@ -121,7 +121,10 @@ export const HUB_DEFINITIONS: Readonly<Record<string, HubDefinition>> = {
       {
         id: "reviewer.queue",
         label: "Open reviewer queue",
-        href: "/reviewer-ops",
+        // Phase Final-Vocab-Alignment — `/reviewer-ops` (the legacy
+        // queue index) was retired. The canonical reviewer console
+        // is `/review`. `next.config.js` redirects the legacy URL.
+        href: "/review",
         intent: "primary",
       },
       {

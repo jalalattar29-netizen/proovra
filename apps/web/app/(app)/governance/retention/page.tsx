@@ -31,6 +31,7 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
 import { RetentionInheritanceSummary } from "../../../../components/governance/RetentionInheritanceSummary";
 import { RetentionConflictAlert } from "../../../../components/governance/RetentionConflictAlert";
+import { statusBadgeStyle } from "../../../../components/ui/StatusBadge";
 
 type PolicyStatus = "ACTIVE" | "PAUSED" | "SUPERSEDED" | "ARCHIVED";
 type PolicyScope = "WORKSPACE" | "EVIDENCE_TYPE" | "CASE" | "REGULATORY";
@@ -909,22 +910,5 @@ const autoExtendBadgeStyle: React.CSSProperties = {
   borderRadius: 999,
 };
 
-function statusBadgeStyle(status: PolicyStatus): React.CSSProperties {
-  const palette: Record<PolicyStatus, [string, string, string]> = {
-    ACTIVE: ["#ecfdf5", "#bbf7d0", "#166534"],
-    PAUSED: ["#fffbeb", "#fcd34d", "#92400e"],
-    SUPERSEDED: ["#eef2ff", "#c7d2fe", "#3730a3"],
-    ARCHIVED: ["#f8fafc", "#e2e8f0", "#475569"],
-  };
-  const [bg, border, color] = palette[status];
-  return {
-    padding: "3px 10px",
-    fontSize: 12,
-    fontWeight: 600,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-    display: "inline-block",
-  };
-}
+// Phase Final-Closure — local statusBadgeStyle removed; canonical
+// version lives in components/ui/StatusBadge.tsx.

@@ -1072,6 +1072,89 @@ export async function readRecoveryRequestDetail(
 }
 
 // ---------------------------------------------------------------------------
+// Phase Final-Hidden-Feature-Surfacing — admin-readable approval history.
+// Returns every recorded approval for a single recovery request, with
+// admin-on-team tenancy guard (mirrors `readRecoveryRequestDetail`).
+// Joins through the parent request's teamId so cross-team callers
+// cannot enumerate approvals.
+//
+// SECURITY: Never returns the approver's email or any PII beyond the
+// approver's user id and display name. The UI surfaces this for
+// audit-trail purposes — operators investigating who approved a
+// recovery and when. The display name lookup is bounded to ACTIVE
+// users on the SAME team.
+// ---------------------------------------------------------------------------
+
+export type RecoveryApprovalRecord = {
+  id: string;
+  approverUserId: string;
+  approverDisplayName: string | null;
+  createdAt: string;
+};
+
+export async function listRecoveryRequestApprovals(input: {
+  requestId: string;
+  actorUserId: string;
+}): Promise<
+  | { ok: true; approvals: ReadonlyArray<RecoveryApprovalRecord> }
+  | { ok: false; reason: "request_not_found" | "not_authorized" }
+> {
+  // First, tenancy gate: load the parent row's teamId + caller's
+  // role on that team. Same pattern as `readRecoveryRequestDetail`.
+  const parent = await prisma.mfaRecoveryRequest.findUnique({
+    where: { id: input.requestId },
+    select: { id: true, teamId: true, userId: true },
+  });
+  if (!parent) return { ok: false, reason: "request_not_found" };
+
+  // Caller may read approvals if they are the SUBJECT of the request
+  // (their own recovery) OR an ACTIVE OWNER/ADMIN of the team.
+  if (parent.userId !== input.actorUserId) {
+    const admin = await prisma.teamMember.findFirst({
+      where: {
+        userId: input.actorUserId,
+        teamId: parent.teamId,
+        status: "ACTIVE",
+        role: { in: ["OWNER", "ADMIN"] },
+      },
+      select: { id: true },
+    });
+    if (!admin) return { ok: false, reason: "not_authorized" };
+  }
+
+  const rows = await prisma.mfaRecoveryRequestApproval.findMany({
+    where: { requestId: input.requestId },
+    orderBy: { createdAt: "asc" },
+    take: 50,
+    select: {
+      id: true,
+      approverUserId: true,
+      createdAt: true,
+    },
+  });
+
+  // Resolve display names in one query (bounded; max 50 approvers).
+  const approverIds = Array.from(new Set(rows.map((r) => r.approverUserId)));
+  const users = approverIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: approverIds } },
+        select: { id: true, displayName: true },
+      })
+    : [];
+  const nameById = new Map(users.map((u) => [u.id, u.displayName ?? null]));
+
+  return {
+    ok: true,
+    approvals: rows.map((r) => ({
+      id: r.id,
+      approverUserId: r.approverUserId,
+      approverDisplayName: nameById.get(r.approverUserId) ?? null,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // scheduled cleanup helper
 // ---------------------------------------------------------------------------
 

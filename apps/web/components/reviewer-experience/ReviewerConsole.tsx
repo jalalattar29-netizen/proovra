@@ -73,6 +73,7 @@ import {
   useStepUpAction,
 } from "../identity-security/StepUpModal";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
+import { ReviewerRoutingRecommendationsPane } from "../hidden-feature-panels/HiddenFeaturePanels";
 
 const DEFAULT_TEAM_PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
 
@@ -727,6 +728,15 @@ export function ReviewerConsole({
           palette.
         </p>
       </header>
+
+      {/* Phase Final-Hidden-Feature-Surfacing — routing recommendations
+          pane. Reads the canonical reviewer-routing recommendation
+          rows via the new `/v1/reviewer/routing-recommendations`
+          endpoint. Pane stays above the tabbed sections so guidance
+          surfaces even when the reviewer hasn't drilled into a tab. */}
+      {teamId ? (
+        <ReviewerRoutingRecommendationsPane teamId={teamId} />
+      ) : null}
 
       <nav className="reviewer-console__tabs" role="tablist">
         {TABS.map((t) => {

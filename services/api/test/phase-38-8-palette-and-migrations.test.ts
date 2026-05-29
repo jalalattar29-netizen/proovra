@@ -135,12 +135,20 @@ describe("Phase 38.8 — additional PageRouteGate migrations", () => {
   const MIGRATIONS: Array<{ page: string; routeId: string }> = [
     { page: "app/(app)/home/page.tsx", routeId: "workspace.home" },
     { page: "app/(app)/governance/page.tsx", routeId: "governance.hub" },
+    // Phase Final-Vocab-Alignment — legacy `/reviewer-ops/page.tsx` was
+    // deleted; the canonical reviewer console at `/review/page.tsx` is
+    // now where the `review.queue` route id's PageRouteGate wrap lives.
     {
-      page: "app/(app)/reviewer-ops/page.tsx",
+      page: "app/(app)/review/page.tsx",
       routeId: "review.queue",
     },
     { page: "app/(app)/ops/page.tsx", routeId: "platform.ops_center" },
-    { page: "app/(app)/teams/page.tsx", routeId: "admin.teams" },
+    // Phase Final-Closure-Remediation — the canonical surface for the
+    // `admin.teams` route id moved to `/workspaces` (the duplicate
+    // `/teams/page.tsx` was deleted; the legacy URL redirects via
+    // `next.config.js`). The PageRouteGate wrap now lives on the
+    // canonical page.
+    { page: "app/(app)/workspaces/page.tsx", routeId: "admin.teams" },
   ];
 
   for (const entry of MIGRATIONS) {
@@ -169,9 +177,14 @@ describe("Phase 38.8 — cumulative <PageRouteGate> adoption", () => {
       "app/(app)/search/page.tsx",
       "app/(app)/home/page.tsx",
       "app/(app)/governance/page.tsx",
-      "app/(app)/reviewer-ops/page.tsx",
+      // Phase Final-Vocab-Alignment — canonical reviewer console is
+      // `/review/page.tsx`; the legacy `/reviewer-ops/page.tsx` was
+      // deleted and the URL redirects via `next.config.js`.
+      "app/(app)/review/page.tsx",
       "app/(app)/ops/page.tsx",
-      "app/(app)/teams/page.tsx",
+      // Phase Final-Closure-Remediation — canonical surface is
+      // `/workspaces`; the duplicate `/teams/page.tsx` was deleted.
+      "app/(app)/workspaces/page.tsx",
     ];
     for (const page of PAGES) {
       const src = readWeb(page);

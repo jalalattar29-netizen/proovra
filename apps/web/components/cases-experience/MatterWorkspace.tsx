@@ -39,6 +39,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { GovernanceSummary } from "../governance/GovernanceSummary";
 import { PresenceIndicator } from "../presence/PresenceIndicator";
+import { CaseRiskPanel } from "../hidden-feature-panels/HiddenFeaturePanels";
+// Phase Final-Closure-Verification — mount SiuPanel inside the matter
+// workspace as a dedicated "SIU" tab. The component is the canonical
+// surface for SIU profile + indicators + checklist + exports; it
+// already calls the right backend endpoints and renders
+// `reviewIndicators`. Prior to this mount SiuPanel was orphaned —
+// the file existed and was tested but no host page imported it.
+import { SiuPanel } from "../../app/(app)/cases/components/SiuPanel";
 
 // =============================================================================
 // Envelope shape (mirror of services/api/src/services/cases/matter-workspace.service.ts)
@@ -289,6 +297,7 @@ type TabId =
   | "risk"
   | "communications"
   | "assignments"
+  | "siu"
   | "audit"
   | "export";
 
@@ -317,6 +326,15 @@ const TABS: ReadonlyArray<{
     id: "assignments",
     label: "Assignments",
     description: "Ownership + escalation routing",
+  },
+  // Phase Final-Closure-Verification — SIU tab. Hosts the canonical
+  // `SiuPanel` (profile, checklist, indicators, follow-ups, saved
+  // views, export preflight). The component was orphaned prior to
+  // this mount despite a fully-wired backend at /v1/cases/:id/siu-*.
+  {
+    id: "siu",
+    label: "SIU",
+    description: "SIU profile · checklist · indicators · export",
   },
   { id: "audit", label: "Audit", description: "Operational traceability" },
   { id: "export", label: "Export", description: "Report + Package readiness" },
@@ -476,6 +494,10 @@ export function MatterWorkspace({
         risk: "ok",
         communications: "ok",
         assignments: "ok",
+        // Final Closure Remediation Part J — SIU tab status defaults
+        // to "ok"; the SiuPanel manages its own load/empty/error
+        // states independently of the matter envelope.
+        siu: "ok",
         audit: "ok",
         export: "ok",
       };
@@ -490,6 +512,11 @@ export function MatterWorkspace({
       risk: envelope.risk.status,
       communications: envelope.sections.notes.status,
       assignments: envelope.assignments.length > 0 ? "ok" : "not_applicable",
+      // Final Closure Remediation Part J — SIU section is not part of
+      // the canonical matter envelope; the SiuPanel manages its own
+      // state. Default to "ok" so it doesn't render a degradation chip
+      // on the tab strip.
+      siu: "ok",
       audit: envelope.sections.custodyAndIntegrity.status,
       export: envelope.sections.deliverables.status,
     };
@@ -643,6 +670,11 @@ export function MatterWorkspace({
         {activeTab === "assignments" ? (
           <AssignmentsTab envelope={envelope} filterText={filterText} />
         ) : null}
+        {activeTab === "siu" ? (
+          <div className="matter-tab matter-tab--siu" data-cc-matter-siu-tab>
+            <SiuPanel caseId={envelope.case.id} />
+          </div>
+        ) : null}
         {activeTab === "audit" ? (
           <AuditTab envelope={envelope} filterText={filterText} />
         ) : null}
@@ -668,6 +700,11 @@ function OverviewTab({ envelope }: { envelope: MatterEnvelope }) {
       />
     );
   }
+  // Phase Final-Hidden-Feature-Surfacing — CaseRiskSnapshot panel.
+  // Renders the most recent risk row from `/v1/cases/:id/risk` so
+  // operators see the durable risk score + reason codes directly on
+  // the matter overview tab, not just inside the command center.
+  const _caseId = envelope.case.id;
   // Phase G2 (G1.1) — derive matter-level governance summary inputs
   // from the existing envelope sections. The summary is a deterministic
   // projection — no extra fetches.
@@ -711,6 +748,12 @@ function OverviewTab({ envelope }: { envelope: MatterEnvelope }) {
         Sampled {formatRelative(envelope.generatedAt)}. Drill into individual
         tabs for the underlying records.
       </p>
+
+      {/* Phase Final-Hidden-Feature-Surfacing — durable matter risk
+          snapshot. Real backend; bounded; loading/empty/error states. */}
+      <div style={{ marginTop: 12 }}>
+        <CaseRiskPanel caseId={_caseId} />
+      </div>
     </div>
   );
 }

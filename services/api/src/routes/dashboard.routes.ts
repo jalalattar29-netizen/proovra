@@ -36,6 +36,9 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 
 import { buildCommandCenter } from "../services/dashboard/command-center.service.js";
+import { getLatestOrgHealthSnapshot } from "../services/dashboard/org-health.service.js";
+import { listReviewerRoutingRecommendations } from "../services/dashboard/reviewer-capacity.service.js";
+import { listWorkspaceAccessAnomalies } from "../services/dashboard/access-anomaly.service.js";
 
 const Query = z.object({ teamId: z.string().uuid() });
 
@@ -79,6 +82,67 @@ export async function dashboardRoutes(app: FastifyInstance) {
       });
 
       return reply.code(200).send(envelope);
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase Final-Hidden-Feature-Surfacing — thin route wrappers over
+  // existing dashboard services so the corresponding UI panels can read
+  // each capability standalone (without paying the full command-center
+  // aggregation cost). Auth posture identical to the command center
+  // (requireAuth + requireMember + 404 on non-member).
+  // ---------------------------------------------------------------------------
+
+  // OrganizationalHealthSnapshot — surfaces on /admin/dashboard + /ops/analytics
+  app.get(
+    "/v1/dashboard/org-health",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const query = Query.parse(req.query ?? {});
+      const member = await requireMember(req, reply, query.teamId);
+      if (!member) return;
+      const snapshot = await getLatestOrgHealthSnapshot({
+        teamId: query.teamId,
+      });
+      return reply.code(200).send({ snapshot });
+    },
+  );
+
+  // ReviewerRoutingRecommendation — surfaces on /review (reviewer console)
+  const RoutingRecsQuery = Query.extend({
+    limit: z.coerce.number().int().min(1).max(25).optional(),
+  });
+  app.get(
+    "/v1/reviewer/routing-recommendations",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const query = RoutingRecsQuery.parse(req.query ?? {});
+      const member = await requireMember(req, reply, query.teamId);
+      if (!member) return;
+      const recommendations = await listReviewerRoutingRecommendations({
+        teamId: query.teamId,
+        limit: query.limit,
+      });
+      return reply.code(200).send({ recommendations });
+    },
+  );
+
+  // AccessAnomaly — surfaces on /security-center
+  const AnomaliesQuery = Query.extend({
+    limit: z.coerce.number().int().min(1).max(50).optional(),
+  });
+  app.get(
+    "/v1/security-center/access-anomalies",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const query = AnomaliesQuery.parse(req.query ?? {});
+      const member = await requireMember(req, reply, query.teamId);
+      if (!member) return;
+      const anomalies = await listWorkspaceAccessAnomalies({
+        teamId: query.teamId,
+        limit: query.limit ?? 12,
+      });
+      return reply.code(200).send({ anomalies });
     },
   );
 }

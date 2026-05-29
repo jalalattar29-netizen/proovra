@@ -184,7 +184,9 @@ describe("Operational component contrast (Phase 28-I)", () => {
 describe("Empty-state runbook links", () => {
   const PRESET_SOURCES = [
     "../../../apps/web/components/operational/OperationalEmptyState.tsx",
-    "../../../apps/web/app/(app)/reviewer-ops/page.tsx",
+    // Phase Final-Vocab-Alignment: legacy `/reviewer-ops/page.tsx` was
+    // deleted; the canonical reviewer console is now `/review/page.tsx`.
+    "../../../apps/web/app/(app)/review/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
     "../../../apps/web/app/(app)/governance/page.tsx",
@@ -398,7 +400,9 @@ describe("SQL drift patch — saved_search_views.scope", () => {
 
 describe("Phase 28-I cross-page invariants", () => {
   const PAGES = [
-    "../../../apps/web/app/(app)/reviewer-ops/page.tsx",
+    // Phase Final-Vocab-Alignment: legacy `/reviewer-ops/page.tsx` was
+    // deleted; the canonical reviewer console is now `/review/page.tsx`.
+    "../../../apps/web/app/(app)/review/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
     // CR1 Part 2 deleted `reviewer-ops/policy/page.tsx` (redirect →
     // /governance/policy is now in next.config.js). The canonical

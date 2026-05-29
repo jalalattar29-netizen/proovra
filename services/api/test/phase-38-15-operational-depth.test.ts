@@ -230,9 +230,14 @@ describe("Phase 38.15 — cumulative <PageRouteGate> adoption", () => {
       // Phase 38.8
       "app/(app)/home/page.tsx",
       "app/(app)/governance/page.tsx",
-      "app/(app)/reviewer-ops/page.tsx",
+      // Phase Final-Vocab-Alignment — canonical reviewer console is
+      // `/review/page.tsx`; the legacy `/reviewer-ops/page.tsx` was
+      // deleted and the URL redirects via `next.config.js`.
+      "app/(app)/review/page.tsx",
       "app/(app)/ops/page.tsx",
-      "app/(app)/teams/page.tsx",
+      // Phase Final-Closure-Remediation — canonical surface is
+      // `/workspaces`; the duplicate `/teams/page.tsx` was deleted.
+      "app/(app)/workspaces/page.tsx",
       // Phase 38.9
       "app/(app)/evidence/page.tsx",
       "app/(app)/capture/page.tsx",
@@ -270,8 +275,8 @@ describe("Phase 38.15 — cumulative <PageRouteGate> adoption", () => {
       "app/(app)/investigation/graph/page.tsx",
       "app/(app)/investigation/duplicates/page.tsx",
       "app/(app)/investigation/reviewers/page.tsx",
-      // Phase 38.14
-      "app/(app)/dashboard/api-keys/page.tsx",
+      // Phase 38.14 — `dashboard/api-keys/page.tsx` was deleted in
+      // Phase Final-A3-PT2 (canonical surface is `/integrations`).
       "app/(app)/dashboard/quotas/page.tsx",
       "app/(app)/dashboard/insights/page.tsx",
       "app/(app)/dashboard/batch-analysis/page.tsx",
@@ -279,6 +284,15 @@ describe("Phase 38.15 — cumulative <PageRouteGate> adoption", () => {
       "app/(app)/operations/reliability/page.tsx",
       "app/(app)/ops/media-graph/page.tsx",
       "app/(app)/collaboration/page.tsx",
+      // Final Closure Remediation Part A — four additional pages
+      // received PageRouteGate wraps this session so the cumulative
+      // adoption tally remains honest after `dashboard/api-keys/page.tsx`
+      // was deleted (Phase Final-A3-PT2). Each of these is a real,
+      // gated surface in the canonical registry.
+      "app/(app)/review/operations/page.tsx",
+      "app/(app)/teams/[id]/page.tsx",
+      "app/(app)/tools/page.tsx",
+      "app/(app)/security-center/mfa-recovery/page.tsx",
     ];
     for (const page of PAGES) {
       const src = readWeb(page);

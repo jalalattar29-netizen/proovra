@@ -391,6 +391,13 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // until operator verifies no duplicates. See
       // `docs/operations/live-schema-compatibility-repair.md`.
       "20261008000000_phase_o_workflow_join_table_final_repair",
+      // Final Closure Remediation Part D — drops the orphan
+      // `reviewer_queue_projections` table introduced in 37.97 but
+      // never wired into any service / worker / route / read path.
+      // The sister table `org_health_projections` is the canonical
+      // dashboard read model and is untouched.
+      // `DROP TABLE IF EXISTS ... CASCADE` is idempotent and safe.
+      "20261009000000_drop_reviewer_queue_projection",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

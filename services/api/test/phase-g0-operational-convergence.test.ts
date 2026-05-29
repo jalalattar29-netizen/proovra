@@ -44,9 +44,11 @@ const TOPBAR = readSource(
 const WORKSPACES_PAGE = readSource(
   "../../../apps/web/app/(app)/workspaces/page.tsx",
 );
-const TEAMS_PAGE = readSource(
-  "../../../apps/web/app/(app)/teams/page.tsx",
-);
+// Phase Final-Closure-Remediation — the legacy /teams page (a
+// duplicate of /workspaces) was deleted; the URL now redirects via
+// `next.config.js`. We assert the canonical surface + the redirect
+// declaration instead of the legacy file body.
+const NEXT_CONFIG = readSource("../../../apps/web/next.config.js");
 const CR0_TEST = readSource("./phase-cr0-system-freeze-baseline.test.ts");
 
 // ===========================================================================
@@ -257,9 +259,16 @@ describe("Phase G0 (B0.5) — /workspaces canonical frontend route", () => {
     expect(WORKSPACES_PAGE).toContain("OperationalBreadcrumb");
   });
 
-  it("legacy /teams page continues to render the same surface (backward-compat)", () => {
-    expect(TEAMS_PAGE).toContain("WorkspaceAdministrationHome");
-    expect(TEAMS_PAGE).toContain("PageRouteGate");
+  it("legacy /teams URL continues to surface the workspace administration view (backward-compat)", () => {
+    // Phase Final-Closure-Remediation — the duplicate `/teams/page.tsx`
+    // shim was deleted; the legacy URL is preserved as a permanent 308
+    // redirect in `next.config.js` to the canonical `/workspaces`
+    // surface (which is itself PageRouteGate-wrapped on `admin.teams`).
+    expect(NEXT_CONFIG).toMatch(
+      /source:\s*["']\/teams["'][\s\S]{0,200}destination:\s*["']\/workspaces["']/,
+    );
+    expect(WORKSPACES_PAGE).toContain("WorkspaceAdministrationHome");
+    expect(WORKSPACES_PAGE).toContain("PageRouteGate");
   });
 
   it("route registry's admin.teams entry now points at /workspaces", () => {

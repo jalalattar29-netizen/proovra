@@ -128,29 +128,35 @@ describe("Phase P1 — canonical sub-paths resolve to procurement-grade surfaces
     expect(src).toContain('redirect("/security-center/sso")');
   });
 
-  it("/settings/security/scim redirects to /admin/identity/scim (the SCIM token console)", () => {
+  // Phase Final-Closure-Remediation — the `/settings/security/scim`
+  // and `/settings/security/audit` redirect-only page files were
+  // deleted and their behaviour was moved into `next.config.js`
+  // `redirects()` as permanent 308s. The destination surfaces
+  // (`/admin/identity/scim` and `/admin/identity/timeline`) are
+  // unchanged and still backed by the same audited endpoints.
+  it("/settings/security/scim redirects to /admin/identity/scim via next.config.js (the SCIM token console)", () => {
+    const cfg = readSource("../../../apps/web/next.config.js");
+    expect(cfg).toMatch(
+      /source:\s*["']\/settings\/security\/scim["'][\s\S]{0,200}destination:\s*["']\/admin\/identity\/scim["']/,
+    );
+    // The redirect page file is intentionally absent — routing layer
+    // is the single source of truth.
     expect(
       exists("../../../apps/web/app/(app)/settings/security/scim/page.tsx"),
-    ).toBe(true);
-    const src = readSource(
-      "../../../apps/web/app/(app)/settings/security/scim/page.tsx",
-    );
-    expect(src).toContain('import { redirect }');
-    expect(src).toContain('redirect("/admin/identity/scim")');
+    ).toBe(false);
   });
 
-  it("/settings/security/audit redirects to /admin/identity/timeline (the unified event feed)", () => {
+  it("/settings/security/audit redirects to /admin/identity/timeline via next.config.js (the unified event feed)", () => {
+    const cfg = readSource("../../../apps/web/next.config.js");
+    expect(cfg).toMatch(
+      /source:\s*["']\/settings\/security\/audit["'][\s\S]{0,200}destination:\s*["']\/admin\/identity\/timeline["']/,
+    );
     expect(
       exists("../../../apps/web/app/(app)/settings/security/audit/page.tsx"),
-    ).toBe(true);
-    const src = readSource(
-      "../../../apps/web/app/(app)/settings/security/audit/page.tsx",
-    );
-    expect(src).toContain('import { redirect }');
-    expect(src).toContain('redirect("/admin/identity/timeline")');
+    ).toBe(false);
   });
 
-  it("each canonical sub-path docstring names the backend endpoints it consumes", () => {
+  it("the SAML redirect docstring still names the backend endpoints it consumes", () => {
     const saml = readSource(
       "../../../apps/web/app/(app)/settings/security/saml/page.tsx",
     );
@@ -161,18 +167,20 @@ describe("Phase P1 — canonical sub-paths resolve to procurement-grade surfaces
     expect(saml).toContain("certificate-next");
     expect(saml).toContain("ingest-metadata");
 
-    const scim = readSource(
-      "../../../apps/web/app/(app)/settings/security/scim/page.tsx",
+    // SCIM + Audit no longer have a page-level docstring (the page was
+    // deleted). The destination surfaces own their own runbook /
+    // observability narrative. We assert the canonical destinations
+    // resolve to the SCIM + Audit backend services via the existing
+    // /admin/identity/* pages.
+    const scimDest = readSource(
+      "../../../apps/web/app/(app)/admin/identity/scim/page.tsx",
     );
-    expect(scim).toContain("/v1/admin/identity/scim/tokens");
-    expect(scim).toContain("/v2/scim/Users");
-    expect(scim).toContain("/v2/scim/Groups");
+    expect(scimDest).toContain("/v1/admin/identity/scim/tokens");
 
-    const audit = readSource(
-      "../../../apps/web/app/(app)/settings/security/audit/page.tsx",
+    const timelineDest = readSource(
+      "../../../apps/web/app/(app)/admin/identity/timeline/page.tsx",
     );
-    expect(audit).toContain("/v1/admin/identity/timeline");
-    expect(audit).toContain("security-event.service.ts");
+    expect(timelineDest).toContain("/v1/admin/identity/timeline");
   });
 });
 

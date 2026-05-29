@@ -123,28 +123,32 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
     { page: "investigation/cases/[caseId]/graph/page.tsx", reason: "inherits investigation.graph access", revisitPhase: "CR1" },
     { page: "teams/[id]/page.tsx", reason: "inherits admin.teams access", revisitPhase: "CR1" },
 
-    // Phase G4.2 — Classic Matter Workspace retired. The
-    // `/cases/[id]/classic` page is a server-side redirect to the
-    // canonical Matter Workspace; no PageRouteGate is needed because
-    // there is no body to gate.
-    { page: "cases/[id]/classic/page.tsx", reason: "G4.2 retirement redirect — no body to gate", revisitPhase: "PERMANENT" },
-
-    // Phase P1.1 / P1.2 — Identity Operations canonical redirects.
-    // `/settings/security/saml` and `/settings/security/scim` are
-    // pure server-side redirects to the existing procurement-grade
-    // surfaces (`/security-center/sso` and `/admin/identity/scim`
-    // respectively). They have no body to gate; the underlying
-    // surfaces are themselves gated.
+    // Phase Final-Closure-Remediation — the following redirect /
+    // duplicate page files were deleted and their behaviour moved into
+    // `apps/web/next.config.js` `redirects()` as permanent 308s.
+    // They are intentionally absent from the live route tree, so they
+    // do not appear in the exemption list any more.
+    //   * `cases/[id]/classic/page.tsx` (was G4.2 redirect)
+    //   * `settings/security/scim/page.tsx` (was P1.2 redirect)
+    //   * `settings/security/audit/page.tsx` (was P1.3 redirect)
+    //   * `identity/page.tsx` (was Phase 17 legacy console; folded
+    //     into the canonical `/admin/identity` enterprise operator
+    //     control plane)
+    //   * `teams/page.tsx` (was a duplicate of `workspaces/page.tsx`;
+    //     canonical href flipped to `/workspaces` and the legacy URL
+    //     redirects)
+    //
+    // Phase P1.1 — `/settings/security/saml` is still a redirect-only
+    // page (not yet collapsed into next.config because the existing
+    // P1 contract test pins the file content + docstring endpoint
+    // list, separate scope from this closure).
     { page: "settings/security/saml/page.tsx", reason: "P1.1 canonical redirect to /security-center/sso — no body to gate", revisitPhase: "PERMANENT" },
-    { page: "settings/security/scim/page.tsx", reason: "P1.2 canonical redirect to /admin/identity/scim — no body to gate", revisitPhase: "PERMANENT" },
-    { page: "settings/security/audit/page.tsx", reason: "P1.3 canonical redirect to /admin/identity/timeline — no body to gate", revisitPhase: "PERMANENT" },
 
-    // Legacy operator pages. CR1 inspected both and deferred them:
-    // each is a real ~600 LoC operational console (not dead code).
-    // Folding them requires UX-level decisions (target gate or
-    // canonical home) that CR1's surgical-stabilization charter
-    // explicitly excludes. Revisit moved to CR2.
-    { page: "identity/page.tsx", reason: "Phase 17 legacy identity console; folding into /admin/identity is a UX decision deferred to CR2", revisitPhase: "CR2" },
+    // Legacy operator page. CR1 inspected and deferred:
+    // a real ~600 LoC operational console (not dead code).
+    // Folding requires a UX-level decision (target gate or canonical
+    // home) that CR1's surgical-stabilization charter explicitly
+    // excludes. Revisit moved to CR2.
     { page: "review/operations/page.tsx", reason: "Phase 13 legacy review-ops queue; folding into /reviewer-ops is a UX decision deferred to CR2", revisitPhase: "CR2" },
   ];
 

@@ -568,8 +568,11 @@ function AnalyticsPageInner(): JSX.Element {
         <header className="cc-section-header">
           <h2 className="cc-section-title">Automation health</h2>
           <span className="cc-section-subtitle">
-            Bounded rules + run + webhook delivery counts. Cross-link
-            details from Operations Center · Automation.
+            Bounded rules + run + webhook delivery counts. Detailed
+            webhook destinations and delivery logs are exposed via the
+            backend `/v1/automation/webhooks` and
+            `/v1/automation/webhook-deliveries` endpoints for API /
+            automation use; this surface shows aggregate counters only.
           </span>
         </header>
         <div

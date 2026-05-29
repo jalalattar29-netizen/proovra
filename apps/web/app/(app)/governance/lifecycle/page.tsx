@@ -25,6 +25,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { ImmutableStorageDriftSection } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
 
 type LifecycleStateCounts = {
   ACTIVE: number;
@@ -188,6 +189,11 @@ function GovernanceLifecycleDashboardInner() {
               ))}
             </ul>
           </section>
+
+          {/* Phase Final-Hidden-Feature-Surfacing — ImmutableStorageCheck
+              drift list. Reconciler-detected mismatches between DB
+              lifecycle state and storage bucket pin. Real backend. */}
+          <ImmutableStorageDriftSection teamId={teamId} />
 
           <section style={cardStyle}>
             <h2 style={sectionTitleStyle}>Operator runbook</h2>

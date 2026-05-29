@@ -503,13 +503,19 @@ describe("Phase 20 — wording sweep (user-facing surfaces clean of overclaims)"
     }
   });
 
-  it("Phase 17 identity page contains no forbidden overclaim phrasing", async () => {
+  it("Phase 17 identity surface (now /admin/identity) contains no forbidden overclaim phrasing", async () => {
+    // Phase Final-Closure-Remediation — the legacy
+    // `app/(app)/identity/page.tsx` workspace-internal console was
+    // deleted and the legacy URL was folded into the canonical
+    // `/admin/identity` enterprise operator control plane via
+    // `next.config.js` `redirects()`. The vocabulary discipline pin
+    // now reads the canonical surface.
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
     const src = await readFile(
       fileURLToPath(
         new URL(
-          "../../../apps/web/app/(app)/identity/page.tsx",
+          "../../../apps/web/app/(app)/admin/identity/page.tsx",
           import.meta.url,
         ),
       ),

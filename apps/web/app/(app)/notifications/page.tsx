@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { statusBadgeStyle } from "../../../components/ui/StatusBadge";
 type Delivery = {
   id: string;
   eventType: string;
@@ -306,24 +307,6 @@ const resendButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-function statusBadgeStyle(status: string): React.CSSProperties {
-  const palette: Record<string, [string, string, string]> = {
-    PENDING: ["#f1f5f9", "#cbd5e1", "#475569"],
-    SENT: ["#dcfce7", "#bbf7d0", "#166534"],
-    DELIVERED: ["#dcfce7", "#bbf7d0", "#166534"],
-    RETRY_SCHEDULED: ["#fef3c7", "#fde68a", "#92400e"],
-    FAILED: ["#fef2f2", "#fecaca", "#7f1d1d"],
-    SKIPPED: ["#f1f5f9", "#cbd5e1", "#475569"],
-    CANCELLED: ["#fef2f2", "#fecaca", "#7f1d1d"],
-  };
-  const [bg, border, color] = palette[status] ?? palette.PENDING;
-  return {
-    padding: "4px 10px",
-    fontSize: 12,
-    fontWeight: 600,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-  };
-}
+// Phase Final-Closure — local statusBadgeStyle removed; the canonical
+// version lives in components/ui/StatusBadge.tsx. CANCELLED now renders
+// neutral (terminal-passive), matching ARCHIVED elsewhere.

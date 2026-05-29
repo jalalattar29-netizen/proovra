@@ -28,6 +28,10 @@ import { useParams } from "next/navigation";
 
 import { apiFetch } from "../../../../../../lib/api";
 import { useTeamId } from "../../../../../../lib/platform-context";
+// Closure verification Part C — case-scoped graph explorer requires
+// EVIDENCE_VIEW (same as `investigation.graph`). Wrap in the canonical
+// PageRouteGate so the UX gate matches the backend RBAC boundary.
+import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 // =============================================================================
 // Types — mirror the /v1/graph/cases/:caseId projection
 // =============================================================================
@@ -97,7 +101,7 @@ type EdgeTypeFilter = (typeof ALL_EDGE_TYPES)[number];
 // Page
 // =============================================================================
 
-export default function CaseGraphExplorerPage() {
+function CaseGraphExplorerPageBody() {
   const teamId = useTeamId();
   const params = useParams<{ caseId: string }>();
   const caseId = typeof params?.caseId === "string" ? params.caseId : "";
@@ -688,3 +692,12 @@ const edgeMetaItemStyle: React.CSSProperties = {
   color: "#94a3b8",
   fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
 };
+
+// Closure verification Part C — canonical PageRouteGate wrapper.
+export default function CaseGraphExplorerPage() {
+  return (
+    <PageRouteGate routeId="investigation.graph">
+      <CaseGraphExplorerPageBody />
+    </PageRouteGate>
+  );
+}

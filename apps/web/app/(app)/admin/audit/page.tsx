@@ -6,6 +6,7 @@ import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
 import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import { dashboardStyles } from "../../../../components/dashboard/styles";
+import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 
 type AuditRow = {
   id: string;
@@ -522,6 +523,8 @@ export default function AdminAuditPage() {
           }
         }
       `}</style>
+
+      <AdminConsoleNav />
 
       <div className="admin-audit-page audit-grid">
         <div className="audit-summary-grid">

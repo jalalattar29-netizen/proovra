@@ -35,6 +35,7 @@ import {
   redactWorkspaceId,
 } from "../../../../lib/platform-context/state-observability";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { WorkspacePersonaProfileCard } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
 
 type WizardStep = 1 | 2 | 3 | 4;
 
@@ -210,6 +211,15 @@ function PersonaWizardPageInner() {
             defaults. This setting only changes ordering, defaults, and
             labels — it never changes what your workspace is allowed to do.
           </p>
+          {/* Phase Final-Hidden-Feature-Surfacing — read-back of the
+              durable WorkspacePersonaProfile row from
+              `/v1/workspaces/:teamId/persona`. Confirms what is
+              actually persisted vs the wizard's draft state. */}
+          {workspaceId ? (
+            <div style={{ marginTop: 12 }}>
+              <WorkspacePersonaProfileCard teamId={workspaceId} />
+            </div>
+          ) : null}
         </div>
         <div className="cc-meta">
           <span data-persona-wizard-context>{contextLabel}</span>

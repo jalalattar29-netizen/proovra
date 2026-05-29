@@ -15,7 +15,10 @@ import {
   Gauge,
   GaugeCircle,
   Headphones,
+  HeartPulse,
+  Inbox,
   Key,
+  Layers,
   LayoutGrid,
   LibraryBig,
   LifeBuoy,
@@ -123,6 +126,12 @@ const ICON_BY_ROUTE_ID: Record<string, SidebarIcon> = {
   "workspace.tools": LayoutGrid,
   "workspace.intake_links": LifeBuoy,
   "workspace.destruction": Trash2,
+  // Final Closure Remediation Parts A + E — newly sidebar-eligible
+  // routes get explicit icons so they don't fall back to the generic
+  // Gauge default.
+  "workspace.evidence_requests": Inbox,
+  "platform.queue_ops": Layers,
+  "platform.reliability": HeartPulse,
 };
 
 const BADGE_KEY_BY_ROUTE_ID: Record<string, string> = {

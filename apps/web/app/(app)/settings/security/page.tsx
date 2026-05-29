@@ -256,17 +256,26 @@ function SettingsSecurityHubInner() {
         >
           {/*
             Phase P1.1 closed four bounded follow-ups previously listed
-            here. The shipped surfaces are:
-              * SCIM drift reconciliation engine
-                → /admin/identity/scim (Drift detection tab + Sync replay tab)
-              * SSO connection health monitoring dashboard
+            here. All shipped surfaces are reachable from `/admin/
+            identity/*`:
+              * SCIM provisioning token lifecycle
+                → /admin/identity/scim (Tokens tab)
+              * SCIM drift reconciliation
+                → /admin/identity/scim (Drift detection tab; consumes
+                  /v1/scim/reconciliation/preview + /execute)
+              * SCIM sync-failure replay
+                → /admin/identity/scim (Sync replay tab; consumes
+                  /v1/scim/sync-failures + /:id/replay)
+              * SSO connection health monitoring
                 → /security-center/sso/health
               * Visual SAML attribute mapping builder
                 → /security-center/sso/mapping
-              * Bounded session identity timeline (replaces "Historical
-                session replay" in scope-honest form: identity events
-                only, not full surveillance)
+              * Bounded session identity timeline (scope-honest
+                replacement for "historical session replay" — identity
+                events only)
                 → /admin/identity/sessions (per-row "View timeline")
+            Final Closure Remediation Part G — verified all six shipped
+            end-to-end; nothing partially exposed remains here.
           */}
           <li>
             <strong>Step-up exemption rules</strong> — admin-defined
