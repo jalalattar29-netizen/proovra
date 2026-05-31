@@ -21,6 +21,27 @@ ARG DATABASE_URL
 ENV DATABASE_URL=$DATABASE_URL
 RUN test -n "$DATABASE_URL"
 
+# Phase 2.7Z+ — TypeScript build memory headroom.
+#
+# The `pnpm --filter proovra-api build` step below invokes
+# `tsc -p tsconfig.build.json` against the full API source tree
+# (hundreds of files, ~all-strict checks, every shared package's
+# generated d.ts files in scope, Prisma-generated client types).
+# Inside the Docker build sandbox the default Node V8 heap (~1.7 GB
+# on 64-bit Linux) is not enough — tsc's checker phase exhausts it
+# and dies with `FATAL ERROR: JavaScript heap out of memory`.
+#
+# Scope is INTENTIONALLY the `build` stage only — the `runner` stage
+# below does not inherit this ENV, so the production runtime container
+# keeps its default Node heap. This is a build-time tool budget, not a
+# runtime memory contract.
+#
+# 6144 MB (6 GB) chosen over 4096 MB because the API tree has been
+# observed to need ≥5 GB during typecheck; a small headroom prevents
+# bouncing the limit on future schema growth. The build host always
+# has enough free memory (build runners run with 8–16 GB).
+ENV NODE_OPTIONS="--max-old-space-size=6144"
+
 COPY tsconfig.json ./tsconfig.json
 
 COPY services/api/src services/api/src

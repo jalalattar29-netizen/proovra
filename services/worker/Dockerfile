@@ -23,6 +23,26 @@ ARG DATABASE_URL
 ENV DATABASE_URL=$DATABASE_URL
 RUN test -n "$DATABASE_URL"
 
+# Phase 2.7Z+ — TypeScript build memory headroom (worker variant).
+#
+# The worker's `pnpm --filter proovra-worker build` step below runs
+# `tsc -p tsconfig.build.json` against the entire worker source tree
+# (verification-package builder, report-v2 PDF renderer, intelligence
+# adapters, capture-trust pipeline) plus every shared package's
+# generated d.ts files in scope, plus Prisma-generated client types.
+# Even on a clean checkout this is enough to exhaust the default
+# V8 heap (~1.7 GB on 64-bit Linux) inside the Docker build sandbox
+# with `FATAL ERROR: JavaScript heap out of memory`.
+#
+# Scope is INTENTIONALLY the `build` stage only — the `runner` stage
+# below does not inherit this ENV, so the production worker container
+# keeps its default Node heap. This is a build-time tool budget, not
+# a runtime memory contract.
+#
+# 6144 MB (6 GB) mirrors the API build stage for consistency and
+# leaves room for future growth of shared-runtime + worker source.
+ENV NODE_OPTIONS="--max-old-space-size=6144"
+
 COPY tsconfig.json ./tsconfig.json
 
 COPY services/worker/src services/worker/src
