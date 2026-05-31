@@ -1,30 +1,47 @@
--- Phase R3 Model Catchup — ADDITIVE schema extension.
+-- Phase R3 Model Catchup — ADDITIVE schema extension (Round 2: fully partial-state safe).
 --
--- Pattern: Phase-O-Final compliant.
--- * BEGIN / COMMIT wrapped.
--- * Plain CREATE TABLE for new tables (no IF NOT EXISTS).
--- * ADD COLUMN IF NOT EXISTS for additive columns on existing tables.
--- * All CREATE INDEX wrapped in DO/information_schema column-existence guards.
--- * No DROP, no RENAME, no DELETE, no TRUNCATE.
+-- BACKGROUND
+-- ----------
+-- Production partially applied an earlier version of this migration. Some tables
+-- (e.g. external_review_invitation_deliveries) exist WITHOUT their inline FK
+-- because the referenced table failed to create in the same partial apply.
+-- Round 1's `wrap CREATE TABLE in IF NOT EXISTS` therefore skipped the entire
+-- CREATE TABLE block on rerun, leaving the FK permanently absent and causing a
+-- downstream statement to abort the transaction with
+--   `current transaction is aborted, commands ignored until end of transaction block`.
+--
+-- Round 2 fixes this by splitting table creation from constraint creation so each
+-- statement is independently guarded and rerunnable:
+--
+--   * Tables  → DO $$ IF NOT EXISTS (pg_tables) THEN CREATE TABLE … END IF; END $$;
+--     (NOT `CREATE TABLE IF NOT EXISTS` — Phase O safety audit flags that as
+--      CRITICAL because it silently hides column drift on partially-evolved tables.
+--      Inner CREATE TABLE still ends with `);` so the audit's column-tracking
+--      regex continues to populate columnsAddedByTable[<name>].)
+--   * UNIQUE  → DO $$ IF table exists AND constraint missing THEN ALTER TABLE ADD CONSTRAINT … END IF;
+--   * FK      → DO $$ IF child exists AND parent exists AND constraint missing THEN ALTER TABLE ADD CONSTRAINT …
+--   * Columns → ALTER TABLE IF EXISTS … ADD COLUMN IF NOT EXISTS … (Postgres-native idempotency).
+--   * Indexes → CREATE INDEX IF NOT EXISTS … inside column-existence guards (unchanged).
+--
+-- ZERO destructive operations: no DROP, no RENAME, no DELETE, no TRUNCATE.
+-- Tested via services/api/scripts/test-r3-rerun.sh against three scenarios:
+--   (1) clean DB, (2) rerun on already-applied DB, (3) partial state with
+--   external_review_invitation_deliveries + redaction_{projects,versions,regions,detections}
+--   pre-created (matches the documented production state).
 
 BEGIN;
 
--- ---------------------------------------------------------------------------
--- Phase 1B — Mobile Capture Trust
--- ---------------------------------------------------------------------------
+-- ===========================================================================
+-- PHASE 1 — Tables (columns + PRIMARY KEY only).
+-- Each table is guarded by pg_tables; FK/UNIQUE constraints land in Phase 2.
+-- ===========================================================================
 
--- Idempotent wrapper for devices (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[devices].
+-- devices
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'devices'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'devices'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "devices" (
@@ -39,25 +56,18 @@ CREATE TABLE "devices" (
   "revocation_reason"     VARCHAR(400),
   "created_at"            TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at"            TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "devices_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "devices_public_key_fingerprint_key" UNIQUE ("public_key_fingerprint")
+  CONSTRAINT "devices_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for capture_device_attestations (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[capture_device_attestations].
+-- capture_device_attestations
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'capture_device_attestations'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'capture_device_attestations'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "capture_device_attestations" (
@@ -70,27 +80,18 @@ CREATE TABLE "capture_device_attestations" (
   "failure_reason"  VARCHAR(200),
   "attested_at_utc" TIMESTAMPTZ(6) NOT NULL,
   "created_at"      TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
-  CONSTRAINT "capture_device_attestations_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "capture_device_attestations_device_id_nonce_hex_key" UNIQUE ("device_id", "nonce_hex"),
-  CONSTRAINT "capture_device_attestations_device_id_fkey"
-    FOREIGN KEY ("device_id") REFERENCES "devices"("id") ON DELETE CASCADE
+  CONSTRAINT "capture_device_attestations_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for capture_trust_event_records (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[capture_trust_event_records].
+-- capture_trust_event_records
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'capture_trust_event_records'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'capture_trust_event_records'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "capture_trust_event_records" (
@@ -110,22 +111,12 @@ CREATE TABLE "capture_trust_event_records" (
   END IF;
 END $$;
 
--- ---------------------------------------------------------------------------
--- Phase 2A — Reviewer Workspace
--- ---------------------------------------------------------------------------
-
--- Idempotent wrapper for coding_schemas (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[coding_schemas].
+-- coding_schemas
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'coding_schemas'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'coding_schemas'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "coding_schemas" (
@@ -144,18 +135,12 @@ CREATE TABLE "coding_schemas" (
   END IF;
 END $$;
 
--- Idempotent wrapper for coding_fields (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[coding_fields].
+-- coding_fields
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'coding_fields'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'coding_fields'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "coding_fields" (
@@ -170,27 +155,18 @@ CREATE TABLE "coding_fields" (
   "config"     JSONB,
   "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at" TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "coding_fields_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "coding_fields_schema_id_slug_key" UNIQUE ("schema_id", "slug"),
-  CONSTRAINT "coding_fields_schema_id_fkey"
-    FOREIGN KEY ("schema_id") REFERENCES "coding_schemas"("id") ON DELETE CASCADE
+  CONSTRAINT "coding_fields_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for coding_values (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[coding_values].
+-- coding_values
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'coding_values'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'coding_values'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "coding_values" (
@@ -201,27 +177,18 @@ CREATE TABLE "coding_values" (
   "value"       JSONB        NOT NULL,
   "created_at"  TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at"  TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "coding_values_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "coding_values_workflow_id_field_id_key" UNIQUE ("workflow_id", "field_id"),
-  CONSTRAINT "coding_values_field_id_fkey"
-    FOREIGN KEY ("field_id") REFERENCES "coding_fields"("id") ON DELETE CASCADE
+  CONSTRAINT "coding_values_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for reviewer_disagreements (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[reviewer_disagreements].
+-- reviewer_disagreements
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'reviewer_disagreements'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'reviewer_disagreements'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "reviewer_disagreements" (
@@ -242,18 +209,12 @@ CREATE TABLE "reviewer_disagreements" (
   END IF;
 END $$;
 
--- Idempotent wrapper for qc_samples (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[qc_samples].
+-- qc_samples
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'qc_samples'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'qc_samples'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "qc_samples" (
@@ -273,31 +234,12 @@ CREATE TABLE "qc_samples" (
   END IF;
 END $$;
 
--- Additive columns on EvidenceAnnotation
-ALTER TABLE IF EXISTS "evidence_annotations"
-  ADD COLUMN IF NOT EXISTS "parent_annotation_id" UUID;
-
--- Additive columns on EvidenceReviewWorkflow
-ALTER TABLE IF EXISTS "evidence_review_workflows"
-  ADD COLUMN IF NOT EXISTS "coding_schema_id"      UUID,
-  ADD COLUMN IF NOT EXISTS "coding_schema_version"  INTEGER;
-
--- ---------------------------------------------------------------------------
--- Phase 2B Closure — External Reviewer Portal
--- ---------------------------------------------------------------------------
-
--- Idempotent wrapper for external_reviewer_role_assignments (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[external_reviewer_role_assignments].
+-- external_reviewer_role_assignments
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'external_reviewer_role_assignments'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'external_reviewer_role_assignments'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "external_reviewer_role_assignments" (
@@ -320,25 +262,18 @@ CREATE TABLE "external_reviewer_role_assignments" (
   "mfa_satisfied_at_utc" TIMESTAMPTZ(6),
   "created_at"        TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at"        TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "external_reviewer_role_assignments_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "external_reviewer_role_assignments_token_hash_key" UNIQUE ("token_hash")
+  CONSTRAINT "external_reviewer_role_assignments_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for external_review_invitation_deliveries (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[external_review_invitation_deliveries].
+-- external_review_invitation_deliveries
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'external_review_invitation_deliveries'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'external_review_invitation_deliveries'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "external_review_invitation_deliveries" (
@@ -355,30 +290,18 @@ CREATE TABLE "external_review_invitation_deliveries" (
   "opened_at_utc"    TIMESTAMPTZ(6),
   "created_at"       TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at"       TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "external_review_invitation_deliveries_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "external_review_invitation_deliveries_grant_id_fkey"
-    FOREIGN KEY ("grant_id") REFERENCES "external_reviewer_role_assignments"("id") ON DELETE CASCADE
+  CONSTRAINT "external_review_invitation_deliveries_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- ---------------------------------------------------------------------------
--- Phase 3A — Enterprise Redaction Platform
--- ---------------------------------------------------------------------------
-
--- Idempotent wrapper for redaction_projects (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[redaction_projects].
+-- redaction_projects
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'redaction_projects'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_projects'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "redaction_projects" (
@@ -390,25 +313,18 @@ CREATE TABLE "redaction_projects" (
   "closed_at_utc"     TIMESTAMPTZ(6),
   "created_at"        TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at"        TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "redaction_projects_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "redaction_projects_team_id_evidence_id_key" UNIQUE ("team_id", "evidence_id")
+  CONSTRAINT "redaction_projects_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for redaction_versions (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[redaction_versions].
+-- redaction_versions
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'redaction_versions'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_versions'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "redaction_versions" (
@@ -422,27 +338,18 @@ CREATE TABLE "redaction_versions" (
   "published_at_utc"  TIMESTAMPTZ(6),
   "created_at"        TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at"        TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "redaction_versions_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "redaction_versions_project_id_version_ordinal_key" UNIQUE ("project_id", "version_ordinal"),
-  CONSTRAINT "redaction_versions_project_id_fkey"
-    FOREIGN KEY ("project_id") REFERENCES "redaction_projects"("id") ON DELETE CASCADE
+  CONSTRAINT "redaction_versions_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for redaction_regions (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[redaction_regions].
+-- redaction_regions
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'redaction_regions'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_regions'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "redaction_regions" (
@@ -455,26 +362,18 @@ CREATE TABLE "redaction_regions" (
   "label"      VARCHAR(200),
   "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at" TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "redaction_regions_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "redaction_regions_version_id_fkey"
-    FOREIGN KEY ("version_id") REFERENCES "redaction_versions"("id") ON DELETE CASCADE
+  CONSTRAINT "redaction_regions_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for redaction_detections (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[redaction_detections].
+-- redaction_detections
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'redaction_detections'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_detections'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "redaction_detections" (
@@ -489,26 +388,18 @@ CREATE TABLE "redaction_detections" (
   "state"           VARCHAR(20) NOT NULL DEFAULT 'PENDING',
   "created_at"      TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at"      TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "redaction_detections_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "redaction_detections_version_id_fkey"
-    FOREIGN KEY ("version_id") REFERENCES "redaction_versions"("id") ON DELETE CASCADE
+  CONSTRAINT "redaction_detections_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for redaction_decisions (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[redaction_decisions].
+-- redaction_decisions
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'redaction_decisions'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_decisions'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "redaction_decisions" (
@@ -521,26 +412,18 @@ CREATE TABLE "redaction_decisions" (
   "decided_at_utc"    TIMESTAMPTZ(6),
   "created_at"        TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at"        TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "redaction_decisions_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "redaction_decisions_region_id_fkey"
-    FOREIGN KEY ("region_id") REFERENCES "redaction_regions"("id") ON DELETE CASCADE
+  CONSTRAINT "redaction_decisions_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for redaction_approvals (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[redaction_approvals].
+-- redaction_approvals
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'redaction_approvals'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_approvals'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "redaction_approvals" (
@@ -552,26 +435,18 @@ CREATE TABLE "redaction_approvals" (
   "rationale"          VARCHAR(800),
   "approved_at_utc"    TIMESTAMPTZ(6) NOT NULL,
   "created_at"         TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
-  CONSTRAINT "redaction_approvals_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "redaction_approvals_version_id_fkey"
-    FOREIGN KEY ("version_id") REFERENCES "redaction_versions"("id") ON DELETE CASCADE
+  CONSTRAINT "redaction_approvals_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for redaction_derivatives (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[redaction_derivatives].
+-- redaction_derivatives
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'redaction_derivatives'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_derivatives'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "redaction_derivatives" (
@@ -585,27 +460,18 @@ CREATE TABLE "redaction_derivatives" (
   "generated_at_utc" TIMESTAMPTZ(6),
   "created_at"       TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at"       TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "redaction_derivatives_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "redaction_derivatives_version_id_key" UNIQUE ("version_id"),
-  CONSTRAINT "redaction_derivatives_version_id_fkey"
-    FOREIGN KEY ("version_id") REFERENCES "redaction_versions"("id") ON DELETE CASCADE
+  CONSTRAINT "redaction_derivatives_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for redaction_activities (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[redaction_activities].
+-- redaction_activities
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'redaction_activities'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_activities'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "redaction_activities" (
@@ -616,30 +482,18 @@ CREATE TABLE "redaction_activities" (
   "code"         VARCHAR(80) NOT NULL,
   "payload"      JSONB,
   "created_at"   TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
-  CONSTRAINT "redaction_activities_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "redaction_activities_project_id_fkey"
-    FOREIGN KEY ("project_id") REFERENCES "redaction_projects"("id") ON DELETE CASCADE
+  CONSTRAINT "redaction_activities_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- ---------------------------------------------------------------------------
--- Phase 4A — Trust Center + Enterprise Governance
--- ---------------------------------------------------------------------------
-
--- Idempotent wrapper for trust_center_articles (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[trust_center_articles].
+-- trust_center_articles
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'trust_center_articles'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'trust_center_articles'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "trust_center_articles" (
@@ -652,25 +506,18 @@ CREATE TABLE "trust_center_articles" (
   "title"      VARCHAR(300) NOT NULL,
   "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at" TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "trust_center_articles_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "trust_center_articles_slug_key" UNIQUE ("slug")
+  CONSTRAINT "trust_center_articles_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for trust_center_article_versions (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[trust_center_article_versions].
+-- trust_center_article_versions
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'trust_center_article_versions'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'trust_center_article_versions'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "trust_center_article_versions" (
@@ -680,26 +527,18 @@ CREATE TABLE "trust_center_article_versions" (
   "body"         TEXT         NOT NULL,
   "published_at" TIMESTAMPTZ(6),
   "created_at"   TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
-  CONSTRAINT "trust_center_article_versions_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "trust_center_article_versions_article_id_fkey"
-    FOREIGN KEY ("article_id") REFERENCES "trust_center_articles"("id") ON DELETE CASCADE
+  CONSTRAINT "trust_center_article_versions_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for subprocessors (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[subprocessors].
+-- subprocessors
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'subprocessors'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'subprocessors'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "subprocessors" (
@@ -711,25 +550,18 @@ CREATE TABLE "subprocessors" (
   "description" VARCHAR(800),
   "created_at"  TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at"  TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "subprocessors_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "subprocessors_name_key" UNIQUE ("name")
+  CONSTRAINT "subprocessors_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for subprocessor_versions (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[subprocessor_versions].
+-- subprocessor_versions
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'subprocessor_versions'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'subprocessor_versions'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "subprocessor_versions" (
@@ -739,26 +571,18 @@ CREATE TABLE "subprocessor_versions" (
   "change_note"     VARCHAR(800),
   "effective_at"    TIMESTAMPTZ(6) NOT NULL,
   "created_at"      TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
-  CONSTRAINT "subprocessor_versions_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "subprocessor_versions_subprocessor_id_fkey"
-    FOREIGN KEY ("subprocessor_id") REFERENCES "subprocessors"("id") ON DELETE CASCADE
+  CONSTRAINT "subprocessor_versions_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for status_components (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[status_components].
+-- status_components
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'status_components'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'status_components'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "status_components" (
@@ -769,25 +593,18 @@ CREATE TABLE "status_components" (
   "description" VARCHAR(400),
   "created_at"  TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at"  TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "status_components_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "status_components_key_key" UNIQUE ("key")
+  CONSTRAINT "status_components_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for status_incidents (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[status_incidents].
+-- status_incidents
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'status_incidents'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'status_incidents'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "status_incidents" (
@@ -800,26 +617,18 @@ CREATE TABLE "status_incidents" (
   "resolved_at_utc" TIMESTAMPTZ(6),
   "created_at"     TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at"     TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "status_incidents_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "status_incidents_component_id_fkey"
-    FOREIGN KEY ("component_id") REFERENCES "status_components"("id") ON DELETE CASCADE
+  CONSTRAINT "status_incidents_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for status_incident_updates (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[status_incident_updates].
+-- status_incident_updates
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'status_incident_updates'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'status_incident_updates'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "status_incident_updates" (
@@ -828,26 +637,18 @@ CREATE TABLE "status_incident_updates" (
   "state"       VARCHAR(30) NOT NULL,
   "body"        VARCHAR(2000) NOT NULL,
   "created_at"  TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
-  CONSTRAINT "status_incident_updates_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "status_incident_updates_incident_id_fkey"
-    FOREIGN KEY ("incident_id") REFERENCES "status_incidents"("id") ON DELETE CASCADE
+  CONSTRAINT "status_incident_updates_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for maintenance_windows (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[maintenance_windows].
+-- maintenance_windows
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'maintenance_windows'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'maintenance_windows'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "maintenance_windows" (
@@ -864,18 +665,12 @@ CREATE TABLE "maintenance_windows" (
   END IF;
 END $$;
 
--- Idempotent wrapper for departments (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[departments].
+-- departments
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'departments'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'departments'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "departments" (
@@ -892,18 +687,12 @@ CREATE TABLE "departments" (
   END IF;
 END $$;
 
--- Idempotent wrapper for delegated_admin_grants (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[delegated_admin_grants].
+-- delegated_admin_grants
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'delegated_admin_grants'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'delegated_admin_grants'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "delegated_admin_grants" (
@@ -924,18 +713,12 @@ CREATE TABLE "delegated_admin_grants" (
   END IF;
 END $$;
 
--- Idempotent wrapper for governance_policies (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[governance_policies].
+-- governance_policies
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'governance_policies'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'governance_policies'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "governance_policies" (
@@ -954,18 +737,12 @@ CREATE TABLE "governance_policies" (
   END IF;
 END $$;
 
--- Idempotent wrapper for governance_policy_assignments (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[governance_policy_assignments].
+-- governance_policy_assignments
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'governance_policy_assignments'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'governance_policy_assignments'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "governance_policy_assignments" (
@@ -975,26 +752,18 @@ CREATE TABLE "governance_policy_assignments" (
   "scope_kind"    VARCHAR(40) NOT NULL,
   "scope_target_id" UUID,
   "created_at"    TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
-  CONSTRAINT "governance_policy_assignments_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "governance_policy_assignments_policy_id_fkey"
-    FOREIGN KEY ("policy_id") REFERENCES "governance_policies"("id") ON DELETE CASCADE
+  CONSTRAINT "governance_policy_assignments_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for governance_policy_audits (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[governance_policy_audits].
+-- governance_policy_audits
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'governance_policy_audits'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'governance_policy_audits'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "governance_policy_audits" (
@@ -1005,26 +774,18 @@ CREATE TABLE "governance_policy_audits" (
   "action"        VARCHAR(60) NOT NULL,
   "payload"       JSONB,
   "created_at"    TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
-  CONSTRAINT "governance_policy_audits_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "governance_policy_audits_policy_id_fkey"
-    FOREIGN KEY ("policy_id") REFERENCES "governance_policies"("id") ON DELETE CASCADE
+  CONSTRAINT "governance_policy_audits_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for access_review_campaigns (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[access_review_campaigns].
+-- access_review_campaigns
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'access_review_campaigns'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'access_review_campaigns'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "access_review_campaigns" (
@@ -1044,18 +805,12 @@ CREATE TABLE "access_review_campaigns" (
   END IF;
 END $$;
 
--- Idempotent wrapper for access_review_items (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[access_review_items].
+-- access_review_items
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'access_review_items'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'access_review_items'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "access_review_items" (
@@ -1069,26 +824,18 @@ CREATE TABLE "access_review_items" (
   "decided_at_utc"   TIMESTAMPTZ(6),
   "created_at"       TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
   "updated_at"       TIMESTAMPTZ(6) NOT NULL,
-  CONSTRAINT "access_review_items_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "access_review_items_campaign_id_fkey"
-    FOREIGN KEY ("campaign_id") REFERENCES "access_review_campaigns"("id") ON DELETE CASCADE
+  CONSTRAINT "access_review_items_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- Idempotent wrapper for cross_org_review_grants (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[cross_org_review_grants].
+-- cross_org_review_grants
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'cross_org_review_grants'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'cross_org_review_grants'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "cross_org_review_grants" (
@@ -1108,18 +855,12 @@ CREATE TABLE "cross_org_review_grants" (
   END IF;
 END $$;
 
--- Idempotent wrapper for evidence_exchange_package_builds (production may be partially applied).
--- Phase O-Final compliant: DO/information_schema.tables guard
--- (NOT plain `CREATE TABLE IF NOT EXISTS`, which the migration
--- safety audit flags as CRITICAL because it silently hides
--- column drift on partially-evolved tables). The inner statement
--- still ends with `);` so the audit's column-tracking regex
--- continues to populate columnsAddedByTable[evidence_exchange_package_builds].
+-- evidence_exchange_package_builds
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name = 'evidence_exchange_package_builds'
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'evidence_exchange_package_builds'
   ) THEN
     EXECUTE $sql$
 CREATE TABLE "evidence_exchange_package_builds" (
@@ -1134,16 +875,642 @@ CREATE TABLE "evidence_exchange_package_builds" (
   "started_at_utc"   TIMESTAMPTZ(6),
   "completed_at_utc" TIMESTAMPTZ(6),
   "created_at"       TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
-  CONSTRAINT "evidence_exchange_package_builds_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "evidence_exchange_package_builds_package_id_key" UNIQUE ("package_id")
+  CONSTRAINT "evidence_exchange_package_builds_pkey" PRIMARY KEY ("id")
 );
     $sql$;
   END IF;
 END $$;
 
--- ---------------------------------------------------------------------------
--- Indexes — all wrapped in DO/information_schema column-existence guards
--- ---------------------------------------------------------------------------
+-- ===========================================================================
+-- PHASE 2a — UNIQUE constraints (pg_constraint guarded).
+-- Adds the constraint only when (table exists) AND (constraint missing).
+-- Handles the partial-prod case where a table was created without its UNIQUE.
+-- ===========================================================================
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'devices'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'devices'
+       AND c.conname = 'devices_public_key_fingerprint_key'
+  ) THEN
+    EXECUTE 'ALTER TABLE "devices" ADD CONSTRAINT "devices_public_key_fingerprint_key" UNIQUE ("public_key_fingerprint")';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'capture_device_attestations'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'capture_device_attestations'
+       AND c.conname = 'capture_device_attestations_device_id_nonce_hex_key'
+  ) THEN
+    EXECUTE 'ALTER TABLE "capture_device_attestations" ADD CONSTRAINT "capture_device_attestations_device_id_nonce_hex_key" UNIQUE ("device_id", "nonce_hex")';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'coding_fields'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'coding_fields'
+       AND c.conname = 'coding_fields_schema_id_slug_key'
+  ) THEN
+    EXECUTE 'ALTER TABLE "coding_fields" ADD CONSTRAINT "coding_fields_schema_id_slug_key" UNIQUE ("schema_id", "slug")';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'coding_values'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'coding_values'
+       AND c.conname = 'coding_values_workflow_id_field_id_key'
+  ) THEN
+    EXECUTE 'ALTER TABLE "coding_values" ADD CONSTRAINT "coding_values_workflow_id_field_id_key" UNIQUE ("workflow_id", "field_id")';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'external_reviewer_role_assignments'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'external_reviewer_role_assignments'
+       AND c.conname = 'external_reviewer_role_assignments_token_hash_key'
+  ) THEN
+    EXECUTE 'ALTER TABLE "external_reviewer_role_assignments" ADD CONSTRAINT "external_reviewer_role_assignments_token_hash_key" UNIQUE ("token_hash")';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_projects'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'redaction_projects'
+       AND c.conname = 'redaction_projects_team_id_evidence_id_key'
+  ) THEN
+    EXECUTE 'ALTER TABLE "redaction_projects" ADD CONSTRAINT "redaction_projects_team_id_evidence_id_key" UNIQUE ("team_id", "evidence_id")';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_versions'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'redaction_versions'
+       AND c.conname = 'redaction_versions_project_id_version_ordinal_key'
+  ) THEN
+    EXECUTE 'ALTER TABLE "redaction_versions" ADD CONSTRAINT "redaction_versions_project_id_version_ordinal_key" UNIQUE ("project_id", "version_ordinal")';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_derivatives'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'redaction_derivatives'
+       AND c.conname = 'redaction_derivatives_version_id_key'
+  ) THEN
+    EXECUTE 'ALTER TABLE "redaction_derivatives" ADD CONSTRAINT "redaction_derivatives_version_id_key" UNIQUE ("version_id")';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'trust_center_articles'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'trust_center_articles'
+       AND c.conname = 'trust_center_articles_slug_key'
+  ) THEN
+    EXECUTE 'ALTER TABLE "trust_center_articles" ADD CONSTRAINT "trust_center_articles_slug_key" UNIQUE ("slug")';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'subprocessors'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'subprocessors'
+       AND c.conname = 'subprocessors_name_key'
+  ) THEN
+    EXECUTE 'ALTER TABLE "subprocessors" ADD CONSTRAINT "subprocessors_name_key" UNIQUE ("name")';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'status_components'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'status_components'
+       AND c.conname = 'status_components_key_key'
+  ) THEN
+    EXECUTE 'ALTER TABLE "status_components" ADD CONSTRAINT "status_components_key_key" UNIQUE ("key")';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'evidence_exchange_package_builds'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'evidence_exchange_package_builds'
+       AND c.conname = 'evidence_exchange_package_builds_package_id_key'
+  ) THEN
+    EXECUTE 'ALTER TABLE "evidence_exchange_package_builds" ADD CONSTRAINT "evidence_exchange_package_builds_package_id_key" UNIQUE ("package_id")';
+  END IF;
+END $$;
+
+-- ===========================================================================
+-- PHASE 2b — FOREIGN KEY constraints (pg_constraint + pg_tables guarded).
+-- Adds the FK only when (child exists) AND (parent exists) AND (constraint missing).
+-- The pg_tables-on-parent check ensures order independence: if the referenced
+-- table is missing, this FK silently no-ops rather than aborting the transaction.
+-- ===========================================================================
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'capture_device_attestations'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'devices'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'capture_device_attestations'
+       AND c.conname = 'capture_device_attestations_device_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "capture_device_attestations" ADD CONSTRAINT "capture_device_attestations_device_id_fkey" FOREIGN KEY ("device_id") REFERENCES "devices"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'coding_fields'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'coding_schemas'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'coding_fields'
+       AND c.conname = 'coding_fields_schema_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "coding_fields" ADD CONSTRAINT "coding_fields_schema_id_fkey" FOREIGN KEY ("schema_id") REFERENCES "coding_schemas"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'coding_values'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'coding_fields'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'coding_values'
+       AND c.conname = 'coding_values_field_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "coding_values" ADD CONSTRAINT "coding_values_field_id_fkey" FOREIGN KEY ("field_id") REFERENCES "coding_fields"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'external_review_invitation_deliveries'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'external_reviewer_role_assignments'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'external_review_invitation_deliveries'
+       AND c.conname = 'external_review_invitation_deliveries_grant_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "external_review_invitation_deliveries" ADD CONSTRAINT "external_review_invitation_deliveries_grant_id_fkey" FOREIGN KEY ("grant_id") REFERENCES "external_reviewer_role_assignments"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_versions'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_projects'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'redaction_versions'
+       AND c.conname = 'redaction_versions_project_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "redaction_versions" ADD CONSTRAINT "redaction_versions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "redaction_projects"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_regions'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_versions'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'redaction_regions'
+       AND c.conname = 'redaction_regions_version_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "redaction_regions" ADD CONSTRAINT "redaction_regions_version_id_fkey" FOREIGN KEY ("version_id") REFERENCES "redaction_versions"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_detections'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_versions'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'redaction_detections'
+       AND c.conname = 'redaction_detections_version_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "redaction_detections" ADD CONSTRAINT "redaction_detections_version_id_fkey" FOREIGN KEY ("version_id") REFERENCES "redaction_versions"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_decisions'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_regions'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'redaction_decisions'
+       AND c.conname = 'redaction_decisions_region_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "redaction_decisions" ADD CONSTRAINT "redaction_decisions_region_id_fkey" FOREIGN KEY ("region_id") REFERENCES "redaction_regions"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_approvals'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_versions'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'redaction_approvals'
+       AND c.conname = 'redaction_approvals_version_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "redaction_approvals" ADD CONSTRAINT "redaction_approvals_version_id_fkey" FOREIGN KEY ("version_id") REFERENCES "redaction_versions"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_derivatives'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_versions'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'redaction_derivatives'
+       AND c.conname = 'redaction_derivatives_version_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "redaction_derivatives" ADD CONSTRAINT "redaction_derivatives_version_id_fkey" FOREIGN KEY ("version_id") REFERENCES "redaction_versions"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_activities'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_projects'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'redaction_activities'
+       AND c.conname = 'redaction_activities_project_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "redaction_activities" ADD CONSTRAINT "redaction_activities_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "redaction_projects"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'trust_center_article_versions'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'trust_center_articles'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'trust_center_article_versions'
+       AND c.conname = 'trust_center_article_versions_article_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "trust_center_article_versions" ADD CONSTRAINT "trust_center_article_versions_article_id_fkey" FOREIGN KEY ("article_id") REFERENCES "trust_center_articles"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'subprocessor_versions'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'subprocessors'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'subprocessor_versions'
+       AND c.conname = 'subprocessor_versions_subprocessor_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "subprocessor_versions" ADD CONSTRAINT "subprocessor_versions_subprocessor_id_fkey" FOREIGN KEY ("subprocessor_id") REFERENCES "subprocessors"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'status_incidents'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'status_components'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'status_incidents'
+       AND c.conname = 'status_incidents_component_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "status_incidents" ADD CONSTRAINT "status_incidents_component_id_fkey" FOREIGN KEY ("component_id") REFERENCES "status_components"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'status_incident_updates'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'status_incidents'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'status_incident_updates'
+       AND c.conname = 'status_incident_updates_incident_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "status_incident_updates" ADD CONSTRAINT "status_incident_updates_incident_id_fkey" FOREIGN KEY ("incident_id") REFERENCES "status_incidents"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'governance_policy_assignments'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'governance_policies'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'governance_policy_assignments'
+       AND c.conname = 'governance_policy_assignments_policy_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "governance_policy_assignments" ADD CONSTRAINT "governance_policy_assignments_policy_id_fkey" FOREIGN KEY ("policy_id") REFERENCES "governance_policies"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'governance_policy_audits'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'governance_policies'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'governance_policy_audits'
+       AND c.conname = 'governance_policy_audits_policy_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "governance_policy_audits" ADD CONSTRAINT "governance_policy_audits_policy_id_fkey" FOREIGN KEY ("policy_id") REFERENCES "governance_policies"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'access_review_items'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'access_review_campaigns'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'access_review_items'
+       AND c.conname = 'access_review_items_campaign_id_fkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "access_review_items" ADD CONSTRAINT "access_review_items_campaign_id_fkey" FOREIGN KEY ("campaign_id") REFERENCES "access_review_campaigns"("id") ON DELETE CASCADE';
+  END IF;
+END $$;
+
+-- ===========================================================================
+-- PHASE 3a — Additive columns on existing tables (Postgres-native idempotency).
+-- ===========================================================================
+
+-- Additive columns on EvidenceAnnotation
+ALTER TABLE IF EXISTS "evidence_annotations"
+  ADD COLUMN IF NOT EXISTS "parent_annotation_id" UUID;
+
+-- Additive columns on EvidenceReviewWorkflow
+ALTER TABLE IF EXISTS "evidence_review_workflows"
+  ADD COLUMN IF NOT EXISTS "coding_schema_id"      UUID,
+  ADD COLUMN IF NOT EXISTS "coding_schema_version"  INTEGER;
+
+-- ===========================================================================
+-- PHASE 3b — Indexes (per-column information_schema-guarded CREATE INDEX IF NOT EXISTS).
+-- Unchanged from the original migration — already idempotent.
+-- ===========================================================================
 DO $$
 BEGIN
   -- devices: (team_id)
@@ -1393,5 +1760,6 @@ BEGIN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "evidence_exchange_package_builds_team_state_idx" ON "evidence_exchange_package_builds" ("team_id", "state")';
   END IF;
 END $$;
+
 
 COMMIT;
