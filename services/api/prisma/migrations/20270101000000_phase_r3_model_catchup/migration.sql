@@ -892,7 +892,14 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'devices'
-  ) AND NOT EXISTS (
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'devices'
+       AND column_name  = 'public_key_fingerprint'
+  )
+  AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
      JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -909,7 +916,20 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'capture_device_attestations'
-  ) AND NOT EXISTS (
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'capture_device_attestations'
+       AND column_name  = 'device_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'capture_device_attestations'
+       AND column_name  = 'nonce_hex'
+  )
+  AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
      JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -926,7 +946,20 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'coding_fields'
-  ) AND NOT EXISTS (
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'coding_fields'
+       AND column_name  = 'schema_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'coding_fields'
+       AND column_name  = 'slug'
+  )
+  AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
      JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -943,7 +976,20 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'coding_values'
-  ) AND NOT EXISTS (
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'coding_values'
+       AND column_name  = 'workflow_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'coding_values'
+       AND column_name  = 'field_id'
+  )
+  AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
      JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -960,7 +1006,14 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'external_reviewer_role_assignments'
-  ) AND NOT EXISTS (
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'external_reviewer_role_assignments'
+       AND column_name  = 'token_hash'
+  )
+  AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
      JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -977,7 +1030,20 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'redaction_projects'
-  ) AND NOT EXISTS (
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_projects'
+       AND column_name  = 'team_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_projects'
+       AND column_name  = 'evidence_id'
+  )
+  AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
      JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -994,7 +1060,20 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'redaction_versions'
-  ) AND NOT EXISTS (
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_versions'
+       AND column_name  = 'project_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_versions'
+       AND column_name  = 'version_ordinal'
+  )
+  AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
      JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -1011,7 +1090,14 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'redaction_derivatives'
-  ) AND NOT EXISTS (
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_derivatives'
+       AND column_name  = 'version_id'
+  )
+  AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
      JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -1028,7 +1114,14 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'trust_center_articles'
-  ) AND NOT EXISTS (
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'trust_center_articles'
+       AND column_name  = 'slug'
+  )
+  AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
      JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -1045,7 +1138,14 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'subprocessors'
-  ) AND NOT EXISTS (
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'subprocessors'
+       AND column_name  = 'name'
+  )
+  AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
      JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -1062,7 +1162,14 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'status_components'
-  ) AND NOT EXISTS (
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'status_components'
+       AND column_name  = 'key'
+  )
+  AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
      JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -1079,7 +1186,14 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'evidence_exchange_package_builds'
-  ) AND NOT EXISTS (
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'evidence_exchange_package_builds'
+       AND column_name  = 'package_id'
+  )
+  AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
      JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -1108,6 +1222,18 @@ BEGIN
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'devices'
   )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'capture_device_attestations'
+       AND column_name  = 'device_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'devices'
+       AND column_name  = 'id'
+  )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
@@ -1129,6 +1255,18 @@ BEGIN
   AND EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'coding_schemas'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'coding_fields'
+       AND column_name  = 'schema_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'coding_schemas'
+       AND column_name  = 'id'
   )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
@@ -1152,6 +1290,18 @@ BEGIN
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'coding_fields'
   )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'coding_values'
+       AND column_name  = 'field_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'coding_fields'
+       AND column_name  = 'id'
+  )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
@@ -1173,6 +1323,18 @@ BEGIN
   AND EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'external_reviewer_role_assignments'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'external_review_invitation_deliveries'
+       AND column_name  = 'grant_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'external_reviewer_role_assignments'
+       AND column_name  = 'id'
   )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
@@ -1196,6 +1358,18 @@ BEGIN
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'redaction_projects'
   )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_versions'
+       AND column_name  = 'project_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_projects'
+       AND column_name  = 'id'
+  )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
@@ -1217,6 +1391,18 @@ BEGIN
   AND EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'redaction_versions'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_regions'
+       AND column_name  = 'version_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_versions'
+       AND column_name  = 'id'
   )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
@@ -1240,6 +1426,18 @@ BEGIN
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'redaction_versions'
   )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_detections'
+       AND column_name  = 'version_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_versions'
+       AND column_name  = 'id'
+  )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
@@ -1261,6 +1459,18 @@ BEGIN
   AND EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'redaction_regions'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_decisions'
+       AND column_name  = 'region_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_regions'
+       AND column_name  = 'id'
   )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
@@ -1284,6 +1494,18 @@ BEGIN
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'redaction_versions'
   )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_approvals'
+       AND column_name  = 'version_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_versions'
+       AND column_name  = 'id'
+  )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
@@ -1305,6 +1527,18 @@ BEGIN
   AND EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'redaction_versions'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_derivatives'
+       AND column_name  = 'version_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_versions'
+       AND column_name  = 'id'
   )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
@@ -1328,6 +1562,18 @@ BEGIN
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'redaction_projects'
   )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_activities'
+       AND column_name  = 'project_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_projects'
+       AND column_name  = 'id'
+  )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
@@ -1349,6 +1595,18 @@ BEGIN
   AND EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'trust_center_articles'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'trust_center_article_versions'
+       AND column_name  = 'article_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'trust_center_articles'
+       AND column_name  = 'id'
   )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
@@ -1372,6 +1630,18 @@ BEGIN
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'subprocessors'
   )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'subprocessor_versions'
+       AND column_name  = 'subprocessor_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'subprocessors'
+       AND column_name  = 'id'
+  )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
@@ -1393,6 +1663,18 @@ BEGIN
   AND EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'status_components'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'status_incidents'
+       AND column_name  = 'component_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'status_components'
+       AND column_name  = 'id'
   )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
@@ -1416,6 +1698,18 @@ BEGIN
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'status_incidents'
   )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'status_incident_updates'
+       AND column_name  = 'incident_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'status_incidents'
+       AND column_name  = 'id'
+  )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
@@ -1437,6 +1731,18 @@ BEGIN
   AND EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'governance_policies'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'governance_policy_assignments'
+       AND column_name  = 'policy_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'governance_policies'
+       AND column_name  = 'id'
   )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
@@ -1460,6 +1766,18 @@ BEGIN
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'governance_policies'
   )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'governance_policy_audits'
+       AND column_name  = 'policy_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'governance_policies'
+       AND column_name  = 'id'
+  )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
      JOIN pg_class t ON t.oid = c.conrelid
@@ -1481,6 +1799,18 @@ BEGIN
   AND EXISTS (
     SELECT 1 FROM pg_tables
      WHERE schemaname = 'public' AND tablename = 'access_review_campaigns'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'access_review_items'
+       AND column_name  = 'campaign_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'access_review_campaigns'
+       AND column_name  = 'id'
   )
   AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
