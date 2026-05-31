@@ -51,7 +51,49 @@ export type RouteAccessInput = {
    * the small set of routes that gate by plan. Defaults to "FREE".
    */
   accountPlan?: string | null;
+  /**
+   * PERSONAL-FIRST RESCUE — optional envelope fragments used only as
+   * a fallback when `activeSpaceType` is missing/null. If the user
+   * has a healthy personal space OR a healthy workspace, the
+   * `PERSONAL_OR_ORG` gate must grant access even when the canonical
+   * `activeSpace.type` field has not been populated (e.g. degraded
+   * envelope path, schema downgrade, partial backend projection).
+   *
+   * These fields are PURELY ADDITIVE — when omitted, the resolver
+   * behaves identically to the pre-rescue version. They never widen
+   * `ORGANIZATION_ONLY` access; org-only still strictly requires
+   * `activeSpaceType === "ORGANIZATION"`.
+   */
+  workspace?: { id: string | null; status?: string | null } | null;
+  personalSpace?: { id: string | null; status?: string | null } | null;
 };
+
+/**
+ * Personal-first rescue helper — does the envelope contain any
+ * evidence of a usable workspace beyond `activeSpace.type`?
+ *
+ * "Usable" means EITHER (a) the legacy `workspace.id` is set and the
+ * workspace status is not explicitly "no-workspace", OR (b) the
+ * canonical `personalSpace.id` is set with a non-degraded status.
+ * Any of those signals satisfies PROOVRA's personal-first contract.
+ *
+ * This NEVER returns true for organization-only routes — callers
+ * keep checking `activeSpaceType === "ORGANIZATION"` separately for
+ * `ORGANIZATION_ONLY` decisions.
+ */
+function hasUsablePersonalOrOrgEvidence(input: RouteAccessInput): boolean {
+  const ws = input.workspace;
+  if (ws && typeof ws.id === "string" && ws.id.length > 0) {
+    const status = (ws.status ?? "active").toLowerCase();
+    if (status !== "no-workspace") return true;
+  }
+  const ps = input.personalSpace;
+  if (ps && typeof ps.id === "string" && ps.id.length > 0) {
+    const status = (ps.status ?? "active").toLowerCase();
+    if (status === "active") return true;
+  }
+  return false;
+}
 
 export type RouteAccessResult = {
   canLoad: boolean;
@@ -123,15 +165,31 @@ export function resolveRouteAccess(
     }
   } else if (route.requiredActiveSpace === "PERSONAL_OR_ORG") {
     if (activeSpaceType !== "PERSONAL" && activeSpaceType !== "ORGANIZATION") {
-      return {
-        canLoad: false,
-        canSeeNav: true,
-        accessState: "NEEDS_PERSONAL_OR_ORG",
-        reason:
-          "This surface needs an active workspace. Set one up to continue.",
-        primaryAction: { label: "Open workspaces", href: "/teams" },
-        secondaryAction: null,
-      };
+      // PERSONAL-FIRST RESCUE: before refusing, look at any other
+      // envelope evidence of a usable workspace. PROOVRA's product
+      // contract is that a personal workspace is first-class, so any
+      // healthy `workspace.id` OR `personalSpace.id` is sufficient.
+      // This guards against a backend that returns a degraded
+      // envelope where `activeSpace.type` is missing while
+      // `personalSpace.id` is populated — without this fallback the
+      // user sees "Workspace setup required" on every core route.
+      //
+      // NOTE: this branch ONLY fires for `PERSONAL_OR_ORG`. The
+      // `ORGANIZATION_ONLY` branch above is unchanged; org-only
+      // surfaces still strictly require `activeSpaceType === "ORGANIZATION"`.
+      if (!hasUsablePersonalOrOrgEvidence(input)) {
+        return {
+          canLoad: false,
+          canSeeNav: true,
+          accessState: "NEEDS_PERSONAL_OR_ORG",
+          reason:
+            "This surface needs an active workspace. Set one up to continue.",
+          primaryAction: { label: "Open workspaces", href: "/teams" },
+          secondaryAction: null,
+        };
+      }
+      // else: fall through to capability check — personal/workspace
+      // evidence is sufficient for PERSONAL_OR_ORG routes.
     }
   }
   // requiredActiveSpace === "NONE" → no workspace check.

@@ -598,21 +598,48 @@ export async function buildPlatformContext(
   // Derived from the legacy workspace.scope so we stay coherent with all
   // existing per-section logic and the legacy `workspace` field. The
   // displayName is bounded — never raw UUIDs.
+  //
+  // PERSONAL-FIRST RESCUE — derivation order is now:
+  //
+  //   1. If workspace.scope === "TEAM" AND workspace.id is a real id →
+  //      emit ORGANIZATION (the normal org-workspace case).
+  //   2. If workspace.scope === "PERSONAL" (or anything else) AND we
+  //      have ANY usable personal id (workspace.id OR personalSpace.id) →
+  //      emit PERSONAL with that id. This is the path that fires when
+  //      the user is on their personal workspace, OR when the active
+  //      team workspace was unreachable and we fell back to personal.
+  //   3. If we have NO usable id at all (bootstrap failed) → emit
+  //      PERSONAL with id=null (degraded shape; the frontend's
+  //      `WorkspaceRecoveryPanel` renders for this case).
+  //
+  // The previous logic silently emitted `type: "ORGANIZATION"` with an
+  // empty-string id whenever scope wasn't "PERSONAL", which produced
+  // an envelope where the frontend gate saw `activeSpace.type ===
+  // "ORGANIZATION"` and let the route load — but every team-scoped
+  // request fired with an empty string. The new derivation refuses to
+  // emit ORGANIZATION without a real id, falling back to PERSONAL
+  // instead so the personal workspace is always usable.
   // ===========================================================================
   let activeSpace: PlatformContextActiveSpace;
-  if (workspace.scope === "PERSONAL") {
-    activeSpace = {
-      type: "PERSONAL",
-      id: workspace.id ?? personalSpace.id,
-      displayName: "Personal Space",
-      roleLabel: "Owner",
-    };
-  } else {
+  const workspaceIdNonEmpty =
+    typeof workspace.id === "string" && workspace.id.length > 0;
+  if (workspace.scope === "TEAM" && workspaceIdNonEmpty) {
     activeSpace = {
       type: "ORGANIZATION",
-      id: workspace.id ?? "",
+      id: workspace.id as string,
       displayName: workspace.name ?? "Organization workspace",
       roleLabel: workspace.membership.role,
+    };
+  } else {
+    // PERSONAL — pick the best available id; ALWAYS emit type=PERSONAL.
+    const personalId: string | null = workspaceIdNonEmpty
+      ? (workspace.id as string)
+      : personalSpace.id ?? null;
+    activeSpace = {
+      type: "PERSONAL",
+      id: personalId,
+      displayName: "Personal Space",
+      roleLabel: "Owner",
     };
   }
 

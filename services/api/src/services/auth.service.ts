@@ -4,6 +4,7 @@ import { importPKCS8, SignJWT } from "jose";
 import { prisma } from "../db.js";
 import * as prismaPkg from "@prisma/client";
 import { log, error } from "../utils/logger.js";
+import { ensurePersonalWorkspace } from "./platform-context/workspace-bootstrap.service.js";
 
 type AuthProfile = {
   provider: prismaPkg.AuthProvider;
@@ -375,6 +376,34 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
         teamSeats: 0,
         active: true,
       },
+    });
+  }
+
+  // PERSONAL-FIRST RESCUE — eagerly bootstrap the personal workspace
+  // and set users.current_workspace_id on every OAuth / email-link
+  // sign-in so the actor can immediately use the core product without
+  // depending on the first /v1/platform/context request to succeed.
+  //
+  // Idempotent (`ensurePersonalWorkspace` returns the existing
+  // personal team on re-runs — see workspace-bootstrap.service.ts).
+  // We only set `currentWorkspaceId` when it is NULL so we never
+  // clobber a guest-conversion or operator-chosen workspace.
+  //
+  // Non-fatal: bootstrap failures fall through (lazy bootstrap inside
+  // buildPlatformContext is the secondary safety net) so authentication
+  // itself is never blocked by a degraded workspace section.
+  try {
+    const personal = await ensurePersonalWorkspace({ userId: user.id });
+    if (!user.currentWorkspaceId && personal.teamId) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { currentWorkspaceId: personal.teamId },
+      });
+    }
+  } catch (err) {
+    error("[upsertUserWithEmailLink] eager bootstrap failed (non-fatal)", {
+      userId: user.id,
+      error: (err as Error)?.message ?? String(err),
     });
   }
 

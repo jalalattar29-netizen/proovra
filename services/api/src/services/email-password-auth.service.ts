@@ -1,6 +1,8 @@
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from "node:crypto";
 import { prisma } from "../db.js";
 import { AuthProvider, PlanType } from "@prisma/client";
+import { ensurePersonalWorkspace } from "./platform-context/workspace-bootstrap.service.js";
+import { error as logError } from "../utils/logger.js";
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -100,6 +102,34 @@ export async function registerWithEmailPassword(params: {
         teamSeats: 0,
         active: true
       }
+    });
+  }
+
+  // PERSONAL-FIRST RESCUE — eagerly bootstrap the personal workspace
+  // and set users.current_workspace_id so the user can immediately
+  // use the core product (capture/evidence/reports/verify) without
+  // depending on /v1/platform/context succeeding first.
+  //
+  // `ensurePersonalWorkspace` is idempotent: returns the existing
+  // personal team on re-runs (no duplicate workspaces created). We
+  // only set `currentWorkspaceId` when it is NULL so we never overwrite
+  // an existing operator selection (e.g. on second signup attempt with
+  // the same email after a prior session migrated to an org workspace).
+  //
+  // Wrapped in try/catch so a bootstrap failure does NOT block signup;
+  // platform-context still has its own lazy bootstrap as a safety net.
+  try {
+    const personal = await ensurePersonalWorkspace({ userId: user.id });
+    if (!user.currentWorkspaceId && personal.teamId) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { currentWorkspaceId: personal.teamId },
+      });
+    }
+  } catch (err) {
+    logError("[registerWithEmailPassword] eager bootstrap failed (non-fatal)", {
+      userId: user.id,
+      error: (err as Error)?.message ?? String(err),
     });
   }
 
