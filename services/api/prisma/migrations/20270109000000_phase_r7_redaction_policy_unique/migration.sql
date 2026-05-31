@@ -1,25 +1,20 @@
--- Phase R7 — RedactionPolicy workspace-scoped name uniqueness.
--- Promotes the soft "catch the conflict" behavior of createPolicy to a hard
--- DB constraint: a workspace cannot carry two redaction policies with the
--- same name. Additive (CREATE UNIQUE INDEX IF NOT EXISTS); no DROP, no
--- UPDATE, no SET NOT NULL.
+-- Phase R7 — RedactionPolicy workspace-scoped name uniqueness — HARDENED.
+-- Additive (CREATE UNIQUE INDEX IF NOT EXISTS); no DROP, no UPDATE, no SET NOT NULL.
 --
--- The Phase O-Final column-existence guard wraps the CREATE INDEX so the
--- migration is safe on any environment where the underlying columns might
--- not exist (legacy / stripped clusters).
+-- Hardening rules applied:
+--   * Guard CREATE UNIQUE INDEX by pg_tables + every indexed column existence.
 
 BEGIN;
 
 DO $$
 BEGIN
-  IF EXISTS (
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='redaction_policies')
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
-     WHERE table_schema='public' AND table_name='redaction_policies'
-       AND column_name='team_id'
+     WHERE table_schema='public' AND table_name='redaction_policies' AND column_name='team_id'
   ) AND EXISTS (
     SELECT 1 FROM information_schema.columns
-     WHERE table_schema='public' AND table_name='redaction_policies'
-       AND column_name='name'
+     WHERE table_schema='public' AND table_name='redaction_policies' AND column_name='name'
   ) THEN
     EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS "redaction_policies_team_id_name_key" ON "redaction_policies" ("team_id", "name")';
   END IF;
