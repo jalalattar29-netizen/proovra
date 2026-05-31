@@ -50,7 +50,27 @@ export const AUTHORITY_SCHEMA_VERSION: number = 3;
 /** Bumped when CAPABILITY_KEYS is extended or semantics change. */
 export const CAPABILITY_SCHEMA_VERSION = 2 as const;
 /** Bumped when NAVIGATION groups/items/ids shift. */
-export const NAVIGATION_SCHEMA_VERSION = 1 as const;
+export const NAVIGATION_SCHEMA_VERSION = 2 as const;
+
+// =============================================================================
+// Phase 1A — 8-pillar canonical architecture.
+//
+// Mirrors the client-side PROOVRA_PILLARS in
+// apps/web/lib/navigation/pillarRegistry.ts. Order is canonical and
+// drives both sidebar render order and server-side pillar projection.
+// =============================================================================
+
+export const PROOVRA_PILLARS = [
+  "HOME",
+  "CAPTURE",
+  "CASES",
+  "REVIEW",
+  "GOVERNANCE",
+  "OPERATIONS",
+  "ADMIN",
+  "TRUST",
+] as const;
+export type ProovraPillar = (typeof PROOVRA_PILLARS)[number];
 
 // =============================================================================
 // Bounded role vocabulary (mirrors Prisma TeamRole exactly)
@@ -349,8 +369,19 @@ export type PlatformContextNavigation = {
    * Sidebar projection (operator surfaces). Same shape as the legacy
    * `groups` field — included here so callers can move to the
    * surface-aware envelope.
+   *
+   * Phase 1A — `pillars` is the canonical 8-pillar grouped projection.
+   * Each pillar groups the sidebar items that belong to it. Consumers
+   * that support pillar-aware rendering should read `pillars`; legacy
+   * consumers that read `groups` directly continue to work unchanged.
    */
-  sidebar: { groups: ReadonlyArray<PlatformContextNavGroup> };
+  sidebar: {
+    groups: ReadonlyArray<PlatformContextNavGroup>;
+    pillars: ReadonlyArray<{
+      pillar: ProovraPillar;
+      items: ReadonlyArray<PlatformContextNavItem>;
+    }>;
+  };
   /**
    * Account-menu projection (always-available account / billing /
    * pricing / teams-entry / help items). NEVER hidden by workspace

@@ -7,6 +7,8 @@ import {
 } from "../services/identity-security/session-revocation.service.js";
 import { recordHeartbeat } from "../services/access-control/session-inventory.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
+import { prisma } from "../db.js";
+import { gateSecurityAction } from "../services/governance/policy-runtime-gates.service.js";
 
 function readCookie(header: string | undefined, name: string): string | null {
   if (!header) return null;
@@ -105,6 +107,62 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
       return reply
         .code(401)
         .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
+    }
+
+    // Phase 4A Closure — SECURITY policy gate at session-authenticate time.
+    // When the JWT carries a session id, look up the workspace anchor (teamId)
+    // and run gateSecurityAction with action="session_authenticate". The
+    // governance policy engine (evaluateSecurityPolicy) inspects effective
+    // SECURITY policies (requireMfa / requireSaml / allowedActions). A BLOCK
+    // verdict refuses the request with 401 — closes the loop between Phase 4A
+    // SECURITY policies and the actual authentication path. Skipped for
+    // sessions without a resolvable teamId (personal-space tokens have no
+    // workspace policies to evaluate, so the gate is a no-op there by design).
+    if (sid) {
+      try {
+        const sessionRow = await prisma.authenticatedSession.findFirst({
+          where: {
+            userId: payload.sub,
+            sessionIdHash: hashSessionId(sid),
+          },
+          select: { teamId: true },
+        });
+        const teamId = sessionRow?.teamId ?? null;
+        if (teamId) {
+          const verdict = await gateSecurityAction({
+            teamId,
+            userId: payload.sub,
+            action: "session_authenticate",
+            mfaSatisfied: payload.mfa !== "pending",
+          });
+          if (!verdict.ok) {
+            req.log.info(
+              {
+                requestId: req.id,
+                userId: payload.sub,
+                denial: verdict.denial,
+                reason: verdict.reason,
+              },
+              "auth.security_policy_denied",
+            );
+            return reply
+              .code(401)
+              .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
+          }
+        }
+      } catch (err) {
+        // Fail OPEN on policy-engine read failure — auth has already passed
+        // JWT + revocation checks; a Prisma outage on the policy table must
+        // not lock out every user. The failure is logged for security ops.
+        req.log.warn(
+          {
+            requestId: req.id,
+            errorMessage:
+              err instanceof Error ? err.message : "security_gate_failed",
+          },
+          "auth.security_gate_failed",
+        );
+      }
     }
 
     req.user = {

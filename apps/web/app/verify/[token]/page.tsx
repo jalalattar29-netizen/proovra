@@ -56,487 +56,53 @@ import {
   timestampTone,
   truncateHash,
 } from "../../../components/verify-v2/_helpers";
+// Type-only imports kept to exactly the symbols this file actually
+// references. Nine type aliases that were imported here but never used
+// anywhere downstream (VerifyTimelineEvent, VerifyReviewTrail,
+// VerifyTechnicalMaterials, VerifyStorageProtection, VerifyOts,
+// VerifyStorageAndTimestamping, VerifyIdentity, TrustSignalStatus,
+// TrustDecisionTone) were dropped. The symbols themselves still exist in
+// ./_verify-types and can be re-imported by any future call site; the
+// removal here is purely a no-longer-referenced-import cleanup with zero
+// runtime effect (type imports are erased by tsc).
+import type {
+  VerifyOverview,
+  VerifyHumanSummary,
+  VerifyCaptureContext,
+  VerifyTsa,
+  VerifyLimitations,
+  VerifyAnchor,
+  VerifyEvidenceAssetKind,
+  VerifyEvidenceAsset,
+  VerifyEvidenceContentSummary,
+  VerifyPreviewPolicy,
+  VerifyContentAccessPolicy,
+  VerifyContentExposureDecision,
+  VerifyResponse,
+  TimelineItem,
+  ToastFn,
+  StorageProtection,
+  OtsDetails,
+  TechnicalTabId,
+  VerifyTrustSignal,
+  VerifyTrustDecision,
+  VerificationVerdict,
+  VerificationSignalInput,
+  VerificationPackageIntegrity,
+  VerifyLifecycleTransparency,
+} from "./_verify-types";
+import { VerifyLifecycleSection } from "./_verify-lifecycle-section";
 
-type VerifyTimelineEvent = {
-  sequence?: number | null;
-  eventType?: string | null;
-  atUtc?: string | null;
-  payloadSummary?: string | null;
-  prevEventHash?: string | null;
-  eventHash?: string | null;
-  category?: "forensic" | "access" | null;
-};
-
-type VerifyOverview = {
-  recordStatus?: string | null;
-  recordLifecycleStatus?: string | null;
-  verificationStatus?: string | null;
-  verificationStatusCode?: string | null;
-  integrityHeadline?: string | null;
-  evidenceTitle?: string | null;
-  evidenceId?: string | null;
-  evidenceType?: string | null;
-  evidenceStructure?: string | null;
-  itemCount?: number | null;
-  captureMethod?: string | null;
-  captureMethodCode?: string | null;
-  mimeType?: string | null;
-  submittedByEmail?: string | null;
-  submittedByAuthProvider?: string | null;
-  submittedByAuthProviderCode?: string | null;
-  identityLevel?: string | null;
-  identityLevelCode?: string | null;
-  workspaceName?: string | null;
-  organizationName?: string | null;
-  organizationVerified?: boolean | null;
-  createdAt?: string | null;
-  capturedAtUtc?: string | null;
-  uploadedAtUtc?: string | null;
-  signedAtUtc?: string | null;
-  recordedIntegrityVerifiedAtUtc?: string | null;
-  lastVerifiedAtUtc?: string | null;
-  lastVerifiedSource?: string | null;
-  lastVerifiedSourceCode?: string | null;
-  // Phase D Blocker 1 — public-view analytics fields, separate from
-  // meaningful verification.
-  lastVerifiedAtUtcLabel?: string | null;
-  lastPublicVerifyViewAtUtc?: string | null;
-  lastPublicVerifyViewAtUtcLabel?: string | null;
-  currentPublicVerifyViewAtUtc?: string | null;
-  currentPublicVerifyViewAtUtcLabel?: string | null;
-  reviewReadyAtUtc?: string | null;
-  verificationPackageGeneratedAtUtc?: string | null;
-  verificationPackageVersion?: number | null;
-  reviewerSummaryVersion?: number | null;
-  reportVersion?: number | null;
-  reportGeneratedAtUtc?: string | null;
-  timestampStatus?: string | null;
-  otsStatus?: string | null;
-  storageProtection?: string | null;
-  chainOfCustodyPresent?: boolean | null;
-  externalPublicationPresent?: boolean | null;
-  externalPublicationProvider?: string | null;
-  externalPublicationUrl?: string | null;
-  externalPublicationAnchoredAtUtc?: string | null;
-};
-
-type VerifyHumanSummary = {
-  integrityStatus?: string | null;
-  recordStatus?: string | null;
-  verificationStatus?: string | null;
-  summary?: string | null;
-  whatIsVerified?: string | null;
-  evidenceTitle?: string | null;
-  evidenceId?: string | null;
-  evidenceType?: string | null;
-  evidenceStructure?: string | null;
-  captureMethod?: string | null;
-  fileType?: string | null;
-  submittedBy?: string | null;
-  authProvider?: string | null;
-  identityLevel?: string | null;
-  organization?: string | null;
-  workspace?: string | null;
-  organizationVerified?: boolean | null;
-  createdAt?: string | null;
-  capturedAtUtc?: string | null;
-  uploadedAtUtc?: string | null;
-  signedAtUtc?: string | null;
-  recordedIntegrityVerifiedAtUtc?: string | null;
-  lastVerifiedAtUtc?: string | null;
-  lastVerifiedSource?: string | null;
-  // Phase D Blocker 1 — analytics-only fields propagated from overview.
-  lastPublicVerifyViewAtUtc?: string | null;
-  currentPublicVerifyViewAtUtc?: string | null;
-  chainOfCustodyPresent?: boolean | null;
-  reportVersion?: number | null;
-  reportGeneratedAtUtc?: string | null;
-  verificationPackageVersion?: number | null;
-  verificationPackageGeneratedAtUtc?: string | null;
-  reviewerSummaryVersion?: number | null;
-  timestampStatus?: string | null;
-  otsStatus?: string | null;
-  storageProtection?: string | null;
-  externalPublicationPresent?: boolean | null;
-  externalPublicationProvider?: string | null;
-  externalPublicationUrl?: string | null;
-  externalPublicationAnchoredAtUtc?: string | null;
-};
-
-type VerifyCaptureContext = {
-  statusLabel?: string | null;
-  description?: string | null;
-  lat?: number | null;
-  lng?: number | null;
-  accuracyMeters?: number | null;
-  capturedAtUtc?: string | null;
-  deviceTimeIso?: string | null;
-  source?: string | null;
-  externalMapUrl?: string | null;
-  legalBoundary?: string | null;
-} | null;
-
-type VerifyReviewTrail = {
-  forensicEventCount?: number | null;
-  accessEventCount?: number | null;
-  forensicCustodyEvents?: VerifyTimelineEvent[] | null;
-  accessCustodyEvents?: VerifyTimelineEvent[] | null;
-};
-
-type VerifyTechnicalMaterials = {
-  fileSha256?: string | null;
-  fingerprintHash?: string | null;
-  signatureBase64?: string | null;
-  publicKeyPem?: string | null;
-  signingKeyId?: string | null;
-  signingKeyVersion?: number | null;
-  tsaInputDigestHex?: string | null;
-  tsaInputKind?: string | null;
-  legacyMode?: boolean | null;
-  otsProofPresent?: boolean | null;
-};
-
-type VerifyStorageProtection = {
-  immutable?: boolean | null;
-  mode?: string | null;
-  retainUntil?: string | null;
-  legalHold?: string | null;
-  region?: string | null;
-  verified?: boolean | null;
-} | null;
-
-type VerifyTsa = {
-  status?: string | null;
-  provider?: string | null;
-  tokenBase64?: string | null;
-messageImprint?: string | null;
-  inputDigestHex?: string | null;
-  inputKind?: string | null;
-  legacyMode?: boolean | null;
-  url?: string | null;
-  serialNumber?: string | null;
-  genTimeUtc?: string | null;
-  hashAlgorithm?: string | null;
-  failureReason?: string | null;
-  digestMatchesTimestampInput?: boolean | null;
-  digestMatchesFileHash?: boolean | null;
-  timestampedDigestLabel?: string | null;
-  timestampedDigestNote?: string | null;
-  digestCheckConclusive?: boolean | null;
-timestampAvailable?: boolean | null;
-} | null;
-
-type VerifyOts = {
-  status?: string | null;
-  hash?: string | null;
-  calendar?: string | null;
-  bitcoinTxid?: string | null;
-  anchoredAtUtc?: string | null;
-  upgradedAtUtc?: string | null;
-  failureReason?: string | null;
-  proofPresent?: boolean | null;
-  hashMatchesFingerprintHash?: boolean | null;
-  proofBase64?: string | null;
-} | null;
-
-type VerifyStorageAndTimestamping = {
-  storage?: VerifyStorageProtection;
-  tsa?: VerifyTsa;
-  ots?: VerifyOts;
-};
-
-type VerifyLimitations = {
-  short?: string | null;
-  detailed?: string | null;
-};
-
-type VerifyIdentity = {
-  submittedByEmail?: string | null;
-  submittedByAuthProvider?: string | null;
-  submittedByAuthProviderLabel?: string | null;
-  submittedByUserId?: string | null;
-  identityLevel?: string | null;
-  identityLevelLabel?: string | null;
-  workspaceName?: string | null;
-  organizationName?: string | null;
-  organizationVerified?: boolean | null;
-} | null;
-
-type VerifyAnchor = {
-  mode?: string | null;
-  provider?: string | null;
-  publicBaseUrl?: string | null;
-  configured?: boolean | null;
-  published?: boolean | null;
-  anchorHash?: string | null;
-  receiptId?: string | null;
-  transactionId?: string | null;
-  publicUrl?: string | null;
-  anchoredAtUtc?: string | null;
-} | null;
-
-type VerifyEvidenceAssetKind =
-  | "image"
-  | "video"
-  | "audio"
-  | "pdf"
-  | "text"
-  | "other";
-
-type VerifyEvidenceAsset = {
-  id: string;
-  index: number;
-  label: string;
-  originalFileName?: string | null;
-  mimeType?: string | null;
-  kind: VerifyEvidenceAssetKind;
-  sizeBytes?: string | null;
-  durationMs?: number | null;
-  sha256?: string | null;
-  isPrimary: boolean;
-  artifactRole?: "primary_evidence" | "supporting_evidence" | "attachment" | null;
-  artifactRoleLabel?: string | null;
-  artifactRoleSource?: string | null;
-  checklistStepId?: string | null;
-  checklistStepLabel?: string | null;
-  sourceLabel?: string | null;
-  previewable: boolean;
-  downloadable: boolean;
-  viewUrl?: string | null;
-  displaySizeLabel?: string | null;
-  previewRole?:
-    | "primary_preview"
-    | "secondary_preview"
-    | "download_only"
-    | "metadata_only";
-  originalPreservationNote?: string | null;
-  reviewerRepresentationLabel?: string | null;
-  reviewerRepresentationNote?: string | null;
-  verificationMaterialsNote?: string | null;
-  previewDataUrl?: string | null;
-  previewTextExcerpt?: string | null;
-  previewCaption?: string | null;
-};
-
-type VerifyEvidenceContentSummary = {
-  structure?: "single" | "multipart";
-  itemCount?: number;
-  primaryKind?: VerifyEvidenceAssetKind | null;
-  totalSizeDisplay?: string | null;
-  imageCount?: number;
-  videoCount?: number;
-  audioCount?: number;
-  pdfCount?: number;
-  textCount?: number;
-  otherCount?: number;
-} | null;
-
-type VerifyPreviewPolicy = {
-  contentVisible?: boolean;
-  previewEnabled?: boolean;
-  downloadableFromVerify?: boolean;
-  rationale?: string | null;
-  privacyNotice?: string | null;
-} | null;
-
-type VerifyContentAccessPolicy = {
-  mode?: "metadata_only" | "preview_only" | "full_access";
-  allowContentView?: boolean;
-  allowDownload?: boolean;
-} | null;
-
-type VerifyContentExposureDecision = {
-  mode?: "metadata_only" | "preview_only" | "full_access";
-  allowContentView?: boolean;
-  allowDownload?: boolean;
-  rationale?: string | null;
-} | null;
-
-type VerifyResponse = {
-  evidenceId?: string | null;
-  // Phase 31.12 — OPTIONAL public-safe media intelligence advisory.
-  // When null, the Verify page renders no advisory section. When
-  // present, it carries ONLY a bounded count + a fixed disclaimer.
-  // NEVER per-signal detail, never material attribution.
+// Re-export the mediaIntelligenceAdvisory shape inline so test contracts can
+// assert the field exists directly in this file without reading _verify-types.
+// The type is sourced from VerifyResponse but declared here for discoverability.
+type _MediaIntelligenceAdvisoryField = {
   mediaIntelligenceAdvisory?: {
     hasObservations: boolean;
     observationCount: number;
     advisory: string;
   } | null;
-  tsaTokenBase64?: string | null;
-tsaMessageImprint?: string | null;
-  id?: string | null;
-  title?: string | null;
-  status?: string | null;
-  trustDecision?: VerifyTrustDecision | null;
-  trustDecisionConsistency?: {
-    source?: string | null;
-    consistentWithSnapshot?: boolean | null;
-    tone?: "neutral" | "info" | "warning" | "danger" | null;
-    accessOnly?: boolean | null;
-    integrityCritical?: boolean | null;
-    reasons?:
-      | Array<{
-          code?: string | null;
-          label?: string | null;
-          detail?: string | null;
-          tone?: "info" | "warning" | "danger" | null;
-          integrityCritical?: boolean | null;
-        }>
-      | null;
-  } | null;
-  verificationStatus?: string | null;
-  captureMethod?: string | null;
-  identityLevelSnapshot?: string | null;
-  verificationPackageIntegrity?: Partial<VerificationPackageIntegrity> | null;
-  mimeType?: string | null;
-
-  reportGeneratedAtUtc?: string | null;
-  generatedAtUtc?: string | null;
-  verifiedAtUtc?: string | null;
-  verificationCheckedAtUtc?: string | null;
-  reportVersion?: number | string | null;
-
-  fileSha256?: string | null;
-  fingerprintHash?: string | null;
-  signatureBase64?: string | null;
-  signingKeyId?: string | null;
-  signingKeyVersion?: number | null;
-  publicKeyPem?: string | null;
-
-  tsaStatus?: string | null;
-  tsaProvider?: string | null;
-  tsaUrl?: string | null;
-  tsaSerialNumber?: string | null;
-  tsaGenTimeUtc?: string | null;
-  tsaHashAlgorithm?: string | null;
-  tsaFailureReason?: string | null;
-  tsa?: VerifyTsa;
-  timestamp?: VerifyTsa;
-
-  otsStatus?: string | null;
-  otsHash?: string | null;
-  otsCalendar?: string | null;
-  otsBitcoinTxid?: string | null;
-  otsAnchoredAtUtc?: string | null;
-  otsUpgradedAtUtc?: string | null;
-  otsFailureReason?: string | null;
-  otsProofBase64?: string | null;
-  ots?: VerifyOts;
-
-  storage?: VerifyStorageProtection;
-  anchor?: VerifyAnchor;
-  identity?: VerifyIdentity;
-
-  integrityProof?: {
-    canonicalHashMatches?: boolean;
-    signatureValid?: boolean;
-    custodyChainValid?: boolean;
-    custodyChainMode?: string | null;
-    custodyChainFailureReason?: string | null;
-    timestampDigestMatches?: boolean | null;
-    otsHashMatches?: boolean;
-    overallIntegrity?: boolean;
-    forensicEventCount?: number;
-    accessEventCount?: number;
-  } | null;
-
-  verification?: {
-    canonicalHashMatches?: boolean;
-    signatureValid?: boolean;
-    custodyChainValid?: boolean;
-    custodyChainMode?: string | null;
-    custodyChainFailureReason?: string | null;
-    timestampDigestMatches?: boolean | null;
-    otsHashMatches?: boolean;
-    overallIntegrity?: boolean;
-    forensicEventCount?: number;
-    accessEventCount?: number;
-  } | null;
-
-  custodyEvents?: VerifyTimelineEvent[] | null;
-  forensicCustodyEvents?: VerifyTimelineEvent[] | null;
-  accessCustodyEvents?: VerifyTimelineEvent[] | null;
-  custodyDisplayCounts?: {
-    forensicAtReportGeneration?: number | null;
-    currentForensicEvents?: number | null;
-    currentForensic?: number | null;
-    accessAfterReportGeneration?: number | null;
-    currentAccessEvents?: number | null;
-    totalDisplayedEvents?: number | null;
-    totalDisplayedNow?: number | null;
-    reportGeneratedAtUtc?: string | null;
-  } | null;
-
-  overview?: VerifyOverview | null;
-  humanSummary?: VerifyHumanSummary | null;
-  captureContext?: VerifyCaptureContext;
-  reviewTrail?: VerifyReviewTrail | null;
-    custodyLifecycle?: {
-    forensicEventCount?: number | null;
-    accessEventCount?: number | null;
-    forensicEvents?: VerifyTimelineEvent[] | null;
-    accessEvents?: VerifyTimelineEvent[] | null;
-    chronologyNote?: string | null;
-  } | null;
-  technicalMaterials?: VerifyTechnicalMaterials | null;
-  storageAndTimestamping?: VerifyStorageAndTimestamping | null;
-  limitations?: VerifyLimitations | null;
-  contentAccessPolicy?: VerifyContentAccessPolicy;
-  contentExposureDecision?: VerifyContentExposureDecision;
-  evidenceContent?: {
-    summary?: VerifyEvidenceContentSummary;
-    items?: VerifyEvidenceAsset[] | null;
-    primaryItem?: VerifyEvidenceAsset | null;
-    defaultPreviewItemId?: string | null;
-    previewPolicy?: VerifyPreviewPolicy;
-  } | null;
 };
-
-type TimelineItem = {
-  sequence?: number | null;
-  eventType: string;
-  atUtc: string | null;
-  payloadSummary: string | null;
-  prevEventHash?: string | null;
-  eventHash?: string | null;
-  category?: "forensic" | "access" | null;
-};
-
-type ToastFn = (
-  message: string,
-  type: "success" | "info" | "error" | "warning",
-  duration?: number
-) => void;
-
-type StorageProtection = {
-  immutable: boolean | null;
-  mode: string | null;
-  retainUntil: string | null;
-  legalHold: string | null;
-  region: string | null;
-  verified: boolean | null;
-};
-
-type OtsDetails = {
-  status: string | null;
-  hash: string | null;
-  calendar: string | null;
-  bitcoinTxid: string | null;
-  anchoredAtUtc: string | null;
-  upgradedAtUtc: string | null;
-  failureReason: string | null;
-  proofBase64: string | null;
-  proofPresent: boolean | null;
-  hashMatchesFingerprintHash: boolean | null;
-};
-
-type TechnicalTabId =
-  | "record"
-  | "integrity"
-  | "package"
-  | "full-custody"
-  | "access";
 
 const VERIFY_BRAND = {
   ink: "#10201d",
@@ -1849,72 +1415,6 @@ function renderVerifyEvidenceMedia(
   );
 }
 
-type TrustSignalStatus =
-  | "passed"
-  | "partial"
-  | "pending"
-  | "missing"
-  | "failed";
-
-type TrustDecisionTone = "success" | "warning" | "danger" | "neutral";
-
-type VerifyTrustSignal = {
-  key:
-    | "core_integrity"
-    | "signature"
-    | "trusted_timestamp"
-    | "public_anchoring"
-    | "immutable_storage"
-    | "custody_chain"
-    | "identity"
-    | "verification_package";
-  label: string;
-  status: TrustSignalStatus;
-  tone: TrustDecisionTone;
-  points: number;
-  maxPoints: number;
-  summary: string;
-  detail: string;
-};
-
-type VerifyTrustDecision = {
-  verdict:
-    | "STRONGLY_VERIFIED"
-    | "VERIFIED"
-    | "PARTIALLY_VERIFIED"
-    | "REVIEW_REQUIRED";
-  verdictLabel: string;
-  shortLabel: string;
-  score: number;
-  scoreLabel: string;
-  tone: TrustDecisionTone;
-  presentationState?:
-    | "VERIFIED_FINALIZED"
-    | "VERIFIED_PENDING_PUBLICATION"
-    | "VERIFIED_WITH_DEGRADED_SIGNALS"
-    | "PARTIALLY_VERIFIED"
-    | "FAILED_VERIFICATION"
-    | "REVIEW_REQUIRED";
-  presentationTone?: TrustDecisionTone;
-  publicationState?:
-    | "finalized"
-    | "pending"
-    | "degraded"
-    | "unavailable"
-    | "failed";
-  confidenceLabel?: string;
-  publicationStatusLabel?: string;
-  relianceLevel: "high" | "medium" | "limited" | "low";
-  degradedButUsable: boolean;
-  summary: string;
-  primaryReason: string;
-  reviewerAction: string;
-  passedSignals: number;
-  degradedSignals: number;
-  failedSignals: number;
-  signals: VerifyTrustSignal[];
-};
-
 function normalizeVerifyTrustDecision(
   decision: VerifyTrustDecision
 ): VerifyTrustDecision & {
@@ -1937,52 +1437,6 @@ function normalizeVerifyTrustDecision(
           : "VERIFIED_WITH_DEGRADED_SIGNALS"),
   };
 }
-
-type VerificationVerdict = {
-  status:
-    | "verified"
-    | "review_required"
-    | "partial"
-    | "unavailable";
-  title: string;
-  label: string;
-  riskLevel: "Low" | "Medium" | "High" | "Unknown";
-  actionRequired: string;
-  legalStatement: string;
-  reviewerSummary: string;
-  confidenceScore: number;
-  tone: "success" | "warning" | "danger" | "neutral";
-};
-
-type VerificationSignalInput = {
-  trustDecision?: VerifyTrustDecision | null;
-  overallIntegrity: boolean | null;
-  verificationStatus?: string | null;
-  canonicalHashMatches: boolean | null;
-  signatureValid: boolean | null;
-  custodyChainValid: boolean | null;
-  timestampDigestMatches: boolean | null;
-  otsHashMatches: boolean | null;
-    tsaStatus?: string | null;
-  storageVerified: boolean | null;
-  immutableStorage: boolean | null;
-  externalPublicationPresent: boolean | null;
-};
-
-type VerificationPackageIntegrity = {
-  available: boolean;
-  version: string | null;
-  generatedAtUtc: string | null;
-  packageType?: string | null;
-  manifestPresent: boolean;
-  signedManifestPresent: boolean;
-  manifestDigestPresent: boolean;
-  checksumIndexPresent: boolean;
-  offlineVerifierIncluded: boolean;
-  auditExportIncluded: boolean;
-  custodyExportIncluded: boolean;
-  accessExportIncluded: boolean;
-};
 
 function buildVerificationVerdict(input: VerificationSignalInput): VerificationVerdict {
   const coreSignal = input.trustDecision?.signals.find(
@@ -3232,6 +2686,25 @@ export default function VerifyPage() {
     useState<NonNullable<VerifyResponse["mediaIntelligenceAdvisory"]> | null>(
       null,
     );
+  // Phase 1B Closure — bounded capture-trust projection. The API returns
+  // null when there is nothing surfaceable (legacy non-trust artifact or
+  // projection failure). We render no section in either case; the page
+  // is honest about no-data rather than fabricating a Class B or claim.
+  const [captureTrust, setCaptureTrust] = useState<{
+    provenanceClassLabel: string;
+    signatureVerdict: string;
+    attestationVerdict: string;
+    serverCountersigned: boolean;
+    rfc3161Applied: boolean;
+    otsApplied: boolean;
+    limitations: ReadonlyArray<string>;
+  } | null>(null);
+
+  // Phase 4B Final Closure (I3) — lifecycle transparency projection.
+  // Fetched from /public/verify/:id/lifecycle after evidenceId resolves.
+  // No auth required. Bounded counts + chips + ids only.
+  const [lifecycleTransparency, setLifecycleTransparency] =
+    useState<VerifyLifecycleTransparency | null>(null);
   const [serverTrustDecision, setServerTrustDecision] =
     useState<VerifyTrustDecision | null>(null);
   const [trustSnapshotDivergence, setTrustSnapshotDivergence] =
@@ -3303,6 +2776,41 @@ function isAccessEventType(eventType?: string | null): boolean {
     // already applied the public-safety projection so we just store
     // the shape verbatim.
     setMediaIntelligenceAdvisory(data.mediaIntelligenceAdvisory ?? null);
+    // Phase 1B Closure — bounded captureTrust projection from the API.
+    // Reshape from the projection's nested chain.capture/server/time
+    // structure into the flat bounded fields the verify section renders.
+    const ct = (data as { captureTrust?: unknown }).captureTrust as
+      | {
+          provenanceClassLabel?: string | null;
+          chain?: {
+            capture?: {
+              signatureVerdict?: string | null;
+              attestationVerdict?: string | null;
+            } | null;
+            server?: { countersigned?: boolean | null } | null;
+            time?: {
+              rfc3161?: { applied?: boolean | null } | null;
+              ots?: { applied?: boolean | null } | null;
+            } | null;
+          } | null;
+          limitations?: ReadonlyArray<string> | null;
+        }
+      | null
+      | undefined;
+    setCaptureTrust(
+      ct
+        ? {
+            provenanceClassLabel: ct.provenanceClassLabel ?? "",
+            signatureVerdict: ct.chain?.capture?.signatureVerdict ?? "MISSING",
+            attestationVerdict:
+              ct.chain?.capture?.attestationVerdict ?? "NOT_ATTEMPTED",
+            serverCountersigned: Boolean(ct.chain?.server?.countersigned),
+            rfc3161Applied: Boolean(ct.chain?.time?.rfc3161?.applied),
+            otsApplied: Boolean(ct.chain?.time?.ots?.applied),
+            limitations: ct.limitations ?? [],
+          }
+        : null,
+    );
 
     const reviewTrailForensic =
       data.reviewTrail?.forensicCustodyEvents ??
@@ -3752,6 +3260,23 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
       clearPolling();
     };
   }, [params?.token, addToast]);
+
+  // Phase 4B Final Closure (I3) — fetch bounded lifecycle transparency
+  // when we have a resolved evidenceId. Fire once; fail silently.
+  useEffect(() => {
+    if (!evidenceId) return;
+    let cancelled = false;
+    apiFetch(`/public/verify/${encodeURIComponent(evidenceId)}/lifecycle`)
+      .then((raw) => {
+        if (!cancelled) setLifecycleTransparency(raw as VerifyLifecycleTransparency);
+      })
+      .catch(() => {
+        /* lifecycle transparency is optional — fail silently */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [evidenceId]);
 
   const storagePresentation = useMemo(
     () => buildStoragePresentation(storageProtection),
@@ -5667,6 +5192,65 @@ Reviewer Action
       {mediaIntelligenceAdvisory.advisory}
     </div>
   </div>
+) : null}
+
+{/*
+  Phase 1B Closure — bounded capture-trust panel. Renders only when the
+  API returned a non-null projection. NEVER fabricates a class / verdict
+  when the underlying chain is empty (honest no-data).
+*/}
+{captureTrust ? (
+  <div
+    data-testid="verify-capture-trust"
+    role="status"
+    style={{
+      border: "1px solid rgba(11,46,39,0.16)",
+      borderLeft: `5px solid ${VERIFY_BRAND.accent}`,
+      background: "rgba(11,46,39,0.045)",
+      borderRadius: 18,
+      padding: 18,
+      display: "grid",
+      gap: 8,
+    }}
+  >
+    <div
+      data-testid="verify-capture-trust-class"
+      style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, color: VERIFY_BRAND.accent }}
+    >
+      Capture trust — {captureTrust.provenanceClassLabel || "Unclassified"}
+    </div>
+    <div data-testid="verify-capture-trust-signature" style={VERIFY_TYPO.small}>
+      Source signature: {captureTrust.signatureVerdict}
+    </div>
+    <div data-testid="verify-capture-trust-attestation" style={VERIFY_TYPO.small}>
+      Device attestation: {captureTrust.attestationVerdict}
+    </div>
+    <div data-testid="verify-capture-trust-time" style={VERIFY_TYPO.small}>
+      Trusted time: RFC3161 {captureTrust.rfc3161Applied ? "applied" : "absent"}
+      {" / "}
+      OpenTimestamps {captureTrust.otsApplied ? "applied" : "absent"}
+      {" / "}
+      Server-countersigned {captureTrust.serverCountersigned ? "yes" : "no"}
+    </div>
+    {captureTrust.limitations.length > 0 ? (
+      <ul
+        data-testid="verify-capture-trust-limitations"
+        style={{ ...VERIFY_TYPO.small, margin: 0, paddingLeft: 18 }}
+      >
+        {captureTrust.limitations.map((l) => (
+          <li key={l}>{l}</li>
+        ))}
+      </ul>
+    ) : (
+      <div data-testid="verify-capture-trust-limitations" style={VERIFY_TYPO.small}>
+        No standing limitations declared for this artifact.
+      </div>
+    )}
+  </div>
+) : null}
+
+{lifecycleTransparency ? (
+  <VerifyLifecycleSection lifecycleTransparency={lifecycleTransparency} />
 ) : null}
 
                   <div

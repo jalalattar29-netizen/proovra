@@ -6,6 +6,8 @@ import type {
   TrustDecisionVerdict,
   ReviewerArtifactRoleSource,
 } from "@proovra/shared";
+import type { IntelligenceSummarySection } from "./sections/intelligence-summary.js";
+import type { LifecycleSummaryData } from "./sections/lifecycle-summary.js";
 
 export type ReportArtifactMode = "external" | "internal";
 export type PresentationMode = "simple" | "medium" | "heavy";
@@ -321,6 +323,16 @@ export type ReportV2Input = {
    * private notes, multipart upload ids — none can be passed.
    */
   mediaIntelligence?: MediaIntelligenceReportInput | null;
+  /**
+   * Phase 4A Final Closure — OPTIONAL bounded intelligence summary.
+   * When null/omitted, NO new HTML is emitted.
+   */
+  intelligenceSummary?: IntelligenceSummarySection | null;
+  /**
+   * Phase 4B Final Closure (I2) — OPTIONAL bounded lifecycle summary.
+   * When null/omitted, NO new HTML is emitted.
+   */
+  lifecycleSummary?: LifecycleSummaryData | null;
 };
 
 // ===========================================================================
@@ -597,6 +609,20 @@ export type ReportViewModel = {
    * `buildReportViewModel` verbatim.
    */
   mediaIntelligence: MediaIntelligenceReportInput | null;
+
+  /**
+   * Phase 4A Final Closure — bounded intelligence summary projection.
+   * `null` => renderer emits NO new HTML. Carried verbatim from
+   * `ReportV2Input.intelligenceSummary`.
+   */
+  intelligenceSummary: IntelligenceSummarySection | null;
+
+  /**
+   * Phase 4B Final Closure (I2) — bounded lifecycle summary projection.
+   * `null` => renderer emits NO new HTML. Carried verbatim from
+   * `ReportV2Input.lifecycleSummary`.
+   */
+  lifecycleSummary: LifecycleSummaryData | null;
 
   meta: {
     hasCoreCrypto: boolean;

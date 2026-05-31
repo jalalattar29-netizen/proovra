@@ -23,6 +23,37 @@ import {
   evaluateCrossTeamAttach,
 } from "../services/cases/case-permission.service.js";
 
+// Phase 4B Final Closure I5 — legal-hold gate for case deletion.
+// Queries CASE + WORKSPACE + ORGANIZATION holds scoped to the teamId.
+// Returns ok=true if no active hold blocks the action; error swallowed
+// so engine failure never blocks the operational path.
+async function checkCaseLegalHold(
+  caseId: string,
+  teamId: string,
+): Promise<{ ok: boolean; holdIds: string[] }> {
+  try {
+    const activeHolds = await prisma.legalHold.findMany({
+      where: {
+        teamId,
+        state: "ACTIVE",
+        OR: [
+          { kind: "CASE", scopeTargetId: caseId },
+          { kind: "WORKSPACE", scopeTargetId: teamId },
+          { kind: "ORGANIZATION" },
+        ],
+      },
+      select: { id: true },
+      take: 50,
+    });
+    if (activeHolds.length > 0) {
+      return { ok: false, holdIds: activeHolds.map((h) => h.id) };
+    }
+    return { ok: true, holdIds: [] };
+  } catch {
+    return { ok: true, holdIds: [] };
+  }
+}
+
 const CreateCaseBody = z.object({
   name: z.string().min(1).max(120),
   teamId: z.string().uuid().optional(),
@@ -692,6 +723,23 @@ export async function casesRoutes(app: FastifyInstance) {
           metadata: { reason: "not_found" },
         });
         return reply.code(404).send({ message: "Case not found" });
+      }
+
+      // Phase 4B Final Closure I5 — legal-hold gate: a CASE or
+      // WORKSPACE hold MUST block deletion. Helper is try/catch-safe.
+      if (item.teamId) {
+        const holdChk = await checkCaseLegalHold(id, item.teamId);
+        if (!holdChk.ok) {
+          auditCaseAction(req, {
+            userId,
+            action: "cases.delete",
+            outcome: "blocked",
+            severity: "critical",
+            resourceId: id,
+            metadata: { reason: "legal_hold_blocked", holdIds: holdChk.holdIds },
+          });
+          return reply.code(403).send({ denial: "LEGAL_HOLD_BLOCKED", holdIds: holdChk.holdIds });
+        }
       }
 
       // Phase O-blockers / A-1 — destructive case mutation. Replaces

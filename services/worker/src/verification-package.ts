@@ -1,5 +1,8 @@
 import archiver from "archiver";
 import path from "node:path";
+// Phase 4B — lifecycle + exchange manifests integration.
+import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
+void buildLifecycleAndExchangeManifests; // tree-shake guard
 import { createHash, sign as cryptoSign } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { PassThrough } from "stream";
@@ -2576,6 +2579,15 @@ export async function createVerificationPackage(data: {
    */
   intelligence?: import("./verification-package-intelligence.js").IntelligencePackageInput | null;
   /**
+   * Phase 1B Closure — bounded ProvenanceChain projection. When supplied,
+   * the builder emits `provenance/chain.json` so offline verifiers see the
+   * device → attestation → signature → server-countersign chain. Always
+   * additive — the offline verifier works without it; null skips the file.
+   * NEVER carries raw assertion bytes or device public keys in plaintext —
+   * only the bounded projection (hashes + fingerprints + bounded labels).
+   */
+  provenanceChain?: import("@proovra/shared").ProvenanceChain | null;
+  /**
    * Phase M2 — optional C2PA evidence summary. When supplied, the
    * builder bundles `provenance/c2pa-summary.json` directly from this
    * projection. When omitted, the builder emits an honest bounded
@@ -3334,6 +3346,62 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           jsonBuffer(entry.json),
           "application/json"
         );
+      }
+    }
+
+    // Phase 1B Closure — emit `provenance/chain.json` when a chain
+    // projection was loaded. Appended BEFORE the checksums index so the
+    // chain's SHA-256 is recorded in `package-checksums.json` alongside
+    // the canonical artifacts. The offline verifier treats this file as
+    // additive: it surfaces the capture → device → attestation → signature
+    // sub-chain, but its absence does NOT break verification of the
+    // primary fingerprint signature.
+    if (data.provenanceChain) {
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "provenance/chain.json",
+        jsonBuffer(data.provenanceChain),
+        "application/json",
+      );
+    }
+
+    // Phase 4A Closure — emit OPTIONAL advisory trust + governance manifests.
+    // Same emit-before-checksums contract as the intelligence block above so each
+    // manifest's SHA-256 is recorded in `package-checksums.json` alongside the
+    // canonical artifacts. The manifests are:
+    //   * intelligence/trust-manifest.json
+    //   * intelligence/governance-manifest.json
+    //   * intelligence/methodology-manifest.json
+    //   * intelligence/ai-disclosure-manifest.json
+    //   * intelligence/subprocessor-manifest.json
+    //
+    // Wrapped in a try/catch — these manifests are advisory; a failure here must
+    // NOT block package generation (the offline verifier works without them).
+    // Skipped for personal-mode packages (no teamId) since governance + trust
+    // articles are workspace-anchored; personal packages get nothing here.
+    if (data.teamId) {
+      try {
+        const [{ buildTrustAndGovernanceManifests }, { prisma }] =
+          await Promise.all([
+            import("./verification-package-trust-and-governance.js"),
+            import("./db.js"),
+          ]);
+        const tgEntries = await buildTrustAndGovernanceManifests({
+          prisma,
+          teamId: data.teamId as string,
+        });
+        for (const entry of tgEntries) {
+          appendPackageEntry(
+            archive,
+            packageEntries,
+            entry.path,
+            jsonBuffer(entry.json),
+            "application/json"
+          );
+        }
+      } catch {
+        // advisory only — never fail package generation on T+G manifest failure
       }
     }
 

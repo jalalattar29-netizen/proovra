@@ -398,6 +398,43 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // dashboard read model and is untouched.
       // `DROP TABLE IF EXISTS ... CASCADE` is idempotent and safe.
       "20261009000000_drop_reviewer_queue_projection",
+      // Phase 2B Closure — invitation delivery + SSO federation schema.
+      "20261015000000_phase_2b_closure_invitation_delivery_sso",
+      // Phase 3A — enterprise redaction platform schema.
+      "20261101000000_phase_3a_redaction_platform",
+      // Phase 3A Elite Closure — policy engine + video intelligence schema.
+      "20261201000000_phase_3a_elite_closure_policy_video",
+      // Phase 3B — intelligence platform schema.
+      "20261215000000_phase_3b_intelligence_platform",
+      // Phase 3B Enterprise Closure — intelligence quality + budget schema.
+      "20261216000000_phase_3b_enterprise_closure",
+      // Phase 4A — trust center + enterprise governance schema.
+      "20261220000000_phase_4a_trust_and_governance",
+      // Phase 4A Enterprise Closure — department membership + policy enforcement schema.
+      "20261225000000_phase_4a_enterprise_closure",
+      // Phase 4B — product packaging + lifecycle foundation.
+      "20261230000000_phase_4b_packaging_and_lifecycle",
+      // Phase 4B — final closure: exchange package builds + archive transitions + destruction certs.
+      "20261231000000_phase_4b_final_closure",
+      // Phase R3 — consolidated schema reality alignment (model catchup).
+      "20270101000000_phase_r3_model_catchup",
+      // Phase R7 — schema catchup: missing models + additive columns.
+      "20270102000000_phase_r7_schema_catchup",
+      // Phase R7 trust — align Subprocessor / TrustCenterArticle / Status* with services.
+      "20270103000000_phase_r7_trust_schema_fix",
+      // Phase R7 redaction — align RedactionVersion / Region / Detection / Decision / Approval / Derivative / Policy* with services.
+      "20270104000000_phase_r7_redaction_schema_fix",
+      // Phase R7 reviewer-workspace — align CodingSchema / CodingField / CodingValue / ReviewerDisagreement / QcSample with services.
+      "20270105000000_phase_r7_reviewer_workspace_schema_fix",
+      // Phase R7 governance — align Department / DelegatedAdminGrant / GovernancePolicy* / AccessReview* / CrossOrgReviewGrant with services.
+      "20270106000000_phase_r7_governance_schema_fix",
+      // Phase R7 capture-trust — align CaptureDeviceAttestation (additive expires_at_utc + provider_metadata)
+      // and relax CaptureTrustEventRecord.evidence_id (pre-finalise trust events) with services.
+      "20270107000000_phase_r7_capture_trust_schema_fix",
+      // Phase R7 intelligence — add ProviderBudget.state for ACTIVE/DISABLED/EXHAUSTED gate filter.
+      "20270108000000_phase_r7_intelligence_schema_fix",
+      // Phase R7 redaction — promote workspace-scoped name uniqueness to a DB-level unique index.
+      "20270109000000_phase_r7_redaction_policy_unique",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

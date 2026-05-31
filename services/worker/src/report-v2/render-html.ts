@@ -8,6 +8,8 @@ import { renderCustodySection } from "./sections/custody.js";
 import { renderCustodyHashChainSection } from "./sections/custody-hash-chain.js";
 import { renderForensicIntegrityStatementSection } from "./sections/forensic-integrity-statement.js";
 import { renderMediaIntelligenceSection } from "./sections/media-intelligence.js";
+import { renderIntelligenceSummarySection } from "./sections/intelligence-summary.js";
+import { renderLifecycleSummarySection } from "./sections/lifecycle-summary.js";
 import { renderLegalInterpretationSection } from "./sections/legal-interpretation.js";
 import { renderTechnicalAppendixSection } from "./sections/technical-appendix.js";
 
@@ -27,6 +29,21 @@ export function renderReportHtml(vm: ReportViewModel): string {
     // the Legal Interpretation & Report Boundary so the legal
     // hierarchy is preserved.
     renderMediaIntelligenceSection(vm),
+    // Phase 4A Final Closure — bounded "Intelligence Summary" section.
+    // Returns "" when vm.intelligenceSummary is null OR carries no
+    // document/transcript/provider activity, so legacy byte output is
+    // preserved for every caller that does not opt in. Positioned
+    // after media intelligence and before the legal interpretation
+    // hierarchy so the AI-assisted-intelligence chain reads top-down.
+    vm.intelligenceSummary
+      ? renderIntelligenceSummarySection(vm.intelligenceSummary)
+      : "",
+    // Phase 4B Final Closure (I2) — bounded "Evidence Lifecycle Summary"
+    // section. Returns "" when vm.lifecycleSummary is null or the workspace
+    // has no lifecycle activity, so legacy byte output is preserved for
+    // every caller that does not opt in. Positioned after intelligence-summary
+    // and before the custody chain so governance context precedes custody detail.
+    renderLifecycleSummarySection(vm.lifecycleSummary ?? null),
     renderLegalInterpretationSection(vm),
     renderTechnicalAppendixSection(vm),
   ]

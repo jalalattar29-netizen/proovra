@@ -1684,6 +1684,12 @@ verificationSummaryRows: buildVerificationSummaryRows(
     // the renderer emits NO additional HTML.
     mediaIntelligence: input.mediaIntelligence ?? null,
 
+    // Phase 4A Final Closure — intelligence summary carried verbatim.
+    intelligenceSummary: input.intelligenceSummary ?? null,
+
+    // Phase 4B Final Closure (I2) — lifecycle summary carried verbatim.
+    lifecycleSummary: input.lifecycleSummary ?? null,
+
     meta: {
       hasCoreCrypto: hasCoreCryptoMaterials(input.evidence),
       captureContext,

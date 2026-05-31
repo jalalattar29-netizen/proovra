@@ -142,6 +142,30 @@ export const PERMISSIONS = [
   // exist so the UI can gate the "billing seats" tile.
   "billing.read",
   "billing.manage",
+
+  // Phase 3A — Enterprise Redaction Platform. Nine bounded capabilities
+  // that the redaction-routes layer + redaction services enforce:
+  //   view              — read-only access to projects/versions/regions
+  //   region.author     — create / edit / delete regions inside a version
+  //   detection.run     — kick off an AI detection pass
+  //   detection.review  — accept / reject detection candidates
+  //   version.submit    — submit a draft version for approval
+  //   version.approve   — approve a submitted version (requires senior tier)
+  //   version.publish   — publish an approved version (sealed)
+  //   derivative.download — download a published derivative artifact
+  //   administer        — workspace-level redaction admin (config, providers)
+  // REVIEWER canonical role MUST NOT receive approve / publish / download /
+  // administer (split-of-duty enforcement). Authoring + reviewing detection
+  // results is in-scope; publishing redacted derivatives is separation-of-duty.
+  "redaction.view",
+  "redaction.region.author",
+  "redaction.detection.run",
+  "redaction.detection.review",
+  "redaction.version.submit",
+  "redaction.version.approve",
+  "redaction.version.publish",
+  "redaction.derivative.download",
+  "redaction.administer",
 ] as const;
 
 export const PermissionSchema = z.enum(PERMISSIONS);
@@ -272,6 +296,16 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "publication.public_verify.gate",
     "retention.read",
     "retention.configure",
+    // Phase 3A — ADMIN canonical role gets the FULL redaction capability set.
+    "redaction.view",
+    "redaction.region.author",
+    "redaction.detection.run",
+    "redaction.detection.review",
+    "redaction.version.submit",
+    "redaction.version.approve",
+    "redaction.version.publish",
+    "redaction.derivative.download",
+    "redaction.administer",
     "identity.member.read",
     "identity.member.invite",
     "identity.member.role.change",
@@ -333,6 +367,12 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "collaboration.thread.escalate",
     "collaboration.contributor.access.manage",
     "retention.read",
+    // Phase 3A — REVIEWER canonical gets the bounded redaction subset:
+    // view, author regions, and review detections. The reviewer is the
+    // operator who PROPOSES redactions, not the one who approves/publishes.
+    "redaction.view",
+    "redaction.region.author",
+    "redaction.detection.review",
     "identity.member.read",
     "identity.org_policy.read",
     "identity.access_review.read",
@@ -346,7 +386,9 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     // identity.org_policy.manage, identity.access_review.action,
     // identity.external_mapping.manage, billing.manage,
     // publication.public_verify.gate, intelligence.policy.manage,
-    // retention.configure, review.sla.configure
+    // retention.configure, review.sla.configure,
+    // redaction.detection.run, redaction.version.{submit,approve,publish},
+    // redaction.derivative.download, redaction.administer
   ],
 
   CONTRIBUTOR: [

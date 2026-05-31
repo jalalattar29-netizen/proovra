@@ -31,6 +31,18 @@ import {
   SIDEBAR_GROUP_WORKSPACE,
 } from "./canonicalNavigationGroups";
 import { operationalGroupForRoute } from "./phaseBOperationalGroups";
+// Phase 1A — pillar-aware persona visibility + sidebar node-budget ceiling.
+// The grouping resolver consults the pillar registry's persona overlay so
+// that a sidebar role never renders a pillar it shouldn't see, and clamps
+// the visible node count to MAX_VISIBLE_SIDEBAR_NODES (overflow is moved
+// into a separate overflowItems collection that the sidebar can render
+// behind a "More / Advanced" disclosure).
+import {
+  MAX_VISIBLE_SIDEBAR_NODES,
+  pillarForRoute,
+  visiblePillarsForPersona,
+} from "./pillarRegistry";
+import type { WorkspacePersonaProfile } from "../platform-context/types";
 import type { WorkflowExposureItem } from "./workflowExposureResolver";
 
 export interface SidebarGroup {
@@ -47,6 +59,22 @@ export interface NavigationGroupingInput {
 
 export interface NavigationGroupingResult {
   readonly groups: ReadonlyArray<SidebarGroup>;
+  /**
+   * Phase 1A — items demoted from the visible sidebar because the
+   * MAX_VISIBLE_SIDEBAR_NODES ceiling would be exceeded. The sidebar
+   * renders them under the "More / Advanced" disclosure container.
+   * Empty when the visible budget is not exceeded.
+   */
+  readonly overflowItems: ReadonlyArray<WorkflowExposureItem>;
+}
+
+/**
+ * Phase 1A — optional persona context. When supplied, the resolver
+ * filters items whose pillar is not in `visiblePillarsForPersona(persona)`.
+ * Omit `persona` to skip the persona-visibility filter (back-compat).
+ */
+export interface ResolveNavigationGroupsOptions {
+  readonly persona?: WorkspacePersonaProfile;
 }
 
 /**
@@ -70,8 +98,21 @@ function fallbackGroup(domain: string): "WORKSPACE" | "GOVERNANCE" | "SYSTEM" {
 
 export function resolveNavigationGroups(
   input: NavigationGroupingInput,
+  options?: ResolveNavigationGroupsOptions,
 ): NavigationGroupingResult {
   const { primaryItems, secondaryItems } = input;
+  const persona: WorkspacePersonaProfile | undefined = options?.persona;
+
+  // -------------------------------------------------------------------
+  // Phase 1A — persona visibility overlay. When the caller supplies a
+  // persona, items whose pillar is NOT in `visiblePillarsForPersona`
+  // are dropped from the sidebar (they remain reachable via Command
+  // Palette or All Tools when capabilities permit). Without a persona
+  // every item passes through (back-compat).
+  // -------------------------------------------------------------------
+  const personaVisible = persona ? visiblePillarsForPersona(persona) : null;
+  const visibleByPersona = (item: WorkflowExposureItem): boolean =>
+    !personaVisible || personaVisible.has(pillarForRoute(item.route.id));
 
   // -------------------------------------------------------------------
   // Bucket every item (primary + secondary) by Phase B operational
@@ -89,6 +130,7 @@ export function resolveNavigationGroups(
     fallbackGroup(item.route.domain);
 
   for (const item of primaryItems) {
+    if (!visibleByPersona(item)) continue;
     switch (route(item)) {
       case "WORKSPACE":
         workspaceItems.push(item);
@@ -106,6 +148,7 @@ export function resolveNavigationGroups(
   }
 
   for (const item of secondaryItems) {
+    if (!visibleByPersona(item)) continue;
     switch (route(item)) {
       case "WORKSPACE":
         workspaceItems.push(item);
@@ -161,5 +204,41 @@ export function resolveNavigationGroups(
     });
   }
 
-  return { groups };
+  // -------------------------------------------------------------------
+  // Phase 1A — sidebar node-budget ceiling. Count visible items across
+  // all groups; demote the lowest-priority secondary items (in the
+  // order they appear AFTER primary items) into `overflowItems` until
+  // the total visible count is <= MAX_VISIBLE_SIDEBAR_NODES. Primary
+  // items are NEVER demoted — they are the high-emphasis surface.
+  // -------------------------------------------------------------------
+  const overflowItems: WorkflowExposureItem[] = [];
+  const totalVisible = groups.reduce((acc, g) => acc + g.items.length, 0);
+  if (totalVisible > MAX_VISIBLE_SIDEBAR_NODES) {
+    const primarySet = new Set(primaryItems);
+    let need = totalVisible - MAX_VISIBLE_SIDEBAR_NODES;
+    // Walk groups in REVERSE order (system → outputs → governance →
+    // workspace) and drop trailing non-primary items first.
+    for (let gi = groups.length - 1; gi >= 0 && need > 0; gi -= 1) {
+      const group = groups[gi]!;
+      const kept: WorkflowExposureItem[] = [];
+      // Walk items from end so trailing secondary items are dropped first.
+      for (let i = group.items.length - 1; i >= 0; i -= 1) {
+        const it = group.items[i]!;
+        if (need > 0 && !primarySet.has(it)) {
+          overflowItems.unshift(it);
+          need -= 1;
+        } else {
+          kept.unshift(it);
+        }
+      }
+      groups[gi] = {
+        id: group.id,
+        title: group.title,
+        domain: group.domain,
+        items: kept,
+      };
+    }
+  }
+
+  return { groups, overflowItems };
 }

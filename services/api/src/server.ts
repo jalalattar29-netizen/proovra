@@ -20,6 +20,32 @@ import { captureException, initSentry } from "./observability/sentry.js";
 // `services/platform-audit-log.service.ts` (hash-chained, DB-backed).
 import { evidenceRoutes } from "./routes/evidence.routes.js";
 import { captureRoutes } from "./routes/capture.routes.js";
+// Phase 1B — Citizen PWA capture ingest (Class B provenance, anonymous
+// Ed25519 signing). Registered alongside the operator capture routes.
+import { citizenCaptureRoutes } from "./routes/citizen-capture.routes.js";
+// Phase 1B — Capture Trust routes (device attestation + Ed25519 signature
+// + provenance projection). Real route module already exists on disk; this
+// import + registration below closes the gap that left the routes
+// unwired in production builds.
+import { captureTrustRoutes } from "./routes/capture-trust.routes.js";
+// Phase 2A — Reviewer Workspace routes (coding schemas, disagreements,
+// QC samples, reviewer metrics). Canonical module; same wire-up gap.
+import { reviewerWorkspaceRoutes } from "./routes/reviewer-workspace.routes.js";
+// Phase 2B — External Reviewer Portal routes (token sessions, dashboard,
+// per-evidence review, decisions, comments, watermark).
+import { externalPortalRoutes } from "./routes/external-portal.routes.js";
+// Phase 3A — Redaction Platform routes (projects/versions/regions/
+// detections/decisions/approvals/derivatives).
+import { redactionRoutes } from "./routes/redaction.routes.js";
+// Phase 3B — Intelligence Platform routes (intelligence records,
+// reviewer corrections, cost controls, executive metrics, audit
+// transparency).
+import { intelligencePlatformRoutes } from "./routes/intelligence-platform.routes.js";
+// Phase 4A — Trust Center + Organization Governance surface. Auth-gated,
+// workspace-scoped. Exposes trust articles, subprocessors, status-page
+// probes, org departments, delegated admin, policy engine, access reviews,
+// and cross-org collaboration endpoints.
+import { trustAndGovernanceRoutes } from "./routes/trust-and-governance.routes.js";
 import { bootstrapObjectLockVerification } from "./bootstrap/object-lock-verification.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { teamsRoutes } from "./routes/teams.routes.js";
@@ -87,6 +113,7 @@ import { analyticsOperationsRoutes } from "./routes/analytics-operations.routes.
 import { governanceRoutes } from "./routes/governance.routes.js";
 import { governanceLifecycleRoutes } from "./routes/governance-lifecycle.routes.js";
 import { governanceOperationsRoutes } from "./routes/governance-operations.routes.js";
+import { productAndLifecycleRoutes } from "./routes/product-and-lifecycle.routes.js";
 import { integrationsRoutes } from "./routes/integrations.routes.js";
 import { integrationsApiRoutes } from "./routes/integrations-api.routes.js";
 import { securityRoutes } from "./routes/security.routes.js";
@@ -606,13 +633,39 @@ allowedHeaders: [
   await app.register(casesRoutes);
   await app.register(evidenceRoutes);
   await app.register(captureRoutes);
+  // Phase 1B — Citizen PWA capture ingest (Class B provenance).
+  await app.register(citizenCaptureRoutes);
+  // Phase 1B — Capture Trust routes: device registration / mobile ingest /
+  // session trust timeline / bounded ProvenanceChain projection. Real
+  // module on disk; wired here so the routes are actually mounted at boot.
+  await app.register(captureTrustRoutes);
+  // Phase 4A — Trust Center + Organization Governance. Registered after
+  // the core workspace routes so governance depends on team context.
+  await app.register(trustAndGovernanceRoutes);
   await app.register(searchRoutes);
   await app.register(reviewerOpsRoutes);
   // Phase C0 — Reviewer Console aggregator. Read-only; composes
   // existing reviewer-ops services. Registered alongside the
   // per-domain endpoints so deep-drill paths continue to work.
   await app.register(reviewerConsoleRoutes);
+  // Phase 2A — Reviewer Workspace routes (coding schemas, disagreements,
+  // QC samples, reviewer metrics). Registered adjacent to reviewer-ops +
+  // reviewer-console so reviewer surfaces share the same mount point.
+  await app.register(reviewerWorkspaceRoutes);
   await app.register(externalReviewRoutes);
+  // Phase 2B — External Reviewer Portal routes: token sessions + bounded
+  // per-evidence review + decisions + comments + watermark. Mounted after
+  // externalReviewRoutes (internal admin surface) so the portal layer
+  // composes on top of the same canonical grant + invitation services.
+  await app.register(externalPortalRoutes);
+  // Phase 3A — Redaction Platform routes: projects/versions/regions/
+  // detections/decisions/approvals/derivatives. Workspace-anchored.
+  await app.register(redactionRoutes);
+  // Phase 3B — Intelligence Platform routes: media intelligence records,
+  // reviewer corrections + confidence scoring, cost controls, executive
+  // metrics, audit transparency. Registered alongside the legacy
+  // mediaIntelligenceRoutes for the new bounded routes.
+  await app.register(intelligencePlatformRoutes);
   // Phase 30.5 — Resumable multipart upload session REST surface.
   // Wraps the Phase 30 upload-session service in authorizeOrFail-
   // gated routes. NO storage keys / signed URLs are projected; this
@@ -677,6 +730,8 @@ allowedHeaders: [
   // Phase 27 — Governance lifecycle (retention policies, destruction
   // queue, lifecycle events, export gate, dashboard).
   await app.register(governanceLifecycleRoutes);
+  // Phase 4B — Product packaging + evidence lifecycle routes.
+  await app.register(productAndLifecycleRoutes);
   // Phase 27.5 — Governance operationalization (analytics, notifications,
   // export lineage snapshots, reconciliation run + execution listings).
   await app.register(governanceOperationsRoutes);

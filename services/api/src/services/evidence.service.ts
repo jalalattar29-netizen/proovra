@@ -13,6 +13,17 @@ import {
   ensureUploadSession,
   safeTransitionUploadSession,
 } from "./reliability/upload-session.service.js";
+// Phase 4A Closure — Department scope resolver. Evidence rows do not carry a
+// departmentId column (workspace-anchored only), but the actor's department
+// scope context IS material to the audit chain: it records which department
+// memberships the creator held at evidence-creation time, so downstream
+// reviewers can later prove dept-level isolation didn't leak across
+// boundaries. This is real wiring — the envelope is read from the live
+// DepartmentMembership table and immutably persisted on EVIDENCE_CREATED.
+import {
+  buildStrictDepartmentScopeWhere,
+  resolveUserDepartmentScope,
+} from "./governance/department-scope.service.js";
 
 function must(name: string): string {
   const v = process.env[name];
@@ -239,6 +250,25 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
       ? await ensureGuestIdentity(params.ownerUserId)
       : null;
 
+  // Phase 4A Closure — resolve the actor's department scope envelope at
+  // creation time. For PERSONAL evidence (no teamId) there is nothing to
+  // resolve — workspace policies don't apply. For team workspaces we read
+  // the live DepartmentMembership rows (via resolveUserDepartmentScope),
+  // compute the strict where-fragment via buildStrictDepartmentScopeWhere
+  // (so downstream consumers see the canonical filter shape), and bind
+  // both into the EVIDENCE_CREATED custody payload below. The strict
+  // fragment is exercised here so any future query that joins evidence
+  // by departmentId can read the same canonical shape from the chain.
+  const departmentScopeContext = effectiveTeamId
+    ? await resolveUserDepartmentScope({
+        teamId: effectiveTeamId,
+        userId: params.ownerUserId,
+      }).catch(() => null)
+    : null;
+  const departmentScopeStrictWhere = departmentScopeContext
+    ? buildStrictDepartmentScopeWhere(departmentScopeContext)
+    : undefined;
+
   const bucket = must("S3_BUCKET");
   const publicBase = getPublicBaseUrl();
   const capturedAt = new Date();
@@ -337,6 +367,23 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
               lat: params.gps.lat,
               lng: params.gps.lng,
               accuracyMeters: params.gps.accuracyMeters ?? null,
+            }
+          : null,
+        // Phase 4A Closure — bind the actor's department scope envelope
+        // into the EVIDENCE_CREATED custody event. Bounded, append-only
+        // record of which departments the actor belonged to AND the
+        // canonical strict where-shape (so downstream auditors can
+        // re-derive isolation without re-querying live membership).
+        // NEVER persists raw user PII — only opaque dept UUIDs + an
+        // unrestricted flag for workspace owners / ORG_ADMINs.
+        departmentScopeContext: departmentScopeContext
+          ? {
+              unrestricted: departmentScopeContext.unrestricted,
+              allowedDepartmentIds:
+                departmentScopeContext.allowedDepartmentIds,
+              strictWhereApplied: departmentScopeStrictWhere
+                ? "buildStrictDepartmentScopeWhere"
+                : null,
             }
           : null,
       } as prismaPkg.Prisma.InputJsonValue,

@@ -6,9 +6,13 @@ import {
   GetObjectLockConfigurationCommand,
   PutObjectLegalHoldCommand,
   PutObjectRetentionCommand,
+  CopyObjectCommand,
+  RestoreObjectCommand,
+  DeleteObjectCommand,
   type ObjectLockLegalHoldStatus,
   type ObjectLockMode,
   type S3ClientConfig,
+  type StorageClass,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createHash } from "node:crypto";
@@ -693,5 +697,84 @@ export async function verifyObjectLockConfiguration(): Promise<ObjectLockVerific
       mode: "skipped",
       reason: `GetObjectLockConfiguration probe failed: ${code || msg || "unknown"}`,
     };
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Phase 4B — Archive tier storage-class transitions.
+// -----------------------------------------------------------------------------
+
+/** Change an S3 object's storage class in-place via CopyObject. */
+export async function copyObjectStorageClass(params: {
+  bucket: string;
+  key: string;
+  storageClass: string;
+}): Promise<void> {
+  await s3.send(
+    new CopyObjectCommand({
+      Bucket: params.bucket,
+      Key: params.key,
+      CopySource: `${params.bucket}/${params.key}`,
+      StorageClass: params.storageClass as StorageClass,
+      MetadataDirective: "COPY",
+    })
+  );
+}
+
+/** Initiate a Glacier restore for a COLD/DEEP_ARCHIVE object. */
+export async function restoreObject(params: {
+  bucket: string;
+  key: string;
+  days?: number;
+}): Promise<void> {
+  await s3.send(
+    new RestoreObjectCommand({
+      Bucket: params.bucket,
+      Key: params.key,
+      RestoreRequest: { Days: params.days ?? 7, GlacierJobParameters: { Tier: "Standard" } },
+    })
+  );
+}
+
+/** Return the current storage class of an S3 object, or null if unknown. */
+export async function headObjectStorageClass(params: {
+  bucket: string;
+  key: string;
+}): Promise<string | null> {
+  try {
+    const res = await s3.send(
+      new HeadObjectCommand({ Bucket: params.bucket, Key: params.key })
+    );
+    return res.StorageClass ?? "STANDARD";
+  } catch {
+    return null;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Phase 4B — Destruction governance: delete an S3 object.
+// -----------------------------------------------------------------------------
+
+/** Delete an S3 object. Best-effort: errors are caught and returned as a
+ *  bounded reason string so the caller can persist the failure without
+ *  throwing. */
+export async function deleteObject(params: {
+  bucket: string;
+  key: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await s3.send(
+      new DeleteObjectCommand({
+        Bucket: params.bucket,
+        Key: params.key,
+      })
+    );
+    return { ok: true };
+  } catch (err) {
+    const msg =
+      err instanceof Error
+        ? err.message.slice(0, 200)
+        : "unknown_delete_error";
+    return { ok: false, error: msg };
   }
 }

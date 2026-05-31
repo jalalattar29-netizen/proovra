@@ -55,6 +55,12 @@ function mockWorkflowRow(
     completionDueAtUtc: null,
     pausedReason: null,
     activeEscalationId: null,
+    // Phase 2A reviewer-workspace — coding schema bind. The contract requires
+    // `string | null` (not `undefined`), so the fixture must explicitly set
+    // both to `null` when no schema is bound. Tests that exercise coding
+    // schema binding override via the `patch` arg.
+    codingSchemaId: null,
+    codingSchemaVersion: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...patch,

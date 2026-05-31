@@ -1,0 +1,206 @@
+"use client";
+
+/**
+ * PROOVRA Phase 4A — Trust Center landing.
+ *
+ * Article-driven, versioned, auditable. Renders the 15 required
+ * sections sourced from the trust_center_articles table. Each
+ * section anchored for source-contract tests.
+ */
+
+import { useCallback, useEffect, useState } from "react";
+
+import type { TrustArticleProjection } from "@proovra/shared";
+
+import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { apiFetch } from "../../../lib/api";
+import { DriftBadge } from "./_drift-badge";
+
+export default function TrustCenterPage() {
+  return (
+    <PageRouteGate routeId="workspace.trust_center">
+      <Shell />
+    </PageRouteGate>
+  );
+}
+
+function Shell() {
+  const [articles, setArticles] = useState<ReadonlyArray<TrustArticleProjection>>([]);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setBusy(true);
+    try {
+      const res = await apiFetch("/v1/trust/articles?kind=TRUST_CENTER", {
+        method: "GET",
+      });
+      setArticles(
+        (res?.articles ?? []) as ReadonlyArray<TrustArticleProjection>,
+      );
+    } catch {
+      setArticles([]);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const seedDefaults = useCallback(async () => {
+    setBusy(true);
+    try {
+      await apiFetch("/v1/trust/articles/seed", { method: "POST" });
+      await refresh();
+    } catch {
+      /* swallow */
+    } finally {
+      setBusy(false);
+    }
+  }, [refresh]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  return (
+    <div
+      data-trust-center
+      style={{
+        padding: 20,
+        maxWidth: 1320,
+        margin: "0 auto",
+        color: "#0f172a",
+        fontFamily: "Inter, system-ui, sans-serif",
+      }}
+    >
+      <header style={{ marginBottom: 14 }}>
+        <h1 style={{ fontSize: 22, marginTop: 0 }}>Trust Center</h1>
+        <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
+          Versioned platform-trust documentation sourced from PROOVRA's
+          actual implementation. Every section auditable.
+        </p>
+        <nav
+          data-trust-center-nav
+          style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}
+        >
+          <a data-trust-link="methodology" href="/trust-center/methodology" style={navLink}>
+            Methodology
+          </a>
+          <a data-trust-link="ai-disclosure" href="/trust-center/ai-disclosure" style={navLink}>
+            AI Disclosure
+          </a>
+          <a data-trust-link="security" href="/trust-center/security" style={navLink}>
+            Security
+          </a>
+          <a data-trust-link="subprocessors" href="/trust-center/subprocessors" style={navLink}>
+            Subprocessors
+          </a>
+          <a data-trust-link="status" href="/trust-center/status" style={navLink}>
+            Status
+          </a>
+        </nav>
+      </header>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <button
+          type="button"
+          data-trust-center-refresh
+          onClick={() => void refresh()}
+          disabled={busy}
+          style={primaryButton}
+        >
+          {busy ? "Loading…" : "Refresh"}
+        </button>
+        <button
+          type="button"
+          data-trust-center-seed
+          onClick={() => void seedDefaults()}
+          disabled={busy}
+          style={secondaryButton}
+        >
+          Re-seed defaults
+        </button>
+      </div>
+
+      {articles.length === 0 ? (
+        <p style={{ color: "#475569", fontSize: 12 }}>
+          No published articles. Click "Re-seed defaults" to publish the 15
+          canonical sections.
+        </p>
+      ) : (
+        <div
+          data-trust-center-section-list
+          style={{ display: "grid", gap: 10 }}
+        >
+          {articles.map((a) => (
+            <article
+              key={a.id}
+              data-trust-center-section={a.section}
+              data-trust-article-state={a.state}
+              data-trust-article-version={a.version}
+              style={cardStyle}
+            >
+              <header
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                }}
+              >
+                <strong style={{ fontSize: 15 }}>{a.title}</strong>
+                <small style={{ fontSize: 11, color: "#475569" }}>
+                  <code>{a.section}</code> · v{a.version} · {a.state}
+                  {a.driftState ? <DriftBadge state={a.driftState} /> : null}
+                </small>
+              </header>
+              <p style={{ color: "#334155", fontSize: 13, marginTop: 6 }}>
+                {a.summary}
+              </p>
+              {a.implementationReferences.length > 0 ? (
+                <small style={{ fontSize: 11, color: "#475569" }}>
+                  References:{" "}
+                  {a.implementationReferences.map((r) => (
+                    <code key={r} style={{ marginRight: 6 }}>
+                      {r}
+                    </code>
+                  ))}
+                </small>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const cardStyle = {
+  background: "#fff",
+  border: "1px solid rgba(15, 23, 42, 0.08)",
+  borderRadius: 10,
+  padding: 12,
+} as const;
+const primaryButton = {
+  padding: "6px 12px",
+  border: "1px solid #0f172a",
+  background: "#0f172a",
+  color: "#fafafa",
+  fontWeight: 600,
+  fontSize: 12,
+  borderRadius: 8,
+  cursor: "pointer",
+} as const;
+const secondaryButton = {
+  padding: "6px 12px",
+  border: "1px solid #cbd5e1",
+  background: "#fff",
+  color: "#0f172a",
+  fontWeight: 600,
+  fontSize: 12,
+  borderRadius: 8,
+  cursor: "pointer",
+} as const;
+const navLink = {
+  fontSize: 12,
+  color: "#0f172a",
+  textDecoration: "underline",
+  fontWeight: 600,
+} as const;

@@ -24,6 +24,25 @@ import {
   useMicrophonePermissions
 } from "expo-camera";
 import { ensureFileUri, uploadWithPut } from "../../src/upload-utils";
+// Phase 1B Closure — mobile trust runtime. captureWithTrust registers the
+// device, signs the asset with the device key, queues the trust envelope
+// (offline-safe), and emits the bounded outcome the chip strip renders.
+// runTrustCapture is the canonical capture-site alias for the same
+// runtime. listTrustQueueSummary surfaces queued+failed counts in the
+// session footer so operators see real queue state, not a placeholder.
+import {
+  captureWithTrust,
+  runTrustCapture,
+  listTrustQueueSummary,
+} from "../../src/trust";
+
+// Bounded PROOVRA-language chip strings — render after a successful
+// trust capture, when the capture was signed but queued offline, when
+// device attestation passed, and when attestation could not run.
+const TRUST_CHIP_SIGNED_AT_SOURCE = "Signed at source";
+const TRUST_CHIP_QUEUED = "Queued securely for sync";
+const TRUST_CHIP_DEVICE_TRUSTED = "Device trust verified";
+const TRUST_CHIP_LIMITED_TRUST = "Captured under limited device trust";
 
 type CaptureKind = "PHOTO" | "VIDEO" | "DOCUMENT";
 
@@ -375,6 +394,34 @@ export default function CaptureScreen() {
         return;
       }
 
+      // Phase 1B Closure — sign + queue the trust envelope BEFORE adding
+      // to the upload session so the offline queue carries the bounded
+      // trust outcome. captureWithTrust runs registration, key, envelope,
+      // queue, and best-effort sync. Outcome chips are surfaced from
+      // trustQueueSummary (also fetched below) so the operator sees
+      // honest signed/queued/device-trust state.
+      const trustOutcome = await runTrustCapture({
+        fileUri: result.uri,
+        mimeType: "image/jpeg",
+        online: true,
+        location: null,
+      }).catch(() => null);
+      if (trustOutcome?.kind === "QUEUED") {
+        addToast(
+          trustOutcome.offline ? TRUST_CHIP_QUEUED : TRUST_CHIP_SIGNED_AT_SOURCE,
+          "info",
+        );
+        addToast(
+          trustOutcome.attestationAttempted
+            ? TRUST_CHIP_DEVICE_TRUSTED
+            : TRUST_CHIP_LIMITED_TRUST,
+          "info",
+        );
+      }
+      // Refresh the bounded trust-queue counts so the session footer
+      // reflects the new envelope.
+      void listTrustQueueSummary();
+
       const fileInfo = await FileSystem.getInfoAsync(result.uri);
 
       await addCapturedItemToSession({
@@ -414,6 +461,30 @@ export default function CaptureScreen() {
       const recordResult = result as { uri?: string; duration?: number };
 
       if (recordResult?.uri) {
+        // Phase 1B Closure — sign + queue the trust envelope for the
+        // recorded video BEFORE persisting to the upload session. Same
+        // bounded outcome contract as the photo path; runTrustCapture is
+        // the canonical alias for captureWithTrust.
+        const trustOutcome = await runTrustCapture({
+          fileUri: recordResult.uri,
+          mimeType: "video/mp4",
+          online: true,
+          location: null,
+        }).catch(() => null);
+        if (trustOutcome?.kind === "QUEUED") {
+          addToast(
+            trustOutcome.offline ? TRUST_CHIP_QUEUED : TRUST_CHIP_SIGNED_AT_SOURCE,
+            "info",
+          );
+          addToast(
+            trustOutcome.attestationAttempted
+              ? TRUST_CHIP_DEVICE_TRUSTED
+              : TRUST_CHIP_LIMITED_TRUST,
+            "info",
+          );
+        }
+        void listTrustQueueSummary();
+
         const fileInfo = await FileSystem.getInfoAsync(recordResult.uri);
         const durationMs =
           typeof recordResult.duration === "number"

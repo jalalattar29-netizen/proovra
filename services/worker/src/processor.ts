@@ -89,6 +89,7 @@ import {
 } from "./queue.js";
 import { captureException } from "./sentry.js";
 import { createVerificationPackage, PackageGateDeniedError } from "./verification-package.js";
+import { loadProvenanceChainForPackage } from "./capture-trust/load-provenance-chain.js";
 import { createOpenTimestamp, type OtsStampResult } from "./ots.service.js";
 import { buildOtsEvidenceUpdateData } from "./ots-state.js";
 import { appendWorkerAuditLog } from "./platform-audit-append.js";
@@ -3510,9 +3511,18 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
             evidenceId: prepared.evidenceId,
           });
 
+        // Phase 1B Closure — load the bounded ProvenanceChain projection
+        // BEFORE invoking createVerificationPackage so the resulting ZIP
+        // can include `provenance/chain.json` for offline verifiers. The
+        // loader returns null on any failure; the package builds either
+        // way (chain.json is OPTIONAL and never blocks the bundle).
+        const verificationPackageProvenanceChain =
+          await loadProvenanceChainForPackage(prepared.evidenceId);
+
         const finalizedVerificationPackage = await createVerificationPackage({
           teamId: evidence.teamId ?? undefined,
           intelligence: verificationPackageIntelligence,
+          provenanceChain: verificationPackageProvenanceChain,
           evidenceFiles: prepared.verificationEvidenceFiles,
           reportPdf: finalized.finalizedReportPdf,
           reportFileName: `proovra-verification-report-v${prepared.version}.pdf`,

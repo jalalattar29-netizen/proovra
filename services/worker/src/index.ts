@@ -82,8 +82,13 @@ import { runOrphanArtifactScan } from "./orphan-scan.js";
 import { runRetentionReconciliation } from "./governance/retention-reconciliation.worker.js";
 import { runDestructionOrchestration } from "./governance/destruction-orchestrator.worker.js";
 import { runImmutableStorageReconciliation } from "./governance/immutable-storage-reconciliation.worker.js";
+// Phase 4B Final Closure I7 — Archive tier auto-transition scheduler.
+import { runArchiveTierAutoTransitions } from "./governance/archive-tier-auto-transition.worker.js";
 // Reviewer Ops activation — periodic reconcile tick across all teams.
 import { runReviewerReconciliation } from "./reviewer-ops/reviewer-reconciliation.worker.js";
+// P5 — Webhook dispatcher + Evidence Exchange package builder schedulers.
+import { runWebhookDispatcherTick } from "./webhook-dispatcher.js";
+import { pollExchangePackageBuilds } from "./exchange-package-builder.js";
 // Hotfix — API readiness probe so startup-triggered fetches don't
 // race the api process and trigger spurious operational alerts.
 import {
@@ -924,6 +929,143 @@ function stopImmutableStorageReconciliationScheduler() {
 }
 
 // -----------------------------------------------------------------------------
+// Phase 4B Final Closure I7 — Archive tier auto-transition scheduler.
+//
+// Walks every non-personal workspace and tiers down evidence past the
+// age thresholds (30d HOT→WARM, 120d WARM→COLD, 485d COLD→DEEP_ARCHIVE).
+// Bounded at 100 transitions per team per tick + MAX_TEAMS_PER_SWEEP=500.
+//
+// Default interval: 1 hour. Disable with
+// ARCHIVE_AUTO_TRANSITION_ENABLED=false.
+// -----------------------------------------------------------------------------
+
+const archiveAutoTransitionEnabled = envBoolean(
+  "ARCHIVE_AUTO_TRANSITION_ENABLED",
+  true,
+);
+const archiveAutoTransitionIntervalMs = envNumber(
+  "ARCHIVE_AUTO_TRANSITION_INTERVAL_MS",
+  60 * 60 * 1000, // 1 hour
+);
+let archiveAutoTransitionTimer: ReturnType<typeof setInterval> | null = null;
+let archiveAutoTransitionRunning = false;
+
+async function runArchiveAutoTransitionTick(trigger: string) {
+  if (archiveAutoTransitionRunning) return;
+  archiveAutoTransitionRunning = true;
+  try {
+    await runArchiveTierAutoTransitions({ trigger });
+  } catch (err) {
+    logger.error({ err, trigger }, "archive.auto_transition.tick_failed");
+    captureException(err, { trigger });
+  } finally {
+    archiveAutoTransitionRunning = false;
+  }
+}
+
+function startArchiveAutoTransitionScheduler() {
+  if (!archiveAutoTransitionEnabled) {
+    logger.info({}, "archive.auto_transition.scheduler.disabled");
+    return;
+  }
+  archiveAutoTransitionTimer = setInterval(() => {
+    void runArchiveAutoTransitionTick("interval");
+  }, archiveAutoTransitionIntervalMs);
+  logger.info(
+    { intervalMs: archiveAutoTransitionIntervalMs },
+    "archive.auto_transition.scheduler.started",
+  );
+}
+
+function stopArchiveAutoTransitionScheduler() {
+  if (archiveAutoTransitionTimer) {
+    clearInterval(archiveAutoTransitionTimer);
+    archiveAutoTransitionTimer = null;
+  }
+}
+
+// P5 — Webhook dispatcher scheduler.
+const webhookDispatcherEnabled = envBoolean("WEBHOOK_DISPATCHER_ENABLED", true);
+const webhookDispatcherIntervalMs = envNumber(
+  "WEBHOOK_DISPATCHER_INTERVAL_MS",
+  5_000,
+);
+let webhookDispatcherTimer: ReturnType<typeof setInterval> | null = null;
+
+function startWebhookDispatcherScheduler() {
+  if (!webhookDispatcherEnabled) {
+    logger.info({}, "webhook_dispatcher.scheduler.disabled");
+    return;
+  }
+  webhookDispatcherTimer = setInterval(() => {
+    void runWebhookDispatcherTick().catch((err) =>
+      logger.warn({ err }, "webhook_dispatcher.tick.error"),
+    );
+  }, webhookDispatcherIntervalMs);
+  void (async () => {
+    const readiness = await gateStartupOnApiReadiness("webhook-dispatcher");
+    if (!readiness.ready) return;
+    void runWebhookDispatcherTick().catch((err) =>
+      logger.warn({ err }, "webhook_dispatcher.startup.error"),
+    );
+  })();
+  logger.info(
+    { intervalMs: webhookDispatcherIntervalMs },
+    "webhook_dispatcher.scheduler.started",
+  );
+}
+
+function stopWebhookDispatcherScheduler() {
+  if (webhookDispatcherTimer) {
+    clearInterval(webhookDispatcherTimer);
+    webhookDispatcherTimer = null;
+  }
+}
+
+// P5 — Evidence Exchange package builder scheduler.
+const exchangeBuilderEnabled = envBoolean(
+  "EXCHANGE_PACKAGE_BUILDER_ENABLED",
+  true,
+);
+const exchangeBuilderIntervalMs = envNumber(
+  "EXCHANGE_BUILDER_INTERVAL_MS",
+  10_000,
+);
+let exchangePackageBuilderTimer: ReturnType<typeof setInterval> | null = null;
+
+function startExchangePackageBuilderScheduler() {
+  if (!exchangeBuilderEnabled) {
+    logger.info({}, "exchange_package_builder.scheduler.disabled");
+    return;
+  }
+  exchangePackageBuilderTimer = setInterval(() => {
+    void pollExchangePackageBuilds().catch((err) =>
+      logger.warn({ err }, "exchange_package_builder.tick.error"),
+    );
+  }, exchangeBuilderIntervalMs);
+  void (async () => {
+    const readiness = await gateStartupOnApiReadiness(
+      "exchange-package-builder",
+    );
+    if (!readiness.ready) return;
+    void pollExchangePackageBuilds().catch((err) =>
+      logger.warn({ err }, "exchange_package_builder.startup.error"),
+    );
+  })();
+  logger.info(
+    { intervalMs: exchangeBuilderIntervalMs },
+    "exchange_package_builder.scheduler.started",
+  );
+}
+
+function stopExchangePackageBuilderScheduler() {
+  if (exchangePackageBuilderTimer) {
+    clearInterval(exchangePackageBuilderTimer);
+    exchangePackageBuilderTimer = null;
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Reviewer Ops reconciliation scheduler.
 //
 // Drives the entire reviewer-ops lifecycle (SLA progression, escalation
@@ -1511,6 +1653,11 @@ async function shutdown(exitCode: number) {
   stopRetentionReconciliationScheduler();
   stopDestructionOrchestratorScheduler();
   stopImmutableStorageReconciliationScheduler();
+  // Phase 4B Final Closure I7 — Archive tier auto-transition.
+  stopArchiveAutoTransitionScheduler();
+  // P5 — Webhook dispatcher + Evidence Exchange package builder.
+  stopWebhookDispatcherScheduler();
+  stopExchangePackageBuilderScheduler();
   // Reviewer Ops scheduler.
   stopReviewerReconciliationScheduler();
   // Phase Y — Observability schedulers.
@@ -1737,6 +1884,11 @@ startHealthServer()
     startRetentionReconciliationScheduler();
     startDestructionOrchestratorScheduler();
     startImmutableStorageReconciliationScheduler();
+    // Phase 4B Final Closure I7 — Archive tier auto-transition (1h interval).
+    startArchiveAutoTransitionScheduler();
+    // P5 — Webhook dispatcher + Evidence Exchange package builder.
+    startWebhookDispatcherScheduler();
+    startExchangePackageBuilderScheduler();
     // Reviewer Ops activation — drives SLA / escalation / workload /
     // reminder engines across all teams on a fixed interval.
     startReviewerReconciliationScheduler();

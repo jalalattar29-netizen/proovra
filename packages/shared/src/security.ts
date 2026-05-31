@@ -194,6 +194,9 @@ export const SECURITY_EVENT_TYPES = [
   "external_review_grant_issue_failed",
   "external_review_grant_lookup_failed",
   "external_review_grant_transition_failed",
+  // Sensitive: operator viewed (re-revealed) a previously-issued reviewer token.
+  // Emitted by external-review-grant.service.rotateOrReveal — audited at WARNING.
+  "external_review_token_revealed",
   // Phase 25 — Reviewer Operations Intelligence + SLA engine.
   "reviewer_assignment_created",
   "reviewer_reassigned",

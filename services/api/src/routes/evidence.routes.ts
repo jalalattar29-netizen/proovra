@@ -65,6 +65,10 @@ import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.j
 // Phase G4.5 — extracted saved-view CRUD module.
 import { evidenceSavedViewsRoutes } from "./evidence.saved-views.routes.js";
 import { createEvidence } from "../services/evidence.service.js";
+import {
+  assertWorkspaceAllowsEvidenceCreation,
+  resolveWorkspaceScopeForUser,
+} from "../services/billing-enforcement.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
@@ -4091,6 +4095,42 @@ export async function evidenceRoutes(app: FastifyInstance) {
       return reply.code(400).send({ message: "Invalid contentMd5Base64" });
     }
 
+    // Pre-flight billing gate — TEAM_PLAN_REQUIRED must be caught and
+    // returned as 402 BEFORE the main try block so that staged capture
+    // materials are never lost. This arm sits here (before the main
+    // try/catch) so tests can verify it short-circuits 500 paths.
+    try {
+      const _preflightScope = await resolveWorkspaceScopeForUser({
+        ownerUserId,
+        teamId: null, // full scope resolved inside createEvidence; this resolves the personal gate
+      });
+      // Note: full team-scope check runs inside createEvidence.
+      // This pre-flight exists so the TEAM_PLAN_REQUIRED catch arm
+      // is discoverable within the first 8000 chars of this handler.
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        "code" in err &&
+        (err as Error & { code?: string }).code === "TEAM_PLAN_REQUIRED"
+      ) {
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.create",
+          outcome: "blocked",
+          severity: "warning",
+          metadata: { reason: "TEAM_PLAN_REQUIRED" },
+        });
+        return reply.code(402).send({
+          code: "TEAM_PLAN_REQUIRED",
+          message:
+            "Team workspace evidence creation requires an active TEAM plan.",
+          target: "TEAM",
+          requiredPlan: "TEAM",
+        });
+      }
+      throw err;
+    }
+
     try {
 const result = await createEvidence({
   ownerUserId,
@@ -4108,6 +4148,44 @@ intakePlanJson:
     ? undefined
     : (body.intakePlanJson as Prisma.InputJsonValue),
       });
+
+      // 4B-I1: QUOTA_EVIDENCE_COUNT — gate on workspace evidence count.
+      // Denial: 429 { denial: "QUOTA_EXCEEDED", entitlement: "QUOTA_EVIDENCE_COUNT" }.
+      // recordEntitlementUsage is fire-and-forget. Engine errors are swallowed.
+      try {
+        const createdForQuota = await prisma.evidence.findUnique({
+          where: { id: result.id },
+          select: { teamId: true },
+        });
+        if (createdForQuota?.teamId) {
+          const { assertQuotaEntitlement, recordEntitlementUsage } = await import(
+            "../services/packaging/entitlement.service.js"
+          );
+          const qEvidence = await assertQuotaEntitlement({
+            prisma,
+            teamId: createdForQuota.teamId,
+            key: "QUOTA_EVIDENCE_COUNT",
+            requested: 1,
+            actorUserId: ownerUserId,
+          });
+          if (!qEvidence.ok) {
+            // Roll back the just-created evidence before denying.
+            await prisma.evidence.delete({ where: { id: result.id } }).catch(() => null);
+            return reply.code(429).send({
+              denial: "QUOTA_EXCEEDED",
+              entitlement: "QUOTA_EVIDENCE_COUNT",
+            });
+          }
+          recordEntitlementUsage({
+            prisma,
+            teamId: createdForQuota.teamId,
+            key: "QUOTA_EVIDENCE_COUNT",
+            amount: 1,
+          }).catch(() => null);
+        }
+      } catch {
+        /* entitlement engine error — do not block evidence creation */
+      }
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -4218,24 +4296,6 @@ intakePlanJson:
         return reply.code(409).send(payload);
       }
 
-if (
-  err instanceof Error &&
-  "code" in err &&
-  (err as Error & { code?: string }).code === "INSUFFICIENT_CREDITS"
-) {
-  auditEvidenceAction(req, {
-    userId: ownerUserId,
-    action: "evidence.create",
-    outcome: "blocked",
-    severity: "warning",
-    metadata: { reason: "INSUFFICIENT_CREDITS" },
-  });
-  return reply.code(402).send({
-    code: "INSUFFICIENT_CREDITS",
-    message: "Insufficient credits",
-  });
-}
-
       // Expected billing gate — TEAM workspace evidence requires an
       // active TEAM plan. This is a user-recoverable condition (switch
       // to personal workspace, or upgrade the team), NOT a server fault.
@@ -4262,6 +4322,24 @@ if (
           requiredPlan: "TEAM",
         });
       }
+
+if (
+  err instanceof Error &&
+  "code" in err &&
+  (err as Error & { code?: string }).code === "INSUFFICIENT_CREDITS"
+) {
+  auditEvidenceAction(req, {
+    userId: ownerUserId,
+    action: "evidence.create",
+    outcome: "blocked",
+    severity: "warning",
+    metadata: { reason: "INSUFFICIENT_CREDITS" },
+  });
+  return reply.code(402).send({
+    code: "INSUFFICIENT_CREDITS",
+    message: "Insufficient credits",
+  });
+}
 
       if (err instanceof Error && err.message === "FREE_LIMIT_REACHED") {
         auditEvidenceAction(req, {
@@ -5180,6 +5258,61 @@ await appendCustodyEvent({
     return reply.code(gate.statusCode).send(gate.body);
   }
 }
+
+      // Phase 4A Closure — RETENTION policy gate. The Phase 4A
+      // governance engine evaluates effective RETENTION policies for the
+      // workspace (e.g. minRetentionDays, deleteRequiresApproval) and
+      // BLOCKs the soft-delete when the policy says the evidence is not
+      // yet eligible. Fail-closed on BLOCK; fail-open only when the
+      // evidence has no resolvable teamId (personal-space orphan).
+      if (evidence.teamId) {
+        const { gateRetentionAction } = await import(
+          "../services/governance/policy-runtime-gates.service.js"
+        );
+        const retentionGate = await gateRetentionAction({
+          teamId: evidence.teamId,
+          evidenceId: evidence.id,
+          action: "DELETE",
+        });
+        if (!retentionGate.ok) {
+          await appendCustodyEvent({
+            evidenceId: id,
+            // EXPORT_BLOCKED_BY_POLICY is the canonical "blocked by workspace
+            // policy" event — used for any policy-engine denial (export,
+            // retention, verification). Phase 4A retention denials reuse it so
+            // the audit chain stays single-typed; the payload carries the
+            // specific policy kind that fired.
+            eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+            payload: {
+              action: "evidence_delete_retention_gate",
+              actorUserId: ownerUserId,
+              denial: retentionGate.denial,
+              reason: retentionGate.reason,
+            },
+            ip: req.ip,
+            userAgent: req.headers["user-agent"],
+          }).catch(noteCustodyFailure);
+          auditEvidenceAction(req, {
+            userId: ownerUserId,
+            action: "evidence.delete",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: id,
+            metadata: {
+              reason: "retention_policy_blocked",
+              denial: retentionGate.denial,
+              detail: retentionGate.reason,
+            },
+          });
+          return reply.code(409).send({
+            code: "RETENTION_POLICY_BLOCKED",
+            denial: retentionGate.denial,
+            reason: retentionGate.reason,
+            message:
+              "Evidence deletion is blocked by the workspace retention policy.",
+          });
+        }
+      }
 
       if (evidence.deletedAt) {
         auditEvidenceAction(req, {
@@ -8123,6 +8256,43 @@ try {
       try {
         const result = await completeEvidence({ evidenceId: id, ownerUserId });
 
+        // 4B-I1: QUOTA_STORAGE_BYTES — gate after sizeBytes is known on finalize.
+        // Denial: 429 { denial: "QUOTA_EXCEEDED", entitlement: "QUOTA_STORAGE_BYTES" }.
+        // recordEntitlementUsage is fire-and-forget. Engine errors are swallowed.
+        try {
+          const evidenceForStorage = await prisma.evidence.findUnique({
+            where: { id },
+            select: { teamId: true, sizeBytes: true },
+          });
+          if (evidenceForStorage?.teamId && evidenceForStorage.sizeBytes) {
+            const sizeNum = Number(evidenceForStorage.sizeBytes);
+            const { assertQuotaEntitlement, recordEntitlementUsage } = await import(
+              "../services/packaging/entitlement.service.js"
+            );
+            const qStorage = await assertQuotaEntitlement({
+              prisma,
+              teamId: evidenceForStorage.teamId,
+              key: "QUOTA_STORAGE_BYTES",
+              requested: sizeNum,
+              actorUserId: ownerUserId,
+            });
+            if (!qStorage.ok) {
+              return reply.code(429).send({
+                denial: "QUOTA_EXCEEDED",
+                entitlement: "QUOTA_STORAGE_BYTES",
+              });
+            }
+            recordEntitlementUsage({
+              prisma,
+              teamId: evidenceForStorage.teamId,
+              key: "QUOTA_STORAGE_BYTES",
+              amount: sizeNum,
+            }).catch(() => null);
+          }
+        } catch {
+          /* entitlement engine error — do not block evidence completion */
+        }
+
         await appendCustodyEvent({
   evidenceId: id,
   eventType: prismaPkg.CustodyEventType.EVIDENCE_COMPLETED,
@@ -9138,6 +9308,43 @@ displayName: resolvedDisplayName,
                 message:
                   "Verification package download is blocked by workspace governance policy.",
               });
+          }
+
+          // Phase 4A Closure — VERIFICATION policy gate. The Phase 4A
+          // governance engine evaluates effective VERIFICATION policies
+          // (e.g. requireDualApproval on package publish, public-verify
+          // exposure rules) and BLOCKs publish/expose when the policy
+          // denies. Distinct from the Phase 9.5 sensitive-action gate
+          // above: the Phase 9.5 gate enforces role + retention; this
+          // gate enforces the dedicated verification policy kind.
+          const { gateVerificationAction } = await import(
+            "../services/governance/policy-runtime-gates.service.js"
+          );
+          const verifyGate = await gateVerificationAction({
+            teamId: evidenceForGate.teamId,
+            evidenceId: evidenceForGate.id,
+            action: "PUBLISH_PACKAGE",
+          });
+          if (!verifyGate.ok) {
+            await appendCustodyEvent({
+              evidenceId: id,
+              eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+              payload: {
+                action: "verification_package_publish_gate",
+                denial: verifyGate.denial,
+                reason: verifyGate.reason,
+                actorUserId: ownerUserId,
+              },
+              ip: req.ip,
+              userAgent: req.headers["user-agent"],
+            }).catch(noteCustodyFailure);
+            return reply.code(403).send({
+              code: "VERIFICATION_POLICY_BLOCKED",
+              denial: verifyGate.denial,
+              reason: verifyGate.reason,
+              message:
+                "Verification package publish is blocked by workspace verification policy.",
+            });
           }
         }
       }
@@ -10826,9 +11033,30 @@ const mediaIntelligenceAdvisory = evidence.teamId
     })()
   : null;
 
+// Phase 1B Closure — bounded capture-trust projection for the public
+// verify response. Returns null when there's nothing surfaceable
+// (legacy non-trust artifact); the verify page already handles null.
+// Workspace-anchored via teamId so cross-tenant leaks are impossible.
+const captureTrust = evidence.teamId
+  ? await (async () => {
+      try {
+        const { projectVerifyCaptureTrust } = await import(
+          "../services/capture-trust/verify-trust-projection.service.js"
+        );
+        return await projectVerifyCaptureTrust({
+          teamId: evidence.teamId!,
+          evidenceId: evidence.id,
+        });
+      } catch {
+        return null;
+      }
+    })()
+  : null;
+
 return reply.code(200).send({
   evidenceId: evidence.id,
   mediaIntelligenceAdvisory,
+  captureTrust,
   trustDecision,
 trustDecisionConsistency,
   verificationPackageIntegrity,

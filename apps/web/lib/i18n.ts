@@ -1,4 +1,11 @@
-import { dict, defaultLocale, supportedLocales, type Locale } from "@proovra/shared";
+// Import from the dedicated `@proovra/shared/i18n` subpath, NOT the barrel.
+// The `@proovra/shared` barrel re-exports `custody-hash` (and other Node-only
+// modules) which `import "node:crypto"`. Webpack follows every barrel
+// re-export into the client bundle and fails the build with:
+//   UnhandledSchemeError: Reading from "node:crypto" is not handled by plugins.
+// The direct subpath import keeps the client bundle to the pure-data i18n
+// module (dict + Locale + supportedLocales — zero imports).
+import { dict, defaultLocale, supportedLocales, type Locale } from "@proovra/shared/i18n";
 
 export const translations = dict;
 export { defaultLocale, supportedLocales };

@@ -1069,6 +1069,161 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: false, // self-reference; doesn't list itself
     sidebarEligible: false,
   },
+
+  // ---------------------------------------------------------------------------
+  // Phase 1A — Trust pillar surface. Canonical id `workspace.trust` points
+  // at the real Trust hub page (apps/web/app/(app)/trust/page.tsx) which
+  // composes verification methodology, public-verify, offline verifier,
+  // signers, c2pa operations, subprocessors, privacy + retention surfaces.
+  // ---------------------------------------------------------------------------
+  {
+    id: "workspace.trust",
+    href: "/trust",
+    label: "Trust",
+    description:
+      "Trust center hub — methodology, verification, signers, subprocessors, privacy.",
+    // Trust hub renders workspace-anchored content (trust articles + subprocessor
+    // snapshot + verification methodology for THIS workspace). It is a workspace
+    // surface, NOT an account-tier surface, so domain=PERSONAL_WORKSPACE +
+    // requiredActiveSpace=PERSONAL_OR_ORG matches the pattern used by every other
+    // workspace-anchored route (workspace.evidence, workspace.cases, ...). Active
+    // space is required so the trust dashboard knows which workspace's articles
+    // to project — access is not weakened.
+    domain: "PERSONAL_WORKSPACE",
+    requiredCapabilities: [],
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "LOAD",
+    workflowTags: ["TRUST_AND_GOVERNANCE"],
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: true,
+  },
+
+  // ---------------------------------------------------------------------------
+  // Phase 2A — Reviewer Workspace surfaces. Canonical ids for the new
+  // Phase 2A pages. Each entry points at the REAL page on disk; nothing
+  // here invents an empty route. Pillar mapping lives in pillarRegistry.
+  // ---------------------------------------------------------------------------
+  {
+    id: "workspace.review_workspace",
+    href: "/review/workspace",
+    label: "Reviewer workspace",
+    description:
+      "Reviewer operational surface — coding panel, hotkeys, evidence + coding side-by-side.",
+    domain: "REVIEW_OPERATIONS",
+    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
+    workflowTags: ["REVIEW_OPERATIONS"],
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: true,
+  },
+  {
+    id: "workspace.coding_schemas",
+    href: "/review/schemas",
+    label: "Coding schemas",
+    description: "Coding schema admin — fields, versioning, workflow binding.",
+    domain: "REVIEW_OPERATIONS",
+    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
+    workflowTags: ["REVIEW_OPERATIONS"],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "workspace.review_qc",
+    href: "/review/qc",
+    label: "Reviewer QC",
+    description: "QC sample queue + verdict capture + accuracy metrics.",
+    domain: "REVIEW_OPERATIONS",
+    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
+    workflowTags: ["REVIEW_OPERATIONS"],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "workspace.review_disagreements",
+    href: "/review/disagreements",
+    label: "Reviewer disagreements",
+    description: "Challenge → second review → supervisor → resolution queue.",
+    domain: "REVIEW_OPERATIONS",
+    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
+    workflowTags: ["REVIEW_OPERATIONS"],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "workspace.review_metrics",
+    href: "/review/metrics",
+    label: "Reviewer metrics",
+    description:
+      "Reviewer throughput, approval/escalation rates, QC accuracy, rework.",
+    domain: "REVIEW_OPERATIONS",
+    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
+    workflowTags: ["REVIEW_OPERATIONS"],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+
+  // ---------------------------------------------------------------------------
+  // Phase 2A Closure — bulk operations queue. Points at the canonical
+  // /review/queues page (operator queues + bulk action bar).
+  // ---------------------------------------------------------------------------
+  {
+    id: "workspace.review_queues",
+    href: "/review/queues",
+    label: "Reviewer queues",
+    description: "Multi-select reviewer queues + bulk action bar.",
+    domain: "REVIEW_OPERATIONS",
+    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
+    workflowTags: ["REVIEW_OPERATIONS"],
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: true,
+  },
+
+  // ---------------------------------------------------------------------------
+  // Phase 2B — External Reviewer Portal internal admin surface. The portal
+  // itself lives at /portal (token-gated); this id binds the internal
+  // invitation/management page at /review/external.
+  // ---------------------------------------------------------------------------
+  {
+    id: "workspace.review_external",
+    href: "/review/external",
+    label: "External reviewer management",
+    description:
+      "Issue, resend, revoke external reviewer invitations + monitor portal sessions.",
+    domain: "REVIEW_OPERATIONS",
+    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
+    fallbackBehavior: "REQUEST_ACCESS",
+    workflowTags: ["REVIEW_OPERATIONS"],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: true,
+  },
 ];
 
 /**

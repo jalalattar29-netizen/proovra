@@ -1535,6 +1535,127 @@ export {
 } from "./external-review.js";
 
 // -----------------------------------------------------------------------------
+// Phase 3B Enterprise Closure — intelligence-closure contracts
+// (executive metrics ranges, trend math, lifecycle audit codes, quality projections)
+// -----------------------------------------------------------------------------
+
+export type {
+  AuditEventsManifestEntry,
+  BudgetBreachProjection,
+  BudgetBreachRow,
+  BudgetGovernanceManifestEntry,
+  BudgetSpendProjection,
+  BudgetSpendRow,
+  CorrectionVersionChainManifestEntry,
+  CorrectionVersionChainProjection,
+  CorrectionVersionRow,
+  ExecutiveAiTrend,
+  ExecutiveCaptureTrend,
+  ExecutiveCostTrend,
+  ExecutiveCorrectionTrend,
+  ExecutiveEvidenceTrend,
+  ExecutiveMetricsRange,
+  ExecutiveReviewTrend,
+  ExecutiveSlaTrend,
+  ExecutiveTrendsProjection,
+  ExecutiveVerificationTrend,
+  IntelligenceLifecycleCategory,
+  IntelligenceLifecycleCode,
+  ProviderQualityManifestEntry,
+  ProviderQualityProjection,
+  ProviderQualityRow,
+  ReviewerQualityProjection,
+  ReviewerQualityRow,
+  TeamQualityProjection,
+  TeamQualityRow,
+  TrendDirection,
+  TrendMetric,
+} from "./intelligence-closure.js";
+
+export {
+  EXECUTIVE_METRICS_RANGES,
+  EXECUTIVE_TRENDS_SCHEMA_VERSION,
+  INTELLIGENCE_LIFECYCLE_CATEGORIES,
+  INTELLIGENCE_LIFECYCLE_CODES,
+  TREND_DIRECTIONS,
+  buildTrendMetric,
+  classifyLifecycleCategory,
+  classifyTrend,
+  rangeWindowMs,
+} from "./intelligence-closure.js";
+
+// -----------------------------------------------------------------------------
+// Phase 1B Closure — canonical-JSON + capture-trust contracts
+// (shared cross-runtime canonical serialiser + capture trust primitives)
+// -----------------------------------------------------------------------------
+
+export {
+  canonicalize as canonicalJson,
+  canonicalUtf8Length,
+  CanonicalJsonError,
+} from "./canonical-json.js";
+
+// -----------------------------------------------------------------------------
+// Phase 4B — Product Packaging & Lifecycle contracts
+// (product lines, entitlements, exchange, webhooks, retention,
+//  legal hold, archive tiers, destruction governance, lifecycle dashboard)
+// -----------------------------------------------------------------------------
+
+export type {
+  ArchiveTier,
+  ArchiveManifestEntry,
+  ArchiveTransitionProjection,
+  ChainTransferProjection,
+  ChainTransferState,
+  DestructionCertificateProjection,
+  DestructionLifecycleCode,
+  DestructionManifestEntry,
+  DestructionRequestProjection,
+  DestructionState,
+  EntitlementKey,
+  EntitlementProjection,
+  ExchangeManifestEntry,
+  ExchangePackageKind,
+  ExchangePackageProjection,
+  ExchangePackageState,
+  LegalHoldKind,
+  LegalHoldLifecycleCode,
+  LegalHoldManifestEntry,
+  LegalHoldProjection,
+  LegalHoldState,
+  LifecycleDashboardProjection,
+  LifecycleManifestEntry,
+  ProductAndLifecycleLimitation,
+  ProductLine,
+  ProductLineProjection,
+  RetentionManifestEntry,
+  RetentionPolicyProjection,
+  RetentionPolicyTemplate,
+  TransferManifestEntry,
+  WebhookDeliveryState,
+  WebhookEventKind,
+} from "./product-and-lifecycle.js";
+
+export {
+  ARCHIVE_TIERS,
+  CHAIN_TRANSFER_STATES,
+  DESTRUCTION_LIFECYCLE_CODES,
+  DESTRUCTION_STATES,
+  ENTITLEMENT_KEYS,
+  EXCHANGE_PACKAGE_KINDS,
+  EXCHANGE_PACKAGE_STATES,
+  LEGAL_HOLD_KINDS,
+  LEGAL_HOLD_LIFECYCLE_CODES,
+  LEGAL_HOLD_STATES,
+  LIFECYCLE_DASHBOARD_SCHEMA_VERSION,
+  PRODUCT_AND_LIFECYCLE_LIMITATIONS,
+  PRODUCT_LINES,
+  RETENTION_POLICY_TEMPLATES,
+  WEBHOOK_DELIVERY_STATES,
+  WEBHOOK_EVENT_KINDS,
+} from "./product-and-lifecycle.js";
+
+// -----------------------------------------------------------------------------
 // Phase 28-E — Enterprise discovery foundation. Architecture
 // primitives only; no engine.
 // -----------------------------------------------------------------------------
@@ -1567,3 +1688,221 @@ export {
   emitIndexingEvent,
   registerIndexingEventSink,
 } from "./discovery-foundation.js";
+
+// -----------------------------------------------------------------------------
+// Phase 1B — Capture Trust contracts
+// (provenance classes, trust event codes, device attestation, capture signature)
+// -----------------------------------------------------------------------------
+export {
+  CAPTURE_PROVENANCE_CLASSES,
+  PROVENANCE_CHAIN_SCHEMA_VERSION,
+  CAPTURE_TRUST_EVENT_CODES,
+  DEVICE_ATTESTATION_PROVIDERS,
+  DEVICE_ATTESTATION_FAILURE_REASONS,
+  CAPTURE_SIGNATURE_ALGORITHMS,
+  CAPTURE_MODES,
+  CAPTURE_SIGNATURE_VERDICTS,
+  DEVICE_ATTESTATION_VERDICTS,
+  STANDING_PROVENANCE_LIMITATIONS,
+  PROVENANCE_LIMITATION_CODES,
+  CAPTURE_INGEST_WARNINGS,
+  CAPTURE_INGEST_DENIAL_REASONS,
+  provenanceClassLabel,
+  clampProvenanceClass,
+  demoteToClassC,
+  attestationVerdictKeepsClassA,
+  signatureVerdictIsFatal,
+} from "./capture-trust.js";
+export type {
+  CaptureProvenanceClass,
+  CaptureSignaturePayload,
+  ProvenanceChain,
+  CaptureTrustEventCode,
+  DeviceAttestationProvider,
+  DeviceAttestationFailureReason,
+  CaptureSignatureAlgorithm,
+  CaptureMode,
+  CaptureSignatureVerdict,
+  DeviceAttestationVerdict,
+  CaptureIngestReceipt,
+  CaptureIngestWarning,
+  CaptureIngestDenialReason,
+  ProvenanceLimitationCode,
+} from "./capture-trust.js";
+
+// -----------------------------------------------------------------------------
+// Phase 1B — Capture SDK Foundation contracts
+// (abstract interfaces for cross-runtime capture + provenance + trust)
+// -----------------------------------------------------------------------------
+export type {
+  CaptureSource,
+  CaptureContext,
+  CaptureResult,
+  ProvenanceSigner,
+  ProvenanceProof,
+  DeviceAttestationAssertion,
+  TrustEnvelope,
+  CaptureSdkConformance,
+} from "./capture-sdk-foundation.js";
+
+// -----------------------------------------------------------------------------
+// Phase 2B Closure — External portal closure contracts
+// (auth methods, delivery statuses, bulk invitation shapes)
+// -----------------------------------------------------------------------------
+export {
+  PORTAL_AUTH_METHODS,
+  INVITATION_DELIVERY_STATUSES,
+  BULK_INVITATION_ROW_OUTCOMES,
+  BULK_INVITATION_MAX_ROWS,
+  EXTERNAL_REVIEWER_ROLES,
+  EXTERNAL_PORTAL_ACTIVITY_CODES,
+  EXTERNAL_PORTAL_CAPABILITIES,
+  EXTERNAL_PORTAL_CAPABILITY_MATRIX,
+  EXTERNAL_DECISION_VERDICTS,
+  WATERMARK_POLICIES,
+  externalPortalCapabilitiesForRole,
+} from "./external-review-portal.js";
+export type {
+  PortalAuthMethod,
+  InvitationDeliveryStatus,
+  BulkInvitationRowOutcome,
+  BulkInvitationResultRow,
+  ExternalReviewerRole,
+  ExternalPortalActivityCode,
+  ExternalPortalCapability,
+  ExternalDecisionVerdict,
+  WatermarkPolicy,
+} from "./external-review-portal.js";
+
+// -----------------------------------------------------------------------------
+// Phase 3A Elite Closure — Redaction elite contracts
+// (policy version states, assignment precedence, video intelligence)
+// -----------------------------------------------------------------------------
+export {
+  REDACTION_POLICY_VERSION_STATES,
+  REDACTION_POLICY_VERSION_TRANSITIONS,
+  POLICY_ASSIGNMENT_SCOPES,
+  POLICY_ASSIGNMENT_PRECEDENCE,
+  POLICY_DETECTION_RULE_ACTIONS,
+  REDACTION_POLICY_DOCUMENT_SCHEMA_VERSION,
+  REDACTION_POLICY_ACTIVITY_CODES,
+  VIDEO_TRACK_KINDS,
+  VIDEO_TRACK_STATES,
+  VIDEO_FRAME_EXTRACTORS,
+  VIDEO_TIMELINE_LAYERS,
+  isAllowedPolicyVersionTransition,
+} from "./redaction-elite.js";
+export type {
+  RedactionPolicyVersionState,
+  PolicyAssignmentScope,
+  PolicyDetectionRuleAction,
+  PolicyCustomRegexRule,
+  RedactionPolicyDocument,
+  RedactionPolicyActivityCode,
+  EffectivePolicy,
+  VideoTrackKind,
+  VideoTrackState,
+  VideoFrameExtractor,
+  VideoTimelineLayer,
+  VideoTrackingVerificationManifestEntry,
+  PolicyVerificationManifestEntry,
+} from "./redaction-elite.js";
+
+// -----------------------------------------------------------------------------
+// Phase 1B — Capture SDK foundation
+// (typed interfaces: CaptureContext, CaptureResult, TrustEnvelope, etc.)
+// -----------------------------------------------------------------------------
+export type * from "./capture-sdk-foundation.js";
+
+// -----------------------------------------------------------------------------
+// Phase 2A — Reviewer Workspace contracts
+// (roles, capabilities, coding field types, verdicts, QC states, disagreements, hotkeys)
+// -----------------------------------------------------------------------------
+// Wildcard re-export preserves every export (back-compat). Explicit named
+// re-exports below give source-grep contract tests + IDE jump-to-def a
+// stable target. Definitions remain in the canonical module — these are
+// pure re-exports, no duplication.
+export * from "./reviewer-workspace.js";
+export {
+  REVIEWER_ROLES,
+  CODING_FIELD_TYPES,
+  DISAGREEMENT_STATES,
+  REVIEWER_HOTKEY_CODES,
+} from "./reviewer-workspace.js";
+export type { ReviewerWorkspaceProjection } from "./reviewer-workspace.js";
+
+// -----------------------------------------------------------------------------
+// Phase 2B — External Reviewer Portal contracts
+// (reviewer roles, auth methods, activity codes, watermark, bulk invitation)
+// -----------------------------------------------------------------------------
+export * from "./external-review-portal.js";
+// Note: EXTERNAL_REVIEWER_ROLES, EXTERNAL_PORTAL_CAPABILITIES,
+// EXTERNAL_DECISION_VERDICTS, WATERMARK_POLICIES are explicit-named-exported
+// in the Phase 2B Closure block above. Only EXTERNAL_PORTAL_LIMITATIONS
+// needs to be added here for grep-visibility.
+export { EXTERNAL_PORTAL_LIMITATIONS } from "./external-review-portal.js";
+
+// -----------------------------------------------------------------------------
+// Phase 3A — Enterprise Redaction Platform contracts
+// (artifact kinds, region kinds, detection, decision, approval, derivative,
+//  roles, capabilities, activity codes, denial reasons, projection types)
+// -----------------------------------------------------------------------------
+export * from "./redaction.js";
+export {
+  REDACTION_ARTIFACT_KINDS,
+  REDACTION_VERSION_TRANSITIONS,
+  REDACTION_CAPABILITY_MATRIX,
+  classifyConfidence,
+  isValidRegionGeometry,
+} from "./redaction.js";
+export type {
+  RedactionProjectProjection,
+  PortalRedactionExposure,
+  RedactionVerificationManifestEntry,
+} from "./redaction.js";
+
+// -----------------------------------------------------------------------------
+// Phase 3A Elite Closure — Policy + Video Intelligence contracts
+// (policy version states, assignment scopes, video track/frame/timeline types)
+// -----------------------------------------------------------------------------
+export * from "./redaction-elite.js";
+
+// -----------------------------------------------------------------------------
+// Phase 3B — Enterprise Intelligence Platform contracts
+// (modalities, record kinds, providers, confidence bands, cost units, budgets,
+//  audit transparency, executive metrics schema)
+// -----------------------------------------------------------------------------
+export * from "./media-intelligence-platform.js";
+export {
+  MEDIA_INTELLIGENCE_PROVIDERS,
+  PROVIDER_ADAPTER_OPERATIONS,
+  EXECUTIVE_METRICS_SCHEMA_VERSION,
+  AUDIT_TRANSPARENCY_CATEGORIES,
+} from "./media-intelligence-platform.js";
+export type {
+  MediaIntelligenceRecordProjection,
+  ExecutiveMetricsProjection,
+  ProviderBudgetGateResult,
+} from "./media-intelligence-platform.js";
+
+// -----------------------------------------------------------------------------
+// Phase 4A — Trust Center + Enterprise Governance contracts
+// (trust articles, subprocessors, status page, org/dept/delegated-admin,
+//  governance policy, access review campaign, cross-org review, manifests)
+// -----------------------------------------------------------------------------
+export * from "./trust-and-governance.js";
+
+// -----------------------------------------------------------------------------
+// Custody hash helpers (canonicalJsonValue + buildCustodyEventHash)
+//
+// NOT re-exported from this barrel. `custody-hash.ts` imports `node:crypto`,
+// which Webpack cannot resolve in the browser bundle (UnhandledSchemeError).
+// Every real consumer (worker + api custody-events services) already imports
+// directly from the `@proovra/shared/custody-hash` subpath, so removing the
+// barrel re-export is non-breaking for those callers and stops the Node-only
+// graph from being dragged into the Next.js client bundle whenever any web
+// file touches `@proovra/shared`.
+//
+// To use the custody hash helpers:
+//   import { buildCustodyEventHash, canonicalJsonValue } from "@proovra/shared/custody-hash";
+// -----------------------------------------------------------------------------

@@ -86,6 +86,12 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "workspace.intake_links",
       "account.inbox",
       "workspace.search",
+      // Phase 2A — canonical reviewer-operator surfaces. These are daily
+      // operational pages (workspace + queues), so they live in WORKSPACE
+      // primary alongside `workspace.review`. The Phase 2A coding/qc/
+      // disagreement/metrics admin tools sit in secondary below.
+      "workspace.review_workspace",
+      "workspace.review_queues",
     ],
     secondary: [
       "workspace.evidence_requests",
@@ -104,6 +110,13 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "investigation.graph",
       "investigation.duplicates",
       "investigation.reviewers",
+      // Phase 2A — coding-schema admin + QC + disagreement-queue +
+      // reviewer-metrics. Reviewer-tier admin surfaces (not daily flow),
+      // discoverable via WORKSPACE secondary.
+      "workspace.coding_schemas",
+      "workspace.review_qc",
+      "workspace.review_disagreements",
+      "workspace.review_metrics",
     ],
   },
 
@@ -121,6 +134,11 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "account.organizations",
       "workspace.security_center",
       "admin.teams",
+      // Phase 1A — Trust hub is the cross-organisation transparency
+      // surface (methodology, verification, signers, subprocessors,
+      // privacy). Lives in GOVERNANCE primary because it's the operator-
+      // facing trust + transparency control.
+      "workspace.trust",
     ],
     secondary: [
       "governance.policy",
@@ -136,6 +154,10 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // Center. It belongs to the Governance group (member-identity
       // oversight) and is discoverable via cmd-K + All Tools.
       "security_center.mfa_recovery",
+      // Phase 2B — External Reviewer Portal internal admin (issue, resend,
+      // revoke invitations + monitor portal sessions). Reviewer-tier
+      // governance surface, not daily reviewer flow.
+      "workspace.review_external",
     ],
   },
 

@@ -184,6 +184,50 @@ const WORKSPACE_GROUP: NavRegistryGroup = {
       badgeKey: null,
       requiresCapability: "SEARCH_VIEW",
     },
+    {
+      id: "workspace.packaging",
+      label: "Product & Packaging",
+      href: "/packaging",
+      iconKey: "packaging",
+      domain: "WORKSPACE",
+      badgeKey: null,
+      requiresCapability: "DASHBOARD_VIEW",
+    },
+    {
+      id: "workspace.evidence_lifecycle",
+      label: "Evidence Lifecycle",
+      href: "/evidence-lifecycle",
+      iconKey: "lifecycle",
+      domain: "WORKSPACE",
+      badgeKey: null,
+      requiresCapability: "DASHBOARD_VIEW",
+    },
+    // Phase 4A — Trust Center discoverability. The /trust-center page
+    // exposes the canonical trust hub (methodology, AI disclosure, security,
+    // subprocessors, status). Gated by DASHBOARD_VIEW so it only appears
+    // inside an active workspace context (SETTINGS_VIEW is also granted to
+    // no-workspace users, which would incorrectly include this entry).
+    {
+      id: "workspace.trust_center",
+      label: "Trust Center",
+      href: "/trust-center",
+      iconKey: "trust",
+      domain: "WORKSPACE",
+      badgeKey: null,
+      requiresCapability: "DASHBOARD_VIEW",
+    },
+    // Phase 4A — Governance Platform discoverability. The /governance-platform
+    // page is the canonical org governance hub (departments, delegated admin,
+    // policies, access reviews, cross-org). Gated by GOVERNANCE_VIEW.
+    {
+      id: "workspace.governance_platform",
+      label: "Governance Platform",
+      href: "/governance-platform",
+      iconKey: "governance",
+      domain: "WORKSPACE",
+      badgeKey: null,
+      requiresCapability: "GOVERNANCE_VIEW",
+    },
   ],
 };
 
@@ -276,6 +320,83 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       iconKey: "governance",
       domain: "REVIEW_GOVERNANCE",
       badgeKey: "governance_incidents",
+      requiresCapability: "GOVERNANCE_VIEW",
+    },
+    // -------------------------------------------------------------------
+    // Phase 3A — Redaction Platform nav binding. Canonical id
+    // `workspace.review_redaction` points at the real /redaction page.
+    // Bound under REVIEW_GOVERNANCE because redaction is a reviewer
+    // surface gated by REVIEWER_OPS_VIEW (the existing reviewer-tier
+    // capability — the bounded redaction.* permissions live in the
+    // shared permission catalog and are enforced inside the redaction
+    // routes layer).
+    // -------------------------------------------------------------------
+    {
+      id: "workspace.review_redaction",
+      label: "Redaction",
+      href: "/redaction",
+      iconKey: "redaction",
+      domain: "REVIEW_GOVERNANCE",
+      badgeKey: null,
+      requiresCapability: "REVIEWER_OPS_VIEW",
+    },
+    // -------------------------------------------------------------------
+    // Phase 3B — Intelligence Platform nav bindings. Canonical ids for
+    // the 3 platform pages: intelligence-platform hub, executive
+    // dashboard, audit-transparency center. Distinct from the legacy
+    // `review.intelligence` (Phase 31 entry) which remains for back-
+    // compat. The new ids point at the Phase 3B pages on disk.
+    // -------------------------------------------------------------------
+    {
+      id: "workspace.intelligence_platform",
+      label: "Intelligence Platform",
+      href: "/intelligence",
+      iconKey: "intelligence",
+      domain: "REVIEW_GOVERNANCE",
+      badgeKey: null,
+      requiresCapability: "EVIDENCE_VIEW",
+    },
+    {
+      id: "workspace.executive",
+      label: "Executive Dashboard",
+      href: "/executive",
+      iconKey: "executive",
+      domain: "REVIEW_GOVERNANCE",
+      badgeKey: null,
+      requiresCapability: "GOVERNANCE_VIEW",
+    },
+    {
+      id: "workspace.audit_transparency",
+      label: "Audit & Transparency",
+      href: "/audit-transparency",
+      iconKey: "audit_transparency",
+      domain: "REVIEW_GOVERNANCE",
+      badgeKey: null,
+      requiresCapability: "GOVERNANCE_VIEW",
+    },
+    // -------------------------------------------------------------------
+    // Phase 3B Closure — Intelligence Quality + Budget Center. Distinct
+    // pages from the Phase 3B platform hub, registered for sidebar
+    // discoverability. Both point at REAL pages on disk:
+    //   /intelligence-quality → apps/web/app/(app)/intelligence-quality/page.tsx
+    //   /budget-center        → apps/web/app/(app)/budget-center/page.tsx
+    // -------------------------------------------------------------------
+    {
+      id: "workspace.intelligence_quality",
+      label: "Intelligence Quality",
+      href: "/intelligence-quality",
+      iconKey: "intelligence",
+      domain: "REVIEW_GOVERNANCE",
+      badgeKey: null,
+      requiresCapability: "EVIDENCE_VIEW",
+    },
+    {
+      id: "workspace.budget_center",
+      label: "Budget Center",
+      href: "/budget-center",
+      iconKey: "intelligence",
+      domain: "REVIEW_GOVERNANCE",
+      badgeKey: null,
       requiresCapability: "GOVERNANCE_VIEW",
     },
     {
@@ -635,7 +756,46 @@ import type {
   CapabilityMap,
   PlatformContextNavGroup,
   PlatformContextNavItem,
+  ProovraPillar,
 } from "./types.js";
+
+// =============================================================================
+// Phase 1A — 8-pillar canonical order (server-side mirror of pillarRegistry.ts)
+// =============================================================================
+
+/**
+ * Canonical pillar order. Matches the client-side PROOVRA_PILLARS constant
+ * in apps/web/lib/navigation/pillarRegistry.ts.
+ *
+ * Route-id → pillar assignment: the server-side registry does not embed the
+ * full PILLAR_FOR_ROUTE_ID client map. Instead `buildPillarProjection` assigns
+ * items to pillars based on their `domain` field using the bounded mapping
+ * below, which mirrors the canonical client-side assignment.
+ */
+const PILLAR_ORDER: ReadonlyArray<ProovraPillar> = [
+  "HOME",
+  "CAPTURE",
+  "CASES",
+  "REVIEW",
+  "GOVERNANCE",
+  "OPERATIONS",
+  "ADMIN",
+  "TRUST",
+];
+
+/**
+ * Domain → pillar mapping for the server-side registry items.
+ * Each NavDomain maps to exactly one pillar.
+ */
+const DOMAIN_TO_PILLAR: Record<NavDomain, ProovraPillar> = {
+  WORKSPACE: "CASES",          // workspace-scoped items default to CASES pillar
+  REVIEW_GOVERNANCE: "REVIEW", // reviewer + governance items → REVIEW pillar
+  PLATFORM_HEALTH: "OPERATIONS", // ops / security items → OPERATIONS pillar
+  ADMINISTRATION: "ADMIN",     // teams / settings / billing → ADMIN pillar
+  ACCOUNT: "ADMIN",            // account-menu items → ADMIN pillar
+  BILLING_PLAN: "ADMIN",       // billing → ADMIN pillar
+  PUBLIC_MARKETING: "TRUST",   // marketing / public → TRUST pillar
+};
 
 /**
  * Predicate: should the item appear on the given surface, given
@@ -708,7 +868,13 @@ export function filterNavigationRegistry(
  * `surface` is `"BOTH"` (e.g. Settings, Billing, Teams).
  */
 export function buildNavigationProjection(caps: CapabilityMap): {
-  sidebar: { groups: ReadonlyArray<PlatformContextNavGroup> };
+  sidebar: {
+    groups: ReadonlyArray<PlatformContextNavGroup>;
+    pillars: ReadonlyArray<{
+      pillar: ProovraPillar;
+      items: ReadonlyArray<PlatformContextNavItem>;
+    }>;
+  };
   accountMenu: { items: ReadonlyArray<PlatformContextNavItem> };
 } {
   const sidebarGroups = NAVIGATION_REGISTRY.map<PlatformContextNavGroup>(
@@ -740,8 +906,47 @@ export function buildNavigationProjection(caps: CapabilityMap): {
     }
   }
 
+  // Phase 1A — also expose the canonical 8-pillar grouping so callers don't
+  // have to call buildPillarProjection separately. Same capability gating,
+  // single pass-through to the canonical pillar-builder for shape parity.
+  const pillars = buildPillarProjection(caps);
+
   return {
-    sidebar: { groups: sidebarGroups },
+    sidebar: { groups: sidebarGroups, pillars },
     accountMenu: { items: accountMenuItems },
   };
+}
+
+/**
+ * Phase 1A — 8-pillar grouped projection.
+ *
+ * Returns the sidebar items grouped by their canonical pillar in
+ * PILLAR_ORDER order. This is the server-side analogue of the client-side
+ * `buildPillarGroupedNav` in `navigationGroupingResolver.ts`.
+ *
+ * Consumers that render the pillar-aware sidebar (Phase 1A+) should use
+ * this function instead of `buildNavigationProjection`. The output shape
+ * maps 1:1 to `PlatformContextNavigation.sidebar.pillars`.
+ */
+export function buildPillarProjection(
+  caps: CapabilityMap,
+): ReadonlyArray<{ pillar: ProovraPillar; items: ReadonlyArray<PlatformContextNavItem> }> {
+  // Collect all sidebar-eligible items that pass the capability gate.
+  const allItems: Array<{ pillar: ProovraPillar; item: PlatformContextNavItem }> = [];
+  for (const group of NAVIGATION_REGISTRY) {
+    for (const registryItem of group.items) {
+      if (!appearsOnSurface(registryItem, "SIDEBAR")) continue;
+      if (!passesCapabilityGate(registryItem, caps)) continue;
+      const pillar = DOMAIN_TO_PILLAR[registryItem.domain as NavDomain] ?? "ADMIN";
+      allItems.push({ pillar, item: projectItem(registryItem) });
+    }
+  }
+
+  // Group by pillar in canonical PILLAR_ORDER order.
+  return PILLAR_ORDER.map((pillar) => ({
+    pillar,
+    items: allItems
+      .filter((entry) => entry.pillar === pillar)
+      .map((entry) => entry.item),
+  }));
 }

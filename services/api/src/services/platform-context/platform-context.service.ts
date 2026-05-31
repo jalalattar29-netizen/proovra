@@ -404,7 +404,13 @@ export async function buildPlatformContext(
   } catch {
     navigationStatus = "degraded";
     navigationGroups = [];
-    navigationProjection = { sidebar: { groups: [] }, accountMenu: { items: [] } };
+    // Degraded fallback must match the canonical sidebar shape (groups + pillars).
+    // Empty pillars[] keeps pillar-aware consumers happy while still rendering an
+    // empty sidebar — distinct from "pillars field missing" which would crash them.
+    navigationProjection = {
+      sidebar: { groups: [], pillars: [] },
+      accountMenu: { items: [] },
+    };
   }
 
   // -------------------------------------------------------------------------

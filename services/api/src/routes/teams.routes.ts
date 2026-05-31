@@ -112,6 +112,32 @@ async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireLegalAcceptance(req, reply);
 }
 
+// Phase 4B Final Closure I5 — legal-hold gate for workspace (team) deletion.
+// Queries WORKSPACE + ORGANIZATION holds scoped to the teamId. Returns
+// ok=true if no active hold blocks deletion; error is swallowed so engine
+// failure never blocks the operational path.
+async function checkWorkspaceLegalHold(
+  teamId: string,
+): Promise<{ ok: boolean; holdIds: string[] }> {
+  try {
+    const activeHolds = await prisma.legalHold.findMany({
+      where: {
+        teamId,
+        state: "ACTIVE",
+        OR: [{ kind: "WORKSPACE" }, { kind: "ORGANIZATION" }],
+      },
+      select: { id: true },
+      take: 50,
+    });
+    if (activeHolds.length > 0) {
+      return { ok: false, holdIds: activeHolds.map((h) => h.id) };
+    }
+    return { ok: true, holdIds: [] };
+  } catch {
+    return { ok: true, holdIds: [] };
+  }
+}
+
 function readUserAgent(req: FastifyRequest): string | null {
   const ua = req.headers["user-agent"];
   return Array.isArray(ua) ? ua[0] ?? null : ua ?? null;
@@ -226,6 +252,42 @@ export async function teamsRoutes(app: FastifyInstance) {
 
     try {
       const ownershipState = await assertUserCanCreateAnotherTeam(ownerUserId);
+
+      // 4B-I1: QUOTA_WORKSPACES — gate on per-user workspace count.
+      // Denial: 403 { denial: "QUOTA_EXCEEDED", entitlement: "QUOTA_WORKSPACES" }.
+      // Engine errors are swallowed so this gate never blocks the operational path.
+      try {
+        const personalTeam = await prisma.team.findFirst({
+          where: { ownerUserId, isPersonal: true },
+          select: { id: true },
+        });
+        if (personalTeam) {
+          const { assertQuotaEntitlement, recordEntitlementUsage } = await import(
+            "../services/packaging/entitlement.service.js"
+          );
+          const qWorkspaces = await assertQuotaEntitlement({
+            prisma,
+            teamId: personalTeam.id,
+            key: "QUOTA_WORKSPACES",
+            requested: 1,
+            actorUserId: ownerUserId,
+          });
+          if (!qWorkspaces.ok) {
+            return reply.code(403).send({
+              denial: "QUOTA_EXCEEDED",
+              entitlement: "QUOTA_WORKSPACES",
+            });
+          }
+          recordEntitlementUsage({
+            prisma,
+            teamId: personalTeam.id,
+            key: "QUOTA_WORKSPACES",
+            amount: 1,
+          }).catch(() => null);
+        }
+      } catch {
+        /* entitlement engine error — do not block workspace creation */
+      }
 
       // Phase 2.7X Stage 6 — atomically create the bound Organization
       // so the team is never observed with a NULL `organization_id`.
@@ -703,6 +765,21 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Only the team owner can delete this team" });
       }
 
+      // Phase 4B Final Closure I5 — legal-hold gate: a WORKSPACE or
+      // ORGANIZATION hold MUST block team deletion. Helper is try/catch-safe.
+      const holdChk = await checkWorkspaceLegalHold(teamId);
+      if (!holdChk.ok) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.delete",
+          outcome: "blocked",
+          severity: "critical",
+          resourceId: teamId,
+          metadata: { reason: "legal_hold_blocked", holdIds: holdChk.holdIds },
+        });
+        return reply.code(403).send({ denial: "LEGAL_HOLD_BLOCKED", holdIds: holdChk.holdIds });
+      }
+
       const activeTeamSubscription = await prisma.subscription.findFirst({
         where: {
           teamId,
@@ -921,6 +998,31 @@ export async function teamsRoutes(app: FastifyInstance) {
             message: "That user is already a member of this team",
           });
         }
+      }
+
+      // 4B-I1: QUOTA_USERS — gate before invite commit.
+      // Denial: 403 { denial: "QUOTA_EXCEEDED", entitlement: "QUOTA_USERS" }.
+      // recordEntitlementUsage is fire-and-forget. Engine errors are swallowed.
+      try {
+        const { assertQuotaEntitlement, recordEntitlementUsage } = await import(
+          "../services/packaging/entitlement.service.js"
+        );
+        const qUsers = await assertQuotaEntitlement({
+          prisma,
+          teamId,
+          key: "QUOTA_USERS",
+          requested: 1,
+          actorUserId: userId,
+        });
+        if (!qUsers.ok) {
+          return reply.code(403).send({
+            denial: "QUOTA_EXCEEDED",
+            entitlement: "QUOTA_USERS",
+          });
+        }
+        recordEntitlementUsage({ prisma, teamId, key: "QUOTA_USERS", amount: 1 }).catch(() => null);
+      } catch {
+        /* entitlement engine error — do not block invite creation */
       }
 
       const token = randomUUID().replace(/-/g, "");

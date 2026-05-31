@@ -581,3 +581,69 @@ export async function listExternalReviewGrants(
     return [];
   }
 }
+
+// =============================================================================
+// Break-glass token reveal — R7 ExternalReviewerRoleAssignment
+// =============================================================================
+
+export type RotateTokenInput = {
+  grantId: string;
+  teamId: string;
+  actorUserId: string;
+  reason: string;
+};
+
+export type RotateTokenResult =
+  | { ok: true; rawToken: string }
+  | { ok: false; reason: ExternalReviewGrantDenialCode };
+
+/**
+ * Reveal the stored raw token for a role assignment (break-glass / operator
+ * resend use-case). The token is stored in plain-text on the
+ * ExternalReviewerRoleAssignment row so that the operator can resend it
+ * without re-issuing. Returns token_unknown if the row is missing or the
+ * rawToken column is null.
+ */
+export async function rotateExternalReviewGrantToken(
+  input: RotateTokenInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<RotateTokenResult> {
+  try {
+    // Phase 2B Closure — break-glass primitive. Reveal/rotate is a sensitive
+    // operator action; require a meaningful justification (≥10 trimmed chars)
+    // so the audit reason is not an empty placeholder. Below-threshold reasons
+    // are rejected with `token_unknown` (same code as missing row — refuses to
+    // leak whether the grant exists).
+    if (input.reason.trim().length < 10) {
+      return { ok: false, reason: "token_unknown" };
+    }
+    const row = await client.externalReviewerRoleAssignment.findFirst({
+      where: { id: input.grantId, teamId: input.teamId },
+      select: { rawToken: true, grantState: true },
+    });
+    if (!row) {
+      return { ok: false, reason: "token_unknown" };
+    }
+    if (!row.rawToken) {
+      return { ok: false, reason: "token_unknown" };
+    }
+    safeEmitSecurityEvent({
+      teamId: input.teamId,
+      eventType: "external_review_token_revealed",
+      severity: "WARNING",
+      details: {
+        // Phase 2B Closure — `breakGlass: true` lets security ops dashboards
+        // and SIEM forwarders filter on this single field to distinguish
+        // operator-initiated break-glass reveals from normal invitation
+        // delivery (which never re-reveals a stored raw token).
+        breakGlass: true,
+        actorUserId: input.actorUserId,
+        grantId: input.grantId,
+        reasonPreview: input.reason.slice(0, 80),
+      },
+    });
+    return { ok: true, rawToken: row.rawToken };
+  } catch {
+    return { ok: false, reason: "service_unavailable" };
+  }
+}
