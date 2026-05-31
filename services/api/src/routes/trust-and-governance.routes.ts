@@ -46,6 +46,12 @@ import {
   requireDelegatedTierAny,
 } from "../middleware/require-delegated-tier.js";
 import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
+// Phase 4B Closure — single canonical GET /v1/governance/dashboard. The
+// lifecycle-shape branch lives in governance-lifecycle.routes.ts as a
+// pure handler helper; the canonical registration here dispatches to it
+// when `?teamId=` is present. Two prior registrations of the same
+// method/path produced FST_ERR_DUPLICATED_ROUTE at boot.
+import { handleLifecycleDashboardForTeam } from "./governance-lifecycle.routes.js";
 
 import {
   ensureTrustCenterSeed,
@@ -1037,11 +1043,40 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
   );
 
   // ===== Governance Dashboard =====
-
+  //
+  // Single canonical registration for GET /v1/governance/dashboard.
+  //
+  // Two consumer shapes hit this path and BOTH must keep working:
+  //   * Phase B governance lifecycle UI
+  //     (apps/web/app/(app)/governance/lifecycle/page.tsx +
+  //      apps/web/components/governance/RetentionConflictAlert.tsx)
+  //     — calls with `?teamId=<uuid>` and parses
+  //       `{ lifecycle, destruction, retention, holds }`.
+  //   * Phase 4A governance platform UI
+  //     (apps/web/app/(app)/governance-platform/page.tsx)
+  //     — calls with NO query param and parses `{ dashboard }`.
+  //
+  // Dispatching on `?teamId=` presence preserves both contracts under a
+  // single Fastify registration. Each branch keeps its original auth +
+  // gate stack:
+  //   * lifecycle branch  → requireAuth (preHandler) + requireMember +
+  //                          requirePermission("governance.policy.read")
+  //                          inside handleLifecycleDashboardForTeam.
+  //   * Phase 4A branch  → requireAuth (preHandler) + resolveWorkspace.
   app.get(
     "/v1/governance/dashboard",
     { preHandler: requireAuth },
     async (req, reply) => {
+      const q = (req.query ?? {}) as { teamId?: unknown };
+      if (typeof q.teamId === "string" && q.teamId.length > 0) {
+        // Lifecycle-shape dispatch: the helper validates the teamId as a
+        // UUID, enforces workspace membership, and the
+        // governance.policy.read permission gate before responding with
+        // the lifecycle aggregate shape.
+        await handleLifecycleDashboardForTeam(req, reply);
+        return;
+      }
+      // Phase 4A canonical dashboard projection (workspace-context).
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const dashboard = await projectGovernanceDashboard({ teamId: ctx.teamId });

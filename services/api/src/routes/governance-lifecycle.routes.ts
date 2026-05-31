@@ -983,49 +983,92 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
   );
 
   // ===========================================================================
-  // Dashboard aggregate
+  // Dashboard aggregate — lifecycle-shape, dispatched from the canonical
+  // GET /v1/governance/dashboard route in trust-and-governance.routes.ts.
+  //
+  // The route registration USED to live here too, but that produced a
+  // Fastify FST_ERR_DUPLICATED_ROUTE crash at boot because
+  // trust-and-governance.routes.ts also registered the same method/path
+  // for the Phase 4A `{ dashboard }` projection. The handler body is now
+  // exported as `handleLifecycleDashboardForTeam` (see below) and the
+  // single canonical registration dispatches to it when the request
+  // carries `?teamId=<uuid>` (the lifecycle-page + RetentionConflictAlert
+  // call shape). Every other governance-lifecycle route in this file
+  // (retention policy CRUD, holds, destruction queue, conflicts, ...)
+  // is unchanged.
   // ===========================================================================
+}
 
-  app.get(
-    "/v1/governance/dashboard",
-    { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
-      if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
+/**
+ * Lifecycle-shape governance dashboard handler. Extracted from the
+ * previous in-file `app.get("/v1/governance/dashboard", ...)` block so
+ * that the canonical registration in trust-and-governance.routes.ts
+ * can delegate to it WITHOUT registering a second method/path.
+ *
+ * Auth + permission gate are preserved byte-for-byte:
+ *   1. `requireAuth` runs upstream as the canonical route's preHandler.
+ *   2. `requireMember(req, reply, teamId)` — workspace membership check.
+ *   3. `requirePermission(role, "governance.policy.read")` — RBAC gate.
+ *
+ * Response shape is preserved verbatim:
+ *   {
+ *     lifecycle:   { byState, pendingDestructionCount },
+ *     destruction: { activeReviewCount },
+ *     retention:   { activePoliciesCount, conflictCount },
+ *     holds:       { activeHoldsCount },
+ *   }
+ *
+ * Consumers (apps/web/app/(app)/governance/lifecycle/page.tsx +
+ * apps/web/components/governance/RetentionConflictAlert.tsx) continue
+ * to see the same JSON they parsed before.
+ */
+export async function handleLifecycleDashboardForTeam(
+  req: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
+  const ok = await requireMember(req, reply, query.teamId);
+  if (!ok) return;
+  const perm = requirePermission(ok.role, "governance.policy.read");
+  if (!perm.allowed) {
+    denyByPermission(reply, perm.reason);
+    return;
+  }
 
-      const [byLifecycleState, activeReviewCount, pendingDestructionCount, conflictCount, activePoliciesCount, activeHoldsCount] =
-        await Promise.all([
-          countByLifecycleState(query.teamId),
-          countActiveDestructionReviews(query.teamId),
-          countPendingDestructionByEvidence(query.teamId),
-          countActivePolicyConflicts(query.teamId),
-          prisma.evidenceRetentionPolicy.count({
-            where: { teamId: query.teamId, status: "ACTIVE" },
-          }),
-          prisma.evidenceLegalHold.count({
-            where: { teamId: query.teamId, status: "ACTIVE" },
-          }),
-        ]);
+  const [
+    byLifecycleState,
+    activeReviewCount,
+    pendingDestructionCount,
+    conflictCount,
+    activePoliciesCount,
+    activeHoldsCount,
+  ] = await Promise.all([
+    countByLifecycleState(query.teamId),
+    countActiveDestructionReviews(query.teamId),
+    countPendingDestructionByEvidence(query.teamId),
+    countActivePolicyConflicts(query.teamId),
+    prisma.evidenceRetentionPolicy.count({
+      where: { teamId: query.teamId, status: "ACTIVE" },
+    }),
+    prisma.evidenceLegalHold.count({
+      where: { teamId: query.teamId, status: "ACTIVE" },
+    }),
+  ]);
 
-      return reply.code(200).send({
-        lifecycle: {
-          byState: byLifecycleState,
-          pendingDestructionCount,
-        },
-        destruction: {
-          activeReviewCount,
-        },
-        retention: {
-          activePoliciesCount,
-          conflictCount,
-        },
-        holds: {
-          activeHoldsCount,
-        },
-      });
+  reply.code(200).send({
+    lifecycle: {
+      byState: byLifecycleState,
+      pendingDestructionCount,
     },
-  );
+    destruction: {
+      activeReviewCount,
+    },
+    retention: {
+      activePoliciesCount,
+      conflictCount,
+    },
+    holds: {
+      activeHoldsCount,
+    },
+  });
 }
