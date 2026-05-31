@@ -13,6 +13,8 @@
     "test": "echo \"(no tests)\""
   },
   "dependencies": {
+    "@noble/ed25519": "^3.1.0",
+    "@noble/hashes": "^2.2.0",
     "@proovra/shared": "workspace:*",
     "@proovra/shared-evidence-presentation": "workspace:*",
     "@proovra/ui": "workspace:*",
