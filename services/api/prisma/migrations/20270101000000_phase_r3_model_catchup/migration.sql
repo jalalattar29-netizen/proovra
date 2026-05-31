@@ -1838,257 +1838,511 @@ ALTER TABLE IF EXISTS "evidence_review_workflows"
   ADD COLUMN IF NOT EXISTS "coding_schema_version"  INTEGER;
 
 -- ===========================================================================
--- PHASE 3b — Indexes (per-column information_schema-guarded CREATE INDEX IF NOT EXISTS).
--- Unchanged from the original migration — already idempotent.
+-- PHASE 3b — Indexes.
+-- Each CREATE INDEX is its own IF guard checking:
+--   * pg_tables for the table
+--   * information_schema.columns for EVERY indexed column
+--   * (index-already-present is handled natively by CREATE INDEX IF NOT EXISTS)
+-- This pattern survives partial production states where a table exists
+-- but is missing some columns from a prior partial apply (the trigger
+-- for Round 4: production had `delegated_admin_grants` with `team_id`
+-- but without `granted_to_user_id`, which aborted the prior shared-guard
+-- block).
 -- ===========================================================================
 DO $$
 BEGIN
-  -- devices: (team_id)
+  -- devices_team_id_idx on devices (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'devices'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'devices'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "devices_team_id_idx" ON "devices" ("team_id")';
   END IF;
 
-  -- devices: (owner_user_id)
+  -- devices_owner_user_id_idx on devices (owner_user_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'devices'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'devices'
        AND column_name  = 'owner_user_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "devices_owner_user_id_idx" ON "devices" ("owner_user_id")';
   END IF;
 
-  -- capture_device_attestations: (team_id)
+  -- capture_device_attestations_team_id_idx on capture_device_attestations (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'capture_device_attestations'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'capture_device_attestations'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "capture_device_attestations_team_id_idx" ON "capture_device_attestations" ("team_id")';
   END IF;
 
-  -- capture_trust_event_records: (team_id, evidence_id)
+  -- capture_trust_event_records_team_evidence_idx on capture_trust_event_records (team_id, evidence_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'capture_trust_event_records'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'capture_trust_event_records'
        AND column_name  = 'team_id'
-  ) AND EXISTS (
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'capture_trust_event_records'
        AND column_name  = 'evidence_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "capture_trust_event_records_team_evidence_idx" ON "capture_trust_event_records" ("team_id", "evidence_id")';
   END IF;
 
-  -- capture_trust_event_records: (evidence_id, sequence)
+  -- capture_trust_event_records_evidence_seq_idx on capture_trust_event_records (evidence_id, sequence)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'capture_trust_event_records'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'capture_trust_event_records'
        AND column_name  = 'evidence_id'
-  ) AND EXISTS (
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'capture_trust_event_records'
        AND column_name  = 'sequence'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "capture_trust_event_records_evidence_seq_idx" ON "capture_trust_event_records" ("evidence_id", "sequence")';
   END IF;
 
-  -- coding_schemas: (team_id)
+  -- coding_schemas_team_id_idx on coding_schemas (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'coding_schemas'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'coding_schemas'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "coding_schemas_team_id_idx" ON "coding_schemas" ("team_id")';
   END IF;
 
-  -- coding_fields: (team_id)
+  -- coding_fields_team_id_idx on coding_fields (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'coding_fields'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'coding_fields'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "coding_fields_team_id_idx" ON "coding_fields" ("team_id")';
   END IF;
 
-  -- coding_values: (team_id)
+  -- coding_values_team_id_idx on coding_values (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'coding_values'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'coding_values'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "coding_values_team_id_idx" ON "coding_values" ("team_id")';
   END IF;
 
-  -- reviewer_disagreements: (team_id), (workflow_id)
+  -- reviewer_disagreements_team_id_idx on reviewer_disagreements (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'reviewer_disagreements'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'reviewer_disagreements'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "reviewer_disagreements_team_id_idx" ON "reviewer_disagreements" ("team_id")';
+  END IF;
+
+  -- reviewer_disagreements_workflow_id_idx on reviewer_disagreements (workflow_id)
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'reviewer_disagreements'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'reviewer_disagreements'
+       AND column_name  = 'workflow_id'
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "reviewer_disagreements_workflow_id_idx" ON "reviewer_disagreements" ("workflow_id")';
   END IF;
 
-  -- qc_samples: (team_id), (workflow_id)
+  -- qc_samples_team_id_idx on qc_samples (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'qc_samples'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'qc_samples'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "qc_samples_team_id_idx" ON "qc_samples" ("team_id")';
+  END IF;
+
+  -- qc_samples_workflow_id_idx on qc_samples (workflow_id)
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'qc_samples'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'qc_samples'
+       AND column_name  = 'workflow_id'
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "qc_samples_workflow_id_idx" ON "qc_samples" ("workflow_id")';
   END IF;
 
-  -- external_reviewer_role_assignments: (team_id), (evidence_id)
+  -- external_reviewer_role_assignments_team_id_idx on external_reviewer_role_assignments (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'external_reviewer_role_assignments'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'external_reviewer_role_assignments'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "external_reviewer_role_assignments_team_id_idx" ON "external_reviewer_role_assignments" ("team_id")';
+  END IF;
+
+  -- external_reviewer_role_assignments_evidence_id_idx on external_reviewer_role_assignments (evidence_id)
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'external_reviewer_role_assignments'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'external_reviewer_role_assignments'
+       AND column_name  = 'evidence_id'
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "external_reviewer_role_assignments_evidence_id_idx" ON "external_reviewer_role_assignments" ("evidence_id")';
   END IF;
 
-  -- external_review_invitation_deliveries: (team_id, grant_id), (team_id, status)
+  -- external_review_invitation_deliveries_team_grant_idx on external_review_invitation_deliveries (team_id, grant_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'external_review_invitation_deliveries'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'external_review_invitation_deliveries'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'external_review_invitation_deliveries'
+       AND column_name  = 'grant_id'
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "external_review_invitation_deliveries_team_grant_idx" ON "external_review_invitation_deliveries" ("team_id", "grant_id")';
+  END IF;
+
+  -- external_review_invitation_deliveries_team_status_idx on external_review_invitation_deliveries (team_id, status)
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'external_review_invitation_deliveries'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'external_review_invitation_deliveries'
+       AND column_name  = 'team_id'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'external_review_invitation_deliveries'
+       AND column_name  = 'status'
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "external_review_invitation_deliveries_team_status_idx" ON "external_review_invitation_deliveries" ("team_id", "status")';
   END IF;
 
-  -- redaction_projects: (team_id)
+  -- redaction_projects_team_id_idx on redaction_projects (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_projects'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'redaction_projects'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "redaction_projects_team_id_idx" ON "redaction_projects" ("team_id")';
   END IF;
 
-  -- redaction_versions: (team_id)
+  -- redaction_versions_team_id_idx on redaction_versions (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_versions'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'redaction_versions'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "redaction_versions_team_id_idx" ON "redaction_versions" ("team_id")';
   END IF;
 
-  -- redaction_activities: (project_id, created_at DESC), (team_id)
+  -- redaction_activities_project_id_idx on redaction_activities (project_id, created_at)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_activities'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'redaction_activities'
        AND column_name  = 'project_id'
-  ) THEN
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_activities'
+       AND column_name  = 'created_at'
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "redaction_activities_project_id_idx" ON "redaction_activities" ("project_id", "created_at" DESC)';
+  END IF;
+
+  -- redaction_activities_team_id_idx on redaction_activities (team_id)
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'redaction_activities'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'redaction_activities'
+       AND column_name  = 'team_id'
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "redaction_activities_team_id_idx" ON "redaction_activities" ("team_id")';
   END IF;
 
-  -- trust_center_articles: (kind, section)
+  -- trust_center_articles_kind_section_idx on trust_center_articles (kind, section)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'trust_center_articles'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'trust_center_articles'
        AND column_name  = 'kind'
-  ) THEN
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'trust_center_articles'
+       AND column_name  = 'section'
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "trust_center_articles_kind_section_idx" ON "trust_center_articles" ("kind", "section")';
   END IF;
 
-  -- trust_center_article_versions: (article_id)
+  -- trust_center_article_versions_article_id_idx on trust_center_article_versions (article_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'trust_center_article_versions'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'trust_center_article_versions'
        AND column_name  = 'article_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "trust_center_article_versions_article_id_idx" ON "trust_center_article_versions" ("article_id")';
   END IF;
 
-  -- departments: (team_id)
+  -- departments_team_id_idx on departments (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'departments'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'departments'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "departments_team_id_idx" ON "departments" ("team_id")';
   END IF;
 
-  -- delegated_admin_grants: (team_id), (granted_to_user_id)
+  -- delegated_admin_grants_team_id_idx on delegated_admin_grants (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'delegated_admin_grants'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'delegated_admin_grants'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "delegated_admin_grants_team_id_idx" ON "delegated_admin_grants" ("team_id")';
+  END IF;
+
+  -- delegated_admin_grants_granted_to_user_id_idx on delegated_admin_grants (granted_to_user_id)
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'delegated_admin_grants'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'delegated_admin_grants'
+       AND column_name  = 'granted_to_user_id'
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "delegated_admin_grants_granted_to_user_id_idx" ON "delegated_admin_grants" ("granted_to_user_id")';
   END IF;
 
-  -- governance_policies: (team_id)
+  -- governance_policies_team_id_idx on governance_policies (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'governance_policies'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'governance_policies'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "governance_policies_team_id_idx" ON "governance_policies" ("team_id")';
   END IF;
 
-  -- access_review_campaigns: (team_id)
+  -- access_review_campaigns_team_id_idx on access_review_campaigns (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'access_review_campaigns'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'access_review_campaigns'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "access_review_campaigns_team_id_idx" ON "access_review_campaigns" ("team_id")';
   END IF;
 
-  -- cross_org_review_grants: (team_id), (target_org_id)
+  -- cross_org_review_grants_team_id_idx on cross_org_review_grants (team_id)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'cross_org_review_grants'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'cross_org_review_grants'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "cross_org_review_grants_team_id_idx" ON "cross_org_review_grants" ("team_id")';
+  END IF;
+
+  -- cross_org_review_grants_target_org_id_idx on cross_org_review_grants (target_org_id)
+  IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'cross_org_review_grants'
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'cross_org_review_grants'
+       AND column_name  = 'target_org_id'
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "cross_org_review_grants_target_org_id_idx" ON "cross_org_review_grants" ("target_org_id")';
   END IF;
 
-  -- evidence_exchange_package_builds: (team_id, state)
+  -- evidence_exchange_package_builds_team_state_idx on evidence_exchange_package_builds (team_id, state)
   IF EXISTS (
+    SELECT 1 FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'evidence_exchange_package_builds'
+  )
+  AND EXISTS (
     SELECT 1 FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name   = 'evidence_exchange_package_builds'
        AND column_name  = 'team_id'
-  ) THEN
+  )
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'evidence_exchange_package_builds'
+       AND column_name  = 'state'
+  )
+  THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "evidence_exchange_package_builds_team_state_idx" ON "evidence_exchange_package_builds" ("team_id", "state")';
   END IF;
+
 END $$;
 
 
