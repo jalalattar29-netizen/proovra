@@ -13,11 +13,7 @@ services:
       retries: 10
 
   proovra-api:
-    build:
-      context: ../..
-      dockerfile: services/api/Dockerfile
-      args:
-        DATABASE_URL: ${DATABASE_URL}
+    image: ghcr.io/${GHCR_OWNER}/proovra-api:${IMAGE_TAG:-latest}
     env_file:
       - /opt/proovra/app/.env
     depends_on:
@@ -94,11 +90,7 @@ services:
     restart: unless-stopped
 
   proovra-worker:
-    build:
-      context: ../..
-      dockerfile: services/worker/Dockerfile
-      args:
-        DATABASE_URL: ${DATABASE_URL}
+    image: ghcr.io/${GHCR_OWNER}/proovra-worker:${IMAGE_TAG:-latest}
     env_file:
       - /opt/proovra/app/.env
     depends_on:

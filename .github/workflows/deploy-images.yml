@@ -1,0 +1,83 @@
+# Build and push proovra-api and proovra-worker container images
+# to GitHub Container Registry (GHCR).
+#
+# Triggered automatically on every push to `main` and manually via
+# `workflow_dispatch` so an operator can re-tag images (e.g. promote
+# an existing SHA to `latest`) without forcing a code change.
+name: deploy-images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel an in-progress build for the same ref when a new push arrives,
+# so the freshest commit on main supersedes the previous one.
+concurrency:
+  group: deploy-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    name: build-and-push (${{ matrix.service }})
+    runs-on: ubuntu-latest
+
+    # GITHUB_TOKEN needs `packages: write` to push to ghcr.io;
+    # `contents: read` is the standard minimum for actions/checkout.
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, worker]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so docker/metadata-action's sha tag resolves
+          # the real commit SHA rather than a shallow-clone placeholder.
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/proovra-${{ matrix.service }}
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+
+      # Build args note:
+      # Both services/api/Dockerfile and services/worker/Dockerfile declare
+      # `ARG DATABASE_URL` in their build stage with a `RUN test -n "$DATABASE_URL"`
+      # guard. The value is only consumed by `prisma generate` to satisfy the
+      # datasource block — no database connection is made at build time. We
+      # therefore pass a non-secret placeholder URL; the real production
+      # DATABASE_URL is injected at runtime and never flows through Actions.
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/${{ matrix.service }}/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            DATABASE_URL=postgres://buildtime:buildtime@localhost:5432/buildtime
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
