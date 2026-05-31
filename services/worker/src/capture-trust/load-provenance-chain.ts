@@ -4,10 +4,21 @@
  * Thin adapter that loads the bounded ProvenanceChain so the worker's
  * verification-package builder can include `provenance/chain.json`.
  *
- * The chain assembly logic lives in the API service
- * (`services/api/src/services/capture-trust/provenance-projection.service.ts`).
- * We re-use it here by lazy-importing — the worker shares the same
- * Prisma client, so the projection runs identically.
+ * Boundary discipline:
+ *   This loader MUST NOT import from `services/api/src/...`. The
+ *   worker and the API ship as SEPARATE Docker images; the API source
+ *   tree is not copied into the worker image. Cross-service `src`
+ *   imports also break TS resolution under the worker's tsconfig and
+ *   break Phase 2.7C image-layer caching.
+ *
+ *   The projection logic lives next to this loader in
+ *   `./provenance-projection.ts` — a worker-local PURE Prisma
+ *   projection that depends only on `@prisma/client` and
+ *   `@proovra/shared` (the same two deps the worker already carries).
+ *   It is byte-for-byte equivalent to the API copy at
+ *   `services/api/src/services/capture-trust/provenance-projection.service.ts`;
+ *   contract drift between the two surfaces as a typecheck failure
+ *   against the shared `ProvenanceChain` type.
  *
  * Hard rules:
  *   * Never throws — returns null on any failure so the package
@@ -18,18 +29,14 @@
 
 import type { ProvenanceChain } from "@proovra/shared";
 
+import { projectProvenanceChain } from "./provenance-projection.js";
+
 export async function loadProvenanceChainForPackage(
   evidenceId: string,
 ): Promise<ProvenanceChain | null> {
   if (!evidenceId) return null;
   try {
-    // Lazy import so the API path is not required by the worker bundle
-    // when the trust pipeline is disabled.
-    const mod = await import(
-      "../../../api/src/services/capture-trust/provenance-projection.service.js"
-    );
-    if (typeof mod?.projectProvenanceChain !== "function") return null;
-    return await mod.projectProvenanceChain({ evidenceId });
+    return await projectProvenanceChain({ evidenceId });
   } catch {
     return null;
   }
