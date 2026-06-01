@@ -245,9 +245,10 @@ export function TeamWorkspaceCard({
         >
           {planExplanation}
           <br />
-          PRO can support owned team workspaces. TEAM is the higher subscription
-          tier for owners who need a larger owned-team limit. Each single team
-          still has a hard cap of <strong>5 actual members</strong>.
+          PRO can support owned organization workspaces. TEAM is the higher
+          subscription tier for owners who need a larger owned-organization
+          limit. Each single workspace still has a hard cap of
+          <strong>5 actual members</strong>.
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -406,7 +407,7 @@ export function TeamWorkspaceCard({
           }}
         >
           Select this workspace below only when you want to start or manage a
-          dedicated <strong>TEAM</strong> subscription for it. A team workspace
+          dedicated <strong>TEAM</strong> subscription for it. A workspace
           may also remain valid because the owner currently has <strong>PRO</strong>.
           Invites do not define the cap. Actual member count does.
         </div>

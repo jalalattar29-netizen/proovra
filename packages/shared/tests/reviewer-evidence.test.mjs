@@ -135,23 +135,28 @@ test("multipart mixed-media classification is upload-order independent", () => {
 });
 
 test("multipart upload-started summaries override stale single mode", () => {
+  // The label canonicalised in `getReviewerUploadModeLabel` is the
+  // operator-readable phrase, not the short `multipart` token. Any
+  // multipart structure short-circuits to the authorisation phrase.
   assert.equal(
     getReviewerUploadModeLabel({
       itemCount: 14,
       structure: "multipart",
       rawMode: "single",
     }),
-    "multipart package"
+    "initial intake authorization for multipart evidence"
   );
 });
 
 test("single upload-started summaries preserve single mode", () => {
+  // Single uploads map the bare `single` token to the operator-
+  // readable label `single evidence item` (UI surface phrase).
   assert.equal(
     getReviewerUploadModeLabel({
       itemCount: 1,
       structure: "single",
       rawMode: "single",
     }),
-    "single"
+    "single evidence item"
   );
 });

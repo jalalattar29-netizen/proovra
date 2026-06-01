@@ -159,7 +159,7 @@ export function resolveRouteAccess(
         accessState: "NEEDS_ORGANIZATION",
         reason:
           "This surface activates inside an organization workspace. Create or switch to an organization to continue.",
-        primaryAction: { label: "Create or switch organization", href: "/teams" },
+        primaryAction: { label: "Create or switch organization", href: "/workspaces" },
         secondaryAction: null,
       };
     }
@@ -184,7 +184,7 @@ export function resolveRouteAccess(
           accessState: "NEEDS_PERSONAL_OR_ORG",
           reason:
             "This surface needs an active workspace. Set one up to continue.",
-          primaryAction: { label: "Open workspaces", href: "/teams" },
+          primaryAction: { label: "Open workspaces", href: "/workspaces" },
           secondaryAction: null,
         };
       }

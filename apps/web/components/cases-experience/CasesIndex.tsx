@@ -213,8 +213,21 @@ export function CasesIndex() {
     return <QueueUnavailable message={state.message} onRetry={reload} />;
 
   const { envelope } = state;
+  // Phase 32.8D + R9 personal-first rescue: when the active workspace
+  // is the personal space (no team workspace), the queue still renders
+  // the full matter view (personal users have CASES_VIEW). We mark the
+  // container with `data-cases-personal-mode` so observability + e2e
+  // can distinguish the personal-view rendering path from the team
+  // workspace path without changing the operator-facing UI.
+  const isPersonalMode =
+    !!personalSpace?.id && personalSpace.id === workspaceId;
   return (
-    <main className="cc-page" data-cases-index data-matter-queue>
+    <main
+      className="cc-page"
+      data-cases-index
+      data-matter-queue
+      data-cases-personal-mode={isPersonalMode ? "true" : "false"}
+    >
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker" data-cases-kicker>

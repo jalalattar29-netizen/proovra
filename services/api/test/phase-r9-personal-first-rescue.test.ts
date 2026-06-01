@@ -275,16 +275,36 @@ describe("Phase R9 — resolveRouteAccess behavioral fallback", () => {
 // =============================================================================
 
 describe("Phase R9 — PageRouteGate envelope plumbing", () => {
+  // Phase G4 cleanup → Phase R9 evolution: PageRouteGate now reads
+  // workspace + personalSpace through the canonical
+  // `useWorkspaceFragment()` / `usePersonalSpaceFragment()` hooks
+  // (centralized inside `lib/platform-context/`), instead of inlining
+  // `envelope.workspace.id` reads at the call site. Either pattern
+  // preserves the R9 contract — the resolver still receives the
+  // fragments — but the centralized form also satisfies Phase G4's
+  // "no direct envelope.workspace.* reads outside platform-context"
+  // rule. Accept either form here.
+  const HAS_FRAGMENT_HOOK =
+    /useWorkspaceFragment\b/.test(PAGE_GATE_SRC) &&
+    /workspace:\s*workspaceFragment/.test(PAGE_GATE_SRC);
+  const HAS_PERSONAL_HOOK =
+    /usePersonalSpaceFragment\b/.test(PAGE_GATE_SRC) &&
+    /personalSpace:\s*personalSpaceFragment/.test(PAGE_GATE_SRC);
+
   it("passes workspace fragment from envelope into resolveRouteAccess", () => {
-    expect(PAGE_GATE_SRC).toMatch(
-      /workspace:\s*envelope\?\.workspace[\s\S]*?id:\s*envelope\.workspace\.id/,
-    );
+    const legacy =
+      /workspace:\s*envelope\?\.workspace[\s\S]*?id:\s*envelope\.workspace\.id/.test(
+        PAGE_GATE_SRC,
+      );
+    expect(legacy || HAS_FRAGMENT_HOOK).toBe(true);
   });
 
   it("passes personalSpace fragment from envelope into resolveRouteAccess", () => {
-    expect(PAGE_GATE_SRC).toMatch(
-      /personalSpace:\s*envelope\?\.personalSpace[\s\S]*?id:\s*envelope\.personalSpace\.id/,
-    );
+    const legacy =
+      /personalSpace:\s*envelope\?\.personalSpace[\s\S]*?id:\s*envelope\.personalSpace\.id/.test(
+        PAGE_GATE_SRC,
+      );
+    expect(legacy || HAS_PERSONAL_HOOK).toBe(true);
   });
 
   it("still passes activeSpaceType (primary signal — fallback is additive)", () => {

@@ -499,6 +499,14 @@ _Tables touched_: (none detected)
 **Recommended action:**
 - Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
 
+### `20261009000000_drop_reviewer_queue_projection`
+- `DROP_TABLE` (line 12) — DROP TABLE is destructive.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Operator review required. Document the production state of every affected table before any further action.
+
 ### `email_password_auth`
 - `CREATE_TABLE_IF_NOT_EXISTS` (line 19) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
 
@@ -862,6 +870,40 @@ _Tables touched_: `password_reset_tokens`, `users`
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 40) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 42) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
 
+### `20261101000000_phase_3a_redaction_platform`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 43) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 86) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 258) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20261201000000_phase_3a_elite_closure_policy_video`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 33) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 69) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 158) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 217) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20261215000000_phase_3b_intelligence_platform`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 44) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20261220000000_phase_4a_trust_and_governance`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 55) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 97) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 136) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 166) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 185) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 307) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 384) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 418) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20261225000000_phase_4a_enterprise_closure`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 82) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 120) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20261230000000_phase_4b_packaging_and_lifecycle`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 32) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 61) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 295) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 443) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
 ## Prisma compatibility issues
 
 | Migration | Table | Column | Detail |
@@ -947,6 +989,28 @@ _Tables touched_: `password_reset_tokens`, `users`
 | `20260925000000_phase0_schema_catchup` | `evidence_relationships` | `eventTypes` | Migration ADDs column evidence_relationships.eventTypes but Prisma model EvidenceRelationship no longer references it. |
 | `20260925000000_phase0_schema_catchup` | `review_escalations` | `createdAtUtc` | Migration ADDs column review_escalations.createdAtUtc but Prisma model ReviewEscalation no longer references it. |
 | `20260925000000_phase0_schema_catchup` | `trusted_devices` | `avatar_url` | Migration ADDs column trusted_devices.avatar_url but Prisma model TrustedDevice no longer references it. |
+| `20261015000000_phase_2b_closure_invitation_delivery_sso` | `external_review_invitation_deliveries` | `provider_message_id` | Migration ADDs column external_review_invitation_deliveries.provider_message_id but Prisma model ExternalReviewInvitationDelivery no longer references it. |
+| `20261101000000_phase_3a_redaction_platform` | `redaction_projects` | `archived_at` | Migration ADDs column redaction_projects.archived_at but Prisma model RedactionProject no longer references it. |
+| `20261101000000_phase_3a_redaction_platform` | `redaction_versions` | `rejected_at_utc` | Migration ADDs column redaction_versions.rejected_at_utc but Prisma model RedactionVersion no longer references it. |
+| `20261101000000_phase_3a_redaction_platform` | `redaction_derivatives` | `render_started_at_utc` | Migration ADDs column redaction_derivatives.render_started_at_utc but Prisma model RedactionDerivative no longer references it. |
+| `20261201000000_phase_3a_elite_closure_policy_video` | `redaction_policy_versions` | `published_at_utc` | Migration ADDs column redaction_policy_versions.published_at_utc but Prisma model RedactionPolicyVersion no longer references it. |
+| `20261201000000_phase_3a_elite_closure_policy_video` | `redaction_policy_assignments` | `policy_version_id` | Migration ADDs column redaction_policy_assignments.policy_version_id but Prisma model RedactionPolicyAssignment no longer references it. |
+| `20261201000000_phase_3a_elite_closure_policy_video` | `redaction_policy_assignments` | `revoked_at_utc` | Migration ADDs column redaction_policy_assignments.revoked_at_utc but Prisma model RedactionPolicyAssignment no longer references it. |
+| `20261201000000_phase_3a_elite_closure_policy_video` | `video_track_detections` | `created_at` | Migration ADDs column video_track_detections.created_at but Prisma model VideoTrackDetection no longer references it. |
+| `20261215000000_phase_3b_intelligence_platform` | `media_intelligence_records` | `reviewed_at_utc` | Migration ADDs column media_intelligence_records.reviewed_at_utc but Prisma model MediaIntelligenceRecord no longer references it. |
+| `20261215000000_phase_3b_intelligence_platform` | `media_intelligence_records` | `superseded_at_utc` | Migration ADDs column media_intelligence_records.superseded_at_utc but Prisma model MediaIntelligenceRecord no longer references it. |
+| `20261215000000_phase_3b_intelligence_platform` | `reviewer_corrections` | `accepted_at_utc` | Migration ADDs column reviewer_corrections.accepted_at_utc but Prisma model ReviewerCorrection no longer references it. |
+| `20261215000000_phase_3b_intelligence_platform` | `reviewer_corrections` | `reverted_at_utc` | Migration ADDs column reviewer_corrections.reverted_at_utc but Prisma model ReviewerCorrection no longer references it. |
+| `20261216000000_phase_3b_enterprise_closure` | `reviewer_corrections` | `superseded_at_utc` | Migration ADDs column reviewer_corrections.superseded_at_utc but Prisma model ReviewerCorrection no longer references it. |
+| `20261220000000_phase_4a_trust_and_governance` | `delegated_admin_grants` | `grantee_user_id` | Migration ADDs column delegated_admin_grants.grantee_user_id but Prisma model DelegatedAdminGrant no longer references it. |
+| `20261220000000_phase_4a_trust_and_governance` | `cross_org_review_grants` | `created_by_user_id` | Migration ADDs column cross_org_review_grants.created_by_user_id but Prisma model CrossOrgReviewGrant no longer references it. |
+| `20261225000000_phase_4a_enterprise_closure` | `evidence` | `department_id` | Migration ADDs column evidence.department_id but Prisma model Evidence no longer references it. |
+| `20261230000000_phase_4b_packaging_and_lifecycle` | `entitlement_grants` | `notes` | Migration ADDs column entitlement_grants.notes but Prisma model EntitlementGrant no longer references it. |
+| `20261231000000_phase_4b_final_closure` | `destruction_certificates` | `certificate_pdf_uri` | Migration ADDs column destruction_certificates.certificate_pdf_uri but Prisma model DestructionCertificate no longer references it. |
+| `20270101000000_phase_r3_model_catchup` | `devices` | `parent_annotation_id` | Migration ADDs column devices.parent_annotation_id but Prisma model Device no longer references it. |
+| `20270101000000_phase_r3_model_catchup` | `external_reviewer_role_assignments` | `allowed_domains` | Migration ADDs column external_reviewer_role_assignments.allowed_domains but Prisma model ExternalReviewerRoleAssignment no longer references it. |
+| `20270102000000_phase_r7_schema_catchup` | `video_frames` | `device_model` | Migration ADDs column video_frames.device_model but Prisma model VideoFrame no longer references it. |
+| `20270103000000_phase_r7_trust_schema_fix` | `subprocessors` | `change_summary` | Migration ADDs column subprocessors.change_summary but Prisma model Subprocessor no longer references it. |
 | `email_password_auth` | `password_reset_tokens` | `ON` | Migration ADDs column password_reset_tokens.ON but Prisma model PasswordResetToken no longer references it. |
 
 ## Naming drift (camelCase quoted identifiers)

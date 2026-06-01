@@ -130,24 +130,58 @@ export const CAPABILITY_KEYS = [
   "PLATFORM_ADMIN",
   "BULK_ACTIONS",
   // ENTERPRISE TENANT MODEL — Account / Personal Space / Organization split.
+  //
+  // @deprecated PHASE 3 — The PERSONAL_* and ORG_* namespaces below
+  //   were granted by `capability-registry.ts` for a planned
+  //   namespace migration that never reached the consumers. Phase 1
+  //   audit confirmed that no route, no UI surface, and no service
+  //   reads these keys today; the equivalent non-namespaced keys
+  //   (EVIDENCE_VIEW, CASES_VIEW, REPORTS_VIEW, SEARCH_VIEW,
+  //   REVIEWER_OPS_VIEW, GOVERNANCE_VIEW, OPS_CENTER_VIEW,
+  //   TEAM_MANAGE, BILLING_MANAGE) ARE consumed and remain the
+  //   canonical gating keys.
+  //
+  //   The ACCOUNT_* and ORGANIZATION_CREATE/JOIN keys below ARE
+  //   consumed by `routeRegistry.ts` (account-tier routes) — they
+  //   are NOT deprecated.
+  //
+  //   Phase 3 retains the dead PERSONAL_* + ORG_* keys to avoid
+  //   a destructive capability-shape change pre-Phase-4. Future
+  //   phases will either wire them to real consumers or remove
+  //   them after a deprecation window.
+  //   See docs/architecture/domain-debt-register.md (DBT-CAP-01).
   "ACCOUNT_SETTINGS_VIEW",
   "ACCOUNT_BILLING_VIEW",
   "ACCOUNT_UPGRADE_VIEW",
   "ORGANIZATION_CREATE",
   "ORGANIZATION_JOIN",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "PERSONAL_CAPTURE",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "PERSONAL_EVIDENCE_VIEW",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "PERSONAL_CASES_VIEW",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "PERSONAL_REPORTS_VIEW",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "PERSONAL_SEARCH_VIEW",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "ORG_EVIDENCE_VIEW",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "ORG_CASES_VIEW",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "ORG_REPORTS_VIEW",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "ORG_SEARCH_VIEW",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "ORG_REVIEWER_OPS_VIEW",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "ORG_GOVERNANCE_VIEW",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "ORG_OPS_VIEW",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "ORG_TEAM_MANAGE",
+  /** @deprecated PHASE 3 — dead key; no consumer. See block comment above. */
   "ORG_BILLING_MANAGE",
   // Phase E3 — operational automation foundation.
   "AUTOMATION_VIEW",

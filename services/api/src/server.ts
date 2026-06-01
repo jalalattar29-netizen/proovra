@@ -49,6 +49,8 @@ import { trustAndGovernanceRoutes } from "./routes/trust-and-governance.routes.j
 import { bootstrapObjectLockVerification } from "./bootstrap/object-lock-verification.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { teamsRoutes } from "./routes/teams.routes.js";
+import { collaborationTeamsRoutes } from "./routes/collaboration-teams.routes.js";
+import { collaborationCompletionRoutes } from "./routes/collaboration-completion.routes.js";
 // Phase B0 — Workspace URL alias. Rewrites `/v1/workspaces/*` to
 // `/v1/teams/*` at the onRequest hook so the existing 2,497-line
 // `teams.routes.ts` handlers are exposed under the new canonical
@@ -610,6 +612,13 @@ allowedHeaders: [
   await app.register(platformContextRoutes);
   await app.register(workspacePersonaRoutes);
   await app.register(teamsRoutes);
+  // Phase 5 — Collaboration Teams (the new Team Collaboration Platform).
+  // Mounted under /v1/collaboration-teams; orthogonal to /v1/teams
+  // which remains the runtime workspace administration API.
+  await app.register(collaborationTeamsRoutes);
+  // Phase 7 — Collaboration Completion endpoints (comments, mentions,
+  // notifications, preferences, guests, access reviews, activity v2).
+  await app.register(collaborationCompletionRoutes);
   // Phase 2.7X Stage 3 — Organization runtime endpoints. Read-only.
   // Team semantics remain operational authority; these endpoints
   // expose governance metadata only (no evidence/case/reviewer data).

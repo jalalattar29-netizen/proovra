@@ -797,6 +797,28 @@ model User {
   ownedTeams        Team[] @relation("TeamOwner")
   billingOwnedTeams Team[] @relation("TeamBillingOwner")
 
+  // Phase 5 — Collaboration Team back-relations. Additive only.
+  createdCollaborationTeams           CollaborationTeam[]           @relation("CollaborationTeamCreatedBy")
+  collaborationTeamMemberships        CollaborationTeamMember[]     @relation("CollaborationTeamMemberUser")
+  invitedCollaborationTeamMemberships CollaborationTeamMember[]     @relation("CollaborationTeamMemberInvitedBy")
+  createdCollaborationTeamInvites     CollaborationTeamInvite[]     @relation("CollaborationTeamInviteCreatedBy")
+  acceptedCollaborationTeamInvites    CollaborationTeamInvite[]     @relation("CollaborationTeamInviteAcceptedBy")
+  collaborationTeamActivity           CollaborationTeamActivity[]   @relation("CollaborationTeamActivityActor")
+  collaborationTeamAssignments        CollaborationTeamAssignment[] @relation("CollaborationTeamAssignmentAssignee")
+  createdCollaborationTeamAssignments CollaborationTeamAssignment[] @relation("CollaborationTeamAssignmentAssignedBy")
+
+  // Phase 7 — Collaboration Completion back-relations.
+  authoredCollaborationTeamComments         CollaborationTeamComment[]                @relation("CollaborationTeamCommentAuthor")
+  deletedCollaborationTeamComments          CollaborationTeamComment[]                @relation("CollaborationTeamCommentDeletedBy")
+  collaborationTeamCommentMentions          CollaborationTeamCommentMention[]         @relation("CollaborationTeamCommentMentionUser")
+  collaborationTeamNotifications            CollaborationTeamNotification[]           @relation("CollaborationTeamNotificationUser")
+  collaborationTeamNotificationPrefs        CollaborationTeamNotificationPreference[] @relation("CollaborationTeamNotificationPreferenceUser")
+  invitedCollaborationTeamGuests            CollaborationTeamGuest[]                  @relation("CollaborationTeamGuestInvitedBy")
+  acceptedCollaborationTeamGuests           CollaborationTeamGuest[]                  @relation("CollaborationTeamGuestAcceptedUser")
+  revokedCollaborationTeamGuests            CollaborationTeamGuest[]                  @relation("CollaborationTeamGuestRevokedBy")
+  createdCollaborationTeamAccessReviews     CollaborationTeamAccessReview[]           @relation("CollaborationTeamAccessReviewCreatedBy")
+  decidedCollaborationTeamAccessReviewItems CollaborationTeamAccessReviewItem[]       @relation("CollaborationTeamAccessReviewItemDecidedBy")
+
   // Phase 17 — identity & access platform back-relations.
   revokedWorkflowIntakeSessions       WorkflowIntakeSession[]      @relation("WorkflowIntakeSessionRevokedBy")
   disabledApiCredentials              ApiCredential[]              @relation("ApiCredentialDisabledBy")
@@ -1057,6 +1079,18 @@ model Team {
   // Phase E3.2 — webhook delivery back-relations.
   automationWebhookDestinations AutomationWebhookDestination[]
   automationWebhookDeliveries   AutomationWebhookDelivery[]
+
+  // Phase 5 — Collaboration Teams nested in this workspace.
+  collaborationTeams           CollaborationTeam[]           @relation("CollaborationTeamWorkspace")
+  collaborationTeamInvites     CollaborationTeamInvite[]     @relation("CollaborationTeamInviteWorkspace")
+  collaborationTeamActivity    CollaborationTeamActivity[]   @relation("CollaborationTeamActivityWorkspace")
+  collaborationTeamAssignments CollaborationTeamAssignment[] @relation("CollaborationTeamAssignmentWorkspace")
+
+  // Phase 7 — Collaboration Completion workspace back-relations.
+  collaborationTeamComments      CollaborationTeamComment[]      @relation("CollaborationTeamCommentWorkspace")
+  collaborationTeamNotifications CollaborationTeamNotification[] @relation("CollaborationTeamNotificationWorkspace")
+  collaborationTeamGuests        CollaborationTeamGuest[]        @relation("CollaborationTeamGuestWorkspace")
+  collaborationTeamAccessReviews CollaborationTeamAccessReview[] @relation("CollaborationTeamAccessReviewWorkspace")
 
   @@index([ownerUserId])
   @@index([billingOwnerUserId])
@@ -1720,6 +1754,41 @@ model StripeWebhookEvent {
   @@index([eventType, receivedAt])
   @@index([processingStatus])
   @@map("stripe_webhook_events")
+}
+
+// Phase 10 — PayPal webhook idempotency. Direct mirror of
+// `StripeWebhookEvent` above.
+//
+// PayPal redelivers webhooks for which the receiver did not 2xx
+// promptly (and for several PAYMENT.* / BILLING.SUBSCRIPTION.* event
+// classes also for transient verifier errors). Without a
+// deduplication record the `POST /paypal` handler would re-process
+// duplicate PAYMENT.CAPTURE.COMPLETED and
+// BILLING.SUBSCRIPTION.{CREATED,ACTIVATED,UPDATED,CANCELLED,SUSPENDED,EXPIRED}
+// events → duplicate `Payment` rows + double subscription
+// transitions (including TEAM / PRO entitlement flips).
+//
+// `paypalEventId` is the canonical PayPal event id (e.g.
+// `WH-XXXXXXXXXXXXXXXXX`). The unique index makes the "seen?" check
+// atomic — a duplicate insert raises Prisma P2002 which the handler
+// translates into a safe no-op 200.
+//
+// Row stays in the table after processing as the durable audit of
+// what was acted on. A future bounded retention phase may add a TTL
+// (companion to the Stripe-side retention work).
+model PaypalWebhookEvent {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paypalEventId    String    @unique @map("paypal_event_id") @db.VarChar(128)
+  eventType        String    @map("event_type") @db.VarChar(120)
+  payloadHash      String?   @map("payload_hash") @db.VarChar(128)
+  receivedAt       DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt      DateTime? @map("processed_at") @db.Timestamptz(6)
+  processingStatus String    @default("RECEIVED") @map("processing_status") @db.VarChar(32)
+  errorReason      String?   @map("error_reason") @db.VarChar(400)
+
+  @@index([eventType, receivedAt])
+  @@index([processingStatus])
+  @@map("paypal_webhook_events")
 }
 
 // Phase 32.6.3 — `model AuditLog`, `model Webhook`, `model WebhookEvent`
@@ -10564,4 +10633,375 @@ model ExternalReviewDecision {
   @@index([teamId, workflowId])
   @@index([teamId, grantId])
   @@map("external_review_decisions")
+}
+
+// =============================================================================
+// Phase 5 — Collaboration Teams
+//
+// The CollaborationTeam* models are the canonical Team Collaboration
+// Platform. They are STRICTLY ADDITIVE and live alongside the legacy
+// `Team` table (which is the runtime workspace — see DBT-WS-04). The
+// legacy `Team` table is NOT renamed and these models do NOT replace it.
+//
+// Constitutional rules (see docs/architecture/phase-5-team-platform-
+// readiness.md):
+//
+//   1. CollaborationTeam is a COLLABORATION SUB-UNIT, not a workspace.
+//   2. Every CollaborationTeam belongs to exactly one workspace
+//      (`workspaceId` references the legacy `Team.id`).
+//   3. CollaborationTeam works in PERSONAL workspaces and ORGANIZATION
+//      workspaces — Organization is NOT required.
+//   4. CollaborationTeam does NOT own Evidence/Cases; it can be the
+//      ASSIGNEE of Cases/Evidence/Reviews via CollaborationTeamAssignment.
+//   5. All mutations emit a CollaborationTeamActivity row for audit.
+// =============================================================================
+
+model CollaborationTeam {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Parent workspace = the legacy `Team` row (DBT-WS-04 — runtime workspace).
+  // PERSONAL workspaces have `Team.isPersonal = true`; org workspaces don't.
+  workspaceId     String    @map("workspace_id") @db.Uuid
+  name            String    @db.VarChar(120)
+  description     String?   @db.VarChar(600)
+  // Bounded template/type — keep tight, expand only via test pin.
+  // "GENERAL" / "INVESTIGATION" / "LEGAL" / "REVIEW" / "COMPLIANCE".
+  teamType        String    @default("GENERAL") @map("team_type") @db.VarChar(40)
+  // ACTIVE / ARCHIVED.
+  status          String    @default("ACTIVE") @db.VarChar(20)
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  archivedAtUtc   DateTime? @map("archived_at_utc") @db.Timestamptz(6)
+
+  workspace Team @relation("CollaborationTeamWorkspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User @relation("CollaborationTeamCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  members     CollaborationTeamMember[]     @relation("CollaborationTeamMembers")
+  invites     CollaborationTeamInvite[]     @relation("CollaborationTeamInvites")
+  activity    CollaborationTeamActivity[]   @relation("CollaborationTeamActivityFeed")
+  assignments CollaborationTeamAssignment[] @relation("CollaborationTeamAssignments")
+
+  // Phase 7 — Collaboration Completion team back-relations.
+  comments                CollaborationTeamComment[]                @relation("CollaborationTeamCommentTeam")
+  notifications           CollaborationTeamNotification[]           @relation("CollaborationTeamNotificationTeam")
+  notificationPreferences CollaborationTeamNotificationPreference[] @relation("CollaborationTeamNotificationPreferenceTeam")
+  guests                  CollaborationTeamGuest[]                  @relation("CollaborationTeamGuestTeam")
+  accessReviews           CollaborationTeamAccessReview[]           @relation("CollaborationTeamAccessReviewTeam")
+
+  @@index([workspaceId, status])
+  @@index([createdByUserId])
+  @@map("collaboration_teams")
+}
+
+model CollaborationTeamMember {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String    @map("team_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  // Bounded role enum — kept in shared/permissions for canonical reference.
+  // LEAD / ADMIN / MEMBER / VIEWER / EXTERNAL.
+  role            String    @default("MEMBER") @db.VarChar(20)
+  // ACTIVE / SUSPENDED / REMOVED.
+  status          String    @default("ACTIVE") @db.VarChar(20)
+  invitedByUserId String?   @map("invited_by_user_id") @db.Uuid
+  joinedAt        DateTime  @default(now()) @map("joined_at") @db.Timestamptz(6)
+  suspendedAt     DateTime? @map("suspended_at") @db.Timestamptz(6)
+  removedAt       DateTime? @map("removed_at") @db.Timestamptz(6)
+  // Optional human-readable note on suspension/removal (no PII).
+  statusReason    String?   @map("status_reason") @db.VarChar(400)
+
+  team      CollaborationTeam @relation("CollaborationTeamMembers", fields: [teamId], references: [id], onDelete: Cascade)
+  user      User              @relation("CollaborationTeamMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User?             @relation("CollaborationTeamMemberInvitedBy", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+
+  // Phase 7 — Access review items reference this member.
+  accessReviewItems CollaborationTeamAccessReviewItem[] @relation("CollaborationTeamAccessReviewItemMember")
+
+  // One row per (team, user). Removed/suspended members keep a single
+  // row so audit + reinstatement is straightforward.
+  @@unique([teamId, userId], name: "collaboration_team_member_team_user_uniq")
+  @@index([teamId, status])
+  @@index([userId, status])
+  @@map("collaboration_team_members")
+}
+
+model CollaborationTeamInvite {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId               String    @map("team_id") @db.Uuid
+  workspaceId          String    @map("workspace_id") @db.Uuid
+  // EMAIL / SMS / LINK.
+  channel              String    @db.VarChar(10)
+  email                String?   @db.VarChar(320)
+  phone                String?   @db.VarChar(20)
+  // Hashed (sha256) token — raw token is never persisted.
+  tokenHash            String    @map("token_hash") @db.VarChar(128)
+  // Role granted on accept — LEAD / ADMIN / MEMBER / VIEWER / EXTERNAL.
+  role                 String    @default("MEMBER") @db.VarChar(20)
+  // PENDING / ACCEPTED / REVOKED / EXPIRED.
+  status               String    @default("PENDING") @db.VarChar(20)
+  expiresAtUtc         DateTime  @map("expires_at_utc") @db.Timestamptz(6)
+  maxUses              Int       @default(1) @map("max_uses")
+  useCount             Int       @default(0) @map("use_count")
+  createdByUserId      String    @map("created_by_user_id") @db.Uuid
+  acceptedByUserId     String?   @map("accepted_by_user_id") @db.Uuid
+  acceptedAtUtc        DateTime? @map("accepted_at_utc") @db.Timestamptz(6)
+  revokedAtUtc         DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
+  // Bounded delivery status — PENDING / SENT / DELIVERED / FAILED / BOUNCED.
+  deliveryStatus       String    @default("PENDING") @map("delivery_status") @db.VarChar(20)
+  // Audit-safe error preview; never raw provider payload.
+  deliveryErrorPreview String?   @map("delivery_error_preview") @db.VarChar(280)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team       CollaborationTeam @relation("CollaborationTeamInvites", fields: [teamId], references: [id], onDelete: Cascade)
+  workspace  Team              @relation("CollaborationTeamInviteWorkspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy  User              @relation("CollaborationTeamInviteCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  acceptedBy User?             @relation("CollaborationTeamInviteAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  // Token-hash uniqueness — sha256 hashes are highly entropic so a
+  // global unique constraint is safe and prevents accidental cross-tenant
+  // collision. The hash itself is indistinguishable from a random value
+  // and never reveals workspace/team.
+  @@unique([tokenHash], name: "collaboration_team_invite_token_hash_uniq")
+  @@index([teamId, status])
+  @@index([workspaceId, status])
+  @@index([email, status])
+  @@map("collaboration_team_invites")
+}
+
+model CollaborationTeamActivity {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId      String   @map("team_id") @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  // Bounded event type — see CollaborationTeamActivityType enum in
+  // packages/shared/src/collaboration-team.ts.
+  eventType   String   @map("event_type") @db.VarChar(64)
+  // Optional target reference (case / evidence / review / member /
+  // invite / assignment). Stored as bounded type + id.
+  targetType  String?  @map("target_type") @db.VarChar(40)
+  targetId    String?  @map("target_id") @db.Uuid
+  // Bounded JSON metadata — never user-provided HTML. Max ~4 KB.
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team      CollaborationTeam @relation("CollaborationTeamActivityFeed", fields: [teamId], references: [id], onDelete: Cascade)
+  workspace Team              @relation("CollaborationTeamActivityWorkspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?             @relation("CollaborationTeamActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, createdAt(sort: Desc)])
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@map("collaboration_team_activity")
+}
+
+// =============================================================================
+// Phase 7 — Collaboration Completion (additive models)
+//
+// All 7 tables added in Phase 7 are STRICTLY ADDITIVE alongside the
+// Phase 5 collaboration_team* tables. They never alter an existing
+// column, never replace the existing `Team` or `User` tables, and
+// never require a data migration on existing rows. See
+// docs/architecture/phase-7-collaboration-completion-final.md.
+// =============================================================================
+
+model CollaborationTeamComment {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String    @map("team_id") @db.Uuid
+  workspaceId     String    @map("workspace_id") @db.Uuid
+  authorUserId    String    @map("author_user_id") @db.Uuid
+  // Bounded target type: TEAM / ASSIGNMENT / CASE / EVIDENCE / REVIEW.
+  targetType      String    @map("target_type") @db.VarChar(20)
+  targetId        String?   @map("target_id") @db.Uuid
+  // Sanitised plain-text body (HTML escaped at the service layer).
+  body            String    @db.VarChar(4000)
+  // ACTIVE / EDITED / DELETED.
+  status          String    @default("ACTIVE") @db.VarChar(20)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAtUtc    DateTime? @map("deleted_at_utc") @db.Timestamptz(6)
+  deletedByUserId String?   @map("deleted_by_user_id") @db.Uuid
+
+  team      CollaborationTeam                 @relation("CollaborationTeamCommentTeam", fields: [teamId], references: [id], onDelete: Cascade)
+  workspace Team                              @relation("CollaborationTeamCommentWorkspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  author    User                              @relation("CollaborationTeamCommentAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  deletedBy User?                             @relation("CollaborationTeamCommentDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  mentions  CollaborationTeamCommentMention[] @relation("CollaborationTeamCommentMentions")
+
+  @@index([teamId, createdAt(sort: Desc)])
+  @@index([teamId, targetType, targetId])
+  @@map("collaboration_team_comments")
+}
+
+model CollaborationTeamCommentMention {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  commentId       String   @map("comment_id") @db.Uuid
+  teamId          String   @map("team_id") @db.Uuid
+  // Bounded mention type: USER / TEAM / LEAD.
+  mentionType     String   @map("mention_type") @db.VarChar(10)
+  // Populated for USER mentions only (after resolution).
+  mentionedUserId String?  @map("mentioned_user_id") @db.Uuid
+  // Raw mention token from the body (e.g. "@alice"). Persisted for
+  // audit so even unresolvable mentions are visible to operators.
+  rawHandle       String?  @map("raw_handle") @db.VarChar(80)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  comment       CollaborationTeamComment @relation("CollaborationTeamCommentMentions", fields: [commentId], references: [id], onDelete: Cascade)
+  mentionedUser User?                    @relation("CollaborationTeamCommentMentionUser", fields: [mentionedUserId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, mentionType])
+  @@index([commentId])
+  @@index([mentionedUserId])
+  @@map("collaboration_team_comment_mentions")
+}
+
+model CollaborationTeamNotification {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  teamId      String?   @map("team_id") @db.Uuid
+  // Bounded notification type — see COLLABORATION_TEAM_NOTIFICATION_TYPES
+  // in packages/shared/src/collaboration-team.ts (Phase 7 additions).
+  type        String    @db.VarChar(40)
+  title       String    @db.VarChar(200)
+  body        String?   @db.VarChar(1000)
+  // Optional deep-link target (bounded for security).
+  targetType  String?   @map("target_type") @db.VarChar(40)
+  targetId    String?   @map("target_id") @db.Uuid
+  // null = unread.
+  readAt      DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user      User               @relation("CollaborationTeamNotificationUser", fields: [userId], references: [id], onDelete: Cascade)
+  workspace Team               @relation("CollaborationTeamNotificationWorkspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  team      CollaborationTeam? @relation("CollaborationTeamNotificationTeam", fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt(sort: Desc)])
+  @@index([teamId, createdAt(sort: Desc)])
+  @@map("collaboration_team_notifications")
+}
+
+model CollaborationTeamNotificationPreference {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId         String   @map("team_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  // Bounded prefs: every flag defaults to true except activityDigest.
+  mentions       Boolean  @default(true)
+  assignments    Boolean  @default(true)
+  inviteAccepted Boolean  @default(true) @map("invite_accepted")
+  // INSTANT / DAILY / MUTED.
+  digest         String   @default("INSTANT") @db.VarChar(10)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  team CollaborationTeam @relation("CollaborationTeamNotificationPreferenceTeam", fields: [teamId], references: [id], onDelete: Cascade)
+  user User              @relation("CollaborationTeamNotificationPreferenceUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId], name: "collaboration_team_notification_preference_team_user_uniq")
+  @@map("collaboration_team_notification_preferences")
+}
+
+model CollaborationTeamGuest {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String    @map("team_id") @db.Uuid
+  workspaceId     String    @map("workspace_id") @db.Uuid
+  // Identifier for the guest — email at minimum. NOT a User row.
+  // When the guest signs in (or is auto-provisioned), `acceptedUserId`
+  // is populated and the guest becomes a TeamMember with role
+  // EXTERNAL. Until then this row is the canonical record.
+  email           String    @db.VarChar(320)
+  // Time-bounded access window.
+  expiresAtUtc    DateTime  @map("expires_at_utc") @db.Timestamptz(6)
+  // Bounded status: PENDING / ACCEPTED / REVOKED / EXPIRED.
+  status          String    @default("PENDING") @db.VarChar(20)
+  // Audit fields.
+  invitedByUserId String    @map("invited_by_user_id") @db.Uuid
+  acceptedUserId  String?   @map("accepted_user_id") @db.Uuid
+  acceptedAtUtc   DateTime? @map("accepted_at_utc") @db.Timestamptz(6)
+  revokedAtUtc    DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
+  revokedByUserId String?   @map("revoked_by_user_id") @db.Uuid
+  // Scope description (optional human note about what they can access).
+  scopeNote       String?   @map("scope_note") @db.VarChar(400)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team         CollaborationTeam @relation("CollaborationTeamGuestTeam", fields: [teamId], references: [id], onDelete: Cascade)
+  workspace    Team              @relation("CollaborationTeamGuestWorkspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy    User              @relation("CollaborationTeamGuestInvitedBy", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+  acceptedUser User?             @relation("CollaborationTeamGuestAcceptedUser", fields: [acceptedUserId], references: [id], onDelete: SetNull)
+  revokedBy    User?             @relation("CollaborationTeamGuestRevokedBy", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, status])
+  @@index([workspaceId, status])
+  @@index([email, status])
+  @@map("collaboration_team_guests")
+}
+
+model CollaborationTeamAccessReview {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String    @map("team_id") @db.Uuid
+  workspaceId     String    @map("workspace_id") @db.Uuid
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+  // OPEN / COMPLETED / CANCELLED.
+  status          String    @default("OPEN") @db.VarChar(20)
+  dueAtUtc        DateTime? @map("due_at_utc") @db.Timestamptz(6)
+  completedAtUtc  DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team      CollaborationTeam                   @relation("CollaborationTeamAccessReviewTeam", fields: [teamId], references: [id], onDelete: Cascade)
+  workspace Team                                @relation("CollaborationTeamAccessReviewWorkspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User                                @relation("CollaborationTeamAccessReviewCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items     CollaborationTeamAccessReviewItem[] @relation("CollaborationTeamAccessReviewItems")
+
+  @@index([teamId, status])
+  @@index([workspaceId, status])
+  @@map("collaboration_team_access_reviews")
+}
+
+model CollaborationTeamAccessReviewItem {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reviewId        String    @map("review_id") @db.Uuid
+  memberId        String    @map("member_id") @db.Uuid
+  // PENDING / KEEP / REMOVE / CHANGE_ROLE.
+  decision        String    @default("PENDING") @db.VarChar(20)
+  decidedByUserId String?   @map("decided_by_user_id") @db.Uuid
+  decidedAt       DateTime? @map("decided_at") @db.Timestamptz(6)
+  notes           String?   @db.VarChar(600)
+
+  review    CollaborationTeamAccessReview @relation("CollaborationTeamAccessReviewItems", fields: [reviewId], references: [id], onDelete: Cascade)
+  member    CollaborationTeamMember       @relation("CollaborationTeamAccessReviewItemMember", fields: [memberId], references: [id], onDelete: Cascade)
+  decidedBy User?                         @relation("CollaborationTeamAccessReviewItemDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([reviewId, memberId], name: "collaboration_team_access_review_item_review_member_uniq")
+  @@index([memberId])
+  @@map("collaboration_team_access_review_items")
+}
+
+model CollaborationTeamAssignment {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId           String    @map("team_id") @db.Uuid
+  workspaceId      String    @map("workspace_id") @db.Uuid
+  // Optional individual assignee within the team. null = team-level.
+  assigneeUserId   String?   @map("assignee_user_id") @db.Uuid
+  assignedByUserId String    @map("assigned_by_user_id") @db.Uuid
+  // CASE / EVIDENCE / REVIEW.
+  targetType       String    @map("target_type") @db.VarChar(20)
+  targetId         String    @map("target_id") @db.Uuid
+  // OPEN / IN_PROGRESS / COMPLETED / REASSIGNED / CANCELLED.
+  status           String    @default("OPEN") @db.VarChar(20)
+  // LOW / NORMAL / HIGH / URGENT.
+  priority         String    @default("NORMAL") @db.VarChar(10)
+  dueAtUtc         DateTime? @map("due_at_utc") @db.Timestamptz(6)
+  // Notes from the assigner; bounded.
+  note             String?   @db.VarChar(600)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAtUtc   DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+
+  team       CollaborationTeam @relation("CollaborationTeamAssignments", fields: [teamId], references: [id], onDelete: Cascade)
+  workspace  Team              @relation("CollaborationTeamAssignmentWorkspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignee   User?             @relation("CollaborationTeamAssignmentAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
+  assignedBy User              @relation("CollaborationTeamAssignmentAssignedBy", fields: [assignedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([teamId, status])
+  @@index([workspaceId, status])
+  @@index([targetType, targetId])
+  @@index([assigneeUserId, status])
+  @@map("collaboration_team_assignments")
 }

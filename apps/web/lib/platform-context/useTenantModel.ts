@@ -72,6 +72,16 @@ export function useActiveSpace(): PlatformContextActiveSpace | null {
  * Convenience guard for pages that need "active-space id, whatever the
  * type". Returns `null` while the envelope is loading or genuinely
  * unhealthy.
+ *
+ * @deprecated PHASE 3 — Prefer `useActiveWorkspaceId` from
+ *   `./useTeamWorkspaceGate` for new code. This hook reads from
+ *   `envelope.activeSpace`, which can disagree with `envelope.workspace`
+ *   under degraded-envelope scenarios. The canonical hook resolves
+ *   workspace.id with a personalSpace.id fallback (matching the
+ *   PageRouteGate fallback). This alias is retained for the small
+ *   number of call sites that explicitly need the activeSpace.id
+ *   semantics (e.g. workspace switcher highlight).
+ *   See docs/architecture/architecture-invariants.md (INV-3).
  */
 export function useActiveSpaceId(): string | null {
   const space = useActiveSpace();

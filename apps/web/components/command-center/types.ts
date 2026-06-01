@@ -44,6 +44,17 @@ export type OpsHealthState = {
   canonicalSourceHealthy: boolean;
 };
 
+/**
+ * @deprecated PHASE 3 — Inline `"PERSONAL" | "TEAM"` declaration.
+ *   Prefer the canonical `WorkspaceScope` from
+ *   `apps/web/lib/platform-context/types.ts`, or — for new code that
+ *   speaks in the Target Domain Blueprint vocabulary — the
+ *   `TargetWorkspaceKind` re-exported from `@proovra/shared`. This is
+ *   one of 9 parallel `WorkspaceScope` declarations; Phase 3 retains
+ *   them to avoid a cascading import refactor but new code MUST
+ *   consume the canonical type.
+ *   See docs/architecture/domain-debt-register.md (DBT-WS-04).
+ */
 export type WorkspaceScope = "PERSONAL" | "TEAM";
 
 export type SeverityTone = "info" | "warning" | "high" | "critical";

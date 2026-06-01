@@ -698,6 +698,19 @@ const ACCOUNT_GROUP: NavRegistryGroup = {
     // path for every authenticated user. Capability gate is `null` —
     // org membership itself is the gate; non-members see the empty
     // state on the /organizations page (no fake 403).
+    //
+    // Phase 8 — The org admin shell at /organizations/:id/admin (overview /
+    // members / departments / governance / access-reviews / retention /
+    // audit / security / trust) is INTENTIONALLY NOT mirrored here. The
+    // admin shell + 9 tab leaves are PAGE-SCOPED — reached from the org
+    // detail page's "Open Admin" CTA, not from the sidebar and not from
+    // the account menu. They're registered client-side in
+    // apps/web/lib/navigation/routeRegistry.ts so cmd-K + All Tools surface
+    // them for power-user discoverability, but the canonical access gate is
+    // org membership enforced at `/v1/orgs/:id` (services/api/src/services/
+    // organization/org-access.ts → checkOrgAccess). Personal-only users hit
+    // the org REST endpoints and receive 403 with requestId on a per-tab
+    // basis; they never see an admin route in their primary nav surface.
     {
       id: "account.organizations",
       label: "Organizations",

@@ -4963,7 +4963,7 @@ function NoWorkspaceState() {
           <li data-cc-empty-step="govern">
             <strong>Manage workspaces.</strong>{" "}
             Set retention, invite members, configure governance from{" "}
-            <Link href="/teams" data-action="empty-open-teams">
+            <Link href="/workspaces" data-action="empty-open-teams">
               Workspace administration →
             </Link>
           </li>

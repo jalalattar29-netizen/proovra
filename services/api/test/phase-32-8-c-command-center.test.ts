@@ -27,13 +27,19 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 function readApi(rel: string): string {
-  return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
+  // Normalize CRLF to LF so source-text contract scans (e.g. `\n}\n`
+  // boundary detection in PART 2) behave the same on Windows checkouts
+  // as on POSIX CI runners.
+  return readFileSync(
+    fileURLToPath(new URL(`../${rel}`, import.meta.url)),
+    "utf8",
+  ).replace(/\r\n/g, "\n");
 }
 function readWeb(rel: string): string {
   return readFileSync(
     fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url)),
     "utf8",
-  );
+  ).replace(/\r\n/g, "\n");
 }
 
 const ROUTE = readApi("src/routes/dashboard.routes.ts");

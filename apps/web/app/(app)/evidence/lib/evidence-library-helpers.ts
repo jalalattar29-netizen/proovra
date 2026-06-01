@@ -37,7 +37,7 @@ export function deriveWorkspaceCapabilities(params: {
         workspaceName:
           (typeof params.evidence?.workspaceNameSnapshot === "string"
             ? params.evidence.workspaceNameSnapshot.trim()
-            : "") || team.name || "Team Workspace",
+            : "") || team.name || "Workspace",
         plan: team.effectivePlan ?? team.plan ?? "FREE",
         reportsIncluded: Boolean(team.features?.reportsIncluded),
         verificationPackageIncluded: Boolean(team.features?.verificationPackageIncluded),

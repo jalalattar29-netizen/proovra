@@ -6,6 +6,17 @@
 
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
 
+/**
+ * @deprecated PHASE 3 — Inline `"PERSONAL" | "TEAM"` declaration.
+ *   Prefer the canonical `WorkspaceScope` from
+ *   `apps/web/lib/platform-context/types.ts`, or — for new code that
+ *   speaks in the Target Domain Blueprint vocabulary — the
+ *   `TargetWorkspaceKind` re-exported from `@proovra/shared`. This
+ *   alias is one of 9 parallel `WorkspaceScope` declarations spread
+ *   across api/web/worker; Phase 3 retains them to avoid a cascading
+ *   import refactor but new code MUST consume the canonical type.
+ *   See docs/architecture/domain-debt-register.md (DBT-WS-04).
+ */
 export type WorkspaceScope = "PERSONAL" | "TEAM";
 
 export type WorkspaceAdminEnvelope = {

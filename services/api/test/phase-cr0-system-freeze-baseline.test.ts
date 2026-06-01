@@ -150,6 +150,27 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
     // home) that CR1's surgical-stabilization charter explicitly
     // excludes. Revisit moved to CR2.
     { page: "review/operations/page.tsx", reason: "Phase 13 legacy review-ops queue; folding into /reviewer-ops is a UX decision deferred to CR2", revisitPhase: "CR2" },
+
+    // Phase 38.12 — `/reviewer-ops/queue` is the canonical queue-
+    // anchored entry for `review.queue_detail`. It is a redirect-
+    // only landing (next/navigation.redirect to /review, the
+    // canonical reviewer console). No page body to gate.
+    { page: "reviewer-ops/queue/page.tsx", reason: "Phase 38.12 redirect-only landing to /review (canonical reviewer console) — no body to gate", revisitPhase: "PERMANENT" },
+
+    // Phase 1A IA reset — `/operations/{...}` are thin re-export
+    // wrappers that delegate to the canonical legacy `/ops/...`
+    // and `/dashboard/...` page implementations (which carry their
+    // own PageRouteGate). The wrappers exist only so the canonical
+    // URL family resolves to the same content as the legacy URLs
+    // (which 308-redirect here). Re-gating in the wrapper would
+    // double-render the structured-denial panel.
+    { page: "operations/observability/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /ops/observability which carries the PageRouteGate", revisitPhase: "PERMANENT" },
+    { page: "operations/runbooks/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /ops/runbooks which carries the PageRouteGate", revisitPhase: "PERMANENT" },
+    { page: "operations/media-graph/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /ops/media-graph which carries the PageRouteGate", revisitPhase: "PERMANENT" },
+    { page: "operations/automation/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /ops/automation which carries the PageRouteGate", revisitPhase: "PERMANENT" },
+    { page: "operations/analytics/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /ops/analytics which carries the PageRouteGate", revisitPhase: "PERMANENT" },
+    { page: "operations/batch-analysis/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /dashboard/batch-analysis which carries the PageRouteGate", revisitPhase: "PERMANENT" },
+    { page: "operations/quotas/page.tsx", reason: "Phase 1A IA reset thin wrapper — delegates to /dashboard/quotas which carries the PageRouteGate", revisitPhase: "PERMANENT" },
   ];
 
   it("every page.tsx under app/(app)/ either has PageRouteGate or is on the CR0 exemption list", () => {

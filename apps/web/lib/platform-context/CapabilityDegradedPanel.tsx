@@ -104,7 +104,7 @@ export function CapabilityDegradedPanel({
         }}
       >
         <Link
-          href="/teams"
+          href="/workspaces"
           data-action="switch-or-create-team"
           style={{
             display: "inline-flex",

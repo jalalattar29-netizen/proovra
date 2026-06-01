@@ -202,6 +202,8 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["workspace.review_qc", "REVIEW"],
   ["workspace.review_disagreements", "REVIEW"],
   ["workspace.review_metrics", "REVIEW"],
+  // Phase 3A — Redaction projects sit alongside reviewer surfaces.
+  ["workspace.review_redaction", "REVIEW"],
 
   // -----------------------------------------------------------------
   // GOVERNANCE
@@ -214,6 +216,13 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["governance.notifications", "GOVERNANCE"],
   ["governance.analytics", "GOVERNANCE"],
   ["security_center.mfa_recovery", "GOVERNANCE"],
+  // Phase 4A — org-tier governance surfaces.
+  ["admin.identity", "GOVERNANCE"],
+  ["workspace.intelligence_quality", "GOVERNANCE"],
+  ["workspace.trust_center", "GOVERNANCE"],
+  ["workspace.audit_transparency", "GOVERNANCE"],
+  ["workspace.evidence_lifecycle", "GOVERNANCE"],
+  ["workspace.governance_platform", "GOVERNANCE"],
 
   // -----------------------------------------------------------------
   // OPERATIONS (platform-health, ops-discipline)
@@ -236,6 +245,20 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["account.organizations", "ADMIN"],
   ["account.organization-detail", "ADMIN"],
   ["account.org-invite-accept", "ADMIN"],
+  // Phase 8 — Organization Admin shell (tabbed surface at
+  // /organizations/:id/admin). Org-admin tabs are administrative
+  // surfaces, so they belong in the ADMIN pillar alongside the
+  // canonical org detail + workspaces + organizations entries.
+  ["account.organization_admin", "ADMIN"],
+  ["account.organization_admin_overview", "ADMIN"],
+  ["account.organization_admin_members", "ADMIN"],
+  ["account.organization_admin_departments", "ADMIN"],
+  ["account.organization_admin_governance", "ADMIN"],
+  ["account.organization_admin_access_reviews", "ADMIN"],
+  ["account.organization_admin_retention", "ADMIN"],
+  ["account.organization_admin_audit", "ADMIN"],
+  ["account.organization_admin_security", "ADMIN"],
+  ["account.organization_admin_trust", "ADMIN"],
   ["workspace.integrations", "ADMIN"],
   ["workspace.security_center", "ADMIN"],
   ["account.settings", "ADMIN"],
@@ -243,6 +266,25 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["account.billing", "ADMIN"],
   ["platform.admin", "ADMIN"],
   ["workspace.tools", "ADMIN"],
+  // Phase 4B — org-tier output / executive surfaces. The pillar
+  // classification is operator-facing — these surfaces produce
+  // executive snapshots and packaging exports for org admins, but
+  // they live under ADMIN until the IA grows a dedicated "Outputs"
+  // pillar (currently the Phase B operational group system).
+  ["workspace.budget_center", "ADMIN"],
+  ["workspace.exchange", "ADMIN"],
+  ["workspace.executive", "ADMIN"],
+  ["workspace.intelligence_platform", "ADMIN"],
+  ["workspace.packaging", "ADMIN"],
+  // Phase 5 / 6 / 7 — Collaboration Teams (the constitutional Team
+  // product). Lives under CASES pillar because Team work is daily
+  // case/evidence collaboration, NOT a new pillar (constitutional
+  // rule 4-9: Team is NOT a workspace, Team is core collaboration).
+  ["workspace.collaboration_teams", "CASES"],
+  ["workspace.collaboration_team_detail", "CASES"],
+  ["workspace.collaboration_team_hub", "CASES"],
+  // Accept-invite landing — ACCOUNT-tier, so ADMIN.
+  ["workspace.collaboration_team_invite_accept", "ADMIN"],
 
   // -----------------------------------------------------------------
   // TRUST (in-product trust hub + verification surfaces)

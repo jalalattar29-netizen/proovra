@@ -172,9 +172,11 @@ describe("Phase 38.1 — Cases page consumes terminology", () => {
   });
 
   it("does NOT use terminology to gate behavior (capabilities still authoritative)", () => {
-    // The page still calls useTeamId/useTeamWorkspaceGate (canonical
-    // access gates). The terminology hook is additive presentation.
-    expect(CASES).toMatch(/useTeamId/);
+    // The page still calls the canonical workspace-id hook
+    // (`useTeamId` for team-only surfaces or the Phase 3 canonical
+    // `useActiveWorkspaceId` for personal-aware surfaces). The
+    // terminology hook is additive presentation only.
+    expect(CASES).toMatch(/useTeamId|useActiveWorkspaceId/);
     // No persona-based capability check.
     expect(CASES).not.toMatch(/primaryProfile\s*===\s*"[A-Z]+"\s*\?/);
   });

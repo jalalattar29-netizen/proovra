@@ -189,7 +189,11 @@ describe("Phase 38.6 — resolveRouteAccess workflow independence", () => {
     expect(result.canLoad).toBe(false);
     expect(result.accessState).toBe("NEEDS_ORGANIZATION");
     expect(result.canSeeNav).toBe(true);
-    expect(result.primaryAction?.href).toBe("/teams");
+    // Phase 9 vocabulary alignment: recovery-CTA hrefs were corrected from
+    // /teams to /workspaces (Team != Workspace per the constitution). The
+    // route registry id remains admin.teams (historical), but the href is now
+    // /workspaces per Phase G0.
+    expect(result.primaryAction?.href).toBe("/workspaces");
   });
 
   it("HIDDEN_IF_NO_CAPABILITY produces canSeeNav=false (truly hidden)", async () => {

@@ -24,8 +24,17 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import {
+  accessStateToDenialReason,
+  denialReasonHeadline,
+  denialReasonGuidance,
+} from "@proovra/shared";
 
-import { usePlatformContext } from "../../lib/platform-context";
+import {
+  usePersonalSpaceFragment,
+  usePlatformContext,
+  useWorkspaceFragment,
+} from "../../lib/platform-context";
 import { getRouteDefinition } from "../../lib/navigation/routeRegistry";
 import { resolveRouteAccess } from "../../lib/navigation/routeAccessResolver";
 
@@ -37,6 +46,12 @@ export function PageRouteGate({
   children: ReactNode;
 }) {
   const { envelope } = usePlatformContext();
+  // PERSONAL-FIRST RESCUE fragments come from the centralized
+  // platform-context hooks — direct envelope reads for the workspace
+  // fragment are forbidden outside lib/platform-context (see
+  // phase-g4-tenancy-cleanup.test.ts).
+  const workspaceFragment = useWorkspaceFragment();
+  const personalSpaceFragment = usePersonalSpaceFragment();
   const route = getRouteDefinition(routeId);
 
   // Unknown route id → render children. Treating an unregistered route
@@ -67,23 +82,13 @@ export function PageRouteGate({
     capabilities: envelope?.capabilities ?? {},
     accountPlan: envelope?.account?.accountPlan ?? null,
     // PERSONAL-FIRST RESCUE — pass envelope fragments so the gate
-    // can fall back to `workspace.id` / `personalSpace.id` when
-    // `activeSpace.type` is missing from the backend projection.
+    // can fall back to workspace.id / personalSpace.id when
+    // activeSpace.type is missing from the backend projection.
     // Required so personal-only users are NEVER blocked from core
     // product routes (capture / evidence / reports / verify / etc.)
     // even when the backend returns a partial envelope.
-    workspace: envelope?.workspace
-      ? {
-          id: envelope.workspace.id ?? null,
-          status: envelope.workspace.status ?? null,
-        }
-      : null,
-    personalSpace: envelope?.personalSpace
-      ? {
-          id: envelope.personalSpace.id ?? null,
-          status: envelope.personalSpace.status ?? null,
-        }
-      : null,
+    workspace: workspaceFragment,
+    personalSpace: personalSpaceFragment,
   });
 
   if (access.canLoad) return <>{children}</>;
@@ -94,12 +99,30 @@ export function PageRouteGate({
   }
 
   // Every other denied state renders a structured panel.
+  // PHASE 4 — denial copy flows through the Phase 3 canonical
+  // `DenialReason` vocabulary in `@proovra/shared`. The route resolver
+  // still provides a route-specific `access.reason` (with the
+  // workspace-id-of-the-day phrasing, etc.) which we preserve as the
+  // subtitle; the headline + fallback guidance come from the canonical
+  // helpers so copy stays consistent across every gate surface
+  // (PageRouteGate, AccessGate, tools page, command palette).
+  const canonicalReason = accessStateToDenialReason(access.accessState);
+  const headline = canonicalReason
+    ? denialReasonHeadline(canonicalReason)
+    : "This surface is not available";
+  const subtitle =
+    access.reason && access.reason.length > 0
+      ? access.reason
+      : canonicalReason
+        ? denialReasonGuidance(canonicalReason)
+        : "";
   return (
     <main
       className="cc-page"
       data-page-route-gate
       data-page-route-gate-state={access.accessState}
       data-page-route-gate-route-id={routeId}
+      data-page-route-gate-denial-reason={canonicalReason ?? ""}
       // Phase 2.7Z+ — stable e2e testid. The existing
       // `data-page-route-gate-*` attributes encode runtime state
       // (which is useful for visual debugging but varies per
@@ -112,8 +135,8 @@ export function PageRouteGate({
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker">{route.label}</div>
-          <h1 className="cc-title">{deniedHeadline(access.accessState)}</h1>
-          <p className="cc-subtitle">{access.reason}</p>
+          <h1 className="cc-title">{headline}</h1>
+          <p className="cc-subtitle">{subtitle}</p>
         </div>
       </header>
 
@@ -150,19 +173,8 @@ export function PageRouteGate({
   );
 }
 
-function deniedHeadline(state: string): string {
-  switch (state) {
-    case "NEEDS_ORGANIZATION":
-      return "Activate in an organization workspace";
-    case "NEEDS_PERSONAL_OR_ORG":
-      return "Workspace setup required";
-    case "DENIED_NO_CAPABILITY":
-      return "Permission required";
-    case "NEEDS_UPGRADE":
-      return "Plan upgrade required";
-    case "RECOVERY_REQUIRED":
-      return "Workspace recovery required";
-    default:
-      return "This surface is not available";
-  }
-}
+// PHASE 4 — `deniedHeadline` removed in favour of the canonical
+// `denialReasonHeadline` from `@proovra/shared`. The headline used to
+// be a local function with one `switch` per denial state; that copy
+// was duplicated by `AccessGate.tsx` and the Tools page. The Phase 3
+// `denial-vocabulary` module is now the single source of truth.

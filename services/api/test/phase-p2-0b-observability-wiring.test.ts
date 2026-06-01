@@ -237,13 +237,18 @@ describe("Phase P2.0B — docker-compose.prod.yml service-name + region wiring",
   const compose = readSource("../../../infra/docker/docker-compose.prod.yml");
 
   it("pins OTEL_SERVICE_NAME=proovra-api on the api service", () => {
-    // The api service block ends where the worker service block starts.
-    const api = compose.split("proovra-worker:")[0];
+    // The api service block ends where the worker SERVICE declaration
+    // starts. Use the column-0 indented form to avoid matching the
+    // image tag (`ghcr.io/.../proovra-worker:latest`) which also
+    // contains the literal "proovra-worker:".
+    const api = compose.split(/\n {2}proovra-worker:\s*\n/)[0]!;
     expect(api).toContain("OTEL_SERVICE_NAME: proovra-api");
   });
 
   it("pins OTEL_SERVICE_NAME=proovra-worker on the worker service", () => {
-    const worker = compose.split("proovra-worker:")[1] ?? "";
+    // Match the column-0-indented worker service declaration so we
+    // don't split on the image tag (which also reads `proovra-worker:`).
+    const worker = compose.split(/\n {2}proovra-worker:\s*\n/)[1] ?? "";
     expect(worker).toContain("OTEL_SERVICE_NAME: proovra-worker");
   });
 

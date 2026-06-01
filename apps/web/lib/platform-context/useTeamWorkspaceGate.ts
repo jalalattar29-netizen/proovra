@@ -59,6 +59,16 @@ export type TeamWorkspaceGateState =
  * Returns `null` while loading, in personal mode, or on failure —
  * pages must handle the null case (typically: render a structured
  * empty state or do not enqueue the dependent API call).
+ *
+ * @deprecated PHASE 3 — Returns `null` for personal-mode users even
+ *   when they have a healthy Personal Workspace, which causes pages
+ *   that should support personal users to fall into the
+ *   "no-workspace" branch incorrectly. Prefer
+ *   {@link useActiveWorkspaceId} for new code. This alias is
+ *   retained because ~44 call sites still consume it for genuinely
+ *   team-only surfaces (Reviewer Ops, Governance actions, MFA
+ *   Recovery) where personal users SHOULD see a structured panel.
+ *   See docs/architecture/phase-3-runtime-refactor-readiness.md.
  */
 export function useTeamId(): string | null {
   const state = useTeamWorkspaceGate();
@@ -79,6 +89,14 @@ export function useTeamId(): string | null {
  * Governance actions, Matter Operations Queue), use the existing
  * `useTeamWorkspaceGate()` so personal users get a structured
  * `CapabilityDegradedPanel` instead of an empty operator surface.
+ *
+ * @deprecated PHASE 3 — This hook reads only `envelope.workspace`
+ *   (the legacy field) and returns `null` if `workspace.status` is
+ *   not active, even when `envelope.personalSpace.id` is set. The
+ *   canonical Phase 3 hook is {@link useActiveWorkspaceId}, which
+ *   falls back to `personalSpace.id` for personal-aware surfaces.
+ *   Migrate new code to `useActiveWorkspaceId`. This alias is
+ *   retained for existing call sites that need the legacy semantics.
  */
 export function useWorkspaceId(): string | null {
   const { envelope } = usePlatformContext();
@@ -88,16 +106,24 @@ export function useWorkspaceId(): string | null {
 }
 
 /**
- * STAGE 3 — `useActiveWorkspaceId` returns the canonical workspace
- * id for personal-aware pages that should work in BOTH team and
- * personal mode (e.g. /cases overview, where personal users with
- * CASES_VIEW + CASES_MANAGE should see their own matters).
+ * PHASE 3 CANONICAL — `useActiveWorkspaceId` returns the canonical
+ * workspace id for personal-aware pages that should work in BOTH
+ * team and personal mode (e.g. /cases overview, where personal
+ * users with CASES_VIEW + CASES_MANAGE should see their own matters).
+ *
+ * This is THE canonical workspace-id hook for new code. The other
+ * three hooks in this file (`useTeamId`, `useWorkspaceId`,
+ * and the `useActiveSpaceId` in `useTenantModel.ts`) are deprecated
+ * aliases retained for backward compatibility with existing call
+ * sites. See `docs/architecture/architecture-invariants.md` (INV-3)
+ * and `docs/architecture/phase-3-runtime-refactor-readiness.md`.
  *
  * Resolution order:
  *   1. `envelope.workspace.id` when `workspace.status === "active"`
- *      (covers TEAM workspaces and the legacy team row).
+ *      (covers TEAM workspaces and the legacy team row backing
+ *      the current runtime workspace).
  *   2. `envelope.personalSpace.id` when `personalSpace.status === "active"`
- *      (covers the enterprise tenant-model personal space).
+ *      (covers the canonical Personal Space).
  *   3. `null` when neither is healthy — pages should render a
  *      structured CapabilityDegradedPanel for the genuine
  *      no-workspace case.
@@ -105,6 +131,10 @@ export function useWorkspaceId(): string | null {
  * This hook is NON-AUTHORITATIVE — it reads the canonical envelope
  * and never fetches. Capability gating still flows through
  * `useCan(...)` / the capability map.
+ *
+ * The returned id is, today, a `Team.id` (Phase 2 legacy debt:
+ * `Team` table backs the runtime Workspace). Future phases will
+ * rename the FK target without changing this hook's signature.
  */
 export function useActiveWorkspaceId(): string | null {
   const { envelope } = usePlatformContext();
@@ -119,6 +149,49 @@ export function useActiveWorkspaceId(): string | null {
     return envelope.personalSpace.id;
   }
   return null;
+}
+
+// =============================================================================
+// Phase G4 / personal-first-rescue helpers — bounded envelope fragments
+// =============================================================================
+
+/**
+ * Bounded `{ id, status }` projection of `envelope.workspace`, returned
+ * so callers (route gates, command palette, tools page) can pass it to
+ * `resolveRouteAccess` for the PERSONAL-FIRST RESCUE fallback WITHOUT
+ * reading `envelope.workspace.*` directly outside `lib/platform-context/`.
+ *
+ * The Phase G4.3 frontend contract pins that `envelope.workspace.*` is
+ * read ONLY from inside `lib/platform-context/`. This hook is that
+ * canonical reader.
+ *
+ * Returns `null` when no envelope is loaded yet.
+ */
+export function useWorkspaceFragment():
+  | { id: string | null; status: string | null }
+  | null {
+  const { envelope } = usePlatformContext();
+  if (!envelope?.workspace) return null;
+  return {
+    id: envelope.workspace.id ?? null,
+    status: envelope.workspace.status ?? null,
+  };
+}
+
+/**
+ * Bounded `{ id, status }` projection of `envelope.personalSpace` for
+ * the same rescue-fallback purpose. Returns `null` when no envelope
+ * or no personal space is present.
+ */
+export function usePersonalSpaceFragment():
+  | { id: string | null; status: string | null }
+  | null {
+  const { envelope } = usePlatformContext();
+  if (!envelope?.personalSpace) return null;
+  return {
+    id: envelope.personalSpace.id ?? null,
+    status: envelope.personalSpace.status ?? null,
+  };
 }
 
 /**

@@ -184,22 +184,44 @@ describe("Phase R10 — Stage 2: resolveRouteAccess call sites pass envelope con
   // `workspace` + `personalSpace` fragments. Three call sites exist:
   // AppSidebarV2, CommandPalette, and the All Tools page.
 
-  it("AppSidebarV2 passes both workspace and personalSpace into resolveRouteAccess", () => {
-    expect(APP_SIDEBAR_SRC).toMatch(
-      /resolveRouteAccess\(\{[\s\S]{0,800}workspace:\s*envelope\?\.workspace[\s\S]{0,400}personalSpace:\s*envelope\?\.personalSpace/,
+  // Phase G4 cleanup → R10 evolution: CommandPalette + tools/page.tsx
+  // now thread the workspace/personalSpace fragments through the
+  // canonical `useWorkspaceFragment` / `usePersonalSpaceFragment`
+  // hooks (centralized inside `lib/platform-context/`) rather than
+  // inlining `envelope.workspace` reads. AppSidebarV2 is on the G4
+  // allowlist and still uses the legacy literal form. Accept either
+  // pattern below — the R10 contract is "both fragments are passed
+  // to resolveRouteAccess", and both forms satisfy it.
+  const LEGACY_FRAGMENTS_RE =
+    /resolveRouteAccess\(\{[\s\S]{0,800}workspace:\s*envelope\?\.workspace[\s\S]{0,400}personalSpace:\s*envelope\?\.personalSpace/;
+  function hasCentralizedFragments(src: string): boolean {
+    return (
+      /useWorkspaceFragment\b/.test(src) &&
+      /usePersonalSpaceFragment\b/.test(src) &&
+      /workspace:\s*workspaceFragment/.test(src) &&
+      /personalSpace:\s*personalSpaceFragment/.test(src)
     );
+  }
+
+  it("AppSidebarV2 passes both workspace and personalSpace into resolveRouteAccess", () => {
+    expect(
+      LEGACY_FRAGMENTS_RE.test(APP_SIDEBAR_SRC) ||
+        hasCentralizedFragments(APP_SIDEBAR_SRC),
+    ).toBe(true);
   });
 
   it("CommandPalette passes both workspace and personalSpace into resolveRouteAccess", () => {
-    expect(COMMAND_PALETTE_SRC).toMatch(
-      /resolveRouteAccess\(\{[\s\S]{0,800}workspace:\s*envelope\?\.workspace[\s\S]{0,400}personalSpace:\s*envelope\?\.personalSpace/,
-    );
+    expect(
+      LEGACY_FRAGMENTS_RE.test(COMMAND_PALETTE_SRC) ||
+        hasCentralizedFragments(COMMAND_PALETTE_SRC),
+    ).toBe(true);
   });
 
   it("tools/page.tsx passes both workspace and personalSpace into resolveRouteAccess", () => {
-    expect(TOOLS_PAGE_SRC).toMatch(
-      /resolveRouteAccess\(\{[\s\S]{0,800}workspace:\s*envelope\?\.workspace[\s\S]{0,400}personalSpace:\s*envelope\?\.personalSpace/,
-    );
+    expect(
+      LEGACY_FRAGMENTS_RE.test(TOOLS_PAGE_SRC) ||
+        hasCentralizedFragments(TOOLS_PAGE_SRC),
+    ).toBe(true);
   });
 });
 
@@ -657,6 +679,32 @@ describe("Phase R10 — registry-page-existence invariant", () => {
     // (`/evidence-requests/[id]/page.tsx`) — there is no index page
     // and the registry href is the bare prefix used in deep links.
     "/evidence-requests",
+    // Phase 6 — Team Collaboration dynamic routes. The detail page
+    // lives at `apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx`
+    // and the accept page at
+    // `apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx`.
+    // Both routes are sidebar-invisible and command-palette-invisible;
+    // they are reached via deep link only.
+    "/collaboration-teams/[teamId]",
+    "/collaboration-teams/invites/[token]/accept",
+    // Phase 7 — Collaboration hub (nested under [teamId]/collaboration).
+    "/collaboration-teams/[teamId]/collaboration",
+    // Phase 8 — Organization Admin shell + 9 tab leaves. Dynamic /:id
+    // segment; the actual pages live at
+    // apps/web/app/(app)/organizations/[id]/admin/... (Next.js [id]
+    // convention). Allowlisted here because the registry intentionally
+    // uses /:id documentation syntax to match the /organizations/:id
+    // precedent.
+    "/organizations/:id/admin",
+    "/organizations/:id/admin/overview",
+    "/organizations/:id/admin/members",
+    "/organizations/:id/admin/departments",
+    "/organizations/:id/admin/governance",
+    "/organizations/:id/admin/access-reviews",
+    "/organizations/:id/admin/retention",
+    "/organizations/:id/admin/audit",
+    "/organizations/:id/admin/security",
+    "/organizations/:id/admin/trust",
   ]);
 
   function pageExistsForHref(href: string): boolean {

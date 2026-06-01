@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { createHash } from "node:crypto";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import {
@@ -679,6 +680,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
     }
 
     const event = JSON.parse(rawBody) as {
+      id?: string;
       event_type: string;
       resource: {
         id?: string;
@@ -694,151 +696,327 @@ export async function webhooksRoutes(app: FastifyInstance) {
       };
     };
 
-if (event.event_type === "PAYMENT.CAPTURE.COMPLETED") {
-        const unit = event.resource.purchase_units?.[0];
-      const parsed = parsePayPalCustomId(
-        unit?.custom_id ?? event.resource.custom_id
+    // Phase 10 — PayPal webhook idempotency. Direct mirror of
+    // Phase E10.1 / DEF-038 (Stripe). The unique index on
+    // `paypal_event_id` makes the "seen?" check atomic — a duplicate
+    // insert raises Prisma P2002 which we translate into a safe
+    // no-op 200. The row stays in the table as the durable audit of
+    // what was acted on. NOTE: we deliberately log the event id +
+    // event_type only — never the raw payload, never any provider
+    // secret.
+    const paypalEventId = typeof event.id === "string" ? event.id : null;
+    if (!paypalEventId) {
+      // PayPal events should always carry a top-level `id`. Missing
+      // id means malformed delivery — treat as 200 no-op to avoid
+      // retry storms but log for visibility. We deliberately log
+      // only the event_type — never the raw payload, never any
+      // provider secret.
+      req.log.warn(
+        { provider: "PAYPAL", eventType: event.event_type },
+        "paypal.webhook_missing_event_id"
       );
-      const addonContext = tryParseAddonContextFromCustomId(
-        unit?.custom_id ?? event.resource.custom_id
-      );
+      return reply.code(200).send({ received: true });
+    }
 
-      if (parsed.userId && parsed.plan === prismaPkg.PlanType.PAYG) {
-        await ensureEntitlement(parsed.userId);
-        await addCredits(parsed.userId, PAYG_CREDITS_PER_PURCHASE);
+    // Phase 10 — payload-hash strengthening. sha256(rawBody) gives a
+    // content-addressed fingerprint so that a true duplicate
+    // delivery (same id, byte-identical body) is recognised as a
+    // dedup hit independent of `processing_status`. A same-id /
+    // different-hash arrival is treated as a replay-after-crash and
+    // allowed through (the per-side-effect writers are themselves
+    // idempotent on their own keys).
+    const payloadHash = createHash("sha256")
+      .update(rawBody)
+      .digest("hex");
 
-        await recordPayment({
-          userId: parsed.userId,
-          provider: prismaPkg.PaymentProvider.PAYPAL,
-          providerPaymentId: event.resource.id ?? "",
-          amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
-          currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
-          status: prismaPkg.PaymentStatus.SUCCEEDED,
-          teamId: null,
+    try {
+      await prisma.paypalWebhookEvent.create({
+        data: {
+          paypalEventId,
+          eventType: event.event_type,
+          payloadHash,
+          processingStatus: "RECEIVED",
+        },
+      });
+    } catch (err: unknown) {
+      // P2002 = unique constraint violation = duplicate delivery.
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? (err as { code?: string }).code
+          : undefined;
+      if (code === "P2002") {
+        const existing = await prisma.paypalWebhookEvent.findUnique({
+          where: { paypalEventId },
+          select: { processingStatus: true, payloadHash: true },
         });
-      }
 
-      if (addonContext.userId && addonContext.storageAddonKey) {
-        try {
-          await assertWebhookStorageAddonAllowed({
-            userId: addonContext.userId,
-            addonKey: addonContext.storageAddonKey,
-            teamId: addonContext.teamId ?? null,
-          });
+        // True dedup hit: identical payload hash AND the prior
+        // attempt processed successfully OR is still in flight with
+        // the same body. Log + 200, do NOT re-run business logic.
+        const hashMatches =
+          existing?.payloadHash != null &&
+          existing.payloadHash === payloadHash;
+
+        if (
+          hashMatches &&
+          (existing?.processingStatus === "PROCESSED" ||
+            existing?.processingStatus === "RECEIVED")
+        ) {
+          req.log.info(
+            {
+              provider: "PAYPAL",
+              eventId: paypalEventId,
+              eventType: event.event_type,
+              payloadHash,
+            },
+            "duplicate paypal webhook event, dedup hit"
+          );
+          return reply
+            .code(200)
+            .send({ ok: true, deduplicated: true, eventId: paypalEventId });
+        }
+
+        // PROCESSED with no hash on file (legacy row from before the
+        // payload-hash column) → still a dedup hit.
+        if (
+          existing?.processingStatus === "PROCESSED" &&
+          existing?.payloadHash == null
+        ) {
+          req.log.info(
+            {
+              provider: "PAYPAL",
+              eventId: paypalEventId,
+              eventType: event.event_type,
+              payloadHash,
+            },
+            "duplicate paypal webhook event, dedup hit (legacy row, no hash)"
+          );
+          return reply
+            .code(200)
+            .send({ ok: true, deduplicated: true, eventId: paypalEventId });
+        }
+
+        // else (FAILED, or RECEIVED with hash mismatch): PayPal is
+        // redelivering after a prior crash / replay; we let it
+        // through so the side-effects get a chance to land. The
+        // wrapping branch logic is idempotent on its own —
+        // recordPayment + upsert are keyed; setPersonalPlan /
+        // activateTeamPlan converge.
+        req.log.info(
+          {
+            provider: "PAYPAL",
+            eventId: paypalEventId,
+            eventType: event.event_type,
+            payloadHash,
+            priorStatus: existing?.processingStatus ?? null,
+            hashMatches,
+          },
+          "paypal webhook event retry, reprocessing"
+        );
+      } else {
+        throw err;
+      }
+    }
+
+    // Wrap processing so we can mark the row PROCESSED on success or
+    // FAILED on error. Errors bubble to PayPal as 5xx → PayPal retries
+    // and the dedup check above re-enters with a fresh shot. We also
+    // refresh `payloadHash` on every transition so the dedup-by-hash
+    // check sees the body that was actually acted on (covers the
+    // retry-after-crash + legacy-row paths above).
+    const markProcessed = async () => {
+      await prisma.paypalWebhookEvent
+        .update({
+          where: { paypalEventId },
+          data: {
+            processedAt: new Date(),
+            processingStatus: "PROCESSED",
+            payloadHash,
+          },
+        })
+        .catch(() => null);
+    };
+    const markFailed = async (reason: string) => {
+      const trimmed = reason.length > 400 ? reason.slice(0, 400) : reason;
+      await prisma.paypalWebhookEvent
+        .update({
+          where: { paypalEventId },
+          data: {
+            processingStatus: "FAILED",
+            errorReason: trimmed,
+            payloadHash,
+          },
+        })
+        .catch(() => null);
+    };
+
+    try {
+      if (event.event_type === "PAYMENT.CAPTURE.COMPLETED") {
+        const unit = event.resource.purchase_units?.[0];
+        const parsed = parsePayPalCustomId(
+          unit?.custom_id ?? event.resource.custom_id
+        );
+        const addonContext = tryParseAddonContextFromCustomId(
+          unit?.custom_id ?? event.resource.custom_id
+        );
+
+        if (parsed.userId && parsed.plan === prismaPkg.PlanType.PAYG) {
+          await ensureEntitlement(parsed.userId);
+          await addCredits(parsed.userId, PAYG_CREDITS_PER_PURCHASE);
 
           await recordPayment({
-            userId: addonContext.userId,
+            userId: parsed.userId,
             provider: prismaPkg.PaymentProvider.PAYPAL,
             providerPaymentId: event.resource.id ?? "",
             amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
             currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
             status: prismaPkg.PaymentStatus.SUCCEEDED,
-            teamId: addonContext.teamId ?? null,
+            teamId: null,
           });
-
-          await upsertWorkspaceStorageAddon({
-            ownerUserId: addonContext.userId,
-            teamId: addonContext.teamId ?? null,
-            addonKey: addonContext.storageAddonKey,
-            billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
-            status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-            paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
-            externalPaymentId: event.resource.id ?? "",
-            amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
-            currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
-            metadata: {
-              source: event.event_type,
-            },
-          });
-        } catch (err) {
-          req.log.warn(
-            {
-              err,
-              provider: "PAYPAL",
-              resourceId: event.resource.id ?? "",
-              userId: addonContext.userId,
-              teamId: addonContext.teamId ?? null,
-              storageAddonKey: addonContext.storageAddonKey,
-            },
-            "paypal.storage_addon_checkout_ignored"
-          );
         }
-      }
 
-      return reply.code(200).send({ received: true });
-    }
+        if (addonContext.userId && addonContext.storageAddonKey) {
+          try {
+            await assertWebhookStorageAddonAllowed({
+              userId: addonContext.userId,
+              addonKey: addonContext.storageAddonKey,
+              teamId: addonContext.teamId ?? null,
+            });
 
-    if (
-      event.event_type === "BILLING.SUBSCRIPTION.CREATED" ||
-      event.event_type === "BILLING.SUBSCRIPTION.ACTIVATED" ||
-      event.event_type === "BILLING.SUBSCRIPTION.UPDATED" ||
-      event.event_type === "BILLING.SUBSCRIPTION.CANCELLED" ||
-      event.event_type === "BILLING.SUBSCRIPTION.SUSPENDED" ||
-      event.event_type === "BILLING.SUBSCRIPTION.EXPIRED"
-    ) {
-      const subscriptionId = event.resource.id ?? null;
-      if (!subscriptionId) {
+            await recordPayment({
+              userId: addonContext.userId,
+              provider: prismaPkg.PaymentProvider.PAYPAL,
+              providerPaymentId: event.resource.id ?? "",
+              amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
+              currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
+              status: prismaPkg.PaymentStatus.SUCCEEDED,
+              teamId: addonContext.teamId ?? null,
+            });
+
+            await upsertWorkspaceStorageAddon({
+              ownerUserId: addonContext.userId,
+              teamId: addonContext.teamId ?? null,
+              addonKey: addonContext.storageAddonKey,
+              billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
+              status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+              paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
+              externalPaymentId: event.resource.id ?? "",
+              amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
+              currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
+              metadata: {
+                source: event.event_type,
+              },
+            });
+          } catch (err) {
+            req.log.warn(
+              {
+                err,
+                provider: "PAYPAL",
+                resourceId: event.resource.id ?? "",
+                userId: addonContext.userId,
+                teamId: addonContext.teamId ?? null,
+                storageAddonKey: addonContext.storageAddonKey,
+              },
+              "paypal.storage_addon_checkout_ignored"
+            );
+          }
+        }
+
+        await markProcessed();
         return reply.code(200).send({ received: true });
       }
 
-      let parsed = parsePayPalCustomId(event.resource.custom_id);
-      let addonContext = tryParseAddonContextFromCustomId(
-        event.resource.custom_id
-      );
-
-      const needsPlanRefresh = !parsed.userId || !parsed.plan;
-      const needsAddonRefresh =
-        !addonContext.userId || !addonContext.storageAddonKey;
-
-      if (needsPlanRefresh || needsAddonRefresh) {
-        try {
-          const liveSubscription = await getPayPalSubscription(subscriptionId);
-          parsed = parsePayPalCustomId(
-            typeof liveSubscription.custom_id === "string"
-              ? liveSubscription.custom_id
-              : undefined
-          );
-          addonContext = tryParseAddonContextFromCustomId(
-            liveSubscription.custom_id
-          );
-        } catch {
-          // keep parsed as-is
+      if (
+        event.event_type === "BILLING.SUBSCRIPTION.CREATED" ||
+        event.event_type === "BILLING.SUBSCRIPTION.ACTIVATED" ||
+        event.event_type === "BILLING.SUBSCRIPTION.UPDATED" ||
+        event.event_type === "BILLING.SUBSCRIPTION.CANCELLED" ||
+        event.event_type === "BILLING.SUBSCRIPTION.SUSPENDED" ||
+        event.event_type === "BILLING.SUBSCRIPTION.EXPIRED"
+      ) {
+        // Phase 10 — TEAM + PRO entitlement transitions are wrapped
+        // by the outer paypal_webhook_events idempotency record. The
+        // dedup keystone above ensures BILLING.SUBSCRIPTION.UPDATED
+        // and BILLING.SUBSCRIPTION.CANCELLED for TEAM and PRO tiers
+        // cannot double-fire (the unique index on `paypal_event_id`
+        // makes the second delivery a P2002 → 200 no-op).
+        const subscriptionId = event.resource.id ?? null;
+        if (!subscriptionId) {
+          await markProcessed();
+          return reply.code(200).send({ received: true });
         }
-      }
 
-      const paypalStatus = parsePayPalSubscriptionStatus(event.resource.status);
-
-      if (parsed.userId && parsed.plan) {
-        await syncPlanForSubscription({
-          userId: parsed.userId,
-          plan: parsed.plan,
-          teamId: parsed.teamId,
-          provider: prismaPkg.PaymentProvider.PAYPAL,
-          providerSubId: subscriptionId,
-          status: paypalStatus,
-          currentPeriodEnd: event.resource.billing_info?.next_billing_time
-            ? new Date(event.resource.billing_info.next_billing_time)
-            : null,
-        });
-      }
-
-      if (addonContext.userId && addonContext.storageAddonKey) {
-        req.log.warn(
-          {
-            provider: "PAYPAL",
-            subscriptionId,
-            userId: addonContext.userId,
-            teamId: addonContext.teamId ?? null,
-            storageAddonKey: addonContext.storageAddonKey,
-            billingCycle: addonContext.billingCycle ?? null,
-          },
-          "unsupported.storage_addon_subscription_event_ignored"
+        let parsed = parsePayPalCustomId(event.resource.custom_id);
+        let addonContext = tryParseAddonContextFromCustomId(
+          event.resource.custom_id
         );
+
+        const needsPlanRefresh = !parsed.userId || !parsed.plan;
+        const needsAddonRefresh =
+          !addonContext.userId || !addonContext.storageAddonKey;
+
+        if (needsPlanRefresh || needsAddonRefresh) {
+          try {
+            const liveSubscription =
+              await getPayPalSubscription(subscriptionId);
+            parsed = parsePayPalCustomId(
+              typeof liveSubscription.custom_id === "string"
+                ? liveSubscription.custom_id
+                : undefined
+            );
+            addonContext = tryParseAddonContextFromCustomId(
+              liveSubscription.custom_id
+            );
+          } catch {
+            // keep parsed as-is
+          }
+        }
+
+        const paypalStatus = parsePayPalSubscriptionStatus(
+          event.resource.status
+        );
+
+        if (parsed.userId && parsed.plan) {
+          await syncPlanForSubscription({
+            userId: parsed.userId,
+            plan: parsed.plan,
+            teamId: parsed.teamId,
+            provider: prismaPkg.PaymentProvider.PAYPAL,
+            providerSubId: subscriptionId,
+            status: paypalStatus,
+            currentPeriodEnd: event.resource.billing_info?.next_billing_time
+              ? new Date(event.resource.billing_info.next_billing_time)
+              : null,
+          });
+        }
+
+        if (addonContext.userId && addonContext.storageAddonKey) {
+          req.log.warn(
+            {
+              provider: "PAYPAL",
+              subscriptionId,
+              userId: addonContext.userId,
+              teamId: addonContext.teamId ?? null,
+              storageAddonKey: addonContext.storageAddonKey,
+              billingCycle: addonContext.billingCycle ?? null,
+            },
+            "unsupported.storage_addon_subscription_event_ignored"
+          );
+        }
+
+        await markProcessed();
+        return reply.code(200).send({ received: true });
       }
 
+      await markProcessed();
       return reply.code(200).send({ received: true });
+    } catch (err) {
+      const reason =
+        err instanceof Error
+          ? `${err.name}: ${err.message}`
+          : "unknown_paypal_handler_error";
+      await markFailed(reason);
+      throw err;
     }
-
-    return reply.code(200).send({ received: true });
   });
 }

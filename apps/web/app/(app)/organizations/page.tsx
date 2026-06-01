@@ -236,7 +236,7 @@ function OrganizationsListPageInner() {
             Organizations are the governance + billing tenant. Members,
             invites, and audit live here. Operational work — evidence,
             cases, reviewer queues — continues to live inside each{" "}
-            <Link href="/teams" data-action="cross-link-workspace-admin">
+            <Link href="/workspaces" data-action="cross-link-workspace-admin">
               workspace
             </Link>
             .
@@ -457,7 +457,7 @@ function OrganizationsListPageInner() {
             </li>
             <li>
               For workspace-level operations (evidence, cases, reviewers),
-              open <Link href="/teams" data-action="cross-link-workspace-admin">Workspace administration</Link>.
+              open <Link href="/workspaces" data-action="cross-link-workspace-admin">Workspace administration</Link>.
             </li>
           </ul>
           <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -599,7 +599,7 @@ function OrganizationsListPageInner() {
         Looking for evidence, cases, reviewer queues, or per-workspace
         billing? Those are workspace-scoped. Open the relevant workspace
         from{" "}
-        <Link href="/teams" data-action="footer-workspace-admin">
+        <Link href="/workspaces" data-action="footer-workspace-admin">
           Workspace administration
         </Link>
         .

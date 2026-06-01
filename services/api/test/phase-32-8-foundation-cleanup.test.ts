@@ -121,15 +121,25 @@ describe("Phase 32.8 Foundation cleanup — useActiveWorkspaceId removal", () =>
     expect(existsSync(path)).toBe(false);
   });
 
-  it("no live web file imports useActiveWorkspaceId", () => {
+  it("no live web file imports from the deleted legacy `lib/useActiveWorkspaceId` module", () => {
+    // Phase 3 evolution: `useActiveWorkspaceId` is now the PHASE 3
+    // CANONICAL hook for personal-aware workspace-id resolution, and
+    // is exported from `lib/platform-context/useTeamWorkspaceGate.ts`
+    // alongside `useTeamId` and `useWorkspaceId`. Importing it from
+    // there (or from `lib/platform-context`) is correct and expected
+    // for `/cases`, `/reports`, `/search`, `/capture`, etc.
+    //
+    // This test STILL guards against the original drift: importing
+    // from the deleted standalone `lib/useActiveWorkspaceId(.ts)`
+    // module. Anything pointing at the canonical platform-context
+    // module passes.
     const offenders: string[] = [];
     for (const file of LIVE_APP_FILES) {
       const src = stripComments(readFileSync(file, "utf8"));
-      if (/from\s+['"][^'"]*useActiveWorkspaceId['"]/.test(src)) {
+      const legacyImportRe =
+        /from\s+['"][^'"]*\/lib\/useActiveWorkspaceId['"]/;
+      if (legacyImportRe.test(src)) {
         offenders.push(relative(WEB_ROOT, file));
-      }
-      if (/\buseActiveWorkspaceId\s*\(/.test(src)) {
-        offenders.push(relative(WEB_ROOT, file) + " (call site)");
       }
     }
     expect(offenders, offenders.join("\n")).toEqual([]);

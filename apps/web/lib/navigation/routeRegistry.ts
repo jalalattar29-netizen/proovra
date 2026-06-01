@@ -446,8 +446,11 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Operator runbook catalog for incidents and recovery.",
     domain: "OPS",
     requiredCapabilities: ["RUNBOOKS_VIEW"],
-    requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "REQUEST_ACCESS",
+    // PHASE 4 — Operations is a platform-admin area, not a workspace.
+    // Non-platform-admins MUST not see this surface anywhere
+    // (constitutional rule 9; see docs/architecture/phase-4-route-persona-matrix.md §3.8).
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
     commandPaletteVisible: true,
@@ -551,8 +554,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Runtime metrics + firing alerts.",
     domain: "OPS",
     requiredCapabilities: ["OBSERVABILITY_VIEW"],
-    requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "REQUEST_ACCESS",
+    // PHASE 4 — Operations is a platform-admin area (rule 9).
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
     commandPaletteVisible: true,
@@ -561,7 +565,13 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "review.queue_detail",
-    href: "/reviewer-ops/[reviewId]",
+    // Phase 38.12 — canonical href is the queue-anchored entry
+    // `/reviewer-ops/queue`. The runtime page lives at
+    // `app/(app)/reviewer-ops/[reviewId]/page.tsx` (dynamic param);
+    // the canonical href in the registry stays queue-anchored so the
+    // route surfaces as "reached from the queue" rather than as a
+    // dynamic-id template URL that operators can't actually type.
+    href: "/reviewer-ops/queue",
     label: "Review workspace",
     description: "Per-review workspace: lifecycle, SLA, escalation, action surface.",
     domain: "REVIEW_OPERATIONS",
@@ -643,8 +653,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Upload pipeline, session-state recovery, queue policy summaries.",
     domain: "OPS",
     requiredCapabilities: ["OPS_CENTER_VIEW"],
-    requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "REQUEST_ACCESS",
+    // PHASE 4 — Operations is a platform-admin area (rule 9).
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
     commandPaletteVisible: true,
@@ -667,8 +678,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
       "BullMQ queue triage — failed jobs, replay safety, DLQ, stuck OTS.",
     domain: "OPS",
     requiredCapabilities: ["OPS_CENTER_VIEW"],
-    requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "REQUEST_ACCESS",
+    // PHASE 4 — Operations is a platform-admin area (rule 9).
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
     commandPaletteVisible: true,
@@ -684,8 +696,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Media intelligence + investigation graph operational metrics.",
     domain: "OPS",
     requiredCapabilities: ["OBSERVABILITY_VIEW"],
-    requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "REQUEST_ACCESS",
+    // PHASE 4 — Operations is a platform-admin area (rule 9).
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
     commandPaletteVisible: true,
@@ -707,6 +720,86 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: true,
   },
+  // PHASE 6 — Team Collaboration Platform. The canonical Team UI
+  // surface. Available to BOTH personal and organization workspaces
+  // (constitutional rule 4-7: Team is core collaboration, Organization
+  // is optional). UI label is "Teams"; URL path uses
+  // `/collaboration-teams` to avoid colliding with the legacy
+  // /teams/[id] workspace-admin page.
+  //
+  // No capability gate: any workspace member can SEE the Teams page;
+  // creation is permitted whenever the user has an active workspace.
+  // Per-team management permissions are enforced at the backend
+  // service layer (LEAD/ADMIN/MEMBER/VIEWER/EXTERNAL).
+  {
+    id: "workspace.collaboration_teams",
+    href: "/collaboration-teams",
+    label: "Teams",
+    description:
+      "Collaboration teams — coordinate people, assignments, and evidence work.",
+    domain: "PERSONAL_WORKSPACE",
+    requiredCapabilities: [],
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "DEGRADED",
+    workflowTags: [
+      "LEGAL_CASEWORK",
+      "REVIEW_OPERATIONS",
+      "INVESTIGATION_RECONSTRUCTION",
+      "VERIFICATION_DOCUMENTATION",
+    ],
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: true,
+  },
+  {
+    id: "workspace.collaboration_team_detail",
+    href: "/collaboration-teams/[teamId]",
+    label: "Team detail",
+    description: "Team detail surface — members, invites, assignments, activity, settings.",
+    domain: "PERSONAL_WORKSPACE",
+    requiredCapabilities: [],
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "DEGRADED",
+    workflowTags: ["LEGAL_CASEWORK", "REVIEW_OPERATIONS"],
+    advancedByDefault: true,
+    // Detail page reached from /collaboration-teams; not listed
+    // independently in discovery surfaces.
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+  {
+    id: "workspace.collaboration_team_hub",
+    href: "/collaboration-teams/[teamId]/collaboration",
+    label: "Team collaboration hub",
+    description:
+      "Comments, mentions, notifications, preferences, guests, access review.",
+    domain: "PERSONAL_WORKSPACE",
+    requiredCapabilities: [],
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "DEGRADED",
+    workflowTags: ["LEGAL_CASEWORK", "REVIEW_OPERATIONS"],
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+  {
+    id: "workspace.collaboration_team_invite_accept",
+    href: "/collaboration-teams/invites/[token]/accept",
+    label: "Accept team invite",
+    description: "Accept a Team invitation via secure token.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
   // Phase Final-A3-PT2 — `/dashboard/api-keys` retired. The canonical
   // surface is `/integrations` (team-scoped, durable, audit-backed).
   // The old route now redirects via `next.config.js`. Registry entry
@@ -722,8 +815,11 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "DEGRADED",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
+    // PHASE 4 — page does not exist (no app/(app)/dashboard/quotas/page.tsx).
+    // Constitutional rule 11: no visible route may lead to Page Not Found.
+    // Hide everywhere until the surface ships.
+    commandPaletteVisible: false,
+    allToolsVisible: false,
     sidebarEligible: false,
   },
   {
@@ -737,8 +833,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "DEGRADED",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
+    // PHASE 4 — page does not exist; hide everywhere (rule 11).
+    commandPaletteVisible: false,
+    allToolsVisible: false,
     sidebarEligible: false,
   },
   {
@@ -752,8 +849,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "DEGRADED",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
+    // PHASE 4 — page does not exist; hide everywhere (rule 11).
+    commandPaletteVisible: false,
+    allToolsVisible: false,
     sidebarEligible: false,
   },
   {
@@ -899,13 +997,13 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "REQUEST_ACCESS",
     workflowTags: ["LEGAL_CASEWORK", "REVIEW_OPERATIONS"],
     advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
-    // Final Closure Remediation Part A — Evidence Requests was reachable
-    // only via deep link from MatterWorkspace. Now in the sidebar's
-    // workspace group so operators see Intake → Evidence Requests
-    // → Cases as a coherent triage flow.
-    sidebarEligible: true,
+    // PHASE 4 — root list page does not exist (only the [id] detail page
+    // ships). Constitutional rule 11: no visible route may lead to Page
+    // Not Found. Detail page remains reachable from MatterWorkspace.
+    // Re-enable in Phase 5 when the root list page ships.
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
   },
   {
     id: "review.sla",
@@ -959,8 +1057,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Operational pressure, queue health, incidents.",
     domain: "OPS",
     requiredCapabilities: ["OPS_CENTER_VIEW"],
-    requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "REQUEST_ACCESS",
+    // PHASE 4 — Operations is a platform-admin area (rule 9).
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
     commandPaletteVisible: true,
@@ -979,8 +1078,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
       "Bounded operational automation: trigger + action rules with audit history.",
     domain: "OPS",
     requiredCapabilities: ["AUTOMATION_VIEW"],
-    requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "REQUEST_ACCESS",
+    // PHASE 4 — Operations is a platform-admin area (rule 9).
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
     commandPaletteVisible: true,
@@ -999,8 +1099,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
       "Bounded operational analytics: real counts from real tables. No fake metrics, no AI predictions, no legal/admissibility scores.",
     domain: "OPS",
     requiredCapabilities: ["ANALYTICS_VIEW"],
-    requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "REQUEST_ACCESS",
+    // PHASE 4 — Operations is a platform-admin area (rule 9).
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
     commandPaletteVisible: true,
@@ -1015,6 +1116,10 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // a separate backend phase. The route id remains `admin.teams`
   // because tests + capability mappings key off the literal — only
   // the user-facing href flipped.
+  //
+  // Phase 9 audit note: route id is historical; canonical href is /workspaces;
+  // this is workspace-admin tenancy, NOT the constitutional Team product
+  // (see id=workspace.collaboration_teams).
   {
     id: "admin.teams",
     href: "/workspaces",
@@ -1419,6 +1524,182 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
     workflowTags: ["REVIEW_OPERATIONS"],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+
+  // ---------------------------------------------------------------------------
+  // Phase 8 — Organization Admin shell. The /organizations/:id/admin surface
+  // is a tabbed shell (overview / members / departments / governance /
+  // access-reviews / retention / audit / security / trust) that aggregates
+  // org-tier administration into a single canonical entry point. The shell
+  // index + 9 tab pages each wrap in <PageRouteGate routeId="account.
+  // organization-detail"> today; the registry entries below give every tab
+  // first-class cmd-K + All Tools discoverability without putting them in
+  // the sidebar (sidebarEligible: false — org detail is the canonical
+  // sidebar entry, the admin shell is reached from that page's CTA).
+  //
+  // domain: ACCOUNT + requiredActiveSpace: NONE means personal-only users
+  // never see these in cmd-K (the routes resolve via org membership at
+  // /organizations/:id which already 404s for non-members). advancedByDefault:
+  // true keeps them out of any persona's top-N tagged surfacing.
+  //
+  // No new capabilities — the underlying org endpoints enforce per-tab
+  // role checks (ORG_OWNER / ORG_ADMIN required for mutating tabs).
+  // ---------------------------------------------------------------------------
+  {
+    id: "account.organization_admin",
+    href: "/organizations/:id/admin",
+    label: "Organization admin",
+    description:
+      "Org admin shell — members, departments, governance, access reviews, retention, audit, security, trust.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.organization_admin_overview",
+    href: "/organizations/:id/admin/overview",
+    label: "Organization admin — Overview",
+    description:
+      "Read-only posture summary across members, workspaces, audit, retention, and governance.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.organization_admin_members",
+    href: "/organizations/:id/admin/members",
+    label: "Organization admin — Members",
+    description: "Manage organization members, roles, and pending invitations.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.organization_admin_departments",
+    href: "/organizations/:id/admin/departments",
+    label: "Organization admin — Departments",
+    description: "Departments and scoped membership inside the organization.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.organization_admin_governance",
+    href: "/organizations/:id/admin/governance",
+    label: "Organization admin — Governance",
+    description:
+      "Deep-links to org-tier governance surfaces (policies, posture, lifecycle).",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.organization_admin_access_reviews",
+    href: "/organizations/:id/admin/access-reviews",
+    label: "Organization admin — Access reviews",
+    description:
+      "Access review campaigns and per-item decisions across the organization.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.organization_admin_retention",
+    href: "/organizations/:id/admin/retention",
+    label: "Organization admin — Retention",
+    description: "Organization-level retention posture and destruction reviews.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.organization_admin_audit",
+    href: "/organizations/:id/admin/audit",
+    label: "Organization admin — Audit",
+    description:
+      "Organization audit timeline — invitations, role changes, governance events.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.organization_admin_security",
+    href: "/organizations/:id/admin/security",
+    label: "Organization admin — Security",
+    description:
+      "Organization security posture: MFA, SSO, SCIM, sessions readiness with deep-links to canonical surfaces.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.organization_admin_trust",
+    href: "/organizations/:id/admin/trust",
+    label: "Organization admin — Trust",
+    description: "Organization trust center deep-links and methodology references.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,

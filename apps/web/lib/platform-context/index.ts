@@ -26,6 +26,8 @@ export {
   useTeamId,
   useWorkspaceId,
   useActiveWorkspaceId,
+  useWorkspaceFragment,
+  usePersonalSpaceFragment,
   type TeamWorkspaceGateState,
 } from "./useTeamWorkspaceGate";
 export { WorkspaceRecoveryPanel } from "./WorkspaceRecoveryPanel";

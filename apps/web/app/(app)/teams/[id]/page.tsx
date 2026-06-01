@@ -1198,12 +1198,12 @@ function TeamDetailPageBody() {
                 </div>
 
                 <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <Link href="/teams" style={{ textDecoration: "none" }}>
+                  <Link href="/workspaces" style={{ textDecoration: "none" }}>
                     <Button
                       className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                       style={primaryButtonStyle}
                     >
-                      Back to Teams
+                      Back to Workspaces
                     </Button>
                   </Link>
 
@@ -1633,12 +1633,12 @@ function TeamDetailPageBody() {
             </div>
 
             <div className="team-hero-actions">
-              <Link href="/teams" style={{ textDecoration: "none" }}>
+              <Link href="/workspaces" style={{ textDecoration: "none" }}>
                 <Button
                   className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                   style={secondaryButtonStyle}
                 >
-                  Back to Teams
+                  Back to Workspaces
                 </Button>
               </Link>
 

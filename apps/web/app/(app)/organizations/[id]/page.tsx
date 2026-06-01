@@ -582,6 +582,14 @@ function OrganizationDetailInner() {
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <Link
+              href={`/organizations/${org.data.organizationId}/admin`}
+              data-action="open-organization-admin"
+              data-org-id={org.data.organizationId}
+              style={cardLinkBtn(true)}
+            >
+              Open Admin →
+            </Link>
+            <Link
               href={`/teams?org=${org.data.organizationId}`}
               data-action="cross-link-workspace-admin"
               style={cardLinkBtn(false)}
@@ -597,7 +605,7 @@ function OrganizationDetailInner() {
                   setLastInviteToken(null);
                   setInviteOpen(true);
                 }}
-                style={cardLinkBtn(true)}
+                style={cardLinkBtn(false)}
               >
                 + Invite member
               </button>

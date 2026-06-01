@@ -435,6 +435,26 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20270108000000_phase_r7_intelligence_schema_fix",
       // Phase R7 redaction — promote workspace-scoped name uniqueness to a DB-level unique index.
       "20270109000000_phase_r7_redaction_policy_unique",
+      // Phase 5 — Collaboration Teams foundation (team_membership +
+      // team_invitations + team_assignments + team_activity_events
+      // + team_seat_grants tables). Additive only — Team is the
+      // constitutional collaboration sub-unit (NOT a workspace, NOT
+      // a tenant) per the Phase 7 closure constitution.
+      "20270201000000_phase_5_collaboration_teams",
+      // Phase 7 — Collaboration completion (discussion_threads +
+      // discussion_comments + discussion_mentions + notification_*
+      // tables + team_guest_collaborators + team_access_reviews).
+      // Additive only. Comments / mentions / guest collaboration
+      // form the Team product completion layer.
+      "20270301000000_phase_7_collaboration_completion",
+      // Phase 10 — PayPal webhook idempotency (paypal_webhook_events
+      // table created to mirror the Stripe webhook dedup model).
+      // Additive only.
+      "20270401000000_phase_10_paypal_webhook_idempotency",
+      // Phase 10 — PayPal webhook payload-hash strengthening
+      // (additive payload_hash column). Hash-based dedup so a true
+      // duplicate delivery is recognised independent of status.
+      "20270501000000_phase_10_paypal_webhook_payload_hash",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

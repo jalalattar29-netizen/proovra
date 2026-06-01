@@ -265,6 +265,27 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   "app/(app)/organizations/[id]/page.tsx",
   "app/(app)/security-center/mfa-recovery/page.tsx",
   "app/invite/[token]/page.tsx",
+  // -------------------------------------------------------------------
+  // PHASE 5 / 6 / 7 — Collaboration Teams (constitutional product).
+  //
+  // Per the PROOVRA target operating model (Phase 7 closure
+  // constitution), "Team" is the canonical term for collaboration
+  // sub-units: members, invitations, assignments, activity, comments,
+  // mentions, guest collaboration, team roles. The Team product is
+  // explicitly NOT a workspace, NOT a tenant, NOT enterprise-only —
+  // it is a core collaboration feature that works in BOTH the
+  // Personal Workspace and the Organization Workspace.
+  //
+  // Renaming these surfaces to "Workspace" would VIOLATE constitutional
+  // rules 2, 3, 4, 5, 6 (Team ≠ Workspace, Team is core collaboration,
+  // Team is not enterprise-only). The four pages below are the
+  // canonical Collaboration Teams surfaces shipped in Phases 5–7 and
+  // therefore use the constitutional vocabulary.
+  // -------------------------------------------------------------------
+  "app/(app)/collaboration-teams/page.tsx",
+  "app/(app)/collaboration-teams/[teamId]/page.tsx",
+  "app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx",
+  "app/(app)/collaboration-teams/invites/[token]/accept/page.tsx",
 ]);
 
 describe("Phase G5.2 — Team → Workspace carryover", () => {

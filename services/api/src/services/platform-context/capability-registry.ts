@@ -311,6 +311,16 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
   // Personal-space-tier — granted only when the active space is PERSONAL.
   // Read capabilities are always granted in personal mode (the user owns
   // their own evidence by definition).
+  //
+  // @deprecated PHASE 3 — The PERSONAL_* grants below are DEAD: no
+  //   route, no UI surface, and no service reads these keys. The
+  //   equivalent non-namespaced keys (EVIDENCE_VIEW, CASES_VIEW,
+  //   REPORTS_VIEW, SEARCH_VIEW, EVIDENCE_CAPTURE) remain the
+  //   canonical gating keys and ARE granted above in personal mode.
+  //   We retain these grants in Phase 3 to avoid a destructive
+  //   capability-shape change pre-Phase-4 — a Phase 3 source-contract
+  //   test asserts they continue to be granted with no behaviour
+  //   change. See docs/architecture/domain-debt-register.md (DBT-CAP-01).
   if (isPersonal) {
     setMany(
       map,
@@ -328,6 +338,15 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
   // Organization-tier — granted only when the active space is an
   // organization (TEAM scope). Role-aware: viewers do NOT get governance
   // act or team manage; admins do; billing manage is OWNER/ADMIN.
+  //
+  // @deprecated PHASE 3 — The ORG_* grants below are DEAD: no
+  //   route, no UI surface, and no service reads these keys. The
+  //   equivalent non-namespaced keys (EVIDENCE_VIEW, CASES_VIEW,
+  //   REPORTS_VIEW, SEARCH_VIEW, REVIEWER_OPS_VIEW, GOVERNANCE_VIEW,
+  //   OPS_CENTER_VIEW, TEAM_MANAGE, BILLING_MANAGE) remain the
+  //   canonical gating keys. Retained in Phase 3 to avoid a
+  //   destructive capability-shape change pre-Phase-4.
+  //   See docs/architecture/domain-debt-register.md (DBT-CAP-01).
   if (isTeam) {
     setMany(
       map,

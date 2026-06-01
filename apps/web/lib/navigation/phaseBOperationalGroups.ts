@@ -117,6 +117,18 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "workspace.review_qc",
       "workspace.review_disagreements",
       "workspace.review_metrics",
+      // Phase 3A — Reviewer-tier redaction projects surface; sits
+      // alongside the reviewer admin surfaces above.
+      "workspace.review_redaction",
+      // Phase 5 / 6 — Collaboration Teams. The Team product is core
+      // collaboration (constitutional rule 4-7) — it lives in WORKSPACE,
+      // not in a separate Team-Workspace group (Team is NOT a workspace
+      // per the constitution). Detail + invite-accept surfaces are deep
+      // links so they live in secondary.
+      "workspace.collaboration_teams",
+      "workspace.collaboration_team_detail",
+      "workspace.collaboration_team_hub",
+      "workspace.collaboration_team_invite_accept",
     ],
   },
 
@@ -149,6 +161,24 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "governance.analytics",
       "account.organization-detail",
       "account.org-invite-accept",
+      // Phase 8 — Organization Admin shell + 9 tab leaves. Tabbed
+      // org-administration surface reached from the org detail page's
+      // "Open Admin →" CTA. Lives in GOVERNANCE secondary because the
+      // tabs are org-tier oversight (members, departments, governance,
+      // access reviews, retention, audit, security, trust) — not daily
+      // operator flow. sidebarEligible: false in the route registry,
+      // so they never compete with the canonical Phase B primary
+      // destinations.
+      "account.organization_admin",
+      "account.organization_admin_overview",
+      "account.organization_admin_members",
+      "account.organization_admin_departments",
+      "account.organization_admin_governance",
+      "account.organization_admin_access_reviews",
+      "account.organization_admin_retention",
+      "account.organization_admin_audit",
+      "account.organization_admin_security",
+      "account.organization_admin_trust",
       // Final Closure Remediation Part A — `security_center.mfa_recovery`
       // is the MFA-recovery approvals console reached from the Security
       // Center. It belongs to the Governance group (member-identity
@@ -158,6 +188,16 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // revoke invitations + monitor portal sessions). Reviewer-tier
       // governance surface, not daily reviewer flow.
       "workspace.review_external",
+      // Phase 4A — Org-tier governance surfaces. Trust Center, audit
+      // transparency, evidence lifecycle, and the executive/governance
+      // platform pages. Org Admin / Compliance surfaces — secondary in
+      // GOVERNANCE because they're org-overlay, not daily ops.
+      "admin.identity",
+      "workspace.intelligence_quality",
+      "workspace.trust_center",
+      "workspace.audit_transparency",
+      "workspace.evidence_lifecycle",
+      "workspace.governance_platform",
     ],
   },
 
@@ -171,7 +211,18 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "Verification deliverables: signed Report PDFs, Verification Package ZIPs, exports.",
     hint: "Report PDF vs Verification Package ZIP are distinct artifacts (Phase A2 vocabulary).",
     primary: ["workspace.reports"],
-    secondary: [],
+    secondary: [
+      // Phase 4B — Org-tier output deliverable surfaces. Packaging =
+      // export bundles. Exchange = signed-bundle delivery channel.
+      // Executive = operator-facing executive dashboard. Intelligence
+      // platform + budget center = org-tier rollups that produce
+      // export-ready snapshots.
+      "workspace.exchange",
+      "workspace.executive",
+      "workspace.intelligence_platform",
+      "workspace.packaging",
+      "workspace.budget_center",
+    ],
   },
 
   // ---------------------------------------------------------------------

@@ -24,6 +24,150 @@ export const LegalVersionsSchema = z.object({
 export type LegalVersions = z.infer<typeof LegalVersionsSchema>;
 
 export * from "./i18n.js";
+
+// PROOVRA Phase 2 — Target Domain Blueprint architectural constants.
+// See docs/architecture/proovra-domain-model.md
+export {
+  TARGET_WORKSPACE_KINDS,
+  LEGACY_WORKSPACE_SCOPES,
+  FORBIDDEN_WORKSPACE_KIND_TOKENS,
+  FORBIDDEN_WORKSPACE_KIND_UI_STRINGS,
+  isPersonalWorkspaceKind,
+  isOrganizationWorkspaceKind,
+  assertTargetWorkspaceKind,
+  coerceLegacyScopeToTargetKind,
+} from "./architecture/workspace-kinds.js";
+export type {
+  TargetWorkspaceKind,
+  LegacyWorkspaceScope,
+  ForbiddenWorkspaceKindToken,
+} from "./architecture/workspace-kinds.js";
+
+// PROOVRA Phase 3 — Canonical denial vocabulary (Stage 3).
+// See docs/architecture/architecture-invariants.md (INV-9).
+export {
+  DENIAL_REASONS,
+  denialReasonCopy,
+  denialReasonHeadline,
+  denialReasonGuidance,
+  accessStateToDenialReason,
+  accessGateKindToDenialReason,
+  authorizationDenialCodeToDenialReason,
+  anyDenialToCanonical,
+} from "./architecture/denial-vocabulary.js";
+export type {
+  DenialReason,
+  DenialCopy,
+} from "./architecture/denial-vocabulary.js";
+
+// PROOVRA Phase 3 — Canonical TOM persona projection (Stage 4).
+// See docs/architecture/architecture-invariants.md (INV-4) and
+// docs/architecture/proovra-domain-model.md (TOM personas).
+export {
+  TOM_PERSONA_KINDS,
+  projectTomPersona,
+  tomPersonaLabel,
+  tomPersonaShortLabel,
+  isSoloTomPersona,
+  isOrgTomPersona,
+} from "./architecture/canonical-persona.js";
+export type {
+  TomPersonaKind,
+  TomPersonaProjectionInput,
+} from "./architecture/canonical-persona.js";
+
+// PROOVRA Phase 5 — Collaboration Team canonical vocabulary.
+// See docs/architecture/phase-5-team-platform-readiness.md and
+// docs/architecture/phase-5-team-platform-final.md.
+export {
+  COLLABORATION_TEAM_ROLES,
+  COLLABORATION_TEAM_MANAGE_ROLES,
+  COLLABORATION_TEAM_ASSIGN_ROLES,
+  COLLABORATION_TEAM_TRANSFER_LEAD_ROLES,
+  COLLABORATION_TEAM_STATUSES,
+  COLLABORATION_TEAM_MEMBER_STATUSES,
+  COLLABORATION_TEAM_TYPES,
+  COLLABORATION_TEAM_INVITE_CHANNELS,
+  COLLABORATION_TEAM_INVITE_STATUSES,
+  COLLABORATION_TEAM_DELIVERY_STATUSES,
+  COLLABORATION_TEAM_ASSIGNMENT_STATUSES,
+  COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES,
+  COLLABORATION_TEAM_ASSIGNMENT_TARGETS,
+  COLLABORATION_TEAM_ACTIVITY_EVENT_TYPES,
+  COLLABORATION_TEAM_PLAN_LIMITS,
+  COLLABORATION_TEAM_INVITE_TOKEN_PREFIX,
+  COLLABORATION_TEAM_INVITE_TOKEN_RANDOM_BYTES,
+  getCollaborationTeamPlanLimits,
+  collaborationTeamRoleHasPermission,
+  listCollaborationTeamRolePermissions,
+  isWellFormedCollaborationTeamInviteToken,
+  renderCollaborationTeamInvitationSmsBody,
+  // Phase 7 additions
+  COLLABORATION_TEAM_COMMENT_TARGETS,
+  COLLABORATION_TEAM_COMMENT_STATUSES,
+  COLLABORATION_TEAM_MENTION_TYPES,
+  COLLABORATION_TEAM_NOTIFICATION_TYPES,
+  COLLABORATION_TEAM_DIGEST_MODES,
+  COLLABORATION_TEAM_GUEST_STATUSES,
+  COLLABORATION_TEAM_ACCESS_REVIEW_STATUSES,
+  COLLABORATION_TEAM_ACCESS_REVIEW_DECISIONS,
+  COLLABORATION_TEAM_SPECIAL_MENTIONS,
+  parseCollaborationTeamMentionHandles,
+  isSpecialCollaborationTeamMention,
+  sanitiseCollaborationTeamCommentBody,
+  buildCollaborationTeamUserDirectoryEntry,
+} from "./collaboration-team.js";
+export type {
+  CollaborationTeamRole,
+  CollaborationTeamStatus,
+  CollaborationTeamMemberStatus,
+  CollaborationTeamType,
+  CollaborationTeamInviteChannel,
+  CollaborationTeamInviteStatus,
+  CollaborationTeamDeliveryStatus,
+  CollaborationTeamAssignmentStatus,
+  CollaborationTeamAssignmentPriority,
+  CollaborationTeamAssignmentTarget,
+  CollaborationTeamActivityEventType,
+  CollaborationTeamPermission,
+  CollaborationTeamPlanLimits,
+  // Phase 7 type additions
+  CollaborationTeamCommentTarget,
+  CollaborationTeamCommentStatus,
+  CollaborationTeamMentionType,
+  CollaborationTeamNotificationType,
+  CollaborationTeamDigestMode,
+  CollaborationTeamGuestStatus,
+  CollaborationTeamAccessReviewStatus,
+  CollaborationTeamAccessReviewDecision,
+  CollaborationTeamSpecialMention,
+  CollaborationTeamUserDirectoryEntry,
+} from "./collaboration-team.js";
+
+// PROOVRA Phase 10 — Canonical billing-guard error codes for the
+// /v1/collaboration-teams mutation surface. The structured error thrown
+// by services/api/src/services/collaboration-team/billing-guards.ts uses
+// these codes as its bounded `.code` union.
+export {
+  COLLABORATION_TEAM_BILLING_ERROR_CODES,
+  COLLABORATION_TEAM_BILLING_ERROR_HTTP_STATUS,
+  COLLABORATION_TEAM_BILLING_UPGRADE_CTA,
+  isCollaborationTeamBillingErrorCode,
+} from "./collaboration-team-billing-codes.js";
+export type { CollaborationTeamBillingErrorCode } from "./collaboration-team-billing-codes.js";
+
+// PROOVRA Phase 10 — Shared (cross-surface) billing error-code vocabulary.
+// Broader than the collaboration-team union: includes UPGRADE_REQUIRED as
+// the generic catch-all for non-collaboration-team billing-guarded
+// surfaces. See packages/shared/src/billing-errors.ts.
+export {
+  BILLING_ERROR_CODES,
+  BILLING_ERROR_HTTP_STATUS,
+  BILLING_ERROR_UPGRADE_CTA,
+  isBillingErrorCode,
+} from "./billing-errors.js";
+export type { BillingErrorCode } from "./billing-errors.js";
+
 export {
   CAPTURE_LOCATION_MAP_ATTRIBUTION,
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,

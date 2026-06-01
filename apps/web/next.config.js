@@ -121,17 +121,51 @@ const nextConfig = {
       // operations pillar. /dashboard without a sub-path already redirects
       // to /home above.
       //
-      // Stage 2 cleanup — removed dead redirects whose destinations never
-      // existed on disk: /ops/{observability,runbooks,media-graph,
-      // automation,analytics} and /dashboard/{batch-analysis,quotas}. The
-      // canonical pages live at the SOURCE paths (e.g.
-      // app/(app)/ops/observability/page.tsx); the /operations/* and
-      // /operations/{batch-analysis,quotas} destinations are not implemented,
-      // so the redirects were 308-ing real pages into 404s. /ops/reliability
-      // is kept — its /operations/reliability destination genuinely exists.
+      // Phase 1A IA reset — the canonical Operations pillar URL family
+      // is `/operations/*`. The legacy `/ops/*` and `/dashboard/{batch-
+      // analysis,quotas}` URLs now redirect to their canonical homes.
+      // The destinations are thin wrapper pages under
+      // `app/(app)/operations/{...}` that re-export the original content
+      // (preserved at `app/(app)/ops/...` and `app/(app)/dashboard/...`
+      // to avoid churning every internal import in this iteration).
       {
         source: "/dashboard/insights",
         destination: "/home",
+        permanent: true,
+      },
+      {
+        source: "/ops/observability",
+        destination: "/operations/observability",
+        permanent: true,
+      },
+      {
+        source: "/ops/runbooks",
+        destination: "/operations/runbooks",
+        permanent: true,
+      },
+      {
+        source: "/ops/media-graph",
+        destination: "/operations/media-graph",
+        permanent: true,
+      },
+      {
+        source: "/ops/automation",
+        destination: "/operations/automation",
+        permanent: true,
+      },
+      {
+        source: "/ops/analytics",
+        destination: "/operations/analytics",
+        permanent: true,
+      },
+      {
+        source: "/dashboard/batch-analysis",
+        destination: "/operations/batch-analysis",
+        permanent: true,
+      },
+      {
+        source: "/dashboard/quotas",
+        destination: "/operations/quotas",
         permanent: true,
       },
     ];

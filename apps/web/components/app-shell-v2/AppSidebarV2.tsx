@@ -551,6 +551,36 @@ export function AppSidebarV2() {
           }
         : null,
     });
+
+    // PHASE 4 — Sidebar-only suppression of org-only routes for
+    // personal users. The constitutional rule (rule 13 in the Phase 4
+    // brief) is: "Hidden is better than showing 'Requires Permission'
+    // for irrelevant enterprise features." When a user's active space
+    // is PERSONAL (and they're not a platform admin), org-only routes
+    // like Governance / Reviewer Ops should NOT clutter their sidebar
+    // with "Activate in an organization" CTAs.
+    //
+    // The routes remain reachable from the Tools page and Command
+    // Palette (those surfaces compute their own resolved[] array — this
+    // mutation here is sidebar-local and does NOT affect them). When a
+    // personal user does navigate to an org-only URL directly, the
+    // PageRouteGate still renders the canonical NEEDS_ORGANIZATION
+    // panel with a "Create or switch organization" CTA.
+    //
+    // canLoad is left untouched — only the sidebar-visibility hint
+    // (canSeeNav) is suppressed.
+    if (
+      access.canSeeNav &&
+      access.accessState === "NEEDS_ORGANIZATION" &&
+      activeSpaceType !== "ORGANIZATION" &&
+      !isPlatformAdmin
+    ) {
+      return {
+        route,
+        access: { ...access, canSeeNav: false },
+      };
+    }
+
     return { route, access };
   });
 

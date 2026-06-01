@@ -1,7 +1,7 @@
 {
-  "generatedAtUtc": "2026-05-29T03:44:13.017Z",
-  "modelsParsed": 156,
-  "issuesCount": 82,
+  "generatedAtUtc": "2026-06-01T15:02:40.852Z",
+  "modelsParsed": 235,
+  "issuesCount": 104,
   "issues": [
     {
       "migration": "20260131235343_init",
@@ -650,6 +650,182 @@
       "model": "TrustedDevice",
       "column": "avatar_url",
       "detail": "Migration ADDs column trusted_devices.avatar_url but Prisma model TrustedDevice no longer references it."
+    },
+    {
+      "migration": "20261015000000_phase_2b_closure_invitation_delivery_sso",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "external_review_invitation_deliveries",
+      "model": "ExternalReviewInvitationDelivery",
+      "column": "provider_message_id",
+      "detail": "Migration ADDs column external_review_invitation_deliveries.provider_message_id but Prisma model ExternalReviewInvitationDelivery no longer references it."
+    },
+    {
+      "migration": "20261101000000_phase_3a_redaction_platform",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "redaction_projects",
+      "model": "RedactionProject",
+      "column": "archived_at",
+      "detail": "Migration ADDs column redaction_projects.archived_at but Prisma model RedactionProject no longer references it."
+    },
+    {
+      "migration": "20261101000000_phase_3a_redaction_platform",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "redaction_versions",
+      "model": "RedactionVersion",
+      "column": "rejected_at_utc",
+      "detail": "Migration ADDs column redaction_versions.rejected_at_utc but Prisma model RedactionVersion no longer references it."
+    },
+    {
+      "migration": "20261101000000_phase_3a_redaction_platform",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "redaction_derivatives",
+      "model": "RedactionDerivative",
+      "column": "render_started_at_utc",
+      "detail": "Migration ADDs column redaction_derivatives.render_started_at_utc but Prisma model RedactionDerivative no longer references it."
+    },
+    {
+      "migration": "20261201000000_phase_3a_elite_closure_policy_video",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "redaction_policy_versions",
+      "model": "RedactionPolicyVersion",
+      "column": "published_at_utc",
+      "detail": "Migration ADDs column redaction_policy_versions.published_at_utc but Prisma model RedactionPolicyVersion no longer references it."
+    },
+    {
+      "migration": "20261201000000_phase_3a_elite_closure_policy_video",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "redaction_policy_assignments",
+      "model": "RedactionPolicyAssignment",
+      "column": "policy_version_id",
+      "detail": "Migration ADDs column redaction_policy_assignments.policy_version_id but Prisma model RedactionPolicyAssignment no longer references it."
+    },
+    {
+      "migration": "20261201000000_phase_3a_elite_closure_policy_video",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "redaction_policy_assignments",
+      "model": "RedactionPolicyAssignment",
+      "column": "revoked_at_utc",
+      "detail": "Migration ADDs column redaction_policy_assignments.revoked_at_utc but Prisma model RedactionPolicyAssignment no longer references it."
+    },
+    {
+      "migration": "20261201000000_phase_3a_elite_closure_policy_video",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "video_track_detections",
+      "model": "VideoTrackDetection",
+      "column": "created_at",
+      "detail": "Migration ADDs column video_track_detections.created_at but Prisma model VideoTrackDetection no longer references it."
+    },
+    {
+      "migration": "20261215000000_phase_3b_intelligence_platform",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "media_intelligence_records",
+      "model": "MediaIntelligenceRecord",
+      "column": "reviewed_at_utc",
+      "detail": "Migration ADDs column media_intelligence_records.reviewed_at_utc but Prisma model MediaIntelligenceRecord no longer references it."
+    },
+    {
+      "migration": "20261215000000_phase_3b_intelligence_platform",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "media_intelligence_records",
+      "model": "MediaIntelligenceRecord",
+      "column": "superseded_at_utc",
+      "detail": "Migration ADDs column media_intelligence_records.superseded_at_utc but Prisma model MediaIntelligenceRecord no longer references it."
+    },
+    {
+      "migration": "20261215000000_phase_3b_intelligence_platform",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "reviewer_corrections",
+      "model": "ReviewerCorrection",
+      "column": "accepted_at_utc",
+      "detail": "Migration ADDs column reviewer_corrections.accepted_at_utc but Prisma model ReviewerCorrection no longer references it."
+    },
+    {
+      "migration": "20261215000000_phase_3b_intelligence_platform",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "reviewer_corrections",
+      "model": "ReviewerCorrection",
+      "column": "reverted_at_utc",
+      "detail": "Migration ADDs column reviewer_corrections.reverted_at_utc but Prisma model ReviewerCorrection no longer references it."
+    },
+    {
+      "migration": "20261216000000_phase_3b_enterprise_closure",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "reviewer_corrections",
+      "model": "ReviewerCorrection",
+      "column": "superseded_at_utc",
+      "detail": "Migration ADDs column reviewer_corrections.superseded_at_utc but Prisma model ReviewerCorrection no longer references it."
+    },
+    {
+      "migration": "20261220000000_phase_4a_trust_and_governance",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "delegated_admin_grants",
+      "model": "DelegatedAdminGrant",
+      "column": "grantee_user_id",
+      "detail": "Migration ADDs column delegated_admin_grants.grantee_user_id but Prisma model DelegatedAdminGrant no longer references it."
+    },
+    {
+      "migration": "20261220000000_phase_4a_trust_and_governance",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "cross_org_review_grants",
+      "model": "CrossOrgReviewGrant",
+      "column": "created_by_user_id",
+      "detail": "Migration ADDs column cross_org_review_grants.created_by_user_id but Prisma model CrossOrgReviewGrant no longer references it."
+    },
+    {
+      "migration": "20261225000000_phase_4a_enterprise_closure",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "evidence",
+      "model": "Evidence",
+      "column": "department_id",
+      "detail": "Migration ADDs column evidence.department_id but Prisma model Evidence no longer references it."
+    },
+    {
+      "migration": "20261230000000_phase_4b_packaging_and_lifecycle",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "entitlement_grants",
+      "model": "EntitlementGrant",
+      "column": "notes",
+      "detail": "Migration ADDs column entitlement_grants.notes but Prisma model EntitlementGrant no longer references it."
+    },
+    {
+      "migration": "20261231000000_phase_4b_final_closure",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "destruction_certificates",
+      "model": "DestructionCertificate",
+      "column": "certificate_pdf_uri",
+      "detail": "Migration ADDs column destruction_certificates.certificate_pdf_uri but Prisma model DestructionCertificate no longer references it."
+    },
+    {
+      "migration": "20270101000000_phase_r3_model_catchup",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "devices",
+      "model": "Device",
+      "column": "parent_annotation_id",
+      "detail": "Migration ADDs column devices.parent_annotation_id but Prisma model Device no longer references it."
+    },
+    {
+      "migration": "20270101000000_phase_r3_model_catchup",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "external_reviewer_role_assignments",
+      "model": "ExternalReviewerRoleAssignment",
+      "column": "allowed_domains",
+      "detail": "Migration ADDs column external_reviewer_role_assignments.allowed_domains but Prisma model ExternalReviewerRoleAssignment no longer references it."
+    },
+    {
+      "migration": "20270102000000_phase_r7_schema_catchup",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "video_frames",
+      "model": "VideoFrame",
+      "column": "device_model",
+      "detail": "Migration ADDs column video_frames.device_model but Prisma model VideoFrame no longer references it."
+    },
+    {
+      "migration": "20270103000000_phase_r7_trust_schema_fix",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "subprocessors",
+      "model": "Subprocessor",
+      "column": "change_summary",
+      "detail": "Migration ADDs column subprocessors.change_summary but Prisma model Subprocessor no longer references it."
     },
     {
       "migration": "email_password_auth",
