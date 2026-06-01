@@ -42,6 +42,7 @@ import {
   // surfaced an `unused-vars` ESLint error that broke the Vercel
   // build.
   useActiveSpace,
+  useCan,
   usePersonaProfile,
   usePlatformContext,
   workflowFromPersona,
@@ -4388,6 +4389,12 @@ function IncidentsSection({
   const correlations = section.correlations ?? [];
   const workflows = section.workflows ?? [];
   const causalityChains = section.causalityChains ?? [];
+  // STAGE 2 — gate ops/observability/runbooks deep-links on capability.
+  // Users without OBSERVABILITY_VIEW / RUNBOOKS_VIEW still see the
+  // incident list (it's diagnostic), but the deep-link into the
+  // operator surface stays hidden when they could not USE it.
+  const canObservability = useCan("OBSERVABILITY_VIEW");
+  const canRunbooks = useCan("RUNBOOKS_VIEW");
   if (
     section.status === "unavailable" &&
     section.items.length === 0 &&
@@ -4413,8 +4420,8 @@ function IncidentsSection({
           title="No open operational incidents"
           body="The incident generator scans real platform conditions on every dashboard load — report/package backlog, stale review assignments, retry storms, stale telemetry, worker heartbeat staleness, unsigned aged evidence, and stale coordination backlog. A 0-result state means every one of these thresholds is currently within tolerance. Workflows and causality chains follow incidents — when there are no incidents there is nothing to orchestrate."
           hint="Detailed platform health remains accessible under Operations Center."
-          actionLabel="Open observability"
-          actionHref="/ops/observability"
+          actionLabel={canObservability ? "Open observability" : undefined}
+          actionHref={canObservability ? "/ops/observability" : undefined}
         />
       </SectionShell>
     );
@@ -4467,45 +4474,66 @@ function IncidentsSection({
             data-cc-incident-status={i.status}
             data-cc-incident-assigned={i.assignedOperatorUserId ? "true" : "false"}
           >
-            <Link
-              href={
-                i.runbookSlug
+            {(() => {
+              // STAGE 2 — pick the deep-link target only if the actor
+              // has the capability for that destination. If they have
+              // neither, render the same content as a non-anchor row
+              // so the incident still shows up.
+              const incidentHref =
+                i.runbookSlug && canRunbooks
                   ? `/ops/runbooks#${i.runbookSlug}`
-                  : "/ops/observability"
-              }
-              className="ec-incident-link"
-            >
-              <span className="ec-incident-title">{i.title}</span>
-              <span className="ec-incident-meta">
-                {i.category} · {i.severity} · {i.occurrenceCount}×
-                {i.assignedOperatorUserId ? (
-                  <>
-                    {" · "}
-                    <span data-cc-incident-assigned-label>
-                      assigned {i.assignedOperatorUserId.slice(0, 8)}
-                    </span>
-                  </>
-                ) : null}
-                {i.acknowledgedByUserId && !i.assignedOperatorUserId ? (
-                  <>
-                    {" · "}
-                    <span data-cc-incident-ack-label>
-                      ack {i.acknowledgedByUserId.slice(0, 8)}
-                    </span>
-                  </>
-                ) : null}
-              </span>
-            </Link>
+                  : canObservability
+                    ? "/ops/observability"
+                    : null;
+              const incidentBody = (
+                <>
+                  <span className="ec-incident-title">{i.title}</span>
+                  <span className="ec-incident-meta">
+                    {i.category} · {i.severity} · {i.occurrenceCount}×
+                    {i.assignedOperatorUserId ? (
+                      <>
+                        {" · "}
+                        <span data-cc-incident-assigned-label>
+                          assigned {i.assignedOperatorUserId.slice(0, 8)}
+                        </span>
+                      </>
+                    ) : null}
+                    {i.acknowledgedByUserId && !i.assignedOperatorUserId ? (
+                      <>
+                        {" · "}
+                        <span data-cc-incident-ack-label>
+                          ack {i.acknowledgedByUserId.slice(0, 8)}
+                        </span>
+                      </>
+                    ) : null}
+                  </span>
+                </>
+              );
+              return incidentHref ? (
+                <Link href={incidentHref} className="ec-incident-link">
+                  {incidentBody}
+                </Link>
+              ) : (
+                <div className="ec-incident-link">{incidentBody}</div>
+              );
+            })()}
           </li>
         ))}
       </ul>
       ) : null}
-      <div className="ec-section-foot">
-        Operator actions (acknowledge / assign / resolve / suppress, workflow
-        ownership transitions) live on the{" "}
-        <Link href="/ops/observability">Operations Center</Link> incident +
-        workflow detail pages. The dashboard is read-only.
-      </div>
+      {canObservability ? (
+        <div className="ec-section-foot">
+          Operator actions (acknowledge / assign / resolve / suppress, workflow
+          ownership transitions) live on the{" "}
+          <Link href="/ops/observability">Operations Center</Link> incident +
+          workflow detail pages. The dashboard is read-only.
+        </div>
+      ) : (
+        <div className="ec-section-foot">
+          The dashboard is read-only. Operator actions are performed by
+          operations staff with access to the operations center.
+        </div>
+      )}
     </SectionShell>
   );
 }
@@ -5247,6 +5275,11 @@ function BulkActionsToolbar({
   >["capabilities"];
   scope: WorkspaceScope;
 }) {
+  // STAGE 2 — gate the deep-link to /ops/observability on the canonical
+  // capability for that route. The chips themselves remain visible
+  // (they're already permission-aware via the envelope.capabilities
+  // matrix and surface their own "Requires X" reason text).
+  const canObservability = useCan("OBSERVABILITY_VIEW");
   const actions: Array<{
     key: string;
     label: string;
@@ -5388,7 +5421,7 @@ function BulkActionsToolbar({
             data-cc-bulk-action={a.key}
             data-cc-bulk-action-can-act={a.canAct ? "true" : "false"}
           >
-            {a.canAct ? (
+            {a.canAct && canObservability ? (
               <Link
                 href={a.href}
                 className="ec-chip"
@@ -5409,13 +5442,21 @@ function BulkActionsToolbar({
           </li>
         ))}
       </ul>
-      <div className="ec-section-foot">
-        Bulk actions are executed on the Operations Center page (
-        <Link href="/ops/observability">/ops/observability</Link>). The
-        dashboard is read-only — chips above link to the canonical surface.
-        Every bulk run fans out to the underlying lifecycle service and is
-        audited per-target.
-      </div>
+      {canObservability ? (
+        <div className="ec-section-foot">
+          Bulk actions are executed on the Operations Center page (
+          <Link href="/ops/observability">/ops/observability</Link>). The
+          dashboard is read-only — chips above link to the canonical surface.
+          Every bulk run fans out to the underlying lifecycle service and is
+          audited per-target.
+        </div>
+      ) : (
+        <div className="ec-section-foot">
+          The dashboard is read-only. Bulk actions are executed by operations
+          staff with access to the operations center. Every bulk run is
+          audited per-target.
+        </div>
+      )}
     </section>
   );
 }

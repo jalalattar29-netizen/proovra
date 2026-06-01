@@ -47,6 +47,7 @@ import {
   useGlobalRuntimeState,
   type GlobalRuntimeSeverity,
 } from "../../lib/useGlobalRuntimeState";
+import { useCan } from "../../lib/platform-context";
 import { OPS_INK, OPS_SURFACE, OPS_TONES } from "./tokens";
 
 export type GlobalRuntimeIndicatorProps = {
@@ -117,6 +118,28 @@ export function GlobalRuntimeIndicator({
   teamId,
   pollMs,
 }: GlobalRuntimeIndicatorProps) {
+  // STAGE 2 — The global runtime indicator is an operator-facing surface
+  // (readiness subsystems, incidents, escalations, runbooks). Personal
+  // workspaces (workspace.scope !== "TEAM") pass teamId === null from
+  // AppTopbarV2; for those users there is no team-scoped runtime to
+  // report against, so the pill perpetually renders as UNKNOWN with the
+  // "Status pending" label. That looks like a broken/alarming status
+  // chip in the primary shell for users who should never have seen the
+  // operator indicator in the first place. Bail out before subscribing
+  // to runtime state so personal users get a clean topbar and the hook
+  // does no needless polling. Team/org/admin users (teamId is a real
+  // workspace id) keep the indicator and all its existing behavior via
+  // the inner component below.
+  if (teamId === null) {
+    return null;
+  }
+  return <TeamScopedRuntimeIndicator teamId={teamId} pollMs={pollMs} />;
+}
+
+function TeamScopedRuntimeIndicator({
+  teamId,
+  pollMs,
+}: GlobalRuntimeIndicatorProps & { teamId: string }) {
   const state = useGlobalRuntimeState(teamId, pollMs);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -493,6 +516,19 @@ function DropdownBody({
 }
 
 function DropdownFooter({ onClose }: { onClose: () => void }) {
+  // STAGE 2 — Each footer link is gated by the capability that the
+  // canonical route registry requires for the destination route. Users
+  // without ANY of the four capabilities see no footer at all — the
+  // dropdown is still useful (severity + subsystems + incidents) but
+  // the deep-links into operator surfaces stay hidden for users who
+  // could not USE them anyway.
+  const canOpsCenter = useCan("OPS_CENTER_VIEW");
+  const canObservability = useCan("OBSERVABILITY_VIEW");
+  const canEscalations = useCan("ESCALATIONS_VIEW");
+  const canRunbooks = useCan("RUNBOOKS_VIEW");
+  if (!canOpsCenter && !canObservability && !canEscalations && !canRunbooks) {
+    return null;
+  }
   return (
     <div
       style={{
@@ -504,30 +540,38 @@ function DropdownFooter({ onClose }: { onClose: () => void }) {
         gap: 6,
       }}
     >
-      <FooterLink
-        href="/ops"
-        icon={<Radio size={13} strokeWidth={2} />}
-        label="Operations Center"
-        onClose={onClose}
-      />
-      <FooterLink
-        href="/ops/observability"
-        icon={<Activity size={13} strokeWidth={2} />}
-        label="Observability"
-        onClose={onClose}
-      />
-      <FooterLink
-        href="/reviewer-ops/escalations"
-        icon={<AlertTriangle size={13} strokeWidth={2} />}
-        label="Escalations"
-        onClose={onClose}
-      />
-      <FooterLink
-        href="/ops/runbooks"
-        icon={<BookOpen size={13} strokeWidth={2} />}
-        label="Runbooks"
-        onClose={onClose}
-      />
+      {canOpsCenter ? (
+        <FooterLink
+          href="/ops"
+          icon={<Radio size={13} strokeWidth={2} />}
+          label="Operations Center"
+          onClose={onClose}
+        />
+      ) : null}
+      {canObservability ? (
+        <FooterLink
+          href="/ops/observability"
+          icon={<Activity size={13} strokeWidth={2} />}
+          label="Observability"
+          onClose={onClose}
+        />
+      ) : null}
+      {canEscalations ? (
+        <FooterLink
+          href="/reviewer-ops/escalations"
+          icon={<AlertTriangle size={13} strokeWidth={2} />}
+          label="Escalations"
+          onClose={onClose}
+        />
+      ) : null}
+      {canRunbooks ? (
+        <FooterLink
+          href="/ops/runbooks"
+          icon={<BookOpen size={13} strokeWidth={2} />}
+          label="Runbooks"
+          onClose={onClose}
+        />
+      ) : null}
     </div>
   );
 }

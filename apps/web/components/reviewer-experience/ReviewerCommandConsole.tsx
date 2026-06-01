@@ -26,6 +26,7 @@ import { apiFetch } from "../../lib/api";
 import {
   CapabilityDegradedPanel,
   useActiveSpaceId,
+  useCan,
   usePersonaProfile,
   usePlatformContext,
   workflowFromPersona,
@@ -1548,6 +1549,10 @@ function PolicySection({ env }: { env: ReviewerCommandEnvelope }) {
 
 function ReconciliationSection({ env }: { env: ReviewerCommandEnvelope }) {
   const r = env.sections.reconciliationHealth;
+  // STAGE 2 — gate the deep-link to Observability on the canonical
+  // capability for that route. The tiles still render either way;
+  // only the pivot link is hidden when the actor cannot reach it.
+  const canObservability = useCan("OBSERVABILITY_VIEW");
   if (r.status !== "ok" || !r.data) {
     return (
       <section className="cc-section" data-reviewer-section="reconciliation">
@@ -1579,10 +1584,12 @@ function ReconciliationSection({ env }: { env: ReviewerCommandEnvelope }) {
           <span className="cc-tile-label">Oldest queued</span>
         </div>
       </div>
-      <div className="cc-section-foot">
-        Worker health + cron status live at{" "}
-        <Link href="/ops/observability">Operations · Observability</Link>.
-      </div>
+      {canObservability ? (
+        <div className="cc-section-foot">
+          Worker health + cron status live at{" "}
+          <Link href="/ops/observability">Operations · Observability</Link>.
+        </div>
+      ) : null}
     </section>
   );
 }

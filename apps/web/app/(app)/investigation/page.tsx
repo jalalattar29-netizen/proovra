@@ -29,7 +29,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
-import { useTeamId } from "../../../lib/platform-context";
+import { useCan, useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { HubQuickActionsBar } from "../../../components/hubs/HubQuickActionsBar";
 // =============================================================================
@@ -102,6 +102,11 @@ export default function InvestigationOverviewPage() {
 
 function InvestigationOverviewPageInner() {
   const teamId = useTeamId();
+  // STAGE 2 — /ops/media-graph maps to OBSERVABILITY_VIEW in the
+  // canonical route registry. The "Open operations console" pivot
+  // below is the only deep-link off this page into an ops surface
+  // and must be hidden for actors without the capability.
+  const canObservability = useCan("OBSERVABILITY_VIEW");
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
   const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -192,11 +197,13 @@ function InvestigationOverviewPageInner() {
       <section style={sectionStyle}>
         <h2 style={sectionTitleStyle}>Queue health</h2>
         <QueueHealthGrid metrics={metrics} />
-        <div style={pivotsStyle}>
-          <Link href="/ops/media-graph" style={pivotLinkStyle}>
-            Open operations console →
-          </Link>
-        </div>
+        {canObservability ? (
+          <div style={pivotsStyle}>
+            <Link href="/ops/media-graph" style={pivotLinkStyle}>
+              Open operations console →
+            </Link>
+          </div>
+        ) : null}
       </section>
 
       <p style={footerNoteStyle}>

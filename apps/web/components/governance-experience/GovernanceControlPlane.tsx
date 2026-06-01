@@ -18,6 +18,7 @@ import { apiFetch } from "../../lib/api";
 import {
   CapabilityDegradedPanel,
   useActiveSpaceId,
+  useCan,
   usePersonaProfile,
   usePlatformContext,
   workflowFromPersona,
@@ -741,6 +742,13 @@ function PolicyTab({
 
 function IncidentsTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
   const i = env.sections.incidents;
+  // STAGE 2 — gate ops/observability/runbooks deep-links on the canonical
+  // capabilities required to USE those routes. Users without the
+  // capability still see the incident list, just without the deep-link
+  // that they could not reach anyway.
+  const canRunbooks = useCan("RUNBOOKS_VIEW");
+  const canObservability = useCan("OBSERVABILITY_VIEW");
+  const canOpsCenter = useCan("OPS_CENTER_VIEW");
   if (i.status === "unavailable") {
     return (
       <section className="cc-section" data-tab-body="incidents">
@@ -784,13 +792,13 @@ function IncidentsTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
             </div>
             <div className="cc-incident-summary">{row.safeSummary}</div>
             <div className="cc-incident-row-foot">
-              {row.runbookSlug ? (
+              {row.runbookSlug && canRunbooks ? (
                 <Link href={`/ops/runbooks#${row.runbookSlug}`}>
                   Runbook → {row.runbookSlug}
                 </Link>
-              ) : (
+              ) : !row.runbookSlug && canObservability ? (
                 <Link href="/ops/observability">Open observability</Link>
-              )}
+              ) : null}
               <time dateTime={row.lastSeenAtUtc}>
                 Seen {relTime(row.lastSeenAtUtc)}
               </time>
@@ -798,10 +806,12 @@ function IncidentsTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
           </li>
         ))}
       </ul>
-      <div className="cc-section-foot">
-        Detailed platform health lives under{" "}
-        <Link href="/ops">Operations Center</Link>.
-      </div>
+      {canOpsCenter ? (
+        <div className="cc-section-foot">
+          Detailed platform health lives under{" "}
+          <Link href="/ops">Operations Center</Link>.
+        </div>
+      ) : null}
     </section>
   );
 }

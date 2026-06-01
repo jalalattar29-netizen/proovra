@@ -355,9 +355,27 @@ export async function buildPlatformContext(
   // -------------------------------------------------------------------------
   // Flags — derived from workspace + plan
   // -------------------------------------------------------------------------
+  // Account-tier plan follows the USER (via Entitlement), not the workspace.
+  // PRO is an account-level entitlement, so `isProAccount` must read from
+  // the user's Entitlement rather than the workspace's billing plan. The
+  // same value is reused later when populating `account.accountPlan`.
+  let accountPlan: WorkspacePlan | null = null;
+  try {
+    const ent = await prisma.entitlement.findFirst({
+      where: { userId: userRow.id },
+      orderBy: { createdAt: "desc" },
+      select: { plan: true },
+    });
+    accountPlan = coercePlan(ent?.plan as unknown as string);
+  } catch {
+    accountPlan = null;
+  }
+
   const isPersonalWorkspace = workspace.scope === "PERSONAL";
   const isTeamWorkspace = workspace.scope === "TEAM";
-  const isProAccount = workspace.plan ? PRO_PLAN_KEYS.has(workspace.plan) : false;
+  const isProAccount = accountPlan ? PRO_PLAN_KEYS.has(accountPlan) : false;
+  // `isEnterpriseWorkspace` is intentionally workspace-scoped — Enterprise
+  // is a workspace/team tier, distinct from the account-level PRO flag above.
   const isEnterpriseWorkspace = workspace.plan
     ? ENTERPRISE_PLAN_KEYS.has(workspace.plan)
     : false;
@@ -569,18 +587,9 @@ export async function buildPlatformContext(
   // ENTERPRISE TENANT MODEL — Account section.
   // ===========================================================================
   // The account-tier plan follows the user, not any one workspace. We
-  // prefer the latest Entitlement, falling back to null.
-  let accountPlan: WorkspacePlan | null = null;
-  try {
-    const ent = await prisma.entitlement.findFirst({
-      where: { userId: userRow.id },
-      orderBy: { createdAt: "desc" },
-      select: { plan: true },
-    });
-    accountPlan = coercePlan(ent?.plan as unknown as string);
-  } catch {
-    accountPlan = null;
-  }
+  // prefer the latest Entitlement, falling back to null. `accountPlan` is
+  // already resolved up in the flags section (where `isProAccount` needs
+  // it); we reuse that value here rather than re-querying.
   const account: PlatformContextAccount = {
     userId: userRow.id,
     email: userRow.email ?? null,

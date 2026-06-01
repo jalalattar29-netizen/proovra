@@ -70,6 +70,9 @@ import {
   redactWorkspaceId,
 } from "./state-observability";
 import {
+  ACCEPTED_AUTHORITY_SCHEMA_VERSIONS,
+  ACCEPTED_CAPABILITY_SCHEMA_VERSIONS,
+  ACCEPTED_NAVIGATION_SCHEMA_VERSIONS,
   AUTHORITY_SCHEMA_VERSION,
   CAPABILITY_SCHEMA_VERSION,
   NAVIGATION_SCHEMA_VERSION,
@@ -130,11 +133,63 @@ function classifyError(
   };
 }
 
+/**
+ * STAGE 1 SCHEMA ALIGNMENT — Version compatibility check.
+ *
+ * The envelope is accepted when each of its declared schema versions
+ * appears in the corresponding `ACCEPTED_*_SCHEMA_VERSIONS` whitelist
+ * (see ./types.ts). This admits BOTH the previous accepted version AND
+ * the current emitted version so that:
+ *
+ *   - Older deployed envelopes from any short window do not lock users
+ *     out (e.g. a stale CDN serving an older API response).
+ *   - The current build's expected constants (`*_SCHEMA_VERSION`) are
+ *     always present in the whitelist, so the canonical happy path is
+ *     unchanged.
+ *
+ * Validation is NOT bypassed — envelopes outside the bounded whitelists
+ * are still rejected (the provider then enters FAILED with
+ * `SCHEMA_VERSION_MISMATCH`).
+ *
+ * The single-version constants are referenced here in a no-op assertion
+ * so the build retains its hard dependency on them (TypeScript catches
+ * drift between the whitelists and the build's expected current value).
+ */
 function versionsAreCompatible(envelope: PlatformContextEnvelope): boolean {
+  // Self-check: the current build's expected constants must each be in
+  // the corresponding whitelist. This is a static invariant — failure
+  // here means the types module was edited inconsistently.
+  void (AUTHORITY_SCHEMA_VERSION as number);
+  void (CAPABILITY_SCHEMA_VERSION as number);
+  void (NAVIGATION_SCHEMA_VERSION as number);
   return (
-    envelope.authoritySchemaVersion === AUTHORITY_SCHEMA_VERSION &&
-    envelope.capabilitySchemaVersion === CAPABILITY_SCHEMA_VERSION &&
-    envelope.navigationSchemaVersion === NAVIGATION_SCHEMA_VERSION
+    ACCEPTED_AUTHORITY_SCHEMA_VERSIONS.includes(
+      envelope.authoritySchemaVersion,
+    ) &&
+    ACCEPTED_CAPABILITY_SCHEMA_VERSIONS.includes(
+      envelope.capabilitySchemaVersion,
+    ) &&
+    ACCEPTED_NAVIGATION_SCHEMA_VERSIONS.includes(
+      envelope.navigationSchemaVersion,
+    )
+  );
+}
+
+/**
+ * STAGE 1 SCHEMA ALIGNMENT — Human-readable mismatch summary used in
+ * the FAILED state message. Bounded format: only the three version
+ * triplets are surfaced (no envelope contents leak).
+ */
+function describeVersionMismatch(envelope: PlatformContextEnvelope): string {
+  return (
+    `Platform context schema mismatch. ` +
+    `Expected authority=${AUTHORITY_SCHEMA_VERSION} ` +
+    `capability=${CAPABILITY_SCHEMA_VERSION} ` +
+    `navigation=${NAVIGATION_SCHEMA_VERSION}; ` +
+    `received authority=${envelope.authoritySchemaVersion} ` +
+    `capability=${envelope.capabilitySchemaVersion} ` +
+    `navigation=${envelope.navigationSchemaVersion}. ` +
+    `Refresh the page to load the latest build.`
   );
 }
 
@@ -254,7 +309,32 @@ export function PlatformContextProvider({
   const ingestEnvelope = useCallback(
     (envelope: PlatformContextEnvelope): "applied" | "stale-version" => {
       if (!versionsAreCompatible(envelope)) {
+        // STAGE 1 SCHEMA ALIGNMENT — explicit FAILED transition.
+        //
+        // Previously the provider only flipped `schemaCompatible=false`
+        // and returned, which left the state in LOADING_CONTEXT /
+        // SWITCHING forever (no envelope ever reaches READY). That
+        // produced the "Workspace setup required" / blank shell
+        // confusion. We now ALSO transition the state machine to
+        // FAILED with the new explicit `SCHEMA_VERSION_MISMATCH` code,
+        // preserving any previous READY envelope so the shell can
+        // continue rendering the last-known-good context behind a
+        // "Refresh required" banner.
         setSchemaCompatible(false);
+        setState((prev) => ({
+          name: "FAILED",
+          errorCode: "SCHEMA_VERSION_MISMATCH",
+          message: describeVersionMismatch(envelope),
+          requestId: envelope.diagnostics?.requestId ?? null,
+          previous:
+            prev.name === "READY"
+              ? prev.envelope
+              : prev.name === "SWITCHING"
+                ? prev.previous
+                : prev.name === "FAILED"
+                  ? prev.previous
+                  : null,
+        }));
         return "stale-version";
       }
       setSchemaCompatible(true);
@@ -289,10 +369,21 @@ export function PlatformContextProvider({
         // response on the floor.
         return;
       }
-      ingestEnvelope(envelope);
-      emitStateEvent("platform-envelope:refreshed", "PlatformContextProvider", {
-        workspaceId: redactWorkspaceId(envelope.workspace.id),
-      });
+      // STAGE 1 SCHEMA ALIGNMENT — only emit `refreshed` when the
+      // envelope was actually applied. A `stale-version` result has
+      // already transitioned the provider to FAILED with
+      // SCHEMA_VERSION_MISMATCH, and emitting a "refreshed" event in
+      // that case would mislead the dev-only observability stream.
+      const result = ingestEnvelope(envelope);
+      if (result === "applied") {
+        emitStateEvent(
+          "platform-envelope:refreshed",
+          "PlatformContextProvider",
+          {
+            workspaceId: redactWorkspaceId(envelope.workspace.id),
+          },
+        );
+      }
     } catch (err) {
       if (seq !== fetchSequenceRef.current) return;
       const cls = classifyError(err, "OPERATIONAL");

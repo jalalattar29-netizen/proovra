@@ -88,6 +88,40 @@ export function useWorkspaceId(): string | null {
 }
 
 /**
+ * STAGE 3 — `useActiveWorkspaceId` returns the canonical workspace
+ * id for personal-aware pages that should work in BOTH team and
+ * personal mode (e.g. /cases overview, where personal users with
+ * CASES_VIEW + CASES_MANAGE should see their own matters).
+ *
+ * Resolution order:
+ *   1. `envelope.workspace.id` when `workspace.status === "active"`
+ *      (covers TEAM workspaces and the legacy team row).
+ *   2. `envelope.personalSpace.id` when `personalSpace.status === "active"`
+ *      (covers the enterprise tenant-model personal space).
+ *   3. `null` when neither is healthy — pages should render a
+ *      structured CapabilityDegradedPanel for the genuine
+ *      no-workspace case.
+ *
+ * This hook is NON-AUTHORITATIVE — it reads the canonical envelope
+ * and never fetches. Capability gating still flows through
+ * `useCan(...)` / the capability map.
+ */
+export function useActiveWorkspaceId(): string | null {
+  const { envelope } = usePlatformContext();
+  if (!envelope) return null;
+  if (envelope.workspace.status === "active" && envelope.workspace.id) {
+    return envelope.workspace.id;
+  }
+  if (
+    envelope.personalSpace?.status === "active" &&
+    envelope.personalSpace.id
+  ) {
+    return envelope.personalSpace.id;
+  }
+  return null;
+}
+
+/**
  * Returns the team-workspace gate state derived from the canonical
  * PlatformContextEnvelope. Pages should render the
  * `CapabilityDegradedPanel` when the status is `no-workspace`.

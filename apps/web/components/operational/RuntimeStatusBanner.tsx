@@ -19,6 +19,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { useCan } from "../../lib/platform-context";
 import { RuntimeDegradedNotice } from "./OperationalEmptyState";
 import { OPS_TONES } from "./tokens";
 
@@ -93,6 +94,13 @@ export function RuntimeStatusBanner({
 }: RuntimeStatusBannerProps) {
   const [report, setReport] = useState<RuntimeReadinessReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // STAGE 2 — Capability-gated pivot links. Personal/non-operator users
+  // still SEE the banner (it's a degradation signal that matters to
+  // anyone), but the deep-link into observability/runbooks is hidden
+  // for actors who could not USE those surfaces. The banner text
+  // degrades gracefully to a plain description.
+  const canObservability = useCan("OBSERVABILITY_VIEW");
+  const canRunbooks = useCan("RUNBOOKS_VIEW");
 
   useEffect(() => {
     let cancelled = false;
@@ -217,18 +225,23 @@ export function RuntimeStatusBanner({
         }}
       >
         Runtime status is unknown for {failing.length || "some"} subsystem(s).
-        Open the{" "}
-        <a
-          href="/ops/observability"
-          style={{
-            color: OPS_TONES.warning.link,
-            fontWeight: 700,
-            textDecoration: "underline",
-          }}
-        >
-          Observability dashboard
-        </a>{" "}
-        for detail.
+        {canObservability ? (
+          <>
+            {" "}
+            Open the{" "}
+            <a
+              href="/ops/observability"
+              style={{
+                color: OPS_TONES.warning.link,
+                fontWeight: 700,
+                textDecoration: "underline",
+              }}
+            >
+              Observability dashboard
+            </a>{" "}
+            for detail.
+          </>
+        ) : null}
       </div>
     );
   }
@@ -266,18 +279,26 @@ export function RuntimeStatusBanner({
         </span>
       </div>
       <div style={{ fontSize: 12, color: OPS_TONES.critical.inkMuted }}>
-        Failing subsystems: {failing.join(", ") || "unknown"}. Review the{" "}
-        <a
-          href="/ops/runbooks"
-          style={{
-            color: OPS_TONES.critical.link,
-            fontWeight: 700,
-            textDecoration: "underline",
-          }}
-        >
-          runbooks
-        </a>{" "}
-        before continuing destructive operations.
+        Failing subsystems: {failing.join(", ") || "unknown"}.
+        {canRunbooks ? (
+          <>
+            {" "}
+            Review the{" "}
+            <a
+              href="/ops/runbooks"
+              style={{
+                color: OPS_TONES.critical.link,
+                fontWeight: 700,
+                textDecoration: "underline",
+              }}
+            >
+              runbooks
+            </a>{" "}
+            before continuing destructive operations.
+          </>
+        ) : (
+          <> Avoid destructive operations until the runtime recovers.</>
+        )}
       </div>
     </div>
   );

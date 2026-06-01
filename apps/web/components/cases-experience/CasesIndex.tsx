@@ -38,9 +38,10 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "../../lib/api";
 import {
   CapabilityDegradedPanel,
+  useActiveWorkspaceId,
   usePersonaProfile,
+  usePersonalSpace,
   usePlatformContext,
-  useTeamId,
   useTerminology,
   workflowFromPersona,
 } from "../../lib/platform-context";
@@ -109,7 +110,13 @@ type LoadState =
 
 export function CasesIndex() {
   const ctx = usePlatformContext();
-  const teamId = useTeamId();
+  // STAGE 3 — personal-aware workspace id. Resolves to the active
+  // team workspace OR the personal-space id, so personal users with
+  // CASES_VIEW + CASES_MANAGE can actually load the queue instead of
+  // being locked out behind a CapabilityDegradedPanel. The server is
+  // still the authority on visibility / capabilities.
+  const workspaceId = useActiveWorkspaceId();
+  const personalSpace = usePersonalSpace();
   // Phase 38.1 — consume persona terminology. UI-only; canonical labels
   // remain unchanged on the backend.
   const terms = useTerminology();
@@ -128,9 +135,9 @@ export function CasesIndex() {
   // Build the canonical query string from the filter state. The
   // matter-queue endpoint takes the bounded params verbatim.
   const queryString = useMemo(() => {
-    if (!teamId) return "";
+    if (!workspaceId) return "";
     const qs = new URLSearchParams();
-    qs.set("teamId", teamId);
+    qs.set("teamId", workspaceId);
     if (filters.search.trim()) qs.set("search", filters.search.trim());
     if (filters.status) qs.set("status", filters.status);
     if (filters.riskLevel) qs.set("riskLevel", filters.riskLevel);
@@ -142,10 +149,10 @@ export function CasesIndex() {
     if (filters.hasLegalHold) qs.set("hasLegalHold", "true");
     if (filters.missingArtifact) qs.set("missingArtifact", "true");
     return qs.toString();
-  }, [teamId, filters, viewerUserId]);
+  }, [workspaceId, filters, viewerUserId]);
 
   const reload = useCallback(async () => {
-    if (!teamId) return;
+    if (!workspaceId) return;
     setState({ status: "loading" });
     try {
       const envelope = (await apiFetch(`/v1/cases/matter-queue?${queryString}`, {
@@ -165,30 +172,39 @@ export function CasesIndex() {
         });
       }
     }
-  }, [teamId, queryString]);
+  }, [workspaceId, queryString]);
 
   useEffect(() => {
-    if (!teamId) return;
+    if (!workspaceId) return;
     void reload();
-  }, [reload, teamId]);
+  }, [reload, workspaceId]);
 
-  // Personal workspace — matter queue is team-scoped. Render the
-  // canonical structured panel rather than a plain-text fallback.
-  if (!teamId) {
-    return (
-      <main className="cc-page" data-cases-personal-mode>
-        <CapabilityDegradedPanel
-          surface="Matter Operations Queue"
-          requiredCapability="CASES_VIEW"
-          reason="The Matter Operations Queue coordinates investigation matters across a team — risk scoring, evidence gaps, open incidents, governance blockers, and reviewer pressure all live together. It activates when you switch into a team workspace."
-          alternatives={[
-            { label: "View your evidence", href: "/evidence" },
-            { label: "Generate a report", href: "/reports" },
-            { label: "Switch or create a team workspace", href: "/teams" },
-          ]}
-        />
-      </main>
-    );
+  // STAGE 3 — genuine no-workspace case only. Personal users with an
+  // active personalSpace fall through to the queue UI (the server is
+  // the authority on capability + visibility). The structured
+  // CapabilityDegradedPanel is reserved for the case where BOTH the
+  // team workspace and the personal space are unavailable.
+  if (!workspaceId) {
+    const hasHealthyPersonalSpace = personalSpace?.status === "active";
+    if (!hasHealthyPersonalSpace) {
+      return (
+        <main className="cc-page" data-cases-no-workspace>
+          <CapabilityDegradedPanel
+            surface="Matter Operations Queue"
+            requiredCapability="CASES_VIEW"
+            reason="No active workspace is available for this account. Create or switch into a workspace to view the matter queue."
+            alternatives={[
+              { label: "View your evidence", href: "/evidence" },
+              { label: "Generate a report", href: "/reports" },
+              { label: "Switch or create a workspace", href: "/teams" },
+            ]}
+          />
+        </main>
+      );
+    }
+    // Healthy personal space but no resolved id yet — surface the
+    // standard loading skeleton rather than locking the user out.
+    return <QueueLoading />;
   }
 
   if (state.status === "loading") return <QueueLoading />;
@@ -269,7 +285,7 @@ export function CasesIndex() {
           successful create. */}
       <CreateCaseModal
         open={createOpen}
-        teamId={teamId}
+        teamId={workspaceId}
         onClose={() => setCreateOpen(false)}
         onCreated={(newCase) => {
           setCreateOpen(false);

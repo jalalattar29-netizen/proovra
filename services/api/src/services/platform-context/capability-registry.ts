@@ -79,6 +79,20 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
   // No workspace at all — the user can see their account surfaces only.
   if (!scope) {
     map.SETTINGS_VIEW = true;
+    // Account-tier capabilities are tier-independent and must remain
+    // reachable in the degraded path so an authenticated user can still
+    // get to billing/settings/create-or-join an organization.
+    setMany(
+      map,
+      [
+        "ACCOUNT_SETTINGS_VIEW",
+        "ACCOUNT_BILLING_VIEW",
+        "ACCOUNT_UPGRADE_VIEW",
+        "ORGANIZATION_CREATE",
+        "ORGANIZATION_JOIN",
+      ],
+      true,
+    );
     if (isPlatformAdmin) {
       setMany(
         map,
@@ -155,7 +169,8 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
     );
     // Personal cases have no team assignments — CASE_ASSIGN stays
     // false. No reviewer ops, no governance acts, no team manage.
-    map.OPS_CENTER_VIEW = true;
+    // OPS_CENTER_VIEW is an operator capability and is NOT granted
+    // to personal users.
   }
 
   // ============================================================

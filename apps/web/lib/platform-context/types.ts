@@ -18,7 +18,48 @@
 
 export const AUTHORITY_SCHEMA_VERSION = 2 as const;
 export const CAPABILITY_SCHEMA_VERSION = 2 as const;
-export const NAVIGATION_SCHEMA_VERSION = 1 as const;
+// Phase B0 / STAGE 1 SCHEMA ALIGNMENT — bumped from 1 → 2 to match the
+// API's emitted navigationSchemaVersion (NAVIGATION_SCHEMA_VERSION = 2 in
+// services/api/src/services/platform-context/types.ts). The previous value
+// (1) caused the client to reject every envelope the API produced and the
+// provider showed a permanent "Refresh required" banner. The previously
+// accepted value (1) is whitelisted below in
+// ACCEPTED_NAVIGATION_SCHEMA_VERSIONS so any envelopes still in flight from
+// a short legacy window do not lock users out.
+export const NAVIGATION_SCHEMA_VERSION = 2 as const;
+
+// =============================================================================
+// STAGE 1 SCHEMA ALIGNMENT — Accepted-version whitelists.
+//
+// `versionsAreCompatible` (see ./PlatformContextProvider.tsx) consults these
+// arrays rather than equality with the single current constant so that the
+// client tolerates BOTH the previous accepted version AND the current
+// emitted version. This protects users who load a page during a brief window
+// where the API and client are at adjacent schema versions.
+//
+// HARD RULES:
+//   - These lists must always INCLUDE the matching `*_SCHEMA_VERSION`
+//     constant above (the current build's expected value).
+//   - They are intentionally narrow: only the immediately-previous accepted
+//     version is added. Wider tolerance hides real schema drift.
+//   - Adding a new accepted version is ALWAYS paired with the build's
+//     handling code for that older shape — never widen without code that
+//     copes with the older payload.
+// =============================================================================
+export const ACCEPTED_AUTHORITY_SCHEMA_VERSIONS: ReadonlyArray<number> = [
+  // API emits 2 by default and 3 when the client opts in via the
+  // `x-platform-context-version` header. Both shapes are consumed by this
+  // build (legacy `workspace` + canonical `activeSpace` both populated).
+  2, 3,
+];
+export const ACCEPTED_CAPABILITY_SCHEMA_VERSIONS: ReadonlyArray<number> = [
+  // Current. No prior accepted value to retain.
+  2,
+];
+export const ACCEPTED_NAVIGATION_SCHEMA_VERSIONS: ReadonlyArray<number> = [
+  // 1 = previously accepted (pre-alignment); 2 = current API emission.
+  1, 2,
+];
 
 export const WORKSPACE_ROLES = [
   "OWNER",
@@ -401,6 +442,12 @@ export type PlatformContextErrorCode =
   | "WORKSPACE_MEMBERSHIP_REQUIRED"
   | "NETWORK_ERROR"
   | "STALE_ENVELOPE"
+  // STAGE 1 SCHEMA ALIGNMENT — distinct error code used by the provider
+  // when a freshly-fetched envelope declares schema versions outside the
+  // accepted whitelists in `ACCEPTED_*_SCHEMA_VERSIONS`. Shell components
+  // can branch on this code to render an explicit "Refresh required"
+  // surface rather than the generic operational error.
+  | "SCHEMA_VERSION_MISMATCH"
   | "OPERATIONAL";
 
 export type PlatformContextState =

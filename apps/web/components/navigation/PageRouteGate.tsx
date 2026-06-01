@@ -42,7 +42,21 @@ export function PageRouteGate({
   // Unknown route id → render children. Treating an unregistered route
   // as a hard 404 would make the gate too dangerous during incremental
   // migration. Source-contract tests catch unregistered ids separately.
-  if (!route) return <>{children}</>;
+  if (!route) {
+    // Development-only warning so an unregistered routeId surfaces
+    // immediately in the browser console instead of silently rendering
+    // children unprotected. Production keeps the silent fallback to
+    // avoid bricking the app on a typo.
+    if (
+      process.env.NODE_ENV !== "production" &&
+      typeof console !== "undefined"
+    ) {
+      console.warn(
+        `[PageRouteGate] Unknown routeId "${routeId}" — no entry in routeRegistry. Children will render unprotected. Register this id in lib/navigation/routeRegistry to enable access gating.`,
+      );
+    }
+    return <>{children}</>;
+  }
 
   const activeSpaceType =
     envelope?.activeSpace?.type ?? null;

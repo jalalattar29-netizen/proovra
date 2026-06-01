@@ -138,6 +138,24 @@ export function CommandPalette() {
         isPlatformAdmin: envelope?.platform?.isPlatformAdmin === true,
         capabilities: envelope?.capabilities ?? {},
         accountPlan: envelope?.account?.accountPlan ?? null,
+        // PERSONAL-FIRST RESCUE — pass envelope fragments so the gate
+        // can fall back to `workspace.id` / `personalSpace.id` when
+        // `activeSpace.type` is missing from the backend projection.
+        // Required so personal-only users are NEVER blocked from core
+        // product routes (capture / evidence / reports / verify / etc.)
+        // even when the backend returns a partial envelope.
+        workspace: envelope?.workspace
+          ? {
+              id: envelope.workspace.id ?? null,
+              status: envelope.workspace.status ?? null,
+            }
+          : null,
+        personalSpace: envelope?.personalSpace
+          ? {
+              id: envelope.personalSpace.id ?? null,
+              status: envelope.personalSpace.status ?? null,
+            }
+          : null,
       });
       // Hidden routes (e.g. platform-admin-only) are excluded from
       // command-palette search even before query filtering.
