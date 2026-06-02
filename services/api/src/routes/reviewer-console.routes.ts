@@ -118,13 +118,43 @@ async function ensureReviewerActor(
 export async function reviewerConsoleRoutes(
   app: FastifyInstance,
   _options: object = {},
-  prismaClient: PrismaClient = prisma,
+  prismaClient?: PrismaClient,
 ): Promise<void> {
+  // Phase O Stage 3 (Sentry NODE-11 repair):
+  //   - Fastify calls plugins as `(app, opts)` and never binds the
+  //     third parameter, so the original `prismaClient: PrismaClient
+  //     = prisma` default worked for production but BROKE for any
+  //     caller (or wrapped registration) that explicitly passed
+  //     `undefined` as the third argument — defaults only fill when
+  //     the argument is undefined at call time, BUT some Fastify
+  //     wrappers (and tests that wire plugins through a registration
+  //     shim) pass the third arg explicitly. In that case
+  //     `prismaClient` becomes `undefined`, every service call
+  //     receives `undefined`, and the downstream `.groupBy of
+  //     undefined` (or similar) crashes the request.
+  //   - Re-anchor every service call to a local `client` constant
+  //     that falls back to the module-level `prisma` whenever the
+  //     third arg is missing OR explicitly `undefined`.
+  const client: PrismaClient = prismaClient ?? prisma;
+
   app.get(
     "/v1/reviewer-ops/console",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const { teamId } = ConsoleQuery.parse(req.query ?? {});
+      // Use safeParse so a bad query never throws an uncaught
+      // ZodError — the central error handler currently maps that to
+      // 500 and Sentry captures it. A bounded 400 is the right shape.
+      const parsedQuery = ConsoleQuery.safeParse(req.query ?? {});
+      if (!parsedQuery.success) {
+        return reply.code(400).send({
+          error: {
+            code: "INVALID_QUERY",
+            message: "Workspace id is required and must be a UUID.",
+            requestId: req.id,
+          },
+        });
+      }
+      const { teamId } = parsedQuery.data;
       const ctx = await ensureReviewerActor(req, reply, teamId);
       if (!ctx) return;
 
@@ -150,7 +180,7 @@ export async function reviewerConsoleRoutes(
                 queue: "UNASSIGNED",
                 limit: SECTION_LIMIT,
               },
-              prismaClient,
+              client,
             ),
           // Empty shape mirrors `listReviewerOpsQueue`'s return:
           // `{ rows, nextCursor }`. `nextCursor` is null in the
@@ -171,7 +201,7 @@ export async function reviewerConsoleRoutes(
                 queue: "MY_REVIEWS",
                 limit: SECTION_LIMIT,
               },
-              prismaClient,
+              client,
             ),
           { rows: [] as ReadonlyArray<unknown>, nextCursor: null as string | null },
           req,
@@ -189,7 +219,7 @@ export async function reviewerConsoleRoutes(
                 status: "OPEN",
                 limit: SECTION_LIMIT,
               },
-              prismaClient,
+              client,
             ),
           [],
           req,
@@ -199,7 +229,7 @@ export async function reviewerConsoleRoutes(
           () =>
             buildDashboard(
               { teamId, meUserId: ctx.userId },
-              prismaClient,
+              client,
             ),
           null,
           req,
@@ -209,7 +239,7 @@ export async function reviewerConsoleRoutes(
           () =>
             listLatestWorkloadSnapshots(
               { teamId, limit: SECTION_LIMIT },
-              prismaClient,
+              client,
             ),
           [],
           req,
@@ -228,16 +258,53 @@ export async function reviewerConsoleRoutes(
       // bounded by construction. We surface it as its own section
       // for the frontend tab even though the data shares a query
       // with the workload card.
-      const slaSnapshot = dashboardSection.value
-        ? {
-            unassigned: dashboardSection.value.counts.unassigned,
-            overdue: dashboardSection.value.counts.overdue,
-            dueSoon: dashboardSection.value.counts.dueSoon,
-            openEscalations: dashboardSection.value.openEscalations,
-            criticalEscalationsOpen:
-              dashboardSection.value.criticalEscalationsOpen,
-          }
-        : null;
+      //
+      // Phase O Stage 3 (Sentry NODE-11 repair): wrap the
+      // composition in a try/catch and use optional chaining so a
+      // partially-shaped `dashboardSection.value` (e.g. a service
+      // returning a stub object that lacks `counts`) degrades the
+      // section honestly instead of throwing "Cannot read 'X' of
+      // undefined" up to the central error handler.
+      let slaSnapshot: {
+        unassigned: number;
+        overdue: number;
+        dueSoon: number;
+        openEscalations: number;
+        criticalEscalationsOpen: number;
+      } | null = null;
+      let slaStatus: SectionStatus = dashboardSection.status;
+      try {
+        const dv = dashboardSection.value as
+          | {
+              counts?: {
+                unassigned?: number;
+                overdue?: number;
+                dueSoon?: number;
+              };
+              openEscalations?: number;
+              criticalEscalationsOpen?: number;
+            }
+          | null;
+        if (dv && dv.counts) {
+          slaSnapshot = {
+            unassigned: dv.counts.unassigned ?? 0,
+            overdue: dv.counts.overdue ?? 0,
+            dueSoon: dv.counts.dueSoon ?? 0,
+            openEscalations: dv.openEscalations ?? 0,
+            criticalEscalationsOpen: dv.criticalEscalationsOpen ?? 0,
+          };
+        }
+      } catch (err) {
+        req.log.warn(
+          {
+            surface: "sla",
+            err: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+          },
+          "reviewer_console.section_failed",
+        );
+        slaStatus = "degraded";
+        slaSnapshot = null;
+      }
 
       return reply.code(200).send({
         generatedAt,
@@ -267,7 +334,7 @@ export async function reviewerConsoleRoutes(
         // Tab 4 — SLA rollup.
         sla: {
           snapshot: slaSnapshot,
-          status: dashboardSection.status,
+          status: slaStatus,
         },
         // Tab 5 — Workload (latest snapshots, top 25 reviewers).
         workload: {
@@ -289,7 +356,7 @@ export async function reviewerConsoleRoutes(
             queue: queueSection.status,
             mine: mineSection.status,
             escalations: escalationSection.status,
-            sla: dashboardSection.status,
+            sla: slaStatus,
             workload: workloadSection.status,
             savedViews: savedViewsSection.status,
           },

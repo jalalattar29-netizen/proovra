@@ -36,6 +36,10 @@ import {
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import {
+  extractPrismaDiagnostic,
+  isPrismaTableOrColumnMissing,
+} from "./_governance-error-bound.js";
 
 import { listAdapterProbes } from "../services/intelligence/providers/provider-adapter.js";
 // Side-effect imports — each registers its adapter on the bounded registry.
@@ -386,8 +390,40 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
-      const budgets = await listBudgets({ teamId: ctx.teamId });
-      return reply.code(200).send({ budgets });
+      // Phase O Stream B — schema-drift safety net for NODE-1H
+      // (provider_budgets.archived_at missing on production until the
+      // repair migration is applied). On Prisma P2021/P2022 return a
+      // bounded empty payload with `degraded: true`; other errors
+      // propagate to the central handler so real bugs are NOT
+      // swallowed.
+      try {
+        const budgets = await listBudgets({ teamId: ctx.teamId });
+        return reply.code(200).send({ budgets });
+      } catch (err) {
+        if (isPrismaTableOrColumnMissing(err)) {
+          const diag = extractPrismaDiagnostic(err);
+          reply.log.warn(
+            {
+              event: "intelligence.provider_budgets.schema_not_ready",
+              requestId: reply.request?.id ?? null,
+              teamId: ctx.teamId,
+              prismaName: diag.name,
+              prismaCode: diag.code,
+              missingColumn: diag.missingColumn,
+              missingTable: diag.missingTable,
+              modelName: diag.modelName,
+              message: diag.message,
+            },
+            "GET /v1/intelligence/providers/budgets degraded: schema not ready",
+          );
+          return reply.code(200).send({
+            budgets: [],
+            degraded: true,
+            reason: "SCHEMA_NOT_READY",
+          });
+        }
+        throw err;
+      }
     },
   );
 

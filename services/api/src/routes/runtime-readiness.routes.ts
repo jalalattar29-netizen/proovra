@@ -66,6 +66,28 @@ async function requireReadinessActor(
 export async function runtimeReadinessRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   // GET /admin/runtime/readiness
+  //
+  // Phase O — Sentry NODE-1Q (chain_transfers.updated_at) + NODE-1J
+  // (subprocessors.{category,country,description}). The repair
+  // migration 20270802000000_phase_sentry_batch_schema_drift_repair
+  // adds the missing columns; until it is applied everywhere, any
+  // sibling probe that transitively touches a drifted table MUST
+  // NOT crash the whole readiness endpoint.
+  //
+  // `runReadinessCheck` already wraps every per-subsystem probe in
+  // a try/catch that returns a typed UNKNOWN/DEGRADED/CRITICAL
+  // status — that is the per-probe degradation contract documented
+  // at the top of runtime-readiness.ts ("Never throws. Every error
+  // path produces a `DEGRADED` or `CRITICAL` status with an
+  // operator-safe reason.").
+  //
+  // The OUTER wrap below is belt-and-braces: if a future probe is
+  // added that forgets the per-probe catch — or if Prisma raises a
+  // P2022 from a connection-level path before the per-probe code
+  // runs — the endpoint still returns a bounded SCHEMA_NOT_READY
+  // payload instead of a 500. The payload preserves the canonical
+  // shape (status / ranAtUtc / subsystems) so consumers don't
+  // crash on the degraded branch.
   // ---------------------------------------------------------------------------
   app.get(
     "/admin/runtime/readiness",
@@ -75,10 +97,30 @@ export async function runtimeReadinessRoutes(app: FastifyInstance) {
       const actor = await requireReadinessActor(req, reply, q.teamId);
       if (!actor) return;
       bump("runtime_readiness_check_total");
-      const report = await runReadinessCheck(prisma, req.id ?? null);
-      if (report.status === "DEGRADED") bump("runtime_readiness_degraded_total");
-      if (report.status === "CRITICAL") bump("runtime_readiness_critical_total");
-      return reply.code(200).send(report);
+      try {
+        const report = await runReadinessCheck(prisma, req.id ?? null);
+        if (report.status === "DEGRADED") bump("runtime_readiness_degraded_total");
+        if (report.status === "CRITICAL") bump("runtime_readiness_critical_total");
+        return reply.code(200).send(report);
+      } catch (err) {
+        const code =
+          err && typeof err === "object" && "code" in err
+            ? String((err as { code?: unknown }).code ?? "")
+            : "";
+        if (code === "P2022" || code === "P2021") {
+          bump("runtime_readiness_degraded_total");
+          return reply.code(200).send({
+            status: "DEGRADED",
+            ranAtUtc: new Date().toISOString(),
+            durationMs: 0,
+            requestId: req.id ?? null,
+            subsystems: [],
+            degraded: true,
+            reason: "SCHEMA_NOT_READY",
+          });
+        }
+        throw err;
+      }
     },
   );
 
@@ -93,15 +135,33 @@ export async function runtimeReadinessRoutes(app: FastifyInstance) {
       const actor = await requireReadinessActor(req, reply, q.teamId);
       if (!actor) return;
       bump("runtime_queue_health_check_total");
-      const report = await runReadinessCheck(prisma, req.id ?? null);
-      const queues = report.subsystems.find((s) => s.id === "queues");
-      const redis = report.subsystems.find((s) => s.id === "redis");
-      return reply.code(200).send({
-        status: queues?.status ?? "UNKNOWN",
-        ranAtUtc: report.ranAtUtc,
-        queues,
-        redis,
-      });
+      try {
+        const report = await runReadinessCheck(prisma, req.id ?? null);
+        const queues = report.subsystems.find((s) => s.id === "queues");
+        const redis = report.subsystems.find((s) => s.id === "redis");
+        return reply.code(200).send({
+          status: queues?.status ?? "UNKNOWN",
+          ranAtUtc: report.ranAtUtc,
+          queues,
+          redis,
+        });
+      } catch (err) {
+        const code =
+          err && typeof err === "object" && "code" in err
+            ? String((err as { code?: unknown }).code ?? "")
+            : "";
+        if (code === "P2022" || code === "P2021") {
+          return reply.code(200).send({
+            status: "DEGRADED",
+            ranAtUtc: new Date().toISOString(),
+            queues: null,
+            redis: null,
+            degraded: true,
+            reason: "SCHEMA_NOT_READY",
+          });
+        }
+        throw err;
+      }
     },
   );
 
@@ -115,15 +175,33 @@ export async function runtimeReadinessRoutes(app: FastifyInstance) {
       const q = TeamIdQuery.parse(req.query ?? {});
       const actor = await requireReadinessActor(req, reply, q.teamId);
       if (!actor) return;
-      const report = await runReadinessCheck(prisma, req.id ?? null);
-      const workers = report.subsystems.find((s) => s.id === "workers");
-      const cronSecrets = report.subsystems.find((s) => s.id === "cron_secrets");
-      return reply.code(200).send({
-        status: workers?.status ?? "UNKNOWN",
-        ranAtUtc: report.ranAtUtc,
-        workers,
-        cronSecrets,
-      });
+      try {
+        const report = await runReadinessCheck(prisma, req.id ?? null);
+        const workers = report.subsystems.find((s) => s.id === "workers");
+        const cronSecrets = report.subsystems.find((s) => s.id === "cron_secrets");
+        return reply.code(200).send({
+          status: workers?.status ?? "UNKNOWN",
+          ranAtUtc: report.ranAtUtc,
+          workers,
+          cronSecrets,
+        });
+      } catch (err) {
+        const code =
+          err && typeof err === "object" && "code" in err
+            ? String((err as { code?: unknown }).code ?? "")
+            : "";
+        if (code === "P2022" || code === "P2021") {
+          return reply.code(200).send({
+            status: "DEGRADED",
+            ranAtUtc: new Date().toISOString(),
+            workers: null,
+            cronSecrets: null,
+            degraded: true,
+            reason: "SCHEMA_NOT_READY",
+          });
+        }
+        throw err;
+      }
     },
   );
 
@@ -137,11 +215,26 @@ export async function runtimeReadinessRoutes(app: FastifyInstance) {
       const q = TeamIdQuery.parse(req.query ?? {});
       const actor = await requireReadinessActor(req, reply, q.teamId);
       if (!actor) return;
-      const report = await runMigrationDriftCheck(prisma);
-      if (report.drift.length > 0) {
-        bump("runtime_migration_drift_detected_total");
+      try {
+        const report = await runMigrationDriftCheck(prisma);
+        if (report.drift.length > 0) {
+          bump("runtime_migration_drift_detected_total");
+        }
+        return reply.code(200).send(report);
+      } catch (err) {
+        const code =
+          err && typeof err === "object" && "code" in err
+            ? String((err as { code?: unknown }).code ?? "")
+            : "";
+        if (code === "P2022" || code === "P2021") {
+          return reply.code(200).send({
+            drift: [],
+            degraded: true,
+            reason: "SCHEMA_NOT_READY",
+          });
+        }
+        throw err;
       }
-      return reply.code(200).send(report);
     },
   );
 }

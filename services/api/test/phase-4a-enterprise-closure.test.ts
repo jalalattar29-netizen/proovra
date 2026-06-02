@@ -290,17 +290,48 @@ describe("Phase 4A Closure — delegated tier enforcement on routes", () => {
     expect(src).toContain("require-delegated-tier");
   });
 
-  it("trust article + subprocessor + seed POSTs are tier-gated", () => {
+  it("trust article + subprocessor AUTHORING POSTs are tier-gated", () => {
+    // AUTHORING — the routes that write custom workspace content —
+    // remain delegated-tier-gated. The /seed paths below intentionally
+    // are NOT (see the next test).
     expect(src).toMatch(/"\/v1\/trust\/articles"[\s\S]{0,400}requireDelegatedTierAny/);
-    expect(src).toMatch(
-      /"\/v1\/trust\/articles\/seed"[\s\S]{0,400}requireDelegatedTierAny/,
-    );
     expect(src).toMatch(
       /"\/v1\/trust\/subprocessors"[\s\S]{0,400}requireDelegatedTierAny/,
     );
-    expect(src).toMatch(
-      /"\/v1\/trust\/subprocessors\/seed"[\s\S]{0,400}requireDelegatedTierAny/,
+  });
+
+  it("trust SEED POSTs are NOT delegated-tier-gated (workspace-member self-heal)", () => {
+    // Production fix — the canonical 15+9+12+18 platform-trust seed
+    // articles describe PROOVRA itself, not customer content. The
+    // prior gate locked PERSONAL workspaces out entirely (no delegated
+    // tier exists for PERSONAL) and locked most ORG members out,
+    // leaving the Trust Center permanently empty. The seed POSTs now
+    // accept any authenticated workspace member; AUTHORING remains
+    // tier-gated (previous test). Pinned to fail-fast if a future
+    // phase tries to re-add the gate.
+    const seedArticleIdx = src.indexOf('"/v1/trust/articles/seed"');
+    expect(seedArticleIdx).toBeGreaterThan(-1);
+    const seedArticleSlice = src.slice(seedArticleIdx, seedArticleIdx + 1500);
+    const nextRouteIdx = seedArticleSlice.search(
+      /\n\s{0,4}app\.(post|get|patch|delete)\(/,
     );
+    const seedArticleHandler =
+      nextRouteIdx > 0
+        ? seedArticleSlice.slice(0, nextRouteIdx)
+        : seedArticleSlice;
+    expect(seedArticleHandler).toMatch(/preHandler:\s*requireAuth\b/);
+    expect(seedArticleHandler).not.toMatch(/requireDelegatedTier/);
+
+    const seedSubIdx = src.indexOf('"/v1/trust/subprocessors/seed"');
+    expect(seedSubIdx).toBeGreaterThan(-1);
+    const seedSubSlice = src.slice(seedSubIdx, seedSubIdx + 1500);
+    const nextSubIdx = seedSubSlice.search(
+      /\n\s{0,4}app\.(post|get|patch|delete)\(/,
+    );
+    const seedSubHandler =
+      nextSubIdx > 0 ? seedSubSlice.slice(0, nextSubIdx) : seedSubSlice;
+    expect(seedSubHandler).toMatch(/preHandler:\s*requireAuth\b/);
+    expect(seedSubHandler).not.toMatch(/requireDelegatedTier/);
   });
 
   it("status mutations are tier-gated", () => {

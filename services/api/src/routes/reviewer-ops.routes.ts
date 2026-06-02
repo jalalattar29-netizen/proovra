@@ -308,13 +308,68 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
     "/v1/reviewer-ops/queue",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = z
-        .object({
-          teamId: z.string().uuid(),
-          queue: z.enum(REVIEWER_OPS_QUEUE_TYPES).default("UNASSIGNED"),
-          limit: z.coerce.number().int().min(1).max(100).optional(),
-        })
-        .parse(req.query ?? {});
+      // Phase O Stage 3 (Sentry NODE-1G repair):
+      //   - Operators previously hit a ZodError when calling without
+      //     `teamId` OR with `limit > 100`. The ZodError leaked through
+      //     the central error handler as a 500 (captured by Sentry).
+      //   - Resolve teamId from the canonical workspace context
+      //     (`user.currentWorkspaceId`) when the query omits it. Then
+      //     run Zod (safeParse) against the resolved object. The
+      //     limit cap is preserved (≤100) but now surfaces as a
+      //     bounded INVALID_QUERY 400 instead of a 500.
+      const rawQuery = (req.query ?? {}) as {
+        teamId?: string;
+        queue?: string;
+        limit?: string | number;
+      };
+      let resolvedTeamId = rawQuery.teamId;
+      if (!resolvedTeamId) {
+        const userId = getAuthUserId(req);
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { currentWorkspaceId: true },
+        });
+        if (!user?.currentWorkspaceId) {
+          return reply.code(400).send({
+            error: {
+              code: "WORKSPACE_CONTEXT_REQUIRED",
+              message: "Select a workspace to view the reviewer queue.",
+              requestId: req.id,
+            },
+          });
+        }
+        resolvedTeamId = user.currentWorkspaceId;
+      }
+      const QueueQuery = z.object({
+        teamId: z.string().uuid(),
+        queue: z.enum(REVIEWER_OPS_QUEUE_TYPES).default("UNASSIGNED"),
+        // `.max(100).optional().default(50)` matches the audit
+        // direction. The cap is preserved; the default makes the
+        // limit explicitly bounded rather than implicitly so.
+        limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+      });
+      const parsed = QueueQuery.safeParse({
+        ...rawQuery,
+        teamId: resolvedTeamId,
+      });
+      if (!parsed.success) {
+        const fieldSummary = parsed.error.issues
+          .map((issue) => issue.path.join("."))
+          .filter((p) => p.length > 0)
+          .slice(0, 4)
+          .join(", ");
+        return reply.code(400).send({
+          error: {
+            code: "INVALID_QUERY",
+            message:
+              fieldSummary.length > 0
+                ? `Query parameters invalid: ${fieldSummary}`
+                : "Query parameters invalid.",
+            requestId: req.id,
+          },
+        });
+      }
+      const q = parsed.data;
       const ctx = await requireReviewerActor(req, reply, q.teamId);
       if (!ctx) return;
       const result = await listReviewerOpsQueue(

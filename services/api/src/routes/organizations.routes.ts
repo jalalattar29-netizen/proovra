@@ -372,7 +372,25 @@ export async function organizationsRoutes(app: FastifyInstance) {
     "/v1/orgs/:id/members",
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
-      const orgId = UuidParam.parse((req.params as { id: string }).id);
+      // Phase O Stage 3 (Sentry NODE-1D repair):
+      //   - `UuidParam.parse(...)` previously threw a ZodError for any
+      //     non-UUID `:id` segment; the central error handler emitted
+      //     a 500 and Sentry captured it. The right shape is a
+      //     bounded 400 with stable `code` + `requestId`.
+      //   - Use safeParse + early return; never let z.parse throw.
+      const idParse = UuidParam.safeParse(
+        (req.params as { id: string }).id,
+      );
+      if (!idParse.success) {
+        return reply.code(400).send({
+          error: {
+            code: "INVALID_ORG_ID",
+            message: "Invalid organization id.",
+            requestId: req.id,
+          },
+        });
+      }
+      const orgId = idParse.data;
       const userId = getAuthUserId(req);
 
       const access = await checkOrgAccess(prisma, { orgId, userId });

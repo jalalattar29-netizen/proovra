@@ -19,17 +19,45 @@ export default function StatusPage() {
   );
 }
 
+// Production fix — explicit load-state machine so the page never
+// renders "Loading status…" indefinitely after a failed request.
+// Previously: a fetch failure set status=null and busy=false, but
+// the render condition `{status ? (...) : <Loading>}` couldn't
+// distinguish "still loading", "loaded with no data", or "load
+// failed" — so the user always saw "Loading status…" forever.
+type LoadState =
+  | { phase: "loading" }
+  | { phase: "loaded"; status: StatusPageProjection }
+  | { phase: "empty" }
+  | { phase: "error"; message: string };
+
 function Shell() {
-  const [status, setStatus] = useState<StatusPageProjection | null>(null);
+  const [state, setState] = useState<LoadState>({ phase: "loading" });
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setBusy(true);
+    setState({ phase: "loading" });
     try {
       const res = await apiFetch("/v1/trust/status", { method: "GET" });
-      setStatus((res?.status ?? null) as StatusPageProjection | null);
+      const projection = (res?.status ?? null) as StatusPageProjection | null;
+      if (projection && Array.isArray(projection.components)) {
+        setState({ phase: "loaded", status: projection });
+      } else {
+        // Service returned 200 but no projection payload — show
+        // empty state with the same bounded vocabulary as the
+        // "no components configured yet" case.
+        setState({ phase: "empty" });
+      }
     } catch {
-      setStatus(null);
+      // Bounded operator-facing message. We never expose internal
+      // error codes / env names / stack traces here. The retry
+      // button below lets the user re-attempt.
+      setState({
+        phase: "error",
+        message:
+          "Status page could not be loaded. Press Retry to try again.",
+      });
     } finally {
       setBusy(false);
     }
@@ -38,6 +66,8 @@ function Shell() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const status = state.phase === "loaded" ? state.status : null;
 
   return (
     <div
@@ -82,9 +112,47 @@ function Shell() {
             cursor: "pointer",
           }}
         >
-          {busy ? "Loading…" : "Refresh"}
+          {busy
+            ? "Loading…"
+            : state.phase === "error"
+              ? "Retry"
+              : "Refresh"}
         </button>
       </div>
+
+      {state.phase === "loading" ? (
+        <p
+          data-status-phase="loading"
+          style={{ color: "#475569", fontSize: 12 }}
+        >
+          Loading status…
+        </p>
+      ) : null}
+
+      {state.phase === "error" ? (
+        <div
+          data-status-phase="error"
+          style={{
+            padding: 12,
+            background: "rgba(185, 28, 28, 0.06)",
+            border: "1px solid rgba(185, 28, 28, 0.20)",
+            borderRadius: 8,
+            color: "#7f1d1d",
+            fontSize: 12,
+          }}
+        >
+          {state.message}
+        </div>
+      ) : null}
+
+      {state.phase === "empty" ? (
+        <p
+          data-status-phase="empty"
+          style={{ color: "#475569", fontSize: 12 }}
+        >
+          No status components configured for this workspace yet.
+        </p>
+      ) : null}
 
       {status ? (
         <>
@@ -188,9 +256,7 @@ function Shell() {
             </ul>
           </footer>
         </>
-      ) : (
-        <p style={{ color: "#475569" }}>Loading status…</p>
-      )}
+      ) : null}
     </div>
   );
 }

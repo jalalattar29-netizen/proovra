@@ -398,11 +398,59 @@ export async function opsRoutes(app: FastifyInstance) {
 
   // /v1/ops/metrics — authenticated metrics snapshot. Same auth gate
   // as /v1/ops/health. Returns the in-process counter + gauge values.
+  //
+  // Phase O Stage 3 (Sentry NODE-W repair):
+  //   - Operators previously hit ZodError when calling this endpoint
+  //     without a `teamId` query param (the operator dashboard never
+  //     adds one; it relies on the user's current workspace). The
+  //     ZodError leaked through the central error handler as a 500
+  //     and was captured by Sentry. We now resolve the teamId from
+  //     the canonical workspace context (`user.currentWorkspaceId`,
+  //     the same pattern used by intelligence-platform.routes.ts,
+  //     product-and-lifecycle.routes.ts, and trust-and-governance.
+  //     routes.ts) BEFORE running Zod against the resolved object.
+  //   - If the user has no active workspace, return a bounded 400
+  //     instead of a ZodError 500. Anti-enumeration is preserved —
+  //     `requireOpsActor` still 404s non-members of the resolved team.
   app.get(
     "/v1/ops/metrics",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = TeamIdQuery.parse(req.query ?? {});
+      const rawQuery = (req.query ?? {}) as { teamId?: string };
+      let resolvedTeamId = rawQuery.teamId;
+      if (!resolvedTeamId) {
+        const userId = getAuthUserId(req);
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { currentWorkspaceId: true },
+        });
+        if (!user?.currentWorkspaceId) {
+          return reply.code(400).send({
+            error: {
+              code: "WORKSPACE_CONTEXT_REQUIRED",
+              message:
+                "Select a workspace to view operational metrics.",
+              requestId: req.id,
+            },
+          });
+        }
+        resolvedTeamId = user.currentWorkspaceId;
+      }
+      // Zod parse runs AFTER context resolution, on the resolved
+      // object — never on raw input that might lack teamId. Failure
+      // here means the resolved teamId is not a UUID (a real data
+      // integrity issue), which deserves a bounded 400.
+      const parsed = TeamIdQuery.safeParse({ teamId: resolvedTeamId });
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: {
+            code: "INVALID_QUERY",
+            message: "Workspace context invalid.",
+            requestId: req.id,
+          },
+        });
+      }
+      const q = parsed.data;
       const actor = await requireOpsActor(req, reply, q.teamId);
       if (!actor) return;
       return reply.code(200).send({ metrics: snapshotMetrics() });

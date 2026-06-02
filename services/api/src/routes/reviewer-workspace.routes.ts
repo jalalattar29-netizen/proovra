@@ -347,11 +347,37 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
       if (!requireCap(ctx, "review.schema.author")) return denyNoPermission(reply);
-      const result = await seedDefaultSchemas({
-        teamId: ctx.teamId,
-        authorUserId: ctx.userId,
-      });
-      return reply.code(200).send(result);
+      // Phase O — Sentry NODE-1P safety net. The repair migration
+      // 20270802000000_phase_sentry_batch_schema_drift_repair adds the
+      // missing R7 reviewer-workspace columns. Until that migration
+      // ships everywhere, a stale-schema DB will raise Prisma
+      // P2022/P2021 from the underlying create. The route degrades
+      // honestly instead of 500ing — operator sees a bounded
+      // SCHEMA_NOT_READY reason and re-triggers seed once the
+      // migration is applied.
+      try {
+        const result = await seedDefaultSchemas({
+          teamId: ctx.teamId,
+          authorUserId: ctx.userId,
+        });
+        return reply.code(200).send(result);
+      } catch (err) {
+        const code =
+          err && typeof err === "object" && "code" in err
+            ? String((err as { code?: unknown }).code ?? "")
+            : "";
+        if (code === "P2022" || code === "P2021") {
+          return reply.code(200).send({
+            created: 0,
+            updated: 0,
+            existing: 0,
+            failed: 0,
+            degraded: true,
+            reason: "SCHEMA_NOT_READY",
+          });
+        }
+        throw err;
+      }
     },
   );
 

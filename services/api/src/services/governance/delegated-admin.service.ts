@@ -164,21 +164,53 @@ export async function hasDelegatedTier(input: {
 }): Promise<boolean> {
   const prisma = input.prisma ?? defaultPrisma;
   const acceptableTiers = expandAcceptableTiers(input.requiredTier);
-  const grants = await prisma.delegatedAdminGrant.findMany({
-    where: {
-      teamId: input.teamId,
-      granteeUserId: input.userId,
-      state: "ACTIVE",
-      tier: { in: acceptableTiers },
-    },
-    select: {
-      tier: true,
-      organizationId: true,
-      departmentId: true,
-      workspaceId: true,
-      expiresAtUtc: true,
-    },
-  });
+  // Phase O — Sentry NODE-1K hardening. The
+  // 20270802000000_phase_sentry_batch_schema_drift_repair migration
+  // adds `granted_to_user_id`, `scope_target_id`, `created_at`,
+  // `updated_at` on `delegated_admin_grants` so this `findMany`
+  // succeeds against partial-state production. Until the migration
+  // is applied everywhere, a P2022 from a stale DB MUST NOT crash
+  // the auth path. We fail closed (return false) but continue
+  // through the implicit-owner ladder below so the workspace owner
+  // can still pass the tier check on a degraded DB. Operator sees a
+  // POLICY_VIOLATION audit event from the middleware on denial —
+  // that's the canonical surface for the failed authorisation.
+  let grants: Array<{
+    tier: string;
+    organizationId: string | null;
+    departmentId: string | null;
+    workspaceId: string | null;
+    expiresAtUtc: Date | null;
+  }> = [];
+  try {
+    grants = await prisma.delegatedAdminGrant.findMany({
+      where: {
+        teamId: input.teamId,
+        granteeUserId: input.userId,
+        state: "ACTIVE",
+        tier: { in: acceptableTiers },
+      },
+      select: {
+        tier: true,
+        organizationId: true,
+        departmentId: true,
+        workspaceId: true,
+        expiresAtUtc: true,
+      },
+    });
+  } catch (err) {
+    const code =
+      err && typeof err === "object" && "code" in err
+        ? String((err as { code?: unknown }).code ?? "")
+        : "";
+    if (code !== "P2022" && code !== "P2021") {
+      // Genuine error — re-throw so observability can capture it.
+      throw err;
+    }
+    // Schema-drift on delegated_admin_grants — fall through with no
+    // explicit grants. The implicit owner ladder below still runs.
+    grants = [];
+  }
   const now = Date.now();
   for (const g of grants) {
     if (g.expiresAtUtc && g.expiresAtUtc.getTime() < now) continue;

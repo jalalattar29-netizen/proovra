@@ -48,6 +48,10 @@ import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
+import {
+  extractPrismaDiagnostic,
+  isPrismaTableOrColumnMissing,
+} from "./_governance-error-bound.js";
 
 import {
   emitRedactionActivity,
@@ -494,18 +498,50 @@ export async function redactionRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       if (!(await gate(reply, ctx, "redaction.view"))) return reply;
-      const rows = await listRedactionProjectsForTeam({ teamId: ctx.teamId });
-      return reply.code(200).send({
-        projects: rows.map((p) => ({
-          id: p.id,
-          evidenceId: p.evidenceId,
-          artifactKind: p.artifactKind,
-          title: p.title,
-          state: p.state,
-          createdAtUtc: p.createdAt.toISOString(),
-          createdByUserId: p.createdByUserId,
-        })),
-      });
+      // Phase O Stream B — schema-drift safety net for NODE-1M
+      // (redaction_projects.closed_at_utc missing on production until
+      // the repair migration is applied). On Prisma P2021/P2022
+      // return a bounded empty payload with `degraded: true`; other
+      // errors propagate to the central handler so real bugs are NOT
+      // swallowed.
+      try {
+        const rows = await listRedactionProjectsForTeam({ teamId: ctx.teamId });
+        return reply.code(200).send({
+          projects: rows.map((p) => ({
+            id: p.id,
+            evidenceId: p.evidenceId,
+            artifactKind: p.artifactKind,
+            title: p.title,
+            state: p.state,
+            createdAtUtc: p.createdAt.toISOString(),
+            createdByUserId: p.createdByUserId,
+          })),
+        });
+      } catch (err) {
+        if (isPrismaTableOrColumnMissing(err)) {
+          const diag = extractPrismaDiagnostic(err);
+          reply.log.warn(
+            {
+              event: "redaction.projects.schema_not_ready",
+              requestId: reply.request?.id ?? null,
+              teamId: ctx.teamId,
+              prismaName: diag.name,
+              prismaCode: diag.code,
+              missingColumn: diag.missingColumn,
+              missingTable: diag.missingTable,
+              modelName: diag.modelName,
+              message: diag.message,
+            },
+            "GET /v1/redaction/projects degraded: schema not ready",
+          );
+          return reply.code(200).send({
+            projects: [],
+            degraded: true,
+            reason: "SCHEMA_NOT_READY",
+          });
+        }
+        throw err;
+      }
     },
   );
 
@@ -796,8 +832,40 @@ export async function redactionRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       if (!(await gate(reply, ctx, "redaction.view"))) return reply;
-      const rows = await buildRedactionProviderHealth({ teamId: ctx.teamId });
-      return reply.code(200).send({ providers: rows });
+      // Phase O Stream B — schema-drift safety net for NODE-1N
+      // (redaction_policy_assignments.version_id missing on production
+      // until the repair migration is applied). On Prisma P2021/P2022
+      // return a bounded empty payload with `degraded: true`; other
+      // errors propagate to the central handler so real bugs are NOT
+      // swallowed.
+      try {
+        const rows = await buildRedactionProviderHealth({ teamId: ctx.teamId });
+        return reply.code(200).send({ providers: rows });
+      } catch (err) {
+        if (isPrismaTableOrColumnMissing(err)) {
+          const diag = extractPrismaDiagnostic(err);
+          reply.log.warn(
+            {
+              event: "redaction.providers_health.schema_not_ready",
+              requestId: reply.request?.id ?? null,
+              teamId: ctx.teamId,
+              prismaName: diag.name,
+              prismaCode: diag.code,
+              missingColumn: diag.missingColumn,
+              missingTable: diag.missingTable,
+              modelName: diag.modelName,
+              message: diag.message,
+            },
+            "GET /v1/redaction/providers/health degraded: schema not ready",
+          );
+          return reply.code(200).send({
+            providers: [],
+            degraded: true,
+            reason: "SCHEMA_NOT_READY",
+          });
+        }
+        throw err;
+      }
     },
   );
 

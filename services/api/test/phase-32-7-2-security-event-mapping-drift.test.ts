@@ -480,6 +480,22 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // and by `getSemanticUsageSummary`. Phase O additive pattern;
       // DO $$ guards, `IF NOT EXISTS`, no DROP / no RENAME.
       "20270801000000_phase16_semantic_usage",
+      // Sentry batch — Phase O schema-drift repair. Closes the 9
+      // schema-drift items from the 13-issue Sentry triage:
+      //   NODE-1R evidence_exchange_packages.updated_at
+      //   NODE-1Q chain_transfers.updated_at
+      //   NODE-1E status_components.updated_at
+      //   NODE-1H provider_budgets.archived_at
+      //   NODE-1M redaction_projects.closed_at_utc
+      //   NODE-1J subprocessors.category / country / description
+      //   NODE-1N redaction_policy_assignments.version_id (+ backfill)
+      //   NODE-1K delegated_admin_grants.granted_to_user_id +
+      //           scope_target_id + created_at + updated_at (+ backfill)
+      //   NODE-1P coding_schemas + coding_fields defensive R7 surface
+      //           re-assert. Pure additive (ADD COLUMN IF NOT EXISTS),
+      //           idempotent, DO $$ guards on every backfill, no DROP /
+      //           no RENAME / no SET NOT NULL on pre-existing columns.
+      "20270802000000_phase_sentry_batch_schema_drift_repair",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

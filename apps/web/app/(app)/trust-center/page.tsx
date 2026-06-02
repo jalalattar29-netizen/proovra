@@ -27,6 +27,12 @@ export default function TrustCenterPage() {
 function Shell() {
   const [articles, setArticles] = useState<ReadonlyArray<TrustArticleProjection>>([]);
   const [busy, setBusy] = useState(false);
+  // Bounded operator status surface so the user can tell whether a
+  // seed action actually succeeded (the previous implementation
+  // silently swallowed every error — clicking the button looked
+  // identical to a failed call). Vocabulary kept platform-bounded;
+  // we never expose env names or stack traces here.
+  const [seedStatus, setSeedStatus] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -46,14 +52,24 @@ function Shell() {
 
   const seedDefaults = useCallback(async () => {
     setBusy(true);
-    try {
-      await apiFetch("/v1/trust/articles/seed", { method: "POST" });
-      await refresh();
-    } catch {
-      /* swallow */
-    } finally {
-      setBusy(false);
-    }
+    setSeedStatus(null);
+    // Production fix — the "Re-seed defaults" promise covers BOTH
+    // articles (15+9+12+18 canonical sections) AND subprocessors.
+    // The prior implementation only POSTed to /v1/trust/articles/seed,
+    // so subprocessors stayed empty across the Trust Center even
+    // after the user clicked the canonical action.
+    //
+    // Run both in parallel — neither blocks the other. Each result
+    // is honestly surfaced; a failure is reported, not swallowed.
+    const [articleResult, subprocessorResult] = await Promise.allSettled([
+      apiFetch("/v1/trust/articles/seed", { method: "POST" }),
+      apiFetch("/v1/trust/subprocessors/seed", { method: "POST" }),
+    ]);
+    const partsA = summarisePart(articleResult, "articles");
+    const partsB = summarisePart(subprocessorResult, "subprocessors");
+    setSeedStatus(`${partsA} · ${partsB}`);
+    await refresh();
+    setBusy(false);
   }, [refresh]);
 
   useEffect(() => {
@@ -99,7 +115,7 @@ function Shell() {
         </nav>
       </header>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
         <button
           type="button"
           data-trust-center-refresh
@@ -118,6 +134,14 @@ function Shell() {
         >
           Re-seed defaults
         </button>
+        {seedStatus ? (
+          <small
+            data-trust-center-seed-status
+            style={{ fontSize: 11, color: "#475569" }}
+          >
+            {seedStatus}
+          </small>
+        ) : null}
       </div>
 
       {articles.length === 0 ? (
@@ -170,6 +194,23 @@ function Shell() {
       )}
     </div>
   );
+}
+
+// Bounded vocabulary helper. Turns a Promise.allSettled outcome into
+// "<label>: created N updated M" or "<label>: failed". Never leaks
+// stack traces / env names / internal error codes.
+function summarisePart(
+  outcome: PromiseSettledResult<unknown>,
+  label: string,
+): string {
+  if (outcome.status === "rejected") return `${label}: failed`;
+  const v = outcome.value as
+    | { created?: number; updated?: number }
+    | null
+    | undefined;
+  const created = typeof v?.created === "number" ? v.created : 0;
+  const updated = typeof v?.updated === "number" ? v.updated : 0;
+  return `${label}: ${created} created · ${updated} updated`;
 }
 
 const cardStyle = {

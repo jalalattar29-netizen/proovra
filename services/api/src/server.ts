@@ -313,6 +313,134 @@ function normalizeUnknownError(err: unknown): AppError | null {
   return null;
 }
 
+// =============================================================================
+// Phase O Stage 4 — additive central error mappings
+// =============================================================================
+//
+// The legacy handler above continues to own:
+//   - AppError (every route's structured business error)
+//   - ZodError → VALIDATION_ERROR via createErrorResponse
+//   - everything else → INTERNAL_SERVER_ERROR via createErrorResponse
+//
+// Stage 4 adds three NEW wire-shapes that the legacy handler cannot emit
+// (its createErrorResponse path is fixed to ErrorCode + canonical message).
+// These mappings are TRIED FIRST inside setErrorHandler so the legacy
+// path is preserved verbatim for anything that doesn't match.
+//
+//   1. ZodError                              → 400 INVALID_INPUT with bounded fields[]
+//   2. Prisma P2022 / P2021                  → 503 SCHEMA_NOT_READY
+//   3. Prisma other known-request errors     → 500 DATABASE_ERROR
+//
+// All three honour the same anti-leak invariants the legacy handler
+// uses: no stack traces, no env names, no SQL fragments, no raw Prisma
+// `message` body in the client response. Internal logging emits the
+// full structured diagnostic so operators can triage.
+
+const ZOD_FIELD_LIMIT = 5;
+const ZOD_MESSAGE_LIMIT = 200;
+const ZOD_FIELD_PATH_LIMIT = 120;
+const ZOD_FIELD_MESSAGE_LIMIT = 200;
+
+type ZodFieldSummary = {
+  path: string;
+  code: string;
+  message: string;
+};
+
+type ZodWirePayload = {
+  status: 400;
+  body: {
+    error: {
+      code: "INVALID_INPUT";
+      message: string;
+      fields: ZodFieldSummary[];
+      requestId: string | null;
+    };
+  };
+  log: {
+    issueCount: number;
+    fields: ZodFieldSummary[];
+  };
+};
+
+function buildZodWirePayload(
+  err: ZodError,
+  requestId: string | null,
+): ZodWirePayload {
+  const issues = Array.isArray(err.issues) ? err.issues : [];
+  const fields: ZodFieldSummary[] = issues.slice(0, ZOD_FIELD_LIMIT).map((issue) => {
+    const path = Array.isArray(issue.path) ? issue.path.join(".") : "";
+    return {
+      path: typeof path === "string" ? path.slice(0, ZOD_FIELD_PATH_LIMIT) : "",
+      code: typeof issue.code === "string" ? issue.code : "invalid",
+      message:
+        typeof issue.message === "string"
+          ? issue.message.slice(0, ZOD_FIELD_MESSAGE_LIMIT)
+          : "Invalid value",
+    };
+  });
+
+  const firstField = fields[0];
+  const overflow = issues.length > ZOD_FIELD_LIMIT;
+  const baseSummary = firstField
+    ? `Invalid input: ${firstField.path || "<root>"} — ${firstField.message}`
+    : "Invalid input.";
+  const summary = (
+    overflow ? `${baseSummary} (+${issues.length - ZOD_FIELD_LIMIT} more)` : baseSummary
+  ).slice(0, ZOD_MESSAGE_LIMIT);
+
+  return {
+    status: 400,
+    body: {
+      error: {
+        code: "INVALID_INPUT",
+        message: summary,
+        fields,
+        requestId,
+      },
+    },
+    log: {
+      issueCount: issues.length,
+      fields,
+    },
+  };
+}
+
+type PrismaKnownDiagnostic = {
+  code: string;
+  meta: { column: string | null; table: string | null; modelName: string | null };
+  message: string;
+};
+
+function isPrismaKnownRequestError(err: unknown): err is Error & {
+  code: string;
+  meta?: Record<string, unknown>;
+} {
+  if (!(err instanceof Error)) return false;
+  if (err.name !== "PrismaClientKnownRequestError") return false;
+  const candidate = err as { code?: unknown };
+  return typeof candidate.code === "string";
+}
+
+function readPrismaDiagnostic(
+  err: Error & { code: string; meta?: Record<string, unknown> },
+): PrismaKnownDiagnostic {
+  const meta = (err.meta ?? {}) as { column?: unknown; table?: unknown; modelName?: unknown };
+  const readMetaString = (key: "column" | "table" | "modelName"): string | null => {
+    const value = meta[key];
+    return typeof value === "string" ? value.slice(0, 120) : null;
+  };
+  return {
+    code: err.code,
+    meta: {
+      column: readMetaString("column"),
+      table: readMetaString("table"),
+      modelName: readMetaString("modelName"),
+    },
+    message: typeof err.message === "string" ? err.message.slice(0, 300) : "",
+  };
+}
+
 export async function buildServer() {
   initSentry();
 
@@ -500,6 +628,92 @@ allowedHeaders: [
     };
 
     const requestContext = buildRequestContext(requestWithMeta);
+    const requestId = typeof req.id === "string" ? req.id : null;
+
+    // -----------------------------------------------------------------
+    // Phase O Stage 4 — additive central mappings (tried FIRST).
+    //
+    // We honour AppError above all other shapes. The legacy
+    // `normalizeUnknownError` already returns an AppError for AppError
+    // inputs, so we defer AppError handling to the legacy path below
+    // and only intercept here for ZodError + Prisma known-request
+    // errors that need wire shapes the legacy path cannot emit.
+    //
+    // Per-route handlers in Stage 3 remain the FIRST line of defence:
+    // every route already converted `.parse()` → `.safeParse()` and
+    // every Prisma call site has bounded try/catch. These central
+    // mappings are belt-and-braces for any route that forgets.
+    // -----------------------------------------------------------------
+    if (!isAppError(err) && err instanceof ZodError) {
+      const wire = buildZodWirePayload(err, requestId);
+      req.log.warn(
+        {
+          ...requestContext,
+          errorCode: "INVALID_INPUT",
+          statusCode: 400,
+          zodIssueCount: wire.log.issueCount,
+          zodFields: wire.log.fields,
+        },
+        "request.failed.validation",
+      );
+      return reply.code(wire.status).send(wire.body);
+    }
+
+    if (!isAppError(err) && isPrismaKnownRequestError(err)) {
+      const diag = readPrismaDiagnostic(err);
+
+      if (diag.code === "P2022" || diag.code === "P2021") {
+        req.log.warn(
+          {
+            ...requestContext,
+            errorCode: "SCHEMA_NOT_READY",
+            statusCode: 503,
+            prismaCode: diag.code,
+            prismaMissingColumn: diag.meta.column,
+            prismaMissingTable: diag.meta.table,
+            prismaModelName: diag.meta.modelName,
+            prismaMessage: diag.message,
+          },
+          "request.failed.schema_not_ready",
+        );
+        return reply.code(503).send({
+          error: {
+            code: "SCHEMA_NOT_READY",
+            message: "Resource temporarily unavailable.",
+            requestId,
+          },
+        });
+      }
+
+      // Any other Prisma known-request error (P1xxx connection,
+      // P2002 unique constraint, P2003 FK, P2025 not found, etc.) —
+      // we map to DATABASE_ERROR 500 with a generic message. Route
+      // handlers that need finer-grained mapping (e.g., 409 on a
+      // unique violation) MUST catch the Prisma error themselves and
+      // throw an AppError before this central handler runs. That
+      // route-layer-first contract is preserved.
+      req.log.error(
+        {
+          ...requestContext,
+          errorCode: "DATABASE_ERROR",
+          statusCode: 500,
+          prismaCode: diag.code,
+          prismaMissingColumn: diag.meta.column,
+          prismaMissingTable: diag.meta.table,
+          prismaModelName: diag.meta.modelName,
+          prismaMessage: diag.message,
+        },
+        "request.failed.database_error",
+      );
+      captureException(err, requestContext);
+      return reply.code(500).send({
+        error: {
+          code: "DATABASE_ERROR",
+          message: "Request failed.",
+          requestId,
+        },
+      });
+    }
 
     const appError = normalizeUnknownError(err);
 

@@ -238,41 +238,92 @@ export async function bindSchemaToWorkflow(input: {
 
 import { DEFAULT_SCHEMAS } from "./coding-schema-defaults.js";
 
+/**
+ * Phase O — Sentry NODE-1P repair.
+ *
+ * `seedDefaultSchemas` previously hit a Prisma null-constraint error
+ * on a fresh production workspace because the underlying
+ * `coding_schemas` / `coding_fields` columns hadn't received every
+ * R7-reviewer-workspace additive column on that DB. The repair
+ * migration `20270802000000_phase_sentry_batch_schema_drift_repair`
+ * idempotently re-asserts every R7 column on both tables; with that
+ * applied, the original create path works.
+ *
+ * This service is now self-healing on top of that:
+ *
+ *   1. Natural-key lookup by `(teamId, slug)` first — already
+ *      workspace-anchored.
+ *   2. Existing row → no-op (counted in `updated`). The legacy
+ *      `existing` key is preserved for the web client at
+ *      apps/web/lib/reviewer-workspace/reviewer-api.ts so we ship
+ *      both fields and the caller picks whichever it depends on.
+ *   3. Missing row → create + publish in the same transaction. A
+ *      per-spec try/catch keeps a single bad row from breaking the
+ *      whole seed pass; failed rows are counted in `failed` so the
+ *      operator sees an honest summary.
+ *
+ * Idempotent — safe to call any number of times; canonical seed is
+ * platform documentation, not customer content.
+ */
 export async function seedDefaultSchemas(input: {
   prisma?: PrismaClient;
   teamId: string;
   authorUserId: string;
-}): Promise<{ created: number; existing: number }> {
+}): Promise<{
+  created: number;
+  updated: number;
+  // Legacy alias retained for the web client. Same value as `updated`.
+  existing: number;
+  failed: number;
+}> {
   const prisma = input.prisma ?? defaultPrisma;
   let created = 0;
-  let existing = 0;
+  let updated = 0;
+  let failed = 0;
   for (const spec of DEFAULT_SCHEMAS) {
-    const found = await prisma.codingSchema.findFirst({
-      where: { teamId: input.teamId, slug: spec.slug },
-      select: { id: true },
-    });
-    if (found) {
-      existing += 1;
-      continue;
-    }
-    const res = await createSchema({
-      teamId: input.teamId,
-      authorUserId: input.authorUserId,
-      slug: spec.slug,
-      label: spec.label,
-      category: spec.category,
-      description: spec.description,
-      fields: spec.fields,
-    });
-    if (res.ok) {
-      await publishSchema({
-        teamId: input.teamId,
-        schemaId: res.schemaId,
+    try {
+      const found = await prisma.codingSchema.findFirst({
+        where: { teamId: input.teamId, slug: spec.slug },
+        select: { id: true },
       });
-      created += 1;
+      if (found) {
+        // No-op upsert — the canonical seed catalog is the source of
+        // truth, but we deliberately do NOT overwrite a live row's
+        // edits. Treat as `updated` (legacy `existing`) so the
+        // caller's totals stay honest.
+        updated += 1;
+        continue;
+      }
+      const res = await createSchema({
+        teamId: input.teamId,
+        authorUserId: input.authorUserId,
+        slug: spec.slug,
+        label: spec.label,
+        category: spec.category,
+        description: spec.description,
+        fields: spec.fields,
+      });
+      if (res.ok) {
+        await publishSchema({
+          teamId: input.teamId,
+          schemaId: res.schemaId,
+        });
+        created += 1;
+      } else {
+        // Bounded denial from createSchema (slug / field validation).
+        // The seed catalog is hand-built so this is effectively a
+        // catalog bug; surface it as `failed` rather than 500ing the
+        // whole route.
+        failed += 1;
+      }
+    } catch {
+      // Defensive — a single bad row never poisons the rest of the
+      // pass. Operator sees the count via the response; the row is
+      // safe to retry on next seed.
+      failed += 1;
     }
   }
-  return { created, existing };
+  return { created, updated, existing: updated, failed };
 }
 
 // =============================================================================

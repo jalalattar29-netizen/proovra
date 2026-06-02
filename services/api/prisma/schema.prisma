@@ -3939,14 +3939,14 @@ model EvidenceSemanticChunk {
 //   - counter columns are scalar integers + dollar-micros (no per-call
 //     payload). Operators cannot pivot from a row back to chunk text.
 model SemanticUsageDaily {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workspaceId     String   @map("workspace_id") @db.Uuid
-  dateUtc         DateTime @map("date_utc") @db.Date
-  chunksEmbedded  Int      @default(0) @map("chunks_embedded")
-  tokensConsumed  BigInt   @default(0) @map("tokens_consumed")
-  eurSpentMicros  BigInt   @default(0) @map("eur_spent_micros")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId    String   @map("workspace_id") @db.Uuid
+  dateUtc        DateTime @map("date_utc") @db.Date
+  chunksEmbedded Int      @default(0) @map("chunks_embedded")
+  tokensConsumed BigInt   @default(0) @map("tokens_consumed")
+  eurSpentMicros BigInt   @default(0) @map("eur_spent_micros")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([workspaceId, dateUtc])
   @@index([workspaceId])

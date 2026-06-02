@@ -24,6 +24,10 @@ import {
   requireDelegatedTier,
   requireDelegatedTierAny,
 } from "../middleware/require-delegated-tier.js";
+import {
+  extractPrismaDiagnostic,
+  isPrismaTableOrColumnMissing,
+} from "./_governance-error-bound.js";
 
 import {
   assertFeatureEntitlement,
@@ -148,12 +152,41 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const body = z
         .object({ line: z.enum(PRODUCT_LINES) })
         .parse(req.body);
-      const res = await applyProductLine({
-        teamId: ctx.teamId,
-        line: body.line,
-        grantedByUserId: ctx.userId,
-      });
-      return reply.code(200).send({ ok: res.ok, granted: res.granted });
+      // Phase O — Sentry NODE-1K safety net. The repair migration
+      // 20270802000000_phase_sentry_batch_schema_drift_repair adds
+      // the missing `delegated_admin_grants` columns
+      // (`granted_to_user_id`, `scope_target_id`, `created_at`,
+      // `updated_at`). `hasDelegatedTier` is already hardened to
+      // return false on P2022/P2021 (see delegated-admin.service.ts),
+      // so the middleware path is safe. Belt-and-braces: catch any
+      // residual P2022/P2021 raised by `applyProductLine` itself —
+      // the route returns an explicit degraded payload instead of
+      // 500ing. NEVER a silent suppression: the caller sees
+      // `degraded: true` + `reason: "SCHEMA_NOT_READY"` and can
+      // surface a banner.
+      try {
+        const res = await applyProductLine({
+          teamId: ctx.teamId,
+          line: body.line,
+          grantedByUserId: ctx.userId,
+        });
+        return reply.code(200).send({ ok: res.ok, granted: res.granted });
+      } catch (err) {
+        const code =
+          err && typeof err === "object" && "code" in err
+            ? String((err as { code?: unknown }).code ?? "")
+            : "";
+        if (code === "P2022" || code === "P2021") {
+          return reply.code(200).send({
+            ok: false,
+            granted: 0,
+            applied: false,
+            degraded: true,
+            reason: "SCHEMA_NOT_READY",
+          });
+        }
+        throw err;
+      }
     },
   );
 
@@ -197,8 +230,41 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
-      const packages = await listPackages({ teamId: ctx.teamId });
-      return reply.code(200).send({ packages });
+      // Phase O Stream B — schema-drift safety net for NODE-1R
+      // (evidence_exchange_packages.updated_at missing on production
+      // until repair migration is applied). On Prisma P2021/P2022 we
+      // return a bounded empty payload with `degraded: true` so the
+      // UI can render an honest empty/degraded state instead of a
+      // Prisma 500. All other errors propagate to the central
+      // handler so real bugs are NOT swallowed.
+      try {
+        const packages = await listPackages({ teamId: ctx.teamId });
+        return reply.code(200).send({ packages });
+      } catch (err) {
+        if (isPrismaTableOrColumnMissing(err)) {
+          const diag = extractPrismaDiagnostic(err);
+          reply.log.warn(
+            {
+              event: "exchange.packages.schema_not_ready",
+              requestId: reply.request?.id ?? null,
+              teamId: ctx.teamId,
+              prismaName: diag.name,
+              prismaCode: diag.code,
+              missingColumn: diag.missingColumn,
+              missingTable: diag.missingTable,
+              modelName: diag.modelName,
+              message: diag.message,
+            },
+            "GET /v1/exchange/packages degraded: schema not ready",
+          );
+          return reply.code(200).send({
+            packages: [],
+            degraded: true,
+            reason: "SCHEMA_NOT_READY",
+          });
+        }
+        throw err;
+      }
     },
   );
 

@@ -176,11 +176,46 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
           state: z.enum(TRUST_ARTICLE_STATES).optional(),
         })
         .parse(req.query ?? {});
-      const articles = await listTrustArticles({
+      let articles = await listTrustArticles({
         teamId: ctx.teamId,
         kind: q.kind,
         state: q.state,
       });
+      // Production fix — Trust Center auto-seed on empty workspace.
+      //
+      // The canonical 15+9+12+18 platform-trust articles are
+      // workspace-scoped seed data, not customer content. When a
+      // workspace has none, the Trust Center renders an empty state
+      // and instructs the user to click "Re-seed defaults" — but
+      // that button POSTs to a route gated by delegated tier, which
+      // PERSONAL workspaces (no delegated tiers exist) can never
+      // satisfy, and which most ORG members lack. The result: an
+      // enterprise Trust Center that is always empty for everyone.
+      //
+      // The fix is to make GET self-healing: any authenticated
+      // workspace member visiting the page triggers the idempotent
+      // canonical seed, so the docs that DESCRIBE the platform are
+      // always present. Custom authoring (POST /v1/trust/articles)
+      // still requires the delegated tier — that is the right gate.
+      //
+      // Guarded with try/catch so a seed failure never turns a read
+      // into a 500: the user simply sees the original empty state.
+      if (articles.length === 0) {
+        try {
+          await ensureTrustCenterSeed({
+            teamId: ctx.teamId,
+            systemUserId: ctx.userId,
+            publish: true,
+          });
+          articles = await listTrustArticles({
+            teamId: ctx.teamId,
+            kind: q.kind,
+            state: q.state,
+          });
+        } catch {
+          /* swallow — empty render is acceptable; do not 500 a GET */
+        }
+      }
       return reply.code(200).send({ articles });
     },
   );
@@ -281,7 +316,19 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/articles/seed",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["ORG_ADMIN", "SECURITY_OFFICER", "COMPLIANCE_OFFICER"])] },
+    // Production fix — opened from delegated-tier-only to any
+    // authenticated workspace member. The canonical 15+9+12+18 seed
+    // articles describe the PROOVRA platform itself; they are not
+    // customer content. Any workspace member should be able to
+    // request the idempotent canonical seed. AUTHORING custom
+    // articles (POST /v1/trust/articles) remains gated by the
+    // delegated tier — that is the correct authorization boundary.
+    //
+    // The prior gate locked PERSONAL workspaces out entirely (no
+    // delegated tier exists for PERSONAL) and locked most ORG
+    // members out, leaving the Trust Center permanently empty in
+    // production.
+    { preHandler: requireAuth },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -305,10 +352,30 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       const q = z
         .object({ state: z.enum(SUBPROCESSOR_STATES).optional() })
         .parse(req.query ?? {});
-      const subprocessors = await listSubprocessors({
+      let subprocessors = await listSubprocessors({
         teamId: ctx.teamId,
         state: q.state,
       });
+      // Production fix — Subprocessor registry auto-seed on empty
+      // workspace. Same rationale as the articles GET above: the
+      // canonical subprocessor list is platform documentation, not
+      // customer content. The POST seed endpoint was gated by
+      // delegated tier; the canonical seed is now self-healing on
+      // read so every workspace member can see the registry.
+      if (subprocessors.length === 0) {
+        try {
+          await ensureSubprocessorSeed({
+            teamId: ctx.teamId,
+            systemUserId: ctx.userId,
+          });
+          subprocessors = await listSubprocessors({
+            teamId: ctx.teamId,
+            state: q.state,
+          });
+        } catch {
+          /* swallow — empty render is acceptable; do not 500 a GET */
+        }
+      }
       return reply.code(200).send({ subprocessors });
     },
   );
@@ -371,7 +438,13 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/subprocessors/seed",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["ORG_ADMIN", "COMPLIANCE_OFFICER"])] },
+    // Production fix — same rationale as /v1/trust/articles/seed
+    // above. The canonical subprocessor list is platform
+    // documentation, not customer content. Any authenticated
+    // workspace member can request the idempotent canonical seed.
+    // Authoring custom subprocessor rows (POST
+    // /v1/trust/subprocessors) remains gated by the delegated tier.
+    { preHandler: requireAuth },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -392,11 +465,38 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const apiKey = process.env.BETTER_STACK_STATUS_PAGE_API_KEY ?? null;
-      const status = await projectStatusPage({
-        teamId: ctx.teamId,
-        betterStackApiKey: apiKey,
-      });
-      return reply.code(200).send({ status });
+      // Phase O — Sentry NODE-1E safety net. `projectStatusPage`
+      // calls `ensureStatusComponentsSeed` which runs
+      // `statusComponent.upsert({ ... update: { lastUpdatedAtUtc, ... } })`.
+      // With `status_components.updated_at` (Prisma @updatedAt @map)
+      // missing from the production DB, the upsert raised P2022 and
+      // the route 500ed. The repair migration
+      // 20270802000000_phase_sentry_batch_schema_drift_repair adds
+      // the column idempotently. Until that migration is deployed
+      // everywhere, the route degrades honestly: returns a bounded
+      // empty projection with `degraded: true` so the frontend
+      // load-state machine surfaces the right phase (no permanent
+      // "Loading…").
+      try {
+        const status = await projectStatusPage({
+          teamId: ctx.teamId,
+          betterStackApiKey: apiKey,
+        });
+        return reply.code(200).send({ status });
+      } catch (err) {
+        const code =
+          err && typeof err === "object" && "code" in err
+            ? String((err as { code?: unknown }).code ?? "")
+            : "";
+        if (code === "P2022" || code === "P2021") {
+          return reply.code(200).send({
+            status: null,
+            degraded: true,
+            reason: "SCHEMA_NOT_READY",
+          });
+        }
+        throw err;
+      }
     },
   );
 

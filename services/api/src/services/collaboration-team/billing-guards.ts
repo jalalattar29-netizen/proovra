@@ -500,53 +500,119 @@ export async function assertSubscriptionActiveOrGraceAllowed(
     return { plan, status: "ACTIVE", inGracePeriod: false };
   }
 
-  // For paid plans, find the most recent subscription row for this user.
-  const subscription = await client.subscription.findFirst({
-    where: { userId },
-    orderBy: { updatedAt: "desc" },
-    select: {
-      status: true,
-      plan: true,
-      currentPeriodEnd: true,
+  // For paid plans, the gate must corroborate the entitlement with
+  // the user's CURRENT subscription state. The previous implementation
+  // picked the most-recently-updated subscription row for the user
+  // regardless of `plan` or `status` — but the `subscriptions` table
+  // accumulates one row per `(provider, providerSubId)`, so a user
+  // who:
+  //
+  //   * cancelled a prior PAYG subscription before upgrading to PRO,
+  //   * abandoned a checkout (INCOMPLETE_EXPIRED row left behind),
+  //   * had a past renewal go PAST_DUE then later succeeded on a
+  //     fresh subscription,
+  //
+  // would have one or more stale rows in a terminal state. The naive
+  // `findFirst({ where: { userId } })` then surfaced the stale row
+  // (because a refund / webhook bump made it the most-recently-
+  // updated) and the gate rejected the mutation with 402
+  // SUBSCRIPTION_INACTIVE — even though the user's active entitlement
+  // legitimately said PRO. This is the production 402 regression
+  // observed on POST /v1/collaboration-teams.
+  //
+  // Policy (corroboration, not contradiction):
+  //
+  //   1. If a subscription row exists for the user matching the
+  //      ENTITLEMENT plan AND status is ACTIVE/TRIALING → allow.
+  //   2. Else if a matching-plan PAST_DUE row exists inside the grace
+  //      window → allow (legacy seat-state grace behaviour).
+  //   3. Else if NO subscription row matches the current plan → allow
+  //      (entitlement is authoritative; tolerate webhook lag).
+  //   4. Else (every matching-plan row is terminal) → block.
+  //
+  // Stale rows for OTHER plans (a CANCELED PAYG row when the current
+  // entitlement is PRO) are ignored entirely — they describe a
+  // historical billing state, not the user's current one.
+
+  // Step 1 — live (ACTIVE/TRIALING) subscription for the current plan.
+  const liveSubscription = await client.subscription.findFirst({
+    where: {
+      userId,
+      plan,
+      status: {
+        in: [
+          prismaPkg.SubscriptionStatus.ACTIVE,
+          prismaPkg.SubscriptionStatus.TRIALING,
+        ],
+      },
     },
+    orderBy: { updatedAt: "desc" },
+    select: { status: true, currentPeriodEnd: true },
   });
 
-  // If no subscription row exists for a paid plan, fall through to
-  // ACTIVE — the legacy code treats the entitlement table as
-  // authoritative and tolerates webhook lag.
-  if (!subscription) {
+  if (liveSubscription) {
+    return {
+      plan,
+      status: liveSubscription.status as SubscriptionStatus,
+      inGracePeriod: false,
+    };
+  }
+
+  // Step 2 — PAST_DUE for current plan, inside grace window.
+  const pastDueSubscription = await client.subscription.findFirst({
+    where: {
+      userId,
+      plan,
+      status: prismaPkg.SubscriptionStatus.PAST_DUE,
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { status: true, currentPeriodEnd: true },
+  });
+
+  if (pastDueSubscription) {
+    const periodEndMs =
+      pastDueSubscription.currentPeriodEnd?.getTime() ?? null;
+    const inGracePeriod =
+      periodEndMs !== null &&
+      Date.now() - periodEndMs <= SUBSCRIPTION_GRACE_PERIOD_MS;
+    if (inGracePeriod) {
+      return {
+        plan,
+        status: pastDueSubscription.status as SubscriptionStatus,
+        inGracePeriod: true,
+      };
+    }
+  }
+
+  // Step 3 — any subscription row matching the current plan. If none
+  // exist, the entitlement table is authoritative (tolerate webhook
+  // lag): allow. The only way we reach this branch with an entitlement
+  // saying PRO and no PRO subscription row is a manual grant, a
+  // provider switch, or a brand-new subscription whose webhook has not
+  // yet committed — none of which should produce a 402.
+  const matchingPlanRow = await client.subscription.findFirst({
+    where: { userId, plan },
+    orderBy: { updatedAt: "desc" },
+    select: { status: true, currentPeriodEnd: true },
+  });
+
+  if (!matchingPlanRow) {
     return { plan, status: "ACTIVE", inGracePeriod: false };
   }
 
-  const status = subscription.status as SubscriptionStatus;
-  const now = Date.now();
-  const periodEndMs = subscription.currentPeriodEnd?.getTime() ?? null;
-  const inGracePeriod =
-    status === prismaPkg.SubscriptionStatus.PAST_DUE &&
-    periodEndMs !== null &&
-    now - periodEndMs <= SUBSCRIPTION_GRACE_PERIOD_MS;
-
-  // Bounded allow-list. Anything outside this set blocks the write.
-  const allowed =
-    status === prismaPkg.SubscriptionStatus.ACTIVE ||
-    status === prismaPkg.SubscriptionStatus.TRIALING ||
-    inGracePeriod;
-
-  if (!allowed) {
-    throwBillingError({
-      code: "SUBSCRIPTION_INACTIVE",
-      message: `Your subscription is ${status} and cannot be used for collaboration team mutations.`,
-      details: {
-        plan,
-        status,
-        inGracePeriod,
-        currentPeriodEnd: subscription.currentPeriodEnd ?? null,
-        gracePeriodDays: SUBSCRIPTION_GRACE_PERIOD_DAYS,
-      },
-    });
-  }
-
-  return { plan, status, inGracePeriod };
+  // Step 4 — every matching-plan row is terminal. Block.
+  const status = matchingPlanRow.status as SubscriptionStatus;
+  throwBillingError({
+    code: "SUBSCRIPTION_INACTIVE",
+    message: `Your subscription is ${status} and cannot be used for collaboration team mutations.`,
+    details: {
+      plan,
+      status,
+      inGracePeriod: false,
+      currentPeriodEnd: matchingPlanRow.currentPeriodEnd ?? null,
+      gracePeriodDays: SUBSCRIPTION_GRACE_PERIOD_DAYS,
+    },
+  });
 }
 
 // =============================================================================
