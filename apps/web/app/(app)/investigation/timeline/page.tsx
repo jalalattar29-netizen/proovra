@@ -187,13 +187,23 @@ function InvestigationTimelinePageInner() {
               <Link href="/investigation/timeline" style={pivotLinkStyle}>
                 Clear anchor
               </Link>
+              {/* Phase 14 — pivot from the selected timeline anchor
+                  into the canonical /search surface, scoped to this
+                  evidence record. */}
+              {" · "}
+              <Link
+                href={`/search?evidenceId=${encodeURIComponent(anchorEvidenceId)}`}
+                style={pivotLinkStyle}
+              >
+                Search for this evidence
+              </Link>
             </p>
           ) : null}
         </div>
         <div style={headerRightStyle}>
           <span style={freshnessPillStyle(error, ageSeconds, teamId)}>
             {error
-              ? "data unavailable"
+              ? "No events recorded yet"
               : !teamId
                 ? "loading workspace…"
                 : ageSeconds == null
@@ -231,11 +241,24 @@ function InvestigationTimelinePageInner() {
         {groupedByDay == null ? (
           <p style={emptyStyle}>Loading…</p>
         ) : groupedByDay.length === 0 ? (
-          <p style={emptyStyle}>
-            No events recorded for this workspace under the current filter.
-            Run the analyzer on individual evidence records, or wait for
-            graph reconcile to populate the workspace graph.
-          </p>
+          <div style={emptyStyle}>
+            <p style={emptyTitleStyle}>
+              No workspace events recorded yet.
+            </p>
+            <p style={emptyHintStyle}>
+              This timeline shows operational state changes for the
+              workspace. Events appear here after evidence is captured and
+              the next graph refresh runs.
+            </p>
+            <div style={emptyCtaRowStyle}>
+              <Link href="/capture" style={emptyCtaPrimaryStyle}>
+                Capture evidence
+              </Link>
+              <Link href="/cases" style={emptyCtaSecondaryStyle}>
+                Open cases
+              </Link>
+            </div>
+          </div>
         ) : (
           <ul style={dayListStyle}>
             {groupedByDay.map(([day, dayEvents]) => (
@@ -472,6 +495,49 @@ const emptyStyle: React.CSSProperties = {
   border: "1px solid #e5e7eb",
   borderRadius: 8,
   padding: 14,
+};
+
+const emptyTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#0f172a",
+};
+
+const emptyHintStyle: React.CSSProperties = {
+  margin: "6px 0 0 0",
+  fontSize: 12,
+  color: "#64748b",
+  lineHeight: 1.5,
+};
+
+const emptyCtaRowStyle: React.CSSProperties = {
+  marginTop: 10,
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
+const emptyCtaPrimaryStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#ffffff",
+  background: "#1e40af",
+  border: "1px solid #1e3a8a",
+  borderRadius: 6,
+  padding: "5px 12px",
+  textDecoration: "none",
+};
+
+const emptyCtaSecondaryStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#1e40af",
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  borderRadius: 6,
+  padding: "5px 12px",
+  textDecoration: "none",
 };
 
 const dayListStyle: React.CSSProperties = {

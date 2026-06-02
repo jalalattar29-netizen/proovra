@@ -17,6 +17,12 @@ import type {
 } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+// Phase 16 — after chunk persistence the live indexing path enqueues
+// an `mi-embed` job so the dedicated worker fills the pgvector
+// `embedding_vector` column. The legacy in-process `embed()` call
+// below still writes the Bytes column for back-compat with the
+// keyword-fallback ranker; the queue handles the pgvector side.
+import { enqueueEmbedChunks } from "../../queue/mi-embed-queue.js";
 
 export function isSemanticSearchEnabled(): boolean {
   return process.env.SEMANTIC_SEARCH_ENABLED === "true";
@@ -77,6 +83,7 @@ export async function indexEvidenceText(
     return { chunks: 0, embedded: 0 };
   }
   const chunks = chunkText(input.text);
+  const newChunkIds: string[] = [];
   try {
     await client.evidenceSemanticChunk.deleteMany({
       where: { evidenceId: input.evidenceId },
@@ -104,7 +111,7 @@ export async function indexEvidenceText(
           /* embedding optional; chunk still persists */
         }
       }
-      await client.evidenceSemanticChunk.create({
+      const row = await client.evidenceSemanticChunk.create({
         data: {
           evidenceId: input.evidenceId,
           teamId: input.teamId,
@@ -115,7 +122,41 @@ export async function indexEvidenceText(
           embeddingDimensions: dimensions,
           embedding,
         },
+        select: { id: true },
       });
+      newChunkIds.push(row.id);
+    }
+    // Phase 16 — enqueue the dedicated mi-embed job so the worker
+    // fills the pgvector `embedding_vector` column. Best-effort:
+    // a failed enqueue MUST NOT bubble out of indexEvidenceText
+    // (the safety-net backfill in search-indexing.processor catches
+    // any drift on the next reindex pass).
+    if (input.teamId && newChunkIds.length > 0) {
+      try {
+        await enqueueEmbedChunks({
+          teamId: input.teamId,
+          chunkIds: newChunkIds,
+          reason: "live_indexing",
+        });
+      } catch (err) {
+        try {
+          // eslint-disable-next-line no-console
+          console.warn(
+            JSON.stringify({
+              kind: "semantic.embedding.enqueue_failed",
+              evidenceId: input.evidenceId.slice(0, 64),
+              workspaceId: input.teamId.slice(0, 64),
+              chunkCount: newChunkIds.length,
+              errorCode:
+                err instanceof Error
+                  ? err.name.slice(0, 64)
+                  : "ENQUEUE_FAILED",
+            }),
+          );
+        } catch {
+          /* logging best-effort */
+        }
+      }
     }
     return { chunks: chunks.length, embedded };
   } catch {

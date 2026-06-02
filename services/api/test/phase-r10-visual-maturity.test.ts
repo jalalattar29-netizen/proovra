@@ -490,11 +490,15 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(21271);
   });
 
-  it("CR1.6 byte-exact pin on evidence-complete.service.ts holds (42,799 bytes)", () => {
-    // Baseline moves with documented phase growth (G3.x/G4/G5).
+  it("CR1.6 byte-exact pin on evidence-complete.service.ts holds (45,520 bytes after Phase 14)", () => {
+    // Baseline moves with documented phase growth (G3.x/G4/G5/Phase 11/14).
+    // Phase 11: 42,799 → 44,441 (graph-reconcile + search-index hooks).
+    // Phase 14: 44,441 → 45,520 — onReconciled callback wired into
+    //   reconcileTeamGraph so post-reconcile fires a search re-index
+    //   (closes the post-finalize stale-index gap). Non-blocking.
     expect(
       statSync(apiSrcPath("services/evidence-complete.service.ts")).size,
-    ).toBe(42799);
+    ).toBe(45520);
   });
 
   it("CR1.6 byte-exact pin on custody-events.service.ts holds (5,155 bytes)", () => {

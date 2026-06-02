@@ -904,6 +904,9 @@ _Tables touched_: `password_reset_tokens`, `users`
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 295) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 443) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
 
+### `20270501000000_phase_10_paypal_webhook_payload_hash`
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 36) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+
 ## Prisma compatibility issues
 
 | Migration | Table | Column | Detail |

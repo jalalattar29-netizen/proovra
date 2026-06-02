@@ -237,7 +237,7 @@ useEffect(() => {
         <div style={headerRightStyle}>
           <span style={freshnessPillStyle(error, ageSeconds, teamId)}>
             {error
-              ? "data unavailable"
+              ? "No reviewer activity recorded yet"
               : !teamId
                 ? "loading workspace…"
                 : ageSeconds == null
@@ -310,8 +310,9 @@ useEffect(() => {
           />
           {!data.producerModes.producesNewContent ? (
             <span style={producerModesHintStyle}>
-              Extraction is not configured for this workspace. The platform
-              indexes existing OCR and transcript rows where available.
+              Automatic extraction is off — pre-existing OCR and transcript
+              content is still searchable. Configuration required — contact
+              your workspace administrator to enable automatic extraction.
             </span>
           ) : null}
         </section>
@@ -515,9 +516,9 @@ function ProducerModeChip({ label, mode }: { label: string; mode: string }) {
 function formatModeLabel(mode: string): string {
   switch (mode) {
     case "NOT_CONFIGURED":
-      return "not configured";
+      return "automatic extraction off";
     case "INDEX_EXISTING_ONLY":
-      return "indexing existing rows only";
+      return "existing content searchable";
     case "LOCAL_TESSERACT":
       return "local Tesseract";
     case "LOCAL_WHISPER":

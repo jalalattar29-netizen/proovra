@@ -189,7 +189,14 @@ const CAPTURE_ROUTES_BYTES_EXACT = 21271;
 // Baseline grows with documented phases (G3.x/G4/G5). The
 // "no shrink/regression" guarantee is the spirit; the constant
 // is rebaselined as the file legitimately grows.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 42799;
+// Phase 11 rebaseline: 42,799 → 44,441 after best-effort graph-reconcile
+// + search-index enqueue hooks landed in evidence-complete.service.ts
+// (both wrapped in try/catch — non-blocking; no schema changes).
+// Phase 14 rebaseline: 44,441 → 45,520 after the onReconciled callback
+// closure was wired so reconcileTeamGraph's completion enqueues a
+// search re-index — closes the post-finalize stale-index gap. Non-
+// blocking try/catch preserved.
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 45520;
 const CUSTODY_EVENTS_SVC_BYTES_EXACT = 5155;
 const TIMESTAMP_SVC_BYTES_EXACT = 7535;
 const PRE_CR5_AI_ASSISTANT_BYTES = 23045;

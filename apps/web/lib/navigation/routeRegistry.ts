@@ -895,9 +895,25 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "DEGRADED",
     workflowTags: ["INVESTIGATION_RECONSTRUCTION", "REVIEW_OPERATIONS"],
     advancedByDefault: true,
+    // -------------------------------------------------------------------------
+    // Investigation-suite audit (persona-fit decision):
+    // The reviewer-intelligence console surfaces review-workflow queues,
+    // escalations, and external-reviewer grants — content that is only
+    // meaningful for actors who actually perform or coordinate review work.
+    // Personal / solo personas (FREE / PAYG) and most PRO single-operator
+    // users have no reviewer queue to inspect; surfacing this in the
+    // primary sidebar yields an empty surface that reads as broken.
+    //
+    // Decision: keep this route reachable from the command palette and
+    // the All Tools index (so review-capable actors can always navigate
+    // to it), but remove it from the always-on sidebar surface. Personas
+    // that actually perform review work reach it via the review pillar.
+    // requiredCapabilities, requiredActiveSpace, and fallbackBehavior are
+    // intentionally unchanged — backend gating is the authority.
+    // -------------------------------------------------------------------------
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: true,
+    sidebarEligible: false,
   },
   {
     id: "investigation.hub",
@@ -1372,7 +1388,14 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.trust_center",
     href: "/trust-center",
-    label: "Trust Center",
+    // -------------------------------------------------------------------------
+    // workspace-surface audit — label clarification:
+    // Renamed from "Trust Center" to "Trust & Compliance" per Section 6
+    // of the audit. The new label makes the compliance-discovery pathway
+    // explicit (this surface bundles methodology, AI disclosure, security,
+    // and subprocessor disclosures used by audit reviewers and procurement).
+    // -------------------------------------------------------------------------
+    label: "Trust & Compliance",
     description:
       "Versioned platform-trust documentation — methodology, AI disclosure, security, subprocessors.",
     domain: "ORGANIZATION_WORKSPACE",
@@ -1463,7 +1486,17 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: false,
+    // -------------------------------------------------------------------------
+    // workspace-surface audit — persona rationale:
+    // Executive Dashboard is the C-suite consumption surface for org-tier
+    // metrics, but it was previously cmd-K-only, so leadership personas
+    // (ORG + GOVERNANCE_VIEW) could not discover it without prior URL
+    // knowledge. Flipping sidebarEligible to true so the dashboard appears
+    // in the Governance pillar for actors who actually have the capability.
+    // Backend gating (GOVERNANCE_VIEW + ORGANIZATION_ONLY) is unchanged —
+    // PERSONAL workspaces and non-governance actors still cannot see it.
+    // -------------------------------------------------------------------------
+    sidebarEligible: true,
   },
   {
     id: "workspace.governance_platform",
@@ -1484,7 +1517,16 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.intelligence_platform",
     href: "/intelligence-platform",
-    label: "Intelligence Platform",
+    // -------------------------------------------------------------------------
+    // workspace-surface audit — label clarification:
+    // Renamed from "Intelligence Platform" to "Intelligence" per Section 6
+    // of the audit. The "Platform" suffix added enterprise noise without
+    // operator value; the surface is the enterprise intelligence console.
+    // The personal-tier `workspace.intelligence` route uses the same
+    // operator-facing label but is gated to PERSONAL_OR_ORG + EVIDENCE_VIEW
+    // so the two never appear in the same persona's sidebar simultaneously.
+    // -------------------------------------------------------------------------
+    label: "Intelligence",
     description:
       "Enterprise intelligence layer — provider health, cost summary, budgets, bounded operator workflows.",
     domain: "ORGANIZATION_WORKSPACE",
@@ -1495,7 +1537,15 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: false,
+    // -------------------------------------------------------------------------
+    // workspace-surface audit — persona rationale:
+    // Enterprise intelligence dashboards were buried in cmd-K only; org
+    // governance actors (ORG + GOVERNANCE_VIEW) had no sidebar pathway to
+    // them. Flipping sidebarEligible to true exposes the surface in the
+    // Governance pillar for capable actors. Backend gating
+    // (GOVERNANCE_VIEW + ORGANIZATION_ONLY) is unchanged.
+    // -------------------------------------------------------------------------
+    sidebarEligible: true,
   },
   {
     id: "workspace.packaging",

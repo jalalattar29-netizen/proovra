@@ -180,7 +180,7 @@ function DuplicatesReviewPageInner() {
         <div style={headerRightStyle}>
           <span style={freshnessPillStyle(error, ageSeconds, teamId)}>
             {error
-              ? "data unavailable"
+              ? "No relationships recorded yet"
               : !teamId
                 ? "loading workspace…"
                 : ageSeconds == null
@@ -247,11 +247,25 @@ function DuplicatesReviewPageInner() {
         {filtered == null ? (
           <p style={emptyStyle}>Loading…</p>
         ) : filtered.length === 0 ? (
-          <p style={emptyStyle}>
-            No relationships match the current filter. Run the analyzer on
-            individual evidence records, or wait for graph reconcile to
-            populate the workspace graph.
-          </p>
+          <div style={emptyStyle}>
+            <p style={emptyTitleStyle}>
+              Exact-match duplicates appear here automatically as evidence
+              is reconciled. Perceptual similarity is not yet available on
+              this workspace.
+            </p>
+            <p style={emptyHintStyle}>
+              Capture additional evidence or open existing cases — reconciled
+              duplicates surface here without further setup.
+            </p>
+            <div style={emptyCtaRowStyle}>
+              <Link href="/capture" style={emptyCtaPrimaryStyle}>
+                Capture evidence
+              </Link>
+              <Link href="/cases" style={emptyCtaSecondaryStyle}>
+                Open cases
+              </Link>
+            </div>
+          </div>
         ) : (
           <ul style={listStyle}>
             {filtered.map((edge) => (
@@ -325,6 +339,23 @@ function DuplicateRow({
         </Link>
         <Link href={`/evidence/${b}`} style={pivotLinkSmallStyle}>
           Open B
+        </Link>
+        {/* Phase 14 — pivot each side of the duplicate relationship
+            into the canonical /search surface scoped to that
+            evidence record. Operators can review the full search
+            envelope (badges, governance state, related rows) without
+            leaving the duplicate-review flow. */}
+        <Link
+          href={`/search?evidenceId=${encodeURIComponent(a)}`}
+          style={pivotLinkSmallStyle}
+        >
+          Open A in Search
+        </Link>
+        <Link
+          href={`/search?evidenceId=${encodeURIComponent(b)}`}
+          style={pivotLinkSmallStyle}
+        >
+          Open B in Search
         </Link>
         <Link
           href={`/investigation/relationships?nodeId=${encodeURIComponent(
@@ -561,6 +592,49 @@ const emptyStyle: React.CSSProperties = {
   border: "1px solid #e5e7eb",
   borderRadius: 8,
   padding: 14,
+};
+
+const emptyTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#0f172a",
+};
+
+const emptyHintStyle: React.CSSProperties = {
+  margin: "6px 0 0 0",
+  fontSize: 12,
+  color: "#64748b",
+  lineHeight: 1.5,
+};
+
+const emptyCtaRowStyle: React.CSSProperties = {
+  marginTop: 10,
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
+const emptyCtaPrimaryStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#ffffff",
+  background: "#1e40af",
+  border: "1px solid #1e3a8a",
+  borderRadius: 6,
+  padding: "5px 12px",
+  textDecoration: "none",
+};
+
+const emptyCtaSecondaryStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#1e40af",
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  borderRadius: 6,
+  padding: "5px 12px",
+  textDecoration: "none",
 };
 
 const listStyle: React.CSSProperties = {

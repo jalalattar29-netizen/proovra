@@ -23,6 +23,11 @@ export const GRAPH_NODE_KINDS = [
   "TRANSCRIPT",
   "EXTERNAL_REVIEW",
   "USER_CREATED_ENTITY",
+  // Phase 13 — extracted-entity node. One node per persisted
+  // evidence_entities row; external_id == evidence_entities.id.
+  // Mirrors the widened DB CHECK constraint in the Phase 13
+  // migration.
+  "ENTITY",
 ] as const;
 
 export type GraphNodeKind = (typeof GRAPH_NODE_KINDS)[number];
@@ -44,6 +49,10 @@ export const GRAPH_EDGE_TYPES = [
   "HAS_TRANSCRIPT",
   "HAS_OCR",
   "MANUALLY_LINKED_TO",
+  // Phase 13 — ENTITY → EVIDENCE: this entity was extracted from
+  // that evidence record by the entity-extraction service. Mirrors
+  // the widened DB CHECK constraint in the Phase 13 migration.
+  "EXTRACTED_FROM",
 ] as const;
 
 export type GraphEdgeType = (typeof GRAPH_EDGE_TYPES)[number];

@@ -29,6 +29,14 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+// Phase 14 — Stage 2 re-index triggers. After an OCR / transcript
+// extraction reaches COMPLETED, or after the regex-based entity
+// extractor persists new candidate rows, the keyword search index
+// must be refreshed so the new text + entity names become discoverable
+// from the canonical /search surface. The enqueue is best-effort and
+// MUST NOT block the parent COMPLETED write — see Phase 14 ground
+// rules (Stage 2 audit-log constraints).
+import { enqueueSearchIndexingJob } from "../../queue/search-queue.js";
 
 const MAX_TEXT_BYTES = 5 * 1024 * 1024; // 5 MiB per extraction row
 
@@ -281,6 +289,87 @@ export async function runExtractionInline(
       },
     });
   }
+
+  // Phase 14 — Stage 2 trigger #1 / #2. The keyword search projection
+  // pulls EvidenceExtractedText rows of status COMPLETED into the
+  // indexed `searchableText` column (see evidence-indexing.service.ts
+  // Phase 13 projection). Without an explicit re-index after a
+  // COMPLETED upsert the new text would stay invisible to /search
+  // until the next evidence_completed boundary fires (which may never
+  // happen for OCR/transcript-only updates on an already-finalised
+  // evidence record).
+  //
+  // Hard rules (Phase 14 ground rules):
+  //   * Best-effort: failure MUST NOT block the parent COMPLETED write.
+  //   * No raw OCR/transcript text in the catch arm — only the
+  //     evidenceId + reason + bounded error code reach the logs.
+  //   * Idempotent: enqueueSearchIndexingJob uses a deterministic
+  //     jobId keyed on (kind, sourceId), so concurrent triggers
+  //     collapse to a single job.
+  //   * teamId may be null on legacy rows — only enqueue when present
+  //     since the search projection is team-anchored.
+  if (input.teamId) {
+    try {
+      const reason =
+        input.jobKind === "OCR" ? "ocr_completed" : "transcript_completed";
+      await enqueueSearchIndexingJob({
+        teamId: input.teamId,
+        kind: "evidence",
+        sourceId: input.evidenceId,
+        reason,
+      });
+    } catch {
+      /* Phase 14 — best-effort; never block the COMPLETED write. */
+    }
+  }
+
+  // Phase 11 — connect-only entity-extraction trigger (do-not-duplicate
+  // audit, §3.3). When a text extraction succeeds, hand the text to the
+  // existing regex-based extractor so entity rows materialise without
+  // requiring a separate scan job. The extractor is idempotent
+  // (de-dupes on (kind, normalizedValue) within the (evidence, source)
+  // scope), so re-runs are safe. Wrapped in try/catch — entity
+  // extraction is advisory and never blocks the extraction-text write.
+  //
+  // Phase 14 — Stage 2 trigger #3. After the entity-extraction call
+  // returns persisted rows, we fire a second `enqueueSearchIndexingJob`
+  // with reason "entities_extracted" so the indexer can pull the
+  // newly-materialised EvidenceEntity rows into the searchable entity-
+  // name chunks (Phase 13 search-indexer projection). Best-effort +
+  // never blocks the parent write.
+  if (truncated && truncated.length > 0) {
+    try {
+      const { extractAndPersistEntities } = await import(
+        "./entity-extraction.service.js"
+      );
+      const source =
+        input.jobKind === "OCR" ? "OCR" : "TRANSCRIPT";
+      const persisted = await extractAndPersistEntities(
+        {
+          evidenceId: input.evidenceId,
+          teamId: input.teamId,
+          text: truncated,
+          source,
+        },
+        client,
+      );
+      if (persisted.length > 0 && input.teamId) {
+        try {
+          await enqueueSearchIndexingJob({
+            teamId: input.teamId,
+            kind: "evidence",
+            sourceId: input.evidenceId,
+            reason: "entities_extracted",
+          });
+        } catch {
+          /* Phase 14 — best-effort; never block the COMPLETED write. */
+        }
+      }
+    } catch {
+      /* entity extraction is best-effort; advisory only */
+    }
+  }
+
   return completed;
 }
 

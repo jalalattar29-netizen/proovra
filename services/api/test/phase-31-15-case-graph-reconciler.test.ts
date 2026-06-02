@@ -287,7 +287,15 @@ describe("Phase 32.14 — Investigation Timeline UI", () => {
   });
 
   it("empty state has next-action guidance (not a dead-end UI)", () => {
+    // Investigation-suite audit evolution: the legacy "No events
+    // recorded …graph reconcile" copy was replaced with an operator-
+    // readable empty state ("No workspace events recorded yet") plus
+    // Capture/Cases CTA buttons that link to existing surfaces. The
+    // intent (no dead-end UI — every empty state has a next action)
+    // is preserved. Canonical pin in `investigation-suite-audit.test.ts`.
     const flat = src.replace(/\s+/g, " ");
-    expect(flat).toMatch(/No events recorded[\s\S]*?(graph reconcile|reconcile|analyzer)/i);
+    expect(flat).toMatch(
+      /No (?:events recorded|workspace events)[\s\S]*?(?:graph reconcile|reconcile|analyzer|Capture|Cases)/i,
+    );
   });
 });

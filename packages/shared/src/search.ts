@@ -60,6 +60,27 @@ export const SearchSortModeSchema = z.enum(SEARCH_SORT_MODES);
 export type SearchSortMode = z.infer<typeof SearchSortModeSchema>;
 
 // -----------------------------------------------------------------------------
+// Phase 15 — Search mode + fallback reasons.
+//
+// `mode` is the operator's request. `modeUsed` (returned on every
+// response) is what the backend actually executed — which can differ
+// from `mode` when the semantic provider is unavailable. The backend
+// then sets `fallbackReason` so the UI can render an honest chip.
+// -----------------------------------------------------------------------------
+
+export const SEARCH_MODES = ["KEYWORD", "SEMANTIC", "HYBRID"] as const;
+export const SearchModeSchema = z.enum(SEARCH_MODES);
+export type SearchMode = z.infer<typeof SearchModeSchema>;
+
+export const SEARCH_FALLBACK_REASONS = [
+  "PROVIDER_UNAVAILABLE",
+  "SEMANTIC_FEATURE_DISABLED",
+  "QUERY_TOO_SHORT",
+  "NO_SEMANTIC_RESULTS",
+] as const;
+export type SearchFallbackReason = (typeof SEARCH_FALLBACK_REASONS)[number];
+
+// -----------------------------------------------------------------------------
 // Saved-view visibility
 // -----------------------------------------------------------------------------
 
@@ -108,6 +129,9 @@ export const SearchFilterSchema = z
     sort: SearchSortModeSchema.optional(),
     cursor: z.string().min(8).max(512).optional(),
     limit: z.number().int().min(1).max(100).optional(),
+    // Phase 15 — semantic / hybrid request mode. Default is KEYWORD,
+    // which preserves Phase 14 behavior exactly.
+    mode: SearchModeSchema.optional(),
   })
   .strict();
 export type SearchFilterInput = z.infer<typeof SearchFilterSchema>;
@@ -148,6 +172,13 @@ export type SearchResultRow = {
   // shared/search.ts file header for the rules.
   badges: ReadonlyArray<string>;
   updatedAtUtc: string;
+  // Phase 15 — hybrid ranker metadata. All optional + backward-
+  // compatible: existing Phase 14 clients ignore these fields safely.
+  // `matchReasons` uses operator-readable phrases ONLY — never raw
+  // internal score names like "ts_rank" or "cosine_distance".
+  matchReasons?: ReadonlyArray<string>;
+  semanticScore?: number | null;
+  keywordScore?: number | null;
 };
 
 // -----------------------------------------------------------------------------

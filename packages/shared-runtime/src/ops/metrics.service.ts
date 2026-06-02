@@ -644,6 +644,14 @@ export const COUNTER_NAMES = [
   // no longer silent: structured log + this counter + bounded
   // forensic detail for the SRE team.
   "custody_event_append_failed_total",
+  // Phase 16 — semantic embed mi-embed queue producer telemetry.
+  // Incremented from `services/api/src/queue/mi-embed-queue.ts` whenever
+  // the API-side BullMQ producer fails to enqueue (Redis missing /
+  // construct failure / add() rejection) or successfully enqueues a job.
+  // Both counters are bounded and carry NO chunk text — just allow
+  // SRE to monitor enqueue health and drift between API and worker.
+  "semantic_embed_enqueue_failed_total",
+  "semantic_embed_enqueued_total",
 ] as const;
 export type CounterName = (typeof COUNTER_NAMES)[number];
 

@@ -18,10 +18,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
 import {
+  useActiveSpace,
   usePersonaProfile,
+  usePlatformContext,
   useTerminology,
   useWorkspaceId,
   workflowFromPersona,
@@ -54,6 +57,10 @@ type SortMode =
 
 type SavedViewVisibility = "PRIVATE" | "TEAM";
 
+// Phase 15 — additive search modes. Default behaviour remains keyword.
+// "hybrid" blends keyword + semantic ranking; "semantic" is pure embedding.
+type SearchMode = "keyword" | "hybrid" | "semantic";
+
 type ResultRow = {
   documentId: string;
   documentType: DocumentType;
@@ -73,6 +80,11 @@ type ResultRow = {
   reviewerRestricted: boolean;
   badges: ReadonlyArray<string>;
   updatedAtUtc: string;
+  // Phase 15 — optional ranking signals. Backend may omit on legacy
+  // responses; UI degrades gracefully when absent.
+  score?: number | null;
+  semanticScore?: number | null;
+  matchReasons?: ReadonlyArray<string>;
 };
 
 type SearchResponse = {
@@ -81,6 +93,40 @@ type SearchResponse = {
   totalReturned: number;
   filteredByGovernance: number;
   filteredByVisibility: number;
+  // Phase 15 — optional semantic-runtime envelope. Older API builds
+  // omit these and the page treats semantic as unavailable.
+  modeUsed?: SearchMode;
+  semanticAvailable?: boolean;
+  fallbackReason?: string | null;
+};
+
+// Phase 16 — semantic status envelope returned by
+// GET /v1/search/semantic/status. The endpoint is a thin projection
+// over the workspace-scoped embedding provider gate + the most recent
+// fallback reason recorded by the search service. Pre-Phase-16
+// deployments do not expose this endpoint; the page treats a missing
+// envelope as "semantic disabled" and never throws.
+type SemanticStatusResponse = {
+  enabled: boolean;
+  semanticAvailable: boolean;
+  fallbackReason: string | null;
+};
+
+// Phase 16 — admin backfill dry-run envelope returned by
+// POST /v1/search/semantic/backfill { dryRun: true }. The shape is
+// intentionally narrow: a count of chunks that would be embedded and
+// the workspace span. We never echo raw chunk text in the result.
+type SemanticBackfillResponse = {
+  dryRun: boolean;
+  chunksToEmbed: number;
+  workspaceCount: number;
+  // Optional usage telemetry the backend may attach so admins can see
+  // how close they are to the per-day cap / monthly budget without
+  // running a separate query. All numbers are bounded primitives.
+  perDayChunksUsed?: number | null;
+  perDayChunksCap?: number | null;
+  monthToDateEur?: number | null;
+  monthlyBudgetEur?: number | null;
 };
 
 type SavedView = {
@@ -127,6 +173,10 @@ type FilterState = {
   sort?: SortMode;
   cursor?: string;
   limit?: number;
+  // Phase 15 — optional search mode. Saved views written before Phase 15
+  // omit this field; the page derives a default at runtime so pre-Phase-15
+  // saved views still apply cleanly with keyword behaviour intact.
+  mode?: SearchMode;
 };
 
 const DOCUMENT_TYPES: DocumentType[] = [
@@ -178,6 +228,21 @@ function SearchInner() {
   const searchWorkflowCode = workflowFromPersona(
     searchPersona.primaryProfile,
   ).code;
+  // Phase 15 — read active space to gate the admin-only "Enable semantic
+  // search" no-result suggestion. We never expose raw env-var names in
+  // the UI; the suggestion link points at the in-product integrations
+  // surface, not to environment variables.
+  const activeSpace = useActiveSpace();
+  const isAdmin =
+    activeSpace?.type === "ORGANIZATION"
+      ? activeSpace.roleLabel === "OWNER" || activeSpace.roleLabel === "ADMIN"
+      : activeSpace?.type === "PERSONAL";
+  // Phase 16 — platform-admin gate for the backfill panel. The flag is
+  // derived from the canonical platform envelope (single source of
+  // truth) — never from local role heuristics. Non-admins never see
+  // the panel and the dry-run endpoint stays unreached from the UI.
+  const { envelope } = usePlatformContext();
+  const isPlatformAdmin = envelope?.platform?.isPlatformAdmin === true;
   const [filter, setFilter] = useState<FilterState | null>(null);
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -190,6 +255,16 @@ function SearchInner() {
   const [savingView, setSavingView] = useState(false);
   const [qDraft, setQDraft] = useState("");
   const { confirm } = useConfirmAction();
+  // Phase 16 — semantic status envelope. The chip + mode selector
+  // honor this when present and silently degrade to the per-response
+  // `results.semanticAvailable` when the endpoint is missing (older
+  // backends). One fetch per teamId; no polling.
+  const [semanticStatus, setSemanticStatus] =
+    useState<SemanticStatusResponse | null>(null);
+  const [backfillResult, setBackfillResult] =
+    useState<SemanticBackfillResponse | null>(null);
+  const [backfillRunning, setBackfillRunning] = useState(false);
+  const [backfillError, setBackfillError] = useState<string | null>(null);
 
   // Phase 32.8 Foundation cleanup — initialize filter when teamId
   // resolves from the canonical platform context.
@@ -211,6 +286,34 @@ function SearchInner() {
       })
       .catch(() => {
         if (!cancelled) setSavedViews([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [teamId]);
+
+  // Phase 16 — semantic status. One fetch per teamId, on mount only.
+  // The endpoint is the canonical workspace-scoped projection of the
+  // embedding provider gate + most recent fallback reason. Missing
+  // endpoint (older backend) collapses to `null` so the page degrades
+  // to the per-response semantic availability signal instead.
+  useEffect(() => {
+    if (!teamId) return;
+    let cancelled = false;
+    apiFetch(
+      `/v1/search/semantic/status?teamId=${encodeURIComponent(teamId)}`,
+      { method: "GET" },
+    )
+      .then((r: SemanticStatusResponse) => {
+        if (cancelled) return;
+        setSemanticStatus({
+          enabled: r?.enabled === true,
+          semanticAvailable: r?.semanticAvailable === true,
+          fallbackReason: r?.fallbackReason ?? null,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setSemanticStatus(null);
       });
     return () => {
       cancelled = true;
@@ -405,6 +508,67 @@ function SearchInner() {
     return parts.length > 0 ? parts.join(" · ") : "all rows";
   }, [filter]);
 
+  // Phase 16 — semantic availability prefers the dedicated status
+  // endpoint when present (workspace-scoped, capability-aware). When
+  // the endpoint is missing (older backend), we fall back to the
+  // per-response signal from /v1/search. Either way the page never
+  // falsely promises a capability that isn't online.
+  const semanticEnabled = semanticStatus?.enabled === true;
+  const semanticAvailable = semanticStatus
+    ? semanticStatus.semanticAvailable === true
+    : results?.semanticAvailable === true;
+  // Phase 15 — effective mode: prefer the user's explicit choice, but
+  // default to "hybrid" when semantic is available and "keyword" when
+  // it is not. Pre-Phase-15 saved views (no mode field) consequently
+  // pick up hybrid silently on semantic-enabled deployments without
+  // operator action; the saved view itself is not mutated.
+  const effectiveMode: SearchMode =
+    filter?.mode ?? (semanticAvailable ? "hybrid" : "keyword");
+  const modeUsed: SearchMode = results?.modeUsed ?? effectiveMode;
+  // Phase 16 — prefer the per-response fallback reason (it reflects
+  // THIS query) and fall back to the global status fallback reason
+  // when the search hasn't returned a row-set yet (initial paint).
+  const fallbackReason =
+    results?.fallbackReason ?? semanticStatus?.fallbackReason ?? null;
+
+  // Phase 16 — admin-only backfill dry-run. Only renders for platform
+  // admins (the panel is hidden entirely otherwise). The call is
+  // workspace-scoped and idempotent — a dry run never writes embeddings.
+  const runBackfillDryRun = useCallback(async () => {
+    if (!teamId || !isPlatformAdmin) return;
+    setBackfillRunning(true);
+    setBackfillError(null);
+    try {
+      const r = (await apiFetch("/v1/search/semantic/backfill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId, dryRun: true }),
+      })) as SemanticBackfillResponse;
+      setBackfillResult({
+        dryRun: r?.dryRun === true,
+        chunksToEmbed:
+          typeof r?.chunksToEmbed === "number" ? r.chunksToEmbed : 0,
+        workspaceCount:
+          typeof r?.workspaceCount === "number" ? r.workspaceCount : 0,
+        perDayChunksUsed:
+          typeof r?.perDayChunksUsed === "number" ? r.perDayChunksUsed : null,
+        perDayChunksCap:
+          typeof r?.perDayChunksCap === "number" ? r.perDayChunksCap : null,
+        monthToDateEur:
+          typeof r?.monthToDateEur === "number" ? r.monthToDateEur : null,
+        monthlyBudgetEur:
+          typeof r?.monthlyBudgetEur === "number" ? r.monthlyBudgetEur : null,
+      });
+    } catch (err) {
+      setBackfillError(
+        (err as { message?: string })?.message ??
+          "Could not run dry run. The semantic backfill endpoint may not be available on this deployment.",
+      );
+    } finally {
+      setBackfillRunning(false);
+    }
+  }, [teamId, isPlatformAdmin]);
+
   if (!teamId || !filter) {
     return (
       <main style={loadingScreenStyle}>
@@ -424,6 +588,34 @@ function SearchInner() {
             Operator search across {terms.evidenceLower}, workflows, audit events, and
             communications. Results respect visibility and governance rules.
           </p>
+          {/* Phase 15/16 — semantic-search status chip. The chip text
+              and colour reflect whichever mode the backend actually
+              ran (`modeUsed`), the workspace-scoped capability
+              (`semanticEnabled` + `semanticAvailable` from the Phase
+              16 status endpoint), and the per-query fallback reason
+              when the backend downgraded. Phase 13 wording is
+              preserved for the disabled baseline. No raw env-var
+              names appear in any chip variant. */}
+          <SemanticStatusChip
+            semanticEnabled={semanticEnabled}
+            semanticAvailable={semanticAvailable}
+            requestedMode={effectiveMode}
+            modeUsed={modeUsed}
+            fallbackReason={fallbackReason}
+            statusEndpointAvailable={semanticStatus !== null}
+          />
+          {/* Phase 16 — admin-only backfill panel. Hidden entirely for
+              non-admins; the dry-run endpoint stays unreached from the
+              UI. Renders directly under the chip to keep the operator
+              context tight. */}
+          {isPlatformAdmin ? (
+            <SemanticBackfillPanel
+              running={backfillRunning}
+              error={backfillError}
+              result={backfillResult}
+              onRun={runBackfillDryRun}
+            />
+          ) : null}
         </div>
         <form onSubmit={submitQuery} style={searchFormStyle}>
           <input
@@ -433,6 +625,23 @@ function SearchInner() {
             style={searchInputStyle}
             maxLength={200}
             aria-label="Search query"
+          />
+          {/* Phase 15/16 — search mode selector. Sits next to the
+              search input so operators can switch ranking strategy
+              without losing their query. When semantic is unavailable
+              the Hybrid + Semantic options are rendered disabled with
+              a tooltip that humanises the workspace-scoped fallback
+              reason from the Phase 16 status endpoint. Clicking has
+              no effect; the mode never changes. */}
+          <SearchModeSelector
+            value={effectiveMode}
+            semanticAvailable={semanticAvailable}
+            disabledReason={
+              semanticAvailable
+                ? null
+                : humaniseFallbackReason(fallbackReason)
+            }
+            onChange={(next) => updateFilter({ mode: next })}
           />
           <button type="submit" style={searchButtonStyle}>
             Search
@@ -649,7 +858,28 @@ function SearchInner() {
           </div>
           {!results || results.rows.length === 0 ? (
             <div style={emptyStateStyle}>
-              {loading ? "Searching…" : "No matches for this query."}
+              {loading ? (
+                "Searching…"
+              ) : (
+                // Phase 15/16 — additive no-result suggestions. The
+                // primary line preserves the legacy operator copy; the
+                // suggestions list nudges the operator toward broader
+                // queries, filter removal, and (for admins on
+                // semantic-disabled deployments) the in-product
+                // integrations surface where semantic search can be
+                // enabled. Phase 16 adds a "Try semantic search" link
+                // when the operator searched keyword-only and semantic
+                // is available, and a single bounded line when
+                // semantic was attempted (no nag). No env vars
+                // anywhere.
+                <NoResultsHelp
+                  isAdmin={isAdmin}
+                  semanticAvailable={semanticAvailable}
+                  mode={effectiveMode}
+                  modeUsed={modeUsed}
+                  onSwitchToHybrid={() => updateFilter({ mode: "hybrid" })}
+                />
+              )}
             </div>
           ) : (
             <ul style={resultListStyle}>
@@ -665,6 +895,20 @@ function SearchInner() {
                     </span>
                     <span style={resultTitleStyle}>{row.title}</span>
                   </div>
+                  {/* Phase 15 — match-reason badges. Backend annotates
+                      each row with the signals that contributed to the
+                      match (e.g. "Matched OCR text", "Semantically
+                      similar"). Pre-Phase-15 responses omit the field
+                      and the badge row is skipped. */}
+                  {row.matchReasons && row.matchReasons.length > 0 ? (
+                    <div style={matchReasonRowStyle}>
+                      {row.matchReasons.map((reason) => (
+                        <span key={reason} style={matchReasonBadgeStyle}>
+                          {reason}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {row.subtitle ? (
                     <div style={resultSubtitleStyle}>{row.subtitle}</div>
                   ) : null}
@@ -809,6 +1053,16 @@ function Inspector({
 
       {(row.evidenceId || row.caseId) ? (
         <Section label="Investigation pivots">
+          {/* Phase 15 — when the selected row carries a semantic score,
+              caption the pivots so the operator knows the chain that
+              produced this hit. The truncated title is enough context;
+              we never echo the original query verbatim here either. */}
+          {typeof row.semanticScore === "number" && row.semanticScore > 0 ? (
+            <p style={semanticPivotCaptionStyle}>
+              Semantically similar to: {row.title.slice(0, 80)}
+              {row.title.length > 80 ? "…" : ""}
+            </p>
+          ) : null}
           {row.caseId ? (
             <KeyVal
               label="Case graph"
@@ -983,6 +1237,344 @@ function KeyVal({
 }
 
 // -----------------------------------------------------------------------------
+// Phase 15 — additive UI helpers (mode selector + status chip + no-result
+// help). Kept colocated so the search page remains the single canonical
+// surface for global intelligence search. None of these read or write any
+// new envelope fields beyond what the search API already returns, and
+// none expose raw env-var names in their copy.
+// -----------------------------------------------------------------------------
+
+function SearchModeSelector({
+  value,
+  semanticAvailable,
+  disabledReason,
+  onChange,
+}: {
+  value: SearchMode;
+  semanticAvailable: boolean;
+  // Phase 16 — humanised reason for the disabled tooltip. Sourced from
+  // the workspace-scoped status endpoint or the per-query fallback
+  // reason. `null` means the generic "not enabled" copy is used.
+  disabledReason: string | null;
+  onChange: (next: SearchMode) => void;
+}) {
+  // Options always present; "semantic" and "hybrid" become inert when
+  // the backend is not advertising semantic capability. We never throw
+  // an error or warn the operator — the chip styling + tooltip carry
+  // the message.
+  const disabledTitle = semanticAvailable
+    ? undefined
+    : disabledReason
+      ? `Semantic search unavailable: ${disabledReason}`
+      : "Semantic search is not enabled on this deployment";
+  const options: ReadonlyArray<{
+    value: SearchMode;
+    label: string;
+    disabled: boolean;
+    title?: string;
+  }> = [
+    { value: "keyword", label: "Keyword", disabled: false },
+    {
+      value: "hybrid",
+      label: "Hybrid",
+      disabled: !semanticAvailable,
+      title: disabledTitle,
+    },
+    {
+      value: "semantic",
+      label: "Semantic",
+      disabled: !semanticAvailable,
+      title: disabledTitle,
+    },
+  ];
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Search mode"
+      data-search-mode-selector
+      style={searchModeSelectorStyle}
+    >
+      {options.map((opt) => {
+        const active = value === opt.value && !opt.disabled;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-disabled={opt.disabled}
+            disabled={opt.disabled}
+            data-search-mode={opt.value}
+            title={opt.title}
+            onClick={() => {
+              if (opt.disabled) return;
+              if (value === opt.value) return;
+              onChange(opt.value);
+            }}
+            style={searchModeButtonStyle(active, opt.disabled)}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SemanticStatusChip({
+  semanticEnabled,
+  semanticAvailable,
+  requestedMode,
+  modeUsed,
+  fallbackReason,
+  statusEndpointAvailable,
+}: {
+  // Phase 16 — workspace-scoped "enabled" flag from the dedicated
+  // status endpoint. Distinct from `semanticAvailable` because a
+  // workspace can have the feature enabled at the deployment level
+  // but still see the provider report "unavailable" today (daily cap
+  // reached, provider offline, outbound disabled).
+  semanticEnabled: boolean;
+  semanticAvailable: boolean;
+  requestedMode: SearchMode;
+  modeUsed: SearchMode;
+  fallbackReason: string | null;
+  // Phase 16 — when the status endpoint isn't present (older
+  // backend), we fall back to the legacy per-response signal and
+  // skip the "disabled vs unavailable" split. The chip still renders
+  // the Phase 13 / Phase 15 wording in that case.
+  statusEndpointAvailable: boolean;
+}) {
+  // Variant resolution — keeps the chip honest about what actually
+  // ran. Order matters: a fallback flag wins over a "happy path"
+  // banner so operators see the real state. The data attribute
+  // vocabulary (`disabled` / `active` / `fallback` / `blocked`) is
+  // preserved from Phase 13 — Phase 16 adds `unavailable` for the
+  // new "enabled but offline" case.
+  const usedSemantic = modeUsed === "hybrid" || modeUsed === "semantic";
+  const humanReason = humaniseFallbackReason(fallbackReason);
+  let label: string;
+  let status: "disabled" | "active" | "fallback" | "blocked" | "unavailable";
+  if (statusEndpointAvailable && !semanticEnabled) {
+    // Phase 16 — feature disabled at the workspace level. Single
+    // bounded line; no env-var names anywhere.
+    label = "Semantic search disabled — keyword mode active";
+    status = "disabled";
+  } else if (statusEndpointAvailable && semanticEnabled && !semanticAvailable) {
+    // Phase 16 — feature enabled but the provider reported
+    // unavailable for this workspace. Surface the humanised reason
+    // when the backend gave us one.
+    label = humanReason
+      ? `Semantic search unavailable: ${humanReason}`
+      : "Semantic search unavailable";
+    status = "unavailable";
+  } else if (statusEndpointAvailable && semanticEnabled && semanticAvailable) {
+    // Phase 16 — workspace-scoped happy path. If a per-query fallback
+    // happened anyway, show the fallback chip so the operator
+    // doesn't think the rerank ran.
+    if (
+      (requestedMode === "hybrid" || requestedMode === "semantic") &&
+      !usedSemantic
+    ) {
+      label = humanReason
+        ? `Hybrid semantic search fell back to keyword — ${humanReason}`
+        : "Hybrid semantic search fell back to keyword for this query";
+      status = "fallback";
+    } else {
+      label = "Hybrid semantic search active";
+      status = "active";
+    }
+  } else if (!semanticAvailable) {
+    // Legacy path (no status endpoint). Preserve Phase 13 wording.
+    if (requestedMode === "semantic" || requestedMode === "hybrid") {
+      label = "Semantic search disabled — keyword search active";
+      status = "blocked";
+    } else {
+      label = "Semantic search not available — keyword search active";
+      status = "disabled";
+    }
+  } else if (
+    (requestedMode === "hybrid" || requestedMode === "semantic") &&
+    !usedSemantic
+  ) {
+    label = humanReason
+      ? `Hybrid semantic search fell back to keyword — ${humanReason}`
+      : "Hybrid semantic search fell back to keyword for this query";
+    status = "fallback";
+  } else if (usedSemantic) {
+    label = "Hybrid semantic search active";
+    status = "active";
+  } else {
+    label = "Keyword mode";
+    status = "disabled";
+  }
+  return (
+    <span
+      data-semantic-search-status={status}
+      style={semanticStatusChipStyle(status)}
+    >
+      {label}
+    </span>
+  );
+}
+
+// Phase 16 — bounded translation of the wire-level fallback codes
+// into operator-safe copy. Unknown codes pass through lower-cased so
+// future codes still render readably without a UI deploy.
+function humaniseFallbackReason(code: string | null): string | null {
+  if (!code) return null;
+  switch (code) {
+    case "PROVIDER_UNAVAILABLE":
+      return "provider offline";
+    case "DAILY_CAP":
+      return "daily cap reached";
+    case "MONTHLY_BUDGET":
+      return "monthly budget reached";
+    case "OUTBOUND_NOT_ALLOWED":
+      return "outbound disabled";
+    case "SEMANTIC_FEATURE_DISABLED":
+      return "feature not enabled";
+    case "QUERY_TOO_SHORT":
+      return "query too short";
+    case "NO_SEMANTIC_RESULTS":
+      return "no semantic matches";
+    default:
+      return code.toLowerCase().replace(/_/g, " ");
+  }
+}
+
+function NoResultsHelp({
+  isAdmin,
+  semanticAvailable,
+  mode,
+  modeUsed,
+  onSwitchToHybrid,
+}: {
+  isAdmin: boolean;
+  semanticAvailable: boolean;
+  // Phase 16 — the operator's requested mode + the mode the backend
+  // actually ran. When the operator searched keyword-only with
+  // semantic available, we offer the "Try semantic search" link
+  // (one click, flips to hybrid). When semantic was attempted (the
+  // backend ran hybrid/semantic), we show a single bounded line and
+  // do not nag.
+  mode: SearchMode;
+  modeUsed: SearchMode;
+  onSwitchToHybrid: () => void;
+}) {
+  const semanticAttempted = modeUsed === "hybrid" || modeUsed === "semantic";
+  if (semanticAttempted) {
+    // Phase 16 — terminal state: both ranking strategies came up
+    // empty. Bounded operator-safe copy, no nag.
+    return (
+      <div style={noResultsHelpStyle}>
+        <p style={noResultsLeadStyle}>
+          No matches found across keyword OR semantic search.
+        </p>
+      </div>
+    );
+  }
+  // Suggestions are intentionally short and operator-safe. The
+  // "Enable semantic search" link only renders for admins on
+  // semantic-disabled deployments; non-admins are never nagged about
+  // capabilities they cannot change. The link target is the in-product
+  // integrations surface — no env-var names anywhere.
+  return (
+    <div style={noResultsHelpStyle}>
+      <p style={noResultsLeadStyle}>
+        No results yet. A few things you can try:
+      </p>
+      <ul style={noResultsListStyle}>
+        <li>Try broader terms</li>
+        <li>Remove filters</li>
+        {/* Phase 16 — when the operator searched keyword and the
+            workspace has semantic available, surface a single-click
+            "Try semantic search" affordance. Flips mode to hybrid;
+            no other state changes. */}
+        {mode === "keyword" && semanticAvailable ? (
+          <li>
+            <button
+              type="button"
+              onClick={onSwitchToHybrid}
+              style={inlineLinkButtonStyle}
+              data-action="try-semantic-search"
+            >
+              Try semantic search
+            </button>
+          </li>
+        ) : null}
+        {isAdmin && !semanticAvailable ? (
+          <li>
+            <Link href="/integrations" style={pointerLinkStyle}>
+              Enable semantic search
+            </Link>
+          </li>
+        ) : null}
+      </ul>
+    </div>
+  );
+}
+
+// Phase 16 — admin-only semantic backfill panel. Bounded to a single
+// "Run backfill (dry run)" button and a single-line result. The
+// panel is rendered ONLY when `isPlatformAdmin === true` (the caller
+// guards), so this component never has to do its own role check.
+function SemanticBackfillPanel({
+  running,
+  error,
+  result,
+  onRun,
+}: {
+  running: boolean;
+  error: string | null;
+  result: SemanticBackfillResponse | null;
+  onRun: () => void;
+}) {
+  const dayLine =
+    result && result.perDayChunksCap !== null && result.perDayChunksCap !== undefined
+      ? `Per-day chunks: ${result.perDayChunksUsed ?? 0} / ${result.perDayChunksCap}`
+      : null;
+  const budgetLine =
+    result &&
+    result.monthlyBudgetEur !== null &&
+    result.monthlyBudgetEur !== undefined
+      ? `Month-to-date: EUR ${(result.monthToDateEur ?? 0).toFixed(2)} / ${result.monthlyBudgetEur.toFixed(2)}`
+      : null;
+  return (
+    <div
+      style={semanticBackfillPanelStyle}
+      data-semantic-backfill-panel
+    >
+      <div style={semanticBackfillPanelLabelStyle}>Semantic backfill</div>
+      {dayLine ? <div style={semanticBackfillPanelLineStyle}>{dayLine}</div> : null}
+      {budgetLine ? (
+        <div style={semanticBackfillPanelLineStyle}>{budgetLine}</div>
+      ) : null}
+      <button
+        type="button"
+        onClick={onRun}
+        disabled={running}
+        style={semanticBackfillButtonStyle(running)}
+        data-action="semantic-backfill-dry-run"
+      >
+        {running ? "Running dry run…" : "Run backfill (dry run)"}
+      </button>
+      {result ? (
+        <div style={semanticBackfillPanelResultStyle}>
+          Would embed {result.chunksToEmbed} chunk
+          {result.chunksToEmbed === 1 ? "" : "s"} across {result.workspaceCount}{" "}
+          workspace
+          {result.workspaceCount === 1 ? "" : "s"}.
+        </div>
+      ) : null}
+      {error ? (
+        <div style={semanticBackfillPanelErrorStyle}>{error}</div>
+      ) : null}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
 
@@ -1013,6 +1605,11 @@ async function runSearch(filter: FilterState): Promise<SearchResponse> {
   if (filter.sort) qs.set("sort", filter.sort);
   if (filter.cursor) qs.set("cursor", filter.cursor);
   if (filter.limit) qs.set("limit", String(filter.limit));
+  // Phase 15 — pass the search mode through to /v1/search. The backend
+  // ignores unknown modes and falls back to keyword. We never send the
+  // mode unless it differs from the default keyword mode, so legacy
+  // backends that have not yet learned the parameter keep working.
+  if (filter.mode && filter.mode !== "keyword") qs.set("mode", filter.mode);
   const r = await apiFetch(`/v1/search?${qs.toString()}`, { method: "GET" });
   return r as SearchResponse;
 }
@@ -1068,6 +1665,55 @@ const subtitleStyle: React.CSSProperties = {
   margin: "4px 0 0",
   maxWidth: 640,
 };
+
+// Phase 13 — disabled-state pill for the semantic-search indicator.
+// Bounded operator-safe language only; no internal config names.
+// Phase 15 — retained as the disabled baseline; new state-aware
+// variants below (semanticStatusChipStyle) build from the same tokens.
+const _semanticSearchChipStyle: React.CSSProperties = {
+  display: "inline-block",
+  marginTop: 8,
+  padding: "2px 10px",
+  fontSize: 11,
+  fontWeight: 500,
+  background: "#f1f5f9",
+  color: "#475569",
+  border: "1px solid #cbd5e1",
+  borderRadius: 999,
+};
+
+// Phase 15 — palette-aware status chip. Uses the same colour family as
+// the existing badge palette on this page so we do not introduce a new
+// design system.
+function semanticStatusChipStyle(
+  status: "disabled" | "active" | "fallback" | "blocked" | "unavailable",
+): React.CSSProperties {
+  const palette: Record<
+    "disabled" | "active" | "fallback" | "blocked" | "unavailable",
+    { bg: string; fg: string; border: string }
+  > = {
+    disabled: { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" },
+    active: { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" },
+    fallback: { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
+    blocked: { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" },
+    // Phase 16 — "enabled but offline" carries a warning palette so
+    // operators distinguish it from "disabled" (no feature) and
+    // "blocked" (operator picked an unavailable mode).
+    unavailable: { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
+  };
+  const p = palette[status];
+  return {
+    display: "inline-block",
+    marginTop: 8,
+    padding: "2px 10px",
+    fontSize: 11,
+    fontWeight: 500,
+    background: p.bg,
+    color: p.fg,
+    border: `1px solid ${p.border}`,
+    borderRadius: 999,
+  };
+}
 
 const searchFormStyle: React.CSSProperties = {
   display: "flex",
@@ -1527,4 +2173,147 @@ const relTypeChipStyle: React.CSSProperties = {
 const mutedStyle: React.CSSProperties = {
   fontSize: 12,
   color: "#64748b",
+};
+
+// -----------------------------------------------------------------------------
+// Phase 15 — additive styles.
+// -----------------------------------------------------------------------------
+
+const searchModeSelectorStyle: React.CSSProperties = {
+  display: "inline-flex",
+  gap: 0,
+  border: "1px solid #cbd5e1",
+  borderRadius: 6,
+  overflow: "hidden",
+  background: "#fff",
+};
+
+function searchModeButtonStyle(
+  active: boolean,
+  disabled: boolean,
+): React.CSSProperties {
+  return {
+    padding: "8px 10px",
+    fontSize: 12,
+    fontWeight: 600,
+    border: "none",
+    background: active ? "#1e293b" : "#fff",
+    color: disabled ? "#94a3b8" : active ? "#fff" : "#334155",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.7 : 1,
+    borderRight: "1px solid #e2e8f0",
+  };
+}
+
+const matchReasonRowStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 4,
+  marginTop: 4,
+};
+
+const matchReasonBadgeStyle: React.CSSProperties = {
+  padding: "1px 6px",
+  fontSize: 10,
+  fontWeight: 500,
+  borderRadius: 4,
+  background: "#eff6ff",
+  color: "#1e40af",
+  border: "1px solid #bfdbfe",
+  whiteSpace: "nowrap",
+};
+
+const noResultsHelpStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: 6,
+};
+
+const noResultsLeadStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 13,
+  color: "#475569",
+};
+
+const noResultsListStyle: React.CSSProperties = {
+  listStyle: "disc",
+  margin: 0,
+  padding: 0,
+  paddingInlineStart: 20,
+  fontSize: 12,
+  color: "#475569",
+  textAlign: "left",
+  display: "inline-block",
+};
+
+const semanticPivotCaptionStyle: React.CSSProperties = {
+  margin: "0 0 6px",
+  fontSize: 11,
+  color: "#475569",
+  fontStyle: "italic",
+};
+
+// Phase 16 — admin-only backfill panel + inline "Try semantic search"
+// link button. Both surfaces share the page's design tokens; no new
+// colours or spacing primitives.
+
+const semanticBackfillPanelStyle: React.CSSProperties = {
+  marginTop: 8,
+  padding: "8px 12px",
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  borderRadius: 6,
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+  maxWidth: 360,
+};
+
+const semanticBackfillPanelLabelStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  color: "#475569",
+  letterSpacing: 0.5,
+};
+
+const semanticBackfillPanelLineStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: "#475569",
+};
+
+const semanticBackfillPanelResultStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: "#0f172a",
+};
+
+const semanticBackfillPanelErrorStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: "#991b1b",
+};
+
+function semanticBackfillButtonStyle(running: boolean): React.CSSProperties {
+  return {
+    alignSelf: "flex-start",
+    padding: "4px 10px",
+    fontSize: 12,
+    fontWeight: 600,
+    border: "1px solid #1e293b",
+    background: running ? "#cbd5e1" : "#1e293b",
+    color: running ? "#475569" : "#fff",
+    borderRadius: 6,
+    cursor: running ? "not-allowed" : "pointer",
+  };
+}
+
+const inlineLinkButtonStyle: React.CSSProperties = {
+  background: "none",
+  border: "none",
+  padding: 0,
+  margin: 0,
+  color: "#1e40af",
+  textDecoration: "underline",
+  cursor: "pointer",
+  font: "inherit",
 };

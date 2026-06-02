@@ -495,6 +495,7 @@ export async function processSearchIndexingJob(
   // search-document rebuild has not caught up.
   let ocrIndexed = 0;
   let transcriptIndexed = 0;
+  let semanticEmbedded = 0;
   if (upserted && projectedEvidenceId) {
     const now = new Date();
     try {
@@ -532,6 +533,37 @@ export async function processSearchIndexingJob(
         "worker.search.indexing.lag_pointer_failed",
       );
     }
+
+    // -------------------------------------------------------------------
+    // Phase 15 — opportunistic semantic embedding backfill.
+    //
+    // Runs AFTER the keyword index write so a failure here NEVER
+    // blocks the canonical search-document upsert. Gated on:
+    //   - SEMANTIC_SEARCH_ENABLED=true
+    //   - A configured provider that is not the disabled stub
+    //
+    // Reads chunks that have a `chunkText` but no `embedding` yet,
+    // computes a vector via the provider, and writes back. NEVER
+    // logs raw chunk text — only chunk id, evidence id, workspace
+    // id, and embed count.
+    // -------------------------------------------------------------------
+    try {
+      semanticEmbedded = await backfillSemanticEmbeddings(
+        teamId,
+        projectedEvidenceId,
+      );
+    } catch (err) {
+      logger.warn(
+        {
+          searchIndexing: true,
+          jobId: job.id,
+          teamId,
+          evidenceId: projectedEvidenceId,
+          error: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+        },
+        "worker.search.indexing.semantic_backfill_failed_non_fatal",
+      );
+    }
   }
 
   logger.info(
@@ -547,10 +579,268 @@ export async function processSearchIndexingJob(
       deleted,
       ocrIndexed,
       transcriptIndexed,
+      semanticEmbedded,
       durationMs: Date.now() - startedAt,
     },
     upserted || deleted
       ? "worker.search.indexing.succeeded"
       : "worker.search.indexing.skipped",
   );
+}
+
+// =============================================================================
+// Phase 15 — semantic embedding backfill helper.
+//
+// Loads the embedding provider on first use via a dynamic import so
+// the worker bundle doesn't pull the abstraction unconditionally
+// (keeps the cold-start path small for SEMANTIC_SEARCH_ENABLED=false
+// deployments, which is the default).
+// =============================================================================
+
+type ProviderHandle = {
+  name: string;
+  model: string;
+  dimensions: number;
+  embedText(text: string): Promise<Float32Array | null>;
+};
+
+let cachedProviderHandle: { handle: ProviderHandle | null } | null = null;
+
+/**
+ * Phase 15 — worker-side mirror of the API's embedding-provider
+ * factory. Reads the same env contract:
+ *
+ *   SEMANTIC_SEARCH_ENABLED               (gate; default false)
+ *   SEMANTIC_EMBEDDINGS_PROVIDER          (disabled | local | openai)
+ *   SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND  (openai gate; default false)
+ *   SEMANTIC_EMBEDDING_DIMENSIONS         (default 384 local / 1536 openai)
+ *
+ * The worker does NOT import from `services/api/...` (cross-package
+ * import is blocked by the monorepo boundary). We inline the minimal
+ * factory + local deterministic provider here so the abstraction
+ * remains self-contained.
+ */
+async function resolveProvider(): Promise<ProviderHandle | null> {
+  if (process.env.SEMANTIC_SEARCH_ENABLED !== "true") return null;
+  if (cachedProviderHandle) return cachedProviderHandle.handle;
+  const raw = (process.env.SEMANTIC_EMBEDDINGS_PROVIDER ?? "disabled")
+    .trim()
+    .toLowerCase();
+  const dimEnv = Number.parseInt(
+    process.env.SEMANTIC_EMBEDDING_DIMENSIONS ?? "0",
+    10,
+  );
+  let handle: ProviderHandle | null = null;
+  if (raw === "local" || raw === "local-deterministic" || raw === "test") {
+    const dim = Number.isFinite(dimEnv) && dimEnv > 0 ? Math.min(dimEnv, 1536) : 384;
+    handle = makeLocalDeterministicProvider(dim);
+  } else if (raw === "openai") {
+    // Phase 16 — real OpenAI binding behind the dual gate. This
+    // safety-net path mirrors the dedicated `mi-embed.processor`
+    // provider exactly: dual gate (outbound + api key), lazy SDK
+    // import, AbortController timeout. Anything other than the
+    // explicit opt-in degrades to keyword-only (handle=null).
+    if (process.env.SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND !== "true") {
+      logger.warn(
+        {
+          searchIndexing: true,
+          providerCandidate: "openai",
+          reason: "OUTBOUND_DISABLED",
+        },
+        "worker.search.indexing.semantic_provider_skipped",
+      );
+      handle = null;
+    } else {
+      const apiKey = process.env.OPENAI_API_KEY?.trim();
+      if (!apiKey) {
+        logger.warn(
+          {
+            searchIndexing: true,
+            providerCandidate: "openai",
+            reason: "OPENAI_API_KEY_MISSING",
+          },
+          "worker.search.indexing.semantic_provider_skipped",
+        );
+        handle = null;
+      } else {
+        try {
+          const mod = (await import("openai")) as {
+            default: new (config: { apiKey: string }) => unknown;
+            OpenAI?: new (config: { apiKey: string }) => unknown;
+          };
+          const Ctor = mod.default ?? mod.OpenAI;
+          if (!Ctor) {
+            handle = null;
+          } else {
+            const dimOpenai = Number.isFinite(dimEnv) && dimEnv > 0 ? dimEnv : 1536;
+            const client = new Ctor({ apiKey }) as {
+              embeddings: {
+                create: (req: {
+                  model: string;
+                  input: string[];
+                  dimensions?: number;
+                }, options?: { signal?: AbortSignal }) => Promise<{
+                  data: Array<{ embedding: number[] }>;
+                }>;
+              };
+            };
+            const modelOpenai =
+              process.env.SEMANTIC_EMBEDDING_MODEL?.trim() ||
+              "text-embedding-3-small";
+            handle = {
+              name: "openai",
+              model: modelOpenai,
+              dimensions: dimOpenai,
+              async embedText(text: string) {
+                const controller = new AbortController();
+                const timeoutMs = Math.max(
+                  1_000,
+                  Number.parseInt(
+                    process.env.SEMANTIC_EMBEDDINGS_TIMEOUT_MS ?? "30000",
+                    10,
+                  ),
+                );
+                const timer = setTimeout(() => controller.abort(), timeoutMs);
+                try {
+                  const resp = await client.embeddings.create(
+                    {
+                      model: modelOpenai,
+                      input: [text],
+                      dimensions: dimOpenai,
+                    },
+                    { signal: controller.signal },
+                  );
+                  const vec = resp.data[0]?.embedding;
+                  return Array.isArray(vec) && vec.length > 0
+                    ? Float32Array.from(vec)
+                    : null;
+                } finally {
+                  clearTimeout(timer);
+                }
+              },
+            };
+          }
+        } catch {
+          handle = null;
+        }
+      }
+    }
+  }
+  cachedProviderHandle = { handle };
+  return handle;
+}
+
+function makeLocalDeterministicProvider(dimensions: number): ProviderHandle {
+  return {
+    name: "local-deterministic",
+    model: "sha256-bucket",
+    dimensions,
+    async embedText(text: string): Promise<Float32Array | null> {
+      const safe = text.slice(0, 8 * 1024);
+      const vec = new Float32Array(dimensions);
+      const tokens = safe
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter(Boolean);
+      const crypto = await import("node:crypto");
+      for (const tok of tokens) {
+        const h = crypto.createHash("sha256").update(tok).digest();
+        const bucket =
+          ((h[0] << 24) | (h[1] << 16) | (h[2] << 8) | h[3]) >>> 0;
+        const idx = bucket % dimensions;
+        vec[idx] += Math.min(8, tok.length);
+      }
+      let norm = 0;
+      for (let i = 0; i < vec.length; i += 1) norm += vec[i] * vec[i];
+      const denom = Math.sqrt(norm);
+      if (denom > 0) {
+        for (let i = 0; i < vec.length; i += 1) vec[i] /= denom;
+      }
+      return vec;
+    },
+  };
+}
+
+async function backfillSemanticEmbeddings(
+  teamId: string,
+  evidenceId: string,
+): Promise<number> {
+  const provider = await resolveProvider();
+  if (!provider) return 0;
+  // Bound the per-job work — the producer is the search-indexing
+  // queue, which fires per evidence rebuild. Backfilling all chunks
+  // on every fire keeps the embedding table eventually-consistent
+  // without needing a separate queue.
+  // Phase 16 — bulk embedding work now flows through the dedicated
+  // `mi-embed` queue. This inline backfill is the safety net for any
+  // drift between the live-indexing enqueue and the dedicated worker.
+  // Reduced from 200 → 25 so it stays a backstop, not the primary path.
+  const chunks = await prisma.evidenceSemanticChunk.findMany({
+    where: {
+      teamId,
+      evidenceId,
+      OR: [
+        { embedding: null },
+        { embeddingProvider: { not: provider.name } },
+        { embeddingModel: { not: provider.model } },
+        { embeddingDimensions: { not: provider.dimensions } },
+      ],
+    },
+    select: { id: true, chunkText: true },
+    take: 25,
+  });
+  if (chunks.length === 0) return 0;
+
+  let written = 0;
+  for (const c of chunks) {
+    let vec: Float32Array | null = null;
+    try {
+      vec = await provider.embedText(c.chunkText);
+    } catch (err) {
+      // Bounded structured log — no chunk text. We log the chunk id
+      // so an operator can pivot to that row to investigate.
+      logger.warn(
+        {
+          searchIndexing: true,
+          teamId,
+          evidenceId,
+          chunkId: c.id,
+          errorCode:
+            err instanceof Error
+              ? (err as Error & { code?: string }).code ?? "EMBED_FAILED"
+              : "EMBED_FAILED",
+        },
+        "worker.search.indexing.semantic_embed_skipped",
+      );
+      continue;
+    }
+    if (!vec || vec.length === 0) continue;
+    try {
+      const buf = new Uint8Array(vec.byteLength);
+      buf.set(new Uint8Array(vec.buffer, vec.byteOffset, vec.byteLength));
+      await prisma.evidenceSemanticChunk.update({
+        where: { id: c.id },
+        data: {
+          embedding: buf,
+          embeddingProvider: provider.name,
+          embeddingModel: provider.model,
+          embeddingDimensions: provider.dimensions,
+        },
+      });
+      written += 1;
+    } catch (err) {
+      logger.warn(
+        {
+          searchIndexing: true,
+          teamId,
+          evidenceId,
+          chunkId: c.id,
+          errorCode:
+            err instanceof Error ? err.message.slice(0, 64) : "WRITE_FAILED",
+        },
+        "worker.search.indexing.semantic_write_skipped",
+      );
+    }
+  }
+  return written;
 }

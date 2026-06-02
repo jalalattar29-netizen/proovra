@@ -1,9 +1,9 @@
 {
-  "generatedAtUtc": "2026-06-01T15:02:40.850Z",
-  "migrationCount": 120,
+  "generatedAtUtc": "2026-06-02T07:21:35.761Z",
+  "migrationCount": 124,
   "summary": {
     "CRITICAL": 173,
-    "HIGH": 438,
+    "HIGH": 439,
     "MEDIUM": 163,
     "LOW": 0,
     "findingsByKind": {
@@ -12,7 +12,7 @@
       "DROP_INDEX": 6,
       "ALTER_TYPE": 86,
       "ENUM_ADD_VALUE": 86,
-      "ADD_COLUMN_NO_IF_NOT_EXISTS": 24,
+      "ADD_COLUMN_NO_IF_NOT_EXISTS": 25,
       "ALTER_COLUMN_TYPE": 128,
       "CREATE_TABLE_IF_NOT_EXISTS": 113,
       "ALTER_COLUMN_SET_DEFAULT": 15,
@@ -25,8 +25,8 @@
     }
   },
   "verdicts": {
-    "SAFE": 32,
-    "RISKY": 42,
+    "SAFE": 35,
+    "RISKY": 43,
     "UNSAFE": 46
   },
   "inventory": [
@@ -3497,6 +3497,24 @@
           "detail": "Index evidence_retention_policy_version_idx ON evidence(retention_policy_version_id) references column(s) {retention_policy_version_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
         }
       ]
+    },
+    {
+      "migration": "20260606120000_phase12_perceptual_foundation",
+      "timestamp": "20260606120000",
+      "slug": "phase12_perceptual_foundation",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "evidence_parts"
+      ],
+      "totalColumnsAdded": 2,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
     },
     {
       "migration": "20260613100000_phase27_5_governance_operationalization",
@@ -7175,6 +7193,67 @@
         "paypal_webhook_events"
       ],
       "totalColumnsAdded": 7,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270501000000_phase_10_paypal_webhook_payload_hash",
+      "timestamp": "20270501000000",
+      "slug": "phase_10_paypal_webhook_payload_hash",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "paypal_webhook_events"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 1,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 36
+        }
+      ]
+    },
+    {
+      "migration": "20270601000000_phase13_intelligence_chain",
+      "timestamp": "20270601000000",
+      "slug": "phase13_intelligence_chain",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "evidence_similarities"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270701000000_phase15_semantic_search",
+      "timestamp": "20270701000000",
+      "slug": "phase15_semantic_search",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "evidence_semantic_chunks"
+      ],
+      "totalColumnsAdded": 1,
       "findingsByRisk": {
         "CRITICAL": 0,
         "HIGH": 0,

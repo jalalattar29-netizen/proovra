@@ -23,21 +23,10 @@ import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { statusBadgeStyle } from "../../../components/ui/StatusBadge";
-type SearchHit = {
-  evidenceId: string;
-  title: string | null;
-  displayFileName: string | null;
-  type: string;
-  status: string;
-  publicVerifyState: string;
-  matches: {
-    title?: boolean;
-    filename?: boolean;
-    ocr?: boolean;
-    transcript?: boolean;
-    entity?: boolean;
-  };
-};
+// Phase 14 — SearchHit type removed; the inline keyword-search
+// projection on this page has been retired in favor of a deep link
+// into the canonical /search surface. Search-result rendering and
+// governance gates are owned by /v1/search + apps/web/app/(app)/search.
 
 type Job = {
   id: string;
@@ -73,18 +62,20 @@ export default function IntelligencePage() {
 
 function IntelligencePageInner() {
   const teamId = useTeamId();
+  // Phase 14 — Search functionality on this surface is consolidated
+  // into the canonical /search page (Global Intelligence Search
+  // Engine). The local /v1/intelligence/search affordance is replaced
+  // with a deep link that pre-fills the operator query. The keyword
+  // index, governance gates, saved views, and inspector all live on
+  // the canonical surface.
   const [q, setQ] = useState("");
-  const [hits, setHits] = useState<SearchHit[] | null>(null);
-  const [semanticEnabled, setSemanticEnabled] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
 
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [catalogs, _setCatalogs] = useState<Catalogs | null>(null);
   const [providers, setProviders] = useState<Providers | null>(null);
   const [jobStatusFilter, setJobStatusFilter] = useState<string>("");
 
-  
+
 useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
@@ -106,28 +97,11 @@ useEffect(() => {
     };
   }, [teamId, jobStatusFilter]);
 
-  async function runSearch() {
-    if (!teamId || q.trim().length < 2) return;
-    setSearching(true);
-    setSearchError(null);
-    try {
-      const res: {
-        keyword: SearchHit[];
-        semantic: { enabled: boolean; hits: unknown[] };
-      } = await apiFetch(
-        `/v1/intelligence/search?teamId=${encodeURIComponent(teamId)}&q=${encodeURIComponent(q.trim())}&limit=50`,
-        { method: "GET" },
-      );
-      setHits(res.keyword);
-      setSemanticEnabled(res.semantic.enabled);
-    } catch (err) {
-      const e = err as { message?: string };
-      setSearchError(e?.message ?? "Search failed.");
-      setHits([]);
-    } finally {
-      setSearching(false);
-    }
-  }
+  const trimmedQ = q.trim();
+  const canSearch = trimmedQ.length >= 2;
+  const searchHref = canSearch
+    ? `/search?q=${encodeURIComponent(trimmedQ)}`
+    : "/search";
 
   const jobsCounts = useMemo(() => {
     if (!jobs) return null;
@@ -174,9 +148,12 @@ useEffect(() => {
           <section style={cardStyle}>
             <h2 style={sectionTitleStyle}>Search</h2>
             <p style={mutedStyle}>
-              Searches title, filename, extracted OCR/transcript text,
-              and extracted entity values. Default scope is{" "}
-              <code>publishable</code> (PUBLISHED evidence only).
+              Workspace search is consolidated on the canonical Search
+              surface. Enter a query and continue to /search — the
+              global engine runs keyword matching across titles,
+              filenames, OCR text, transcript text, and extracted
+              entity values, with saved views, governance filters, and
+              the relationship inspector.
             </p>
             <div style={{ display: "flex", gap: 8 }}>
               <input
@@ -184,61 +161,25 @@ useEffect(() => {
                 placeholder="Search this workspace…"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void runSearch();
-                }}
               />
-              <button
-                type="button"
-                style={primaryButtonStyle}
-                disabled={searching || q.trim().length < 2}
-                onClick={() => void runSearch()}
+              <Link
+                href={searchHref}
+                style={{
+                  ...primaryButtonStyle,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  textDecoration: "none",
+                  pointerEvents: canSearch ? "auto" : "none",
+                  opacity: canSearch ? 1 : 0.6,
+                }}
+                aria-disabled={!canSearch}
               >
-                Search
-              </button>
+                Open in Search
+              </Link>
             </div>
-            {searchError ? (
-              <div style={errorBoxStyle}>{searchError}</div>
-            ) : null}
-            {hits === null ? null : hits.length === 0 ? (
-              <p style={{ ...mutedStyle, marginTop: 12 }}>No matches.</p>
-            ) : (
-              <ul style={listStyle}>
-                {hits.map((h) => (
-                  <li key={h.evidenceId} style={rowStyle}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <Link
-                        href={`/evidence/${h.evidenceId}`}
-                        style={{ fontWeight: 600, color: "#0f172a" }}
-                      >
-                        {h.title || h.displayFileName || `Evidence ${h.evidenceId.slice(0, 8)}…`}
-                      </Link>
-                      <div style={mutedStyle}>
-                        {h.type} · {h.status} · {h.publicVerifyState}
-                      </div>
-                    </div>
-                    <div style={badgeRowStyle}>
-                      {h.matches.title ? <span style={hitBadgeStyle}>title</span> : null}
-                      {h.matches.filename ? (
-                        <span style={hitBadgeStyle}>file</span>
-                      ) : null}
-                      {h.matches.ocr ? <span style={hitBadgeStyle}>OCR</span> : null}
-                      {h.matches.transcript ? (
-                        <span style={hitBadgeStyle}>transcript</span>
-                      ) : null}
-                      {h.matches.entity ? (
-                        <span style={hitBadgeStyle}>entity</span>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {!semanticEnabled ? (
-              <div style={{ ...mutedStyle, marginTop: 12 }}>
-                Semantic search is not enabled in this deployment.
-              </div>
-            ) : null}
+            <p style={{ ...mutedStyle, marginTop: 12 }}>
+              Semantic search is not enabled in this deployment.
+            </p>
           </section>
 
           <section style={cardStyle}>
@@ -346,12 +287,12 @@ const rowStyle: React.CSSProperties = {
   padding: "10px 0",
   borderBottom: "1px solid #e2e8f0",
 };
-const badgeRowStyle: React.CSSProperties = {
+const _badgeRowStyle: React.CSSProperties = {
   display: "flex",
   gap: 4,
   flexWrap: "wrap",
 };
-const errorBoxStyle: React.CSSProperties = {
+const _errorBoxStyle: React.CSSProperties = {
   marginTop: 12,
   padding: 12,
   background: "#fef2f2",
@@ -388,7 +329,7 @@ const primaryButtonStyle: React.CSSProperties = {
   fontSize: 14,
 };
 
-const hitBadgeStyle: React.CSSProperties = {
+const _hitBadgeStyle: React.CSSProperties = {
   padding: "2px 8px",
   fontSize: 11,
   fontWeight: 600,

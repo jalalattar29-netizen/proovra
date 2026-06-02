@@ -94,8 +94,64 @@ export function PageRouteGate({
   if (access.canLoad) return <>{children}</>;
 
   if (access.accessState === "PLATFORM_ADMIN_ONLY") {
-    // Hide entirely — matches the sidebar's hide behavior.
-    return null;
+    // PRODUCTION FIX: previously this branch returned `null`, leaving
+    // non-platform-admin users on a blank URL whenever they typed a
+    // platform-admin route directly (e.g. `/operations/observability`).
+    // That violates this component's own header rule: "NEVER renders a
+    // blank page. Every denied state has a structured panel with primary
+    // + (optional) secondary action."
+    //
+    // The sidebar / cmd-K / All Tools still correctly hide these routes
+    // from non-admins via `canSeeNav: false`. This panel only renders
+    // when a non-admin reaches the URL by direct navigation (typed URL,
+    // bookmark, stale email link, copy-pasted from a peer).
+    const canonicalReason = accessStateToDenialReason(access.accessState);
+    const headline = canonicalReason
+      ? denialReasonHeadline(canonicalReason)
+      : "Platform administration only";
+    const subtitle =
+      access.reason && access.reason.length > 0
+        ? access.reason
+        : canonicalReason
+          ? denialReasonGuidance(canonicalReason)
+          : "This surface is restricted to platform administrators.";
+    return (
+      <main
+        className="cc-page"
+        data-page-route-gate
+        data-page-route-gate-state={access.accessState}
+        data-page-route-gate-route-id={routeId}
+        data-page-route-gate-denial-reason={canonicalReason ?? ""}
+        data-testid={`route-gate-${routeId}`}
+        style={{ maxWidth: 640, margin: "0 auto" }}
+      >
+        <header className="cc-page-header">
+          <div>
+            <div className="cc-kicker">{route.label}</div>
+            <h1 className="cc-title">{headline}</h1>
+            <p className="cc-subtitle">{subtitle}</p>
+          </div>
+        </header>
+        <section className="cc-section" data-page-route-gate-actions>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Link
+              href="/home"
+              className="cc-quick-action"
+              data-page-route-gate-primary-action
+            >
+              Back to home
+            </Link>
+            <Link
+              href="/tools"
+              className="cases-filter-chip"
+              data-page-route-gate-all-tools
+            >
+              Browse all tools
+            </Link>
+          </div>
+        </section>
+      </main>
+    );
   }
 
   // Every other denied state renders a structured panel.

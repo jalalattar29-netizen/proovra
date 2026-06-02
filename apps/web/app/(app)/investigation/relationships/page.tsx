@@ -321,6 +321,12 @@ function NodeInspector({
                     <span style={confidenceBadgeStyle(e.confidence)}>
                       {confidenceLabel(e.confidence)}
                     </span>
+                    {/* Phase 12 — inline System/Manual indicator. */}
+                    <span style={sourceBadgeStyle(e.sourceKind)}>
+                      {e.sourceKind === "SYSTEM"
+                        ? "System-detected"
+                        : "Manually recorded"}
+                    </span>
                     <span style={directionBadgeStyle}>{direction}</span>
                   </div>
                   <div style={edgeListLabelStyle}>

@@ -348,10 +348,18 @@ describe("Phase R9 — buildPlatformContext activeSpace derivation", () => {
 // =============================================================================
 
 describe("Phase R9 — entitlement projection is user-level (PRO without org)", () => {
-  it("entitlement.findFirst uses where { userId } only (no team billing_status filter)", () => {
-    // Both call sites (personal plan overlay + account.accountPlan).
+  it("entitlement.findFirst is user-scoped (userId required; active:true added by the production billing-mismatch fix)", () => {
+    // R9 originally asserted `where: { userId: userRow.id }` ONLY — the
+    // intent was "do not gate on team.billingStatus / billingPlan" (the
+    // bug it was preventing was an org-tier filter creeping into a
+    // personal-tier lookup). Both call sites now additionally carry
+    // `active: true` to mirror the authoritative billing guard in
+    // `services/api/src/services/collaboration-team/billing-guards.ts`.
+    // The R9 intent is preserved (no team-billing filter — see next
+    // assertion); the extra `active: true` is the production fix and
+    // is pinned by `production-billing-parity.test.ts`.
     const matches = PLATFORM_CTX_SRC.match(
-      /entitlement\.findFirst\(\{\s*where:\s*\{\s*userId:\s*userRow\.id\s*\}/g,
+      /entitlement\.findFirst\(\{\s*where:\s*\{\s*userId:\s*userRow\.id,\s*active:\s*true\s*\}/g,
     );
     expect(matches).not.toBeNull();
     expect(matches!.length).toBeGreaterThanOrEqual(2);

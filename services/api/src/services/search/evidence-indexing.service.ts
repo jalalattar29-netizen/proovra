@@ -288,6 +288,35 @@ export async function indexEvidence(
     /* extraction table may not have rows; non-fatal */
   }
 
+  // Phase 13 — append entity-name chunks. The Phase 15 entity
+  // extractor writes (kind, normalizedValue) tuples to
+  // evidence_entities; we surface them in the searchable text so
+  // operators can keyword-search by entity name without opening
+  // each evidence record. Only the bounded `normalizedValue` is
+  // indexed (never the raw matched text) so operator queries
+  // continue to be safe-by-construction.
+  try {
+    const entityRows = await client.evidenceEntity.findMany({
+      where: {
+        evidenceId: evidence.id,
+        normalizedValue: { not: null },
+      },
+      select: { kind: true, normalizedValue: true },
+      take: 100,
+    });
+    const seen = new Set<string>();
+    for (const e of entityRows) {
+      const n = (e.normalizedValue ?? "").trim();
+      if (!n) continue;
+      const key = `${e.kind}::${n.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      extractedChunks.push(`[entity] ${n}`);
+    }
+  } catch {
+    /* entity table may not have rows; non-fatal */
+  }
+
   // Phase 25 — delegate to the SHARED canonical projection engine.
   // The pure builder applies governance gates (deleted / DESTROYED /
   // PENDING_DESTRUCTION → delete-from-index) so the API and worker

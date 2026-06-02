@@ -195,9 +195,27 @@ function parseModelBody(name, body, modelNames, enumNames) {
     if (!fieldMatch) continue;
     const fieldName = fieldMatch[1];
     const baseType = fieldMatch[2];
-    const optional = fieldMatch[3] === "?";
+    let optional = fieldMatch[3] === "?";
     const isList = fieldMatch[4] === "[]";
-    const attrs = fieldMatch[5] || "";
+    let attrs = fieldMatch[5] || "";
+
+    // Prisma's `Unsupported("…")` synthetic type — used when a column
+    // has a Postgres datatype that Prisma cannot express natively
+    // (Phase 15 introduced this for `embeddingVector
+    // Unsupported("vector(1536)")?`). The outer regex strands the
+    // raw SQL type literal and the trailing `?` inside `attrs`, so
+    // recover them here. Without this, `fieldToSqlType` emits
+    // TYPE_TBD for every Unsupported column and the schema audit
+    // fails on Phase O contract checks.
+    let unsupportedDbType = null;
+    if (baseType === "Unsupported") {
+      const unsupportedMatch = /^\(\s*"([^"]+)"\s*\)(\?)?(.*)$/.exec(attrs);
+      if (unsupportedMatch) {
+        unsupportedDbType = unsupportedMatch[1];
+        if (unsupportedMatch[2] === "?") optional = true;
+        attrs = unsupportedMatch[3] || "";
+      }
+    }
 
     // Field-level @ignore — skip entirely.
     if (/@ignore\b/.test(attrs)) continue;
@@ -237,6 +255,9 @@ function parseModelBody(name, body, modelNames, enumNames) {
       baseType,
       dbType,
       dbTypeArg,
+      // For `Unsupported("…")` fields: the raw Postgres type literal
+      // (e.g. `vector(1536)`). Null for normal Prisma scalar fields.
+      unsupportedDbType,
       optional,
       defaultExpr,
       isId,
@@ -263,6 +284,16 @@ function parseModelBody(name, body, modelNames, enumNames) {
 export function expectedPgType(field) {
   if (field.isEnum) {
     return { acceptable: ["USER-DEFINED"], expectedUdt: field.baseType };
+  }
+  // Phase 15: `Unsupported("…")` columns (e.g. pgvector
+  // `vector(1536)`) are hand-written in a migration. information_schema
+  // reports them as USER-DEFINED with the inner type name as the udt.
+  // The acceptable set is intentionally null to mean "skip type-shape
+  // strictness" — we still assert the column EXISTS via the parsed
+  // schema, but the validator does not enforce a Postgres-builtin
+  // shape on a non-builtin type.
+  if (field.baseType === "Unsupported" && field.unsupportedDbType) {
+    return { acceptable: null, expectedUdt: null };
   }
   const db = field.dbType ? field.dbType.toLowerCase() : null;
   if (db) {
@@ -423,6 +454,14 @@ function suggestAddColumn(finding) {
 export function fieldToSqlType(field) {
   // Enums require a user-defined type — risky to auto-add.
   if (field.isEnum) return null;
+  // Phase 15: `Unsupported("…")` declares a raw Postgres type that
+  // Prisma can't express natively (e.g. pgvector `vector(1536)`).
+  // The author has already written the migration by hand; the audit
+  // simply echoes the literal type back as the ADD COLUMN clause so
+  // the repair script never emits TYPE_TBD for these fields.
+  if (field.baseType === "Unsupported" && field.unsupportedDbType) {
+    return field.unsupportedDbType.toUpperCase();
+  }
   const db = field.dbType ? field.dbType.toLowerCase() : null;
   const arg = field.dbTypeArg ? `(${field.dbTypeArg})` : "";
   if (db) {

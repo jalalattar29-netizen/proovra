@@ -159,14 +159,18 @@ describe("CR4 Group 1 — file-size guards", () => {
     expect(sz).toBe(TRUST_CENTER_CONTENT_BYTES);
   });
 
-  it("evidence-complete.service.ts pin (CR1.6 — 42,799 bytes)", () => {
+  it("evidence-complete.service.ts pin (CR1.6 — 45,520 bytes after Phase 14)", () => {
     const sz = statSync(
       apiSrcPath("services/evidence-complete.service.ts"),
     ).size;
-    // Baseline grows with documented phases (G3.x/G4/G5). The
-    // "no shrink/regression" guarantee is the spirit; the constant
-    // is rebaselined as the file legitimately grows.
-    expect(sz).toBe(42799);
+    // Baseline grows with documented phases (G3.x/G4/G5/Phase 11/14).
+    // Phase 11 rebaseline: 42,799 → 44,441 (graph-reconcile + search-
+    //   index enqueue hooks).
+    // Phase 14 rebaseline: 44,441 → 45,520 (onReconciled callback
+    //   wired into reconcileTeamGraph so the graph-reconcile-completed
+    //   trigger fires a search re-index — closes the post-finalize
+    //   stale-index gap; non-blocking try/catch; no schema changes).
+    expect(sz).toBe(45520);
   });
 
   it("custody-events.service.ts pin (CR1.6 — 5,155 bytes)", () => {

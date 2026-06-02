@@ -196,7 +196,17 @@ describe("Phase 31.19 — subsystem processor source contract", () => {
   });
 
   it("graph-reconcile passes the worker's shared prisma to the read-only reconciler", () => {
-    expect(PROCESSORS_SRC).toMatch(/reconcileTeamGraph\(job\.data\.teamId, prisma\)/);
+    // Phase 14 evolution: reconcileTeamGraph now accepts an optional
+    // third `hooks` argument carrying `onReconciled` so post-reconcile
+    // can enqueue a search re-index without shared-runtime depending
+    // on the worker queue. The call may now span multiple lines and
+    // include the hooks object. The contract this test pins (worker
+    // passes its OWN prisma client, not a globally-imported one) is
+    // preserved — accept either the legacy single-line shape OR the
+    // new multi-line shape with the hooks argument.
+    expect(PROCESSORS_SRC).toMatch(
+      /reconcileTeamGraph\(\s*job\.data\.teamId,\s*prisma\s*[,)]/,
+    );
   });
 
   it("processors do NOT read or project reviewer-private fields", () => {

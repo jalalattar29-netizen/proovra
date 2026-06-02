@@ -335,8 +335,15 @@ export async function buildPlatformContext(
   // the USER, not the personal Team row).
   if (workspace.scope === "PERSONAL") {
     try {
+      // PRODUCTION FIX (billing-mismatch): mirror the EXACT filter used
+      // by `services/api/src/services/collaboration-team/billing-guards.ts`
+      // → `resolveUserPlan()` (Entitlement.findFirst { userId, active:true,
+      // orderBy: createdAt desc }). Without the `active: true` filter the
+      // envelope can pick up a SUPERSEDED entitlement row while the
+      // authoritative billing guard picks up the live PRO row, producing
+      // the "PRO user blocked by 402; UI badge says FREE" mismatch.
       const personalEntitlement = await prisma.entitlement.findFirst({
-        where: { userId: userRow.id },
+        where: { userId: userRow.id, active: true },
         orderBy: { createdAt: "desc" },
         select: { plan: true },
       });
@@ -361,8 +368,14 @@ export async function buildPlatformContext(
   // same value is reused later when populating `account.accountPlan`.
   let accountPlan: WorkspacePlan | null = null;
   try {
+    // PRODUCTION FIX (billing-mismatch): same `active: true` filter as the
+    // authoritative billing guard — see the comment in the PERSONAL branch
+    // above. The account plan flows into `envelope.account.accountPlan`,
+    // which the UI billing badge falls back to when the personal-space
+    // plan is null. Mismatch here causes the "FREE plan: 0 of 1 teams
+    // used" badge for a user the backend correctly recognises as PRO.
     const ent = await prisma.entitlement.findFirst({
-      where: { userId: userRow.id },
+      where: { userId: userRow.id, active: true },
       orderBy: { createdAt: "desc" },
       select: { plan: true },
     });

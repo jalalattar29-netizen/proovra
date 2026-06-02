@@ -85,6 +85,38 @@ export type ReconcileResult = {
 };
 
 // =============================================================================
+// Phase 14 — Stage 2 trigger #4: optional post-reconcile fan-out.
+//
+// `reconcileTeamGraph` lives in shared-runtime, but the search-indexing
+// queue helper (enqueueSearchIndexingJob) lives in
+// `services/api/src/queue/search-queue.ts`. shared-runtime intentionally
+// has no dependency on services/api — importing the queue helper inline
+// here would invert the dependency direction and pull BullMQ + ioredis
+// into every shared-runtime consumer (worker included). To keep the
+// dependency direction clean we expose an optional `ReconcileHook`
+// callback that API + worker call sites pass in when they want the
+// search index refreshed after a successful reconcile.
+//
+// Contract: callbacks MUST never throw to the reconciler (the
+// reconciler itself wraps each call in try/catch defensively). Each
+// call site that wires a hook owns its own enqueue idempotency.
+// =============================================================================
+
+export type ReconcileTeamGraphHooks = {
+  /**
+   * Fires once after a successful reconcileTeamGraph pass. Callers
+   * (e.g. evidence-complete fan-out, reconcile cron, /v1/graph/reconcile
+   * route) pass `enqueueSearchIndexingJob` here so the team's search
+   * documents get refreshed with the newly-materialised graph signal
+   * counts + relationship edges. Best-effort.
+   */
+  onReconciled?: (input: {
+    teamId: string;
+    result: ReconcileResult;
+  }) => void | Promise<void>;
+};
+
+// =============================================================================
 // Reconciliation (idempotent rebuild for one team)
 // =============================================================================
 
@@ -96,10 +128,16 @@ export type ReconcileResult = {
  *
  * Returns counts but never throws. Callers (the reconcile cron)
  * just log the result.
+ *
+ * Phase 14 — Stage 2 trigger #4: accepts an optional `hooks` argument
+ * so call sites can ask for a post-reconcile search re-index without
+ * shared-runtime taking on a hard dependency on the API's queue
+ * helper. See the `ReconcileTeamGraphHooks` documentation above.
  */
 export async function reconcileTeamGraph(
   teamId: string,
   client: PrismaClient = getRegisteredPrisma(),
+  hooks: ReconcileTeamGraphHooks = {},
 ): Promise<ReconcileResult> {
   bump("graph_reconcile_started_total");
   let nodesUpserted = 0;
@@ -894,6 +932,94 @@ export async function reconcileTeamGraph(
       /* best-effort; the rest of the reconcile continues */
     }
 
+    // 1j. Phase 13 — ENTITY domain reconciliation.
+    //
+    // Materializes one ENTITY node per `evidence_entities` row in
+    // this team and one EXTRACTED_FROM edge from ENTITY → EVIDENCE.
+    // Entities are the deterministic regex-driven extraction
+    // results from Phase 15 (email / phone / URL / etc.); the
+    // node + edge wiring lets graph + cross-evidence surfaces see
+    // them without per-request joins back to the entities table.
+    //
+    // Privacy invariants:
+    //   * Node label uses kind + normalizedValue only — both bounded
+    //     fields, never raw OCR/transcript text and never private
+    //     reviewer notes. Falls back to `kind` when normalizedValue
+    //     is NULL so we never leak the raw matched text.
+    //   * Visibility: WORKSPACE_INTERNAL. Entities are operator-
+    //     facing analytical hints, not public-verify safe.
+    //   * Bounded by team_id at every read.
+    //
+    // Idempotency:
+    //   * External_id == evidence_entities.id (a UUID), so re-running
+    //     upserts the same node+edge with the same label/summary
+    //     (no churn on tombstoning).
+    //   * No stale-sweep — entities are immutable rows; if the
+    //     evidence is deleted the cascade-delete on evidence_entities
+    //     and the per-evidence stale sweep on EVIDENCE nodes (which
+    //     cascades to edges via the section 4 stale-edge sweep)
+    //     handles cleanup.
+    try {
+      type EntityRow = {
+        id: string;
+        evidence_id: string;
+        kind: string;
+        normalized_value: string | null;
+      };
+      const entities = (await client.$queryRawUnsafe(
+        `SELECT en."id", en."evidence_id", en."kind"::text AS "kind",
+                en."normalized_value"
+           FROM "evidence_entities" en
+           JOIN "evidence" e ON e."id" = en."evidence_id"
+           WHERE en."team_id" = $1
+             AND e."deleted_at" IS NULL
+           ORDER BY en."created_at" ASC
+           LIMIT 5000`,
+        teamId,
+      )) as EntityRow[];
+      for (const en of entities) {
+        // Bounded label: "{KIND}: {normalizedValue}" or just
+        // "{KIND}" when normalizedValue is NULL. Capped at 240
+        // chars by upsertNode but we trim defensively here too.
+        const labelTail = en.normalized_value
+          ? `: ${en.normalized_value}`
+          : "";
+        const label = `${en.kind}${labelTail}`.slice(0, 240);
+        const upserted = await upsertNode(
+          client,
+          teamId,
+          "ENTITY",
+          en.id,
+          label,
+          "WORKSPACE_INTERNAL",
+        );
+        if (upserted) nodesUpserted += 1;
+        // EXTRACTED_FROM edge: ENTITY → EVIDENCE.
+        const entityNodeId = await findNodeId(client, teamId, "ENTITY", en.id);
+        const evidenceNodeId = await findNodeId(
+          client,
+          teamId,
+          "EVIDENCE",
+          en.evidence_id,
+        );
+        if (entityNodeId && evidenceNodeId) {
+          const created = await upsertEdge(
+            client,
+            teamId,
+            entityNodeId,
+            evidenceNodeId,
+            "EXTRACTED_FROM",
+            "SYSTEM",
+            "MEDIUM",
+            `Candidate ${en.kind.toLowerCase()} extracted from this evidence record.`.slice(0, 240),
+          );
+          if (created) edgesUpserted += 1;
+        }
+      }
+    } catch {
+      /* best-effort; the rest of the reconcile continues */
+    }
+
     // 2. Materialize MEDIA_SIGNAL nodes + HAS_MEDIA_SIGNAL edges,
     //    and the OCR/TRANSCRIPT node kind variants on the same
     //    table (discriminated by signal_type at the materializer).
@@ -1103,6 +1229,98 @@ export async function reconcileTeamGraph(
       }
     }
 
+    // 3b. Phase 12 — SIMILAR_TO edges from perceptual-hash matches.
+    //
+    // Self-join evidence_parts on bit-popcount of XOR'd pHash strings
+    // ("Hamming distance" expressed as bit-count of differing bits in
+    // the 64-bit fingerprint). Distance ≤ 4 → MEDIUM confidence;
+    // distance 5..8 → LOW confidence. Distance ≥ 9 is dropped — the
+    // probability of unrelated images sharing 56+ identical bits is
+    // negligible-but-nonzero, and we'd rather be silent than noisy on
+    // a surface that affects operator reviews.
+    //
+    // Wrapped in try/catch because the perceptual_phash column may
+    // not yet exist on partial-state databases; the reconciler is
+    // best-effort and must never fail the team-graph build.
+    type SimilarPair = {
+      a_evidence_id: string;
+      b_evidence_id: string;
+      hamming: number;
+    };
+    try {
+      const similarPairs = (await client.$queryRawUnsafe(
+        `SELECT DISTINCT
+                epa."evidence_id" AS "a_evidence_id",
+                epb."evidence_id" AS "b_evidence_id",
+                LENGTH(REPLACE(
+                  (LPAD(
+                    (
+                      (('x' || epa."perceptual_phash")::bit(64))::bigint
+                      # (('x' || epb."perceptual_phash")::bit(64))::bigint
+                    )::bit(64)::text,
+                    64,
+                    '0'
+                  )),
+                  '0',
+                  ''
+                ))::int AS "hamming"
+           FROM "evidence_parts" epa
+           JOIN "evidence" ea ON ea."id" = epa."evidence_id"
+           JOIN "evidence_parts" epb ON epb."perceptual_phash" IS NOT NULL
+           JOIN "evidence" eb ON eb."id" = epb."evidence_id"
+          WHERE ea."team_id" = $1
+            AND eb."team_id" = $1
+            AND epa."perceptual_phash" IS NOT NULL
+            AND epa."id" < epb."id"
+            AND epa."evidence_id" <> epb."evidence_id"
+            AND (epa."sha256" IS NULL
+                 OR epb."sha256" IS NULL
+                 OR epa."sha256" <> epb."sha256")
+          LIMIT 500`,
+        teamId,
+      )) as SimilarPair[];
+      const seenPair = new Set<string>();
+      for (const pair of similarPairs) {
+        const hamming = Number(pair.hamming ?? 0);
+        if (!Number.isFinite(hamming) || hamming > 8) continue;
+        const confidence: "MEDIUM" | "LOW" = hamming <= 4 ? "MEDIUM" : "LOW";
+        // De-dupe at the (aEvidence, bEvidence) level — multiple parts
+        // could match across the same two evidence records; we want
+        // one SIMILAR_TO edge per evidence pair, not one per part.
+        const key = `${pair.a_evidence_id}|${pair.b_evidence_id}`;
+        if (seenPair.has(key)) continue;
+        seenPair.add(key);
+        const aNode = await findNodeId(
+          client,
+          teamId,
+          "EVIDENCE",
+          pair.a_evidence_id,
+        );
+        const bNode = await findNodeId(
+          client,
+          teamId,
+          "EVIDENCE",
+          pair.b_evidence_id,
+        );
+        if (aNode && bNode) {
+          const created = await upsertEdge(
+            client,
+            teamId,
+            aNode,
+            bNode,
+            "SIMILAR_TO",
+            "SYSTEM",
+            confidence,
+            "Visually similar material detected; operator review required.",
+          );
+          if (created) edgesUpserted += 1;
+        }
+      }
+    } catch {
+      // perceptual_phash column may not exist yet (Phase 12 migration
+      // not applied) — best-effort, never fails reconcile.
+    }
+
     // 4. Stale-edge sweep. Edges whose source or target node is
     // stale (or whose underlying domain row is gone) get marked
     // inactive. This is best-effort — a failure here doesn't
@@ -1135,12 +1353,26 @@ export async function reconcileTeamGraph(
     }
 
     bump("graph_reconcile_completed_total");
-    return {
+    const result: ReconcileResult = {
       ok: true,
       nodesUpserted,
       edgesUpserted,
       edgesStaled,
     };
+    // Phase 14 — Stage 2 trigger #4: fire the optional post-reconcile
+    // hook. The hook is best-effort; we swallow any error here so a
+    // failed search-index enqueue can never poison the reconcile
+    // return value. Callers can still observe failures via metrics
+    // (search_indexing_enqueue_failed_total) and the SecurityEvent
+    // stream surfaced by the queue helper itself.
+    if (hooks.onReconciled) {
+      try {
+        await hooks.onReconciled({ teamId, result });
+      } catch {
+        /* Phase 14 — best-effort; never block reconcile completion. */
+      }
+    }
+    return result;
   } catch {
     bump("graph_reconcile_failed_total");
     return {
@@ -1896,7 +2128,16 @@ export type TimelineEventKind =
   | "MEDIA_RUN_COMPLETED"
   | "MEDIA_RUN_FAILED"
   | "MEDIA_SIGNAL_CREATED"
-  | "MEDIA_SIGNAL_ACKNOWLEDGED";
+  | "MEDIA_SIGNAL_ACKNOWLEDGED"
+  // Phase 13 — intelligence-chain events on the per-evidence
+  // timeline. EXTRACTED_TEXT_COMPLETED fires when an OCR /
+  // transcript extraction row reaches status COMPLETED;
+  // ENTITY_EXTRACTED fires when an entity row is persisted. Both
+  // events are gated on `evidenceId` (the timeline route only
+  // unions them when an evidence_id was supplied) to avoid full
+  // table scans on global queries.
+  | "EXTRACTED_TEXT_COMPLETED"
+  | "ENTITY_EXTRACTED";
 
 export type TimelineEvent = {
   id: string;
@@ -1944,6 +2185,11 @@ export async function buildInvestigationTimeline(
     const lifecycleWhere: string[] = [`le."team_id" = $1`];
     const runsWhere: string[] = [`r."team_id" = $1`];
     const signalsWhere: string[] = [`s."team_id" = $1`];
+    // Phase 13 — extracted-text + entity event streams. Both are
+    // evidence-keyed; team_id is enforced and an evidence_id pin
+    // is added below when input.evidenceId is provided.
+    const extractedWhere: string[] = [`et."team_id" = $1`];
+    const entityWhere: string[] = [`ent."team_id" = $1`];
 
     if (input.rootNodeId) {
       params.push(input.rootNodeId);
@@ -1960,6 +2206,8 @@ export async function buildInvestigationTimeline(
       lifecycleWhere.push(`le."evidence_id" = $${evidenceParamIndex}`);
       runsWhere.push(`r."evidence_id" = $${evidenceParamIndex}`);
       signalsWhere.push(`s."evidence_id" = $${evidenceParamIndex}`);
+      extractedWhere.push(`et."evidence_id" = $${evidenceParamIndex}`);
+      entityWhere.push(`ent."evidence_id" = $${evidenceParamIndex}`);
     }
     if (input.fromUtc) {
       params.push(new Date(input.fromUtc));
@@ -1975,6 +2223,10 @@ export async function buildInvestigationTimeline(
       signalsWhere.push(
         `(s."created_at_utc" >= $${p} OR s."acknowledged_at_utc" >= $${p})`,
       );
+      extractedWhere.push(
+        `(COALESCE(et."extracted_at_utc", et."updated_at") >= $${p})`,
+      );
+      entityWhere.push(`ent."created_at" >= $${p}`);
     }
     if (input.toUtc) {
       params.push(new Date(input.toUtc));
@@ -1986,6 +2238,10 @@ export async function buildInvestigationTimeline(
       lifecycleWhere.push(`le."created_at" < $${p}`);
       runsWhere.push(`r."created_at_utc" < $${p}`);
       signalsWhere.push(`s."created_at_utc" < $${p}`);
+      extractedWhere.push(
+        `(COALESCE(et."extracted_at_utc", et."updated_at") < $${p})`,
+      );
+      entityWhere.push(`ent."created_at" < $${p}`);
     }
     params.push(limit + 1);
     const limitParam = `$${params.length}`;
@@ -2037,6 +2293,32 @@ export async function buildInvestigationTimeline(
                 NULL::text AS "edge_type"
            FROM "media_intelligence_signals" s
            WHERE ${signalsWhere.join(" AND ")}
+       )
+       UNION ALL
+       (
+         SELECT 'EXTRACTED_TEXT_COMPLETED'::text AS "kind",
+                COALESCE(et."extracted_at_utc", et."updated_at") AS "at_utc",
+                ('Text extracted (' || et."kind"::text || ')')::text AS "summary",
+                et."evidence_id" AS "node_id",
+                NULL::uuid AS "other_node_id",
+                NULL::text AS "edge_type"
+           FROM "evidence_extracted_texts" et
+           WHERE ${extractedWhere.join(" AND ")}
+             AND et."status" = 'COMPLETED'
+       )
+       UNION ALL
+       (
+         SELECT 'ENTITY_EXTRACTED'::text AS "kind",
+                ent."created_at" AS "at_utc",
+                (
+                  'Candidate ' || ent."kind"::text ||
+                  COALESCE(' identified: ' || ent."normalized_value", ' identified')
+                )::text AS "summary",
+                ent."evidence_id" AS "node_id",
+                NULL::uuid AS "other_node_id",
+                NULL::text AS "edge_type"
+           FROM "evidence_entities" ent
+           WHERE ${entityWhere.join(" AND ")}
        )`
       : "";
 

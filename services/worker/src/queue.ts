@@ -312,6 +312,71 @@ export const miSearchIndexQueue = new Queue(miSearchIndexQueueName, {
   },
 });
 
+// Phase 16 — dedicated `mi-embed` queue. Carries embedding-compute
+// work for the EvidenceSemanticChunk table. The producer side lives in
+// `services/api/src/services/intelligence/semantic.service.ts` (live
+// indexing path) and in `services/api/scripts/backfill-semantic-embeddings.ts`
+// (operator backfill). Bounded retry + exponential backoff keeps a
+// transient OpenAI 5xx from saturating the worker.
+//
+// The processor reuses the same EmbeddingProvider abstraction the
+// API surfaces (see services/worker/src/mi-embed.processor.ts). Per-
+// workspace daily cap + monthly EUR budget is enforced INSIDE the
+// processor via `canEmbedMore` so the queue itself stays simple.
+//
+// `removeOnFail: 200` keeps the last 200 failures observable to SRE
+// without unbounded retention; the inline backfill in
+// `search-indexing.processor.ts` is the safety net for any drift.
+export const miEmbedQueueName = "mi-embed";
+export const miEmbedJobName = "EmbedSemanticChunks";
+
+export const miEmbedQueue = new Queue(miEmbedQueueName, {
+  connection: redisConnection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: "exponential", delay: 10_000 },
+    removeOnComplete: 200,
+    removeOnFail: 200,
+  },
+});
+
+export type MiEmbedJobPayload = {
+  teamId: string;
+  /** Bounded — at most 200 chunkIds per payload. Producer is
+   *  responsible for batching so a single payload cannot stall the
+   *  worker. */
+  chunkIds: string[];
+  /** Bounded catalog. Examples: "live_indexing", "backfill_script",
+   *  "search_index_safety_net". */
+  reason: string;
+};
+
+export function buildMiEmbedJobId(chunkIdsHashOrFirst: string): string {
+  return `mi-embed-${chunkIdsHashOrFirst}`;
+}
+
+export async function enqueueMiEmbedJob(
+  payload: MiEmbedJobPayload,
+  options: { delayMs?: number } = {},
+): Promise<
+  | { enqueued: true; jobId: string }
+  | { enqueued: false; reason: string }
+> {
+  if (!payload.chunkIds || payload.chunkIds.length === 0) {
+    return { enqueued: false, reason: "no_chunk_ids" };
+  }
+  // Bound the per-job payload so a single job's lifetime is predictable.
+  const bounded = payload.chunkIds.slice(0, 200);
+  const jobId = buildMiEmbedJobId(bounded[0]);
+  return genericIdempotentEnqueue(
+    miEmbedQueue,
+    miEmbedJobName,
+    jobId,
+    { teamId: payload.teamId, chunkIds: bounded, reason: payload.reason.slice(0, 64) },
+    options,
+  );
+}
+
 export const graphReconcileQueueName = "graph-reconcile";
 export const graphReconcileJobName = "ReconcileTeamGraph";
 
@@ -948,6 +1013,10 @@ export type MediaIntelligenceJobKind =
   | "extract_assets"
   | "compute_duplicates"
   | "compute_lineage"
+  // Phase 12 — perceptual-similarity foundation. Downloads a bounded
+  // image byte range, derives an 8×8 luminance matrix via sharp, and
+  // writes pHash+dHash to evidence_parts.{perceptual_phash,_dhash}.
+  | "compute_perceptual_hashes"
   | "wire_ocr_transcript"
   | "reindex"
   | "reconcile";
@@ -963,6 +1032,13 @@ export type MediaIntelligenceJobPayload = {
    *  per-part (e.g. extract_exif on a specific multipart material),
    *  the producer pins which part the worker should fetch. */
   evidencePartId?: string | null;
+  /** Phase 13 — text-similarity sub-kind for `reconcile` jobs.
+   *  When set, the worker runs text-similarity detection over the
+   *  OCR or transcript text body of this evidence and promotes
+   *  high-confidence matches into SIMILAR_TO graph edges. When
+   *  null/undefined, the `reconcile` job continues to run the
+   *  general analyzer as before. */
+  textKind?: "OCR" | "TRANSCRIPT" | null;
 };
 
 /** Deterministic job id — collapses duplicate triggers for the same

@@ -32,6 +32,11 @@ import { apiFetch } from "../../../lib/api";
 import { useCan, useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { HubQuickActionsBar } from "../../../components/hubs/HubQuickActionsBar";
+// Phase 13 — typed cross-evidence findings client.
+import {
+  getCrossEvidenceFindings,
+  type CrossEvidenceFinding,
+} from "../../../lib/api/intelligence";
 // =============================================================================
 // Types
 // =============================================================================
@@ -81,6 +86,43 @@ type MetricsSnapshot = {
   gauges: Record<string, number>;
 };
 
+// Phase 12 — Reviewer-activity summary. Pulls the existing
+// `/v1/investigation/reviewers` endpoint so the overview surface
+// shows headline counts and deep-links into the full console rather
+// than the operator having to navigate blind.
+type ReviewerActivitySummary = {
+  workflowTotals?: {
+    total: number;
+    notStarted: number;
+    inProgress: number;
+    escalated: number;
+    paused: number;
+    completed: number;
+    rejected: number;
+  };
+  escalationTotals?: {
+    total: number;
+    open: number;
+    acknowledged: number;
+    reassigned: number;
+    resolved: number;
+    suppressed: number;
+  };
+  externalReviewTotals?: {
+    total: number;
+    invited: number;
+    active: number;
+    expired: number;
+    revoked: number;
+  };
+  indexingTotals?: {
+    ocrAvailable: number;
+    ocrIndexed: number;
+    transcriptAvailable: number;
+    transcriptIndexed: number;
+  };
+};
+
 // =============================================================================
 // Page
 // =============================================================================
@@ -111,6 +153,18 @@ function InvestigationOverviewPageInner() {
   const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
+  // Phase 12 — Reviewer-activity summary read from the existing
+  // `/v1/investigation/reviewers` endpoint. Soft-fail to null so a
+  // missing permission collapses to bounded empty copy.
+  const [reviewerActivity, setReviewerActivity] =
+    useState<ReviewerActivitySummary | null>(null);
+  // Phase 13 — Cross-evidence findings (workspace-wide entity tuples
+  // that appear on more than one evidence record). Soft-fail to null
+  // so a missing permission or empty workspace collapses to bounded
+  // empty copy.
+  const [crossEvidence, setCrossEvidence] = useState<
+    CrossEvidenceFinding[] | null
+  >(null);
 
   // Resolve workspace once.
   
@@ -138,6 +192,26 @@ function InvestigationOverviewPageInner() {
         setError(null);
       } catch {
         if (!cancelled) setError("overview_unavailable");
+      }
+      // Phase 12 — reviewer activity summary is a second, independent
+      // fetch so a permission-denied here doesn't poison the rest of
+      // the overview page.
+      try {
+        const reviewers = (await apiFetch(
+          `/v1/investigation/reviewers?teamId=${encodeURIComponent(teamId)}`,
+          { method: "GET" },
+        )) as ReviewerActivitySummary;
+        if (!cancelled) setReviewerActivity(reviewers ?? null);
+      } catch {
+        if (!cancelled) setReviewerActivity(null);
+      }
+      // Phase 13 — cross-evidence findings via the typed client.
+      // Third independent fetch; null on any failure → empty state.
+      try {
+        const ce = await getCrossEvidenceFindings(teamId, 20);
+        if (!cancelled) setCrossEvidence(ce?.findings ?? null);
+      } catch {
+        if (!cancelled) setCrossEvidence(null);
       }
     };
 
@@ -170,7 +244,7 @@ function InvestigationOverviewPageInner() {
         </div>
         <span style={freshnessPillStyle(error, ageSeconds, teamId)}>
           {error
-            ? "data unavailable"
+            ? "No analyses recorded yet"
             : !teamId
               ? "loading workspace…"
               : ageSeconds == null
@@ -192,6 +266,36 @@ function InvestigationOverviewPageInner() {
       <section style={sectionStyle}>
         <h2 style={sectionTitleStyle}>Recent graph activity</h2>
         <GraphActivityList events={overview?.recentGraphActivity ?? null} />
+      </section>
+
+      {/* Phase 12 — Reviewer activity. Surfaces the bounded totals
+          the existing /v1/investigation/reviewers endpoint returns,
+          with a deep-link to the dedicated console. */}
+      <section style={sectionStyle}>
+        <h2 style={sectionTitleStyle}>Reviewer activity</h2>
+        <ReviewerActivityGrid activity={reviewerActivity} />
+        <div style={pivotsStyle}>
+          <Link href="/investigation/reviewers" style={pivotLinkStyle}>
+            Open reviewer console →
+          </Link>
+        </div>
+      </section>
+
+      {/* Phase 12 — Indexing progress. Surfaces the bounded indexing
+          totals (OCR + transcript) that Phase 11 produces. */}
+      <section style={sectionStyle}>
+        <h2 style={sectionTitleStyle}>Indexing progress</h2>
+        <IndexingProgressGrid totals={reviewerActivity?.indexingTotals ?? null} />
+      </section>
+
+      {/* Phase 13 — Cross-Evidence Findings. Lists workspace-wide
+          entity tuples (kind, normalizedValue) that appear on more
+          than one evidence record. Each chip deep-links into the
+          existing /search surface so the operator can pivot to the
+          full result set without leaving the page. */}
+      <section style={sectionStyle}>
+        <h2 style={sectionTitleStyle}>Cross-Evidence Findings</h2>
+        <CrossEvidenceFindingsCard findings={crossEvidence} />
       </section>
 
       <section style={sectionStyle}>
@@ -265,11 +369,24 @@ function RecentSignalsList({
   }
   if (signals.length === 0) {
     return (
-      <p style={emptyStyle}>
-        No open advisory observations recorded for this workspace. Run the
-        analyzer on individual evidence records from the evidence detail
-        panel.
-      </p>
+      <div style={emptyStyle}>
+        <p style={emptyTitleStyle}>
+          Investigation surfaces populate as you capture evidence and open
+          cases. No setup required — capture content and return here.
+        </p>
+        <p style={emptyHintStyle}>
+          This page lists workspace-wide advisory observations. Capture
+          evidence or open an existing case to populate it.
+        </p>
+        <div style={emptyCtaRowStyle}>
+          <Link href="/capture" style={emptyCtaPrimaryStyle}>
+            Capture evidence
+          </Link>
+          <Link href="/cases" style={emptyCtaSecondaryStyle}>
+            Open cases
+          </Link>
+        </div>
+      </div>
     );
   }
   return (
@@ -316,10 +433,23 @@ function GraphActivityList({
   }
   if (events.length === 0) {
     return (
-      <p style={emptyStyle}>
-        No graph activity recorded for this workspace yet. Graph reconcile
-        runs populate nodes and edges as evidence accumulates.
-      </p>
+      <div style={emptyStyle}>
+        <p style={emptyTitleStyle}>
+          No graph activity recorded yet.
+        </p>
+        <p style={emptyHintStyle}>
+          The workspace map updates as evidence is captured and cases are
+          opened.
+        </p>
+        <div style={emptyCtaRowStyle}>
+          <Link href="/capture" style={emptyCtaPrimaryStyle}>
+            Capture evidence
+          </Link>
+          <Link href="/cases" style={emptyCtaSecondaryStyle}>
+            Open cases
+          </Link>
+        </div>
+      </div>
     );
   }
   return (
@@ -338,6 +468,189 @@ function GraphActivityList({
     </ul>
   );
 }
+
+// Phase 12 — Bounded display tiles for the reviewer-activity summary
+// surfaced on the overview page. Reads counts already returned by
+// /v1/investigation/reviewers; never fabricates a value.
+function ReviewerActivityGrid({
+  activity,
+}: {
+  activity: ReviewerActivitySummary | null;
+}) {
+  if (activity == null) {
+    return (
+      <div style={emptyStyle}>
+        <p style={emptyTitleStyle}>
+          Review workflow surfaces populate as evidence is captured and
+          assigned. No setup required.
+        </p>
+        <p style={emptyHintStyle}>
+          Open the reviewer console for the full operator surface.
+        </p>
+      </div>
+    );
+  }
+  const wf = activity.workflowTotals ?? null;
+  const esc = activity.escalationTotals ?? null;
+  const ext = activity.externalReviewTotals ?? null;
+  const tiles: Array<{
+    label: string;
+    value: number | null;
+    tone?: "ok" | "info" | "warn" | "danger";
+    detail?: string;
+  }> = [
+    {
+      label: "Review workflows",
+      value: wf?.total ?? null,
+      detail:
+        wf != null
+          ? `${wf.inProgress} in progress · ${wf.escalated} escalated`
+          : undefined,
+    },
+    {
+      label: "Open escalations",
+      value: esc?.open ?? null,
+      tone: (esc?.open ?? 0) > 0 ? "warn" : undefined,
+      detail:
+        esc != null
+          ? `${esc.acknowledged} acknowledged · ${esc.resolved} resolved`
+          : undefined,
+    },
+    {
+      label: "External reviewer grants",
+      value: ext?.active ?? null,
+      tone: "info",
+      detail:
+        ext != null
+          ? `${ext.invited} invited · ${ext.expired} expired`
+          : undefined,
+    },
+  ];
+  return (
+    <ul style={gridStyle}>
+      {tiles.map((t) => (
+        <li key={t.label} style={tileStyle(t.tone)}>
+          <div style={tileLabelStyle}>{t.label}</div>
+          <div style={tileValueStyle}>
+            {t.value == null ? "—" : formatNumber(t.value)}
+          </div>
+          {t.detail ? (
+            <div style={tileMetricNameStyle}>{t.detail}</div>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Phase 12 — Display tile for OCR / transcript indexing totals.
+function IndexingProgressGrid({
+  totals,
+}: {
+  totals: ReviewerActivitySummary["indexingTotals"] | null;
+}) {
+  if (totals == null) {
+    return (
+      <div style={emptyStyle}>
+        <p style={emptyTitleStyle}>
+          OCR and transcript indexing has not been recorded for this
+          workspace yet.
+        </p>
+        <p style={emptyHintStyle}>
+          Indexing runs as evidence is captured; existing OCR and
+          transcript content also remains searchable.
+        </p>
+      </div>
+    );
+  }
+  const tiles: Array<{ label: string; value: number; detail: string }> = [
+    {
+      label: "OCR records available",
+      value: totals.ocrAvailable,
+      detail: `${totals.ocrIndexed} indexed`,
+    },
+    {
+      label: "Transcript records available",
+      value: totals.transcriptAvailable,
+      detail: `${totals.transcriptIndexed} indexed`,
+    },
+  ];
+  return (
+    <ul style={gridStyle}>
+      {tiles.map((t) => (
+        <li key={t.label} style={tileStyle("info")}>
+          <div style={tileLabelStyle}>{t.label}</div>
+          <div style={tileValueStyle}>{formatNumber(t.value)}</div>
+          <div style={tileMetricNameStyle}>{t.detail}</div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Phase 13 — Cross-Evidence Findings card. Renders the workspace-
+// wide entity tuples returned by the new /v1/investigation/cross-
+// evidence endpoint. Each finding becomes a chip the operator can
+// click to deep-link into the existing /search surface (the
+// keyword index already covers OCR + transcript text + the
+// entity normalizedValue chunks added in Phase 13).
+function CrossEvidenceFindingsCard({
+  findings,
+}: {
+  findings: CrossEvidenceFinding[] | null;
+}) {
+  if (findings == null) {
+    return <p style={emptyStyle}>Loading…</p>;
+  }
+  if (findings.length === 0) {
+    return (
+      <div style={emptyStyle}>
+        <p style={emptyTitleStyle}>
+          No cross-evidence findings recorded for this workspace yet.
+        </p>
+        <p style={emptyHintStyle}>
+          When the same person, email, phone number, organisation or
+          location appears on more than one evidence record, the
+          workspace surfaces it here for operator review.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <ul style={listStyle} data-cross-evidence-findings>
+      {findings.map((f) => {
+        const href = `/search?q=${encodeURIComponent(f.normalizedValue)}`;
+        return (
+          <li key={`${f.kind}:${f.normalizedValue}`} style={rowStyle}>
+            <div style={rowHeaderStyle}>
+              <span style={signalTypeStyle}>{f.kind}</span>
+              <span style={confidenceBadgeStyle}>
+                {f.evidenceCount} records
+              </span>
+              <span style={crossEvidenceValueStyle}>{f.normalizedValue}</span>
+            </div>
+            <p style={summaryTextStyle}>{f.operatorSummary}</p>
+            <div style={rowFooterStyle}>
+              <span style={timestampStyle}>
+                {f.sampleEvidenceIds.length} sample{f.sampleEvidenceIds.length === 1 ? "" : "s"}
+              </span>
+              <Link href={href} style={pivotLinkStyle}>
+                Open search results →
+              </Link>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+const crossEvidenceValueStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#0f172a",
+  wordBreak: "break-all",
+};
 
 function QueueHealthGrid({ metrics }: { metrics: MetricsSnapshot | null }) {
   const tiles: Array<{
@@ -601,6 +914,49 @@ const emptyStyle: React.CSSProperties = {
   border: "1px solid #e5e7eb",
   borderRadius: 8,
   padding: 14,
+};
+
+const emptyTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#0f172a",
+};
+
+const emptyHintStyle: React.CSSProperties = {
+  margin: "6px 0 0 0",
+  fontSize: 12,
+  color: "#64748b",
+  lineHeight: 1.5,
+};
+
+const emptyCtaRowStyle: React.CSSProperties = {
+  marginTop: 10,
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
+const emptyCtaPrimaryStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#ffffff",
+  background: "#1e40af",
+  border: "1px solid #1e3a8a",
+  borderRadius: 6,
+  padding: "5px 12px",
+  textDecoration: "none",
+};
+
+const emptyCtaSecondaryStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#1e40af",
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  borderRadius: 6,
+  padding: "5px 12px",
+  textDecoration: "none",
 };
 
 const listStyle: React.CSSProperties = {

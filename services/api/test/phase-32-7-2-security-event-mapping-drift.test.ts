@@ -455,6 +455,31 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // (additive payload_hash column). Hash-based dedup so a true
       // duplicate delivery is recognised independent of status.
       "20270501000000_phase_10_paypal_webhook_payload_hash",
+      // Phase 13 — Investigation Intelligence Completion: additive
+      // graph_edge_id back-reference column on evidence_similarities +
+      // CHECK constraint widenings for the new ENTITY node kind +
+      // EXTRACTED_FROM edge type. Reuses existing tables; no new
+      // model added. Phase O additive pattern; safety-gate verdict
+      // SAFE / 0 findings.
+      "20270601000000_phase13_intelligence_chain",
+      // Phase 15 — Privacy-safe semantic search. Additive pgvector
+      // sibling column (`embedding_vector vector(1536)`) on the
+      // existing EvidenceSemanticChunk table — the legacy `embedding`
+      // Bytes column is preserved for backward compatibility. The
+      // CREATE EXTENSION + ALTER COLUMN + CREATE INDEX steps are each
+      // wrapped in DO $$ ... END $$ blocks with information_schema
+      // guards and an insufficient_privilege EXCEPTION so the
+      // migration degrades gracefully on Postgres deployments where
+      // the running user cannot install extensions. Phase O additive
+      // pattern; safety-gate verdict SAFE / 0 findings.
+      "20270701000000_phase15_semantic_search",
+      // Phase 16 — Real semantic search activation. Additive single
+      // table `semantic_usage_daily` for per-workspace-per-UTC-day
+      // counter rollup (chunks embedded + tokens consumed + EUR
+      // spent). Read by `canEmbedMore` (daily cap + monthly budget)
+      // and by `getSemanticUsageSummary`. Phase O additive pattern;
+      // DO $$ guards, `IF NOT EXISTS`, no DROP / no RENAME.
+      "20270801000000_phase16_semantic_usage",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

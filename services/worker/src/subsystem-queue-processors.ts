@@ -168,7 +168,28 @@ async function processGraphReconcileJobInner(
     const { reconcileTeamGraph } = await import(
       "@proovra/shared-runtime/graph"
     );
-    const result = await reconcileTeamGraph(job.data.teamId, prisma);
+    // Phase 14 — Stage 2 trigger #4. Pass an `onReconciled` hook so
+    // the worker enqueues a Discovery search re-index for the team
+    // after a successful graph reconcile pass. Uses the worker-side
+    // `enqueueSearchIndexingJob` helper from ./queue.ts (shares the
+    // same deterministic jobId scheme as the API-side helper so the
+    // two never duplicate). Best-effort: a failed enqueue NEVER
+    // blocks the reconcile completion log.
+    const { enqueueSearchIndexingJob } = await import("./queue.js");
+    const result = await reconcileTeamGraph(
+      job.data.teamId,
+      prisma,
+      {
+        onReconciled: ({ teamId: tId }) => {
+          enqueueSearchIndexingJob({
+            teamId: tId,
+            kind: "evidence",
+            sourceId: tId,
+            reason: "graph_reconciled",
+          }).catch(() => null);
+        },
+      },
+    );
     logger.info(
       {
         jobId: job.id ?? null,

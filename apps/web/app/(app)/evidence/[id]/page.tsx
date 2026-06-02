@@ -48,6 +48,14 @@ import { EvidenceRelationshipsSection } from "./components/EvidenceRelationships
 import { ArtifactHistorySection } from "./components/ArtifactHistorySection";
 import { ReviewerAuditTrailSection } from "./components/ReviewerAuditTrailSection";
 import EvidenceDiscussionPanel from "./components/EvidenceDiscussionPanel";
+// Phase 12 — surface OCR + transcript + extracted entities that the
+// Phase 11 wiring already produces. Display-only; reads the existing
+// `/v1/intelligence/evidence/:id` endpoint via a typed client.
+import {
+  fetchEvidenceIntelligence,
+  type IntelligenceEvidenceResponse,
+} from "../../../../lib/api/intelligence";
+import { EntityChipGroup } from "../../../../components/intelligence/EntityChipGroup";
 // Phase 6 — surfaces "Source: External intake" + safe reviewer status
 // controls when (and only when) the evidence row arrived via the external
 // intake pipeline. Returns null for every other evidence record, so this
@@ -562,6 +570,13 @@ function EvidenceDetailPageInner() {
   const [initialUpdatedAtUtc, setInitialUpdatedAtUtc] = useState<
     string | null
   >(null);
+  // Phase 12 — intelligence projection (entities + extracted-text
+  // summaries) for the overview tab. The endpoint already exists; we
+  // simply display what it returns. `null` while loading or on
+  // permission-denied (collapses to empty-state copy).
+  const [intelligence, setIntelligence] =
+    useState<IntelligenceEvidenceResponse | null>(null);
+  const [intelligenceLoaded, setIntelligenceLoaded] = useState(false);
 
   const loadWorkflowEvents = async () => {
     if (!evidenceId) return;
@@ -656,6 +671,24 @@ function EvidenceDetailPageInner() {
     if (!evidenceId) return;
     void loadWorkflowEvents();
   }, [evidenceId]);
+
+  // Phase 12 — Hydrate the intelligence projection once the workspace
+  // is known. Bounded, single-shot fetch. Never blocks the rest of the
+  // page if the endpoint fails (collapses to empty state).
+  useEffect(() => {
+    const teamId = workspace?.reviewWorkflow?.teamId ?? null;
+    if (!evidenceId || !teamId) return;
+    let cancelled = false;
+    void (async () => {
+      const res = await fetchEvidenceIntelligence(evidenceId, teamId);
+      if (cancelled) return;
+      setIntelligence(res);
+      setIntelligenceLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [evidenceId, workspace?.reviewWorkflow?.teamId]);
 
   // Phase 32.5 — Artifact-readiness polling.
   //
@@ -1664,6 +1697,102 @@ function EvidenceDetailPageInner() {
                     />
                   </div>
                   <KeyValueGrid items={overviewMetadataItems} />
+                </section>
+
+                {/* Phase 12 — Intelligence projection. Surfaces the
+                    extracted entities (OCR + transcript) and the
+                    OCR/transcript availability summaries that Phase 11
+                    already writes. Reads the existing
+                    /v1/intelligence/evidence/:id endpoint. */}
+                <section className="evidence-detail-section">
+                  <div className="evidence-detail-section-header">
+                    <SectionHeading
+                      kicker="Intelligence"
+                      title="Extracted entities and content summaries"
+                      icon={FileText}
+                    />
+                  </div>
+                  {!intelligenceLoaded ? (
+                    <p className="evidence-detail-muted">
+                      Loading extracted entity summary…
+                    </p>
+                  ) : (
+                    <>
+                      <EntityChipGroup
+                        entities={intelligence?.entities ?? []}
+                        emptyMessage="No entities have been extracted from OCR or transcript text for this record yet. Entities populate automatically as Phase 11 OCR and transcript wiring completes."
+                      />
+                      <div
+                        style={{
+                          marginTop: 12,
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fill, minmax(220px, 1fr))",
+                          gap: 8,
+                        }}
+                      >
+                        {(intelligence?.extractedTexts ?? []).length === 0 ? (
+                          <p className="evidence-detail-muted">
+                            No OCR or transcript extraction has been
+                            recorded yet for this record.
+                          </p>
+                        ) : (
+                          (intelligence?.extractedTexts ?? []).map((text) => (
+                            <div
+                              key={text.id}
+                              style={{
+                                border: "1px solid #e2e8f0",
+                                borderRadius: 8,
+                                padding: 10,
+                                background: "#f8fafc",
+                                fontSize: 12,
+                                color: "#0f172a",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 4,
+                              }}
+                            >
+                              <strong style={{ fontSize: 11, color: "#334155" }}>
+                                {text.kind.replace(/_/g, " ")}
+                              </strong>
+                              <span style={{ color: "#475569" }}>
+                                Provider: {text.provider}
+                                {text.providerVersion
+                                  ? ` (${text.providerVersion})`
+                                  : ""}
+                              </span>
+                              <span style={{ color: "#475569" }}>
+                                Status: {text.status}
+                                {text.wordCount != null
+                                  ? ` · ${text.wordCount} words`
+                                  : ""}
+                              </span>
+                              {text.confidence != null ? (
+                                <span style={{ color: "#475569" }}>
+                                  Confidence:{" "}
+                                  {Math.round(
+                                    Math.max(
+                                      0,
+                                      Math.min(1, text.confidence),
+                                    ) * 100,
+                                  )}
+                                  %
+                                </span>
+                              ) : null}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      {intelligence?.disclaimer ? (
+                        <p
+                          className="evidence-detail-muted"
+                          style={{ marginTop: 8 }}
+                        >
+                          {intelligence.disclaimer}
+                        </p>
+                      ) : null}
+                    </>
+                  )}
                 </section>
               </>
             ) : null}

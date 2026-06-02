@@ -220,14 +220,27 @@ function IntakeLinksPageInner() {
   }
 
   if (featureDisabled) {
+    // PRODUCTION FIX: previously the feature-disabled panel rendered the
+    // literal env-var names (WORKFLOW_INTAKE_LINKS_ENABLED +
+    // WORKFLOW_INTAKE_TOKEN_SECRET) directly to operators. That leaked
+    // deployment-internal variable names into the user-facing UI. The
+    // backend already returns a structured FEATURE_DISABLED error with a
+    // bounded reason; render an operator-readable "Configuration
+    // required" panel instead and route admins to the setup docs.
     return (
-      <main style={pageStyle}>
+      <main style={pageStyle} data-testid="intake-links-feature-disabled">
         <h1 style={titleStyle}>External Intake Links</h1>
         <div style={infoBoxStyle}>
-          External intake is not enabled on this deployment. Ask a platform
-          administrator to set <code>WORKFLOW_INTAKE_LINKS_ENABLED</code> and{" "}
-          <code>WORKFLOW_INTAKE_TOKEN_SECRET</code> to enable secure
-          contributor links for your workspace.
+          <strong>Configuration required</strong>
+          <p style={{ marginTop: 8 }}>
+            External intake links are not enabled on this deployment. A
+            platform administrator must complete the deployment-level
+            configuration before this feature is available in your workspace.
+          </p>
+          <p style={{ marginTop: 8 }}>
+            See the deployment runbook for the required configuration
+            steps.
+          </p>
         </div>
       </main>
     );

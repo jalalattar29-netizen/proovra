@@ -40,6 +40,14 @@ import {
   listSearchAudit,
   recordSearchAudit,
 } from "../services/search/search-audit.service.js";
+// Phase 16 — semantic search admin surface (backfill + status).
+import { runSemanticBackfill } from "../services/search/semantic-backfill.service.js";
+import { getSemanticUsageSummary } from "../services/search/semantic-budget.service.js";
+import {
+  isSemanticReadyAtRuntime,
+  resolveEmbeddingProviderFromEnv,
+} from "../services/search/embedding-provider.js";
+import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 
 async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireAuth(req, reply);
@@ -600,6 +608,13 @@ export async function searchRoutes(app: FastifyInstance) {
         sort: typeof raw.sort === "string" ? raw.sort : undefined,
         cursor: typeof raw.cursor === "string" ? raw.cursor : undefined,
         limit: raw.limit !== undefined ? Number(raw.limit) : undefined,
+        // Phase 15 — semantic / hybrid mode selector. Defaults to KEYWORD
+        // (preserves Phase 14 behavior). The shared Zod schema rejects
+        // any value outside the SEARCH_MODES enum, so we forward as-is.
+        mode:
+          typeof raw.mode === "string"
+            ? (raw.mode as string).toUpperCase()
+            : undefined,
       };
       // Strip undefined so .strict() doesn't reject.
       for (const k of Object.keys(candidate)) {
@@ -631,6 +646,11 @@ export async function searchRoutes(app: FastifyInstance) {
         totalReturned: result.totalReturned,
         filteredByGovernance: result.filteredByGovernance,
         filteredByVisibility: result.filteredByVisibility,
+        // Phase 15 — additive response fields. Backward-compatible:
+        // existing Phase 14 clients ignore these keys silently.
+        modeUsed: result.modeUsed,
+        semanticAvailable: result.semanticAvailable,
+        fallbackReason: result.fallbackReason,
       });
     }
   );
@@ -918,6 +938,65 @@ export async function searchRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         rows: result.rows,
         nextBeforeUtc: result.nextBeforeUtc,
+      });
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Phase 16 — Semantic search admin surface.
+  //
+  //   POST /v1/search/semantic/backfill  (platform admin)
+  //   GET  /v1/search/semantic/status    (workspace-scoped)
+  //
+  // The route layer ONLY trims + validates the input. The actual
+  // backfill loop, budget gate, and provider call live in the
+  // services/search/semantic-* modules so the route stays thin.
+  // -------------------------------------------------------------------------
+  app.post(
+    "/v1/search/semantic/backfill",
+    { preHandler: [requirePlatformAdmin] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = z
+        .object({
+          workspaceId: z.string().uuid(),
+          batchSize: z.coerce.number().int().min(1).max(200).optional(),
+          maxBatches: z.coerce.number().int().min(1).max(1000).optional(),
+          cursorChunkId: z.string().uuid().nullable().optional(),
+          dryRun: z.coerce.boolean().optional(),
+        })
+        .parse((req.body ?? {}) as Record<string, unknown>);
+      const result = await runSemanticBackfill({
+        workspaceId: body.workspaceId,
+        batchSize: body.batchSize,
+        maxBatches: body.maxBatches,
+        cursorChunkId: body.cursorChunkId ?? null,
+        dryRun: body.dryRun ?? false,
+      });
+      return reply.code(200).send(result);
+    },
+  );
+
+  app.get(
+    "/v1/search/semantic/status",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.query ?? {});
+      const actor = await requireSearchActor(req, reply, q.teamId);
+      if (!actor) return;
+      const enabled = isSemanticReadyAtRuntime();
+      const provider = resolveEmbeddingProviderFromEnv();
+      const usage = await getSemanticUsageSummary(prisma, q.teamId);
+      return reply.code(200).send({
+        enabled,
+        providerName: provider.name,
+        modelUsed: provider.model,
+        dimensions: provider.dimensions,
+        semanticAvailable: enabled && provider.name !== "disabled",
+        fallbackReason:
+          enabled && provider.name === "disabled" ? "PROVIDER_UNAVAILABLE" : null,
+        usage,
       });
     },
   );

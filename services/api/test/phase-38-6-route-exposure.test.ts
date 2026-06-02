@@ -421,9 +421,25 @@ describe("Phase 38.6 — PageRouteGate", () => {
     expect(PAGE_GATE).toMatch(/if \(access\.canLoad\) return <>\{children\}<\/>/);
   });
 
-  it("returns null for PLATFORM_ADMIN_ONLY (matches sidebar hide)", () => {
+  it("renders a structured panel (not null) for PLATFORM_ADMIN_ONLY — production fix", () => {
+    // Production fix (was: "returns null for PLATFORM_ADMIN_ONLY"). The
+    // legacy behavior returned `null`, which left non-platform-admin
+    // users on a blank page when they typed a platform-admin URL
+    // directly. The fixed behavior renders a structured "Platform
+    // administration only" panel with Back-to-home + Browse-all-tools
+    // links. The route is still hidden from sidebar/cmd-K/All Tools via
+    // the resolver's `canSeeNav: false` decision — this panel only
+    // appears on direct URL navigation. Pinned by
+    // `production-page-route-gate-platform-admin.test.ts`.
     expect(PAGE_GATE).toMatch(/"PLATFORM_ADMIN_ONLY"/);
-    expect(PAGE_GATE).toMatch(/return null/);
+    const branchIdx = PAGE_GATE.indexOf(
+      'access.accessState === "PLATFORM_ADMIN_ONLY"',
+    );
+    expect(branchIdx).toBeGreaterThan(-1);
+    const branchBlock = PAGE_GATE.slice(branchIdx, branchIdx + 3000);
+    expect(branchBlock).not.toMatch(/\breturn\s+null\s*;/);
+    expect(branchBlock).toMatch(/data-page-route-gate-state=\{access\.accessState\}/);
+    expect(branchBlock).toMatch(/href="\/home"/);
   });
 
   it("exposes data attributes for testability", () => {

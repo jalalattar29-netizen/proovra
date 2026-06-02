@@ -28,6 +28,8 @@ import {
   graphTimelineSyncQueueName,
   mediaIntelligenceQueue,
   mediaIntelligenceQueueName,
+  miEmbedQueue,
+  miEmbedQueueName,
   miSearchIndexQueue,
   miSearchIndexQueueName,
   ocrQueue,
@@ -57,6 +59,8 @@ import { processOtsUpgrade } from "./ots-upgrade.processor.js";
 import { processSearchIndexingJob } from "./search-indexing.processor.js";
 import { processMediaIntelligenceJob } from "./media-intelligence.processor.js";
 import { processDerivedAssetJob } from "./derived-assets.processor.js";
+// Phase 16 — dedicated mi-embed worker for semantic embedding compute.
+import { processMiEmbedJob } from "./mi-embed.processor.js";
 // Phase 31.19 / 31.20 — seven isolated subsystem queue processors.
 import {
   processGraphDomainSyncJob,
@@ -1316,6 +1320,7 @@ type WorkerKind =
   | "mi-ocr"
   | "mi-transcript"
   | "mi-search-index"
+  | "mi-embed"
   | "graph-reconcile"
   | "graph-domain-sync"
   | "graph-timeline-sync"
@@ -1562,6 +1567,25 @@ const graphReconcileWorker = safeRegisterWorker("graph-reconcile", () =>
   ),
 );
 
+// Phase 16 — dedicated mi-embed worker. Concurrency 1 — vendor calls
+// (OpenAI) are network-bound and rate-limited; saturating them
+// in-process buys nothing. Per-workspace daily cap + monthly EUR
+// budget is enforced INSIDE the processor.
+const miEmbedWorker = safeRegisterWorker("mi-embed", () =>
+  new Worker(
+    miEmbedQueueName,
+    wrapJobHandlerWithOtelContext(
+      "proovra.worker.mi_embed",
+      miEmbedQueueName,
+      processMiEmbedJob,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 1,
+    },
+  ),
+);
+
 // Phase 31.20 — final three isolated subsystem workers, completing
 // the 9-queue isolation program. graph-domain-sync delegates to the
 // existing reconciler; graph-timeline-sync and graph-search-projection
@@ -1785,6 +1809,8 @@ async function shutdown(exitCode: number) {
     ["mi-ocr", ocrWorker] as const,
     ["mi-transcript", transcriptWorker] as const,
     ["mi-search-index", miSearchIndexWorker] as const,
+    // Phase 16 — mi-embed worker shutdown.
+    ["mi-embed", miEmbedWorker] as const,
     ["graph-reconcile", graphReconcileWorker] as const,
     ["graph-domain-sync", graphDomainSyncWorker] as const,
     ["graph-timeline-sync", graphTimelineSyncWorker] as const,
@@ -1817,6 +1843,8 @@ async function shutdown(exitCode: number) {
     await ocrQueue.close();
     await transcriptQueue.close();
     await miSearchIndexQueue.close();
+    // Phase 16 — mi-embed queue.
+    await miEmbedQueue.close();
     await graphReconcileQueue.close();
     // Phase 31.20 — final three isolated subsystem queues.
     await graphDomainSyncQueue.close();

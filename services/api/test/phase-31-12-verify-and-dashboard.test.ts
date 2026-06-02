@@ -410,6 +410,12 @@ describe("Phase 31.12 — /investigation dashboard page", () => {
       "/v1/users/me",
       "/v1/ops/metrics",
       "/v1/investigation/overview",
+      // Phase 12 productization: the dashboard now surfaces a
+      // Reviewer-activity + Indexing-progress summary by reading
+      // the existing /v1/investigation/reviewers endpoint (no new
+      // backend route). Pinned by
+      // `phase-12-investigation-productization.test.ts`.
+      "/v1/investigation/reviewers",
     ];
     for (const call of apiFetchCalls) {
       const path = call.match(/[`"]([^`"]+)[`"]/)?.[1] ?? "";
@@ -480,13 +486,19 @@ describe("Phase 31.12 — /investigation dashboard page", () => {
   });
 
   it("empty states present for both signal list AND graph activity list (with next-action guidance)", () => {
-    // Required by the brief: empty states with next actions. JSX
-    // text wraps across lines so flatten whitespace first.
+    // Investigation-suite audit evolution: the previous copy ("No open
+    // advisory observations…Run the analyzer") was rewritten to
+    // operator-readable empty states with CTA links. The original
+    // requirement is preserved — both lists still render a bounded
+    // empty state with a next-action hint — but the exact wording now
+    // surfaces "No analyses recorded yet" + Capture/Cases CTAs (signal
+    // list) and "No graph activity yet" + same CTAs (graph list). The
+    // canonical pin lives in `investigation-suite-audit.test.ts`.
     const flat = src.replace(/\s+/g, " ");
     expect(flat).toMatch(
-      /No open advisory observations[\s\S]*?Run the[\s\S]*?analyzer/,
+      /No (?:open advisory observations|analyses recorded)[\s\S]*?(?:Run the[\s\S]*?analyzer|Capture)/,
     );
-    expect(flat).toMatch(/No graph activity[\s\S]*?Graph reconcile runs/);
+    expect(flat).toMatch(/No graph (?:activity|yet)[\s\S]*?(?:Graph reconcile runs|Capture)/);
   });
 
   it("pivots to existing surfaces (no dead-end dashboard)", () => {

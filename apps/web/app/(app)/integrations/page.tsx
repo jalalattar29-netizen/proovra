@@ -118,8 +118,18 @@ useEffect(() => {
       setWebhooks(hooks.webhooks ?? []);
       setError(null);
     } catch (err) {
-      const e = err as { message?: string };
-      setError(e?.message ?? "Could not load integrations.");
+      // PRODUCTION FIX: previously this catch surfaced the raw apiFetch
+      // error message verbatim, which made the operator see a JSON-style
+      // string ("INTEGRATIONS_DISABLED secret_missing") in the error
+      // banner. Detect the structured FEATURE_DISABLED code on ApiError
+      // and switch to the disabled-state marker that renders a clean
+      // panel below. All other errors keep the original message path.
+      const e = err as { code?: string; message?: string };
+      if (e?.code === "INTEGRATIONS_DISABLED") {
+        setError("INTEGRATIONS_DISABLED");
+      } else {
+        setError(e?.message ?? "Could not load integrations.");
+      }
     }
   }
 
@@ -289,7 +299,11 @@ useEffect(() => {
         </p>
       </header>
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error === "INTEGRATIONS_DISABLED" ? (
+        <IntegrationsDisabledPanel />
+      ) : error ? (
+        <div style={errorBoxStyle}>{error}</div>
+      ) : null}
 
       {disclosed ? (
         <DisclosureBanner
@@ -962,6 +976,58 @@ const errorBoxStyle: React.CSSProperties = {
   borderRadius: 8,
   fontSize: 14,
 };
+
+/**
+ * PRODUCTION FIX: replaces the raw-JSON error banner that operators were
+ * seeing when the deployment had INTEGRATIONS_ENABLED=false or API_KEY_SECRET
+ * unset. The backend responds 503 with structured
+ * `{ code: "INTEGRATIONS_DISABLED", reason: "secret_missing" | "feature_flag_off" }`
+ * — this panel renders that state cleanly with operator-readable copy.
+ * The panel deliberately does NOT name the env vars (deployment-internal
+ * configuration; consult the deployment runbook instead).
+ */
+function IntegrationsDisabledPanel(): JSX.Element {
+  return (
+    <section
+      data-testid="integrations-disabled-panel"
+      style={{
+        marginTop: 12,
+        padding: 16,
+        background: "#f8fafc",
+        border: "1px solid #cbd5e1",
+        borderRadius: 8,
+        maxWidth: 640,
+      }}
+    >
+      <h2 style={{ fontSize: 16, fontWeight: 600, color: "#0f172a", margin: 0 }}>
+        Integrations are not available on this workspace
+      </h2>
+      <p
+        style={{
+          fontSize: 14,
+          color: "#475569",
+          marginTop: 8,
+          marginBottom: 0,
+        }}
+      >
+        API keys and webhooks have not been enabled here yet. A platform
+        administrator must finish deployment configuration before this
+        surface can manage keys or endpoints.
+      </p>
+      <p
+        style={{
+          fontSize: 13,
+          color: "#64748b",
+          marginTop: 12,
+          marginBottom: 0,
+        }}
+      >
+        If you expected integrations to be available, contact your platform
+        administrator or consult the deployment runbook for next steps.
+      </p>
+    </section>
+  );
+}
 const disclosureBoxStyle: React.CSSProperties = {
   marginTop: 16,
   padding: 16,

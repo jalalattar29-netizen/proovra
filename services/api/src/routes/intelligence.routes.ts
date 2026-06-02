@@ -47,6 +47,7 @@ import {
   projectIntelligenceJob,
 } from "../services/intelligence/extraction.service.js";
 import {
+  listCrossEvidenceFindings,
   listEvidenceEntities,
   projectEvidenceEntity,
 } from "../services/intelligence/entity-extraction.service.js";
@@ -55,11 +56,23 @@ import {
   projectSimilarity,
   reconcileSimilaritiesForEvidence,
 } from "../services/intelligence/similarity.service.js";
-import { searchEvidence } from "../services/intelligence/search.service.js";
+// Phase 14 — Stage 3: `searchEvidence` was the prior backend for
+// /v1/intelligence/search. The handler now forwards to the canonical
+// /v1/search backend (`executeSearch`), so the legacy adapter is no
+// longer imported. Left intentionally documented here so subsequent
+// readers can locate the prior code path quickly.
 import {
   isSemanticSearchEnabled,
   searchSemantic,
 } from "../services/intelligence/semantic.service.js";
+// Phase 14 — Stage 3 consolidation. The /v1/intelligence/search
+// endpoint is folded onto the canonical /v1/search backend
+// (`executeSearch` over `evidence_search_documents`). The legacy
+// handler stays exposed as a deprecated alias so any client still
+// calling it keeps working — see the handler body for the new
+// projection shape.
+import { executeSearch } from "../services/search/evidence-search.service.js";
+import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import {
   AI_ASSISTANCE_KINDS,
   requestAiAssistance,
@@ -107,6 +120,34 @@ async function requireMember(
 export async function intelligenceRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   // GET /v1/intelligence/search
+  //
+  // @deprecated Phase 14 — Stage 3 consolidation.
+  //
+  // This endpoint historically called `searchEvidence` (a thin wrapper
+  // over EvidenceSearchDocument) and a (currently-disabled)
+  // `searchSemantic` adapter. Phase 14 folds it onto the canonical
+  // `/v1/search` backend so every Discovery query goes through the
+  // same governance + audit + cursor pipeline (`executeSearch` from
+  // `services/search/evidence-search.service.ts`).
+  //
+  // Behaviour preserved for backward compatibility:
+  //   * `scope` query param accepted (publishable | internal).
+  //     Today the parameter is recorded but the underlying
+  //     `executeSearch` already applies governance + reviewer
+  //     visibility gates — there's no need for a parallel
+  //     publishable/internal toggle on top.
+  //   * `semantic=true` query param accepted. Semantic search is
+  //     OFF by default (Phase 15 scope per the Phase 14 ground
+  //     rules). When `semantic=true` arrives we return the same
+  //     `{ enabled: false, hits: [] }` shape the prior handler did.
+  //   * Response envelope kept as `{ keyword, semantic, scope }`
+  //     where `keyword.hits[]` carries the canonical /v1/search
+  //     row shape so callers can already adopt the richer
+  //     projection without changing the request URL.
+  //
+  // New clients SHOULD call `/v1/search` directly (it returns the
+  // full cursor + governance metadata). This alias remains until
+  // every internal caller migrates in the parallel UI stream.
   // ---------------------------------------------------------------------------
 
   app.get(
@@ -127,25 +168,68 @@ export async function intelligenceRoutes(app: FastifyInstance) {
       const ok = await requireMember(req, reply, query.teamId);
       if (!ok) return;
 
-      const [keywordHits, semantic] = await Promise.all([
-        searchEvidence({
+      // Reuse the canonical search backend. We replicate the
+      // `/v1/search` actor resolution inline so this alias still
+      // benefits from the reviewer-capability gate that governs
+      // reviewer-restricted document visibility.
+      const reviewerDecision = await evaluateMemberAccess({
+        teamId: query.teamId,
+        userId: ok.userId,
+        permission: "identity.access_review.action",
+      });
+      const isReviewerCapable = reviewerDecision.allowed;
+
+      const searchResult = await executeSearch({
+        actorUserId: ok.userId,
+        isReviewerCapable,
+        filter: {
           teamId: query.teamId,
           q: query.q,
-          scope: query.scope,
           limit: query.limit,
-        }),
-        query.semantic === "true"
-          ? searchSemantic({
+        },
+        // Phase 14 — Stage 3 dedicated surface tag so the
+        // /v1/search/audit log can distinguish legacy-alias traffic
+        // from canonical /v1/search traffic without losing the
+        // requestId / ip continuity.
+        surface: "api:/v1/intelligence/search",
+        requestId: req.id,
+        ipAddress: req.ip,
+      });
+
+      // Backward-compatible projection: keep the legacy
+      // `{ keyword: { hits }, semantic, scope }` envelope so any
+      // surviving client doesn't break. `keyword.hits` carries the
+      // executeSearch row shape (richer than the prior
+      // searchEvidence projection); callers consuming only
+      // `evidenceId` + `summary` are unaffected, while new callers
+      // can already access the additional fields.
+      const semanticPayload = isSemanticSearchEnabled()
+        ? query.semantic === "true"
+          ? await searchSemantic({
               teamId: query.teamId,
               q: query.q,
               limit: query.limit,
             })
-          : Promise.resolve({ enabled: isSemanticSearchEnabled(), hits: [] }),
-      ]);
+          : { enabled: true, hits: [] }
+        : { enabled: false, hits: [] };
+
       return reply.code(200).send({
-        keyword: keywordHits,
-        semantic,
+        keyword: {
+          hits: searchResult.rows,
+          nextCursor: searchResult.nextCursor,
+          totalReturned: searchResult.totalReturned,
+          filteredByGovernance: searchResult.filteredByGovernance,
+          filteredByVisibility: searchResult.filteredByVisibility,
+        },
+        semantic: semanticPayload,
         scope: query.scope ?? "publishable",
+        // Phase 14 — deprecation hint so any client log shows the
+        // canonical replacement URL without needing release notes.
+        deprecation: {
+          alias: true,
+          canonical: "/v1/search",
+          since: "phase-14",
+        },
       });
     },
   );
@@ -314,6 +398,48 @@ export async function intelligenceRoutes(app: FastifyInstance) {
         text: body.text,
       });
       return reply.code(200).send({ result });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase 13 — GET /v1/investigation/cross-evidence
+  //
+  // Returns a bounded list of entity (kind, normalizedValue) tuples
+  // that appear on more than one evidence record in the team.
+  // Operator-readable response shape:
+  //   { findings: [{ kind, normalizedValue, evidenceCount, sampleEvidenceIds }], total }
+  //
+  // Capability gate: any workspace member (same gate as the existing
+  // /v1/intelligence/evidence/:id route). Anti-enumeration: 404 for
+  // non-members. Bounded LIMIT 20.
+  // ---------------------------------------------------------------------------
+
+  app.get(
+    "/v1/investigation/cross-evidence",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const query = z
+        .object({
+          teamId: z.string().uuid(),
+          limit: z.coerce.number().int().min(1).max(20).optional(),
+        })
+        .parse(req.query ?? {});
+      const ok = await requireMember(req, reply, query.teamId);
+      if (!ok) return;
+      const findings = await listCrossEvidenceFindings({
+        teamId: query.teamId,
+        limit: query.limit ?? 20,
+      });
+      return reply.code(200).send({
+        findings: findings.map((f) => ({
+          kind: f.kind,
+          normalizedValue: f.normalizedValue,
+          evidenceCount: f.evidenceCount,
+          sampleEvidenceIds: f.sampleEvidenceIds,
+          operatorSummary: `This ${f.kind.toLowerCase()} appears in ${f.evidenceCount} evidence records.`,
+        })),
+        total: findings.length,
+      });
     },
   );
 

@@ -142,7 +142,7 @@ useEffect(() => {
         <div style={headerRightStyle}>
           <span style={freshnessPillStyle(error, ageSeconds, teamId)}>
             {error
-              ? "data unavailable"
+              ? "No graph yet"
               : !teamId
                 ? "loading workspace…"
                 : ageSeconds == null
@@ -186,18 +186,39 @@ useEffect(() => {
         <p style={emptyStyle}>Loading…</p>
       ) : (
         <div style={sectionsStyle}>
-          {kindOrder.map((kind) => {
-            const bucket = grouped[kind];
-            if (filter !== "ALL" && kind !== filter) return null;
-            return (
-              <SeedSection
-                key={kind}
-                kind={kind}
-                title={SEED_KIND_LABELS[kind]}
-                seeds={bucket}
-              />
-            );
-          })}
+          {(seeds?.length ?? 0) === 0 ? (
+            <div style={emptyStyle}>
+              <p style={emptyTitleStyle}>
+                No graph yet — capture evidence and create cases to populate
+                the workspace map.
+              </p>
+              <p style={emptyHintStyle}>
+                Each row on this page becomes a graph seed once evidence,
+                cases, incidents, or reports exist in the workspace.
+              </p>
+              <div style={emptyCtaRowStyle}>
+                <Link href="/capture" style={emptyCtaPrimaryStyle}>
+                  Capture evidence
+                </Link>
+                <Link href="/cases" style={emptyCtaSecondaryStyle}>
+                  Open cases
+                </Link>
+              </div>
+            </div>
+          ) : (
+            kindOrder.map((kind) => {
+              const bucket = grouped[kind];
+              if (filter !== "ALL" && kind !== filter) return null;
+              return (
+                <SeedSection
+                  key={kind}
+                  kind={kind}
+                  title={SEED_KIND_LABELS[kind]}
+                  seeds={bucket}
+                />
+              );
+            })
+          )}
         </div>
       )}
     </div>
@@ -223,7 +244,7 @@ function SeedSection({
       </div>
       {seeds.length === 0 ? (
         <p style={sectionEmptyStyle}>
-          No {kind.toLowerCase()} seeds in this workspace yet.
+          No {kind.toLowerCase()} entries in the workspace map yet.
         </p>
       ) : (
         <ul style={listStyle}>
@@ -238,6 +259,15 @@ function SeedSection({
 
 function SeedRow({ seed }: { seed: GraphSeed }) {
   const href = pivotHref(seed);
+  // Phase 14 — when the seed is an ENTITY-kind node (extracted person /
+  // location / organization), expose a "Search for this entity"
+  // affordance that pivots into the canonical /search surface. The
+  // current /v1/graph/seeds projection does not include ENTITY rows;
+  // the check is a runtime guard so the affordance is ready the
+  // moment the projection is widened, without coupling the UI to a
+  // schema migration.
+  const isEntity = String(seed.nodeKind).toUpperCase() === "ENTITY";
+  const searchLabel = seed.safeLabel ?? "";
   return (
     <li style={rowStyle}>
       <div style={rowMainStyle}>
@@ -252,9 +282,19 @@ function SeedRow({ seed }: { seed: GraphSeed }) {
           </div>
         </div>
       </div>
-      <Link href={href} style={pivotLinkSmallStyle}>
-        Open
-      </Link>
+      <div style={{ display: "flex", gap: 6 }}>
+        {isEntity && searchLabel ? (
+          <Link
+            href={`/search?q=${encodeURIComponent(searchLabel)}`}
+            style={pivotLinkSmallStyle}
+          >
+            Search for this entity
+          </Link>
+        ) : null}
+        <Link href={href} style={pivotLinkSmallStyle}>
+          Open
+        </Link>
+      </div>
     </li>
   );
 }
@@ -268,6 +308,11 @@ function pivotHref(seed: GraphSeed): string {
     case "INCIDENT":
       return `/investigation/relationships?nodeId=${encodeURIComponent(seed.id)}`;
     case "REPORT":
+      return `/investigation/relationships?nodeId=${encodeURIComponent(seed.id)}`;
+    default:
+      // Phase 14 — defensive fallback for future seed kinds (e.g.
+      // ENTITY when widened). Pivots to the relationship inspector
+      // which already handles unknown node kinds gracefully.
       return `/investigation/relationships?nodeId=${encodeURIComponent(seed.id)}`;
   }
 }
@@ -419,6 +464,49 @@ const emptyStyle: React.CSSProperties = {
   border: "1px solid #e5e7eb",
   borderRadius: 8,
   padding: 14,
+};
+
+const emptyTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#0f172a",
+};
+
+const emptyHintStyle: React.CSSProperties = {
+  margin: "6px 0 0 0",
+  fontSize: 12,
+  color: "#64748b",
+  lineHeight: 1.5,
+};
+
+const emptyCtaRowStyle: React.CSSProperties = {
+  marginTop: 10,
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
+const emptyCtaPrimaryStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#ffffff",
+  background: "#1e40af",
+  border: "1px solid #1e3a8a",
+  borderRadius: 6,
+  padding: "5px 12px",
+  textDecoration: "none",
+};
+
+const emptyCtaSecondaryStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#1e40af",
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  borderRadius: 6,
+  padding: "5px 12px",
+  textDecoration: "none",
 };
 
 const sectionsStyle: React.CSSProperties = {

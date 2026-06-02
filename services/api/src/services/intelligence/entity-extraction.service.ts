@@ -148,3 +148,94 @@ export function projectEvidenceEntity(row: DbEntity): {
     createdAt: row.createdAt.toISOString(),
   };
 }
+
+// =============================================================================
+// Phase 13 — Cross-evidence findings (workspace-scoped)
+// =============================================================================
+//
+// Returns a bounded list of entity (kind, normalizedValue) tuples
+// that appear on more than one evidence record in the same team.
+// Operator-readable: each finding states "this {kind} appears in N
+// evidence records". The route layer (intelligence.routes.ts) maps
+// each row to a deep-link into /search?q=<normalizedValue>.
+//
+// Hard rules:
+//   * Team-anchored — single WHERE clause on team_id (no cross-tenant
+//     reads possible).
+//   * Bounded — LIMIT is clamped to 20 by the caller (the synthesis
+//     constraint). The service tolerates higher values but the route
+//     layer enforces the cap.
+//   * No raw value in the projection — only `normalizedValue` (which
+//     is the regex-normalised form, e.g. lowercased email / digits-
+//     only phone). The raw `value` column may contain user-supplied
+//     content and is intentionally NOT exposed.
+//   * Reads-only; never modifies entity rows.
+//   * Best-effort try/catch — returns an empty array on DB failure
+//     so the route can still respond 200.
+
+export type CrossEvidenceFinding = {
+  kind: string;
+  normalizedValue: string;
+  evidenceCount: number;
+  /** Bounded sample of up to 5 evidence ids that match this finding.
+   *  Operators use these to verify the grouping before opening the
+   *  full search results. */
+  sampleEvidenceIds: ReadonlyArray<string>;
+};
+
+export type ListCrossEvidenceFindingsInput = {
+  teamId: string;
+  /** Bounded 1..20 by the route layer; the service clamps defensively. */
+  limit?: number;
+};
+
+export async function listCrossEvidenceFindings(
+  input: ListCrossEvidenceFindingsInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<ReadonlyArray<CrossEvidenceFinding>> {
+  const limit = Math.max(1, Math.min(input.limit ?? 20, 20));
+  if (!input.teamId) return [];
+  try {
+    type Row = {
+      kind: string;
+      normalized_value: string;
+      evidence_count: bigint | number;
+      sample_evidence_ids: string[];
+    };
+    const rows = (await client.$queryRawUnsafe(
+      `SELECT en."kind"::text AS "kind",
+              en."normalized_value",
+              COUNT(DISTINCT en."evidence_id") AS "evidence_count",
+              (
+                ARRAY(
+                  SELECT DISTINCT inner_en."evidence_id"::text
+                    FROM "evidence_entities" inner_en
+                   WHERE inner_en."team_id" = en."team_id"
+                     AND inner_en."kind" = en."kind"
+                     AND inner_en."normalized_value" = en."normalized_value"
+                   LIMIT 5
+                )
+              ) AS "sample_evidence_ids"
+         FROM "evidence_entities" en
+        WHERE en."team_id" = $1
+          AND en."normalized_value" IS NOT NULL
+        GROUP BY en."team_id", en."kind", en."normalized_value"
+        HAVING COUNT(DISTINCT en."evidence_id") > 1
+        ORDER BY COUNT(DISTINCT en."evidence_id") DESC,
+                 en."normalized_value" ASC
+        LIMIT $2`,
+      input.teamId,
+      limit,
+    )) as Row[];
+    return rows.map((r) => ({
+      kind: r.kind,
+      normalizedValue: r.normalized_value,
+      evidenceCount: Number(r.evidence_count ?? 0),
+      sampleEvidenceIds: Array.isArray(r.sample_evidence_ids)
+        ? r.sample_evidence_ids.slice(0, 5)
+        : [],
+    }));
+  } catch {
+    return [];
+  }
+}

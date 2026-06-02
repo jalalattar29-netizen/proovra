@@ -137,10 +137,16 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(21271);
   });
   it("CR1.6 byte-exact pin on evidence-complete.service.ts holds", () => {
-    // Baseline moves with documented phase growth (G3.x/G4/G5).
+    // Baseline moves with documented phase growth (G3.x/G4/G5/Phase 11/14).
+    // Phase 11 rebaseline: 42,799 → 44,441 after best-effort graph-
+    //   reconcile + search-index enqueue hooks (both wrapped in
+    //   try/catch and non-blocking; no schema changes).
+    // Phase 14 rebaseline: 44,441 → 45,520 after the onReconciled
+    //   callback was wired through reconcileTeamGraph (post-reconcile
+    //   search re-index trigger).
     expect(
       statSync(apiSrcPath("services/evidence-complete.service.ts")).size,
-    ).toBe(42799);
+    ).toBe(45520);
   });
   it("CR1.6 byte-exact pin on custody-events.service.ts holds", () => {
     expect(

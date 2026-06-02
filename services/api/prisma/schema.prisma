@@ -302,6 +302,11 @@ model EvidencePart {
   clientSignals                    Json?                @map("client_signals")
   uploadedByUserId                 String?              @map("uploaded_by_user_id") @db.Uuid
   uploadedAtUtc                    DateTime?            @map("uploaded_at_utc") @db.Timestamptz(6)
+  // Phase 12 — perceptual-similarity foundation. 64-bit pHash + dHash
+  // stored as 16-hex-char strings. Nullable because backfill is
+  // operator-initiated and non-image parts will never carry a hash.
+  perceptualPhash                  String?              @map("perceptual_phash") @db.VarChar(16)
+  perceptualDhash                  String?              @map("perceptual_dhash") @db.VarChar(16)
   createdAt                        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   annotations                      EvidenceAnnotation[]
   evidence                         Evidence             @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
@@ -313,6 +318,8 @@ model EvidencePart {
   @@index([storageObjectLockRetainUntilUtc])
   @@index([uploadedByUserId])
   @@index([uploadedAtUtc])
+  @@index([perceptualPhash])
+  @@index([perceptualDhash])
   @@map("evidence_parts")
 }
 
@@ -3894,22 +3901,56 @@ model EvidenceEntity {
 // nothing is populated unless `SEMANTIC_SEARCH_ENABLED=true` and a
 // provider is configured.
 model EvidenceSemanticChunk {
-  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  evidenceId          String   @map("evidence_id") @db.Uuid
-  teamId              String?  @map("team_id") @db.Uuid
-  chunkIndex          Int      @map("chunk_index")
-  chunkText           String   @map("chunk_text")
-  embeddingProvider   String?  @map("embedding_provider") @db.VarChar(64)
-  embeddingModel      String?  @map("embedding_model") @db.VarChar(128)
-  embeddingDimensions Int?     @map("embedding_dimensions")
+  id                  String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId          String                       @map("evidence_id") @db.Uuid
+  teamId              String?                      @map("team_id") @db.Uuid
+  chunkIndex          Int                          @map("chunk_index")
+  chunkText           String                       @map("chunk_text")
+  embeddingProvider   String?                      @map("embedding_provider") @db.VarChar(64)
+  embeddingModel      String?                      @map("embedding_model") @db.VarChar(128)
+  embeddingDimensions Int?                         @map("embedding_dimensions")
   embedding           Bytes?
-  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  // Phase 15 — pgvector sibling column. Additive — `embedding`
+  // (Bytes) is preserved for backward compatibility with the
+  // existing in-process cosine ranker. When pgvector is installed
+  // AND `SEMANTIC_SEARCH_ENABLED=true`, the worker populates this
+  // column so the hybrid ranker can rely on SQL-level cosine /
+  // L2-distance lookups via the ivfflat index. The column is
+  // typed `Unsupported(...)` because Prisma 5 has no first-class
+  // pgvector type — every read/write goes through `$queryRaw`.
+  embeddingVector     Unsupported("vector(1536)")? @map("embedding_vector")
+  createdAt           DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
 
   evidence Evidence @relation("EvidenceSemanticChunks", fields: [evidenceId], references: [id], onDelete: Cascade)
 
   @@unique([evidenceId, chunkIndex])
   @@index([teamId])
   @@map("evidence_semantic_chunks")
+}
+
+// Phase 16 — per-workspace-per-UTC-day rollup of paid semantic
+// embedding usage. Recorded after every successful provider call
+// (live indexing path, mi-embed queue, backfill script). Read by
+// `canEmbedMore` (daily chunk cap + monthly EUR budget gate) and
+// by `getSemanticUsageSummary` (UI surface).
+//
+// Bounded by construction:
+//   - one row per (workspaceId, dateUtc) — UNIQUE upsert key
+//   - counter columns are scalar integers + dollar-micros (no per-call
+//     payload). Operators cannot pivot from a row back to chunk text.
+model SemanticUsageDaily {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId     String   @map("workspace_id") @db.Uuid
+  dateUtc         DateTime @map("date_utc") @db.Date
+  chunksEmbedded  Int      @default(0) @map("chunks_embedded")
+  tokensConsumed  BigInt   @default(0) @map("tokens_consumed")
+  eurSpentMicros  BigInt   @default(0) @map("eur_spent_micros")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, dateUtc])
+  @@index([workspaceId])
+  @@map("semantic_usage_daily")
 }
 
 // Advisory similarity hint between two evidence rows. NOT a merge
@@ -3935,6 +3976,12 @@ model EvidenceSimilarity {
   score            Float
   // Operator-readable summary. Wording enforced as ADVISORY.
   advisorySummary  String?                @map("advisory_summary") @db.VarChar(400)
+  // Phase 13 — when a text-similarity row (OCR_SIMILAR / TRANSCRIPT_SIMILAR)
+  // is promoted into a SIMILAR_TO graph edge by the media-intelligence
+  // worker, the resulting investigation_graph_edges.id is back-referenced
+  // here. Nullable: rows that have not been promoted (or pre-Phase-13
+  // rows) carry NULL. One-way promotion — the graph never writes back.
+  graphEdgeId      String?                @map("graph_edge_id") @db.Uuid
   createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
 
   source Evidence @relation("EvidenceSimilaritySource", fields: [sourceEvidenceId], references: [id], onDelete: Cascade)
@@ -3944,6 +3991,7 @@ model EvidenceSimilarity {
   @@index([teamId, kind, score(sort: Desc)])
   @@index([sourceEvidenceId, kind])
   @@index([targetEvidenceId, kind])
+  @@index([graphEdgeId])
   @@map("evidence_similarities")
 }
 

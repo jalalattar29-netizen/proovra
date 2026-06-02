@@ -40,6 +40,8 @@ import {
   type SearchCursor,
   type SearchDocumentType,
   type SearchFilterInput,
+  type SearchFallbackReason,
+  type SearchMode,
   type SearchResultRow,
   decodeSearchCursor,
   encodeSearchCursor,
@@ -50,6 +52,12 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { recordSearchAudit } from "./search-audit.service.js";
+import {
+  type EmbeddingProvider,
+  isSemanticReadyAtRuntime,
+  logEmbeddingFailure,
+  resolveEmbeddingProviderFromEnv,
+} from "./embedding-provider.js";
 
 // -----------------------------------------------------------------------------
 // Result
@@ -61,6 +69,13 @@ export type SearchResult = {
   totalReturned: number;
   filteredByGovernance: number;
   filteredByVisibility: number;
+  // Phase 15 — hybrid ranker metadata. Backward-compatible: existing
+  // Phase 14 callers ignore these fields. `modeUsed` is what the
+  // backend actually executed; `fallbackReason` is set ONLY when
+  // `modeUsed` differs from the operator's requested `mode`.
+  modeUsed: SearchMode;
+  semanticAvailable: boolean;
+  fallbackReason: SearchFallbackReason | null;
 };
 
 // -----------------------------------------------------------------------------
@@ -89,6 +104,31 @@ export async function executeSearch(
   const { filter } = input;
   const limit = Math.min(Math.max(filter.limit ?? 25, 1), 100);
   const overscan = limit + 1;
+
+  // -------------------------------------------------------------------------
+  // Phase 15 — resolve effective mode + provider readiness up front.
+  // The actual semantic re-rank runs AFTER the keyword pass below
+  // (so the governance / visibility gates apply to every hit).
+  // -------------------------------------------------------------------------
+  const requestedMode: SearchMode = filter.mode ?? "KEYWORD";
+  const semanticAvailable = isSemanticReadyAtRuntime();
+  let modeUsed: SearchMode = requestedMode;
+  let fallbackReason: SearchFallbackReason | null = null;
+  if (
+    (requestedMode === "SEMANTIC" || requestedMode === "HYBRID") &&
+    !semanticAvailable
+  ) {
+    modeUsed = "KEYWORD";
+    fallbackReason = "SEMANTIC_FEATURE_DISABLED";
+  }
+  if (
+    (requestedMode === "SEMANTIC" || requestedMode === "HYBRID") &&
+    semanticAvailable &&
+    (!filter.q || filter.q.trim().length < 2)
+  ) {
+    modeUsed = "KEYWORD";
+    fallbackReason = "QUERY_TOO_SHORT";
+  }
 
   // Build the Prisma where clause. Every filter is anchored on
   // teamId; the search service NEVER returns cross-team rows.
@@ -210,6 +250,9 @@ export async function executeSearch(
       totalReturned: 0,
       filteredByGovernance: 0,
       filteredByVisibility: 0,
+      modeUsed: "KEYWORD",
+      semanticAvailable,
+      fallbackReason,
     };
   }
 
@@ -298,20 +341,331 @@ export async function executeSearch(
     client,
   );
 
+  // -------------------------------------------------------------------------
+  // Phase 15 — hybrid ranker pass.
+  //
+  // The keyword pass above is the canonical source for governance gating.
+  // The hybrid ranker layers semantic cosine on top of the safe rows so:
+  //
+  //   - Legal-hold / destroyed / export-restriction filters are reapplied
+  //     (semantic results live inside the already-gated `safeRows` set,
+  //     they cannot widen the result envelope).
+  //   - Workspace permissions are preserved (semantic only re-orders rows
+  //     the keyword pass already approved).
+  //   - On provider failure the array is returned as-is with a clear
+  //     `fallbackReason=PROVIDER_UNAVAILABLE`, never a partial state.
+  //
+  // The actual `matchReasons` for each row are built operator-readable;
+  // raw internal score names like "ts_rank" or "cosine_distance" NEVER
+  // leak to the UI.
+  // -------------------------------------------------------------------------
+  let finalRows: SearchResultRow[] = safeRows.map(stampDefaultMatchReasons);
+  if (
+    (modeUsed === "SEMANTIC" || modeUsed === "HYBRID") &&
+    filter.q &&
+    finalRows.length > 0
+  ) {
+    try {
+      const provider = resolveEmbeddingProviderFromEnv();
+      const rankerOutcome = await rerankWithSemantic({
+        client,
+        teamId: filter.teamId,
+        query: filter.q,
+        rows: finalRows,
+        provider,
+        mode: modeUsed,
+      });
+      if (rankerOutcome.ok) {
+        finalRows = rankerOutcome.rows;
+        if (rankerOutcome.rows.length === 0) {
+          // Semantic returned a non-error empty set — flag it so the UI
+          // can render an honest "no semantic hits, keyword only" chip.
+          fallbackReason = fallbackReason ?? "NO_SEMANTIC_RESULTS";
+        }
+      } else {
+        // Degrade silently to keyword; never throw to the caller.
+        modeUsed = "KEYWORD";
+        fallbackReason = "PROVIDER_UNAVAILABLE";
+        logEmbeddingFailure({
+          status: "failed",
+          errorCode: rankerOutcome.errorCode,
+          workspaceId: filter.teamId,
+        });
+      }
+    } catch (err) {
+      modeUsed = "KEYWORD";
+      fallbackReason = "PROVIDER_UNAVAILABLE";
+      logEmbeddingFailure({
+        status: "failed",
+        errorCode:
+          err instanceof Error
+            ? (err as Error & { code?: string }).code ?? "RANKER_EXCEPTION"
+            : "RANKER_EXCEPTION",
+        workspaceId: filter.teamId,
+      });
+    }
+  }
+
   const nextCursor =
-    hasMore && safeRows.length > 0
+    hasMore && finalRows.length > 0
       ? encodeSearchCursor({
-          updatedAtUtc: safeRows[safeRows.length - 1].updatedAtUtc,
-          id: safeRows[safeRows.length - 1].documentId,
+          updatedAtUtc: finalRows[finalRows.length - 1].updatedAtUtc,
+          id: finalRows[finalRows.length - 1].documentId,
         })
       : null;
 
   return {
-    rows: safeRows,
+    rows: finalRows,
     nextCursor,
-    totalReturned: safeRows.length,
+    totalReturned: finalRows.length,
     filteredByGovernance,
     filteredByVisibility,
+    modeUsed,
+    semanticAvailable,
+    fallbackReason,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 15 — semantic re-rank helpers.
+//
+// `rerankWithSemantic` does NOT widen the result set. It only re-orders
+// already-gated keyword rows AND attaches operator-readable matchReasons
+// + a numeric semanticScore. When pgvector is installed, the per-row
+// embeddings come from `embedding_vector` via raw SQL; otherwise the
+// in-process Bytes column is read.
+// ---------------------------------------------------------------------------
+
+type RerankInput = {
+  client: PrismaClient;
+  teamId: string;
+  query: string;
+  rows: SearchResultRow[];
+  provider: EmbeddingProvider;
+  mode: SearchMode;
+};
+
+type RerankOutcome =
+  | { ok: true; rows: SearchResultRow[] }
+  | { ok: false; errorCode: string };
+
+const KEYWORD_WEIGHT = clampWeight(
+  Number.parseFloat(process.env.SEMANTIC_HYBRID_KEYWORD_WEIGHT ?? "0.6"),
+  0.6,
+);
+const SEMANTIC_WEIGHT = clampWeight(
+  Number.parseFloat(process.env.SEMANTIC_HYBRID_SEMANTIC_WEIGHT ?? "0.4"),
+  0.4,
+);
+
+function clampWeight(n: number, fallback: number): number {
+  if (!Number.isFinite(n) || n < 0 || n > 1) return fallback;
+  return n;
+}
+
+async function rerankWithSemantic(input: RerankInput): Promise<RerankOutcome> {
+  let queryVec: Float32Array | null;
+  try {
+    queryVec = await input.provider.embedText(input.query);
+  } catch (err) {
+    return {
+      ok: false,
+      errorCode:
+        err instanceof Error
+          ? (err as Error & { code?: string }).code ?? "QUERY_EMBED_FAILED"
+          : "QUERY_EMBED_FAILED",
+    };
+  }
+  if (!queryVec || queryVec.length === 0) {
+    return { ok: false, errorCode: "QUERY_EMBED_EMPTY" };
+  }
+
+  // Per-row evidence ids we need to fetch chunk embeddings for.
+  const evidenceIds = Array.from(
+    new Set(
+      input.rows
+        .map((r) => r.evidenceId)
+        .filter((id): id is string => typeof id === "string"),
+    ),
+  );
+  if (evidenceIds.length === 0) {
+    // Nothing semantic to re-rank — keyword order stands.
+    return { ok: true, rows: input.rows };
+  }
+
+  // Phase 16 — try the pgvector SQL-side cosine path FIRST. The
+  // worker (`mi-embed.processor`) and the backfill script populate
+  // `embedding_vector`; when the column is populated for this team
+  // we let Postgres do the nearest-neighbour math through the
+  // ivfflat index. Workspace id + provider triple are passed as
+  // bound parameters — NEVER string-interpolated.
+  //
+  // On any failure (missing pgvector extension, ivfflat index not
+  // built, syntax error) we fall back to the in-process Bytes
+  // ranker so the existing behaviour is preserved.
+  const semanticByEvidence = new Map<string, number>();
+  const SQL_CANDIDATE_LIMIT = 200;
+  let pgvectorOk = false;
+  try {
+    const lit = queryVectorLiteral(queryVec);
+    const rows = await input.client.$queryRaw<
+      Array<{ evidence_id: string; distance: number | string }>
+    >`
+      SELECT evidence_id,
+             (embedding_vector <=> ${lit}::vector) AS distance
+        FROM evidence_semantic_chunks
+       WHERE team_id = ${input.teamId}::uuid
+         AND evidence_id = ANY (${evidenceIds}::uuid[])
+         AND embedding_vector IS NOT NULL
+         AND embedding_provider = ${input.provider.name}
+         AND embedding_model = ${input.provider.model}
+         AND embedding_dimensions = ${input.provider.dimensions}::int
+       ORDER BY embedding_vector <=> ${lit}::vector
+       LIMIT ${SQL_CANDIDATE_LIMIT}::int
+    `;
+    pgvectorOk = true;
+    for (const row of rows) {
+      // pgvector cosine distance ∈ [0, 2]. Convert to similarity
+      // ∈ [-1, 1] then clamp to [0, 1] for the blender.
+      const dist = typeof row.distance === "string"
+        ? Number.parseFloat(row.distance)
+        : row.distance;
+      if (!Number.isFinite(dist)) continue;
+      const sim = 1 - dist / 2;
+      const clamped = Math.max(0, Math.min(1, sim));
+      const prev = semanticByEvidence.get(row.evidence_id) ?? -1;
+      if (clamped > prev) semanticByEvidence.set(row.evidence_id, clamped);
+    }
+  } catch {
+    // pgvector unavailable — fall through to the in-process ranker.
+    pgvectorOk = false;
+  }
+
+  if (!pgvectorOk) {
+    // Legacy in-process Bytes ranker — preserved as the back-compat
+    // path when pgvector is not installed. Same governance contract
+    // (rows already approved by the keyword pass).
+    let chunks: Array<{
+      evidenceId: string;
+      embedding: Uint8Array | null;
+    }> = [];
+    try {
+      chunks = await input.client.evidenceSemanticChunk.findMany({
+        where: {
+          teamId: input.teamId,
+          evidenceId: { in: evidenceIds },
+          embeddingProvider: input.provider.name,
+          embeddingModel: input.provider.model,
+          embeddingDimensions: input.provider.dimensions,
+          embedding: { not: null },
+        },
+        select: { evidenceId: true, embedding: true },
+        take: 4000,
+      });
+    } catch {
+      return { ok: false, errorCode: "CHUNK_QUERY_FAILED" };
+    }
+
+    for (const c of chunks) {
+      if (!c.embedding) continue;
+      const peer = new Float32Array(
+        c.embedding.buffer,
+        c.embedding.byteOffset,
+        c.embedding.byteLength / Float32Array.BYTES_PER_ELEMENT,
+      );
+      if (peer.length !== queryVec.length) continue;
+      const s = cosineSimilarity(queryVec, peer);
+      const prev = semanticByEvidence.get(c.evidenceId) ?? -1;
+      if (s > prev) semanticByEvidence.set(c.evidenceId, s);
+    }
+  }
+
+  // Layer the semantic score onto each row. Keyword score in this
+  // pass is a positional proxy (top rows score higher) since the
+  // underlying `findMany` doesn't surface a tsvector rank yet.
+  const total = input.rows.length;
+  const blended = input.rows.map((row, idx) => {
+    const positional = total > 0 ? 1 - idx / Math.max(total, 1) : 0;
+    const semantic = row.evidenceId
+      ? semanticByEvidence.get(row.evidenceId) ?? null
+      : null;
+    const matchReasons = buildMatchReasonsForRow(row, semantic);
+    const blendedScore =
+      input.mode === "SEMANTIC"
+        ? semantic ?? 0
+        : KEYWORD_WEIGHT * positional + SEMANTIC_WEIGHT * (semantic ?? 0);
+    return {
+      row: {
+        ...row,
+        matchReasons,
+        semanticScore: semantic,
+        keywordScore: positional,
+      } satisfies SearchResultRow,
+      blendedScore,
+    };
+  });
+
+  blended.sort((a, b) => b.blendedScore - a.blendedScore);
+  return { ok: true, rows: blended.map((b) => b.row) };
+}
+
+/**
+ * Phase 16 — build a literal pgvector parameter `'[a,b,c]'`. The
+ * caller passes this as a BOUND template parameter cast to
+ * `::vector`; the raw SQL never carries operator-supplied data.
+ * Bounded to dim ≤ 4096 to guard against absurd inputs.
+ */
+function queryVectorLiteral(vec: Float32Array): string {
+  if (vec.length === 0 || vec.length > 4096) return "[]";
+  const parts = new Array<string>(vec.length);
+  for (let i = 0; i < vec.length; i += 1) {
+    const v = vec[i];
+    parts[i] = Number.isFinite(v) ? v.toFixed(6) : "0";
+  }
+  return `[${parts.join(",")}]`;
+}
+
+function cosineSimilarity(a: Float32Array, b: Float32Array): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  const denom = Math.sqrt(na) * Math.sqrt(nb);
+  return denom === 0 ? 0 : dot / denom;
+}
+
+function buildMatchReasonsForRow(
+  row: SearchResultRow,
+  semantic: number | null,
+): string[] {
+  const reasons: string[] = [];
+  // Operator-readable only. NEVER include internal score names.
+  if (row.title) reasons.push("Matched title");
+  if (row.summary) reasons.push("Matched summary");
+  if (row.workflowInstanceId) reasons.push("Workflow-linked");
+  if (semantic !== null && semantic > 0) {
+    reasons.push("Semantically similar");
+  }
+  return reasons;
+}
+
+function stampDefaultMatchReasons(row: SearchResultRow): SearchResultRow {
+  if (row.matchReasons && row.matchReasons.length > 0) return row;
+  // Keyword-only path: surface a minimal reason set so the inspector
+  // can render badges even when semantic was never engaged.
+  const reasons: string[] = [];
+  if (row.title) reasons.push("Matched title");
+  if (row.summary) reasons.push("Matched summary");
+  return {
+    ...row,
+    matchReasons: reasons,
+    semanticScore: null,
+    keywordScore: null,
   };
 }
 
@@ -348,6 +702,7 @@ function buildSafeFilterSnapshot(
     sort: filter.sort ?? null,
     limit: filter.limit ?? null,
     hasQueryText: filter.q ? true : false,
+    mode: filter.mode ?? null,
   };
 }
 

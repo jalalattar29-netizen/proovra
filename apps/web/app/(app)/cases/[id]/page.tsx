@@ -22,6 +22,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback } from "react";
+import Link from "next/link";
 
 import { MatterWorkspace } from "../../../../components/cases-experience/MatterWorkspace";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
@@ -64,6 +65,34 @@ function CaseDetailPageInner() {
           { label: caseId },
         ]}
       />
+      {/* Phase 14 — deep link from the canonical case detail surface
+          into the canonical /search surface, scoped to this case.
+          Operators land on the matter workspace by default but can
+          pivot to the cross-document search at any time. */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          padding: "0 16px",
+          marginBottom: 4,
+        }}
+      >
+        <Link
+          href={`/search?caseId=${encodeURIComponent(caseId)}`}
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: "#1e40af",
+            textDecoration: "none",
+            background: "#eff6ff",
+            border: "1px solid #bfdbfe",
+            borderRadius: 999,
+            padding: "4px 12px",
+          }}
+        >
+          View evidence in Search
+        </Link>
+      </div>
       <MatterWorkspace
         caseId={caseId}
         onOpenEvidence={onOpenEvidence}

@@ -172,6 +172,26 @@ export function ReportsIndex() {
           </p>
         </div>
         <div className="cc-meta">
+          {/* Phase 14 — deep link from the reports index into the
+              canonical /search surface, pre-filtered to REPORT
+              documents so operators can search across generated
+              report snapshots. */}
+          <Link
+            href="/search?documentType=REPORT"
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: "#1e40af",
+              textDecoration: "none",
+              background: "#eff6ff",
+              border: "1px solid #bfdbfe",
+              borderRadius: 999,
+              padding: "4px 12px",
+              marginRight: 12,
+            }}
+          >
+            Search reports
+          </Link>
           <span title={envelope.generatedAt}>
             Refreshed {formatRelativeTime(envelope.generatedAt)}
           </span>

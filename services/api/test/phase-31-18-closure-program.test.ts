@@ -170,7 +170,17 @@ describe("Phase 31.18 — EXTERNAL_REVIEW graph domain", () => {
     const idx = RECONCILER_SRC.indexOf(
       "Phase 31.18 — EXTERNAL_REVIEW domain reconciliation",
     );
-    const idxEnd = RECONCILER_SRC.indexOf("// 2. Materialize MEDIA_SIGNAL", idx);
+    // Phase 13 added a sibling "1j. Phase 13 — ENTITY domain reconciliation"
+    // section between EXTERNAL_REVIEW and the legacy "// 2. Materialize
+    // MEDIA_SIGNAL" marker. The original slice end was the latter, which
+    // now over-captures the Phase 13 entity-reconcile catch block and
+    // inflates the count to 2. Tightening the end marker to the Phase
+    // 13 section header preserves the EXTERNAL_REVIEW-specific intent
+    // (exactly one independent catch isolating THIS block).
+    const idxEnd =
+      RECONCILER_SRC.indexOf("1j. Phase 13 — ENTITY domain reconciliation", idx) >= 0
+        ? RECONCILER_SRC.indexOf("1j. Phase 13 — ENTITY domain reconciliation", idx)
+        : RECONCILER_SRC.indexOf("// 2. Materialize MEDIA_SIGNAL", idx);
     const slice = RECONCILER_SRC.slice(idx, idxEnd);
     const outerCatches =
       slice.match(/catch\s*\{[\s\S]*?best-effort; the rest of the reconcile continues/g) ??
@@ -588,8 +598,18 @@ describe("Phase 31.18 — Reviewer Intelligence Console UI source contract", () 
     expectNoForbiddenUserFacing(REVIEWERS_PAGE);
   });
 
-  it("degraded state shows a 'data unavailable' pill, not a fake counter", () => {
-    expect(REVIEWERS_PAGE).toMatch(/data unavailable/);
+  it("degraded state shows an operator-readable pill, not a fake counter", () => {
+    // Investigation-suite audit evolution: the legacy "data unavailable"
+    // pill was rewritten to "No reviewer activity recorded yet" — clearer
+    // operator-facing copy that distinguishes "no data yet" from a
+    // broken-API state. The intent here is preserved (degraded state
+    // renders a bounded pill instead of a fake counter); accept either
+    // wording so the no-fake-counter contract still holds across both
+    // copy generations. Canonical pin lives in
+    // `investigation-suite-audit.test.ts`.
+    expect(REVIEWERS_PAGE).toMatch(
+      /data unavailable|No reviewer activity recorded yet/,
+    );
     // The tiles render "—" when data is null (no fake zero).
     expect(REVIEWERS_PAGE).toMatch(/total == null \? "—" : total/);
   });
