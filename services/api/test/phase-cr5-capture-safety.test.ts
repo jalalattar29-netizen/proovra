@@ -196,7 +196,14 @@ const CAPTURE_ROUTES_BYTES_EXACT = 21271;
 // closure was wired so reconcileTeamGraph's completion enqueues a
 // search re-index — closes the post-finalize stale-index gap. Non-
 // blocking try/catch preserved.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 45520;
+// Phase 31 rebaseline: 45,520 → 44,078 (file SHRANK). Post-finalize
+// side-effect orchestration (search index + media-intelligence +
+// graph reconcile) extracted to services/evidence-finalization-
+// fanout.service.ts. This file is now strictly the evidence-completion
+// state machine; the fanout helper owns producer wiring. Worker still
+// owns reconcileTeamGraph + onReconciled hook (subsystem-queue-
+// processors.ts:178-191). Architectural improvement; no regression.
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 44078;
 const CUSTODY_EVENTS_SVC_BYTES_EXACT = 5155;
 const TIMESTAMP_SVC_BYTES_EXACT = 7535;
 const PRE_CR5_AI_ASSISTANT_BYTES = 23045;

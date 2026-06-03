@@ -407,8 +407,12 @@ describe("Phase 31.5 — signal action endpoint", () => {
 // =============================================================================
 
 describe("Phase 32 — graph catalog", () => {
-  it("node kinds match the brief (14 entries)", () => {
-    expect(GRAPH_NODE_KINDS.length).toBe(14);
+  it("node kinds match the brief + Phase 13 ENTITY (15 entries)", () => {
+    // Phase 32 brief had 14 entries. Phase 13 (#300) widened the
+    // catalog with ENTITY to support extracted-entity nodes from the
+    // entity-extraction service. Catalog + SQL CHECK + this pin must
+    // stay in lockstep.
+    expect(GRAPH_NODE_KINDS.length).toBe(15);
     for (const expected of [
       "EVIDENCE",
       "CASE",
@@ -424,13 +428,19 @@ describe("Phase 32 — graph catalog", () => {
       "TRANSCRIPT",
       "EXTERNAL_REVIEW",
       "USER_CREATED_ENTITY",
+      // Phase 13 — extracted-entity node.
+      "ENTITY",
     ]) {
       expect(GRAPH_NODE_KINDS).toContain(expected as never);
     }
   });
 
-  it("edge types match the brief (16 entries)", () => {
-    expect(GRAPH_EDGE_TYPES.length).toBe(16);
+  it("edge types match the brief + Phase 13 EXTRACTED_FROM (17 entries)", () => {
+    // Phase 32 brief had 16 entries. Phase 13 (#300) widened the
+    // catalog with EXTRACTED_FROM for ENTITY → EVIDENCE edges from the
+    // entity-extraction service. Catalog + SQL CHECK + this pin must
+    // stay in lockstep.
+    expect(GRAPH_EDGE_TYPES.length).toBe(17);
     for (const expected of [
       "BELONGS_TO_CASE",
       "CAPTURED_IN_SESSION",
@@ -448,6 +458,8 @@ describe("Phase 32 — graph catalog", () => {
       "HAS_TRANSCRIPT",
       "HAS_OCR",
       "MANUALLY_LINKED_TO",
+      // Phase 13 — ENTITY → EVIDENCE edge.
+      "EXTRACTED_FROM",
     ]) {
       expect(GRAPH_EDGE_TYPES).toContain(expected as never);
     }

@@ -45,6 +45,25 @@ function readApi(rel: string): string {
   return readFileSync(apiPath(rel), "utf8");
 }
 
+/**
+ * Heavy build / dependency directories that explode the walker if
+ * descended into. Skipping these keeps the full apps/web/ scan well
+ * under the 5s test timeout and avoids picking up generated artifacts
+ * that would not be real callsites anyway.
+ */
+const TSX_WALK_SKIP_DIRS = new Set<string>([
+  "node_modules",
+  ".next",
+  ".turbo",
+  ".vercel",
+  ".vite",
+  "dist",
+  "build",
+  "out",
+  "coverage",
+  ".git",
+]);
+
 function listAllTsxFiles(dirAbs: string): string[] {
   const out: string[] = [];
   const stack: string[] = [dirAbs];
@@ -61,7 +80,8 @@ function listAllTsxFiles(dirAbs: string): string[] {
       try {
         const st = statSync(full);
         if (st.isFile() && /\.(ts|tsx)$/.test(name)) out.push(full);
-        else if (st.isDirectory()) stack.push(full);
+        else if (st.isDirectory() && !TSX_WALK_SKIP_DIRS.has(name))
+          stack.push(full);
       } catch {
         /* ignore */
       }

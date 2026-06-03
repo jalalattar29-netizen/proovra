@@ -231,7 +231,9 @@ describe("R8 Part 4 — no parallel identity infrastructure introduced", () => {
           const full = `${dir}/${name}`;
           try {
             const st = statSync(full);
-            if (st.isFile() && /security-event/.test(name)) out.push(full);
+            // Filter to .ts sources only — compiled .js artifacts in src/
+            // would otherwise duplicate the canonical service. Pin is on source.
+            if (st.isFile() && /security-event/.test(name) && name.endsWith(".ts")) out.push(full);
             else if (st.isDirectory()) stack.push(full);
           } catch {
             /* ignore */

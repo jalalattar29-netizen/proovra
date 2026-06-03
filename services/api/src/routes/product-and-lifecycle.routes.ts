@@ -1208,11 +1208,30 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
-      // I6 — FEATURE_LIFECYCLE_DASHBOARD gate (minimal coverage).
+      // Evidence Lifecycle REAL FIX — the wholesale FEATURE_LIFECYCLE_DASHBOARD
+      // 403 gate was wrong. The dashboard is the INDEX page of the console
+      // and must always be reachable so the operator can see what they have.
+      // Per-section entitlement gating already lives on the sub-routes (legal
+      // holds, archive, destruction, chain transfers all have their own
+      // FEATURE_* checks) AND on the `capabilities` field in the dashboard
+      // response itself. The previous gate produced 403 → frontend "Unable to
+      // load lifecycle dashboard" red error for every workspace that never
+      // had the placeholder FEATURE_LIFECYCLE_DASHBOARD entitlement seeded.
+      // We surface entitlement state via the existing capabilities chip
+      // mechanism instead of failing the whole page.
+      let entitlementMissing = false;
       try {
-        const feOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_LIFECYCLE_DASHBOARD", actorUserId: ctx.userId });
-        if (!feOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_LIFECYCLE_DASHBOARD" });
-      } catch { /* engine failure must not break route */ }
+        const feOk = await assertFeatureEntitlement({
+          prisma,
+          teamId: ctx.teamId,
+          key: "FEATURE_LIFECYCLE_DASHBOARD",
+          actorUserId: ctx.userId,
+        });
+        entitlementMissing = !feOk.ok;
+      } catch {
+        // Engine failure must not break the route — leave the flag false
+        // so the user sees the console even if the gate engine is down.
+      }
       // Evidence Lifecycle Final Fix — the projector may throw on a
       // freshly-bootstrapped workspace (no events, no entitlement rows)
       // OR when a Prisma schema column is in flight to production.
@@ -1270,6 +1289,13 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           "lifecycle_capability_status_compute_failed",
         );
       }
+      // Surface dashboard entitlement state inside the envelope so the UI
+      // can show a soft "upgrade to enable advanced metrics" callout
+      // WITHOUT failing the whole page. This is the right granularity:
+      // the index page always renders; specific paid features advertise
+      // their gated status non-destructively.
+      (dashboard as { entitlementMissing?: boolean }).entitlementMissing =
+        entitlementMissing;
       return reply.code(200).send({ dashboard });
     },
   );

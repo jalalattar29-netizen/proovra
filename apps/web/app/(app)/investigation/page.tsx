@@ -544,12 +544,27 @@ function ReviewerActivityGrid({
 }
 
 // Phase 12 — Display tile for OCR / transcript indexing totals.
+//
+// Defensive: the /v1/investigation/reviewers handler can silently swallow
+// exceptions and return partial indexingTotals (media-intelligence.routes.ts:910-911).
+// The previous unguarded read at lines 569-575 was the root cause of the
+// /investigation "Something went wrong" crash. Every field is read via
+// optional chain + nullish coalescing so a missing key renders 0 rather
+// than throwing. We also gracefully accept `undefined` (in addition to
+// `null`) so any future caller passing `reviewerActivity?.indexingTotals`
+// directly (which is typed as optional on ReviewerActivitySummary) cannot
+// re-introduce the crash.
 function IndexingProgressGrid({
   totals,
 }: {
-  totals: ReviewerActivitySummary["indexingTotals"] | null;
+  totals: ReviewerActivitySummary["indexingTotals"] | null | undefined;
 }) {
-  if (totals == null) {
+  // Only fall back to the "not recorded yet" empty state when the field is
+  // literally absent. If the API returned the object but some properties
+  // are missing/null, we still render the tiles (with 0s) — that is more
+  // informative than hiding the section entirely and keeps the surface
+  // shape stable for the operator.
+  if (totals === null || totals === undefined) {
     return (
       <div style={emptyStyle}>
         <p style={emptyTitleStyle}>
@@ -563,16 +578,33 @@ function IndexingProgressGrid({
       </div>
     );
   }
+  // Defensive reads: optional chain guards against the runtime shape
+  // diverging from the TS type (e.g. handler returns a partial object on
+  // soft-failure), and ?? 0 ensures a sane numeric value for formatNumber.
+  const ocrAvailable = totals?.ocrAvailable ?? 0;
+  const ocrIndexed = totals?.ocrIndexed ?? 0;
+  const transcriptAvailable = totals?.transcriptAvailable ?? 0;
+  const transcriptIndexed = totals?.transcriptIndexed ?? 0;
   const tiles: Array<{ label: string; value: number; detail: string }> = [
     {
       label: "OCR records available",
-      value: totals.ocrAvailable,
-      detail: `${totals.ocrIndexed} indexed`,
+      value: ocrAvailable,
+      detail: `${ocrIndexed} indexed`,
+    },
+    {
+      label: "OCR records indexed",
+      value: ocrIndexed,
+      detail: `${ocrAvailable} available`,
     },
     {
       label: "Transcript records available",
-      value: totals.transcriptAvailable,
-      detail: `${totals.transcriptIndexed} indexed`,
+      value: transcriptAvailable,
+      detail: `${transcriptIndexed} indexed`,
+    },
+    {
+      label: "Transcript records indexed",
+      value: transcriptIndexed,
+      detail: `${transcriptAvailable} available`,
     },
   ];
   return (

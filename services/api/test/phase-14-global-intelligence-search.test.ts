@@ -81,11 +81,31 @@ describe("Phase 14 — Stage 2 re-index triggers (backend)", () => {
     expect(src).toMatch(/ReconcileTeamGraphHooks/);
   });
 
-  it("Trigger #4 — evidence-complete.service.ts wires onReconciled → enqueueSearchIndexingJob('graph_reconciled')", () => {
-    const src = read(EVIDENCE_COMPLETE_PATH);
+  it("Trigger #4 — worker subsystem-queue-processors.ts wires onReconciled → enqueueSearchIndexingJob('graph_reconciled')", () => {
+    // Architecture moved post-Part 1: the API enqueues a graph-reconcile
+    // worker job (via evidence-finalization-fanout.service.ts) and the
+    // WORKER is the canonical caller of reconcileTeamGraph with the
+    // onReconciled hook. The hook fires enqueueSearchIndexingJob with
+    // reason "graph_reconciled". Pin the consumer side directly — this
+    // is the only place that actually invokes the hook in production.
+    const WORKER_GRAPH_RECONCILE_PATH = resolve(
+      WORKER_ROOT,
+      "src/subsystem-queue-processors.ts",
+    );
+    const src = read(WORKER_GRAPH_RECONCILE_PATH);
     expect(src).toContain("enqueueSearchIndexingJob");
     expect(src).toMatch(/onReconciled/);
     expect(src).toMatch(/["']graph_reconciled["']/);
+
+    // Also pin that the API-side fan-out enqueues the worker job (so
+    // the worker actually receives the reconcile request that triggers
+    // the onReconciled hook).
+    const FANOUT_PATH = resolve(
+      API_ROOT,
+      "src/services/evidence-finalization-fanout.service.ts",
+    );
+    const fanoutSrc = read(FANOUT_PATH);
+    expect(fanoutSrc).toMatch(/enqueueGraphReconcileJob\s*\(/);
   });
 
   it("Trigger #5 — media-intelligence.processor.ts enqueues with reason 'similarity_completed'", () => {

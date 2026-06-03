@@ -1,0 +1,252 @@
+/**
+ * Batch Analysis Service
+ * Handles analysis of multiple evidence items with progress tracking and aggregation
+ */
+export var BatchStatus;
+(function (BatchStatus) {
+    BatchStatus["PENDING"] = "pending";
+    BatchStatus["PROCESSING"] = "processing";
+    BatchStatus["COMPLETED"] = "completed";
+    BatchStatus["FAILED"] = "failed";
+    BatchStatus["CANCELLED"] = "cancelled";
+})(BatchStatus || (BatchStatus = {}));
+class BatchAnalysisService {
+    jobs = {};
+    processingQueues = new Map();
+    /**
+     * Create a new batch analysis job
+     */
+    createJob(userId, evidenceIds, name, description) {
+        const jobId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const job = {
+            id: jobId,
+            userId,
+            name,
+            description,
+            status: BatchStatus.PENDING,
+            items: evidenceIds.map((id) => ({
+                evidenceId: id,
+                status: "pending",
+            })),
+            createdAt: new Date(),
+            totalItems: evidenceIds.length,
+            processedItems: 0,
+            failedItems: 0,
+        };
+        this.jobs[jobId] = job;
+        return job;
+    }
+    /**
+     * Get job details
+     */
+    getJob(userId, jobId) {
+        const job = this.jobs[jobId];
+        if (!job || job.userId !== userId) {
+            return null;
+        }
+        return job;
+    }
+    /**
+     * List all jobs for a user
+     */
+    listJobs(userId) {
+        return Object.values(this.jobs).filter((job) => job.userId === userId);
+    }
+    /**
+     * Start processing a batch job
+     */
+    async processBatch(jobId, evidenceGetter) {
+        const job = this.jobs[jobId];
+        if (!job)
+            throw new Error("Job not found");
+        // Check if already processing
+        if (this.processingQueues.has(jobId)) {
+            throw new Error("Batch job already processing");
+        }
+        // Mark as processing
+        job.status = BatchStatus.PROCESSING;
+        job.startedAt = new Date();
+        // Create processing promise
+        const processingPromise = (async () => {
+            try {
+                for (let i = 0; i < job.items.length; i++) {
+                    const item = job.items[i];
+                    item.status = "processing";
+                    item.startedAt = new Date();
+                    try {
+                        // Privacy-safe legacy batch result.
+                        // Do not send raw files, image URLs, storage keys, PDFs, videos, or document
+                        // contents to AI from this legacy batch service. New AI analysis must go
+                        // through /v1/ai/capture/* metadata-only endpoints.
+                        let evidenceMetadata = {};
+                        if (evidenceGetter) {
+                            const evidence = await evidenceGetter(item.evidenceId);
+                            evidenceMetadata = {
+                                id: item.evidenceId,
+                                type: evidence?.type ?? null,
+                                mimeType: evidence?.mimeType ?? null,
+                                status: evidence?.status ?? null,
+                                verificationStatus: evidence?.verificationStatus ?? null,
+                                createdAt: evidence?.createdAt ?? null,
+                                sizeBytes: typeof evidence?.sizeBytes === "bigint"
+                                    ? evidence.sizeBytes.toString()
+                                    : evidence?.sizeBytes ?? null,
+                                hasStorageObject: Boolean(evidence?.storageBucket && evidence?.storageKey),
+                            };
+                        }
+                        item.status = "completed";
+                        item.result = {
+                            status: "completed",
+                            analysisMode: "metadata_only_legacy_batch",
+                            summary: "Legacy batch analysis completed without sending raw evidence content to AI.",
+                            evidence: evidenceMetadata,
+                            warnings: [
+                                "This legacy batch service does not determine factual truth, authorship, authenticity, or legal admissibility.",
+                                "Use the capture AI assistant for metadata-only intake review.",
+                            ],
+                        };
+                        item.completedAt = new Date();
+                        job.processedItems++;
+                    }
+                    catch (error) {
+                        item.status = "failed";
+                        item.error = error instanceof Error ? error.message : "Unknown error";
+                        item.completedAt = new Date();
+                        job.failedItems++;
+                    }
+                    // Update progress
+                    const progressPercent = Math.round(((job.processedItems + job.failedItems) / job.totalItems) * 100);
+                    item.progress = progressPercent;
+                }
+                // Mark job as completed
+                job.status = BatchStatus.COMPLETED;
+                job.completedAt = new Date();
+            }
+            catch (error) {
+                job.status = BatchStatus.FAILED;
+                job.completedAt = new Date();
+            }
+            finally {
+                this.processingQueues.delete(jobId);
+            }
+        })();
+        this.processingQueues.set(jobId, processingPromise);
+        return processingPromise;
+    }
+    /**
+     * Cancel a batch job
+     */
+    cancelJob(userId, jobId) {
+        const job = this.jobs[jobId];
+        if (!job || job.userId !== userId) {
+            return false;
+        }
+        if (job.status === BatchStatus.PROCESSING) {
+            // Mark all processing items as cancelled
+            job.items.forEach((item) => {
+                if (item.status === "processing") {
+                    item.status = "failed";
+                    item.error = "Job cancelled by user";
+                }
+            });
+            job.status = BatchStatus.CANCELLED;
+            job.completedAt = new Date();
+        }
+        return true;
+    }
+    /**
+     * Get aggregate results from batch job
+     */
+    getAggregateResults(jobId) {
+        const job = this.jobs[jobId];
+        if (!job) {
+            throw new Error("Job not found");
+        }
+        const classifications = {};
+        const safetyBreakdown = {};
+        const tagCounts = {};
+        let totalConfidence = 0;
+        let confidenceCount = 0;
+        job.items.forEach((item) => {
+            if (item.result) {
+                const result = item.result;
+                // Count classifications
+                if (result.classification?.category) {
+                    classifications[result.classification.category] =
+                        (classifications[result.classification.category] || 0) + 1;
+                    totalConfidence += result.classification.confidence || 0;
+                    confidenceCount++;
+                }
+                // Count safety levels
+                if (result.moderation?.risk_level) {
+                    safetyBreakdown[result.moderation.risk_level] =
+                        (safetyBreakdown[result.moderation.risk_level] || 0) + 1;
+                }
+                // Count tags
+                if (result.tags?.tags) {
+                    result.tags.tags.forEach((tag) => {
+                        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+                    });
+                }
+            }
+        });
+        // Calculate most common tags
+        const mostCommonTags = Object.entries(tagCounts)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 10)
+            .map(([tag, count]) => ({ tag, count }));
+        return {
+            classifications,
+            averageConfidence: confidenceCount > 0 ? totalConfidence / confidenceCount : 0,
+            safetyBreakdown,
+            mostCommonTags,
+            successRate: job.totalItems > 0 ? (job.processedItems / job.totalItems) * 100 : 0,
+        };
+    }
+    /**
+     * Export batch results as CSV
+     */
+    exportAsCSV(jobId) {
+        const job = this.jobs[jobId];
+        if (!job) {
+            throw new Error("Job not found");
+        }
+        const rows = [
+            "Evidence ID,Status,Classification,Confidence,Risk Level,Tags,Error",
+        ];
+        job.items.forEach((item) => {
+            if (item.result) {
+                const result = item.result;
+                const tags = result.tags?.tags?.join(";") || "";
+                const classification = result.classification?.category || "N/A";
+                const confidence = result.classification?.confidence?.toFixed(2) || "N/A";
+                const riskLevel = result.moderation?.risk_level || "N/A";
+                rows.push(`${item.evidenceId},${item.status},${classification},${confidence},${riskLevel},"${tags}",${item.error || ""}`);
+            }
+            else {
+                rows.push(`${item.evidenceId},${item.status},N/A,N/A,N/A,,${item.error || ""}`);
+            }
+        });
+        return rows.join("\n");
+    }
+    /**
+     * Estimate completion time
+     */
+    estimateCompletion(jobId) {
+        const job = this.jobs[jobId];
+        if (!job || !job.startedAt) {
+            return null;
+        }
+        if (job.processedItems === 0) {
+            return null;
+        }
+        const elapsed = new Date().getTime() - job.startedAt.getTime();
+        const avgTimePerItem = elapsed / (job.processedItems + job.failedItems);
+        const remainingItems = job.totalItems - (job.processedItems + job.failedItems);
+        const estimatedRemainingMs = remainingItems * avgTimePerItem;
+        const completion = new Date(new Date().getTime() + estimatedRemainingMs);
+        job.estimatedCompletion = completion;
+        return completion;
+    }
+}
+export const batchAnalysisService = new BatchAnalysisService();

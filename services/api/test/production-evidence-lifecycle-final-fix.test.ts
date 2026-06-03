@@ -169,8 +169,11 @@ describe("Evidence Lifecycle Final Fix — per-page wiring", () => {
     // normaliseDashboard returns a value in every code path now.
     expect(DASHBOARD).toMatch(/function\s+normaliseDashboard.*LifecycleDashboard\s*\{/s);
     // The function must NOT contain `return null;` — invariant for this fix.
+    // CRLF-aware closing-brace match: the file is checked in with CRLF
+    // line endings on Windows so a literal `\n}\n` regex would miss the
+    // `\r\n}\r\n` actually present. `\r?\n` tolerates both.
     const normaliserMatch = DASHBOARD.match(
-      /function\s+normaliseDashboard[\s\S]*?\n\}\n/,
+      /function\s+normaliseDashboard[\s\S]*?\r?\n\}\r?\n/,
     );
     expect(normaliserMatch).toBeTruthy();
     expect(normaliserMatch![0]).not.toMatch(/return\s+null\s*;/);
@@ -183,7 +186,14 @@ describe("Evidence Lifecycle Final Fix — per-page wiring", () => {
     expect(DASHBOARD).toMatch(/degraded\?\s*:\s*boolean/);
   });
 
-  for (const sub of SUB_PAGES) {
+  // REAL FIX FOLLOW-UP — archive intentionally no longer uses
+  // LifecycleSectionBoundary because the underlying type-mismatch bug
+  // was fixed at the source (costs is now correctly an object). The
+  // boundary was masking a real bug. The other 5 sub-pages keep the
+  // boundary as defence-in-depth, but it must NEVER substitute for
+  // fixing a real throw.
+  const SUB_PAGES_WITH_BOUNDARY = SUB_PAGES.filter((s) => s.slug !== "archive");
+  for (const sub of SUB_PAGES_WITH_BOUNDARY) {
     it(`(11.${sub.slug}) ${sub.label} sub-page wraps Shell in LifecycleSectionBoundary`, () => {
       const src = readLifecycleFile(`${sub.slug}/page.tsx`);
       // Import line for the shared boundary.
@@ -196,6 +206,12 @@ describe("Evidence Lifecycle Final Fix — per-page wiring", () => {
       expect(src).toMatch(/<PageRouteGate\s+routeId=["']workspace\.evidence_lifecycle["']>/);
     });
   }
+  // Archive: PageRouteGate stays, boundary explicitly removed.
+  it("(11.archive) Archive sub-page keeps PageRouteGate but NO boundary mask (real fix is upstream)", () => {
+    const src = readLifecycleFile("archive/page.tsx");
+    expect(src).toMatch(/<PageRouteGate\s+routeId=["']workspace\.evidence_lifecycle["']>/);
+    expect(src).not.toMatch(/<LifecycleSectionBoundary/);
+  });
 
   it("(12) retention page uses safe Promise.allSettled (not Promise.all)", () => {
     const src = readLifecycleFile("retention/page.tsx");

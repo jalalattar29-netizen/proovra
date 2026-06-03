@@ -311,7 +311,9 @@ describe("R8.1.6 — scope guards: no parallel auth / workflow / tenant leak", (
   // ---------------------------------------------------------------------------
   it("test 16: auth-bearing route files are auth.routes.ts + sso-auth.routes.ts + saml-auth.routes.ts (R8.2 additive); verify page is /auth/mfa-recovery/verify NOT a separate auth surface", () => {
     const routesDir = readdirSync(apiPath("src/routes"));
-    const authFiles = routesDir.filter((f) => /auth/i.test(f));
+    // Filter to .ts sources only — compiled .js artifacts in src/ would
+    // otherwise duplicate every match. The pin is on source files.
+    const authFiles = routesDir.filter((f) => /auth/i.test(f) && f.endsWith(".ts"));
     // R8.2 added saml-auth.routes.ts alongside the existing OIDC route.
     // mfa.routes.ts is identity sub-domain (R8.1.1), counted separately.
     expect(authFiles.sort()).toEqual([

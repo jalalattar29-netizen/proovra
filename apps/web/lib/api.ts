@@ -200,6 +200,24 @@ export async function apiFetch(
         ? (obj["billingWall"] as Record<string, unknown>)
         : undefined;
 
+    // Evidence Lifecycle REAL FIX — some legacy routes return denial info at
+    // TOP LEVEL of the error body (e.g. `{denial: "ENTITLEMENT_REQUIRED",
+    // entitlement: "FEATURE_X"}`) instead of nesting it under `details`.
+    // Pre-fix, `error.details` was undefined for these responses, so the
+    // frontend's denial mapper never matched and rendered a generic error
+    // instead of the entitlement panel. We now treat the whole body as
+    // `details` when no explicit `details` field is present AND the body
+    // contains canonical denial fields. This is additive — routes already
+    // sending `details` are unaffected.
+    const topLevelDenialFields = ["denial", "entitlement", "requiredTier", "requiredEntitlement"];
+    const bodyHasTopLevelDenial =
+      obj &&
+      !detailsFromBody &&
+      topLevelDenialFields.some((k) => typeof obj[k] === "string");
+    const promotedDetails = bodyHasTopLevelDenial
+      ? (obj as Record<string, unknown>)
+      : undefined;
+
     const message =
       messageFromBody || (raw && raw.trim()) || `HTTP ${res.status}: API error`;
 
@@ -216,10 +234,11 @@ export async function apiFetch(
 
     error.code =
       codeFromBody ||
+      (typeof obj?.["denial"] === "string" ? (obj["denial"] as string) : "") ||
       (res.status === 401 ? "UNAUTHORIZED" : "API_ERROR");
     error.statusCode = res.status;
     error.requestId = requestId;
-    error.details = detailsFromBody ?? billingWall;
+    error.details = detailsFromBody ?? promotedDetails ?? billingWall;
 
     throw error;
   }

@@ -1,10 +1,38 @@
 "use client";
 
+/**
+ * Archive Tiers — operator surface for HOT / WARM / COLD / DEEP_ARCHIVE
+ * tier management.
+ *
+ * Evidence Lifecycle REAL FIX root cause:
+ *   - The previous implementation typed the `/v1/lifecycle/archive/costs`
+ *     response as `Array<{tier, storageGbMonthUsd, retrievalGbUsd}>`.
+ *   - The actual backend (`projectArchiveCostsByTier`) returns
+ *     `Record<ArchiveTier, {evidenceCount, totalCostUsdMicrosPerMonth}>`
+ *     — a per-tier OBJECT keyed by tier name, with evidence count and
+ *     accumulated cost in USD micros per month.
+ *   - The runtime cast `as ArchiveCost[]` was a TypeScript lie. At
+ *     render time the array-style lookup threw "find is not a function"
+ *     because `costs` was actually an object, not an array.
+ *   - My previous error-boundary "fix" caught that throw and showed a
+ *     generic "section unavailable" mask — which the user (rightly)
+ *     rejected as hiding the bug rather than fixing it.
+ *
+ * This rewrite:
+ *   - Types match the real backend shape.
+ *   - Per-tier cards render evidence count + monthly cost (converted
+ *     from micros → USD, formatted with the host locale).
+ *   - Per-tier card never throws — every field is guarded.
+ *   - The page renders even when the cost endpoint returns 4xx/5xx
+ *     OR when the transitions endpoint fails — independent sections.
+ *   - DEEP_ARCHIVE replaces FROZEN to match the canonical backend enum
+ *     (`services/api/src/services/lifecycle/archive-tier.service.ts:540`).
+ */
+
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../lib/api";
-import { LifecycleSectionBoundary } from "../_shared";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
@@ -17,19 +45,38 @@ interface ArchiveTransition {
   initiatedAtUtc: string;
 }
 
-interface ArchiveCost {
-  tier: string;
-  storageGbMonthUsd: number;
-  retrievalGbUsd: number;
+// Backend returns: Record<ArchiveTier, ArchiveTierCostBucket>
+// Source of truth: services/api/src/services/lifecycle/archive-tier.service.ts:540
+interface ArchiveTierCostBucket {
+  evidenceCount: number;
+  totalCostUsdMicrosPerMonth: number;
 }
 
-const ARCHIVE_TIERS = ["HOT", "WARM", "COLD", "FROZEN"] as const;
+type ArchiveCostBuckets = Partial<Record<string, ArchiveTierCostBucket>>;
+
+// Canonical tier list. DEEP_ARCHIVE matches the backend enum; FROZEN
+// was a UI-only invention that never existed in the backend.
+const ARCHIVE_TIERS = ["HOT", "WARM", "COLD", "DEEP_ARCHIVE"] as const;
+
+const TIER_LABELS: Record<string, string> = {
+  HOT: "HOT",
+  WARM: "WARM",
+  COLD: "COLD",
+  DEEP_ARCHIVE: "DEEP ARCHIVE",
+};
 
 const TIER_COLORS: Record<string, string> = {
   HOT: "#fef3c7",
   WARM: "#ffe4e6",
   COLD: "#dbeafe",
-  FROZEN: "#f3f4f6",
+  DEEP_ARCHIVE: "#f3f4f6",
+};
+
+const TIER_DESCRIPTIONS: Record<string, string> = {
+  HOT: "Live evidence — fastest access, highest storage cost.",
+  WARM: "Recent evidence — moderate access, moderate cost.",
+  COLD: "Older evidence — slower access, lower cost.",
+  DEEP_ARCHIVE: "Long-term retention — slowest access, cheapest storage.",
 };
 
 function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void): void {
@@ -66,11 +113,13 @@ function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void
 }
 
 export default function ArchivePage() {
+  // No LifecycleSectionBoundary wrap here — the real fix is upstream:
+  // costs is now the correct shape (object, not array), so the page
+  // does not throw. Adding a boundary would only re-introduce a
+  // generic "section unavailable" mask if a future bug crept in.
   return (
     <PageRouteGate routeId="workspace.evidence_lifecycle">
-      <LifecycleSectionBoundary label="Archive Tiers">
-        <Shell />
-      </LifecycleSectionBoundary>
+      <Shell />
     </PageRouteGate>
   );
 }
@@ -81,9 +130,25 @@ function safeDate(input: string | null | undefined): string {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
 }
 
+function formatMicrosUsd(micros: number | undefined | null): string {
+  if (typeof micros !== "number" || !Number.isFinite(micros) || micros <= 0) {
+    return "$0.00";
+  }
+  const dollars = micros / 1_000_000;
+  if (dollars < 0.01) return "<$0.01";
+  return `$${dollars.toFixed(2)}`;
+}
+
+function formatCount(n: number | undefined | null): string {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "0";
+  return n.toLocaleString();
+}
+
 function Shell() {
   const [transitions, setTransitions] = useState<ArchiveTransition[]>([]);
-  const [costs, setCosts] = useState<ArchiveCost[]>([]);
+  const [costs, setCosts] = useState<ArchiveCostBuckets>({});
+  const [transitionsError, setTransitionsError] = useState<string | null>(null);
+  const [costsError, setCostsError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [denial, setDenial] = useState<PermissionDenialState>(null);
 
@@ -95,41 +160,69 @@ function Shell() {
   const refresh = useCallback(async () => {
     setBusy(true);
     setDenial(null);
-    try {
-      // allSettled — one endpoint failing must not blank the other half.
-      const [tRes, cRes] = await Promise.allSettled([
-        apiFetch("/v1/lifecycle/archive/transitions", { method: "GET" }),
-        apiFetch("/v1/lifecycle/archive/costs", { method: "GET" }),
-      ]);
-      setTransitions(
-        tRes.status === "fulfilled"
-          ? ((tRes.value as { transitions?: ArchiveTransition[] } | null)?.transitions ??
-              []) as ArchiveTransition[]
-          : [],
-      );
-      setCosts(
-        cRes.status === "fulfilled"
-          ? ((cRes.value as { costs?: ArchiveCost[] } | null)?.costs ?? []) as ArchiveCost[]
-          : [],
-      );
-      // Apply denial only when BOTH failed — otherwise the partial render is useful.
-      if (tRes.status === "rejected" && cRes.status === "rejected") {
-        applyDenial(tRes.reason, setDenial);
-      }
-    } catch (err) {
+    setTransitionsError(null);
+    setCostsError(null);
+    // allSettled — each section renders independently. A failure in
+    // the cost endpoint must NOT blank the transitions table and
+    // vice versa.
+    const [tRes, cRes] = await Promise.allSettled([
+      apiFetch("/v1/lifecycle/archive/transitions", { method: "GET" }),
+      apiFetch("/v1/lifecycle/archive/costs", { method: "GET" }),
+    ]);
+    // Transitions branch.
+    if (tRes.status === "fulfilled") {
+      const value = tRes.value as { transitions?: unknown } | null;
+      const list = Array.isArray(value?.transitions)
+        ? (value!.transitions as ArchiveTransition[])
+        : [];
+      setTransitions(list);
+    } else {
       setTransitions([]);
-      setCosts([]);
-      applyDenial(err, setDenial);
-    } finally {
-      setBusy(false);
+      const msg =
+        tRes.reason && typeof tRes.reason === "object" && "message" in tRes.reason
+          ? String((tRes.reason as { message: unknown }).message ?? "Could not load transitions")
+          : "Could not load transitions";
+      setTransitionsError(msg);
     }
+    // Costs branch — backend returns `{costs: Record<tier, bucket>}`.
+    // Defensive: accept either an object OR a (legacy) array shape so a
+    // future backend response refactor doesn't break this page.
+    if (cRes.status === "fulfilled") {
+      const value = cRes.value as { costs?: unknown } | null;
+      const raw = value?.costs;
+      let buckets: ArchiveCostBuckets = {};
+      if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+        // Canonical shape — already a Record<tier, bucket>.
+        buckets = raw as ArchiveCostBuckets;
+      } else if (Array.isArray(raw)) {
+        // Legacy / hypothetical shape — array of {tier, evidenceCount, ...}.
+        for (const item of raw) {
+          if (item && typeof item === "object" && typeof (item as { tier?: unknown }).tier === "string") {
+            buckets[(item as { tier: string }).tier] = item as ArchiveTierCostBucket;
+          }
+        }
+      }
+      setCosts(buckets);
+    } else {
+      setCosts({});
+      const msg =
+        cRes.reason && typeof cRes.reason === "object" && "message" in cRes.reason
+          ? String((cRes.reason as { message: unknown }).message ?? "Could not load tier cost data")
+          : "Could not load tier cost data";
+      setCostsError(msg);
+    }
+    // If both rejected with a 403 entitlement denial, show the denial banner.
+    if (tRes.status === "rejected" && cRes.status === "rejected") {
+      applyDenial(tRes.reason, setDenial);
+    }
+    setBusy(false);
   }, []);
 
   const doTransition = useCallback(async () => {
     setTransitioning(true);
     setDenial(null);
     try {
-      // Lifecycle Consolidation — backend route is singular: /transition (POST).
+      // Lifecycle Consolidation — backend route is singular: /transition.
       // The GET list endpoint remains plural at /transitions.
       await apiFetch("/v1/lifecycle/archive/transition", {
         method: "POST",
@@ -161,9 +254,22 @@ function Shell() {
     >
       <header style={{ marginBottom: 14 }}>
         <h1 style={{ fontSize: 22, marginTop: 0 }}>Archive Tiers</h1>
-        <p>
-          <a href="/evidence-lifecycle" style={{ fontSize: 12 }}>
-            ← Back to Evidence Lifecycle
+        <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
+          Move evidence between storage tiers based on age and access
+          patterns. Tier costs are accumulated from the underlying object
+          storage (S3-class) and shown as monthly USD.
+        </p>
+        <p style={{ marginTop: 8, marginBottom: 0 }}>
+          <a
+            href="/evidence-lifecycle"
+            style={{
+              fontSize: 12,
+              color: "#4338ca",
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            ← Back to Lifecycle Operations
           </a>
         </p>
       </header>
@@ -173,9 +279,9 @@ function Shell() {
           data-permission-denied={denial.denial}
           style={{
             padding: 10,
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#991b1b",
+            background: "#fef3c7",
+            border: "1px solid #fcd34d",
+            color: "#78350f",
             borderRadius: 8,
             fontSize: 12,
             marginBottom: 10,
@@ -185,10 +291,20 @@ function Shell() {
         </div>
       ) : null}
 
-      {/* Tier cards */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+      {/* Tier cards — ALWAYS render the 4 tier cards, even if cost data fails. */}
+      <section
+        data-archive-tier-cards
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 10,
+          marginBottom: 16,
+        }}
+      >
         {ARCHIVE_TIERS.map((tier) => {
-          const cost = costs.find((c) => c.tier === tier);
+          const bucket = costs[tier];
+          const count = bucket?.evidenceCount;
+          const cost = bucket?.totalCostUsdMicrosPerMonth;
           return (
             <div
               key={tier}
@@ -198,25 +314,63 @@ function Shell() {
                 border: "1px solid rgba(15,23,42,0.08)",
                 borderRadius: 10,
                 padding: 12,
-                minWidth: 160,
               }}
             >
-              <strong style={{ display: "block", marginBottom: 4 }}>{tier}</strong>
-              {cost ? (
-                <div style={{ fontSize: 11, color: "#475569" }}>
-                  <div>Storage: ${cost.storageGbMonthUsd}/GB·mo</div>
-                  <div>Retrieval: ${cost.retrievalGbUsd}/GB</div>
+              <strong style={{ display: "block", marginBottom: 4, fontSize: 14 }}>
+                {TIER_LABELS[tier] ?? tier}
+              </strong>
+              <small style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 8 }}>
+                {TIER_DESCRIPTIONS[tier] ?? ""}
+              </small>
+              {costsError ? (
+                <small style={{ fontSize: 11, color: "#92400e" }}>
+                  No cost data configured.
+                </small>
+              ) : bucket ? (
+                <div style={{ fontSize: 12, color: "#0f172a" }}>
+                  <div>
+                    <strong>{formatCount(count)}</strong>
+                    <small style={{ marginLeft: 4, color: "#475569" }}>
+                      evidence item{count === 1 ? "" : "s"}
+                    </small>
+                  </div>
+                  <div style={{ marginTop: 2 }}>
+                    <strong>{formatMicrosUsd(cost)}</strong>
+                    <small style={{ marginLeft: 4, color: "#475569" }}>per month</small>
+                  </div>
                 </div>
               ) : (
-                <small style={{ color: "#94a3b8" }}>No cost data</small>
+                <small style={{ color: "#94a3b8" }}>No evidence in this tier.</small>
               )}
             </div>
           );
         })}
-      </div>
+      </section>
+
+      {/* Cost endpoint error — surfaced as a small banner, NOT a section crash. */}
+      {costsError ? (
+        <div
+          role="status"
+          data-archive-costs-error
+          style={{
+            padding: 8,
+            background: "#fffbeb",
+            border: "1px solid #fcd34d",
+            color: "#78350f",
+            borderRadius: 8,
+            fontSize: 11,
+            marginBottom: 12,
+          }}
+        >
+          <strong>Tier cost data unavailable.</strong> Per-tier evidence
+          counts and monthly USD totals could not be computed for this
+          workspace. The transition history below is still accurate.
+        </div>
+      ) : null}
 
       {/* Manual transition form */}
       <section
+        data-archive-transition-form
         style={{
           background: "rgba(15,23,42,0.03)",
           border: "1px solid rgba(15,23,42,0.06)",
@@ -225,9 +379,14 @@ function Shell() {
           marginBottom: 16,
         }}
       >
-        <strong style={{ display: "block", marginBottom: 10, fontSize: 14 }}>
-          Manual Tier Transition
+        <strong style={{ display: "block", marginBottom: 4, fontSize: 14 }}>
+          Manual tier transition
         </strong>
+        <p style={{ margin: 0, fontSize: 12, color: "#475569", marginBottom: 10 }}>
+          Move a specific evidence item to a different storage tier. The
+          automatic age-based scheduler usually handles this for you;
+          manual transitions are for one-off corrections.
+        </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <label style={labelStyle}>
             Evidence ID
@@ -235,15 +394,15 @@ function Shell() {
               style={inputStyle}
               value={evidenceId}
               onChange={(e) => setEvidenceId(e.target.value)}
-              placeholder="uuid"
+              placeholder="evidence UUID"
             />
           </label>
           <label style={labelStyle}>
-            To Tier
+            Target tier
             <select style={inputStyle} value={toTier} onChange={(e) => setToTier(e.target.value)}>
               {ARCHIVE_TIERS.map((t) => (
                 <option key={t} value={t}>
-                  {t}
+                  {TIER_LABELS[t] ?? t}
                 </option>
               ))}
             </select>
@@ -253,8 +412,9 @@ function Shell() {
             disabled={transitioning || !evidenceId}
             onClick={() => void doTransition()}
             style={primaryButton}
+            title={!evidenceId ? "Enter an evidence ID first" : "Move to target tier"}
           >
-            {transitioning ? "Transitioning…" : "Transition"}
+            {transitioning ? "Transitioning…" : "Move tier"}
           </button>
         </div>
       </section>
@@ -270,6 +430,7 @@ function Shell() {
 
       {/* Transitions table */}
       <section
+        data-archive-transitions
         style={{
           background: "#fff",
           border: "1px solid rgba(15,23,42,0.08)",
@@ -279,41 +440,72 @@ function Shell() {
           overflowX: "auto",
         }}
       >
-        <strong style={{ fontSize: 14, display: "block", marginBottom: 8 }}>Transitions</strong>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "#475569" }}>
-              <th style={th}>Evidence ID</th>
-              <th style={th}>From</th>
-              <th style={th}>To</th>
-              <th style={th}>State</th>
-              <th style={th}>Initiated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transitions.length === 0 ? (
-              <tr>
-                <td colSpan={5} style={{ ...td, color: "#475569" }}>
-                  No transitions.
-                </td>
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "4px 4px 8px",
+            borderBottom: "1px solid #e2e8f0",
+            marginBottom: 4,
+          }}
+        >
+          <strong style={{ fontSize: 14 }}>Transition history</strong>
+          <small style={{ color: "#64748b", fontSize: 11 }}>
+            {transitions.length} transition{transitions.length === 1 ? "" : "s"}
+          </small>
+        </header>
+        {transitionsError ? (
+          <div
+            role="status"
+            style={{
+              padding: 10,
+              background: "#fffbeb",
+              border: "1px solid #fcd34d",
+              color: "#78350f",
+              borderRadius: 6,
+              fontSize: 12,
+              margin: 8,
+            }}
+          >
+            <strong>Transition history unavailable.</strong> {transitionsError}
+          </div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ textAlign: "left", color: "#475569" }}>
+                <th style={th}>Evidence ID</th>
+                <th style={th}>From</th>
+                <th style={th}>To</th>
+                <th style={th}>State</th>
+                <th style={th}>Initiated</th>
               </tr>
-            ) : (
-              transitions.map((t) => (
-                <tr key={t.id}>
-                  <td style={td}>
-                    <code>{t.evidenceId}</code>
+            </thead>
+            <tbody>
+              {transitions.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ ...td, color: "#475569", textAlign: "center" }}>
+                    No tier transitions recorded yet for this workspace.
                   </td>
-                  <td style={td}>{t.fromTier}</td>
-                  <td style={td}>{t.toTier}</td>
-                  <td style={td}>
-                    <strong>{t.state}</strong>
-                  </td>
-                  <td style={td}>{safeDate(t.initiatedAtUtc)}</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                transitions.map((t) => (
+                  <tr key={t.id}>
+                    <td style={td}>
+                      <code>{t.evidenceId}</code>
+                    </td>
+                    <td style={td}>{TIER_LABELS[t.fromTier] ?? t.fromTier}</td>
+                    <td style={td}>{TIER_LABELS[t.toTier] ?? t.toTier}</td>
+                    <td style={td}>
+                      <strong>{t.state}</strong>
+                    </td>
+                    <td style={td}>{safeDate(t.initiatedAtUtc)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
       </section>
     </div>
   );
@@ -331,7 +523,13 @@ const primaryButton = {
 } as const;
 const th = { padding: "6px 8px", borderBottom: "1px solid #e2e8f0" } as const;
 const td = { padding: "6px 8px", borderBottom: "1px solid #f1f5f9" } as const;
-const labelStyle = { display: "flex", flexDirection: "column" as const, gap: 2, fontSize: 11, fontWeight: 600 };
+const labelStyle = {
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: 2,
+  fontSize: 11,
+  fontWeight: 600,
+};
 const inputStyle = {
   fontSize: 12,
   padding: "4px 6px",

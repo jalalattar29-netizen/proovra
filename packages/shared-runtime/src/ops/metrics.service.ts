@@ -452,8 +452,13 @@ export const COUNTER_NAMES = [
   "siu_export_download_total",
   "siu_export_upload_failure_total",
   "package_generation_total",
-  "package_generation_failed_total",
-  "export_generation_total",
+  // NOTE: `package_generation_failed_total` is declared lower down in
+  // the Phase 32.6 block — listing it here as well silently became a
+  // duplicate. The snapshot dedupes by key, so the catalog count drifts
+  // from `Object.keys(snapshot).length`. Removed here; kept at the
+  // canonical Phase 32.6 site.
+  // NOTE: `export_generation_total` is declared above in the Phase P2.1
+  // block. Same dedup issue — removed here.
   "export_generation_failed_total",
   "export_reproducibility_verify_total",
   "recovery_backup_validation_total",
@@ -604,6 +609,9 @@ export const COUNTER_NAMES = [
   // canonical bump site; never bumped on user-input paths.
   "package_generation_started_total",
   "package_generation_completed_total",
+  // Canonical site for `package_generation_failed_total`. The Phase
+  // O1.2 block above used to re-list it; that duplicate has been
+  // removed so the snapshot key-count matches COUNTER_NAMES.length.
   "package_generation_failed_total",
   "package_generation_skipped_personal_workspace_total",
   "artifact_status_polled_total",

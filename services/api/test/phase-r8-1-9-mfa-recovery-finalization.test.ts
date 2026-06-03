@@ -437,7 +437,9 @@ describe("R8.1.9 bonus — scope guards", () => {
   it("bonus A: session-light is the ONLY new route in auth.routes.ts (no second auth surface)", () => {
     // R8.2 added saml-auth.routes.ts; all three are the auth-bearing files.
     const routesDir = readdirSync(apiPath("src/routes"));
-    const authFiles = routesDir.filter((f) => /auth/i.test(f));
+    // Filter to .ts sources only — compiled .js artifacts in src/ would
+    // otherwise duplicate every match. The pin is on source files.
+    const authFiles = routesDir.filter((f) => /auth/i.test(f) && f.endsWith(".ts"));
     expect(authFiles.sort()).toEqual([
       "auth.routes.ts",
       "saml-auth.routes.ts",

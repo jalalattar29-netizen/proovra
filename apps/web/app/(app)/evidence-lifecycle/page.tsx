@@ -82,10 +82,17 @@ interface LifecycleDashboard {
    * was wrapped in a defensive try/catch and returned an empty shape
    * (e.g. workspace just provisioned, transient Prisma error). The UI
    * renders the dashboard chrome + a small degraded banner instead of
-   * showing the previous "Unable to load lifecycle dashboard" error.
+   * the previous hard red-error banner that blanked the page.
    */
   degraded?: boolean;
   degradedReason?: string;
+  /**
+   * Evidence Lifecycle REAL FIX — backend reports whether the workspace
+   * lacks the FEATURE_LIFECYCLE_DASHBOARD entitlement WITHOUT failing
+   * the whole page. Surfaced as a soft "upgrade" callout rather than a
+   * 403 error.
+   */
+  entitlementMissing?: boolean;
 }
 
 type LoadState =
@@ -290,7 +297,27 @@ function Shell() {
       const projection = normaliseDashboard(res);
       setState({ phase: "loaded", dashboard: projection });
     } catch (err) {
-      setState(mapErrorToState(err));
+      // Evidence Lifecycle REAL FIX — the dashboard MUST render even on
+      // unexpected backend failures. The previous behaviour ("Unable to
+      // load lifecycle dashboard" red error) was unacceptable because it
+      // gave the operator no usable surface. We map every non-auth error
+      // into a degraded empty dashboard with a soft amber banner naming
+      // the failure; AUTH/ENTITLEMENT_REQUIRED still go to their
+      // dedicated structured panels.
+      const mapped = mapErrorToState(err);
+      if (
+        mapped.phase === "entitlement-required" ||
+        mapped.phase === "delegated-admin-required"
+      ) {
+        setState(mapped);
+      } else if (mapped.phase === "error") {
+        const empty = emptyDashboard();
+        empty.degraded = true;
+        empty.degradedReason = mapped.message;
+        setState({ phase: "loaded", dashboard: empty });
+      } else {
+        setState(mapped);
+      }
     } finally {
       setBusy(false);
     }
@@ -395,9 +422,18 @@ function Shell() {
         </div>
       ) : null}
 
+      {/*
+        Evidence Lifecycle REAL FIX — the old hard red-error banner was
+        unacceptable: the operator got NO usable surface on any transient
+        backend hiccup. That phase no longer fires for generic errors —
+        refresh() now converts them into a degraded LoadedDashboard with
+        a soft banner. Only auth/entitlement structured panels remain
+        below. If this branch ever fires (defensive path), we still show
+        the chrome + a soft note rather than a red error.
+      */}
       {state.phase === "error" ? (
-        <div data-evidence-lifecycle-state="error" style={errorBoxStyle}>
-          <strong>Unable to load lifecycle dashboard.</strong>
+        <div data-evidence-lifecycle-state="error" style={noticeBoxStyle}>
+          <strong>Lifecycle activity counts unavailable.</strong>
           <div style={{ marginTop: 4 }}>{state.message}</div>
         </div>
       ) : null}
@@ -478,6 +514,25 @@ function LoadedDashboard({ dashboard }: { dashboard: LifecycleDashboard }) {
           <strong>Lifecycle activity counts unavailable.</strong>{" "}
           {dashboard.degradedReason ??
             "The activity projector did not respond — your data is safe, counts will repopulate automatically."}
+        </div>
+      ) : null}
+      {dashboard.entitlementMissing ? (
+        <div
+          role="status"
+          data-evidence-lifecycle-entitlement-banner
+          style={{
+            padding: 10,
+            background: "#eff6ff",
+            border: "1px solid #bfdbfe",
+            color: "#1e3a8a",
+            borderRadius: 8,
+            fontSize: 12,
+          }}
+        >
+          <strong>Advanced lifecycle metrics are gated.</strong> Your
+          workspace doesn&apos;t have the <code>FEATURE_LIFECYCLE_DASHBOARD</code>{" "}
+          entitlement, so per-tile counts may not back-fill from older
+          activity. Contact your account team to enable it.
         </div>
       ) : null}
       <CapabilityLauncherRow caps={caps} />
@@ -801,15 +856,8 @@ const mutedNoteStyle = {
   fontSize: 13,
   padding: "12px 0",
 } as const;
-const errorBoxStyle = {
-  padding: 12,
-  background: "#fef2f2",
-  border: "1px solid #fecaca",
-  color: "#7f1d1d",
-  borderRadius: 8,
-  fontSize: 13,
-  marginBottom: 12,
-} as const;
+// errorBoxStyle removed — the dashboard no longer renders a red error
+// box. Generic errors now degrade into a soft amber noticeBoxStyle.
 const denialBoxStyle = {
   padding: 12,
   background: "#fef3c7",

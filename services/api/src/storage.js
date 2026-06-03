@@ -1,6 +1,13 @@
-import { S3Client, PutObjectCommand, HeadObjectCommand, GetObjectCommand, GetObjectLockConfigurationCommand, PutObjectLegalHoldCommand, PutObjectRetentionCommand, } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, HeadObjectCommand, GetObjectCommand, GetObjectLockConfigurationCommand, PutObjectLegalHoldCommand, PutObjectRetentionCommand, CopyObjectCommand, RestoreObjectCommand, DeleteObjectCommand, } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createHash } from "node:crypto";
+// Phase O1.4 — bounded S3 spans. Attributes carry the bucket name +
+// bounded key prefix (first 64 chars). NEVER the signed URL, body
+// bytes, or credentials.
+import { PROOVRA_SPAN_NAMES, withProovraSpan, } from "./observability/otel.js";
+function boundedKeyAttr(key) {
+    return key.length > 64 ? key.slice(0, 64) + "…" : key;
+}
 function must(name) {
     const v = process.env[name];
     if (!v || !v.trim())
@@ -269,24 +276,33 @@ export async function putObjectBuffer(params) {
     const objectLock = params.immutable && isObjectLockEnabled() ? readObjectLockDefaults() : {};
     const checksumSha256Base64 = sha256Base64(params.body);
     const contentMd5Base64 = md5Base64(params.body);
-    await s3.send(new PutObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        Body: params.body,
-        ContentType: normalizeContentType(params.contentType),
-        ContentLength: params.body.length,
-        Metadata: metadata,
-        ChecksumSHA256: checksumSha256Base64,
-        ContentMD5: contentMd5Base64,
-        ...(tagging ? { Tagging: tagging } : {}),
-        ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
-        ...(objectLock.retainUntilDate
-            ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
-            : {}),
-        ...(objectLock.legalHold
-            ? { ObjectLockLegalHoldStatus: objectLock.legalHold }
-            : {}),
-    }));
+    // Phase O1.4 — bounded S3 PUT span.
+    await withProovraSpan(PROOVRA_SPAN_NAMES.S3_PUT_OBJECT, {
+        "proovra.bucket": bucket,
+        "proovra.s3.key_prefix": boundedKeyAttr(key),
+        "proovra.operation": "put_object",
+        "proovra.size_bytes": params.body.length,
+        "proovra.immutable": Boolean(params.immutable),
+    }, async () => {
+        await s3.send(new PutObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            Body: params.body,
+            ContentType: normalizeContentType(params.contentType),
+            ContentLength: params.body.length,
+            Metadata: metadata,
+            ChecksumSHA256: checksumSha256Base64,
+            ContentMD5: contentMd5Base64,
+            ...(tagging ? { Tagging: tagging } : {}),
+            ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
+            ...(objectLock.retainUntilDate
+                ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
+                : {}),
+            ...(objectLock.legalHold
+                ? { ObjectLockLegalHoldStatus: objectLock.legalHold }
+                : {}),
+        }));
+    });
 }
 export async function applyObjectRetention(params) {
     const bucket = clean(params.bucket);
@@ -341,19 +357,26 @@ export async function headObject(params) {
     if (!bucket || !key) {
         throw new Error("headObject: bucket/key are required");
     }
-    const res = await s3.send(new HeadObjectCommand({
-        Bucket: bucket,
-        Key: key,
-    }));
-    return {
-        sizeBytes: res.ContentLength ?? null,
-        contentType: res.ContentType ?? null,
-        etag: res.ETag ?? null,
-        metadata: res.Metadata ?? null,
-        objectLockMode: res.ObjectLockMode ?? null,
-        objectLockRetainUntilDate: res.ObjectLockRetainUntilDate ?? null,
-        objectLockLegalHoldStatus: res.ObjectLockLegalHoldStatus ?? null,
-    };
+    // Phase O1.4 — bounded S3 HEAD span.
+    return withProovraSpan(PROOVRA_SPAN_NAMES.S3_HEAD_OBJECT, {
+        "proovra.bucket": bucket,
+        "proovra.s3.key_prefix": boundedKeyAttr(key),
+        "proovra.operation": "head_object",
+    }, async () => {
+        const res = await s3.send(new HeadObjectCommand({
+            Bucket: bucket,
+            Key: key,
+        }));
+        return {
+            sizeBytes: res.ContentLength ?? null,
+            contentType: res.ContentType ?? null,
+            etag: res.ETag ?? null,
+            metadata: res.Metadata ?? null,
+            objectLockMode: res.ObjectLockMode ?? null,
+            objectLockRetainUntilDate: res.ObjectLockRetainUntilDate ?? null,
+            objectLockLegalHoldStatus: res.ObjectLockLegalHoldStatus ?? null,
+        };
+    });
 }
 export async function getObjectStream(params) {
     const bucket = clean(params.bucket);
@@ -361,13 +384,20 @@ export async function getObjectStream(params) {
     if (!bucket || !key) {
         throw new Error("getObjectStream: bucket/key are required");
     }
-    const res = await s3.send(new GetObjectCommand({
-        Bucket: bucket,
-        Key: key,
-    }));
-    if (!res.Body)
-        throw new Error("S3 returned empty body");
-    return res.Body;
+    // Phase O1.4 — bounded S3 GET span.
+    return withProovraSpan(PROOVRA_SPAN_NAMES.S3_GET_OBJECT, {
+        "proovra.bucket": bucket,
+        "proovra.s3.key_prefix": boundedKeyAttr(key),
+        "proovra.operation": "get_object",
+    }, async () => {
+        const res = await s3.send(new GetObjectCommand({
+            Bucket: bucket,
+            Key: key,
+        }));
+        if (!res.Body)
+            throw new Error("S3 returned empty body");
+        return res.Body;
+    });
 }
 export async function getObjectRange(params) {
     const bucket = clean(params.bucket);
@@ -450,5 +480,57 @@ export async function verifyObjectLockConfiguration() {
             mode: "skipped",
             reason: `GetObjectLockConfiguration probe failed: ${code || msg || "unknown"}`,
         };
+    }
+}
+// -----------------------------------------------------------------------------
+// Phase 4B — Archive tier storage-class transitions.
+// -----------------------------------------------------------------------------
+/** Change an S3 object's storage class in-place via CopyObject. */
+export async function copyObjectStorageClass(params) {
+    await s3.send(new CopyObjectCommand({
+        Bucket: params.bucket,
+        Key: params.key,
+        CopySource: `${params.bucket}/${params.key}`,
+        StorageClass: params.storageClass,
+        MetadataDirective: "COPY",
+    }));
+}
+/** Initiate a Glacier restore for a COLD/DEEP_ARCHIVE object. */
+export async function restoreObject(params) {
+    await s3.send(new RestoreObjectCommand({
+        Bucket: params.bucket,
+        Key: params.key,
+        RestoreRequest: { Days: params.days ?? 7, GlacierJobParameters: { Tier: "Standard" } },
+    }));
+}
+/** Return the current storage class of an S3 object, or null if unknown. */
+export async function headObjectStorageClass(params) {
+    try {
+        const res = await s3.send(new HeadObjectCommand({ Bucket: params.bucket, Key: params.key }));
+        return res.StorageClass ?? "STANDARD";
+    }
+    catch {
+        return null;
+    }
+}
+// -----------------------------------------------------------------------------
+// Phase 4B — Destruction governance: delete an S3 object.
+// -----------------------------------------------------------------------------
+/** Delete an S3 object. Best-effort: errors are caught and returned as a
+ *  bounded reason string so the caller can persist the failure without
+ *  throwing. */
+export async function deleteObject(params) {
+    try {
+        await s3.send(new DeleteObjectCommand({
+            Bucket: params.bucket,
+            Key: params.key,
+        }));
+        return { ok: true };
+    }
+    catch (err) {
+        const msg = err instanceof Error
+            ? err.message.slice(0, 200)
+            : "unknown_delete_error";
+        return { ok: false, error: msg };
     }
 }

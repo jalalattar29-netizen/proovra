@@ -1,0 +1,336 @@
+import { normalizeEnumText, safe } from "./formatters.js";
+export function mapRecordStatusLabel(status) {
+    switch (safe(status, "").toUpperCase()) {
+        case "CREATED":
+            return "Created";
+        case "UPLOADING":
+            return "Uploading";
+        case "UPLOADED":
+            return "Uploaded";
+        case "SIGNED":
+            return "Signed";
+        case "REPORTED":
+            return "Reported";
+        default:
+            return safe(status);
+    }
+}
+export function mapVerificationStatusLabel(status) {
+    switch (safe(status, "").toUpperCase()) {
+        case "MATERIALS_AVAILABLE":
+            return "Technical materials available";
+        case "RECORDED_INTEGRITY_VERIFIED":
+            return "Recorded integrity state verified";
+        case "REVIEW_REQUIRED":
+            return "Review required";
+        case "FAILED":
+            return "Verification failed";
+        default:
+            return "Verification status not recorded";
+    }
+}
+export function mapCertificationStatusLabel(value) {
+    switch (safe(value, "").toUpperCase()) {
+        case "ATTESTED":
+            return "Attested";
+        case "REQUESTED":
+            return "Requested";
+        case "DRAFT":
+            return "Draft";
+        case "REVOKED":
+            return "Revoked";
+        default:
+            return safe(value, "Not recorded");
+    }
+}
+export function mapCaptureMethodLabel(value) {
+    switch (safe(value, "").toUpperCase()) {
+        case "SECURE_CAMERA":
+            return "Captured with PROOVRA secure camera";
+        case "UPLOADED_FILE":
+            return "Uploaded existing file";
+        case "IMPORTED_DOCUMENT":
+            return "Imported document";
+        case "MULTIPART_PACKAGE":
+            return "Multipart package";
+        default:
+            return "Capture method not recorded";
+    }
+}
+export function mapIdentityLevelLabel(value) {
+    switch (safe(value, "").toUpperCase()) {
+        case "BASIC_ACCOUNT":
+            return "Basic account";
+        case "VERIFIED_EMAIL":
+            return "Verified email";
+        case "OAUTH_BACKED_IDENTITY":
+            return "OAuth-backed identity";
+        case "ORGANIZATION_ACCOUNT":
+            return "Organization account";
+        case "VERIFIED_ORGANIZATION":
+            return "Verified organization";
+        default:
+            return "Identity level not recorded";
+    }
+}
+export function mapAuthProviderLabel(value) {
+    switch (safe(value, "").toUpperCase()) {
+        case "GOOGLE":
+            return "Google";
+        case "APPLE":
+            return "Apple";
+        case "EMAIL":
+            return "Email";
+        case "GUEST":
+            return "Guest";
+        default:
+            return "Provider not recorded";
+    }
+}
+export function mapVerificationSourceLabel(value) {
+    switch (safe(value, "").toUpperCase()) {
+        case "REPORT_GENERATED":
+            return "Report generated";
+        case "PUBLIC_VERIFY_VIEWED":
+            // Legacy value: meaningful technical verifications are no longer tagged
+            // with PUBLIC_VERIFY_VIEWED; public hits are tracked separately on
+            // lastPublicVerifyViewAtUtc (analytics) without bumping lastVerified.
+            return "Public verification page viewed (legacy)";
+        case "TECHNICAL_VERIFICATION_CHECKED":
+            return "Technical verification checked";
+        default:
+            return "Verification source not recorded";
+    }
+}
+export function mapCustodyEventLabel(eventType) {
+    switch (safe(eventType, "").toUpperCase()) {
+        case "EVIDENCE_CREATED":
+            return "Evidence record created";
+        case "IDENTITY_SNAPSHOT_RECORDED":
+            return "Identity snapshot recorded at intake";
+        case "REPORT_IDENTITY_CONTEXT_RECORDED":
+            return "Identity context recorded at report generation";
+        case "UPLOAD_STARTED":
+            // Legacy event for backward compatibility. New records use
+            // UPLOAD_AUTHORIZED at intake (presign issuance).
+            return "Upload authorization recorded (legacy label)";
+        case "UPLOAD_AUTHORIZED":
+            return "Upload authorization recorded";
+        case "UPLOAD_COMPLETED":
+            return "Upload completion confirmed";
+        case "SIGNATURE_APPLIED":
+            return "Digital signature applied";
+        case "TIMESTAMP_APPLIED":
+            return "Trusted timestamp token recorded";
+        case "TIMESTAMP_FAILED":
+            return "Trusted timestamp not obtained";
+        case "REPORT_GENERATED":
+            return "Report generated";
+        case "REVIEW_READY":
+            return "Review-ready state recorded";
+        case "VERIFICATION_PACKAGE_GENERATED":
+            return "Verification package generated";
+        case "CERTIFICATION_REQUESTED":
+            return "Certification requested";
+        case "CERTIFICATION_ATTESTED":
+            return "Certification attested";
+        case "CERTIFICATION_REVOKED":
+            return "Certification revoked";
+        case "EVIDENCE_PURGED":
+            return "Evidence purged";
+        case "OTS_APPLIED":
+            return "OpenTimestamps update recorded";
+        case "OTS_FAILED":
+            return "OpenTimestamps provider returned failure";
+        case "OTS_ATTEMPT_ERROR":
+            return "OpenTimestamps attempt errored";
+        case "TECHNICAL_VERIFICATION_CHECKED":
+            return "Technical verification checked";
+        case "VERIFY_VIEWED":
+            return "Verification page viewed";
+        case "EVIDENCE_VIEWED":
+            return "Evidence viewed";
+        case "REPORT_DOWNLOADED":
+            return "Report downloaded";
+        case "VERIFICATION_PACKAGE_DOWNLOADED":
+            return "Verification package downloaded";
+        case "EVIDENCE_LOCKED":
+            return "Object Lock retention applied to storage";
+        case "STORAGE_PROTECTION_UNAVAILABLE":
+            return "Storage protection unavailable (Object Lock not applied)";
+        case "EVIDENCE_ARCHIVED":
+            return "Evidence archived";
+        case "EVIDENCE_RESTORED":
+            return "Evidence restored";
+        case "ANCHOR_PUBLISHED":
+            return "External anchor published";
+        case "ANCHOR_FAILED":
+            return "External anchor failed";
+        default:
+            return normalizeEnumText(eventType);
+    }
+}
+export function mapTimestampStatusPublicLabel(status) {
+    switch (safe(status, "").toUpperCase()) {
+        case "STAMPED":
+        case "GRANTED":
+        case "VERIFIED":
+        case "SUCCEEDED":
+            return "Trusted timestamp token recorded";
+        case "PENDING":
+            return "Trusted timestamp pending";
+        case "UNAVAILABLE":
+            return "Trusted timestamp unavailable";
+        case "FAILED":
+            return "Trusted timestamp attempt failed";
+        default:
+            return "Trusted timestamp not configured";
+    }
+}
+/**
+ * Truthful OTS / public anchoring labels.
+ *
+ * "Public anchoring verified" was previously returned for ANCHORED, but the
+ * worker can persist ANCHORED before a Bitcoin transaction id is attached
+ * (that lives behind a separate upgrade pass). For legal safety we no longer
+ * return "verified" purely on the ANCHORED status. Use the txid-aware variant
+ * mapOtsStatusPublicLabelWithTxid() to choose the precise label.
+ */
+export function mapOtsStatusPublicLabel(status) {
+    switch (safe(status, "").toUpperCase()) {
+        case "ANCHORED":
+            // Without txid context we cannot assert Bitcoin anchoring; report the
+            // honest OTS state instead.
+            return "OpenTimestamps proof present; public anchoring pending";
+        case "PENDING":
+            return "OpenTimestamps proof present; public anchoring pending";
+        case "FAILED":
+            return "OpenTimestamps anchoring failed";
+        case "DISABLED":
+            return "OpenTimestamps unavailable";
+        default:
+            return "OpenTimestamps not configured";
+    }
+}
+/**
+ * txid-aware variant: returns "Bitcoin anchoring verified" only when a Bitcoin
+ * transaction id is actually recorded for the OTS proof. This is the function
+ * report / verify / package surfaces should prefer when they have the txid.
+ */
+export function mapOtsStatusPublicLabelWithTxid(params) {
+    const status = safe(params.status, "").toUpperCase();
+    const hasTxid = typeof params.bitcoinTxid === "string" &&
+        /^[a-f0-9]{64}$/i.test(params.bitcoinTxid.trim());
+    if (status === "ANCHORED" && hasTxid) {
+        return "Bitcoin anchoring verified";
+    }
+    return mapOtsStatusPublicLabel(params.status);
+}
+export function mapObjectLockModePublicLabel(mode) {
+    switch (safe(mode, "").toUpperCase()) {
+        case "COMPLIANCE":
+            return "Compliance retention lock";
+        case "GOVERNANCE":
+            return "Governance retention lock";
+        default:
+            return "Not recorded";
+    }
+}
+export function mapAnchorModePublicLabel(mode) {
+    switch (safe(mode, "").toUpperCase()) {
+        case "ANCHORED":
+        case "ACTIVE":
+            return "Public anchoring verified";
+        case "PENDING_PUBLIC_ANCHOR":
+        case "READY":
+            return "OTS proof present, public anchoring pending";
+        case "FAILED":
+            return "Public anchoring failed";
+        case "NOT_CONFIGURED":
+        case "OFF":
+            return "Public anchoring unavailable";
+        case "PUBLIC":
+            return "Public anchoring";
+        case "PRIVATE":
+            return "Private anchoring";
+        case "HASH_ONLY":
+            return "Digest anchoring";
+        default:
+            return "Public anchoring unavailable";
+    }
+}
+/**
+ * OTS-aware variant of `mapAnchorModePublicLabel` for the report's
+ * Technical Appendix "Anchor Mode" row.
+ *
+ * The row historically reflected the EvidenceAnchor (external
+ * publication) pipeline only, which produced a misleading
+ * "OTS proof present, public anchoring pending" label on records whose
+ * OTS proof was actually fully ANCHORED with a Bitcoin txid. The row
+ * is supposed to summarize the *public anchoring* state — i.e. OTS /
+ * Bitcoin anchoring — not the external publication pipeline. This
+ * helper inspects the canonical OTS facts FIRST and only falls back to
+ * the EvidenceAnchor-derived mode when OTS state is unknown.
+ *
+ * Honest semantics:
+ *   - OTS ANCHORED with valid txid/anchoredAt → "Public anchoring verified"
+ *   - OTS PENDING / proof present, not yet upgraded → "OTS proof present,
+ *     public anchoring pending"
+ *   - OTS FAILED → "Public anchoring failed"
+ *   - OTS DISABLED / missing → fall through to anchor-mode label
+ *     (typically "Public anchoring unavailable")
+ *
+ * NEVER fabricates. Never asserts verified anchoring without canonical
+ * proof signals (txid OR anchoredAtUtc).
+ */
+export function mapPublicAnchoringLabelFromOts(input) {
+    const status = safe(input.otsStatus, "").toUpperCase();
+    const hasTxid = typeof input.otsBitcoinTxid === "string" &&
+        /^[a-f0-9]{64}$/i.test(input.otsBitcoinTxid.trim());
+    const hasAnchoredAt = Boolean(input.otsAnchoredAtUtc);
+    const hasProof = Boolean(input.otsProofPresent);
+    if (status === "ANCHORED" && (hasTxid || hasAnchoredAt)) {
+        return "Public anchoring verified";
+    }
+    if (status === "FAILED") {
+        return "Public anchoring failed";
+    }
+    if (status === "PENDING" || hasProof) {
+        return "OTS proof present, public anchoring pending";
+    }
+    if (status === "DISABLED") {
+        return "Public anchoring unavailable";
+    }
+    return mapAnchorModePublicLabel(input.fallbackAnchorMode ?? null);
+}
+export function mapEvidenceAssetKindLabel(kind) {
+    switch (kind) {
+        case "image":
+            return "Image";
+        case "video":
+            return "Video";
+        case "audio":
+            return "Audio";
+        case "pdf":
+            return "PDF";
+        case "text":
+            return "Text";
+        case "other":
+            return "Other";
+        default:
+            return "Not recorded";
+    }
+}
+export function normalizeReviewerText(value) {
+    return safe(value, "")
+        .replace(/\bOAUTH_BACKED_IDENTITY\b/g, "OAuth-backed identity")
+        .replace(/\bMULTIPART_PACKAGE\b/g, "Multipart package")
+        .replace(/\bSECURE_CAMERA\b/g, "PROOVRA secure camera")
+        .replace(/\bUPLOADED_FILE\b/g, "Uploaded existing file")
+        .replace(/\bIMPORTED_DOCUMENT\b/g, "Imported document")
+        .replace(/\bBASIC_ACCOUNT\b/g, "Basic account")
+        .replace(/\bVERIFIED_EMAIL\b/g, "Verified email")
+        .replace(/\bORGANIZATION_ACCOUNT\b/g, "Organization account")
+        .replace(/\bVERIFIED_ORGANIZATION\b/g, "Verified organization")
+        .replace(/_/g, " ");
+}

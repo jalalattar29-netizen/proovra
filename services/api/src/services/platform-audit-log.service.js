@@ -1,0 +1,397 @@
+import { ADMIN_AUDIT_ADVISORY_LOCK_KEY, assertMetadataMaxDepth, canonicalJsonForAuditHash, computeAuditLogChainHash, METADATA_MAX_DEPTH_DEFAULT, } from "../lib/admin-audit-chain.js";
+import { prisma } from "../db.js";
+/** Legacy sentinel kept in DB for rows created before user_id could be null. */
+const LEGACY_PUBLIC_VERIFY_USER_ID = "__public_verify__";
+const METADATA_MAX_BYTES = 5120;
+const MAX_ACTION_LEN = 128;
+const MAX_CATEGORY_LEN = 64;
+const MAX_SEVERITY_LEN = 16;
+const MAX_SOURCE_LEN = 64;
+const MAX_OUTCOME_LEN = 24;
+const MAX_RESOURCE_TYPE_LEN = 64;
+const MAX_RESOURCE_ID_LEN = 128;
+const MAX_REQUEST_ID_LEN = 64;
+const VERIFY_TAIL_MAX = 50_000;
+function truncateString(value, max) {
+    if (!value)
+        return null;
+    const t = value.trim();
+    if (!t)
+        return null;
+    return t.length > max ? t.slice(0, max) : t;
+}
+function sanitizeValue(value, depth) {
+    if (depth > 6)
+        return "[max_depth]";
+    if (value === null)
+        return null;
+    if (typeof value === "string") {
+        return value.length > 2000 ? `${value.slice(0, 2000)}…` : value;
+    }
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value === "boolean")
+        return value;
+    if (Array.isArray(value)) {
+        return value
+            .slice(0, 50)
+            .map((v) => sanitizeValue(v, depth + 1));
+    }
+    if (typeof value === "object") {
+        const entries = Object.entries(value).slice(0, 40);
+        const out = {};
+        for (const [k, v] of entries) {
+            const key = k.length > 120 ? k.slice(0, 120) : k;
+            out[key] = sanitizeValue(v, depth + 1);
+        }
+        return out;
+    }
+    return null;
+}
+export function sanitizeAuditMetadata(raw) {
+    if (raw === null || raw === undefined) {
+        return {};
+    }
+    if (typeof raw === "object") {
+        assertMetadataMaxDepth(raw, METADATA_MAX_DEPTH_DEFAULT);
+    }
+    if (typeof raw !== "object" || Array.isArray(raw)) {
+        return { value: sanitizeValue(raw, 0) };
+    }
+    return sanitizeValue(raw, 0);
+}
+export function assertMetadataSize(metadata) {
+    const size = Buffer.byteLength(JSON.stringify(metadata), "utf8");
+    if (size > METADATA_MAX_BYTES) {
+        throw new Error("METADATA_TOO_LARGE");
+    }
+}
+function truncateUa(ua, max) {
+    if (!ua)
+        return null;
+    const t = ua.trim();
+    if (!t)
+        return null;
+    return t.length > max ? t.slice(0, max) : t;
+}
+function truncateIp(ip) {
+    if (!ip)
+        return null;
+    const t = ip.trim();
+    if (!t)
+        return null;
+    return t.length > 45 ? t.slice(0, 45) : t;
+}
+export async function appendPlatformAuditLog(params) {
+    const action = params.action.trim().slice(0, MAX_ACTION_LEN);
+    if (!action)
+        throw new Error("INVALID_ACTION");
+    const isPublic = params.isPublic === true;
+    const userId = params.userId;
+    if (!isPublic && (userId === null || userId === "")) {
+        throw new Error("INVALID_USER_ID");
+    }
+    const db = params.db ?? prisma;
+    const sanitized = sanitizeAuditMetadata(params.metadata);
+    assertMetadataSize(sanitized);
+    const category = truncateString(params.category, MAX_CATEGORY_LEN);
+    const severity = truncateString(params.severity, MAX_SEVERITY_LEN);
+    const source = truncateString(params.source, MAX_SOURCE_LEN);
+    const outcome = truncateString(params.outcome, MAX_OUTCOME_LEN);
+    const resourceType = truncateString(params.resourceType, MAX_RESOURCE_TYPE_LEN);
+    const resourceId = truncateString(params.resourceId, MAX_RESOURCE_ID_LEN);
+    const requestId = truncateString(params.requestId, MAX_REQUEST_ID_LEN);
+    await db.$transaction(async (tx) => {
+        await tx.$executeRaw `SELECT pg_advisory_xact_lock(${ADMIN_AUDIT_ADVISORY_LOCK_KEY})`;
+        const last = await tx.adminAuditLog.findFirst({
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            select: { hash: true },
+        });
+        const createdAt = new Date();
+        const metadataCanonical = canonicalJsonForAuditHash(sanitized);
+        const hash = computeAuditLogChainHash({
+            chainVersion: 2,
+            userId,
+            action,
+            category,
+            severity,
+            source,
+            outcome,
+            resourceType,
+            resourceId,
+            requestId,
+            metadataCanonical,
+            createdAtIso: createdAt.toISOString(),
+            prevHash: last?.hash ?? null,
+        });
+        await tx.adminAuditLog.create({
+            data: {
+                userId,
+                isPublic,
+                action,
+                category,
+                severity,
+                source,
+                outcome,
+                resourceType,
+                resourceId,
+                requestId,
+                metadata: sanitized,
+                ipAddress: truncateIp(params.ipAddress ?? undefined),
+                userAgent: truncateUa(params.userAgent ?? undefined, 512),
+                hash,
+                prevHash: last?.hash ?? null,
+                chainVersion: 2,
+                createdAt,
+            },
+        });
+    });
+}
+function computeExpectedHashForRow(row, previousHash, version) {
+    const metadataCanonical = canonicalJsonForAuditHash(row.metadata);
+    if (version === 2) {
+        return computeAuditLogChainHash({
+            chainVersion: 2,
+            userId: row.userId,
+            action: row.action,
+            category: row.category,
+            severity: row.severity,
+            source: row.source,
+            outcome: row.outcome,
+            resourceType: row.resourceType,
+            resourceId: row.resourceId,
+            requestId: row.requestId,
+            metadataCanonical,
+            createdAtIso: row.createdAt.toISOString(),
+            prevHash: previousHash,
+        });
+    }
+    return computeAuditLogChainHash({
+        chainVersion: 1,
+        userId: row.userId,
+        action: row.action,
+        metadataCanonical,
+        createdAtIso: row.createdAt.toISOString(),
+        prevHash: previousHash,
+    });
+}
+function verifyOrderedRows(rows, expectedPrevForFirst) {
+    let previousHash = expectedPrevForFirst;
+    for (const row of rows) {
+        if (row.prevHash !== previousHash) {
+            return { valid: false, brokenAt: row.id };
+        }
+        const expected = computeExpectedHashForRow(row, previousHash, row.chainVersion === 2 ? 2 : 1);
+        if (expected !== row.hash) {
+            return { valid: false, brokenAt: row.id };
+        }
+        previousHash = row.hash;
+    }
+    return { valid: true };
+}
+export async function verifyAdminAuditChain(options) {
+    const db = options?.db ?? prisma;
+    const rawLimit = options?.tailLimit;
+    const tailLimit = rawLimit != null && Number.isFinite(rawLimit) && rawLimit > 0
+        ? Math.min(Math.floor(rawLimit), VERIFY_TAIL_MAX)
+        : null;
+    const select = {
+        id: true,
+        userId: true,
+        action: true,
+        category: true,
+        severity: true,
+        source: true,
+        outcome: true,
+        resourceType: true,
+        resourceId: true,
+        requestId: true,
+        metadata: true,
+        hash: true,
+        prevHash: true,
+        chainVersion: true,
+        createdAt: true,
+    };
+    if (tailLimit == null) {
+        const rows = await db.adminAuditLog.findMany({
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            select,
+        });
+        return verifyOrderedRows(rows, null);
+    }
+    const tailRowsDesc = await db.adminAuditLog.findMany({
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: tailLimit,
+        select,
+    });
+    const rows = [...tailRowsDesc].reverse();
+    if (rows.length === 0) {
+        return { valid: true, partial: true, verifiedCount: 0 };
+    }
+    const first = rows[0];
+    const predecessor = await db.adminAuditLog.findFirst({
+        where: {
+            OR: [
+                { createdAt: { lt: first.createdAt } },
+                {
+                    AND: [{ createdAt: first.createdAt }, { id: { lt: first.id } }],
+                },
+            ],
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { hash: true },
+    });
+    const expectedPrev = predecessor?.hash ?? null;
+    const result = verifyOrderedRows(rows, expectedPrev);
+    if (!result.valid)
+        return result;
+    return { valid: true, partial: true, verifiedCount: rows.length };
+}
+export async function repairAdminAuditChainVersions(options) {
+    const db = options?.db ?? prisma;
+    const dryRun = options?.dryRun === true;
+    const rows = await db.adminAuditLog.findMany({
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+            id: true,
+            userId: true,
+            action: true,
+            category: true,
+            severity: true,
+            source: true,
+            outcome: true,
+            resourceType: true,
+            resourceId: true,
+            requestId: true,
+            metadata: true,
+            hash: true,
+            prevHash: true,
+            chainVersion: true,
+            createdAt: true,
+        },
+    });
+    let previousHash = null;
+    let updatedRows = 0;
+    for (const row of rows) {
+        if (row.prevHash !== previousHash) {
+            return { totalRows: rows.length, updatedRows, brokenAt: row.id };
+        }
+        const expectedV1 = computeExpectedHashForRow(row, previousHash, 1);
+        const expectedV2 = computeExpectedHashForRow(row, previousHash, 2);
+        let resolvedVersion = null;
+        if (expectedV2 === row.hash)
+            resolvedVersion = 2;
+        else if (expectedV1 === row.hash)
+            resolvedVersion = 1;
+        if (resolvedVersion === null) {
+            return { totalRows: rows.length, updatedRows, brokenAt: row.id };
+        }
+        if (row.chainVersion !== resolvedVersion) {
+            updatedRows += 1;
+            if (!dryRun) {
+                await db.adminAuditLog.update({
+                    where: { id: row.id },
+                    data: { chainVersion: resolvedVersion },
+                });
+            }
+        }
+        previousHash = row.hash;
+    }
+    return { totalRows: rows.length, updatedRows, brokenAt: null };
+}
+export async function listAdminAuditLogs(params) {
+    const db = params.db ?? prisma;
+    const take = Math.min(Math.max(params.limit, 1), 100);
+    let cursorRow = null;
+    if (params.cursorId) {
+        cursorRow = await db.adminAuditLog.findUnique({
+            where: { id: params.cursorId },
+            select: { id: true, createdAt: true },
+        });
+    }
+    const where = {
+        ...(params.action ? { action: params.action } : {}),
+        ...(params.category ? { category: params.category } : {}),
+        ...(params.severity ? { severity: params.severity } : {}),
+        ...(params.outcome ? { outcome: params.outcome } : {}),
+        ...(params.search
+            ? {
+                OR: [
+                    { action: { contains: params.search, mode: "insensitive" } },
+                    { category: { contains: params.search, mode: "insensitive" } },
+                    { source: { contains: params.search, mode: "insensitive" } },
+                    { resourceType: { contains: params.search, mode: "insensitive" } },
+                    { resourceId: { contains: params.search, mode: "insensitive" } },
+                    { requestId: { contains: params.search, mode: "insensitive" } },
+                ],
+            }
+            : {}),
+        ...(cursorRow !== null
+            ? {
+                AND: [
+                    {
+                        OR: [
+                            { createdAt: { lt: cursorRow.createdAt } },
+                            {
+                                AND: [
+                                    { createdAt: cursorRow.createdAt },
+                                    { id: { lt: cursorRow.id } },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            }
+            : {}),
+    };
+    const rows = await db.adminAuditLog.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take,
+        select: {
+            id: true,
+            userId: true,
+            isPublic: true,
+            action: true,
+            category: true,
+            severity: true,
+            source: true,
+            outcome: true,
+            resourceType: true,
+            resourceId: true,
+            requestId: true,
+            metadata: true,
+            ipAddress: true,
+            userAgent: true,
+            hash: true,
+            prevHash: true,
+            chainVersion: true,
+            createdAt: true,
+            anchoredAt: true,
+        },
+    });
+    return {
+        items: rows.map((r) => ({
+            id: r.id,
+            userId: r.userId === LEGACY_PUBLIC_VERIFY_USER_ID ? null : r.userId,
+            isPublic: r.isPublic || r.userId === LEGACY_PUBLIC_VERIFY_USER_ID,
+            action: r.action,
+            category: r.category,
+            severity: r.severity,
+            source: r.source,
+            outcome: r.outcome,
+            resourceType: r.resourceType,
+            resourceId: r.resourceId,
+            requestId: r.requestId,
+            metadata: r.metadata,
+            ipAddress: r.ipAddress,
+            userAgent: r.userAgent,
+            hash: r.hash,
+            prevHash: r.prevHash,
+            chainVersion: r.chainVersion,
+            createdAt: r.createdAt.toISOString(),
+            anchoredAt: r.anchoredAt ? r.anchoredAt.toISOString() : null,
+        })),
+    };
+}

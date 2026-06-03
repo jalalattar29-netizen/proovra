@@ -108,6 +108,14 @@ const LEGAL_DISCLAIMER_ALLOWLIST = new Set<string>([
   "components/landing-body.tsx",
   "components/reports-experience/ReportsIndex.tsx",
   "lib/platform-context/workflowHelp.ts",
+  // Committed compiled output of workflowHelp.ts. The .ts source above
+  // is canonical; this .js artifact must remain in sync (existing
+  // pattern in apps/web for browser-runtime files — see the
+  // `/* eslint-env browser */` shims in lib/api.js, lib/uploads/*.js,
+  // capture/_lib/file-utils.js etc.). The walker picks up both .ts and
+  // .js extensions, so both siblings must be allowlisted or the
+  // anti-overclaim disclaimer copy trips the pin.
+  "lib/platform-context/workflowHelp.js",
 ]);
 
 // Comment-stripping helper. Removes // line comments and /* block */

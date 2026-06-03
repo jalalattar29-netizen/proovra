@@ -159,18 +159,27 @@ describe("CR4 Group 1 — file-size guards", () => {
     expect(sz).toBe(TRUST_CENTER_CONTENT_BYTES);
   });
 
-  it("evidence-complete.service.ts pin (CR1.6 — 45,520 bytes after Phase 14)", () => {
+  it("evidence-complete.service.ts pin (Phase 31 fanout-extraction — 44,078 bytes)", () => {
     const sz = statSync(
       apiSrcPath("services/evidence-complete.service.ts"),
     ).size;
-    // Baseline grows with documented phases (G3.x/G4/G5/Phase 11/14).
+    // Baseline grows with documented phases (G3.x/G4/G5/Phase 11/14)
+    // and shrinks when post-finalize side-effect orchestration is
+    // extracted out of this file (Phase 31).
     // Phase 11 rebaseline: 42,799 → 44,441 (graph-reconcile + search-
     //   index enqueue hooks).
     // Phase 14 rebaseline: 44,441 → 45,520 (onReconciled callback
     //   wired into reconcileTeamGraph so the graph-reconcile-completed
     //   trigger fires a search re-index — closes the post-finalize
     //   stale-index gap; non-blocking try/catch; no schema changes).
-    expect(sz).toBe(45520);
+    // Phase 31 rebaseline: 45,520 → 44,078. Post-finalize fan-out
+    //   (search index + media-intelligence analyze_metadata + graph
+    //   reconcile) extracted to services/evidence-finalization-fanout.
+    //   service.ts. This file is now strictly the evidence completion
+    //   state machine; the fan-out helper is the orchestration owner.
+    //   Architectural improvement; no behavioural regression — same
+    //   producers, same deterministic jobIds, same try/catch semantics.
+    expect(sz).toBe(44078);
   });
 
   it("custody-events.service.ts pin (CR1.6 — 5,155 bytes)", () => {

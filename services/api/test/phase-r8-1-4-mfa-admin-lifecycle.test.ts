@@ -360,7 +360,9 @@ describe("R8.1.4 — no parallel auth / workflow / tenant regression", () => {
     // The two existing auth route files are still the ONLY ones
     // under `routes/` that match `*auth*`.
     const routesDir = readdirSync(apiPath("src/routes"));
-    const authFiles = routesDir.filter((f) => /auth/i.test(f));
+    // Filter to .ts sources only — compiled .js artifacts in src/ would
+    // otherwise duplicate every match. The pin is on source files.
+    const authFiles = routesDir.filter((f) => /auth/i.test(f) && f.endsWith(".ts"));
     // R8.2 additive: saml-auth.routes.ts alongside the OIDC route.
     expect(authFiles.sort()).toEqual([
       "auth.routes.ts",

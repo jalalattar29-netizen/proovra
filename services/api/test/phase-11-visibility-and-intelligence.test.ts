@@ -38,6 +38,21 @@ const EVIDENCE_COMPLETE_SRC = resolve(
   API_ROOT,
   "src/services/evidence-complete.service.ts",
 );
+// Post-Part 1 architecture: evidence-complete.service.ts delegates the
+// post-finalize fan-out (search-index, media-intelligence, graph
+// reconcile) to a dedicated helper. This file owns the queue-helper
+// import + producer wiring that used to live inline.
+const EVIDENCE_FANOUT_SRC = resolve(
+  API_ROOT,
+  "src/services/evidence-finalization-fanout.service.ts",
+);
+// Phase 14 canonical caller of reconcileTeamGraph with the onReconciled
+// hook (subsystem-queue-processors.ts:178-191). The API only enqueues
+// the worker job; the worker runs the reconciler inline.
+const WORKER_GRAPH_RECONCILE_SRC = resolve(
+  REPO_ROOT,
+  "services/worker/src/subsystem-queue-processors.ts",
+);
 const EXTRACTION_SRC = resolve(
   API_ROOT,
   "src/services/intelligence/extraction.service.ts",
@@ -65,34 +80,65 @@ function readSrc(path: string): string {
 // ===========================================================================
 
 describe("Phase 11 EVENT_WIRE — evidence-complete fan-out", () => {
-  const src = readSrc(EVIDENCE_COMPLETE_SRC);
+  const completeSrc = readSrc(EVIDENCE_COMPLETE_SRC);
+  const fanoutSrc = readSrc(EVIDENCE_FANOUT_SRC);
+  const workerSrc = readSrc(WORKER_GRAPH_RECONCILE_SRC);
 
-  it("imports the existing search-queue helper (no v2 queue introduced)", () => {
-    expect(src).toMatch(
+  it("evidence-complete delegates the post-finalize fan-out to runEvidenceFinalizationFanout", () => {
+    // After Part 1 the in-place fan-out was extracted into its own
+    // service so evidence-complete.service.ts stays focused on the
+    // completion state machine and below its byte-pin cap.
+    expect(completeSrc).toMatch(
+      /import\s*\{[^}]*runEvidenceFinalizationFanout[^}]*\}\s*from\s*["'][^"']*evidence-finalization-fanout\.service[^"']*["']/,
+    );
+    expect(completeSrc).toMatch(/runEvidenceFinalizationFanout\s*\(/);
+  });
+
+  it("fan-out service imports the existing search-queue helper (no v2 queue introduced)", () => {
+    expect(fanoutSrc).toMatch(
       /import\s*\{[^}]*enqueueSearchIndexingJob[^}]*\}\s*from\s*["'][^"']*queue\/search-queue[^"']*["']/,
     );
   });
 
-  it("calls enqueueSearchIndexingJob from the finalize fan-out block", () => {
-    expect(src).toMatch(/enqueueSearchIndexingJob\s*\(/);
+  it("fan-out service calls enqueueSearchIndexingJob from the finalize fan-out block", () => {
+    expect(fanoutSrc).toMatch(/enqueueSearchIndexingJob\s*\(/);
   });
 
-  it("passes kind: 'evidence' to the search-queue helper (matches existing producer contract)", () => {
-    expect(src).toMatch(/kind:\s*["']evidence["']/);
+  it("fan-out service passes kind: 'evidence' to the search-queue helper (matches existing producer contract)", () => {
+    expect(fanoutSrc).toMatch(/kind:\s*["']evidence["']/);
   });
 
-  it("dispatches a best-effort graph reconcile via reconcileTeamGraph (existing reconciler)", () => {
-    // Mirrors the dynamic-import pattern used in `ops.routes.ts`.
-    expect(src).toMatch(/reconcileTeamGraph\s*\(/);
-    expect(src).toMatch(
-      /import\(\s*["'][^"']*graph\/graph-builder\.service[^"']*["']\s*\)/,
+  it("fan-out service dispatches a best-effort graph reconcile via the worker queue (enqueueGraphReconcileJob)", () => {
+    // Phase 14 design intent: the WORKER is the canonical reconcileTeamGraph
+    // caller (subsystem-queue-processors.ts:178-191). The API only enqueues
+    // the worker job and lets the worker run the reconciler inline with the
+    // onReconciled hook that fires enqueueSearchIndexingJob('graph_reconciled').
+    // This separates failure domains (an API outage no longer skips the
+    // OCR/transcript indexer sidecar) and removes a dynamic import from
+    // the request path.
+    expect(fanoutSrc).toMatch(/enqueueGraphReconcileJob\s*\(/);
+    expect(fanoutSrc).toMatch(
+      /import\s*\{[^}]*enqueueGraphReconcileJob[^}]*\}\s*from\s*["'][^"']*queue\/graph-reconcile-queue[^"']*["']/,
     );
   });
 
+  it("worker subsystem-queue-processors.ts remains the canonical reconcileTeamGraph caller", () => {
+    // Pins the Phase 14 reconcile contract from the consumer side so the
+    // API extraction never silently dropped the in-process reconcile path
+    // — the worker still runs reconcileTeamGraph with the onReconciled
+    // hook that fans out enqueueSearchIndexingJob('graph_reconciled').
+    expect(workerSrc).toMatch(/reconcileTeamGraph\s*\(/);
+    expect(workerSrc).toMatch(/onReconciled/);
+    expect(workerSrc).toMatch(/["']graph_reconciled["']/);
+  });
+
   it("wraps the post-finalize fan-out in try/catch so producer outages never block completion", () => {
-    // Be tolerant of formatting — look for at least one swallow comment
-    // attached to the Phase 11 fan-out.
-    expect(src).toMatch(/never fail completion on post-finalize fan-out/);
+    // Both the call site (evidence-complete) and the fan-out service must
+    // be defensive: the helper itself never throws (try/catch around each
+    // enqueue), and evidence-complete additionally wraps the call so even
+    // a synthetic import-time error cannot fail completion.
+    expect(completeSrc).toMatch(/never fail completion on post-finalize fan-out/);
+    expect(fanoutSrc).toMatch(/Never throws to the caller/);
   });
 });
 

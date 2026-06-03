@@ -74,7 +74,12 @@ CREATE TABLE IF NOT EXISTS "investigation_graph_nodes" (
       'OCR',
       'TRANSCRIPT',
       'EXTERNAL_REVIEW',
-      'USER_CREATED_ENTITY'
+      'USER_CREATED_ENTITY',
+      -- Phase 13 — extracted-entity node. One node per persisted
+      -- evidence_entities row; external_id == evidence_entities.id.
+      -- Mirrors the GRAPH_NODE_KINDS catalog widening in
+      -- packages/shared-runtime/src/graph/graph-catalog.ts.
+      'ENTITY'
     )),
   CONSTRAINT "investigation_graph_nodes_visibility_bounded"
     CHECK ("visibility_scope" IN (
@@ -133,7 +138,12 @@ CREATE TABLE IF NOT EXISTS "investigation_graph_edges" (
       'HAS_MEDIA_SIGNAL',
       'HAS_TRANSCRIPT',
       'HAS_OCR',
-      'MANUALLY_LINKED_TO'
+      'MANUALLY_LINKED_TO',
+      -- Phase 13 — ENTITY → EVIDENCE edge: this entity was extracted
+      -- from that evidence record by the entity-extraction service.
+      -- Mirrors the GRAPH_EDGE_TYPES catalog widening in
+      -- packages/shared-runtime/src/graph/graph-catalog.ts.
+      'EXTRACTED_FROM'
     )),
   CONSTRAINT "investigation_graph_edges_source_kind_bounded"
     CHECK ("source_kind" IN ('SYSTEM', 'MANUAL')),

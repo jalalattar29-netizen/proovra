@@ -316,7 +316,9 @@ describe("R8.1.5 — scope guards: no parallel auth / workflow / tenant leak", (
   // ---------------------------------------------------------------------------
   it("test 16: no new top-level auth route file; admin endpoints live under /v1/identity/mfa-admin/*", () => {
     const routesDir = readdirSync(apiPath("src/routes"));
-    const authFiles = routesDir.filter((f) => /auth/i.test(f));
+    // Filter to .ts sources only — compiled .js artifacts in src/ would
+    // otherwise duplicate every match. The pin is on source files.
+    const authFiles = routesDir.filter((f) => /auth/i.test(f) && f.endsWith(".ts"));
     // auth.routes.ts, sso-auth.routes.ts, saml-auth.routes.ts (R8.2 additive).
     // mfa-admin.routes.ts is the identity-security admin sub-domain, NOT an auth route.
     expect(authFiles.sort()).toEqual([

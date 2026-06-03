@@ -16,7 +16,12 @@ import { sha256HexFromStream } from "../stream-hash.js";
 import { createEvidenceTimestamp } from "./timestamp.service.js";
 import * as prismaPkg from "@prisma/client";
 import { enqueueGenerateReportJob } from "../queue/report-queue.js";
-import { enqueueSearchIndexingJob } from "../queue/search-queue.js";
+// Post-finalize side-effect orchestration (search index, media-intelligence
+// signals, worker-side graph reconcile + OCR/transcript indexer sidecar)
+// lives in evidence-finalization-fanout.service.ts. Keeping that orchestration
+// in its own file keeps this completion service focused on the state machine
+// and under its byte-pin cap as the fan-out grows.
+import { runEvidenceFinalizationFanout } from "./evidence-finalization-fanout.service.js";
 import { Readable } from "stream";
 import {
   appendCustodyEvent,
@@ -1267,65 +1272,23 @@ const captureMethod =
     }
   }
 
-  // Phase 11 — connect-only event wiring (do-not-duplicate audit, §3.1
-  // & §3.2). All three trigger points fan out to EXISTING producers
-  // through their existing idempotent helpers; none of them creates
-  // new infrastructure. Each is wrapped in try/catch so a producer
-  // outage NEVER blocks the evidence-completion flow — the periodic
-  // reconcile cron and on-demand operator routes remain the canonical
-  // catch-up paths.
+  // Post-finalize side-effect fan-out (search index, media-intelligence
+  // analyze_metadata, worker-side graph reconcile). Delegated to
+  // runEvidenceFinalizationFanout — never throws to caller; canonical
+  // catch-up paths remain the operator MI /run route, the periodic
+  // graph-reconcile cron, and the search-index cron.
   try {
     const ev = await prisma.evidence.findUnique({
       where: { id: final.result.id },
       select: { id: true, teamId: true },
     });
     if (ev && ev.teamId) {
-      // (a) Best-effort search reindex via the existing Discovery
-      // index-rebuild queue (deterministic jobId collapses retries).
-      enqueueSearchIndexingJob({
+      await runEvidenceFinalizationFanout({
         teamId: ev.teamId,
-        kind: "evidence",
-        sourceId: ev.id,
+        evidenceId: ev.id,
         reason: "evidence_completed",
-      }).catch(() => null);
-
-      // (b) Best-effort graph reconcile via the existing in-process
-      // reconciler. Dynamic import mirrors ops.routes.ts so we never
-      // pay the cost on cold paths that don't reach this branch.
-      //
-      // Phase 14 — Stage 2 trigger #4. Pass an `onReconciled` hook so
-      // the reconciler refreshes the team's search documents once the
-      // graph materialisation completes. The hook calls the same
-      // `enqueueSearchIndexingJob` helper used by the evidence_completed
-      // trigger above — idempotency via deterministic jobId means the
-      // two enqueues collapse to a single Discovery rebuild on the
-      // critical path. We pass `sourceId: teamId` here because graph
-      // reconciliation is a team-wide event (no single evidence id);
-      // the indexer treats teamId-scoped jobs as a sentinel to refresh
-      // recently-mutated team rows.
-      void (async () => {
-        try {
-          const { reconcileTeamGraph } = await import(
-            "./graph/graph-builder.service.js"
-          );
-          await reconcileTeamGraph(
-            ev.teamId as string,
-            undefined,
-            {
-              onReconciled: ({ teamId: tId }) => {
-                enqueueSearchIndexingJob({
-                  teamId: tId,
-                  kind: "evidence",
-                  sourceId: tId,
-                  reason: "graph_reconciled",
-                }).catch(() => null);
-              },
-            },
-          );
-        } catch {
-          /* reconcile is best-effort; cron picks up drift */
-        }
-      })();
+        signatureVersion: final.result.signingKeyVersion ?? null,
+      });
     }
   } catch {
     /* never fail completion on post-finalize fan-out */

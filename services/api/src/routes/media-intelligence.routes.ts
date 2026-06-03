@@ -875,7 +875,14 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       //    OCR_INDEXED / TRANSCRIPT_AVAILABLE / TRANSCRIPT_INDEXED
       //    rows exist for this team. Real numbers, NOT fake.
       //    Never reads underlying OCR / transcript text.
-      let indexingTotals = {
+      // Stabilised — frontend IndexingProgressGrid expects all 4 numeric fields.
+      // Partial shape used to crash /investigation. See apps/web/app/(app)/investigation/page.tsx:569-575.
+      let rawIndexingTotals: {
+        ocrAvailable: number;
+        ocrIndexed: number;
+        transcriptAvailable: number;
+        transcriptIndexed: number;
+      } = {
         ocrAvailable: 0,
         ocrIndexed: 0,
         transcriptAvailable: 0,
@@ -900,16 +907,46 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         }>;
         const r = rows[0];
         if (r) {
-          indexingTotals = {
+          rawIndexingTotals = {
             ocrAvailable: r.ocr_available ?? 0,
             ocrIndexed: r.ocr_indexed ?? 0,
             transcriptAvailable: r.transcript_available ?? 0,
             transcriptIndexed: r.transcript_indexed ?? 0,
           };
         }
-      } catch {
-        /* soft-fail */
+      } catch (err) {
+        // Observable soft-fail — previously silent. Frontend still receives
+        // safe zeros via the normalisation step below, but operators now see
+        // the failure in logs so misbehaving queries do not hide forever.
+        req.log?.warn?.(
+          { err },
+          "investigation_reviewers_indexingTotals_failed",
+        );
       }
+
+      // Stabilised — frontend IndexingProgressGrid expects all 4 numeric fields.
+      // Partial shape used to crash /investigation. See apps/web/app/(app)/investigation/page.tsx:569-575.
+      // This normalisation guarantees that even if a future code path mutates
+      // rawIndexingTotals into a partial / non-numeric shape, the wire payload
+      // remains { number, number, number, number }.
+      const indexingTotals = {
+        ocrAvailable:
+          typeof rawIndexingTotals?.ocrAvailable === "number"
+            ? rawIndexingTotals.ocrAvailable
+            : 0,
+        ocrIndexed:
+          typeof rawIndexingTotals?.ocrIndexed === "number"
+            ? rawIndexingTotals.ocrIndexed
+            : 0,
+        transcriptAvailable:
+          typeof rawIndexingTotals?.transcriptAvailable === "number"
+            ? rawIndexingTotals.transcriptAvailable
+            : 0,
+        transcriptIndexed:
+          typeof rawIndexingTotals?.transcriptIndexed === "number"
+            ? rawIndexingTotals.transcriptIndexed
+            : 0,
+      };
 
       // 8) Phase 31.21 — local-extractor capability snapshot. Always
       //    NOT_ENABLED today (production runs INDEX_EXISTING_ONLY).

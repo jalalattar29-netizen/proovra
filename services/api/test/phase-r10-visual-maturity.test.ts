@@ -490,15 +490,20 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(21271);
   });
 
-  it("CR1.6 byte-exact pin on evidence-complete.service.ts holds (45,520 bytes after Phase 14)", () => {
-    // Baseline moves with documented phase growth (G3.x/G4/G5/Phase 11/14).
+  it("Phase 31 byte-exact pin on evidence-complete.service.ts holds (44,078 bytes after fan-out extraction)", () => {
+    // Baseline moves with documented phase growth (G3.x/G4/G5/Phase 11/14)
+    // and SHRINKS when fan-out logic is extracted (Phase 31).
     // Phase 11: 42,799 → 44,441 (graph-reconcile + search-index hooks).
     // Phase 14: 44,441 → 45,520 — onReconciled callback wired into
     //   reconcileTeamGraph so post-reconcile fires a search re-index
     //   (closes the post-finalize stale-index gap). Non-blocking.
+    // Phase 31: 45,520 → 44,078 — post-finalize side-effect orchestration
+    //   extracted to services/evidence-finalization-fanout.service.ts.
+    //   This file is now strictly evidence-completion state machine;
+    //   producer wiring lives in the fanout helper.
     expect(
       statSync(apiSrcPath("services/evidence-complete.service.ts")).size,
-    ).toBe(45520);
+    ).toBe(44078);
   });
 
   it("CR1.6 byte-exact pin on custody-events.service.ts holds (5,155 bytes)", () => {

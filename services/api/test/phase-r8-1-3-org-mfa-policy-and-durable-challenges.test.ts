@@ -283,7 +283,9 @@ describe("R8.1.3 — durable MFA pending challenge model + enforcement", () => {
   // ---------------------------------------------------------------------------
   it("test 14: no parallel auth route file added (auth.routes.ts + sso-auth.routes.ts + saml-auth.routes.ts; mfa.routes.ts is identity sub-domain)", () => {
     const routesDir = readdirSync(apiPath("src/routes"));
-    const auth = routesDir.filter((f) => /auth/i.test(f));
+    // Filter to .ts sources only — compiled .js artifacts in src/ would
+    // otherwise duplicate every match. The pin is on source files.
+    const auth = routesDir.filter((f) => /auth/i.test(f) && f.endsWith(".ts"));
     // Allowed: auth.routes.ts, sso-auth.routes.ts, saml-auth.routes.ts (R8.2 additive).
     // mfa.routes.ts is identity sub-domain (R8.1.1), not parallel auth.
     expect(auth.sort()).toEqual(["auth.routes.ts", "saml-auth.routes.ts", "sso-auth.routes.ts"]);

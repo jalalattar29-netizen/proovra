@@ -329,7 +329,9 @@ describe("R8.1.8 — scope guards", () => {
   // ---------------------------------------------------------------------------
   it("test 16: auth.routes.ts + sso-auth.routes.ts + saml-auth.routes.ts under src/routes matching *auth* (R8.2 additive)", () => {
     const routesDir = readdirSync(apiPath("src/routes"));
-    const authFiles = routesDir.filter((f) => /auth/i.test(f));
+    // Filter to .ts sources only — compiled .js artifacts in src/ would
+    // otherwise duplicate every match. The pin is on source files.
+    const authFiles = routesDir.filter((f) => /auth/i.test(f) && f.endsWith(".ts"));
     expect(authFiles.sort()).toEqual([
       "auth.routes.ts",
       "saml-auth.routes.ts",
