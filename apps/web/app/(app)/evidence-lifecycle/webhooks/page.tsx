@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../lib/api";
+import { LifecycleSectionBoundary } from "../_shared";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
@@ -84,9 +85,17 @@ function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void
 export default function WebhooksPage() {
   return (
     <PageRouteGate routeId="workspace.evidence_lifecycle">
-      <Shell />
+      <LifecycleSectionBoundary label="Lifecycle Webhooks">
+        <Shell />
+      </LifecycleSectionBoundary>
     </PageRouteGate>
   );
+}
+
+function safeDate(input: string | null | undefined): string {
+  if (!input) return "—";
+  const d = new Date(input);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
 }
 
 function Shell() {
@@ -106,18 +115,27 @@ function Shell() {
     setBusy(true);
     setDenial(null);
     try {
-      const [eRes, dRes] = await Promise.all([
+      // allSettled — endpoint listing and delivery history fail independently;
+      // one being down must not blank the other half of the page.
+      const [eRes, dRes] = await Promise.allSettled([
         apiFetch("/v1/integrations/webhooks/endpoints", { method: "GET" }),
         apiFetch("/v1/integrations/webhooks/lifecycle-deliveries", { method: "GET" }),
       ]);
       setEndpoints(
-        ((eRes as { endpoints?: WebhookEndpoint[] } | null)?.endpoints ??
-          []) as WebhookEndpoint[],
+        eRes.status === "fulfilled"
+          ? ((eRes.value as { endpoints?: WebhookEndpoint[] } | null)?.endpoints ??
+              []) as WebhookEndpoint[]
+          : [],
       );
       setDeliveries(
-        ((dRes as { deliveries?: WebhookDelivery[] } | null)?.deliveries ??
-          []) as WebhookDelivery[],
+        dRes.status === "fulfilled"
+          ? ((dRes.value as { deliveries?: WebhookDelivery[] } | null)?.deliveries ??
+              []) as WebhookDelivery[]
+          : [],
       );
+      if (eRes.status === "rejected" && dRes.status === "rejected") {
+        applyDenial(eRes.reason, setDenial);
+      }
     } catch (err) {
       setEndpoints([]);
       setDeliveries([]);
@@ -353,7 +371,7 @@ function Shell() {
                   <td style={td}>
                     <strong>{ep.state}</strong>
                   </td>
-                  <td style={td}>{new Date(ep.createdAtUtc).toLocaleDateString()}</td>
+                  <td style={td}>{safeDate(ep.createdAtUtc)}</td>
                 </tr>
               ))
             )}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../lib/api";
+import { LifecycleSectionBoundary } from "../_shared";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
@@ -61,9 +62,17 @@ function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void
 export default function DestructionPage() {
   return (
     <PageRouteGate routeId="workspace.evidence_lifecycle">
-      <Shell />
+      <LifecycleSectionBoundary label="Destruction Governance">
+        <Shell />
+      </LifecycleSectionBoundary>
     </PageRouteGate>
   );
+}
+
+function safeDate(input: string | null | undefined): string {
+  if (!input) return "—";
+  const d = new Date(input);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
 }
 
 function Shell() {
@@ -265,8 +274,8 @@ function Shell() {
                     </span>
                   </td>
                   <td style={td}>{r.reason ?? "—"}</td>
-                  <td style={td}>{new Date(r.createdAtUtc).toLocaleDateString()}</td>
-                  <td style={td}>{new Date(r.updatedAtUtc).toLocaleDateString()}</td>
+                  <td style={td}>{safeDate(r.createdAtUtc)}</td>
+                  <td style={td}>{safeDate(r.updatedAtUtc)}</td>
                   <td style={td}>
                     <span style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                       {r.state === "PENDING" && (

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../lib/api";
+import { LifecycleSectionBoundary } from "../_shared";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
@@ -54,11 +55,22 @@ function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void
 }
 
 export default function LegalHoldsPage() {
+  // LifecycleSectionBoundary contains any render crash inside <Shell />
+  // to a small inline alert — the segment-level error.tsx becomes the
+  // last-resort safety net rather than the first line of defence.
   return (
     <PageRouteGate routeId="workspace.evidence_lifecycle">
-      <Shell />
+      <LifecycleSectionBoundary label="Legal Holds">
+        <Shell />
+      </LifecycleSectionBoundary>
     </PageRouteGate>
   );
+}
+
+function safeDate(input: string | null | undefined): string {
+  if (!input) return "—";
+  const d = new Date(input);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
 }
 
 function Shell() {
@@ -292,10 +304,8 @@ function Shell() {
                     <strong>{h.state}</strong>
                   </td>
                   <td style={td}>{h.scopeTargetId ?? "—"}</td>
-                  <td style={td}>
-                    {h.expiresAtUtc ? new Date(h.expiresAtUtc).toLocaleDateString() : "—"}
-                  </td>
-                  <td style={td}>{new Date(h.createdAtUtc).toLocaleDateString()}</td>
+                  <td style={td}>{safeDate(h.expiresAtUtc)}</td>
+                  <td style={td}>{safeDate(h.createdAtUtc)}</td>
                   <td style={td}>
                     {h.state === "ACTIVE" ? (
                       <button

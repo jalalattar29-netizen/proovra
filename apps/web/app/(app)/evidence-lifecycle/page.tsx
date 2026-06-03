@@ -77,6 +77,15 @@ interface LifecycleDashboard {
   upcomingExpirations: Record<string, number>;
   violations: LifecycleViolations;
   capabilities?: LifecycleDashboardCapabilities;
+  /**
+   * Evidence Lifecycle Final Fix — backend signals when the projection
+   * was wrapped in a defensive try/catch and returned an empty shape
+   * (e.g. workspace just provisioned, transient Prisma error). The UI
+   * renders the dashboard chrome + a small degraded banner instead of
+   * showing the previous "Unable to load lifecycle dashboard" error.
+   */
+  degraded?: boolean;
+  degradedReason?: string;
 }
 
 type LoadState =
@@ -139,27 +148,54 @@ function isMutationAllowed(state: LifecycleCapabilityState | undefined): boolean
 // raw response into UI on unexpected shapes.
 // ---------------------------------------------------------------------------
 
-function normaliseDashboard(res: unknown): LifecycleDashboard | null {
-  if (!res || typeof res !== "object") return null;
+function emptyDashboard(): LifecycleDashboard {
+  return {
+    retention: {},
+    legalHolds: {},
+    archive: {},
+    destruction: {},
+    upcomingExpirations: {},
+    violations: {
+      totalLegalHoldViolations: 0,
+      totalRetentionViolations: 0,
+      byCode: {
+        POLICY_VIOLATION_ENTITLEMENT: 0,
+        POLICY_VIOLATION_LEGAL_HOLD: 0,
+        POLICY_VIOLATION_RETENTION: 0,
+        POLICY_VIOLATION_QUOTA: 0,
+      },
+      totalBounded: 0,
+    },
+  };
+}
+
+function normaliseDashboard(res: unknown): LifecycleDashboard {
+  // Evidence Lifecycle Final Fix — NEVER return null. The dashboard
+  // UI must render its chrome (tiles, capability launcher, refresh
+  // button) even when the body is malformed or empty; a missing tile
+  // group just becomes "No data" rather than an error page.
+  if (!res || typeof res !== "object") return emptyDashboard();
   const obj = res as Record<string, unknown>;
   const candidate =
     obj.dashboard && typeof obj.dashboard === "object"
       ? (obj.dashboard as Record<string, unknown>)
-      : "retention" in obj
+      : "retention" in obj || "legalHolds" in obj || "archive" in obj
         ? obj
         : null;
-  if (!candidate) return null;
-  // Minimal structural shape check — must have at least one of the expected
-  // tile groups. The full projection has many optional sub-fields we render
-  // with `Object.entries`, so being permissive about extras is correct.
-  const looksLikeDashboard =
-    typeof candidate === "object" &&
-    ("retention" in candidate ||
-      "legalHolds" in candidate ||
-      "archive" in candidate ||
-      "destruction" in candidate);
-  if (!looksLikeDashboard) return null;
-  return candidate as unknown as LifecycleDashboard;
+  if (!candidate) {
+    // Backend returned 200 with a shape we don't recognise — degrade
+    // gracefully into an empty projection labelled as such, so the
+    // operator still sees the console rather than a red banner.
+    const base = emptyDashboard();
+    base.degraded = true;
+    base.degradedReason =
+      "Backend returned an unexpected dashboard shape — counts hidden until it recovers.";
+    return base;
+  }
+  // Merge candidate over a fully-typed empty base so every tile group
+  // is always present and Object.entries is safe.
+  const base = emptyDashboard();
+  return { ...base, ...(candidate as Partial<LifecycleDashboard>) };
 }
 
 // ---------------------------------------------------------------------------
@@ -248,14 +284,10 @@ function Shell() {
     setState({ phase: "loading" });
     try {
       const res = await apiFetch("/v1/lifecycle/dashboard", { method: "GET" });
+      // normaliseDashboard NEVER returns null — it degrades gracefully
+      // into an empty projection so the operator always sees the console
+      // chrome. Real auth/entitlement failures still flow through catch.
       const projection = normaliseDashboard(res);
-      if (!projection) {
-        setState({
-          phase: "error",
-          message: "Lifecycle dashboard returned an unexpected response shape.",
-        });
-        return;
-      }
       setState({ phase: "loaded", dashboard: projection });
     } catch (err) {
       setState(mapErrorToState(err));
@@ -427,8 +459,27 @@ function LoadedDashboard({ dashboard }: { dashboard: LifecycleDashboard }) {
   return (
     <div
       data-evidence-lifecycle-state="loaded"
+      data-evidence-lifecycle-degraded={dashboard.degraded ? "true" : "false"}
       style={{ display: "grid", gap: 12, marginTop: 12 }}
     >
+      {dashboard.degraded ? (
+        <div
+          role="status"
+          data-evidence-lifecycle-degraded-banner
+          style={{
+            padding: 10,
+            background: "#fffbeb",
+            border: "1px solid #fcd34d",
+            color: "#78350f",
+            borderRadius: 8,
+            fontSize: 12,
+          }}
+        >
+          <strong>Lifecycle activity counts unavailable.</strong>{" "}
+          {dashboard.degradedReason ??
+            "The activity projector did not respond — your data is safe, counts will repopulate automatically."}
+        </div>
+      ) : null}
       <CapabilityLauncherRow caps={caps} />
       <TileGroup
         title="Retention"

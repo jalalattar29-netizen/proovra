@@ -1213,7 +1213,48 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         const feOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_LIFECYCLE_DASHBOARD", actorUserId: ctx.userId });
         if (!feOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_LIFECYCLE_DASHBOARD" });
       } catch { /* engine failure must not break route */ }
-      const dashboard = await projectLifecycleDashboard({ teamId: ctx.teamId });
+      // Evidence Lifecycle Final Fix — the projector may throw on a
+      // freshly-bootstrapped workspace (no events, no entitlement rows)
+      // OR when a Prisma schema column is in flight to production.
+      // Both cases used to surface as "Unable to load lifecycle dashboard"
+      // because the frontend interpreted a 5xx body as an unexpected
+      // shape. Tolerate both by returning a fully-typed empty projection
+      // and a `degraded: true` flag so the UI can label the state instead
+      // of erroring out. Real failures (e.g. authentication) still raise
+      // — only DATA-projection failures are converted to a degraded read.
+      let dashboard: Awaited<ReturnType<typeof projectLifecycleDashboard>> & {
+        degraded?: boolean;
+        degradedReason?: string;
+      };
+      try {
+        dashboard = await projectLifecycleDashboard({ teamId: ctx.teamId });
+      } catch (err) {
+        req.log?.warn?.(
+          { err: err instanceof Error ? err.message : "dashboard_projection_failed" },
+          "lifecycle_dashboard_projection_failed",
+        );
+        dashboard = {
+          retention: {},
+          legalHolds: {},
+          archive: {},
+          destruction: {},
+          upcomingExpirations: {},
+          violations: {
+            totalLegalHoldViolations: 0,
+            totalRetentionViolations: 0,
+            byCode: {
+              POLICY_VIOLATION_ENTITLEMENT: 0,
+              POLICY_VIOLATION_LEGAL_HOLD: 0,
+              POLICY_VIOLATION_RETENTION: 0,
+              POLICY_VIOLATION_QUOTA: 0,
+            },
+            totalBounded: 0,
+          },
+          degraded: true,
+          degradedReason:
+            "Lifecycle activity projection is temporarily unavailable. Counts will populate once it recovers.",
+        } as never;
+      }
       // Lifecycle Consolidation — attach per-team capability enforcement status.
       // Additive: failure to compute MUST NOT break the dashboard envelope; the
       // frontend tolerates absence (capabilities is optional in the shared type).

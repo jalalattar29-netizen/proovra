@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../lib/api";
+import { LifecycleSectionBoundary } from "../_shared";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
@@ -67,9 +68,17 @@ function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void
 export default function ArchivePage() {
   return (
     <PageRouteGate routeId="workspace.evidence_lifecycle">
-      <Shell />
+      <LifecycleSectionBoundary label="Archive Tiers">
+        <Shell />
+      </LifecycleSectionBoundary>
     </PageRouteGate>
   );
+}
+
+function safeDate(input: string | null | undefined): string {
+  if (!input) return "—";
+  const d = new Date(input);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
 }
 
 function Shell() {
@@ -87,17 +96,26 @@ function Shell() {
     setBusy(true);
     setDenial(null);
     try {
-      const [tRes, cRes] = await Promise.all([
+      // allSettled — one endpoint failing must not blank the other half.
+      const [tRes, cRes] = await Promise.allSettled([
         apiFetch("/v1/lifecycle/archive/transitions", { method: "GET" }),
         apiFetch("/v1/lifecycle/archive/costs", { method: "GET" }),
       ]);
       setTransitions(
-        ((tRes as { transitions?: ArchiveTransition[] } | null)?.transitions ??
-          []) as ArchiveTransition[],
+        tRes.status === "fulfilled"
+          ? ((tRes.value as { transitions?: ArchiveTransition[] } | null)?.transitions ??
+              []) as ArchiveTransition[]
+          : [],
       );
       setCosts(
-        ((cRes as { costs?: ArchiveCost[] } | null)?.costs ?? []) as ArchiveCost[],
+        cRes.status === "fulfilled"
+          ? ((cRes.value as { costs?: ArchiveCost[] } | null)?.costs ?? []) as ArchiveCost[]
+          : [],
       );
+      // Apply denial only when BOTH failed — otherwise the partial render is useful.
+      if (tRes.status === "rejected" && cRes.status === "rejected") {
+        applyDenial(tRes.reason, setDenial);
+      }
     } catch (err) {
       setTransitions([]);
       setCosts([]);
@@ -290,7 +308,7 @@ function Shell() {
                   <td style={td}>
                     <strong>{t.state}</strong>
                   </td>
-                  <td style={td}>{new Date(t.initiatedAtUtc).toLocaleDateString()}</td>
+                  <td style={td}>{safeDate(t.initiatedAtUtc)}</td>
                 </tr>
               ))
             )}

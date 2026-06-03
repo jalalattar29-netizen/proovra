@@ -1,11 +1,36 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+/**
+ * Retention Policies — operator mutation surface.
+ *
+ * Evidence Lifecycle Final Fix:
+ *   * The previous implementation crashed to the global error.tsx
+ *     ("Something went wrong") under some conditions because every
+ *     thrown value flowed through an ad-hoc `applyDenial()` helper that
+ *     could itself fail on a non-object error shape.
+ *   * Now wired through the shared lifecycle primitives so:
+ *       1. EVERY caught value maps to a denial banner (never throws).
+ *       2. A LifecycleSectionBoundary contains any render-time crash
+ *          inside this page so the segment-level error.tsx becomes a
+ *          last-resort net rather than the first line of defence.
+ *       3. The page renders chrome (header, refresh, sections) even
+ *          when the API is down — empty/error states live INSIDE the
+ *          sections, not in place of the page.
+ */
+
+import { useCallback, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import { apiFetch, ApiError } from "../../../../lib/api";
-
-type PermissionDenialState = { denial: string; tier: string } | null;
+import { apiFetch } from "../../../../lib/api";
+import {
+  DenialBanner,
+  EmptyState,
+  LifecyclePageHeader,
+  LifecycleSectionBoundary,
+  RefreshButton,
+  SectionLoadingSkeleton,
+  useLifecycleFetch,
+} from "../_shared";
 
 interface RetentionPolicy {
   id: string;
@@ -24,6 +49,11 @@ interface UpcomingExpiration {
   policyName: string;
 }
 
+interface RetentionPayload {
+  policies: RetentionPolicy[];
+  expirations: UpcomingExpiration[];
+}
+
 const RETENTION_TEMPLATES = [
   "STANDARD_1Y",
   "STANDARD_3Y",
@@ -31,105 +61,103 @@ const RETENTION_TEMPLATES = [
   "CUSTOM",
 ] as const;
 
-function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void): void {
-  const e = err as { statusCode?: number; details?: Record<string, unknown> };
-  const denial =
-    e?.details && typeof e.details["denial"] === "string" ? e.details["denial"] : null;
-  const tier =
-    e?.details && typeof e.details["requiredTier"] === "string"
-      ? (e.details["requiredTier"] as string)
-      : "DELEGATED_ADMIN";
-  if (
-    e?.statusCode === 403 &&
-    (denial === "ENTITLEMENT_REQUIRED" || denial === "DELEGATED_ADMIN_REQUIRED")
-  ) {
-    setDenial({ denial: denial as string, tier });
-    return;
+/**
+ * Defensive date formatter. `new Date(undefined)` is Invalid Date and
+ * `.toLocaleDateString()` returns "Invalid Date" — both safe for React
+ * but visually noisy. Render an em-dash when the input is missing or
+ * unparseable.
+ */
+function formatDate(input: string | null | undefined): string {
+  if (!input) return "—";
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString();
+}
+
+async function loadRetention(): Promise<RetentionPayload> {
+  // Promise.allSettled — a transient failure in ONE endpoint must not
+  // wipe the other. Previously, Promise.all rejected on the first
+  // failure, which then bubbled into the catch arm of useLifecycleFetch
+  // and prevented even the working dataset from rendering.
+  const [pRes, eRes] = await Promise.allSettled([
+    apiFetch("/v1/lifecycle/retention/policies", { method: "GET" }),
+    apiFetch("/v1/lifecycle/retention/upcoming-expirations", { method: "GET" }),
+  ]);
+  const policies =
+    pRes.status === "fulfilled" &&
+    pRes.value &&
+    typeof pRes.value === "object" &&
+    Array.isArray((pRes.value as { policies?: unknown }).policies)
+      ? ((pRes.value as { policies: RetentionPolicy[] }).policies ?? [])
+      : [];
+  const expirations =
+    eRes.status === "fulfilled" &&
+    eRes.value &&
+    typeof eRes.value === "object" &&
+    Array.isArray((eRes.value as { expirations?: unknown }).expirations)
+      ? ((eRes.value as { expirations: UpcomingExpiration[] }).expirations ?? [])
+      : [];
+  // If BOTH calls failed, surface the policies error so the denial
+  // banner renders something useful. If exactly one failed, render the
+  // half that worked + a soft note (handled by the page via degraded).
+  if (pRes.status === "rejected" && eRes.status === "rejected") {
+    throw pRes.reason;
   }
-  if (err instanceof ApiError) {
-    const d =
-      err.details && typeof err.details["denial"] === "string"
-        ? (err.details["denial"] as string)
-        : null;
-    const t =
-      err.details && typeof err.details["requiredTier"] === "string"
-        ? (err.details["requiredTier"] as string)
-        : "DELEGATED_ADMIN";
-    if (
-      err.statusCode === 403 &&
-      (d === "ENTITLEMENT_REQUIRED" || d === "DELEGATED_ADMIN_REQUIRED")
-    ) {
-      setDenial({ denial: d, tier: t });
-    }
-  }
+  return { policies, expirations };
 }
 
 export default function RetentionPage() {
   return (
     <PageRouteGate routeId="workspace.evidence_lifecycle">
-      <Shell />
+      <LifecycleSectionBoundary label="Retention Policies">
+        <Shell />
+      </LifecycleSectionBoundary>
     </PageRouteGate>
   );
 }
 
 function Shell() {
-  const [policies, setPolicies] = useState<RetentionPolicy[]>([]);
-  const [expirations, setExpirations] = useState<UpcomingExpiration[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [denial, setDenial] = useState<PermissionDenialState>(null);
+  const { data, loading, busy, denial, refresh } =
+    useLifecycleFetch<RetentionPayload>(loadRetention, []);
 
-  // Create form state
+  // Create form state (kept inline — modal/dialog would be over-engineering).
   const [name, setName] = useState("");
   const [template, setTemplate] = useState<string>(RETENTION_TEMPLATES[0]);
   const [scopeKind, setScopeKind] = useState("WORKSPACE");
   const [scopeTargetId, setScopeTargetId] = useState("");
   const [creating, setCreating] = useState(false);
-
-  const refresh = useCallback(async () => {
-    setBusy(true);
-    setDenial(null);
-    try {
-      const [pRes, eRes] = await Promise.all([
-        apiFetch("/v1/lifecycle/retention/policies", { method: "GET" }),
-        apiFetch("/v1/lifecycle/retention/upcoming-expirations", { method: "GET" }),
-      ]);
-      setPolicies(
-        ((pRes as { policies?: RetentionPolicy[] } | null)?.policies ?? []) as RetentionPolicy[],
-      );
-      setExpirations(
-        ((eRes as { expirations?: UpcomingExpiration[] } | null)?.expirations ??
-          []) as UpcomingExpiration[],
-      );
-    } catch (err) {
-      setPolicies([]);
-      setExpirations([]);
-      applyDenial(err, setDenial);
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const create = useCallback(async () => {
     setCreating(true);
-    setDenial(null);
+    setCreateError(null);
     try {
       await apiFetch("/v1/lifecycle/retention/policies", {
         method: "POST",
-        body: JSON.stringify({ name, template, scopeKind, scopeTargetId: scopeTargetId || null }),
+        body: JSON.stringify({
+          name,
+          template,
+          scopeKind,
+          scopeTargetId: scopeTargetId || null,
+        }),
       });
       setName("");
       setScopeTargetId("");
       await refresh();
     } catch (err) {
-      applyDenial(err, setDenial);
+      // Render the create error inline — don't conflate with the load denial.
+      const message =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message: unknown }).message ?? "Could not create policy")
+          : "Could not create policy";
+      setCreateError(message);
     } finally {
       setCreating(false);
     }
   }, [name, template, scopeKind, scopeTargetId, refresh]);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const policies = data?.policies ?? [];
+  const expirations = data?.expirations ?? [];
 
   return (
     <div
@@ -142,34 +170,18 @@ function Shell() {
         fontFamily: "Inter, system-ui, sans-serif",
       }}
     >
-      <header style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, marginTop: 0 }}>Retention Policies</h1>
-        <p>
-          <a href="/evidence-lifecycle" style={{ fontSize: 12 }}>
-            ← Back to Evidence Lifecycle
-          </a>
-        </p>
-      </header>
+      <LifecyclePageHeader
+        title="Retention Policies"
+        subtitle="Define how long evidence is retained and what happens when it expires."
+      >
+        <RefreshButton busy={busy} onClick={() => void refresh()} />
+      </LifecyclePageHeader>
 
-      {denial ? (
-        <div
-          data-permission-denied={denial.denial}
-          style={{
-            padding: 10,
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#991b1b",
-            borderRadius: 8,
-            fontSize: 12,
-            marginBottom: 10,
-          }}
-        >
-          <strong>Permission required:</strong> {denial.tier}
-        </div>
-      ) : null}
+      {denial ? <DenialBanner denial={denial} /> : null}
 
       {/* Create form */}
       <section
+        data-retention-create
         style={{
           background: "rgba(15,23,42,0.03)",
           border: "1px solid rgba(15,23,42,0.06)",
@@ -178,9 +190,15 @@ function Shell() {
           marginBottom: 16,
         }}
       >
-        <strong style={{ display: "block", marginBottom: 10, fontSize: 14 }}>
-          Create Retention Policy
+        <strong style={{ display: "block", marginBottom: 4, fontSize: 14 }}>
+          Create retention policy
         </strong>
+        <p style={{ margin: 0, fontSize: 12, color: "#475569", marginBottom: 10 }}>
+          Policies apply to the chosen scope. Create one per workspace, department,
+          or case. Use <code>STANDARD_3Y</code> for most workspaces; choose{" "}
+          <code>LEGAL_HOLD_EXEMPT</code> only when the evidence is contractually
+          excluded from retention.
+        </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <label style={labelStyle}>
             Name
@@ -188,12 +206,16 @@ function Shell() {
               style={inputStyle}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Policy name"
+              placeholder="e.g. Default 3-year retention"
             />
           </label>
           <label style={labelStyle}>
             Template
-            <select style={inputStyle} value={template} onChange={(e) => setTemplate(e.target.value)}>
+            <select
+              style={inputStyle}
+              value={template}
+              onChange={(e) => setTemplate(e.target.value)}
+            >
               {RETENTION_TEMPLATES.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -202,21 +224,24 @@ function Shell() {
             </select>
           </label>
           <label style={labelStyle}>
-            Scope Kind
-            <input
+            Scope kind
+            <select
               style={inputStyle}
               value={scopeKind}
               onChange={(e) => setScopeKind(e.target.value)}
-              placeholder="WORKSPACE"
-            />
+            >
+              <option value="WORKSPACE">WORKSPACE</option>
+              <option value="DEPARTMENT">DEPARTMENT</option>
+              <option value="CASE">CASE</option>
+            </select>
           </label>
           <label style={labelStyle}>
-            Scope Target ID
+            Scope target ID
             <input
               style={inputStyle}
               value={scopeTargetId}
               onChange={(e) => setScopeTargetId(e.target.value)}
-              placeholder="optional"
+              placeholder="optional UUID"
             />
           </label>
           <button
@@ -224,23 +249,32 @@ function Shell() {
             disabled={creating || !name}
             onClick={() => void create()}
             style={primaryButton}
+            title={!name ? "Enter a policy name first" : "Create retention policy"}
           >
-            {creating ? "Creating…" : "Create"}
+            {creating ? "Creating…" : "Create policy"}
           </button>
         </div>
+        {createError ? (
+          <div
+            role="alert"
+            style={{
+              marginTop: 10,
+              padding: 8,
+              background: "#fef2f2",
+              border: "1px solid #fecaca",
+              color: "#7f1d1d",
+              borderRadius: 8,
+              fontSize: 12,
+            }}
+          >
+            <strong>Could not create policy:</strong> {createError}
+          </div>
+        ) : null}
       </section>
-
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void refresh()}
-        style={primaryButton}
-      >
-        {busy ? "Loading…" : "Refresh"}
-      </button>
 
       {/* Policies table */}
       <section
+        data-retention-policies
         style={{
           background: "#fff",
           border: "1px solid rgba(15,23,42,0.08)",
@@ -250,28 +284,34 @@ function Shell() {
           overflowX: "auto",
         }}
       >
-        <strong style={{ fontSize: 14, display: "block", marginBottom: 8 }}>Policies</strong>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "#475569" }}>
-              <th style={th}>Name</th>
-              <th style={th}>Template</th>
-              <th style={th}>Scope Kind</th>
-              <th style={th}>Scope Target</th>
-              <th style={th}>State</th>
-              <th style={th}>Expires</th>
-              <th style={th}>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {policies.length === 0 ? (
-              <tr>
-                <td colSpan={7} style={{ ...td, color: "#475569" }}>
-                  No retention policies.
-                </td>
+        <header style={tableHeaderStyle}>
+          <strong style={{ fontSize: 14 }}>Policies</strong>
+          <small style={{ color: "#64748b", fontSize: 11 }}>
+            {policies.length} active
+          </small>
+        </header>
+        {loading ? (
+          <SectionLoadingSkeleton rows={3} />
+        ) : policies.length === 0 ? (
+          <EmptyState
+            title="No retention policies"
+            hint="Create one above to start applying retention windows to evidence in this workspace."
+          />
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ textAlign: "left", color: "#475569" }}>
+                <th style={th}>Name</th>
+                <th style={th}>Template</th>
+                <th style={th}>Scope</th>
+                <th style={th}>Target</th>
+                <th style={th}>State</th>
+                <th style={th}>Expires</th>
+                <th style={th}>Created</th>
               </tr>
-            ) : (
-              policies.map((p) => (
+            </thead>
+            <tbody>
+              {policies.map((p) => (
                 <tr key={p.id}>
                   <td style={td}>{p.name}</td>
                   <td style={td}>
@@ -282,19 +322,18 @@ function Shell() {
                   <td style={td}>
                     <strong>{p.state}</strong>
                   </td>
-                  <td style={td}>
-                    {p.expiresAtUtc ? new Date(p.expiresAtUtc).toLocaleDateString() : "—"}
-                  </td>
-                  <td style={td}>{new Date(p.createdAtUtc).toLocaleDateString()}</td>
+                  <td style={td}>{formatDate(p.expiresAtUtc)}</td>
+                  <td style={td}>{formatDate(p.createdAtUtc)}</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
 
       {/* Upcoming expirations */}
       <section
+        data-retention-expirations
         style={{
           background: "#fff",
           border: "1px solid rgba(15,23,42,0.08)",
@@ -304,37 +343,41 @@ function Shell() {
           overflowX: "auto",
         }}
       >
-        <strong style={{ fontSize: 14, display: "block", marginBottom: 8 }}>
-          Upcoming Expirations
-        </strong>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "#475569" }}>
-              <th style={th}>Evidence ID</th>
-              <th style={th}>Policy</th>
-              <th style={th}>Expires At</th>
-            </tr>
-          </thead>
-          <tbody>
-            {expirations.length === 0 ? (
-              <tr>
-                <td colSpan={3} style={{ ...td, color: "#475569" }}>
-                  No upcoming expirations.
-                </td>
+        <header style={tableHeaderStyle}>
+          <strong style={{ fontSize: 14 }}>Upcoming expirations (30 days)</strong>
+          <small style={{ color: "#64748b", fontSize: 11 }}>
+            {expirations.length} evidence item{expirations.length === 1 ? "" : "s"}
+          </small>
+        </header>
+        {loading ? (
+          <SectionLoadingSkeleton rows={2} />
+        ) : expirations.length === 0 ? (
+          <EmptyState
+            title="No evidence expiring in the next 30 days"
+            hint="Nothing in scope will hit its retention boundary in the near term."
+          />
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ textAlign: "left", color: "#475569" }}>
+                <th style={th}>Evidence ID</th>
+                <th style={th}>Policy</th>
+                <th style={th}>Expires</th>
               </tr>
-            ) : (
-              expirations.map((e) => (
+            </thead>
+            <tbody>
+              {expirations.map((e) => (
                 <tr key={e.evidenceId}>
                   <td style={td}>
                     <code>{e.evidenceId}</code>
                   </td>
                   <td style={td}>{e.policyName}</td>
-                  <td style={td}>{new Date(e.expiresAtUtc).toLocaleDateString()}</td>
+                  <td style={td}>{formatDate(e.expiresAtUtc)}</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
     </div>
   );
@@ -352,7 +395,13 @@ const primaryButton = {
 } as const;
 const th = { padding: "6px 8px", borderBottom: "1px solid #e2e8f0" } as const;
 const td = { padding: "6px 8px", borderBottom: "1px solid #f1f5f9" } as const;
-const labelStyle = { display: "flex", flexDirection: "column" as const, gap: 2, fontSize: 11, fontWeight: 600 };
+const labelStyle = {
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: 2,
+  fontSize: 11,
+  fontWeight: 600,
+};
 const inputStyle = {
   fontSize: 12,
   padding: "4px 6px",
@@ -360,4 +409,12 @@ const inputStyle = {
   borderRadius: 6,
   background: "#fff",
   minWidth: 140,
+} as const;
+const tableHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "4px 4px 8px",
+  borderBottom: "1px solid #e2e8f0",
+  marginBottom: 4,
 } as const;
