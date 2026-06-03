@@ -496,6 +496,84 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       //           idempotent, DO $$ guards on every backfill, no DROP /
       //           no RENAME / no SET NOT NULL on pre-existing columns.
       "20270802000000_phase_sentry_batch_schema_drift_repair",
+      // Phase Governance Additive Repair (user brief: 4 governance tables
+      // — cross_org_review_grants, access_review_campaigns,
+      // governance_policies, departments — were left with their R3+R7
+      // overlay column set in production because Phase 4A's CREATE TABLE
+      // statements did not use IF NOT EXISTS and therefore no-op'd when
+      // the R3-skeleton tables already existed. 15 Prisma-declared columns
+      // and 1 supporting index added additively here; zero DROP / RENAME /
+      // TRUNCATE / DELETE / UPDATE / REVOKE / SET-NOT-NULL statements.
+      "20270803000000_phase_governance_additive_repair",
+      // Phase 1 Production Drift Stabilization — consolidated additive
+      // closure for the post-Sentry / post-Governance drift discovered by
+      // the 3-workstream Phase 1 audit (coverage + reviewer-ops trace +
+      // unobserved scan). 10 Prisma-declared columns across 6 tables:
+      //   redaction_policy_assignments.revoked_at + created_at
+      //   reviewer_corrections.accepted_at + reverted_at + superseded_at + updated_at
+      //   legal_holds.updated_at
+      //   retention_policy_configs.updated_at
+      //   destruction_requests.updated_at
+      //   archive_tier_transitions.created_at
+      // Pure additive (ADD COLUMN IF NOT EXISTS); zero DROP / RENAME /
+      // TRUNCATE / DELETE / UPDATE / REVOKE / SET-NOT-NULL statements.
+      "20270804000000_phase1_production_drift_stabilization",
+      // Phase 2 Drift Repair (Domain 1 — Trust / Status / Subprocessors).
+      // 15 Prisma-declared columns across 6 tables:
+      //   trust_center_article_versions.published_at_utc
+      //   subprocessor_versions.team_id + effective_at_utc
+      //   status_incidents.external_ref + component_keys + postmortem_url + updated_at
+      //   status_incident_updates.team_id
+      //   maintenance_windows.team_id + state + description + component_keys + updated_at
+      //   security_claim_checks.created_at + updated_at
+      // Pure additive (ADD COLUMN IF NOT EXISTS); zero DROP / RENAME /
+      // TRUNCATE / DELETE / UPDATE / REVOKE / SET-NOT-NULL statements.
+      "20270805000000_phase2_drift_repair_trust_status",
+      // Phase 2 Drift Repair (Domain 2 — Governance). 10 Prisma-declared
+      // columns across 3 tables:
+      //   delegated_admin_grants.organization_id + department_id + workspace_id
+      //   governance_policy_assignments.scope + inherit_from_parent +
+      //                                  is_override + assigned_by_user_id
+      //   governance_policy_audits.code + reason + occurred_at_utc
+      // Pure additive (ADD COLUMN IF NOT EXISTS); zero DROP / RENAME /
+      // TRUNCATE / DELETE / UPDATE / REVOKE / SET-NOT-NULL statements.
+      "20270806000000_phase2_drift_repair_governance",
+      // Phase 2 Drift Repair (Domain 3 — Redaction). 20 Prisma-declared
+      // columns across 7 tables:
+      //   redaction_versions.authored_by_user_id + superseded_at_utc +
+      //                     submitted_at_utc + approved_at_utc
+      //   redaction_detections.kind + suggested_region_kind +
+      //                       suggested_region_geometry + suggested_method +
+      //                       decision_state
+      //   redaction_decisions.version_id
+      //   redaction_approvals.approver_user_id + decided_at_utc
+      //   redaction_derivatives.storage_bucket + render_started_at +
+      //                        rendered_at_utc + failure_reason
+      //   redaction_activities.version_id + occurred_at_utc
+      //   redaction_policy_versions.reviewed_by_user_id
+      // Excludes the RedactionPolicyAudit table-name drift
+      // (REQUIRES_MANUAL_DECISION). Pure additive (ADD COLUMN IF NOT EXISTS);
+      // zero DROP / RENAME / TRUNCATE / DELETE / UPDATE / REVOKE / SET-NOT-NULL.
+      "20270807000000_phase2_drift_repair_redaction",
+      // Phase 2 Drift Repair (Domain 7 — Exchange / Lifecycle Webhooks).
+      // 5 Prisma-declared columns across 2 tables:
+      //   webhook_endpoints.updated_at
+      //   webhook_deliveries.updated_at + created_at + next_retry_at +
+      //                     next_attempt_at_utc
+      // Pure additive (ADD COLUMN IF NOT EXISTS); zero DROP / RENAME /
+      // TRUNCATE / DELETE / UPDATE / REVOKE / SET-NOT-NULL statements.
+      "20270808000000_phase2_drift_repair_lifecycle_webhooks",
+      // Phase 2.1 Final Drift Closure — operator-pre-deploy bundle that
+      // resolves the 4 open items from the Phase 2 manual-decision table:
+      //   * CREATE TABLE IF NOT EXISTS "redaction_policy_audits" (plural,
+      //     matches Prisma @@map); legacy singular "redaction_policy_audit"
+      //     left untouched. NO RENAME, NO DROP, NO data move.
+      //   * entitlements.team_seats INTEGER NOT NULL DEFAULT 0
+      //   * verification_packages.package_type VARCHAR(64) NULL
+      //   * verification_packages.trust_decision_snapshot JSONB NULL
+      // Pure additive (CREATE TABLE IF NOT EXISTS + ADD COLUMN IF NOT EXISTS);
+      // zero DROP / RENAME / TRUNCATE / DELETE / UPDATE / REVOKE statements.
+      "20270809000000_phase_2_1_final_drift_closure",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

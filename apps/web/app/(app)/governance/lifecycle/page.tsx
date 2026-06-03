@@ -111,16 +111,27 @@ function GovernanceLifecycleDashboardInner() {
   return (
     <main style={pageStyle}>
       <header>
-        <h1 style={titleStyle}>Governance operations</h1>
+        <h1 style={titleStyle}>Governance Posture</h1>
         <p style={mutedStyle}>
-          Workspace-wide retention, legal-hold, and destruction posture.
-          Read-only overview — open the dedicated consoles below for actions.
+          Read-only lifecycle posture across retention, legal holds,
+          destruction queue, and evidence lifecycle distribution.
+        </p>
+        <p style={calloutStyle}>
+          This page summarizes lifecycle posture. To configure or execute
+          lifecycle actions, open{" "}
+          <Link href="/evidence-lifecycle" style={calloutLinkStyle}>
+            Lifecycle Operations
+          </Link>
+          .
         </p>
       </header>
 
       <nav style={navStyle}>
         <Link href="/governance" style={navLinkStyle}>
           ← Workspace governance
+        </Link>
+        <Link href="/evidence-lifecycle" style={navLinkStyle}>
+          Open Lifecycle Operations →
         </Link>
         <Link href="/governance/retention" style={navLinkStyle}>
           Retention policies →
@@ -139,36 +150,60 @@ function GovernanceLifecycleDashboardInner() {
       ) : (
         <>
           <section style={summaryGridStyle}>
-            <SummaryTile
-              label="Active retention policies"
-              value={data.retention.activePoliciesCount}
-              accent={data.retention.conflictCount > 0 ? "warning" : "neutral"}
-              footer={
-                data.retention.conflictCount > 0
-                  ? `${data.retention.conflictCount} conflicting`
-                  : "No conflicts detected"
-              }
-            />
-            <SummaryTile
-              label="Active legal holds"
-              value={data.holds.activeHoldsCount}
-              accent={data.holds.activeHoldsCount > 0 ? "warning" : "neutral"}
-              footer="Workspace evidence holds"
-            />
-            <SummaryTile
-              label="Destruction queue"
-              value={data.destruction.activeReviewCount}
-              accent={
-                data.destruction.activeReviewCount > 0 ? "critical" : "neutral"
-              }
-              footer={`${data.lifecycle.pendingDestructionCount} pending destruction`}
-            />
-            <SummaryTile
-              label="Destroyed evidence"
-              value={data.lifecycle.byState.DESTROYED}
-              accent="critical"
-              footer="Terminal — certificate emitted"
-            />
+            <TileLink href="/evidence-lifecycle/retention">
+              <SummaryTile
+                label="Active retention policies"
+                value={data.retention.activePoliciesCount}
+                accent={
+                  data.retention.conflictCount > 0 ? "warning" : "neutral"
+                }
+                footer={
+                  data.retention.conflictCount > 0
+                    ? `${data.retention.conflictCount} conflicting`
+                    : "No conflicts detected"
+                }
+              />
+            </TileLink>
+            <TileLink href="/evidence-lifecycle/legal-holds">
+              <SummaryTile
+                label="Active legal holds"
+                value={data.holds.activeHoldsCount}
+                accent={
+                  data.holds.activeHoldsCount > 0 ? "warning" : "neutral"
+                }
+                footer="Workspace evidence holds"
+              />
+            </TileLink>
+            <TileLink href="/evidence-lifecycle/destruction">
+              <SummaryTile
+                label="Destruction queue"
+                value={data.destruction.activeReviewCount}
+                accent={
+                  data.destruction.activeReviewCount > 0
+                    ? "critical"
+                    : "neutral"
+                }
+                footer={`${data.lifecycle.pendingDestructionCount} pending destruction`}
+              />
+            </TileLink>
+            <TileLink href="/evidence-lifecycle/destruction">
+              <SummaryTile
+                label="Destroyed evidence"
+                value={data.lifecycle.byState.DESTROYED}
+                accent="critical"
+                footer="Terminal — certificate emitted"
+              />
+            </TileLink>
+            {typeof data.lifecycle.byState.ARCHIVED === "number" ? (
+              <TileLink href="/evidence-lifecycle/archive">
+                <SummaryTile
+                  label="Archived evidence"
+                  value={data.lifecycle.byState.ARCHIVED}
+                  accent="neutral"
+                  footer="Tiered storage — archive console"
+                />
+              </TileLink>
+            ) : null}
           </section>
 
           <section style={cardStyle}>
@@ -246,6 +281,25 @@ function SummaryTile({
   );
 }
 
+/**
+ * Read-only deep-link wrapper for posture tiles. Clicking the tile
+ * navigates to the matching Lifecycle Operations sub-console where
+ * the operator can take action. The tile itself remains read-only.
+ */
+function TileLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link href={href} style={tileLinkStyle}>
+      {children}
+    </Link>
+  );
+}
+
 // -----------------------------------------------------------------------------
 // Styles — enterprise/SOC palette: slate + indigo, restrained accents.
 // -----------------------------------------------------------------------------
@@ -265,6 +319,25 @@ const titleStyle: React.CSSProperties = {
   letterSpacing: -0.4,
 };
 const mutedStyle: React.CSSProperties = { fontSize: 13, color: "#64748b" };
+const calloutStyle: React.CSSProperties = {
+  marginTop: 8,
+  padding: "10px 12px",
+  fontSize: 13,
+  color: "#1e293b",
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  borderRadius: 8,
+};
+const calloutLinkStyle: React.CSSProperties = {
+  color: "#1d4ed8",
+  fontWeight: 600,
+  textDecoration: "underline",
+};
+const tileLinkStyle: React.CSSProperties = {
+  display: "block",
+  textDecoration: "none",
+  color: "inherit",
+};
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 600,

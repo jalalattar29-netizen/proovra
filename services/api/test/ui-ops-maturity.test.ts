@@ -235,12 +235,16 @@ describe("AppSidebarV2 — IA + operational badges", () => {
     expect(navConfig).toMatch(/label: "Search"/);
   });
 
-  it("Review & Governance group lists Reviewer Ops, SLA, Escalations, Governance, Lifecycle, Policy, Retention, Destruction (Phase 32.8B)", () => {
+  it("Review & Governance group lists Reviewer Ops, SLA, Escalations, Governance, Governance Posture, Policy, Retention, Destruction (Phase 32.8B)", () => {
+    // NOTE: the governance.lifecycle label was rebaselined from
+    // "Lifecycle" to "Governance Posture" to disambiguate it from
+    // the workspace.evidence_lifecycle surface ("Lifecycle Operations").
+    // See docs/architecture/workspace-surface-audit.md.
     expect(navConfig).toMatch(/label: "Reviewer Ops"/);
     expect(navConfig).toMatch(/label: "SLA"/);
     expect(navConfig).toMatch(/label: "Escalations"/);
     expect(navConfig).toMatch(/label: "Governance"/);
-    expect(navConfig).toMatch(/label: "Lifecycle"/);
+    expect(navConfig).toMatch(/label: "Governance Posture"/);
     expect(navConfig).toMatch(/label: "Policy"/);
     expect(navConfig).toMatch(/label: "Retention"/);
     expect(navConfig).toMatch(/label: "Destruction"/);

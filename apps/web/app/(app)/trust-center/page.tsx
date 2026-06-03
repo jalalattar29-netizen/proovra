@@ -10,7 +10,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { TrustArticleProjection } from "@proovra/shared";
+import type {
+  StatusPageProjection,
+  SubprocessorProjection,
+  TrustArticleProjection,
+} from "@proovra/shared";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../lib/api";
@@ -33,6 +37,14 @@ function Shell() {
   // identical to a failed call). Vocabulary kept platform-bounded;
   // we never expose env names or stack traces here.
   const [seedStatus, setSeedStatus] = useState<string | null>(null);
+  // Optional chip data for the 7-tile summary band. We reuse the
+  // already-available Trust Center APIs (no new routes). Each chip
+  // is independently optional — if the corresponding fetch fails the
+  // tile still renders without its chip, never blocking the band.
+  const [subprocessorCount, setSubprocessorCount] = useState<number | null>(
+    null,
+  );
+  const [overallHealth, setOverallHealth] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -47,6 +59,34 @@ function Shell() {
       setArticles([]);
     } finally {
       setBusy(false);
+    }
+  }, []);
+
+  // Lightweight chip refresh — independent of the article refresh so
+  // a single failed call never blanks the rest of the band. Uses the
+  // existing /v1/trust/subprocessors and /v1/trust/status endpoints
+  // (already auto-seed on GET).
+  const refreshChips = useCallback(async () => {
+    const [subRes, statusRes] = await Promise.allSettled([
+      apiFetch("/v1/trust/subprocessors", { method: "GET" }),
+      apiFetch("/v1/trust/status", { method: "GET" }),
+    ]);
+    if (subRes.status === "fulfilled") {
+      const rows = (subRes.value?.subprocessors ?? []) as ReadonlyArray<
+        SubprocessorProjection
+      >;
+      // "Active" mirrors the subprocessor registry's own state
+      // vocabulary — count only ACTIVE rows so the chip never
+      // overcounts withdrawn or pending entries.
+      setSubprocessorCount(
+        rows.filter((r) => r.state === "ACTIVE").length,
+      );
+    }
+    if (statusRes.status === "fulfilled") {
+      const proj = (statusRes.value?.status ?? null) as
+        | StatusPageProjection
+        | null;
+      setOverallHealth(proj?.overallHealth ?? null);
     }
   }, []);
 
@@ -74,7 +114,8 @@ function Shell() {
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void refreshChips();
+  }, [refresh, refreshChips]);
 
   return (
     <div
@@ -144,6 +185,90 @@ function Shell() {
         ) : null}
       </div>
 
+      {/*
+        Phase 4A enterprise polish — 7-tile summary band. Sits ABOVE
+        the canonical 15-article grid. Tiles surface the entry points
+        an enterprise reviewer expects on a Trust Center landing page
+        (methodology, AI transparency, security, subprocessors, status,
+        legal, verification). No new routes — every target already
+        exists in the app. Each tile carries a data-trust-center-
+        summary-tile attribute so source-contract tests can pin them.
+      */}
+      <section
+        data-trust-center-summary-band
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 10,
+          marginBottom: 18,
+        }}
+      >
+        <SummaryTile
+          slug="methodology"
+          title="Verification Methodology"
+          subtitle="Hashing, OpenTimestamps, provenance chain, verification packages."
+          href="/trust-center/methodology"
+          secondary={{
+            href: "/legal/verification-methodology",
+            label: "Legal methodology",
+          }}
+        />
+        <SummaryTile
+          slug="ai-disclosure"
+          title="AI Transparency"
+          subtitle="Models, providers, advisory scope, opt-outs, audit transparency."
+          href="/trust-center/ai-disclosure"
+        />
+        <SummaryTile
+          slug="security"
+          title="Security Controls"
+          subtitle="Authentication, encryption posture, secrets, incident response."
+          href="/trust-center/security"
+        />
+        <SummaryTile
+          slug="subprocessors"
+          title="Subprocessors"
+          subtitle="Vendors that may process customer data, with state + region."
+          href="/trust-center/subprocessors"
+          chip={
+            subprocessorCount !== null
+              ? `${subprocessorCount} active`
+              : undefined
+          }
+        />
+        <SummaryTile
+          slug="status"
+          title="Platform Status"
+          subtitle="Operational health across PROOVRA components + incidents."
+          href="/trust-center/status"
+          chip={overallHealth ?? undefined}
+        />
+        <SummaryTile
+          slug="legal"
+          title="Legal & Privacy"
+          subtitle="Privacy, terms, DPA, evidence-handling, retention, incident response."
+          href="/legal/privacy"
+          secondary={{ href: "/legal/dpa", label: "DPA" }}
+          tertiary={{
+            href: "/legal/evidence-handling",
+            label: "Evidence handling",
+          }}
+        />
+        <SummaryTile
+          slug="verify"
+          title="Verification References"
+          subtitle="Verify a verification package or evidence reference directly."
+          href="/verify"
+        />
+      </section>
+
+      <h2
+        data-trust-center-articles-heading
+        style={{ fontSize: 16, margin: "0 0 8px" }}
+      >
+        Trust Center articles
+      </h2>
+
       {articles.length === 0 ? (
         <p style={{ color: "#475569", fontSize: 12 }}>
           No published articles. Click "Re-seed defaults" to publish the 15
@@ -211,6 +336,98 @@ function summarisePart(
   const created = typeof v?.created === "number" ? v.created : 0;
   const updated = typeof v?.updated === "number" ? v.updated : 0;
   return `${label}: ${created} created · ${updated} updated`;
+}
+
+// Phase 4A enterprise polish — a single tile in the summary band.
+// Honest UI: chip only renders when data is available. Secondary /
+// tertiary links are optional and only render when supplied.
+function SummaryTile({
+  slug,
+  title,
+  subtitle,
+  href,
+  chip,
+  secondary,
+  tertiary,
+}: {
+  slug: string;
+  title: string;
+  subtitle: string;
+  href: string;
+  chip?: string;
+  secondary?: { href: string; label: string };
+  tertiary?: { href: string; label: string };
+}) {
+  return (
+    <article
+      data-trust-center-summary-tile={slug}
+      style={{
+        background: "#fff",
+        border: "1px solid rgba(15, 23, 42, 0.08)",
+        borderRadius: 10,
+        padding: 12,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <header
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 8,
+        }}
+      >
+        <strong style={{ fontSize: 14 }}>{title}</strong>
+        {chip ? (
+          <span
+            data-trust-center-summary-chip={slug}
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              padding: "2px 6px",
+              borderRadius: 999,
+              background: "rgba(15, 23, 42, 0.06)",
+              color: "#0f172a",
+              border: "1px solid rgba(15, 23, 42, 0.08)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {chip}
+          </span>
+        ) : null}
+      </header>
+      <p style={{ fontSize: 12, color: "#475569", margin: 0 }}>{subtitle}</p>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
+        <a
+          data-trust-center-summary-link={slug}
+          href={href}
+          style={{ fontSize: 12, fontWeight: 600, color: "#0f172a" }}
+        >
+          Open →
+        </a>
+        {secondary ? (
+          <a
+            data-trust-center-summary-secondary={slug}
+            href={secondary.href}
+            style={{ fontSize: 12, color: "#475569" }}
+          >
+            {secondary.label}
+          </a>
+        ) : null}
+        {tertiary ? (
+          <a
+            data-trust-center-summary-tertiary={slug}
+            href={tertiary.href}
+            style={{ fontSize: 12, color: "#475569" }}
+          >
+            {tertiary.label}
+          </a>
+        ) : null}
+      </div>
+    </article>
+  );
 }
 
 const cardStyle = {

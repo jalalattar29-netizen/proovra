@@ -84,6 +84,7 @@ import {
   executeDestruction,
 } from "../services/lifecycle/destruction-governance.service.js";
 import { projectLifecycleDashboard } from "../services/lifecycle/lifecycle-dashboard.service.js";
+import { computeLifecycleCapabilityStatus } from "../services/lifecycle/capability-status.service.js";
 import {
   VERIFICATION_PACKAGE_LIFECYCLE_PREVIEW_KINDS,
   buildLifecyclePackagePreview,
@@ -1213,6 +1214,21 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         if (!feOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_LIFECYCLE_DASHBOARD" });
       } catch { /* engine failure must not break route */ }
       const dashboard = await projectLifecycleDashboard({ teamId: ctx.teamId });
+      // Lifecycle Consolidation — attach per-team capability enforcement status.
+      // Additive: failure to compute MUST NOT break the dashboard envelope; the
+      // frontend tolerates absence (capabilities is optional in the shared type).
+      try {
+        const capabilities = await computeLifecycleCapabilityStatus({
+          prisma,
+          teamId: ctx.teamId,
+        });
+        (dashboard as { capabilities?: typeof capabilities }).capabilities = capabilities;
+      } catch (err) {
+        req.log?.warn?.(
+          { err: err instanceof Error ? err.message : "capability_status_failed" },
+          "lifecycle_capability_status_compute_failed",
+        );
+      }
       return reply.code(200).send({ dashboard });
     },
   );

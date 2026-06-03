@@ -45,6 +45,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { AI_LEGAL_DISCLAIMER } from "../ai/ai-policy.js";
 import { emitTrustArticleEvent } from "./trust-and-governance-audit.service.js";
 
 export type UpsertArticleInput = {
@@ -720,9 +721,13 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "models-used",
     title: "Models used",
     summary:
-      "Azure Document Intelligence (OCR / layout / tables / forms); Deepgram (ASR / diarisation); OpenAI (entity extraction / document summary); AWS Rekognition (faces / text / labels).",
-    body: "Models are selected per operation. Bounded REGEX_PII fallback runs locally when OpenAI is not bound.",
-    implementationReferences: ["services/api/src/services/intelligence/providers"],
+      "Azure Document Intelligence (OCR / layout / tables / forms); Deepgram (ASR / diarisation); OpenAI (entity extraction / document summary / text embeddings when SEMANTIC_SEARCH_ENABLED + opt-in outbound); AWS Rekognition (faces / text / labels). Local REGEX_PII fallback when OpenAI is not bound.",
+    body:
+      "Models are selected per operation by the provider adapter (services/api/src/services/intelligence/providers). Bounded REGEX_PII fallback runs locally when OpenAI is not configured so PII detection remains useful in air-gapped deployments. Embedding models (text-embedding-3-small by default) are gated behind both SEMANTIC_SEARCH_ENABLED=true and SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND=true; both default to false. Model selections are pinned per provider and recorded on every usage event so operators can audit which model produced which output.",
+    implementationReferences: [
+      "services/api/src/services/intelligence/providers",
+      "services/api/src/services/search/embedding-provider.ts",
+    ],
     policyTags: ["MODELS"],
   },
   {
@@ -731,9 +736,13 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "providers-used",
     title: "Providers used",
     summary:
-      "AZURE_DOCUMENT_INTELLIGENCE, DEEPGRAM_TRANSCRIPT, OPENAI_ENTITY_EXTRACTION, OPENAI_DOCUMENT_SUMMARY, AWS_REKOGNITION_FACES, AWS_REKOGNITION_TEXT, AWS_REKOGNITION_LABELS, MANUAL_OPERATOR.",
-    body: "Every provider is registered as a bounded ProviderAdapter; every call is recorded in `provider_usage_events`.",
-    implementationReferences: ["packages/shared/src/media-intelligence-platform.ts"],
+      "Bounded ProviderAdapter set: AZURE_DOCUMENT_INTELLIGENCE, DEEPGRAM_TRANSCRIPT, OPENAI_ENTITY_EXTRACTION, OPENAI_DOCUMENT_SUMMARY, OPENAI_EMBEDDINGS (opt-in), AWS_REKOGNITION_FACES, AWS_REKOGNITION_TEXT, AWS_REKOGNITION_LABELS, MANUAL_OPERATOR. Every call is recorded in provider_usage_events.",
+    body:
+      "Every provider is registered as a bounded ProviderAdapter with a typed request/response contract. The orchestrator never bypasses the adapter — there is no ad-hoc provider call path. Each call writes a provider_usage_events row with provider, operation, status, cost_usd_micros, latency_ms, and a correlation id. The Provider Status surface (/v1/intelligence/providers/health) reports the live binding state per provider. Operators can disable a provider per-workspace via policy (DISABLED_BY_POLICY state) or globally via env unset.",
+    implementationReferences: [
+      "packages/shared/src/media-intelligence-platform.ts",
+      "services/api/src/services/intelligence/providers/provider-adapter.ts",
+    ],
     policyTags: ["PROVIDERS"],
   },
   {
@@ -742,9 +751,13 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "data-sent",
     title: "Data sent to providers",
     summary:
-      "Only the bytes required for the requested operation (e.g. Azure DI receives the document file; Deepgram receives the audio file).",
-    body: "Bounded per operation. The adapter abstracts the request shape so the orchestrator never serialises tenant metadata into the payload.",
-    implementationReferences: ["services/api/src/services/intelligence/providers"],
+      "Only the bytes required for the requested operation (e.g. Azure DI receives the document file; Deepgram receives the audio file; AWS Rekognition receives the image). The adapter abstracts the request shape so the orchestrator never serialises tenant metadata into the payload.",
+    body:
+      "Bounded per operation. Azure DI receives the document file + region-pinned endpoint. Deepgram receives the audio bytes + a bounded model parameter. OpenAI entity-extraction receives the OCR or transcript text (never the raw file, never identifiers). OpenAI embeddings receive chunked text only when SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND=true. AWS Rekognition receives the image bytes. Across all providers, payloads never include reviewer identities, custody events, organization names, policy state, version chains, or any cross-workspace data. Provider TLS endpoints are pinned at the adapter layer.",
+    implementationReferences: [
+      "services/api/src/services/intelligence/providers",
+      "services/api/src/services/search/embedding-provider.ts",
+    ],
     policyTags: ["DATA_BOUNDARY"],
   },
   {
@@ -753,9 +766,13 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "data-not-sent",
     title: "Data NOT sent to providers",
     summary:
-      "Reviewer identities, custody events, audit events, executive metrics, organization hierarchies, governance policies, version chains.",
-    body: "Governance state stays inside PROOVRA. Providers receive only the bytes required to perform the requested extraction.",
-    implementationReferences: [],
+      "Reviewer identities, custody events, audit events, executive metrics, organization hierarchies, departments, governance policies, version chains, capability matrix, delegated-admin grants, access-review decisions, billing state. Governance state stays inside PROOVRA.",
+    body:
+      "Providers receive only the bytes required to perform the requested extraction. Everything that constitutes governance state — who reviewed what, who corrected what, who escalated what, which department owns the case, which retention policy applies, who is in the org tree — never leaves the platform. Cross-workspace aggregation never happens at the provider layer; each call is workspace-scoped. The audit-transparency federator reads exclusively from PROOVRA's own tables; no provider has visibility into another tenant's data.",
+    implementationReferences: [
+      "services/api/src/services/intelligence/providers",
+      "services/api/src/services/intelligence/audit-transparency.service.ts",
+    ],
     policyTags: ["DATA_BOUNDARY"],
   },
   {
@@ -764,9 +781,13 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "confidence-model",
     title: "Confidence model",
     summary:
-      "Provider raw confidence → bounded band (LOW / MEDIUM / HIGH / VERY_HIGH) via `classifyIntelligenceConfidence`. Final band is fused from provider + reviewer bands.",
-    body: "Cut-offs: ≥ 0.95 VERY_HIGH; ≥ 0.8 HIGH; ≥ 0.5 MEDIUM; else LOW. Reviewer override always wins.",
-    implementationReferences: ["packages/shared/src/media-intelligence-platform.ts"],
+      "Provider raw confidence is mapped to a bounded band (LOW / MEDIUM / HIGH / VERY_HIGH) via classifyIntelligenceConfidence. Cut-offs: >=0.95 VERY_HIGH, >=0.8 HIGH, >=0.5 MEDIUM, else LOW. Reviewer override always wins. The final fused band is what surfaces on executive + reviewer + reporting surfaces.",
+    body:
+      "Provider vendors emit confidence on different scales with different semantics; the bounded band normalises them so an Azure HIGH means the same thing to a reviewer as a Deepgram HIGH. The reviewer's accept / reject / correct decision is the source of truth — if a reviewer corrects an AI output, the final band defers to the reviewer band regardless of the provider band. Confidence bands are never represented as legal certainty: they are signals to prioritise review effort, never to bypass it.",
+    implementationReferences: [
+      "packages/shared/src/media-intelligence-platform.ts",
+      "services/api/src/services/intelligence/reviewer-correction.service.ts",
+    ],
     policyTags: ["CONFIDENCE"],
   },
   {
@@ -775,10 +796,12 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "human-review-model",
     title: "Human review model",
     summary:
-      "Every provider output flows into the Reviewer Workspace. Reviewers accept / reject / correct. AI output is NEVER ground truth.",
-    body: "Reviewer corrections are append-only with explicit version chain (`reviewer_corrections.versionNumber + parentCorrectionId + supersedesCorrectionId`).",
+      "Every AI / provider output flows into the Reviewer Workspace. Reviewers accept, reject, or correct each output. AI output is NEVER ground truth — the reviewer decision is. Corrections are append-only with explicit version chain so the history is reproducible.",
+    body:
+      "The Reviewer Workspace renders the AI output alongside the original evidence, the bounded confidence band, the provider that produced the output, and the reviewer's prior decisions on related items. The reviewer's verdict writes a ReviewerCorrection row with versionNumber + parentCorrectionId + supersedesCorrectionId — there is no in-place mutation. Disagreement workflow (challenge -> second review -> supervisor -> resolution) is supported via the reviewer-disagreement.service.ts. QC sampling assigns randomised double-review to measure accuracy. The fused final confidence band always defers to the latest reviewer correction.",
     implementationReferences: [
       "services/api/src/services/intelligence/reviewer-correction.service.ts",
+      "services/api/src/services/reviewer/reviewer-disagreement.service.ts",
     ],
     policyTags: ["HUMAN_REVIEW"],
   },
@@ -788,8 +811,9 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "correction-model",
     title: "Correction model",
     summary:
-      "DRAFT → ACCEPTED, or REVERTED via a new row. Supersede flow appends a new row + back-links the prior. No row is mutated to destroy history.",
-    body: "Every transition emits a CORRECTION_* lifecycle event for the Audit & Transparency Center.",
+      "Correction lifecycle: DRAFT -> ACCEPTED, REVERTED via a new row, or SUPERSEDED via a new row that back-links the prior. No row is ever mutated to destroy history. Every transition emits a CORRECTION_* lifecycle event for the Audit & Transparency Center.",
+    body:
+      "The reviewer-correction.service.ts writes each correction as an append-only row with a versionNumber + parentCorrectionId for the immediate predecessor + supersedesCorrectionId for the original. A revert appends a REVERTED row referencing the row being reverted; a supersede appends a new row referencing the prior. The full chain is reconstructable for any item by walking versionNumber + parent links. The version chain is included in the verification package manifest so an external auditor can reproduce the decision trail offline. CORRECTION_CREATED / CORRECTION_ACCEPTED / CORRECTION_REVERTED / CORRECTION_SUPERSEDED lifecycle codes federate into the audit centre.",
     implementationReferences: [
       "services/api/src/services/intelligence/reviewer-correction.service.ts",
     ],
@@ -801,9 +825,12 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "limitations",
     title: "Limitations",
     summary:
-      "AI is never ground truth. Reviewer judgement is. Provider confidence is vendor-specific but banded consistently. Final confidence never overrides a human decision.",
-    body: "See `INTELLIGENCE_PROVENANCE_LIMITATIONS` for the bounded standing limitations surfaced on every executive footer.",
-    implementationReferences: ["packages/shared/src/media-intelligence-platform.ts"],
+      "AI is never ground truth. The reviewer is. AI provides signals — confidence bands, candidate entities, suggested redactions — that prioritise human attention; it never substitutes for human judgement on factual truth, authorship, identity, or legal admissibility.",
+    body: `AI assistance throughout PROOVRA carries the standing disclaimer: "${AI_LEGAL_DISCLAIMER}" — enforced server-side by the applyAiPolicy gate in services/api/src/services/ai/ai-policy.ts which blocks outputs containing forbidden language patterns (e.g. "this proves what happened", "legally admissible", "the person in the image is", "definitively shows"). The bounded INTELLIGENCE_PROVENANCE_LIMITATIONS list surfaces on every executive footer. Confidence bands describe model self-assessment, not external truth. Provider drift in confidence semantics is monitored by intelligence-quality.service.ts.`,
+    implementationReferences: [
+      "services/api/src/services/ai/ai-policy.ts",
+      "packages/shared/src/media-intelligence-platform.ts",
+    ],
     policyTags: ["LIMITATIONS"],
   },
   {
@@ -812,10 +839,12 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "known-risks",
     title: "Known risks",
     summary:
-      "Provider outages; provider drift in confidence semantics; reviewer fatigue; misuse of bounded outputs as ground truth.",
-    body: "Mitigations: budget gates, audit federation, per-provider quality rankings, reviewer correction analytics, standing-limitations surfaced on every executive surface.",
+      "Provider outages; provider drift in confidence semantics; reviewer fatigue; misuse of bounded outputs as ground truth; prompt-injection vectors in OCR / transcript content; hallucination in document summaries.",
+    body:
+      "Mitigations: (1) budget gates prevent runaway spend on a misbehaving provider, (2) audit federation captures every call so anomalies are reviewable, (3) per-provider quality rankings (intelligence-quality.service.ts) detect drift over time, (4) reviewer correction analytics surface systematic provider error patterns, (5) standing-limitations chips on every executive surface reinforce that AI is signal not truth, (6) the applyAiPolicy gate blocks AI outputs that drift into forbidden ground-truth language. Prompt injection in OCR / transcript content is mitigated by the bounded REGEX_PII fallback and by treating all extracted text as untrusted before reviewer confirmation.",
     implementationReferences: [
       "services/api/src/services/intelligence/intelligence-quality.service.ts",
+      "services/api/src/services/ai/ai-policy.ts",
     ],
     policyTags: ["RISK"],
   },
@@ -825,8 +854,9 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "provider-status",
     title: "Provider status",
     summary:
-      "Live probe state per provider is exposed via `/v1/intelligence/providers/health` and surfaced on the Intelligence Platform landing.",
-    body: "Bounded states: READY, NOT_CONFIGURED, DISABLED_BY_POLICY, RATE_LIMITED, BUDGET_EXCEEDED, ERROR.",
+      "Live probe state per provider is exposed via /v1/intelligence/providers/health and surfaced on the Intelligence Platform landing. Bounded states: READY, NOT_CONFIGURED, DISABLED_BY_POLICY, RATE_LIMITED, BUDGET_EXCEEDED, ERROR.",
+    body:
+      "Each ProviderAdapter exposes a probe that reports its current binding state. The orchestrator never asserts READY by default — NOT_CONFIGURED is the honest verdict when credentials are absent. DISABLED_BY_POLICY surfaces when a governance policy has switched the provider off for the workspace. RATE_LIMITED + BUDGET_EXCEEDED degrade callers gracefully; ERROR surfaces the last bounded error code for operator triage. The status feeds the Intelligence Platform landing card so reviewers know in advance whether AI assistance will be available before they start a case.",
     implementationReferences: [
       "services/api/src/services/intelligence/providers/provider-adapter.ts",
     ],
@@ -838,8 +868,9 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "ai-activity-transparency",
     title: "AI activity transparency",
     summary:
-      "Every provider call writes a `provider_usage_events` row and an `intelligence_activity_events` lifecycle row. Both are federated into the Audit & Transparency Center.",
-    body: "Operators can answer 'when did this provider call happen, who initiated it, did it succeed, why did it fail' from one place.",
+      "Every provider call writes a provider_usage_events row + an intelligence_activity_events lifecycle row. The Audit & Transparency Center federates both alongside reviewer corrections, redaction activity, policy audit, video timeline, and external review activity.",
+    body:
+      "Operators can answer 'when did this provider call happen, who initiated it, did it succeed, why did it fail, what did it cost' from one place. The federation surfaces bounded counts, ids, and labels — never raw provider payloads. Date-range filtering + trend math (executive-metrics service) lets operators detect anomalies and quality drift over time. The verification package includes a snapshot of the relevant audit slice so external auditors can reproduce the activity trail offline.",
     implementationReferences: [
       "services/api/src/services/intelligence/audit-transparency.service.ts",
     ],
@@ -851,12 +882,46 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "cost-transparency",
     title: "Cost transparency",
     summary:
-      "Per-call cost recorded in USD micros. Budgets enforce CASE / PROJECT / TEAM / WORKSPACE / PROVIDER scopes. Breaches federated to the audit centre.",
-    body: "See the Budget Center for per-scope spend, remaining, projected burn, threshold status.",
+      "Per-call cost is recorded in USD micros on every provider_usage_events row. Budgets enforce CASE / PROJECT / TEAM / WORKSPACE / PROVIDER scopes with bounded enforcement modes. Breaches federate to the audit centre and surface on the Budget Center.",
+    body:
+      "The provider-budget.service.ts honours scopeTargetId so a per-project budget never accidentally blocks an unrelated project. Threshold status is surfaced as bounded chips (HEALTHY / APPROACHING / EXCEEDED) on the executive dashboard. Operators see per-scope spend, remaining, projected burn, and breach history. The Phase 16 semantic-search budget (semantic-budget.service.ts) extends the same model to embedding spend, enforcing per-workspace caps before any outbound call. Cost transparency is honesty-first: PROOVRA does not silently absorb breaches — operators see the verdict and decide whether to raise the cap or block the workload.",
     implementationReferences: [
       "services/api/src/services/intelligence/provider-budget.service.ts",
+      "services/api/src/services/search/semantic-budget.service.ts",
     ],
     policyTags: ["COST_TRANSPARENCY"],
+  },
+
+  // -------- AI_DISCLOSURE (additions: Phase 15/16 semantic search disclosure) --------
+  {
+    kind: "AI_DISCLOSURE",
+    section: "DATA_SENT",
+    slug: "semantic-search-embeddings",
+    title: "Semantic search embeddings",
+    summary:
+      "When SEMANTIC_SEARCH_ENABLED=true and a provider is configured, text chunks extracted from documents and transcripts are embedded into vectors for cosine-similarity retrieval. Embeddings are NEVER sent outbound unless SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND=true. Per-workspace budget gates apply. On failure the search degrades to keyword-only.",
+    body:
+      "services/api/src/services/search/embedding-provider.ts hosts three providers: DisabledStub (default — returns null on every call), LocalDeterministic (test-only hash-based vectors), and OpenAIEmbeddingProvider (gated). The hybrid retriever (services/api/src/services/search/evidence-search.service.ts) blends keyword + vector ranking via pgvector $queryRaw when embeddings are available; when not, it silently falls back to keyword-only and surfaces a 'semantic search disabled' chip in the UI. Embeddings are workspace-scoped — there is no cross-tenant vector pool. The semantic-budget.service.ts enforces per-workspace embedding spend caps before any outbound call.",
+    implementationReferences: [
+      "services/api/src/services/search/embedding-provider.ts",
+      "services/api/src/services/intelligence/semantic.service.ts",
+      "services/api/src/services/search/semantic-budget.service.ts",
+    ],
+    policyTags: ["SEMANTIC_SEARCH", "DATA_BOUNDARY"],
+  },
+  {
+    kind: "AI_DISCLOSURE",
+    section: "DATA_NOT_SENT",
+    slug: "outbound-flag-default",
+    title: "Outbound content default",
+    summary:
+      "SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND defaults to FALSE. Outbound content (sending chunk text to an external embedding provider like OpenAI) requires explicit operator opt-in. The default posture is air-gapped semantic disabled — operators must affirmatively enable outbound traffic.",
+    body:
+      "The dual-gate (SEMANTIC_SEARCH_ENABLED + SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND) is enforced INSIDE every provider implementation that would talk to an external service (embedding-provider.ts:261 and :545) — not relied on at a single call site, so accidentally enabling one without the other still blocks outbound traffic. Operators who run on-prem or air-gapped deployments can leave outbound disabled and either run keyword-only or wire a local embedding model in future. This default reflects PROOVRA's posture: customer data does not leave the platform without an explicit operator decision documented in env config + audit logs.",
+    implementationReferences: [
+      "services/api/src/services/search/embedding-provider.ts",
+    ],
+    policyTags: ["SEMANTIC_SEARCH", "OUTBOUND_DEFAULT"],
   },
 
   // -------- SECURITY --------
@@ -866,9 +931,15 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "authentication",
     title: "Authentication",
     summary:
-      "Session-based auth via signed JWTs with rotation. MFA + SAML available.",
-    body: "Auth tokens are signed with a workspace-scoped secret and validated server-side on every request.",
-    implementationReferences: ["services/api/src/middleware/auth.ts"],
+      "Session-based authentication via signed JWTs with rotation, adaptive auth risk scoring, and per-session inventory + revocation. MFA + SAML SSO available; portal sessions are token-bound.",
+    body:
+      "The middleware/auth.ts layer validates JWT tokens with a workspace-scoped secret on every request. The Phase 19 session-revocation.service.ts pathway lets operators or adaptive-auth signals invalidate a session immediately (revoke event emits a SecurityEvent and clears the AuthenticatedSession row). The adaptive-auth.service.ts engine can quarantine or revoke sessions automatically when risk signals fire. Session inventory (session-inventory.service.ts) lists active sessions for a user and supports bulk revoke from the operator surface. External reviewer portal sessions are issued per invitation token with bounded scope.",
+    implementationReferences: [
+      "services/api/src/middleware/auth.ts",
+      "services/api/src/services/identity-security/session-revocation.service.ts",
+      "services/api/src/services/access-control/adaptive-auth.service.ts",
+      "services/api/src/services/access-control/session-inventory.service.ts",
+    ],
     policyTags: ["AUTH"],
   },
   {
@@ -877,11 +948,13 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "authorization",
     title: "Authorization",
     summary:
-      "RBAC + capability matrix. Every route requires an explicit capability check.",
-    body: "Capabilities are computed from the user's role + delegated admin grants + per-resource permissions.",
+      "RBAC + delegated-admin tiers + per-resource capability checks. Every route requires an explicit capability check; server-side enforcement is the source of truth.",
+    body:
+      "Capabilities are computed from the user's workspace role, delegated admin tier (Global / Org / Department / Workspace / Reviewer Lead / Security Officer / Compliance Officer), department scope membership, and per-resource permissions. The rbac-engine.service.ts evaluates capability requirements against the resolved actor context; identity/rbac.service.ts surfaces the role-to-capability projection that drives the UI's visibility hints. UI hints are never trusted: every mutation re-checks server-side. Denied requests emit a bounded denial code so operators can audit who attempted what.",
     implementationReferences: [
       "services/api/src/services/access-control/rbac-engine.service.ts",
       "services/api/src/services/identity/rbac.service.ts",
+      "services/api/src/services/governance/delegated-admin.service.ts",
     ],
     policyTags: ["AUTHZ"],
   },
@@ -891,10 +964,12 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "rbac",
     title: "Role-based access control",
     summary:
-      "Workspace roles + reviewer roles + portal roles + delegated admin tiers. Capability projection drives the UI.",
-    body: "See `navigation-registry.ts` for capability-keyed visibility.",
+      "Workspace roles + reviewer roles + external-portal roles + 7 delegated-admin tiers. Capability projection drives the UI; the server re-enforces on every mutation.",
+    body:
+      "The platform-context navigation-registry.ts pins every nav entry to a capability key; the buildNavigationProjection emitter computes a per-actor capability set from the role matrix + delegated admin grants + department scope envelope. The 7 delegated-admin tiers (GLOBAL_ADMIN, ORG_ADMIN, DEPARTMENT_ADMIN, WORKSPACE_ADMIN, REVIEWER_LEAD, SECURITY_OFFICER, COMPLIANCE_OFFICER) are enforced server-side via hasDelegatedTier and apply to every Phase 4A governance mutation route. Department isolation narrows the read scope so users see evidence only for their department membership (or unrestricted if they hold a workspace-wide tier).",
     implementationReferences: [
       "services/api/src/services/platform-context/navigation-registry.ts",
+      "services/api/src/services/governance/delegated-admin.service.ts",
     ],
     policyTags: ["RBAC"],
   },
@@ -904,12 +979,16 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "mfa",
     title: "Multi-factor authentication",
     summary:
-      "MFA enforced via the existing identity provider. Portal sessions also track `mfaSatisfiedAtUtc`.",
-    body: "External reviewer portal grants the `mfa_satisfied` flag separately and emits session events.",
+      "In-house RFC 6238 TOTP (Time-based One-Time Password) for the operator workspace, compatible with Google Authenticator, 1Password, Authy, and other standard authenticator apps. Recovery codes are supported. External reviewer portal sessions track mfaSatisfiedAtUtc independently.",
+    body:
+      "MFA is implemented natively in services/api/src/services/security/mfa-totp.ts — pinned parameters are HMAC-SHA1 / 6 digits / 30-second period with a +/-1 step verification window. Secrets are generated with crypto.randomBytes (160 bits), encoded as RFC 4648 Base32 for manual entry, and rendered as otpauth:// URIs for QR-code provisioning. Verification uses timingSafeEqual to prevent timing-attack disclosure. Recovery codes are managed by mfa-recovery.ts and consumed atomically with audit-event emission. The external reviewer portal session-service.ts grants the mfa_satisfied flag separately and emits portal session events. SAML SSO is supported for external reviewer grants (see saml-assertion.service.ts) but PROOVRA does not currently delegate workspace MFA to an external IdP — verification happens in-process against the encrypted-at-rest TOTP secret.",
     implementationReferences: [
+      "services/api/src/services/security/mfa-totp.ts",
+      "services/api/src/services/security/mfa-recovery.ts",
+      "services/api/src/services/security/mfa.service.ts",
       "services/api/src/services/external-review/portal-session.service.ts",
     ],
-    policyTags: ["MFA"],
+    policyTags: ["MFA", "status:implemented"],
   },
   {
     kind: "SECURITY",
@@ -935,10 +1014,14 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "scim",
     title: "SCIM provisioning",
     summary:
-      "SCIM provisioning supported via the existing identity provider integration.",
-    body: "Provisioning events are logged and can be reviewed in Access Reviews.",
-    implementationReferences: [],
-    policyTags: ["SCIM"],
+      "SCIM 2.0 provisioning is on the enterprise roadmap and is NOT GENERALLY AVAILABLE today. Operator provisioning currently flows through workspace invitations + SAML JIT provisioning for SSO-bound external reviewers.",
+    body:
+      "PROOVRA's enterprise identity story today: (1) workspace members invited via the Phase 5/6 collaboration invitation pipeline, (2) SAML JIT (just-in-time) provisioning for external-reviewer SSO bindings via saml-user-mapping.service.ts. Full SCIM 2.0 (Users + Groups endpoints, automated deprovisioning) is planned and will be surfaced under this section when shipped. Until then, deprovisioning runs through Access Reviews (access-review.service.ts) — REVOKED decisions actually revoke delegated-admin grants and external-reviewer role assignments via the propagation pathway.",
+    implementationReferences: [
+      "services/api/src/services/governance/access-review.service.ts",
+      "services/api/src/services/security/saml-user-mapping.service.ts",
+    ],
+    policyTags: ["SCIM", "status:planned"],
   },
   {
     kind: "SECURITY",
@@ -946,21 +1029,29 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "encryption",
     title: "Encryption",
     summary:
-      "Encryption at rest (KMS-backed S3 SSE) and in transit (TLS 1.2+).",
-    body: "Per-tenant KMS keys are used for evidence bucket SSE.",
-    implementationReferences: ["services/api/src/storage.ts"],
-    policyTags: ["ENCRYPTION"],
+      "Evidence + derivatives persist to an S3-compatible storage provider (AWS S3, Cloudflare R2, or Google Cloud Storage) over TLS; at-rest encryption is supplied by the storage provider per its bucket configuration. Production endpoints are TLS-enforced.",
+    body:
+      "PROOVRA does not currently configure per-tenant KMS keys or PROOVRA-managed SSE-KMS headers in the application layer — the storage layer relies on the provider's default at-rest encryption (S3 SSE-S3 by default on AWS; R2 + GCS encrypt at rest by default). In-transit security is enforced: storage.ts rejects http:// endpoints in production unless S3_ALLOW_INSECURE=true is set explicitly. Operators who require customer-managed keys must configure them at the bucket level outside PROOVRA. The KMS section of this Security Center documents the deferred-Signer/KMS posture honestly.",
+    implementationReferences: [
+      "services/api/src/storage.ts",
+      "services/api/.env.example",
+    ],
+    policyTags: ["ENCRYPTION", "status:partial"],
   },
   {
     kind: "SECURITY",
     section: "KMS",
     slug: "kms",
-    title: "Key Management",
+    title: "Key management posture",
     summary:
-      "AWS KMS for at-rest encryption. Keys are workspace-scoped.",
-    body: "Key rotation follows AWS KMS best practice; logical key references are tracked per evidence bucket.",
-    implementationReferences: [],
-    policyTags: ["KMS"],
+      "Key management is deferred: a canonical signer registry tracks signing key identifiers (report PDF, verification package, export manifest, custody event) as a read-model over env config + SecurityEvent history. AWS KMS is supported when SIGNER_PROVIDER=aws_kms; otherwise local PEM or disabled.",
+    body:
+      "The signer-registry.service.ts read-model surfaces the active signer (provider, keyId, keyVersion, kmsKeyArn when applicable) plus the rotation history derived from signer_staged / signer_promoted / signer_retired / signer_revoked audit events. PROOVRA-managed KMS encryption for storage is not currently configured — operators wanting customer-managed keys configure them at the storage provider level. Private key material is never returned by any API; only operator-safe references (ARN / keyId / version) are exposed. Historical signed artefacts (Report.pdfSignerKeyId, VerificationPackage signing fields) are never mutated when keys rotate.",
+    implementationReferences: [
+      "services/api/src/services/operations/signer-registry.service.ts",
+      "docs/security/signer-governance.md",
+    ],
+    policyTags: ["KMS", "status:partial"],
   },
   {
     kind: "SECURITY",
@@ -968,10 +1059,13 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "audit-logging",
     title: "Audit logging",
     summary:
-      "Six audit sources federated by the Audit & Transparency Center: provider usage, reviewer corrections, redaction activity, policy audit, video timeline, external review activity, intelligence lifecycle.",
-    body: "All append-only.",
+      "Append-only audit federation across seven bounded sources: provider usage, reviewer corrections, redaction activity, policy audit, video timeline, external review activity, intelligence lifecycle. Trust + governance lifecycle events emit alongside.",
+    body:
+      "The audit-transparency.service.ts federator unifies bounded counts + ids + labels from intelligence_activity_events, provider_usage_events, reviewer_corrections, redaction_activity, policy_audit, video_timeline, and external_review_activity. The Phase 4A trust + governance lifecycle codes (TRUST_ARTICLE_CREATED / SUPERSEDED / PUBLISHED, DELEGATED_ADMIN_GRANTED / REVOKED, POLICY_BLOCK / VIOLATION, ACCESS_REVIEW_DECIDED, etc.) emit through the same emitter so operators can answer who-did-what-when from one place. Every audit row is append-only; there is no delete path. SecurityEvent rows additionally capture identity-security events (login, MFA, step-up, quarantine, revoke, webhook signature failure).",
     implementationReferences: [
       "services/api/src/services/intelligence/audit-transparency.service.ts",
+      "services/api/src/services/trust/trust-and-governance-audit.service.ts",
+      "services/api/src/services/security/security-event.service.ts",
     ],
     policyTags: ["AUDIT"],
   },
@@ -981,12 +1075,14 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "evidence-immutability",
     title: "Evidence immutability",
     summary:
-      "Originals stored with S3 Object Lock. Derivatives are separate files with their own custody events.",
-    body: "An original can never be silently replaced; the bytes are versioned and locked.",
+      "Originals are persisted once and never overwritten. When the storage bucket has S3 Object Lock configured, PROOVRA applies bounded retention + legal-hold semantics through the operations/object-lock-status.service.ts; otherwise immutability is enforced by the application contract (no overwrite/replace API path exists).",
+    body:
+      "An original evidence file is uploaded via storage.ts to a content-addressable key, its SHA-256 is recorded on the Evidence row at capture, and OpenTimestamps anchoring fixes the digest to a public-blockchain proof. Reviewer corrections + redactions produce DERIVATIVES — separate Evidence rows with their own custody events — so the original bytes remain intact and re-hash-verifiable. The bootstrap/object-lock-verification.ts probe reports whether the configured bucket actually has Object Lock enabled; the Status Page surfaces an honest verdict rather than asserting Object Lock when it is not configured.",
     implementationReferences: [
       "services/api/src/storage.ts",
       "services/api/src/services/operations/object-lock-status.service.ts",
       "services/api/src/services/evidence-complete.service.ts",
+      "services/api/src/bootstrap/object-lock-verification.ts",
     ],
     policyTags: ["IMMUTABILITY"],
   },
@@ -996,11 +1092,13 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "object-lock",
     title: "S3 Object Lock",
     summary:
-      "Compliance-mode Object Lock prevents tampering for the retention period.",
-    body: "Retention windows are configured per bucket policy.",
+      "S3 Object Lock is supported when the configured storage bucket has it enabled (S3-Compliance or S3-Governance mode). PROOVRA does not silently assert Object Lock — bootstrap probes the bucket and surfaces the verdict honestly via the status page DEPENDENCY_HEALTH component.",
+    body:
+      "The bootstrap/object-lock-verification.ts script runs at API startup and calls GetObjectLockConfigurationCommand against the evidence bucket; the result feeds the operations/object-lock-status.service.ts read-model. When enabled, PROOVRA applies retention via PutObjectRetentionCommand and legal holds via PutObjectLegalHoldCommand (storage.ts wraps these). Retention windows are typically configured at the bucket policy level by operators. When Object Lock is NOT enabled (e.g. Cloudflare R2 today, or buckets without compliance-mode), the status page reports the gap rather than masking it.",
     implementationReferences: [
       "services/api/src/bootstrap/object-lock-verification.ts",
       "services/api/src/services/operations/object-lock-status.service.ts",
+      "services/api/src/storage.ts",
     ],
     policyTags: ["OBJECT_LOCK"],
   },
@@ -1010,9 +1108,14 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "access-controls",
     title: "Access controls",
     summary:
-      "Workspace anchoring at every read + write. Capability-keyed nav. Server-side authorisation on every route.",
-    body: "There is no client-side enforcement that the server does not also enforce.",
-    implementationReferences: ["services/api/src/middleware/auth.ts"],
+      "Workspace anchoring at every read + write. Capability-keyed navigation. Server-side authorisation on every route. Rate limits (rate-limit.ts) gate sensitive endpoints. UI hints are never trusted: the server re-checks every mutation.",
+    body:
+      "Every API route accepts a teamId from the authenticated session — there is no client-supplied workspace selector. Capability checks run via the rbac-engine.service.ts before any data is read or written, and the navigation projection only emits entries the actor's capability set covers. Department isolation narrows the read scope per resolveUserDepartmentScope so users see evidence only for their department membership unless they hold an unrestricted (org/global) tier. Rate limits (services/rate-limit.ts) use either Redis or an in-process memory bucket to throttle abusive endpoints, with cooldown for Redis outages.",
+    implementationReferences: [
+      "services/api/src/middleware/auth.ts",
+      "services/api/src/services/access-control/rbac-engine.service.ts",
+      "services/api/src/services/rate-limit.ts",
+    ],
     policyTags: ["ACCESS"],
   },
   {
@@ -1021,10 +1124,12 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "monitoring",
     title: "Monitoring",
     summary:
-      "Sentry for error telemetry. Better Stack for uptime. Custom OTEL signals where bound.",
-    body: "Status Page (in-platform) surfaces the upstream probe state.",
+      "Sentry for error telemetry, Better Stack for uptime probes, OpenTelemetry signals for bounded spans (capture, intelligence, storage). The in-platform Status Page surfaces 13 component verdicts including OPERATIONAL / DEGRADED / DOWN / UNKNOWN.",
+    body:
+      "Errors flow to Sentry (when SENTRY_DSN is bound). Better Stack handles external uptime probing for public surfaces. OTEL spans are emitted from the observability/otel.ts wrapper used across capture + storage + intelligence; the worker emits its own bounded spans under the OTEL_SERVICE_NAME=worker namespace. The status-page.service.ts internal probes (DB, Redis, S3, queue, worker) plus external subprocessor probes feed the 13-component matrix; the page never asserts OPERATIONAL by default — UNKNOWN is the honest default when a probe is not configured or its upstream is unreachable.",
     implementationReferences: [
       "services/api/src/services/trust/status-page.service.ts",
+      "services/api/src/services/observability/otel.ts",
     ],
     policyTags: ["MONITORING"],
   },
@@ -1034,8 +1139,9 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "incident-response",
     title: "Incident response",
     summary:
-      "Incidents tracked in the Status Page incident table with state machine: INVESTIGATING → IDENTIFIED → MONITORING → RESOLVED → POSTMORTEM.",
-    body: "Updates are append-only.",
+      "Incidents tracked in the Status Page incident table with a bounded state machine: INVESTIGATING -> IDENTIFIED -> MONITORING -> RESOLVED, with optional POSTMORTEM_DRAFT and POSTMORTEM_PUBLISHED follow-ups. Updates are append-only and emit STATUS_INCIDENT_UPDATED lifecycle codes.",
+    body:
+      "Operators create an incident with title + severity (INFO / MINOR / MAJOR / CRITICAL) + affected component keys; each update appends an immutable StatusIncidentUpdate row. The state machine prevents backward transitions and emits a STATUS_INCIDENT_CREATED / STATUS_INCIDENT_UPDATED audit event per change. Maintenance windows are tracked separately with scheduled / in-progress / completed / cancelled states. The public status page projects the recent 60-day incident history alongside live component health.",
     implementationReferences: [
       "services/api/src/services/trust/status-page.service.ts",
     ],
@@ -1047,12 +1153,13 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "disaster-recovery",
     title: "Disaster recovery",
     summary:
-      "Multi-AZ storage; cross-region replication for the evidence bucket; database backups every 24h.",
-    body: "RPO ≤ 24h; RTO ≤ 4h.",
+      "Disaster-recovery posture is operator-configurable at the infrastructure layer — multi-AZ storage, cross-region replication, and backup cadence are bucket-policy and database-provider decisions. PROOVRA does not enforce specific RPO/RTO targets in code today; the operations/recovery-validation.service.ts surfaces honest verdicts from infrastructure probes.",
+    body:
+      "Storage immutability + OTS anchoring give a strong recover-from-leak posture for evidence: an original hash is independently verifiable against the public Bitcoin blockchain regardless of which copy survives. Database backups, multi-AZ deployment, and cross-region replication are operator choices (e.g. AWS RDS automated backups, S3 cross-region replication). The recovery-validation.service.ts probes whether configured backup endpoints are reachable + whether the most recent backup is within the operator-declared SLA window, and surfaces the verdict on the operations dashboard. Specific RPO / RTO numbers depend on the chosen infrastructure tier and should be agreed per-customer in writing.",
     implementationReferences: [
       "services/api/src/services/operations/recovery-validation.service.ts",
     ],
-    policyTags: ["DR"],
+    policyTags: ["DR", "status:partial"],
   },
   {
     kind: "SECURITY",
@@ -1060,10 +1167,12 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "retention",
     title: "Retention",
     summary:
-      "Retention policies are governed by the Governance Policy registry (kind=RETENTION).",
-    body: "Default 7-year retention for evidence; tenant-configurable.",
+      "Retention policies are governed by the Governance Policy registry (kind=RETENTION) with org / department / workspace scope + inheritance + override. Phase 4B legal hold + retention reconciliation worker enforce the configured windows.",
+    body:
+      "Operators define a RETENTION policy (governance-policy.service.ts) with a numeric retention window and an enforcement mode (BLOCK / WARN / AUDIT_ONLY). The Phase 4B retention reconciliation worker (RETENTION_RECONCILIATION_ENABLED env gate; default 15-minute interval) walks evidence rows whose retention window has elapsed and triggers the configured destruction or archive workflow. Legal holds (Phase 4B legal-hold.service.ts) suspend retention destruction until released. There is no default retention applied by PROOVRA — workspaces choose their own policy, and the absence of an applicable policy means evidence persists indefinitely until explicit operator action.",
     implementationReferences: [
       "services/api/src/services/governance/governance-policy.service.ts",
+      "services/worker/src/index.ts",
     ],
     policyTags: ["RETENTION"],
   },
@@ -1073,9 +1182,13 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "deletion",
     title: "Deletion",
     summary:
-      "Bounded deletion workflows recorded in custody events. Originals under Object Lock cannot be deleted until the retention window elapses.",
-    body: "Reviewer + governance audit trails for every deletion request.",
-    implementationReferences: [],
+      "Deletion runs through bounded workflows: governance policy enforcement, legal-hold gate, custody-event emission, and Object Lock retention check. Originals under Object Lock cannot be deleted until the retention window elapses. Every deletion request writes append-only audit rows.",
+    body:
+      "When a deletion request hits the API, the lifecycle pipeline checks (1) whether an active legal hold exists (legal-hold.service.ts blocks), (2) whether Object Lock retention has expired (bucket policy enforced by the storage provider regardless), (3) the governance retention policy verdict, and (4) the actor's delegated-admin tier. If all gates pass, a destruction event is recorded as a CustodyEvent with bounded payload + a TRUST_LIFECYCLE audit row. Verification packages exported before destruction remain offline-verifiable because the OTS proof, hash, and custody chain were captured at the time of export.",
+    implementationReferences: [
+      "services/api/src/services/governance/governance-policy.service.ts",
+      "services/api/src/services/custody-events.service.ts",
+    ],
     policyTags: ["DELETION"],
   },
   {
@@ -1084,9 +1197,89 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "security-contacts",
     title: "Security contacts",
     summary:
-      "Report security issues to security@proovra.com.",
-    body: "We will acknowledge within 24h.",
-    implementationReferences: ["packages/shared/src/index.ts#SUPPORT_EMAILS"],
+      "Report security issues to security@proovra.com. We acknowledge within 1 business day and provide remediation timeline updates. Coordinated disclosure is welcomed; please allow reasonable time for triage before public disclosure.",
+    body:
+      "PROOVRA accepts vulnerability reports via security@proovra.com. Reports should include a clear reproduction path, affected endpoints/components, and any proof-of-concept material. We commit to: (1) acknowledging receipt within 1 business day, (2) providing a triage verdict + severity within 5 business days, (3) regular status updates until resolution, (4) credit to the reporter on a published advisory if desired. We do not currently operate a paid bug-bounty programme; coordinated-disclosure researchers are listed in advisory acknowledgements with consent.",
+    implementationReferences: ["packages/shared/src/index.ts"],
     policyTags: ["CONTACTS"],
+  },
+
+  // -------- SECURITY (additions: undisclosed controls with proven implementation) --------
+  {
+    kind: "SECURITY",
+    section: "KMS",
+    slug: "signer-registry",
+    title: "Signer registry",
+    summary:
+      "Canonical read-model that surfaces the current signing key + rotation history for four bounded signing purposes (report PDF, verification package, export manifest, custody event). The active signer is derived from env config; the history is derived from append-only SecurityEvent rows.",
+    body:
+      "services/api/src/services/operations/signer-registry.service.ts exposes a deterministic SignerRecord for each purpose: provider (aws_kms | local_pem | disabled), keyId, keyVersion, kmsKeyArn (when applicable), algorithm, status (active / staged / retiring / retired / revoked / degraded), activatedAt, retiredAt. The rotation history comes from signer_staged / signer_promoted / signer_retired / signer_revoked audit events; the active state comes from env (SIGNER_PROVIDER, SIGNING_KEY_ID, SIGNING_KEY_VERSION, PACKAGE_SIGNING_KEY_ID, PACKAGE_SIGNING_KEY_VERSION, KMS_KEY_ID). Historical artefacts (Report.pdfSignerKeyId, VerificationPackage signing fields) are never mutated when keys rotate — the registry tracks FUTURE signing only so existing signed outputs remain reproducibly verifiable. Private key material is never returned by any API.",
+    implementationReferences: [
+      "services/api/src/services/operations/signer-registry.service.ts",
+      "docs/security/signer-governance.md",
+    ],
+    policyTags: ["SIGNER", "KMS"],
+  },
+  {
+    kind: "SECURITY",
+    section: "MONITORING",
+    slug: "webhook-hmac",
+    title: "Webhook signature verification",
+    summary:
+      "Inbound webhooks are signature-verified before any payload parsing; failures emit a SecurityEvent (severity HIGH, bounded reason category) + bump the webhook_signature_failures_total metric. Outbound delivery signs each request with HMAC and sends the digest as X-Proovra-Signature.",
+    body:
+      "Inbound: services/api/src/services/security/webhook-signature-audit.service.ts wraps provider-specific verifiers (Stripe, etc.) and classifies failures into a bounded WebhookSignatureFailureReason vocabulary — missing_signature, invalid_signature, timestamp_out_of_range, replay_detected, malformed_payload, secret_misconfigured. Both signature-verification failures and replay rejections bump dedicated counters so operators can detect floods. The wrapper never leaks the secret, the raw signature, the payload bytes, or sensitive headers into logs. Outbound: integrations/webhooks.service.ts + packaging/webhooks/webhook-platform.service.ts sign each request with HMAC and emit the digest as the X-Proovra-Signature header (v1=<hex> format) so subscribers can verify authenticity + payload integrity.",
+    implementationReferences: [
+      "services/api/src/services/security/webhook-signature-audit.service.ts",
+      "services/api/src/services/integrations/webhooks.service.ts",
+      "services/api/src/services/packaging/webhooks/webhook-platform.service.ts",
+    ],
+    policyTags: ["WEBHOOK", "HMAC"],
+  },
+  {
+    kind: "SECURITY",
+    section: "ACCESS_CONTROLS",
+    slug: "rate-limits",
+    title: "API rate limiting",
+    summary:
+      "Per-route rate limits via services/rate-limit.ts using either Redis (when REDIS_URL is set) or an in-process memory bucket. Window + limit are configurable per route; the bucket reports allowed / remaining / resetAtMs to callers. Redis outages auto-degrade with cooldown.",
+    body:
+      "The rate-limit.ts module is the single allow/deny primitive. Routes call into it with their own key + window + limit (no global single-bucket — sensitive endpoints like login, MFA verification, invitation token redemption, and external-portal token exchange set their own bounds). On a Redis transport error the module marks Redis unavailable for RATE_LIMIT_REDIS_COOLDOWN_MS (default 15s) and falls back to the in-process memory bucket so the API stays responsive while alerting fires. Keys are normalised + capped at 512 chars to prevent unbounded key proliferation.",
+    implementationReferences: [
+      "services/api/src/services/rate-limit.ts",
+    ],
+    policyTags: ["RATE_LIMIT"],
+  },
+  {
+    kind: "SECURITY",
+    section: "AUTHENTICATION",
+    slug: "session-revocation",
+    title: "Session revocation",
+    summary:
+      "Operators and adaptive-auth signals can immediately revoke an authenticated session via the Phase 19 revokeSession() pathway. Revocation invalidates the AuthenticatedSession row, emits a SecurityEvent, and the next request from the revoked session is rejected by the auth middleware.",
+    body:
+      "services/api/src/services/identity-security/session-revocation.service.ts.revokeSession() marks the AuthenticatedSession row revoked + emits a session_revoked SecurityEvent with bounded reason. The middleware/auth.ts validator rejects revoked sessions on the next request. Three production callers: (1) the /v1/identity-security/sessions/:id/revoke route for operator-initiated revoke, (2) services/access-control/adaptive-auth.service.ts which auto-revokes on high-risk signals, (3) services/access-control/session-inventory.service.ts which supports bulk revoke from the operator session-inventory surface. External reviewer portal sessions revoke via the parallel portal-session.service.ts pathway.",
+    implementationReferences: [
+      "services/api/src/services/identity-security/session-revocation.service.ts",
+      "services/api/src/services/access-control/adaptive-auth.service.ts",
+      "services/api/src/services/access-control/session-inventory.service.ts",
+    ],
+    policyTags: ["SESSION"],
+  },
+  {
+    kind: "SECURITY",
+    section: "EVIDENCE_IMMUTABILITY",
+    slug: "verification-package-signing",
+    title: "Verification package signing",
+    summary:
+      "Verification packages are signed ZIPs containing manifests (trust, governance, methodology, AI disclosure, subprocessor, provider, confidence, correction chain) + OTS proofs + custody chain. The worker emits the package; the signer-registry tracks which key signed which package version.",
+    body:
+      "services/worker/src/verification-package-trust-and-governance.ts assembles the five trust + governance manifests (built by services/api/src/services/trust/trust-verification-manifest.service.ts on the API side for preview) plus the per-evidence manifests, packages them into a ZIP, and signs the archive with the active verification_package signer (per the signer-registry). The output is offline-verifiable — an external auditor with the file, the OTS proof, and the public signing key can confirm every claim without contacting PROOVRA. Schema versions are pinned (PROOVRA_TRUST_MANIFEST_V1, PROOVRA_GOVERNANCE_MANIFEST_V1, PROOVRA_METHODOLOGY_MANIFEST_V1, PROOVRA_AI_DISCLOSURE_MANIFEST_V1, PROOVRA_SUBPROCESSOR_MANIFEST_V1) so consumers can validate shape compatibility. Historical packages stay valid when keys rotate — the signer-registry preserves retired keys for verification.",
+    implementationReferences: [
+      "services/worker/src/verification-package-trust-and-governance.ts",
+      "services/api/src/services/trust/trust-verification-manifest.service.ts",
+      "services/api/src/services/operations/signer-registry.service.ts",
+    ],
+    policyTags: ["VERIFICATION_PACKAGE", "SIGNING"],
   },
 ];

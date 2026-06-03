@@ -528,7 +528,10 @@ describe("7. Security Center seed paths corrected", () => {
     );
     const mfaIdx = src2.indexOf('"MFA"');
     expect(mfaIdx).toBeGreaterThan(-1);
-    const mfaBlock = src2.slice(mfaIdx, mfaIdx + 600);
+    // Rebaselined from 600 → 2000 after trust-center-enterprise-completion
+    // (Stream A) thickened the MFA summary + body. The portal-session path
+    // reference now sits at delta=1491 from the "MFA" marker.
+    const mfaBlock = src2.slice(mfaIdx, mfaIdx + 2000);
     expect(mfaBlock).toContain("external-review/portal-session");
   });
 

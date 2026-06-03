@@ -4,6 +4,15 @@
  * Phase 4A — Reusable Trust Center section list. Driven by `kind`
  * (METHODOLOGY / AI_DISCLOSURE / SECURITY). Same shape as the
  * landing page but filtered to one kind.
+ *
+ * Phase 4A enterprise polish:
+ *  - 4-phase load state (loading / loaded / empty / error) — mirrors
+ *    status/page.tsx so the page never sticks on "Loading…" after a
+ *    failed request and the empty / error paths are honestly visible
+ *    to the user with bounded vocabulary (no env names / stack
+ *    traces).
+ *  - Implementation references collapsed under a <details> summary
+ *    so long reference lists no longer dominate the card visually.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -16,6 +25,12 @@ import type {
 import { apiFetch } from "../../../lib/api";
 import { DriftBadge } from "./_drift-badge";
 
+type LoadState =
+  | { phase: "loading" }
+  | { phase: "loaded"; articles: ReadonlyArray<TrustArticleProjection> }
+  | { phase: "empty" }
+  | { phase: "error"; message: string };
+
 export function TrustCenterSectionList({
   kind,
   title,
@@ -27,20 +42,33 @@ export function TrustCenterSectionList({
   description: string;
   anchor: string;
 }) {
-  const [articles, setArticles] = useState<ReadonlyArray<TrustArticleProjection>>([]);
+  const [state, setState] = useState<LoadState>({ phase: "loading" });
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setBusy(true);
+    setState({ phase: "loading" });
     try {
       const res = await apiFetch(`/v1/trust/articles?kind=${kind}`, {
         method: "GET",
       });
-      setArticles(
-        (res?.articles ?? []) as ReadonlyArray<TrustArticleProjection>,
-      );
+      const list = (res?.articles ?? []) as ReadonlyArray<
+        TrustArticleProjection
+      >;
+      if (list.length === 0) {
+        setState({ phase: "empty" });
+      } else {
+        setState({ phase: "loaded", articles: list });
+      }
     } catch {
-      setArticles([]);
+      // Bounded operator-facing message. We never expose internal
+      // error codes / env names / stack traces here. The Retry
+      // button below lets the user re-attempt the load.
+      setState({
+        phase: "error",
+        message:
+          "Trust Center articles could not be loaded. Press Retry to try again.",
+      });
     } finally {
       setBusy(false);
     }
@@ -49,6 +77,8 @@ export function TrustCenterSectionList({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const articles = state.phase === "loaded" ? state.articles : [];
 
   return (
     <div
@@ -90,16 +120,50 @@ export function TrustCenterSectionList({
             cursor: "pointer",
           }}
         >
-          {busy ? "Loading…" : "Refresh"}
+          {busy
+            ? "Loading…"
+            : state.phase === "error"
+              ? "Retry"
+              : "Refresh"}
         </button>
       </div>
 
-      {articles.length === 0 ? (
-        <p style={{ color: "#475569", fontSize: 12 }}>
+      {state.phase === "loading" ? (
+        <p
+          data-trust-center-page-phase="loading"
+          style={{ color: "#475569", fontSize: 12 }}
+        >
+          Loading articles…
+        </p>
+      ) : null}
+
+      {state.phase === "error" ? (
+        <div
+          data-trust-center-page-phase="error"
+          style={{
+            padding: 12,
+            background: "rgba(185, 28, 28, 0.06)",
+            border: "1px solid rgba(185, 28, 28, 0.20)",
+            borderRadius: 8,
+            color: "#7f1d1d",
+            fontSize: 12,
+          }}
+        >
+          {state.message}
+        </div>
+      ) : null}
+
+      {state.phase === "empty" ? (
+        <p
+          data-trust-center-page-phase="empty"
+          style={{ color: "#475569", fontSize: 12 }}
+        >
           No published articles for this kind. Use the Trust Center landing's
           "Re-seed defaults" action.
         </p>
-      ) : (
+      ) : null}
+
+      {state.phase === "loaded" ? (
         <div style={{ display: "grid", gap: 10 }}>
           {articles.map((a) => (
             <article
@@ -145,19 +209,50 @@ export function TrustCenterSectionList({
                 {a.body}
               </pre>
               {a.implementationReferences.length > 0 ? (
-                <small style={{ fontSize: 11, color: "#475569", display: "block", marginTop: 6 }}>
-                  References:{" "}
-                  {a.implementationReferences.map((r) => (
-                    <code key={r} style={{ marginRight: 6 }}>
-                      {r}
-                    </code>
-                  ))}
-                </small>
+                <details
+                  data-trust-center-page-references={a.section}
+                  style={{ marginTop: 8 }}
+                >
+                  <summary
+                    style={{
+                      fontSize: 11,
+                      color: "#475569",
+                      cursor: "pointer",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Implementation references ·{" "}
+                    {a.implementationReferences.length}
+                  </summary>
+                  <div
+                    style={{
+                      marginTop: 6,
+                      fontSize: 11,
+                      color: "#475569",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {a.implementationReferences.map((r) => (
+                      <code
+                        key={r}
+                        style={{
+                          marginRight: 6,
+                          padding: "1px 4px",
+                          background: "rgba(15, 23, 42, 0.04)",
+                          borderRadius: 4,
+                          display: "inline-block",
+                        }}
+                      >
+                        {r}
+                      </code>
+                    ))}
+                  </div>
+                </details>
               ) : null}
             </article>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

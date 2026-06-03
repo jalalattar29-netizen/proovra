@@ -432,7 +432,7 @@ const REVIEW_GOVERNANCE_GROUP: NavGroup = {
     },
     {
       id: "governance.lifecycle",
-      label: "Lifecycle",
+      label: "Governance Posture",
       href: "/governance/lifecycle",
       iconKey: "lifecycle",
       domain: "REVIEW_GOVERNANCE",

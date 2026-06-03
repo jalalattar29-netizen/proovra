@@ -130,12 +130,17 @@ describe("Phase 32.8B — canonical sidebar hierarchy (5 groups, Account in topb
   it("Review & Governance group merges reviewer-ops + governance (Phase 32.8A)", () => {
     // Both reviewer-ops queue items AND governance preservation
     // items live under the unified Review & Governance group.
+    //
+    // NOTE: the governance.lifecycle label was rebaselined from
+    // "Lifecycle" to "Governance Posture" to disambiguate it from
+    // the workspace.evidence_lifecycle surface ("Lifecycle Operations").
+    // See docs/architecture/workspace-surface-audit.md.
     for (const label of [
       "Reviewer Ops",
       "SLA",
       "Escalations",
       "Governance",
-      "Lifecycle",
+      "Governance Posture",
       "Policy",
       "Retention",
       "Destruction",

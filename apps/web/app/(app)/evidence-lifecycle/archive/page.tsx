@@ -111,7 +111,9 @@ function Shell() {
     setTransitioning(true);
     setDenial(null);
     try {
-      await apiFetch("/v1/lifecycle/archive/transitions", {
+      // Lifecycle Consolidation — backend route is singular: /transition (POST).
+      // The GET list endpoint remains plural at /transitions.
+      await apiFetch("/v1/lifecycle/archive/transition", {
         method: "POST",
         body: JSON.stringify({ evidenceId, toTier }),
       });

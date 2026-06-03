@@ -6,7 +6,8 @@
  * change writes a SubprocessorVersion row for the audit trail.
  *
  * Bounded providers (seeded by default):
- *   AWS, Azure, Deepgram, OpenAI, Better Stack, Sentry, Cloudflare.
+ *   AWS, Azure, Deepgram, OpenAI, AWS Rekognition, Better Stack,
+ *   Sentry, Cloudflare, Resend, Twilio, Stripe, PayPal, Grafana Cloud.
  */
 
 import type { PrismaClient, Prisma } from "@prisma/client";
@@ -175,8 +176,10 @@ export async function listSubprocessorVersions(input: {
 }
 
 /**
- * Idempotent seed of the canonical seven subprocessors PROOVRA
- * uses today.
+ * Idempotent seed of the canonical thirteen subprocessors PROOVRA
+ * uses today. ensureSubprocessorSeed calls upsertSubprocessor for
+ * each row, which performs prisma.subprocessor.upsert keyed on
+ * (teamId, slug) — safe to re-run, additive across releases.
  */
 export async function ensureSubprocessorSeed(input: {
   prisma?: PrismaClient;
@@ -291,9 +294,60 @@ const SEED_SUBPROCESSORS: ReadonlyArray<SeedSubprocessor> = [
     slug: "cloudflare",
     name: "Cloudflare",
     vendor: "Cloudflare, Inc.",
-    purpose: "Edge network, DDoS mitigation, TLS termination.",
+    purpose:
+      "Edge network, DDoS mitigation, TLS termination. R2 object storage scaffold present in env (R2_ENDPOINT / R2_BUCKET) but not yet wired into the evidence storage path.",
     region: "Global",
     dataCategories: ["METADATA"],
     documentationUrl: "https://www.cloudflare.com/trust-hub/",
+  },
+  {
+    slug: "resend",
+    name: "Resend",
+    vendor: "Resend, Inc.",
+    purpose:
+      "Transactional email delivery for invitations, reviewer assignments, and operational notifications.",
+    region: "US (primary), EU (configurable)",
+    dataCategories: ["USER_IDENTIFIERS", "METADATA"],
+    documentationUrl: "https://resend.com/legal/privacy-policy",
+  },
+  {
+    slug: "twilio",
+    name: "Twilio",
+    vendor: "Twilio Inc.",
+    purpose:
+      "SMS / WhatsApp delivery and MFA Verify code transport for reviewer and portal authentication.",
+    region: "US (primary), EU / regional pop selectable",
+    dataCategories: ["USER_IDENTIFIERS", "METADATA"],
+    documentationUrl: "https://www.twilio.com/legal/privacy",
+  },
+  {
+    slug: "stripe",
+    name: "Stripe",
+    vendor: "Stripe, Inc.",
+    purpose:
+      "Subscription billing, checkout, webhook-driven entitlement updates. No card data is stored by PROOVRA; PCI scope sits with Stripe.",
+    region: "US / EU / UK (regional processing)",
+    dataCategories: ["USER_IDENTIFIERS", "METADATA"],
+    documentationUrl: "https://stripe.com/privacy",
+  },
+  {
+    slug: "paypal",
+    name: "PayPal",
+    vendor: "PayPal Holdings, Inc.",
+    purpose:
+      "Alternative subscription billing rail and webhook-driven entitlement updates. PROOVRA stores no payment instrument data.",
+    region: "US / EU / UK (regional processing)",
+    dataCategories: ["USER_IDENTIFIERS", "METADATA"],
+    documentationUrl: "https://www.paypal.com/us/legalhub/privacy-full",
+  },
+  {
+    slug: "grafana-cloud",
+    name: "Grafana Cloud (OTLP)",
+    vendor: "Grafana Labs",
+    purpose:
+      "OpenTelemetry traces and metrics gateway (OTEL_EXPORTER_OTLP_ENDPOINT). Carries bounded operational telemetry only — never evidence bytes, OCR text, transcripts, or PII.",
+    region: "US / EU (configurable per OTLP endpoint)",
+    dataCategories: ["METADATA", "ERROR_TELEMETRY"],
+    documentationUrl: "https://grafana.com/legal/privacy-policy/",
   },
 ];

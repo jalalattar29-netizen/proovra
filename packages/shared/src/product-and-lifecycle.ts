@@ -387,6 +387,44 @@ export type LifecycleDashboardProjection = {
     holdCoverage: number;
   };
   limitations: ReadonlyArray<string>;
+  /**
+   * Lifecycle Consolidation — capability enforcement status per capability.
+   * Optional for backward compatibility with prior consumers.
+   */
+  capabilities?: LifecycleDashboardCapabilities;
+};
+
+// -----------------------------------------------------------------------------
+// Lifecycle Consolidation — Capability enforcement status (Surface A honesty)
+//
+// Bounded vocabulary that tells the operator whether each lifecycle
+// capability is actually enforced end-to-end, only writes are landing
+// (but no worker enforces), or the capability is disabled at this team.
+// -----------------------------------------------------------------------------
+
+export const LIFECYCLE_CAPABILITY_STATUSES = [
+  'FULLY_OPERATIONAL',
+  'READ_ONLY',
+  'CONFIGURATION_ONLY',
+  'WRITES_BUT_NOT_ENFORCED',
+  'DISABLED',
+] as const;
+
+export type LifecycleCapabilityStatus =
+  (typeof LIFECYCLE_CAPABILITY_STATUSES)[number];
+
+export type LifecycleCapabilityState = {
+  status: LifecycleCapabilityStatus;
+  reason?: string;
+};
+
+export type LifecycleDashboardCapabilities = {
+  retention: LifecycleCapabilityState;
+  legalHolds: LifecycleCapabilityState;
+  archive: LifecycleCapabilityState;
+  destruction: LifecycleCapabilityState;
+  webhooks: LifecycleCapabilityState;
+  chainTransfers: LifecycleCapabilityState;
 };
 
 // -----------------------------------------------------------------------------

@@ -505,8 +505,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "governance.lifecycle",
     href: "/governance/lifecycle",
-    label: "Lifecycle",
-    description: "Evidence lifecycle, retention triggers, archival events.",
+    label: "Governance Posture",
+    description: "Read-only lifecycle posture overview.",
     domain: "GOVERNANCE",
     requiredCapabilities: ["LIFECYCLE_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
@@ -1443,9 +1443,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.evidence_lifecycle",
     href: "/evidence-lifecycle",
-    label: "Evidence Lifecycle",
-    description:
-      "Retention, legal holds, archive, destruction, webhooks, chain transfers for enterprise evidence lifecycle.",
+    label: "Lifecycle Operations",
+    description: "Configure & execute lifecycle actions.",
     domain: "GOVERNANCE",
     requiredCapabilities: ["LIFECYCLE_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
