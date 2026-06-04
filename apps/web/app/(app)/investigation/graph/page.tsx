@@ -24,8 +24,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
-import { useTeamId } from "../../../../lib/platform-context";
+import { useCan, useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
+import { classifyInvestigationEmptyState } from "../../../../lib/empty-state/classifier";
 type GraphSeedKind = "CASE" | "INCIDENT" | "REPORT" | "EVIDENCE";
 
 type GraphSeed = {
@@ -66,10 +68,21 @@ export default function GraphExplorerPage() {
 
 function GraphExplorerPageInner() {
   const teamId = useTeamId();
+  // Wave 2 Phase 4 — diagnostics + admin-action gate.
+  const canDiagnostics = useCan("OBSERVABILITY_VIEW");
+  // Wave 2 Phase 6 — graph mutation actions gated by EVIDENCE_MANAGE.
+  const canMutate = useCan("EVIDENCE_MANAGE");
   const [seeds, setSeeds] = useState<GraphSeed[] | null>(null);
   const [filter, setFilter] = useState<GraphSeedKind | "ALL">("ALL");
   const [error, setError] = useState<string | null>(null);
+  // Wave 2 Phase 4 — capture the underlying error for classifier resolution.
+  const [fetchError, setFetchError] = useState<Error | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
+  // Wave 2 Phase 6 — refresh + export action state.
+  const [reconcileBusy, setReconcileBusy] = useState(false);
+  const [reconcileMessage, setReconcileMessage] = useState<string | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   
 useEffect(() => {
@@ -87,8 +100,15 @@ useEffect(() => {
         setSeeds(res.nodes ?? []);
         setLastFetchAt(Date.now());
         setError(null);
-      } catch {
-        if (!cancelled) setError("graph_seeds_unavailable");
+        // Wave 2 Phase 4 — clear classifier fetch-error on success.
+        setFetchError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError("graph_seeds_unavailable");
+          setFetchError(
+            err instanceof Error ? err : new Error("graph_seeds_unavailable"),
+          );
+        }
       }
     };
 
@@ -126,6 +146,71 @@ useEffect(() => {
   }, [lastFetchAt]);
 
   const kindOrder: GraphSeedKind[] = ["CASE", "INCIDENT", "REPORT", "EVIDENCE"];
+
+  // Wave 2 Phase 6 — graph reconcile action (canonical
+  // POST /v1/graph/reconcile, Wave 1).
+  const handleReconcile = async () => {
+    if (!teamId || reconcileBusy) return;
+    setReconcileBusy(true);
+    setReconcileMessage(null);
+    try {
+      await apiFetch(
+        `/v1/graph/reconcile?teamId=${encodeURIComponent(teamId)}`,
+        {
+          method: "POST",
+          body: JSON.stringify({ reason: "operator_refresh" }),
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+      setReconcileMessage("Reconcile queued.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      setReconcileMessage(
+        /403|forbidden/i.test(msg)
+          ? "You do not have permission to refresh the graph."
+          : "Unable to queue reconcile. Try again.",
+      );
+    } finally {
+      setReconcileBusy(false);
+    }
+  };
+
+  // Wave 2 Phase 6 — graph JSON export. Downloads as an attachment.
+  const handleExport = async () => {
+    if (!teamId || exportBusy) return;
+    setExportBusy(true);
+    setExportError(null);
+    try {
+      const res = (await apiFetch("/v1/graph/export", {
+        method: "POST",
+        body: JSON.stringify({ teamId }),
+        headers: { "Content-Type": "application/json" },
+      })) as { nodes: unknown[]; edges: unknown[]; generatedAtUtc: string };
+      // Trigger browser download.
+      if (typeof window !== "undefined") {
+        const blob = new Blob([JSON.stringify(res, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `investigation-graph-${res.generatedAtUtc.slice(0, 10)}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      setExportError(
+        /403|forbidden/i.test(msg)
+          ? "You do not have permission to export the graph."
+          : "Unable to generate export. Try again.",
+      );
+    } finally {
+      setExportBusy(false);
+    }
+  };
 
   return (
     <div style={pageStyle}>
@@ -180,6 +265,33 @@ useEffect(() => {
         <Link href="/investigation/reviewers" style={pivotLinkSecondaryStyle}>
           → Reviewers
         </Link>
+        {/* Wave 2 Phase 6 — graph refresh + export actions. */}
+        {canMutate ? (
+          <button
+            type="button"
+            data-action="run-graph-refresh"
+            onClick={() => void handleReconcile()}
+            disabled={reconcileBusy || !teamId}
+            style={actionPrimaryStyle(reconcileBusy)}
+          >
+            {reconcileBusy ? "Refreshing…" : "Run graph refresh"}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          data-action="export-graph"
+          onClick={() => void handleExport()}
+          disabled={exportBusy || !teamId}
+          style={actionSecondaryStyle(exportBusy)}
+        >
+          {exportBusy ? "Exporting…" : "Export graph"}
+        </button>
+        {reconcileMessage ? (
+          <span style={actionMessageStyle}>{reconcileMessage}</span>
+        ) : null}
+        {exportError ? (
+          <span style={actionErrorStyle}>{exportError}</span>
+        ) : null}
       </section>
 
       {grouped == null ? (
@@ -187,24 +299,28 @@ useEffect(() => {
       ) : (
         <div style={sectionsStyle}>
           {(seeds?.length ?? 0) === 0 ? (
-            <div style={emptyStyle}>
-              <p style={emptyTitleStyle}>
-                No graph yet — capture evidence and create cases to populate
-                the workspace map.
-              </p>
-              <p style={emptyHintStyle}>
-                Each row on this page becomes a graph seed once evidence,
-                cases, incidents, or reports exist in the workspace.
-              </p>
-              <div style={emptyCtaRowStyle}>
-                <Link href="/capture" style={emptyCtaPrimaryStyle}>
-                  Capture evidence
-                </Link>
-                <Link href="/cases" style={emptyCtaSecondaryStyle}>
-                  Open cases
-                </Link>
-              </div>
-            </div>
+            // Wave 2 Phase 4 — classifier-driven empty state.
+            (() => {
+              const { classification, reason } =
+                classifyInvestigationEmptyState(
+                  {
+                    data: seeds,
+                    fetchError,
+                    permission: "allowed",
+                  },
+                  "graph",
+                );
+              return (
+                <OperationalEmptyState
+                  classification={classification}
+                  reason={reason}
+                  nextAction={{ label: "Capture evidence", href: "/capture" }}
+                  adminAction={{ label: "Open cases", href: "/cases" }}
+                  diagnosticsLink="/ops/observability"
+                  isAdmin={canDiagnostics}
+                />
+              );
+            })()
           ) : (
             kindOrder.map((kind) => {
               const bucket = grouped[kind];
@@ -428,6 +544,52 @@ function freshnessPillStyle(
   };
 }
 
+function actionPrimaryStyle(busy: boolean): React.CSSProperties {
+  return {
+    fontSize: 11,
+    fontWeight: 600,
+    color: "#ffffff",
+    background: busy ? "#1e3a8a" : "#1e40af",
+    border: "1px solid #1e3a8a",
+    borderRadius: 6,
+    padding: "5px 12px",
+    cursor: busy ? "wait" : "pointer",
+    whiteSpace: "nowrap",
+  };
+}
+
+function actionSecondaryStyle(busy: boolean): React.CSSProperties {
+  return {
+    fontSize: 11,
+    fontWeight: 600,
+    color: "#1e40af",
+    background: busy ? "#dbeafe" : "#eff6ff",
+    border: "1px solid #bfdbfe",
+    borderRadius: 6,
+    padding: "5px 12px",
+    cursor: busy ? "wait" : "pointer",
+    whiteSpace: "nowrap",
+  };
+}
+
+const actionMessageStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: "#166534",
+  background: "#ecfdf5",
+  border: "1px solid #bbf7d0",
+  borderRadius: 6,
+  padding: "3px 8px",
+};
+
+const actionErrorStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: "#991b1b",
+  background: "#fef2f2",
+  border: "1px solid #fca5a5",
+  borderRadius: 6,
+  padding: "3px 8px",
+};
+
 const controlsRowStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -464,49 +626,6 @@ const emptyStyle: React.CSSProperties = {
   border: "1px solid #e5e7eb",
   borderRadius: 8,
   padding: 14,
-};
-
-const emptyTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 13,
-  fontWeight: 600,
-  color: "#0f172a",
-};
-
-const emptyHintStyle: React.CSSProperties = {
-  margin: "6px 0 0 0",
-  fontSize: 12,
-  color: "#64748b",
-  lineHeight: 1.5,
-};
-
-const emptyCtaRowStyle: React.CSSProperties = {
-  marginTop: 10,
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const emptyCtaPrimaryStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: "#ffffff",
-  background: "#1e40af",
-  border: "1px solid #1e3a8a",
-  borderRadius: 6,
-  padding: "5px 12px",
-  textDecoration: "none",
-};
-
-const emptyCtaSecondaryStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: "#1e40af",
-  background: "#eff6ff",
-  border: "1px solid #bfdbfe",
-  borderRadius: 6,
-  padding: "5px 12px",
-  textDecoration: "none",
 };
 
 const sectionsStyle: React.CSSProperties = {

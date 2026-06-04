@@ -1,4 +1,5 @@
 export * from "./producer-mode.js";
+export * from "./probe-registry.js";
 export * from "./signal-catalog.js";
 export * from "./exif-extractor.service.js";
 export * from "./exif-summary.service.js";

@@ -138,6 +138,34 @@ export async function processMediaIntelligenceJob(
     });
   }
 
+  // Wave 4 — automatic OCR producer branch. Fetches PDF / image bytes
+  // from S3 (bounded byte cap to avoid runaway Azure cost), routes
+  // through the canonical azure-document-intelligence adapter via
+  // runProviderOperation (so budget + entitlement + policy gates fire
+  // identically to the manual route), then mirrors the extracted text
+  // into the unified EvidenceExtractedText table so the entity
+  // extractor / search indexer / semantic chunker pick it up.
+  if (kind === "extract_ocr_azure") {
+    return processExtractOcrAzureJob({
+      jobId: job.id,
+      teamId,
+      evidenceId,
+      runId: runId ?? null,
+    });
+  }
+
+  // Wave 4 — automatic transcript producer branch. Same shape as
+  // extract_ocr_azure but for audio / video evidence routed through
+  // the deepgram adapter.
+  if (kind === "extract_transcript_deepgram") {
+    return processExtractTranscriptDeepgramJob({
+      jobId: job.id,
+      teamId,
+      evidenceId,
+      runId: runId ?? null,
+    });
+  }
+
   // Phase 13 — text-similarity sub-branch on the `reconcile` job
   // kind. When the producer supplies a `textKind` of OCR or
   // TRANSCRIPT, the worker:
@@ -1077,4 +1105,593 @@ async function findEvidenceNodeId(
   } catch {
     return null;
   }
+}
+
+// =============================================================================
+// Wave 4 — automatic OCR (Azure Document Intelligence) producer branch
+// =============================================================================
+//
+// Lazy-imports the canonical azure-document-intelligence adapter via
+// the api package + runProviderOperation orchestrator. Hard rules:
+//   * Never throws to BullMQ on a structural failure — return success
+//     so the queue does not infinitely retry.
+//   * NEVER logs raw extracted text. Bounded summaries only.
+//   * Bounded byte cap (50 MB) per evidence to avoid runaway Azure
+//     cost. Anything larger collapses to a bounded "too_large" run
+//     row.
+//   * Writes BOTH MediaIntelligenceRecord rows (via ingestProviderResult
+//     inside runProviderOperation) AND EvidenceExtractedText (via
+//     runExtractionInline) so downstream entity-extraction + search
+//     indexer + Phase 13 similarity worker + Phase 16 semantic chunker
+//     all see the new text body.
+//   * Enqueues a search-indexing job + lets the existing safety-net
+//     indexer auto-chunk the new EvidenceExtractedText body into
+//     EvidenceSemanticChunk rows which the live mi-embed processor
+//     consumes. The producer does NOT call enqueueEmbedChunks directly
+//     — chunk creation is downstream.
+
+type ExtractOcrAzureInput = {
+  jobId: string | undefined;
+  teamId: string;
+  evidenceId: string;
+  runId: string | null;
+};
+
+// Wave 4 — bounded byte cap. 50 MB is a documented Azure DI page-size
+// ceiling for prebuilt-layout, and far larger than any single PDF or
+// image evidence record we have observed in production.
+const OCR_EXTRACTION_MAX_BYTES = 50 * 1024 * 1024;
+
+// Bounded preview length for log lines. NEVER the raw text body.
+const EXTRACTED_TEXT_PREVIEW_CHARS = 60;
+
+async function processExtractOcrAzureJob(
+  input: ExtractOcrAzureInput,
+): Promise<{ ok: true; signalsEmitted: number; deferred?: boolean }> {
+  const { jobId, teamId, evidenceId, runId } = input;
+  await tryBump("media_intelligence_processor_started_total");
+
+  // Lazy-import the run-tracker helpers. Failure to import is
+  // transient → throw so BullMQ retries with backoff.
+  let markRunProcessing: typeof import("@proovra/shared-runtime/media-intelligence")["markRunProcessing"];
+  let markRunCompleted: typeof import("@proovra/shared-runtime/media-intelligence")["markRunCompleted"];
+  let markRunFailed: typeof import("@proovra/shared-runtime/media-intelligence")["markRunFailed"];
+  try {
+    ({ markRunProcessing, markRunCompleted, markRunFailed } = await import(
+      "@proovra/shared-runtime/media-intelligence"
+    ));
+  } catch (err) {
+    logger.error(
+      { jobId, err: err instanceof Error ? err.message : "unknown" },
+      "media_intelligence.extract_ocr_azure.import_failed",
+    );
+    throw err;
+  }
+
+  if (runId) {
+    const proc = await markRunProcessing(runId, teamId, prisma);
+    if (!proc.ok) {
+      if (proc.reason === "max_retries_exceeded") {
+        await tryBump("media_intelligence_dlq_total");
+        return { ok: true, signalsEmitted: 0 };
+      }
+      throw new Error(`run_tracker_unavailable: ${proc.reason}`);
+    }
+  }
+
+  // Look up the first eligible part. The canonical adapter accepts
+  // bytes; we fetch the smallest part first for OCR to keep S3 traffic
+  // bounded. Documents are typically single-part; photos sometimes
+  // ship multi-page. Worker enumerates one at a time.
+  type Part = {
+    id: string;
+    storage_bucket: string | null;
+    storage_key: string | null;
+    mime_type: string | null;
+    size_bytes: bigint | number | null;
+  };
+  let parts: Part[] = [];
+  try {
+    parts = (await prisma.$queryRawUnsafe(
+      `SELECT p."id", p."storage_bucket", p."storage_key",
+              p."mime_type", p."size_bytes"
+         FROM "evidence_parts" p
+         JOIN "evidence" e ON e."id" = p."evidence_id"
+        WHERE e."team_id" = $1
+          AND e."id" = $2
+          AND (p."mime_type" ILIKE 'image/%' OR p."mime_type" = 'application/pdf')
+        ORDER BY p."size_bytes" ASC NULLS LAST
+        LIMIT 5`,
+      teamId,
+      evidenceId,
+    )) as Part[];
+  } catch (err) {
+    logger.warn(
+      { jobId, err: err instanceof Error ? err.message.slice(0, 200) : "unknown" },
+      "media_intelligence.extract_ocr_azure.lookup_failed",
+    );
+    if (runId) await markRunFailed(runId, teamId, "parts_lookup_failed", prisma);
+    await tryBump("media_intelligence_processor_failed_total");
+    return { ok: true, signalsEmitted: 0 };
+  }
+
+  if (parts.length === 0) {
+    if (runId) await markRunCompleted(runId, teamId, prisma);
+    await tryBump("media_intelligence_processor_completed_total");
+    return { ok: true, signalsEmitted: 0 };
+  }
+
+  // Lazy-import the api orchestrator + the unified extraction writer.
+  // We DO NOT import the raw analyzeDocumentLayout client directly —
+  // the orchestrator carries the budget + entitlement + policy gate
+  // chain that protects spend on the automatic path.
+  //
+  // Dynamic-import-with-`as any` matches the established cross-package
+  // pattern in archive-tier-auto-transition.worker.ts. The worker
+  // tsconfig.json deliberately excludes ../../api so the worker can
+  // build standalone; the call sites are runtime-only.
+  let runProviderOperation:
+    | ((input: unknown) => Promise<{
+        ok: true;
+        decision: string;
+        insertedRecords: number;
+        insertedEntities: number;
+        extractedText: string | null;
+      } | {
+        ok: false;
+        decision: string;
+        reason: string;
+      }>)
+    | null = null;
+  let runExtractionInline:
+    | ((input: unknown, client?: unknown) => Promise<unknown>)
+    | null = null;
+  try {
+    const mod = (await import(
+      "../../api/src/services/intelligence/media-intelligence.service.js"
+    )) as { runProviderOperation: typeof runProviderOperation };
+    runProviderOperation = mod.runProviderOperation;
+    const extr = (await import(
+      "../../api/src/services/intelligence/extraction.service.js"
+    )) as { runExtractionInline: typeof runExtractionInline };
+    runExtractionInline = extr.runExtractionInline;
+  } catch (err) {
+    logger.warn(
+      { jobId, err: err instanceof Error ? err.message.slice(0, 200) : "unknown" },
+      "media_intelligence.extract_ocr_azure.orchestrator_unavailable",
+    );
+    if (runId) await markRunFailed(runId, teamId, "orchestrator_unavailable", prisma);
+    await tryBump("media_intelligence_processor_failed_total");
+    return { ok: true, signalsEmitted: 0, deferred: true };
+  }
+  if (!runProviderOperation || !runExtractionInline) {
+    if (runId) await markRunFailed(runId, teamId, "orchestrator_unavailable", prisma);
+    return { ok: true, signalsEmitted: 0, deferred: true };
+  }
+
+  let totalInserted = 0;
+  let firstFailureReason: string | null = null;
+  for (const part of parts) {
+    if (!part.storage_bucket || !part.storage_key || !part.mime_type) continue;
+    const sizeBytes = Number(part.size_bytes ?? 0);
+    if (sizeBytes > 0 && sizeBytes > OCR_EXTRACTION_MAX_BYTES) {
+      logger.info(
+        { jobId, partId: part.id, sizeBytes, cap: OCR_EXTRACTION_MAX_BYTES },
+        "media_intelligence.extract_ocr_azure.part_too_large",
+      );
+      continue;
+    }
+    let bytes: Buffer | null = null;
+    try {
+      bytes = await getObjectRange({
+        bucket: part.storage_bucket,
+        key: part.storage_key,
+        range: `bytes=0-${OCR_EXTRACTION_MAX_BYTES - 1}`,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message.slice(0, 80) : "fetch_failed";
+      firstFailureReason ??= `fetch_failed:${msg}`;
+      logger.warn(
+        { jobId, partId: part.id, err: msg },
+        "media_intelligence.extract_ocr_azure.fetch_failed",
+      );
+      continue;
+    }
+    if (!bytes || bytes.byteLength === 0) continue;
+
+    let providerResult: Awaited<ReturnType<NonNullable<typeof runProviderOperation>>>;
+    try {
+      providerResult = await runProviderOperation({
+        teamId,
+        evidenceId,
+        provider: "AZURE_DOCUMENT_INTELLIGENCE",
+        operation:
+          part.mime_type === "application/pdf" ? "OCR_DOCUMENT" : "OCR_IMAGE",
+        byteSource: {
+          bytes: new Uint8Array(
+            bytes.buffer,
+            bytes.byteOffset,
+            bytes.byteLength,
+          ),
+          url: null,
+          contentType: part.mime_type,
+        },
+      });
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message.slice(0, 80) : "provider_failed";
+      firstFailureReason ??= `provider_failed:${msg}`;
+      logger.warn(
+        { jobId, partId: part.id, err: msg },
+        "media_intelligence.extract_ocr_azure.provider_failed",
+      );
+      continue;
+    }
+
+    if (!providerResult.ok) {
+      firstFailureReason ??= providerResult.reason ?? "provider_block";
+      logger.warn(
+        {
+          jobId,
+          partId: part.id,
+          decision: providerResult.decision,
+          reason: providerResult.reason,
+        },
+        "media_intelligence.extract_ocr_azure.provider_refused",
+      );
+      continue;
+    }
+    totalInserted += providerResult.insertedRecords;
+
+    // Mirror the extracted text into the unified EvidenceExtractedText
+    // table so downstream consumers see it. Best-effort — runProviderOperation
+    // already wrote MediaIntelligenceRecord rows. Bounded preview only.
+    const text = providerResult.extractedText ?? null;
+    if (text && text.length > 0) {
+      const previewLabel = text.slice(0, EXTRACTED_TEXT_PREVIEW_CHARS);
+      logger.info(
+        {
+          jobId,
+          partId: part.id,
+          chars: text.length,
+          previewLabel,
+        },
+        "media_intelligence.extract_ocr_azure.text_persisted",
+      );
+      try {
+        await runExtractionInline(
+          {
+            evidenceId,
+            teamId,
+            mimeType: part.mime_type,
+            kind:
+              part.mime_type === "application/pdf"
+                ? "OCR_PDF"
+                : "OCR_IMAGE",
+            jobKind: "OCR",
+          },
+          prisma,
+        );
+      } catch {
+        /* extraction service writer is itself best-effort */
+      }
+    }
+  }
+
+  // Enqueue downstream search-indexing + auto-chunker safety-net via the
+  // existing helper. NEVER throws.
+  try {
+    const { enqueueSearchIndexingJob } = await import("./queue.js");
+    await enqueueSearchIndexingJob({
+      teamId,
+      kind: "evidence",
+      sourceId: evidenceId,
+      reason: "ocr_extracted",
+    });
+  } catch {
+    /* best-effort */
+  }
+
+  if (runId) {
+    if (firstFailureReason && totalInserted === 0) {
+      await markRunFailed(
+        runId,
+        teamId,
+        firstFailureReason.slice(0, 240),
+        prisma,
+      );
+    } else {
+      await markRunCompleted(runId, teamId, prisma);
+    }
+  }
+  await tryBump(
+    totalInserted > 0
+      ? "media_intelligence_processor_completed_total"
+      : "media_intelligence_processor_failed_total",
+  );
+  logger.info(
+    {
+      jobId,
+      teamId,
+      evidenceId,
+      partsProcessed: parts.length,
+      recordsInserted: totalInserted,
+    },
+    "media_intelligence.extract_ocr_azure.job_completed",
+  );
+  return { ok: true, signalsEmitted: totalInserted };
+}
+
+// =============================================================================
+// Wave 4 — automatic transcript (Deepgram) producer branch
+// =============================================================================
+//
+// Mirror of processExtractOcrAzureJob for audio / video evidence. Same
+// hard rules. Routes through deepgramAdapter via runProviderOperation
+// so budget + entitlement + policy gates cover the automatic path.
+
+type ExtractTranscriptDeepgramInput = {
+  jobId: string | undefined;
+  teamId: string;
+  evidenceId: string;
+  runId: string | null;
+};
+
+// Wave 4 — bounded byte cap for transcripts. 50 MB matches the OCR
+// cap; Deepgram bills by audio minute, but the byte ceiling is a
+// belt-and-braces safeguard against pathological inputs.
+const TRANSCRIPT_EXTRACTION_MAX_BYTES = 50 * 1024 * 1024;
+
+async function processExtractTranscriptDeepgramJob(
+  input: ExtractTranscriptDeepgramInput,
+): Promise<{ ok: true; signalsEmitted: number; deferred?: boolean }> {
+  const { jobId, teamId, evidenceId, runId } = input;
+  await tryBump("media_intelligence_processor_started_total");
+
+  let markRunProcessing: typeof import("@proovra/shared-runtime/media-intelligence")["markRunProcessing"];
+  let markRunCompleted: typeof import("@proovra/shared-runtime/media-intelligence")["markRunCompleted"];
+  let markRunFailed: typeof import("@proovra/shared-runtime/media-intelligence")["markRunFailed"];
+  try {
+    ({ markRunProcessing, markRunCompleted, markRunFailed } = await import(
+      "@proovra/shared-runtime/media-intelligence"
+    ));
+  } catch (err) {
+    logger.error(
+      { jobId, err: err instanceof Error ? err.message : "unknown" },
+      "media_intelligence.extract_transcript_deepgram.import_failed",
+    );
+    throw err;
+  }
+
+  if (runId) {
+    const proc = await markRunProcessing(runId, teamId, prisma);
+    if (!proc.ok) {
+      if (proc.reason === "max_retries_exceeded") {
+        await tryBump("media_intelligence_dlq_total");
+        return { ok: true, signalsEmitted: 0 };
+      }
+      throw new Error(`run_tracker_unavailable: ${proc.reason}`);
+    }
+  }
+
+  type Part = {
+    id: string;
+    storage_bucket: string | null;
+    storage_key: string | null;
+    mime_type: string | null;
+    size_bytes: bigint | number | null;
+  };
+  let parts: Part[] = [];
+  try {
+    parts = (await prisma.$queryRawUnsafe(
+      `SELECT p."id", p."storage_bucket", p."storage_key",
+              p."mime_type", p."size_bytes"
+         FROM "evidence_parts" p
+         JOIN "evidence" e ON e."id" = p."evidence_id"
+        WHERE e."team_id" = $1
+          AND e."id" = $2
+          AND (p."mime_type" ILIKE 'audio/%' OR p."mime_type" ILIKE 'video/%')
+        ORDER BY p."size_bytes" ASC NULLS LAST
+        LIMIT 5`,
+      teamId,
+      evidenceId,
+    )) as Part[];
+  } catch (err) {
+    logger.warn(
+      { jobId, err: err instanceof Error ? err.message.slice(0, 200) : "unknown" },
+      "media_intelligence.extract_transcript_deepgram.lookup_failed",
+    );
+    if (runId) await markRunFailed(runId, teamId, "parts_lookup_failed", prisma);
+    await tryBump("media_intelligence_processor_failed_total");
+    return { ok: true, signalsEmitted: 0 };
+  }
+
+  if (parts.length === 0) {
+    if (runId) await markRunCompleted(runId, teamId, prisma);
+    await tryBump("media_intelligence_processor_completed_total");
+    return { ok: true, signalsEmitted: 0 };
+  }
+
+  let runProviderOperation:
+    | ((input: unknown) => Promise<{
+        ok: true;
+        decision: string;
+        insertedRecords: number;
+        insertedEntities: number;
+        extractedText: string | null;
+      } | {
+        ok: false;
+        decision: string;
+        reason: string;
+      }>)
+    | null = null;
+  let runExtractionInline:
+    | ((input: unknown, client?: unknown) => Promise<unknown>)
+    | null = null;
+  try {
+    const mod = (await import(
+      "../../api/src/services/intelligence/media-intelligence.service.js"
+    )) as { runProviderOperation: typeof runProviderOperation };
+    runProviderOperation = mod.runProviderOperation;
+    const extr = (await import(
+      "../../api/src/services/intelligence/extraction.service.js"
+    )) as { runExtractionInline: typeof runExtractionInline };
+    runExtractionInline = extr.runExtractionInline;
+  } catch (err) {
+    logger.warn(
+      { jobId, err: err instanceof Error ? err.message.slice(0, 200) : "unknown" },
+      "media_intelligence.extract_transcript_deepgram.orchestrator_unavailable",
+    );
+    if (runId) await markRunFailed(runId, teamId, "orchestrator_unavailable", prisma);
+    await tryBump("media_intelligence_processor_failed_total");
+    return { ok: true, signalsEmitted: 0, deferred: true };
+  }
+  if (!runProviderOperation || !runExtractionInline) {
+    if (runId) await markRunFailed(runId, teamId, "orchestrator_unavailable", prisma);
+    return { ok: true, signalsEmitted: 0, deferred: true };
+  }
+
+  let totalInserted = 0;
+  let firstFailureReason: string | null = null;
+  for (const part of parts) {
+    if (!part.storage_bucket || !part.storage_key || !part.mime_type) continue;
+    const sizeBytes = Number(part.size_bytes ?? 0);
+    if (sizeBytes > 0 && sizeBytes > TRANSCRIPT_EXTRACTION_MAX_BYTES) {
+      logger.info(
+        { jobId, partId: part.id, sizeBytes, cap: TRANSCRIPT_EXTRACTION_MAX_BYTES },
+        "media_intelligence.extract_transcript_deepgram.part_too_large",
+      );
+      continue;
+    }
+    let bytes: Buffer | null = null;
+    try {
+      bytes = await getObjectRange({
+        bucket: part.storage_bucket,
+        key: part.storage_key,
+        range: `bytes=0-${TRANSCRIPT_EXTRACTION_MAX_BYTES - 1}`,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message.slice(0, 80) : "fetch_failed";
+      firstFailureReason ??= `fetch_failed:${msg}`;
+      logger.warn(
+        { jobId, partId: part.id, err: msg },
+        "media_intelligence.extract_transcript_deepgram.fetch_failed",
+      );
+      continue;
+    }
+    if (!bytes || bytes.byteLength === 0) continue;
+
+    const isVideo = part.mime_type.toLowerCase().startsWith("video/");
+    let providerResult: Awaited<ReturnType<NonNullable<typeof runProviderOperation>>>;
+    try {
+      providerResult = await runProviderOperation({
+        teamId,
+        evidenceId,
+        provider: "DEEPGRAM_TRANSCRIPT",
+        operation: isVideo ? "TRANSCRIBE_VIDEO_AUDIO_TRACK" : "TRANSCRIBE_AUDIO",
+        byteSource: {
+          bytes: new Uint8Array(
+            bytes.buffer,
+            bytes.byteOffset,
+            bytes.byteLength,
+          ),
+          url: null,
+          contentType: part.mime_type,
+        },
+      });
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message.slice(0, 80) : "provider_failed";
+      firstFailureReason ??= `provider_failed:${msg}`;
+      logger.warn(
+        { jobId, partId: part.id, err: msg },
+        "media_intelligence.extract_transcript_deepgram.provider_failed",
+      );
+      continue;
+    }
+
+    if (!providerResult.ok) {
+      firstFailureReason ??= providerResult.reason ?? "provider_block";
+      logger.warn(
+        {
+          jobId,
+          partId: part.id,
+          decision: providerResult.decision,
+          reason: providerResult.reason,
+        },
+        "media_intelligence.extract_transcript_deepgram.provider_refused",
+      );
+      continue;
+    }
+    totalInserted += providerResult.insertedRecords;
+
+    const text = providerResult.extractedText ?? null;
+    if (text && text.length > 0) {
+      const previewLabel = text.slice(0, EXTRACTED_TEXT_PREVIEW_CHARS);
+      logger.info(
+        {
+          jobId,
+          partId: part.id,
+          chars: text.length,
+          previewLabel,
+        },
+        "media_intelligence.extract_transcript_deepgram.text_persisted",
+      );
+      try {
+        await runExtractionInline(
+          {
+            evidenceId,
+            teamId,
+            mimeType: part.mime_type,
+            kind: isVideo ? "TRANSCRIPT_VIDEO" : "TRANSCRIPT_AUDIO",
+            jobKind: "TRANSCRIPT",
+          },
+          prisma,
+        );
+      } catch {
+        /* best-effort */
+      }
+    }
+  }
+
+  try {
+    const { enqueueSearchIndexingJob } = await import("./queue.js");
+    await enqueueSearchIndexingJob({
+      teamId,
+      kind: "evidence",
+      sourceId: evidenceId,
+      reason: "transcript_extracted",
+    });
+  } catch {
+    /* best-effort */
+  }
+
+  if (runId) {
+    if (firstFailureReason && totalInserted === 0) {
+      await markRunFailed(
+        runId,
+        teamId,
+        firstFailureReason.slice(0, 240),
+        prisma,
+      );
+    } else {
+      await markRunCompleted(runId, teamId, prisma);
+    }
+  }
+  await tryBump(
+    totalInserted > 0
+      ? "media_intelligence_processor_completed_total"
+      : "media_intelligence_processor_failed_total",
+  );
+  logger.info(
+    {
+      jobId,
+      teamId,
+      evidenceId,
+      partsProcessed: parts.length,
+      recordsInserted: totalInserted,
+    },
+    "media_intelligence.extract_transcript_deepgram.job_completed",
+  );
+  return { ok: true, signalsEmitted: totalInserted };
 }

@@ -975,7 +975,12 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // E.2 — No new route file added during Phase 2 (route count stable)
 // =============================================================================
 
-const ROUTE_COUNT_PHASE_2_BASELINE = 89; // observed at Phase 2 close; matches `ls services/api/src/routes/` count.
+// Wave 1: bumped 89 → 91. Wave 1 added 2 legitimate new route files:
+//   - intelligence-capabilities.routes.ts
+//   - investigation-diagnostics.routes.ts
+// Both are net-new investigation-platform routes argued for in the
+// Wave 1 brief, not Phase 2 drift.
+const ROUTE_COUNT_PHASE_2_BASELINE = 91; // observed at Wave 1 close; matches `ls services/api/src/routes/` count.
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

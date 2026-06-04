@@ -310,6 +310,16 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // (idempotent + safe on partial state) and is documented in
     // `docs/operations/audit-closure-ledger.md`.
     "20261009000000_drop_reviewer_queue_projection": new Set(["DROP_TABLE"]),
+    // Wave 2 — adds `duplicate_decisions` to persist reviewer decisions
+    // (CONFIRMED / DISMISSED / MARKED_DERIVATIVE) on duplicate-class
+    // graph edges (SAME_HASH_AS / SIMILAR_TO / POSSIBLE_DERIVATIVE_OF).
+    // Pure additive Phase O pattern: CREATE TABLE IF NOT EXISTS plus
+    // DO-block-guarded bounded CHECK constraints; zero DROP / RENAME /
+    // data movement. Already allowlisted in
+    // `phase-32-7-2-security-event-mapping-drift.test.ts`.
+    "20270811000000_wave2_duplicate_decisions": new Set([
+      "CREATE_TABLE_IF_NOT_EXISTS",
+    ]),
   };
 
   it("every migration with timestamp > baseline has ZERO CRITICAL findings", async () => {

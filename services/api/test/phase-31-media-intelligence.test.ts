@@ -495,7 +495,9 @@ describe("Phase 31 — route source contract", () => {
     // Phase 31.13: GET derived-assets + POST derived-assets/run = 2 more.
     // Phase 31.14: GET derived-assets/:assetId/bytes = 1 more.
     // Phase 31.18: GET /v1/investigation/reviewers = 1 more (total 8).
-    expect(calls.length).toBe(8);
+    // Wave 2 Phase 6: POST /v1/investigation/media-intelligence/refresh
+    // adds one more authorizeOrFail call → total 9.
+    expect(calls.length).toBe(9);
     for (const c of calls) {
       expect(c).toMatch(/antiEnumeration:\s*true/);
     }
@@ -508,7 +510,9 @@ describe("Phase 31 — route source contract", () => {
     // Phase 31: POST run.
     // Phase 31.5: POST action.
     // Phase 31.13: POST derived-assets/run.
-    expect(updateMetaCalls.length).toBe(3);
+    // Wave 2 Phase 6: POST /v1/investigation/media-intelligence/refresh
+    // adds one more evidence.update_metadata permission → total 4.
+    expect(updateMetaCalls.length).toBe(4);
   });
 
   it("anti-enumeration: cross-team evidence returns 404 not_found", () => {

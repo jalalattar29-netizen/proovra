@@ -37,11 +37,110 @@ export type OperationalEmptyStateAction = {
   hint?: string;
 };
 
+/**
+ * Wave 2 Phase 4 — Empty-state truth classification.
+ *
+ * Every Investigation surface MUST render ONE of these 10 codes
+ * when its primary data set is empty. The classifier resolver in
+ * apps/web/lib/empty-state/classifier.ts is the SOLE truth-source
+ * that decides which code applies — pages MUST NOT hand-pick a code
+ * from inline logic.
+ */
+export type EmptyStateClassification =
+  | "TRUE_EMPTY"
+  | "PIPELINE_PENDING"
+  | "PIPELINE_FAILED"
+  | "WORKER_UNAVAILABLE"
+  | "CONFIG_DISABLED"
+  | "PERMISSION_RESTRICTED"
+  | "WRONG_SCOPE"
+  | "API_ERROR"
+  | "FEATURE_NOT_CONFIGURED"
+  | "CAPABILITY_UNAVAILABLE";
+
+/**
+ * Wave 2 Phase 4 — bounded next-action affordance shape.
+ *
+ * `href` and `onClick` are mutually optional. When both are absent
+ * the affordance is rendered as a plain label (no interactive
+ * surface) so the operator still sees what the action would be.
+ */
+export type EmptyStateActionAffordance = {
+  label: string;
+  href?: string;
+  onClick?: () => void;
+};
+
+/**
+ * Wave 2 Phase 4 — classifier-driven empty-state copy.
+ *
+ * Each entry MUST be rendered verbatim. Pages MUST NEVER reinvent
+ * the prose — the resolver picks an entry and the primitive renders
+ * the canonical kicker + title for that code.
+ */
+export const CLASSIFICATION_COPY: Readonly<
+  Record<
+    EmptyStateClassification,
+    { kicker: string; title: string; variant: OperationalEmptyStateVariant }
+  >
+> = Object.freeze({
+  TRUE_EMPTY: {
+    kicker: "No data yet",
+    title: "Nothing has been recorded here yet.",
+    variant: "neutral",
+  },
+  PIPELINE_PENDING: {
+    kicker: "Pipeline pending",
+    title: "Background work is in flight — results will appear shortly.",
+    variant: "neutral",
+  },
+  PIPELINE_FAILED: {
+    kicker: "Pipeline failed",
+    title: "A recent background job failed and no fresh results are available.",
+    variant: "degraded",
+  },
+  WORKER_UNAVAILABLE: {
+    kicker: "Worker unavailable",
+    title: "The processing worker for this surface is offline.",
+    variant: "degraded",
+  },
+  CONFIG_DISABLED: {
+    kicker: "Disabled by configuration",
+    title: "This capability is turned off for this workspace.",
+    variant: "neutral",
+  },
+  PERMISSION_RESTRICTED: {
+    kicker: "Permission restricted",
+    title: "Your role does not include access to this data scope.",
+    variant: "neutral",
+  },
+  WRONG_SCOPE: {
+    kicker: "Wrong scope",
+    title: "This page expects a different workspace or record context.",
+    variant: "neutral",
+  },
+  API_ERROR: {
+    kicker: "API error",
+    title: "The backend service could not be reached for this surface.",
+    variant: "unknown",
+  },
+  FEATURE_NOT_CONFIGURED: {
+    kicker: "Feature not configured",
+    title: "No provider is bound to this capability yet.",
+    variant: "neutral",
+  },
+  CAPABILITY_UNAVAILABLE: {
+    kicker: "Capability unavailable",
+    title: "The capability backing this surface is not wired yet.",
+    variant: "neutral",
+  },
+});
+
 export type OperationalEmptyStateProps = {
   /** Short kicker — what the page is about. */
-  kicker: string;
+  kicker?: string;
   /** One-line headline. */
-  title: string;
+  title?: string;
   /** Operator-readable explanation of why this is empty. */
   reason: string;
   /** What system must run for data to appear (optional). */
@@ -51,7 +150,32 @@ export type OperationalEmptyStateProps = {
   /** Severity. Default "neutral". */
   variant?: OperationalEmptyStateVariant;
   /** Stable code used by metrics + telemetry (e.g. "no_escalations"). */
-  emptyStateCode: string;
+  emptyStateCode?: string;
+  // ---------------------------------------------------------------------------
+  // Wave 2 Phase 4 — classifier-driven props. ADDITIVE — every legacy caller
+  // continues to work because `classification` is optional.
+  // ---------------------------------------------------------------------------
+  /**
+   * One of the 10 canonical empty-state classifications. When set, the
+   * primitive looks up CLASSIFICATION_COPY for the kicker + title and
+   * uses the classifier-resolved reason verbatim.
+   */
+  classification?: EmptyStateClassification;
+  /** Primary operator-facing affordance (always rendered if present). */
+  nextAction?: EmptyStateActionAffordance;
+  /**
+   * Admin-only affordance. Rendered only when isAdmin === true so a
+   * regular reviewer sees the operator-facing next action but is not
+   * confused by an unreachable admin link.
+   */
+  adminAction?: EmptyStateActionAffordance;
+  /**
+   * Deep-link into /v1/investigation/diagnostics (or a UI surface
+   * backed by it). Rendered only when isAdmin === true.
+   */
+  diagnosticsLink?: string;
+  /** True when the current operator has admin/diagnostics access. */
+  isAdmin?: boolean;
 };
 
 function toneFor(variant: OperationalEmptyStateVariant) {
@@ -60,21 +184,40 @@ function toneFor(variant: OperationalEmptyStateVariant) {
   return OPS_TONES.neutral;
 }
 
-export function OperationalEmptyState({
-  kicker,
-  title,
-  reason,
-  runtimeDependency,
-  actions,
-  variant = "neutral",
-  emptyStateCode,
-}: OperationalEmptyStateProps) {
+export function OperationalEmptyState(props: OperationalEmptyStateProps) {
+  // Wave 2 Phase 4 — classification-driven path. When `classification`
+  // is supplied, the primitive resolves the kicker/title/variant from
+  // CLASSIFICATION_COPY so the page can never invent off-vocabulary
+  // prose. Explicit props still win (legacy callers, custom presets).
+  const copy = props.classification
+    ? CLASSIFICATION_COPY[props.classification]
+    : null;
+  const kicker = props.kicker ?? copy?.kicker ?? "Status";
+  const title = props.title ?? copy?.title ?? "No data.";
+  const variant = props.variant ?? copy?.variant ?? "neutral";
+  const reason = props.reason;
+  const runtimeDependency = props.runtimeDependency;
+  const actions = props.actions;
+  const emptyStateCode =
+    props.emptyStateCode ??
+    (props.classification ? props.classification.toLowerCase() : undefined);
+  const nextAction = props.nextAction;
+  const adminAction = props.adminAction;
+  const diagnosticsLink = props.diagnosticsLink;
+  const isAdmin = Boolean(props.isAdmin);
   const tone = toneFor(variant);
+  // The 4 required surfaces from the brief:
+  //   1. actual reason          → `reason` prop, rendered as the body.
+  //   2. plain-language title   → `title` (from CLASSIFICATION_COPY).
+  //   3. next action            → `nextAction` (always rendered if set).
+  //   4. admin action + diag    → `adminAction` + `diagnosticsLink`
+  //                               (rendered ONLY when isAdmin === true).
   return (
     <div
       role="status"
       data-empty-state-code={emptyStateCode}
       data-empty-state-variant={variant}
+      data-empty-state-classification={props.classification ?? undefined}
       style={{
         border: `1px solid ${tone.border}`,
         background: tone.bg,
@@ -112,6 +255,7 @@ export function OperationalEmptyState({
           color: tone.inkMuted,
           lineHeight: 1.5,
         }}
+        data-empty-state-reason
       >
         {reason}
       </div>
@@ -161,7 +305,95 @@ export function OperationalEmptyState({
           ))}
         </div>
       ) : null}
+      {nextAction ? (
+        <EmptyStateActionButton
+          affordance={nextAction}
+          tone={tone}
+          dataAttr="data-empty-state-next-action"
+          primary
+        />
+      ) : null}
+      {isAdmin && adminAction ? (
+        <EmptyStateActionButton
+          affordance={adminAction}
+          tone={tone}
+          dataAttr="data-empty-state-admin-action"
+        />
+      ) : null}
+      {isAdmin && diagnosticsLink ? (
+        <Link
+          href={diagnosticsLink}
+          data-empty-state-diagnostics-link
+          style={{
+            fontSize: 12,
+            color: tone.link,
+            textDecoration: "underline",
+            textUnderlineOffset: 3,
+            fontWeight: 600,
+          }}
+        >
+          → Open diagnostics
+        </Link>
+      ) : null}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Wave 2 Phase 4 — bounded affordance renderer. Renders as a Link when
+// `href` is set, a button when `onClick` is set, or a plain label
+// otherwise. Never throws if both are absent.
+// ---------------------------------------------------------------------------
+
+function EmptyStateActionButton({
+  affordance,
+  tone,
+  dataAttr,
+  primary = false,
+}: {
+  affordance: EmptyStateActionAffordance;
+  tone: ReturnType<typeof toneFor>;
+  dataAttr: string;
+  primary?: boolean;
+}) {
+  const baseStyle: React.CSSProperties = {
+    fontSize: 13,
+    fontWeight: 600,
+    color: primary ? tone.ink : tone.link,
+    textDecoration: primary ? "none" : "underline",
+    textUnderlineOffset: 3,
+    background: primary ? tone.bg : "transparent",
+    border: primary ? `1px solid ${tone.border}` : "none",
+    borderRadius: primary ? 6 : 0,
+    padding: primary ? "5px 12px" : 0,
+    cursor: affordance.onClick || affordance.href ? "pointer" : "default",
+    alignSelf: "flex-start",
+  };
+  const attrs: Record<string, string> = {};
+  attrs[dataAttr] = "true";
+  if (affordance.href) {
+    return (
+      <Link href={affordance.href} style={baseStyle} {...attrs}>
+        → {affordance.label}
+      </Link>
+    );
+  }
+  if (affordance.onClick) {
+    return (
+      <button
+        type="button"
+        onClick={affordance.onClick}
+        style={baseStyle}
+        {...attrs}
+      >
+        → {affordance.label}
+      </button>
+    );
+  }
+  return (
+    <span style={baseStyle} {...attrs}>
+      {affordance.label}
+    </span>
   );
 }
 

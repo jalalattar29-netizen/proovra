@@ -416,6 +416,17 @@ describe("Phase 31.12 — /investigation dashboard page", () => {
       // backend route). Pinned by
       // `phase-12-investigation-productization.test.ts`.
       "/v1/investigation/reviewers",
+      // Wave 2 endpoint: Phase 6 added a workspace-wide
+      // media-intelligence refresh button driven by handleRefresh().
+      "/v1/investigation/media-intelligence/refresh",
+      // Wave 2 endpoint: Phase 6 per-signal ack/dismiss handler
+      // posts to the canonical media-intelligence signal action route.
+      "/v1/media-intelligence/signals/",
+      // Wave 2 endpoint: Phase 13 cross-evidence findings client
+      // (apps/web/lib/api/intelligence.ts:getCrossEvidenceFindings)
+      // is invoked from this page; the underlying apiFetch path is
+      // /v1/intelligence/cross-evidence.
+      "/v1/intelligence/cross-evidence",
     ];
     for (const call of apiFetchCalls) {
       const path = call.match(/[`"]([^`"]+)[`"]/)?.[1] ?? "";
@@ -486,19 +497,80 @@ describe("Phase 31.12 — /investigation dashboard page", () => {
   });
 
   it("empty states present for both signal list AND graph activity list (with next-action guidance)", () => {
-    // Investigation-suite audit evolution: the previous copy ("No open
-    // advisory observations…Run the analyzer") was rewritten to
-    // operator-readable empty states with CTA links. The original
-    // requirement is preserved — both lists still render a bounded
-    // empty state with a next-action hint — but the exact wording now
-    // surfaces "No analyses recorded yet" + Capture/Cases CTAs (signal
-    // list) and "No graph activity yet" + same CTAs (graph list). The
-    // canonical pin lives in `investigation-suite-audit.test.ts`.
+    // Wave 2 classifier swap: Phase 4 replaced inline empty-state
+    // copy ("No analyses recorded yet" / "No graph activity yet") with
+    // the canonical classifier-driven OperationalEmptyState primitive.
+    // The requirement is preserved — both lists STILL render a bounded
+    // empty state with a next-action affordance — but the prose now
+    // lives in CLASSIFICATION_COPY (see assertion further below) and
+    // the page only orchestrates the classifier resolution + the
+    // nextAction object literal. The semantic intent ("empty states
+    // present for both lists, with next-action guidance") is enforced
+    // here by:
+    //   1. The page MUST invoke classifyInvestigationEmptyState for
+    //      BOTH the recent-signals list ("overview" domain) and the
+    //      recent-graph-activity list ("graph" domain).
+    //   2. The page MUST attach an OperationalEmptyState with a
+    //      nextAction object literal carrying "Capture evidence" so
+    //      the operator still sees a next-action hint.
+    //   3. The page MUST render OperationalEmptyState (the canonical
+    //      empty-state primitive) instead of inline JSX <p> fallbacks.
     const flat = src.replace(/\s+/g, " ");
+    // (1) Both classifier invocations present, with correct domain
+    //     hints (overview = signals list, graph = graph activity).
+    //     Allow an optional trailing comma between the domain
+    //     literal and the closing paren (Prettier may emit one).
     expect(flat).toMatch(
-      /No (?:open advisory observations|analyses recorded)[\s\S]*?(?:Run the[\s\S]*?analyzer|Capture)/,
+      /classifyInvestigationEmptyState\([\s\S]*?,\s*"overview"\s*,?\s*\)/,
     );
-    expect(flat).toMatch(/No graph (?:activity|yet)[\s\S]*?(?:Graph reconcile runs|Capture)/);
+    expect(flat).toMatch(
+      /classifyInvestigationEmptyState\([\s\S]*?,\s*"graph"\s*,?\s*\)/,
+    );
+    // (2) The page wires nextAction with "Capture evidence" so the
+    //     operator still has next-action guidance.
+    expect(flat).toMatch(
+      /nextAction=\{\s*\{\s*label:\s*"Capture evidence"\s*,\s*href:\s*"\/capture"\s*\}\s*\}/,
+    );
+    // (3) The canonical empty-state primitive is mounted (not an
+    //     inline <p> fallback) for both lists.
+    const operationalEmptyStateMounts =
+      (flat.match(/<OperationalEmptyState\b/g) ?? []).length;
+    expect(operationalEmptyStateMounts).toBeGreaterThanOrEqual(2);
+  });
+
+  it("canonical empty-state copy lives in OperationalEmptyState (classifier-driven)", () => {
+    // Wave 2 classifier swap: Phase 4 moved the per-list empty-state
+    // prose ("No analyses recorded yet" / "No graph activity yet")
+    // out of the dashboard page and into CLASSIFICATION_COPY on the
+    // canonical OperationalEmptyState primitive. The canonical prose
+    // is bounded — every Investigation surface MUST pick a code from
+    // the 10-classification union, and the primitive renders the
+    // matching kicker + title verbatim. This pin enforces that the
+    // CLASSIFICATION_COPY map still defines the keys the classifier
+    // resolves to for empty signal/graph lists (TRUE_EMPTY, the
+    // catch-all when no error / no pending pipeline is detected) so
+    // the operator still sees an empty-state explanation rather than
+    // a dead surface.
+    const operationalSrc = readSource(
+      "../../../apps/web/components/operational/OperationalEmptyState.tsx",
+    );
+    // The CLASSIFICATION_COPY map MUST be exported.
+    expect(operationalSrc).toMatch(
+      /export const CLASSIFICATION_COPY\s*[:=]/,
+    );
+    // TRUE_EMPTY is the catch-all classification for empty data with
+    // no pipeline activity (see classifier Rule 9). The map MUST
+    // define a kicker + title for it so the page renders meaningful
+    // empty-state prose instead of a blank surface.
+    expect(operationalSrc).toMatch(
+      /TRUE_EMPTY:\s*\{[\s\S]*?kicker:\s*"[^"]+"[\s\S]*?title:\s*"[^"]+"/,
+    );
+    // The PIPELINE_PENDING entry covers the case where graph
+    // reconcile / media-intelligence work is queued — the equivalent
+    // of the legacy "Graph reconcile runs…" hint.
+    expect(operationalSrc).toMatch(
+      /PIPELINE_PENDING:\s*\{[\s\S]*?kicker:\s*"[^"]+"[\s\S]*?title:\s*"[^"]+"/,
+    );
   });
 
   it("pivots to existing surfaces (no dead-end dashboard)", () => {

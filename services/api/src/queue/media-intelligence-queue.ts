@@ -70,6 +70,19 @@ export const MEDIA_INTELLIGENCE_JOB_KINDS = [
   "extract_assets",
   "compute_duplicates",
   "compute_lineage",
+  // Wave 2 — perceptual-hash producer for image / video evidence.
+  // The worker branch has existed since Phase 12; Wave 2 wires the
+  // producer from the evidence finalization fanout so SIMILAR_TO /
+  // POSSIBLE_DERIVATIVE_OF edges can actually populate on real data.
+  "compute_perceptual_hashes",
+  // Wave 4 — automatic OCR (Azure Document Intelligence) producer for
+  // PDF / image evidence. The worker calls the canonical azure adapter
+  // via runProviderOperation so the automatic path inherits the same
+  // budget + entitlement + policy gate chain as the manual route.
+  "extract_ocr_azure",
+  // Wave 4 — automatic transcript (Deepgram) producer for audio /
+  // video evidence. Same adapter-routed contract as extract_ocr_azure.
+  "extract_transcript_deepgram",
   "wire_ocr_transcript",
   "reindex",
   "reconcile",

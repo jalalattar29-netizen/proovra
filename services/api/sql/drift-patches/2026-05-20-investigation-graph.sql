@@ -64,22 +64,50 @@ CREATE TABLE IF NOT EXISTS "investigation_graph_nodes" (
       'EVIDENCE',
       'CASE',
       'INCIDENT',
+      -- Wave 1 taxonomy: REVIEW_WORKFLOW is the canonical name.
+      'REVIEW_WORKFLOW',
+      -- Phase Wave1 taxonomy: 'REVIEW_TASK' kept as deprecated alias for
+      -- backward compatibility — remove in next major release.
       'REVIEW_TASK',
+      -- Wave 1 taxonomy: REVIEW_ESCALATION is the canonical name.
+      'REVIEW_ESCALATION',
+      -- Phase Wave1 taxonomy: 'ESCALATION' kept as deprecated alias for
+      -- backward compatibility — remove in next major release.
       'ESCALATION',
       'LEGAL_HOLD',
       'EXPORT',
       'REPORT',
       'VERIFICATION_PACKAGE',
+      -- Wave 1 taxonomy: MEDIA_INTELLIGENCE_SIGNAL is the canonical name.
+      'MEDIA_INTELLIGENCE_SIGNAL',
+      -- Phase Wave1 taxonomy: 'MEDIA_SIGNAL' kept as deprecated alias for
+      -- backward compatibility — remove in next major release.
       'MEDIA_SIGNAL',
       'OCR',
       'TRANSCRIPT',
+      -- Wave 1 taxonomy: EXTERNAL_REVIEWER_GRANT is the canonical name.
+      'EXTERNAL_REVIEWER_GRANT',
+      -- Phase Wave1 taxonomy: 'EXTERNAL_REVIEW' kept as deprecated alias for
+      -- backward compatibility — remove in next major release.
       'EXTERNAL_REVIEW',
       'USER_CREATED_ENTITY',
-      -- Phase 13 — extracted-entity node. One node per persisted
-      -- evidence_entities row; external_id == evidence_entities.id.
-      -- Mirrors the GRAPH_NODE_KINDS catalog widening in
-      -- packages/shared-runtime/src/graph/graph-catalog.ts.
-      'ENTITY'
+      -- Wave 1 taxonomy: EXTRACTED_ENTITY is the canonical name.
+      -- Phase 13 — one node per persisted evidence_entities row;
+      -- external_id == evidence_entities.id.
+      'EXTRACTED_ENTITY',
+      -- Phase Wave1 taxonomy: 'ENTITY' kept as deprecated alias for
+      -- backward compatibility — remove in next major release.
+      'ENTITY',
+      -- DEFERRED — no producer in this wave (per-evidence-part provenance).
+      'EVIDENCE_PART',
+      -- DEFERRED — no producer in this wave (bounded-projection design needed).
+      'CASE_EVIDENCE_LINK',
+      -- DEFERRED — no producer in this wave (reviewer_decision rows exist).
+      'REVIEW_DECISION',
+      -- DEFERRED — no producer in this wave (media_intelligence_records exist).
+      'MEDIA_INTELLIGENCE_RECORD',
+      -- DEFERRED — no producer in this wave (custody-events stream exists).
+      'CUSTODY_EVENT'
     )),
   CONSTRAINT "investigation_graph_nodes_visibility_bounded"
     CHECK ("visibility_scope" IN (
@@ -139,11 +167,16 @@ CREATE TABLE IF NOT EXISTS "investigation_graph_edges" (
       'HAS_TRANSCRIPT',
       'HAS_OCR',
       'MANUALLY_LINKED_TO',
-      -- Phase 13 — ENTITY → EVIDENCE edge: this entity was extracted
-      -- from that evidence record by the entity-extraction service.
-      -- Mirrors the GRAPH_EDGE_TYPES catalog widening in
-      -- packages/shared-runtime/src/graph/graph-catalog.ts.
-      'EXTRACTED_FROM'
+      -- Phase 13 — ENTITY → EVIDENCE (also serves EXTRACTED_ENTITY → EVIDENCE).
+      'EXTRACTED_FROM',
+      -- DEFERRED — no producer in this wave (EVIDENCE → EVIDENCE_PART).
+      'HAS_PART',
+      -- DEFERRED — no producer in this wave (REVIEW_WORKFLOW → REVIEW_DECISION).
+      'HAS_REVIEW_DECISION',
+      -- DEFERRED — no producer in this wave (EVIDENCE → MEDIA_INTELLIGENCE_RECORD).
+      'HAS_MEDIA_RECORD',
+      -- DEFERRED — no producer in this wave (EVIDENCE → CUSTODY_EVENT).
+      'HAS_CUSTODY_EVENT'
     )),
   CONSTRAINT "investigation_graph_edges_source_kind_bounded"
     CHECK ("source_kind" IN ('SYSTEM', 'MANUAL')),

@@ -126,12 +126,15 @@ describe("Phase 31.18 — EXTERNAL_REVIEW graph domain", () => {
     expect(slice).not.toMatch(/"invited_by_user_id"/);
   });
 
-  it("upserts EXTERNAL_REVIEW node kind with WORKSPACE_INTERNAL visibility", () => {
+  // Wave 1 taxonomy: EXTERNAL_REVIEW → EXTERNAL_REVIEWER_GRANT rename.
+  // Producers now emit the canonical EXTERNAL_REVIEWER_GRANT kind;
+  // EXTERNAL_REVIEW remains a deprecated alias in the catalog + CHECK.
+  it("upserts EXTERNAL_REVIEWER_GRANT node kind with WORKSPACE_INTERNAL visibility", () => {
     const idx = RECONCILER_SRC.indexOf(
       "Phase 31.18 — EXTERNAL_REVIEW domain reconciliation",
     );
     const slice = RECONCILER_SRC.slice(idx, idx + 4000);
-    expect(slice).toMatch(/upsertNode\s*\([\s\S]*?"EXTERNAL_REVIEW"[\s\S]*?"WORKSPACE_INTERNAL"/);
+    expect(slice).toMatch(/upsertNode\s*\([\s\S]*?"EXTERNAL_REVIEWER_GRANT"[\s\S]*?"WORKSPACE_INTERNAL"/);
   });
 
   it("emits REVIEWED_BY edges from the correct scope-target node kind", () => {
@@ -159,7 +162,12 @@ describe("Phase 31.18 — EXTERNAL_REVIEW graph domain", () => {
     const idxEnd = RECONCILER_SRC.indexOf("// 2. Materialize MEDIA_SIGNAL", idx);
     const slice = RECONCILER_SRC.slice(idx, idxEnd);
     expect(slice).toMatch(/UPDATE "investigation_graph_nodes" n/);
-    expect(slice).toMatch(/"node_kind" = 'EXTERNAL_REVIEW'/);
+    // Wave 1 taxonomy: stale sweep now uses an IN-list covering both
+    // canonical EXTERNAL_REVIEWER_GRANT and deprecated EXTERNAL_REVIEW
+    // alias so legacy rows continue to tombstone cleanly.
+    expect(slice).toMatch(
+      /"node_kind" IN \('EXTERNAL_REVIEWER_GRANT', 'EXTERNAL_REVIEW'\)/,
+    );
     expect(slice).toMatch(/NOT EXISTS/);
     // The outer UPDATE binds team_id and the sub-select binds it too.
     const teamBindCount = (slice.match(/"team_id" = \$1/g) ?? []).length;
@@ -207,7 +215,13 @@ describe("Phase 31.18 — per-kind stale-sweep hardening", () => {
     const idxEnd = RECONCILER_SRC.indexOf("// 3. Build SAME_HASH_AS", idx);
     expect(idxEnd).toBeGreaterThan(idx);
     const slice = RECONCILER_SRC.slice(idx, idxEnd);
-    expect(slice).toMatch(/"node_kind" = 'MEDIA_SIGNAL'/);
+    // Wave 1 taxonomy: MEDIA_SIGNAL → MEDIA_INTELLIGENCE_SIGNAL rename.
+    // The sweep now uses an IN-list covering canonical
+    // MEDIA_INTELLIGENCE_SIGNAL and deprecated MEDIA_SIGNAL alias.
+    // OCR + TRANSCRIPT sweeps unchanged (no rename for those kinds).
+    expect(slice).toMatch(
+      /"node_kind" IN \('MEDIA_INTELLIGENCE_SIGNAL', 'MEDIA_SIGNAL'\)/,
+    );
     expect(slice).toMatch(/"node_kind" = 'OCR'/);
     expect(slice).toMatch(/"node_kind" = 'TRANSCRIPT'/);
   });
@@ -485,11 +499,16 @@ describe("Phase 31.18 — Duplicate Review UI source contract", () => {
     const calls = DUPLICATES_PAGE.match(/apiFetch\(\s*[`"][^`"]+/g) ?? [];
     expect(calls.length).toBeGreaterThan(0);
     for (const c of calls) {
-      // Allow /v1/users/me, /v1/graph/duplicates, template strings
-      // constructing the latter.
+      // Allow /v1/users/me, /v1/graph/duplicates (read), the Wave 2 export
+      // (/v1/graph/duplicates/export) + per-edge decision endpoint
+      // (/v1/graph/duplicates/:edgeId/decision), and the
+      // /v1/intelligence/capabilities producer-mode resolver consumed
+      // for honest empty-state copy. Template strings constructing
+      // those paths are also accepted.
       const ok =
         c.includes("/v1/users/me") ||
-        c.includes("/v1/graph/duplicates");
+        c.includes("/v1/graph/duplicates") ||
+        c.includes("/v1/intelligence/capabilities");
       expect(ok).toBe(true);
     }
   });
@@ -528,8 +547,15 @@ describe("Phase 31.18 — Graph Navigation Explorer UI source contract", () => {
     const calls = GRAPH_NAV_PAGE.match(/apiFetch\(\s*[`"][^`"]+/g) ?? [];
     expect(calls.length).toBeGreaterThan(0);
     for (const c of calls) {
+      // Wave 2 Phase 6 — graph navigation now drives two bounded
+      // mutation endpoints in addition to the seeds read:
+      //   * POST /v1/graph/reconcile  (operator-triggered refresh)
+      //   * POST /v1/graph/export     (workspace-wide JSON snapshot)
       const ok =
-        c.includes("/v1/users/me") || c.includes("/v1/graph/seeds");
+        c.includes("/v1/users/me") ||
+        c.includes("/v1/graph/seeds") ||
+        c.includes("/v1/graph/reconcile") ||
+        c.includes("/v1/graph/export");
       expect(ok).toBe(true);
     }
   });

@@ -24,8 +24,13 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
-import { useTeamId } from "../../../../lib/platform-context";
+import { useCan, useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
+import {
+  classifyInvestigationEmptyState,
+  type ProducerModeStatusLike,
+} from "../../../../lib/empty-state/classifier";
 type DuplicateEdgeKind =
   | "SAME_HASH_AS"
   | "SIMILAR_TO"
@@ -44,6 +49,28 @@ type DuplicateEdge = {
 type DuplicatesResponse = {
   edges: DuplicateEdge[];
   truncated: boolean;
+};
+
+// Wave 2 — mirrors `ProducerKind` + `ProducerModeStatus` from
+// packages/shared-runtime/src/media-intelligence/producer-mode.ts.
+// We bind only the 5 fields the duplicates page renders to avoid
+// importing the shared-runtime type into the web bundle.
+type ProducerKind =
+  | "ocr"
+  | "transcript"
+  | "perceptual_similarity"
+  | "derivative_detection"
+  | "semantic_search";
+
+type ProducerModeStatus = {
+  kind: ProducerKind;
+  mode: string;
+  enabled: boolean;
+  reason: string;
+};
+
+type CapabilitiesResponse = {
+  producerModes: ProducerModeStatus[];
 };
 
 const FILTER_OPTIONS: Array<{ value: DuplicateEdgeKind | "ALL"; label: string }> = [
@@ -71,6 +98,8 @@ export default function DuplicatesReviewPage() {
 
 function DuplicatesReviewPageInner() {
   const teamId = useTeamId();
+  // Wave 2 Phase 4 — diagnostics + admin-action gate.
+  const canDiagnostics = useCan("OBSERVABILITY_VIEW");
   const [anchorEvidenceId, setAnchorEvidenceId] = useState<string | null>(null);
   const [edges, setEdges] = useState<DuplicateEdge[] | null>(null);
   const [truncated, setTruncated] = useState(false);
@@ -79,7 +108,23 @@ function DuplicatesReviewPageInner() {
     "ALL",
   );
   const [error, setError] = useState<string | null>(null);
+  // Wave 2 Phase 4 — capture the underlying fetch error so the classifier
+  // can resolve API_ERROR with a bounded reason.
+  const [fetchError, setFetchError] = useState<Error | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
+  // Wave 2 — producer-mode truth resolver (5-kind ProducerModeStatus array).
+  // Drives honest empty-state copy for SIMILAR_TO + POSSIBLE_DERIVATIVE_OF
+  // sections when those producers aren't wired on the workspace.
+  const [producerModes, setProducerModes] = useState<ProducerModeStatus[] | null>(
+    null,
+  );
+  // Wave 2 — per-edge action busy state. Keyed by edgeId; value is the
+  // action string (CONFIRMED / DISMISSED / MARKED_DERIVATIVE) currently
+  // in flight. Best-effort UI hint — never persisted.
+  const [actionBusy, setActionBusy] = useState<Record<string, string>>({});
+  // Wave 2 Phase 6 — export action state.
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Parse evidenceId anchor from URL.
   useEffect(() => {
@@ -90,7 +135,7 @@ function DuplicatesReviewPageInner() {
   }, []);
 
   // Workspace resolution.
-  
+
 // Bounded poll.
   useEffect(() => {
     if (!teamId) return;
@@ -110,8 +155,14 @@ function DuplicatesReviewPageInner() {
         setTruncated(Boolean(res.truncated));
         setLastFetchAt(Date.now());
         setError(null);
-      } catch {
-        if (!cancelled) setError("duplicates_unavailable");
+        setFetchError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError("duplicates_unavailable");
+          setFetchError(
+            err instanceof Error ? err : new Error("duplicates_unavailable"),
+          );
+        }
       }
     };
 
@@ -125,6 +176,109 @@ function DuplicatesReviewPageInner() {
       if (timer) clearInterval(timer);
     };
   }, [teamId, anchorEvidenceId]);
+
+  // Wave 2 — load /v1/intelligence/capabilities once per team. The
+  // resolver output drives the per-section empty-state copy so the page
+  // never invents its own disclaimer language.
+  useEffect(() => {
+    if (!teamId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = (await apiFetch(
+          `/v1/intelligence/capabilities?teamId=${encodeURIComponent(teamId)}`,
+          { method: "GET" },
+        )) as CapabilitiesResponse;
+        if (cancelled) return;
+        setProducerModes(Array.isArray(res?.producerModes) ? res.producerModes : []);
+      } catch {
+        if (!cancelled) setProducerModes([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [teamId]);
+
+  // Wave 2 — record a reviewer decision on a duplicate-class edge.
+  // Best-effort; UI surfaces a bounded error without leaking the
+  // server message. On success the local edges list is unchanged
+  // (the decision is recorded out-of-band; the next poll cycle will
+  // surface any reconcile-time edge tombstoning).
+  const recordDecision = async (
+    edge: DuplicateEdge,
+    decision: "CONFIRMED" | "DISMISSED" | "MARKED_DERIVATIVE",
+  ) => {
+    if (!teamId) return;
+    setActionBusy((m) => ({ ...m, [edge.edgeId]: decision }));
+    try {
+      await apiFetch(
+        `/v1/graph/duplicates/${encodeURIComponent(edge.edgeId)}/decision`,
+        {
+          method: "POST",
+          body: JSON.stringify({ teamId, decision }),
+        },
+      );
+    } catch {
+      /* best-effort UI; the next poll cycle will reconcile state */
+    } finally {
+      setActionBusy((m) => {
+        const next = { ...m };
+        delete next[edge.edgeId];
+        return next;
+      });
+    }
+  };
+
+  // Wave 2 Phase 6 — duplicate findings export. Downloads JSON.
+  const handleExport = async () => {
+    if (!teamId || exportBusy) return;
+    setExportBusy(true);
+    setExportError(null);
+    try {
+      const res = (await apiFetch("/v1/graph/duplicates/export", {
+        method: "POST",
+        body: JSON.stringify({
+          teamId,
+          ...(anchorEvidenceId ? { evidenceId: anchorEvidenceId } : {}),
+        }),
+        headers: { "Content-Type": "application/json" },
+      })) as { edges: unknown[]; generatedAtUtc: string };
+      if (typeof window !== "undefined") {
+        const blob = new Blob([JSON.stringify(res, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `duplicate-findings-${res.generatedAtUtc.slice(0, 10)}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      setExportError(
+        /403|forbidden/i.test(msg)
+          ? "You do not have permission to export findings."
+          : "Unable to generate export. Try again.",
+      );
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
+  // Wave 2 — "Mark related" pivots through the existing manual
+  // relationships endpoint with edge_type=MANUALLY_LINKED_TO. The
+  // duplicates page doesn't expose graph node ids directly — operators
+  // who want to assert a manual link should open the relationships
+  // page (deep-linked below). This helper is a no-op stub kept for
+  // forward-compat with the in-row pivot row.
+  const markRelatedHref = (edge: DuplicateEdge): string =>
+    `/investigation/relationships?nodeId=${encodeURIComponent(
+      edge.sourceEvidenceId,
+    )}&edgeId=${encodeURIComponent(edge.edgeId)}`;
 
   const filtered = useMemo(() => {
     if (!edges) return null;
@@ -241,40 +395,192 @@ function DuplicatesReviewPageInner() {
             evidence record or narrow your filter to see older entries.
           </span>
         ) : null}
+        {/* Wave 2 Phase 6 — export action. Available to any reviewer
+            (evidence.read on the backend; UI button is always shown). */}
+        <button
+          type="button"
+          data-action="export-duplicates"
+          onClick={() => void handleExport()}
+          disabled={exportBusy || !teamId}
+          style={exportButtonStyle(exportBusy)}
+        >
+          {exportBusy ? "Exporting…" : "Export duplicate findings"}
+        </button>
+        {exportError ? (
+          <span style={exportErrorPillStyle}>{exportError}</span>
+        ) : null}
       </section>
 
-      <section style={sectionStyle}>
-        {filtered == null ? (
-          <p style={emptyStyle}>Loading…</p>
-        ) : filtered.length === 0 ? (
-          <div style={emptyStyle}>
-            <p style={emptyTitleStyle}>
-              Exact-match duplicates appear here automatically as evidence
-              is reconciled. Perceptual similarity is not yet available on
-              this workspace.
-            </p>
-            <p style={emptyHintStyle}>
-              Capture additional evidence or open existing cases — reconciled
-              duplicates surface here without further setup.
-            </p>
-            <div style={emptyCtaRowStyle}>
-              <Link href="/capture" style={emptyCtaPrimaryStyle}>
-                Capture evidence
-              </Link>
-              <Link href="/cases" style={emptyCtaSecondaryStyle}>
-                Open cases
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <ul style={listStyle}>
-            {filtered.map((edge) => (
-              <DuplicateRow key={edge.edgeId} edge={edge} anchor={anchorEvidenceId} />
-            ))}
-          </ul>
-        )}
-      </section>
+      {/* Wave 2 — 3 honest sections. Each section's body depends on:
+            * actual edges of that kind in `filtered`, OR
+            * the producer-mode resolver's `enabled` + `reason` when none.
+          Sections are ALWAYS rendered (even if empty) so reviewers see
+          a clear, honest map of what the workspace can / cannot produce
+          today. No invented disclaimer copy — the producer-mode `reason`
+          string is the canonical source. */}
+      {(() => {
+        const perceptual = producerModes?.find(
+          (p) => p.kind === "perceptual_similarity",
+        );
+        const derivative = producerModes?.find(
+          (p) => p.kind === "derivative_detection",
+        );
+        return (
+          <>
+            <DuplicateSection
+              title="Exact duplicates"
+              description="Records that share an identical byte-for-byte SHA-256."
+              kind="SAME_HASH_AS"
+              filtered={filtered}
+              filter={filter}
+              anchor={anchorEvidenceId}
+              actionBusy={actionBusy}
+              recordDecision={recordDecision}
+              markRelatedHref={markRelatedHref}
+              producerMode={null}
+              fetchError={fetchError}
+              isAdmin={canDiagnostics}
+            />
+            <DuplicateSection
+              title="Perceptual similarity"
+              description="Visually similar images detected via internal perceptual hashing."
+              kind="SIMILAR_TO"
+              filtered={filtered}
+              filter={filter}
+              anchor={anchorEvidenceId}
+              actionBusy={actionBusy}
+              recordDecision={recordDecision}
+              markRelatedHref={markRelatedHref}
+              producerMode={perceptual ?? null}
+              fetchError={fetchError}
+              isAdmin={canDiagnostics}
+            />
+            <DuplicateSection
+              title="Possible derivatives"
+              description="Heuristic lineage proposals based on similar perceptual hash and time/byte ordering."
+              kind="POSSIBLE_DERIVATIVE_OF"
+              filtered={filtered}
+              filter={filter}
+              anchor={anchorEvidenceId}
+              actionBusy={actionBusy}
+              recordDecision={recordDecision}
+              markRelatedHref={markRelatedHref}
+              producerMode={derivative ?? null}
+              fetchError={fetchError}
+              isAdmin={canDiagnostics}
+            />
+          </>
+        );
+      })()}
     </div>
+  );
+}
+
+function DuplicateSection({
+  title,
+  description,
+  kind,
+  filtered,
+  filter,
+  anchor,
+  actionBusy,
+  recordDecision,
+  markRelatedHref,
+  producerMode,
+  fetchError,
+  isAdmin,
+}: {
+  title: string;
+  description: string;
+  kind: DuplicateEdgeKind;
+  filtered: DuplicateEdge[] | null;
+  filter: DuplicateEdgeKind | "ALL";
+  anchor: string | null;
+  actionBusy: Record<string, string>;
+  recordDecision: (
+    edge: DuplicateEdge,
+    decision: "CONFIRMED" | "DISMISSED" | "MARKED_DERIVATIVE",
+  ) => Promise<void> | void;
+  markRelatedHref: (edge: DuplicateEdge) => string;
+  producerMode: ProducerModeStatus | null;
+  fetchError: Error | null;
+  isAdmin: boolean;
+}) {
+  // Honor the global filter — when the operator filters to a specific
+  // kind, hide the other sections to avoid visual clutter.
+  if (filter !== "ALL" && filter !== kind) return null;
+  const ofKind = filtered?.filter((e) => e.edgeType === kind) ?? null;
+  return (
+    <section style={sectionStyle}>
+      <h2 style={sectionTitleStyle}>{title}</h2>
+      <p style={sectionDescriptionStyle}>{description}</p>
+      {ofKind == null ? (
+        <p style={emptyStyle}>Loading…</p>
+      ) : ofKind.length === 0 ? (
+        // Wave 2 Phase 4 — classifier-driven empty state. The classifier
+        // picks the right code from { TRUE_EMPTY, API_ERROR,
+        // FEATURE_NOT_CONFIGURED, CONFIG_DISABLED, CAPABILITY_UNAVAILABLE }
+        // based on the producer-mode resolver output for this section.
+        (() => {
+          // Map ProducerModeStatus → classifier-shaped ProducerModeStatusLike.
+          // ProducerModeStatus declared in the page bridges the 5 fields
+          // the page uses; the classifier requires the full 8-field shape.
+          const capabilityStatus: ProducerModeStatusLike | undefined =
+            producerMode
+              ? {
+                  kind: producerMode.kind,
+                  mode: producerMode.mode,
+                  enabled: producerMode.enabled,
+                  // The page binding does not project configured/automatic/
+                  // indexExistingOnly/provider — derive bounded defaults
+                  // that reproduce the Wave 1 resolver semantics.
+                  configured: producerMode.enabled,
+                  automatic: producerMode.enabled,
+                  indexExistingOnly: false,
+                  provider: producerMode.enabled ? "internal" : "none",
+                  reason: producerMode.reason,
+                }
+              : undefined;
+          const { classification, reason } = classifyInvestigationEmptyState(
+            {
+              data: ofKind,
+              fetchError,
+              permission: "allowed",
+              capabilityStatus,
+            },
+            "duplicates",
+          );
+          return (
+            <OperationalEmptyState
+              classification={classification}
+              reason={reason}
+              // Wave 2 — canonical empty-state CTAs across every
+              // investigation surface: Capture evidence + Open cases.
+              // Mirrors the timeline + graph + hub callers so reviewers
+              // see a consistent next-step regardless of which
+              // investigation surface they landed on.
+              nextAction={{ label: "Capture evidence", href: "/capture" }}
+              adminAction={{ label: "Open cases", href: "/cases" }}
+              diagnosticsLink="/ops/observability"
+              isAdmin={isAdmin}
+            />
+          );
+        })()
+      ) : (
+        <ul style={listStyle}>
+          {ofKind.map((edge) => (
+            <DuplicateRow
+              key={edge.edgeId}
+              edge={edge}
+              anchor={anchor}
+              actionBusy={actionBusy[edge.edgeId] ?? null}
+              recordDecision={recordDecision}
+              markRelatedHref={markRelatedHref}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -296,9 +602,18 @@ function CountTile({
 function DuplicateRow({
   edge,
   anchor,
+  actionBusy,
+  recordDecision,
+  markRelatedHref,
 }: {
   edge: DuplicateEdge;
   anchor: string | null;
+  actionBusy: string | null;
+  recordDecision: (
+    edge: DuplicateEdge,
+    decision: "CONFIRMED" | "DISMISSED" | "MARKED_DERIVATIVE",
+  ) => Promise<void> | void;
+  markRelatedHref: (edge: DuplicateEdge) => string;
 }) {
   // When anchored to a specific evidence, display the OTHER endpoint
   // as the primary subject. Without an anchor, show both sides.
@@ -333,6 +648,32 @@ function DuplicateRow({
       {edge.safeSummary ? (
         <div style={summaryStyle}>{edge.safeSummary}</div>
       ) : null}
+      {/* Wave 2 — reviewer decision actions. CONFIRMED, DISMISSED,
+          MARKED_DERIVATIVE go through POST /v1/graph/duplicates/:edgeId/decision.
+          "Mark related" pivots to the canonical manual-relationship surface
+          on the relationships page (we don't expose graph node ids here).
+          "Open both records" links via the per-side evidence pivots below. */}
+      <div style={actionsRowStyle}>
+        <button
+          type="button"
+          disabled={actionBusy != null}
+          onClick={() => recordDecision(edge, "CONFIRMED")}
+          style={actionPrimaryStyle(actionBusy === "CONFIRMED")}
+        >
+          {actionBusy === "CONFIRMED" ? "Confirming…" : "Confirm duplicate"}
+        </button>
+        <button
+          type="button"
+          disabled={actionBusy != null}
+          onClick={() => recordDecision(edge, "DISMISSED")}
+          style={actionSecondaryStyle(actionBusy === "DISMISSED")}
+        >
+          {actionBusy === "DISMISSED" ? "Dismissing…" : "Dismiss"}
+        </button>
+        <Link href={markRelatedHref(edge)} style={pivotLinkSmallStyle}>
+          Mark related
+        </Link>
+      </div>
       <div style={pivotsRowStyle}>
         <Link href={`/evidence/${a}`} style={pivotLinkSmallStyle}>
           Open A
@@ -569,6 +910,29 @@ const selectStyle: React.CSSProperties = {
   color: "#0f172a",
 };
 
+function exportButtonStyle(busy: boolean): React.CSSProperties {
+  return {
+    fontSize: 11,
+    fontWeight: 600,
+    color: "#1e40af",
+    background: busy ? "#dbeafe" : "#eff6ff",
+    border: "1px solid #bfdbfe",
+    borderRadius: 6,
+    padding: "5px 12px",
+    cursor: busy ? "wait" : "pointer",
+    whiteSpace: "nowrap",
+  };
+}
+
+const exportErrorPillStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: "#991b1b",
+  background: "#fef2f2",
+  border: "1px solid #fca5a5",
+  borderRadius: 6,
+  padding: "3px 8px",
+};
+
 const truncatedNoticeStyle: React.CSSProperties = {
   fontSize: 11,
   color: "#92400e",
@@ -583,6 +947,54 @@ const sectionStyle: React.CSSProperties = {
   marginBottom: 24,
 };
 
+const sectionTitleStyle: React.CSSProperties = {
+  margin: "0 0 4px 0",
+  fontSize: 15,
+  fontWeight: 700,
+  color: "#0f172a",
+};
+
+const sectionDescriptionStyle: React.CSSProperties = {
+  margin: "0 0 10px 0",
+  fontSize: 12,
+  color: "#64748b",
+  lineHeight: 1.5,
+};
+
+const actionsRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  alignItems: "center",
+  marginBottom: 8,
+};
+
+function actionPrimaryStyle(busy: boolean): React.CSSProperties {
+  return {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#ffffff",
+    background: busy ? "#1e3a8a" : "#1e40af",
+    border: "1px solid #1e3a8a",
+    borderRadius: 6,
+    padding: "5px 12px",
+    cursor: busy ? "wait" : "pointer",
+  };
+}
+
+function actionSecondaryStyle(busy: boolean): React.CSSProperties {
+  return {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#1e40af",
+    background: busy ? "#dbeafe" : "#eff6ff",
+    border: "1px solid #bfdbfe",
+    borderRadius: 6,
+    padding: "5px 12px",
+    cursor: busy ? "wait" : "pointer",
+  };
+}
+
 const emptyStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 13,
@@ -592,49 +1004,6 @@ const emptyStyle: React.CSSProperties = {
   border: "1px solid #e5e7eb",
   borderRadius: 8,
   padding: 14,
-};
-
-const emptyTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 13,
-  fontWeight: 600,
-  color: "#0f172a",
-};
-
-const emptyHintStyle: React.CSSProperties = {
-  margin: "6px 0 0 0",
-  fontSize: 12,
-  color: "#64748b",
-  lineHeight: 1.5,
-};
-
-const emptyCtaRowStyle: React.CSSProperties = {
-  marginTop: 10,
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const emptyCtaPrimaryStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: "#ffffff",
-  background: "#1e40af",
-  border: "1px solid #1e3a8a",
-  borderRadius: 6,
-  padding: "5px 12px",
-  textDecoration: "none",
-};
-
-const emptyCtaSecondaryStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: "#1e40af",
-  background: "#eff6ff",
-  border: "1px solid #bfdbfe",
-  borderRadius: 6,
-  padding: "5px 12px",
-  textDecoration: "none",
 };
 
 const listStyle: React.CSSProperties = {

@@ -148,8 +148,11 @@ describe("Phase 13 S4.1 — reconcileTeamGraph wires entity nodes + EXTRACTED_FR
     expect(src).toMatch(/evidence_entities/);
   });
 
-  it("upserts ENTITY nodes through the existing upsertNode helper", () => {
-    expect(src).toMatch(/upsertNode\([^)]*"ENTITY"/);
+  // Wave 1 taxonomy: ENTITY → EXTRACTED_ENTITY rename. Producers
+  // emit the canonical EXTRACTED_ENTITY name. Old ENTITY rows remain
+  // valid via the deprecated alias in the catalog + SQL CHECK.
+  it("upserts EXTRACTED_ENTITY nodes through the existing upsertNode helper", () => {
+    expect(src).toMatch(/upsertNode\([^)]*"EXTRACTED_ENTITY"/);
   });
 
   it("writes EXTRACTED_FROM edges (ENTITY -> EVIDENCE)", () => {
@@ -170,8 +173,14 @@ describe("Phase 13 S4.1 — reconcileTeamGraph wires entity nodes + EXTRACTED_FR
 describe("Phase 13 S4.2 — graph catalog widens with ENTITY + EXTRACTED_FROM", () => {
   const src = readSrc(GRAPH_CATALOG);
 
-  it("declares ENTITY in GRAPH_NODE_KINDS", () => {
-    expect(src).toMatch(/GRAPH_NODE_KINDS[\s\S]{0,800}"ENTITY"/);
+  // Wave 1 taxonomy: ENTITY → EXTRACTED_ENTITY rename. The catalog
+  // now declares EXTRACTED_ENTITY as the canonical kind (with ENTITY
+  // kept as a deprecated alias). Window widened because the catalog
+  // grew by ~700 chars when Wave 1 added the canonical/alias pairs
+  // for REVIEW_WORKFLOW/REVIEW_ESCALATION/MEDIA_INTELLIGENCE_SIGNAL/
+  // EXTERNAL_REVIEWER_GRANT/EXTRACTED_ENTITY.
+  it("declares EXTRACTED_ENTITY in GRAPH_NODE_KINDS", () => {
+    expect(src).toMatch(/GRAPH_NODE_KINDS[\s\S]{0,1500}"EXTRACTED_ENTITY"/);
   });
 
   it("declares EXTRACTED_FROM in GRAPH_EDGE_TYPES", () => {

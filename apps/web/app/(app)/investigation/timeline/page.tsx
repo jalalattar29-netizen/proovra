@@ -25,8 +25,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
-import { useTeamId } from "../../../../lib/platform-context";
+import { useCan, useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
+import { classifyInvestigationEmptyState } from "../../../../lib/empty-state/classifier";
 // =============================================================================
 // Types — mirror the /v1/graph/timeline projection
 // =============================================================================
@@ -92,12 +94,59 @@ export default function InvestigationTimelinePage() {
 
 function InvestigationTimelinePageInner() {
   const teamId = useTeamId();
+  // Wave 2 Phase 4 — diagnostics + admin-action gating.
+  const canDiagnostics = useCan("OBSERVABILITY_VIEW");
   const [anchorEvidenceId, setAnchorEvidenceId] = useState<string | null>(null);
   const [events, setEvents] = useState<TimelineEvent[] | null>(null);
   const [truncated, setTruncated] = useState(false);
   const [filter, setFilter] = useState<TimelineEventKind | "ALL">("ALL");
   const [error, setError] = useState<string | null>(null);
+  // Wave 2 Phase 4 — capture the underlying fetch error object so the
+  // classifier can pick API_ERROR and surface a bounded message instead
+  // of misclassifying as TRUE_EMPTY.
+  const [fetchError, setFetchError] = useState<Error | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
+  // Wave 2 Phase 6 — export action state.
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const handleExport = async () => {
+    if (!teamId || exportBusy) return;
+    setExportBusy(true);
+    setExportError(null);
+    try {
+      const res = (await apiFetch("/v1/graph/timeline/export", {
+        method: "POST",
+        body: JSON.stringify({
+          teamId,
+          ...(anchorEvidenceId ? { evidenceId: anchorEvidenceId } : {}),
+        }),
+        headers: { "Content-Type": "application/json" },
+      })) as { events: unknown[]; generatedAtUtc: string };
+      if (typeof window !== "undefined") {
+        const blob = new Blob([JSON.stringify(res, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `investigation-timeline-${res.generatedAtUtc.slice(0, 10)}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      setExportError(
+        /403|forbidden/i.test(msg)
+          ? "You do not have permission to export the timeline."
+          : "Unable to generate export. Try again.",
+      );
+    } finally {
+      setExportBusy(false);
+    }
+  };
 
   // Parse evidenceId anchor from URL (Phase 31.18 — Search → Timeline pivot).
   useEffect(() => {
@@ -128,8 +177,17 @@ function InvestigationTimelinePageInner() {
         setTruncated(Boolean(res.truncated));
         setLastFetchAt(Date.now());
         setError(null);
-      } catch {
-        if (!cancelled) setError("timeline_unavailable");
+        // Wave 2 Phase 4 — successful fetch clears the prior fetchError
+        // so the classifier never lingers on a stale API_ERROR classification.
+        setFetchError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError("timeline_unavailable");
+          // Wave 2 Phase 4 — preserve the underlying Error object so the
+          // classifier resolves API_ERROR with a bounded reason instead
+          // of misclassifying as TRUE_EMPTY.
+          setFetchError(err instanceof Error ? err : new Error("timeline_unavailable"));
+        }
       }
     };
 
@@ -235,30 +293,48 @@ function InvestigationTimelinePageInner() {
             older entries.
           </span>
         ) : null}
+        {/* Wave 2 Phase 6 — timeline JSON export. */}
+        <button
+          type="button"
+          data-action="export-timeline"
+          onClick={() => void handleExport()}
+          disabled={exportBusy || !teamId}
+          style={timelineExportButtonStyle(exportBusy)}
+        >
+          {exportBusy ? "Exporting…" : "Export timeline"}
+        </button>
+        {exportError ? (
+          <span style={timelineExportErrorStyle}>{exportError}</span>
+        ) : null}
       </section>
 
       <section style={sectionStyle}>
         {groupedByDay == null ? (
           <p style={emptyStyle}>Loading…</p>
         ) : groupedByDay.length === 0 ? (
-          <div style={emptyStyle}>
-            <p style={emptyTitleStyle}>
-              No workspace events recorded yet.
-            </p>
-            <p style={emptyHintStyle}>
-              This timeline shows operational state changes for the
-              workspace. Events appear here after evidence is captured and
-              the next graph refresh runs.
-            </p>
-            <div style={emptyCtaRowStyle}>
-              <Link href="/capture" style={emptyCtaPrimaryStyle}>
-                Capture evidence
-              </Link>
-              <Link href="/cases" style={emptyCtaSecondaryStyle}>
-                Open cases
-              </Link>
-            </div>
-          </div>
+          // Wave 2 Phase 4 — classifier-driven empty state. The classifier
+          // picks ONE of the 10 codes from the canonical union; the
+          // primitive renders the bounded copy + admin affordances.
+          (() => {
+            const { classification, reason } = classifyInvestigationEmptyState(
+              {
+                data: events,
+                fetchError,
+                permission: "allowed",
+              },
+              "timeline",
+            );
+            return (
+              <OperationalEmptyState
+                classification={classification}
+                reason={reason}
+                nextAction={{ label: "Capture evidence", href: "/capture" }}
+                adminAction={{ label: "Open cases", href: "/cases" }}
+                diagnosticsLink="/ops/observability"
+                isAdmin={canDiagnostics}
+              />
+            );
+          })()
         ) : (
           <ul style={dayListStyle}>
             {groupedByDay.map(([day, dayEvents]) => (
@@ -472,6 +548,29 @@ const selectStyle: React.CSSProperties = {
   color: "#0f172a",
 };
 
+function timelineExportButtonStyle(busy: boolean): React.CSSProperties {
+  return {
+    fontSize: 11,
+    fontWeight: 600,
+    color: "#1e40af",
+    background: busy ? "#dbeafe" : "#eff6ff",
+    border: "1px solid #bfdbfe",
+    borderRadius: 6,
+    padding: "5px 12px",
+    cursor: busy ? "wait" : "pointer",
+    whiteSpace: "nowrap",
+  };
+}
+
+const timelineExportErrorStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: "#991b1b",
+  background: "#fef2f2",
+  border: "1px solid #fca5a5",
+  borderRadius: 6,
+  padding: "3px 8px",
+};
+
 const truncatedNoticeStyle: React.CSSProperties = {
   fontSize: 11,
   color: "#92400e",
@@ -495,49 +594,6 @@ const emptyStyle: React.CSSProperties = {
   border: "1px solid #e5e7eb",
   borderRadius: 8,
   padding: 14,
-};
-
-const emptyTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 13,
-  fontWeight: 600,
-  color: "#0f172a",
-};
-
-const emptyHintStyle: React.CSSProperties = {
-  margin: "6px 0 0 0",
-  fontSize: 12,
-  color: "#64748b",
-  lineHeight: 1.5,
-};
-
-const emptyCtaRowStyle: React.CSSProperties = {
-  marginTop: 10,
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const emptyCtaPrimaryStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: "#ffffff",
-  background: "#1e40af",
-  border: "1px solid #1e3a8a",
-  borderRadius: 6,
-  padding: "5px 12px",
-  textDecoration: "none",
-};
-
-const emptyCtaSecondaryStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: "#1e40af",
-  background: "#eff6ff",
-  border: "1px solid #bfdbfe",
-  borderRadius: 6,
-  padding: "5px 12px",
-  textDecoration: "none",
 };
 
 const dayListStyle: React.CSSProperties = {

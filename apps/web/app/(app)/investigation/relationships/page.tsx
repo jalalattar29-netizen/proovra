@@ -32,8 +32,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
-import { useTeamId } from "../../../../lib/platform-context";
+import { useCan, useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
+import { classifyInvestigationEmptyState } from "../../../../lib/empty-state/classifier";
 // =============================================================================
 // Types — mirror the public graph projection
 // =============================================================================
@@ -77,14 +79,18 @@ export default function RelationshipInspectorPage() {
 
 function RelationshipInspectorPageInner() {
   const teamId = useTeamId();
+  // Wave 2 Phase 4 — diagnostics + admin-action gate.
+  const canDiagnostics = useCan("OBSERVABILITY_VIEW");
   const search = useSearchParams();
   const caseId = search?.get("caseId") ?? "";
   const focusedNodeId = search?.get("nodeId") ?? null;
   const focusedEdgeId = search?.get("edgeId") ?? null;
   const [data, setData] = useState<CaseSubgraphResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Wave 2 Phase 4 — capture underlying fetch error.
+  const [fetchError, setFetchError] = useState<Error | null>(null);
 
-  
+
 useEffect(() => {
     if (!teamId || !caseId) return;
     let cancelled = false;
@@ -97,8 +103,14 @@ useEffect(() => {
         if (cancelled) return;
         setData(res);
         setError(null);
-      } catch {
-        if (!cancelled) setError("graph_unavailable");
+        setFetchError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError("graph_unavailable");
+          setFetchError(
+            err instanceof Error ? err : new Error("graph_unavailable"),
+          );
+        }
       }
     };
     void load();
@@ -166,15 +178,72 @@ useEffect(() => {
       </header>
 
       {!caseId ? (
+        // Wave 2 Phase 4 — classifier resolves WRONG_SCOPE when the
+        // caller hit this page without a caseId in the URL.
         <section style={sectionStyle}>
-          <p style={emptyStyle}>
-            Select a relationship or node to inspect by navigating from the
-            Case Graph Explorer. The inspector requires a case id in the URL.
-          </p>
+          {(() => {
+            const { classification, reason } =
+              classifyInvestigationEmptyState(
+                {
+                  data: null,
+                  fetchError: null,
+                  permission: "wrong_scope",
+                },
+                "relationships",
+              );
+            return (
+              <OperationalEmptyState
+                classification={classification}
+                reason={reason}
+                nextAction={{
+                  label: "Open graph explorer",
+                  href: "/investigation/graph",
+                }}
+                adminAction={{
+                  label: "Open investigation overview",
+                  href: "/investigation",
+                }}
+                diagnosticsLink="/ops/observability"
+                isAdmin={canDiagnostics}
+              />
+            );
+          })()}
         </section>
       ) : !data ? (
         <section style={sectionStyle}>
-          <p style={emptyStyle}>Loading subgraph…</p>
+          {fetchError ? (
+            // Wave 2 Phase 4 — surface API_ERROR honestly while loading
+            // failed, instead of holding the page on "Loading subgraph…".
+            (() => {
+              const { classification, reason } =
+                classifyInvestigationEmptyState(
+                  {
+                    data: null,
+                    fetchError,
+                    permission: "allowed",
+                  },
+                  "relationships",
+                );
+              return (
+                <OperationalEmptyState
+                  classification={classification}
+                  reason={reason}
+                  nextAction={{
+                    label: "Open graph explorer",
+                    href: "/investigation/graph",
+                  }}
+                  adminAction={{
+                    label: "Open investigation overview",
+                    href: "/investigation",
+                  }}
+                  diagnosticsLink="/ops/observability"
+                  isAdmin={canDiagnostics}
+                />
+              );
+            })()
+          ) : (
+            <p style={emptyStyle}>Loading subgraph…</p>
+          )}
         </section>
       ) : focusedEdge ? (
         <EdgeInspector
@@ -191,12 +260,36 @@ useEffect(() => {
           caseId={caseId}
         />
       ) : (
+        // Wave 2 Phase 4 — classifier-driven TRUE_EMPTY when the
+        // subgraph loaded but no focus is selected.
         <section style={sectionStyle}>
-          <p style={emptyStyle}>
-            Select a relationship or node to inspect. From the Case Graph
-            Explorer, append <code>?nodeId=…</code> or{" "}
-            <code>?edgeId=…</code> to this page to view detail.
-          </p>
+          {(() => {
+            const { classification, reason } =
+              classifyInvestigationEmptyState(
+                {
+                  data,
+                  fetchError: null,
+                  permission: "allowed",
+                },
+                "relationships",
+              );
+            return (
+              <OperationalEmptyState
+                classification={classification}
+                reason={reason}
+                nextAction={{
+                  label: "Open graph explorer",
+                  href: "/investigation/graph",
+                }}
+                adminAction={{
+                  label: "Open investigation overview",
+                  href: "/investigation",
+                }}
+                diagnosticsLink="/ops/observability"
+                isAdmin={canDiagnostics}
+              />
+            );
+          })()}
         </section>
       )}
     </div>
@@ -580,18 +673,37 @@ const visibilityBadgeStyle: React.CSSProperties = {
 };
 
 function nodeKindBadgeStyle(kind: string): React.CSSProperties {
+  // Wave 1 taxonomy: palette imports GRAPH_NODE_KINDS-equivalent set
+  // (cannot import @proovra/shared-runtime/graph here because this is a
+  // client component and the catalog is a pure constants list; the
+  // palette below stays in lockstep with the catalog by hand). New
+  // canonical names share the same colour as their deprecated aliases.
   const palette: Record<string, [string, string, string]> = {
     CASE: ["#f5f3ff", "#ddd6fe", "#5b21b6"],
     EVIDENCE: ["#eff6ff", "#bfdbfe", "#1e40af"],
     REPORT: ["#ecfdf5", "#bbf7d0", "#166534"],
     VERIFICATION_PACKAGE: ["#ecfdf5", "#bbf7d0", "#166534"],
     EXPORT: ["#fef3c7", "#fcd34d", "#92400e"],
+    // Wave 1 canonical + deprecated alias.
+    MEDIA_INTELLIGENCE_SIGNAL: ["#fffbeb", "#fcd34d", "#92400e"],
     MEDIA_SIGNAL: ["#fffbeb", "#fcd34d", "#92400e"],
+    REVIEW_WORKFLOW: ["#f0f9ff", "#bae6fd", "#075985"],
     REVIEW_TASK: ["#f0f9ff", "#bae6fd", "#075985"],
+    REVIEW_ESCALATION: ["#fef2f2", "#fca5a5", "#991b1b"],
     ESCALATION: ["#fef2f2", "#fca5a5", "#991b1b"],
     INCIDENT: ["#fef2f2", "#fca5a5", "#991b1b"],
     OCR: ["#f1f5f9", "#cbd5e1", "#334155"],
     TRANSCRIPT: ["#f1f5f9", "#cbd5e1", "#334155"],
+    EXTERNAL_REVIEWER_GRANT: ["#f5f3ff", "#ddd6fe", "#5b21b6"],
+    EXTERNAL_REVIEW: ["#f5f3ff", "#ddd6fe", "#5b21b6"],
+    EXTRACTED_ENTITY: ["#ecfeff", "#a5f3fc", "#155e75"],
+    ENTITY: ["#ecfeff", "#a5f3fc", "#155e75"],
+    // Wave 1 deferred kinds (no producer this wave; palette ready).
+    EVIDENCE_PART: ["#eff6ff", "#bfdbfe", "#1e40af"],
+    CASE_EVIDENCE_LINK: ["#f5f3ff", "#ddd6fe", "#5b21b6"],
+    REVIEW_DECISION: ["#f0f9ff", "#bae6fd", "#075985"],
+    MEDIA_INTELLIGENCE_RECORD: ["#fffbeb", "#fcd34d", "#92400e"],
+    CUSTODY_EVENT: ["#f1f5f9", "#cbd5e1", "#334155"],
   };
   const [bg, border, color] = palette[kind] ?? ["#f1f5f9", "#cbd5e1", "#475569"];
   return {

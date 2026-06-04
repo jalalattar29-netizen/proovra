@@ -67,9 +67,13 @@ describe("Phase 31.17 — REVIEW_TASK graph domain", () => {
     );
   });
 
-  it("upserts REVIEW_TASK node with WORKSPACE_INTERNAL visibility", () => {
+  it("upserts REVIEW_WORKFLOW node with WORKSPACE_INTERNAL visibility (Wave 1 rename; REVIEW_TASK kept as deprecated alias)", () => {
+    // Wave 1 taxonomy: producers now write REVIEW_WORKFLOW. The
+    // deprecated REVIEW_TASK alias remains in the catalog + SQL
+    // CHECK for one release for backward compatibility with any
+    // existing rows.
     expect(RECONCILER_SRC).toMatch(
-      /upsertNode\(\s*client,\s*teamId,\s*"REVIEW_TASK"[\s\S]*?"WORKSPACE_INTERNAL"/,
+      /upsertNode\(\s*client,\s*teamId,\s*"REVIEW_WORKFLOW"[\s\S]*?"WORKSPACE_INTERNAL"/,
     );
   });
 
@@ -103,11 +107,14 @@ describe("Phase 31.17 — REVIEW_TASK graph domain", () => {
     expect(noComments).not.toContain("resolution_note");
   });
 
-  it("stale-sweep for REVIEW_TASK is team-anchored on both UPDATE and sub-select", () => {
+  it("stale-sweep for REVIEW_WORKFLOW (+ legacy REVIEW_TASK alias) is team-anchored on both UPDATE and sub-select", () => {
+    // Wave 1 taxonomy: the sweep now matches both the canonical
+    // REVIEW_WORKFLOW and the deprecated REVIEW_TASK alias via an
+    // IN-list so any legacy rows continue to tombstone cleanly.
     const block = RECONCILER_SRC.match(
-      /UPDATE "investigation_graph_nodes" n[\s\S]*?n\."node_kind" = 'REVIEW_TASK'[\s\S]*?\)\s*\)/,
+      /UPDATE "investigation_graph_nodes" n[\s\S]*?n\."node_kind" IN \('REVIEW_WORKFLOW', 'REVIEW_TASK'\)[\s\S]*?\)\s*\)/,
     )?.[0];
-    expect(block, "REVIEW_TASK stale sweep block found").toBeTruthy();
+    expect(block, "REVIEW_WORKFLOW stale sweep block found").toBeTruthy();
     expect(block!).toMatch(/n\."team_id" = \$1/);
     expect(block!).toMatch(/w\."team_id" = \$1/);
   });
@@ -130,9 +137,10 @@ describe("Phase 31.17 — ESCALATION graph domain", () => {
     );
   });
 
-  it("upserts ESCALATION node with WORKSPACE_INTERNAL visibility", () => {
+  it("upserts REVIEW_ESCALATION node with WORKSPACE_INTERNAL visibility (Wave 1 rename; ESCALATION kept as deprecated alias)", () => {
+    // Wave 1 taxonomy: producers now write REVIEW_ESCALATION.
     expect(RECONCILER_SRC).toMatch(
-      /upsertNode\(\s*client,\s*teamId,\s*"ESCALATION"[\s\S]*?"WORKSPACE_INTERNAL"/,
+      /upsertNode\(\s*client,\s*teamId,\s*"REVIEW_ESCALATION"[\s\S]*?"WORKSPACE_INTERNAL"/,
     );
   });
 
@@ -155,11 +163,13 @@ describe("Phase 31.17 — ESCALATION graph domain", () => {
     expect(slice).not.toContain("safe_summary");
   });
 
-  it("stale-sweep for ESCALATION is team-anchored on both UPDATE and sub-select", () => {
+  it("stale-sweep for REVIEW_ESCALATION (+ legacy ESCALATION alias) is team-anchored on both UPDATE and sub-select", () => {
+    // Wave 1 taxonomy: the sweep matches both the canonical
+    // REVIEW_ESCALATION and the deprecated ESCALATION alias.
     const block = RECONCILER_SRC.match(
-      /UPDATE "investigation_graph_nodes" n[\s\S]*?n\."node_kind" = 'ESCALATION'[\s\S]*?\)\s*\)/,
+      /UPDATE "investigation_graph_nodes" n[\s\S]*?n\."node_kind" IN \('REVIEW_ESCALATION', 'ESCALATION'\)[\s\S]*?\)\s*\)/,
     )?.[0];
-    expect(block, "ESCALATION stale sweep block found").toBeTruthy();
+    expect(block, "REVIEW_ESCALATION stale sweep block found").toBeTruthy();
     expect(block!).toMatch(/n\."team_id" = \$1/);
     expect(block!).toMatch(/e\."team_id" = \$1/);
   });
@@ -391,8 +401,17 @@ describe("Phase 32.16 — Relationship Inspector UI", () => {
   });
 
   it("empty state with next-action guidance present (no dead-end UI)", () => {
-    const flat = src.replace(/\s+/g, " ");
-    expect(flat).toMatch(/Select a relationship or node to inspect/);
+    // Wave 2 classifier swap: the inline "Select a relationship or
+    // node to inspect" prose moved out of the page and into the
+    // classifier-driven OperationalEmptyState. The page is still the
+    // truth-source for which domain to classify ('relationships') and
+    // for the bounded next-action affordance (nextAction={{ label,
+    // href }} object literal in JSX). Assert BOTH: classifier
+    // consulted for the relationships domain AND a bounded
+    // next-action affordance is rendered (no dead-end UI).
+    expect(src).toMatch(/classifyInvestigationEmptyState[\s\S]*?"relationships"/);
+    expect(src).toMatch(/nextAction=\{\{\s*label:/);
+    expect(src).toMatch(/href:\s*"\/investigation\/graph"/);
   });
 
   it("safer canonical-custody language (no 'authenticity' even in negation)", () => {

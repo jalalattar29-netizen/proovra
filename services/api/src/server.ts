@@ -83,6 +83,13 @@ import { externalReviewRoutes } from "./routes/external-review.routes.js";
 import { uploadSessionsRoutes } from "./routes/upload-sessions.routes.js";
 import { integrationsUploadsRoutes } from "./routes/integrations-uploads.routes.js";
 import { mediaIntelligenceRoutes } from "./routes/media-intelligence.routes.js";
+// Wave 3 Phase 7B — Producer-mode probe bootstrap. Side-effect import
+// that registers the four producer-mode probes against the shared-runtime
+// probe-registry seam. MUST be imported before any route handler runs.
+// See services/media-intelligence/probe-bootstrap.ts.
+import "./services/media-intelligence/probe-bootstrap.js";
+import { intelligenceCapabilitiesRoutes } from "./routes/intelligence-capabilities.routes.js";
+import { investigationDiagnosticsRoutes } from "./routes/investigation-diagnostics.routes.js";
 import { graphRoutes } from "./routes/graph.routes.js";
 import {
   adminIdentityRoutes,
@@ -903,6 +910,17 @@ allowedHeaders: [
   // Read-only against EvidencePart / clientSignals; never blocks
   // evidence lifecycle on analyzer failure.
   await app.register(mediaIntelligenceRoutes);
+  // Wave 1 Phase 3 — Producer-Mode Truth Resolver capability surface.
+  // GET /v1/intelligence/capabilities returns the canonical 5-kind
+  // producer status array. UI surfaces MUST consume this endpoint;
+  // raw env reads (OCR_PRODUCER_MODE, TRANSCRIPT_PRODUCER_MODE,
+  // OPENAI_API_KEY) in apps/web are forbidden.
+  await app.register(intelligenceCapabilitiesRoutes);
+  // Wave 1 Phase 5 — Investigation Diagnostics envelope. Composes
+  // workspace counts + queue inventory + producer-mode statuses +
+  // last errors into a single GET /v1/investigation/diagnostics
+  // response. Read-only; ops-actor gated; anti-enumeration safe.
+  await app.register(investigationDiagnosticsRoutes);
   // Phase 32 — Investigation graph routes (read subgraph + manual
   // relationship CRUD). Read-only / write-side authorizeOrFail
   // gated; bounded traversal depth + node/edge caps.

@@ -581,11 +581,14 @@ export async function reconcileTeamGraph(
         teamId,
       )) as WorkflowRow[];
       for (const w of workflows) {
-        const label = `Review task — ${w.status} (${w.priority})`.slice(0, 240);
+        // Wave 1 taxonomy: producers write the canonical REVIEW_WORKFLOW
+        // name. Old REVIEW_TASK nodes remain valid via the deprecated
+        // alias path in the CHECK constraint.
+        const label = `Review workflow — ${w.status} (${w.priority})`.slice(0, 240);
         const upserted = await upsertNode(
           client,
           teamId,
-          "REVIEW_TASK",
+          "REVIEW_WORKFLOW",
           w.id,
           label,
           "WORKSPACE_INTERNAL",
@@ -600,7 +603,7 @@ export async function reconcileTeamGraph(
         const taskNodeId = await findNodeId(
           client,
           teamId,
-          "REVIEW_TASK",
+          "REVIEW_WORKFLOW",
           w.id,
         );
         if (evidenceNodeId && taskNodeId) {
@@ -617,15 +620,17 @@ export async function reconcileTeamGraph(
           if (created) edgesUpserted += 1;
         }
       }
-      // Stale-sweep: REVIEW_TASK nodes whose external_id is no
-      // longer in evidence_review_workflows for this team.
+      // Stale-sweep: REVIEW_WORKFLOW (+ legacy REVIEW_TASK alias) nodes
+      // whose external_id is no longer in evidence_review_workflows
+      // for this team. Wave 1: sweep both canonical + deprecated alias
+      // so legacy rows continue to tombstone cleanly.
       try {
         await client.$executeRawUnsafe(
           `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
-               AND n."node_kind" = 'REVIEW_TASK'
+               AND n."node_kind" IN ('REVIEW_WORKFLOW', 'REVIEW_TASK')
                AND n."stale_at_utc" IS NULL
                AND NOT EXISTS (
                  SELECT 1 FROM "evidence_review_workflows" w
@@ -667,26 +672,34 @@ export async function reconcileTeamGraph(
         teamId,
       )) as EscalationRow[];
       for (const x of escalations) {
-        const label = `Escalation — ${x.reason} (${x.severity}/${x.status})`.slice(0, 240);
+        // Wave 1 taxonomy: producers write the canonical REVIEW_ESCALATION
+        // name. Old ESCALATION nodes remain valid via the deprecated
+        // alias path in the CHECK constraint.
+        const label = `Review escalation — ${x.reason} (${x.severity}/${x.status})`.slice(0, 240);
         const upserted = await upsertNode(
           client,
           teamId,
-          "ESCALATION",
+          "REVIEW_ESCALATION",
           x.id,
           label,
           "WORKSPACE_INTERNAL",
         );
         if (upserted) nodesUpserted += 1;
+        // Wave 1: lookup the workflow node by the canonical
+        // REVIEW_WORKFLOW kind. Legacy REVIEW_TASK rows from prior runs
+        // remain in the catalog but new producers no longer write them,
+        // so a single lookup against the canonical kind is sufficient
+        // for any newly-reconciled workflow.
         const reviewTaskNodeId = await findNodeId(
           client,
           teamId,
-          "REVIEW_TASK",
+          "REVIEW_WORKFLOW",
           x.workflow_id,
         );
         const escalationNodeId = await findNodeId(
           client,
           teamId,
-          "ESCALATION",
+          "REVIEW_ESCALATION",
           x.id,
         );
         if (reviewTaskNodeId && escalationNodeId) {
@@ -703,13 +716,15 @@ export async function reconcileTeamGraph(
           if (created) edgesUpserted += 1;
         }
       }
+      // Wave 1: sweep both canonical REVIEW_ESCALATION + deprecated
+      // ESCALATION alias so legacy rows continue to tombstone cleanly.
       try {
         await client.$executeRawUnsafe(
           `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
-               AND n."node_kind" = 'ESCALATION'
+               AND n."node_kind" IN ('REVIEW_ESCALATION', 'ESCALATION')
                AND n."stale_at_utc" IS NULL
                AND NOT EXISTS (
                  SELECT 1 FROM "review_escalations" e
@@ -849,11 +864,14 @@ export async function reconcileTeamGraph(
         teamId,
       )) as GrantRow[];
       for (const g of grants) {
-        const label = `External review — ${g.scope_kind} (${g.state})`.slice(0, 240);
+        // Wave 1 taxonomy: producers write the canonical
+        // EXTERNAL_REVIEWER_GRANT name. Old EXTERNAL_REVIEW nodes remain
+        // valid via the deprecated alias path in the CHECK constraint.
+        const label = `External reviewer grant — ${g.scope_kind} (${g.state})`.slice(0, 240);
         const upserted = await upsertNode(
           client,
           teamId,
-          "EXTERNAL_REVIEW",
+          "EXTERNAL_REVIEWER_GRANT",
           g.id,
           label,
           "WORKSPACE_INTERNAL",
@@ -866,7 +884,7 @@ export async function reconcileTeamGraph(
         const reviewNodeId = await findNodeId(
           client,
           teamId,
-          "EXTERNAL_REVIEW",
+          "EXTERNAL_REVIEWER_GRANT",
           g.id,
         );
         if (reviewNodeId) {
@@ -908,15 +926,16 @@ export async function reconcileTeamGraph(
           }
         }
       }
-      // Stale-sweep: EXTERNAL_REVIEW nodes whose external_id is no
-      // longer in external_review_grants for this team.
+      // Wave 1: sweep both canonical EXTERNAL_REVIEWER_GRANT + deprecated
+      // EXTERNAL_REVIEW alias so legacy rows continue to tombstone
+      // cleanly.
       try {
         await client.$executeRawUnsafe(
           `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
-               AND n."node_kind" = 'EXTERNAL_REVIEW'
+               AND n."node_kind" IN ('EXTERNAL_REVIEWER_GRANT', 'EXTERNAL_REVIEW')
                AND n."stale_at_utc" IS NULL
                AND NOT EXISTS (
                  SELECT 1 FROM "external_review_grants" g
@@ -985,17 +1004,20 @@ export async function reconcileTeamGraph(
           ? `: ${en.normalized_value}`
           : "";
         const label = `${en.kind}${labelTail}`.slice(0, 240);
+        // Wave 1 taxonomy: producers write the canonical EXTRACTED_ENTITY
+        // name. Old ENTITY nodes remain valid via the deprecated alias
+        // path in the CHECK constraint.
         const upserted = await upsertNode(
           client,
           teamId,
-          "ENTITY",
+          "EXTRACTED_ENTITY",
           en.id,
           label,
           "WORKSPACE_INTERNAL",
         );
         if (upserted) nodesUpserted += 1;
-        // EXTRACTED_FROM edge: ENTITY → EVIDENCE.
-        const entityNodeId = await findNodeId(client, teamId, "ENTITY", en.id);
+        // EXTRACTED_FROM edge: EXTRACTED_ENTITY → EVIDENCE.
+        const entityNodeId = await findNodeId(client, teamId, "EXTRACTED_ENTITY", en.id);
         const evidenceNodeId = await findNodeId(
           client,
           teamId,
@@ -1057,11 +1079,14 @@ export async function reconcileTeamGraph(
       // is already wording-safe (signal-catalog enforced).
       const isOcr = sig.signal_type === "OCR_AVAILABLE";
       const isTranscript = sig.signal_type === "TRANSCRIPT_AVAILABLE";
+      // Wave 1 taxonomy: producers write the canonical
+      // MEDIA_INTELLIGENCE_SIGNAL name. Old MEDIA_SIGNAL nodes remain
+      // valid via the deprecated alias path in the CHECK constraint.
       const nodeKind: GraphNodeKind = isOcr
         ? "OCR"
         : isTranscript
           ? "TRANSCRIPT"
-          : "MEDIA_SIGNAL";
+          : "MEDIA_INTELLIGENCE_SIGNAL";
       const upserted = await upsertNode(
         client,
         teamId,
@@ -1127,13 +1152,15 @@ export async function reconcileTeamGraph(
     // `AND s."status" IN ('PENDING','ACKNOWLEDGED')` to the inner
     // NOT EXISTS sub-select makes "dismissed in the table" trigger
     // tombstoning, matching the section-2 materializer's filter.
+    // Wave 1: sweep both canonical MEDIA_INTELLIGENCE_SIGNAL + deprecated
+    // MEDIA_SIGNAL alias so legacy rows continue to tombstone cleanly.
     try {
       await client.$executeRawUnsafe(
         `UPDATE "investigation_graph_nodes" n
            SET "stale_at_utc" = NOW(),
                "updated_at_utc" = NOW()
            WHERE n."team_id" = $1
-             AND n."node_kind" = 'MEDIA_SIGNAL'
+             AND n."node_kind" IN ('MEDIA_INTELLIGENCE_SIGNAL', 'MEDIA_SIGNAL')
              AND n."stale_at_utc" IS NULL
              AND NOT EXISTS (
                SELECT 1 FROM "media_intelligence_signals" s
@@ -1239,6 +1266,19 @@ export async function reconcileTeamGraph(
     // negligible-but-nonzero, and we'd rather be silent than noisy on
     // a surface that affects operator reviews.
     //
+    // Wave 2 — POSSIBLE_DERIVATIVE_OF co-emit. The same scan also
+    // proposes a directional derivative edge when:
+    //   * the two evidence are perceptually similar (distance ≤ 8),
+    //   * one was finalized strictly BEFORE the other (signedAtUtc /
+    //     createdAt ordering),
+    //   * AND the later one is smaller in byte count OR has a
+    //     different MIME (re-encoding heuristic).
+    // The edge is HONEST: confidence is MEDIUM, the safe_summary copy
+    // explicitly calls out "possible derivative" and "reviewer
+    // confirmation required". The brief is explicit: do NOT imply
+    // derivative detection works if no writer exists, and equally do
+    // NOT fake it. This implementation labels the uncertainty.
+    //
     // Wrapped in try/catch because the perceptual_phash column may
     // not yet exist on partial-state databases; the reconciler is
     // best-effort and must never fail the team-graph build.
@@ -1246,6 +1286,12 @@ export async function reconcileTeamGraph(
       a_evidence_id: string;
       b_evidence_id: string;
       hamming: number;
+      a_finalized_at: Date | null;
+      b_finalized_at: Date | null;
+      a_total_bytes: string | number | null;
+      b_total_bytes: string | number | null;
+      a_mime: string | null;
+      b_mime: string | null;
     };
     try {
       const similarPairs = (await client.$queryRawUnsafe(
@@ -1263,7 +1309,13 @@ export async function reconcileTeamGraph(
                   )),
                   '0',
                   ''
-                ))::int AS "hamming"
+                ))::int AS "hamming",
+                COALESCE(ea."signed_at_utc", ea."created_at") AS "a_finalized_at",
+                COALESCE(eb."signed_at_utc", eb."created_at") AS "b_finalized_at",
+                ea."size_bytes" AS "a_total_bytes",
+                eb."size_bytes" AS "b_total_bytes",
+                ea."mime_type" AS "a_mime",
+                eb."mime_type" AS "b_mime"
            FROM "evidence_parts" epa
            JOIN "evidence" ea ON ea."id" = epa."evidence_id"
            JOIN "evidence_parts" epb ON epb."perceptual_phash" IS NOT NULL
@@ -1280,6 +1332,7 @@ export async function reconcileTeamGraph(
         teamId,
       )) as SimilarPair[];
       const seenPair = new Set<string>();
+      const seenDerivativePair = new Set<string>();
       for (const pair of similarPairs) {
         const hamming = Number(pair.hamming ?? 0);
         if (!Number.isFinite(hamming) || hamming > 8) continue;
@@ -1312,6 +1365,79 @@ export async function reconcileTeamGraph(
             "SYSTEM",
             confidence,
             "Visually similar material detected; operator review required.",
+          );
+          if (created) edgesUpserted += 1;
+        }
+        // Wave 2 — POSSIBLE_DERIVATIVE_OF heuristic (HONEST).
+        //
+        // Direction: edge points from the LATER (derivative candidate)
+        // to the EARLIER (potential source). The source-of-truth ordering
+        // is by finalized timestamp; if either side is missing one, the
+        // heuristic abstains.
+        const aFinalized = pair.a_finalized_at
+          ? new Date(pair.a_finalized_at).getTime()
+          : NaN;
+        const bFinalized = pair.b_finalized_at
+          ? new Date(pair.b_finalized_at).getTime()
+          : NaN;
+        if (!Number.isFinite(aFinalized) || !Number.isFinite(bFinalized)) {
+          continue;
+        }
+        if (aFinalized === bFinalized) {
+          continue;
+        }
+        const aBytes =
+          pair.a_total_bytes != null ? Number(pair.a_total_bytes) : NaN;
+        const bBytes =
+          pair.b_total_bytes != null ? Number(pair.b_total_bytes) : NaN;
+        // Identify (later, earlier) and the matching MIME / bytes.
+        const aIsLater = aFinalized > bFinalized;
+        const laterEvidenceId = aIsLater
+          ? pair.a_evidence_id
+          : pair.b_evidence_id;
+        const earlierEvidenceId = aIsLater
+          ? pair.b_evidence_id
+          : pair.a_evidence_id;
+        const laterBytes = aIsLater ? aBytes : bBytes;
+        const earlierBytes = aIsLater ? bBytes : aBytes;
+        const laterMime = aIsLater ? pair.a_mime : pair.b_mime;
+        const earlierMime = aIsLater ? pair.b_mime : pair.a_mime;
+        const smallerBytes =
+          Number.isFinite(laterBytes) &&
+          Number.isFinite(earlierBytes) &&
+          (laterBytes as number) < (earlierBytes as number);
+        const differentMime =
+          typeof laterMime === "string" &&
+          typeof earlierMime === "string" &&
+          laterMime.length > 0 &&
+          earlierMime.length > 0 &&
+          laterMime !== earlierMime;
+        if (!smallerBytes && !differentMime) continue;
+        const derivKey = `${laterEvidenceId}|${earlierEvidenceId}`;
+        if (seenDerivativePair.has(derivKey)) continue;
+        seenDerivativePair.add(derivKey);
+        const laterNode = await findNodeId(
+          client,
+          teamId,
+          "EVIDENCE",
+          laterEvidenceId,
+        );
+        const earlierNode = await findNodeId(
+          client,
+          teamId,
+          "EVIDENCE",
+          earlierEvidenceId,
+        );
+        if (laterNode && earlierNode) {
+          const created = await upsertEdge(
+            client,
+            teamId,
+            laterNode,
+            earlierNode,
+            "POSSIBLE_DERIVATIVE_OF",
+            "SYSTEM",
+            "MEDIUM",
+            "Possible derivative — uploaded after a similar evidence record. Reviewer confirmation required.",
           );
           if (created) edgesUpserted += 1;
         }

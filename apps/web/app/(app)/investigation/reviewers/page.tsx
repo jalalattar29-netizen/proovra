@@ -25,8 +25,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
-import { useTeamId } from "../../../../lib/platform-context";
+import { useCan, useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
+import { classifyInvestigationEmptyState } from "../../../../lib/empty-state/classifier";
 type WorkflowTotals = {
   notStarted: number;
   inProgress: number;
@@ -128,8 +130,13 @@ export default function ReviewerIntelligenceConsolePage() {
 
 function ReviewerIntelligenceConsolePageInner() {
   const teamId = useTeamId();
+  // Wave 2 Phase 4 — diagnostics + admin-action gate.
+  const canDiagnostics = useCan("OBSERVABILITY_VIEW");
   const [data, setData] = useState<ConsoleResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Wave 2 Phase 4 — capture the underlying fetch error so the classifier
+  // can resolve API_ERROR with a bounded reason.
+  const [fetchError, setFetchError] = useState<Error | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
   // Phase 31.19 — bounded action state. `pendingAction` tracks the
   // signal currently being acknowledged/dismissed so the buttons
@@ -201,8 +208,16 @@ useEffect(() => {
         setData(res);
         setLastFetchAt(Date.now());
         setError(null);
-      } catch {
-        if (!cancelled) setError("reviewer_console_unavailable");
+        setFetchError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError("reviewer_console_unavailable");
+          setFetchError(
+            err instanceof Error
+              ? err
+              : new Error("reviewer_console_unavailable"),
+          );
+        }
       }
     };
 
@@ -349,9 +364,36 @@ useEffect(() => {
           {data == null ? (
             <p style={emptyStyle}>Loading…</p>
           ) : data.pendingSignals.length === 0 ? (
-            <p style={emptyStyle}>
-              No pending signals require reviewer action.
-            </p>
+            // Wave 2 Phase 4 — classifier-driven empty state.
+            (() => {
+              const { classification, reason } =
+                classifyInvestigationEmptyState(
+                  {
+                    data: data.pendingSignals,
+                    fetchError,
+                    permission: "allowed",
+                  },
+                  "reviewers",
+                );
+              return (
+                <div style={{ padding: 14 }}>
+                  <OperationalEmptyState
+                    classification={classification}
+                    reason={reason}
+                    nextAction={{
+                      label: "Open reviewer ops",
+                      href: "/reviewer-ops",
+                    }}
+                    adminAction={{
+                      label: "Open SLA policy",
+                      href: "/reviewer-ops/policy",
+                    }}
+                    diagnosticsLink="/ops/observability"
+                    isAdmin={canDiagnostics}
+                  />
+                </div>
+              );
+            })()
           ) : (
             <ul style={listStyle}>
               {data.pendingSignals.map((sig) => (
@@ -376,9 +418,36 @@ useEffect(() => {
           {data == null ? (
             <p style={emptyStyle}>Loading…</p>
           ) : data.recentEscalations.length === 0 ? (
-            <p style={emptyStyle}>
-              No open escalations in this workspace.
-            </p>
+            // Wave 2 Phase 4 — classifier-driven empty state.
+            (() => {
+              const { classification, reason } =
+                classifyInvestigationEmptyState(
+                  {
+                    data: data.recentEscalations,
+                    fetchError,
+                    permission: "allowed",
+                  },
+                  "reviewers",
+                );
+              return (
+                <div style={{ padding: 14 }}>
+                  <OperationalEmptyState
+                    classification={classification}
+                    reason={reason}
+                    nextAction={{
+                      label: "Open reviewer ops",
+                      href: "/reviewer-ops",
+                    }}
+                    adminAction={{
+                      label: "Open SLA policy",
+                      href: "/reviewer-ops/policy",
+                    }}
+                    diagnosticsLink="/ops/observability"
+                    isAdmin={canDiagnostics}
+                  />
+                </div>
+              );
+            })()
           ) : (
             <ul style={listStyle}>
               {data.recentEscalations.map((esc) => (
@@ -391,9 +460,36 @@ useEffect(() => {
           {data == null ? (
             <p style={emptyStyle}>Loading…</p>
           ) : data.recentGrants.length === 0 ? (
-            <p style={emptyStyle}>
-              No active external-reviewer grants in this workspace.
-            </p>
+            // Wave 2 Phase 4 — classifier-driven empty state.
+            (() => {
+              const { classification, reason } =
+                classifyInvestigationEmptyState(
+                  {
+                    data: data.recentGrants,
+                    fetchError,
+                    permission: "allowed",
+                  },
+                  "reviewers",
+                );
+              return (
+                <div style={{ padding: 14 }}>
+                  <OperationalEmptyState
+                    classification={classification}
+                    reason={reason}
+                    nextAction={{
+                      label: "Invite external reviewer",
+                      href: "/reviewer-ops/external",
+                    }}
+                    adminAction={{
+                      label: "Open external review settings",
+                      href: "/reviewer-ops/external",
+                    }}
+                    diagnosticsLink="/ops/observability"
+                    isAdmin={canDiagnostics}
+                  />
+                </div>
+              );
+            })()
           ) : (
             <ul style={listStyle}>
               {data.recentGrants.map((g) => (

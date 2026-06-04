@@ -266,6 +266,12 @@ export const COUNTER_NAMES = [
   "graph_duplicate_list_executed_total",
   "graph_seeds_executed_total",
   "reviewer_console_query_total",
+  // Wave 2 Phase 6 — investigation enterprise actions counters
+  // (bounded export endpoints + workspace MI refresh).
+  "graph_export_generated_total",
+  "graph_timeline_export_generated_total",
+  "graph_duplicates_export_generated_total",
+  "media_intelligence_refresh_requested_total",
   // Phase 31.20 — OCR / transcript indexing producer counters.
   "ocr_indexer_started_total",
   "ocr_indexer_completed_total",

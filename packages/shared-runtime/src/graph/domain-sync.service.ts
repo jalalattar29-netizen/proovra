@@ -97,7 +97,10 @@ export type SearchProjectionSyncResult = {
 // invariants test enforces.
 
 type DomainSweepConfig = {
-  nodeKind: string;
+  /** Node kinds to sweep in this domain. Wave 1 taxonomy: domains
+   *  with a rename carry BOTH the canonical name and the deprecated
+   *  alias so legacy rows continue to tombstone cleanly. */
+  nodeKinds: readonly string[];
   sourceTable: string;
   /** Optional extra filter on the source table's row (e.g.
    *  `AND s."team_id" = $1`). Always team-anchored; this is for
@@ -106,27 +109,29 @@ type DomainSweepConfig = {
 };
 
 const DOMAIN_SWEEPS: Record<DomainSyncDomain, DomainSweepConfig> = {
-  CASE: { nodeKind: "CASE", sourceTable: "cases" },
-  REPORT: { nodeKind: "REPORT", sourceTable: "evidence_reports" },
+  CASE: { nodeKinds: ["CASE"], sourceTable: "cases" },
+  REPORT: { nodeKinds: ["REPORT"], sourceTable: "evidence_reports" },
   VERIFICATION_PACKAGE: {
-    nodeKind: "VERIFICATION_PACKAGE",
+    nodeKinds: ["VERIFICATION_PACKAGE"],
     sourceTable: "verification_packages",
   },
-  EXPORT: { nodeKind: "EXPORT", sourceTable: "evidence_exports" },
+  EXPORT: { nodeKinds: ["EXPORT"], sourceTable: "evidence_exports" },
   REVIEW_TASK: {
-    nodeKind: "REVIEW_TASK",
+    // Wave 1: REVIEW_TASK domain key is unchanged for callers; sweeps
+    // both the canonical REVIEW_WORKFLOW + deprecated REVIEW_TASK alias.
+    nodeKinds: ["REVIEW_WORKFLOW", "REVIEW_TASK"],
     sourceTable: "evidence_review_workflows",
   },
   ESCALATION: {
-    nodeKind: "ESCALATION",
+    nodeKinds: ["REVIEW_ESCALATION", "ESCALATION"],
     sourceTable: "review_escalations",
   },
   INCIDENT: {
-    nodeKind: "INCIDENT",
+    nodeKinds: ["INCIDENT"],
     sourceTable: "operational_incidents",
   },
   EXTERNAL_REVIEW: {
-    nodeKind: "EXTERNAL_REVIEW",
+    nodeKinds: ["EXTERNAL_REVIEWER_GRANT", "EXTERNAL_REVIEW"],
     sourceTable: "external_review_grants",
   },
 };
@@ -148,15 +153,14 @@ export async function runDomainStaleSweep(
   let tombstoned = 0;
   try {
     // Team-anchored on BOTH sides of the UPDATE.
-    // Bounded: PG `UPDATE ... WHERE ... RETURNING` would tell us the
-    // row count exactly, but $executeRawUnsafe returns the affected
-    // row count directly.
+    // Wave 1 taxonomy: pass the kinds list as a text[] so domains with
+    // a rename sweep both the canonical name + the deprecated alias.
     const result = await client.$executeRawUnsafe(
       `UPDATE "investigation_graph_nodes" n
          SET "stale_at_utc" = NOW(),
              "updated_at_utc" = NOW()
          WHERE n."team_id" = $1
-           AND n."node_kind" = $2
+           AND n."node_kind" = ANY($2::text[])
            AND n."stale_at_utc" IS NULL
            AND NOT EXISTS (
              SELECT 1 FROM "${cfg.sourceTable}" s
@@ -164,7 +168,7 @@ export async function runDomainStaleSweep(
                 AND s."team_id" = $1
            )`,
       teamId,
-      cfg.nodeKind,
+      [...cfg.nodeKinds],
     );
     tombstoned = typeof result === "number" ? result : 0;
     if (tombstoned > 0) bump("graph_node_removed_total", tombstoned);

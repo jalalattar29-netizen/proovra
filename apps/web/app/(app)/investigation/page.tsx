@@ -32,6 +32,8 @@ import { apiFetch } from "../../../lib/api";
 import { useCan, useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { HubQuickActionsBar } from "../../../components/hubs/HubQuickActionsBar";
+import { OperationalEmptyState } from "../../../components/operational/OperationalEmptyState";
+import { classifyInvestigationEmptyState } from "../../../lib/empty-state/classifier";
 // Phase 13 — typed cross-evidence findings client.
 import {
   getCrossEvidenceFindings,
@@ -149,10 +151,24 @@ function InvestigationOverviewPageInner() {
   // below is the only deep-link off this page into an ops surface
   // and must be hidden for actors without the capability.
   const canObservability = useCan("OBSERVABILITY_VIEW");
+  // Wave 2 Phase 6 — refresh + ack/dismiss actions gated by
+  // EVIDENCE_MANAGE (the closest UI-side capability that maps to the
+  // backend evidence.update_metadata permission).
+  const canMutate = useCan("EVIDENCE_MANAGE");
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
   const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Wave 2 Phase 4 — capture the underlying fetch error so the classifier
+  // can resolve API_ERROR instead of misclassifying as TRUE_EMPTY.
+  const [fetchError, setFetchError] = useState<Error | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
+  // Wave 2 Phase 6 — refresh + per-signal action state.
+  const [refreshBusy, setRefreshBusy] = useState(false);
+  const [refreshResult, setRefreshResult] = useState<
+    { enqueued: number; scanned: number } | null
+  >(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [signalBusy, setSignalBusy] = useState<Record<string, string>>({});
   // Phase 12 — Reviewer-activity summary read from the existing
   // `/v1/investigation/reviewers` endpoint. Soft-fail to null so a
   // missing permission collapses to bounded empty copy.
@@ -190,8 +206,16 @@ function InvestigationOverviewPageInner() {
         setMetrics(met);
         setLastFetchAt(Date.now());
         setError(null);
-      } catch {
-        if (!cancelled) setError("overview_unavailable");
+        setFetchError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError("overview_unavailable");
+          // Wave 2 Phase 4 — preserve the underlying Error so the
+          // classifier resolves API_ERROR honestly.
+          setFetchError(
+            err instanceof Error ? err : new Error("overview_unavailable"),
+          );
+        }
       }
       // Phase 12 — reviewer activity summary is a second, independent
       // fetch so a permission-denied here doesn't poison the rest of
@@ -231,6 +255,72 @@ function InvestigationOverviewPageInner() {
     return Math.floor((Date.now() - lastFetchAt) / 1000);
   }, [lastFetchAt]);
 
+  // Wave 2 Phase 6 — refresh action handler. Calls the new bounded
+  // workspace-wide media-intelligence refresh endpoint.
+  const handleRefresh = async () => {
+    if (!teamId || refreshBusy) return;
+    setRefreshBusy(true);
+    setRefreshError(null);
+    setRefreshResult(null);
+    try {
+      const res = (await apiFetch(
+        "/v1/investigation/media-intelligence/refresh",
+        {
+          method: "POST",
+          body: JSON.stringify({ teamId }),
+          headers: { "Content-Type": "application/json" },
+        },
+      )) as { enqueued: number; scanned: number };
+      setRefreshResult({ enqueued: res.enqueued, scanned: res.scanned });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      setRefreshError(
+        /403|forbidden/i.test(msg)
+          ? "not_permitted"
+          : "refresh_unavailable",
+      );
+    } finally {
+      setRefreshBusy(false);
+    }
+  };
+
+  // Wave 2 Phase 6 — per-signal ack/dismiss handler. Uses the
+  // canonical /v1/media-intelligence/signals/:id/action endpoint.
+  const handleSignalAction = async (
+    signalId: string,
+    action: "ACKNOWLEDGED" | "DISMISSED",
+  ) => {
+    if (!teamId) return;
+    setSignalBusy((m) => ({ ...m, [signalId]: action }));
+    try {
+      await apiFetch(
+        `/v1/media-intelligence/signals/${encodeURIComponent(signalId)}/action`,
+        {
+          method: "POST",
+          body: JSON.stringify({ teamId, action }),
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+      // Optimistically remove the row.
+      setOverview((prev) =>
+        prev
+          ? {
+              ...prev,
+              recentSignals: prev.recentSignals.filter((s) => s.id !== signalId),
+            }
+          : prev,
+      );
+    } catch {
+      /* best-effort UI; next poll cycle reconciles state */
+    } finally {
+      setSignalBusy((m) => {
+        const next = { ...m };
+        delete next[signalId];
+        return next;
+      });
+    }
+  };
+
   return (
     <div style={pageStyle}>
       <header style={headerStyle}>
@@ -242,15 +332,47 @@ function InvestigationOverviewPageInner() {
             material and they do not establish legal weight.
           </p>
         </div>
-        <span style={freshnessPillStyle(error, ageSeconds, teamId)}>
-          {error
-            ? "No analyses recorded yet"
-            : !teamId
-              ? "loading workspace…"
-              : ageSeconds == null
-                ? "loading…"
-                : `updated ${ageSeconds}s ago`}
-        </span>
+        <div style={headerRightStackStyle}>
+          <span style={freshnessPillStyle(error, ageSeconds, teamId)}>
+            {error
+              ? "No analyses recorded yet"
+              : !teamId
+                ? "loading workspace…"
+                : ageSeconds == null
+                  ? "loading…"
+                  : `updated ${ageSeconds}s ago`}
+          </span>
+          {/* Wave 2 Phase 6 — workspace-wide media-intelligence refresh.
+              Bounded to top 50 evidence records per request. Hidden for
+              actors without EVIDENCE_MANAGE. */}
+          {canMutate ? (
+            <button
+              type="button"
+              data-action="run-media-intelligence-refresh"
+              onClick={() => void handleRefresh()}
+              disabled={refreshBusy || !teamId}
+              style={refreshButtonStyle(refreshBusy)}
+            >
+              {refreshBusy
+                ? "Refreshing…"
+                : "Run media intelligence refresh"}
+            </button>
+          ) : null}
+          {refreshResult ? (
+            <span style={refreshResultStyle}>
+              {refreshResult.enqueued > 0
+                ? `Queued ${refreshResult.enqueued} of ${refreshResult.scanned} record${refreshResult.scanned === 1 ? "" : "s"}.`
+                : `No new analyses queued — scanned ${refreshResult.scanned} record${refreshResult.scanned === 1 ? "" : "s"}.`}
+            </span>
+          ) : null}
+          {refreshError ? (
+            <span style={refreshErrorStyle}>
+              {refreshError === "not_permitted"
+                ? "You do not have permission to run this action."
+                : "Unable to start refresh. Try again."}
+            </span>
+          ) : null}
+        </div>
       </header>
 
       <section style={sectionStyle}>
@@ -260,12 +382,24 @@ function InvestigationOverviewPageInner() {
 
       <section style={sectionStyle}>
         <h2 style={sectionTitleStyle}>Recent observations</h2>
-        <RecentSignalsList signals={overview?.recentSignals ?? null} />
+        <RecentSignalsList
+          signals={overview?.recentSignals ?? null}
+          fetchError={fetchError}
+          isAdmin={canObservability}
+          canMutate={canMutate}
+          signalBusy={signalBusy}
+          onAck={(id) => void handleSignalAction(id, "ACKNOWLEDGED")}
+          onDismiss={(id) => void handleSignalAction(id, "DISMISSED")}
+        />
       </section>
 
       <section style={sectionStyle}>
         <h2 style={sectionTitleStyle}>Recent graph activity</h2>
-        <GraphActivityList events={overview?.recentGraphActivity ?? null} />
+        <GraphActivityList
+          events={overview?.recentGraphActivity ?? null}
+          fetchError={fetchError}
+          isAdmin={canObservability}
+        />
       </section>
 
       {/* Phase 12 — Reviewer activity. Surfaces the bounded totals
@@ -361,32 +495,39 @@ function TotalsGrid({ totals }: { totals: Totals | null }) {
 
 function RecentSignalsList({
   signals,
+  fetchError,
+  isAdmin,
+  canMutate,
+  signalBusy,
+  onAck,
+  onDismiss,
 }: {
   signals: RecentSignal[] | null;
+  fetchError: Error | null;
+  isAdmin: boolean;
+  canMutate: boolean;
+  signalBusy: Record<string, string>;
+  onAck: (id: string) => void;
+  onDismiss: (id: string) => void;
 }) {
-  if (signals == null) {
+  if (signals == null && !fetchError) {
     return <p style={emptyStyle}>Loading…</p>;
   }
-  if (signals.length === 0) {
+  if (signals == null || signals.length === 0) {
+    // Wave 2 Phase 4 — classifier-driven empty state.
+    const { classification, reason } = classifyInvestigationEmptyState(
+      { data: signals, fetchError, permission: "allowed" },
+      "overview",
+    );
     return (
-      <div style={emptyStyle}>
-        <p style={emptyTitleStyle}>
-          Investigation surfaces populate as you capture evidence and open
-          cases. No setup required — capture content and return here.
-        </p>
-        <p style={emptyHintStyle}>
-          This page lists workspace-wide advisory observations. Capture
-          evidence or open an existing case to populate it.
-        </p>
-        <div style={emptyCtaRowStyle}>
-          <Link href="/capture" style={emptyCtaPrimaryStyle}>
-            Capture evidence
-          </Link>
-          <Link href="/cases" style={emptyCtaSecondaryStyle}>
-            Open cases
-          </Link>
-        </div>
-      </div>
+      <OperationalEmptyState
+        classification={classification}
+        reason={reason}
+        nextAction={{ label: "Capture evidence", href: "/capture" }}
+        adminAction={{ label: "Open cases", href: "/cases" }}
+        diagnosticsLink="/ops/observability"
+        isAdmin={isAdmin}
+      />
     );
   }
   return (
@@ -410,12 +551,46 @@ function RecentSignalsList({
             <time style={timestampStyle} dateTime={s.createdAtUtc}>
               Recorded {formatTimestamp(s.createdAtUtc)}
             </time>
-            <Link
-              href={`/evidence/${encodeURIComponent(s.evidenceId)}`}
-              style={pivotLinkStyle}
-            >
-              Open evidence →
-            </Link>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {canMutate ? (
+                <>
+                  <button
+                    type="button"
+                    data-action="acknowledge-signal"
+                    onClick={() => onAck(s.id)}
+                    disabled={signalBusy[s.id] != null}
+                    style={signalActionButtonStyle(
+                      "ack",
+                      signalBusy[s.id] === "ACKNOWLEDGED",
+                    )}
+                  >
+                    {signalBusy[s.id] === "ACKNOWLEDGED"
+                      ? "Acknowledging…"
+                      : "Acknowledge"}
+                  </button>
+                  <button
+                    type="button"
+                    data-action="dismiss-signal"
+                    onClick={() => onDismiss(s.id)}
+                    disabled={signalBusy[s.id] != null}
+                    style={signalActionButtonStyle(
+                      "dismiss",
+                      signalBusy[s.id] === "DISMISSED",
+                    )}
+                  >
+                    {signalBusy[s.id] === "DISMISSED"
+                      ? "Dismissing…"
+                      : "Dismiss"}
+                  </button>
+                </>
+              ) : null}
+              <Link
+                href={`/evidence/${encodeURIComponent(s.evidenceId)}`}
+                style={pivotLinkStyle}
+              >
+                Open evidence →
+              </Link>
+            </div>
           </div>
         </li>
       ))}
@@ -425,31 +600,31 @@ function RecentSignalsList({
 
 function GraphActivityList({
   events,
+  fetchError,
+  isAdmin,
 }: {
   events: GraphActivityEvent[] | null;
+  fetchError: Error | null;
+  isAdmin: boolean;
 }) {
-  if (events == null) {
+  if (events == null && !fetchError) {
     return <p style={emptyStyle}>Loading…</p>;
   }
-  if (events.length === 0) {
+  if (events == null || events.length === 0) {
+    // Wave 2 Phase 4 — classifier-driven empty state.
+    const { classification, reason } = classifyInvestigationEmptyState(
+      { data: events, fetchError, permission: "allowed" },
+      "graph",
+    );
     return (
-      <div style={emptyStyle}>
-        <p style={emptyTitleStyle}>
-          No graph activity recorded yet.
-        </p>
-        <p style={emptyHintStyle}>
-          The workspace map updates as evidence is captured and cases are
-          opened.
-        </p>
-        <div style={emptyCtaRowStyle}>
-          <Link href="/capture" style={emptyCtaPrimaryStyle}>
-            Capture evidence
-          </Link>
-          <Link href="/cases" style={emptyCtaSecondaryStyle}>
-            Open cases
-          </Link>
-        </div>
-      </div>
+      <OperationalEmptyState
+        classification={classification}
+        reason={reason}
+        nextAction={{ label: "Capture evidence", href: "/capture" }}
+        adminAction={{ label: "Open cases", href: "/cases" }}
+        diagnosticsLink="/ops/observability"
+        isAdmin={isAdmin}
+      />
     );
   }
   return (
@@ -478,16 +653,24 @@ function ReviewerActivityGrid({
   activity: ReviewerActivitySummary | null;
 }) {
   if (activity == null) {
+    // Wave 2 Phase 4 — classifier-driven empty state. The reviewer
+    // activity fetch is independent; failures collapse to null on
+    // the page, so we treat null as TRUE_EMPTY here (the user lands
+    // on the page with no reviewer assignments). The admin link
+    // surfaces the dedicated reviewer console.
+    const { classification, reason } = classifyInvestigationEmptyState(
+      { data: activity, fetchError: null, permission: "allowed" },
+      "reviewers",
+    );
     return (
-      <div style={emptyStyle}>
-        <p style={emptyTitleStyle}>
-          Review workflow surfaces populate as evidence is captured and
-          assigned. No setup required.
-        </p>
-        <p style={emptyHintStyle}>
-          Open the reviewer console for the full operator surface.
-        </p>
-      </div>
+      <OperationalEmptyState
+        classification={classification}
+        reason={reason}
+        nextAction={{
+          label: "Open reviewer console",
+          href: "/investigation/reviewers",
+        }}
+      />
     );
   }
   const wf = activity.workflowTotals ?? null;
@@ -565,17 +748,17 @@ function IndexingProgressGrid({
   // informative than hiding the section entirely and keeps the surface
   // shape stable for the operator.
   if (totals === null || totals === undefined) {
+    // Wave 2 Phase 4 — classifier-driven empty state.
+    const { classification, reason } = classifyInvestigationEmptyState(
+      { data: totals, fetchError: null, permission: "allowed" },
+      "overview",
+    );
     return (
-      <div style={emptyStyle}>
-        <p style={emptyTitleStyle}>
-          OCR and transcript indexing has not been recorded for this
-          workspace yet.
-        </p>
-        <p style={emptyHintStyle}>
-          Indexing runs as evidence is captured; existing OCR and
-          transcript content also remains searchable.
-        </p>
-      </div>
+      <OperationalEmptyState
+        classification={classification}
+        reason={reason}
+        nextAction={{ label: "Capture evidence", href: "/capture" }}
+      />
     );
   }
   // Defensive reads: optional chain guards against the runtime shape
@@ -635,17 +818,17 @@ function CrossEvidenceFindingsCard({
     return <p style={emptyStyle}>Loading…</p>;
   }
   if (findings.length === 0) {
+    // Wave 2 Phase 4 — classifier-driven empty state.
+    const { classification, reason } = classifyInvestigationEmptyState(
+      { data: findings, fetchError: null, permission: "allowed" },
+      "overview",
+    );
     return (
-      <div style={emptyStyle}>
-        <p style={emptyTitleStyle}>
-          No cross-evidence findings recorded for this workspace yet.
-        </p>
-        <p style={emptyHintStyle}>
-          When the same person, email, phone number, organisation or
-          location appears on more than one evidence record, the
-          workspace surfaces it here for operator review.
-        </p>
-      </div>
+      <OperationalEmptyState
+        classification={classification}
+        reason={reason}
+        nextAction={{ label: "Capture evidence", href: "/capture" }}
+      />
     );
   }
   return (
@@ -879,6 +1062,64 @@ const sectionStyle: React.CSSProperties = {
   marginBottom: 24,
 };
 
+const headerRightStackStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-end",
+  gap: 6,
+};
+
+function refreshButtonStyle(busy: boolean): React.CSSProperties {
+  return {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#ffffff",
+    background: busy ? "#1e3a8a" : "#1e40af",
+    border: "1px solid #1e3a8a",
+    borderRadius: 6,
+    padding: "5px 12px",
+    cursor: busy ? "wait" : "pointer",
+    whiteSpace: "nowrap",
+  };
+}
+
+const refreshResultStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: "#166534",
+  background: "#ecfdf5",
+  border: "1px solid #bbf7d0",
+  borderRadius: 6,
+  padding: "3px 8px",
+  whiteSpace: "nowrap",
+};
+
+const refreshErrorStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: "#991b1b",
+  background: "#fef2f2",
+  border: "1px solid #fca5a5",
+  borderRadius: 6,
+  padding: "3px 8px",
+  whiteSpace: "nowrap",
+};
+
+function signalActionButtonStyle(
+  variant: "ack" | "dismiss",
+  busy: boolean,
+): React.CSSProperties {
+  const isAck = variant === "ack";
+  return {
+    fontSize: 11,
+    fontWeight: 600,
+    color: isAck ? "#ffffff" : "#1e40af",
+    background: isAck ? (busy ? "#1e3a8a" : "#1e40af") : busy ? "#dbeafe" : "#eff6ff",
+    border: `1px solid ${isAck ? "#1e3a8a" : "#bfdbfe"}`,
+    borderRadius: 6,
+    padding: "3px 10px",
+    cursor: busy ? "wait" : "pointer",
+  };
+}
+
 const sectionTitleStyle: React.CSSProperties = {
   margin: "0 0 10px 0",
   fontSize: 14,
@@ -946,49 +1187,6 @@ const emptyStyle: React.CSSProperties = {
   border: "1px solid #e5e7eb",
   borderRadius: 8,
   padding: 14,
-};
-
-const emptyTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 13,
-  fontWeight: 600,
-  color: "#0f172a",
-};
-
-const emptyHintStyle: React.CSSProperties = {
-  margin: "6px 0 0 0",
-  fontSize: 12,
-  color: "#64748b",
-  lineHeight: 1.5,
-};
-
-const emptyCtaRowStyle: React.CSSProperties = {
-  marginTop: 10,
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const emptyCtaPrimaryStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: "#ffffff",
-  background: "#1e40af",
-  border: "1px solid #1e3a8a",
-  borderRadius: 6,
-  padding: "5px 12px",
-  textDecoration: "none",
-};
-
-const emptyCtaSecondaryStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: "#1e40af",
-  background: "#eff6ff",
-  border: "1px solid #bfdbfe",
-  borderRadius: 6,
-  padding: "5px 12px",
-  textDecoration: "none",
 };
 
 const listStyle: React.CSSProperties = {

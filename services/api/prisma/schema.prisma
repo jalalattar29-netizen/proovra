@@ -2288,6 +2288,42 @@ enum CustodyEventType {
   // Phase 1B — Mobile Capture Trust. Emitted by the trust-event service
   // when a capture trust event is appended to the forensic chain.
   CAPTURE_TRUST_EVENT
+  // Wave 3 — Investigation mutation custody events. Emitted by the
+  // Investigation surfaces whose actions change the evidence meaning
+  // or its graph projection. Each value fires from exactly one route
+  // handler (Phase 7B wiring). Appended to the existing forensic
+  // chain so reviewers see investigation decisions in the same audit
+  // trail as integrity events.
+  //
+  //   DUPLICATE_DECISION_RECORDED        — POST /v1/graph/duplicates/
+  //                                        :edgeId/decision succeeded
+  //                                        (CONFIRMED | DISMISSED |
+  //                                        MARKED_DERIVATIVE).
+  //   MANUAL_RELATIONSHIP_CREATED        — POST /v1/graph/relationships/
+  //                                        manual succeeded.
+  //   MANUAL_RELATIONSHIP_RETRACTED      — DELETE /v1/graph/relationships/
+  //                                        manual/:id succeeded.
+  //   GRAPH_RECONCILE_REQUESTED          — POST /v1/graph/reconcile invoked
+  //                                        by operator (operator-driven
+  //                                        reconciliation, not the worker
+  //                                        cadence).
+  //   MEDIA_INTELLIGENCE_REFRESH_REQUESTED
+  //                                      — POST /v1/investigation/media-
+  //                                        intelligence/refresh invoked
+  //                                        by operator.
+  //   INVESTIGATION_GRAPH_EXPORTED       — POST /v1/graph/export succeeded.
+  //   INVESTIGATION_TIMELINE_EXPORTED    — POST /v1/graph/timeline/export
+  //                                        succeeded.
+  //   INVESTIGATION_DUPLICATES_EXPORTED  — POST /v1/graph/duplicates/export
+  //                                        succeeded.
+  DUPLICATE_DECISION_RECORDED
+  MANUAL_RELATIONSHIP_CREATED
+  MANUAL_RELATIONSHIP_RETRACTED
+  GRAPH_RECONCILE_REQUESTED
+  MEDIA_INTELLIGENCE_REFRESH_REQUESTED
+  INVESTIGATION_GRAPH_EXPORTED
+  INVESTIGATION_TIMELINE_EXPORTED
+  INVESTIGATION_DUPLICATES_EXPORTED
 }
 
 enum AuthProvider {
@@ -11052,4 +11088,28 @@ model CollaborationTeamAssignment {
   @@index([targetType, targetId])
   @@index([assigneeUserId, status])
   @@map("collaboration_team_assignments")
+}
+
+// =============================================================================
+// Wave 2 — Duplicate / Similarity / Lineage decisions.
+//
+// Persists reviewer decisions on graph duplicate-class edges (SAME_HASH_AS,
+// SIMILAR_TO, POSSIBLE_DERIVATIVE_OF) without touching the edges themselves.
+// One decision per (team, edge). Bounded reason note. No FK on edgeId or
+// decidedByUserId — application-level integrity. The migration adds CHECK
+// constraints on edgeType + decision to keep the vocabulary closed.
+// =============================================================================
+model DuplicateDecision {
+  id              String   @id @default(uuid())
+  teamId          String   @map("team_id")
+  edgeId          String   @map("edge_id")
+  edgeType        String   @map("edge_type")
+  decision        String
+  decidedByUserId String   @map("decided_by_user_id")
+  reasonNote      String?  @map("reason_note") @db.VarChar(400)
+  createdAtUtc    DateTime @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+
+  @@unique([teamId, edgeId])
+  @@index([teamId, decision])
+  @@map("duplicate_decisions")
 }

@@ -1017,6 +1017,18 @@ export type MediaIntelligenceJobKind =
   // image byte range, derives an 8×8 luminance matrix via sharp, and
   // writes pHash+dHash to evidence_parts.{perceptual_phash,_dhash}.
   | "compute_perceptual_hashes"
+  // Wave 4 — automatic OCR (Azure Document Intelligence) producer.
+  // Fetches PDF / image bytes from S3, runs the canonical adapter via
+  // runProviderOperation (budget + entitlement + policy gated), and
+  // persists MediaIntelligenceRecord + EvidenceExtractedText rows. The
+  // worker NEVER calls analyzeDocumentLayout directly — it routes
+  // through the adapter so the spend gate / quota gate cover the
+  // automatic path identically to the manual route.
+  | "extract_ocr_azure"
+  // Wave 4 — automatic transcript (Deepgram) producer. Same shape as
+  // extract_ocr_azure but for audio / video evidence via the deepgram
+  // adapter.
+  | "extract_transcript_deepgram"
   | "wire_ocr_transcript"
   | "reindex"
   | "reconcile";

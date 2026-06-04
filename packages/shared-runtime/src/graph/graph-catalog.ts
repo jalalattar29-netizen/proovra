@@ -6,28 +6,79 @@
  * in 2026-05-20-investigation-graph.sql exactly.
  *
  * Pure module. No DB / no fetch / no side effects.
+ *
+ * ---------------------------------------------------------------------------
+ * Wave 1 taxonomy renames (additive — deprecated aliases co-exist for one
+ * release for backward-compatibility with any existing DB rows + producers):
+ *
+ *   REVIEW_TASK         → REVIEW_WORKFLOW            (kept as deprecated alias)
+ *   ESCALATION          → REVIEW_ESCALATION          (kept as deprecated alias)
+ *   EXTERNAL_REVIEW     → EXTERNAL_REVIEWER_GRANT    (kept as deprecated alias)
+ *   MEDIA_SIGNAL        → MEDIA_INTELLIGENCE_SIGNAL  (kept as deprecated alias)
+ *   ENTITY              → EXTRACTED_ENTITY           (kept as deprecated alias)
+ *
+ * Producers write the NEW name only. The old names remain in the catalog +
+ * SQL CHECK so live rows continue to validate; remove in the next major
+ * release after all live rows have been migrated forward by the graph
+ * reconciler.
+ *
+ * Wave 1 additions (DEFERRED — no producer in this wave; added to keep
+ * the catalog + SQL CHECK aligned with the brief so future waves can
+ * land producers additively without another CHECK migration):
+ *
+ *   Node kinds:
+ *     EVIDENCE_PART, CASE_EVIDENCE_LINK, REVIEW_DECISION,
+ *     MEDIA_INTELLIGENCE_RECORD, CUSTODY_EVENT
+ *
+ *   Edge types:
+ *     HAS_PART, HAS_REVIEW_DECISION, HAS_MEDIA_RECORD, HAS_CUSTODY_EVENT
+ * ---------------------------------------------------------------------------
  */
 
 export const GRAPH_NODE_KINDS = [
   "EVIDENCE",
   "CASE",
   "INCIDENT",
+  // Wave 1 taxonomy: REVIEW_WORKFLOW is the canonical name. Producers
+  // write REVIEW_WORKFLOW only.
+  "REVIEW_WORKFLOW",
+  // Phase Wave1 taxonomy: `REVIEW_TASK` kept as deprecated alias for backward compatibility — remove in next major release.
   "REVIEW_TASK",
+  // Wave 1 taxonomy: REVIEW_ESCALATION is the canonical name.
+  "REVIEW_ESCALATION",
+  // Phase Wave1 taxonomy: `ESCALATION` kept as deprecated alias for backward compatibility — remove in next major release.
   "ESCALATION",
   "LEGAL_HOLD",
   "EXPORT",
   "REPORT",
   "VERIFICATION_PACKAGE",
+  // Wave 1 taxonomy: MEDIA_INTELLIGENCE_SIGNAL is the canonical name.
+  "MEDIA_INTELLIGENCE_SIGNAL",
+  // Phase Wave1 taxonomy: `MEDIA_SIGNAL` kept as deprecated alias for backward compatibility — remove in next major release.
   "MEDIA_SIGNAL",
   "OCR",
   "TRANSCRIPT",
+  // Wave 1 taxonomy: EXTERNAL_REVIEWER_GRANT is the canonical name.
+  "EXTERNAL_REVIEWER_GRANT",
+  // Phase Wave1 taxonomy: `EXTERNAL_REVIEW` kept as deprecated alias for backward compatibility — remove in next major release.
   "EXTERNAL_REVIEW",
   "USER_CREATED_ENTITY",
-  // Phase 13 — extracted-entity node. One node per persisted
-  // evidence_entities row; external_id == evidence_entities.id.
-  // Mirrors the widened DB CHECK constraint in the Phase 13
-  // migration.
+  // Wave 1 taxonomy: EXTRACTED_ENTITY is the canonical name.
+  // Phase 13 — one node per persisted evidence_entities row;
+  // external_id == evidence_entities.id.
+  "EXTRACTED_ENTITY",
+  // Phase Wave1 taxonomy: `ENTITY` kept as deprecated alias for backward compatibility — remove in next major release.
   "ENTITY",
+  // DEFERRED — no producer in this wave (per-evidence-part provenance node).
+  "EVIDENCE_PART",
+  // DEFERRED — no producer in this wave (bounded-projection design needed).
+  "CASE_EVIDENCE_LINK",
+  // DEFERRED — no producer in this wave (reviewer_decision rows exist).
+  "REVIEW_DECISION",
+  // DEFERRED — no producer in this wave (media_intelligence_records exist).
+  "MEDIA_INTELLIGENCE_RECORD",
+  // DEFERRED — no producer in this wave (custody-events stream exists).
+  "CUSTODY_EVENT",
 ] as const;
 
 export type GraphNodeKind = (typeof GRAPH_NODE_KINDS)[number];
@@ -49,10 +100,16 @@ export const GRAPH_EDGE_TYPES = [
   "HAS_TRANSCRIPT",
   "HAS_OCR",
   "MANUALLY_LINKED_TO",
-  // Phase 13 — ENTITY → EVIDENCE: this entity was extracted from
-  // that evidence record by the entity-extraction service. Mirrors
-  // the widened DB CHECK constraint in the Phase 13 migration.
+  // Phase 13 — ENTITY → EVIDENCE (also serves EXTRACTED_ENTITY → EVIDENCE).
   "EXTRACTED_FROM",
+  // DEFERRED — no producer in this wave (EVIDENCE → EVIDENCE_PART).
+  "HAS_PART",
+  // DEFERRED — no producer in this wave (REVIEW_WORKFLOW → REVIEW_DECISION).
+  "HAS_REVIEW_DECISION",
+  // DEFERRED — no producer in this wave (EVIDENCE → MEDIA_INTELLIGENCE_RECORD).
+  "HAS_MEDIA_RECORD",
+  // DEFERRED — no producer in this wave (EVIDENCE → CUSTODY_EVENT).
+  "HAS_CUSTODY_EVENT",
 ] as const;
 
 export type GraphEdgeType = (typeof GRAPH_EDGE_TYPES)[number];
@@ -95,3 +152,21 @@ export const MAX_GRAPH_TRAVERSAL_DEPTH = 3;
  */
 export const MAX_GRAPH_NODES_PER_RESPONSE = 500;
 export const MAX_GRAPH_EDGES_PER_RESPONSE = 1000;
+
+// ---------------------------------------------------------------------------
+// Wave 1 taxonomy — deprecated alias map.
+//
+// Producers + consumers should write/read the canonical (new) names.
+// The aliases are kept in the catalog + SQL CHECK so existing rows
+// continue to validate. The reconciler may opportunistically rewrite
+// old → new during a future wave.
+// ---------------------------------------------------------------------------
+export const WAVE1_DEPRECATED_NODE_KIND_ALIASES: Readonly<
+  Record<string, GraphNodeKind>
+> = Object.freeze({
+  REVIEW_TASK: "REVIEW_WORKFLOW",
+  ESCALATION: "REVIEW_ESCALATION",
+  EXTERNAL_REVIEW: "EXTERNAL_REVIEWER_GRANT",
+  MEDIA_SIGNAL: "MEDIA_INTELLIGENCE_SIGNAL",
+  ENTITY: "EXTRACTED_ENTITY",
+});

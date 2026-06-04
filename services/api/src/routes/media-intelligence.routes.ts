@@ -41,6 +41,10 @@ import {
   SIGNAL_METADATA,
 } from "../services/media-intelligence/signal-catalog.js";
 import { bump } from "../services/ops/metrics.service.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+// Wave 3 Phase 7B — bounded custody emit on workspace MI refresh.
+import * as prismaPkg from "@prisma/client";
+import { appendInvestigationCustody } from "../services/investigation-custody.service.js";
 
 // =============================================================================
 // Bounded validators
@@ -340,6 +344,131 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         signalId,
         status: body.action,
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /v1/investigation/media-intelligence/refresh
+  //
+  // Wave 2 Phase 6 — operator-triggered workspace-wide media-intelligence
+  // refresh. Enqueues the analyzer for up to the most recent 50 evidence
+  // records in the workspace. Caps per-request to avoid queue storms.
+  //
+  // Permission: evidence.update_metadata. Anti-enumeration via team scope.
+  // Bounded audit emit via appendPlatformAuditLog action
+  // `MEDIA_INTELLIGENCE_REFRESH_REQUESTED`.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/investigation/media-intelligence/refresh",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = z
+        .object({ teamId: z.string().uuid() })
+        .strict()
+        .parse(req.body ?? {});
+      const actor = await authorizeOrFail(req, reply, {
+        teamId: body.teamId,
+        permission: "evidence.update_metadata",
+        antiEnumeration: true,
+      });
+      if (!actor) return;
+
+      const REFRESH_CAP = 50;
+      type EvidenceRow = { id: string };
+      let evidence: EvidenceRow[] = [];
+      try {
+        evidence = (await prisma.$queryRawUnsafe(
+          `SELECT "id"
+             FROM "evidence"
+             WHERE "team_id" = $1 AND "deleted_at" IS NULL
+             ORDER BY "created_at" DESC
+             LIMIT $2`,
+          body.teamId,
+          REFRESH_CAP,
+        )) as EvidenceRow[];
+      } catch {
+        return reply.code(503).send({
+          error: { code: "media_intelligence_unavailable" },
+        });
+      }
+
+      let enqueued = 0;
+      let skipped = 0;
+      const { enqueueMediaIntelligenceRun } = await import(
+        "../services/media-intelligence/run-tracker.service.js"
+      );
+      const { enqueueMediaIntelligenceAnalysis } = await import(
+        "../queue/media-intelligence-queue.js"
+      );
+      for (const ev of evidence) {
+        try {
+          const runResult = await enqueueMediaIntelligenceRun({
+            teamId: body.teamId,
+            evidenceId: ev.id,
+            kind: "analyze_metadata",
+            idempotencyKey: `refresh:${ev.id}`,
+          });
+          if (!runResult.ok) {
+            skipped += 1;
+            continue;
+          }
+          const enq = await enqueueMediaIntelligenceAnalysis({
+            teamId: body.teamId,
+            evidenceId: ev.id,
+            kind: "analyze_metadata",
+            runId: runResult.run.id,
+          });
+          if (enq.enqueued) enqueued += 1;
+          else skipped += 1;
+        } catch {
+          skipped += 1;
+        }
+      }
+
+      try {
+        await appendPlatformAuditLog({
+          userId: actor.actorUserId,
+          action: "MEDIA_INTELLIGENCE_REFRESH_REQUESTED",
+          category: "investigation_graph",
+          severity: "info",
+          source: "media_intelligence_routes",
+          outcome: enqueued > 0 ? "queued" : "noop",
+          resourceType: "team",
+          resourceId: body.teamId,
+          requestId: req.id,
+          metadata: {
+            teamId: body.teamId,
+            cap: REFRESH_CAP,
+            enqueued,
+            skipped,
+            scanned: evidence.length,
+          },
+        });
+      } catch {
+        /* best-effort audit; never block the operator action */
+      }
+      // Wave 3 Phase 7B — bounded custody emit AFTER the enqueue
+      // sweep completes. Workspace-scoped → helper resolves a workspace
+      // anchor.
+      try {
+        await appendInvestigationCustody({
+          teamId: body.teamId,
+          actorUserId: actor.actorUserId,
+          eventType: prismaPkg.CustodyEventType.MEDIA_INTELLIGENCE_REFRESH_REQUESTED,
+          payload: { en: enqueued, sk: skipped, sc: evidence.length },
+          surface: "media-intelligence.routes.ts:refresh",
+        });
+      } catch {
+        /* best-effort custody; never block the operator action */
+      }
+      bump("media_intelligence_refresh_requested_total");
+      return reply.code(202).send({
+        teamId: body.teamId,
+        scanned: evidence.length,
+        enqueued,
+        skipped,
+        cap: REFRESH_CAP,
       });
     },
   );

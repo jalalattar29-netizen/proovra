@@ -574,6 +574,36 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Pure additive (CREATE TABLE IF NOT EXISTS + ADD COLUMN IF NOT EXISTS);
       // zero DROP / RENAME / TRUNCATE / DELETE / UPDATE / REVOKE statements.
       "20270809000000_phase_2_1_final_drift_closure",
+      // Wave 1 — Investigation graph taxonomy renames + new deferred kinds.
+      // Additive CHECK widening on investigation_graph_nodes.node_kind +
+      // investigation_graph_edges.edge_type. Existing names remain valid
+      // (kept as deprecated aliases for one release). 5 renames + 5 new
+      // deferred node kinds + 4 new deferred edge types. Pure additive
+      // (DROP CONSTRAINT IF EXISTS + ADD CONSTRAINT with widened set);
+      // zero DROP TABLE / DROP COLUMN / RENAME / data movement.
+      "20270810000000_wave1_graph_taxonomy_renames",
+      // Wave 2 — Duplicate / Similarity / Lineage decisions. Adds one new
+      // table `duplicate_decisions` with bounded CHECK constraints on
+      // edge_type (SAME_HASH_AS | SIMILAR_TO | POSSIBLE_DERIVATIVE_OF) +
+      // decision (CONFIRMED | DISMISSED | MARKED_DERIVATIVE). Pure
+      // additive (CREATE TABLE IF NOT EXISTS + ADD CONSTRAINT guarded
+      // by NOT EXISTS); zero DROP / RENAME / data movement.
+      "20270811000000_wave2_duplicate_decisions",
+      // Wave 3 — CustodyEventType enum widening (Phase 7A). Adds 8 new
+      // Investigation-mutation custody event values to the Postgres
+      // enum `CustodyEventType`:
+      //   DUPLICATE_DECISION_RECORDED
+      //   MANUAL_RELATIONSHIP_CREATED
+      //   MANUAL_RELATIONSHIP_RETRACTED
+      //   GRAPH_RECONCILE_REQUESTED
+      //   MEDIA_INTELLIGENCE_REFRESH_REQUESTED
+      //   INVESTIGATION_GRAPH_EXPORTED
+      //   INVESTIGATION_TIMELINE_EXPORTED
+      //   INVESTIGATION_DUPLICATES_EXPORTED
+      // Each ALTER TYPE wrapped in a DO $$ block + ADD VALUE IF NOT EXISTS
+      // for idempotency. Pure additive — zero DROP VALUE / RENAME VALUE /
+      // data movement. Existing values remain valid.
+      "20270812000000_wave3_custody_event_type_widening",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

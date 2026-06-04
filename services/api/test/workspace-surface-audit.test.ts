@@ -56,6 +56,23 @@ const INVESTIGATION_DUPLICATES_PAGE = readWeb(
   "app/(app)/investigation/duplicates/page.tsx",
 );
 const INTEGRATIONS_PAGE = readWeb("app/(app)/integrations/page.tsx");
+// Wave 2 classifier swap: canonical empty-state body copy moved out
+// of the page files and into the operational primitive +
+// producer-mode resolver. These pins look in BOTH the page (for the
+// classifier call wiring) and the operational source (for the bounded
+// copy table that drives the rendered prose).
+const OPERATIONAL_EMPTY_STATE = readWeb(
+  "components/operational/OperationalEmptyState.tsx",
+);
+const PRODUCER_MODE_SRC = readFileSync(
+  fileURLToPath(
+    new URL(
+      "../../../packages/shared-runtime/src/media-intelligence/producer-mode.ts",
+      import.meta.url,
+    ),
+  ),
+  "utf8",
+);
 
 /**
  * Slice the body of a single route registry entry by id. Routes are
@@ -144,8 +161,32 @@ describe("Workspace surface audit — LABEL_CLARIFICATION changes", () => {
 
 describe("Workspace surface audit — EMPTY_STATE_COPY for /investigation hub", () => {
   it("renders the new 'populate as you capture' empty-state copy", () => {
+    // Wave 2 classifier swap: the inline "populate as you capture"
+    // sentence moved into the classifier's TRUE_EMPTY_GENERIC reason
+    // copy ("Capture evidence and open a case — entries appear here as
+    // the workspace populates.") which the page renders verbatim via
+    // OperationalEmptyState. The hub page is the truth-source for which
+    // domain to classify. Assert BOTH: the page calls the classifier
+    // for the overview domain, and the canonical reason copy still
+    // surfaces the bounded "populate as you capture" intent.
     expect(INVESTIGATION_HUB_PAGE).toMatch(
-      /Investigation surfaces populate as you capture evidence and open\s+cases\. No setup required — capture content and return here\./,
+      /classifyInvestigationEmptyState[\s\S]*?"overview"/,
+    );
+    // The canonical reason text lives in
+    // apps/web/lib/empty-state/classifier.ts; the operational primitive
+    // renders it verbatim. Look for the "populate" intent in either the
+    // hub page (legacy inline copy) or the classifier copy table.
+    const classifierPath = fileURLToPath(
+      new URL(
+        "../../../apps/web/lib/empty-state/classifier.ts",
+        import.meta.url,
+      ),
+    );
+    const classifierSrc = readFileSync(classifierPath, "utf8");
+    const honestPopulateCopy =
+      /populate as you capture evidence and open\s+cases|entries appear here as the workspace populates/;
+    expect(`${INVESTIGATION_HUB_PAGE}\n${classifierSrc}`).toMatch(
+      honestPopulateCopy,
     );
   });
 
@@ -162,14 +203,48 @@ describe("Workspace surface audit — EMPTY_STATE_COPY for /investigation hub", 
 
 describe("Workspace surface audit — EMPTY_STATE_COPY for /investigation/duplicates", () => {
   it("the empty-state title explains exact-match reconciliation reality", () => {
+    // Wave 2 classifier swap: the inline "exact-match … reconciled"
+    // sentence moved into CLASSIFICATION_COPY (TRUE_EMPTY title plus
+    // the section's bounded `description` rendered by the page —
+    // "Records that share an identical byte-for-byte SHA-256.")
+    // The duplicates page is the truth-source for which classifier
+    // domain to call ('duplicates'); the primitive renders the bounded
+    // body copy. Assert BOTH: the classifier call exists and the
+    // section description honestly describes the exact-match reality.
     expect(INVESTIGATION_DUPLICATES_PAGE).toMatch(
-      /Exact-match duplicates appear here automatically as evidence\s+is reconciled\./,
+      /classifyInvestigationEmptyState[\s\S]*?"duplicates"/,
+    );
+    // The duplicates page's "Exact duplicates" section description
+    // describes the exact-match reality verbatim.
+    expect(INVESTIGATION_DUPLICATES_PAGE).toMatch(
+      /Records that share an identical byte-for-byte SHA-256/,
+    );
+    // And the operational primitive's TRUE_EMPTY copy bounds the body.
+    expect(OPERATIONAL_EMPTY_STATE).toMatch(
+      /TRUE_EMPTY:\s*\{[\s\S]*?title:\s*"Nothing has been recorded here yet\."/,
     );
   });
 
   it("the empty-state surfaces the perceptual-similarity producer gap honestly", () => {
+    // Wave 2 classifier swap: the perceptual-similarity caveat now
+    // flows from the producer-mode resolver via PRODUCER_REASON_COPY
+    // ("Not configured. No automatic extraction will run.") + the
+    // classifier's CAPABILITY_UNAVAILABLE / FEATURE_NOT_CONFIGURED
+    // codes. The duplicates page wires this honestly by consulting
+    // the resolver for `perceptual_similarity`. Assert BOTH: the
+    // page consumes the resolver and the resolver still emits the
+    // honest NOT_CONFIGURED reason for the perceptual_similarity kind.
     expect(INVESTIGATION_DUPLICATES_PAGE).toMatch(
-      /Perceptual similarity is not yet available on\s+this workspace\./,
+      /p\.kind === "perceptual_similarity"/,
+    );
+    expect(INVESTIGATION_DUPLICATES_PAGE).toMatch(
+      /classifyInvestigationEmptyState/,
+    );
+    expect(PRODUCER_MODE_SRC).toMatch(
+      /NOT_CONFIGURED:\s*"Not configured\. No automatic extraction will run\."/,
+    );
+    expect(PRODUCER_MODE_SRC).toMatch(
+      /kind:\s*"perceptual_similarity"[\s\S]{0,400}NOT_CONFIGURED/,
     );
   });
 });

@@ -119,8 +119,11 @@ describe("Phase 13 ENTITY_GRAPH_EDGE_WIRE — reconcileTeamGraph wires entity no
     expect(src).toMatch(/evidence_entities/);
   });
 
-  it("upserts ENTITY nodes via the existing upsertNode helper", () => {
-    expect(src).toMatch(/upsertNode\([^)]*"ENTITY"/);
+  // Wave 1 taxonomy: ENTITY → EXTRACTED_ENTITY rename. Producers
+  // now write the canonical EXTRACTED_ENTITY name; old ENTITY rows
+  // remain valid via the deprecated alias in the catalog + CHECK.
+  it("upserts EXTRACTED_ENTITY nodes via the existing upsertNode helper", () => {
+    expect(src).toMatch(/upsertNode\([^)]*"EXTRACTED_ENTITY"/);
   });
 
   it("writes EXTRACTED_FROM edges via the existing upsertEdge helper", () => {

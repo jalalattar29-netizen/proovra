@@ -407,40 +407,56 @@ describe("Phase 31.5 — signal action endpoint", () => {
 // =============================================================================
 
 describe("Phase 32 — graph catalog", () => {
-  it("node kinds match the brief + Phase 13 ENTITY (15 entries)", () => {
-    // Phase 32 brief had 14 entries. Phase 13 (#300) widened the
-    // catalog with ENTITY to support extracted-entity nodes from the
-    // entity-extraction service. Catalog + SQL CHECK + this pin must
-    // stay in lockstep.
-    expect(GRAPH_NODE_KINDS.length).toBe(15);
+  it("node kinds match the brief + Phase 13 + Wave 1 renames + deferred kinds (25 entries)", () => {
+    // Phase 32 brief had 14 entries. Phase 13 (#300) widened with ENTITY
+    // (→ 15). Wave 1 taxonomy adds 5 canonical renames (kept as aliases:
+    // REVIEW_TASK/ESCALATION/EXTERNAL_REVIEW/MEDIA_SIGNAL/ENTITY) + 5
+    // deferred kinds with no producer (EVIDENCE_PART / CASE_EVIDENCE_LINK
+    // / REVIEW_DECISION / MEDIA_INTELLIGENCE_RECORD / CUSTODY_EVENT) for
+    // a total of 15 + 10 = 25. Catalog + SQL CHECK + this pin stay in
+    // lockstep.
+    expect(GRAPH_NODE_KINDS.length).toBe(25);
     for (const expected of [
       "EVIDENCE",
       "CASE",
       "INCIDENT",
+      // Wave 1 canonical + deprecated alias.
+      "REVIEW_WORKFLOW",
       "REVIEW_TASK",
+      "REVIEW_ESCALATION",
       "ESCALATION",
       "LEGAL_HOLD",
       "EXPORT",
       "REPORT",
       "VERIFICATION_PACKAGE",
+      "MEDIA_INTELLIGENCE_SIGNAL",
       "MEDIA_SIGNAL",
       "OCR",
       "TRANSCRIPT",
+      "EXTERNAL_REVIEWER_GRANT",
       "EXTERNAL_REVIEW",
       "USER_CREATED_ENTITY",
-      // Phase 13 — extracted-entity node.
+      "EXTRACTED_ENTITY",
+      // Phase 13 — extracted-entity legacy alias.
       "ENTITY",
+      // Wave 1 deferred — no producer.
+      "EVIDENCE_PART",
+      "CASE_EVIDENCE_LINK",
+      "REVIEW_DECISION",
+      "MEDIA_INTELLIGENCE_RECORD",
+      "CUSTODY_EVENT",
     ]) {
       expect(GRAPH_NODE_KINDS).toContain(expected as never);
     }
   });
 
-  it("edge types match the brief + Phase 13 EXTRACTED_FROM (17 entries)", () => {
-    // Phase 32 brief had 16 entries. Phase 13 (#300) widened the
-    // catalog with EXTRACTED_FROM for ENTITY → EVIDENCE edges from the
-    // entity-extraction service. Catalog + SQL CHECK + this pin must
-    // stay in lockstep.
-    expect(GRAPH_EDGE_TYPES.length).toBe(17);
+  it("edge types match the brief + Phase 13 EXTRACTED_FROM + Wave 1 deferred edges (21 entries)", () => {
+    // Phase 32 brief had 16 entries. Phase 13 (#300) widened with
+    // EXTRACTED_FROM (→ 17). Wave 1 taxonomy adds 4 deferred edge types
+    // with no producer (HAS_PART / HAS_REVIEW_DECISION / HAS_MEDIA_RECORD
+    // / HAS_CUSTODY_EVENT) for a total of 17 + 4 = 21. Catalog + SQL
+    // CHECK + this pin stay in lockstep.
+    expect(GRAPH_EDGE_TYPES.length).toBe(21);
     for (const expected of [
       "BELONGS_TO_CASE",
       "CAPTURED_IN_SESSION",
@@ -460,6 +476,11 @@ describe("Phase 32 — graph catalog", () => {
       "MANUALLY_LINKED_TO",
       // Phase 13 — ENTITY → EVIDENCE edge.
       "EXTRACTED_FROM",
+      // Wave 1 deferred — no producer.
+      "HAS_PART",
+      "HAS_REVIEW_DECISION",
+      "HAS_MEDIA_RECORD",
+      "HAS_CUSTODY_EVENT",
     ]) {
       expect(GRAPH_EDGE_TYPES).toContain(expected as never);
     }
@@ -623,8 +644,15 @@ describe("Phase 32 — graph routes", () => {
     ) ?? [];
     // Phase 32 base (3) + Phase 32.5 additions (3) = 6 +
     // Phase 31.18 additions: /v1/graph/duplicates + /v1/graph/seeds = 2.
-    // Total 8.
-    expect(authorizeCalls.length).toBe(8);
+    // Wave 2 Phase 2: + POST /v1/graph/duplicates/:edgeId/decision = 9.
+    // Wave 1: + POST /v1/graph/reconcile = 10 (Wave 1 used its own
+    // requireGraphAdminActor gate, not authorizeOrFail — confirm by reading
+    // graph.routes.ts; the actual authorizeOrFail count here pins the
+    // routes that route-authorize through the canonical helper).
+    // Wave 2 Phase 6: + POST /v1/graph/export + POST /v1/graph/timeline/export
+    // + POST /v1/graph/duplicates/export = 12. Each new export endpoint
+    // authorizes via authorizeOrFail with evidence.read + antiEnumeration.
+    expect(authorizeCalls.length).toBe(12);
     for (const c of authorizeCalls) {
       expect(c).toMatch(/antiEnumeration:\s*true/);
     }
@@ -634,7 +662,14 @@ describe("Phase 32 — graph routes", () => {
     expect(src).toMatch(/permission:\s*"evidence\.read"/);
     const updates =
       src.match(/permission:\s*"evidence\.update_metadata"/g) ?? [];
-    expect(updates.length).toBe(2);
+    // Wave 1: POST /v1/graph/reconcile route added, which also requires
+    // evidence.update_metadata — bumping expected count 2 → 3.
+    // Wave 2 Phase 2: POST /v1/graph/duplicates/:edgeId/decision added,
+    // bumping the expected count 3 → 4. Wave 2 Phase 6 added three new
+    // graph endpoints (POST /v1/graph/export, POST /v1/graph/timeline/export,
+    // POST /v1/graph/duplicates/export) — all three use evidence.read so
+    // the update_metadata count stays at 4.
+    expect(updates.length).toBe(4);
   });
 
   it("manual edge type restricted to MANUAL_EDGE_TYPES Zod enum", () => {
