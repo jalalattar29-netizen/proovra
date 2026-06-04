@@ -83,6 +83,13 @@ import { externalReviewRoutes } from "./routes/external-review.routes.js";
 import { uploadSessionsRoutes } from "./routes/upload-sessions.routes.js";
 import { integrationsUploadsRoutes } from "./routes/integrations-uploads.routes.js";
 import { mediaIntelligenceRoutes } from "./routes/media-intelligence.routes.js";
+// Wave 5 — Internal worker→API callback for automatic provider extraction.
+// Guarded by `requireInternalServiceAuth` (X-Internal-Service-Token).
+// Exists ONLY so services/worker/src/media-intelligence.processor.ts can
+// invoke runProviderOperation + runExtractionInline without cross-importing
+// API source into the worker Docker image. NEVER reachable from a
+// public/user-authenticated session.
+import { internalMediaIntelligenceExtractRoutes } from "./routes/internal-media-intelligence-extract.routes.js";
 // Wave 3 Phase 7B — Producer-mode probe bootstrap. Side-effect import
 // that registers the four producer-mode probes against the shared-runtime
 // probe-registry seam. MUST be imported before any route handler runs.
@@ -910,6 +917,11 @@ allowedHeaders: [
   // Read-only against EvidencePart / clientSignals; never blocks
   // evidence lifecycle on analyzer failure.
   await app.register(mediaIntelligenceRoutes);
+  // Wave 5 — Internal worker→API callback for automatic provider extraction.
+  // The route is registered here (after the public media-intelligence
+  // surface) so its pre-handler order is deterministic. Auth is the
+  // X-Internal-Service-Token bearer header; no end-user session reaches it.
+  await app.register(internalMediaIntelligenceExtractRoutes);
   // Wave 1 Phase 3 — Producer-Mode Truth Resolver capability surface.
   // GET /v1/intelligence/capabilities returns the canonical 5-kind
   // producer status array. UI surfaces MUST consume this endpoint;

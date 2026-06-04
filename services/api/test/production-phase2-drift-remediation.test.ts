@@ -980,7 +980,15 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 //   - investigation-diagnostics.routes.ts
 // Both are net-new investigation-platform routes argued for in the
 // Wave 1 brief, not Phase 2 drift.
-const ROUTE_COUNT_PHASE_2_BASELINE = 91; // observed at Wave 1 close; matches `ls services/api/src/routes/` count.
+// Wave 5: bumped 91 → 92. Wave 5 added 1 legitimate new route file:
+//   - internal-media-intelligence-extract.routes.ts
+// This is the worker→API HTTP callback that replaces the worker's
+// illegal cross-import of services/api/src/services/intelligence/*.
+// The worker Docker image deliberately omits services/api/src, so the
+// extraction orchestration MUST cross the boundary over HTTP. The
+// route is service-to-service authenticated (X-Internal-Service-Token)
+// and is argued for in the Wave 5 brief, not Phase 2 drift.
+const ROUTE_COUNT_PHASE_2_BASELINE = 92; // observed at Wave 5 close; matches `ls services/api/src/routes/` count.
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

@@ -165,48 +165,55 @@ describe("Wave 4 — evidence-finalization fanout wiring", () => {
 // 3. Worker processor branches — lazy import + canonical orchestrator
 // ---------------------------------------------------------------------------
 describe("Wave 4 — worker processor branches", () => {
-  it("worker has extract_ocr_azure branch with lazy-import of orchestrator", () => {
+  // Wave 5 rebaseline: the worker no longer cross-imports
+  // services/api/src/services/intelligence/* (that broke the worker
+  // Docker build). It now delegates to the API via an HTTP callback
+  // — POST /v1/internal/media-intelligence/extract. The API still
+  // runs the canonical runProviderOperation + runExtractionInline
+  // chain, so the budget/policy/entitlement perimeter is intact.
+  // The pins below assert the new architecture rather than the
+  // direct-import shape.
+  const API_INTERNAL_EXTRACT_ROUTE = readApi(
+    "src/routes/internal-media-intelligence-extract.routes.ts",
+  );
+
+  it("worker has extract_ocr_azure branch that dispatches to processExtractOcrAzureJob", () => {
     expect(WORKER_PROCESSOR).toMatch(/kind\s*===\s*"extract_ocr_azure"/);
-    expect(WORKER_PROCESSOR).toMatch(
-      /processExtractOcrAzureJob/,
-    );
-    // The branch lazy-imports runProviderOperation (canonical). The
-    // import path may wrap across lines — match the canonical service
-    // basename which is unique to the orchestrator.
-    expect(WORKER_PROCESSOR).toMatch(
-      /media-intelligence\.service\.js/,
+    expect(WORKER_PROCESSOR).toMatch(/processExtractOcrAzureJob/);
+    // Wave 5: worker no longer imports media-intelligence.service.js
+    // directly — that lookup now lives in the API route. Pin that the
+    // string IS still present in the API-side route file.
+    expect(API_INTERNAL_EXTRACT_ROUTE).toMatch(
+      /media-intelligence\.service(?:\.js)?/,
     );
   });
 
-  it("worker has extract_transcript_deepgram branch with lazy-import of orchestrator", () => {
-    expect(WORKER_PROCESSOR).toMatch(/kind\s*===\s*"extract_transcript_deepgram"/);
+  it("worker has extract_transcript_deepgram branch that dispatches to processExtractTranscriptDeepgramJob", () => {
     expect(WORKER_PROCESSOR).toMatch(
-      /processExtractTranscriptDeepgramJob/,
+      /kind\s*===\s*"extract_transcript_deepgram"/,
     );
+    expect(WORKER_PROCESSOR).toMatch(/processExtractTranscriptDeepgramJob/);
   });
 
-  it("OCR worker branch calls runProviderOperation (not raw analyzeDocumentLayout)", () => {
-    // The branch must route through the orchestrator so budget +
-    // entitlement + policy gates fire on the automatic path.
-    expect(WORKER_PROCESSOR).toMatch(
+  it("OCR path still routes through runProviderOperation (now on API side)", () => {
+    // Wave 5: the orchestrator call moved into the API route. The
+    // worker MUST NOT contain a raw client import (Wave 4 hard rule).
+    expect(API_INTERNAL_EXTRACT_ROUTE).toMatch(
       /runProviderOperation\s*\(\s*\{[\s\S]*?provider:\s*"AZURE_DOCUMENT_INTELLIGENCE"/,
     );
-    // No real import statement (`import { analyzeDocumentLayout }`)
-    // should reach the worker — only orchestrator routing is allowed.
+    // No raw Azure DI client / direct redaction client in the worker.
     expect(WORKER_PROCESSOR).not.toMatch(
       /import\s*\{[^}]*\banalyzeDocumentLayout\b[^}]*\}/,
     );
-    // No dynamic-import statement reaches the redaction client either.
     expect(WORKER_PROCESSOR).not.toMatch(
       /import\([\s\S]*?azure-document-intelligence-client/,
     );
   });
 
-  it("Transcript worker branch calls runProviderOperation with DEEPGRAM_TRANSCRIPT", () => {
-    expect(WORKER_PROCESSOR).toMatch(
+  it("Transcript path still routes through runProviderOperation with DEEPGRAM_TRANSCRIPT", () => {
+    expect(API_INTERNAL_EXTRACT_ROUTE).toMatch(
       /runProviderOperation\s*\(\s*\{[\s\S]*?provider:\s*"DEEPGRAM_TRANSCRIPT"/,
     );
-    // No direct transcribeAndScan import — must go through adapter.
     expect(WORKER_PROCESSOR).not.toMatch(
       /import\s*\{[^}]*\btranscribeAndScan\b[^}]*\}/,
     );
@@ -215,16 +222,16 @@ describe("Wave 4 — worker processor branches", () => {
     );
   });
 
-  it("OCR worker branch writes EvidenceExtractedText via runExtractionInline", () => {
-    expect(WORKER_PROCESSOR).toMatch(/runExtractionInline/);
+  it("EvidenceExtractedText still written via runExtractionInline (now on API side)", () => {
+    expect(API_INTERNAL_EXTRACT_ROUTE).toMatch(/runExtractionInline/);
     // Both kinds (OCR_PDF + OCR_IMAGE) routed through the same writer.
-    expect(WORKER_PROCESSOR).toMatch(/"OCR_PDF"/);
-    expect(WORKER_PROCESSOR).toMatch(/"OCR_IMAGE"/);
+    expect(API_INTERNAL_EXTRACT_ROUTE).toMatch(/"OCR_PDF"/);
+    expect(API_INTERNAL_EXTRACT_ROUTE).toMatch(/"OCR_IMAGE"/);
   });
 
-  it("Transcript worker branch writes EvidenceExtractedText with TRANSCRIPT_AUDIO/VIDEO kinds", () => {
-    expect(WORKER_PROCESSOR).toMatch(/"TRANSCRIPT_AUDIO"/);
-    expect(WORKER_PROCESSOR).toMatch(/"TRANSCRIPT_VIDEO"/);
+  it("Transcript path still writes TRANSCRIPT_AUDIO/VIDEO kinds", () => {
+    expect(API_INTERNAL_EXTRACT_ROUTE).toMatch(/"TRANSCRIPT_AUDIO"/);
+    expect(API_INTERNAL_EXTRACT_ROUTE).toMatch(/"TRANSCRIPT_VIDEO"/);
   });
 
   it("OCR worker branch enqueues downstream search-indexing", () => {
@@ -276,15 +283,23 @@ describe("Wave 4 — worker processor branches", () => {
     expect(transcriptRealThrows.length).toBeLessThanOrEqual(2);
   });
 
-  it("worker NEVER logs raw extracted text (bounded preview only)", () => {
-    // The branches must NOT log `text: result.extractedText` or similar.
-    // They may log `chars: text.length` and a bounded `previewLabel`.
+  it("worker NEVER logs raw extracted text (bounded counts only post-Wave-5)", () => {
+    // Wave 5: the worker no longer receives raw text. The API
+    // response intentionally returns only counts + bounded error.
+    // The pin is therefore stricter than before — there is NO path
+    // from worker code to a raw text string.
     const allText = WORKER_PROCESSOR;
     expect(allText).not.toMatch(/text:\s*result\.extractedText/);
     expect(allText).not.toMatch(/log[ge].*[",`]\s*\+?\s*extractedText/);
-    // Bounded preview format must be present.
-    expect(allText).toMatch(/previewLabel/);
-    expect(allText).toMatch(/EXTRACTED_TEXT_PREVIEW_CHARS/);
+    // The worker logs the count-only field (defensive ceiling).
+    expect(allText).toMatch(/chars:\s*Math\.min\(result\.extractedTextChars/);
+    // The API route must not put raw text in the response body either.
+    const API_INTERNAL_EXTRACT_ROUTE = readApi(
+      "src/routes/internal-media-intelligence-extract.routes.ts",
+    );
+    expect(API_INTERNAL_EXTRACT_ROUTE).not.toMatch(
+      /reply\.code\(200\)\.send\(\{[\s\S]*?\bextractedText\s*:/,
+    );
   });
 });
 

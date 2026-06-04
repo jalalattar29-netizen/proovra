@@ -35,6 +35,17 @@
  *   - TENANT_SCOPE_EXCEPTION: migration_or_backfill
  *   - TENANT_SCOPE_EXCEPTION: auth_or_session_no_user_data
  *   - TENANT_SCOPE_EXCEPTION: account_tier_user_scoped
+ *   - TENANT_SCOPE_EXCEPTION: internal_service_token_workspace_anchored
+ *
+ * The `internal_service_token_workspace_anchored` exception covers
+ * worker→API HTTP callbacks that are authenticated via
+ * `requireInternalServiceAuth` (constant-time X-Internal-Service-Token
+ * compare, never reachable from a public/user session) AND whose body
+ * carries an explicit `teamId` that is validated against the row before
+ * any mutation. The tenant claim does NOT come from a user session — it
+ * comes from the verified internal-service caller — so the standard
+ * `userId + teamId` shape does not apply. This exception is reserved
+ * for the `internal-*` route family ONLY.
  *
  * No vague exceptions. The vocabulary is closed.
  */
@@ -83,6 +94,7 @@ const APPROVED_EXCEPTIONS = [
   "TENANT_SCOPE_EXCEPTION: migration_or_backfill",
   "TENANT_SCOPE_EXCEPTION: auth_or_session_no_user_data",
   "TENANT_SCOPE_EXCEPTION: account_tier_user_scoped",
+  "TENANT_SCOPE_EXCEPTION: internal_service_token_workspace_anchored",
 ] as const;
 
 function hasApprovedException(src: string): boolean {
