@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
 import {
@@ -760,6 +761,26 @@ useEffect(() => {
           />
           <HealthSummary teamId={teamId} />
           <SignatureDocsPanel />
+          {/* Phase 4 (UI) — page-level link into the full Team Activity
+              timeline. Admin-only because Team Activity is itself an
+              admin-gated surface. We use the canonical /teams/<teamId>
+              page (no new infra) and pass the Phase-2 filter param so
+              the timeline lands pre-scoped to integration events. */}
+          {isAdmin ? (
+            <p
+              style={{ marginTop: 8, fontSize: 13 }}
+              data-testid="integrations-view-all-activity-wrapper"
+            >
+              <Link
+                href={`/teams/${encodeURIComponent(teamId)}?activityTarget=integration`}
+                title="Opens the full workspace activity timeline filtered to integration events."
+                data-testid="integrations-view-all-activity-link"
+                style={{ color: "#0369a1", textDecoration: "underline" }}
+              >
+                View all integration activity
+              </Link>
+            </p>
+          ) : null}
 
           <section style={cardStyle} data-testid="integrations-api-keys-section">
             <div style={cardHeaderStyle}>
@@ -785,6 +806,7 @@ useEffect(() => {
             ) : (
               <ApiKeysTable
                 rows={apiKeys}
+                teamId={teamId}
                 onRevoke={(id) => setRevokeReasonForId(id)}
                 onRotate={(id) => setRotateForId(id)}
                 onExpiry={(id) => setExpiryForId(id)}
@@ -954,6 +976,17 @@ useEffect(() => {
                               : null
                           }
                           sendingTest={sendingTestForId === w.id}
+                        />
+                      ) : null}
+                      {/* Phase 4 (UI) — Rotation & activity disclosure.
+                          Lazy-loaded, default-collapsed, reuses the
+                          canonical TeamActivity feed via the Phase-2
+                          filter route. Failures stay local to this panel
+                          and do NOT block the rest of the card. */}
+                      {teamId ? (
+                        <WebhookRotationAndActivityPanel
+                          teamId={teamId}
+                          webhookEndpointId={w.id}
                         />
                       ) : null}
                     </li>
@@ -1864,12 +1897,14 @@ function Field({
 
 function ApiKeysTable({
   rows,
+  teamId,
   onRevoke,
   onRotate,
   onExpiry,
   onUsage,
 }: {
   rows: ApiKey[];
+  teamId: string | null;
   onRevoke: (id: string) => void;
   onRotate: (id: string) => void;
   onExpiry: (id: string) => void;
@@ -1887,9 +1922,17 @@ function ApiKeysTable({
         return (
           <li
             key={k.id}
-            style={rowStyle}
+            style={{ ...rowStyle, flexDirection: "column", alignItems: "stretch" }}
             data-testid={`integrations-api-key-row-${k.id}`}
           >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                width: "100%",
+              }}
+            >
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 600 }}>
                 {k.name}{" "}
@@ -1990,6 +2033,13 @@ function ApiKeysTable({
                 Usage
               </button>
             )}
+            </div>
+            {teamId ? (
+              <ApiKeyActivityPanel
+                teamId={teamId}
+                apiCredentialId={k.id}
+              />
+            ) : null}
           </li>
         );
       })}
@@ -2707,6 +2757,513 @@ function WebhookDeliveriesPanel({
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// PHASE 3 — ApiKeyActivityPanel.
+//
+// Small, lazy-loaded "Activity" disclosure rendered inside each API key row.
+// Default state is COLLAPSED — no fetch happens until the operator clicks
+// the button. The first expand triggers exactly one GET against the canonical
+// TeamActivity feed scoped to this api_credential (Phase 2 added the filter
+// params: targetType, targetId, limit). Subsequent expands reuse the cached
+// rows; a future explicit refresh button can re-call `load()`.
+//
+// SAFETY: we render only the safe enriched fields the server projection
+// already returns (id, eventType, actor, createdAt, plus a narrowly-bounded
+// `revokedReason` plucked off metadata when present). If a server response
+// somehow contains a forbidden field name (keyHash, secretCiphertext, etc.),
+// we DROP it silently — we never render the raw value, never log it, and
+// never pass it down the React tree. A fetch failure surfaces a styled
+// inline notice; it does NOT propagate and never blocks the rest of the
+// Integrations page.
+// -----------------------------------------------------------------------------
+
+type ApiKeyActivityRow = {
+  id: string;
+  eventType: string;
+  actor: { id: string; email: string | null; displayName: string | null } | null;
+  createdAt: string;
+  // Narrowly-bounded reason string. Only populated when metadata.revokedReason
+  // is a plain string under a safe length cap.
+  reason: string | null;
+};
+
+// Forbidden field-name allowlist. If a metadata object somehow contains any
+// of these names, we strip them silently and never let the value reach the
+// rendered tree. Matched case-insensitively so a future server typo cannot
+// accidentally smuggle a secret through.
+const FORBIDDEN_METADATA_FIELDS = [
+  "keyhash",
+  "previouskeyhash",
+  "secretciphertext",
+  "previoussecretciphertext",
+  "rawkey",
+  "rawsecret",
+  "authorization",
+] as const;
+
+// Phase 3 — human labels for the API-key event-type vocabulary. Unknown
+// event types fall through and render their raw eventType (which is
+// already a safe enum-shaped string on the server).
+const API_KEY_EVENT_LABELS: Record<string, string> = {
+  "integration.api_key.created": "Created",
+  "integration.api_key.rotated": "Rotated",
+  "integration.api_key.revoked": "Revoked",
+  "integration.api_key.expiry_changed": "Expiry updated",
+  "integration.api_key.scope_changed": "Scopes updated",
+  "integration.api_key.failed_scope_check": "Scope denied",
+};
+
+function projectActivityRow(raw: unknown): ApiKeyActivityRow | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const id = typeof r.id === "string" ? r.id : null;
+  const eventType = typeof r.eventType === "string" ? r.eventType : null;
+  const createdAt = typeof r.createdAt === "string" ? r.createdAt : null;
+  if (!id || !eventType || !createdAt) return null;
+
+  let actor: ApiKeyActivityRow["actor"] = null;
+  if (r.actor && typeof r.actor === "object") {
+    const a = r.actor as Record<string, unknown>;
+    if (typeof a.id === "string") {
+      actor = {
+        id: a.id,
+        email: typeof a.email === "string" ? a.email : null,
+        displayName: typeof a.displayName === "string" ? a.displayName : null,
+      };
+    }
+  }
+
+  // Drop forbidden field names silently, then pull only `revokedReason` when
+  // it is a plain bounded string. Everything else in metadata is ignored at
+  // render-time so a future server addition cannot accidentally surface.
+  let reason: string | null = null;
+  if (r.metadata && typeof r.metadata === "object") {
+    const md = r.metadata as Record<string, unknown>;
+    const safeMd: Record<string, unknown> = {};
+    for (const k of Object.keys(md)) {
+      if (FORBIDDEN_METADATA_FIELDS.includes(k.toLowerCase() as never)) continue;
+      safeMd[k] = md[k];
+    }
+    if (typeof safeMd.revokedReason === "string" && safeMd.revokedReason.length <= 400) {
+      reason = safeMd.revokedReason;
+    }
+  }
+
+  return { id, eventType, actor, createdAt, reason };
+}
+
+function ApiKeyActivityPanel({
+  teamId,
+  apiCredentialId,
+}: {
+  teamId: string;
+  apiCredentialId: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [rows, setRows] = useState<ApiKeyActivityRow[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load(signal: AbortSignal) {
+    setLoading(true);
+    setError(null);
+    try {
+      const res: { activities: unknown[] } = await apiFetch(
+        `/v1/teams/${encodeURIComponent(teamId)}/activity?targetType=api_credential&targetId=${encodeURIComponent(apiCredentialId)}&limit=10`,
+        { method: "GET", signal },
+      );
+      if (signal.aborted) return;
+      const projected = Array.isArray(res?.activities)
+        ? res.activities
+            .map((a) => projectActivityRow(a))
+            .filter((a): a is ApiKeyActivityRow => a !== null)
+        : [];
+      setRows(projected);
+    } catch (_err) {
+      if (signal.aborted) return;
+      // Literal copy per phase spec — never include the raw error so a
+      // failed fetch cannot leak server-side details to the operator and
+      // never blocks the rest of the card from rendering.
+      setError(
+        "Activity could not be loaded. The integration itself is still usable.",
+      );
+    } finally {
+      if (!signal.aborted) setLoading(false);
+    }
+  }
+
+  function onToggle() {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    setExpanded(true);
+    // Lazy-load: only fetch the first time, or on retry after an error.
+    if (rows === null || error !== null) {
+      const controller = new AbortController();
+      void load(controller.signal);
+    }
+  }
+
+  return (
+    <div
+      style={{ marginTop: 8 }}
+      data-testid={`integrations-api-key-activity-${apiCredentialId}`}
+    >
+      <button
+        type="button"
+        style={secondaryButtonStyle}
+        onClick={onToggle}
+        aria-expanded={expanded}
+        data-testid={`integrations-api-key-activity-toggle-${apiCredentialId}`}
+      >
+        {expanded ? "Hide activity" : "Activity"}
+      </button>
+      {expanded ? (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 10,
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: 8,
+          }}
+          data-testid={`integrations-api-key-activity-panel-${apiCredentialId}`}
+        >
+          {loading ? (
+            <p
+              style={mutedStyle}
+              data-testid={`integrations-api-key-activity-loading-${apiCredentialId}`}
+            >
+              Loading activity…
+            </p>
+          ) : error ? (
+            <p
+              style={{ ...mutedStyle, color: "#7f1d1d" }}
+              data-testid={`integrations-api-key-activity-error-${apiCredentialId}`}
+            >
+              {error}
+            </p>
+          ) : rows === null || rows.length === 0 ? (
+            <p
+              style={mutedStyle}
+              data-testid={`integrations-api-key-activity-empty-${apiCredentialId}`}
+            >
+              Activity will appear here after this key is created, rotated, used, or revoked.
+            </p>
+          ) : (
+            <ul style={listStyle}>
+              {rows.slice(0, 10).map((r) => {
+                const label = API_KEY_EVENT_LABELS[r.eventType] ?? r.eventType;
+                const actorLabel =
+                  r.actor?.displayName ?? r.actor?.email ?? "system";
+                return (
+                  <li
+                    key={r.id}
+                    style={{
+                      padding: "6px 0",
+                      borderBottom: "1px solid #e2e8f0",
+                    }}
+                    data-testid={`integrations-api-key-activity-row-${r.id}`}
+                  >
+                    <div style={{ fontSize: 13, color: "#0f172a" }}>
+                      <strong>{label}</strong> by {actorLabel}
+                    </div>
+                    <div style={mutedStyle}>
+                      {new Date(r.createdAt).toLocaleString()}
+                    </div>
+                    {r.reason ? (
+                      <div
+                        style={{ ...mutedStyle, fontStyle: "italic" }}
+                        data-testid={`integrations-api-key-activity-reason-${r.id}`}
+                      >
+                        Reason: {r.reason}
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// PHASE 4 (UI) — WebhookRotationAndActivityPanel.
+//
+// Same lazy-load / sanitizer posture as ApiKeyActivityPanel above, scoped
+// to a single webhook endpoint. Reuses the canonical Phase-2 filter route
+// (targetType=webhook_endpoint, targetId=<endpointId>) — does NOT introduce
+// a duplicate feed.
+//
+// SAFETY — secret-rotation rows specifically:
+//   - The server's `integration.webhook.secret_rotated` metadata exposes
+//     `previousSecretPrefix` (safe; already rendered elsewhere on the row)
+//     and `previousSecretValidUntilUtc` (a cutoff timestamp). It NEVER
+//     exposes the ciphertext, and we drop forbidden names defensively in
+//     case a future server change attempts to leak one.
+//   - The previous secret prefix is operator-visible by spec because it's
+//     already shown on the row's "previous secret still signing until …"
+//     hint. We surface it inline on the rotation row so the operator can
+//     correlate the rotation event with the grace banner above.
+// -----------------------------------------------------------------------------
+
+type WebhookActivityRow = {
+  id: string;
+  eventType: string;
+  actor: { id: string; email: string | null; displayName: string | null } | null;
+  createdAt: string;
+  previousSecretPrefix: string | null;
+  previousSecretValidUntilUtc: string | null;
+};
+
+// Forbidden field-name allowlist for webhook activity metadata. The
+// existing server projections never expose any of these, but we strip
+// them defensively so a future server typo cannot leak a secret.
+const WEBHOOK_FORBIDDEN_METADATA_FIELDS = [
+  "secret",
+  "rawsecret",
+  "secretciphertext",
+  "previoussecret",
+  "previoussecretciphertext",
+  "rawkey",
+  "authorization",
+] as const;
+
+// Human labels for the webhook event-type vocabulary. Unknown event
+// types fall through to the verbatim eventType (already enum-shaped on
+// the server). Per the phase spec, `auto_disabled` is omitted because no
+// server emitter exists for it today.
+const WEBHOOK_EVENT_LABELS: Record<string, string> = {
+  "integration.webhook.created": "Created",
+  "integration.webhook.test_sent": "Test event sent",
+  "integration.webhook.delivery_retried": "Delivery retried",
+  "integration.webhook.secret_rotated": "Secret rotated",
+  "integration.webhook.disabled": "Disabled",
+  "integration.webhook.enabled": "Enabled",
+};
+
+function projectWebhookActivityRow(raw: unknown): WebhookActivityRow | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const id = typeof r.id === "string" ? r.id : null;
+  const eventType = typeof r.eventType === "string" ? r.eventType : null;
+  const createdAt = typeof r.createdAt === "string" ? r.createdAt : null;
+  if (!id || !eventType || !createdAt) return null;
+
+  let actor: WebhookActivityRow["actor"] = null;
+  if (r.actor && typeof r.actor === "object") {
+    const a = r.actor as Record<string, unknown>;
+    if (typeof a.id === "string") {
+      actor = {
+        id: a.id,
+        email: typeof a.email === "string" ? a.email : null,
+        displayName: typeof a.displayName === "string" ? a.displayName : null,
+      };
+    }
+  }
+
+  // Drop forbidden field names silently, then pull only the two safe
+  // rotation-specific fields. Everything else in metadata is ignored at
+  // render-time so a future server addition cannot accidentally surface.
+  let previousSecretPrefix: string | null = null;
+  let previousSecretValidUntilUtc: string | null = null;
+  if (r.metadata && typeof r.metadata === "object") {
+    const md = r.metadata as Record<string, unknown>;
+    const safeMd: Record<string, unknown> = {};
+    for (const k of Object.keys(md)) {
+      if (
+        WEBHOOK_FORBIDDEN_METADATA_FIELDS.includes(k.toLowerCase() as never)
+      ) {
+        continue;
+      }
+      safeMd[k] = md[k];
+    }
+    if (
+      typeof safeMd.previousSecretPrefix === "string" &&
+      safeMd.previousSecretPrefix.length <= 32
+    ) {
+      previousSecretPrefix = safeMd.previousSecretPrefix;
+    }
+    if (
+      typeof safeMd.previousSecretValidUntilUtc === "string" &&
+      safeMd.previousSecretValidUntilUtc.length <= 64
+    ) {
+      previousSecretValidUntilUtc = safeMd.previousSecretValidUntilUtc;
+    }
+  }
+
+  return {
+    id,
+    eventType,
+    actor,
+    createdAt,
+    previousSecretPrefix,
+    previousSecretValidUntilUtc,
+  };
+}
+
+function WebhookRotationAndActivityPanel({
+  teamId,
+  webhookEndpointId,
+}: {
+  teamId: string;
+  webhookEndpointId: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [rows, setRows] = useState<WebhookActivityRow[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load(signal: AbortSignal) {
+    setLoading(true);
+    setError(null);
+    try {
+      const res: { activities: unknown[] } = await apiFetch(
+        `/v1/teams/${encodeURIComponent(teamId)}/activity?targetType=webhook_endpoint&targetId=${encodeURIComponent(webhookEndpointId)}&limit=10`,
+        { method: "GET", signal },
+      );
+      if (signal.aborted) return;
+      const projected = Array.isArray(res?.activities)
+        ? res.activities
+            .map((a) => projectWebhookActivityRow(a))
+            .filter((a): a is WebhookActivityRow => a !== null)
+        : [];
+      setRows(projected);
+    } catch (_err) {
+      if (signal.aborted) return;
+      // Literal spec copy — never surface the raw fetch error and never
+      // let it bubble up. The rest of the integrations page is unaffected.
+      setError(
+        "Activity could not be loaded. The integration itself is still usable.",
+      );
+    } finally {
+      if (!signal.aborted) setLoading(false);
+    }
+  }
+
+  function onToggle() {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    setExpanded(true);
+    // Lazy-load: only fetch the first time, or on retry after an error.
+    if (rows === null || error !== null) {
+      const controller = new AbortController();
+      void load(controller.signal);
+    }
+  }
+
+  return (
+    <div
+      style={{ marginTop: 8 }}
+      data-testid={`integrations-webhook-activity-${webhookEndpointId}`}
+    >
+      <button
+        type="button"
+        style={secondaryButtonStyle}
+        onClick={onToggle}
+        aria-expanded={expanded}
+        data-testid={`integrations-webhook-activity-toggle-${webhookEndpointId}`}
+      >
+        {expanded ? "Hide rotation & activity" : "Rotation & activity"}
+      </button>
+      {expanded ? (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 10,
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: 8,
+          }}
+          data-testid={`integrations-webhook-activity-panel-${webhookEndpointId}`}
+        >
+          {loading ? (
+            <p
+              style={mutedStyle}
+              data-testid={`integrations-webhook-activity-loading-${webhookEndpointId}`}
+            >
+              Loading activity…
+            </p>
+          ) : error ? (
+            <p
+              style={{ ...mutedStyle, color: "#7f1d1d" }}
+              data-testid={`integrations-webhook-activity-error-${webhookEndpointId}`}
+            >
+              {error}
+            </p>
+          ) : rows === null || rows.length === 0 ? (
+            <p
+              style={mutedStyle}
+              data-testid={`integrations-webhook-activity-empty-${webhookEndpointId}`}
+            >
+              Webhook activity will appear after test events, retries, rotations, or delivery failures.
+            </p>
+          ) : (
+            <ul style={listStyle}>
+              {rows.slice(0, 10).map((r) => {
+                const label = WEBHOOK_EVENT_LABELS[r.eventType] ?? r.eventType;
+                const actorLabel =
+                  r.actor?.displayName ?? r.actor?.email ?? "system";
+                const isRotation =
+                  r.eventType === "integration.webhook.secret_rotated";
+                return (
+                  <li
+                    key={r.id}
+                    style={{
+                      padding: "6px 0",
+                      borderBottom: "1px solid #e2e8f0",
+                    }}
+                    data-testid={`integrations-webhook-activity-row-${r.id}`}
+                  >
+                    <div style={{ fontSize: 13, color: "#0f172a" }}>
+                      {isRotation ? (
+                        <>
+                          <strong>{label}</strong> by {actorLabel}
+                          {r.previousSecretPrefix ? (
+                            <>
+                              {" "}
+                              · previous prefix{" "}
+                              <code>{r.previousSecretPrefix}…</code>
+                            </>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          <strong>{label}</strong> by {actorLabel}
+                        </>
+                      )}
+                    </div>
+                    <div style={mutedStyle}>
+                      {new Date(r.createdAt).toLocaleString()}
+                    </div>
+                    {isRotation && r.previousSecretValidUntilUtc ? (
+                      <div
+                        style={{ ...mutedStyle, color: "#0369a1" }}
+                        data-testid={`integrations-webhook-activity-grace-${r.id}`}
+                      >
+                        grace until{" "}
+                        {new Date(
+                          r.previousSecretValidUntilUtc,
+                        ).toLocaleString()}
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

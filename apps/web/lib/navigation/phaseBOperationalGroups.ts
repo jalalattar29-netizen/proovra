@@ -100,7 +100,12 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "review.escalations",
       "review.sla",
       "review.operations",
-      "workspace.workflows",
+      // Phase C — `workspace.workflows` moved from WORKSPACE/secondary
+      // to SYSTEM/secondary. It administers workflow templates, not
+      // operational instance execution; the reviewer execution surface
+      // lives in `/review` (workspace.review). Keeping it in WORKSPACE
+      // would re-advertise the misleading "operations" framing the
+      // Phase B IA reset deliberately retired.
       "workspace.communications",
       "workspace.collaboration",
       "workspace.intelligence",
@@ -243,6 +248,13 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
     ],
     secondary: [
       "account.persona",
+      // Phase C — `workspace.workflows` administers the
+      // EvidenceWorkflowTemplate catalog. It is an administration
+      // surface (Phase B reframed the page from a misleading
+      // "operations center" to a Templates Center). SYSTEM/secondary
+      // is the correct home — alongside notifications, integrations,
+      // and the other workspace-administration surfaces.
+      "workspace.workflows",
       // Phase Final-A3-PT2 retired `dashboard.api_keys` (route id and
       // page deleted; canonical surface is `workspace.integrations`,
       // already in `primary` above).

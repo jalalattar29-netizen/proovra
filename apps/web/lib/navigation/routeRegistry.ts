@@ -386,16 +386,27 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: true,
   },
+  // Phase C — the /workflows surface administers EvidenceWorkflowTemplate
+  // catalog entries (Phase B). It is NOT an operations surface; reviewer
+  // workflow execution lives in /review (Reviewer Operations). The label
+  // is relabeled to "Workflow Templates" so the sidebar / cmd-K / All
+  // Tools all advertise this surface honestly. Capability gating is
+  // strengthened to INTEGRATIONS_MANAGE — only workspace administrators
+  // (the same role gate the page itself enforces) should see this entry.
+  // The route folds into the System group via the Phase C update to
+  // phaseBOperationalGroups.ts so it sits with the other Administration
+  // surfaces rather than alongside daily operator workflow.
   {
     id: "workspace.workflows",
     href: "/workflows",
-    label: "Workflows",
-    description: "Workflow instances and templates active in this workspace.",
+    label: "Workflow Templates",
+    description:
+      "Administer workflow templates used at capture time. Reviewer workflow execution lives in Reviewer Operations.",
     domain: "PERSONAL_WORKSPACE",
-    requiredCapabilities: ["EVIDENCE_VIEW"],
+    requiredCapabilities: ["INTEGRATIONS_MANAGE"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "DEGRADED",
-    workflowTags: ["LEGAL_CASEWORK", "REVIEW_OPERATIONS"],
+    fallbackBehavior: "REQUEST_ACCESS",
+    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,

@@ -39,8 +39,27 @@ const TONE_PALETTE: Record<Tone, { bg: string; fg: string; border: string }> = {
  *
  * Notable terminal-passive states (ARCHIVED, DISABLED, SKIPPED,
  * CANCELLED) intentionally render `neutral` slate — they are NOT
- * dangers, they are simply out-of-flow. The legacy workflows page had
- * ARCHIVED in the danger-red bucket; that has been corrected here.
+ * dangers, they are simply out-of-flow. ARCHIVED here refers to the
+ * generic operator-vocabulary archival state used by retention
+ * policies / governance / etc. — NOT a workflow instance status (the
+ * Phase 22 ARCHIVED workflow status was retired in Phase R).
+ *
+ * Phase E canonicalization: the dead Phase 22 workflow export-ladder
+ * statuses (REPORT_READY, PACKAGE_READY, SHARED_EXTERNALLY) plus the
+ * dead workflow-hold / workflow-retention statuses (LEGAL_HOLD,
+ * RETAINED) had ZERO producer routes and ZERO UI controls in any
+ * workspace. They were the only consumers of those literal strings
+ * inside the shared status palette and have been removed from this
+ * map. Any legacy row that still carries one of those literal
+ * values now falls through to the default `info` tone. Re-adding
+ * them here is a regression and is forbidden by
+ * `phase-r-workflow-canonicalization.test.ts` (the source-text
+ * grep guard scans this file too).
+ *
+ * The generic ACTIVE / ARCHIVED entries remain because they serve
+ * non-workflow domains (retention policy status, etc.). The legal-hold
+ * lifecycle indicator for evidence lives in the dedicated
+ * `LifecycleIndicators` palette, not here.
  */
 const STATUS_TO_TONE: Record<string, Tone> = {
   // success family
@@ -50,10 +69,7 @@ const STATUS_TO_TONE: Record<string, Tone> = {
   APPROVED_INTERNAL: "success",
   COMPLETED: "success",
   DELIVERED: "success",
-  PACKAGE_READY: "success",
-  REPORT_READY: "success",
   SENT: "success",
-  SHARED_EXTERNALLY: "success",
 
   // warning family
   CHANGES_REQUESTED: "warning",
@@ -78,11 +94,9 @@ const STATUS_TO_TONE: Record<string, Tone> = {
   DESTROYED: "neutral",
   DISABLED: "neutral",
   DRAFT: "neutral",
-  LEGAL_HOLD: "neutral",
   NOT_APPLICABLE: "neutral",
   ON_HOLD: "neutral",
   PENDING_DESTRUCTION: "neutral",
-  RETAINED: "neutral",
   RETENTION_LOCKED: "neutral",
   SKIPPED: "neutral",
   SUPERSEDED: "neutral",

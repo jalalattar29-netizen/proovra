@@ -1,9 +1,14 @@
 /**
  * Phase 22 — Evidence Workflow Instance canonical types.
  *
- * The Phase 1-4 workflow surface (templates, intake links, intake
- * sessions, visibility resolver) is already in place. Phase 22 adds
- * the RUNTIME layer on top:
+ * Phase R canonicalization (post-Phase 22 audit): the runtime layer
+ * is trimmed to the statuses that have a real route + UI control.
+ * The original advertised ladder (APPROVED → REPORT_READY →
+ * PACKAGE_READY → SHARED_EXTERNALLY) had zero producers and zero UI
+ * actions — it has been removed. ARCHIVED / RETAINED / LEGAL_HOLD /
+ * ACTIVE are also retired from the canonical list because no
+ * producer ever called `transitionInstance(..., status)` for them
+ * and no UI surface fired the corresponding action.
  *
  *   - `WorkflowInstanceStatus` — the lifecycle state machine for a
  *     concrete running workflow attached to an evidence submission.
@@ -17,10 +22,6 @@
  * Hard invariants encoded here:
  *   - State transitions are explicit + deterministic. Adding one is
  *     a code change; runtime cannot invent transitions.
- *   - LEGAL_HOLD is reachable from any non-terminal state but
- *     blocks ARCHIVED until governance releases the hold.
- *   - APPROVED → REPORT_READY → PACKAGE_READY → SHARED_EXTERNALLY is
- *     a strict export ladder; intermediate jumps are blocked.
  *   - Service accounts are restricted to the API_INGESTION intake
  *     mode + a minimal subset of actor roles.
  *   - Anonymous source identity NEVER appears in any actor-role
@@ -46,27 +47,31 @@ export type WorkflowTemplateStatus = z.infer<typeof WorkflowTemplateStatusSchema
 // Workflow instance status (the runtime state machine)
 // -----------------------------------------------------------------------------
 
+// Phase R canonicalization — the runtime statuses kept in the
+// allow-list are ONLY the ones with a real producer route + UI
+// control. REPORT_READY / PACKAGE_READY / SHARED_EXTERNALLY /
+// LEGAL_HOLD / ARCHIVED / RETAINED / ACTIVE were verified to have
+// zero `transitionInstance(..., status)` call sites and zero UI
+// buttons that target them. They are removed from the contract so
+// the type system stops advertising capabilities that do not exist.
+//
+// The status column in the database remains VARCHAR(32); existing
+// rows that happen to hold a retired value are tolerated by the
+// engine projection (they are passed through as opaque strings)
+// but no new transitions can produce them.
 export const WORKFLOW_INSTANCE_STATUSES = [
   "DRAFT",
-  "ACTIVE",
   "SUBMITTED",
   "NEEDS_REVIEW",
-  "APPROVED",
-  "REPORT_READY",
-  "PACKAGE_READY",
-  "SHARED_EXTERNALLY",
-  "ARCHIVED",
-  "RETAINED",
-  "LEGAL_HOLD",
-  "CANCELLED",
   "CHANGES_REQUESTED",
+  "APPROVED",
+  "CANCELLED",
 ] as const;
 export const WorkflowInstanceStatusSchema = z.enum(WORKFLOW_INSTANCE_STATUSES);
 export type WorkflowInstanceStatus = z.infer<typeof WorkflowInstanceStatusSchema>;
 
 const WORKFLOW_INSTANCE_TERMINAL: ReadonlyArray<WorkflowInstanceStatus> = [
-  "ARCHIVED",
-  "RETAINED",
+  "APPROVED",
   "CANCELLED",
 ];
 
@@ -81,47 +86,20 @@ export function isTerminalWorkflowInstanceStatus(
  * service layer + tests both consult this map; routes never invent
  * a transition by passing an arbitrary `to` value.
  *
- * LEGAL_HOLD is reachable from every non-terminal state — operators
- * may set a hold at any time. Releasing the hold returns to the
- * pre-hold state (handled by the service layer; the allow-list here
- * only validates the direct edge).
+ * Phase R canonicalization: the allow-list only contains edges that
+ * a producer route actually walks. DRAFT → SUBMITTED is the only
+ * way to leave DRAFT now that ACTIVE has been retired. APPROVED is
+ * terminal-by-default — the export ladder it used to feed
+ * (REPORT_READY / PACKAGE_READY / SHARED_EXTERNALLY) is gone.
  */
 const WORKFLOW_INSTANCE_TRANSITIONS: Readonly<
   Record<WorkflowInstanceStatus, ReadonlyArray<WorkflowInstanceStatus>>
 > = {
-  DRAFT: ["ACTIVE", "CANCELLED", "LEGAL_HOLD"],
-  ACTIVE: ["SUBMITTED", "CANCELLED", "LEGAL_HOLD"],
-  SUBMITTED: ["NEEDS_REVIEW", "CHANGES_REQUESTED", "CANCELLED", "LEGAL_HOLD"],
-  NEEDS_REVIEW: [
-    "APPROVED",
-    "CHANGES_REQUESTED",
-    "CANCELLED",
-    "LEGAL_HOLD",
-  ],
-  CHANGES_REQUESTED: ["ACTIVE", "SUBMITTED", "CANCELLED", "LEGAL_HOLD"],
-  APPROVED: ["REPORT_READY", "ARCHIVED", "RETAINED", "LEGAL_HOLD"],
-  REPORT_READY: ["PACKAGE_READY", "ARCHIVED", "RETAINED", "LEGAL_HOLD"],
-  PACKAGE_READY: [
-    "SHARED_EXTERNALLY",
-    "ARCHIVED",
-    "RETAINED",
-    "LEGAL_HOLD",
-  ],
-  SHARED_EXTERNALLY: ["ARCHIVED", "RETAINED", "LEGAL_HOLD"],
-  LEGAL_HOLD: [
-    // Release returns to the operator-selected prior state. We allow
-    // any non-terminal state here; the service layer enforces that the
-    // selected state was the one set before the hold.
-    "ACTIVE",
-    "SUBMITTED",
-    "NEEDS_REVIEW",
-    "APPROVED",
-    "REPORT_READY",
-    "PACKAGE_READY",
-    "SHARED_EXTERNALLY",
-  ],
-  ARCHIVED: [],
-  RETAINED: ["ARCHIVED"],
+  DRAFT: ["SUBMITTED", "CANCELLED"],
+  SUBMITTED: ["NEEDS_REVIEW", "CHANGES_REQUESTED", "CANCELLED"],
+  NEEDS_REVIEW: ["APPROVED", "CHANGES_REQUESTED", "CANCELLED"],
+  CHANGES_REQUESTED: ["SUBMITTED", "CANCELLED"],
+  APPROVED: [],
   CANCELLED: [],
 };
 

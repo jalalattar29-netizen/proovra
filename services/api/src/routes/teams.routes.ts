@@ -1712,10 +1712,37 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
+      // PHASE 2 — Optional filters for collapsed Activity panels on the
+      // Integrations page. All filters are additive; auth + team scope are
+      // enforced above and the response shape is unchanged.
+      const ActivityQuery = z.object({
+        targetType: z.string().min(1).max(64).optional(),
+        targetId: z.string().uuid().optional(),
+        eventType: z.string().min(1).max(128).optional(),
+        limit: z.coerce.number().int().min(1).max(100).optional(),
+      });
+      const parsedQuery = ActivityQuery.safeParse(req.query ?? {});
+      if (!parsedQuery.success) {
+        return reply
+          .code(400)
+          .send({ message: "Invalid query parameters" });
+      }
+      const { targetType, targetId, eventType, limit } = parsedQuery.data;
+
+      const where: {
+        teamId: string;
+        targetType?: string;
+        targetId?: string;
+        eventType?: string;
+      } = { teamId };
+      if (targetType) where.targetType = targetType;
+      if (targetId) where.targetId = targetId;
+      if (eventType) where.eventType = eventType;
+
       const activities = await prisma.teamActivity.findMany({
-        where: { teamId },
+        where,
         orderBy: { createdAt: "desc" },
-        take: 50,
+        take: limit ?? 50,
       });
 
       const actorIds = activities

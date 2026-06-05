@@ -11,10 +11,9 @@
  *      with role / intake-mode validation (service accounts are
  *      restricted to API_INGESTION + SERVICE_ACCOUNT role).
  *   3. Map evidence rows to steps; mark steps SATISFIED.
- *   4. Operator transitions: submit → review → approve / changes
- *      requested → report ready → package ready → shared externally.
- *   5. Legal-hold + release helpers (pre-hold status preserved).
- *   6. Waive a required step (caller must hold the
+ *   4. Operator transitions: DRAFT → SUBMITTED → NEEDS_REVIEW →
+ *      APPROVED / CHANGES_REQUESTED / CANCELLED.
+ *   5. Waive a required step (caller must hold the
  *     `STEP_WAIVE_REQUIRED` step-up — enforced at the route).
  *
  * Hard invariants:
@@ -22,10 +21,14 @@
  *     `isAllowedWorkflowInstanceTransition` allow-list.
  *   - Step status mutation is bounded to satisfy/waive/needs-attention.
  *   - Every mutation emits an audit row + SecurityEvent.
- *   - LEGAL_HOLD takes precedence over every other transition; the
- *     engine refuses ARCHIVED / RETAINED moves while a hold is on.
  *   - Service accounts can only create instances via
  *     `createForApiIngestion` — every other entry point rejects them.
+ *
+ * Phase R canonicalization: the engine no longer writes the retired
+ * REPORT_READY / PACKAGE_READY / SHARED_EXTERNALLY / LEGAL_HOLD /
+ * ARCHIVED / RETAINED / ACTIVE statuses. The `preHoldStatus` column
+ * is preserved at the schema level (out of scope to drop) but is no
+ * longer written by any code path.
  */
 
 import type { PrismaClient } from "@prisma/client";
@@ -372,16 +375,15 @@ export async function transitionInstance(
   }
   if (input.targetStatus === "APPROVED") {
     updateData.approvedAtUtc = new Date();
-  }
-  if (input.targetStatus === "ARCHIVED" || input.targetStatus === "RETAINED" || input.targetStatus === "CANCELLED") {
+    // APPROVED is now terminal-by-default; close the instance.
     updateData.closedAtUtc = new Date();
   }
-  if (input.targetStatus === "LEGAL_HOLD") {
-    updateData.preHoldStatus = from;
+  if (input.targetStatus === "CANCELLED") {
+    updateData.closedAtUtc = new Date();
   }
-  if (from === "LEGAL_HOLD") {
-    updateData.preHoldStatus = null;
-  }
+  // Phase R canonicalization: no preHoldStatus writes — LEGAL_HOLD is
+  // no longer a reachable status. The schema column stays so existing
+  // rows are unaffected.
 
   const updated = await client.evidenceWorkflowInstance.update({
     where: { id: instance.id },
@@ -409,10 +411,7 @@ export async function transitionInstance(
     isPublic: input.actorUserId === null || input.actorUserId === undefined,
     action: `workflow.instance.transition.${input.targetStatus.toLowerCase()}`,
     category: "workflow",
-    severity:
-      input.targetStatus === "CANCELLED" || input.targetStatus === "LEGAL_HOLD"
-        ? "warning"
-        : "info",
+    severity: input.targetStatus === "CANCELLED" ? "warning" : "info",
     source: "evidence_workflow_engine",
     outcome: "success",
     resourceType: "evidence_workflow_instance",
@@ -518,8 +517,15 @@ async function loadInstance(
   return row;
 }
 
+/**
+ * Defense-in-depth guard for legacy LEGAL_HOLD rows. Phase R retired
+ * LEGAL_HOLD from the canonical status enum, so no new producer can
+ * write it; but historical rows may still hold the literal value and
+ * we refuse to mutate them. The comparison is against the literal
+ * string (not the typed enum) because the type no longer admits it.
+ */
 function guardNotLegalHold(instance: prismaPkg.EvidenceWorkflowInstance): void {
-  if (instance.status === "LEGAL_HOLD") {
+  if ((instance.status as string) === "LEGAL_HOLD") {
     throw new WorkflowEngineError("WORKFLOW_LEGAL_HOLD_ACTIVE");
   }
 }
@@ -778,7 +784,7 @@ export async function getInstanceTimeline(
 }
 
 // -----------------------------------------------------------------------------
-// Export policy summary — Phase 23.
+// Export policy summary — Phase 23 (updated for Phase R).
 //
 // Operator-readable rollup of which downstream surfaces this workflow
 // can currently feed. The flags come from the per-field
@@ -788,9 +794,10 @@ export async function getInstanceTimeline(
 //
 // Hard invariants:
 //   - Defaults skew CLOSED for every external surface.
-//   - APPROVED is required for REPORT.
-//   - REPORT_READY is required for VERIFICATION_PACKAGE.
-//   - PACKAGE_READY is required for PUBLIC_VERIFY.
+//   - APPROVED is required for REPORT / VERIFICATION_PACKAGE /
+//     PUBLIC_VERIFY. The pre-Phase-R REPORT_READY → PACKAGE_READY →
+//     SHARED_EXTERNALLY ladder was advertised but never wired, so it
+//     has been removed from the contract.
 //   - Visibility decisions can FURTHER RESTRICT but never widen.
 // -----------------------------------------------------------------------------
 
@@ -812,47 +819,29 @@ export async function getInstanceExportPolicySummary(
 ): Promise<WorkflowExportPolicySummary> {
   const instance = await loadInstance(client, input.teamId, input.id);
   const status = instance.status as WorkflowInstanceStatus;
+  const rawStatus = instance.status as string;
   const blockers: string[] = [];
 
-  if (status === "LEGAL_HOLD") {
+  // Phase R: LEGAL_HOLD is no longer reachable but legacy rows may
+  // still hold it — keep the block surface for defense in depth.
+  if (rawStatus === "LEGAL_HOLD") {
     blockers.push("Legal hold is active. Export blocked.");
   }
   if (status === "CANCELLED") {
     blockers.push("Workflow was cancelled.");
   }
 
-  const canExportToReport =
-    !blockers.length &&
-    (status === "APPROVED" ||
-      status === "REPORT_READY" ||
-      status === "PACKAGE_READY" ||
-      status === "SHARED_EXTERNALLY" ||
-      status === "ARCHIVED" ||
-      status === "RETAINED");
+  // Phase R canonicalization: APPROVED is the only gate for every
+  // external export surface. The pre-existing ladder (REPORT_READY →
+  // PACKAGE_READY → SHARED_EXTERNALLY) had no producer and has been
+  // retired.
+  const canExportToReport = !blockers.length && status === "APPROVED";
   if (!canExportToReport && !blockers.length) {
     blockers.push("Report export requires workflow approval.");
   }
 
-  const canExportToVerificationPackage =
-    canExportToReport &&
-    (status === "REPORT_READY" ||
-      status === "PACKAGE_READY" ||
-      status === "SHARED_EXTERNALLY" ||
-      status === "ARCHIVED" ||
-      status === "RETAINED");
-  if (canExportToReport && !canExportToVerificationPackage) {
-    blockers.push("Verification package requires report-ready state.");
-  }
-
-  const canShareToPublicVerify =
-    canExportToVerificationPackage &&
-    (status === "PACKAGE_READY" ||
-      status === "SHARED_EXTERNALLY" ||
-      status === "ARCHIVED" ||
-      status === "RETAINED");
-  if (canExportToVerificationPackage && !canShareToPublicVerify) {
-    blockers.push("Public verification requires package-ready state.");
-  }
+  const canExportToVerificationPackage = canExportToReport;
+  const canShareToPublicVerify = canExportToReport;
 
   // Visibility decisions can further restrict. We sample a small
   // number of decisions to surface restriction reasons; the

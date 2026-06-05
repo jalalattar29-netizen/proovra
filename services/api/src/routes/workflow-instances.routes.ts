@@ -1,4 +1,16 @@
 /**
+ * DEPRECATED in Phase R. The canonical workflow engine is
+ * EvidenceReviewWorkflow / reviewer-ops. These routes remain only for
+ * in-flight Phase 22 instances and will be retired in a follow-up
+ * phase.
+ *
+ * The frontend mutation buttons that drove submit / approve /
+ * request-changes / assign-reviewer / cancel were removed in Phase C
+ * (the /workflows/[id] detail page now carries a deprecation banner
+ * directing operators to /review). The routes below remain live so
+ * any pre-existing Phase 22 row can still be closed out, but no new
+ * UI surface should call them — extend reviewer-ops instead.
+ *
  * Phase 22 — Workflow instance routes.
  *
  *   GET    /v1/workflows/instances?teamId&status&limit          — list
@@ -609,9 +621,8 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const actor = await requireWorkflowActor(req, reply, q.teamId);
       if (!actor) return;
-      const { listEffectiveWorkflowTemplates } = await import(
-        "../services/workflow-template.service.js"
-      );
+      const { listEffectiveWorkflowTemplates, projectEffectiveWorkflowTemplate } =
+        await import("../services/workflow-template.service.js");
       const rows = await listEffectiveWorkflowTemplates({
         teamId: q.teamId,
         includeArchived: q.includeArchived ?? false,
@@ -625,19 +636,21 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
           )
         : rows;
       const limited = filtered.slice(0, q.limit ?? 200);
+      // Phase D — surface the full canonical projection so the admin
+      // page can render every field the underlying WorkflowTemplate
+      // schema already carries (steps, planMode, locationRequirement,
+      // allowedRoles, rules, archived, dbId, id, version). The shape
+      // here is exactly `projectEffectiveWorkflowTemplate` plus two
+      // pre-computed convenience counts (`requiredStepCount`,
+      // `stepCount`) that the page already pins. NO new fields are
+      // invented; this only stops the alias from dropping fields the
+      // canonical /v1/workflow/templates (singular) endpoint already
+      // returns via the same projection helper.
       return reply.code(200).send({
         templates: limited.map((r) => ({
-          slug: r.template.slug,
-          version: r.template.version,
-          name: r.template.name,
-          description: r.template.description ?? null,
-          workspaceCategory: r.template.workspaceCategory ?? null,
-          intakeModes: r.template.intakeModes,
+          ...projectEffectiveWorkflowTemplate(r),
           requiredStepCount: r.template.steps.filter((s) => s.required).length,
           stepCount: r.template.steps.length,
-          // Whether this template is a workspace-scoped override of a
-          // platform seed vs a pure platform-seed row.
-          source: r.source,
         })),
       });
     },

@@ -31,28 +31,39 @@
  *     displayed here.
  */
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+
+import type { WorkflowInstanceStatus } from "@proovra/shared";
 
 import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 
-type InstanceStatus =
-  | "DRAFT"
-  | "ACTIVE"
-  | "SUBMITTED"
-  | "NEEDS_REVIEW"
-  | "APPROVED"
-  | "REPORT_READY"
-  | "PACKAGE_READY"
-  | "SHARED_EXTERNALLY"
-  | "ARCHIVED"
-  | "RETAINED"
-  | "LEGAL_HOLD"
-  | "CANCELLED"
-  | "CHANGES_REQUESTED";
+// Phase R canonicalization: the local InstanceStatus union has been
+// replaced by the canonical WorkflowInstanceStatus from @proovra/shared.
+// The retired statuses (REPORT_READY / PACKAGE_READY / SHARED_EXTERNALLY
+// / LEGAL_HOLD / ARCHIVED / RETAINED / ACTIVE) had no producer route
+// and no UI control wired to them — they are gone from the contract.
+type InstanceStatus = WorkflowInstanceStatus;
+
+// Phase C — the workflow-instance detail view is being retired in
+// favor of the canonical reviewer console (EvidenceReviewWorkflow /
+// reviewer-ops). The Phase 22 action buttons (submit / assign /
+// approve / request-changes / cancel) have been removed from this
+// page; those mutations are now owned by Reviewer Operations.
+//
+// The waive-step + map-evidence routes remain Phase 22 unique. They
+// stay behind a "Show legacy step controls" toggle (default off) so
+// operators with in-flight Phase 22 instances can still complete
+// outstanding step bookkeeping without surfacing the dead buttons by
+// default.
+const DEPRECATED_BANNER_TITLE = "This workflow detail view is being retired.";
+const DEPRECATED_BANNER_BODY =
+  "Reviewer workflow execution has moved to Reviewer Operations. Open this evidence in /reviewer-ops to manage submission, assignment, approval, request changes, and escalation.";
+const DEPRECATED_BANNER_CTA = "Open Reviewer Operations";
 
 type StepStatus =
   | "NOT_STARTED"
@@ -141,6 +152,11 @@ function WorkflowInstancePageInner() {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Phase C — the waive + map-evidence step controls are the only
+  // Phase 22 mutations that remain unique to this surface. Default off
+  // so the page reads as honest read-only; admins flip it on only when
+  // closing out in-flight Phase 22 instances.
+  const [showLegacyStepControls, setShowLegacyStepControls] = useState(false);
   const { confirm } = useConfirmAction();
 
   async function refresh() {
@@ -286,6 +302,24 @@ function WorkflowInstancePageInner() {
         </p>
       </header>
 
+      <div
+        style={deprecationBannerStyle}
+        data-testid="workflow-instance-deprecation-banner"
+        role="status"
+      >
+        <div style={deprecationBannerTitleStyle}>{DEPRECATED_BANNER_TITLE}</div>
+        <div style={deprecationBannerBodyStyle}>{DEPRECATED_BANNER_BODY}</div>
+        <div style={{ marginTop: 8 }}>
+          <Link
+            href="/review"
+            style={deprecationBannerCtaStyle}
+            data-testid="workflow-instance-deprecation-banner-cta"
+          >
+            {DEPRECATED_BANNER_CTA}
+          </Link>
+        </div>
+      </div>
+
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
       {!teamId ? (
@@ -368,90 +402,40 @@ function WorkflowInstancePageInner() {
             </section>
           ) : null}
 
-          {/* Reviewer / operator actions */}
+          {/* Phase C — the Submit / Assign reviewer / Approve / Request
+              changes / Cancel buttons have been removed. Those mutations
+              are owned by Reviewer Operations (see the deprecation banner
+              above). The waive-step + map-evidence routes remain Phase 22
+              unique and live behind the legacy-step-controls toggle in
+              the Steps section below. */}
           <section style={cardStyle}>
             <h2 style={sectionTitleStyle}>Actions</h2>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                style={primaryButtonStyle}
-                disabled={busy || instance.status !== "ACTIVE"}
-                onClick={() =>
-                  void performAction(
-                    "/submit",
-                    {},
-                    "Submit this workflow for review?",
-                  )
-                }
+            <p style={mutedStyle}>
+              Workflow lifecycle actions (submission, assignment, approval,
+              request changes, cancellation) live in{" "}
+              <Link href="/review" style={inlineLinkStyle}>
+                Reviewer Operations
+              </Link>
+              . This page is read-only.
+            </p>
+            <div style={{ marginTop: 8 }}>
+              <label
+                style={legacyToggleLabelStyle}
+                data-testid="workflow-instance-legacy-step-toggle"
               >
-                Submit
-              </button>
-              <button
-                type="button"
-                style={secondaryButtonStyle}
-                disabled={
-                  busy ||
-                  (instance.status !== "SUBMITTED" &&
-                    instance.status !== "NEEDS_REVIEW")
-                }
-                onClick={() => {
-                  const reviewer = window.prompt(
-                    "Reviewer user id (UUID, must be a workspace member)",
-                  );
-                  if (!reviewer || !reviewer.trim()) return;
-                  void performAction("/assign-reviewer", {
-                    reviewerUserId: reviewer.trim(),
-                  });
-                }}
-              >
-                Assign reviewer
-              </button>
-              <button
-                type="button"
-                style={primaryButtonStyle}
-                disabled={busy || instance.status !== "NEEDS_REVIEW"}
-                onClick={() =>
-                  void performAction(
-                    "/approve",
-                    {},
-                    "Approve this workflow? This is operator-recorded and audited.",
-                  )
-                }
-              >
-                Approve
-              </button>
-              <button
-                type="button"
-                style={secondaryButtonStyle}
-                disabled={
-                  busy ||
-                  (instance.status !== "SUBMITTED" &&
-                    instance.status !== "NEEDS_REVIEW")
-                }
-                onClick={() =>
-                  void performAction(
-                    "/request-changes",
-                    {},
-                    "Send this workflow back for changes?",
-                  )
-                }
-              >
-                Request changes
-              </button>
-              <button
-                type="button"
-                style={dangerButtonStyle}
-                disabled={busy}
-                onClick={() =>
-                  void performAction(
-                    "/cancel",
-                    {},
-                    "Cancel this workflow? Cancellation after submission requires step-up verification.",
-                  )
-                }
-              >
-                Cancel
-              </button>
+                <input
+                  type="checkbox"
+                  checked={showLegacyStepControls}
+                  onChange={(e) => setShowLegacyStepControls(e.target.checked)}
+                  style={{ marginRight: 8 }}
+                />
+                Show legacy step controls
+              </label>
+              <div style={mutedStyle}>
+                Phase 22 step-level waivers and evidence mappings are
+                retained for in-flight instances. Toggle on only when
+                closing out outstanding step bookkeeping.
+              </div>
             </div>
           </section>
 
@@ -496,13 +480,15 @@ function WorkflowInstancePageInner() {
                       ) : null}
                     </div>
                     <span style={stepStatusBadgeStyle(s.status)}>{s.status}</span>
-                    {s.status !== "SATISFIED" &&
+                    {showLegacyStepControls &&
+                    s.status !== "SATISFIED" &&
                     s.status !== "WAIVED" &&
                     s.required ? (
                       <button
                         type="button"
                         style={secondaryButtonStyle}
                         disabled={busy}
+                        data-testid="workflow-instance-legacy-step-waive"
                         onClick={() => {
                           const reason = window.prompt(
                             "Reason for waiving this required step (operator-visible only)",
@@ -698,15 +684,48 @@ const errorBoxStyle: React.CSSProperties = {
   borderRadius: 8,
   fontSize: 14,
 };
-const primaryButtonStyle: React.CSSProperties = {
-  padding: "6px 14px",
+const deprecationBannerStyle: React.CSSProperties = {
+  marginTop: 12,
+  padding: 16,
+  background: "#fffbeb",
+  color: "#78350f",
+  border: "1px solid #fde68a",
+  borderRadius: 8,
+  fontSize: 13,
+};
+const deprecationBannerTitleStyle: React.CSSProperties = {
+  fontSize: 15,
+  fontWeight: 700,
+  color: "#78350f",
+  marginBottom: 4,
+};
+const deprecationBannerBodyStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#78350f",
+};
+const deprecationBannerCtaStyle: React.CSSProperties = {
+  display: "inline-block",
+  padding: "6px 12px",
+  fontSize: 12,
   fontWeight: 600,
   color: "#fff",
   background: "#0f172a",
-  border: 0,
-  borderRadius: 8,
+  borderRadius: 6,
+  textDecoration: "none",
+};
+const inlineLinkStyle: React.CSSProperties = {
+  color: "#1e40af",
+  textDecoration: "underline",
+  fontWeight: 600,
+};
+const legacyToggleLabelStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  fontSize: 13,
+  fontWeight: 500,
+  color: "#0f172a",
   cursor: "pointer",
-  fontSize: 12,
+  marginBottom: 4,
 };
 const secondaryButtonStyle: React.CSSProperties = {
   padding: "4px 10px",
@@ -714,16 +733,6 @@ const secondaryButtonStyle: React.CSSProperties = {
   color: "#0f172a",
   background: "#f1f5f9",
   border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 12,
-};
-const dangerButtonStyle: React.CSSProperties = {
-  padding: "4px 10px",
-  fontWeight: 500,
-  color: "#7f1d1d",
-  background: "#fef2f2",
-  border: "1px solid #fecaca",
   borderRadius: 6,
   cursor: "pointer",
   fontSize: 12,
@@ -738,15 +747,19 @@ function statusBadgeStyle(status: InstanceStatus): React.CSSProperties {
     border: "1px solid",
     whiteSpace: "nowrap",
   };
-  if (status === "APPROVED" || status === "REPORT_READY" || status === "PACKAGE_READY" || status === "SHARED_EXTERNALLY") {
+  // Phase R canonicalization: badge map only contains the canonical
+  // six statuses. The retired states have been removed from the
+  // contract, so the union no longer admits them.
+  if (status === "APPROVED") {
     return { ...base, background: "#f0fdf4", borderColor: "#86efac", color: "#166534" };
   }
   if (status === "NEEDS_REVIEW" || status === "CHANGES_REQUESTED" || status === "SUBMITTED") {
     return { ...base, background: "#fffbeb", borderColor: "#fcd34d", color: "#92400e" };
   }
-  if (status === "LEGAL_HOLD" || status === "CANCELLED" || status === "ARCHIVED") {
+  if (status === "CANCELLED") {
     return { ...base, background: "#fef2f2", borderColor: "#fca5a5", color: "#7f1d1d" };
   }
+  // DRAFT and unknown statuses (legacy rows) render neutral blue.
   return { ...base, background: "#eff6ff", borderColor: "#93c5fd", color: "#1e40af" };
 }
 

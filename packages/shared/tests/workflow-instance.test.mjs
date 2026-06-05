@@ -33,23 +33,32 @@ test("template statuses cover DRAFT/ACTIVE/ARCHIVED", () => {
   ]);
 });
 
-test("instance statuses cover the lifecycle", () => {
-  for (const s of [
-    "DRAFT",
-    "ACTIVE",
-    "SUBMITTED",
-    "NEEDS_REVIEW",
+test("Phase R — instance statuses contain ONLY the canonical six", () => {
+  assert.deepEqual([...WORKFLOW_INSTANCE_STATUSES].sort(), [
     "APPROVED",
+    "CANCELLED",
+    "CHANGES_REQUESTED",
+    "DRAFT",
+    "NEEDS_REVIEW",
+    "SUBMITTED",
+  ]);
+});
+
+test("Phase R — retired statuses are NOT in the canonical enum", () => {
+  for (const dead of [
+    "ACTIVE",
     "REPORT_READY",
     "PACKAGE_READY",
     "SHARED_EXTERNALLY",
     "ARCHIVED",
     "RETAINED",
     "LEGAL_HOLD",
-    "CANCELLED",
-    "CHANGES_REQUESTED",
   ]) {
-    assert.ok(WORKFLOW_INSTANCE_STATUSES.includes(s), s);
+    assert.equal(
+      WORKFLOW_INSTANCE_STATUSES.includes(dead),
+      false,
+      `${dead} must not be a canonical workflow instance status`,
+    );
   }
 });
 
@@ -145,11 +154,11 @@ test("error codes are stable", () => {
 // Status helpers
 // -----------------------------------------------------------------------------
 
-test("isTerminalWorkflowInstanceStatus: ARCHIVED/RETAINED/CANCELLED", () => {
-  for (const s of ["ARCHIVED", "RETAINED", "CANCELLED"]) {
+test("Phase R — isTerminalWorkflowInstanceStatus: APPROVED/CANCELLED", () => {
+  for (const s of ["APPROVED", "CANCELLED"]) {
     assert.equal(isTerminalWorkflowInstanceStatus(s), true, s);
   }
-  for (const s of ["DRAFT", "ACTIVE", "SUBMITTED", "APPROVED", "LEGAL_HOLD"]) {
+  for (const s of ["DRAFT", "SUBMITTED", "NEEDS_REVIEW", "CHANGES_REQUESTED"]) {
     assert.equal(isTerminalWorkflowInstanceStatus(s), false, s);
   }
 });
@@ -203,110 +212,70 @@ test("isServiceAccountAllowedRole: only SERVICE_ACCOUNT", () => {
 });
 
 // -----------------------------------------------------------------------------
-// Transition allow-list
+// Transition allow-list (Phase R)
 // -----------------------------------------------------------------------------
 
-test("DRAFT → ACTIVE / CANCELLED / LEGAL_HOLD", () => {
-  for (const next of ["ACTIVE", "CANCELLED", "LEGAL_HOLD"]) {
+test("Phase R — DRAFT → SUBMITTED / CANCELLED only", () => {
+  for (const next of ["SUBMITTED", "CANCELLED"]) {
     assert.equal(
       isAllowedWorkflowInstanceTransition("DRAFT", next),
       true,
       `DRAFT -> ${next}`,
     );
   }
-});
-
-test("DRAFT cannot jump directly to SUBMITTED / APPROVED / SHARED_EXTERNALLY", () => {
-  for (const next of [
-    "SUBMITTED",
-    "NEEDS_REVIEW",
-    "APPROVED",
-    "REPORT_READY",
-    "PACKAGE_READY",
-    "SHARED_EXTERNALLY",
-  ]) {
-    assert.equal(
-      isAllowedWorkflowInstanceTransition("DRAFT", next),
-      false,
-      `DRAFT -> ${next}`,
-    );
-  }
-});
-
-test("SUBMITTED → NEEDS_REVIEW / CHANGES_REQUESTED / CANCELLED / LEGAL_HOLD", () => {
-  for (const next of [
-    "NEEDS_REVIEW",
-    "CHANGES_REQUESTED",
-    "CANCELLED",
-    "LEGAL_HOLD",
-  ]) {
-    assert.equal(
-      isAllowedWorkflowInstanceTransition("SUBMITTED", next),
-      true,
-      `SUBMITTED -> ${next}`,
-    );
-  }
-  for (const next of ["DRAFT", "APPROVED", "SHARED_EXTERNALLY", "ARCHIVED"]) {
-    assert.equal(
-      isAllowedWorkflowInstanceTransition("SUBMITTED", next),
-      false,
-      `SUBMITTED -> ${next}`,
-    );
-  }
-});
-
-test("APPROVED → REPORT_READY → PACKAGE_READY → SHARED_EXTERNALLY", () => {
-  assert.equal(
-    isAllowedWorkflowInstanceTransition("APPROVED", "REPORT_READY"),
-    true,
-  );
-  assert.equal(
-    isAllowedWorkflowInstanceTransition("REPORT_READY", "PACKAGE_READY"),
-    true,
-  );
-  assert.equal(
-    isAllowedWorkflowInstanceTransition("PACKAGE_READY", "SHARED_EXTERNALLY"),
-    true,
-  );
-});
-
-test("APPROVED cannot skip directly to PACKAGE_READY", () => {
-  assert.equal(
-    isAllowedWorkflowInstanceTransition("APPROVED", "PACKAGE_READY"),
-    false,
-  );
-});
-
-test("LEGAL_HOLD can release to any prior non-terminal state", () => {
-  for (const next of [
+  for (const dead of [
     "ACTIVE",
-    "SUBMITTED",
     "NEEDS_REVIEW",
     "APPROVED",
-    "REPORT_READY",
-    "PACKAGE_READY",
-    "SHARED_EXTERNALLY",
+    "CHANGES_REQUESTED",
   ]) {
     assert.equal(
-      isAllowedWorkflowInstanceTransition("LEGAL_HOLD", next),
-      true,
-      `LEGAL_HOLD -> ${next}`,
-    );
-  }
-});
-
-test("LEGAL_HOLD cannot move directly to ARCHIVED or CANCELLED", () => {
-  for (const next of ["ARCHIVED", "RETAINED", "CANCELLED"]) {
-    assert.equal(
-      isAllowedWorkflowInstanceTransition("LEGAL_HOLD", next),
+      isAllowedWorkflowInstanceTransition("DRAFT", dead),
       false,
-      `LEGAL_HOLD -> ${next}`,
+      `DRAFT -> ${dead}`,
     );
   }
 });
 
-test("Terminal states (ARCHIVED + CANCELLED) cannot transition", () => {
-  for (const from of ["ARCHIVED", "CANCELLED"]) {
+test("Phase R — SUBMITTED → NEEDS_REVIEW / CHANGES_REQUESTED / CANCELLED", () => {
+  for (const next of ["NEEDS_REVIEW", "CHANGES_REQUESTED", "CANCELLED"]) {
+    assert.equal(
+      isAllowedWorkflowInstanceTransition("SUBMITTED", next),
+      true,
+      `SUBMITTED -> ${next}`,
+    );
+  }
+  for (const dead of ["APPROVED", "DRAFT"]) {
+    assert.equal(
+      isAllowedWorkflowInstanceTransition("SUBMITTED", dead),
+      false,
+      `SUBMITTED -> ${dead}`,
+    );
+  }
+});
+
+test("Phase R — NEEDS_REVIEW → APPROVED / CHANGES_REQUESTED / CANCELLED", () => {
+  for (const next of ["APPROVED", "CHANGES_REQUESTED", "CANCELLED"]) {
+    assert.equal(
+      isAllowedWorkflowInstanceTransition("NEEDS_REVIEW", next),
+      true,
+      `NEEDS_REVIEW -> ${next}`,
+    );
+  }
+});
+
+test("Phase R — CHANGES_REQUESTED can re-submit or cancel", () => {
+  for (const next of ["SUBMITTED", "CANCELLED"]) {
+    assert.equal(
+      isAllowedWorkflowInstanceTransition("CHANGES_REQUESTED", next),
+      true,
+      `CHANGES_REQUESTED -> ${next}`,
+    );
+  }
+});
+
+test("Phase R — APPROVED and CANCELLED are terminal", () => {
+  for (const from of ["APPROVED", "CANCELLED"]) {
     for (const next of WORKFLOW_INSTANCE_STATUSES) {
       assert.equal(
         isAllowedWorkflowInstanceTransition(from, next),
@@ -317,15 +286,13 @@ test("Terminal states (ARCHIVED + CANCELLED) cannot transition", () => {
   }
 });
 
-test("listAllowedWorkflowInstanceTransitions matches the allow-list", () => {
+test("Phase R — listAllowedWorkflowInstanceTransitions matches the allow-list", () => {
   assert.deepEqual(
     [...listAllowedWorkflowInstanceTransitions("DRAFT")].sort(),
-    ["ACTIVE", "CANCELLED", "LEGAL_HOLD"],
+    ["CANCELLED", "SUBMITTED"],
   );
-  assert.deepEqual(
-    [...listAllowedWorkflowInstanceTransitions("ARCHIVED")],
-    [],
-  );
+  assert.deepEqual([...listAllowedWorkflowInstanceTransitions("APPROVED")], []);
+  assert.deepEqual([...listAllowedWorkflowInstanceTransitions("CANCELLED")], []);
 });
 
 test("Self-transition is blocked for every status", () => {

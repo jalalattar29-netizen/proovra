@@ -165,7 +165,11 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["workspace.capture", "CAPTURE"],
   ["workspace.intake_links", "CAPTURE"],
   ["workspace.evidence_requests", "CAPTURE"],
-  ["workspace.workflows", "CAPTURE"],
+  // Phase C — `workspace.workflows` moved from CAPTURE to ADMIN. It
+  // administers the EvidenceWorkflowTemplate catalog (Phase B Templates
+  // Center), which is a workspace-administration surface, not part of
+  // the daily capture/intake flow. See routeRegistry + the
+  // SYSTEM/secondary placement in phaseBOperationalGroups.
 
   // -----------------------------------------------------------------
   // CASES (investigation workspace — single home for case work)
@@ -261,6 +265,8 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["account.organization_admin_trust", "ADMIN"],
   ["workspace.integrations", "ADMIN"],
   ["workspace.security_center", "ADMIN"],
+  // Phase C — workflow templates administration; moved from CAPTURE.
+  ["workspace.workflows", "ADMIN"],
   ["account.settings", "ADMIN"],
   ["account.persona", "ADMIN"],
   ["account.billing", "ADMIN"],

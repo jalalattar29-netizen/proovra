@@ -249,7 +249,13 @@ describe("Phase 23 — workflow detail page guards", () => {
 });
 
 describe("Phase 23 — workflow list page", () => {
-  it("calls the new templates alias endpoint", async () => {
+  // Phase B reframed this surface from an operational instance list to
+  // a Workflow Templates Center. The page still calls the templates
+  // alias endpoint, but the instances surface and the status filter
+  // were both removed (Phase 0 confirmed they had zero producers in
+  // this workspace and would always render empty). The Phase B
+  // regression pins live in phase-b-workflow-templates-center.test.ts.
+  it("calls the templates alias endpoint", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
     const src = await readFile(
@@ -262,10 +268,9 @@ describe("Phase 23 — workflow list page", () => {
       "utf8",
     );
     expect(src).toMatch(/\/v1\/workflows\/templates/);
-    expect(src).toMatch(/\/v1\/workflows\/instances/);
   });
 
-  it("exposes status + sector filters", async () => {
+  it("exposes the sector filter", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
     const src = await readFile(
@@ -277,7 +282,6 @@ describe("Phase 23 — workflow list page", () => {
       ),
       "utf8",
     );
-    expect(src).toMatch(/All statuses/);
     expect(src).toMatch(/All sectors/);
   });
 });
