@@ -59,6 +59,12 @@ export function liftIntakeTemplateToWorkflowTemplate(seed) {
         version: seed.version,
         name: seed.name,
         description: seed.description,
+        // Phase R — propagate the seed's declared sector so the sector
+        // dropdown is meaningful. Seeds without a declared category remain
+        // category-agnostic (workspaceCategory stays undefined), which the
+        // merger treats as "matches every filter" — same behaviour the DB
+        // path already gives a NULL workspace_category column.
+        workspaceCategory: seed.workspaceCategory,
         locationRequirement: seed.locationRequirement,
         planMode: SEED_DEFAULT_PLAN_MODE,
         intakeModes: [...SEED_DEFAULT_INTAKE_MODES],
@@ -142,6 +148,15 @@ export function mergeWorkflowTemplates(params) {
         if (out.has(seed.id))
             continue; // DB row already wins
         const lifted = liftIntakeTemplateToWorkflowTemplate(seed);
+        // Phase R — apply the same workspaceCategory filter the DB-row branch
+        // applies. Seeds that declare a category are subject to the filter;
+        // seeds that omit a category (legacy "category-agnostic" shape) bypass
+        // it, matching the NULL workspace_category DB row behaviour.
+        if (params.workspaceCategory &&
+            lifted.workspaceCategory &&
+            lifted.workspaceCategory !== params.workspaceCategory) {
+            continue;
+        }
         out.set(seed.id, {
             template: lifted,
             source: "platform_seed",

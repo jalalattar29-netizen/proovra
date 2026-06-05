@@ -436,133 +436,9 @@ export async function enforceSensitiveAction(action, ctx, client = defaultPrisma
                 : "policy_lookup_failed",
         };
     }
+    let workspaceDecision;
     try {
-        switch (action) {
-            case "delete_evidence": {
-                const decision = await canDeleteEvidence({
-                    role: ctx.role,
-                    evidence: ctx.evidence,
-                    policy,
-                    client,
-                });
-                return decision.allowed
-                    ? { allowed: true }
-                    : {
-                        allowed: false,
-                        code: deletionDecisionToCode(decision.reason),
-                        reason: decision.reason,
-                    };
-            }
-            case "archive_evidence": {
-                const decision = await canArchiveEvidence({
-                    role: ctx.role,
-                    evidence: ctx.evidence,
-                    policy,
-                    client,
-                });
-                return decision.allowed
-                    ? { allowed: true }
-                    : {
-                        allowed: false,
-                        code: "ARCHIVE_BLOCKED_BY_LEGAL_HOLD",
-                        reason: decision.reason,
-                    };
-            }
-            case "generate_report": {
-                const decision = canGenerateReport({
-                    role: ctx.role,
-                    policy,
-                    reviewState: ctx.reviewState,
-                });
-                return decision.allowed
-                    ? { allowed: true }
-                    : {
-                        allowed: false,
-                        code: "REPORT_BLOCKED_BY_POLICY",
-                        reason: decision.reason,
-                    };
-            }
-            case "download_report": {
-                // Download is gated by the same `allowReportDownload` flag as
-                // generation; the review gate doesn't apply to a download
-                // because the report only exists if generation was permitted.
-                if (!policy.allowReportDownload) {
-                    return {
-                        allowed: false,
-                        code: "REPORT_BLOCKED_BY_POLICY",
-                        reason: "report_disabled_by_policy",
-                    };
-                }
-                const perm = requirePermission(ctx.role, "evidence.download_report");
-                if (!perm.allowed) {
-                    return {
-                        allowed: false,
-                        code: "REPORT_BLOCKED_BY_POLICY",
-                        reason: perm.reason,
-                    };
-                }
-                return { allowed: true };
-            }
-            case "generate_package": {
-                const decision = canGeneratePackage({
-                    role: ctx.role,
-                    policy,
-                    reviewState: ctx.reviewState,
-                });
-                return decision.allowed
-                    ? { allowed: true }
-                    : {
-                        allowed: false,
-                        code: "PACKAGE_BLOCKED_BY_POLICY",
-                        reason: decision.reason,
-                    };
-            }
-            case "download_package": {
-                const decision = canDownloadPackage({ role: ctx.role, policy });
-                return decision.allowed
-                    ? { allowed: true }
-                    : {
-                        allowed: false,
-                        code: "PACKAGE_BLOCKED_BY_POLICY",
-                        reason: decision.reason,
-                    };
-            }
-            case "download_original": {
-                if (!policy.allowOriginalDownload) {
-                    return {
-                        allowed: false,
-                        code: "ORIGINAL_DOWNLOAD_BLOCKED_BY_POLICY",
-                        reason: "original_download_disabled_by_policy",
-                    };
-                }
-                const perm = requirePermission(ctx.role, "evidence.download_original");
-                if (!perm.allowed) {
-                    return {
-                        allowed: false,
-                        code: "ORIGINAL_DOWNLOAD_BLOCKED_BY_POLICY",
-                        reason: perm.reason,
-                    };
-                }
-                // Legal hold does NOT block original downloads — a hold preserves
-                // the record, it does not seal it from authorized review. The
-                // existing storage object-lock fields handle physical immutability.
-                return { allowed: true };
-            }
-            case "publish_public_verify": {
-                const decision = canPublishPublicVerify({
-                    role: ctx.role,
-                    policy,
-                    reviewState: ctx.reviewState,
-                });
-                return decision.allowed
-                    ? { allowed: true }
-                    : {
-                        allowed: false,
-                        code: "PUBLIC_VERIFY_BLOCKED_BY_POLICY",
-                        reason: decision.reason,
-                    };
-            }
-        }
+        workspaceDecision = await evaluateWorkspaceSensitiveAction(action, ctx, policy, client);
     }
     catch (err) {
         return {
@@ -573,6 +449,165 @@ export async function enforceSensitiveAction(action, ctx, client = defaultPrisma
                 : "decision_failed",
         };
     }
+    if (!workspaceDecision.allowed)
+        return workspaceDecision;
+    // Phase 5 — workflow template `exportPolicyJson` overlay. Can ONLY
+    // flip an already-ALLOWED workspace decision to a denial; it can
+    // never enable an action workspace policy disallowed. Opt-in via
+    // `ctx.consultTemplatePolicy`. Wrapped in try/catch so a template-
+    // resolution failure can never break the primary export lifecycle.
+    if (ctx.consultTemplatePolicy && isTemplateExportAction(action)) {
+        try {
+            const { resolveTemplateIdForEvidence } = await import("./reviewer-ops/reviewer-operations-engine.service.js");
+            const { loadTemplateExportPolicy, evaluateTemplateExportOverlay } = await import("./governance/template-export-policy.service.js");
+            const resolved = await resolveTemplateIdForEvidence(ctx.evidence.id, client);
+            if (resolved.templateId) {
+                const templatePolicy = await loadTemplateExportPolicy(resolved.templateId, client);
+                const overlay = evaluateTemplateExportOverlay({
+                    action,
+                    role: ctx.role ?? null,
+                    policy: templatePolicy,
+                });
+                if (!overlay.allowed) {
+                    return overlay;
+                }
+            }
+        }
+        catch {
+            // Fail-safe: any failure in the overlay path falls through to
+            // the workspace decision (which already returned allowed).
+        }
+    }
+    return workspaceDecision;
+}
+async function evaluateWorkspaceSensitiveAction(action, ctx, policy, client) {
+    switch (action) {
+        case "delete_evidence": {
+            const decision = await canDeleteEvidence({
+                role: ctx.role,
+                evidence: ctx.evidence,
+                policy,
+                client,
+            });
+            return decision.allowed
+                ? { allowed: true }
+                : {
+                    allowed: false,
+                    code: deletionDecisionToCode(decision.reason),
+                    reason: decision.reason,
+                };
+        }
+        case "archive_evidence": {
+            const decision = await canArchiveEvidence({
+                role: ctx.role,
+                evidence: ctx.evidence,
+                policy,
+                client,
+            });
+            return decision.allowed
+                ? { allowed: true }
+                : {
+                    allowed: false,
+                    code: "ARCHIVE_BLOCKED_BY_LEGAL_HOLD",
+                    reason: decision.reason,
+                };
+        }
+        case "generate_report": {
+            const decision = canGenerateReport({
+                role: ctx.role,
+                policy,
+                reviewState: ctx.reviewState,
+            });
+            return decision.allowed
+                ? { allowed: true }
+                : {
+                    allowed: false,
+                    code: "REPORT_BLOCKED_BY_POLICY",
+                    reason: decision.reason,
+                };
+        }
+        case "download_report": {
+            if (!policy.allowReportDownload) {
+                return {
+                    allowed: false,
+                    code: "REPORT_BLOCKED_BY_POLICY",
+                    reason: "report_disabled_by_policy",
+                };
+            }
+            const perm = requirePermission(ctx.role, "evidence.download_report");
+            if (!perm.allowed) {
+                return {
+                    allowed: false,
+                    code: "REPORT_BLOCKED_BY_POLICY",
+                    reason: perm.reason,
+                };
+            }
+            return { allowed: true };
+        }
+        case "generate_package": {
+            const decision = canGeneratePackage({
+                role: ctx.role,
+                policy,
+                reviewState: ctx.reviewState,
+            });
+            return decision.allowed
+                ? { allowed: true }
+                : {
+                    allowed: false,
+                    code: "PACKAGE_BLOCKED_BY_POLICY",
+                    reason: decision.reason,
+                };
+        }
+        case "download_package": {
+            const decision = canDownloadPackage({ role: ctx.role, policy });
+            return decision.allowed
+                ? { allowed: true }
+                : {
+                    allowed: false,
+                    code: "PACKAGE_BLOCKED_BY_POLICY",
+                    reason: decision.reason,
+                };
+        }
+        case "download_original": {
+            if (!policy.allowOriginalDownload) {
+                return {
+                    allowed: false,
+                    code: "ORIGINAL_DOWNLOAD_BLOCKED_BY_POLICY",
+                    reason: "original_download_disabled_by_policy",
+                };
+            }
+            const perm = requirePermission(ctx.role, "evidence.download_original");
+            if (!perm.allowed) {
+                return {
+                    allowed: false,
+                    code: "ORIGINAL_DOWNLOAD_BLOCKED_BY_POLICY",
+                    reason: perm.reason,
+                };
+            }
+            return { allowed: true };
+        }
+        case "publish_public_verify": {
+            const decision = canPublishPublicVerify({
+                role: ctx.role,
+                policy,
+                reviewState: ctx.reviewState,
+            });
+            return decision.allowed
+                ? { allowed: true }
+                : {
+                    allowed: false,
+                    code: "PUBLIC_VERIFY_BLOCKED_BY_POLICY",
+                    reason: decision.reason,
+                };
+        }
+    }
+}
+function isTemplateExportAction(action) {
+    return (action === "generate_report" ||
+        action === "download_report" ||
+        action === "generate_package" ||
+        action === "download_package" ||
+        action === "publish_public_verify");
 }
 function deletionDecisionToCode(reason) {
     if (reason === "blocked_by_legal_hold")
@@ -632,6 +667,33 @@ export async function applyRetentionPolicyOnCreate(input) {
         where: { id: input.evidenceId },
         data: { retentionUntilUtc: resolved.retentionUntilUtc },
     });
+    // Phase 6 — Resolve template-identity trio for audit traceability.
+    // Identity-only; never drives the retention decision.
+    let templateProvenance = {
+        templateSlug: null,
+        templateVersion: null,
+        templateDbId: null,
+    };
+    try {
+        const ev = await client.evidence.findUnique({
+            where: { id: input.evidenceId },
+            select: {
+                templateSlug: true,
+                templateVersion: true,
+                templateDbId: true,
+            },
+        });
+        if (ev) {
+            templateProvenance = {
+                templateSlug: ev.templateSlug ?? null,
+                templateVersion: ev.templateVersion ?? null,
+                templateDbId: ev.templateDbId ?? null,
+            };
+        }
+    }
+    catch {
+        /* identity propagation must never break retention application */
+    }
     // No new custody event type for retention application — we reuse
     // the existing chain via a dedicated payload tag. The chain hashes
     // the payload, so reviewers can still inspect "retention applied by
@@ -644,6 +706,11 @@ export async function applyRetentionPolicyOnCreate(input) {
                 retentionPolicyApplied: true,
                 retentionUntilUtc: resolved.retentionUntilUtc.toISOString(),
                 source: resolved.source,
+                // Phase 6 — template provenance trio for downstream
+                // traceability. Identity-only; never drives policy.
+                templateSlug: templateProvenance.templateSlug,
+                templateVersion: templateProvenance.templateVersion,
+                templateDbId: templateProvenance.templateDbId,
             },
         });
     }

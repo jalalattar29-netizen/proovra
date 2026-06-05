@@ -34,6 +34,7 @@ import { assignReviewer as legacyAssignReviewer, bulkReviewAction as legacyBulkR
 import { createEscalation, findOpenEscalationForWorkflow, } from "./escalation-engine.service.js";
 import { snapshotWorkspaceWorkload, suggestReviewers, listLatestWorkloadSnapshots, } from "./workload.service.js";
 import { loadWorkspaceReviewerOpsFlags, resolveEffectiveSlaPolicy, } from "./sla-policy.service.js";
+import { warn as logWarn } from "../../utils/logger.js";
 import { sweepDueSoonReminders, sweepInactivityReminders, } from "./reminder-engine.service.js";
 import { detectStuckWorkflow, } from "@proovra/shared";
 // -----------------------------------------------------------------------------
@@ -70,6 +71,103 @@ function resolveSlaPolicy() {
         escalationHours: parse("REVIEW_SLA_ESCALATION_HOURS", REVIEWER_OPS_DEFAULT_SLA_POLICY.escalationHours),
         dueSoonHours: parse("REVIEW_SLA_DUE_SOON_HOURS", REVIEWER_OPS_DEFAULT_SLA_POLICY.dueSoonHours),
     };
+}
+// Phase R + Phase T — resolve the SLA template binding for an evidence row.
+//
+// Order of precedence:
+//   1. Direct read of the trio columns on EvidenceReviewWorkflow
+//      (Phase 4 stamps these at upsert time). If templateDbId is set we
+//      return it. If only templateSlug is set we look up the DB row by
+//      (slug, teamId); if no DB row backs the slug, we return null with
+//      source:"direct" — the trio is the canonical source of truth and
+//      SLA falls back to workspace/env baseline.
+//   2. Legacy: EvidenceWorkflowInstanceEvidence → instance.templateId.
+//   3. Legacy: WorkflowIntakeSession.evidenceId → link.workflowTemplateId.
+//
+// Wrapped per-call; on failure returns { templateId:null, source:"error" }
+// so the caller falls back to workspace/env baseline. NEVER throws.
+export async function resolveTemplateIdForEvidence(evidenceId, client) {
+    // Path 0 — Direct read of the canonical trio on the workflow row.
+    try {
+        const workflowRow = await client.evidenceReviewWorkflow.findUnique({
+            where: { evidenceId },
+            select: { templateDbId: true, templateSlug: true, teamId: true },
+        });
+        if (workflowRow?.templateDbId) {
+            return { templateId: workflowRow.templateDbId, source: "direct" };
+        }
+        if (workflowRow?.templateSlug) {
+            const slug = workflowRow.templateSlug;
+            const teamId = workflowRow.teamId ?? null;
+            const workspaceTemplate = teamId
+                ? await client.evidenceWorkflowTemplate.findFirst({
+                    where: { teamId, slug, archived: false },
+                    select: { id: true },
+                })
+                : null;
+            if (workspaceTemplate?.id) {
+                return { templateId: workspaceTemplate.id, source: "direct" };
+            }
+            const globalTemplate = await client.evidenceWorkflowTemplate.findFirst({
+                where: { teamId: null, slug, archived: false },
+                select: { id: true },
+            });
+            if (globalTemplate?.id) {
+                return { templateId: globalTemplate.id, source: "direct" };
+            }
+            // Slug present but no DB row backs it (seed-only template). Do
+            // NOT fall through to legacy joins; trio is canonical.
+            return { templateId: null, source: "direct" };
+        }
+        // Trio columns NULL — fall through to legacy discovery joins.
+    }
+    catch (err) {
+        logWarn("reviewer_ops.sla_template_resolve_failed", {
+            stage: "direct",
+            evidenceId,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return { templateId: null, source: "error" };
+    }
+    try {
+        const link = await client.evidenceWorkflowInstanceEvidence.findFirst({
+            where: { evidenceId },
+            orderBy: { createdAt: "desc" },
+            include: { instance: { select: { templateId: true } } },
+        });
+        if (link?.instance?.templateId) {
+            return { templateId: link.instance.templateId, source: "workflow_instance" };
+        }
+    }
+    catch (err) {
+        logWarn("reviewer_ops.sla_template_resolve_failed", {
+            stage: "workflow_instance",
+            evidenceId,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return { templateId: null, source: "error" };
+    }
+    try {
+        const session = await client.workflowIntakeSession.findUnique({
+            where: { evidenceId },
+            include: { intakeLink: { select: { workflowTemplateId: true } } },
+        });
+        if (session?.intakeLink?.workflowTemplateId) {
+            return {
+                templateId: session.intakeLink.workflowTemplateId,
+                source: "intake_link",
+            };
+        }
+    }
+    catch (err) {
+        logWarn("reviewer_ops.sla_template_resolve_failed", {
+            stage: "intake_link",
+            evidenceId,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return { templateId: null, source: "error" };
+    }
+    return { templateId: null, source: "none" };
 }
 export function buildWorkflowProjection(row, opts) {
     const stage = mapDbStatusToReviewStage(row.status);
@@ -335,8 +433,72 @@ async function assignReviewerToWorkflowInner(ctx, input, client) {
     // Initialise assignmentDueAtUtc if not set. Phase 25.5 reads the
     // effective policy from template → workspace → env so per-team and
     // per-template overrides take effect at the moment of assignment.
+    // Phase R — resolve the workflow's template via existing UUID joins
+    // so the template SLA override branch is finally reachable.
+    // Resolution failure NEVER breaks assignment.
     if (!updated.assignmentDueAtUtc) {
-        const { policy } = await resolveEffectiveSlaPolicy({ teamId: ctx.teamId }, client);
+        let templateResolution = { templateId: null, source: "none" };
+        try {
+            templateResolution = await resolveTemplateIdForEvidence(updated.evidenceId, client);
+        }
+        catch (err) {
+            logWarn("reviewer_ops.sla_template_resolve_unexpected", {
+                evidenceId: updated.evidenceId,
+                workflowId: updated.id,
+                error: err instanceof Error ? err.message : String(err),
+            });
+            templateResolution = { templateId: null, source: "error" };
+        }
+        let resolved;
+        try {
+            resolved = await resolveEffectiveSlaPolicy({ teamId: ctx.teamId, templateId: templateResolution.templateId }, client);
+        }
+        catch (err) {
+            logWarn("reviewer_ops.sla_policy_resolve_failed", {
+                teamId: ctx.teamId,
+                workflowId: updated.id,
+                error: err instanceof Error ? err.message : String(err),
+            });
+            resolved = {
+                policy: { ...REVIEWER_OPS_DEFAULT_SLA_POLICY },
+                sources: { template: {}, workspace: {}, env: {} },
+            };
+        }
+        const { policy, sources } = resolved;
+        const hasTemplateOverride = Object.keys(sources.template).length > 0;
+        const hasWorkspaceOverride = Object.keys(sources.workspace).length > 0;
+        const sourceLabel = hasTemplateOverride
+            ? "template_override"
+            : hasWorkspaceOverride
+                ? "team_default"
+                : "platform_baseline";
+        try {
+            await appendPlatformAuditLog({
+                userId: ctx.actorUserId,
+                action: "reviewer.sla_policy.resolve",
+                category: "review",
+                severity: "info",
+                source: "reviewer_ops_engine",
+                outcome: "success",
+                resourceType: "review_workflow",
+                resourceId: updated.id,
+                metadata: {
+                    teamId: ctx.teamId,
+                    workflowId: updated.id,
+                    templateId: templateResolution.templateId,
+                    templateResolutionSource: templateResolution.source,
+                    source: sourceLabel,
+                    completionHours: policy.completionHours,
+                },
+                db: client,
+            });
+        }
+        catch (err) {
+            logWarn("reviewer_ops.sla_policy_audit_failed", {
+                workflowId: updated.id,
+                error: err instanceof Error ? err.message : String(err),
+            });
+        }
         await client.evidenceReviewWorkflow.update({
             where: { id: updated.id },
             data: {

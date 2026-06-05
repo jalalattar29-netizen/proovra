@@ -137,6 +137,32 @@ model Evidence {
   /// review is in flight. Reset on review completion.
   activeDestructionReviewId String?                @map("active_destruction_review_id") @db.Uuid
 
+  // Phase T — Canonical workflow-template identity trio (additive, nullable).
+  //
+  // These three columns propagate the workflow-template identity onto the
+  // canonical Evidence row so downstream surfaces (reviewer-workflow,
+  // reports, packages, escalations) can attribute evidence to the
+  // template that produced it WITHOUT introducing a parallel template
+  // model, a sync job, or a duplicate policy system.
+  //
+  // Identity contract:
+  //   * templateSlug  — stable VarChar(120) identity that is consistent
+  //                     across the in-code seed catalog and DB-backed
+  //                     EvidenceWorkflowTemplate rows.
+  //   * templateVersion — matches EvidenceWorkflowTemplate.version (or
+  //                     the in-code seed version) at the moment the
+  //                     evidence was created.
+  //   * templateDbId  — UUID FK to EvidenceWorkflowTemplate.id, populated
+  //                     ONLY when a DB row backs the slug. SetNull on
+  //                     delete so template deletion never orphans
+  //                     evidence; legacy rows remain NULL.
+  //
+  // All three are NULLABLE; backfill is out of scope for this phase.
+  templateSlug    String?                   @map("template_slug") @db.VarChar(120)
+  templateVersion Int?                      @map("template_version")
+  templateDbId    String?                   @map("template_db_id") @db.Uuid
+  template        EvidenceWorkflowTemplate? @relation("EvidenceTemplate", fields: [templateDbId], references: [id], onDelete: SetNull)
+
   tsaFailureReason  String?   @map("tsa_failure_reason")
   tsaGenTimeUtc     DateTime? @map("tsa_gen_time_utc") @db.Timestamptz(6)
   tsaHashAlgorithm  String?   @map("tsa_hash_algorithm") @db.VarChar(32)
@@ -257,6 +283,8 @@ model Evidence {
   @@index([otsHash])
   @@index([otsStatus])
   @@index([otsAnchoredAtUtc])
+  // Phase T — non-unique per-workspace template lookups.
+  @@index([teamId, templateSlug])
   @@map("evidence")
 }
 
@@ -1288,6 +1316,23 @@ model EvidenceReviewWorkflow {
   codingSchemaId      String? @map("coding_schema_id") @db.Uuid
   codingSchemaVersion Int?    @map("coding_schema_version")
 
+  // Phase T — Canonical workflow-template identity trio (additive, nullable).
+  //
+  // Mirrors the columns on Evidence so a reviewer-workflow can be
+  // attributed to its source template WITHOUT a separate workflow
+  // identity service. Stamped at upsert time from the Evidence row;
+  // legacy workflows remain NULL.
+  //
+  // Same identity contract as Evidence:
+  //   * templateSlug    — stable slug, consistent across seed + DB.
+  //   * templateVersion — matches EvidenceWorkflowTemplate.version.
+  //   * templateDbId    — UUID FK, set only when a DB row backs the slug.
+  //                       SetNull on delete preserves audit history.
+  templateSlug    String?                   @map("template_slug") @db.VarChar(120)
+  templateVersion Int?                      @map("template_version")
+  templateDbId    String?                   @map("template_db_id") @db.Uuid
+  template        EvidenceWorkflowTemplate? @relation("ReviewWorkflowTemplate", fields: [templateDbId], references: [id], onDelete: SetNull)
+
   createdAt   DateTime                      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(6)
   evidence    Evidence                      @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
@@ -1313,6 +1358,8 @@ model EvidenceReviewWorkflow {
   @@index([escalationLevel, status])
   @@index([assignmentDueAtUtc])
   @@index([completionDueAtUtc])
+  // Phase T — non-unique per-workspace template lookups.
+  @@index([teamId, templateSlug])
   @@map("evidence_review_workflows")
 }
 
@@ -2747,6 +2794,11 @@ model EvidenceWorkflowTemplate {
   updatedBy         User?                      @relation("WorkflowTemplateUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
   intakeLinks       WorkflowIntakeLink[]
   workflowInstances EvidenceWorkflowInstance[]
+  // Phase T — back-relations for the canonical template identity trio on
+  // Evidence and EvidenceReviewWorkflow. Distinct relation names per
+  // model so the FK-bearing side resolves unambiguously.
+  evidences         Evidence[]                 @relation("EvidenceTemplate")
+  reviewerWorkflows EvidenceReviewWorkflow[]   @relation("ReviewWorkflowTemplate")
 
   @@index([teamId, archived])
   @@index([teamId, workspaceCategory])

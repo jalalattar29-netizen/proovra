@@ -60,8 +60,14 @@ export function isAnonymousWorkflowIntakeMode(
 // -----------------------------------------------------------------------------
 // Workspace categories
 //
-// A future Team.workspaceCategory column will hold one of these. Until that
-// migration lands the platform behaves as if every workspace is GENERAL.
+// Each enum value is a sector the platform recognises for template
+// classification. As of Phase R every in-code seed in
+// services/api/src/services/capture-intake-templates.ts declares the
+// concrete category it serves, so the workflow templates admin surface
+// can filter by sector meaningfully. A future Team.workspaceCategory
+// column will hold one of these to drive workspace-level defaults; until
+// that migration lands, the workspace itself remains category-agnostic
+// even though individual templates carry a sector.
 // -----------------------------------------------------------------------------
 
 export const WORKFLOW_WORKSPACE_CATEGORIES = [

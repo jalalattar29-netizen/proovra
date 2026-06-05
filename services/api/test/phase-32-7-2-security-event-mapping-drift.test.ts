@@ -640,6 +640,13 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // `averageLatencyMsLast24h` tile on the integrations health
       // dashboard.
       "20270815000000_phase_closure_webhook_delivery_duration",
+      // Phase T — canonical workflow-template identity trio (slug + version
+      // + optional db FK) added as nullable columns + nullable FK with
+      // ON DELETE SET NULL on Evidence and EvidenceReviewWorkflow. Pure
+      // additive: no NOT NULL, no DROP / RENAME, no defaults, no
+      // backfill. Unblocks template provenance across the lifecycle
+      // surfaces (review workflow, escalation, reports, packages).
+      "20270816000000_phase_t_template_identity_columns",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

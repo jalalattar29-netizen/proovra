@@ -41,6 +41,18 @@ export type PackageLifecycle =
   | "failed"
   | "unavailable";
 
+/**
+ * Phase 6 — template-identity provenance trio. Surfaced for downstream
+ * traceability ONLY; never drives policy. All three fields are
+ * nullable because legacy rows (pre-Phase T) carry NULL on the
+ * underlying Evidence columns.
+ */
+export type TemplateProvenance = {
+  templateSlug: string | null;
+  templateVersion: number | null;
+  templateDbId: string | null;
+};
+
 export type ArtifactRow = {
   evidenceId: string;
   title: string;
@@ -62,6 +74,12 @@ export type ArtifactRow = {
     generatedAtUtc: string | null;
     blockedReason: string | null;
   };
+  /**
+   * Phase 6 — workflow-template provenance trio. Surfaced as part of
+   * the report/package envelope for downstream traceability. NULL
+   * trio members on legacy rows are surfaced as-is.
+   */
+  provenance: TemplateProvenance;
 };
 
 export type ReportsArtifactsEnvelope = {
@@ -298,6 +316,12 @@ export async function listWorkspaceArtifacts(input: {
         caseId: true,
         createdAt: true,
         verificationPackageMetadata: true,
+        // Phase 6 — template provenance trio surfaced on the
+        // report/package envelope for downstream traceability.
+        // Identity-only; never drives any lifecycle decision.
+        templateSlug: true,
+        templateVersion: true,
+        templateDbId: true,
       },
     });
 
@@ -382,6 +406,13 @@ export async function listWorkspaceArtifacts(input: {
             version: pkg?.version ?? null,
             generatedAtUtc: pkg?.generatedAtUtc?.toISOString() ?? null,
             blockedReason: reason,
+          },
+          // Phase 6 — surface template-identity trio in the envelope.
+          // Identity propagation only; legacy rows surface NULL.
+          provenance: {
+            templateSlug: r.templateSlug ?? null,
+            templateVersion: r.templateVersion ?? null,
+            templateDbId: r.templateDbId ?? null,
           },
         };
       });

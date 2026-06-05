@@ -183,8 +183,16 @@ async function appendKindContent(params: {
   teamId: string;
   evidenceIds: string[];
   caseId: string | null;
+  /**
+   * Phase 6 — per-evidence template-identity provenance, resolved once
+   * by the caller. Used to enrich per-evidence metadata.json with the
+   * trio. Missing entries surface as NULL members.
+   */
+  provenanceByEvidenceId?: Map<string, TemplateProvenance>;
 }): Promise<void> {
   const { prisma, archive, entries, kind, teamId, evidenceIds, caseId } = params;
+  const provenanceByEvidenceId =
+    params.provenanceByEvidenceId ?? new Map<string, TemplateProvenance>();
 
   const safeIds = evidenceIds.slice(0, MAX_EVIDENCE_PER_PACKAGE);
 
@@ -208,6 +216,14 @@ async function appendKindContent(params: {
             },
           });
           if (!ev) continue;
+          // Phase 6 — per-evidence template-identity provenance. NULL
+          // members on legacy rows are surfaced as-is.
+          const evidenceProvenance: TemplateProvenance =
+            provenanceByEvidenceId.get(eid) ?? {
+              templateSlug: null,
+              templateVersion: null,
+              templateDbId: null,
+            };
           appendEntry(
             archive,
             entries,
@@ -223,6 +239,9 @@ async function appendKindContent(params: {
               captureMethod: ev.captureMethod ?? null,
               originalFileName: ev.originalFileName ?? null,
               createdAt: ev.createdAt.toISOString(),
+              // Phase 6 — surface template-identity trio in
+              // per-evidence metadata for downstream traceability.
+              provenance: evidenceProvenance,
             }),
             "application/json",
           );
@@ -567,6 +586,68 @@ async function appendKindContent(params: {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 6 — template-identity provenance trio helper.
+//
+// Reads the canonical Evidence trio for a bounded set of evidence ids
+// and returns:
+//   * `byEvidenceId` map of trio per id (used by per-evidence
+//     metadata.json),
+//   * `distinct` array of unique provenances (used by the package-
+//     manifest provenance array).
+//
+// Identity propagation only — never drives any policy decision.
+// Wrapped at the call site in try/catch so a propagation failure
+// never breaks the package-build lifecycle.
+// ---------------------------------------------------------------------------
+
+type TemplateProvenance = {
+  templateSlug: string | null;
+  templateVersion: number | null;
+  templateDbId: string | null;
+};
+
+async function resolveProvenanceForEvidenceIds(
+  prisma: PrismaClient,
+  teamId: string,
+  evidenceIds: readonly string[],
+): Promise<{
+  byEvidenceId: Map<string, TemplateProvenance>;
+  distinct: TemplateProvenance[];
+}> {
+  const byEvidenceId = new Map<string, TemplateProvenance>();
+  const distinctMap = new Map<string, TemplateProvenance>();
+
+  if (evidenceIds.length === 0) {
+    return { byEvidenceId, distinct: [] };
+  }
+
+  const rows = await prisma.evidence.findMany({
+    where: { id: { in: evidenceIds.slice(0, MAX_EVIDENCE_PER_PACKAGE) }, teamId },
+    select: {
+      id: true,
+      templateSlug: true,
+      templateVersion: true,
+      templateDbId: true,
+    },
+  });
+
+  for (const row of rows) {
+    const trio: TemplateProvenance = {
+      templateSlug: row.templateSlug ?? null,
+      templateVersion: row.templateVersion ?? null,
+      templateDbId: row.templateDbId ?? null,
+    };
+    byEvidenceId.set(row.id, trio);
+    // Distinct-key collapses NULL trios into a single "legacy" sentinel
+    // so a workspace mixing legacy + Phase-T evidence reports both.
+    const key = `${trio.templateSlug ?? ""}|${trio.templateVersion ?? ""}|${trio.templateDbId ?? ""}`;
+    if (!distinctMap.has(key)) distinctMap.set(key, trio);
+  }
+
+  return { byEvidenceId, distinct: Array.from(distinctMap.values()) };
+}
+
+// ---------------------------------------------------------------------------
 // Main builder
 // ---------------------------------------------------------------------------
 
@@ -625,6 +706,30 @@ export async function buildExchangePackage(
 
     const entries: PackageEntry[] = [];
 
+    // Phase 6 — Resolve template-identity provenance for the included
+    // evidence set so the manifest can surface the trio for downstream
+    // traceability. Identity-only; never drives any policy. Wrapped
+    // in try/catch so a propagation failure cannot break the package
+    // build lifecycle — legacy rows yield NULL trio members and a
+    // workspace with no Phase-T stamping yields a single "all-NULL"
+    // distinct provenance.
+    let provenanceCache: {
+      byEvidenceId: Map<string, TemplateProvenance>;
+      distinct: TemplateProvenance[];
+    } = { byEvidenceId: new Map(), distinct: [] };
+    try {
+      provenanceCache = await resolveProvenanceForEvidenceIds(
+        prisma,
+        teamId,
+        evidenceIds,
+      );
+    } catch (err) {
+      logger.warn(
+        { packageId, teamId, err },
+        "exchange.package_builder.provenance_resolve_failed",
+      );
+    }
+
     // Package manifest — always included.
     appendEntry(
       archive,
@@ -645,6 +750,10 @@ export async function buildExchangePackage(
         scopeNote: pkg.scopeNote ?? null,
         createdByUserId: pkg.createdByUserId,
         createdAt: pkg.createdAt.toISOString(),
+        // Phase 6 — distinct template-identity provenances across the
+        // included evidence set. Identity-only; never drives policy.
+        // Empty array when no rows resolved (legacy / unknown ids).
+        provenance: provenanceCache.distinct,
       }),
       "application/json",
     );
@@ -667,6 +776,9 @@ export async function buildExchangePackage(
       teamId,
       evidenceIds,
       caseId: pkg.caseId ?? null,
+      // Phase 6 — per-evidence template-identity provenance map,
+      // resolved once above for the package manifest. Identity-only.
+      provenanceByEvidenceId: provenanceCache.byEvidenceId,
     });
 
     // Checksums — computed after all other entries are appended.

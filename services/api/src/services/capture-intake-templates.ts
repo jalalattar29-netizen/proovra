@@ -20,6 +20,7 @@
  */
 
 import type { EvidenceType } from "@prisma/client";
+import type { WorkflowWorkspaceCategory } from "@proovra/shared";
 
 export type IntakeTemplateLocationRequirement =
   | "required"
@@ -49,6 +50,22 @@ export interface IntakeTemplate {
   locationRequirement: IntakeTemplateLocationRequirement;
   archived: boolean;
   steps: IntakeTemplateStep[];
+  /**
+   * Sector / workspace-category mapping for this seed template.
+   *
+   * Phase R wiring: the workflow templates admin surface filters by
+   * sector via `listEffectiveWorkflowTemplates({ workspaceCategory })`,
+   * and the `/v1/workflows/templates` plural alias post-filters on the
+   * same field. Before Phase R, no seed declared a category, so any
+   * non-"All sectors" filter returned an empty list (every seed was
+   * dropped). Each seed now declares the concrete category it serves
+   * so the dropdown is meaningful.
+   *
+   * Optional — a future seed that genuinely spans every sector may omit
+   * this, and the merger preserves the legacy "category-agnostic"
+   * behaviour for that case (no category filter is applied).
+   */
+  workspaceCategory?: WorkflowWorkspaceCategory;
 }
 
 const TEMPLATES: IntakeTemplate[] = [
@@ -60,6 +77,7 @@ const TEMPLATES: IntakeTemplate[] = [
       "Balanced intake for primary evidence and supporting context.",
     locationRequirement: "recommended",
     archived: false,
+    workspaceCategory: "GENERAL",
     steps: [
       {
         id: "primary_evidence",
@@ -97,6 +115,7 @@ const TEMPLATES: IntakeTemplate[] = [
     description: "Capture damage, policy documentation, and ownership context.",
     locationRequirement: "recommended",
     archived: false,
+    workspaceCategory: "INSURANCE",
     steps: [
       {
         id: "overview_media",
@@ -142,6 +161,7 @@ const TEMPLATES: IntakeTemplate[] = [
       "Collect primary documents, supporting exhibits, and source notes.",
     locationRequirement: "optional",
     archived: false,
+    workspaceCategory: "LEGAL",
     steps: [
       {
         id: "primary_media",
@@ -187,6 +207,7 @@ const TEMPLATES: IntakeTemplate[] = [
       "Capture scene overview, close-up detail, and witness media.",
     locationRequirement: "required",
     archived: false,
+    workspaceCategory: "INVESTIGATIONS",
     steps: [
       {
         id: "scene_overview",
@@ -232,6 +253,7 @@ const TEMPLATES: IntakeTemplate[] = [
       "Collect policy, audit evidence, and supporting records for review.",
     locationRequirement: "recommended",
     archived: false,
+    workspaceCategory: "COMPLIANCE",
     steps: [
       {
         id: "policy_document",
@@ -279,6 +301,7 @@ const TEMPLATES: IntakeTemplate[] = [
       "Collect primary media, scene context, and source-safe notes.",
     locationRequirement: "recommended",
     archived: false,
+    workspaceCategory: "JOURNALISM",
     steps: [
       {
         id: "primary_media",

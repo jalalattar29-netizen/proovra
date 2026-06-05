@@ -206,9 +206,57 @@ export async function createEscalation(
       evidenceId: true,
       assignedToUserId: true,
       escalationLevel: true,
+      // Phase 6 — workflow-row template trio (Phase 4 stamped). Read
+      // here so escalation traceability does NOT need an extra join.
+      templateSlug: true,
+      templateVersion: true,
+      templateDbId: true,
     },
   });
   if (!workflow) return { ok: false, code: "REVIEW_WORKFLOW_NOT_FOUND" };
+
+  // Phase 6 — Resolve template provenance trio for escalation audit
+  // traceability. Identity propagation ONLY: no policy decision is
+  // taken from this. We read the trio first from the workflow row
+  // (Phase 4 stamped); if all three are NULL we fall back to the
+  // Evidence row (Phase T stamped). Wrapped in try/catch — a
+  // propagation failure must never break the escalation lifecycle.
+  let templateProvenance: {
+    templateSlug: string | null;
+    templateVersion: number | null;
+    templateDbId: string | null;
+  } = {
+    templateSlug: workflow.templateSlug ?? null,
+    templateVersion: workflow.templateVersion ?? null,
+    templateDbId: workflow.templateDbId ?? null,
+  };
+  if (
+    templateProvenance.templateSlug == null &&
+    templateProvenance.templateVersion == null &&
+    templateProvenance.templateDbId == null &&
+    workflow.evidenceId
+  ) {
+    try {
+      const evidenceTrio = await client.evidence.findUnique({
+        where: { id: workflow.evidenceId },
+        select: {
+          templateSlug: true,
+          templateVersion: true,
+          templateDbId: true,
+        },
+      });
+      if (evidenceTrio) {
+        templateProvenance = {
+          templateSlug: evidenceTrio.templateSlug ?? null,
+          templateVersion: evidenceTrio.templateVersion ?? null,
+          templateDbId: evidenceTrio.templateDbId ?? null,
+        };
+      }
+    } catch {
+      // Identity propagation failure must NEVER break escalation flow.
+      // Leave trio NULL and continue.
+    }
+  }
 
   const now = new Date();
   const summary = sanitiseSummary(input.safeSummary);
@@ -285,6 +333,11 @@ export async function createEscalation(
           workflowId: input.workflowId,
           escalationId: created.id,
           reason: input.reason,
+          // Phase 6 — template provenance trio for downstream
+          // traceability. Identity-only; never drives policy.
+          templateSlug: templateProvenance.templateSlug,
+          templateVersion: templateProvenance.templateVersion,
+          templateDbId: templateProvenance.templateDbId,
         },
       });
       linkedIncidentId = inc.incident.id;
@@ -309,6 +362,11 @@ export async function createEscalation(
       actorUserId: input.createdByUserId ?? null,
       assignedToUserId: created.assignedToUserId,
       incidentId: linkedIncidentId,
+      // Phase 6 — template provenance trio for downstream
+      // traceability. Identity-only; never drives policy.
+      templateSlug: templateProvenance.templateSlug,
+      templateVersion: templateProvenance.templateVersion,
+      templateDbId: templateProvenance.templateDbId,
     },
   });
 
@@ -327,6 +385,11 @@ export async function createEscalation(
       reason: input.reason,
       severity,
       incidentId: linkedIncidentId,
+      // Phase 6 — template provenance trio for downstream
+      // traceability. Identity-only; never drives policy.
+      templateSlug: templateProvenance.templateSlug,
+      templateVersion: templateProvenance.templateVersion,
+      templateDbId: templateProvenance.templateDbId,
     },
     db: client,
   });

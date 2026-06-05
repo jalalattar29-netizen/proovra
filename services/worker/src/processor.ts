@@ -2873,6 +2873,12 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
             signingKeyVersion: true,
             lockedAt: true,
             verificationPackageVersion: true,
+            // Phase 6 — Read Phase T template-identity trio so the
+            // generated report can surface a provenance envelope.
+            // Identity-only; never drives policy.
+            templateSlug: true,
+            templateVersion: true,
+            templateDbId: true,
           },
         });
 
@@ -3230,6 +3236,27 @@ const effectiveReportEvidencePayload = {
         // Phase O1.5C — bounded report.upload span. NEVER PDF bytes
         // or signed URL in attributes.
         await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_UPLOAD, { "proovra.operation": "report_upload", "proovra.evidence_id": prepared.evidenceId, "proovra.size_bytes": finalizedReportPdf.length }, () => undefined);
+        // Phase 6 — Build report provenance envelope for downstream
+        // traceability. Identity-only; never drives policy. Wrapped in
+        // try/catch so a propagation failure can never break the
+        // primary report-generation lifecycle. Trio values are
+        // stringified for the S3 metadata block (string-only) and
+        // surface NULL as empty string so the metadata key is always
+        // present but unambiguously null on legacy rows.
+        let reportProvenanceMetadata: Record<string, string> = {};
+        try {
+          reportProvenanceMetadata = {
+            template_slug: lockedEvidence.templateSlug ?? "",
+            template_version:
+              lockedEvidence.templateVersion != null
+                ? String(lockedEvidence.templateVersion)
+                : "",
+            template_db_id: lockedEvidence.templateDbId ?? "",
+          };
+        } catch {
+          /* identity propagation failure must never break report flow */
+        }
+
         await putObjectBuffer({
           bucket: env.S3_BUCKET,
           key: prepared.reportKey,
@@ -3240,6 +3267,7 @@ const effectiveReportEvidencePayload = {
             evidence_id: prepared.evidenceId,
             report_version: String(prepared.version),
             artifact_type: "report_pdf",
+            ...reportProvenanceMetadata,
           },
           tags: {
             artifact: "report",

@@ -139,7 +139,13 @@ describe("Phase D — /workflows page renders every projected template field", (
     expect(src).toMatch(/data-testid={`workflow-template-sector-\$\{t\.slug\}`}/);
     expect(src).toMatch(/data-testid={`workflow-template-intake-modes-\$\{t\.slug\}`}/);
     expect(src).toMatch(/\{t\.requiredStepCount\}\/\{t\.stepCount\}/);
-    expect(src).toMatch(/t\.workspaceCategory\s*\?\?\s*"GENERAL"/);
+    // Phase R — every seed now declares its concrete workspaceCategory,
+    // so the previous "GENERAL" fallback in the UI was a lie that
+    // overwrote a missing category as if the platform had picked a
+    // category. The fallback now reads "unspecified" so the only thing
+    // the operator sees as "unspecified" is a DB row that genuinely has
+    // no category set, never a seed.
+    expect(src).toMatch(/t\.workspaceCategory\s*\?\?\s*"unspecified"/);
     expect(src).toMatch(/t\.intakeModes\.join\(/);
   });
 

@@ -57,6 +57,17 @@ import { appendCustodyEvent } from "./custody-events.service.js";
 import { transitionIntakeSession } from "./workflow-intake-session.service.js";
 import { linkResponseFromIntakeSession } from "./evidence-request.service.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
+// Phase T — propagate canonical template identity onto Evidence rows
+// minted via the external-intake path. The WorkflowIntakeLink already
+// snapshots the slug, version, and (when DB-backed) the template id at
+// link-creation time; we honour that snapshot verbatim. Stamping is
+// strictly wrapped in try/catch so a propagation failure cannot break
+// the bytes-presign flow.
+import {
+  resolveTemplateTrioForIntakeLink,
+  templateIdentityAuditMetadata,
+} from "./templates/identity-resolver.service.js";
+import { appendPlatformAuditLog } from "./platform-audit-log.service.js";
 
 // -----------------------------------------------------------------------------
 // Error type
@@ -225,6 +236,56 @@ export async function createOrLoadExternalEvidence(
       // submittedByUserId stays null — the contributor has no User row.
     },
   });
+
+  // Phase T — stamp the canonical template-identity trio (slug + version
+  // + optional db id) onto the Evidence row from the WorkflowIntakeLink
+  // snapshot. The link already carries the canonical values from the
+  // moment the workspace admin created it; we never recompute policy or
+  // re-derive snapshots. Entirely wrapped in try/catch — a stamping
+  // failure must not break the upload-presign flow. Audit emission
+  // reuses the existing platform audit chain.
+  try {
+    const trio = await resolveTemplateTrioForIntakeLink({
+      link: {
+        workflowTemplateId: pair.link.workflowTemplateId ?? null,
+        workflowTemplateSlug: pair.link.workflowTemplateSlug,
+        workflowTemplateVersion: pair.link.workflowTemplateVersion,
+        teamId: pair.link.teamId,
+      },
+      client,
+    });
+    if (trio.templateSlug) {
+      await client.evidence.update({
+        where: { id: evidence.id },
+        data: {
+          templateSlug: trio.templateSlug,
+          templateVersion: trio.templateVersion,
+          templateDbId: trio.templateDbId,
+        },
+      });
+      void appendPlatformAuditLog({
+        // External-intake submissions have no authenticated user; use the
+        // link creator (workspace admin) as the actor for audit purposes.
+        userId: pair.link.createdByUserId,
+        action: "evidence.template_identity.stamped",
+        category: "evidence",
+        severity: "info",
+        source: "external_intake",
+        outcome: "success",
+        resourceType: "evidence",
+        resourceId: evidence.id,
+        metadata: templateIdentityAuditMetadata({
+          evidenceId: evidence.id,
+          source: "external_intake",
+          trio,
+        }),
+      }).catch(() => {
+        /* audit emission must never break external intake */
+      });
+    }
+  } catch {
+    /* propagation-only: never break the bytes pipeline */
+  }
 
   // Link the session to the freshly-minted evidence so a resumed upload
   // hits the same Evidence on the next presign request.

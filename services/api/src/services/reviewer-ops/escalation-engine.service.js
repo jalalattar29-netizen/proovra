@@ -115,10 +115,48 @@ export async function createEscalation(input, client = defaultPrisma) {
             evidenceId: true,
             assignedToUserId: true,
             escalationLevel: true,
+            // Phase 6 — workflow-row template trio (Phase 4 stamped).
+            templateSlug: true,
+            templateVersion: true,
+            templateDbId: true,
         },
     });
     if (!workflow)
         return { ok: false, code: "REVIEW_WORKFLOW_NOT_FOUND" };
+    // Phase 6 — Resolve template provenance trio for escalation audit
+    // traceability. Identity propagation ONLY: no policy decision is
+    // taken from this. Fall back to Evidence row when workflow trio
+    // is NULL. Wrapped in try/catch — never breaks escalation flow.
+    let templateProvenance = {
+        templateSlug: workflow.templateSlug ?? null,
+        templateVersion: workflow.templateVersion ?? null,
+        templateDbId: workflow.templateDbId ?? null,
+    };
+    if (templateProvenance.templateSlug == null &&
+        templateProvenance.templateVersion == null &&
+        templateProvenance.templateDbId == null &&
+        workflow.evidenceId) {
+        try {
+            const evidenceTrio = await client.evidence.findUnique({
+                where: { id: workflow.evidenceId },
+                select: {
+                    templateSlug: true,
+                    templateVersion: true,
+                    templateDbId: true,
+                },
+            });
+            if (evidenceTrio) {
+                templateProvenance = {
+                    templateSlug: evidenceTrio.templateSlug ?? null,
+                    templateVersion: evidenceTrio.templateVersion ?? null,
+                    templateDbId: evidenceTrio.templateDbId ?? null,
+                };
+            }
+        }
+        catch {
+            // Identity propagation failure must NEVER break escalation flow.
+        }
+    }
     const now = new Date();
     const summary = sanitiseSummary(input.safeSummary);
     const fingerprint = buildFingerprint({
@@ -187,6 +225,11 @@ export async function createEscalation(input, client = defaultPrisma) {
                     workflowId: input.workflowId,
                     escalationId: created.id,
                     reason: input.reason,
+                    // Phase 6 — template provenance trio for downstream
+                    // traceability. Identity-only; never drives policy.
+                    templateSlug: templateProvenance.templateSlug,
+                    templateVersion: templateProvenance.templateVersion,
+                    templateDbId: templateProvenance.templateDbId,
                 },
             });
             linkedIncidentId = inc.incident.id;
@@ -211,6 +254,11 @@ export async function createEscalation(input, client = defaultPrisma) {
             actorUserId: input.createdByUserId ?? null,
             assignedToUserId: created.assignedToUserId,
             incidentId: linkedIncidentId,
+            // Phase 6 — template provenance trio for downstream
+            // traceability. Identity-only; never drives policy.
+            templateSlug: templateProvenance.templateSlug,
+            templateVersion: templateProvenance.templateVersion,
+            templateDbId: templateProvenance.templateDbId,
         },
     });
     await appendPlatformAuditLog({
@@ -228,6 +276,11 @@ export async function createEscalation(input, client = defaultPrisma) {
             reason: input.reason,
             severity,
             incidentId: linkedIncidentId,
+            // Phase 6 — template provenance trio for downstream
+            // traceability. Identity-only; never drives policy.
+            templateSlug: templateProvenance.templateSlug,
+            templateVersion: templateProvenance.templateVersion,
+            templateDbId: templateProvenance.templateDbId,
         },
         db: client,
     });

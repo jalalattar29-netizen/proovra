@@ -78,6 +78,7 @@ import {
   loadWorkspaceReviewerOpsFlags,
   resolveEffectiveSlaPolicy,
 } from "./sla-policy.service.js";
+import { warn as logWarn } from "../../utils/logger.js";
 import {
   sweepDueSoonReminders,
   sweepInactivityReminders,
@@ -148,6 +149,164 @@ function resolveSlaPolicy() {
       REVIEWER_OPS_DEFAULT_SLA_POLICY.dueSoonHours,
     ),
   };
+}
+
+// -----------------------------------------------------------------------------
+// Template id resolution for SLA layering.
+//
+// Phase R wiring: the Phase 25.5 SLA policy resolver already supports a
+// `templateId` parameter (`sla-policy.service.ts:loadTemplateOverride`).
+// Until this phase the call sites passed nothing, so the template-override
+// branch was unreachable in production.
+//
+// Phase T simplification: Phase 4 stamped the canonical template identity
+// trio (templateSlug, templateVersion, templateDbId) directly onto
+// EvidenceReviewWorkflow at upsert time. The SLA resolver now prefers
+// those columns as the primary source — a single indexed read on the
+// workflow row replaces the two-join discovery for any row stamped after
+// Phase 4. The legacy two-join discovery is retained as a fallback so
+// pre-Phase-4 rows (NULL trio columns) still resolve their SLA template
+// without any backfill job.
+//
+// Order of precedence:
+//
+//   1. DIRECT — EvidenceReviewWorkflow.templateDbId   (new column, fast)
+//   2. DIRECT — EvidenceReviewWorkflow.templateSlug   → DB row by (slug, teamId)
+//      (returns null when the slug is seed-only with no DB row backing it;
+//       SLA falls back to workspace / env / baseline as designed)
+//   3. DISCOVERED — EvidenceWorkflowInstanceEvidence → instance.templateId
+//   4. DISCOVERED — WorkflowIntakeSession.evidenceId → link.workflowTemplateId
+//
+// Both legacy joins are read-only and the CaptureSession.templateId column
+// is intentionally NOT used here: its value is an in-code seed VarChar slug,
+// not a UUID FK.
+//
+// Hard rule: NEVER let resolution failure break assignment. Every read is
+// wrapped; on any error we return null and the resolver falls back to
+// workspace / env / baseline as it does today.
+// -----------------------------------------------------------------------------
+
+export type SlaTemplateResolutionSource =
+  // Phase T — new column on EvidenceReviewWorkflow was set.
+  | "direct"
+  // Phase R legacy join paths, retained for rows with NULL trio columns.
+  | "workflow_instance"
+  | "intake_link"
+  // No template binding could be resolved (clean baseline path).
+  | "none"
+  // Any read threw; caller falls back to baseline.
+  | "error";
+
+export type SlaTemplateResolution = {
+  templateId: string | null;
+  source: SlaTemplateResolutionSource;
+};
+
+export async function resolveTemplateIdForEvidence(
+  evidenceId: string,
+  client: PrismaClient,
+): Promise<SlaTemplateResolution> {
+  // ---------------------------------------------------------------------------
+  // Path 0 — Direct read of the trio columns on EvidenceReviewWorkflow.
+  //
+  // Phase 4 stamps these at upsert time. When templateDbId is set we have a
+  // canonical UUID and we are done; when only templateSlug is set we look
+  // up the DB row by (slug, teamId) using the same pattern as
+  // workflow-intake-link.service:resolveTemplateForLink (workspace row wins;
+  // global row falls back).
+  // ---------------------------------------------------------------------------
+  try {
+    const workflowRow = await client.evidenceReviewWorkflow.findUnique({
+      where: { evidenceId },
+      select: { templateDbId: true, templateSlug: true, teamId: true },
+    });
+    if (workflowRow?.templateDbId) {
+      return { templateId: workflowRow.templateDbId, source: "direct" };
+    }
+    if (workflowRow?.templateSlug) {
+      const slug = workflowRow.templateSlug;
+      const teamId = workflowRow.teamId ?? null;
+      // Workspace-scoped row wins; otherwise fall back to a global row.
+      // Either match is enough; if neither exists the slug is seed-only.
+      const workspaceTemplate = teamId
+        ? await client.evidenceWorkflowTemplate.findFirst({
+            where: { teamId, slug, archived: false },
+            select: { id: true },
+          })
+        : null;
+      if (workspaceTemplate?.id) {
+        return { templateId: workspaceTemplate.id, source: "direct" };
+      }
+      const globalTemplate = await client.evidenceWorkflowTemplate.findFirst({
+        where: { teamId: null, slug, archived: false },
+        select: { id: true },
+      });
+      if (globalTemplate?.id) {
+        return { templateId: globalTemplate.id, source: "direct" };
+      }
+      // Slug present but no DB row backs it (seed-only template). The trio
+      // columns are the canonical source of truth; do NOT fall through to
+      // legacy joins — SLA correctly falls back to workspace / env baseline.
+      return { templateId: null, source: "direct" };
+    }
+    // Trio columns are entirely NULL — this is a pre-Phase-4 row. Fall
+    // through to the legacy discovery joins.
+  } catch (err) {
+    logWarn("reviewer_ops.sla_template_resolve_failed", {
+      stage: "direct",
+      evidenceId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { templateId: null, source: "error" };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Path 1 (legacy) — EvidenceWorkflowInstanceEvidence join. Take the most
+  // recent mapping; the template UUID lives on the instance row.
+  // ---------------------------------------------------------------------------
+  try {
+    const link = await client.evidenceWorkflowInstanceEvidence.findFirst({
+      where: { evidenceId },
+      orderBy: { createdAt: "desc" },
+      include: { instance: { select: { templateId: true } } },
+    });
+    if (link?.instance?.templateId) {
+      return { templateId: link.instance.templateId, source: "workflow_instance" };
+    }
+  } catch (err) {
+    logWarn("reviewer_ops.sla_template_resolve_failed", {
+      stage: "workflow_instance",
+      evidenceId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { templateId: null, source: "error" };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Path 2 (legacy) — WorkflowIntakeSession.evidenceId (unique back-pointer)
+  // → WorkflowIntakeLink.workflowTemplateId.
+  // ---------------------------------------------------------------------------
+  try {
+    const session = await client.workflowIntakeSession.findUnique({
+      where: { evidenceId },
+      include: { intakeLink: { select: { workflowTemplateId: true } } },
+    });
+    if (session?.intakeLink?.workflowTemplateId) {
+      return {
+        templateId: session.intakeLink.workflowTemplateId,
+        source: "intake_link",
+      };
+    }
+  } catch (err) {
+    logWarn("reviewer_ops.sla_template_resolve_failed", {
+      stage: "intake_link",
+      evidenceId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { templateId: null, source: "error" };
+  }
+
+  return { templateId: null, source: "none" };
 }
 
 // -----------------------------------------------------------------------------
@@ -583,11 +742,96 @@ async function assignReviewerToWorkflowInner(
   // Initialise assignmentDueAtUtc if not set. Phase 25.5 reads the
   // effective policy from template → workspace → env so per-team and
   // per-template overrides take effect at the moment of assignment.
+  //
+  // Phase R — resolve the workflow's template via existing UUID joins so
+  // the template SLA override branch (sla-policy.service.ts:loadTemplateOverride)
+  // is finally reachable. Resolution failure NEVER breaks assignment;
+  // the resolver returns null and the policy falls back to workspace/env
+  // baselines exactly as it did before this wiring.
   if (!updated.assignmentDueAtUtc) {
-    const { policy } = await resolveEffectiveSlaPolicy(
-      { teamId: ctx.teamId },
-      client,
-    );
+    let templateResolution: SlaTemplateResolution = {
+      templateId: null,
+      source: "none",
+    };
+    try {
+      templateResolution = await resolveTemplateIdForEvidence(
+        updated.evidenceId,
+        client,
+      );
+    } catch (err) {
+      // Defensive: resolveTemplateIdForEvidence already catches and
+      // returns {source:"error"}, but if a future refactor changes
+      // that, we still must not break the assignment lifecycle.
+      logWarn("reviewer_ops.sla_template_resolve_unexpected", {
+        evidenceId: updated.evidenceId,
+        workflowId: updated.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      templateResolution = { templateId: null, source: "error" };
+    }
+
+    let resolved: Awaited<ReturnType<typeof resolveEffectiveSlaPolicy>>;
+    try {
+      resolved = await resolveEffectiveSlaPolicy(
+        { teamId: ctx.teamId, templateId: templateResolution.templateId },
+        client,
+      );
+    } catch (err) {
+      // Fall back to baseline if even the resolver call fails. We log
+      // and continue — assignment must succeed.
+      logWarn("reviewer_ops.sla_policy_resolve_failed", {
+        teamId: ctx.teamId,
+        workflowId: updated.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      resolved = {
+        policy: { ...REVIEWER_OPS_DEFAULT_SLA_POLICY },
+        sources: { template: {}, workspace: {}, env: {} },
+      };
+    }
+    const { policy, sources } = resolved;
+
+    // Phase R — one audit row per resolution so operators can trace
+    // which layer set the assignment SLA. Reuses the existing audit
+    // emitter; no new audit table. Failures here are swallowed (audit
+    // must never break the assignment lifecycle).
+    const hasTemplateOverride =
+      Object.keys(sources.template).length > 0;
+    const hasWorkspaceOverride =
+      Object.keys(sources.workspace).length > 0;
+    const sourceLabel: "template_override" | "team_default" | "platform_baseline" =
+      hasTemplateOverride
+        ? "template_override"
+        : hasWorkspaceOverride
+          ? "team_default"
+          : "platform_baseline";
+    try {
+      await appendPlatformAuditLog({
+        userId: ctx.actorUserId,
+        action: "reviewer.sla_policy.resolve",
+        category: "review",
+        severity: "info",
+        source: "reviewer_ops_engine",
+        outcome: "success",
+        resourceType: "review_workflow",
+        resourceId: updated.id,
+        metadata: {
+          teamId: ctx.teamId,
+          workflowId: updated.id,
+          templateId: templateResolution.templateId,
+          templateResolutionSource: templateResolution.source,
+          source: sourceLabel,
+          completionHours: policy.completionHours,
+        },
+        db: client,
+      });
+    } catch (err) {
+      logWarn("reviewer_ops.sla_policy_audit_failed", {
+        workflowId: updated.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
     await client.evidenceReviewWorkflow.update({
       where: { id: updated.id },
       data: {

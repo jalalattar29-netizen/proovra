@@ -6369,6 +6369,8 @@ export async function evidenceRoutes(app) {
                         retentionUntilUtc: completionEvidence.retentionUntilUtc ?? null,
                     },
                     reviewState,
+                    // Phase 5 — opt into workflow template exportPolicy overlay.
+                    consultTemplatePolicy: true,
                 });
                 if (!decision.allowed) {
                     await appendCustodyEvent({
@@ -6912,6 +6914,8 @@ export async function evidenceRoutes(app) {
                         teamId: evidenceForGate.teamId,
                         retentionUntilUtc: evidenceForGate.retentionUntilUtc ?? null,
                     },
+                    // Phase 5 — opt into workflow template exportPolicy overlay.
+                    consultTemplatePolicy: true,
                 });
                 if (!decision.allowed) {
                     await appendCustodyEvent({
@@ -7259,6 +7263,8 @@ export async function evidenceRoutes(app) {
                         teamId: evidenceForGate.teamId,
                         retentionUntilUtc: evidenceForGate.retentionUntilUtc ?? null,
                     },
+                    // Phase 5 — opt into workflow template exportPolicy overlay.
+                    consultTemplatePolicy: true,
                 });
                 if (!decision.allowed) {
                     await appendCustodyEvent({

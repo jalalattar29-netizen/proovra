@@ -61,6 +61,11 @@ function mockWorkflowRow(
     // schema binding override via the `patch` arg.
     codingSchemaId: null,
     codingSchemaVersion: null,
+    // Phase T — additive nullable template-identity trio. Same `string | null`
+    // (not `undefined`) contract as Phase 2A above. Legacy fixtures stay NULL.
+    templateSlug: null,
+    templateVersion: null,
+    templateDbId: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...patch,

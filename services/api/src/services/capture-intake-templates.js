@@ -26,6 +26,7 @@ const TEMPLATES = [
         description: "Balanced intake for primary evidence and supporting context.",
         locationRequirement: "recommended",
         archived: false,
+        workspaceCategory: "GENERAL",
         steps: [
             {
                 id: "primary_evidence",
@@ -60,6 +61,7 @@ const TEMPLATES = [
         description: "Capture damage, policy documentation, and ownership context.",
         locationRequirement: "recommended",
         archived: false,
+        workspaceCategory: "INSURANCE",
         steps: [
             {
                 id: "overview_media",
@@ -102,6 +104,7 @@ const TEMPLATES = [
         description: "Collect primary documents, supporting exhibits, and source notes.",
         locationRequirement: "optional",
         archived: false,
+        workspaceCategory: "LEGAL",
         steps: [
             {
                 id: "primary_media",
@@ -144,6 +147,7 @@ const TEMPLATES = [
         description: "Capture scene overview, close-up detail, and witness media.",
         locationRequirement: "required",
         archived: false,
+        workspaceCategory: "INVESTIGATIONS",
         steps: [
             {
                 id: "scene_overview",
@@ -186,6 +190,7 @@ const TEMPLATES = [
         description: "Collect policy, audit evidence, and supporting records for review.",
         locationRequirement: "recommended",
         archived: false,
+        workspaceCategory: "COMPLIANCE",
         steps: [
             {
                 id: "policy_document",
@@ -228,6 +233,7 @@ const TEMPLATES = [
         description: "Collect primary media, scene context, and source-safe notes.",
         locationRequirement: "recommended",
         archived: false,
+        workspaceCategory: "JOURNALISM",
         steps: [
             {
                 id: "primary_media",

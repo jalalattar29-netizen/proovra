@@ -271,7 +271,7 @@ function WorkflowsTemplatesPageInner() {
                       <span
                         data-testid={`workflow-template-sector-${t.slug}`}
                       >
-                        sector {t.workspaceCategory ?? "GENERAL"}
+                        sector {t.workspaceCategory ?? "unspecified"}
                       </span>{" "}
                       ·{" "}
                       <span

@@ -104,6 +104,16 @@ import {
   revokeEvidenceCertification,
 } from "../services/evidence-certification.service.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+// Phase T — propagate the canonical template identity trio
+// (templateSlug + templateVersion + optional templateDbId) from the
+// CaptureSession draft onto the Evidence row at create time. Stamping is
+// idempotent and entirely wrapped in try/catch — a propagation failure
+// must NEVER break Evidence creation.
+import {
+  resolveTemplateTrioForCaptureSession,
+  templateIdentityAuditMetadata,
+  type TemplateIdentityTrio,
+} from "../services/templates/identity-resolver.service.js";
 import { ed25519VerifyHexSignature, sha256Hex } from "../crypto.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { readBillingOverview } from "../services/billing-overview.service.js";
@@ -4228,6 +4238,70 @@ intakePlanJson:
         );
       }
 
+      // Phase T — propagate the canonical template-identity trio
+      // (templateSlug + templateVersion + optional templateDbId) from the
+      // CaptureSession draft onto the Evidence row. This is identity
+      // propagation ONLY: policy decisions and business logic are
+      // untouched. The whole block is wrapped in try/catch — a failure
+      // here must NEVER break the create. Legacy drafts without a
+      // template stay NULL on the new columns. Audit emission is the
+      // existing platform audit chain; no new audit tables.
+      if (body.captureSessionId) {
+        try {
+          // Re-derive teamId from the freshly-created Evidence so the
+          // workspace-scoped DB-id lookup uses the canonical scope
+          // (PERSONAL evidence passes null; team evidence passes the
+          // teamId chosen by createEvidence). We never trust the
+          // CaptureSession.teamId for billing decisions — the Evidence
+          // row is the authority.
+          const createdForTrio = await prisma.evidence.findUnique({
+            where: { id: result.id },
+            select: { teamId: true },
+          });
+          const trio: TemplateIdentityTrio =
+            await resolveTemplateTrioForCaptureSession({
+              captureSessionId: body.captureSessionId,
+              teamId: createdForTrio?.teamId ?? null,
+            });
+          if (trio.templateSlug) {
+            await prisma.evidence.update({
+              where: { id: result.id },
+              data: {
+                templateSlug: trio.templateSlug,
+                templateVersion: trio.templateVersion,
+                templateDbId: trio.templateDbId,
+              },
+            });
+            void appendPlatformAuditLog({
+              userId: ownerUserId,
+              action: "evidence.template_identity.stamped",
+              category: "evidence",
+              severity: "info",
+              source: "evidence_create",
+              outcome: "success",
+              resourceType: "evidence",
+              resourceId: result.id,
+              metadata: templateIdentityAuditMetadata({
+                evidenceId: result.id,
+                source: "capture",
+                trio,
+              }),
+            }).catch(() => {
+              /* audit emission must never break Evidence creation */
+            });
+          }
+        } catch (trioErr) {
+          req.log?.warn?.(
+            {
+              err: trioErr,
+              captureSessionId: body.captureSessionId,
+              evidenceId: result.id,
+            },
+            "template_identity_stamp_failed",
+          );
+        }
+      }
+
       // If this Evidence was created from a CaptureSession draft, finalize the
       // draft so the audit trail is preserved (DRAFT → FINALIZED). Failures
       // here must NOT fail the create; the draft can be reaped/cleaned later.
@@ -6619,6 +6693,40 @@ await appendCustodyEvent({
         }
       }
 
+      // Phase T — read the canonical template-identity trio off the
+      // Evidence row so a manual reviewer-workflow update (e.g. a status
+      // change from the reviewer UI) also stamps the trio onto the
+      // workflow row. This handles the corner case where the workflow
+      // row was created BEFORE the Evidence trio was stamped (i.e. an
+      // upsert path that pre-dated Phase T), letting later updates
+      // backfill the trio without a separate maintenance job. Wrapped
+      // in try/catch — read failure leaves the trio undefined so the
+      // upsert does not touch the trio columns.
+      let manualTrio: TemplateIdentityTrio | undefined;
+      try {
+        const evidenceTrioRow = await prisma.evidence.findUnique({
+          where: { id },
+          select: {
+            templateSlug: true,
+            templateVersion: true,
+            templateDbId: true,
+          },
+        });
+        if (evidenceTrioRow) {
+          manualTrio = {
+            templateSlug: evidenceTrioRow.templateSlug ?? null,
+            templateVersion: evidenceTrioRow.templateVersion ?? null,
+            templateDbId: evidenceTrioRow.templateDbId ?? null,
+          };
+        }
+      } catch (trioReadErr) {
+        req.log?.warn?.(
+          { err: trioReadErr, evidenceId: id },
+          "reviewer_workflow_trio_read_failed",
+        );
+        manualTrio = undefined;
+      }
+
       const summary = await upsertEvidenceReviewerWorkflow({
         evidenceId: id,
         workspaceType: evidence.teamId ? "TEAM" : "PERSONAL",
@@ -6634,6 +6742,8 @@ await appendCustodyEvent({
               ? new Date(body.dueAt)
               : null,
         note: body.note ?? null,
+        templateIdentity: manualTrio,
+        templateIdentitySource: "direct",
       });
 
       await appendReviewerAuditEvent({
@@ -8228,6 +8338,13 @@ try {
               retentionUntilUtc: completionEvidence.retentionUntilUtc ?? null,
             },
             reviewState,
+            // Phase 5 — opt into the workflow template exportPolicy
+            // overlay. The enforcer resolves the templateId itself
+            // (fail-safe: a resolution failure leaves the workspace
+            // decision unchanged) and applies the overlay only when
+            // the workspace decision is already ALLOWED. The overlay
+            // can ONLY tighten, never enable.
+            consultTemplatePolicy: true,
           });
           if (!decision.allowed) {
             await appendCustodyEvent({
@@ -8307,12 +8424,47 @@ try {
         // Initialize the EvidenceReviewWorkflow at NOT_STARTED so the
         // evidence shows up in the reviewer queue immediately on completion.
         // upsert is idempotent — replays / re-completions don't create duplicates.
+        //
+        // Phase T — read the canonical template-identity trio off the
+        // Evidence row (which was stamped at create time on the capture
+        // path). Thread it into the upsert so the workflow row carries
+        // the same trio. Legacy evidence with NULL trio writes NULL
+        // workflow trio — never throws.
         try {
           const evidenceForWorkflow = await prisma.evidence.findUnique({
             where: { id },
-            select: { teamId: true, ownerUserId: true },
+            select: {
+              teamId: true,
+              ownerUserId: true,
+              templateSlug: true,
+              templateVersion: true,
+              templateDbId: true,
+            },
           });
           if (evidenceForWorkflow) {
+            // Phase T — build the trio defensively. We accept that any
+            // field may be NULL (legacy evidence created before Phase T,
+            // or direct uploads with no template attached). When all
+            // three are NULL the upsert writes NULL columns and skips
+            // the audit emission.
+            let workflowTrio: TemplateIdentityTrio | null = null;
+            try {
+              workflowTrio = {
+                templateSlug: evidenceForWorkflow.templateSlug ?? null,
+                templateVersion: evidenceForWorkflow.templateVersion ?? null,
+                templateDbId: evidenceForWorkflow.templateDbId ?? null,
+              };
+            } catch (trioReadErr) {
+              req.log?.warn?.(
+                { err: trioReadErr, evidenceId: id },
+                "reviewer_workflow_trio_read_failed",
+              );
+              workflowTrio = {
+                templateSlug: null,
+                templateVersion: null,
+                templateDbId: null,
+              };
+            }
             await upsertEvidenceReviewerWorkflow({
               evidenceId: id,
               workspaceType: evidenceForWorkflow.teamId ? "TEAM" : "PERSONAL",
@@ -8321,6 +8473,8 @@ try {
               status: prismaPkg.EvidenceReviewWorkflowStatus.NOT_STARTED,
               priority: prismaPkg.EvidenceReviewWorkflowPriority.NORMAL,
               note: "Created automatically on Capture finalization.",
+              templateIdentity: workflowTrio,
+              templateIdentitySource: "capture",
             });
           }
         } catch (workflowErr) {
@@ -8866,6 +9020,10 @@ if (
               teamId: evidenceForGate.teamId,
               retentionUntilUtc: evidenceForGate.retentionUntilUtc ?? null,
             },
+            // Phase 5 — opt into the workflow template exportPolicy
+            // overlay (workspace policy still governs first; the
+            // template overlay can only tighten an allowed decision).
+            consultTemplatePolicy: true,
           });
           if (!decision.allowed) {
             await appendCustodyEvent({
@@ -9287,6 +9445,10 @@ displayName: resolvedDisplayName,
               teamId: evidenceForGate.teamId,
               retentionUntilUtc: evidenceForGate.retentionUntilUtc ?? null,
             },
+            // Phase 5 — opt into the workflow template exportPolicy
+            // overlay (workspace policy still governs first; the
+            // template overlay can only tighten an allowed decision).
+            consultTemplatePolicy: true,
           });
           if (!decision.allowed) {
             await appendCustodyEvent({

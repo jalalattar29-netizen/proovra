@@ -156,9 +156,50 @@ export async function createLegalHold(
     select: { id: true },
   });
 
+  // Phase 6 — Resolve template-identity trio for audit traceability
+  // when the hold targets an Evidence row. Identity-only; never drives
+  // any policy decision (the legal-hold decision has already been
+  // taken). Wrapped in try/catch — never breaks the legal-hold flow.
+  // Legacy rows surface NULL members.
+  let templateProvenance: {
+    templateSlug: string | null;
+    templateVersion: number | null;
+    templateDbId: string | null;
+  } = { templateSlug: null, templateVersion: null, templateDbId: null };
+  if (input.kind === "EVIDENCE" && scopeTargetId) {
+    try {
+      const ev = await prisma.evidence.findUnique({
+        where: { id: scopeTargetId },
+        select: {
+          templateSlug: true,
+          templateVersion: true,
+          templateDbId: true,
+        },
+      });
+      if (ev) {
+        templateProvenance = {
+          templateSlug: ev.templateSlug ?? null,
+          templateVersion: ev.templateVersion ?? null,
+          templateDbId: ev.templateDbId ?? null,
+        };
+      }
+    } catch {
+      /* identity propagation must never break legal-hold flow */
+    }
+  }
+
   void tryEmitWebhookEvent(
     "LEGAL_HOLD_APPLIED",
-    { holdId: row.id, kind: input.kind, scopeTargetId },
+    {
+      holdId: row.id,
+      kind: input.kind,
+      scopeTargetId,
+      // Phase 6 — template provenance trio for downstream
+      // traceability. Identity-only; never drives policy.
+      templateSlug: templateProvenance.templateSlug,
+      templateVersion: templateProvenance.templateVersion,
+      templateDbId: templateProvenance.templateDbId,
+    },
     { prisma, teamId: input.teamId },
   );
 

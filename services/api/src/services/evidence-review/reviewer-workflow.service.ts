@@ -1,6 +1,12 @@
 import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
+import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import {
+  templateIdentityAuditMetadata,
+  type TemplateIdentityStampSource,
+  type TemplateIdentityTrio,
+} from "../templates/identity-resolver.service.js";
 
 function toWorkflowSummary(
   workflow: Awaited<ReturnType<typeof getEvidenceReviewerWorkflow>>
@@ -128,6 +134,22 @@ export async function upsertEvidenceReviewerWorkflow(params: {
   priority?: prismaPkg.EvidenceReviewWorkflowPriority | null;
   dueAt?: Date | null;
   note?: string | null;
+  // Phase T — canonical template-identity trio sourced from the upstream
+  // Evidence row. Callers thread the trio through here so the reviewer
+  // queue and downstream surfaces can group / filter by the same
+  // template that produced the evidence. All three fields are nullable:
+  //   - undefined  -> caller did not opt into stamping; leave row as-is.
+  //   - null       -> evidence has no template (legacy / direct upload);
+  //                   write NULL columns explicitly.
+  //   - string/Int -> stamp the value.
+  // Propagation failure (e.g. resolver returned null fields) must never
+  // break the upsert — the workflow row is created with NULL trio.
+  templateIdentity?: TemplateIdentityTrio | null;
+  /**
+   * Source label for the audit event when templateIdentity is set. Defaults
+   * to "capture" because the dominant call site is capture-finalize.
+   */
+  templateIdentitySource?: TemplateIdentityStampSource;
 }) {
   const existing = await prisma.evidenceReviewWorkflow.findUnique({
     where: { evidenceId: params.evidenceId },
@@ -138,12 +160,22 @@ export async function upsertEvidenceReviewerWorkflow(params: {
       dueAt: true,
       assignedToUserId: true,
       assignedByUserId: true,
+      templateSlug: true,
+      templateVersion: true,
+      templateDbId: true,
     },
   });
 
   const nextStatus = params.status ?? existing?.status ?? prismaPkg.EvidenceReviewWorkflowStatus.NOT_STARTED;
   const nextPriority =
     params.priority ?? existing?.priority ?? prismaPkg.EvidenceReviewWorkflowPriority.NORMAL;
+
+  // Phase T — resolve the trio fields once so both create and update
+  // branches stay in lockstep. The trio is optional: when undefined we
+  // leave the row alone; when null we write NULL (legacy evidence).
+  const trio: TemplateIdentityTrio | null =
+    params.templateIdentity === undefined ? null : params.templateIdentity;
+  const trioProvided = params.templateIdentity !== undefined;
 
   const workflow = existing
     ? await prisma.evidenceReviewWorkflow.update({
@@ -168,6 +200,16 @@ export async function upsertEvidenceReviewerWorkflow(params: {
             nextStatus === prismaPkg.EvidenceReviewWorkflowStatus.CLOSED
               ? new Date()
               : null,
+          // Phase T — only touch trio columns when the caller opted in.
+          // Existing rows that were created before the caller wired the
+          // trio keep their current values (which may already be set).
+          ...(trioProvided
+            ? {
+                templateSlug: trio?.templateSlug ?? null,
+                templateVersion: trio?.templateVersion ?? null,
+                templateDbId: trio?.templateDbId ?? null,
+              }
+            : {}),
         },
       })
     : await prisma.evidenceReviewWorkflow.create({
@@ -188,8 +230,46 @@ export async function upsertEvidenceReviewerWorkflow(params: {
             nextStatus === prismaPkg.EvidenceReviewWorkflowStatus.CLOSED
               ? new Date()
               : null,
+          // Phase T — stamp trio at create time when the caller provided
+          // it. Legacy (undefined) callers create rows with NULL columns,
+          // which matches the Phase 2 schema (additive-nullable only).
+          ...(trioProvided
+            ? {
+                templateSlug: trio?.templateSlug ?? null,
+                templateVersion: trio?.templateVersion ?? null,
+                templateDbId: trio?.templateDbId ?? null,
+              }
+            : {}),
         },
       });
+
+  // Phase T — emit a bounded audit event when the caller opted in AND a
+  // slug actually exists on the trio. We never emit on the pure-NULL
+  // legacy path (it would be noise). Emission is fire-and-forget; failure
+  // here MUST NOT break the upsert lifecycle (which is the canonical
+  // reviewer-queue init path on capture finalize).
+  if (trioProvided && trio?.templateSlug) {
+    void appendPlatformAuditLog({
+      userId: params.actorUserId,
+      action: "reviewer_workflow.template_identity.stamped",
+      category: "reviewer_workflow",
+      severity: "info",
+      source: "reviewer_workflow_upsert",
+      outcome: "success",
+      resourceType: "evidence_review_workflow",
+      resourceId: workflow.id,
+      metadata: {
+        ...templateIdentityAuditMetadata({
+          evidenceId: params.evidenceId,
+          source: params.templateIdentitySource ?? "capture",
+          trio,
+        }),
+        workflowId: workflow.id,
+      },
+    }).catch(() => {
+      /* audit emission must never break the reviewer-workflow upsert */
+    });
+  }
 
   const events: Prisma.PrismaPromise<unknown>[] = [];
 

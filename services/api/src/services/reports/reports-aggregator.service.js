@@ -189,6 +189,11 @@ export async function listWorkspaceArtifacts(input) {
                 caseId: true,
                 createdAt: true,
                 verificationPackageMetadata: true,
+                // Phase 6 — template provenance trio surfaced on the
+                // report/package envelope for downstream traceability.
+                templateSlug: true,
+                templateVersion: true,
+                templateDbId: true,
             },
         });
         const hasMore = rows.length > limit;
@@ -261,6 +266,12 @@ export async function listWorkspaceArtifacts(input) {
                         version: pkg?.version ?? null,
                         generatedAtUtc: pkg?.generatedAtUtc?.toISOString() ?? null,
                         blockedReason: reason,
+                    },
+                    // Phase 6 — surface template-identity trio in envelope.
+                    provenance: {
+                        templateSlug: r.templateSlug ?? null,
+                        templateVersion: r.templateVersion ?? null,
+                        templateDbId: r.templateDbId ?? null,
                     },
                 };
             });
