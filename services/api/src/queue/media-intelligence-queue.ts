@@ -68,8 +68,10 @@ export const MEDIA_INTELLIGENCE_JOB_KINDS = [
   // Phase 31.8 — real EXIF extraction (bytes → bounded summary).
   "extract_exif",
   "extract_assets",
-  "compute_duplicates",
-  "compute_lineage",
+  // Note: compute_duplicates / compute_lineage are intentionally not in
+  // the queue vocabulary. Both kinds remain in the database-backed
+  // MEDIA_INTELLIGENCE_RUN_KINDS catalog (legacy row history) but no
+  // producer enqueues them and no UI surface advertises them.
   // Wave 2 — perceptual-hash producer for image / video evidence.
   // The worker branch has existed since Phase 12; Wave 2 wires the
   // producer from the evidence finalization fanout so SIMILAR_TO /

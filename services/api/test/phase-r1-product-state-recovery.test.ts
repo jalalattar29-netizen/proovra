@@ -23,10 +23,12 @@
  * (tests 9, 10, 11) were flipped in the same R1 PR.
  */
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+import { listAllTsxFiles } from "./_helpers/file-walker";
 
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
@@ -222,31 +224,6 @@ describe("R1 Part 6 — no workflow/persona authorization regression", () => {
 // =============================================================================
 
 describe("R1 Part 7 — self-fetcher allow-list unchanged (no new drift)", () => {
-  function listAllTsxFiles(dirAbs: string): string[] {
-    const out: string[] = [];
-    const stack: string[] = [dirAbs];
-    while (stack.length > 0) {
-      const dir = stack.pop()!;
-      let entries: string[];
-      try {
-        entries = readdirSync(dir);
-      } catch {
-        continue;
-      }
-      for (const name of entries) {
-        const full = `${dir}/${name}`;
-        try {
-          const st = statSync(full);
-          if (st.isFile() && /\.(ts|tsx)$/.test(name)) out.push(full);
-          else if (st.isDirectory()) stack.push(full);
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-    return out;
-  }
-
   it("exactly the 2 documented self-fetchers remain (post-CR1.6 cleanup)", () => {
     // Mirrors the post-CR1.6 allow-list. Pinning it here in R1's own
     // suite catches any regression where a future fix accidentally

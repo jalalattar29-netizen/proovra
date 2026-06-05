@@ -2275,11 +2275,30 @@ export type TimelineEvent = {
   edgeType: GraphEdgeType | null;
 };
 
-export type TimelineQueryResult = {
-  ok: true;
-  events: ReadonlyArray<TimelineEvent>;
-  truncated: boolean;
-};
+/**
+ * Discriminated union: a timeline query either succeeds with bounded
+ * events, or fails with an honest QUERY_FAILED classification. The
+ * pre-Phase-Repair shape collapsed any SQL error into `ok:true,
+ * events:[]` — which the classifier then misread as TRUE_EMPTY. The
+ * `ok:false` variant lets the route + UI distinguish "the workspace
+ * really has nothing yet" from "the underlying projection threw".
+ *
+ * `classification` is intentionally a string literal (not the full
+ * EmptyStateClassification union) so the shared-runtime layer stays
+ * free of any apps/web type dependency. The web classifier maps it
+ * onto its 10-code union in `lib/empty-state/classifier.ts`.
+ */
+export type TimelineQueryResult =
+  | {
+      ok: true;
+      events: ReadonlyArray<TimelineEvent>;
+      truncated: boolean;
+    }
+  | {
+      ok: false;
+      classification: "QUERY_FAILED";
+      reason: string;
+    };
 
 /**
  * Unified investigation timeline. Sources from graph node + edge
@@ -2495,8 +2514,39 @@ export async function buildInvestigationTimeline(
       })),
       truncated,
     };
-  } catch {
-    return { ok: true, events: [], truncated: false };
+  } catch (err) {
+    // Phase Repair (Problem 13) — surface the SQL failure honestly
+    // instead of disguising it as an empty workspace. The route
+    // (graph.routes.ts) translates this into a 200 envelope with a
+    // status flag the UI uses to render the PIPELINE_FAILED card.
+    // We bump the dedicated failed counter so operators can correlate
+    // with the diagnostics warning + the logger line below.
+    bump("timeline_query_failed_total");
+    const reason =
+      err instanceof Error
+        ? `timeline_query_failed:${err.message.slice(0, 120)}`
+        : "timeline_query_failed";
+    // No logger registry exists in shared-runtime; emit a structured
+    // warn line via the Node global. The API + worker services'
+    // pino-formatted JSON loggers ingest this as a plain message —
+    // the bumped counter + diagnostics warning are the primary
+    // operator signals; this line is the human-readable supplement.
+    try {
+      // eslint-disable-next-line no-console
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "investigation_timeline.query_failed",
+          teamId: input.teamId,
+          rootNodeId: input.rootNodeId ?? null,
+          evidenceId: input.evidenceId ?? null,
+          err: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    } catch {
+      /* never let logging itself break the bounded return */
+    }
+    return { ok: false, classification: "QUERY_FAILED", reason };
   }
 }
 

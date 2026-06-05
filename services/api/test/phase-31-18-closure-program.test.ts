@@ -625,16 +625,16 @@ describe("Phase 31.18 — Reviewer Intelligence Console UI source contract", () 
   });
 
   it("degraded state shows an operator-readable pill, not a fake counter", () => {
-    // Investigation-suite audit evolution: the legacy "data unavailable"
-    // pill was rewritten to "No reviewer activity recorded yet" — clearer
-    // operator-facing copy that distinguishes "no data yet" from a
-    // broken-API state. The intent here is preserved (degraded state
-    // renders a bounded pill instead of a fake counter); accept either
-    // wording so the no-fake-counter contract still holds across both
-    // copy generations. Canonical pin lives in
-    // `investigation-suite-audit.test.ts`.
+    // Investigation-suite audit evolution: the pill copy has been
+    // refined twice — first "data unavailable" → "No reviewer activity
+    // recorded yet", then to the current "Reviewer activity unavailable
+    // — retrying" which stops conflating fetch failure with empty data.
+    // The intent here is preserved (degraded state renders a bounded
+    // pill instead of a fake counter); accept any of the historical
+    // wordings so the no-fake-counter contract still holds across copy
+    // generations. Canonical pin lives in `investigation-suite-audit.test.ts`.
     expect(REVIEWERS_PAGE).toMatch(
-      /data unavailable|No reviewer activity recorded yet/,
+      /data unavailable|No reviewer activity recorded yet|Reviewer activity unavailable — retrying/,
     );
     // The tiles render "—" when data is null (no fake zero).
     expect(REVIEWERS_PAGE).toMatch(/total == null \? "—" : total/);

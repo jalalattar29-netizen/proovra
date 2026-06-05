@@ -385,6 +385,37 @@ async function buildWorkspaceCounts(
   if (out.graphNodeCount === 0 && out.graphEdgeCount === 0) {
     warnings.push("timeline_derived_from_graph_no_dedicated_table");
   }
+  // Phase Repair (Problem 13) — probe the actual timeline projection
+  // so a SQL failure (e.g. schema drift, table missing) surfaces as
+  // `timeline_query_failed` here instead of silently masquerading as
+  // a TRUE_EMPTY workspace upstream. Bounded: limit=1 keeps the
+  // projection cheap. The shared-runtime helper itself catches and
+  // bumps `timeline_query_failed_total`; we only need to inspect the
+  // discriminator.
+  try {
+    const { buildInvestigationTimeline } = await import(
+      "@proovra/shared-runtime/graph"
+    );
+    const probe = await buildInvestigationTimeline(
+      {
+        teamId,
+        rootNodeId: null,
+        evidenceId: null,
+        fromUtc: null,
+        toUtc: null,
+        limit: 1,
+      },
+      prisma,
+    );
+    if (!probe.ok) {
+      warnings.push("timeline_query_failed");
+    }
+  } catch {
+    // Defensive: even the import itself failing must not break the
+    // diagnostics envelope. The bounded warning is the operator
+    // signal; we still return the rest of the snapshot.
+    warnings.push("timeline_query_failed");
+  }
 
   // Duplicates / similarities / derivatives — by EvidenceSimilarity kind.
   try {
@@ -413,10 +444,23 @@ async function buildWorkspaceCounts(
   } catch {
     warnings.push("duplicate_similarity_count_unavailable");
   }
-  // Derivative detection: no producer in Wave 1 (POSSIBLE_DERIVATIVE_OF
-  // has no writer). Return 0 + warning honestly.
-  out.duplicateDerivativeCount = 0;
-  warnings.push("derivative_detection_deferred_no_producer");
+  // Derivative detection: the producer is live in graph reconcile
+  // (reconcileTeamGraph upserts POSSIBLE_DERIVATIVE_OF edges from
+  // perceptual_phash + upload-time + shared file traits). Count the
+  // active (non-stale) candidate edges for this team.
+  try {
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT COUNT(*)::int AS "total"
+         FROM "investigation_graph_edges"
+        WHERE "team_id" = $1
+          AND "edge_type" = 'POSSIBLE_DERIVATIVE_OF'
+          AND "stale_at_utc" IS NULL`,
+      teamId,
+    )) as Array<{ total: number | null }>;
+    out.duplicateDerivativeCount = Number(rows[0]?.total ?? 0);
+  } catch {
+    warnings.push("duplicate_derivative_count_unavailable");
+  }
 
   // Media intelligence — signals + records-by-kind.
   try {

@@ -150,9 +150,11 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     //   fanout.service.ts. Architectural improvement; no behavioural
     //   regression — same producers, same deterministic jobIds, same
     //   try/catch semantics.
+    // Phase Repair: 44,078 → 45,835 — silent catches replaced with
+    //   bounded warn logging; runEvidenceCompletePostFinalize extracted.
     expect(
       statSync(apiSrcPath("services/evidence-complete.service.ts")).size,
-    ).toBe(44078);
+    ).toBe(45835);
   });
   it("CR1.6 byte-exact pin on custody-events.service.ts holds", () => {
     expect(

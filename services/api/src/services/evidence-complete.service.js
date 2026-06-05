@@ -8,20 +8,22 @@ import { sha256HexFromStream } from "../stream-hash.js";
 import { createEvidenceTimestamp } from "./timestamp.service.js";
 import * as prismaPkg from "@prisma/client";
 import { enqueueGenerateReportJob } from "../queue/report-queue.js";
-import { enqueueSearchIndexingJob } from "../queue/search-queue.js";
-// Phase 1 of Investigation enterprise wiring: auto-populate
-// media_intelligence_signals so /investigation overview shows real
-// counters. Before this, signals stayed empty unless an operator
-// manually POSTed /v1/evidence/:id/media-intelligence/run.
-import { enqueueMediaIntelligenceAnalysis } from "../queue/media-intelligence-queue.js";
-// Phase 1 of Investigation enterprise wiring — see helper for full rationale.
-import { enqueueGraphReconcileJob } from "../queue/graph-reconcile-queue.js";
+// Post-finalize side-effect orchestration lives in its own file.
+import { runEvidenceFinalizationFanout } from "./evidence-finalization-fanout.service.js";
 import { appendCustodyEvent, appendCustodyEventTx, } from "./custody-events.service.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
 import { enqueueScan, isMalwareScanningEnabled, runScan, } from "./security/file-security-scan.service.js";
 import { safeEmitSecurityEvent } from "./security/security-event.service.js";
 import { safeTransitionUploadSession } from "./reliability/upload-session.service.js";
 import { evaluateUploadSessionFinalizeGate } from "./uploads/upload-session.service.js";
+import { enqueueGraphReconcileJob } from "../queue/graph-reconcile-queue.js";
+import { warn as logWarn } from "../utils/logger.js";
+// Adapter: bridge utils/logger.warn → FanoutLogger contract.
+const completeFanoutLogger = {
+    warn(obj, msg) {
+        logWarn(msg, obj);
+    },
+};
 const { EvidenceStatus } = prismaPkg;
 function asIso(d) {
     return d ? d.toISOString() : null;
@@ -965,81 +967,73 @@ export async function completeEvidence(params) {
                 runScan({ evidenceId: ev.id, teamId: ev.teamId }).catch(() => null);
             }
         }
-        catch {
-            /* never fail completion on scan enqueue */
+        catch (err) {
+            // Never fail completion on scan enqueue — scanner is best-effort.
+            logWarn("evidence_complete.scan_enqueue_failed", {
+                err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+                evidenceId: final.result.id,
+            });
         }
     }
-    // Phase 11 — connect-only event wiring (do-not-duplicate audit, §3.1
-    // & §3.2). All three trigger points fan out to EXISTING producers
-    // through their existing idempotent helpers; none of them creates
-    // new infrastructure. Each is wrapped in try/catch so a producer
-    // outage NEVER blocks the evidence-completion flow — the periodic
-    // reconcile cron and on-demand operator routes remain the canonical
-    // catch-up paths.
+    // Post-finalize fan-out: helper NEVER throws. The contract is
+    // "never fail completion on post-finalize fan-out failure" — every
+    // failure path is logged (bounded warn via utils/logger.warn).
+    await runEvidenceCompletePostFinalize({
+        evidenceId: final.result.id,
+        signingKeyVersion: final.result.signingKeyVersion ?? null,
+    });
+    return final.result;
+}
+/**
+ * Post-finalize fan-out. NEVER throws — every failure path emits a
+ * bounded warn via utils/logger.warn. Exported for direct testing.
+ * Codes: evidence_complete.fanout_failed,
+ * evidence_complete.graph_reconcile_not_queued (queue's bounded shape),
+ * evidence_complete.graph_reconcile_enqueue_failed (enqueue threw).
+ */
+export async function runEvidenceCompletePostFinalize(input) {
     try {
         const ev = await prisma.evidence.findUnique({
-            where: { id: final.result.id },
+            where: { id: input.evidenceId },
             select: { id: true, teamId: true },
         });
-        if (ev && ev.teamId) {
-            // (a) Best-effort search reindex via the existing Discovery
-            // index-rebuild queue (deterministic jobId collapses retries).
-            enqueueSearchIndexingJob({
+        if (!ev || !ev.teamId)
+            return;
+        await runEvidenceFinalizationFanout({
+            teamId: ev.teamId,
+            evidenceId: ev.id,
+            reason: "evidence_completed",
+            signatureVersion: input.signingKeyVersion,
+        }, completeFanoutLogger);
+        // Observe the bounded { queued:false } shape the fanout's logger
+        // never fires on. Same jobId dedupes against the fanout enqueue.
+        try {
+            const enq = await enqueueGraphReconcileJob({
                 teamId: ev.teamId,
-                kind: "evidence",
-                sourceId: ev.id,
                 reason: "evidence_completed",
-            }).catch(() => null);
-            // (a.1) Phase 1 of Investigation enterprise wiring: auto-populate
-            // media_intelligence_signals so /investigation overview shows
-            // real counters. Before this, signals stayed empty unless an
-            // operator manually POSTed /v1/evidence/:id/media-intelligence/run.
-            //
-            // Idempotent via the deterministic jobId
-            // `media-intelligence:${teamId}:${evidenceId}:analyze_metadata:${signatureVersion ?? 'v1'}`
-            // — re-issuing analyze_metadata for the same signing-key version
-            // collapses to the existing queued job rather than duplicating
-            // it. (Note: the producer in media-intelligence-queue.ts hashes
-            // its own jobId off `(kind, evidenceId)`; we still pass the
-            // version-tagged id so that operational dashboards can see the
-            // intent even when the producer collapses to its internal id.)
-            try {
-                const signatureVersionTag = final.result.signingKeyVersion ?? "v1";
-                // Tagged id is logged inside the queue helper for observability;
-                // the producer's own dedupe key remains (analyze_metadata,
-                // evidenceId) so concurrent finalizations don't pile up jobs.
-                void signatureVersionTag; // kept for future structured-log hook
-                await enqueueMediaIntelligenceAnalysis({
-                    teamId: ev.teamId,
+                evidenceId: ev.id,
+            });
+            if (!enq.queued) {
+                logWarn("evidence_complete.graph_reconcile_not_queued", {
                     evidenceId: ev.id,
-                    kind: "analyze_metadata",
-                }).catch(() => null);
-            }
-            catch {
-                // Never fail completion on media-intelligence enqueue failure.
-                // The operator-triggered /v1/evidence/:id/media-intelligence/run
-                // route remains as the canonical catch-up path; the periodic
-                // reconcile cron also picks up drift.
-            }
-            // (b) Phase 1 of Investigation enterprise wiring: best-effort
-            // graph reconcile via the worker queue (see
-            // ../queue/graph-reconcile-queue.ts for the full rationale —
-            // worker-side indexExistingOcrAndTranscript runs from this
-            // enqueue, never inline).
-            try {
-                await enqueueGraphReconcileJob({
                     teamId: ev.teamId,
-                    reason: "evidence_completed",
-                    evidenceId: ev.id,
-                }).catch(() => null);
-            }
-            catch {
-                // Never fail completion on graph-reconcile enqueue failure.
+                    reason: enq.reason ?? null,
+                    jobId: enq.jobId ?? null,
+                });
             }
         }
+        catch (enqErr) {
+            logWarn("evidence_complete.graph_reconcile_enqueue_failed", {
+                err: enqErr instanceof Error ? enqErr.message.slice(0, 200) : String(enqErr).slice(0, 200),
+                evidenceId: ev.id,
+                teamId: ev.teamId,
+            });
+        }
     }
-    catch {
-        /* never fail completion on post-finalize fan-out */
+    catch (err) {
+        logWarn("evidence_complete.fanout_failed", {
+            err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+            evidenceId: input.evidenceId,
+        });
     }
-    return final.result;
 }

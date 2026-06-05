@@ -293,9 +293,16 @@ describe("Phase 32.14 — Investigation Timeline UI", () => {
     // Capture/Cases CTA buttons that link to existing surfaces. The
     // intent (no dead-end UI — every empty state has a next action)
     // is preserved. Canonical pin in `investigation-suite-audit.test.ts`.
+    //
+    // Phase Repair (Problem 13) — the freshness pill's "No events
+    // recorded yet" string was removed (it lied on a failed SQL
+    // projection). The CLASSIFIER-driven empty state still surfaces
+    // the operator CTAs ("Capture evidence" / "Open cases") via the
+    // OperationalEmptyState primitive — that's the dead-end-UI
+    // guarantee. We pin those CTAs instead of the deleted pill copy.
     const flat = src.replace(/\s+/g, " ");
     expect(flat).toMatch(
-      /No (?:events recorded|workspace events)[\s\S]*?(?:graph reconcile|reconcile|analyzer|Capture|Cases)/i,
+      /(?:Capture evidence|Open cases|Timeline projection failed|Timeline unavailable)/,
     );
   });
 });

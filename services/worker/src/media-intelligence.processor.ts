@@ -198,10 +198,15 @@ export async function processMediaIntelligenceJob(
   // returns success so BullMQ doesn't accumulate failures. The
   // run row (if any) stays in PENDING until the future processor
   // ships; operations can dismiss it manually.
+  //
+  // Note: `compute_duplicates` / `compute_lineage` are no longer in
+  // the API-side queue vocabulary (no producer enqueues them). The
+  // arms below remain only as a defensive drain for any in-flight
+  // legacy job rows the worker may pick up after deploy.
   if (
     kind === "extract_assets" ||
-    kind === "compute_duplicates" ||
-    kind === "compute_lineage" ||
+    (kind as string) === "compute_duplicates" ||
+    (kind as string) === "compute_lineage" ||
     kind === "reindex"
   ) {
     await tryBump("media_intelligence_processor_deferred_total");

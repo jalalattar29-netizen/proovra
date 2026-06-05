@@ -1,6 +1,21 @@
 /**
  * Phase 31.20 — OCR / transcript indexing producer (INDEX_EXISTING_ONLY mode).
  *
+ * TODO(phase-repair-cleanup): ORPHAN. This service reads from two
+ * tables — `evidence_ocr_text` and `evidence_transcript_segments` —
+ * that the live extraction pipeline does NOT populate. The canonical
+ * extraction writer is `extractAndPersist` in
+ * `services/api/src/services/intelligence/extraction.service.ts`,
+ * which writes to `evidence_extracted_texts` (EvidenceExtractedText
+ * Prisma model). The reviewer console's `indexingTotals` now reads
+ * directly from `evidence_extracted_texts` (see
+ * services/api/src/routes/media-intelligence.routes.ts), so this
+ * service is unused in production. The legacy tables are kept on
+ * disk for migration safety; a follow-up wave should drop both the
+ * tables, this service, and the orphan writers
+ * `recordOcrSegment` / `recordTranscriptSegment` in
+ * services/api/src/services/search/{ocr,transcript}-foundations.service.ts.
+ *
  * Reads existing rows from `evidence_ocr_text` and
  * `evidence_transcript_segments` (both tables shipped in Phase 24-J)
  * and emits bounded `media_intelligence_signals` rows:

@@ -25,6 +25,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { listAllFiles, listAllTsxFiles } from "./_helpers/file-walker";
+
 function repoPath(rel: string): string {
   return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
 }
@@ -224,30 +226,6 @@ describe("R1.5B Part 6 — shell + dashboard expose mode as data only", () => {
   it("no duplicate dashboard component was created", () => {
     // No `PersonalDashboard`, `OrgDashboard`, etc.
     const root = webPath("components");
-    function listAllFiles(dirAbs: string): string[] {
-      const out: string[] = [];
-      const stack: string[] = [dirAbs];
-      while (stack.length > 0) {
-        const dir = stack.pop()!;
-        let entries: string[];
-        try {
-          entries = readdirSync(dir);
-        } catch {
-          continue;
-        }
-        for (const name of entries) {
-          const full = `${dir}/${name}`;
-          try {
-            const st = statSync(full);
-            if (st.isFile() && /\.tsx?$/.test(name)) out.push(full);
-            else if (st.isDirectory()) stack.push(full);
-          } catch {
-            /* ignore */
-          }
-        }
-      }
-      return out;
-    }
     const all = listAllFiles(root);
     const FORBIDDEN_FILES = [
       "PersonalCommandCenter.tsx",
@@ -349,31 +327,6 @@ describe("R1.5B Part 9 — no useTeamWorkspaceGate regression", () => {
 // =============================================================================
 
 describe("R1.5B Part 10 — useTeamId callsite count is bounded (audit pin)", () => {
-  function listAllTsxFiles(dirAbs: string): string[] {
-    const out: string[] = [];
-    const stack: string[] = [dirAbs];
-    while (stack.length > 0) {
-      const dir = stack.pop()!;
-      let entries: string[];
-      try {
-        entries = readdirSync(dir);
-      } catch {
-        continue;
-      }
-      for (const name of entries) {
-        const full = `${dir}/${name}`;
-        try {
-          const st = statSync(full);
-          if (st.isFile() && /\.(ts|tsx)$/.test(name)) out.push(full);
-          else if (st.isDirectory()) stack.push(full);
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-    return out;
-  }
-
   it("useTeamId callsite count is bounded (R1.5B documented audit; migration belongs to R2)", () => {
     const root = webPath(".");
     const all = listAllTsxFiles(root);

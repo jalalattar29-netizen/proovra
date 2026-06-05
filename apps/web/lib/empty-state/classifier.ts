@@ -174,7 +174,7 @@ const REASON_COPY = {
   TRUE_EMPTY_GENERIC:
     "No records of this kind exist in the workspace yet. Capture evidence and open a case — entries appear here as the workspace populates.",
   CAPABILITY_UNAVAILABLE_GENERIC:
-    "The capability backing this surface is not wired in this release. See the upcoming Wave for the producer.",
+    "This capability is not enabled for your workspace. Contact your administrator.",
 } as const;
 
 // ---------------------------------------------------------------------------

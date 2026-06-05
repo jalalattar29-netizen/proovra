@@ -11,10 +11,12 @@
  *   5. PageRouteGate import + routeId attribute pinned per migrated page
  */
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+import { listAllFiles } from "./_helpers/file-walker";
 
 function readWeb(rel: string): string {
   return readFileSync(
@@ -88,31 +90,6 @@ describe("Phase 38.7 — useTeamWorkspaceGate allow-list", () => {
     "app/(app)/ops/page.tsx",
   ];
 
-  function listAllFiles(dirAbs: string): string[] {
-    const out: string[] = [];
-    const stack: string[] = [dirAbs];
-    while (stack.length > 0) {
-      const dir = stack.pop()!;
-      let entries: string[];
-      try {
-        entries = readdirSync(dir);
-      } catch {
-        continue;
-      }
-      for (const name of entries) {
-        const full = `${dir}/${name}`;
-        try {
-          const stat = statSync(full);
-          if (stat.isFile() && /\.(ts|tsx)$/.test(name)) out.push(full);
-          else if (stat.isDirectory()) stack.push(full);
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-    return out;
-  }
-
   it("no new consumer references useTeamWorkspaceGate outside the allow-list", () => {
     const root = webPath(".");
     const all = listAllFiles(root);
@@ -140,31 +117,6 @@ describe("Phase 38.7 — useTeamWorkspaceGate allow-list", () => {
 // =============================================================================
 
 describe("Phase 38.7 — no workflow-based route gating", () => {
-  function listAllFiles(dirAbs: string): string[] {
-    const out: string[] = [];
-    const stack: string[] = [dirAbs];
-    while (stack.length > 0) {
-      const dir = stack.pop()!;
-      let entries: string[];
-      try {
-        entries = readdirSync(dir);
-      } catch {
-        continue;
-      }
-      for (const name of entries) {
-        const full = `${dir}/${name}`;
-        try {
-          const stat = statSync(full);
-          if (stat.isFile() && /\.(ts|tsx)$/.test(name)) out.push(full);
-          else if (stat.isDirectory()) stack.push(full);
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-    return out;
-  }
-
   it("no page returns null based on workflow / persona checks", () => {
     const root = webPath("app");
     const all = listAllFiles(root);
@@ -198,31 +150,6 @@ describe("Phase 38.7 — no workflow-based route gating", () => {
 // =============================================================================
 
 describe("Phase 38.7 — no profession-locking copy", () => {
-  function listAllFiles(dirAbs: string): string[] {
-    const out: string[] = [];
-    const stack: string[] = [dirAbs];
-    while (stack.length > 0) {
-      const dir = stack.pop()!;
-      let entries: string[];
-      try {
-        entries = readdirSync(dir);
-      } catch {
-        continue;
-      }
-      for (const name of entries) {
-        const full = `${dir}/${name}`;
-        try {
-          const stat = statSync(full);
-          if (stat.isFile() && /\.(tsx)$/.test(name)) out.push(full);
-          else if (stat.isDirectory()) stack.push(full);
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-    return out;
-  }
-
   // Banned user-facing strings. Matched case-insensitive. Internal
   // enum keys like `LAWYER` / `INSURANCE` are NOT banned — they're
   // implementation detail that never reaches the UI.
@@ -239,7 +166,7 @@ describe("Phase 38.7 — no profession-locking copy", () => {
 
   it("no .tsx file in apps/web contains profession-locking user-facing strings", () => {
     const root = webPath(".");
-    const all = listAllFiles(root);
+    const all = listAllFiles(root, { extensions: [".tsx"] });
     const offenders: string[] = [];
     for (const file of all) {
       const src = readFileSync(file, "utf8");

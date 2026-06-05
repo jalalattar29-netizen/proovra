@@ -12,10 +12,12 @@
  *   docs/recovery/CR0_5_RECOVERY_READINESS.md
  */
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+import { listAllFilesByRegex as listAllFiles } from "./_helpers/file-walker";
 
 function readWeb(rel: string): string {
   return readFileSync(
@@ -34,31 +36,6 @@ function readRepo(rel: string): string {
     fileURLToPath(new URL(`../../../${rel}`, import.meta.url)),
     "utf8",
   );
-}
-
-function listAllFiles(dirAbs: string, extRegex: RegExp): string[] {
-  const out: string[] = [];
-  const stack: string[] = [dirAbs];
-  while (stack.length > 0) {
-    const dir = stack.pop()!;
-    let entries: string[];
-    try {
-      entries = readdirSync(dir);
-    } catch {
-      continue;
-    }
-    for (const name of entries) {
-      const full = `${dir}/${name}`;
-      try {
-        const stat = statSync(full);
-        if (stat.isFile() && extRegex.test(name)) out.push(full);
-        else if (stat.isDirectory()) stack.push(full);
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-  return out;
 }
 
 // =============================================================================

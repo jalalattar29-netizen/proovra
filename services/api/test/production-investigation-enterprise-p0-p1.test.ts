@@ -158,20 +158,28 @@ describe("Investigation P0+P1 — Group B: backend DTO stabilisation", () => {
   it("(B2) the handler logs a warning on failure under a bounded log code", () => {
     // The previous catch block silently returned. The new behaviour
     // logs under a bounded code so SREs can pivot from a log alert.
-    expect(ROUTES).toMatch(/investigation_reviewers_indexingTotals_failed/);
-    // Must be a structured log call (req.log.warn with an err object).
-    // The actual call is multi-line, so locate the bounded log code
-    // and walk backwards to confirm it sits inside a req.log.warn call
-    // with an `err` payload — proves the catch reports the underlying
-    // exception rather than silently dropping it.
-    const codeIdx = ROUTES.indexOf("investigation_reviewers_indexingTotals_failed");
+    //
+    // Phase Repair rebaseline: the bounded log code was renamed from
+    // `investigation_reviewers_indexingTotals_failed` →
+    // `investigation_reviewers.indexing_totals_failed` so the whole
+    // reviewer console family of log codes follows a single
+    // `investigation_reviewers.<block>_failed` namespacing convention
+    // (workflow_totals / escalation_totals / external_review_totals /
+    // recent_escalations / recent_grants / indexing_totals /
+    // producer_modes — see media-intelligence.routes.ts). The
+    // contract enforced here is unchanged: the catch reports the
+    // underlying exception rather than silently dropping it.
+    expect(ROUTES).toMatch(/investigation_reviewers\.indexing_totals_failed/);
+    const codeIdx = ROUTES.indexOf(
+      "investigation_reviewers.indexing_totals_failed",
+    );
     expect(codeIdx).toBeGreaterThan(0);
     const preamble = ROUTES.slice(Math.max(0, codeIdx - 200), codeIdx);
     // Accept both `req.log.warn(` and `req.log?.warn?.(` — the source
     // currently uses the optional-chain form for defence against a
     // missing logger in test harnesses.
     expect(preamble).toMatch(/req\.log[?.]*\.warn[?.]*\(/);
-    expect(preamble).toMatch(/\{\s*err\s*\}/);
+    expect(preamble).toMatch(/\{\s*err/);
   });
 });
 

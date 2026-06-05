@@ -16,11 +16,7 @@ import { sha256HexFromStream } from "../stream-hash.js";
 import { createEvidenceTimestamp } from "./timestamp.service.js";
 import * as prismaPkg from "@prisma/client";
 import { enqueueGenerateReportJob } from "../queue/report-queue.js";
-// Post-finalize side-effect orchestration (search index, media-intelligence
-// signals, worker-side graph reconcile + OCR/transcript indexer sidecar)
-// lives in evidence-finalization-fanout.service.ts. Keeping that orchestration
-// in its own file keeps this completion service focused on the state machine
-// and under its byte-pin cap as the fan-out grows.
+// Post-finalize side-effect orchestration lives in its own file.
 import { runEvidenceFinalizationFanout } from "./evidence-finalization-fanout.service.js";
 import { Readable } from "stream";
 import {
@@ -36,8 +32,17 @@ import {
 import { safeEmitSecurityEvent } from "./security/security-event.service.js";
 import { safeTransitionUploadSession } from "./reliability/upload-session.service.js";
 import { evaluateUploadSessionFinalizeGate } from "./uploads/upload-session.service.js";
+import { enqueueGraphReconcileJob } from "../queue/graph-reconcile-queue.js";
+import { warn as logWarn } from "../utils/logger.js";
 
 type HttpError = Error & { statusCode: number };
+
+// Adapter: bridge utils/logger.warn → FanoutLogger contract.
+const completeFanoutLogger = {
+  warn(obj: Record<string, unknown>, msg: string): void {
+    logWarn(msg, obj);
+  },
+};
 
 type ProcessedPart = {
   id: string;
@@ -1267,32 +1272,81 @@ const captureMethod =
         // own timeouts. Completion returns immediately either way.
         runScan({ evidenceId: ev.id, teamId: ev.teamId }).catch(() => null);
       }
-    } catch {
-      /* never fail completion on scan enqueue */
+    } catch (err) {
+      // Never fail completion on scan enqueue — scanner is best-effort.
+      logWarn("evidence_complete.scan_enqueue_failed", {
+        err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+        evidenceId: final.result.id,
+      });
     }
   }
 
-  // Post-finalize side-effect fan-out (search index, media-intelligence
-  // analyze_metadata, worker-side graph reconcile). Delegated to
-  // runEvidenceFinalizationFanout — never throws to caller; canonical
-  // catch-up paths remain the operator MI /run route, the periodic
-  // graph-reconcile cron, and the search-index cron.
+  // Post-finalize fan-out: helper NEVER throws. The contract is
+  // "never fail completion on post-finalize fan-out failure" — every
+  // failure path is logged (bounded warn via utils/logger.warn).
+  await runEvidenceCompletePostFinalize({
+    evidenceId: final.result.id,
+    signingKeyVersion: final.result.signingKeyVersion ?? null,
+  });
+
+  return final.result;
+}
+
+/**
+ * Post-finalize fan-out. NEVER throws — every failure path emits a
+ * bounded warn via utils/logger.warn. Exported for direct testing.
+ * Codes: evidence_complete.fanout_failed,
+ * evidence_complete.graph_reconcile_not_queued (queue's bounded shape),
+ * evidence_complete.graph_reconcile_enqueue_failed (enqueue threw).
+ */
+export async function runEvidenceCompletePostFinalize(input: {
+  evidenceId: string;
+  signingKeyVersion: number | null;
+}): Promise<void> {
   try {
     const ev = await prisma.evidence.findUnique({
-      where: { id: final.result.id },
+      where: { id: input.evidenceId },
       select: { id: true, teamId: true },
     });
-    if (ev && ev.teamId) {
-      await runEvidenceFinalizationFanout({
+    if (!ev || !ev.teamId) return;
+
+    await runEvidenceFinalizationFanout(
+      {
         teamId: ev.teamId,
         evidenceId: ev.id,
         reason: "evidence_completed",
-        signatureVersion: final.result.signingKeyVersion ?? null,
+        signatureVersion: input.signingKeyVersion,
+      },
+      completeFanoutLogger,
+    );
+
+    // Observe the bounded { queued:false } shape the fanout's logger
+    // never fires on. Same jobId dedupes against the fanout enqueue.
+    try {
+      const enq = await enqueueGraphReconcileJob({
+        teamId: ev.teamId,
+        reason: "evidence_completed",
+        evidenceId: ev.id,
+      });
+      if (!enq.queued) {
+        logWarn("evidence_complete.graph_reconcile_not_queued", {
+          evidenceId: ev.id,
+          teamId: ev.teamId,
+          reason: enq.reason ?? null,
+          jobId: enq.jobId ?? null,
+        });
+      }
+    } catch (enqErr) {
+      logWarn("evidence_complete.graph_reconcile_enqueue_failed", {
+        err: enqErr instanceof Error ? enqErr.message.slice(0, 200) : String(enqErr).slice(0, 200),
+        evidenceId: ev.id,
+        teamId: ev.teamId,
       });
     }
-  } catch {
-    /* never fail completion on post-finalize fan-out */
+  } catch (err) {
+    logWarn("evidence_complete.fanout_failed", {
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+      evidenceId: input.evidenceId,
+    });
   }
-
-  return final.result;
 }

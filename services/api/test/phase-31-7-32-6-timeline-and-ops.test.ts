@@ -83,12 +83,18 @@ describe("Phase 31.7 — buildInvestigationTimeline", () => {
   });
 
   it("never throws — every catch path returns a bounded result", () => {
+    // Phase Repair (Problem 13) — the catch now returns the new
+    // discriminated-union failure variant (`ok:false,
+    // classification:"QUERY_FAILED"`) instead of disguising the
+    // failure as `ok:true, events:[]`. Either shape proves the
+    // function never throws; the distinction is what the route + UI
+    // then do with the result.
     const fn = src.match(
       /export async function buildInvestigationTimeline\([\s\S]*?\n\}\s*\n/,
     )?.[0];
     expect(fn).toBeTruthy();
     expect(fn!).toMatch(
-      /catch\s*\{[\s\S]*?return\s*\{\s*ok:\s*true,\s*events:\s*\[\]/,
+      /catch\s*\(err\)\s*\{[\s\S]*?return\s*\{\s*ok:\s*false,\s*classification:\s*"QUERY_FAILED"/,
     );
   });
 

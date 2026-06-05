@@ -86,7 +86,7 @@ export const CLASSIFICATION_COPY: Readonly<
 > = Object.freeze({
   TRUE_EMPTY: {
     kicker: "No data yet",
-    title: "Nothing has been recorded here yet.",
+    title: "No analyses for this workspace yet. Capture or link evidence to populate this view.",
     variant: "neutral",
   },
   PIPELINE_PENDING: {
@@ -131,7 +131,7 @@ export const CLASSIFICATION_COPY: Readonly<
   },
   CAPABILITY_UNAVAILABLE: {
     kicker: "Capability unavailable",
-    title: "The capability backing this surface is not wired yet.",
+    title: "This view is not available in your current workspace configuration.",
     variant: "neutral",
   },
 });

@@ -95,6 +95,29 @@ type ProducerModeSummary = {
   producesNewContent: boolean;
 };
 
+// Phase Repair — canonical 8-field per-kind producer status the
+// reviewer console renders verbatim. Mirrors ProducerModeStatus in
+// packages/shared-runtime/src/media-intelligence/producer-mode.ts.
+type ProducerKind =
+  | "ocr"
+  | "transcript"
+  | "perceptual_similarity"
+  | "derivative_detection"
+  | "semantic_search";
+
+type ProducerModeStatus = {
+  kind: ProducerKind;
+  mode: string;
+  enabled: boolean;
+  configured: boolean;
+  automatic: boolean;
+  indexExistingOnly: boolean;
+  provider: "local" | "azure" | "deepgram" | "openai" | "internal" | "none";
+  reason: string;
+  lastRunAt?: string;
+  lastError?: string;
+};
+
 type IndexingTotals = {
   ocrAvailable: number;
   ocrIndexed: number;
@@ -102,9 +125,23 @@ type IndexingTotals = {
   transcriptIndexed: number;
 };
 
+// Phase Repair — local-extractor tile is now SECONDARY (the cloud
+// provider chip above is the authoritative producer status). `role`
+// and `summary` are new fields the route emits so the UI can render
+// honest copy verbatim.
 type LocalExtractorCapability = {
+  role?: "secondary";
+  summary?: string;
   tesseract: { ok: false; reason: string } | { ok: true };
   whisper: { ok: false; reason: string } | { ok: true };
+};
+
+// Phase Repair — bounded read-path quality marker. Empty
+// `degradedBlocks` on the happy path. The page renders a single
+// "data is incomplete" banner when state === "degraded".
+type DataQuality = {
+  state: "ok" | "degraded";
+  degradedBlocks: string[];
 };
 
 type ConsoleResponse = {
@@ -115,8 +152,10 @@ type ConsoleResponse = {
   recentGrants: RecentGrant[];
   pendingSignals: PendingSignal[];
   producerModes?: ProducerModeSummary;
+  producerModeStatuses?: ProducerModeStatus[];
   indexingTotals?: IndexingTotals;
   localExtractorCapability?: LocalExtractorCapability;
+  dataQuality?: DataQuality;
 };
 
 // Phase 38.13 — wrap in canonical PageRouteGate.
@@ -252,7 +291,7 @@ useEffect(() => {
         <div style={headerRightStyle}>
           <span style={freshnessPillStyle(error, ageSeconds, teamId)}>
             {error
-              ? "No reviewer activity recorded yet"
+              ? "Reviewer activity unavailable — retrying"
               : !teamId
                 ? "loading workspace…"
                 : ageSeconds == null
@@ -313,7 +352,42 @@ useEffect(() => {
         />
       </section>
 
-      {data?.producerModes ? (
+      {data?.dataQuality?.state === "degraded" ? (
+        <div style={dataQualityBannerStyle}>
+          Some reviewer console counters could not be loaded for this request.
+          The remaining tiles still reflect real workspace state. Details:{" "}
+          {data.dataQuality.degradedBlocks.join(", ")}.
+        </div>
+      ) : null}
+
+      {data?.producerModeStatuses && data.producerModeStatuses.length > 0 ? (
+        <section style={producerModesRowStyle}>
+          {(["ocr", "transcript"] as const).map((kind) => {
+            const status = data.producerModeStatuses?.find(
+              (s) => s.kind === kind,
+            );
+            const label = kind === "ocr" ? "OCR" : "Transcript";
+            return (
+              <ProbeAwareProducerModeChip
+                key={kind}
+                label={label}
+                status={status}
+              />
+            );
+          })}
+          {data.producerModeStatuses
+            .filter((s) => s.kind === "ocr" || s.kind === "transcript")
+            .some((s) => !s.automatic) ? (
+            <span style={producerModesHintStyle}>
+              Automatic extraction is not currently active for one or more
+              kinds. Pre-existing content remains searchable. The chip caption
+              describes the exact reason — contact your workspace administrator
+              if vendor cloud is selected but the chip reports a
+              credentials-not-ready state.
+            </span>
+          ) : null}
+        </section>
+      ) : data?.producerModes ? (
         <section style={producerModesRowStyle}>
           <ProducerModeChip
             label="OCR"
@@ -556,15 +630,27 @@ function IndexingTile({
   indexed: number;
   available: number;
 }) {
-  const allIndexed = available === 0 || indexed === available;
+  // Phase Repair — `allIndexed` MUST require at least one available
+  // row. The previous expression `available === 0 || indexed ===
+  // available` rendered the green "all indexed" pill on an empty
+  // workspace, which conflated "nothing has been extracted" with
+  // "everything that exists is indexed". Now empty workspaces render
+  // a neutral "No records yet" pill and the green state only fires
+  // when there is real content AND every row is indexed.
+  const empty = available === 0;
+  const allIndexed = available > 0 && indexed === available;
   return (
     <div style={tileStyle}>
       <div style={tileTitleStyle}>{label}</div>
       <div style={tileTotalStyle}>{available}</div>
       <div style={indexingProgressRowStyle}>
         <span style={mutedSmallStyle}>{indexed} indexed</span>
-        <span style={statusPillStyle(allIndexed)}>
-          {allIndexed ? "all indexed" : "indexing pending"}
+        <span style={statusPillStyle(allIndexed && !empty)}>
+          {empty
+            ? "No records yet"
+            : allIndexed
+              ? "all indexed"
+              : "indexing pending"}
         </span>
       </div>
     </div>
@@ -576,11 +662,22 @@ function LocalExtractorCapabilityTile({
 }: {
   cap: LocalExtractorCapability;
 }) {
+  // Phase Repair — local runtimes are SECONDARY. The cloud provider
+  // chip above is the authoritative producer status; this tile only
+  // surfaces whether local binaries are present (they are not, by
+  // policy). Demoted visually + an explicit summary string. The
+  // summary string is rendered verbatim from the route — UI never
+  // invents its own disclaimer copy.
   const tesseractEnabled = cap.tesseract.ok;
   const whisperEnabled = cap.whisper.ok;
+  const summary =
+    cap.summary ??
+    "Local OCR/transcript runtime is not enabled. Cloud provider is the active path.";
   return (
-    <div style={tileStyle}>
+    <div style={secondaryTileStyle}>
+      <div style={secondaryTileBadgeStyle}>Secondary</div>
       <div style={tileTitleStyle}>Local extractor runtimes</div>
+      <p style={secondaryTileSummaryStyle}>{summary}</p>
       <ul style={tileBreakdownStyle}>
         <li style={tileBreakdownRowStyle}>
           <span style={tileBreakdownLabelStyle}>Local OCR (Tesseract)</span>
@@ -605,6 +702,50 @@ function ProducerModeChip({ label, mode }: { label: string; mode: string }) {
   return (
     <span style={producerModeChipStyle(isConfigured)}>
       {label}: {formatModeLabel(mode)}
+    </span>
+  );
+}
+
+// Phase Repair — probe-aware OCR / Transcript chip. Renders the
+// route's canonical `ProducerModeStatus` verbatim (label + bounded
+// mode caption + honest reason text). Hard rules:
+//   * The chip's ACTIVE styling fires ONLY when `automatic === true`.
+//     `VENDOR_CLOUD` mode with `automatic === false` (the
+//     credentials-not-ready / producer-deferred state) renders the
+//     muted / warning style, NOT the green active style — this is
+//     the audit requirement: VENDOR_CLOUD must not look active when
+//     credentials/probe fail.
+//   * The chip body always shows the bounded `mode` token plus the
+//     reason copy the route emits.
+function ProbeAwareProducerModeChip({
+  label,
+  status,
+}: {
+  label: string;
+  status: ProducerModeStatus | undefined;
+}) {
+  if (!status) {
+    return (
+      <span style={producerModeChipStyle(false)}>
+        {label}: status unavailable
+      </span>
+    );
+  }
+  const active = status.automatic === true;
+  const caption =
+    status.mode === "VENDOR_CLOUD" && !active
+      ? `${formatModeLabel(status.mode)} (credentials not ready)`
+      : formatModeLabel(status.mode);
+  return (
+    <span
+      style={producerModeChipStyle(active)}
+      title={status.reason}
+      data-kind={status.kind}
+      data-mode={status.mode}
+      data-automatic={active ? "true" : "false"}
+      data-provider={status.provider}
+    >
+      {label}: {caption}
     </span>
   );
 }
@@ -1119,6 +1260,55 @@ const producerModesRowStyle: React.CSSProperties = {
 const producerModesHintStyle: React.CSSProperties = {
   fontSize: 12,
   color: "#92400e",
+  lineHeight: 1.5,
+};
+
+// Phase Repair — visually demoted tile for the SECONDARY local
+// extractor capability surface. Muted background + smaller padding +
+// "Secondary" badge tells the operator at a glance the cloud chip
+// above is the authoritative producer status.
+const secondaryTileStyle: React.CSSProperties = {
+  background: "#f8fafc",
+  border: "1px dashed #cbd5e1",
+  borderRadius: 8,
+  padding: 12,
+  opacity: 0.92,
+};
+
+const secondaryTileBadgeStyle: React.CSSProperties = {
+  display: "inline-block",
+  padding: "1px 8px",
+  fontSize: 10,
+  fontWeight: 700,
+  background: "#e2e8f0",
+  border: "1px solid #cbd5e1",
+  color: "#475569",
+  borderRadius: 999,
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  marginBottom: 6,
+};
+
+const secondaryTileSummaryStyle: React.CSSProperties = {
+  margin: "4px 0 8px 0",
+  fontSize: 11,
+  color: "#64748b",
+  lineHeight: 1.5,
+};
+
+// Phase Repair — bounded data-quality banner. Surfaces the route's
+// `degradedBlocks` list when any read sub-query failed. Block tags
+// are bounded enum strings (workflow_totals / escalation_totals /
+// external_review_totals / recent_escalations / recent_grants /
+// indexing_totals / producer_modes). No SQL details / table names.
+const dataQualityBannerStyle: React.CSSProperties = {
+  marginBottom: 12,
+  padding: "8px 12px",
+  background: "#fffbeb",
+  border: "1px solid #fcd34d",
+  color: "#92400e",
+  borderRadius: 6,
+  fontSize: 12,
   lineHeight: 1.5,
 };
 

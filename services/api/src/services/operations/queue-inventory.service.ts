@@ -75,6 +75,7 @@ export type QueueHealthStatus =
   | "degraded"
   | "outage"
   | "unconfigured"
+  | "disabled"
   | "unknown";
 
 export type QueueInventoryItem = {
@@ -94,6 +95,26 @@ export type QueueInventoryItem = {
   health: QueueHealthStatus;
   /** Oldest waiting job age (ms). null when no waiting jobs. */
   oldestWaitingAgeMs: number | null;
+  /** When health is "disabled" or "unconfigured", an operator-readable
+   *  reason. null otherwise. */
+  disabledReason: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// Bounded reason copy for queues whose processor is not wired in this
+// build. The dead-processor list is small + fixed — keep it explicit so
+// adding a new queue here is a deliberate review step.
+// ---------------------------------------------------------------------------
+
+const DISABLED_QUEUES: Record<string, string> = {
+  // mi-ocr / mi-transcript subsystem processors log
+  // "not_configured_completed" and return — there is no upstream
+  // producer in the current build. Automatic OCR / transcript
+  // extraction flows through the media-intelligence queue
+  // (extract_ocr_azure / extract_transcript_deepgram) instead.
+  "mi-ocr": "Not in current build. Automatic OCR runs via the media-intelligence queue.",
+  "mi-transcript":
+    "Not in current build. Automatic transcripts run via the media-intelligence queue.",
 };
 
 const QUEUE_LABELS: Record<string, string> = {
@@ -135,6 +156,19 @@ export async function getQueueInventory(): Promise<
 > {
   const out: QueueInventoryItem[] = [];
   for (const name of KNOWN_QUEUE_NAMES) {
+    const disabledReason = DISABLED_QUEUES[name] ?? null;
+    if (disabledReason) {
+      out.push({
+        queueName: name,
+        label: QUEUE_LABELS[name] ?? name,
+        counts: { waiting: 0, active: 0, delayed: 0, failed: 0, completed: 0 },
+        stalledCount: 0,
+        health: "disabled",
+        oldestWaitingAgeMs: null,
+        disabledReason,
+      });
+      continue;
+    }
     const q = getQueueHandle(name);
     if (!q) continue;
     try {
@@ -189,6 +223,7 @@ export async function getQueueInventory(): Promise<
         label: QUEUE_LABELS[name] ?? name,
         ...projection,
         health: classifyHealth(projection),
+        disabledReason: null,
       });
     } catch {
       out.push({
@@ -198,6 +233,7 @@ export async function getQueueInventory(): Promise<
         stalledCount: 0,
         health: "outage",
         oldestWaitingAgeMs: null,
+        disabledReason: null,
       });
     }
   }

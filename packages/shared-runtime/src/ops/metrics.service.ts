@@ -234,6 +234,12 @@ export const COUNTER_NAMES = [
   "graph_query_total",
   "graph_query_denied_total",
   "timeline_query_total",
+  // Phase Repair (Problem 13) — bumped when buildInvestigationTimeline's
+  // raw projection throws. Operators can correlate spikes here with the
+  // `investigation_timeline.query_failed` log line + the
+  // `timeline_query_failed` warning surfaced by investigation
+  // diagnostics. NEVER bumped on TRUE_EMPTY workspaces.
+  "timeline_query_failed_total",
   // Phase 31.5 / 32 newly-active counters. The catalog above
   // included these as reserved entries; this phase brings them
   // live (analyzer bumps + graph builder bumps).

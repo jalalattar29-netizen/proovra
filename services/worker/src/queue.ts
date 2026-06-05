@@ -1011,8 +1011,10 @@ export type MediaIntelligenceJobKind =
   // Phase 31.8 — real EXIF extraction (bytes → bounded summary).
   | "extract_exif"
   | "extract_assets"
-  | "compute_duplicates"
-  | "compute_lineage"
+  // Note: compute_duplicates / compute_lineage are intentionally not in
+  // the queue vocabulary. Both kinds remain in the database-backed
+  // MEDIA_INTELLIGENCE_RUN_KINDS catalog (legacy row history) but no
+  // producer enqueues them and no UI surface advertises them.
   // Phase 12 — perceptual-similarity foundation. Downloads a bounded
   // image byte range, derives an 8×8 luminance matrix via sharp, and
   // writes pHash+dHash to evidence_parts.{perceptual_phash,_dhash}.

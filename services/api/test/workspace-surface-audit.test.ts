@@ -221,7 +221,11 @@ describe("Workspace surface audit — EMPTY_STATE_COPY for /investigation/duplic
     );
     // And the operational primitive's TRUE_EMPTY copy bounds the body.
     expect(OPERATIONAL_EMPTY_STATE).toMatch(
-      /TRUE_EMPTY:\s*\{[\s\S]*?title:\s*"Nothing has been recorded here yet\."/,
+      /TRUE_EMPTY:\s*\{[\s\S]*?title:\s*"No analyses for this workspace yet\. Capture or link evidence to populate this view\."/,
+    );
+    // The legacy developer copy must not be reintroduced.
+    expect(OPERATIONAL_EMPTY_STATE).not.toMatch(
+      /title:\s*"Nothing has been recorded here yet\."/,
     );
   });
 

@@ -43,10 +43,12 @@
  *   - No fake state fixes — every assertion is evidence-backed.
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+import { listAllTsxFiles } from "./_helpers/file-walker";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -70,31 +72,6 @@ function readWeb(rel: string): string {
 function readApi(rel: string): string {
   return readFileSync(apiPath(rel), "utf8");
 }
-function listAllTsxFiles(dirAbs: string): string[] {
-  const out: string[] = [];
-  const stack: string[] = [dirAbs];
-  while (stack.length > 0) {
-    const dir = stack.pop()!;
-    let entries: string[];
-    try {
-      entries = readdirSync(dir);
-    } catch {
-      continue;
-    }
-    for (const name of entries) {
-      const full = `${dir}/${name}`;
-      try {
-        const st = statSync(full);
-        if (st.isFile() && /\.(ts|tsx)$/.test(name)) out.push(full);
-        else if (st.isDirectory()) stack.push(full);
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-  return out;
-}
-
 const REAUDIT_DOC = readRepo(
   "docs/product/CR1_5_STATE_ORCHESTRATION_OBSERVABILITY.md",
 );

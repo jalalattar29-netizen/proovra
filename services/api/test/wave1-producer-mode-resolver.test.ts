@@ -150,16 +150,40 @@ describe("Wave 1 — resolveProducerModeStatuses", () => {
     }
   });
 
-  it("derivative_detection collapses to DEFERRED / Wave 2 reason (honest deferred state)", async () => {
+  it("derivative_detection is AUTOMATIC + internal-heuristic (producer wired in graph reconcile)", async () => {
+    // Phase Repair: the derivative-detection producer is live in
+    // packages/shared-runtime/src/graph/graph-builder.service.ts.
+    // It upserts POSSIBLE_DERIVATIVE_OF edges from perceptual pHash +
+    // upload-time + shared file traits. The resolver claim flipped
+    // from DEFERRED → AUTOMATIC to match the actual producer.
     const out = await resolveProducerModeStatuses({
       teamId: "00000000-0000-0000-0000-000000000000",
       prisma: stubPrisma,
     });
     const derivative = out.find((s) => s.kind === "derivative_detection");
     expect(derivative).toBeDefined();
-    expect(derivative?.mode).toBe("DEFERRED");
-    expect(derivative?.reason).toBe(PRODUCER_REASON_COPY.DEFERRED_NO_PRODUCER);
-    expect(derivative?.enabled).toBe(false);
+    expect(derivative?.mode).toBe("AUTOMATIC");
+    expect(derivative?.reason).toBe(
+      PRODUCER_REASON_COPY.DERIVATIVE_HEURISTIC_ACTIVE,
+    );
+    expect(derivative?.enabled).toBe(true);
+    expect(derivative?.configured).toBe(true);
+    expect(derivative?.automatic).toBe(true);
+    expect(derivative?.indexExistingOnly).toBe(false);
+    expect(derivative?.provider).toBe("internal");
+  });
+
+  it("derivative_detection reason copy does not leak roadmap / wave language", () => {
+    // Operator-facing reason must not mention internal release-train
+    // language (Wave / Phase / "wired" / "producer").
+    const reason = PRODUCER_REASON_COPY.DERIVATIVE_HEURISTIC_ACTIVE;
+    expect(reason).not.toMatch(/Wave/i);
+    expect(reason).not.toMatch(/Phase/i);
+    expect(reason).not.toMatch(/producer.*wired/i);
+    // Should mention the actual heuristic so operators understand the
+    // signal source.
+    expect(reason.length).toBeGreaterThan(20);
+    expect(reason).toMatch(/similarity|proximity|traits/i);
   });
 
   it("provider enum is bounded to the 6 canonical values", async () => {

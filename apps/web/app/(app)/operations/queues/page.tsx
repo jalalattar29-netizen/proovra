@@ -69,8 +69,16 @@ type QueueInventoryItem = {
     completed: number;
   };
   stalledCount: number;
-  health: "healthy" | "degraded" | "outage" | "unconfigured" | "unknown";
+  health:
+    | "healthy"
+    | "degraded"
+    | "outage"
+    | "unconfigured"
+    | "disabled"
+    | "unknown";
   oldestWaitingAgeMs: number | null;
+  /** Operator-readable reason when the queue is unconfigured / disabled. */
+  disabledReason?: string | null;
 };
 
 type WorkerHealthRow = {
@@ -355,6 +363,8 @@ function healthBadge(h: QueueInventoryItem["health"]) {
     return badgeStyle({ bg: "#fef3c7", fg: "#78350f", border: "#fde68a" });
   if (h === "outage")
     return badgeStyle({ bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" });
+  if (h === "disabled")
+    return badgeStyle({ bg: "#f5f5f4", fg: "#57534e", border: "#d6d3d1" });
   return badgeStyle({ bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" });
 }
 

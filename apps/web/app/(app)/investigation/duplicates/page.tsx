@@ -334,7 +334,7 @@ function DuplicatesReviewPageInner() {
         <div style={headerRightStyle}>
           <span style={freshnessPillStyle(error, ageSeconds, teamId)}>
             {error
-              ? "No relationships recorded yet"
+              ? "Relationships unavailable — retrying"
               : !teamId
                 ? "loading workspace…"
                 : ageSeconds == null

@@ -27,6 +27,7 @@
     "prisma:seed": "tsx src/seed-signing-key.ts",
     "seed:key": "tsx src/seed-signing-key.ts",
     "retention:run": "tsx src/retention-cleanup.ts",
+    "dev:populate-investigation": "tsx scripts/dev-populate-investigation.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

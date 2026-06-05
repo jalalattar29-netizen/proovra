@@ -321,9 +321,24 @@ export async function graphRoutes(app) {
             limit: q.limit,
         });
         bump("graph_timeline_executed_total");
+        // Phase Repair (Problem 13) — propagate the bounded QUERY_FAILED
+        // shape to the client. Keep a 200 status; the discriminator is
+        // the new `status` field. The UI checks `status === "failed"`
+        // BEFORE the empty-state classifier so the operator never sees
+        // TRUE_EMPTY on a real SQL failure.
+        if (!result.ok) {
+            return reply.code(200).send({
+                events: [],
+                truncated: false,
+                status: "failed",
+                classification: result.classification,
+                reason: result.reason,
+            });
+        }
         return reply.code(200).send({
             events: result.events.map(projectTimelineEvent),
             truncated: result.truncated,
+            status: "ok",
         });
     });
     // ---------------------------------------------------------------------------

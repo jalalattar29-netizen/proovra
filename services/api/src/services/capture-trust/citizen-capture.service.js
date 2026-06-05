@@ -37,10 +37,21 @@
  *     intake session id; finalised evidence records carry the chain.
  */
 import { randomUUID } from "node:crypto";
+import * as prismaPkg from "@prisma/client";
 import { clampProvenanceClass, } from "@proovra/shared";
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitCaptureTrustEvent, } from "./trust-event.service.js";
 import { verifyCaptureSignature } from "./signature-verifier.service.js";
+// Canonical reuse: the same evidence-creation + finalize pipeline that
+// authenticated capture and external intake use. Citizen capture MUST NOT
+// have its own forensic write path — it would diverge the custody chain
+// and bypass the integrity gates. See evidence.service.ts (createEvidence)
+// and evidence-complete.service.ts (completeEvidence) for the canonical
+// flow. The fanout (search index, media-intelligence signals, graph
+// reconcile) is triggered by completeEvidence itself.
+import { createEvidence } from "../evidence.service.js";
+import { completeEvidence } from "../evidence-complete.service.js";
+import { putObjectBuffer } from "../../storage.js";
 // -----------------------------------------------------------------------------
 // Build a session descriptor
 // -----------------------------------------------------------------------------
@@ -131,5 +142,126 @@ export async function acceptCitizenCapture(input) {
             signatureVerdict: result.verdict,
         },
     });
-    return { ok: true, provenanceClass: clamped, signatureVerdict: result.verdict };
+    // ---------------------------------------------------------------------------
+    // Materialise the citizen capture as an Evidence row.
+    //
+    // Up to this point we have ONLY emitted trust events. Without an
+    // Evidence row the capture is structurally invisible to every
+    // investigation surface (graph, timeline, search, dashboards). To
+    // close that gap we reuse the SAME canonical pipeline that
+    // authenticated capture and external-intake use:
+    //
+    //   1. createEvidence — allocates the row, the storage bucket/key
+    //      reservation, the EVIDENCE_CREATED / IDENTITY_SNAPSHOT_RECORDED
+    //      / UPLOAD_AUTHORIZED custody events. Returns a presigned PUT
+    //      URL (we do not use it; the bytes are already in our hand).
+    //   2. putObjectBuffer — server-side PUT of the citizen's bytes to
+    //      the bucket/key the canonical creator chose, so completeEvidence
+    //      can stream them back for hash + sign.
+    //   3. completeEvidence — drives integrity verification, signing,
+    //      UPLOAD_COMPLETED + SIGNATURE_APPLIED custody events, and the
+    //      post-finalize fanout (search index, media-intelligence
+    //      signals, graph reconcile).
+    //
+    // Failures here are NOT silently swallowed: a denial returns a
+    // bounded EVIDENCE_PERSIST_FAILED so the route surfaces a 5xx rather
+    // than a 202 receipt with no Evidence behind it. The trust-event
+    // chain is already durable, so post-mortem audit remains possible.
+    // ---------------------------------------------------------------------------
+    const mimeType = typeof input.mimeType === "string" && input.mimeType.trim()
+        ? input.mimeType.trim()
+        : "application/octet-stream";
+    const evidenceType = (() => {
+        const m = mimeType.toLowerCase();
+        if (m.startsWith("image/"))
+            return prismaPkg.EvidenceType.PHOTO;
+        if (m.startsWith("video/"))
+            return prismaPkg.EvidenceType.VIDEO;
+        if (m.startsWith("audio/"))
+            return prismaPkg.EvidenceType.AUDIO;
+        return prismaPkg.EvidenceType.DOCUMENT;
+    })();
+    let createdEvidenceId;
+    try {
+        const created = await createEvidence({
+            ownerUserId: input.ownerUserId,
+            teamId: input.teamId,
+            type: evidenceType,
+            mimeType,
+            originalFileName: input.originalFileName ?? null,
+            captureFileName: null,
+        });
+        createdEvidenceId = created.id;
+        // The createEvidence helper reserves `created.upload.bucket` /
+        // `created.upload.key` and writes them on the Evidence row in the
+        // same transaction. We now PUT the citizen's already-received
+        // bytes to that location so completeEvidence can stream + hash.
+        await putObjectBuffer({
+            bucket: created.upload.bucket,
+            key: created.upload.key,
+            body: input.assetBytes,
+            contentType: mimeType,
+        });
+    }
+    catch (err) {
+        // Bounded denial — the route returns a 5xx and the trust chain
+        // already records the verification verdict. The caller can retry.
+        await emitCaptureTrustEvent({
+            prisma,
+            teamId: input.teamId,
+            deviceId: result.deviceId,
+            captureSessionId: input.payload.captureSessionId,
+            evidenceId: null,
+            code: "CAPTURE_ARTIFACT_VERIFICATION_FAILED",
+            payload: {
+                stage: "evidence_persist",
+                error: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+            },
+        });
+        return { ok: false, denial: "EVIDENCE_PERSIST_FAILED" };
+    }
+    try {
+        await completeEvidence({
+            evidenceId: createdEvidenceId,
+            ownerUserId: input.ownerUserId,
+        });
+    }
+    catch (err) {
+        await emitCaptureTrustEvent({
+            prisma,
+            teamId: input.teamId,
+            deviceId: result.deviceId,
+            captureSessionId: input.payload.captureSessionId,
+            evidenceId: createdEvidenceId,
+            code: "CAPTURE_ARTIFACT_VERIFICATION_FAILED",
+            payload: {
+                stage: "evidence_complete",
+                error: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+            },
+        });
+        return { ok: false, denial: "EVIDENCE_PERSIST_FAILED" };
+    }
+    // Link the trust chain to the new Evidence id so downstream operators
+    // can pivot from the capture session to the evidence record. The chain
+    // is append-only; this is the canonical join row.
+    await emitCaptureTrustEvent({
+        prisma,
+        teamId: input.teamId,
+        deviceId: result.deviceId,
+        captureSessionId: input.payload.captureSessionId,
+        evidenceId: createdEvidenceId,
+        code: "CAPTURE_ARTIFACT_RECEIVED",
+        payload: {
+            stage: "evidence_materialised",
+            captureMode: "CITIZEN_PWA",
+            provenanceClass: clamped,
+            citizen: true,
+        },
+    });
+    return {
+        ok: true,
+        provenanceClass: clamped,
+        signatureVerdict: result.verdict,
+        evidenceId: createdEvidenceId,
+    };
 }

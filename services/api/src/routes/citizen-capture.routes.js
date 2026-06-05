@@ -162,9 +162,14 @@ export async function citizenCaptureRoutes(app) {
             return reply.code(400).send({ denial: "SESSION_NOT_FOUND" });
         }
         // Resolve teamId via the Device row referenced in the payload.
+        // The Device row also carries the owner-of-record user id — for
+        // citizen sessions this is the intake-link creator (workspace admin
+        // who opened the link). Pulling it from the Device row is the same
+        // authority chain the open-session handler set up, so no client-
+        // controlled identity ever lands in the Evidence row.
         const device = await prisma.device.findFirst({
             where: { id: body.payload.deviceKeyId },
-            select: { teamId: true, revokedAtUtc: true },
+            select: { teamId: true, revokedAtUtc: true, ownerUserId: true },
         });
         if (!device) {
             return reply.code(409).send({ denial: "DEVICE_NOT_REGISTERED" });
@@ -172,15 +177,30 @@ export async function citizenCaptureRoutes(app) {
         if (device.revokedAtUtc !== null) {
             return reply.code(409).send({ denial: "DEVICE_REVOKED" });
         }
+        // Infer an asset MIME type from the camera/sensor metadata if the
+        // citizen browser provided one; otherwise default to octet-stream
+        // and let the canonical evidence-type classifier fall through to
+        // DOCUMENT. This is bounded and never throws — we never trust raw
+        // client strings; the canonical createEvidence helper normalises.
+        const cameraMeta = body.payload.metadata.camera;
+        const sensorMeta = body.payload.metadata.sensor;
+        const claimedMime = typeof cameraMeta?.mimeType === "string"
+            ? cameraMeta.mimeType
+            : typeof sensorMeta?.mimeType === "string"
+                ? sensorMeta.mimeType
+                : null;
         const result = await acceptCitizenCapture({
             teamId: device.teamId,
             intakeTokenId: "anonymous", // bounded label — the real anchor is the device row
             payload: body.payload,
             signatureHex: body.signatureHex,
             assetBytes,
+            mimeType: claimedMime,
+            ownerUserId: device.ownerUserId,
         });
         if (!result.ok) {
-            return reply.code(409).send({ denial: result.denial });
+            const code = result.denial === "EVIDENCE_PERSIST_FAILED" ? 500 : 409;
+            return reply.code(code).send({ denial: result.denial });
         }
         return reply.code(202).send({
             receipt: {
@@ -192,6 +212,7 @@ export async function citizenCaptureRoutes(app) {
                 otsQueued: true,
                 warnings: [],
                 denialReason: null,
+                evidenceId: result.evidenceId,
             },
         });
     });

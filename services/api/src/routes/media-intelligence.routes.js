@@ -32,6 +32,10 @@ import { authorizeOrFail } from "../middleware/authorize.js";
 import { runMediaIntelligenceAnalysis } from "../services/media-intelligence/analyzer.service.js";
 import { MEDIA_INTELLIGENCE_SIGNAL_TYPES, SIGNAL_METADATA, } from "../services/media-intelligence/signal-catalog.js";
 import { bump } from "../services/ops/metrics.service.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+// Wave 3 Phase 7B — bounded custody emit on workspace MI refresh.
+import * as prismaPkg from "@prisma/client";
+import { appendInvestigationCustody } from "../services/investigation-custody.service.js";
 // =============================================================================
 // Bounded validators
 // =============================================================================
@@ -261,6 +265,121 @@ export async function mediaIntelligenceRoutes(app) {
         });
     });
     // ---------------------------------------------------------------------------
+    // POST /v1/investigation/media-intelligence/refresh
+    //
+    // Wave 2 Phase 6 — operator-triggered workspace-wide media-intelligence
+    // refresh. Enqueues the analyzer for up to the most recent 50 evidence
+    // records in the workspace. Caps per-request to avoid queue storms.
+    //
+    // Permission: evidence.update_metadata. Anti-enumeration via team scope.
+    // Bounded audit emit via appendPlatformAuditLog action
+    // `MEDIA_INTELLIGENCE_REFRESH_REQUESTED`.
+    // ---------------------------------------------------------------------------
+    app.post("/v1/investigation/media-intelligence/refresh", { preHandler: requireAuth }, async (req, reply) => {
+        const body = z
+            .object({ teamId: z.string().uuid() })
+            .strict()
+            .parse(req.body ?? {});
+        const actor = await authorizeOrFail(req, reply, {
+            teamId: body.teamId,
+            permission: "evidence.update_metadata",
+            antiEnumeration: true,
+        });
+        if (!actor)
+            return;
+        const REFRESH_CAP = 50;
+        let evidence = [];
+        try {
+            evidence = (await prisma.$queryRawUnsafe(`SELECT "id"
+             FROM "evidence"
+             WHERE "team_id" = $1 AND "deleted_at" IS NULL
+             ORDER BY "created_at" DESC
+             LIMIT $2`, body.teamId, REFRESH_CAP));
+        }
+        catch {
+            return reply.code(503).send({
+                error: { code: "media_intelligence_unavailable" },
+            });
+        }
+        let enqueued = 0;
+        let skipped = 0;
+        const { enqueueMediaIntelligenceRun } = await import("../services/media-intelligence/run-tracker.service.js");
+        const { enqueueMediaIntelligenceAnalysis } = await import("../queue/media-intelligence-queue.js");
+        for (const ev of evidence) {
+            try {
+                const runResult = await enqueueMediaIntelligenceRun({
+                    teamId: body.teamId,
+                    evidenceId: ev.id,
+                    kind: "analyze_metadata",
+                    idempotencyKey: `refresh:${ev.id}`,
+                });
+                if (!runResult.ok) {
+                    skipped += 1;
+                    continue;
+                }
+                const enq = await enqueueMediaIntelligenceAnalysis({
+                    teamId: body.teamId,
+                    evidenceId: ev.id,
+                    kind: "analyze_metadata",
+                    runId: runResult.run.id,
+                });
+                if (enq.enqueued)
+                    enqueued += 1;
+                else
+                    skipped += 1;
+            }
+            catch {
+                skipped += 1;
+            }
+        }
+        try {
+            await appendPlatformAuditLog({
+                userId: actor.actorUserId,
+                action: "MEDIA_INTELLIGENCE_REFRESH_REQUESTED",
+                category: "investigation_graph",
+                severity: "info",
+                source: "media_intelligence_routes",
+                outcome: enqueued > 0 ? "queued" : "noop",
+                resourceType: "team",
+                resourceId: body.teamId,
+                requestId: req.id,
+                metadata: {
+                    teamId: body.teamId,
+                    cap: REFRESH_CAP,
+                    enqueued,
+                    skipped,
+                    scanned: evidence.length,
+                },
+            });
+        }
+        catch {
+            /* best-effort audit; never block the operator action */
+        }
+        // Wave 3 Phase 7B — bounded custody emit AFTER the enqueue
+        // sweep completes. Workspace-scoped → helper resolves a workspace
+        // anchor.
+        try {
+            await appendInvestigationCustody({
+                teamId: body.teamId,
+                actorUserId: actor.actorUserId,
+                eventType: prismaPkg.CustodyEventType.MEDIA_INTELLIGENCE_REFRESH_REQUESTED,
+                payload: { en: enqueued, sk: skipped, sc: evidence.length },
+                surface: "media-intelligence.routes.ts:refresh",
+            });
+        }
+        catch {
+            /* best-effort custody; never block the operator action */
+        }
+        bump("media_intelligence_refresh_requested_total");
+        return reply.code(202).send({
+            teamId: body.teamId,
+            scanned: evidence.length,
+            enqueued,
+            skipped,
+            cap: REFRESH_CAP,
+        });
+    });
+    // ---------------------------------------------------------------------------
     // GET /v1/investigation/overview?teamId=…
     //
     // Phase 31.12 — workspace-scoped intelligence + investigation
@@ -426,6 +545,13 @@ export async function mediaIntelligenceRoutes(app) {
         });
         if (!actor)
             return;
+        // Phase Repair — track per-block read failures so the page can
+        // surface a bounded "dataQuality: degraded" hint without leaking
+        // SQL details. Each silent catch that previously swallowed an
+        // error now logs via req.log.warn AND appends a bounded block
+        // tag here. The response carries the final list so the React
+        // page can show a single honest banner.
+        const degradedBlocks = [];
         // 1) Workflow status totals.
         let workflowTotals = {
             notStarted: 0,
@@ -460,8 +586,9 @@ export async function mediaIntelligenceRoutes(app) {
                 };
             }
         }
-        catch {
-            /* soft-fail */
+        catch (err) {
+            req.log?.warn?.({ err, block: "workflow_totals" }, "investigation_reviewers.workflow_totals_failed");
+            degradedBlocks.push("workflow_totals");
         }
         // 2) Escalation status totals.
         let escalationTotals = {
@@ -494,8 +621,9 @@ export async function mediaIntelligenceRoutes(app) {
                 };
             }
         }
-        catch {
-            /* soft-fail */
+        catch (err) {
+            req.log?.warn?.({ err, block: "escalation_totals" }, "investigation_reviewers.escalation_totals_failed");
+            degradedBlocks.push("escalation_totals");
         }
         // 3) External-review grant status totals.
         let externalReviewTotals = {
@@ -525,8 +653,9 @@ export async function mediaIntelligenceRoutes(app) {
                 };
             }
         }
-        catch {
-            /* soft-fail */
+        catch (err) {
+            req.log?.warn?.({ err, block: "external_review_totals" }, "investigation_reviewers.external_review_totals_failed");
+            degradedBlocks.push("external_review_totals");
         }
         let recentEscalations = [];
         try {
@@ -555,7 +684,9 @@ export async function mediaIntelligenceRoutes(app) {
                 createdAtUtc: r.created_at.toISOString(),
             }));
         }
-        catch {
+        catch (err) {
+            req.log?.warn?.({ err, block: "recent_escalations" }, "investigation_reviewers.recent_escalations_failed");
+            degradedBlocks.push("recent_escalations");
             recentEscalations = [];
         }
         let recentGrants = [];
@@ -580,16 +711,53 @@ export async function mediaIntelligenceRoutes(app) {
                 accessCount: r.access_count ?? 0,
             }));
         }
-        catch {
+        catch (err) {
+            req.log?.warn?.({ err, block: "recent_grants" }, "investigation_reviewers.recent_grants_failed");
+            degradedBlocks.push("recent_grants");
             recentGrants = [];
         }
-        // 6.1) Phase 31.19 — OCR / transcript producer mode summary.
-        //    Bounded read-only env summary. NEVER reads vendor
-        //    credentials. Default mode is NOT_CONFIGURED so the
-        //    operator UI can show the correct status without the
-        //    backend silently transmitting data off-prem.
-        const { summariseProducerModes } = await import("../services/media-intelligence/producer-mode.js");
-        const producerModes = summariseProducerModes();
+        // 6.1) Phase Repair — Probe-aware producer mode summary.
+        //    The reviewer console must surface HONEST OCR / transcript
+        //    chips: when the operator selects VENDOR_CLOUD the chip
+        //    must NOT report "vendor cloud" as active unless the probe
+        //    confirms credentials are wired AND a real producer is in
+        //    the fanout. The probe-aware resolver
+        //    `resolveProducerModeStatuses` collapses to NOT_CONFIGURED
+        //    or to a "credentials not ready" reason string when any of
+        //    those conditions fail. The route still exposes the legacy
+        //    `producerModes: { ocr, transcript, producesNewContent }`
+        //    summary for backwards compatibility with older clients,
+        //    plus the new `producerModeStatuses` array (the canonical
+        //    8-field shape) that the page renders verbatim.
+        const { resolveProducerModeStatuses } = await import("@proovra/shared-runtime/media-intelligence");
+        let producerModeStatuses = [];
+        try {
+            producerModeStatuses = await resolveProducerModeStatuses({
+                teamId,
+                prisma,
+            });
+        }
+        catch (err) {
+            req.log?.warn?.({ err, block: "producer_modes" }, "investigation_reviewers.producer_modes_failed");
+            producerModeStatuses = [];
+        }
+        // Derive the legacy summary from the canonical statuses so the
+        // chip never disagrees with itself. The legacy fields mirror the
+        // historical `summariseProducerModes` output: the bounded mode
+        // string for OCR / transcript and a `producesNewContent` boolean
+        // that is true ONLY when both kinds report `automatic: true` AND
+        // a non-internal provider — i.e. the operator is actually paying
+        // for vendor-cloud extraction and a probe confirmed credentials.
+        const ocrStatus = producerModeStatuses.find((s) => s.kind === "ocr");
+        const transcriptStatus = producerModeStatuses.find((s) => s.kind === "transcript");
+        const producerModes = {
+            ocr: ocrStatus?.mode ?? "NOT_CONFIGURED",
+            transcript: transcriptStatus?.mode ?? "NOT_CONFIGURED",
+            producesNewContent: !!ocrStatus?.automatic &&
+                !!transcriptStatus?.automatic &&
+                ocrStatus?.indexExistingOnly === false &&
+                transcriptStatus?.indexExistingOnly === false,
+        };
         let pendingSignals = [];
         try {
             const rows = (await prisma.$queryRawUnsafe(`SELECT "id", "evidence_id", "signal_type", "severity",
@@ -618,13 +786,38 @@ export async function mediaIntelligenceRoutes(app) {
         catch {
             pendingSignals = [];
         }
-        // 7) Phase 31.21 — OCR / transcript signal-volume snapshot.
-        //    Bounded count projection — how many OCR_AVAILABLE /
-        //    OCR_INDEXED / TRANSCRIPT_AVAILABLE / TRANSCRIPT_INDEXED
-        //    rows exist for this team. Real numbers, NOT fake.
-        //    Never reads underlying OCR / transcript text.
-        // Stabilised — frontend IndexingProgressGrid expects all 4 numeric fields.
-        // Partial shape used to crash /investigation. See apps/web/app/(app)/investigation/page.tsx:569-575.
+        // 7) Phase Repair — OCR / transcript volume snapshot from the
+        //    canonical `evidence_extracted_texts` table.
+        //
+        //    Historical note. The previous implementation counted
+        //    `media_intelligence_signals` rows of type OCR_AVAILABLE /
+        //    OCR_INDEXED / TRANSCRIPT_AVAILABLE / TRANSCRIPT_INDEXED.
+        //    Those signals were only written by the
+        //    `indexExistingOcrAndTranscript` indexer in
+        //    packages/shared-runtime/src/media-intelligence/
+        //    ocr-transcript-indexer.service.ts, which reads from two
+        //    legacy tables — `evidence_ocr_text` and
+        //    `evidence_transcript_segments` — that the live extraction
+        //    pipeline has not populated since the
+        //    EvidenceExtractedText model landed. Result: the tiles
+        //    always showed zeros even when extractions had produced
+        //    rows.
+        //
+        //    The new query counts `evidence_extracted_texts` directly,
+        //    bucketed by the canonical `EvidenceExtractedTextKind`
+        //    enum:
+        //      * OCR_PDF / OCR_IMAGE / PDF_TEXT  → OCR tile
+        //      * TRANSCRIPT_AUDIO / TRANSCRIPT_VIDEO → transcript tile
+        //    `available` = total rows for the kind group (any status).
+        //    `indexed`   = COMPLETED rows for the kind group (the only
+        //                   rows the search index can read).
+        //    Bounded count projection — never reads the `text` column.
+        //
+        //    Orphan tables `evidence_ocr_text` /
+        //    `evidence_transcript_segments` + their writer helpers
+        //    `recordOcrSegment` / `recordTranscriptSegment` are
+        //    UNUSED in production (see audit). They are kept on disk
+        //    for migration safety; a follow-up wave will drop them.
         let rawIndexingTotals = {
             ocrAvailable: 0,
             ocrIndexed: 0,
@@ -633,13 +826,12 @@ export async function mediaIntelligenceRoutes(app) {
         };
         try {
             const rows = (await prisma.$queryRawUnsafe(`SELECT
-             COUNT(*) FILTER (WHERE "signal_type" = 'OCR_AVAILABLE')::int AS "ocr_available",
-             COUNT(*) FILTER (WHERE "signal_type" = 'OCR_INDEXED')::int AS "ocr_indexed",
-             COUNT(*) FILTER (WHERE "signal_type" = 'TRANSCRIPT_AVAILABLE')::int AS "transcript_available",
-             COUNT(*) FILTER (WHERE "signal_type" = 'TRANSCRIPT_INDEXED')::int AS "transcript_indexed"
-           FROM "media_intelligence_signals"
-           WHERE "team_id" = $1
-             AND "status" IN ('PENDING', 'ACKNOWLEDGED')`, teamId));
+             COUNT(*) FILTER (WHERE "kind" IN ('OCR_PDF','OCR_IMAGE','PDF_TEXT'))::int AS "ocr_available",
+             COUNT(*) FILTER (WHERE "kind" IN ('OCR_PDF','OCR_IMAGE','PDF_TEXT') AND "status" = 'COMPLETED')::int AS "ocr_indexed",
+             COUNT(*) FILTER (WHERE "kind" IN ('TRANSCRIPT_AUDIO','TRANSCRIPT_VIDEO'))::int AS "transcript_available",
+             COUNT(*) FILTER (WHERE "kind" IN ('TRANSCRIPT_AUDIO','TRANSCRIPT_VIDEO') AND "status" = 'COMPLETED')::int AS "transcript_indexed"
+           FROM "evidence_extracted_texts"
+           WHERE "team_id" = $1`, teamId));
             const r = rows[0];
             if (r) {
                 rawIndexingTotals = {
@@ -651,10 +843,12 @@ export async function mediaIntelligenceRoutes(app) {
             }
         }
         catch (err) {
-            // Observable soft-fail — previously silent. Frontend still receives
-            // safe zeros via the normalisation step below, but operators now see
-            // the failure in logs so misbehaving queries do not hide forever.
-            req.log?.warn?.({ err }, "investigation_reviewers_indexingTotals_failed");
+            // Observable soft-fail. Frontend still receives safe zeros via
+            // the normalisation step below, but operators now see the
+            // failure in logs and a bounded `dataQuality:degraded` marker
+            // surfaces on the page.
+            req.log?.warn?.({ err, block: "indexing_totals" }, "investigation_reviewers.indexing_totals_failed");
+            degradedBlocks.push("indexing_totals");
         }
         // Stabilised — frontend IndexingProgressGrid expects all 4 numeric fields.
         // Partial shape used to crash /investigation. See apps/web/app/(app)/investigation/page.tsx:569-575.
@@ -675,11 +869,19 @@ export async function mediaIntelligenceRoutes(app) {
                 ? rawIndexingTotals.transcriptIndexed
                 : 0,
         };
-        // 8) Phase 31.21 — local-extractor capability snapshot. Always
-        //    NOT_ENABLED today (production runs INDEX_EXISTING_ONLY).
-        //    Surfaced so ops can see at a glance the platform is NOT
-        //    silently extracting OCR or transcribing audio.
+        // 8) Phase Repair — local-extractor capability snapshot.
+        //    SECONDARY signal only. Local Tesseract / Whisper runtimes
+        //    are NOT the intended extraction path — the cloud provider
+        //    chips above are the authoritative producer status. This
+        //    tile exists to make it visible at a glance that the
+        //    platform is NOT spawning local binaries.
+        //
+        //    The `role: "secondary"` field tells the UI to render this
+        //    tile demoted relative to the cloud chip. `summary`
+        //    carries operator-facing copy the UI renders verbatim.
         const localExtractorCapability = {
+            role: "secondary",
+            summary: "Local OCR/transcript runtime is not enabled. Cloud provider is the active path.",
             tesseract: { ok: false, reason: "not_enabled" },
             whisper: { ok: false, reason: "not_enabled" },
         };
@@ -696,10 +898,26 @@ export async function mediaIntelligenceRoutes(app) {
             // Phase 31.19 — Producer mode summary so the UI can show
             // a clear NOT_CONFIGURED status for OCR / transcript.
             producerModes,
+            // Phase Repair — canonical 8-field per-kind producer status
+            // array (probe-aware). The page renders chips from this
+            // array; the legacy `producerModes` envelope is kept for
+            // backwards compatibility with older clients.
+            producerModeStatuses,
             // Phase 31.21 — Indexing volume snapshot + local-extractor
             // capability state.
             indexingTotals,
             localExtractorCapability,
+            // Phase Repair — bounded list of read-path blocks that
+            // failed during this request. Empty array on the happy path.
+            // The page renders a single "data is incomplete" banner when
+            // any element is present. No SQL details / table names —
+            // only bounded block tags.
+            dataQuality: degradedBlocks.length > 0
+                ? {
+                    state: "degraded",
+                    degradedBlocks: degradedBlocks.slice(),
+                }
+                : { state: "ok", degradedBlocks: [] },
         });
     });
     // ---------------------------------------------------------------------------

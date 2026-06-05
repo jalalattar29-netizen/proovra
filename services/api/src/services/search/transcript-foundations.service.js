@@ -1,6 +1,15 @@
 /**
  * Phase 24-J — Transcript foundations.
  *
+ * TODO(phase-repair-cleanup): ORPHAN. Mirror of ocr-foundations
+ * which writes to `evidence_transcript_segments`. Same cleanup
+ * applies: the canonical write path is `extractAndPersist` in
+ * `intelligence/extraction.service.ts`, which uses
+ * `evidence_extracted_texts` (EvidenceExtractedText). No production
+ * code path imports anything from this file. A follow-up wave should
+ * drop both the service and the `evidence_transcript_segments`
+ * table.
+ *
  * Mirror of `ocr-foundations.service.ts` for audio/video transcript
  * segments. Each segment carries millisecond start/end offsets so the
  * Discovery timeline pivot can deep-link to the exact moment.

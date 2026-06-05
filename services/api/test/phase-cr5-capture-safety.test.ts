@@ -203,7 +203,12 @@ const CAPTURE_ROUTES_BYTES_EXACT = 21271;
 // state machine; the fanout helper owns producer wiring. Worker still
 // owns reconcileTeamGraph + onReconciled hook (subsystem-queue-
 // processors.ts:178-191). Architectural improvement; no regression.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 44078;
+// Phase Repair rebaseline: 44,078 → 45,774. Replaced two bare catches
+// (scan enqueue + post-finalize fanout) with bounded warn logging and
+// extracted runEvidenceCompletePostFinalize for direct testability;
+// also observes the { queued:false } shape graph-reconcile-queue
+// returns when Redis is unavailable.
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 45835;
 const CUSTODY_EVENTS_SVC_BYTES_EXACT = 5155;
 const TIMESTAMP_SVC_BYTES_EXACT = 7535;
 const PRE_CR5_AI_ASSISTANT_BYTES = 23045;

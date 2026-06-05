@@ -62,8 +62,10 @@ export const MEDIA_INTELLIGENCE_JOB_KINDS = [
     // Phase 31.8 — real EXIF extraction (bytes → bounded summary).
     "extract_exif",
     "extract_assets",
-    "compute_duplicates",
-    "compute_lineage",
+    // Note: compute_duplicates / compute_lineage are intentionally not in
+    // the queue vocabulary. Both kinds remain in the database-backed
+    // MEDIA_INTELLIGENCE_RUN_KINDS catalog (legacy row history) but no
+    // producer enqueues them and no UI surface advertises them.
     "wire_ocr_transcript",
     "reindex",
     "reconcile",

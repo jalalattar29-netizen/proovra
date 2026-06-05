@@ -255,40 +255,64 @@ describe("Phase 31.21 — graph-* worker processors are real (no no-ops)", () =>
 // =============================================================================
 
 describe("Phase 31.21 — Reviewer Console projection", () => {
-  it("returns indexingTotals (OCR_AVAILABLE / OCR_INDEXED / TRANSCRIPT_AVAILABLE / TRANSCRIPT_INDEXED counts)", () => {
-    const idx = MI_ROUTES_SRC.indexOf("Phase 31.21 — OCR / transcript signal-volume snapshot");
+  // Phase Repair rebaseline. The route now reads `indexingTotals` from
+  // the canonical `evidence_extracted_texts` table (the live
+  // EvidenceExtractedText model the extraction pipeline writes to),
+  // bucketed by `EvidenceExtractedTextKind` enum. The previous
+  // implementation counted `media_intelligence_signals` of type
+  // OCR_AVAILABLE / OCR_INDEXED / TRANSCRIPT_AVAILABLE /
+  // TRANSCRIPT_INDEXED — those signals are only written by the
+  // `indexExistingOcrAndTranscript` indexer reading the orphan
+  // `evidence_ocr_text` / `evidence_transcript_segments` tables which
+  // the live pipeline never populated, so the tiles always showed
+  // zeros.
+  it("returns indexingTotals derived from EvidenceExtractedText kinds + COMPLETED status", () => {
+    const idx = MI_ROUTES_SRC.indexOf("Phase Repair — OCR / transcript volume snapshot");
     expect(idx).toBeGreaterThan(0);
-    const slice = MI_ROUTES_SRC.slice(idx, idx + 2500);
-    expect(slice).toMatch(/'OCR_AVAILABLE'/);
-    expect(slice).toMatch(/'OCR_INDEXED'/);
-    expect(slice).toMatch(/'TRANSCRIPT_AVAILABLE'/);
-    expect(slice).toMatch(/'TRANSCRIPT_INDEXED'/);
-    // Bounded — only PENDING/ACKNOWLEDGED rows are counted.
-    expect(slice).toMatch(/"status" IN \('PENDING', 'ACKNOWLEDGED'\)/);
+    const slice = MI_ROUTES_SRC.slice(idx, idx + 3500);
+    // The new query reads `evidence_extracted_texts`.
+    expect(slice).toMatch(/FROM "evidence_extracted_texts"/);
+    // Buckets OCR by the three OCR-style kinds.
+    expect(slice).toMatch(/'OCR_PDF'/);
+    expect(slice).toMatch(/'OCR_IMAGE'/);
+    expect(slice).toMatch(/'PDF_TEXT'/);
+    // Buckets transcript by the two transcript-style kinds.
+    expect(slice).toMatch(/'TRANSCRIPT_AUDIO'/);
+    expect(slice).toMatch(/'TRANSCRIPT_VIDEO'/);
+    // `indexed` reflects the COMPLETED status only — the canonical
+    // signal that the text is searchable.
+    expect(slice).toMatch(/"status" = 'COMPLETED'/);
+    // Team-anchored at every read.
+    expect(slice).toMatch(/WHERE "team_id" = \$1/);
   });
 
-  it("returns localExtractorCapability with NOT_ENABLED defaults", () => {
+  it("returns localExtractorCapability with NOT_ENABLED defaults + secondary framing", () => {
     const idx = MI_ROUTES_SRC.indexOf("localExtractorCapability");
     expect(idx).toBeGreaterThan(0);
     const slice = MI_ROUTES_SRC.slice(idx, idx + 800);
     expect(slice).toMatch(/tesseract:[\s\S]*?ok: false[\s\S]*?reason: "not_enabled"/);
     expect(slice).toMatch(/whisper:[\s\S]*?ok: false[\s\S]*?reason: "not_enabled"/);
+    // Phase Repair — the route now flags the local tile as a SECONDARY
+    // capability and ships honest user-facing summary copy.
+    expect(slice).toMatch(/role:\s*"secondary"/);
+    expect(slice).toMatch(/Local OCR\/transcript runtime is not enabled/);
+    expect(slice).toMatch(/Cloud provider is the active path/);
   });
 
   it("the route NEVER reads or projects raw OCR or transcript text", () => {
     const code = stripComments(MI_ROUTES_SRC);
-    const idx = code.indexOf("Phase 31.21 — OCR / transcript signal-volume snapshot");
-    // (we kept the comment stripped above; this block ends before
-    //  the next phase comment or the response.send call.)
-    const sliceStart = code.indexOf("indexingTotals = {", idx > 0 ? idx : 0);
-    const sliceEnd = code.indexOf("Phase 31.21 — local-extractor", sliceStart);
+    const idx = code.indexOf("Phase Repair — OCR / transcript volume snapshot");
+    const sliceStart = code.indexOf("rawIndexingTotals", idx > 0 ? idx : 0);
+    const sliceEnd = code.indexOf("Phase Repair — local-extractor", sliceStart);
     if (sliceStart > 0 && sliceEnd > sliceStart) {
       const slice = code.slice(sliceStart, sliceEnd);
-      // The SELECT is purely COUNT(*) FILTER aggregates — never
-      // reads the underlying source tables' `text` columns.
+      // Bounded COUNT(*) FILTER projection only — never reads the
+      // underlying `text` column.
+      expect(slice).not.toMatch(/SELECT .*"text"/);
+      // The canonical query reads `evidence_extracted_texts` and does
+      // NOT mention the orphan tables.
       expect(slice).not.toMatch(/evidence_ocr_text/);
       expect(slice).not.toMatch(/evidence_transcript_segments/);
-      expect(slice).not.toMatch(/"text"/);
     }
   });
 });

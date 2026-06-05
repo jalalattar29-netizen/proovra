@@ -697,6 +697,14 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
 
+      // Phase Repair — track per-block read failures so the page can
+      // surface a bounded "dataQuality: degraded" hint without leaking
+      // SQL details. Each silent catch that previously swallowed an
+      // error now logs via req.log.warn AND appends a bounded block
+      // tag here. The response carries the final list so the React
+      // page can show a single honest banner.
+      const degradedBlocks: string[] = [];
+
       // 1) Workflow status totals.
       let workflowTotals = {
         notStarted: 0,
@@ -741,8 +749,12 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
             total: r.total ?? 0,
           };
         }
-      } catch {
-        /* soft-fail */
+      } catch (err) {
+        req.log?.warn?.(
+          { err, block: "workflow_totals" },
+          "investigation_reviewers.workflow_totals_failed",
+        );
+        degradedBlocks.push("workflow_totals");
       }
 
       // 2) Escalation status totals.
@@ -785,8 +797,12 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
             total: r.total ?? 0,
           };
         }
-      } catch {
-        /* soft-fail */
+      } catch (err) {
+        req.log?.warn?.(
+          { err, block: "escalation_totals" },
+          "investigation_reviewers.escalation_totals_failed",
+        );
+        degradedBlocks.push("escalation_totals");
       }
 
       // 3) External-review grant status totals.
@@ -825,8 +841,12 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
             total: r.total ?? 0,
           };
         }
-      } catch {
-        /* soft-fail */
+      } catch (err) {
+        req.log?.warn?.(
+          { err, block: "external_review_totals" },
+          "investigation_reviewers.external_review_totals_failed",
+        );
+        degradedBlocks.push("external_review_totals");
       }
 
       // 4) Recent OPEN escalations — bounded projection, NEVER pulls
@@ -880,7 +900,12 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
           safeSummary: r.safe_summary.slice(0, 240),
           createdAtUtc: r.created_at.toISOString(),
         }));
-      } catch {
+      } catch (err) {
+        req.log?.warn?.(
+          { err, block: "recent_escalations" },
+          "investigation_reviewers.recent_escalations_failed",
+        );
+        degradedBlocks.push("recent_escalations");
         recentEscalations = [];
       }
 
@@ -931,19 +956,66 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
           createdAtUtc: r.created_at_utc.toISOString(),
           accessCount: r.access_count ?? 0,
         }));
-      } catch {
+      } catch (err) {
+        req.log?.warn?.(
+          { err, block: "recent_grants" },
+          "investigation_reviewers.recent_grants_failed",
+        );
+        degradedBlocks.push("recent_grants");
         recentGrants = [];
       }
 
-      // 6.1) Phase 31.19 — OCR / transcript producer mode summary.
-      //    Bounded read-only env summary. NEVER reads vendor
-      //    credentials. Default mode is NOT_CONFIGURED so the
-      //    operator UI can show the correct status without the
-      //    backend silently transmitting data off-prem.
-      const { summariseProducerModes } = await import(
-        "../services/media-intelligence/producer-mode.js"
+      // 6.1) Phase Repair — Probe-aware producer mode summary.
+      //    The reviewer console must surface HONEST OCR / transcript
+      //    chips: when the operator selects VENDOR_CLOUD the chip
+      //    must NOT report "vendor cloud" as active unless the probe
+      //    confirms credentials are wired AND a real producer is in
+      //    the fanout. The probe-aware resolver
+      //    `resolveProducerModeStatuses` collapses to NOT_CONFIGURED
+      //    or to a "credentials not ready" reason string when any of
+      //    those conditions fail. The route still exposes the legacy
+      //    `producerModes: { ocr, transcript, producesNewContent }`
+      //    summary for backwards compatibility with older clients,
+      //    plus the new `producerModeStatuses` array (the canonical
+      //    8-field shape) that the page renders verbatim.
+      const { resolveProducerModeStatuses } = await import(
+        "@proovra/shared-runtime/media-intelligence"
       );
-      const producerModes = summariseProducerModes();
+      let producerModeStatuses: Awaited<
+        ReturnType<typeof resolveProducerModeStatuses>
+      > = [];
+      try {
+        producerModeStatuses = await resolveProducerModeStatuses({
+          teamId,
+          prisma,
+        });
+      } catch (err) {
+        req.log?.warn?.(
+          { err, block: "producer_modes" },
+          "investigation_reviewers.producer_modes_failed",
+        );
+        producerModeStatuses = [];
+      }
+      // Derive the legacy summary from the canonical statuses so the
+      // chip never disagrees with itself. The legacy fields mirror the
+      // historical `summariseProducerModes` output: the bounded mode
+      // string for OCR / transcript and a `producesNewContent` boolean
+      // that is true ONLY when both kinds report `automatic: true` AND
+      // a non-internal provider — i.e. the operator is actually paying
+      // for vendor-cloud extraction and a probe confirmed credentials.
+      const ocrStatus = producerModeStatuses.find((s) => s.kind === "ocr");
+      const transcriptStatus = producerModeStatuses.find(
+        (s) => s.kind === "transcript",
+      );
+      const producerModes = {
+        ocr: ocrStatus?.mode ?? "NOT_CONFIGURED",
+        transcript: transcriptStatus?.mode ?? "NOT_CONFIGURED",
+        producesNewContent:
+          !!ocrStatus?.automatic &&
+          !!transcriptStatus?.automatic &&
+          ocrStatus?.indexExistingOnly === false &&
+          transcriptStatus?.indexExistingOnly === false,
+      };
 
       // 6.2) Phase 31.19 — Pending media signals needing reviewer
       //    action. Bounded projection. Operator-safe wording only
@@ -999,13 +1071,38 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         pendingSignals = [];
       }
 
-      // 7) Phase 31.21 — OCR / transcript signal-volume snapshot.
-      //    Bounded count projection — how many OCR_AVAILABLE /
-      //    OCR_INDEXED / TRANSCRIPT_AVAILABLE / TRANSCRIPT_INDEXED
-      //    rows exist for this team. Real numbers, NOT fake.
-      //    Never reads underlying OCR / transcript text.
-      // Stabilised — frontend IndexingProgressGrid expects all 4 numeric fields.
-      // Partial shape used to crash /investigation. See apps/web/app/(app)/investigation/page.tsx:569-575.
+      // 7) Phase Repair — OCR / transcript volume snapshot from the
+      //    canonical `evidence_extracted_texts` table.
+      //
+      //    Historical note. The previous implementation counted
+      //    `media_intelligence_signals` rows of type OCR_AVAILABLE /
+      //    OCR_INDEXED / TRANSCRIPT_AVAILABLE / TRANSCRIPT_INDEXED.
+      //    Those signals were only written by the
+      //    `indexExistingOcrAndTranscript` indexer in
+      //    packages/shared-runtime/src/media-intelligence/
+      //    ocr-transcript-indexer.service.ts, which reads from two
+      //    legacy tables — `evidence_ocr_text` and
+      //    `evidence_transcript_segments` — that the live extraction
+      //    pipeline has not populated since the
+      //    EvidenceExtractedText model landed. Result: the tiles
+      //    always showed zeros even when extractions had produced
+      //    rows.
+      //
+      //    The new query counts `evidence_extracted_texts` directly,
+      //    bucketed by the canonical `EvidenceExtractedTextKind`
+      //    enum:
+      //      * OCR_PDF / OCR_IMAGE / PDF_TEXT  → OCR tile
+      //      * TRANSCRIPT_AUDIO / TRANSCRIPT_VIDEO → transcript tile
+      //    `available` = total rows for the kind group (any status).
+      //    `indexed`   = COMPLETED rows for the kind group (the only
+      //                   rows the search index can read).
+      //    Bounded count projection — never reads the `text` column.
+      //
+      //    Orphan tables `evidence_ocr_text` /
+      //    `evidence_transcript_segments` + their writer helpers
+      //    `recordOcrSegment` / `recordTranscriptSegment` are
+      //    UNUSED in production (see audit). They are kept on disk
+      //    for migration safety; a follow-up wave will drop them.
       let rawIndexingTotals: {
         ocrAvailable: number;
         ocrIndexed: number;
@@ -1020,13 +1117,12 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       try {
         const rows = (await prisma.$queryRawUnsafe(
           `SELECT
-             COUNT(*) FILTER (WHERE "signal_type" = 'OCR_AVAILABLE')::int AS "ocr_available",
-             COUNT(*) FILTER (WHERE "signal_type" = 'OCR_INDEXED')::int AS "ocr_indexed",
-             COUNT(*) FILTER (WHERE "signal_type" = 'TRANSCRIPT_AVAILABLE')::int AS "transcript_available",
-             COUNT(*) FILTER (WHERE "signal_type" = 'TRANSCRIPT_INDEXED')::int AS "transcript_indexed"
-           FROM "media_intelligence_signals"
-           WHERE "team_id" = $1
-             AND "status" IN ('PENDING', 'ACKNOWLEDGED')`,
+             COUNT(*) FILTER (WHERE "kind" IN ('OCR_PDF','OCR_IMAGE','PDF_TEXT'))::int AS "ocr_available",
+             COUNT(*) FILTER (WHERE "kind" IN ('OCR_PDF','OCR_IMAGE','PDF_TEXT') AND "status" = 'COMPLETED')::int AS "ocr_indexed",
+             COUNT(*) FILTER (WHERE "kind" IN ('TRANSCRIPT_AUDIO','TRANSCRIPT_VIDEO'))::int AS "transcript_available",
+             COUNT(*) FILTER (WHERE "kind" IN ('TRANSCRIPT_AUDIO','TRANSCRIPT_VIDEO') AND "status" = 'COMPLETED')::int AS "transcript_indexed"
+           FROM "evidence_extracted_texts"
+           WHERE "team_id" = $1`,
           teamId,
         )) as Array<{
           ocr_available: number;
@@ -1044,13 +1140,15 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
           };
         }
       } catch (err) {
-        // Observable soft-fail — previously silent. Frontend still receives
-        // safe zeros via the normalisation step below, but operators now see
-        // the failure in logs so misbehaving queries do not hide forever.
+        // Observable soft-fail. Frontend still receives safe zeros via
+        // the normalisation step below, but operators now see the
+        // failure in logs and a bounded `dataQuality:degraded` marker
+        // surfaces on the page.
         req.log?.warn?.(
-          { err },
-          "investigation_reviewers_indexingTotals_failed",
+          { err, block: "indexing_totals" },
+          "investigation_reviewers.indexing_totals_failed",
         );
+        degradedBlocks.push("indexing_totals");
       }
 
       // Stabilised — frontend IndexingProgressGrid expects all 4 numeric fields.
@@ -1077,11 +1175,20 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
             : 0,
       };
 
-      // 8) Phase 31.21 — local-extractor capability snapshot. Always
-      //    NOT_ENABLED today (production runs INDEX_EXISTING_ONLY).
-      //    Surfaced so ops can see at a glance the platform is NOT
-      //    silently extracting OCR or transcribing audio.
+      // 8) Phase Repair — local-extractor capability snapshot.
+      //    SECONDARY signal only. Local Tesseract / Whisper runtimes
+      //    are NOT the intended extraction path — the cloud provider
+      //    chips above are the authoritative producer status. This
+      //    tile exists to make it visible at a glance that the
+      //    platform is NOT spawning local binaries.
+      //
+      //    The `role: "secondary"` field tells the UI to render this
+      //    tile demoted relative to the cloud chip. `summary`
+      //    carries operator-facing copy the UI renders verbatim.
       const localExtractorCapability = {
+        role: "secondary" as const,
+        summary:
+          "Local OCR/transcript runtime is not enabled. Cloud provider is the active path.",
         tesseract: { ok: false as const, reason: "not_enabled" as const },
         whisper: { ok: false as const, reason: "not_enabled" as const },
       };
@@ -1099,10 +1206,27 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         // Phase 31.19 — Producer mode summary so the UI can show
         // a clear NOT_CONFIGURED status for OCR / transcript.
         producerModes,
+        // Phase Repair — canonical 8-field per-kind producer status
+        // array (probe-aware). The page renders chips from this
+        // array; the legacy `producerModes` envelope is kept for
+        // backwards compatibility with older clients.
+        producerModeStatuses,
         // Phase 31.21 — Indexing volume snapshot + local-extractor
         // capability state.
         indexingTotals,
         localExtractorCapability,
+        // Phase Repair — bounded list of read-path blocks that
+        // failed during this request. Empty array on the happy path.
+        // The page renders a single "data is incomplete" banner when
+        // any element is present. No SQL details / table names —
+        // only bounded block tags.
+        dataQuality:
+          degradedBlocks.length > 0
+            ? ({
+                state: "degraded" as const,
+                degradedBlocks: degradedBlocks.slice(),
+              } as const)
+            : ({ state: "ok" as const, degradedBlocks: [] } as const),
       });
     },
   );

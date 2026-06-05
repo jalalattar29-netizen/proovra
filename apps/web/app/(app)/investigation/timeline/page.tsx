@@ -57,6 +57,14 @@ type TimelineEvent = {
 type TimelineResponse = {
   events: TimelineEvent[];
   truncated: boolean;
+  // Phase Repair (Problem 13) — the backend now distinguishes a real
+  // empty workspace ("ok") from a failed SQL projection ("failed").
+  // When `status === "failed"` the events array is always empty and
+  // `reason` carries an operator-facing string the empty-state
+  // primitive renders verbatim.
+  status?: "ok" | "failed";
+  classification?: string;
+  reason?: string;
 };
 
 // =============================================================================
@@ -105,6 +113,13 @@ function InvestigationTimelinePageInner() {
   // classifier can pick API_ERROR and surface a bounded message instead
   // of misclassifying as TRUE_EMPTY.
   const [fetchError, setFetchError] = useState<Error | null>(null);
+  // Phase Repair (Problem 13) — when the backend reports the underlying
+  // SQL projection failed (`status:"failed"`), we capture the reason
+  // string so the empty-state primitive renders PIPELINE_FAILED with
+  // the canonical operator copy. Distinct from `fetchError` (which is
+  // an HTTP-level failure) so the classifier can keep API_ERROR
+  // reserved for unreachable backends.
+  const [queryFailedReason, setQueryFailedReason] = useState<string | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
   // Wave 2 Phase 6 — export action state.
   const [exportBusy, setExportBusy] = useState(false);
@@ -180,6 +195,19 @@ function InvestigationTimelinePageInner() {
         // Wave 2 Phase 4 — successful fetch clears the prior fetchError
         // so the classifier never lingers on a stale API_ERROR classification.
         setFetchError(null);
+        // Phase Repair (Problem 13) — capture the new discriminator
+        // and stash the reason when the backend reports a failed
+        // projection. The HTTP envelope is well-formed (200), so the
+        // catch branch below is reserved for transport-level errors.
+        if (res.status === "failed") {
+          setQueryFailedReason(
+            typeof res.reason === "string" && res.reason.length > 0
+              ? res.reason
+              : "timeline_query_failed",
+          );
+        } else {
+          setQueryFailedReason(null);
+        }
       } catch (err) {
         if (!cancelled) {
           setError("timeline_unavailable");
@@ -259,14 +287,28 @@ function InvestigationTimelinePageInner() {
           ) : null}
         </div>
         <div style={headerRightStyle}>
-          <span style={freshnessPillStyle(error, ageSeconds, teamId)}>
-            {error
-              ? "No events recorded yet"
-              : !teamId
-                ? "loading workspace…"
-                : ageSeconds == null
-                  ? "loading…"
-                  : `updated ${ageSeconds}s ago`}
+          <span
+            style={freshnessPillStyle(
+              error,
+              ageSeconds,
+              teamId,
+              queryFailedReason,
+            )}
+          >
+            {/* Phase Repair (Problem 13) — distinguish the three
+                degraded states the operator can land in:
+                  - queryFailedReason  → "timeline projection failed"
+                  - error (transport)  → "timeline unavailable"
+                  - otherwise          → loading / freshness age. */}
+            {queryFailedReason
+              ? "Timeline projection failed"
+              : error
+                ? "Timeline unavailable"
+                : !teamId
+                  ? "loading workspace…"
+                  : ageSeconds == null
+                    ? "loading…"
+                    : `updated ${ageSeconds}s ago`}
           </span>
           <Link href="/investigation" style={pivotLinkStyle}>
             ← Investigation overview
@@ -315,26 +357,43 @@ function InvestigationTimelinePageInner() {
           // Wave 2 Phase 4 — classifier-driven empty state. The classifier
           // picks ONE of the 10 codes from the canonical union; the
           // primitive renders the bounded copy + admin affordances.
-          (() => {
-            const { classification, reason } = classifyInvestigationEmptyState(
-              {
-                data: events,
-                fetchError,
-                permission: "allowed",
-              },
-              "timeline",
-            );
-            return (
-              <OperationalEmptyState
-                classification={classification}
-                reason={reason}
-                nextAction={{ label: "Capture evidence", href: "/capture" }}
-                adminAction={{ label: "Open cases", href: "/cases" }}
-                diagnosticsLink="/ops/observability"
-                isAdmin={canDiagnostics}
-              />
-            );
-          })()
+          //
+          // Phase Repair (Problem 13) — when the backend reported the
+          // SQL projection failed, short-circuit the classifier and
+          // render PIPELINE_FAILED with the bounded reason. The page
+          // never silently downgrades a failed projection to
+          // TRUE_EMPTY.
+          queryFailedReason !== null ? (
+            <OperationalEmptyState
+              classification="PIPELINE_FAILED"
+              reason={queryFailedReason}
+              nextAction={{ label: "Capture evidence", href: "/capture" }}
+              adminAction={{ label: "Open cases", href: "/cases" }}
+              diagnosticsLink="/ops/observability"
+              isAdmin={canDiagnostics}
+            />
+          ) : (
+            (() => {
+              const { classification, reason } = classifyInvestigationEmptyState(
+                {
+                  data: events,
+                  fetchError,
+                  permission: "allowed",
+                },
+                "timeline",
+              );
+              return (
+                <OperationalEmptyState
+                  classification={classification}
+                  reason={reason}
+                  nextAction={{ label: "Capture evidence", href: "/capture" }}
+                  adminAction={{ label: "Open cases", href: "/cases" }}
+                  diagnosticsLink="/ops/observability"
+                  isAdmin={canDiagnostics}
+                />
+              );
+            })()
+          )
         ) : (
           <ul style={dayListStyle}>
             {groupedByDay.map(([day, dayEvents]) => (
@@ -492,11 +551,21 @@ function freshnessPillStyle(
   err: string | null,
   ageSeconds: number | null,
   teamId: string | null,
+  queryFailedReason: string | null = null,
 ): React.CSSProperties {
   let bg = "#eff6ff";
   let border = "#bfdbfe";
   let color = "#1e40af";
-  if (err) {
+  if (queryFailedReason) {
+    // Phase Repair (Problem 13) — degraded-pill palette for a
+    // backend-reported projection failure. Distinct from the
+    // transport-error palette below (same red but with the
+    // amber-tinged degraded surface so an operator can spot the
+    // difference at a glance).
+    bg = "#fef3c7";
+    border = "#fbbf24";
+    color = "#92400e";
+  } else if (err) {
     bg = "#fef2f2";
     border = "#fca5a5";
     color = "#991b1b";

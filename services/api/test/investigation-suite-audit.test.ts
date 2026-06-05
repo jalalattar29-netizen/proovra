@@ -107,10 +107,16 @@ function walk(dir: string): string[] {
 // ---------------------------------------------------------------------------
 
 describe("Investigation Suite audit — EMPTY_STATE_COPY pins", () => {
-  it("investigation hub renders the new 'No analyses recorded yet' empty-state copy (fix #1)", () => {
+  it("investigation hub renders operator-readable empty-state copy (fix #1)", () => {
     const src = readPage(PAGES.hub);
-    // New operator-readable copy from synthesis fix #1.
-    expect(src).toMatch(/No analyses recorded yet/);
+    // The freshness pill now signals a retryable fetch failure
+    // ("Overview unavailable — retrying") instead of conflating fetch
+    // failure with empty data. The data-empty path flows through the
+    // OperationalEmptyState classifier with its canonical TRUE_EMPTY
+    // copy.
+    expect(src).toMatch(/Overview unavailable — retrying/);
+    // The legacy "No analyses recorded yet" pill copy is gone.
+    expect(src).not.toMatch(/No analyses recorded yet/);
     // Stripped of comments, no raw "data unavailable" string lands in
     // user-facing JSX (we allow it inside a /* */ comment).
     const stripped = stripComments(src);
@@ -135,20 +141,25 @@ describe("Investigation Suite audit — EMPTY_STATE_COPY pins", () => {
     expect(src).toMatch(/workspace administrator/);
   });
 
-  it("investigation timeline renders the new 'No workspace events recorded yet' empty-state copy (fix #3)", () => {
+  it("investigation timeline renders the classifier-driven empty-state copy (fix #3)", () => {
     // Wave 2 classifier swap: the timeline empty-state body copy now
     // lives in CLASSIFICATION_COPY (TRUE_EMPTY title) + the classifier
     // resolver's TRUE_EMPTY_GENERIC reason. The page is still the
     // truth-source for which domain to classify ('timeline'). Assert
     // BOTH: the page calls the classifier with domain 'timeline', and
-    // the canonical CLASSIFICATION_COPY entry says "Nothing has been
-    // recorded here yet." (semantic equivalent of the legacy "No
-    // workspace events recorded yet").
+    // the canonical CLASSIFICATION_COPY entry is operator-facing
+    // ("No analyses for this workspace yet. Capture or link evidence
+    // to populate this view.").
     const src = readPage(PAGES.timeline);
     expect(src).toMatch(/classifyInvestigationEmptyState[\s\S]*?"timeline"/);
     const classificationCopy = readClassificationCopy();
     expect(classificationCopy).toMatch(
-      /TRUE_EMPTY:\s*\{[\s\S]*?title:\s*"Nothing has been recorded here yet\."/,
+      /TRUE_EMPTY:\s*\{[\s\S]*?title:\s*"No analyses for this workspace yet\. Capture or link evidence to populate this view\."/,
+    );
+    // The old developer-copy "Nothing has been recorded here yet." must
+    // not be reintroduced.
+    expect(classificationCopy).not.toMatch(
+      /title:\s*"Nothing has been recorded here yet\."/,
     );
     // Legacy "Run the analyzer…" empty-state phrasing is gone.
     const stripped = stripComments(src);
@@ -181,18 +192,21 @@ describe("Investigation Suite audit — EMPTY_STATE_COPY pins", () => {
     expect(stripped).not.toMatch(/data unavailable/i);
   });
 
-  it("investigation graph renders the new 'No graph yet' empty-state copy (fix #5)", () => {
+  it("investigation graph renders the classifier-driven empty-state copy (fix #5)", () => {
     // Wave 2 classifier swap: the graph empty-state body lives in
-    // CLASSIFICATION_COPY now. The page surfaces "No graph yet" in the
-    // freshness pill (error path) AND wires the classifier-driven
-    // OperationalEmptyState for the no-seeds path. Assert BOTH the
-    // page's classifier call and the primitive's bounded TRUE_EMPTY copy.
+    // CLASSIFICATION_COPY now. The freshness pill on fetch failure
+    // signals retry ("Graph unavailable — retrying") instead of the
+    // older "No graph yet" string, which conflated fetch failure with
+    // an empty data set. The no-seeds path wires the classifier-driven
+    // OperationalEmptyState. Assert BOTH the page's classifier call and
+    // the primitive's bounded TRUE_EMPTY copy.
     const src = readPage(PAGES.graph);
-    expect(src).toMatch(/No graph yet/);
+    expect(src).toMatch(/Graph unavailable — retrying/);
+    expect(src).not.toMatch(/"No graph yet"/);
     expect(src).toMatch(/classifyInvestigationEmptyState[\s\S]*?"graph"/);
     const classificationCopy = readClassificationCopy();
     expect(classificationCopy).toMatch(
-      /TRUE_EMPTY:\s*\{[\s\S]*?title:\s*"Nothing has been recorded here yet\."/,
+      /TRUE_EMPTY:\s*\{[\s\S]*?title:\s*"No analyses for this workspace yet\. Capture or link evidence to populate this view\."/,
     );
     const stripped = stripComments(src);
     expect(stripped).not.toMatch(/data unavailable/i);

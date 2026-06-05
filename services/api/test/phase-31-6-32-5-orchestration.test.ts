@@ -132,18 +132,33 @@ describe("Phase 31.6 — API enqueue producer", () => {
     expect(src).toMatch(/state === "delayed"/);
   });
 
-  it("MEDIA_INTELLIGENCE_JOB_KINDS catalog exposes all 7 kinds", () => {
+  it("MEDIA_INTELLIGENCE_JOB_KINDS catalog exposes the active enqueue kinds", () => {
+    // Phase Repair: compute_duplicates / compute_lineage were dropped
+    // from the queue vocabulary because no producer enqueues them and
+    // no UI advertises them. They remain in the DB-backed
+    // MEDIA_INTELLIGENCE_RUN_KINDS for legacy row history only.
     for (const kind of [
       "analyze_metadata",
       "extract_assets",
-      "compute_duplicates",
-      "compute_lineage",
       "wire_ocr_transcript",
       "reindex",
       "reconcile",
     ]) {
       expect(src, `kind ${kind} missing`).toContain(`"${kind}"`);
     }
+  });
+
+  it("MEDIA_INTELLIGENCE_JOB_KINDS no longer advertises reserved no-op kinds", () => {
+    // The vocabulary should NOT include compute_duplicates /
+    // compute_lineage as live job-kind strings (the comment block that
+    // documents the removal is allowed to mention them).
+    const arrayMatch = src.match(
+      /MEDIA_INTELLIGENCE_JOB_KINDS\s*=\s*\[([\s\S]*?)\]\s*as const/,
+    );
+    expect(arrayMatch, "MEDIA_INTELLIGENCE_JOB_KINDS array not found").toBeTruthy();
+    const arrayBody = arrayMatch?.[1] ?? "";
+    expect(arrayBody).not.toMatch(/^\s*"compute_duplicates"/m);
+    expect(arrayBody).not.toMatch(/^\s*"compute_lineage"/m);
   });
 });
 

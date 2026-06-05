@@ -192,18 +192,35 @@ function InvestigationOverviewPageInner() {
 
     const load = async () => {
       try {
-        const [ov, met] = await Promise.all([
+        const [ov, metEnvelope] = await Promise.all([
           apiFetch(
             `/v1/investigation/overview?teamId=${encodeURIComponent(teamId)}`,
             { method: "GET" },
           ) as Promise<OverviewResponse>,
+          // `/v1/ops/metrics` returns `{ metrics: MetricsSnapshot }` —
+          // ops.routes.ts wraps the snapshot in an envelope. Unwrap
+          // here so QueueHealthGrid sees the bare MetricsSnapshot
+          // shape (counters/gauges directly accessible). Defensive:
+          // if the server ever omits the envelope or returns null,
+          // fall back to undefined so the grid renders the bounded
+          // empty state instead of crashing on `t.metric in undefined`.
           apiFetch("/v1/ops/metrics", { method: "GET" }) as Promise<
-            MetricsSnapshot
+            { metrics?: MetricsSnapshot } | MetricsSnapshot | null
           >,
         ]);
         if (cancelled) return;
         setOverview(ov);
-        setMetrics(met);
+        const metUnwrapped: MetricsSnapshot | null =
+          metEnvelope == null
+            ? null
+            : "metrics" in metEnvelope &&
+                (metEnvelope as { metrics?: MetricsSnapshot }).metrics != null
+              ? (metEnvelope as { metrics: MetricsSnapshot }).metrics
+              : ((metEnvelope as MetricsSnapshot).counters != null ||
+                    (metEnvelope as MetricsSnapshot).gauges != null
+                  ? (metEnvelope as MetricsSnapshot)
+                  : null);
+        setMetrics(metUnwrapped);
         setLastFetchAt(Date.now());
         setError(null);
         setFetchError(null);
@@ -335,7 +352,7 @@ function InvestigationOverviewPageInner() {
         <div style={headerRightStackStyle}>
           <span style={freshnessPillStyle(error, ageSeconds, teamId)}>
             {error
-              ? "No analyses recorded yet"
+              ? "Overview unavailable — retrying"
               : !teamId
                 ? "loading workspace…"
                 : ageSeconds == null
@@ -909,19 +926,19 @@ function QueueHealthGrid({ metrics }: { metrics: MetricsSnapshot | null }) {
       tone: "danger",
     },
   ];
+  // Defensive fallbacks: a malformed response (e.g. the raw envelope
+  // `{ metrics: ... }` slipping through, or the server returning a
+  // partial snapshot) used to crash this grid with "cannot use 'in'
+  // operator on undefined". Resolve to {} so a missing bag renders
+  // bounded "—" tiles instead.
+  const counters: Record<string, number> = metrics?.counters ?? {};
+  const gauges: Record<string, number> = metrics?.gauges ?? {};
   return (
     <ul style={gridStyle}>
       {tiles.map((t) => {
-        const present =
-          metrics != null &&
-          (t.kind === "counter"
-            ? t.metric in metrics.counters
-            : t.metric in metrics.gauges);
-        const value = present
-          ? t.kind === "counter"
-            ? metrics!.counters[t.metric]!
-            : metrics!.gauges[t.metric]!
-          : null;
+        const bag = t.kind === "counter" ? counters : gauges;
+        const present = metrics != null && t.metric in bag;
+        const value = present ? bag[t.metric]! : null;
         return (
           <li key={t.metric} style={tileStyle(t.tone)}>
             <div style={tileLabelStyle}>{t.label}</div>

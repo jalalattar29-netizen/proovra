@@ -492,9 +492,27 @@ export async function graphRoutes(app: FastifyInstance) {
         limit: q.limit,
       });
       bump("graph_timeline_executed_total");
+      // Phase Repair (Problem 13) — propagate the bounded QUERY_FAILED
+      // shape to the client. We keep a 200 status so the existing
+      // poll loop on the timeline page doesn't trip its error handler
+      // (which would render the API_ERROR card instead of the more
+      // accurate PIPELINE_FAILED card); the discriminator is the new
+      // `status` field. The UI looks at this BEFORE the empty-state
+      // classifier so the operator never sees TRUE_EMPTY on a real
+      // SQL failure.
+      if (!result.ok) {
+        return reply.code(200).send({
+          events: [],
+          truncated: false,
+          status: "failed",
+          classification: result.classification,
+          reason: result.reason,
+        });
+      }
       return reply.code(200).send({
         events: result.events.map(projectTimelineEvent),
         truncated: result.truncated,
+        status: "ok",
       });
     },
   );
@@ -884,6 +902,17 @@ export async function graphRoutes(app: FastifyInstance) {
         toUtc: body.toUtc ?? null,
         limit: 200,
       });
+      // Phase Repair (Problem 13) — refuse to produce a misleading
+      // empty export when the projection failed. Returning a 503
+      // signals the operator's client to retry rather than persisting
+      // an artifact that claims "0 events" as authoritative.
+      if (!result.ok) {
+        return reply.code(503).send({
+          status: "failed",
+          classification: result.classification,
+          reason: result.reason,
+        });
+      }
       const generatedAt = new Date().toISOString();
       try {
         await appendPlatformAuditLog({

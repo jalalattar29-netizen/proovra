@@ -101,7 +101,9 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
       const ctx = await requireOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const items = await getQueueInventory();
-      // Aggregate counters for the dashboard summary card.
+      // Aggregate counters for the dashboard summary card. Queues
+      // marked "disabled" (no producer in this build) are excluded
+      // from degradation totals — they are honestly off, not broken.
       let totalFailed = 0;
       let totalStalled = 0;
       let degradedCount = 0;

@@ -207,6 +207,19 @@ export async function runTimelineSync(
       { teamId, rootNodeId: null, evidenceId: null, fromUtc: null, toUtc: null },
       client,
     );
+    if (!result.ok) {
+      // Phase Repair (Problem 13) — the timeline projection failed.
+      // Mirror the catch-branch shape so the sync pass reports the
+      // query failure honestly rather than silently advertising
+      // eventCount:0 as a healthy snapshot.
+      return {
+        ok: false,
+        eventCount: 0,
+        truncated: false,
+        edgesStaled: 0,
+        reason: result.reason || "timeline_query_failed",
+      };
+    }
     eventCount = result.events.length;
     truncated = result.truncated;
   } catch (err) {

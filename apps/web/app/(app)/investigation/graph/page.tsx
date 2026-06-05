@@ -49,6 +49,17 @@ const SEED_KIND_LABELS: Record<GraphSeedKind, string> = {
   EVIDENCE: "Recent evidence",
 };
 
+// Singular human-readable labels used in section-level empty-state copy.
+// Replaces the prior `kind.toLowerCase()` leak that surfaced enum
+// identifiers ("case", "incident", "report", "evidence") directly to the
+// operator. Keep both maps in sync if a new GraphSeedKind is added.
+const SEED_KIND_SINGULAR_LABELS: Record<GraphSeedKind, string> = {
+  CASE: "case",
+  INCIDENT: "incident",
+  REPORT: "report",
+  EVIDENCE: "evidence",
+};
+
 const FILTER_OPTIONS: Array<{ value: GraphSeedKind | "ALL"; label: string }> = [
   { value: "ALL", label: "All seeds" },
   { value: "CASE", label: "Cases only" },
@@ -227,7 +238,7 @@ useEffect(() => {
         <div style={headerRightStyle}>
           <span style={freshnessPillStyle(error, ageSeconds, teamId)}>
             {error
-              ? "No graph yet"
+              ? "Graph unavailable — retrying"
               : !teamId
                 ? "loading workspace…"
                 : ageSeconds == null
@@ -360,7 +371,7 @@ function SeedSection({
       </div>
       {seeds.length === 0 ? (
         <p style={sectionEmptyStyle}>
-          No {kind.toLowerCase()} entries in the workspace map yet.
+          No {SEED_KIND_SINGULAR_LABELS[kind]} entries in the workspace map yet.
         </p>
       ) : (
         <ul style={listStyle}>

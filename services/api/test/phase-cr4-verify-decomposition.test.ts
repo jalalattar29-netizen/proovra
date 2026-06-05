@@ -179,7 +179,11 @@ describe("CR4 Group 1 — file-size guards", () => {
     //   state machine; the fan-out helper is the orchestration owner.
     //   Architectural improvement; no behavioural regression — same
     //   producers, same deterministic jobIds, same try/catch semantics.
-    expect(sz).toBe(44078);
+    // Phase Repair rebaseline: 44,078 → 45,835. Bare catches (scan
+    //   enqueue + post-finalize fanout) replaced with bounded warn
+    //   logging; runEvidenceCompletePostFinalize extracted; queued:false
+    //   shape from graph-reconcile-queue now observed explicitly.
+    expect(sz).toBe(45835);
   });
 
   it("custody-events.service.ts pin (CR1.6 — 5,155 bytes)", () => {

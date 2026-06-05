@@ -16,6 +16,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { listAllFiles } from "./_helpers/file-walker";
+
 function readApi(rel: string): string {
   return readFileSync(
     fileURLToPath(new URL(`../${rel}`, import.meta.url)),
@@ -235,31 +237,6 @@ describe("Phase 37.95 — billing & seats organization separation", () => {
 // =============================================================================
 
 describe("Phase 37.95 — legacy context field non-regression", () => {
-  function listAllFiles(absDir: string): string[] {
-    const out: string[] = [];
-    const stack = [absDir];
-    while (stack.length > 0) {
-      const dir = stack.pop()!;
-      let entries: string[] = [];
-      try {
-        entries = require("node:fs").readdirSync(dir);
-      } catch {
-        continue;
-      }
-      for (const name of entries) {
-        const full = `${dir}/${name}`;
-        try {
-          const stat = require("node:fs").statSync(full);
-          if (stat.isFile() && /\.(ts|tsx)$/.test(name)) out.push(full);
-          else if (stat.isDirectory()) stack.push(full);
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-    return out;
-  }
-
   /**
    * The canonical platform-context envelope retains the legacy
    * `workspace` + `availableWorkspaces` fields for one phase. New code

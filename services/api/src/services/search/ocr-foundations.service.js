@@ -1,6 +1,16 @@
 /**
  * Phase 24-J — OCR text foundations.
  *
+ * TODO(phase-repair-cleanup): ORPHAN. `recordOcrSegment` and friends
+ * write to `evidence_ocr_text`, a table the live extraction pipeline
+ * never populates. The canonical OCR/transcript write path is
+ * `extractAndPersist` in `intelligence/extraction.service.ts`, which
+ * writes to `evidence_extracted_texts` (EvidenceExtractedText). No
+ * production code path imports anything from this file (audited:
+ * the only callers are compiled .js mirrors and a doc-comment in
+ * `deepgram-client.ts`). A follow-up wave should remove this
+ * service and the `evidence_ocr_text` table.
+ *
  * Schema-side foundations for indexable OCR text. This service is the
  * SINGLE mutation/read surface for `evidence_ocr_text` rows. No
  * recognition engine is wired here — those are external services

@@ -274,12 +274,19 @@ export const PRODUCER_REASON_COPY = {
     "Credentials detected, but extraction is disabled by workspace configuration.",
   LOCAL_RUNTIME_UNAVAILABLE:
     "Local runtime is unavailable. Cloud provider may still be available if configured.",
-  DEFERRED_NO_PRODUCER: "No producer wired yet — see Wave 2",
+  DEFERRED_NO_PRODUCER: "Provider not configured for this workspace.",
   // Wave 4 — honest deferred state when credentials are ready but the
   // worker producer / fanout enqueue has not been wired yet. Surfaced
   // when AUTOMATIC_*_EXTRACTION_WIRED is false but the probe is READY.
   CREDENTIALS_READY_PRODUCER_DEFERRED:
     "Credentials are ready, but automatic extraction is awaiting producer wiring.",
+  // Honest reason copy for the derivative-detection producer that is
+  // now live in graph reconciliation. The producer scans perceptual
+  // pHash similarity, upload-time proximity, and shared file traits
+  // (byte size, MIME) to surface POSSIBLE_DERIVATIVE_OF candidates for
+  // reviewer confirmation. No vendor — the heuristic runs internally.
+  DERIVATIVE_HEURISTIC_ACTIVE:
+    "Automatic candidate detection is active using similarity, upload-time proximity, and shared file traits. Reviewer confirmation required.",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -547,17 +554,23 @@ async function resolvePerceptualSimilarityStatus(
 async function resolveDerivativeDetectionStatus(
   lastRuns: LastRunsByKind,
 ): Promise<ProducerModeStatus> {
-  // Honest DEFERRED state — no producer wired in Wave 1.
+  // The derivative-detection producer is live in
+  // packages/shared-runtime/src/graph/graph-builder.service.ts as part
+  // of reconcileTeamGraph: it upserts POSSIBLE_DERIVATIVE_OF edges
+  // from perceptual_phash similarity + upload-time proximity + shared
+  // file traits. The producer is internal (no vendor) and runs on
+  // every graph reconcile, so the resolver claim is AUTOMATIC with an
+  // internal-heuristic provider.
   const last = pickLastForReconcile(lastRuns);
   return finalize({
     kind: "derivative_detection",
-    mode: "DEFERRED",
-    enabled: false,
-    configured: false,
-    automatic: false,
+    mode: "AUTOMATIC",
+    enabled: true,
+    configured: true,
+    automatic: true,
     indexExistingOnly: false,
-    provider: "none",
-    reason: PRODUCER_REASON_COPY.DEFERRED_NO_PRODUCER,
+    provider: "internal",
+    reason: PRODUCER_REASON_COPY.DERIVATIVE_HEURISTIC_ACTIVE,
     last,
   });
 }
