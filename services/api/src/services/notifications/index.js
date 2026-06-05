@@ -30,8 +30,53 @@
  */
 import { classifyNotificationProviderError, notificationRetryDelaySeconds, NOTIFICATION_RETRY_MAX_ATTEMPTS, } from "@proovra/shared";
 import { prisma as defaultPrisma } from "../../db.js";
+import { emitWebhookEvent } from "../integrations/webhook-dispatcher.js";
 import { renderTransactionalTemplate } from "./templates.js";
 import { sendViaResend } from "./resend-provider.js";
+// -----------------------------------------------------------------------------
+// Phase closure — `notification.failed` lifecycle event.
+// See index.ts for the full privacy contract.
+// -----------------------------------------------------------------------------
+const NOTIFICATION_FAILED_EVENT = "notification.failed";
+function hashRecipientForWebhook(recipient) {
+    if (!recipient) return null;
+    try {
+        const { createHash } = require("node:crypto");
+        return createHash("sha256").update(recipient, "utf8").digest("hex");
+    }
+    catch {
+        return null;
+    }
+}
+async function emitNotificationFailedWebhook(delivery, client) {
+    try {
+        if (!delivery.teamId) return;
+        const payload = {
+            teamId: delivery.teamId,
+            notificationId: delivery.id,
+            eventType: delivery.eventType,
+            channel: delivery.channel,
+            provider: delivery.provider,
+            reason: delivery.errorCode ?? "unknown",
+            failedAtUtc: delivery.failedAtUtc?.toISOString() ?? new Date().toISOString(),
+            recipientHash: hashRecipientForWebhook(delivery.recipient),
+            ...(delivery.evidenceRequestId
+                ? { evidenceRequestId: delivery.evidenceRequestId }
+                : {}),
+            ...(delivery.evidenceId ? { evidenceId: delivery.evidenceId } : {}),
+            ...(delivery.intakeLinkId ? { intakeLinkId: delivery.intakeLinkId } : {}),
+        };
+        await emitWebhookEvent({
+            teamId: delivery.teamId,
+            eventType: NOTIFICATION_FAILED_EVENT,
+            payload,
+            attemptInline: false,
+        }, client);
+    }
+    catch {
+        // Best-effort.
+    }
+}
 // -----------------------------------------------------------------------------
 // Feature flag
 // -----------------------------------------------------------------------------
@@ -157,6 +202,9 @@ export async function sendEmailNotification(input, client = defaultPrisma) {
                     errorMessage: errorMessage.slice(0, 2000),
                 },
         });
+        if (!retriable) {
+            await emitNotificationFailedWebhook(updated, client);
+        }
         return {
             delivery: updated,
             status: retriable ? "retry_scheduled" : "failed",
@@ -195,6 +243,9 @@ export async function sendEmailNotification(input, client = defaultPrisma) {
                 errorMessage: providerResult.errorMessage?.slice(0, 2000) ?? null,
             },
     });
+    if (!retriable) {
+        await emitNotificationFailedWebhook(updated, client);
+    }
     return {
         delivery: updated,
         status: retriable ? "retry_scheduled" : "failed",
@@ -250,6 +301,7 @@ async function dispatchDelivery(delivery, client) {
                 errorMessage: "Cannot retry: stored template context is missing. Re-issue the original notification through the business workflow.",
             },
         });
+        await emitNotificationFailedWebhook(failed, client);
         return { delivery: failed, status: "failed" };
     }
     const rendered = renderTransactionalTemplate(delivery.eventType, ctx);
@@ -286,6 +338,9 @@ async function dispatchDelivery(delivery, client) {
                     errorMessage: errorMessage.slice(0, 2000),
                 },
         });
+        if (!retriable) {
+            await emitNotificationFailedWebhook(updated, client);
+        }
         return {
             delivery: updated,
             status: retriable ? "retry_scheduled" : "failed",
@@ -326,6 +381,9 @@ async function dispatchDelivery(delivery, client) {
                 errorMessage: providerResult.errorMessage?.slice(0, 2000) ?? null,
             },
     });
+    if (!retriable) {
+        await emitNotificationFailedWebhook(updated, client);
+    }
     return {
         delivery: updated,
         status: retriable ? "retry_scheduled" : "failed",

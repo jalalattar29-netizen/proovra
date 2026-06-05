@@ -26,7 +26,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 // payload, signature, or destination URL.
 import { PROOVRA_SPAN_NAMES, withProovraSpan, } from "../../observability/otel.js";
 import { isIntegrationsFeatureEnabled } from "./api-keys.service.js";
-import { decryptWebhookSecret, recordWebhookEndpointFailure, recordWebhookEndpointSuccess, signWebhookPayload, } from "./webhooks.service.js";
+import { clearExpiredPreviousWebhookSecret, decryptWebhookSecret, recordWebhookEndpointFailure, recordWebhookEndpointSuccess, signWebhookPayload, } from "./webhooks.service.js";
 const DEFAULT_TIMEOUT_MS = 10_000;
 const RESPONSE_BODY_PREVIEW_LIMIT = 2_000;
 const RESPONSE_BODY_HARD_LIMIT = 64 * 1024;
@@ -127,6 +127,79 @@ const EMPTY_RESULT = Object.freeze({
     failedTransient: 0,
     failedPermanent: 0,
 });
+/** Hard cap so an operator cannot wedge the table with a large blob. */
+export const TEST_EVENT_MAX_PAYLOAD_BYTES = 4 * 1024; // 4 KiB
+/** Canonical event-type literal for test deliveries. */
+export const TEST_EVENT_TYPE = "webhook.test";
+export async function dispatchTestEventToEndpoint(input, client = defaultPrisma) {
+    if (!isIntegrationsFeatureEnabled())
+        return null;
+    let endpoint;
+    try {
+        endpoint = await client.webhookEndpoint.findFirst({
+            where: { id: input.endpointId, teamId: input.teamId },
+        });
+    }
+    catch {
+        return null;
+    }
+    if (!endpoint || endpoint.status !== "ACTIVE")
+        return null;
+    // Bound the supplied payload. Operator-provided JSON-stringifies to
+    // < TEST_EVENT_MAX_PAYLOAD_BYTES; if it exceeds, we drop the
+    // operator payload and use a sentinel marker instead of failing the
+    // request — the test event still goes out so the connectivity
+    // signal is preserved.
+    let safePayload = { ok: true };
+    if (input.payload && typeof input.payload === "object") {
+        try {
+            const serialised = JSON.stringify(input.payload);
+            if (serialised.length <= TEST_EVENT_MAX_PAYLOAD_BYTES) {
+                safePayload = input.payload;
+            }
+            else {
+                safePayload = { ok: true, payload_omitted: "exceeded_size_cap" };
+            }
+        }
+        catch {
+            safePayload = { ok: true, payload_omitted: "not_serialisable" };
+        }
+    }
+    const eventId = randomUUID();
+    const payloadJson = {
+        event: TEST_EVENT_TYPE,
+        eventId,
+        timestampUtc: new Date().toISOString(),
+        teamId: input.teamId,
+        // The `kind` marker is the canonical way to recognise an
+        // operator-initiated test event on the receiver side; the bounded
+        // operator payload is nested under `data`.
+        kind: "test",
+        data: safePayload,
+    };
+    let row;
+    try {
+        row = await client.integrationWebhookDelivery.create({
+            data: {
+                endpointId: endpoint.id,
+                teamId: input.teamId,
+                eventId,
+                eventType: TEST_EVENT_TYPE,
+                payloadJson: payloadJson,
+                status: "PENDING",
+                attemptCount: 0,
+            },
+        });
+    }
+    catch {
+        return null;
+    }
+    if (input.attemptInline === false) {
+        return { deliveryId: row.id, eventId, outcome: "queued" };
+    }
+    const outcome = await attemptDelivery(row, endpoint, client);
+    return { deliveryId: row.id, eventId, outcome };
+}
 export async function emitWebhookEvent(input, client = defaultPrisma) {
     if (!isIntegrationsFeatureEnabled())
         return { ...EMPTY_RESULT };
@@ -221,23 +294,80 @@ async function attemptDeliveryInner(row, endpoint, client) {
             .catch(() => null);
         return "permanent";
     }
+    // Phase 4 — dual-signing during rotation grace.
+    //
+    // If the endpoint has a non-null previousSecretCiphertext AND the
+    // grace window has not yet expired, compute the OLD signature too
+    // and append it to the `X-Proovra-Signature` header as a comma-
+    // separated list `v1=<new>,v1=<old>` (Stripe-style multi-sig).
+    // Receivers can verify against either, which lets them roll the new
+    // secret into production without dropping events.
+    //
+    // Lazy cleanup: if the grace window has expired, fire-and-forget a
+    // clear of the previous_* triple so the endpoint reverts to single-
+    // sign on subsequent deliveries. Best-effort — never blocks the
+    // dispatch.
     const timestampMs = Date.now();
     const bodyStr = JSON.stringify(row.payloadJson);
-    const signature = signWebhookPayload(rawSecret, timestampMs, bodyStr);
+    const newSignature = signWebhookPayload(rawSecret, timestampMs, bodyStr);
+    let signatureHeader = newSignature;
+    const graceUntil = endpoint.previousSecretValidUntilUtc;
+    if (endpoint.previousSecretCiphertext &&
+        graceUntil &&
+        graceUntil.getTime() > timestampMs) {
+        const prevRaw = decryptWebhookSecret(endpoint.previousSecretCiphertext);
+        if (prevRaw) {
+            const prevSignature = signWebhookPayload(prevRaw, timestampMs, bodyStr);
+            // Comma-separated multi-sig — the order is "new first, prev
+            // second" so receivers that only parse the first entry pick up
+            // the new secret immediately after they finish rolling it out.
+            signatureHeader = `${newSignature},${prevSignature}`;
+        }
+    }
+    else if (endpoint.previousSecretCiphertext &&
+        graceUntil &&
+        graceUntil.getTime() <= timestampMs) {
+        // Grace window expired — clear the previous_* triple as a side
+        // effect of normal traffic. The clear is best-effort and never
+        // blocks the dispatch.
+        void clearExpiredPreviousWebhookSecret(endpoint.id, client);
+    }
     const headers = {
         "content-type": "application/json",
         [WEBHOOK_HEADER_EVENT]: row.eventType,
         [WEBHOOK_HEADER_EVENT_ID]: row.eventId,
         [WEBHOOK_HEADER_TIMESTAMP]: String(timestampMs),
-        [WEBHOOK_HEADER_SIGNATURE]: signature,
+        [WEBHOOK_HEADER_SIGNATURE]: signatureHeader,
         "user-agent": "PROOVRA-Webhooks/1",
     };
-    const resp = await httpClient({
-        url: endpoint.url,
-        body: bodyStr,
-        headers,
-        timeoutMs: DEFAULT_TIMEOUT_MS,
-    });
+    // Phase closure — bracket the SINGLE outbound HTTP call with a
+    // monotonic timer. `defaultHttpClient` already catches its own
+    // network errors and returns a `WebhookHttpResponse` either way, so
+    // the bracket is symmetric across success / 4xx / 5xx / abort. If a
+    // pluggable client throws, the catch around the bracket still
+    // records a duration — we only leave it null when the row reached a
+    // terminal status BEFORE we ever called httpClient (e.g.
+    // signing_key_unavailable above).
+    const startNs = process.hrtime.bigint();
+    let resp;
+    try {
+        resp = await httpClient({
+            url: endpoint.url,
+            body: bodyStr,
+            headers,
+            timeoutMs: DEFAULT_TIMEOUT_MS,
+        });
+    }
+    catch (err) {
+        // A pluggable client throwing is treated as an unknown transport
+        // error — same shape as `defaultHttpClient` would return on a
+        // fetch reject. The duration is still measured.
+        const msg = err && typeof err === "object" && "message" in err
+            ? String(err.message)
+            : String(err);
+        resp = { status: null, bodyPreview: null, errorMessage: msg };
+    }
+    const durationMs = measureDurationMs(startNs);
     const isSuccess = typeof resp.status === "number" &&
         resp.status >= 200 &&
         resp.status < 300;
@@ -253,6 +383,7 @@ async function attemptDeliveryInner(row, endpoint, client) {
                 errorMessage: null,
                 sentAtUtc: new Date(),
                 nextAttemptAtUtc: null,
+                responseDurationMs: durationMs,
             },
         })
             .catch(() => null);
@@ -273,6 +404,7 @@ async function attemptDeliveryInner(row, endpoint, client) {
                 errorMessage: resp.errorMessage,
                 failedAtUtc: new Date(),
                 nextAttemptAtUtc: null,
+                responseDurationMs: durationMs,
             },
         })
             .catch(() => null);
@@ -290,9 +422,22 @@ async function attemptDeliveryInner(row, endpoint, client) {
             responseBodyPreview: resp.bodyPreview,
             errorMessage: resp.errorMessage,
             nextAttemptAtUtc: new Date(Date.now() + delaySec * 1000),
+            responseDurationMs: durationMs,
         },
     })
         .catch(() => null);
     await recordWebhookEndpointFailure(endpoint.id, client);
     return "transient";
+}
+/**
+ * Phase closure — convert a `process.hrtime.bigint()` start nanosecond
+ * reading into a wall-clock millisecond duration relative to "now".
+ * Clamped at 0 so a clock jump can never produce a negative latency
+ * (defensive — bigint subtraction from the same monotonic source is
+ * already monotonic on every supported platform).
+ */
+function measureDurationMs(startNs) {
+    const elapsedNs = process.hrtime.bigint() - startNs;
+    const elapsedMs = Number(elapsedNs / 1000000n);
+    return elapsedMs < 0 ? 0 : elapsedMs;
 }

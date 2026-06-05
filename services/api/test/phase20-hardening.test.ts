@@ -651,8 +651,13 @@ describe("Phase 20 — route permission matrix (high-risk surfaces)", () => {
       ),
       "utf8",
     );
-    expect(src).toMatch(/purpose:\s*"SERVICE_ACCOUNT_CREATE"/);
-    expect(src).toMatch(/purpose:\s*"SERVICE_ACCOUNT_REVOKE"/);
+    // Phase 4 closure migrated these to dedicated INTEGRATION_API_KEY_*
+    // purposes. The legacy SERVICE_ACCOUNT_* purposes remain accepted on
+    // already-issued challenges via the alias map in @proovra/shared.
+    // See phase-closure-integration-step-up-purposes.test.ts for the
+    // full back-compat pin.
+    expect(src).toMatch(/purpose:\s*"INTEGRATION_API_KEY_CREATE"/);
+    expect(src).toMatch(/purpose:\s*"INTEGRATION_API_KEY_REVOKE"/);
   });
 
   it("identity-security routes self-protect MFA policy update with step-up", async () => {

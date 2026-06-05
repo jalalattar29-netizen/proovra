@@ -236,24 +236,115 @@ export async function updateWebhookEndpoint(input, client = defaultPrisma) {
         },
     });
 }
+// -----------------------------------------------------------------------------
+// PHASE 4 — dual-signing rotation.
+//
+// `rotateWebhookSecret()` issues a brand-new raw signing secret AND
+// preserves the prior signing material in the endpoint's `previous_*`
+// columns alongside an absolute cutoff
+// (`previousSecretValidUntilUtc = now + graceMinutes`). While the
+// window is open the dispatcher signs every outbound delivery with
+// BOTH secrets and emits the two signatures in the
+// `X-Proovra-Signature` header as `v1=<new>,v1=<old>` (Stripe-style
+// multi-sig). Receivers can verify against either, which lets them
+// roll the new secret into production without losing events.
+//
+// Caller contract:
+//   - graceMinutes is clamped to [1, MAX_WEBHOOK_ROTATION_GRACE_MINUTES]
+//     (24h ceiling). Default is DEFAULT_WEBHOOK_ROTATION_GRACE_MINUTES
+//     (60 minutes), matching the canonical api-credentials rotation
+//     window.
+//   - The new raw secret is returned EXACTLY ONCE and is NEVER stored
+//     in plaintext; the response object is the only path the operator
+//     can copy it from.
+//   - The PRIOR raw secret is NEVER returned — only the prior prefix
+//     (operator-visible, audit / display only) and the cutoff so the
+//     UI can show "old secret stops signing at HH:MM UTC."
+//
+// Audit: the route layer is responsible for writing the TeamActivity
+// row because this service has no access to the actor's audit context
+// other than the (implicit, route-supplied) actor. The service
+// guarantees DB consistency only.
+// -----------------------------------------------------------------------------
+export const MAX_WEBHOOK_ROTATION_GRACE_MINUTES = 24 * 60; // 1 day
+export const DEFAULT_WEBHOOK_ROTATION_GRACE_MINUTES = 60;
+function clampWebhookGraceMinutes(input) {
+    const raw = input ?? DEFAULT_WEBHOOK_ROTATION_GRACE_MINUTES;
+    if (!Number.isFinite(raw)) {
+        throw new WebhookEndpointError("invalid_grace_minutes", {
+            provided: input,
+            reason: "graceMinutes must be a finite number.",
+        });
+    }
+    const floored = Math.floor(raw);
+    if (floored < 1 || floored > MAX_WEBHOOK_ROTATION_GRACE_MINUTES) {
+        throw new WebhookEndpointError("invalid_grace_minutes", {
+            provided: input,
+            reason: `graceMinutes must be between 1 and ${MAX_WEBHOOK_ROTATION_GRACE_MINUTES}.`,
+        });
+    }
+    return floored;
+}
 export async function rotateWebhookSecret(input, client = defaultPrisma) {
     if (integrationsFeatureDisabledReason()) {
         throw new WebhookEndpointError("feature_disabled");
     }
+    const graceMinutes = clampWebhookGraceMinutes(input.graceMinutes);
     const existing = await getWebhookEndpoint({ id: input.id, teamId: input.teamId }, client);
     if (!existing)
         throw new WebhookEndpointError("endpoint_not_found");
     const issued = issueWebhookSecret();
     if (!issued)
         throw new WebhookEndpointError("secret_missing");
+    // Capture the prior signing material BEFORE issuing the update; the
+    // Prisma `update` call may mutate the underlying row reference
+    // (notably in our in-memory test stubs), so the snapshot has to be
+    // taken upfront for the return value.
+    const priorSecretCiphertext = existing.secretCiphertext;
+    const priorSecretPrefix = existing.secretPrefix;
+    const previousSecretValidUntilUtc = new Date(Date.now() + graceMinutes * 60 * 1000);
     const endpoint = await client.webhookEndpoint.update({
         where: { id: existing.id },
         data: {
             secretCiphertext: issued.secretCiphertext,
             secretPrefix: issued.secretPrefix,
+            // Carry the prior signing material so the dispatcher can emit
+            // both signatures during the grace window. Note: the wrap key
+            // is the SAME wrap key as `secretCiphertext` so storing the
+            // prior ciphertext here does not weaken the key derivation —
+            // both decrypt independently at dispatch time.
+            previousSecretCiphertext: priorSecretCiphertext,
+            previousSecretPrefix: priorSecretPrefix,
+            previousSecretValidUntilUtc,
         },
     });
-    return { endpoint, rawSecret: issued.rawSecret };
+    return {
+        endpoint,
+        rawSecret: issued.rawSecret,
+        previousSecretPrefix: priorSecretPrefix,
+        previousSecretValidUntilUtc,
+    };
+}
+/**
+ * Lazy clear of the previous_* triple on an endpoint whose grace
+ * window has expired. Called from the dispatcher on each delivery so
+ * the cleanup happens as a side-effect of normal traffic. No throw on
+ * failure — the dispatcher must always be best-effort.
+ */
+export async function clearExpiredPreviousWebhookSecret(id, client = defaultPrisma) {
+    try {
+        await client.webhookEndpoint.update({
+            where: { id },
+            data: {
+                previousSecretCiphertext: null,
+                previousSecretPrefix: null,
+                previousSecretValidUntilUtc: null,
+            },
+        });
+    }
+    catch {
+        /* best-effort */
+    }
 }
 export async function disableWebhookEndpoint(input, client = defaultPrisma) {
     const existing = await getWebhookEndpoint({ id: input.id, teamId: input.teamId }, client);
@@ -323,10 +414,13 @@ export function projectWebhookEndpoint(e) {
         failureCount: e.failureCount,
         lastSuccessAtUtc: e.lastSuccessAtUtc?.toISOString() ?? null,
         lastFailureAtUtc: e.lastFailureAtUtc?.toISOString() ?? null,
+        previousSecretPrefix: e.previousSecretPrefix ?? null,
+        previousSecretValidUntilUtc: e.previousSecretValidUntilUtc?.toISOString() ?? null,
         createdByUserId: e.createdByUserId,
         createdAt: e.createdAt.toISOString(),
         updatedAt: e.updatedAt.toISOString(),
-        // Deliberately NOT returned: secretCiphertext (and never the raw secret).
+        // Deliberately NOT returned: secretCiphertext, previousSecretCiphertext
+        // (and never the raw secret in either generation).
     };
 }
 void Prisma;

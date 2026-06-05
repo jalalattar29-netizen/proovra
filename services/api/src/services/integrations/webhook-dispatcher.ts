@@ -47,6 +47,7 @@ import {
 } from "../../observability/otel.js";
 import { isIntegrationsFeatureEnabled } from "./api-keys.service.js";
 import {
+  clearExpiredPreviousWebhookSecret,
   decryptWebhookSecret,
   recordWebhookEndpointFailure,
   recordWebhookEndpointSuccess,
@@ -203,6 +204,128 @@ const EMPTY_RESULT: EmitWebhookEventResult = Object.freeze({
   failedPermanent: 0,
 });
 
+/**
+ * Phase 3 — Operator-initiated test event.
+ *
+ * Synthesises a delivery for a SPECIFIC endpoint id, regardless of its
+ * subscribed event types. The synthetic delivery flows through the
+ * SAME signing + retry path as a real production event — same
+ * `attemptDelivery`, same HMAC, same retry ladder, same audit row
+ * shape. The only differences are:
+ *
+ *   - eventType is canonically `"webhook.test"` (not in the public
+ *     WEBHOOK_EVENT_TYPES enum — receivers will see this distinct
+ *     literal in the `X-Proovra-Event` header and on the row).
+ *   - payloadJson.kind = "test" so the operator UI can recognise
+ *     test events and the receiver can ignore them in production.
+ *   - The endpoint is matched by `endpointId` and `teamId` directly;
+ *     subscription filtering is bypassed. Endpoint MUST be ACTIVE.
+ *
+ * Returns `null` when the endpoint is missing, belongs to another
+ * team, or is not ACTIVE. Returns the created delivery row plus the
+ * eventId otherwise. NEVER throws — same swallow-error posture as
+ * `emitWebhookEvent` so the route stays simple.
+ */
+export type DispatchTestEventInput = {
+  endpointId: string;
+  teamId: string;
+  /**
+   * Optional small payload provided by the operator. We deep-bound it
+   * (see TEST_EVENT_MAX_PAYLOAD_BYTES) so a runaway payload cannot
+   * fill `payloadJson`. Defaults to {}.
+   */
+  payload?: Record<string, unknown>;
+  /**
+   * If true (default), attempt inline so the operator sees the result
+   * immediately. Set false to defer to the retry sweeper.
+   */
+  attemptInline?: boolean;
+};
+
+export type DispatchTestEventResult = {
+  deliveryId: string;
+  eventId: string;
+  outcome: "delivered" | "transient" | "permanent" | "queued";
+};
+
+/** Hard cap so an operator cannot wedge the table with a large blob. */
+export const TEST_EVENT_MAX_PAYLOAD_BYTES = 4 * 1024; // 4 KiB
+/** Canonical event-type literal for test deliveries. */
+export const TEST_EVENT_TYPE = "webhook.test" as const;
+
+export async function dispatchTestEventToEndpoint(
+  input: DispatchTestEventInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<DispatchTestEventResult | null> {
+  if (!isIntegrationsFeatureEnabled()) return null;
+
+  let endpoint: DbEndpoint | null;
+  try {
+    endpoint = await client.webhookEndpoint.findFirst({
+      where: { id: input.endpointId, teamId: input.teamId },
+    });
+  } catch {
+    return null;
+  }
+  if (!endpoint || endpoint.status !== "ACTIVE") return null;
+
+  // Bound the supplied payload. Operator-provided JSON-stringifies to
+  // < TEST_EVENT_MAX_PAYLOAD_BYTES; if it exceeds, we drop the
+  // operator payload and use a sentinel marker instead of failing the
+  // request — the test event still goes out so the connectivity
+  // signal is preserved.
+  let safePayload: Record<string, unknown> = { ok: true };
+  if (input.payload && typeof input.payload === "object") {
+    try {
+      const serialised = JSON.stringify(input.payload);
+      if (serialised.length <= TEST_EVENT_MAX_PAYLOAD_BYTES) {
+        safePayload = input.payload;
+      } else {
+        safePayload = { ok: true, payload_omitted: "exceeded_size_cap" };
+      }
+    } catch {
+      safePayload = { ok: true, payload_omitted: "not_serialisable" };
+    }
+  }
+
+  const eventId = randomUUID();
+  const payloadJson = {
+    event: TEST_EVENT_TYPE,
+    eventId,
+    timestampUtc: new Date().toISOString(),
+    teamId: input.teamId,
+    // The `kind` marker is the canonical way to recognise an
+    // operator-initiated test event on the receiver side; the bounded
+    // operator payload is nested under `data`.
+    kind: "test",
+    data: safePayload,
+  };
+
+  let row: DbDelivery;
+  try {
+    row = await client.integrationWebhookDelivery.create({
+      data: {
+        endpointId: endpoint.id,
+        teamId: input.teamId,
+        eventId,
+        eventType: TEST_EVENT_TYPE,
+        payloadJson: payloadJson as unknown as Prisma.InputJsonValue,
+        status: "PENDING",
+        attemptCount: 0,
+      },
+    });
+  } catch {
+    return null;
+  }
+
+  if (input.attemptInline === false) {
+    return { deliveryId: row.id, eventId, outcome: "queued" };
+  }
+
+  const outcome = await attemptDelivery(row, endpoint, client);
+  return { deliveryId: row.id, eventId, outcome };
+}
+
 export async function emitWebhookEvent(
   input: EmitWebhookEventInput,
   client: PrismaClient = defaultPrisma,
@@ -320,24 +443,86 @@ async function attemptDeliveryInner(
     return "permanent";
   }
 
+  // Phase 4 — dual-signing during rotation grace.
+  //
+  // If the endpoint has a non-null previousSecretCiphertext AND the
+  // grace window has not yet expired, compute the OLD signature too
+  // and append it to the `X-Proovra-Signature` header as a comma-
+  // separated list `v1=<new>,v1=<old>` (Stripe-style multi-sig).
+  // Receivers can verify against either, which lets them roll the new
+  // secret into production without dropping events.
+  //
+  // Lazy cleanup: if the grace window has expired, fire-and-forget a
+  // clear of the previous_* triple so the endpoint reverts to single-
+  // sign on subsequent deliveries. Best-effort — never blocks the
+  // dispatch.
   const timestampMs = Date.now();
   const bodyStr = JSON.stringify(row.payloadJson);
-  const signature = signWebhookPayload(rawSecret, timestampMs, bodyStr);
+  const newSignature = signWebhookPayload(rawSecret, timestampMs, bodyStr);
+
+  let signatureHeader = newSignature;
+  const graceUntil = endpoint.previousSecretValidUntilUtc;
+  if (
+    endpoint.previousSecretCiphertext &&
+    graceUntil &&
+    graceUntil.getTime() > timestampMs
+  ) {
+    const prevRaw = decryptWebhookSecret(endpoint.previousSecretCiphertext);
+    if (prevRaw) {
+      const prevSignature = signWebhookPayload(prevRaw, timestampMs, bodyStr);
+      // Comma-separated multi-sig — the order is "new first, prev
+      // second" so receivers that only parse the first entry pick up
+      // the new secret immediately after they finish rolling it out.
+      signatureHeader = `${newSignature},${prevSignature}`;
+    }
+  } else if (
+    endpoint.previousSecretCiphertext &&
+    graceUntil &&
+    graceUntil.getTime() <= timestampMs
+  ) {
+    // Grace window expired — clear the previous_* triple as a side
+    // effect of normal traffic. The clear is best-effort and never
+    // blocks the dispatch.
+    void clearExpiredPreviousWebhookSecret(endpoint.id, client);
+  }
+
   const headers: Record<string, string> = {
     "content-type": "application/json",
     [WEBHOOK_HEADER_EVENT]: row.eventType,
     [WEBHOOK_HEADER_EVENT_ID]: row.eventId,
     [WEBHOOK_HEADER_TIMESTAMP]: String(timestampMs),
-    [WEBHOOK_HEADER_SIGNATURE]: signature,
+    [WEBHOOK_HEADER_SIGNATURE]: signatureHeader,
     "user-agent": "PROOVRA-Webhooks/1",
   };
 
-  const resp = await httpClient({
-    url: endpoint.url,
-    body: bodyStr,
-    headers,
-    timeoutMs: DEFAULT_TIMEOUT_MS,
-  });
+  // Phase closure — bracket the SINGLE outbound HTTP call with a
+  // monotonic timer. `defaultHttpClient` already catches its own
+  // network errors and returns a `WebhookHttpResponse` either way, so
+  // the bracket is symmetric across success / 4xx / 5xx / abort. If a
+  // pluggable client throws, the catch around the bracket still
+  // records a duration — we only leave it null when the row reached a
+  // terminal status BEFORE we ever called httpClient (e.g.
+  // signing_key_unavailable above).
+  const startNs = process.hrtime.bigint();
+  let resp: WebhookHttpResponse;
+  try {
+    resp = await httpClient({
+      url: endpoint.url,
+      body: bodyStr,
+      headers,
+      timeoutMs: DEFAULT_TIMEOUT_MS,
+    });
+  } catch (err) {
+    // A pluggable client throwing is treated as an unknown transport
+    // error — same shape as `defaultHttpClient` would return on a
+    // fetch reject. The duration is still measured.
+    const msg =
+      err && typeof err === "object" && "message" in err
+        ? String((err as { message: unknown }).message)
+        : String(err);
+    resp = { status: null, bodyPreview: null, errorMessage: msg };
+  }
+  const durationMs = measureDurationMs(startNs);
 
   const isSuccess =
     typeof resp.status === "number" &&
@@ -356,6 +541,7 @@ async function attemptDeliveryInner(
           errorMessage: null,
           sentAtUtc: new Date(),
           nextAttemptAtUtc: null,
+          responseDurationMs: durationMs,
         },
       })
       .catch(() => null);
@@ -381,6 +567,7 @@ async function attemptDeliveryInner(
           errorMessage: resp.errorMessage,
           failedAtUtc: new Date(),
           nextAttemptAtUtc: null,
+          responseDurationMs: durationMs,
         },
       })
       .catch(() => null);
@@ -399,9 +586,23 @@ async function attemptDeliveryInner(
         responseBodyPreview: resp.bodyPreview,
         errorMessage: resp.errorMessage,
         nextAttemptAtUtc: new Date(Date.now() + delaySec * 1000),
+        responseDurationMs: durationMs,
       },
     })
     .catch(() => null);
   await recordWebhookEndpointFailure(endpoint.id, client);
   return "transient";
+}
+
+/**
+ * Phase closure — convert a `process.hrtime.bigint()` start nanosecond
+ * reading into a wall-clock millisecond duration relative to "now".
+ * Clamped at 0 so a clock jump can never produce a negative latency
+ * (defensive — bigint subtraction from the same monotonic source is
+ * already monotonic on every supported platform).
+ */
+function measureDurationMs(startNs: bigint): number {
+  const elapsedNs = process.hrtime.bigint() - startNs;
+  const elapsedMs = Number(elapsedNs / 1_000_000n);
+  return elapsedMs < 0 ? 0 : elapsedMs;
 }

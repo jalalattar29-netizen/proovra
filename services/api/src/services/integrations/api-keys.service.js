@@ -44,6 +44,22 @@ export function integrationsFeatureDisabledReason() {
         return "secret_missing";
     return null;
 }
+export function getIntegrationsRuntimeDiagnostics() {
+    const rawApiKey = process.env[API_KEY_SECRET_ENV];
+    const trimmedApiKey = (rawApiKey ?? "").trim();
+    const apiKeySecretBound = trimmedApiKey.length > 0;
+    const apiKeySecretLengthValid = trimmedApiKey.length >= 32;
+    const rawCron = process.env.INTEGRATION_CRON_SECRET;
+    const cronSecretBound = (rawCron ?? "").trim().length >= 16;
+    const reason = integrationsFeatureDisabledReason();
+    return {
+        enabled: reason === null,
+        apiKeySecretBound,
+        apiKeySecretLengthValid,
+        cronSecretBound,
+        reason,
+    };
+}
 function base64url(buf) {
     return buf
         .toString("base64")
@@ -156,8 +172,98 @@ export async function revokeApiCredential(input, client = defaultPrisma) {
             revokedAtUtc: new Date(),
             revokedByUserId: input.actorUserId,
             revokedReason: input.reason?.slice(0, 400) ?? null,
+            // Phase 2 — revoking a credential MUST also kill any in-flight
+            // dual-active previous hash so the old raw key cannot be replayed
+            // through the grace window after explicit revocation.
+            previousKeyHash: null,
+            previousKeyPrefix: null,
+            previousValidUntilUtc: null,
         },
     });
+}
+// -----------------------------------------------------------------------------
+// PHASE 2 — true dual-active rotation.
+//
+// rotateApiCredential() issues a brand-new raw key + hash + prefix and stores
+// the PRIOR hash/prefix in the `previous_*` columns alongside an absolute
+// cutoff (`previousValidUntilUtc = now + graceMinutes`). The new raw key is
+// returned exactly once — the caller MUST surface it then drop it. After the
+// cutoff, the verify path stops accepting the previous hash.
+//
+// Caller contract:
+//   - The credential must be ACTIVE (REVOKED / hard-disabled cannot rotate).
+//   - graceMinutes is clamped to [1, MAX_ROTATION_GRACE_MINUTES] (24h ceiling).
+//   - rotation_required is cleared on success — the rotation just happened.
+//   - lastUsedAtUtc is left untouched so the operator-facing "last used"
+//     metric still reflects when the OLD key was last successfully verified.
+//
+// Audit: the route layer is responsible for writing the TeamActivity row
+// because this service has no access to the actor's audit context other
+// than `actorUserId`. The service guarantees DB consistency only.
+// -----------------------------------------------------------------------------
+export const MAX_ROTATION_GRACE_MINUTES = 24 * 60; // 1 day
+export const DEFAULT_ROTATION_GRACE_MINUTES = 60;
+function clampGraceMinutes(input) {
+    const raw = input ?? DEFAULT_ROTATION_GRACE_MINUTES;
+    if (!Number.isFinite(raw)) {
+        throw new ApiCredentialError("invalid_grace_minutes", {
+            provided: input,
+            reason: "graceMinutes must be a finite number.",
+        });
+    }
+    const floored = Math.floor(raw);
+    if (floored < 1 || floored > MAX_ROTATION_GRACE_MINUTES) {
+        throw new ApiCredentialError("invalid_grace_minutes", {
+            provided: input,
+            reason: `graceMinutes must be between 1 and ${MAX_ROTATION_GRACE_MINUTES}.`,
+        });
+    }
+    return floored;
+}
+export async function rotateApiCredential(input, client = defaultPrisma) {
+    if (integrationsFeatureDisabledReason()) {
+        throw new ApiCredentialError("feature_disabled");
+    }
+    const graceMinutes = clampGraceMinutes(input.graceMinutes);
+    const existing = await client.apiCredential.findFirst({
+        where: { id: input.id, teamId: input.teamId },
+    });
+    if (!existing)
+        throw new ApiCredentialError("credential_not_found");
+    if (existing.status === "REVOKED") {
+        throw new ApiCredentialError("credential_already_revoked");
+    }
+    // Disabled (soft-paused) credentials should not rotate — enable them
+    // first. Distinguishing this case from "revoked" gives the operator a
+    // clearer error.
+    if (existing.disabledAtUtc !== null) {
+        throw new ApiCredentialError("credential_not_active", {
+            reason: "Credential is disabled; enable it before rotating.",
+        });
+    }
+    const issued = issueApiKey();
+    if (!issued)
+        throw new ApiCredentialError("secret_missing");
+    const previousValidUntilUtc = new Date(Date.now() + graceMinutes * 60 * 1000);
+    const credential = await client.apiCredential.update({
+        where: { id: existing.id },
+        data: {
+            keyPrefix: issued.keyPrefix,
+            keyHash: issued.keyHash,
+            previousKeyHash: existing.keyHash,
+            previousKeyPrefix: existing.keyPrefix,
+            previousValidUntilUtc,
+            // Rotation just happened — clear the operator hint so the caller
+            // doesn't see "rotation required" on the freshly rotated key.
+            rotationRequired: false,
+        },
+    });
+    return {
+        credential,
+        rawKey: issued.rawKey,
+        previousKeyPrefix: existing.keyPrefix,
+        previousValidUntilUtc,
+    };
 }
 export async function disableApiCredential(input, client = defaultPrisma) {
     const existing = await client.apiCredential.findFirst({
@@ -235,11 +341,42 @@ export async function verifyApiKeyDetailed(rawKey, client = defaultPrisma) {
     const hash = hashIncomingApiKey(rawKey);
     if (!hash)
         return { ok: false, reason: "missing_or_malformed" };
-    const row = await client.apiCredential.findUnique({
+    // Phase 2 — true dual-active verification. We first look up by the
+    // current `keyHash`. If no row matches, we fall back to looking up
+    // by `previousKeyHash` and accept the credential ONLY if the previous
+    // grace window has not yet expired. This keeps the happy-path query
+    // identical to before (one unique-index lookup) and only pays for the
+    // second lookup when a stale key is in flight.
+    let row = await client.apiCredential.findUnique({
         where: { keyHash: hash },
     });
-    if (!row)
-        return { ok: false, reason: "not_found" };
+    let matchedPrevious = false;
+    if (!row) {
+        const prev = await client.apiCredential.findFirst({
+            where: { previousKeyHash: hash },
+        });
+        if (!prev)
+            return { ok: false, reason: "not_found" };
+        // Previous-key window expired: lazily clear the columns and reject.
+        // Cleanup runs best-effort; a failure here does NOT promote the
+        // rejection into a success.
+        if (prev.previousValidUntilUtc === null ||
+            prev.previousValidUntilUtc.getTime() <= Date.now()) {
+            client.apiCredential
+                .update({
+                where: { id: prev.id },
+                data: {
+                    previousKeyHash: null,
+                    previousKeyPrefix: null,
+                    previousValidUntilUtc: null,
+                },
+            })
+                .catch(() => null);
+            return { ok: false, reason: "expired" };
+        }
+        row = prev;
+        matchedPrevious = true;
+    }
     if (row.status !== "ACTIVE")
         return { ok: false, reason: "revoked" };
     if (row.disabledAtUtc !== null)
@@ -248,7 +385,11 @@ export async function verifyApiKeyDetailed(rawKey, client = defaultPrisma) {
         row.expiresAtUtc.getTime() <= Date.now()) {
         return { ok: false, reason: "expired" };
     }
-    if (!constantTimeEqualHex(row.keyHash, hash)) {
+    // Constant-time hash check against whichever column actually matched.
+    const storedHash = matchedPrevious
+        ? row.previousKeyHash ?? ""
+        : row.keyHash;
+    if (!constantTimeEqualHex(storedHash, hash)) {
         return { ok: false, reason: "hash_mismatch" };
     }
     // Update lastUsed asynchronously; failure doesn't block the auth path.
@@ -265,7 +406,11 @@ export async function verifyApiKeyDetailed(rawKey, client = defaultPrisma) {
             teamId: row.teamId,
             scopes: row.scopes,
             ipAllowlist: row.ipAllowlist,
-            rotationRequired: row.rotationRequired,
+            // Phase 2 — if the caller authenticated with the PREVIOUS key, force
+            // `rotationRequired=true` regardless of the stored value so middleware
+            // surfaces the `x-proovra-rotation-required` header. This nudges the
+            // integration to swap to the new key before the grace window ends.
+            rotationRequired: matchedPrevious ? true : row.rotationRequired,
             environment: row.environment,
             expiresAtUtc: row.expiresAtUtc,
         },
@@ -294,9 +439,11 @@ export function projectApiCredential(c) {
         rotationRequired: c.rotationRequired,
         ipAllowlist: c.ipAllowlist,
         environment: c.environment,
+        previousKeyPrefix: c.previousKeyPrefix ?? null,
+        previousValidUntilUtc: c.previousValidUntilUtc?.toISOString() ?? null,
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
-        // Deliberately NOT returned: keyHash.
+        // Deliberately NOT returned: keyHash, previousKeyHash.
     };
 }
 void Prisma; // keep prisma import live for future use

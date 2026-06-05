@@ -96,6 +96,10 @@ describe("api credential projection — never echoes the hash", () => {
       rotationRequired: false,
       ipAllowlist: [],
       environment: null,
+      // PHASE 2 — dual-active rotation columns; null on a never-rotated row.
+      previousKeyHash: null,
+      previousKeyPrefix: null,
+      previousValidUntilUtc: null,
       createdAt: NOW,
       updatedAt: NOW,
     });
@@ -124,6 +128,9 @@ describe("webhook delivery detail projection — privacy", () => {
       errorMessage: "y".repeat(800),
       sentAtUtc: null,
       failedAtUtc: NOW,
+      // Phase closure — measured outbound-fetch duration. Recorded
+      // when the dispatcher issued the fetch (all 5xx flows have it).
+      responseDurationMs: 42,
       createdAt: NOW,
       updatedAt: NOW,
     });
@@ -149,6 +156,7 @@ describe("webhook delivery detail projection — privacy", () => {
       errorMessage: "y".repeat(1500),
       sentAtUtc: null,
       failedAtUtc: NOW,
+      responseDurationMs: null,
       createdAt: NOW,
       updatedAt: NOW,
     });
@@ -171,12 +179,21 @@ describe("webhook endpoint projection — privacy", () => {
       failureCount: 0,
       lastSuccessAtUtc: null,
       lastFailureAtUtc: null,
+      // Phase 4 — dual-signing rotation columns (nullable; unrotated
+      // endpoint).
+      previousSecretCiphertext: null,
+      previousSecretPrefix: null,
+      previousSecretValidUntilUtc: null,
       createdByUserId: "55555555-5555-4555-8555-555555555555",
       createdAt: NOW,
       updatedAt: NOW,
     });
     expect(
       (projected as Record<string, unknown>).secretCiphertext,
+    ).toBeUndefined();
+    // Phase 4 — the previous_* ciphertext is similarly never projected.
+    expect(
+      (projected as Record<string, unknown>).previousSecretCiphertext,
     ).toBeUndefined();
     expect(JSON.stringify(projected)).not.toContain(
       "AAAA-this-should-never-be-projected-AAAA",

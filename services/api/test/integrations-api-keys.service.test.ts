@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   constantTimeEqualHex,
   filterValidScopes,
+  getIntegrationsRuntimeDiagnostics,
   hashIncomingApiKey,
   integrationsFeatureDisabledReason,
   isIntegrationsFeatureEnabled,
@@ -133,6 +134,82 @@ describe("api credentials — issue + verify", () => {
     expect(constantTimeEqualHex(a, b)).toBe(false);
     expect(constantTimeEqualHex("nope", "nope")).toBe(false);
     expect(constantTimeEqualHex("a".repeat(63), "a".repeat(63))).toBe(false);
+  });
+});
+
+describe("api credentials — runtime diagnostics", () => {
+  let originalFlag: string | undefined;
+  let originalSecret: string | undefined;
+  let originalCron: string | undefined;
+
+  beforeEach(() => {
+    originalFlag = process.env.INTEGRATIONS_ENABLED;
+    originalSecret = process.env.API_KEY_SECRET;
+    originalCron = process.env.INTEGRATION_CRON_SECRET;
+    delete process.env.INTEGRATIONS_ENABLED;
+    delete process.env.API_KEY_SECRET;
+    delete process.env.INTEGRATION_CRON_SECRET;
+  });
+
+  afterEach(() => {
+    if (originalFlag === undefined) delete process.env.INTEGRATIONS_ENABLED;
+    else process.env.INTEGRATIONS_ENABLED = originalFlag;
+    if (originalSecret === undefined) delete process.env.API_KEY_SECRET;
+    else process.env.API_KEY_SECRET = originalSecret;
+    if (originalCron === undefined) delete process.env.INTEGRATION_CRON_SECRET;
+    else process.env.INTEGRATION_CRON_SECRET = originalCron;
+  });
+
+  it("reports feature_flag_off + unbound secrets when nothing is set", () => {
+    const d = getIntegrationsRuntimeDiagnostics();
+    expect(d.enabled).toBe(false);
+    expect(d.reason).toBe("feature_flag_off");
+    expect(d.apiKeySecretBound).toBe(false);
+    expect(d.apiKeySecretLengthValid).toBe(false);
+    expect(d.cronSecretBound).toBe(false);
+  });
+
+  it("reports secret_missing when flag is on but secret is unset", () => {
+    process.env.INTEGRATIONS_ENABLED = "true";
+    const d = getIntegrationsRuntimeDiagnostics();
+    expect(d.enabled).toBe(false);
+    expect(d.reason).toBe("secret_missing");
+    expect(d.apiKeySecretBound).toBe(false);
+    expect(d.apiKeySecretLengthValid).toBe(false);
+  });
+
+  it("reports secret_missing + bound-but-too-short when secret < 32", () => {
+    process.env.INTEGRATIONS_ENABLED = "true";
+    process.env.API_KEY_SECRET = "tiny";
+    const d = getIntegrationsRuntimeDiagnostics();
+    expect(d.enabled).toBe(false);
+    expect(d.reason).toBe("secret_missing");
+    expect(d.apiKeySecretBound).toBe(true);
+    expect(d.apiKeySecretLengthValid).toBe(false);
+  });
+
+  it("reports enabled=true + all secrets ok when fully configured", () => {
+    process.env.INTEGRATIONS_ENABLED = "true";
+    process.env.API_KEY_SECRET = TEST_SECRET;
+    process.env.INTEGRATION_CRON_SECRET = "c".repeat(40);
+    const d = getIntegrationsRuntimeDiagnostics();
+    expect(d.enabled).toBe(true);
+    expect(d.reason).toBeNull();
+    expect(d.apiKeySecretBound).toBe(true);
+    expect(d.apiKeySecretLengthValid).toBe(true);
+    expect(d.cronSecretBound).toBe(true);
+  });
+
+  it("never exposes the secret value or its exact length", () => {
+    process.env.INTEGRATIONS_ENABLED = "true";
+    process.env.API_KEY_SECRET = TEST_SECRET;
+    process.env.INTEGRATION_CRON_SECRET = "c".repeat(40);
+    const d = getIntegrationsRuntimeDiagnostics();
+    const serialized = JSON.stringify(d);
+    expect(serialized).not.toContain(TEST_SECRET);
+    expect(serialized).not.toContain("c".repeat(40));
+    // No numeric length field should be exposed.
+    expect(serialized).not.toMatch(/"length"\s*:/);
   });
 });
 

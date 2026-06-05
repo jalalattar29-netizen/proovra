@@ -30,6 +30,7 @@ import * as prismaPkg from "@prisma/client";
 import {
   STEP_UP_TTL_DEFAULT_SECONDS,
   STEP_UP_TTL_MAX_SECONDS,
+  purposeSatisfies,
   type StepUpPurpose,
 } from "@proovra/shared";
 
@@ -373,7 +374,15 @@ export async function consumeApprovedChallenge(
     });
     throw new StepUpError("challenge_expired");
   }
-  if (row.purpose !== input.purpose) {
+  // Phase 4 closure — back-compat: a challenge row stored with a
+  // legacy purpose (SERVICE_ACCOUNT_CREATE / SERVICE_ACCOUNT_REVOKE /
+  // SERVICE_ACCOUNT_HARDENING_UPDATE) STILL satisfies the
+  // corresponding new INTEGRATION_* purpose check, per
+  // LEGACY_STEP_UP_PURPOSE_ALIASES in @proovra/shared. Exact-match
+  // remains the common case; the alias map only kicks in when the
+  // stored row is a legacy value. The reverse direction (new purpose
+  // satisfying a legacy check) is intentionally NOT allowed.
+  if (!purposeSatisfies(row.purpose, input.purpose)) {
     throw new StepUpError("challenge_purpose_mismatch");
   }
   const expectedResourceId = input.resourceId ?? null;

@@ -173,9 +173,124 @@ export const STEP_UP_PURPOSES = [
   // conflate two distinct sensitive actions, so PROOVRA tracks them
   // separately.
   "SIU_PII_REVEAL",
+  // Phase 4 closure — dedicated integration step-up purposes. Prior to
+  // this closure pass several integration routes shared coarse
+  // `SERVICE_ACCOUNT_*` purposes (e.g. test-send + secret rotation both
+  // used SERVICE_ACCOUNT_HARDENING_UPDATE). That conflated unrelated
+  // sensitive actions on the audit trail and prevented an approval for
+  // one action from being denied on another. Each integration action
+  // now has its own purpose; the legacy purposes are still ACCEPTED via
+  // the alias map below so previously-issued challenges and any
+  // operator scripts that still send the old purpose continue to work.
+  //
+  // The storage column for `step_up_challenges.purpose` is a
+  // VARCHAR(64) (NOT a Postgres enum) — Phase 1 verified this — so
+  // adding values does not require a DB migration. Longest new value is
+  // INTEGRATION_WEBHOOK_SECRET_ROTATE = 32 chars, well under the 64
+  // limit.
+  "INTEGRATION_API_KEY_CREATE",
+  "INTEGRATION_API_KEY_ROTATE",
+  "INTEGRATION_API_KEY_REVOKE",
+  "INTEGRATION_API_KEY_EXPIRY_UPDATE",
+  "INTEGRATION_WEBHOOK_CREATE",
+  "INTEGRATION_WEBHOOK_TEST",
+  "INTEGRATION_WEBHOOK_SECRET_ROTATE",
+  "INTEGRATION_WEBHOOK_RETRY",
+  "INTEGRATION_WEBHOOK_DISABLE",
+  "INTEGRATION_WEBHOOK_ENABLE",
 ] as const;
 export const StepUpPurposeSchema = z.enum(STEP_UP_PURPOSES);
 export type StepUpPurpose = z.infer<typeof StepUpPurposeSchema>;
+
+// -----------------------------------------------------------------------------
+// Phase 4 closure — Step-up purpose backward-compatibility aliases.
+//
+// When the integration routes were first wired (Phase 10/19) we did not
+// have dedicated step-up purposes for each integration action, so
+// several routes reused the closest adjacent `SERVICE_ACCOUNT_*`
+// purpose. Phase 4 introduces the dedicated purposes above. To avoid
+// breaking already-issued challenges or operator scripts that still
+// send the legacy value, the step-up middleware accepts a legacy
+// purpose on a challenge row as satisfying the corresponding new
+// canonical purpose check.
+//
+// IMPORTANT invariants of this map:
+//   - It is ADDITIVE. A legacy value maps to ONE new canonical purpose.
+//     We never broaden a legacy challenge to satisfy multiple new
+//     purposes (that would weaken the gate).
+//   - The map is consulted by `purposeSatisfies` only. It is NOT
+//     applied to incoming validation: a route still MUST pass a value
+//     in `STEP_UP_PURPOSES` (the Zod schema rejects ad-hoc strings).
+//   - Mapping is one-directional: a NEW purpose stored on a challenge
+//     does NOT satisfy a LEGACY purpose check. (No route should ever
+//     pass a legacy purpose to the middleware once Phase 4 ships; this
+//     direction would only mask migration regressions.)
+//   - The legacy values themselves remain members of STEP_UP_PURPOSES
+//     above — they are still valid purposes for the non-integration
+//     actions they were originally created for (service account
+//     create/revoke/hardening on identity surfaces).
+//
+// Mapping rationale (Phase 1 findings + closure brief):
+//   SERVICE_ACCOUNT_CREATE             -> INTEGRATION_API_KEY_CREATE
+//   SERVICE_ACCOUNT_REVOKE             -> INTEGRATION_API_KEY_REVOKE
+//                                         (also previously used for
+//                                         rotate; rotate gets its own
+//                                         alias below)
+//   SERVICE_ACCOUNT_HARDENING_UPDATE   -> INTEGRATION_WEBHOOK_SECRET_ROTATE
+//                                         (the test-send legacy reuse
+//                                         is documented in the route
+//                                         comment but a single
+//                                         many-to-one map would
+//                                         silently broaden the gate, so
+//                                         we deliberately do NOT alias
+//                                         hardening to TEST as well —
+//                                         see the test-send route
+//                                         migration note)
+// -----------------------------------------------------------------------------
+
+const LEGACY_STEP_UP_PURPOSE_ALIASES: Readonly<
+  Record<string, StepUpPurpose>
+> = {
+  SERVICE_ACCOUNT_CREATE: "INTEGRATION_API_KEY_CREATE",
+  SERVICE_ACCOUNT_REVOKE: "INTEGRATION_API_KEY_REVOKE",
+  SERVICE_ACCOUNT_HARDENING_UPDATE: "INTEGRATION_WEBHOOK_SECRET_ROTATE",
+};
+
+/**
+ * Returns the set of NEW canonical purposes that a row carrying the
+ * given (possibly legacy) purpose is allowed to satisfy under the
+ * Phase 4 alias map. The set always includes the row's own purpose
+ * (identity mapping); legacy purposes additionally include their
+ * single Phase 4 successor.
+ *
+ * The result is small and pure — callers can compare with `.has(x)`.
+ */
+export function legacyAliasesForStoredPurpose(
+  storedPurpose: string,
+): ReadonlySet<string> {
+  const out = new Set<string>([storedPurpose]);
+  const alias = LEGACY_STEP_UP_PURPOSE_ALIASES[storedPurpose];
+  if (alias) out.add(alias);
+  return out;
+}
+
+/**
+ * Returns true when a challenge row stored with `storedPurpose`
+ * satisfies a step-up gate for `requestedPurpose`. Exact match always
+ * passes. A legacy `storedPurpose` additionally satisfies its Phase 4
+ * successor (see `LEGACY_STEP_UP_PURPOSE_ALIASES`).
+ *
+ * The reverse direction is intentionally NOT allowed: a row carrying
+ * the new purpose does NOT satisfy a check for the legacy purpose.
+ */
+export function purposeSatisfies(
+  storedPurpose: string,
+  requestedPurpose: StepUpPurpose,
+): boolean {
+  if (storedPurpose === requestedPurpose) return true;
+  const alias = LEGACY_STEP_UP_PURPOSE_ALIASES[storedPurpose];
+  return alias === requestedPurpose;
+}
 
 // -----------------------------------------------------------------------------
 // Step-up challenge statuses

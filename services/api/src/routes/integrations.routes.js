@@ -8,11 +8,13 @@
  *   GET    /v1/integrations/webhooks?teamId
  *   POST   /v1/integrations/webhooks
  *   PUT    /v1/integrations/webhooks/:id
- *   POST   /v1/integrations/webhooks/:id/rotate-secret
+ *   POST   /v1/integrations/webhooks/:id/rotate-secret    (Phase 4 — dual-signing)
  *   POST   /v1/integrations/webhooks/:id/disable
  *   GET    /v1/integrations/webhooks/:id/deliveries
  *
- *   POST   /v1/integrations/process-webhook-retries  (cron-protected)
+ *   POST   /v1/integrations/process-webhook-retries     (cron-protected)
+ *   POST   /v1/integrations/webhooks/cleanup-deliveries  (cron-protected; Phase 10.5)
+ *   POST   /v1/integrations/process-secret-cleanup       (cron-protected; PHASE 5 closure)
  *
  * All endpoint-mutating routes require workspace membership AND the
  * canonical `integration.api_key.manage` / `integration.webhook.manage`
@@ -25,13 +27,19 @@ import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
-import { ApiCredentialError, createApiCredential, integrationsFeatureDisabledReason, listApiCredentials, projectApiCredential, revokeApiCredential, } from "../services/integrations/api-keys.service.js";
+import { ApiCredentialError, createApiCredential, getIntegrationsRuntimeDiagnostics, integrationsFeatureDisabledReason, listApiCredentials, projectApiCredential, revokeApiCredential, rotateApiCredential, updateApiCredentialHardening, MAX_ROTATION_GRACE_MINUTES, } from "../services/integrations/api-keys.service.js";
+import { getEnvSourceHint } from "../env.js";
 // Phase 19 — API key create/revoke require step-up.
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { listApiCredentialUsage, projectApiCredentialUsage, } from "../services/integrations/api-key-usage.service.js";
-import { WebhookEndpointError, createWebhookEndpoint, disableWebhookEndpoint, getWebhookEndpoint, listWebhookEndpoints, projectWebhookEndpoint, rotateWebhookSecret, updateWebhookEndpoint, } from "../services/integrations/webhooks.service.js";
+import { MAX_WEBHOOK_ROTATION_GRACE_MINUTES, WebhookEndpointError, createWebhookEndpoint, disableWebhookEndpoint, getWebhookEndpoint, listWebhookEndpoints, projectWebhookEndpoint, rotateWebhookSecret, updateWebhookEndpoint, } from "../services/integrations/webhooks.service.js";
+// PHASE 5 — admin health dashboard. Service computes every value from
+// real DB rows; route only handles auth + projection.
+import { computeIntegrationsHealthSnapshot } from "../services/integrations/integration-health.service.js";
 import { processDueWebhookRetries } from "../services/integrations/webhook-retry-processor.js";
+import { sweepExpiredPreviousIntegrationSecrets } from "../services/integrations/secret-cleanup.service.js";
 import { WebhookDeliveryOpError, cancelWebhookDelivery, cleanupOldWebhookDeliveries, getWebhookDelivery, manuallyRetryWebhookDelivery, projectWebhookDeliveryDetail, } from "../services/integrations/webhook-deliveries.service.js";
+import { dispatchTestEventToEndpoint, TEST_EVENT_MAX_PAYLOAD_BYTES, TEST_EVENT_TYPE, } from "../services/integrations/webhook-dispatcher.js";
 import { requirePermission } from "../services/governance.service.js";
 const ParamsId = z.object({ id: z.string().uuid() });
 async function requireMember(req, reply, teamId) {
@@ -59,6 +67,44 @@ function gateFeatureOrReply(reply) {
         return false;
     }
     return true;
+}
+// Phase 2 — API credential audit event emitter; see .ts sibling for contract.
+async function emitApiKeyAudit(input) {
+    try {
+        await prisma.teamActivity.create({
+            data: {
+                teamId: input.teamId,
+                actorUserId: input.actorUserId,
+                eventType: input.eventType,
+                targetType: "api_credential",
+                targetId: input.credentialId,
+                metadata: input.metadata ?? {},
+            },
+        });
+    }
+    catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("Failed to log integration.api_key activity:", err);
+    }
+}
+// Phase 3 — Webhook lifecycle audit emitter; see .ts sibling for contract.
+async function emitWebhookAudit(input) {
+    try {
+        await prisma.teamActivity.create({
+            data: {
+                teamId: input.teamId,
+                actorUserId: input.actorUserId,
+                eventType: input.eventType,
+                targetType: "webhook_endpoint",
+                targetId: input.endpointId,
+                metadata: input.metadata ?? {},
+            },
+        });
+    }
+    catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("Failed to log integration.webhook activity:", err);
+    }
 }
 function projectIntegrationDelivery(d) {
     return {
@@ -151,6 +197,17 @@ export async function integrationsRoutes(app) {
                 scopes: body.scopes,
                 actorUserId: ok.userId,
             });
+            await emitApiKeyAudit({
+                teamId: body.teamId,
+                actorUserId: ok.userId,
+                credentialId: credential.id,
+                eventType: "integration.api_key.created",
+                metadata: {
+                    keyPrefix: credential.keyPrefix,
+                    scopes: credential.scopes,
+                    name: credential.name,
+                },
+            });
             return reply.code(201).send({
                 apiKey: projectApiCredential(credential),
                 // Shown ONCE: caller MUST store this client-side immediately.
@@ -206,11 +263,170 @@ export async function integrationsRoutes(app) {
                 actorUserId: ok.userId,
                 reason: body.reason ?? null,
             });
+            await emitApiKeyAudit({
+                teamId: body.teamId,
+                actorUserId: ok.userId,
+                credentialId: revoked.id,
+                eventType: "integration.api_key.revoked",
+                metadata: {
+                    keyPrefix: revoked.keyPrefix,
+                    reason: revoked.revokedReason,
+                },
+            });
             return reply.code(200).send({ apiKey: projectApiCredential(revoked) });
         }
         catch (err) {
             if (err instanceof ApiCredentialError) {
                 const status = err.code === "credential_not_found" ? 404 : 400;
+                return reply.code(status).send({ error: { code: err.code } });
+            }
+            throw err;
+        }
+    });
+    // ---------------------------------------------------------------------------
+    // POST /v1/integrations/api-keys/:id/rotate — PHASE 2 dual-active rotation.
+    // ---------------------------------------------------------------------------
+    app.post("/v1/integrations/api-keys/:id/rotate", { preHandler: requireAuth }, async (req, reply) => {
+        if (!gateFeatureOrReply(reply))
+            return;
+        const { id } = ParamsId.parse(req.params);
+        const body = z
+            .object({
+            teamId: z.string().uuid(),
+            graceMinutes: z
+                .number()
+                .int()
+                .min(1)
+                .max(MAX_ROTATION_GRACE_MINUTES)
+                .optional(),
+        })
+            .parse(req.body ?? {});
+        const ok = await requireMember(req, reply, body.teamId);
+        if (!ok)
+            return;
+        const perm = requirePermission(ok.role, "integration.api_key.manage");
+        if (!perm.allowed) {
+            denyByPermission(reply, perm.reason);
+            return;
+        }
+        const gate = await requireStepUpForSensitiveAction({
+            req, reply,
+            teamId: body.teamId,
+            userId: ok.userId,
+            purpose: "SERVICE_ACCOUNT_REVOKE",
+            resourceKind: "api_credential",
+            resourceId: id,
+        });
+        if (gate.sent)
+            return;
+        try {
+            const result = await rotateApiCredential({
+                id,
+                teamId: body.teamId,
+                actorUserId: ok.userId,
+                graceMinutes: body.graceMinutes,
+            });
+            await emitApiKeyAudit({
+                teamId: body.teamId,
+                actorUserId: ok.userId,
+                credentialId: result.credential.id,
+                eventType: "integration.api_key.rotated",
+                metadata: {
+                    newKeyPrefix: result.credential.keyPrefix,
+                    previousKeyPrefix: result.previousKeyPrefix,
+                    previousValidUntilUtc: result.previousValidUntilUtc.toISOString(),
+                    graceMinutes: body.graceMinutes ?? null,
+                },
+            });
+            return reply.code(200).send({
+                apiKey: projectApiCredential(result.credential),
+                rawKey: result.rawKey,
+                previousKeyPrefix: result.previousKeyPrefix,
+                previousValidUntilUtc: result.previousValidUntilUtc.toISOString(),
+            });
+        }
+        catch (err) {
+            if (err instanceof ApiCredentialError) {
+                const status = err.code === "credential_not_found"
+                    ? 404
+                    : err.code === "feature_disabled" || err.code === "secret_missing"
+                        ? 503
+                        : err.code === "invalid_grace_minutes"
+                            ? 400
+                            : err.code === "credential_already_revoked" ||
+                                err.code === "credential_not_active"
+                                ? 409
+                                : 500;
+                return reply
+                    .code(status)
+                    .send({ error: { code: err.code, details: err.details ?? null } });
+            }
+            throw err;
+        }
+    });
+    // ---------------------------------------------------------------------------
+    // PATCH /v1/integrations/api-keys/:id — PHASE 2 expiry management.
+    // ---------------------------------------------------------------------------
+    app.patch("/v1/integrations/api-keys/:id", { preHandler: requireAuth }, async (req, reply) => {
+        if (!gateFeatureOrReply(reply))
+            return;
+        const { id } = ParamsId.parse(req.params);
+        const body = z
+            .object({
+            teamId: z.string().uuid(),
+            expiresAtUtc: z
+                .union([z.string().datetime(), z.null()])
+                .optional(),
+        })
+            .parse(req.body ?? {});
+        const ok = await requireMember(req, reply, body.teamId);
+        if (!ok)
+            return;
+        const perm = requirePermission(ok.role, "integration.api_key.manage");
+        if (!perm.allowed) {
+            denyByPermission(reply, perm.reason);
+            return;
+        }
+        try {
+            const expiresAtUtc = Object.prototype.hasOwnProperty.call(body, "expiresAtUtc")
+                ? body.expiresAtUtc === null
+                    ? null
+                    : new Date(body.expiresAtUtc)
+                : undefined;
+            if (expiresAtUtc instanceof Date && Number.isNaN(expiresAtUtc.getTime())) {
+                return reply
+                    .code(400)
+                    .send({ error: { code: "invalid_expires_at_utc" } });
+            }
+            const updated = await updateApiCredentialHardening({
+                id,
+                teamId: body.teamId,
+                ...(expiresAtUtc !== undefined ? { expiresAtUtc } : {}),
+            });
+            if (expiresAtUtc !== undefined) {
+                await emitApiKeyAudit({
+                    teamId: body.teamId,
+                    actorUserId: ok.userId,
+                    credentialId: updated.id,
+                    eventType: "integration.api_key.expiry_changed",
+                    metadata: {
+                        keyPrefix: updated.keyPrefix,
+                        expiresAtUtc: expiresAtUtc?.toISOString() ?? null,
+                        cleared: expiresAtUtc === null,
+                    },
+                });
+            }
+            return reply
+                .code(200)
+                .send({ apiKey: projectApiCredential(updated) });
+        }
+        catch (err) {
+            if (err instanceof ApiCredentialError) {
+                const status = err.code === "credential_not_found"
+                    ? 404
+                    : err.code === "credential_already_revoked"
+                        ? 409
+                        : 400;
                 return reply.code(status).send({ error: { code: err.code } });
             }
             throw err;
@@ -380,12 +596,21 @@ export async function integrationsRoutes(app) {
             throw err;
         }
     });
+    // Phase 4 — dual-signing rotation.
     app.post("/v1/integrations/webhooks/:id/rotate-secret", { preHandler: requireAuth }, async (req, reply) => {
         if (!gateFeatureOrReply(reply))
             return;
         const { id } = ParamsId.parse(req.params);
         const body = z
-            .object({ teamId: z.string().uuid() })
+            .object({
+            teamId: z.string().uuid(),
+            graceMinutes: z
+                .number()
+                .int()
+                .min(1)
+                .max(MAX_WEBHOOK_ROTATION_GRACE_MINUTES)
+                .optional(),
+        })
             .parse(req.body ?? {});
         const ok = await requireMember(req, reply, body.teamId);
         if (!ok)
@@ -395,14 +620,40 @@ export async function integrationsRoutes(app) {
             denyByPermission(reply, perm.reason);
             return;
         }
+        const gate = await requireStepUpForSensitiveAction({
+            req,
+            reply,
+            teamId: body.teamId,
+            userId: ok.userId,
+            purpose: "SERVICE_ACCOUNT_HARDENING_UPDATE",
+            resourceKind: "webhook_endpoint",
+            resourceId: id,
+        });
+        if (gate.sent)
+            return;
         try {
-            const { endpoint, rawSecret } = await rotateWebhookSecret({
+            const result = await rotateWebhookSecret({
                 id,
                 teamId: body.teamId,
+                graceMinutes: body.graceMinutes,
+            });
+            await emitWebhookAudit({
+                teamId: body.teamId,
+                actorUserId: ok.userId,
+                endpointId: result.endpoint.id,
+                eventType: "integration.webhook.secret_rotated",
+                metadata: {
+                    newSecretPrefix: result.endpoint.secretPrefix,
+                    previousSecretPrefix: result.previousSecretPrefix,
+                    previousSecretValidUntilUtc: result.previousSecretValidUntilUtc.toISOString(),
+                    graceMinutes: body.graceMinutes ?? null,
+                },
             });
             return reply.code(200).send({
-                webhook: projectWebhookEndpoint(endpoint),
-                rawSecret,
+                webhook: projectWebhookEndpoint(result.endpoint),
+                rawSecret: result.rawSecret,
+                previousSecretPrefix: result.previousSecretPrefix,
+                previousSecretValidUntilUtc: result.previousSecretValidUntilUtc.toISOString(),
             });
         }
         catch (err) {
@@ -411,8 +662,12 @@ export async function integrationsRoutes(app) {
                     ? 404
                     : err.code === "feature_disabled" || err.code === "secret_missing"
                         ? 503
-                        : 500;
-                return reply.code(status).send({ error: { code: err.code } });
+                        : err.code === "invalid_grace_minutes"
+                            ? 400
+                            : 500;
+                return reply.code(status).send({
+                    error: { code: err.code, details: err.details ?? null },
+                });
             }
             throw err;
         }
@@ -449,6 +704,65 @@ export async function integrationsRoutes(app) {
             throw err;
         }
     });
+    // Phase 3 — POST /v1/integrations/webhooks/:id/test
+    app.post("/v1/integrations/webhooks/:id/test", { preHandler: requireAuth }, async (req, reply) => {
+        if (!gateFeatureOrReply(reply))
+            return;
+        const { id } = ParamsId.parse(req.params);
+        const body = z
+            .object({
+            teamId: z.string().uuid(),
+            eventType: z.literal(TEST_EVENT_TYPE).optional(),
+            payload: z.record(z.string(), z.unknown()).optional(),
+        })
+            .parse(req.body ?? {});
+        const ok = await requireMember(req, reply, body.teamId);
+        if (!ok)
+            return;
+        const perm = requirePermission(ok.role, "integration.webhook.manage");
+        if (!perm.allowed) {
+            denyByPermission(reply, perm.reason);
+            return;
+        }
+        const gate = await requireStepUpForSensitiveAction({
+            req,
+            reply,
+            teamId: body.teamId,
+            userId: ok.userId,
+            purpose: "SERVICE_ACCOUNT_HARDENING_UPDATE",
+            resourceKind: "webhook_endpoint",
+            resourceId: id,
+        });
+        if (gate.sent)
+            return;
+        const result = await dispatchTestEventToEndpoint({
+            endpointId: id,
+            teamId: body.teamId,
+            payload: body.payload,
+        });
+        if (!result) {
+            return reply
+                .code(404)
+                .send({ error: { code: "endpoint_not_found_or_inactive" } });
+        }
+        await emitWebhookAudit({
+            teamId: body.teamId,
+            actorUserId: ok.userId,
+            endpointId: id,
+            eventType: "integration.webhook.test_sent",
+            metadata: {
+                deliveryId: result.deliveryId,
+                eventId: result.eventId,
+                outcome: result.outcome,
+            },
+        });
+        return reply.code(202).send({
+            deliveryId: result.deliveryId,
+            eventId: result.eventId,
+        });
+    });
+    // Expose payload cap reference (mirrors .ts).
+    void TEST_EVENT_MAX_PAYLOAD_BYTES;
     app.get("/v1/integrations/webhooks/:id/deliveries", { preHandler: requireAuth }, async (req, reply) => {
         if (!gateFeatureOrReply(reply))
             return;
@@ -541,6 +855,18 @@ export async function integrationsRoutes(app) {
                 id,
                 teamId: body.teamId,
             });
+            await emitWebhookAudit({
+                teamId: body.teamId,
+                actorUserId: ok.userId,
+                endpointId: updated.endpointId,
+                eventType: "integration.webhook.delivery_retried",
+                metadata: {
+                    deliveryId: updated.id,
+                    eventType: updated.eventType,
+                    status: updated.status,
+                    attemptCount: updated.attemptCount,
+                },
+            });
             return reply
                 .code(200)
                 .send({ delivery: projectWebhookDeliveryDetail(updated) });
@@ -596,6 +922,53 @@ export async function integrationsRoutes(app) {
         }
     });
     // ---------------------------------------------------------------------------
+    // GET /v1/integrations/diagnostics — admin-only safe diagnostics.
+    // ---------------------------------------------------------------------------
+    app.get("/v1/integrations/diagnostics", { preHandler: requireAuth }, async (req, reply) => {
+        const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
+        const ok = await requireMember(req, reply, query.teamId);
+        if (!ok)
+            return;
+        if (ok.role !== "OWNER" && ok.role !== "ADMIN") {
+            denyByPermission(reply, `role_${ok.role}_lacks_integration.diagnostics.read`);
+            return;
+        }
+        const diag = getIntegrationsRuntimeDiagnostics();
+        return reply.code(200).send({
+            diagnostics: {
+                enabled: diag.enabled,
+                apiKeySecretBound: diag.apiKeySecretBound,
+                apiKeySecretLengthValid: diag.apiKeySecretLengthValid,
+                cronSecretBound: diag.cronSecretBound,
+                reason: diag.reason,
+                envSourceHint: getEnvSourceHint(),
+            },
+        });
+    });
+    // ---------------------------------------------------------------------------
+    // PHASE 5 — GET /v1/integrations/health
+    //
+    // Team-scoped admin health snapshot. Every value is derived from real
+    // DB rows. Returns 503 with the canonical disabled-reason payload
+    // when the integrations feature is off, 403 for non-admin members.
+    // ---------------------------------------------------------------------------
+    app.get("/v1/integrations/health", { preHandler: requireAuth }, async (req, reply) => {
+        if (!gateFeatureOrReply(reply))
+            return;
+        const query = z
+            .object({ teamId: z.string().uuid() })
+            .parse(req.query ?? {});
+        const ok = await requireMember(req, reply, query.teamId);
+        if (!ok)
+            return;
+        if (ok.role !== "OWNER" && ok.role !== "ADMIN") {
+            denyByPermission(reply, `role_${ok.role}_lacks_integration.health.read`);
+            return;
+        }
+        const snapshot = await computeIntegrationsHealthSnapshot(query.teamId);
+        return reply.code(200).send({ health: snapshot });
+    });
+    // ---------------------------------------------------------------------------
     // Cron-driven sweepers
     // ---------------------------------------------------------------------------
     app.post("/v1/integrations/process-webhook-retries", async (req, reply) => {
@@ -631,5 +1004,25 @@ export async function integrationsRoutes(app) {
             batchSize: body.batchSize,
         });
         return reply.code(200).send({ summary });
+    });
+    // PHASE 5 closure — POST /v1/integrations/process-secret-cleanup
+    //
+    // Sweeps expired `previous_*` secret material from ApiCredential +
+    // WebhookEndpoint once the rotation grace window has closed.
+    app.post("/v1/integrations/process-secret-cleanup", async (req, reply) => {
+        const ok = await requireIntegrationCronSecret(req, reply);
+        if (!ok)
+            return;
+        const body = z
+            .object({
+            batchSize: z.number().int().min(1).max(5_000).optional(),
+            dryRun: z.boolean().optional(),
+        })
+            .parse(req.body ?? {});
+        const summary = await sweepExpiredPreviousIntegrationSecrets({
+            batchSize: body.batchSize,
+            dryRun: body.dryRun,
+        });
+        return reply.code(200).send(summary);
     });
 }

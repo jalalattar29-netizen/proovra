@@ -42,8 +42,100 @@ import type {
 } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { emitWebhookEvent } from "../integrations/webhook-dispatcher.js";
 import { renderTransactionalTemplate, TemplateContext } from "./templates.js";
 import { sendViaResend } from "./resend-provider.js";
+
+// -----------------------------------------------------------------------------
+// Phase closure — `notification.failed` lifecycle event.
+//
+// Fires AFTER the durable status transition to FAILED — never before, so a
+// subscriber that triggers another webhook delivery cannot observe a row
+// that the DB has not yet committed as terminal. Six call sites converge
+// through this helper:
+//   1. sendEmailNotification → provider threw, non-retriable
+//   2. sendEmailNotification → provider returned error, non-retriable
+//   3. dispatchDelivery       → missing_template_context (immediate FAILED)
+//   4. dispatchDelivery       → provider threw, non-retriable
+//   5. dispatchDelivery       → provider returned error, non-retriable
+//   6. (none else — RETRY_SCHEDULED is NOT terminal and MUST NOT emit)
+//
+// Privacy contract:
+//   - `recipient` is hashed (sha256, hex, full 64 chars). The raw value
+//     never crosses into webhook payloads — only the deterministic hash so
+//     a subscriber can correlate failures across deliveries without seeing
+//     the email/phone.
+//   - `errorMessage` is dropped entirely. Provider stack traces / SDK
+//     error text frequently echo addresses, query strings, or token
+//     fragments; we surface only the bounded `errorCode` literal which the
+//     codebase always populates with a known sentinel ("provider_threw",
+//     "missing_template_context", etc.).
+//   - Never throws into the caller. Webhook persistence failures are
+//     swallowed by the dispatcher; this helper additionally try/catches
+//     to absorb a hashing or env-flag error.
+// -----------------------------------------------------------------------------
+
+const NOTIFICATION_FAILED_EVENT = "notification.failed" as const;
+
+function hashRecipientForWebhook(recipient: string): string | null {
+  if (!recipient) return null;
+  try {
+    // Lazy require — keeps the import surface narrow and the hash work
+    // off the hot path until a FAILED transition actually fires.
+    const { createHash } = require("node:crypto") as typeof import("node:crypto");
+    return createHash("sha256").update(recipient, "utf8").digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+async function emitNotificationFailedWebhook(
+  delivery: DbNotificationDelivery,
+  client: PrismaClient,
+): Promise<void> {
+  try {
+    // The integrations dispatcher already no-ops when the feature flag
+    // is off and when no subscribed endpoint matches. We still gate on
+    // teamId because deliveries without a workspace anchor cannot fan
+    // out to any tenant's endpoints.
+    if (!delivery.teamId) return;
+    const payload: Record<string, unknown> = {
+      teamId: delivery.teamId,
+      notificationId: delivery.id,
+      eventType: delivery.eventType,
+      channel: delivery.channel,
+      provider: delivery.provider,
+      // Bounded sentinel set by every FAILED branch in this file
+      // ("provider_threw", "missing_template_context", "feature_flag_off",
+      // "missing_recipient", or a provider-returned <= 80 char code).
+      reason: delivery.errorCode ?? "unknown",
+      failedAtUtc:
+        delivery.failedAtUtc?.toISOString() ?? new Date().toISOString(),
+      // Hash, not raw — see privacy contract above.
+      recipientHash: hashRecipientForWebhook(delivery.recipient),
+      ...(delivery.evidenceRequestId
+        ? { evidenceRequestId: delivery.evidenceRequestId }
+        : {}),
+      ...(delivery.evidenceId ? { evidenceId: delivery.evidenceId } : {}),
+      ...(delivery.intakeLinkId ? { intakeLinkId: delivery.intakeLinkId } : {}),
+    };
+    await emitWebhookEvent(
+      {
+        teamId: delivery.teamId,
+        eventType: NOTIFICATION_FAILED_EVENT,
+        payload,
+        // Defer to the retry sweeper — the notification lifecycle has
+        // already terminated, no need to block the originating workflow
+        // on an outbound webhook attempt.
+        attemptInline: false,
+      },
+      client,
+    );
+  } catch {
+    // Best-effort. A webhook emit MUST NEVER unwind the notification
+    // failure write. The row is already FAILED in the DB.
+  }
+}
 
 // -----------------------------------------------------------------------------
 // Feature flag
@@ -215,6 +307,11 @@ export async function sendEmailNotification(
             errorMessage: errorMessage.slice(0, 2000),
           },
     });
+    // Post-commit emit — only on the terminal FAILED branch. RETRY_SCHEDULED
+    // is not terminal and MUST NOT advertise a failure to subscribers.
+    if (!retriable) {
+      await emitNotificationFailedWebhook(updated, client);
+    }
     return {
       delivery: updated,
       status: retriable ? "retry_scheduled" : "failed",
@@ -261,6 +358,9 @@ export async function sendEmailNotification(
           errorMessage: providerResult.errorMessage?.slice(0, 2000) ?? null,
         },
   });
+  if (!retriable) {
+    await emitNotificationFailedWebhook(updated, client);
+  }
   return {
     delivery: updated,
     status: retriable ? "retry_scheduled" : "failed",
@@ -327,6 +427,7 @@ async function dispatchDelivery(
           "Cannot retry: stored template context is missing. Re-issue the original notification through the business workflow.",
       },
     });
+    await emitNotificationFailedWebhook(failed, client);
     return { delivery: failed, status: "failed" };
   }
 
@@ -370,6 +471,9 @@ async function dispatchDelivery(
             errorMessage: errorMessage.slice(0, 2000),
           },
     });
+    if (!retriable) {
+      await emitNotificationFailedWebhook(updated, client);
+    }
     return {
       delivery: updated,
       status: retriable ? "retry_scheduled" : "failed",
@@ -418,6 +522,9 @@ async function dispatchDelivery(
           errorMessage: providerResult.errorMessage?.slice(0, 2000) ?? null,
         },
   });
+  if (!retriable) {
+    await emitNotificationFailedWebhook(updated, client);
+  }
   return {
     delivery: updated,
     status: retriable ? "retry_scheduled" : "failed",

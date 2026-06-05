@@ -558,6 +558,29 @@ export async function sendEvidenceRequest(input, client = defaultPrisma) {
             }, client);
         }
     }
+    // Phase 6 — fire `evidence_request.sent` after the SENT transition has
+    // committed and the recipient notification(s) have been queued.
+    try {
+        await emitWebhookEvent({
+            teamId: input.teamId,
+            eventType: "evidence_request.sent",
+            payload: {
+                evidenceRequestId: finalRequest.id,
+                requestType: finalRequest.requestType,
+                title: finalRequest.title,
+                status: finalRequest.status,
+                recipientMode: finalRequest.recipientMode,
+                evidenceId: finalRequest.evidenceId,
+                caseId: finalRequest.caseId,
+                intakeLinkId: finalRequest.intakeLinkId,
+                sentAtUtc: finalRequest.sentAtUtc?.toISOString() ?? null,
+            },
+            attemptInline: true,
+        });
+    }
+    catch {
+        // never abort the send on webhook delivery failure
+    }
     return {
         request: finalRequest,
         rawToken,
@@ -718,6 +741,30 @@ export async function linkResponseFromIntakeSession(params, client = defaultPris
                 },
             }, client);
         }
+    }
+    // Phase 6 — fire `evidence_request.response_received` after the response
+    // row has been persisted and the deliverable rollup + request-status
+    // transition have committed.
+    try {
+        await emitWebhookEvent({
+            teamId: refreshed.teamId,
+            eventType: "evidence_request.response_received",
+            payload: {
+                evidenceRequestId: refreshed.id,
+                requestType: refreshed.requestType,
+                title: refreshed.title,
+                status: refreshed.status,
+                recipientMode: refreshed.recipientMode,
+                evidenceId: params.evidenceId,
+                caseId: refreshed.caseId,
+                intakeLinkId: refreshed.intakeLinkId,
+                intakeSessionId: params.intakeSession.id,
+            },
+            attemptInline: true,
+        }, client);
+    }
+    catch {
+        // never abort the link-response flow on webhook delivery failure
     }
 }
 // -----------------------------------------------------------------------------

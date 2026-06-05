@@ -47,6 +47,7 @@ import { completeEvidence } from "./evidence-complete.service.js";
 import { appendCustodyEvent } from "./custody-events.service.js";
 import { transitionIntakeSession } from "./workflow-intake-session.service.js";
 import { linkResponseFromIntakeSession } from "./evidence-request.service.js";
+import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
 export class ExternalIntakeOrchestrationError extends Error {
     code;
     details;
@@ -418,6 +419,29 @@ export async function submitExternalIntake(input, client = defaultPrisma) {
     catch {
         // intentional swallow — see comment above. The chain hash + evidence
         // record are already durable.
+    }
+    // Phase 6 — fire `external_intake.submitted` after the submission has
+    // crossed the persistence and custody-event boundary.
+    if (evidence.teamId) {
+        try {
+            await emitWebhookEvent({
+                teamId: evidence.teamId,
+                eventType: "external_intake.submitted",
+                payload: {
+                    evidenceId: evidence.id,
+                    intakeLinkId: input.link.id,
+                    intakeSessionId: submitted.id,
+                    intakeMode: input.link.intakeMode,
+                    workflowTemplateSlug: input.link.workflowTemplateSlug,
+                    workflowTemplateVersion: input.link.workflowTemplateVersion,
+                    partCount: parts.length,
+                },
+                attemptInline: true,
+            });
+        }
+        catch {
+            // never abort the submission on webhook delivery failure
+        }
     }
     return {
         session: submitted,

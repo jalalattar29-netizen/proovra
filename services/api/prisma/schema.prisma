@@ -3380,6 +3380,19 @@ model ApiCredential {
   ipAllowlist      String[]  @default([]) @map("ip_allowlist")
   environment      String?   @db.VarChar(32)
 
+  // PHASE 2 — true dual-active rotation. When a key is rotated, the OLD
+  // hash/prefix are copied into these `previous_*` columns and remain
+  // valid until `previousValidUntilUtc`. After expiry the verify path
+  // rejects the old key. Operator never sees the previous raw key
+  // again — only the new one is disclosed once. The columns are nullable
+  // for credentials that have never been rotated. A unique partial index
+  // on previous_key_hash (where the column is not null) prevents two
+  // credentials from sharing a "previous" hash, which mirrors the
+  // existing uniqueness invariant on the live `keyHash`.
+  previousKeyHash       String?   @map("previous_key_hash") @db.VarChar(128)
+  previousKeyPrefix     String?   @map("previous_key_prefix") @db.VarChar(32)
+  previousValidUntilUtc DateTime? @map("previous_valid_until_utc") @db.Timestamptz(6)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -3393,6 +3406,7 @@ model ApiCredential {
   @@index([teamId, createdAt(sort: Desc)])
   @@index([expiresAtUtc])
   @@index([disabledAtUtc])
+  @@index([previousValidUntilUtc])
   @@map("api_credentials")
 }
 
@@ -3439,6 +3453,18 @@ model WebhookEndpoint {
   secretCiphertext String @map("secret_ciphertext") @db.VarChar(512)
   secretPrefix     String @map("secret_prefix") @db.VarChar(32)
 
+  // Phase 4 — dual-signing rotation. After rotateWebhookSecret() the
+  // PRIOR signing material is copied into these nullable columns and
+  // remains valid until `previousSecretValidUntilUtc`. While the
+  // window is open the dispatcher emits BOTH signatures in the
+  // `X-Proovra-Signature` header (Stripe-style `v1=<new>,v1=<old>`)
+  // so receivers can switch over without dropping events. After the
+  // cutoff the dispatcher signs with only the new secret and the
+  // previous_* triple is lazily cleared.
+  previousSecretCiphertext    String?   @map("previous_secret_ciphertext") @db.VarChar(512)
+  previousSecretPrefix        String?   @map("previous_secret_prefix") @db.VarChar(32)
+  previousSecretValidUntilUtc DateTime? @map("previous_secret_valid_until_utc") @db.Timestamptz(6)
+
   // Subscribed event types. Empty = subscribe to all.
   eventTypes String[] @default([])
 
@@ -3456,6 +3482,7 @@ model WebhookEndpoint {
   deliveries IntegrationWebhookDelivery[]
 
   @@index([teamId, status])
+  @@index([previousSecretValidUntilUtc], map: "integration_webhook_endpoints_prev_secret_valid_until_utc_idx")
   @@map("integration_webhook_endpoints")
 }
 
@@ -3476,6 +3503,12 @@ model IntegrationWebhookDelivery {
   errorMessage        String?               @map("error_message") @db.VarChar(2000)
   sentAtUtc           DateTime?             @map("sent_at_utc") @db.Timestamptz(6)
   failedAtUtc         DateTime?             @map("failed_at_utc") @db.Timestamptz(6)
+  // Phase closure — wall-clock duration of the most recent outbound
+  // HTTP attempt, measured around the single `httpClient(...)` call in
+  // `attemptDeliveryInner` with `process.hrtime.bigint()`. NULL when the
+  // row reached a terminal status WITHOUT ever issuing the fetch (e.g.
+  // signing_key_unavailable). The dispatcher MUST NOT fabricate a value.
+  responseDurationMs  Int?                  @map("response_duration_ms")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)

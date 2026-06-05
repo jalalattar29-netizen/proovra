@@ -190,15 +190,18 @@ const PRIVATE_HOST_PATTERNS = [
   /^::ffff:172\.(1[6-9]|2[0-9]|3[0-1])\./i,
   /^::ffff:169\.254\./i,
   // IPv4-mapped IPv6 (hex form — Node's URL parser normalizes to this).
-  // 127.0.0.0/8   → ::ffff:7f00–7fff:*
+  // 127.0.0.0/8   → ::ffff:7f00–7fff:* (high group is always 4 hex
+  //   digits because the leading nibble is `7`, never zero).
   /^::ffff:7f[0-9a-f]{2}:/i,
-  // 10.0.0.0/8    → ::ffff:0a00–0aff:*
-  /^::ffff:0a[0-9a-f]{2}:/i,
-  // 192.168.0.0/16 → ::ffff:c0a8:*
+  // 10.0.0.0/8 → ::ffff:0a00–0aff:*. Node strips RFC 5952 leading
+  // zeros from each group, so 10.x → ::ffff:a00..aff. We accept BOTH
+  // the canonical (`0a`) form AND the normalised (`a`) form.
+  /^::ffff:0?a[0-9a-f]{2}:/i,
+  // 192.168.0.0/16 → ::ffff:c0a8:* (no leading-zero issue: c0a8 > 0xfff).
   /^::ffff:c0a8:/i,
-  // 172.16.0.0/12  → ::ffff:ac10–ac1f:*
+  // 172.16.0.0/12  → ::ffff:ac10–ac1f:* (also > 0xfff, no zero strip).
   /^::ffff:ac1[0-9a-f]:/i,
-  // 169.254.0.0/16 → ::ffff:a9fe:*
+  // 169.254.0.0/16 → ::ffff:a9fe:* (> 0xfff, no zero strip).
   /^::ffff:a9fe:/i,
 ];
 

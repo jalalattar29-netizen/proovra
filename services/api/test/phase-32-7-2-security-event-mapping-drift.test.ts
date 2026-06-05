@@ -604,6 +604,42 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // for idempotency. Pure additive — zero DROP VALUE / RENAME VALUE /
       // data movement. Existing values remain valid.
       "20270812000000_wave3_custody_event_type_widening",
+      // PHASE 2 — true dual-active API key rotation. Adds three nullable
+      // columns to `api_credentials` (`previous_key_hash`,
+      // `previous_key_prefix`, `previous_valid_until_utc`) plus a small
+      // BTree index on the validity-window column and a partial UNIQUE
+      // index on `previous_key_hash WHERE NOT NULL`. Pure additive: no
+      // DROP / RENAME / data movement; nullable columns require no
+      // backfill, and `ADD COLUMN IF NOT EXISTS` plus `CREATE INDEX
+      // IF NOT EXISTS` keep the migration idempotent across re-runs.
+      // Unblocks the rotate-with-grace flow in the integrations admin
+      // surface and the corresponding two-key acceptance window in
+      // `verifyApiKeyDetailed`.
+      "20270813000000_phase2_api_key_dual_active_rotation",
+      // PHASE 4 — webhook endpoint dual-signing rotation. Adds three
+      // nullable columns to `integration_webhook_endpoints`
+      // (`previous_secret_ciphertext`, `previous_secret_prefix`,
+      // `previous_secret_valid_until_utc`) plus a small BTree index on
+      // the validity-window column. Pure additive: no DROP / RENAME /
+      // data movement; nullable columns require no backfill, and
+      // `ADD COLUMN IF NOT EXISTS` plus `CREATE INDEX IF NOT EXISTS`
+      // keep the migration idempotent across re-runs. Unblocks
+      // Stripe-style multi-sig (`X-Proovra-Signature: v1=<new>,v1=<old>`)
+      // in the dispatcher while the grace window is open.
+      "20270814000000_phase4_webhook_dual_signing_rotation",
+      // PHASE closure — webhook delivery response duration. Adds a
+      // single nullable INTEGER column `response_duration_ms` to
+      // `integration_webhook_deliveries`. The dispatcher brackets the
+      // single outbound `httpClient(...)` call in `attemptDeliveryInner`
+      // with `process.hrtime.bigint()` and persists the measured
+      // wall-clock milliseconds. NULL is honest — left as-is when the
+      // row reached a terminal status WITHOUT issuing the fetch (e.g.
+      // signing_key_unavailable). Pure additive: no DROP / RENAME /
+      // data movement; no DEFAULT so no table rewrite; `ADD COLUMN IF
+      // NOT EXISTS` keeps the migration idempotent. Unblocks the
+      // `averageLatencyMsLast24h` tile on the integrations health
+      // dashboard.
+      "20270815000000_phase_closure_webhook_delivery_duration",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

@@ -25,7 +25,7 @@
  *   - Failures fail closed and emit generic errors.
  */
 import * as prismaPkg from "@prisma/client";
-import { STEP_UP_TTL_DEFAULT_SECONDS, STEP_UP_TTL_MAX_SECONDS, } from "@proovra/shared";
+import { STEP_UP_TTL_DEFAULT_SECONDS, STEP_UP_TTL_MAX_SECONDS, purposeSatisfies, } from "@proovra/shared";
 import { prisma as defaultPrisma } from "../../db.js";
 import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
@@ -245,7 +245,10 @@ export async function consumeApprovedChallenge(input, client = defaultPrisma) {
         });
         throw new StepUpError("challenge_expired");
     }
-    if (row.purpose !== input.purpose) {
+    // Phase 4 closure — back-compat: a row stored with a legacy
+    // purpose (SERVICE_ACCOUNT_* aliases) still satisfies the
+    // corresponding new INTEGRATION_* purpose check.
+    if (!purposeSatisfies(row.purpose, input.purpose)) {
         throw new StepUpError("challenge_purpose_mismatch");
     }
     const expectedResourceId = input.resourceId ?? null;

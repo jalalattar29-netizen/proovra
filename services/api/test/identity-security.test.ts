@@ -301,8 +301,14 @@ describe("Sensitive routes — step-up middleware is wired", () => {
       ),
       "utf8",
     );
-    expect(src).toMatch(/purpose:\s*"SERVICE_ACCOUNT_CREATE"/);
-    expect(src).toMatch(/purpose:\s*"SERVICE_ACCOUNT_REVOKE"/);
+    // Phase 4 closure migrated these call sites from the coarse
+    // legacy SERVICE_ACCOUNT_* purposes to dedicated
+    // INTEGRATION_API_KEY_* purposes. Back-compat is preserved by the
+    // alias map in @proovra/shared (a row carrying the legacy purpose
+    // still satisfies the new check); see
+    // phase-closure-integration-step-up-purposes.test.ts.
+    expect(src).toMatch(/purpose:\s*"INTEGRATION_API_KEY_CREATE"/);
+    expect(src).toMatch(/purpose:\s*"INTEGRATION_API_KEY_REVOKE"/);
   });
 });
 
