@@ -114,6 +114,7 @@ import {
 // Reused service that backs /v1/reviewer/qc/samples; bounded `count()`
 // query, no row enumeration, no PII surface.
 import { countPendingQcSamples } from "../services/reviewer-workspace/qc-sample.service.js";
+import { buildReviewerOpsRuntimeProbe } from "../services/reviewer-ops/reviewer-ops-runtime-probe.service.js";
 
 // -----------------------------------------------------------------------------
 // Auth helpers — 404-on-non-member + reviewer-capability resolution
@@ -467,6 +468,69 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         meUserId: ctx.actorUserId,
       });
       return reply.code(200).send(dashboard);
+    },
+  );
+
+  // ===========================================================================
+  // GET /v1/reviewer-ops/runtime-probe
+  // ===========================================================================
+
+  app.get(
+    "/v1/reviewer-ops/runtime-probe",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const rawQuery = (req.query ?? {}) as { teamId?: string };
+      let resolvedTeamId = rawQuery.teamId;
+      if (!resolvedTeamId) {
+        const userId = getAuthUserId(req);
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { currentWorkspaceId: true },
+        });
+        if (!user?.currentWorkspaceId) {
+          return reply.code(400).send({
+            error: {
+              code: "WORKSPACE_CONTEXT_REQUIRED",
+              message: "Select a workspace to load the diagnostics probe.",
+              requestId: req.id,
+            },
+          });
+        }
+        resolvedTeamId = user.currentWorkspaceId;
+      }
+      const q = TeamIdQuery.parse({ teamId: resolvedTeamId });
+      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      if (!ctx) return;
+      const userRow = await prisma.user.findUnique({
+        where: { id: ctx.actorUserId },
+        select: { platformRole: true },
+      });
+      const memberRow = await prisma.teamMember.findUnique({
+        where: {
+          teamId_userId: { teamId: q.teamId, userId: ctx.actorUserId },
+        },
+        select: { role: true },
+      });
+      const resolution = resolveReviewerRole({
+        workspaceRole: (memberRow?.role ?? null) as
+          | "OWNER"
+          | "ADMIN"
+          | "MEMBER"
+          | "VIEWER"
+          | null,
+        isPlatformAdmin: (userRow?.platformRole ?? null) !== null,
+      });
+      if (!callerHasCapability(resolution, "review.assign")) {
+        return reply.code(403).send({
+          error: {
+            code: "REVIEW_PERMISSION_DENIED",
+            reason: "review_assign_required",
+          },
+        });
+      }
+
+      const probe = await buildReviewerOpsRuntimeProbe({ teamId: q.teamId });
+      return reply.code(200).send({ probe });
     },
   );
 

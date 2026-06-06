@@ -28,6 +28,7 @@ jobs:
       contents: read
       packages: write
 
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -43,6 +44,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          # Use the host network for BuildKit to reduce transient Docker registry
+          # connectivity issues during layer/download resolution.
+          driver-opts: network=host
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -74,6 +79,9 @@ jobs:
           context: .
           file: services/${{ matrix.service }}/Dockerfile
           platforms: linux/amd64
+          # Always refresh base/parent images to reduce transient registry
+          # layer errors and ensure cache pulls are attempted.
+          pull: true
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -244,10 +244,17 @@ describe("Phase 25 — route layer auth posture", () => {
     expect(src).toMatch(/suppressionReason:\s*BoundedNote/);
   });
 
-  it("all eleven reviewer-ops routes are registered", () => {
+  it("the runtime probe endpoint is guarded by reviewer assignment capability", () => {
+    expect(src).toMatch(/"\/v1\/reviewer-ops\/runtime-probe"/);
+    expect(src).toMatch(/review\.assign/);
+    expect(src).toMatch(/requireReviewerActor/);
+  });
+
+  it("all twelve reviewer-ops routes are registered", () => {
     for (const path of [
       "/v1/reviewer-ops/queue",
       "/v1/reviewer-ops/dashboard",
+      "/v1/reviewer-ops/runtime-probe",
       "/v1/reviewer-ops/workspace/:workflowId",
       "/v1/reviewer-ops/workload",
       "/v1/reviewer-ops/reviews/:workflowId/assign",
