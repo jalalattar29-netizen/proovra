@@ -184,7 +184,7 @@ function ReviewerWorkspaceShell() {
     let cancelled = false;
     (async () => {
       setLoadingWorkspace(true);
-      const ws = await fetchReviewerWorkspace();
+      const ws = await fetchReviewerWorkspace(teamId);
       if (cancelled) return;
       setWorkspace(ws);
       if (ws?.activeReview) {
@@ -196,7 +196,7 @@ function ReviewerWorkspaceShell() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [teamId]);
 
   // Load evidence preview + annotations for the active evidence.
   const refreshAnnotations = useCallback(async () => {
@@ -376,8 +376,8 @@ function ReviewerWorkspaceShell() {
       }
       const schemaId = workspace.activeReview.codingSchemaId;
       const [schema, state] = await Promise.all([
-        fetchSchema(schemaId),
-        fetchCodingState(activeWorkflowId),
+        fetchSchema(schemaId, teamId),
+        fetchCodingState(activeWorkflowId, teamId),
       ]);
       if (cancelled) return;
       setFields(schema?.fields ?? []);
@@ -402,10 +402,11 @@ function ReviewerWorkspaceShell() {
         fieldId: input.fieldId,
         value: input.value,
         rationale: input.rationale,
+        teamId,
       });
       if (res.ok) {
         // Re-pull coding state for fresh coverage.
-        const state = await fetchCodingState(activeWorkflowId);
+        const state = await fetchCodingState(activeWorkflowId, teamId);
         setValues(state.values);
         setUnfulfilled(new Set(state.coverage.unfulfilledFieldIds));
       } else {
@@ -419,7 +420,7 @@ function ReviewerWorkspaceShell() {
   // after the reviewer records a decision. Pulls the workspace
   // projection again and picks the active review pointer.
   const advanceToNext = useCallback(async () => {
-    const ws = await fetchReviewerWorkspace();
+    const ws = await fetchReviewerWorkspace(teamId);
     setWorkspace(ws);
     if (ws?.activeReview) {
       setActiveWorkflowId(ws.activeReview.workflowId);
@@ -428,7 +429,7 @@ function ReviewerWorkspaceShell() {
       setActiveWorkflowId(null);
       setActiveEvidenceId(null);
     }
-  }, []);
+  }, [teamId]);
 
   // PHASE 1 — Lifecycle wiring.
   //
@@ -639,6 +640,7 @@ function ReviewerWorkspaceShell() {
           workflowId: activeWorkflowId,
           originalDecisionId: input.originalDecisionId,
           rationale: input.rationale,
+          teamId,
         });
         if (res.ok) {
           setStatusBanner(
@@ -649,7 +651,7 @@ function ReviewerWorkspaceShell() {
           // `disagreements.awaitingAdjudication` counter on the ribbon
           // updates with the new filing.
           try {
-            const ws = await fetchReviewerWorkspace();
+            const ws = await fetchReviewerWorkspace(teamId);
             setWorkspace(ws);
           } catch (err) {
             // eslint-disable-next-line no-console

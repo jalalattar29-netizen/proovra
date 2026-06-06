@@ -647,6 +647,10 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // backfill. Unblocks template provenance across the lifecycle
       // surfaces (review workflow, escalation, reports, packages).
       "20270816000000_phase_t_template_identity_columns",
+      // Phase T — repair missing UUID defaults on coding_schemas.id and
+      // coding_fields.id. This is a deliberate production drift repair
+      // migration for Phase 32.7.2.
+      "20270817000000_phase_t_coding_schema_uuid_default_repair",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

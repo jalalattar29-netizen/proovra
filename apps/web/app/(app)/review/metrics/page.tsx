@@ -27,6 +27,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { useActiveSpaceId } from "../../../../lib/platform-context";
+import { OperationalEmptyState } from "../../../../components/operational";
 import { fetchReviewerMetrics } from "../../../../lib/reviewer-workspace/reviewer-api";
 
 type Metrics = {
@@ -68,13 +70,18 @@ export default function MetricsPage() {
 }
 
 function MetricsShell() {
+  const teamId = useActiveSpaceId();
   const [state, setState] = useState<FetchState>({ kind: "LOADING" });
   const [loadedAt, setLoadedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!teamId) {
+      setState({ kind: "ERROR" });
+      return;
+    }
     setState({ kind: "LOADING" });
     try {
-      const m = await fetchReviewerMetrics();
+      const m = await fetchReviewerMetrics(teamId);
       setState({ kind: "READY", metrics: m });
       setLoadedAt(new Date().toISOString());
     } catch (err) {
@@ -106,6 +113,20 @@ function MetricsShell() {
       cancelled = true;
     };
   }, [load]);
+
+  if (!teamId) {
+    return (
+      <div
+        data-reviewer-metrics-page
+        style={{ padding: 24, maxWidth: 900, margin: "0 auto", color: "#0f172a" }}
+      >
+        <OperationalEmptyState
+          title="Select a workspace"
+          reason="Choose an active workspace before loading reviewer metrics."
+        />
+      </div>
+    );
+  }
 
   return (
     <div

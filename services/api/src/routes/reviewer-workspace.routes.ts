@@ -104,27 +104,40 @@ async function resolveTeam(
   workspaceRole: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" | null;
   isPlatformAdmin: boolean;
 } | null> {
+  const q = z.object({ teamId: z.string().uuid().optional() }).safeParse(
+    req.query ?? {},
+  );
+  if (!q.success) {
+    reply.code(400).send({
+      error: {
+        code: "INVALID_QUERY",
+        message: "teamId must be a valid UUID.",
+      },
+    });
+    return null;
+  }
+
   const userId = getAuthUserId(req);
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { currentWorkspaceId: true, platformRole: true },
   });
-  if (!user?.currentWorkspaceId) {
+
+  const teamId = q.data.teamId ?? user?.currentWorkspaceId;
+  if (!teamId) {
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;
   }
+
   const team = await prisma.team.findUnique({
-    where: { id: user.currentWorkspaceId },
+    where: { id: teamId },
     select: { id: true, isPersonal: true },
   });
-  if (!team) {
+  if (!team || team.isPersonal) {
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;
   }
-  if (team.isPersonal) {
-    reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
-    return null;
-  }
+
   const membership = await prisma.teamMember.findFirst({
     where: { teamId: team.id, userId },
     select: { role: true },
@@ -132,8 +145,13 @@ async function resolveTeam(
   return {
     teamId: team.id,
     userId,
-    workspaceRole: (membership?.role ?? null) as "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" | null,
-    isPlatformAdmin: user.platformRole !== null,
+    workspaceRole: (membership?.role ?? null) as
+      | "OWNER"
+      | "ADMIN"
+      | "MEMBER"
+      | "VIEWER"
+      | null,
+    isPlatformAdmin: user?.platformRole !== null,
   };
 }
 

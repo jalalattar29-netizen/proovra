@@ -68,7 +68,9 @@ import {
 } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { OperationalEmptyState } from "../../../../components/operational";
 import { apiFetch } from "../../../../lib/api";
+import { useActiveSpaceId } from "../../../../lib/platform-context";
 import {
   bulkAssign,
   bulkDecide,
@@ -179,6 +181,7 @@ type QcDiscoveryState =
 function QueuesShell() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const teamId = useActiveSpaceId();
   const initialQueue = searchParams.get("queue");
   const initialFilter = REVIEWER_OPS_QUEUE_TYPES.includes(
     initialQueue as ReviewerOpsQueueType,
@@ -220,10 +223,17 @@ function QueuesShell() {
   // Wrapped in try/catch with structured warn log on failure.
   const loadPage = useCallback(
     async (cursor: string | null) => {
+      if (!teamId) {
+        setRows([]);
+        setNextCursor(null);
+        setRefreshError("Select a workspace before loading review queues.");
+        return;
+      }
+
       const url =
         cursor === null
-          ? `/v1/reviewer-ops/queue?queue=${encodeURIComponent(filter)}&limit=${QUEUE_PAGE_LIMIT}`
-          : `/v1/reviewer-ops/queue?queue=${encodeURIComponent(filter)}&limit=${QUEUE_PAGE_LIMIT}&cursor=${encodeURIComponent(cursor)}`;
+          ? `/v1/reviewer-ops/queue?teamId=${encodeURIComponent(teamId)}&queue=${encodeURIComponent(filter)}&limit=${QUEUE_PAGE_LIMIT}`
+          : `/v1/reviewer-ops/queue?teamId=${encodeURIComponent(teamId)}&queue=${encodeURIComponent(filter)}&limit=${QUEUE_PAGE_LIMIT}&cursor=${encodeURIComponent(cursor)}`;
       try {
         const res = await apiFetch(url, { method: "GET" });
         const pageRows = (res?.rows ?? res?.workflows ?? []) as QueueRow[];
@@ -287,7 +297,7 @@ function QueuesShell() {
         }
       }
     },
-    [filter],
+    [filter, teamId],
   );
 
   // First page on mount / filter change. Selection is cleared when
@@ -317,9 +327,16 @@ function QueuesShell() {
   const refreshQc = useCallback(async () => {
     setQcState({ kind: "LOADING" });
     try {
-      const res = await apiFetch("/v1/reviewer-ops/qc/pending-count", {
-        method: "GET",
-      });
+      if (!teamId) {
+        setQcState({ kind: "ERROR", message: "Select a workspace before loading QC counts." });
+        return;
+      }
+      const res = await apiFetch(
+        `/v1/reviewer-ops/qc/pending-count?teamId=${encodeURIComponent(teamId)}`,
+        {
+          method: "GET",
+        },
+      );
       const pendingCount =
         typeof res?.pendingCount === "number" && Number.isFinite(res.pendingCount)
           ? res.pendingCount
@@ -422,7 +439,11 @@ function QueuesShell() {
   ) {
     // Server-side bulk cap is 100; slice the selection to stay inside.
     const ids = Array.from(selected).slice(0, BULK_ACTION_CAP);
-    const res = await bulkDecide({ verdict, workflowIds: ids });
+    const res = await bulkDecide({
+      verdict,
+      workflowIds: ids,
+      teamId,
+    });
     setBanner(summariseOutcome(`Decide=${verdict}`, ids.length, res));
     setSelected(new Set());
     setPendingConfirmation(null);
@@ -431,7 +452,11 @@ function QueuesShell() {
 
   async function runAssign(assigneeUserId: string) {
     const ids = Array.from(selected).slice(0, BULK_ACTION_CAP);
-    const res = await bulkAssign({ assigneeUserId, workflowIds: ids });
+    const res = await bulkAssign({
+      assigneeUserId,
+      workflowIds: ids,
+      teamId,
+    });
     setBanner(summariseOutcome(`Assign`, ids.length, res));
     setSelected(new Set());
     setPendingConfirmation(null);
@@ -445,8 +470,15 @@ function QueuesShell() {
   const openReviewerPicker = useCallback(async () => {
     setPickerState({ kind: "LOADING" });
     try {
+      if (!teamId) {
+        setPickerState({
+          kind: "ERROR",
+          message: "Select a workspace before loading reviewers.",
+        });
+        return;
+      }
       const res = await apiFetch(
-        "/v1/reviewer-ops/assignable-reviewers?limit=200",
+        `/v1/reviewer-ops/assignable-reviewers?teamId=${encodeURIComponent(teamId)}&limit=200`,
         { method: "GET" },
       );
       const reviewers =
@@ -484,6 +516,25 @@ function QueuesShell() {
       });
     }
   }, []);
+
+  if (!teamId) {
+    return (
+      <div
+        data-reviewer-queues-page
+        style={{
+          padding: 18,
+          maxWidth: 1200,
+          margin: "0 auto",
+          color: "#0f172a",
+        }}
+      >
+        <OperationalEmptyState
+          title="Select a workspace"
+          reason="Choose an active workspace before loading review queues."
+        />
+      </div>
+    );
+  }
 
   const visibleRowCount = rows?.length ?? 0;
   const hasMore = nextCursor !== null;

@@ -48,6 +48,7 @@ import {
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
 import { apiFetch } from "../../../../lib/api";
+import { useActiveSpaceId } from "../../../../lib/platform-context";
 import { transitionDisagreement } from "../../../../lib/reviewer-workspace/reviewer-api";
 
 /**
@@ -106,6 +107,7 @@ export default function DisagreementsPage() {
 }
 
 function DisagreementsShell() {
+  const teamId = useActiveSpaceId();
   const [rows, setRows] = useState<DisagreementRow[] | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   /**
@@ -124,10 +126,17 @@ function DisagreementsShell() {
   );
 
   const refresh = useCallback(async () => {
+    if (!teamId) {
+      setRows([]);
+      return;
+    }
     try {
-      const res = await apiFetch("/v1/reviewer/disagreements?limit=100", {
-        method: "GET",
-      });
+      const res = await apiFetch(
+        `/v1/reviewer/disagreements?teamId=${encodeURIComponent(teamId)}&limit=100`,
+        {
+          method: "GET",
+        },
+      );
       setRows((res?.disagreements ?? []) as DisagreementRow[]);
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -163,7 +172,7 @@ function DisagreementsShell() {
       verdict?: ReviewerVerdict,
       rationale?: string,
     ) => {
-      if (busyDisagreementId) return;
+      if (busyDisagreementId || !teamId) return;
       setBusyDisagreementId(id);
       try {
         const res = await transitionDisagreement({
@@ -171,6 +180,7 @@ function DisagreementsShell() {
           to,
           verdict,
           rationale,
+          teamId,
         });
         if (res.ok) {
           setBanner(`Moved to ${STATE_LABELS[to] ?? to}.`);
@@ -183,8 +193,22 @@ function DisagreementsShell() {
         setBusyDisagreementId(null);
       }
     },
-    [refresh, busyDisagreementId],
+    [refresh, busyDisagreementId, teamId],
   );
+
+  if (!teamId) {
+    return (
+      <div
+        data-disagreements-page
+        style={{ padding: 24, maxWidth: 1200, margin: "0 auto", color: "#0f172a" }}
+      >
+        <OperationalEmptyState
+          title="Select a workspace"
+          reason="Choose an active workspace before loading disagreements."
+        />
+      </div>
+    );
+  }
 
   return (
     <div

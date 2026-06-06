@@ -36,6 +36,7 @@ import { QC_FAILURE_REASONS, QC_VERDICTS } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
+import { useActiveSpaceId } from "../../../../lib/platform-context";
 import {
   fetchQcSamples,
   renderQcVerdict,
@@ -77,6 +78,7 @@ export default function QcPage() {
 }
 
 function QcShell() {
+  const teamId = useActiveSpaceId();
   const [rows, setRows] = useState<QcRow[] | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   /**
@@ -90,8 +92,12 @@ function QcShell() {
   const [busySampleId, setBusySampleId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
+    if (!teamId) {
+      setRows([]);
+      return;
+    }
     try {
-      const list = (await fetchQcSamples()) as QcRow[];
+      const list = (await fetchQcSamples(teamId)) as QcRow[];
       setRows(list);
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -129,7 +135,7 @@ function QcShell() {
       failureReason?: string,
       rationale?: string,
     ) => {
-      if (busySampleId) return;
+      if (busySampleId || !teamId) return;
       setBusySampleId(sampleId);
       try {
         const res = await renderQcVerdict({
@@ -137,6 +143,7 @@ function QcShell() {
           verdict,
           failureReason,
           rationale,
+          teamId,
         });
         if (res.ok) {
           setBanner(`Verdict ${verdict} recorded.`);
@@ -149,8 +156,27 @@ function QcShell() {
         setBusySampleId(null);
       }
     },
-    [refresh, busySampleId],
+    [refresh, busySampleId, teamId],
   );
+
+  if (!teamId) {
+    return (
+      <div
+        data-qc-page
+        style={{
+          padding: 24,
+          maxWidth: 1100,
+          margin: "0 auto",
+          color: "#0f172a",
+        }}
+      >
+        <OperationalEmptyState
+          title="Select a workspace"
+          reason="Choose an active workspace before loading QC samples."
+        />
+      </div>
+    );
+  }
 
   return (
     <div

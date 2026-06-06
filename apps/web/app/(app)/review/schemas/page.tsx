@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
 import { apiFetch } from "../../../../lib/api";
+import { useActiveSpaceId } from "../../../../lib/platform-context";
 import {
   seedDefaultSchemas,
   type CodingSchemaRow,
@@ -29,6 +30,7 @@ export default function CodingSchemasPage() {
 }
 
 function SchemasShell() {
+  const teamId = useActiveSpaceId();
   const [schemas, setSchemas] = useState<CodingSchemaRow[] | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [banner, setBanner] = useState<{
@@ -37,8 +39,15 @@ function SchemasShell() {
   } | null>(null);
 
   const refresh = useCallback(async () => {
+    if (!teamId) {
+      setSchemas([]);
+      return;
+    }
     try {
-      const res = await apiFetch("/v1/coding/schemas", { method: "GET" });
+      const res = await apiFetch(
+        `/v1/coding/schemas?teamId=${encodeURIComponent(teamId)}`,
+        { method: "GET" },
+      );
       setSchemas((res?.schemas ?? []) as CodingSchemaRow[]);
     } catch {
       setSchemas([]);
@@ -54,9 +63,16 @@ function SchemasShell() {
   }, [refresh]);
 
   const onSeed = useCallback(async () => {
+    if (!teamId) {
+      setBanner({
+        tone: "error",
+        text: "Select a workspace before seeding schemas.",
+      });
+      return;
+    }
     setSeeding(true);
     try {
-      const res = await seedDefaultSchemas();
+      const res = await seedDefaultSchemas(teamId);
       if (res.degraded || res.reason === "SCHEMA_NOT_READY") {
         setBanner({
           tone: "degraded",
@@ -78,6 +94,25 @@ function SchemasShell() {
       setSeeding(false);
     }
   }, [refresh]);
+
+  if (!teamId) {
+    return (
+      <div
+        data-coding-schemas-page
+        style={{
+          padding: 24,
+          maxWidth: 1100,
+          margin: "0 auto",
+          color: "#0f172a",
+        }}
+      >
+        <OperationalEmptyState
+          title="Select a workspace"
+          reason="Choose an active workspace before loading coding schemas."
+        />
+      </div>
+    );
+  }
 
   return (
     <div

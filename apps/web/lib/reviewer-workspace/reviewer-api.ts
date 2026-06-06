@@ -20,10 +20,19 @@ import type {
 
 import { apiFetch } from "../api";
 
-export async function fetchReviewerWorkspace(): Promise<
-  ReviewerWorkspaceProjection | null
-> {
-  const res = await apiFetch("/v1/reviewer/workspace", { method: "GET" });
+function withTeamId(url: string, teamId?: string | null): string {
+  if (!teamId) return url;
+  return url.includes("?")
+    ? `${url}&teamId=${encodeURIComponent(teamId)}`
+    : `${url}?teamId=${encodeURIComponent(teamId)}`;
+}
+
+export async function fetchReviewerWorkspace(
+  teamId?: string | null,
+): Promise<ReviewerWorkspaceProjection | null> {
+  const res = await apiFetch(withTeamId("/v1/reviewer/workspace", teamId), {
+    method: "GET",
+  });
   return (res?.workspace ?? null) as ReviewerWorkspaceProjection | null;
 }
 
@@ -49,8 +58,13 @@ export type CodingSchemaRow = {
   fields: CodingFieldRow[];
 };
 
-export async function fetchSchema(schemaId: string): Promise<CodingSchemaRow | null> {
-  const res = await apiFetch(`/v1/coding/schemas/${schemaId}`, { method: "GET" });
+export async function fetchSchema(
+  schemaId: string,
+  teamId?: string | null,
+): Promise<CodingSchemaRow | null> {
+  const res = await apiFetch(withTeamId(`/v1/coding/schemas/${schemaId}`, teamId), {
+    method: "GET",
+  });
   return (res?.schema ?? null) as CodingSchemaRow | null;
 }
 
@@ -69,11 +83,14 @@ export type CodingCoverage = {
   unfulfilledFieldIds: string[];
 };
 
-export async function fetchCodingState(workflowId: string): Promise<{
+export async function fetchCodingState(
+  workflowId: string,
+  teamId?: string | null,
+): Promise<{
   values: CodingValueRow[];
   coverage: CodingCoverage;
 }> {
-  const res = await apiFetch(`/v1/reviewer/work/${workflowId}/coding`, {
+  const res = await apiFetch(withTeamId(`/v1/reviewer/work/${workflowId}/coding`, teamId), {
     method: "GET",
   });
   return {
@@ -91,16 +108,20 @@ export async function writeCodingValue(input: {
   fieldId: string;
   value: Record<string, unknown>;
   rationale?: string;
+  teamId?: string | null;
 }): Promise<CodingWriteResult> {
   try {
-    const res = await apiFetch(`/v1/reviewer/work/${input.workflowId}/code`, {
-      method: "POST",
-      body: JSON.stringify({
-        fieldId: input.fieldId,
-        value: input.value,
-        rationale: input.rationale,
-      }),
-    });
+    const res = await apiFetch(
+      withTeamId(`/v1/reviewer/work/${input.workflowId}/code`, input.teamId),
+      {
+        method: "POST",
+        body: JSON.stringify({
+          fieldId: input.fieldId,
+          value: input.value,
+          rationale: input.rationale,
+        }),
+      },
+    );
     return { ok: true, codingValueId: res.codingValueId };
   } catch (err) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,15 +134,19 @@ export async function fileDisagreement(input: {
   workflowId: string;
   originalDecisionId: string;
   rationale: string;
+  teamId?: string | null;
 }): Promise<{ ok: true; disagreementId: string } | { ok: false; denial: ReviewerDenialReason }> {
   try {
-    const res = await apiFetch(`/v1/reviewer/work/${input.workflowId}/disagree`, {
-      method: "POST",
-      body: JSON.stringify({
-        originalDecisionId: input.originalDecisionId,
-        rationale: input.rationale,
-      }),
-    });
+    const res = await apiFetch(
+      withTeamId(`/v1/reviewer/work/${input.workflowId}/disagree`, input.teamId),
+      {
+        method: "POST",
+        body: JSON.stringify({
+          originalDecisionId: input.originalDecisionId,
+          rationale: input.rationale,
+        }),
+      },
+    );
     return { ok: true, disagreementId: res.disagreementId };
   } catch (err) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -187,16 +212,23 @@ export async function transitionDisagreement(input: {
   to: string;
   verdict?: ReviewerVerdict;
   rationale?: string;
+  teamId?: string | null;
 }): Promise<{ ok: true } | { ok: false; denial: ReviewerDenialReason }> {
   try {
-    await apiFetch(`/v1/reviewer/disagreements/${input.disagreementId}/transition`, {
-      method: "POST",
-      body: JSON.stringify({
-        to: input.to,
-        verdict: input.verdict,
-        rationale: input.rationale,
-      }),
-    });
+    await apiFetch(
+      withTeamId(
+        `/v1/reviewer/disagreements/${input.disagreementId}/transition`,
+        input.teamId,
+      ),
+      {
+        method: "POST",
+        body: JSON.stringify({
+          to: input.to,
+          verdict: input.verdict,
+          rationale: input.rationale,
+        }),
+      },
+    );
     return { ok: true };
   } catch (err) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -205,8 +237,10 @@ export async function transitionDisagreement(input: {
   }
 }
 
-export async function fetchQcSamples(): Promise<unknown[]> {
-  const res = await apiFetch("/v1/reviewer/qc/samples?limit=100", { method: "GET" });
+export async function fetchQcSamples(teamId?: string | null): Promise<unknown[]> {
+  const res = await apiFetch(withTeamId("/v1/reviewer/qc/samples?limit=100", teamId), {
+    method: "GET",
+  });
   return (res?.samples ?? []) as unknown[];
 }
 
@@ -215,12 +249,16 @@ export async function renderQcVerdict(input: {
   verdict: "PASS" | "FAIL" | "PARTIAL";
   failureReason?: string;
   rationale?: string;
+  teamId?: string | null;
 }): Promise<{ ok: true } | { ok: false; denial: ReviewerDenialReason }> {
   try {
-    await apiFetch(`/v1/reviewer/qc/samples/${input.sampleId}/verdict`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
+    await apiFetch(
+      withTeamId(`/v1/reviewer/qc/samples/${input.sampleId}/verdict`, input.teamId),
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    );
     return { ok: true };
   } catch (err) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -229,7 +267,7 @@ export async function renderQcVerdict(input: {
   }
 }
 
-export async function fetchReviewerMetrics(): Promise<{
+export async function fetchReviewerMetrics(teamId?: string | null): Promise<{
   throughput7d: number;
   approvalRate7dPct: number;
   escalationRate7dPct: number;
@@ -237,11 +275,15 @@ export async function fetchReviewerMetrics(): Promise<{
   qcFailureRate7dPct: number;
   avgReviewDurationMs7d: number;
 }> {
-  const res = await apiFetch("/v1/reviewer/metrics", { method: "GET" });
+  const res = await apiFetch(withTeamId("/v1/reviewer/metrics", teamId), {
+    method: "GET",
+  });
   return res.metrics;
 }
 
-export async function seedDefaultSchemas(): Promise<{
+export async function seedDefaultSchemas(
+  teamId?: string | null,
+): Promise<{
   created: number;
   updated: number;
   existing: number;
@@ -249,7 +291,10 @@ export async function seedDefaultSchemas(): Promise<{
   degraded?: boolean;
   reason?: string;
 }> {
-  return apiFetch("/v1/coding/schemas/seed-defaults", { method: "POST", body: "{}" });
+  return apiFetch(withTeamId("/v1/coding/schemas/seed-defaults", teamId), {
+    method: "POST",
+    body: "{}",
+  });
 }
 
 export type ReviewerOpsWorkspaceSummary = {
@@ -608,16 +653,20 @@ export type BulkOutcome = {
 export async function bulkAssign(input: {
   assigneeUserId: string;
   workflowIds: string[];
+  teamId?: string | null;
 }): Promise<{
   total: number;
   succeeded: number;
   outcomes: BulkOutcome[];
 } | { denial: string }> {
   try {
-    return await apiFetch("/v1/reviewer/bulk/assign", {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
+    return await apiFetch(
+      withTeamId("/v1/reviewer/bulk/assign", input.teamId),
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    );
   } catch (err) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return { denial: ((err as any)?.body?.denial ?? "RATE_LIMITED") as string };
@@ -628,16 +677,20 @@ export async function bulkDecide(input: {
   verdict: "APPROVE" | "REJECT" | "ESCALATE" | "NEEDS_INFO";
   rationale?: string;
   workflowIds: string[];
+  teamId?: string | null;
 }): Promise<{
   total: number;
   succeeded: number;
   outcomes: BulkOutcome[];
 } | { denial: string }> {
   try {
-    return await apiFetch("/v1/reviewer/bulk/decide", {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
+    return await apiFetch(
+      withTeamId("/v1/reviewer/bulk/decide", input.teamId),
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    );
   } catch (err) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return { denial: ((err as any)?.body?.denial ?? "RATE_LIMITED") as string };
@@ -648,13 +701,14 @@ export async function bulkCode(input: {
   fieldSlug: string;
   value: Record<string, unknown>;
   workflowIds: string[];
+  teamId?: string | null;
 }): Promise<{
   total: number;
   succeeded: number;
   outcomes: BulkOutcome[];
 } | { denial: string }> {
   try {
-    return await apiFetch("/v1/reviewer/bulk/code", {
+    return await apiFetch(withTeamId("/v1/reviewer/bulk/code", input.teamId), {
       method: "POST",
       body: JSON.stringify(input),
     });
