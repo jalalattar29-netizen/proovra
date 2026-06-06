@@ -26,6 +26,10 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+// Phase 4 — wire audit emission via the canonical platform audit log.
+// `.catch(() => {})` keeps emission best-effort so audit failure cannot
+// roll back the primary disagreement mutation.
+import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
 
 export type FileDisagreementInput = {
   prisma?: PrismaClient;
@@ -69,6 +73,26 @@ export async function fileDisagreement(
     },
     select: { id: true },
   });
+  // Phase 4 — best-effort audit emission. Bounded metadata: IDs only.
+  // Raw rationale text is intentionally NOT included (would leak
+  // reviewer commentary into the platform audit chain).
+  await appendPlatformAuditLog({
+    userId: input.challengerUserId,
+    action: "reviewer.disagreement.filed",
+    category: "review",
+    severity: "info",
+    source: "reviewer_workspace.disagreement",
+    outcome: "success",
+    resourceType: "reviewer_disagreement",
+    resourceId: created.id,
+    metadata: {
+      teamId: input.teamId,
+      workflowId: input.workflowId,
+      disagreementId: created.id,
+      originalDecisionId: input.originalDecisionId,
+      challengerUserId: input.challengerUserId,
+    },
+  }).catch(() => {});
   return { ok: true, disagreementId: created.id };
 }
 
@@ -82,6 +106,25 @@ export type TransitionDisagreementInput = {
   verdict?: ReviewerVerdict;
   rationale?: string;
 };
+
+const DISAGREEMENT_RATIONALE_MAX = 600;
+const DISAGREEMENT_RESOLUTION_MAX = 800;
+
+function buildResolutionSummary(input: {
+  verdict: ReviewerVerdict | null;
+  rationale: string | null;
+  actorStage: "SECOND_REVIEW" | "SUPERVISOR";
+}): string | null {
+  const payload = {
+    verdict: input.verdict,
+    rationale: input.rationale,
+    actorStage: input.actorStage,
+  };
+  const summary = JSON.stringify(payload);
+  return summary.length > 0
+    ? summary.slice(0, DISAGREEMENT_RESOLUTION_MAX)
+    : null;
+}
 
 export async function transitionDisagreement(
   input: TransitionDisagreementInput,
@@ -114,37 +157,58 @@ export async function transitionDisagreement(
 
   const now = new Date();
   const data: Record<string, unknown> = { state: input.to };
+  const trimmedRationale =
+    input.rationale && input.rationale.trim().length > 0
+      ? input.rationale.trim().slice(0, DISAGREEMENT_RATIONALE_MAX)
+      : null;
 
   if (input.to === "UNDER_SECOND_REVIEW") {
     data["secondReviewerUserId"] = input.actorUserId;
   } else if (input.to === "UNDER_SUPERVISOR_REVIEW") {
     data["supervisorUserId"] = input.actorUserId;
   } else if (input.to.startsWith("RESOLVED_")) {
+    const actorStage = row.state.startsWith("UNDER_SUPERVISOR_REVIEW")
+      ? "SUPERVISOR"
+      : "SECOND_REVIEW";
     data["resolvedAtUtc"] = now;
-    if (input.verdict) {
-      data["supervisorVerdict"] = input.verdict;
-    }
-    if (input.rationale) {
-      data["supervisorRationale"] = input.rationale.slice(0, 600);
-    }
-    if (input.actorUserId && !row.state.startsWith("UNDER_SUPERVISOR_REVIEW")) {
-      // Second-reviewer rendered a decision; record on the
-      // second-reviewer columns when supervisor review hasn't begun.
-      data["secondReviewerVerdict"] = input.verdict ?? null;
-      data["secondReviewerRationale"] = input.rationale?.slice(0, 600) ?? null;
-      data["secondReviewerDecidedAt"] = now;
-    }
+    data["resolvedByUserId"] = input.actorUserId;
+    data["resolution"] = buildResolutionSummary({
+      verdict: input.verdict ?? null,
+      rationale: trimmedRationale,
+      actorStage,
+    });
   } else if (input.to === "WITHDRAWN") {
     if (input.actorUserId !== row.challengerUserId) {
       return deny("NOT_PERMITTED");
     }
-    data["withdrawnAtUtc"] = now;
   }
 
   await prisma.reviewerDisagreement.update({
     where: { id: row.id },
     data: data as never,
   });
+  // Phase 4 — best-effort audit emission for state transitions.
+  // Bounded metadata: IDs, enum states, and (when present) the
+  // bounded verdict enum. Raw rationale text is intentionally NOT
+  // included.
+  await appendPlatformAuditLog({
+    userId: input.actorUserId,
+    action: "reviewer.disagreement.transitioned",
+    category: "review",
+    severity: input.to.startsWith("RESOLVED_") ? "info" : "info",
+    source: "reviewer_workspace.disagreement",
+    outcome: "success",
+    resourceType: "reviewer_disagreement",
+    resourceId: row.id,
+    metadata: {
+      teamId: input.teamId,
+      disagreementId: row.id,
+      fromState: row.state,
+      toState: input.to,
+      resolution: input.verdict ?? null,
+      actorUserId: input.actorUserId,
+    },
+  }).catch(() => {});
   return { ok: true };
 }
 

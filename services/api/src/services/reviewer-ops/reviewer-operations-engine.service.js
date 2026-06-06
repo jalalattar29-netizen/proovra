@@ -36,6 +36,10 @@ import { snapshotWorkspaceWorkload, suggestReviewers, listLatestWorkloadSnapshot
 import { loadWorkspaceReviewerOpsFlags, resolveEffectiveSlaPolicy, } from "./sla-policy.service.js";
 import { warn as logWarn } from "../../utils/logger.js";
 import { sweepDueSoonReminders, sweepInactivityReminders, } from "./reminder-engine.service.js";
+// Phase 3 — QC sampling at workflow close. Single chokepoint so every
+// approve / reject (route, bulk, future programmatic) is sampled
+// exactly once. The service itself is idempotent per (workflowId, teamId).
+import { sampleClosedWorkflow } from "../reviewer-workspace/qc-sample.service.js";
 import { detectStuckWorkflow, } from "@proovra/shared";
 // -----------------------------------------------------------------------------
 // Error
@@ -274,14 +278,22 @@ async function listReviewerOpsQueueInner(input, client) {
             };
             break;
     }
+    // Phase RW3 — honest cursor pagination (mirrors .ts sibling).
+    const cursorId = typeof input.cursor === "string" && input.cursor.length > 0
+        ? input.cursor
+        : null;
     const rows = await client.evidenceReviewWorkflow.findMany({
         where: baseWhere,
         orderBy: [
             { priority: "desc" },
             { dueAt: "asc" },
             { updatedAt: "desc" },
+            { id: "desc" },
         ],
         take: limit + 1,
+        ...(cursorId
+            ? { cursor: { id: cursorId }, skip: 1 }
+            : {}),
     });
     const hasMore = rows.length > limit;
     if (hasMore)
@@ -647,6 +659,26 @@ async function approveReviewInner(ctx, input, client) {
         severity: "INFO",
         details: { workflowId: row.id, actorUserId: ctx.actorUserId },
     });
+    // Phase 3 — opportunistic QC sampling at workflow close. Idempotent
+    // per (workflowId, teamId). MUST NOT roll back the close transaction:
+    // any failure here is logged and swallowed so the operator's approve
+    // stands regardless of QC sampling availability.
+    try {
+        await sampleClosedWorkflow({
+            prisma: client,
+            teamId: ctx.teamId,
+            workflowId: row.id,
+            decision: "APPROVE_INTERNAL",
+        });
+    }
+    catch (err) {
+        logWarn("qc.sample_on_close.failed", {
+            err: err instanceof Error ? err.message : String(err),
+            workflowId: row.id,
+            teamId: ctx.teamId,
+            decision: "APPROVE_INTERNAL",
+        });
+    }
     return buildWorkflowProjection(updated);
 }
 // ----- rejectReview -----------------------------------------------------------
@@ -670,6 +702,26 @@ export async function rejectReview(ctx, input, client = defaultPrisma) {
         severity: "INFO",
         details: { workflowId: row.id, actorUserId: ctx.actorUserId },
     });
+    // Phase 3 — opportunistic QC sampling at workflow close. Idempotent
+    // per (workflowId, teamId). MUST NOT roll back the close transaction:
+    // any failure here is logged and swallowed so the operator's reject
+    // stands regardless of QC sampling availability.
+    try {
+        await sampleClosedWorkflow({
+            prisma: client,
+            teamId: ctx.teamId,
+            workflowId: row.id,
+            decision: "REJECT_INSUFFICIENT",
+        });
+    }
+    catch (err) {
+        logWarn("qc.sample_on_close.failed", {
+            err: err instanceof Error ? err.message : String(err),
+            workflowId: row.id,
+            teamId: ctx.teamId,
+            decision: "REJECT_INSUFFICIENT",
+        });
+    }
     return buildWorkflowProjection(updated);
 }
 /**

@@ -35,6 +35,12 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+// Phase 4 — wire audit emission via the canonical platform audit log.
+// `.catch(() => {})` keeps emission best-effort so audit failure cannot
+// roll back the primary schema mutation. Bounded metadata only — field
+// definitions are intentionally NOT included (could leak sensitive
+// template structure into the platform audit chain).
+import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
 
 // =============================================================================
 // Public input/output types
@@ -129,6 +135,26 @@ export async function createSchema(
     },
     select: { id: true, version: true },
   });
+  // Phase 4 — best-effort audit emission. Bounded metadata: IDs,
+  // slug, version, and category enum. Field definitions are
+  // intentionally NOT included.
+  await appendPlatformAuditLog({
+    userId: input.authorUserId,
+    action: "reviewer.coding_schema.created",
+    category: "review",
+    severity: "info",
+    source: "reviewer_workspace.coding_schema",
+    outcome: "success",
+    resourceType: "coding_schema",
+    resourceId: schema.id,
+    metadata: {
+      teamId: input.teamId,
+      schemaId: schema.id,
+      slug: input.slug,
+      category: input.category,
+      version: schema.version,
+    },
+  }).catch(() => {});
   return { ok: true, schemaId: schema.id, version: schema.version };
 }
 
@@ -138,7 +164,7 @@ export async function publishSchema(
   const prisma = input.prisma ?? defaultPrisma;
   const schema = await prisma.codingSchema.findFirst({
     where: { id: input.schemaId, teamId: input.teamId },
-    select: { id: true, status: true, version: true },
+    select: { id: true, status: true, version: true, slug: true },
   });
   if (!schema) return deny("SCHEMA_NOT_FOUND") as PublishSchemaResult;
   if (schema.status !== "DRAFT") {
@@ -148,6 +174,27 @@ export async function publishSchema(
     where: { id: schema.id },
     data: { status: "PUBLISHED", publishedAt: new Date() },
   });
+  // Phase 4 — best-effort audit emission. Bounded metadata: IDs,
+  // slug and published version. No actor is available on the
+  // service signature (the route binds requireAuth + requireCap);
+  // userId is null since this is workspace-anchored to teamId.
+  await appendPlatformAuditLog({
+    userId: null,
+    isPublic: true,
+    action: "reviewer.coding_schema.published",
+    category: "review",
+    severity: "info",
+    source: "reviewer_workspace.coding_schema",
+    outcome: "success",
+    resourceType: "coding_schema",
+    resourceId: schema.id,
+    metadata: {
+      teamId: input.teamId,
+      schemaId: schema.id,
+      slug: schema.slug,
+      version: schema.version,
+    },
+  }).catch(() => {});
   return { ok: true, schemaId: schema.id, publishedVersion: schema.version };
 }
 
@@ -157,13 +204,31 @@ export async function archiveSchema(
   const prisma = input.prisma ?? defaultPrisma;
   const schema = await prisma.codingSchema.findFirst({
     where: { id: input.schemaId, teamId: input.teamId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, slug: true },
   });
   if (!schema) return deny("SCHEMA_NOT_FOUND");
   await prisma.codingSchema.update({
     where: { id: schema.id },
     data: { status: "ARCHIVED", archivedAt: new Date() },
   });
+  // Phase 4 — best-effort audit emission. Bounded metadata: IDs and
+  // slug. No actor on the service signature.
+  await appendPlatformAuditLog({
+    userId: null,
+    isPublic: true,
+    action: "reviewer.coding_schema.archived",
+    category: "review",
+    severity: "info",
+    source: "reviewer_workspace.coding_schema",
+    outcome: "success",
+    resourceType: "coding_schema",
+    resourceId: schema.id,
+    metadata: {
+      teamId: input.teamId,
+      schemaId: schema.id,
+      slug: schema.slug,
+    },
+  }).catch(() => {});
   return { ok: true };
 }
 

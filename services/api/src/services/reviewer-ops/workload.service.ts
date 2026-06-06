@@ -287,3 +287,128 @@ export async function listLatestWorkloadSnapshots(
   }
   return latest;
 }
+
+// -----------------------------------------------------------------------------
+// Phase RW3-2 — Assignable reviewers (team-scoped picker source).
+//
+// Returns the bounded list of team members who hold the
+// `evidence_request.review` permission — i.e. the canonical "reviewer"
+// pool that the bulk-assign UI may target. Replaces the previous
+// `window.prompt` for a userId in /review/queues; without this list
+// endpoint the only honest path was to ask the operator to paste a
+// raw UUID. With it, we can render a real picker.
+//
+// Hard rules:
+//   * Team-scoped via the TeamMember pivot — never enumerates global
+//     users, never leaks members of other workspaces.
+//   * status = ACTIVE only (suspended/revoked are not selectable).
+//   * Reviewer capability gated by the same `evaluateMemberAccess`
+//     helper the snapshot writer uses — so the pool here is exactly
+//     the pool that gets workload snapshots.
+//   * Bounded projection. No email. No raw PII. displayName is
+//     optional (null when not set) so the UI can fall back to a
+//     bounded "Reviewer …<shortId>" label.
+//   * If a recent ReviewerWorkloadSnapshot exists for the candidate,
+//     surface the live `activeReviewCount` so the picker can render
+//     pressure without a second round-trip; otherwise omit the field
+//     rather than fake a zero.
+//   * Limit cap: route layer caps at 200; service additionally bounds
+//     to defend against direct callers.
+// -----------------------------------------------------------------------------
+
+export type AssignableReviewer = {
+  userId: string;
+  displayName: string | null;
+  role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
+  status: "ACTIVE";
+  /** Most recent ReviewerWorkloadSnapshot active count. Omitted when no snapshot. */
+  currentWorkloadCount?: number;
+};
+
+export async function listAssignableReviewers(
+  input: { teamId: string; limit?: number },
+  client: PrismaClient = defaultPrisma,
+): Promise<ReadonlyArray<AssignableReviewer>> {
+  const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
+  // Pull ACTIVE team members in stable order. We pull a bounded pool
+  // (limit * 2, max 400) because some candidates may not be reviewer-
+  // capable and will be filtered out — we still want to land at `limit`
+  // returned rows when possible.
+  const poolSize = Math.min(limit * 2, 400);
+  const members = await client.teamMember.findMany({
+    where: {
+      teamId: input.teamId,
+      status: "ACTIVE",
+    },
+    select: {
+      userId: true,
+      role: true,
+      user: {
+        select: {
+          id: true,
+          displayName: true,
+        },
+      },
+    },
+    // Stable order so two callers see the same prefix when the pool
+    // exceeds `limit`. `userId` is unique within (teamId,_) per
+    // schema's @@unique([teamId, userId]).
+    orderBy: { userId: "asc" },
+    take: poolSize,
+  });
+
+  if (members.length === 0) return [];
+
+  // Reviewer-capable filter — gate on the same permission the workload
+  // service uses, so the picker pool === the snapshotted pool.
+  const reviewerCapable: typeof members = [];
+  for (const m of members) {
+    const access = await evaluateMemberAccess({
+      teamId: input.teamId,
+      userId: m.userId,
+      permission: "evidence_request.review",
+    });
+    if (access.allowed) reviewerCapable.push(m);
+    if (reviewerCapable.length >= limit) break;
+  }
+
+  if (reviewerCapable.length === 0) return [];
+
+  // Latest workload snapshot lookup — one query, group in memory.
+  const reviewerUserIds = reviewerCapable.map((m) => m.userId);
+  const snapshots = await client.reviewerWorkloadSnapshot.findMany({
+    where: {
+      teamId: input.teamId,
+      reviewerUserId: { in: reviewerUserIds },
+    },
+    orderBy: { computedAtUtc: "desc" },
+    select: {
+      reviewerUserId: true,
+      activeReviewCount: true,
+      computedAtUtc: true,
+    },
+    // Bounded; with at most 200 reviewers each having O(n) snapshots,
+    // we cap aggressively. We only need the latest per reviewer.
+    take: reviewerUserIds.length * 4,
+  });
+  const latestByReviewer = new Map<string, number>();
+  for (const s of snapshots) {
+    if (!latestByReviewer.has(s.reviewerUserId)) {
+      latestByReviewer.set(s.reviewerUserId, s.activeReviewCount);
+    }
+  }
+
+  return reviewerCapable.map((m) => {
+    const projected: AssignableReviewer = {
+      userId: m.userId,
+      displayName: m.user?.displayName ?? null,
+      role: m.role as AssignableReviewer["role"],
+      status: "ACTIVE",
+    };
+    const workload = latestByReviewer.get(m.userId);
+    if (typeof workload === "number") {
+      projected.currentWorkloadCount = workload;
+    }
+    return projected;
+  });
+}

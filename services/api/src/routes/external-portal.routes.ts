@@ -27,6 +27,7 @@ import {
   EXTERNAL_REVIEWER_ROLES,
   WATERMARK_POLICIES,
   type ExternalPortalCapability,
+  type ReviewerCapability,
 } from "@proovra/shared";
 
 import { getAuthUserId } from "../auth.js";
@@ -34,6 +35,10 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { externalPortalCapabilitiesForRole } from "@proovra/shared";
 import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
+import {
+  callerHasCapability,
+  resolveReviewerRole,
+} from "../services/reviewer-workspace/reviewer-roles.js";
 
 import {
   emitPortalSessionRevoked,
@@ -175,11 +180,16 @@ const SsoCallbackBody = z.object({
 async function resolveInternalTeam(
   req: FastifyRequest,
   reply: FastifyReply,
-): Promise<{ teamId: string; userId: string } | null> {
+): Promise<{
+  teamId: string;
+  userId: string;
+  workspaceRole: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" | null;
+  isPlatformAdmin: boolean;
+} | null> {
   const userId = getAuthUserId(req);
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { currentWorkspaceId: true },
+    select: { currentWorkspaceId: true, platformRole: true },
   });
   if (!user?.currentWorkspaceId) {
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
@@ -193,7 +203,47 @@ async function resolveInternalTeam(
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;
   }
-  return { teamId: team.id, userId };
+  const membership = await prisma.teamMember.findFirst({
+    where: { teamId: team.id, userId },
+    select: { role: true },
+  });
+  return {
+    teamId: team.id,
+    userId,
+    workspaceRole: (membership?.role ?? null) as
+      | "OWNER"
+      | "ADMIN"
+      | "MEMBER"
+      | "VIEWER"
+      | null,
+    isPlatformAdmin: user.platformRole !== null,
+  };
+}
+
+// Phase 5 RBAC hardening — local requireCap helper that reuses the
+// canonical reviewer-workspace capability registry. The external-review
+// admin surfaces (invitation issue / revoke / resend / bulk / break-glass
+// reveal / session revoke) are operator-side actions that must be
+// gated to the same SUPERVISOR/REVIEW_ADMIN-tier capabilities the
+// reviewer-workspace routes already enforce. No new permission is
+// introduced; the helper delegates to resolveReviewerRole +
+// callerHasCapability so the matrix lives in exactly one place.
+function requireCap(
+  ctx: {
+    workspaceRole: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" | null;
+    isPlatformAdmin: boolean;
+  },
+  cap: ReviewerCapability,
+): boolean {
+  const r = resolveReviewerRole({
+    workspaceRole: ctx.workspaceRole,
+    isPlatformAdmin: ctx.isPlatformAdmin,
+  });
+  return callerHasCapability(r, cap);
+}
+
+function denyNoPermission(reply: FastifyReply): FastifyReply {
+  return reply.code(403).send({ denial: "NOT_PERMITTED" });
 }
 
 /**
@@ -298,6 +348,11 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveInternalTeam(req, reply);
       if (!ctx) return reply;
+      // Phase 5 RBAC hardening — issuing an external-reviewer invitation
+      // is a queue-assignment-tier action. Gate behind `review.assign`
+      // (granted to SUPERVISOR + REVIEW_ADMIN reviewer roles, i.e.
+      // workspace ADMIN + OWNER). Base REVIEWER and VIEWER receive 403.
+      if (!requireCap(ctx, "review.assign")) return denyNoPermission(reply);
       // I6 — FEATURE_EXTERNAL_PORTAL gate (minimal coverage, one rep mutation).
       try {
         const feOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_EXTERNAL_PORTAL", actorUserId: ctx.userId });
@@ -335,6 +390,8 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveInternalTeam(req, reply);
       if (!ctx) return reply;
+      // Phase 5 RBAC hardening — same tier as invitation issue.
+      if (!requireCap(ctx, "review.assign")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const res = await revokeInvitation({
         teamId: ctx.teamId,
@@ -372,6 +429,13 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveInternalTeam(req, reply);
       if (!ctx) return reply;
+      // Phase 5 RBAC hardening — bulk invitation issuance gates on
+      // `review.bulk` (SUPERVISOR + REVIEW_ADMIN). Also require
+      // `review.assign` so the bulk path can never be a weaker gate
+      // than the single-issue path.
+      if (!requireCap(ctx, "review.bulk") || !requireCap(ctx, "review.assign")) {
+        return denyNoPermission(reply);
+      }
       const body = BulkIssueBody.parse(req.body);
 
       const team = await prisma.team.findUnique({
@@ -410,6 +474,11 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveInternalTeam(req, reply);
       if (!ctx) return reply;
+      // Phase 5 RBAC hardening — bulk revoke shares the same gate as
+      // bulk issue: `review.bulk` + `review.assign`.
+      if (!requireCap(ctx, "review.bulk") || !requireCap(ctx, "review.assign")) {
+        return denyNoPermission(reply);
+      }
       const body = BulkRevokeBody.parse(req.body);
       const res = await bulkRevokeInvitations({
         teamId: ctx.teamId,
@@ -438,6 +507,19 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveInternalTeam(req, reply);
       if (!ctx) return reply;
+      // Phase 5 RBAC hardening — break-glass token reveal returns a
+      // raw bearer token EXACTLY ONCE; treat it as the most sensitive
+      // mutation on the surface. Gate to the strongest available
+      // reviewer capability: `review.sampling.policy`. In the default
+      // resolver, only REVIEW_ADMIN (workspace OWNER, or an explicit
+      // member-level reviewer-role override) carries this cap —
+      // SUPERVISOR (workspace ADMIN) does NOT. This is intentional:
+      // the surface already exists for the bounded fallback case where
+      // the reviewer cannot receive the resend email; restricting it
+      // to REVIEW_ADMIN preserves split-of-duty.
+      if (!requireCap(ctx, "review.sampling.policy")) {
+        return denyNoPermission(reply);
+      }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = z
         .object({ reason: z.string().min(10).max(400) })
@@ -474,6 +556,9 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveInternalTeam(req, reply);
       if (!ctx) return reply;
+      // Phase 5 RBAC hardening — resending an invitation email is the
+      // same operational tier as issuing one.
+      if (!requireCap(ctx, "review.assign")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const team = await prisma.team.findUnique({
         where: { id: ctx.teamId },
@@ -813,6 +898,9 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveInternalTeam(req, reply);
       if (!ctx) return reply;
+      // Phase 5 RBAC hardening — operator-initiated session revoke is
+      // the same tier as invitation revoke.
+      if (!requireCap(ctx, "review.assign")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = z
         .object({

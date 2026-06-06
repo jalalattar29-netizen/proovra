@@ -172,10 +172,12 @@ function GovernancePolicyPageInner() {
       <header style={headerRowStyle}>
         <div>
           <h1 style={titleStyle}>Governance Policy</h1>
-          <p style={subtitleStyle}>
-            Workspace SLA defaults + step-up enforcement. Workflow
-            templates can override SLAs per-template; this surface sets
-            the workspace baseline. Saving triggers a step-up challenge.
+          <p style={subtitleStyle} data-governance-policy-intro>
+            This surface administers the workspace baseline SLA and
+            step-up enforcement flags. Workflow templates can override
+            the SLA per template; the values set here apply only when a
+            template does not pin its own. Saving triggers a step-up
+            challenge.
           </p>
         </div>
       </header>

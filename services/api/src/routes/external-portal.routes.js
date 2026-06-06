@@ -34,6 +34,7 @@ import { listDeliveriesForGrant, sendInvitationEmail, } from "../services/extern
 import { bulkIssueInvitations, bulkRevokeInvitations, resendInvitationEmail, } from "../services/external-review/portal-bulk-invitations.service.js";
 import { completePortalSsoFlow, startPortalSsoFlow, } from "../services/external-review/portal-sso.service.js";
 import { rotateExternalReviewGrantToken } from "../services/external-review/external-review-grant.service.js";
+import { callerHasCapability, resolveReviewerRole, } from "../services/reviewer-workspace/reviewer-roles.js";
 // ---------------------------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------------------------
@@ -124,7 +125,7 @@ async function resolveInternalTeam(req, reply) {
     const userId = getAuthUserId(req);
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { currentWorkspaceId: true },
+        select: { currentWorkspaceId: true, platformRole: true },
     });
     if (!user?.currentWorkspaceId) {
         reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
@@ -138,7 +139,26 @@ async function resolveInternalTeam(req, reply) {
         reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
         return null;
     }
-    return { teamId: team.id, userId };
+    const membership = await prisma.teamMember.findFirst({
+        where: { teamId: team.id, userId },
+        select: { role: true },
+    });
+    return {
+        teamId: team.id,
+        userId,
+        workspaceRole: (membership?.role ?? null),
+        isPlatformAdmin: user.platformRole !== null,
+    };
+}
+function requireCap(ctx, cap) {
+    const r = resolveReviewerRole({
+        workspaceRole: ctx.workspaceRole,
+        isPlatformAdmin: ctx.isPlatformAdmin,
+    });
+    return callerHasCapability(r, cap);
+}
+function denyNoPermission(reply) {
+    return reply.code(403).send({ denial: "NOT_PERMITTED" });
 }
 /**
  * Resolve the portal session. Token + optional sessionId are read
@@ -205,6 +225,8 @@ export async function externalPortalRoutes(app) {
         const ctx = await resolveInternalTeam(req, reply);
         if (!ctx)
             return reply;
+        if (!requireCap(ctx, "review.assign"))
+            return denyNoPermission(reply);
         // I6 — FEATURE_EXTERNAL_PORTAL gate (minimal coverage, one rep mutation).
         try {
             const feOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_EXTERNAL_PORTAL", actorUserId: ctx.userId });
@@ -241,6 +263,8 @@ export async function externalPortalRoutes(app) {
         const ctx = await resolveInternalTeam(req, reply);
         if (!ctx)
             return reply;
+        if (!requireCap(ctx, "review.assign"))
+            return denyNoPermission(reply);
         const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
         const res = await revokeInvitation({
             teamId: ctx.teamId,
@@ -270,6 +294,8 @@ export async function externalPortalRoutes(app) {
         const ctx = await resolveInternalTeam(req, reply);
         if (!ctx)
             return reply;
+        if (!requireCap(ctx, "review.bulk") || !requireCap(ctx, "review.assign"))
+            return denyNoPermission(reply);
         const body = BulkIssueBody.parse(req.body);
         const team = await prisma.team.findUnique({
             where: { id: ctx.teamId },
@@ -303,6 +329,8 @@ export async function externalPortalRoutes(app) {
         const ctx = await resolveInternalTeam(req, reply);
         if (!ctx)
             return reply;
+        if (!requireCap(ctx, "review.bulk") || !requireCap(ctx, "review.assign"))
+            return denyNoPermission(reply);
         const body = BulkRevokeBody.parse(req.body);
         const res = await bulkRevokeInvitations({
             teamId: ctx.teamId,
@@ -328,6 +356,8 @@ export async function externalPortalRoutes(app) {
         const ctx = await resolveInternalTeam(req, reply);
         if (!ctx)
             return reply;
+        if (!requireCap(ctx, "review.sampling.policy"))
+            return denyNoPermission(reply);
         const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
         const body = z
             .object({ reason: z.string().min(10).max(400) })
@@ -360,6 +390,8 @@ export async function externalPortalRoutes(app) {
         const ctx = await resolveInternalTeam(req, reply);
         if (!ctx)
             return reply;
+        if (!requireCap(ctx, "review.assign"))
+            return denyNoPermission(reply);
         const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
         const team = await prisma.team.findUnique({
             where: { id: ctx.teamId },
@@ -654,6 +686,8 @@ export async function externalPortalRoutes(app) {
         const ctx = await resolveInternalTeam(req, reply);
         if (!ctx)
             return reply;
+        if (!requireCap(ctx, "review.assign"))
+            return denyNoPermission(reply);
         const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
         const body = z
             .object({

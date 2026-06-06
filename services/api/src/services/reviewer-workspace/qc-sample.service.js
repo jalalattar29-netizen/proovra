@@ -14,11 +14,16 @@
  *   * One QcSample per workflow id.
  *   * Verdicts are bounded (PASS / FAIL / PARTIAL).
  *   * Failure reasons are bounded (QC_FAILURE_REASONS).
- *   * Audit: each verdict emits a `reviewer.qc.verdict` audit event
- *     via the existing platform-audit-log + reviewer-audit services.
+ *   * Audit (Phase 4 wiring): each new sample emits a best-effort
+ *     `reviewer.qc.sampled` event and each rendered verdict emits a
+ *     best-effort `reviewer.qc.verdict_rendered` event via the
+ *     canonical `appendPlatformAuditLog` chain. Bounded metadata
+ *     only — raw rationale bodies are never included.
  */
 import { QC_FAILURE_REASONS, QC_VERDICTS, } from "@proovra/shared";
 import { prisma as defaultPrisma } from "../../db.js";
+// Phase 4 — wire audit emission via the canonical platform audit log.
+import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
 const DEFAULT_QC_SAMPLE_PERCENT = 5;
 function qcSamplePercent() {
     const raw = process.env.REVIEWER_QC_SAMPLE_PERCENT;
@@ -30,16 +35,24 @@ function qcSamplePercent() {
 /**
  * Opportunistically sample a workflow at close. Returns the sample
  * id when one was drawn; null when the workflow was not selected.
+ *
+ * Idempotency contract (Phase 3 wiring): the existence check runs
+ * BEFORE the sampling RNG roll. Once a workflow has been sampled
+ * (whether by a previous close attempt or by a manual sample), every
+ * subsequent call returns the existing sample id and skips the roll.
+ *
+ * `decision` is accepted as optional context for the caller's audit
+ * trail; it is not persisted on QcSample (no schema change).
  */
 export async function sampleClosedWorkflow(input) {
     const prisma = input.prisma ?? defaultPrisma;
-    const percent = qcSamplePercent();
-    const roll = Math.floor(Math.random() * 100); // [0, 99]
-    if (roll >= percent)
-        return null;
     // R7-reviewer-workspace: workflowId is NOT @unique on QcSample (resample-allowed design — multiple QC
     // samples per workflow over time). Use findFirst with deterministic ordering instead of findUnique so the
     // existing-sample check remains idempotent without forcing a one-sample-per-workflow constraint.
+    //
+    // Phase 3 wiring: the idempotency check runs FIRST so a redundant
+    // close attempt always returns the existing sample id rather than
+    // re-rolling the RNG.
     const existing = await prisma.qcSample.findFirst({
         where: { workflowId: input.workflowId, teamId: input.teamId },
         orderBy: { sampledAtUtc: "desc" },
@@ -47,6 +60,10 @@ export async function sampleClosedWorkflow(input) {
     });
     if (existing)
         return { sampleId: existing.id };
+    const percent = qcSamplePercent();
+    const roll = Math.floor(Math.random() * 100); // [0, 99]
+    if (roll >= percent)
+        return null;
     const row = await prisma.qcSample.create({
         data: {
             teamId: input.teamId,
@@ -55,6 +72,24 @@ export async function sampleClosedWorkflow(input) {
         },
         select: { id: true },
     });
+    // Phase 4 — best-effort audit emission.
+    await appendPlatformAuditLog({
+        userId: null,
+        isPublic: true,
+        action: "reviewer.qc.sampled",
+        category: "review",
+        severity: "info",
+        source: "reviewer_workspace.qc_sample",
+        outcome: "success",
+        resourceType: "qc_sample",
+        resourceId: row.id,
+        metadata: {
+            teamId: input.teamId,
+            workflowId: input.workflowId,
+            sampleId: row.id,
+            decision: input.decision ?? null,
+        },
+    }).catch(() => { });
     return { sampleId: row.id };
 }
 export async function assignSample(input) {
@@ -109,6 +144,24 @@ export async function renderQcVerdict(input) {
             renderedAtUtc: new Date(),
         },
     });
+    // Phase 4 — best-effort audit emission. Bounded metadata only.
+    await appendPlatformAuditLog({
+        userId: input.actorUserId,
+        action: "reviewer.qc.verdict_rendered",
+        category: "review",
+        severity: input.verdict === "FAIL" ? "warning" : "info",
+        source: "reviewer_workspace.qc_sample",
+        outcome: "success",
+        resourceType: "qc_sample",
+        resourceId: row.id,
+        metadata: {
+            teamId: input.teamId,
+            sampleId: row.id,
+            verdict: input.verdict,
+            failureReason: input.failureReason ?? null,
+            qcReviewerUserId: input.actorUserId,
+        },
+    }).catch(() => { });
     return { ok: true };
 }
 export async function listSamples(input) {
@@ -124,6 +177,22 @@ export async function listSamples(input) {
         orderBy: { sampledAtUtc: "desc" },
         take: Math.min(input.limit ?? 50, 200),
     });
+}
+/**
+ * Phase RW3-3 — Team-scoped count of QC samples awaiting a verdict.
+ *
+ * "Pending" means state IN ('SAMPLED', 'ASSIGNED'). VERDICT_RENDERED
+ * rows are terminal and excluded. Bounded projection: { pendingCount }.
+ */
+export async function countPendingQcSamples(input) {
+    const prisma = input.prisma ?? defaultPrisma;
+    const pendingCount = await prisma.qcSample.count({
+        where: {
+            teamId: input.teamId,
+            state: { in: ["SAMPLED", "ASSIGNED"] },
+        },
+    });
+    return { pendingCount };
 }
 export async function getQcAccuracy7d(input) {
     const prisma = input.prisma ?? defaultPrisma;

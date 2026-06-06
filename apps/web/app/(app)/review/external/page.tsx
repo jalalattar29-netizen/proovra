@@ -41,6 +41,83 @@ import {
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
+import { useActiveSpace, useCan } from "../../../../lib/platform-context";
+
+// ---------------------------------------------------------------------------
+// PHASE 4 — Per-action capability gating.
+//
+// Phase 0 confirmed every admin button rendered unconditionally and
+// every mutation catch collapsed 403 into the misleading "RATE_LIMITED"
+// banner. The hook below derives the bounded gate set from the
+// canonical platform-context envelope:
+//
+//   - REVIEWER_OPS_ACT — required for any external-review mutation
+//     (Invite / Bulk Invite / Resend / Revoke / Bulk Revoke). The
+//     PageRouteGate already requires REVIEWER_OPS_VIEW; ACT is the
+//     reviewer-ops mutation cap on the canonical CapabilityMap.
+//
+//   - canRevealToken — manual token reveal is a stronger split-of-duty
+//     gate: REVIEWER_OPS_ACT alone is NOT enough. We additionally
+//     require the active space role to be OWNER (workspace owner has
+//     break-glass authority). ADMIN/SUPERVISOR can see the button but
+//     it stays disabled, with a tooltip explaining the split-of-duty.
+//
+// Buttons are NEVER hidden — disabled-with-explanation, per brief.
+// The server is still the authority — a click that slips through
+// (e.g. a stale envelope) is surfaced via the bounded NOT_PERMITTED
+// banner rather than the legacy "RATE_LIMITED" collapse.
+// ---------------------------------------------------------------------------
+
+type ExternalReviewCapabilities = {
+  canInvite: boolean;
+  canBulkInvite: boolean;
+  canBulkRevoke: boolean;
+  canResend: boolean;
+  canRevoke: boolean;
+  canRevealToken: boolean;
+};
+
+function useExternalReviewCapabilities(): ExternalReviewCapabilities {
+  const canAct = useCan("REVIEWER_OPS_ACT");
+  const activeSpace = useActiveSpace();
+  // Reveal-token is split-of-duty: require workspace OWNER role on
+  // top of REVIEWER_OPS_ACT. ADMIN / MEMBER never get this even
+  // when they otherwise have the act capability.
+  const isOwner =
+    activeSpace?.type === "ORGANIZATION" && activeSpace.roleLabel === "OWNER";
+  return {
+    canInvite: canAct,
+    canBulkInvite: canAct,
+    canBulkRevoke: canAct,
+    canResend: canAct,
+    canRevoke: canAct,
+    canRevealToken: canAct && isOwner,
+  };
+}
+
+// Map the apiFetch error shape to a bounded denial string the UI
+// surfaces. Phase 0 finding: the previous catch{} defaulted to
+// "RATE_LIMITED" for every error, including 403 NOT_PERMITTED. We
+// now distinguish NOT_PERMITTED + FORBIDDEN from rate-limit collapse.
+function denialFromError(err: unknown): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const e = err as any;
+  const status = typeof e?.statusCode === "number" ? e.statusCode : 0;
+  const code = typeof e?.code === "string" ? e.code : "";
+  const denial = typeof e?.body?.denial === "string" ? e.body.denial : "";
+  const details = e?.details;
+  const detailsDenial =
+    details && typeof details === "object" && typeof details.denial === "string"
+      ? (details.denial as string)
+      : "";
+  if (denial) return denial;
+  if (detailsDenial) return detailsDenial;
+  if (status === 403 || code === "NOT_PERMITTED" || code === "FORBIDDEN") {
+    return "NOT_PERMITTED";
+  }
+  if (code === "RATE_LIMITED" || status === 429) return "RATE_LIMITED";
+  return code || "REFUSED";
+}
 
 // ---------------------------------------------------------------------------
 // Types — mirror /v1/external-review/invitations response shape
@@ -142,7 +219,9 @@ export default function ExternalInvitationsPage() {
 }
 
 function ExternalReviewManagementConsole() {
+  const caps = useExternalReviewCapabilities();
   const [rows, setRows] = useState<InvitationRow[] | null>(null);
+  const [listDenied, setListDenied] = useState(false);
   const [tab, setTab] = useState<TabId>("active");
   const [selected, setSelected] = useState<string | null>(null);
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
@@ -157,8 +236,18 @@ function ExternalReviewManagementConsole() {
         method: "GET",
       });
       setRows((res?.invitations ?? []) as InvitationRow[]);
-    } catch {
+      setListDenied(false);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[external-review] invitations list refresh failed", {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        status: (err as any)?.statusCode ?? 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        code: (err as any)?.code ?? "UNKNOWN",
+      });
+      const denial = denialFromError(err);
       setRows([]);
+      setListDenied(denial === "NOT_PERMITTED");
     }
   }, []);
 
@@ -188,6 +277,13 @@ function ExternalReviewManagementConsole() {
   }, []);
 
   const onBulkRevoke = useCallback(async () => {
+    if (!caps.canBulkRevoke) {
+      setBanner({
+        tone: "warn",
+        text: "Bulk revoke refused: NOT_PERMITTED",
+      });
+      return;
+    }
     const ids = Array.from(multiSelected);
     if (ids.length === 0) return;
     if (ids.length > BULK_INVITATION_MAX_ROWS) {
@@ -216,11 +312,17 @@ function ExternalReviewManagementConsole() {
       setMultiSelected(new Set());
       await refresh();
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const denial = (err as any)?.denial ?? "RATE_LIMITED";
+      // eslint-disable-next-line no-console
+      console.warn("[external-review] bulk revoke failed", {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        status: (err as any)?.statusCode ?? 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        code: (err as any)?.code ?? "UNKNOWN",
+      });
+      const denial = denialFromError(err);
       setBanner({ tone: "warn", text: `Bulk revoke refused: ${denial}` });
     }
-  }, [multiSelected, refresh]);
+  }, [caps.canBulkRevoke, multiSelected, refresh]);
 
   return (
     <div
@@ -256,18 +358,34 @@ function ExternalReviewManagementConsole() {
           <button
             type="button"
             data-bulk-revoke-action
+            data-capability-allowed={caps.canBulkRevoke ? "true" : "false"}
             onClick={onBulkRevoke}
-            disabled={multiSelected.size === 0}
+            disabled={!caps.canBulkRevoke || multiSelected.size === 0}
+            title={
+              !caps.canBulkRevoke
+                ? "You do not have permission to bulk revoke invitations"
+                : multiSelected.size === 0
+                ? "Select at least one row to bulk revoke"
+                : undefined
+            }
             style={{
               padding: "6px 12px",
               borderRadius: 8,
               border: "1px solid #dc2626",
               background:
-                multiSelected.size === 0 ? "#fee2e2" : "#dc2626",
-              color: multiSelected.size === 0 ? "#7f1d1d" : "#fff",
+                !caps.canBulkRevoke || multiSelected.size === 0
+                  ? "#fee2e2"
+                  : "#dc2626",
+              color:
+                !caps.canBulkRevoke || multiSelected.size === 0
+                  ? "#7f1d1d"
+                  : "#fff",
               fontSize: 12,
               fontWeight: 600,
-              cursor: multiSelected.size === 0 ? "not-allowed" : "pointer",
+              cursor:
+                !caps.canBulkRevoke || multiSelected.size === 0
+                  ? "not-allowed"
+                  : "pointer",
             }}
           >
             Bulk revoke ({multiSelected.size})
@@ -326,6 +444,24 @@ function ExternalReviewManagementConsole() {
         ))}
       </nav>
 
+      {listDenied ? (
+        <div
+          data-external-review-list-denied
+          style={{
+            marginBottom: 10,
+            padding: "8px 12px",
+            borderRadius: 8,
+            fontSize: 12,
+            background: "rgba(15, 23, 42, 0.04)",
+            border: "1px solid rgba(15, 23, 42, 0.12)",
+            color: "#0f172a",
+          }}
+        >
+          You do not have permission to view external reviewer
+          invitations. Ask a workspace administrator or supervisor.
+        </div>
+      ) : null}
+
       {banner ? (
         <div
           data-console-banner
@@ -355,6 +491,7 @@ function ExternalReviewManagementConsole() {
 
       {tab === "bulk" ? (
         <BulkInvitePanel
+          caps={caps}
           onCompleted={(text) => {
             setBanner({ tone: "ok", text });
             void refresh();
@@ -379,6 +516,7 @@ function ExternalReviewManagementConsole() {
           {selectedRow ? (
             <InvitationDetailDrawer
               row={selectedRow}
+              caps={caps}
               onClose={() => setSelected(null)}
               onChanged={(text) => {
                 setBanner({ tone: "ok", text });
@@ -570,11 +708,13 @@ function InvitationsTable({
 
 function InvitationDetailDrawer({
   row,
+  caps,
   onClose,
   onChanged,
   onRefuse,
 }: {
   row: InvitationRow;
+  caps: ExternalReviewCapabilities;
   onClose: () => void;
   onChanged: (msg: string) => void;
   onRefuse: (msg: string) => void;
@@ -611,6 +751,10 @@ function InvitationDetailDrawer({
   }, [row.grantId]);
 
   const onResend = useCallback(async () => {
+    if (!caps.canResend) {
+      onRefuse("NOT_PERMITTED");
+      return;
+    }
     try {
       await apiFetch(
         `/v1/external-review/invitations/${row.grantId}/resend`,
@@ -618,12 +762,22 @@ function InvitationDetailDrawer({
       );
       onChanged(`Resent invitation email for ${row.inviteEmail}.`);
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      onRefuse(`${(err as any)?.denial ?? "RATE_LIMITED"}`);
+      // eslint-disable-next-line no-console
+      console.warn("[external-review] resend invitation failed", {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        status: (err as any)?.statusCode ?? 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        code: (err as any)?.code ?? "UNKNOWN",
+      });
+      onRefuse(denialFromError(err));
     }
-  }, [row.grantId, row.inviteEmail, onChanged, onRefuse]);
+  }, [caps.canResend, row.grantId, row.inviteEmail, onChanged, onRefuse]);
 
   const onRevoke = useCallback(async () => {
+    if (!caps.canRevoke) {
+      onRefuse("NOT_PERMITTED");
+      return;
+    }
     try {
       await apiFetch(
         `/v1/external-review/invitations/${row.grantId}/revoke`,
@@ -631,10 +785,16 @@ function InvitationDetailDrawer({
       );
       onChanged(`Revoked invitation ${row.grantId.slice(0, 8)}…`);
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      onRefuse(`${(err as any)?.denial ?? "RATE_LIMITED"}`);
+      // eslint-disable-next-line no-console
+      console.warn("[external-review] revoke invitation failed", {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        status: (err as any)?.statusCode ?? 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        code: (err as any)?.code ?? "UNKNOWN",
+      });
+      onRefuse(denialFromError(err));
     }
-  }, [row.grantId, onChanged, onRefuse]);
+  }, [caps.canRevoke, row.grantId, onChanged, onRefuse]);
 
   return (
     <aside
@@ -704,16 +864,48 @@ function InvitationDetailDrawer({
         <button
           type="button"
           data-invitation-resend={row.grantId}
+          data-capability-allowed={caps.canResend ? "true" : "false"}
           onClick={onResend}
-          style={primaryActionStyle}
+          disabled={!caps.canResend}
+          title={
+            !caps.canResend
+              ? "You do not have permission to resend invitations"
+              : undefined
+          }
+          style={{
+            ...primaryActionStyle,
+            ...(caps.canResend
+              ? {}
+              : {
+                  background: "#94a3b8",
+                  border: "1px solid #94a3b8",
+                  cursor: "not-allowed",
+                }),
+          }}
         >
           Resend invitation email
         </button>
         <button
           type="button"
           data-invitation-revoke={row.grantId}
+          data-capability-allowed={caps.canRevoke ? "true" : "false"}
           onClick={onRevoke}
-          style={dangerActionStyle}
+          disabled={!caps.canRevoke}
+          title={
+            !caps.canRevoke
+              ? "You do not have permission to revoke invitations"
+              : undefined
+          }
+          style={{
+            ...dangerActionStyle,
+            ...(caps.canRevoke
+              ? {}
+              : {
+                  color: "#94a3b8",
+                  borderColor: "#cbd5e1",
+                  cursor: "not-allowed",
+                }),
+          }}
         >
           Revoke
         </button>
@@ -742,13 +934,32 @@ function InvitationDetailDrawer({
           <button
             type="button"
             data-break-glass-arm
-            onClick={() => setConfirmReveal(true)}
-            style={subtleActionStyle}
+            data-capability-allowed={caps.canRevealToken ? "true" : "false"}
+            onClick={() => {
+              if (!caps.canRevealToken) return;
+              setConfirmReveal(true);
+            }}
+            disabled={!caps.canRevealToken}
+            title={
+              caps.canRevealToken
+                ? undefined
+                : "You do not have permission to reveal raw invitation tokens. Token reveal is restricted to the workspace OWNER as a split-of-duty control — workspace ADMIN and SUPERVISOR cannot perform it."
+            }
+            style={{
+              ...subtleActionStyle,
+              ...(caps.canRevealToken
+                ? {}
+                : {
+                    color: "#94a3b8",
+                    cursor: "not-allowed",
+                    background: "#f8fafc",
+                  }),
+            }}
           >
             Enable token reveal
           </button>
         ) : null}
-        {confirmReveal && !revealed ? (
+        {confirmReveal && !revealed && caps.canRevealToken ? (
           <BreakGlassReveal
             grantId={row.grantId}
             onCancel={() => setConfirmReveal(false)}
@@ -973,8 +1184,15 @@ function BreakGlassReveal({
         setErr("Reveal denied — see audit timeline.");
       }
     } catch (e) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setErr(((e as any)?.denial ?? "REVEAL_REFUSED") as string);
+      // eslint-disable-next-line no-console
+      console.warn("[external-review] reveal token failed", {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        status: (e as any)?.statusCode ?? 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        code: (e as any)?.code ?? "UNKNOWN",
+      });
+      const denial = denialFromError(e);
+      setErr(denial === "REFUSED" ? "REVEAL_REFUSED" : denial);
     } finally {
       setBusy(false);
     }
@@ -1033,8 +1251,10 @@ function BreakGlassReveal({
 // ---------------------------------------------------------------------------
 
 function BulkInvitePanel({
+  caps,
   onCompleted,
 }: {
+  caps: ExternalReviewCapabilities;
   onCompleted: (msg: string) => void;
 }) {
   const [pasted, setPasted] = useState("");
@@ -1059,6 +1279,19 @@ function BulkInvitePanel({
   const parsed = useMemo(() => parseBulkPaste(pasted), [pasted]);
 
   const onIssueBulk = useCallback(async () => {
+    if (!caps.canBulkInvite) {
+      setOutcomes({
+        bulkBatchId: "",
+        summary: {},
+        rows: parsed.map((p) => ({
+          inviteEmail: p.email,
+          outcome: "FAILED",
+          grantId: null,
+          denial: "NOT_PERMITTED",
+        })),
+      });
+      return;
+    }
     if (parsed.length === 0) return;
     if (parsed.length > BULK_INVITATION_MAX_ROWS) return;
     setBusy(true);
@@ -1102,8 +1335,14 @@ function BulkInvitePanel({
         `Bulk invite: ${invited}/${parsed.length} invitations sent.`,
       );
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const denial = (err as any)?.denial ?? "RATE_LIMITED";
+      // eslint-disable-next-line no-console
+      console.warn("[external-review] bulk invite failed", {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        status: (err as any)?.statusCode ?? 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        code: (err as any)?.code ?? "UNKNOWN",
+      });
+      const denial = denialFromError(err);
       setOutcomes({
         bulkBatchId: "",
         summary: {},
@@ -1118,6 +1357,7 @@ function BulkInvitePanel({
       setBusy(false);
     }
   }, [
+    caps.canBulkInvite,
     parsed,
     hours,
     defaultRole,
@@ -1354,21 +1594,30 @@ function BulkInvitePanel({
         <button
           type="button"
           data-bulk-issue-submit
+          data-capability-allowed={caps.canBulkInvite ? "true" : "false"}
           onClick={onIssueBulk}
           disabled={
+            !caps.canBulkInvite ||
             busy ||
             parsed.length === 0 ||
             parsed.length > BULK_INVITATION_MAX_ROWS
           }
+          title={
+            !caps.canBulkInvite
+              ? "You do not have permission to bulk issue invitations"
+              : undefined
+          }
           style={{
             ...primaryActionStyle,
             background:
+              !caps.canBulkInvite ||
               busy ||
               parsed.length === 0 ||
               parsed.length > BULK_INVITATION_MAX_ROWS
                 ? "#94a3b8"
                 : "#0f172a",
             cursor:
+              !caps.canBulkInvite ||
               busy ||
               parsed.length === 0 ||
               parsed.length > BULK_INVITATION_MAX_ROWS

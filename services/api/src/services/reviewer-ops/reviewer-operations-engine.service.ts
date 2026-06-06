@@ -83,6 +83,10 @@ import {
   sweepDueSoonReminders,
   sweepInactivityReminders,
 } from "./reminder-engine.service.js";
+// Phase 3 — QC sampling at workflow close. Single chokepoint so every
+// approve / reject (route, bulk, future programmatic) is sampled
+// exactly once. The service itself is idempotent per (workflowId, teamId).
+import { sampleClosedWorkflow } from "../reviewer-workspace/qc-sample.service.js";
 import {
   detectStuckWorkflow,
   type StuckClassification,
@@ -480,14 +484,39 @@ async function listReviewerOpsQueueInner(
       };
       break;
   }
+  // Phase RW3 — honest cursor pagination.
+  //
+  // The previous implementation produced a `nextCursor` from the last
+  // row id but the route layer never piped it back in, so subsequent
+  // pages were impossible. We now thread an optional `cursor` (the
+  // workflow id last returned) and use Prisma's `cursor` + `skip: 1`
+  // pagination contract.
+  //
+  // The functional sort tuple stays the same — operators still see
+  // (priority desc, dueAt asc, updatedAt desc) — but we append an
+  // explicit `{ id: "desc" }` tiebreaker so the ordering is total
+  // and `cursor: { id }` is well-defined. Without that tiebreaker,
+  // two workflows with the same (priority, dueAt, updatedAt) would
+  // sort non-deterministically and the cursor could either re-emit
+  // or skip rows.
+  //
+  // Cap mirrors the route layer (max 100).
+  const cursorId =
+    typeof input.cursor === "string" && input.cursor.length > 0
+      ? input.cursor
+      : null;
   const rows = await client.evidenceReviewWorkflow.findMany({
     where: baseWhere as never,
     orderBy: [
       { priority: "desc" },
       { dueAt: "asc" },
       { updatedAt: "desc" },
+      { id: "desc" },
     ],
     take: limit + 1,
+    ...(cursorId
+      ? { cursor: { id: cursorId }, skip: 1 }
+      : {}),
   });
   const hasMore = rows.length > limit;
   if (hasMore) rows.pop();
@@ -1027,6 +1056,25 @@ async function approveReviewInner(
     severity: "INFO",
     details: { workflowId: row.id, actorUserId: ctx.actorUserId },
   });
+  // Phase 3 — opportunistic QC sampling at workflow close. Idempotent
+  // per (workflowId, teamId). MUST NOT roll back the close transaction:
+  // any failure here is logged and swallowed so the operator's approve
+  // stands regardless of QC sampling availability.
+  try {
+    await sampleClosedWorkflow({
+      prisma: client,
+      teamId: ctx.teamId,
+      workflowId: row.id,
+      decision: "APPROVE_INTERNAL",
+    });
+  } catch (err) {
+    logWarn("qc.sample_on_close.failed", {
+      err: err instanceof Error ? err.message : String(err),
+      workflowId: row.id,
+      teamId: ctx.teamId,
+      decision: "APPROVE_INTERNAL",
+    });
+  }
   return buildWorkflowProjection(updated);
 }
 
@@ -1059,6 +1107,25 @@ export async function rejectReview(
     severity: "INFO",
     details: { workflowId: row.id, actorUserId: ctx.actorUserId },
   });
+  // Phase 3 — opportunistic QC sampling at workflow close. Idempotent
+  // per (workflowId, teamId). MUST NOT roll back the close transaction:
+  // any failure here is logged and swallowed so the operator's reject
+  // stands regardless of QC sampling availability.
+  try {
+    await sampleClosedWorkflow({
+      prisma: client,
+      teamId: ctx.teamId,
+      workflowId: row.id,
+      decision: "REJECT_INSUFFICIENT",
+    });
+  } catch (err) {
+    logWarn("qc.sample_on_close.failed", {
+      err: err instanceof Error ? err.message : String(err),
+      workflowId: row.id,
+      teamId: ctx.teamId,
+      decision: "REJECT_INSUFFICIENT",
+    });
+  }
   return buildWorkflowProjection(updated);
 }
 

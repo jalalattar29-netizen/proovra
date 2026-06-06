@@ -39,16 +39,31 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { CodingPanel } from "../../../../components/reviewer-workspace/CodingPanel";
 import { useReviewerHotkeys } from "../../../../lib/reviewer-workspace/reviewer-hotkeys";
 import {
+  approveReview,
+  createEscalation,
   fetchAnnotationsForEvidence,
   fetchCodingState,
+  fetchEvidenceArtifactsStatus,
   fetchEvidencePreview,
+  fetchEvidenceSidePaneDetail,
+  fetchExtractedTextsForEvidence,
   fetchReviewerWorkspace,
   fetchSchema,
+  fileDisagreement,
+  listWorkflowDecisions,
+  rejectReview,
+  requestInfoReview,
   type CodingFieldRow,
   type CodingValueRow,
+  type EvidenceArtifactsResult,
   type EvidencePreviewMeta,
+  type EvidenceSidePaneResult,
+  type ExtractedTextsResult,
+  type LifecycleCallResult,
+  type WorkflowDecisionRow,
   writeCodingValue,
 } from "../../../../lib/reviewer-workspace/reviewer-api";
+import { useActiveSpace, useActiveSpaceId } from "../../../../lib/platform-context";
 import type { ReviewerAnnotationSummary } from "../../../../lib/reviewer-workspace/annotation-types";
 import { MediaViewer } from "../../../../components/reviewer-workspace/viewers/MediaViewer";
 import { AnnotationPanel } from "../../../../components/reviewer-workspace/AnnotationPanel";
@@ -57,6 +72,9 @@ import {
   SIDE_PANE_MODES,
   type SidePaneMode,
 } from "../../../../components/reviewer-workspace/SidePaneSwitcher";
+import { SidePaneEvidence } from "../../../../components/reviewer-workspace/SidePaneEvidence";
+import { SidePaneExtractedTexts } from "../../../../components/reviewer-workspace/SidePaneExtractedTexts";
+import { SidePaneReport } from "../../../../components/reviewer-workspace/SidePaneReport";
 
 export default function ReviewerWorkspacePage() {
   return (
@@ -67,6 +85,21 @@ export default function ReviewerWorkspacePage() {
 }
 
 function ReviewerWorkspaceShell() {
+  const teamId = useActiveSpaceId();
+  // Phase 5 — Redaction affordance hint. The CapabilityMap has no
+  // REDACTION_* key, so we derive the hint from the active space role
+  // label. Canonical permissions (packages/shared/permissions.ts)
+  // grant `redaction.region.author` to OWNER / ADMIN / REVIEWER (the
+  // DB-level MEMBER conceptual role). VIEWER does NOT receive it.
+  // Server gating remains the source of truth; this flag only
+  // governs whether the affordance renders active or disabled.
+  const activeSpace = useActiveSpace();
+  const roleLabel = activeSpace?.roleLabel ?? null;
+  const canRequestRedaction =
+    roleLabel === "OWNER" ||
+    roleLabel === "ADMIN" ||
+    roleLabel === "MEMBER" ||
+    roleLabel === "Owner";
   const [workspace, setWorkspace] = useState<ReviewerWorkspaceProjection | null>(null);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [fields, setFields] = useState<CodingFieldRow[]>([]);
@@ -79,6 +112,66 @@ function ReviewerWorkspaceShell() {
   const [preview, setPreview] = useState<EvidencePreviewMeta | null>(null);
   const [sidePaneMode, setSidePaneMode] = useState<SidePaneMode>("CODING");
   const [helpOpen, setHelpOpen] = useState(false);
+  // PHASE 1 — Side-pane lazy-load state.
+  //
+  // The OCR / TRANSCRIPT / EVIDENCE / REPORT side-pane tabs each
+  // consume a canonical EXISTING endpoint:
+  //
+  //   * EVIDENCE   -> GET /v1/evidence/:id                       (wireable)
+  //   * OCR        -> GET /v1/intelligence/evidence/:id?teamId=  (wireable;
+  //                   server projection drops raw text — summary only)
+  //   * TRANSCRIPT -> same intelligence endpoint, filtered by kind
+  //   * REPORT     -> GET /v1/evidence/:id/artifacts/status      (wireable;
+  //                   side-effect-free poll — never /report/latest, which
+  //                   writes download / view custody events)
+  //
+  // Each tab only fetches when (a) the tab is open and (b) the
+  // activeEvidenceId changes. A token guards against late responses
+  // for a stale evidence id overwriting fresher data.
+  const [evidenceSide, setEvidenceSide] = useState<
+    | { phase: "LOADING" }
+    | { phase: "READY"; result: EvidenceSidePaneResult }
+    | { phase: "RETRY" }
+    | null
+  >(null);
+  const [extractedSide, setExtractedSide] = useState<
+    | { phase: "LOADING" }
+    | { phase: "READY"; result: ExtractedTextsResult }
+    | null
+  >(null);
+  const [reportSide, setReportSide] = useState<
+    | { phase: "LOADING" }
+    | { phase: "READY"; result: EvidenceArtifactsResult }
+    | null
+  >(null);
+  // Phase 1 lifecycle wiring — bounded inline form replacing window.prompt
+  // for actions that require operator-supplied reason text (reject /
+  // request-info / escalate). The form is rendered inline above the
+  // decision bar; nothing fancy, just enough to capture a typed reason
+  // and submit it through the canonical reviewer-ops endpoints.
+  const [reasonForm, setReasonForm] = useState<{
+    kind: "REJECT" | "NEEDS_INFO" | "ESCALATE";
+  } | null>(null);
+  // Inflight guard so double-clicks / repeat hotkey presses cannot
+  // double-fire a lifecycle transition while one is already in flight.
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  // PHASE 2 — Disagreement filing. The canonical
+  // fileDisagreement service requires a real originalDecisionId
+  // (UUID) tied to the workflow + team — we can't synthesize one
+  // from a free-text prompt. So when the operator clicks Disagree
+  // we fetch the workflow's prior decisions from
+  // /v1/reviewer-ops/workspace/:workflowId/decisions and present a
+  // picker. If there are none, Disagree is disabled with explicit
+  // copy.
+  type DisagreeFormState =
+    | { phase: "LOADING" }
+    | { phase: "READY"; decisions: WorkflowDecisionRow[] }
+    | { phase: "EMPTY" }
+    | { phase: "ERROR" };
+  const [disagreeForm, setDisagreeForm] = useState<DisagreeFormState | null>(
+    null,
+  );
+  const [disagreeBusy, setDisagreeBusy] = useState(false);
 
   // Load workspace projection.
   useEffect(() => {
@@ -129,6 +222,125 @@ function ReviewerWorkspaceShell() {
       cancelled = true;
     };
   }, [activeEvidenceId]);
+
+  // PHASE 1 — Reset the side-pane caches when the active evidence
+  // changes so a stale OCR / TRANSCRIPT / EVIDENCE / REPORT projection
+  // doesn't survive across queue navigation. The lazy-load effects
+  // below will re-pull on next tab open.
+  useEffect(() => {
+    setEvidenceSide(null);
+    setExtractedSide(null);
+    setReportSide(null);
+  }, [activeEvidenceId]);
+
+  // PHASE 1 — Lazy-load EVIDENCE side-pane.
+  // Fires only when the tab is open AND there is an evidence id.
+  useEffect(() => {
+    if (sidePaneMode !== "EVIDENCE") return;
+    if (!activeEvidenceId) return;
+    if (evidenceSide && evidenceSide.phase === "READY") return;
+    let cancelled = false;
+    setEvidenceSide({ phase: "LOADING" });
+    (async () => {
+      try {
+        const result = await fetchEvidenceSidePaneDetail(activeEvidenceId);
+        if (cancelled) return;
+        setEvidenceSide({ phase: "READY", result });
+      } catch (err) {
+        if (cancelled) return;
+        // eslint-disable-next-line no-console
+        console.warn("[reviewer-workspace] evidence side-pane threw", {
+          evidenceId: activeEvidenceId,
+          err,
+        });
+        setEvidenceSide({
+          phase: "READY",
+          result: { ok: false, reason: "ERROR" },
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sidePaneMode, activeEvidenceId, evidenceSide]);
+
+  // PHASE 1 — Lazy-load OCR / TRANSCRIPT side-pane (shared cache —
+  // both tabs filter the same intelligence projection by `kind`).
+  useEffect(() => {
+    if (sidePaneMode !== "OCR" && sidePaneMode !== "TRANSCRIPT") return;
+    if (!activeEvidenceId) return;
+    if (extractedSide && extractedSide.phase === "READY") return;
+    let cancelled = false;
+    setExtractedSide({ phase: "LOADING" });
+    (async () => {
+      try {
+        const result = await fetchExtractedTextsForEvidence(
+          activeEvidenceId,
+          teamId,
+        );
+        if (cancelled) return;
+        setExtractedSide({ phase: "READY", result });
+      } catch (err) {
+        if (cancelled) return;
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[reviewer-workspace] extracted-texts side-pane threw",
+          { evidenceId: activeEvidenceId, err },
+        );
+        setExtractedSide({
+          phase: "READY",
+          result: { ok: false, reason: "ERROR" },
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sidePaneMode, activeEvidenceId, teamId, extractedSide]);
+
+  // PHASE 1 — Lazy-load REPORT side-pane.
+  // Backed by /artifacts/status (side-effect free) — never the
+  // /report/latest path, which records download / view custody events.
+  useEffect(() => {
+    if (sidePaneMode !== "REPORT") return;
+    if (!activeEvidenceId) return;
+    if (reportSide && reportSide.phase === "READY") return;
+    let cancelled = false;
+    setReportSide({ phase: "LOADING" });
+    (async () => {
+      try {
+        const result = await fetchEvidenceArtifactsStatus(activeEvidenceId);
+        if (cancelled) return;
+        setReportSide({ phase: "READY", result });
+      } catch (err) {
+        if (cancelled) return;
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[reviewer-workspace] artifacts-status side-pane threw",
+          { evidenceId: activeEvidenceId, err },
+        );
+        setReportSide({
+          phase: "READY",
+          result: { ok: false, reason: "ERROR" },
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sidePaneMode, activeEvidenceId, reportSide]);
+
+  // Retry handlers — clearing the cache forces the lazy-load effects
+  // above to re-fire on next render (same evidence id, no stale data).
+  const retryEvidenceSide = useCallback(() => {
+    setEvidenceSide(null);
+  }, []);
+  const retryExtractedSide = useCallback(() => {
+    setExtractedSide(null);
+  }, []);
+  const retryReportSide = useCallback(() => {
+    setReportSide(null);
+  }, []);
 
   // Load coding schema + values for the active workflow.
   useEffect(() => {
@@ -181,30 +393,6 @@ function ReviewerWorkspaceShell() {
     [activeWorkflowId],
   );
 
-  // Hotkey handlers.
-  const onDecision = useCallback(
-    (kind: "APPROVE" | "REJECT" | "ESCALATE" | "NEEDS_INFO") => {
-      // The decision is recorded by writing the REVIEWER_VERDICT field
-      // if present on the schema; the workflow itself transitions via
-      // existing review-operations routes (out of scope to re-wire
-      // here). For the Phase 2A workspace, the action surfaces a
-      // bounded banner + persists the verdict field when present.
-      const verdictField = fields.find(
-        (f) => f.fieldType === "REVIEWER_VERDICT",
-      );
-      if (!verdictField) {
-        setStatusBanner("This schema does not include a REVIEWER_VERDICT field.");
-        return;
-      }
-      void onWrite({
-        fieldId: verdictField.id,
-        value: { verdict: kind },
-      });
-      setStatusBanner(`Verdict recorded: ${kind}`);
-    },
-    [fields, onWrite],
-  );
-
   // Phase 2A Closure — auto-advance to the next assigned workflow
   // after the reviewer records a decision. Pulls the workspace
   // projection again and picks the active review pointer.
@@ -220,6 +408,263 @@ function ReviewerWorkspaceShell() {
     }
   }, []);
 
+  // PHASE 1 — Lifecycle wiring.
+  //
+  // The Reviewer Workspace MUST actually close the workflow, not just
+  // record a CodingValue. Order of operations (per the partial-failure
+  // hard rule):
+  //
+  //   1. Persist the REVIEWER_VERDICT coding value (current behavior,
+  //      best-effort — if no verdict field exists on the schema, skip
+  //      this step and proceed with the lifecycle call. The lifecycle
+  //      endpoints are the source of truth for workflow state.).
+  //   2. Call the canonical reviewer-ops lifecycle endpoint.
+  //   3. On lifecycle FAILURE: surface a clear partial-failure banner
+  //      and DO NOT advance. Operator must retry.
+  //   4. On lifecycle SUCCESS: refresh workspace projection and
+  //      advance to the next assigned workflow.
+  //
+  // Every lifecycle call site is wrapped in try/catch via the helper's
+  // own classifyLifecycleError + structured warn log here.
+  const runLifecycle = useCallback(
+    async (
+      kind: "APPROVE" | "REJECT" | "NEEDS_INFO" | "ESCALATE",
+      reason: string | null,
+    ) => {
+      if (!activeWorkflowId) return;
+      if (!teamId) {
+        setStatusBanner(
+          "No active workspace — switch to a team workspace before deciding.",
+        );
+        return;
+      }
+      if (lifecycleBusy) return;
+      setLifecycleBusy(true);
+
+      // 1. Best-effort coding-value write. The coding value is a
+      // reviewer-coverage artifact; the workflow lifecycle is the
+      // source of truth for state transitions, so a missing verdict
+      // field on the schema is NOT a blocker for the lifecycle call.
+      const verdictField = fields.find(
+        (f) => f.fieldType === "REVIEWER_VERDICT",
+      );
+      if (verdictField) {
+        try {
+          await onWrite({
+            fieldId: verdictField.id,
+            value: { verdict: kind },
+            rationale: reason ?? undefined,
+          });
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[reviewer-workspace] verdict coding-value write threw",
+            { kind, workflowId: activeWorkflowId, err },
+          );
+        }
+      }
+
+      // 2. Call the canonical lifecycle endpoint.
+      let res: LifecycleCallResult;
+      try {
+        if (kind === "APPROVE") {
+          res = await approveReview({
+            workflowId: activeWorkflowId,
+            teamId,
+            note: reason ?? null,
+          });
+        } else if (kind === "REJECT") {
+          res = await rejectReview({
+            workflowId: activeWorkflowId,
+            teamId,
+            reason: reason ?? "",
+          });
+        } else if (kind === "NEEDS_INFO") {
+          res = await requestInfoReview({
+            workflowId: activeWorkflowId,
+            teamId,
+            message: reason ?? "",
+          });
+        } else {
+          res = await createEscalation({
+            workflowId: activeWorkflowId,
+            teamId,
+            reason: "WORKFLOW_STALLED",
+            safeSummary: reason ?? "",
+            severity: "WARNING",
+          });
+        }
+      } catch (err) {
+        // The helpers swallow API errors into a tagged failure, but a
+        // network exception could still escape. Surface it explicitly
+        // and DO NOT advance.
+        // eslint-disable-next-line no-console
+        console.warn("[reviewer-workspace] lifecycle call threw", {
+          kind,
+          workflowId: activeWorkflowId,
+          err,
+        });
+        setStatusBanner(
+          "Decision recorded but workflow not closed — please retry.",
+        );
+        setLifecycleBusy(false);
+        return;
+      }
+
+      // 3. Partial failure → keep operator on the same item.
+      if (!res.ok) {
+        // eslint-disable-next-line no-console
+        console.warn("[reviewer-workspace] lifecycle endpoint denied", {
+          kind,
+          workflowId: activeWorkflowId,
+          status: res.status,
+          code: res.code,
+        });
+        setStatusBanner(
+          `Decision recorded but workflow not closed (${res.code}) — please retry.`,
+        );
+        setLifecycleBusy(false);
+        return;
+      }
+
+      // 4. Success → refresh + advance.
+      setStatusBanner(`Workflow ${kind.toLowerCase()} recorded.`);
+      setLifecycleBusy(false);
+      await advanceToNext();
+    },
+    [
+      activeWorkflowId,
+      advanceToNext,
+      fields,
+      lifecycleBusy,
+      onWrite,
+      teamId,
+    ],
+  );
+
+  // Decision entry point. APPROVE has no required reason and fires
+  // immediately. REJECT / NEEDS_INFO / ESCALATE require a typed reason
+  // — we open an inline form (NOT window.prompt, per Phase 1 UX rule)
+  // and submit through runLifecycle from the form handler.
+  const onDecision = useCallback(
+    (kind: "APPROVE" | "REJECT" | "ESCALATE" | "NEEDS_INFO") => {
+      if (!activeWorkflowId) return;
+      if (kind === "APPROVE") {
+        void runLifecycle("APPROVE", null);
+        return;
+      }
+      setReasonForm({ kind });
+    },
+    [activeWorkflowId, runLifecycle],
+  );
+
+  const submitReasonForm = useCallback(
+    (reason: string) => {
+      if (!reasonForm) return;
+      const kind = reasonForm.kind;
+      setReasonForm(null);
+      void runLifecycle(kind, reason);
+    },
+    [reasonForm, runLifecycle],
+  );
+  const cancelReasonForm = useCallback(() => {
+    setReasonForm(null);
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // PHASE 2 — Disagree wiring.
+  //
+  // Open Disagree: fetch the workflow's prior decisions. If none, the
+  // form opens in the EMPTY phase and Submit is disabled with an
+  // explicit "no prior decision on file" message. If the fetch itself
+  // fails, ERROR phase surfaces and Submit is disabled.
+  // ---------------------------------------------------------------------------
+  const openDisagreeForm = useCallback(async () => {
+    if (!activeWorkflowId) return;
+    if (!teamId) {
+      setStatusBanner(
+        "No active workspace — switch to a team workspace before filing a disagreement.",
+      );
+      return;
+    }
+    setDisagreeForm({ phase: "LOADING" });
+    const rows = await listWorkflowDecisions({
+      workflowId: activeWorkflowId,
+      teamId,
+    });
+    if (rows === null) {
+      setDisagreeForm({ phase: "ERROR" });
+      return;
+    }
+    if (rows.length === 0) {
+      setDisagreeForm({ phase: "EMPTY" });
+      return;
+    }
+    setDisagreeForm({ phase: "READY", decisions: rows });
+  }, [activeWorkflowId, teamId]);
+
+  const cancelDisagreeForm = useCallback(() => {
+    setDisagreeForm(null);
+  }, []);
+
+  const submitDisagreeForm = useCallback(
+    async (input: { originalDecisionId: string; rationale: string }) => {
+      if (!activeWorkflowId) return;
+      if (disagreeBusy) return;
+      setDisagreeBusy(true);
+      try {
+        const res = await fileDisagreement({
+          workflowId: activeWorkflowId,
+          originalDecisionId: input.originalDecisionId,
+          rationale: input.rationale,
+        });
+        if (res.ok) {
+          setStatusBanner(
+            "Disagreement filed. Track progress on the Disagreements surface.",
+          );
+          setDisagreeForm(null);
+          // Refresh the workspace projection so the
+          // `disagreements.awaitingAdjudication` counter on the ribbon
+          // updates with the new filing.
+          try {
+            const ws = await fetchReviewerWorkspace();
+            setWorkspace(ws);
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              "[reviewer-workspace] disagreement workspace refresh threw",
+              { workflowId: activeWorkflowId, err },
+            );
+          }
+        } else {
+          // Surface the bounded denial reason; do NOT close the form
+          // so the operator can retry without re-picking the decision.
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[reviewer-workspace] disagreement filing refused",
+            {
+              workflowId: activeWorkflowId,
+              denial: res.denial,
+            },
+          );
+          setStatusBanner(`Disagreement refused: ${res.denial}`);
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[reviewer-workspace] disagreement call threw", {
+          workflowId: activeWorkflowId,
+          err,
+        });
+        setStatusBanner(
+          "Disagreement not filed — please retry.",
+        );
+      } finally {
+        setDisagreeBusy(false);
+      }
+    },
+    [activeWorkflowId, disagreeBusy],
+  );
+
   // Cycle through side-pane modes (`]` forward, `[` backward).
   const cycleSidePane = useCallback((dir: 1 | -1) => {
     const idx = SIDE_PANE_MODES.indexOf(sidePaneMode);
@@ -232,18 +677,13 @@ function ReviewerWorkspaceShell() {
   const hotkeys = useReviewerHotkeys(
     useMemo(
       () => ({
-        APPROVE: () => {
-          onDecision("APPROVE");
-          void advanceToNext();
-        },
-        REJECT: () => {
-          onDecision("REJECT");
-          void advanceToNext();
-        },
-        ESCALATE: () => {
-          onDecision("ESCALATE");
-          void advanceToNext();
-        },
+        // Phase 1: lifecycle wiring is the source of truth. onDecision
+        // either opens the reason form (REJECT / ESCALATE / NEEDS_INFO)
+        // or runs the APPROVE lifecycle, which advances on success.
+        // Hotkeys MUST NOT pre-advance — that would mask partial failure.
+        APPROVE: () => onDecision("APPROVE"),
+        REJECT: () => onDecision("REJECT"),
+        ESCALATE: () => onDecision("ESCALATE"),
         REQUEST_INFO: () => onDecision("NEEDS_INFO"),
         NEXT_ITEM: () => void advanceToNext(),
         TOGGLE_ANNOTATIONS: () => setSidePaneMode("ANNOTATIONS"),
@@ -313,25 +753,30 @@ function ReviewerWorkspaceShell() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <DecisionBar
             capabilities={capabilities}
-            onDecision={(kind) => {
-              onDecision(kind);
-              void advanceToNext();
-            }}
+            disabled={
+              lifecycleBusy || reasonForm !== null || disagreeForm !== null
+            }
+            onDecision={onDecision}
             onDisagree={() => {
-              // Inline disagree: keep the reviewer in the workspace.
-              // We surface a bounded prompt; the actual file happens
-              // via the existing disagreements service. The full
-              // dedicated UI remains at /review/disagreements.
-              const rationale = window.prompt(
-                "File a disagreement. Brief rationale (≤ 600 chars):",
-              );
-              if (!rationale) return;
-              setStatusBanner(
-                `Disagreement drafted: ${rationale.slice(0, 60)}. Open the Disagreements surface to select the original decision.`,
-              );
+              void openDisagreeForm();
             }}
             hotkeys={hotkeys}
           />
+          {reasonForm ? (
+            <ReasonForm
+              kind={reasonForm.kind}
+              onSubmit={submitReasonForm}
+              onCancel={cancelReasonForm}
+            />
+          ) : null}
+          {disagreeForm ? (
+            <DisagreeForm
+              state={disagreeForm}
+              busy={disagreeBusy}
+              onSubmit={submitDisagreeForm}
+              onCancel={cancelDisagreeForm}
+            />
+          ) : null}
           <SidePaneSwitcher current={sidePaneMode} onChange={setSidePaneMode} />
           {sidePaneMode === "CODING" ? (
             <CodingPanel
@@ -348,9 +793,41 @@ function ReviewerWorkspaceShell() {
               onChange={() => void refreshAnnotations()}
             />
           ) : null}
-          {sidePaneMode === "OCR" || sidePaneMode === "TRANSCRIPT" ||
-          sidePaneMode === "EVIDENCE" || sidePaneMode === "REPORT" ? (
-            <SidePaneStub mode={sidePaneMode} />
+          {(sidePaneMode === "EVIDENCE" ||
+            sidePaneMode === "OCR" ||
+            sidePaneMode === "TRANSCRIPT" ||
+            sidePaneMode === "REPORT") &&
+          !activeEvidenceId ? (
+            <SidePaneNoEvidence mode={sidePaneMode} />
+          ) : null}
+          {sidePaneMode === "EVIDENCE" && activeEvidenceId ? (
+            <SidePaneEvidence
+              evidenceId={activeEvidenceId}
+              state={evidenceSide ?? { phase: "LOADING" }}
+              onRetry={retryEvidenceSide}
+              canRequestRedaction={canRequestRedaction}
+            />
+          ) : null}
+          {sidePaneMode === "OCR" && activeEvidenceId ? (
+            <SidePaneExtractedTexts
+              mode="OCR"
+              state={extractedSide ?? { phase: "LOADING" }}
+              onRetry={retryExtractedSide}
+            />
+          ) : null}
+          {sidePaneMode === "TRANSCRIPT" && activeEvidenceId ? (
+            <SidePaneExtractedTexts
+              mode="TRANSCRIPT"
+              state={extractedSide ?? { phase: "LOADING" }}
+              onRetry={retryExtractedSide}
+            />
+          ) : null}
+          {sidePaneMode === "REPORT" && activeEvidenceId ? (
+            <SidePaneReport
+              evidenceId={activeEvidenceId}
+              state={reportSide ?? { phase: "LOADING" }}
+              onRetry={retryReportSide}
+            />
           ) : null}
         </div>
       </div>
@@ -435,10 +912,30 @@ function EvidenceViewerColumn({
   );
 }
 
-function SidePaneStub({ mode }: { mode: SidePaneMode }) {
+/**
+ * PHASE 1 — Honest "no active evidence" state for the EVIDENCE / OCR /
+ * TRANSCRIPT / REPORT side-panes. The wired side-pane components
+ * require an `activeEvidenceId`; when the reviewer has no active
+ * review (queue rail empty / picker pending), we render this card
+ * instead of issuing a request that would 404. The body matches the
+ * tab so operators know why the data is missing.
+ */
+function SidePaneNoEvidence({
+  mode,
+}: {
+  mode: "EVIDENCE" | "OCR" | "TRANSCRIPT" | "REPORT";
+}) {
+  const copy =
+    mode === "EVIDENCE"
+      ? "Pick an item from the queue rail to load the evidence summary."
+      : mode === "OCR"
+        ? "Pick an item from the queue rail to load OCR projection."
+        : mode === "TRANSCRIPT"
+          ? "Pick an item from the queue rail to load transcript projection."
+          : "Pick an item from the queue rail to load report status.";
   return (
     <section
-      data-side-pane-stub={mode}
+      data-side-pane-no-evidence={mode}
       style={{
         background: "rgba(15, 23, 42, 0.03)",
         border: "1px dashed rgba(15, 23, 42, 0.18)",
@@ -449,11 +946,7 @@ function SidePaneStub({ mode }: { mode: SidePaneMode }) {
         lineHeight: 1.55,
       }}
     >
-      <strong>{mode}</strong> pane.
-      {mode === "OCR" ? " OCR text loads from the workspace search foundation when available." : null}
-      {mode === "TRANSCRIPT" ? " Transcript segments load from the worker's transcript foundation when available." : null}
-      {mode === "EVIDENCE" ? " Pick a second evidence item from the queue rail to compare side-by-side." : null}
-      {mode === "REPORT" ? " Latest report snapshot is loaded from the existing reports aggregator." : null}
+      <strong>{mode}</strong> pane. {copy}
     </section>
   );
 }
@@ -756,19 +1249,349 @@ function QueueLine({
 // Phase 2A Closure — legacy EvidenceViewer replaced by
 // EvidenceViewerColumn + MediaViewer; the old function is removed.
 
+// ---------------------------------------------------------------------------
+// Phase 1 lifecycle wiring — inline reason form.
+//
+// Replaces window.prompt for the three reason-bearing actions
+// (REJECT / NEEDS_INFO / ESCALATE). Reject and request-info both
+// require BoundedNote (server schema: min 1, max 1000). Escalate
+// requires safeSummary (max 400). We cap the input at the tightest
+// bound (400) so the same form is reusable; longer reject narratives
+// would not improve workflow closure.
+// ---------------------------------------------------------------------------
+
+function ReasonForm({
+  kind,
+  onSubmit,
+  onCancel,
+}: {
+  kind: "REJECT" | "NEEDS_INFO" | "ESCALATE";
+  onSubmit: (reason: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const trimmed = value.trim();
+  const maxLen = 400;
+  const tooLong = trimmed.length > maxLen;
+  const ready = trimmed.length > 0 && !tooLong;
+  const title =
+    kind === "REJECT"
+      ? "Reject — reason required"
+      : kind === "NEEDS_INFO"
+        ? "Request info — message required"
+        : "Escalate — summary required";
+  const placeholder =
+    kind === "REJECT"
+      ? "Why is this workflow being rejected?"
+      : kind === "NEEDS_INFO"
+        ? "What additional information is needed?"
+        : "Brief summary of why this is being escalated.";
+  return (
+    <section
+      data-reviewer-reason-form={kind}
+      style={{
+        background: "#fff",
+        border: "1px solid rgba(15, 23, 42, 0.12)",
+        borderRadius: 12,
+        padding: 12,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <strong style={{ fontSize: 12, color: "#0f172a" }}>{title}</strong>
+      <textarea
+        data-reviewer-reason-input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={placeholder}
+        rows={4}
+        style={{
+          fontSize: 12,
+          padding: 8,
+          borderRadius: 8,
+          border: "1px solid rgba(15, 23, 42, 0.18)",
+          resize: "vertical",
+          fontFamily: "inherit",
+        }}
+        autoFocus
+      />
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          fontSize: 11,
+          color: tooLong ? "#dc2626" : "#475569",
+        }}
+      >
+        <span>
+          {trimmed.length}/{maxLen}
+        </span>
+        <span style={{ flex: 1 }} />
+        <button
+          type="button"
+          data-reviewer-reason-cancel
+          onClick={onCancel}
+          style={{
+            padding: "5px 10px",
+            borderRadius: 6,
+            background: "transparent",
+            border: "1px solid rgba(15, 23, 42, 0.2)",
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          data-reviewer-reason-submit
+          disabled={!ready}
+          onClick={() => onSubmit(trimmed)}
+          style={{
+            padding: "5px 10px",
+            borderRadius: 6,
+            background: ready ? "#0f172a" : "#e2e8f0",
+            color: ready ? "#fafafa" : "#94a3b8",
+            border: "none",
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: ready ? "pointer" : "not-allowed",
+          }}
+        >
+          Submit
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PHASE 2 — Inline Disagree form.
+//
+// The canonical /v1/reviewer/work/:wf/disagree route requires a real
+// `originalDecisionId` (uuid) plus a rationale (min 1, max 600 chars).
+// We surface a real decision picker populated from
+// /v1/reviewer-ops/workspace/:wf/decisions instead of a free-text
+// prompt — selecting an arbitrary id would fail with
+// DISAGREEMENT_NOT_FOUND.
+//
+// Phases:
+//   LOADING  — decisions fetch in flight (Submit disabled).
+//   READY    — decisions returned; operator picks one + types rationale.
+//   EMPTY    — no decisions on file yet; Submit disabled with explicit
+//              "no prior decision on file" copy.
+//   ERROR    — decisions fetch failed; Submit disabled with retry copy.
+// ---------------------------------------------------------------------------
+
+function DisagreeForm({
+  state,
+  busy,
+  onSubmit,
+  onCancel,
+}: {
+  state:
+    | { phase: "LOADING" }
+    | { phase: "READY"; decisions: WorkflowDecisionRow[] }
+    | { phase: "EMPTY" }
+    | { phase: "ERROR" };
+  busy: boolean;
+  onSubmit: (input: { originalDecisionId: string; rationale: string }) => void;
+  onCancel: () => void;
+}) {
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [rationale, setRationale] = useState<string>("");
+  const trimmed = rationale.trim();
+  const maxLen = 600;
+  const tooLong = trimmed.length > maxLen;
+  const canSubmit =
+    state.phase === "READY" &&
+    selectedId.length > 0 &&
+    trimmed.length > 0 &&
+    !tooLong &&
+    !busy;
+
+  return (
+    <section
+      data-reviewer-disagree-form
+      data-reviewer-disagree-phase={state.phase}
+      style={{
+        background: "#fff",
+        border: "1px solid rgba(15, 23, 42, 0.12)",
+        borderRadius: 12,
+        padding: 12,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <strong style={{ fontSize: 12, color: "#0f172a" }}>
+        File a disagreement
+      </strong>
+      {state.phase === "LOADING" ? (
+        <p
+          data-reviewer-disagree-loading
+          style={{ fontSize: 12, color: "#475569", margin: 0 }}
+        >
+          Loading prior decisions…
+        </p>
+      ) : null}
+      {state.phase === "EMPTY" ? (
+        <p
+          data-reviewer-disagree-empty
+          style={{ fontSize: 12, color: "#475569", margin: 0 }}
+        >
+          No prior decision on file — disagree is only available after a
+          decision is recorded.
+        </p>
+      ) : null}
+      {state.phase === "ERROR" ? (
+        <p
+          data-reviewer-disagree-error
+          style={{ fontSize: 12, color: "#dc2626", margin: 0 }}
+        >
+          Could not load prior decisions — please retry.
+        </p>
+      ) : null}
+      {state.phase === "READY" ? (
+        <>
+          <label
+            htmlFor="reviewer-disagree-decision-select"
+            style={{ fontSize: 11, color: "#475569" }}
+          >
+            Which decision are you challenging?
+          </label>
+          <select
+            id="reviewer-disagree-decision-select"
+            data-reviewer-disagree-decision-select
+            value={selectedId}
+            onChange={(e) => setSelectedId(e.target.value)}
+            style={{
+              fontSize: 12,
+              padding: 6,
+              borderRadius: 6,
+              border: "1px solid rgba(15, 23, 42, 0.18)",
+              fontFamily: "inherit",
+            }}
+          >
+            <option value="" disabled>
+              Select a recorded decision…
+            </option>
+            {state.decisions.map((d) => {
+              const who =
+                d.reviewer.displayName ||
+                d.reviewer.email ||
+                d.reviewer.userId.slice(0, 8) + "…";
+              const when = (() => {
+                try {
+                  return new Date(d.decidedAt).toLocaleString();
+                } catch {
+                  return d.decidedAt;
+                }
+              })();
+              return (
+                <option key={d.id} value={d.id}>
+                  {d.stage} · {d.decision} · {who} · {when}
+                </option>
+              );
+            })}
+          </select>
+          <label
+            htmlFor="reviewer-disagree-rationale"
+            style={{ fontSize: 11, color: "#475569" }}
+          >
+            Rationale (required, ≤ {maxLen} chars)
+          </label>
+          <textarea
+            id="reviewer-disagree-rationale"
+            data-reviewer-disagree-rationale
+            value={rationale}
+            onChange={(e) => setRationale(e.target.value)}
+            rows={4}
+            placeholder="Briefly explain why you challenge this decision."
+            style={{
+              fontSize: 12,
+              padding: 8,
+              borderRadius: 8,
+              border: "1px solid rgba(15, 23, 42, 0.18)",
+              resize: "vertical",
+              fontFamily: "inherit",
+            }}
+            autoFocus
+          />
+        </>
+      ) : null}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          fontSize: 11,
+          color: tooLong ? "#dc2626" : "#475569",
+        }}
+      >
+        {state.phase === "READY" ? (
+          <span>
+            {trimmed.length}/{maxLen}
+          </span>
+        ) : null}
+        <span style={{ flex: 1 }} />
+        <button
+          type="button"
+          data-reviewer-disagree-cancel
+          onClick={onCancel}
+          style={{
+            padding: "5px 10px",
+            borderRadius: 6,
+            background: "transparent",
+            border: "1px solid rgba(15, 23, 42, 0.2)",
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          data-reviewer-disagree-submit
+          disabled={!canSubmit}
+          onClick={() =>
+            onSubmit({ originalDecisionId: selectedId, rationale: trimmed })
+          }
+          style={{
+            padding: "5px 10px",
+            borderRadius: 6,
+            background: canSubmit ? "#0f172a" : "#e2e8f0",
+            color: canSubmit ? "#fafafa" : "#94a3b8",
+            border: "none",
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: canSubmit ? "pointer" : "not-allowed",
+          }}
+        >
+          File disagreement
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function DecisionBar({
   capabilities,
   onDecision,
   onDisagree,
   hotkeys,
+  disabled = false,
 }: {
   capabilities: Set<ReviewerCapability>;
   onDecision: (kind: "APPROVE" | "REJECT" | "ESCALATE" | "NEEDS_INFO") => void;
   onDisagree: () => void;
   hotkeys: ReadonlyArray<{ code: string; key: string }>;
+  disabled?: boolean;
 }) {
-  const canDecide = capabilities.has("review.decide");
-  const canDisagree = capabilities.has("review.disagree");
+  const canDecide = capabilities.has("review.decide") && !disabled;
+  const canDisagree = capabilities.has("review.disagree") && !disabled;
   return (
     <section
       data-reviewer-decision-bar
@@ -813,7 +1636,7 @@ function DecisionBar({
       />
       <DecisionBtn
         label="Disagree"
-        hotkey="?"
+        hotkey=""
         tone="neutral"
         disabled={!canDisagree}
         onClick={onDisagree}
@@ -881,7 +1704,13 @@ function DecisionBtn({
         cursor: disabled ? "not-allowed" : "pointer",
       }}
     >
-      {label} <kbd style={{ fontSize: 9, opacity: 0.7 }}>{hotkey}</kbd>
+      {label}
+      {hotkey ? (
+        <>
+          {" "}
+          <kbd style={{ fontSize: 9, opacity: 0.7 }}>{hotkey}</kbd>
+        </>
+      ) : null}
     </button>
   );
 }

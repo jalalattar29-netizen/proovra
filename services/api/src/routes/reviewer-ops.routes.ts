@@ -75,6 +75,7 @@ import {
 } from "../services/reviewer-ops/escalation-engine.service.js";
 import {
   computeReviewerWorkload,
+  listAssignableReviewers,
   listLatestWorkloadSnapshots,
   suggestReviewers,
 } from "../services/reviewer-ops/workload.service.js";
@@ -100,6 +101,19 @@ import {
 } from "../services/reviewer-ops/analytics.service.js";
 import { bump } from "../services/ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
+// Phase RW3-2 — reviewer-role capability resolver. Reused so the new
+// /assignable-reviewers endpoint requires the same `review.assign`
+// capability that the bulk-assign action itself requires. Without this
+// the picker would surface team members that cannot in fact be
+// assigned to, which would be a misleading UI signal.
+import {
+  callerHasCapability,
+  resolveReviewerRole,
+} from "../services/reviewer-workspace/reviewer-roles.js";
+// Phase RW3-3 — pending-QC count for the discovery card on /review/queues.
+// Reused service that backs /v1/reviewer/qc/samples; bounded `count()`
+// query, no row enumeration, no PII surface.
+import { countPendingQcSamples } from "../services/reviewer-workspace/qc-sample.service.js";
 
 // -----------------------------------------------------------------------------
 // Auth helpers — 404-on-non-member + reviewer-capability resolution
@@ -321,6 +335,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         teamId?: string;
         queue?: string;
         limit?: string | number;
+        cursor?: string;
       };
       let resolvedTeamId = rawQuery.teamId;
       if (!resolvedTeamId) {
@@ -347,12 +362,35 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         // direction. The cap is preserved; the default makes the
         // limit explicitly bounded rather than implicitly so.
         limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+        // Phase RW3 — honest cursor pagination. Cursor is the id of
+        // the LAST row returned by the previous page; the service
+        // uses it as the Prisma cursor anchor and skips it (so no
+        // overlap). UUID-shape enforced here; any deviation surfaces
+        // as INVALID_CURSOR rather than leaking a Prisma error.
+        cursor: z.string().uuid().optional(),
       });
       const parsed = QueueQuery.safeParse({
         ...rawQuery,
         teamId: resolvedTeamId,
       });
       if (!parsed.success) {
+        // Phase RW3 — if the only failing field is `cursor`, surface
+        // a dedicated INVALID_CURSOR 400 so the frontend can stop
+        // forwarding a broken cursor without dumping the whole page.
+        const cursorOnly =
+          parsed.error.issues.length > 0 &&
+          parsed.error.issues.every(
+            (issue) => issue.path.join(".") === "cursor",
+          );
+        if (cursorOnly) {
+          return reply.code(400).send({
+            error: {
+              code: "INVALID_CURSOR",
+              message: "Pagination cursor is not a valid workflow id.",
+              requestId: req.id,
+            },
+          });
+        }
         const fieldSummary = parsed.error.issues
           .map((issue) => issue.path.join("."))
           .filter((p) => p.length > 0)
@@ -378,6 +416,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           meUserId: ctx.actorUserId,
           queue: q.queue,
           limit: q.limit,
+          cursor: q.cursor ?? null,
         },
       );
       return reply.code(200).send(result);
@@ -561,6 +600,195 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           : Promise.resolve([]),
       ]);
       return reply.code(200).send({ snapshots, suggestions });
+    },
+  );
+
+  // ===========================================================================
+  // GET /v1/reviewer-ops/assignable-reviewers
+  //
+  // Phase RW3-2 — team-scoped reviewer-pool projection used by the
+  // bulk-assign picker in /review/queues. Replaces the previous
+  // `window.prompt("Reviewer user id…")` CANNOT_WIRE compromise on the
+  // queues page. Phase 0 confirmed no existing endpoint surfaces this
+  // projection (cases.routes.ts:/v1/cases/:id/team-members is
+  // case-scoped; identity.routes.ts:/v1/identity/members returns all
+  // members and roles without filtering on reviewer capability;
+  // collaboration-teams.routes.ts:/members enumerates every role).
+  //
+  // Hard rules honoured:
+  //   - Team-scoped via `requireReviewerActor` (404-on-non-member,
+  //     anti-enumeration).
+  //   - Reviewer capability gated by `review.assign` — the same gate
+  //     that the bulk-assign mutation enforces. A caller that cannot
+  //     assign sees a bounded `REVIEW_PERMISSION_DENIED` 403 instead
+  //     of a misleading empty list.
+  //   - Bounded projection: { userId, displayName?, role, status,
+  //     currentWorkloadCount? }. No email. No raw PII. The service
+  //     omits `currentWorkloadCount` when no snapshot exists rather
+  //     than projecting a fake zero.
+  //   - limit capped 1..200 at the route AND in the service.
+  //   - Read-only — no audit emission (consistent with /workload,
+  //     which is also a read-only reviewer-pool projection).
+  // ===========================================================================
+
+  app.get(
+    "/v1/reviewer-ops/assignable-reviewers",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      // Mirror the queue route's teamId resolution: callers from the
+      // queues page do not pass `teamId` explicitly and instead rely on
+      // the user's currentWorkspaceId. Explicit `teamId` query is still
+      // honoured for direct callers + tests.
+      const rawQuery = (req.query ?? {}) as {
+        teamId?: string;
+        limit?: string | number;
+      };
+      let resolvedTeamId = rawQuery.teamId;
+      if (!resolvedTeamId) {
+        const userId = getAuthUserId(req);
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { currentWorkspaceId: true },
+        });
+        if (!user?.currentWorkspaceId) {
+          return reply.code(400).send({
+            error: {
+              code: "WORKSPACE_CONTEXT_REQUIRED",
+              message: "Select a workspace to load the reviewer picker.",
+              requestId: req.id,
+            },
+          });
+        }
+        resolvedTeamId = user.currentWorkspaceId;
+      }
+      const q = z
+        .object({
+          teamId: z.string().uuid(),
+          limit: z.coerce.number().int().min(1).max(200).optional(),
+        })
+        .parse({ ...rawQuery, teamId: resolvedTeamId });
+      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      if (!ctx) return;
+      // Capability gate: the caller must hold `review.assign` for the
+      // workspace. We resolve the workspace role inline (already
+      // captured implicitly by requireReviewerActor's membership +
+      // status check, but the role itself is not on
+      // LifecycleActorContext) and pass it to the bounded reviewer-
+      // roles resolver.
+      const userRow = await prisma.user.findUnique({
+        where: { id: ctx.actorUserId },
+        select: { platformRole: true },
+      });
+      const memberRow = await prisma.teamMember.findUnique({
+        where: {
+          teamId_userId: { teamId: q.teamId, userId: ctx.actorUserId },
+        },
+        select: { role: true },
+      });
+      const resolution = resolveReviewerRole({
+        workspaceRole: (memberRow?.role ?? null) as
+          | "OWNER"
+          | "ADMIN"
+          | "MEMBER"
+          | "VIEWER"
+          | null,
+        isPlatformAdmin: (userRow?.platformRole ?? null) !== null,
+      });
+      if (!callerHasCapability(resolution, "review.assign")) {
+        return reply.code(403).send({
+          error: {
+            code: "REVIEW_PERMISSION_DENIED",
+            reason: "review_assign_required",
+          },
+        });
+      }
+      try {
+        const reviewers = await listAssignableReviewers({
+          teamId: q.teamId,
+          limit: q.limit,
+        });
+        return reply.code(200).send({ reviewers });
+      } catch (err) {
+        if (sendEngineError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  // ===========================================================================
+  // GET /v1/reviewer-ops/qc/pending-count
+  //
+  // Phase RW3-3 — Discovery-only count card surfaced at the top of
+  // /review/queues. Operators see "QC samples awaiting verdict: N" with
+  // a link to /review/qc. We do NOT mix QC rows into the queue table —
+  // QcSample is a sibling lifecycle (SAMPLED → ASSIGNED → VERDICT_RENDERED)
+  // and the workflow-centric queue projection cannot honestly absorb it
+  // without breaking the bulk-assign / bulk-decide semantics.
+  //
+  // Phase 0 audit reuses confirmed:
+  //   - QcSample.state runs SAMPLED → ASSIGNED → VERDICT_RENDERED.
+  //     "Pending" = state IN ('SAMPLED', 'ASSIGNED'). VERDICT_RENDERED
+  //     is terminal and excluded.
+  //   - REVIEWER_OPS_QUEUE_TYPES has no QC branch; this endpoint is
+  //     therefore additive and does not duplicate the queue route.
+  //
+  // Hard rules honoured:
+  //   - Team-scoped via `requireReviewerActor` (404-on-non-member,
+  //     anti-enumeration).
+  //   - Read-only count() — bounded projection { pendingCount }. No row
+  //     ids, no PII.
+  //   - Capability gate: `evidence_request.review` (same as the QC list
+  //     route /v1/reviewer/qc/samples), surfaced as `REVIEW_PERMISSION_DENIED`
+  //     403 with bounded reason when the caller is not reviewer-capable.
+  //     A reviewer who cannot view QC samples must not see the count
+  //     either, otherwise the card would imply discoverability the
+  //     caller lacks.
+  //   - No audit emission (read-only count, consistent with /workload
+  //     and /assignable-reviewers precedent).
+  // ===========================================================================
+
+  app.get(
+    "/v1/reviewer-ops/qc/pending-count",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      // Mirror the queue + assignable-reviewers teamId resolution.
+      const rawQuery = (req.query ?? {}) as {
+        teamId?: string;
+      };
+      let resolvedTeamId = rawQuery.teamId;
+      if (!resolvedTeamId) {
+        const userId = getAuthUserId(req);
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { currentWorkspaceId: true },
+        });
+        if (!user?.currentWorkspaceId) {
+          return reply.code(400).send({
+            error: {
+              code: "WORKSPACE_CONTEXT_REQUIRED",
+              message: "Select a workspace to load QC discovery.",
+              requestId: req.id,
+            },
+          });
+        }
+        resolvedTeamId = user.currentWorkspaceId;
+      }
+      const q = z
+        .object({ teamId: z.string().uuid() })
+        .parse({ ...rawQuery, teamId: resolvedTeamId });
+      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      if (!ctx) return;
+      // Reviewer-capable check: reuse the existing helper that already
+      // resolves to `evidence_request.review`. A non-reviewer would see
+      // a misleading discovery hint otherwise.
+      if (!requireReviewerCapable(ctx, reply)) return;
+      try {
+        const result = await countPendingQcSamples({ teamId: q.teamId });
+        return reply.code(200).send(result);
+      } catch (err) {
+        if (sendEngineError(reply, err)) return;
+        throw err;
+      }
     },
   );
 

@@ -202,9 +202,13 @@ function SlaDashboardPageInner() {
       <header style={headerRowStyle}>
         <div>
           <h1 style={titleStyle}>SLA Operations</h1>
-          <p style={subtitleStyle}>
-            Workspace-level review backlog, SLA pressure, and reviewer
-            workload. Operator-readable only — no private review notes.
+          <p style={subtitleStyle} data-sla-dashboard-intro>
+            Read-only operations dashboard reflecting current SLA
+            pressure across the workspace — backlog, breached counts,
+            reviewer workload, and escalation hotspots. SLA policy is
+            administered at /governance/policy; this surface never
+            mutates it. Operator-readable only — no private review
+            notes.
           </p>
         </div>
       </header>

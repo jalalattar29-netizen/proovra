@@ -162,6 +162,8 @@ export async function reviewerWorkspaceRoutes(app) {
         const ctx = await resolveTeam(req, reply);
         if (!ctx)
             return reply;
+        if (!requireCap(ctx, "review.assign"))
+            return denyNoPermission(reply);
         const metrics = await getReviewerMetricsTeam({ teamId: ctx.teamId });
         return reply.code(200).send({ metrics });
     });

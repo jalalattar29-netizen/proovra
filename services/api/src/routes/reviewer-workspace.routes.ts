@@ -236,6 +236,14 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
 
   // ---------------------------------------------------------------------------
   // GET /v1/reviewer/metrics
+  //
+  // Phase 5 RBAC hardening — team-wide reviewer performance metrics are
+  // not appropriate for the base REVIEWER role (who only see their own
+  // queue). Gate behind `review.assign`, which is granted to SUPERVISOR
+  // and REVIEW_ADMIN via the reviewer-roles resolver — i.e. workspace
+  // ADMIN and OWNER, the operators who legitimately need a team-wide
+  // view. This reuses the existing requireCap + REVIEWER_CAPABILITIES
+  // registry; no new permission is introduced.
   // ---------------------------------------------------------------------------
   app.get(
     "/v1/reviewer/metrics",
@@ -243,6 +251,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (!requireCap(ctx, "review.assign")) return denyNoPermission(reply);
       const metrics = await getReviewerMetricsTeam({ teamId: ctx.teamId });
       return reply.code(200).send({ metrics });
     },

@@ -6,12 +6,57 @@
  * Bounded team-wide metric ribbon. Per-reviewer metrics surface on
  * the workspace ribbon; this page is the supervisor/ops view of
  * aggregate throughput + accuracy.
+ *
+ * PHASE 4 hardening — Phase 0 identified that this page stuck on
+ * "Loading metrics…" forever when the backend returned a 403 (catch
+ * was absent and metrics stayed null). It also failed to distinguish
+ * EMPTY (all-zero metrics, e.g. workspace has no activity) from a
+ * generic failure.
+ *
+ * The page now models four bounded states and never leaks any data
+ * when the user is FORBIDDEN:
+ *
+ *   - LOADING  — initial fetch in flight.
+ *   - FORBIDDEN — 403 NOT_PERMITTED. Render explanation panel only.
+ *   - ERROR    — network error / 500 / parse error. Retry control.
+ *   - READY    — 200 response. May be EMPTY (all-zero) — surfaced via
+ *                an empty-state line above the metric grid.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { fetchReviewerMetrics } from "../../../../lib/reviewer-workspace/reviewer-api";
+
+type Metrics = {
+  throughput7d: number;
+  approvalRate7dPct: number;
+  escalationRate7dPct: number;
+  disagreementRate7dPct: number;
+  qcFailureRate7dPct: number;
+  avgReviewDurationMs7d: number;
+};
+
+type FetchState =
+  | { kind: "LOADING" }
+  | { kind: "FORBIDDEN" }
+  | { kind: "ERROR" }
+  | { kind: "READY"; metrics: Metrics };
+
+// A metric response is considered EMPTY when every numeric / pct
+// metric is exactly zero. This matches "no reviewer activity in the
+// last 7 days for this workspace" rather than a 403 (which is
+// modelled as FORBIDDEN, never a fake empty grid).
+function isMetricsEmpty(m: Metrics): boolean {
+  return (
+    m.throughput7d === 0 &&
+    m.approvalRate7dPct === 0 &&
+    m.escalationRate7dPct === 0 &&
+    m.disagreementRate7dPct === 0 &&
+    m.qcFailureRate7dPct === 0 &&
+    m.avgReviewDurationMs7d === 0
+  );
+}
 
 export default function MetricsPage() {
   return (
@@ -22,29 +67,47 @@ export default function MetricsPage() {
 }
 
 function MetricsShell() {
-  const [metrics, setMetrics] = useState<{
-    throughput7d: number;
-    approvalRate7dPct: number;
-    escalationRate7dPct: number;
-    disagreementRate7dPct: number;
-    qcFailureRate7dPct: number;
-    avgReviewDurationMs7d: number;
-  } | null>(null);
+  const [state, setState] = useState<FetchState>({ kind: "LOADING" });
+
+  const load = useCallback(async () => {
+    setState({ kind: "LOADING" });
+    try {
+      const m = await fetchReviewerMetrics();
+      setState({ kind: "READY", metrics: m });
+    } catch (err) {
+      // Structured warn — silent failure is forbidden.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const status = (err as any)?.statusCode ?? 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const code = ((err as any)?.code ?? "UNKNOWN") as string;
+      // eslint-disable-next-line no-console
+      console.warn("[reviewer-workspace] metrics fetch failed", {
+        status,
+        code,
+      });
+      if (status === 403 || code === "NOT_PERMITTED" || code === "FORBIDDEN") {
+        setState({ kind: "FORBIDDEN" });
+      } else {
+        setState({ kind: "ERROR" });
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const m = await fetchReviewerMetrics();
-      if (!cancelled) setMetrics(m);
+    void (async () => {
+      if (cancelled) return;
+      await load();
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [load]);
 
   return (
     <div
       data-reviewer-metrics-page
+      data-reviewer-metrics-state={state.kind}
       style={{ padding: 24, maxWidth: 900, margin: "0 auto", color: "#0f172a" }}
     >
       <h1 style={{ fontSize: 22, margin: "0 0 8px" }}>Reviewer metrics (7d)</h1>
@@ -52,28 +115,118 @@ function MetricsShell() {
         Operational metrics describing reviewer activity. Not authenticity
         claims about content; not legal weight.
       </p>
-      {metrics === null ? (
-        <div>Loading metrics…</div>
-      ) : (
+
+      {state.kind === "LOADING" ? (
+        <div data-reviewer-metrics-loading style={mutedStyle}>
+          Loading reviewer metrics…
+        </div>
+      ) : null}
+
+      {state.kind === "FORBIDDEN" ? (
         <div
+          data-reviewer-metrics-forbidden
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 12,
             marginTop: 14,
+            padding: "12px 14px",
+            background: "rgba(15, 23, 42, 0.04)",
+            border: "1px solid rgba(15, 23, 42, 0.12)",
+            borderRadius: 10,
+            color: "#0f172a",
+            fontSize: 13,
           }}
         >
-          <MetricCard label="Throughput" value={metrics.throughput7d} />
-          <MetricCard label="Approval rate" value={`${metrics.approvalRate7dPct}%`} />
-          <MetricCard label="Escalation rate" value={`${metrics.escalationRate7dPct}%`} />
-          <MetricCard label="Disagreement rate" value={`${metrics.disagreementRate7dPct}%`} />
-          <MetricCard label="QC failure rate" value={`${metrics.qcFailureRate7dPct}%`} />
-          <MetricCard
-            label="Avg review duration"
-            value={`${Math.round(metrics.avgReviewDurationMs7d / 1000)}s`}
-          />
+          You do not have permission to view team-wide reviewer
+          metrics. Ask a workspace administrator or supervisor.
         </div>
-      )}
+      ) : null}
+
+      {state.kind === "ERROR" ? (
+        <div
+          data-reviewer-metrics-error
+          style={{
+            marginTop: 14,
+            padding: "12px 14px",
+            background: "rgba(220, 38, 38, 0.08)",
+            border: "1px solid rgba(220, 38, 38, 0.32)",
+            borderRadius: 10,
+            color: "#7f1d1d",
+            fontSize: 13,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <span>Could not load reviewer metrics — please retry.</span>
+          <button
+            type="button"
+            data-reviewer-metrics-retry
+            onClick={() => void load()}
+            style={{
+              background: "#fff",
+              border: "1px solid #fecaca",
+              borderRadius: 6,
+              padding: "4px 10px",
+              fontSize: 12,
+              color: "#7f1d1d",
+              cursor: "pointer",
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      {state.kind === "READY" ? (
+        isMetricsEmpty(state.metrics) ? (
+          <div
+            data-reviewer-metrics-empty
+            style={{
+              marginTop: 14,
+              padding: "12px 14px",
+              background: "rgba(15, 23, 42, 0.03)",
+              border: "1px dashed rgba(15, 23, 42, 0.18)",
+              borderRadius: 10,
+              color: "#475569",
+              fontSize: 13,
+            }}
+          >
+            No reviewer activity in the last 7 days for this workspace.
+          </div>
+        ) : (
+          <div
+            data-reviewer-metrics-grid
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 12,
+              marginTop: 14,
+            }}
+          >
+            <MetricCard label="Throughput" value={state.metrics.throughput7d} />
+            <MetricCard
+              label="Approval rate"
+              value={`${state.metrics.approvalRate7dPct}%`}
+            />
+            <MetricCard
+              label="Escalation rate"
+              value={`${state.metrics.escalationRate7dPct}%`}
+            />
+            <MetricCard
+              label="Disagreement rate"
+              value={`${state.metrics.disagreementRate7dPct}%`}
+            />
+            <MetricCard
+              label="QC failure rate"
+              value={`${state.metrics.qcFailureRate7dPct}%`}
+            />
+            <MetricCard
+              label="Avg review duration"
+              value={`${Math.round(state.metrics.avgReviewDurationMs7d / 1000)}s`}
+            />
+          </div>
+        )
+      ) : null}
     </div>
   );
 }
@@ -100,3 +253,9 @@ function MetricCard({
     </div>
   );
 }
+
+const mutedStyle: React.CSSProperties = {
+  color: "#475569",
+  fontSize: 13,
+  marginTop: 14,
+};

@@ -23,6 +23,8 @@
 import { Prisma } from "@prisma/client";
 import { CODING_FIELD_TYPES, CODING_SCHEMA_CATEGORIES, REVIEWER_VERDICTS, REVIEWER_RISK_LEVELS, ESCALATION_LEVELS, } from "@proovra/shared";
 import { prisma as defaultPrisma } from "../../db.js";
+// Phase 4 — wire audit emission via the canonical platform audit log.
+import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
 // =============================================================================
 // Public API
 // =============================================================================
@@ -81,13 +83,31 @@ export async function createSchema(input) {
         },
         select: { id: true, version: true },
     });
+    // Phase 4 — best-effort audit emission.
+    await appendPlatformAuditLog({
+        userId: input.authorUserId,
+        action: "reviewer.coding_schema.created",
+        category: "review",
+        severity: "info",
+        source: "reviewer_workspace.coding_schema",
+        outcome: "success",
+        resourceType: "coding_schema",
+        resourceId: schema.id,
+        metadata: {
+            teamId: input.teamId,
+            schemaId: schema.id,
+            slug: input.slug,
+            category: input.category,
+            version: schema.version,
+        },
+    }).catch(() => { });
     return { ok: true, schemaId: schema.id, version: schema.version };
 }
 export async function publishSchema(input) {
     const prisma = input.prisma ?? defaultPrisma;
     const schema = await prisma.codingSchema.findFirst({
         where: { id: input.schemaId, teamId: input.teamId },
-        select: { id: true, status: true, version: true },
+        select: { id: true, status: true, version: true, slug: true },
     });
     if (!schema)
         return deny("SCHEMA_NOT_FOUND");
@@ -98,13 +118,31 @@ export async function publishSchema(input) {
         where: { id: schema.id },
         data: { status: "PUBLISHED", publishedAt: new Date() },
     });
+    // Phase 4 — best-effort audit emission.
+    await appendPlatformAuditLog({
+        userId: null,
+        isPublic: true,
+        action: "reviewer.coding_schema.published",
+        category: "review",
+        severity: "info",
+        source: "reviewer_workspace.coding_schema",
+        outcome: "success",
+        resourceType: "coding_schema",
+        resourceId: schema.id,
+        metadata: {
+            teamId: input.teamId,
+            schemaId: schema.id,
+            slug: schema.slug,
+            version: schema.version,
+        },
+    }).catch(() => { });
     return { ok: true, schemaId: schema.id, publishedVersion: schema.version };
 }
 export async function archiveSchema(input) {
     const prisma = input.prisma ?? defaultPrisma;
     const schema = await prisma.codingSchema.findFirst({
         where: { id: input.schemaId, teamId: input.teamId },
-        select: { id: true, status: true },
+        select: { id: true, status: true, slug: true },
     });
     if (!schema)
         return deny("SCHEMA_NOT_FOUND");
@@ -112,6 +150,23 @@ export async function archiveSchema(input) {
         where: { id: schema.id },
         data: { status: "ARCHIVED", archivedAt: new Date() },
     });
+    // Phase 4 — best-effort audit emission.
+    await appendPlatformAuditLog({
+        userId: null,
+        isPublic: true,
+        action: "reviewer.coding_schema.archived",
+        category: "review",
+        severity: "info",
+        source: "reviewer_workspace.coding_schema",
+        outcome: "success",
+        resourceType: "coding_schema",
+        resourceId: schema.id,
+        metadata: {
+            teamId: input.teamId,
+            schemaId: schema.id,
+            slug: schema.slug,
+        },
+    }).catch(() => { });
     return { ok: true };
 }
 export async function listSchemas(input) {

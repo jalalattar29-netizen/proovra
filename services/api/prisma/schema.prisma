@@ -9518,6 +9518,7 @@ model ReviewerDisagreement {
   //   * challengerUserId    — separate from filedByUserId (filer is the SUBMITTER; challenger is the DISPUTE OWNER).
   //   * secondReviewerUserId — assigned second reviewer in the FILED → UNDER_SECOND_REVIEW transition.
   //   * supervisorUserId    — supervisor on the UNDER_SUPERVISOR_REVIEW transition.
+  //   * resolution / resolvedAtUtc / resolvedByUserId — canonical bounded final adjudication record.
   //   * filedAtUtc          — explicit filed-at distinct from createdAt (preserved for ordering + reports).
   originalDecisionId   String?   @map("original_decision_id") @db.Uuid
   challengerUserId     String?   @map("challenger_user_id") @db.Uuid
