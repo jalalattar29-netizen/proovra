@@ -46,6 +46,7 @@ import {
 } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { OperationalEmptyState } from "../../../../components/operational";
 import { apiFetch } from "../../../../lib/api";
 import { transitionDisagreement } from "../../../../lib/reviewer-workspace/reviewer-api";
 
@@ -65,6 +66,8 @@ type DisagreementRow = {
   originalDecisionId: string | null;
   filedAtUtc: string;
   resolvedAtUtc: string | null;
+  resolution?: ReviewerVerdict | null;
+  resolvedByUserId?: string | null;
 };
 
 /** Verdicts the picker actually offers — PENDING filtered out as
@@ -140,6 +143,19 @@ function DisagreementsShell() {
     void refresh();
   }, [refresh]);
 
+  const counts = useMemo(() => {
+    const source = rows ?? [];
+    return {
+      filed: source.filter((row) => row.state === "FILED").length,
+      secondReview: source.filter((row) => row.state === "UNDER_SECOND_REVIEW")
+        .length,
+      supervisor: source.filter((row) => row.state === "UNDER_SUPERVISOR_REVIEW")
+        .length,
+      resolved: source.filter((row) => row.state.startsWith("RESOLVED_")).length,
+      withdrawn: source.filter((row) => row.state === "WITHDRAWN").length,
+    };
+  }, [rows]);
+
   const onTransition = useCallback(
     async (
       id: string,
@@ -180,6 +196,20 @@ function DisagreementsShell() {
         Reviewers may challenge a recorded decision. Disagreements
         progress through second review and supervisor adjudication.
       </p>
+      <div
+        style={{
+          marginBottom: 14,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gap: 10,
+        }}
+      >
+        <LifecycleTile label="Filed" value={counts.filed} />
+        <LifecycleTile label="Second review" value={counts.secondReview} />
+        <LifecycleTile label="Supervisor review" value={counts.supervisor} />
+        <LifecycleTile label="Resolved" value={counts.resolved} />
+        <LifecycleTile label="Withdrawn" value={counts.withdrawn} />
+      </div>
       {banner ? (
         <div
           data-disagreement-banner
@@ -197,9 +227,16 @@ function DisagreementsShell() {
       {rows === null ? (
         <div>Loading…</div>
       ) : rows.length === 0 ? (
-        <div style={{ color: "#475569", fontSize: 14 }}>
-          No disagreements on file.
-        </div>
+        <OperationalEmptyState
+          kicker="Disagreement lifecycle"
+          title="No disagreements are on file in this workspace."
+          reason="Disagreements appear when a reviewer challenges a recorded decision. The lifecycle still matters here: filed disagreements move into second review, then supervisor adjudication, before they are resolved or withdrawn."
+          actions={[
+            { label: "Open reviewer queues", href: "/review/queues?queue=MY_REVIEWS" },
+            { label: "Open escalation operations", href: "/reviewer-ops/escalations" },
+          ]}
+          emptyStateCode="review_disagreements_empty"
+        />
       ) : (
         <DisagreementsTable
           rows={rows}
@@ -242,9 +279,10 @@ function DisagreementsTable({
         <tr style={{ textAlign: "left", color: "#475569" }}>
           <th style={th}>State</th>
           <th style={th}>Workflow</th>
+          <th style={th}>Owner</th>
           <th style={th}>Challenger</th>
-          <th style={th}>Decision</th>
-          <th style={th}>Filed</th>
+          <th style={th}>Age</th>
+          <th style={th}>Resolution</th>
           <th style={th}>Challenger rationale</th>
           <th style={th}>Actions</th>
         </tr>
@@ -311,6 +349,9 @@ function DisagreementRowGroup({
           <code>{row.workflowId.slice(0, 8)}…</code>
         </td>
         <td style={td}>
+          <OwnerCell row={row} />
+        </td>
+        <td style={td}>
           {row.challengerUserId ? (
             <code>{row.challengerUserId.slice(0, 8)}…</code>
           ) : (
@@ -318,13 +359,11 @@ function DisagreementRowGroup({
           )}
         </td>
         <td style={td}>
-          {row.originalDecisionId ? (
-            <code>{row.originalDecisionId.slice(0, 8)}…</code>
-          ) : (
-            <span style={{ color: "#94a3b8" }}>not recorded</span>
-          )}
+          {formatAge(row.filedAtUtc, row.resolvedAtUtc)}
         </td>
-        <td style={td}>{new Date(row.filedAtUtc).toLocaleString()}</td>
+        <td style={td}>
+          <ResolutionCell row={row} />
+        </td>
         <td style={td}>
           <ChallengerRationalePreview value={row.challengerRationale} />
         </td>
@@ -341,7 +380,7 @@ function DisagreementRowGroup({
       </tr>
       {isPickerOpen && pickerTo && pickerTo.startsWith("RESOLVED_") ? (
         <tr data-disagreement-resolve-picker-row={row.id}>
-          <td colSpan={7} style={{ padding: 0 }}>
+          <td colSpan={8} style={{ padding: 0 }}>
             <ResolveVerdictPicker
               disagreementId={row.id}
               to={pickerTo}
@@ -578,6 +617,68 @@ function ChallengerRationalePreview({ value }: { value: string | null }) {
       {truncated}
     </span>
   );
+}
+
+function LifecycleTile({ label, value }: { label: string; value: number }) {
+  return (
+    <div
+      style={{
+        border: "1px solid #e2e8f0",
+        borderRadius: 10,
+        background: "#f8fafc",
+        padding: "10px 12px",
+      }}
+    >
+      <div style={{ color: "#64748b", fontSize: 11 }}>{label}</div>
+      <div style={{ color: "#0f172a", fontSize: 18, fontWeight: 700 }}>{value}</div>
+    </div>
+  );
+}
+
+function OwnerCell({ row }: { row: DisagreementRow }) {
+  const owner =
+    row.state === "UNDER_SECOND_REVIEW"
+      ? row.secondReviewerUserId
+      : row.state === "UNDER_SUPERVISOR_REVIEW"
+        ? row.supervisorUserId
+        : row.state.startsWith("RESOLVED_")
+          ? row.resolvedByUserId ?? row.supervisorUserId ?? row.secondReviewerUserId
+          : null;
+  if (!owner) {
+    return <span style={{ color: "#94a3b8" }}>awaiting assignment</span>;
+  }
+  return <code>{owner.slice(0, 8)}…</code>;
+}
+
+function ResolutionCell({ row }: { row: DisagreementRow }) {
+  if (!row.state.startsWith("RESOLVED_")) {
+    return (
+      <span style={{ color: "#475569", fontSize: 11 }}>
+        Filed {new Date(row.filedAtUtc).toLocaleString()}
+      </span>
+    );
+  }
+  return (
+    <div style={{ display: "grid", gap: 2 }}>
+      <strong style={{ fontSize: 12, color: "#0f172a" }}>
+        {row.resolution ? VERDICT_LABELS[row.resolution] : "Resolved"}
+      </strong>
+      <span style={{ color: "#475569", fontSize: 11 }}>
+        {row.resolvedAtUtc
+          ? new Date(row.resolvedAtUtc).toLocaleString()
+          : "Resolution time not recorded"}
+      </span>
+    </div>
+  );
+}
+
+function formatAge(filedAtUtc: string, resolvedAtUtc: string | null): string {
+  const end = resolvedAtUtc ? Date.parse(resolvedAtUtc) : Date.now();
+  const deltaMs = Math.max(0, end - Date.parse(filedAtUtc));
+  const hours = Math.round(deltaMs / 3_600_000);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.round(hours / 24);
+  return `${days}d`;
 }
 
 function isPlausibleTransition(

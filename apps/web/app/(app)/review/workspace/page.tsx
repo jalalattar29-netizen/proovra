@@ -35,6 +35,7 @@ import {
 } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { OperationalEmptyState } from "../../../../components/operational";
 
 import { CodingPanel } from "../../../../components/reviewer-workspace/CodingPanel";
 import { useReviewerHotkeys } from "../../../../lib/reviewer-workspace/reviewer-hotkeys";
@@ -47,6 +48,7 @@ import {
   fetchEvidencePreview,
   fetchEvidenceSidePaneDetail,
   fetchExtractedTextsForEvidence,
+  fetchReviewerOpsWorkspace,
   fetchReviewerWorkspace,
   fetchSchema,
   fileDisagreement,
@@ -60,10 +62,12 @@ import {
   type EvidenceSidePaneResult,
   type ExtractedTextsResult,
   type LifecycleCallResult,
+  type ReviewerOpsWorkspaceSummary,
   type WorkflowDecisionRow,
   writeCodingValue,
 } from "../../../../lib/reviewer-workspace/reviewer-api";
-import { useActiveSpace, useActiveSpaceId } from "../../../../lib/platform-context";
+import { useActiveSpace } from "../../../../lib/platform-context";
+import { useActiveSpaceId } from "../../../../lib/platform-context";
 import type { ReviewerAnnotationSummary } from "../../../../lib/reviewer-workspace/annotation-types";
 import { MediaViewer } from "../../../../components/reviewer-workspace/viewers/MediaViewer";
 import { AnnotationPanel } from "../../../../components/reviewer-workspace/AnnotationPanel";
@@ -110,6 +114,8 @@ function ReviewerWorkspaceShell() {
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
   const [annotations, setAnnotations] = useState<ReviewerAnnotationSummary[]>([]);
   const [preview, setPreview] = useState<EvidencePreviewMeta | null>(null);
+  const [activeWorkflowSummary, setActiveWorkflowSummary] =
+    useState<ReviewerOpsWorkspaceSummary | null>(null);
   const [sidePaneMode, setSidePaneMode] = useState<SidePaneMode>("CODING");
   const [helpOpen, setHelpOpen] = useState(false);
   // PHASE 1 — Side-pane lazy-load state.
@@ -222,6 +228,22 @@ function ReviewerWorkspaceShell() {
       cancelled = true;
     };
   }, [activeEvidenceId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!teamId || !activeWorkflowId) {
+        setActiveWorkflowSummary(null);
+        return;
+      }
+      const summary = await fetchReviewerOpsWorkspace(activeWorkflowId, teamId);
+      if (cancelled) return;
+      setActiveWorkflowSummary(summary);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkflowId, teamId]);
 
   // PHASE 1 — Reset the side-pane caches when the active evidence
   // changes so a stale OCR / TRANSCRIPT / EVIDENCE / REPORT projection
@@ -748,9 +770,18 @@ function ReviewerWorkspaceShell() {
           evidenceId={activeEvidenceId}
           preview={preview}
           annotations={annotations}
+          workspace={workspace}
         />
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {activeWorkflowSummary ? (
+            <WorkflowSummaryCard
+              summary={activeWorkflowSummary}
+              codingSchemaId={workspace.activeReview?.codingSchemaId ?? null}
+            />
+          ) : (
+            <WorkspaceGuidanceCard />
+          )}
           <DecisionBar
             capabilities={capabilities}
             disabled={
@@ -850,28 +881,40 @@ function EvidenceViewerColumn({
   evidenceId,
   preview,
   annotations,
+  workspace,
 }: {
   workflowId: string | null;
   evidenceId: string | null;
   preview: EvidencePreviewMeta | null;
   annotations: ReviewerAnnotationSummary[];
+  workspace: ReviewerWorkspaceProjection;
 }) {
   if (!workflowId || !evidenceId) {
     return (
       <div
         data-reviewer-viewer-empty
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
           background: "#fff",
           border: "1px solid rgba(15, 23, 42, 0.08)",
           borderRadius: 12,
-          color: "#475569",
-          fontSize: 14,
+          padding: 18,
         }}
       >
-        No active review. Pick an item from the queue rail.
+        <OperationalEmptyState
+          kicker="Reviewer workspace"
+          title="No active review is assigned to you right now."
+          reason={`This page centers on your current assignment. Workspace activity can still exist outside your slot: ${workspace.queues.unassigned} unassigned, ${workspace.queues.escalated} escalated, and ${workspace.queues.qc} QC-linked items are visible from the surrounding review surfaces.`}
+          actions={[
+            { label: "Open reviewer queues", href: "/review/queues?queue=MY_REVIEWS" },
+            {
+              label: "View unassigned reviews",
+              href: "/review/queues?queue=UNASSIGNED",
+            },
+            { label: "Review SLA pressure", href: "/reviewer-ops/sla" },
+            { label: "Open evidence to create workflows", href: "/evidence" },
+          ]}
+          emptyStateCode="reviewer_workspace_no_active_review"
+        />
       </div>
     );
   }
@@ -1163,22 +1206,23 @@ function QueueRail({ workspace }: { workspace: ReviewerWorkspaceProjection }) {
       <QueueLine
         label="Assigned (mine)"
         count={workspace.queues.assigned}
-        href="/review/queues?state=assigned"
+        href="/review/queues?queue=MY_REVIEWS"
       />
       <QueueLine
         label="Unassigned"
         count={workspace.queues.unassigned}
-        href="/review/queues?state=unassigned"
+        href="/review/queues?queue=UNASSIGNED"
       />
       <QueueLine
         label="In progress"
         count={workspace.queues.in_progress}
-        href="/review/queues?state=in_progress"
+        href="/review/workspace"
+        hint="Continue work from this page"
       />
       <QueueLine
         label="Escalated"
         count={workspace.queues.escalated}
-        href="/review/queues?state=escalated"
+        href="/review/queues?queue=ESCALATED"
       />
       <QueueLine
         label="QC"
@@ -1188,8 +1232,21 @@ function QueueRail({ workspace }: { workspace: ReviewerWorkspaceProjection }) {
       <QueueLine
         label="Completed"
         count={workspace.queues.completed}
-        href="/review/queues?state=completed"
+        href="/review/queues?queue=COMPLETED_RECENTLY"
       />
+      <div
+        style={{
+          marginTop: 8,
+          paddingTop: 8,
+          borderTop: "1px solid rgba(15, 23, 42, 0.08)",
+          color: "#475569",
+          fontSize: 11,
+          lineHeight: 1.5,
+        }}
+      >
+        This rail shows workspace counts. Use this page to work evidence,
+        reviewer queues to triage ownership, and SLA to monitor pressure.
+      </div>
       <Link
         href="/review/schemas"
         style={{
@@ -1221,10 +1278,12 @@ function QueueLine({
   label,
   count,
   href,
+  hint,
 }: {
   label: string;
   count: number;
   href: string;
+  hint?: string;
 }) {
   return (
     <Link
@@ -1232,6 +1291,8 @@ function QueueLine({
       style={{
         display: "flex",
         justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
         fontSize: 12,
         color: "#0f172a",
         padding: "4px 6px",
@@ -1242,9 +1303,190 @@ function QueueLine({
     >
       <span>{label}</span>
       <strong>{count}</strong>
+      {hint ? (
+        <span
+          style={{
+            width: "100%",
+            color: "#64748b",
+            fontSize: 10,
+            marginTop: 2,
+          }}
+        >
+          {hint}
+        </span>
+      ) : null}
     </Link>
   );
 }
+
+function WorkflowSummaryCard({
+  summary,
+  codingSchemaId,
+}: {
+  summary: ReviewerOpsWorkspaceSummary;
+  codingSchemaId: string | null;
+}) {
+  const projection = summary.projection;
+  const nextDue = projection.slaDimensions.find((d) => d.dueAtUtc !== null) ?? null;
+  return (
+    <section
+      data-reviewer-workspace-summary
+      style={{
+        background: "#fff",
+        border: "1px solid rgba(15, 23, 42, 0.08)",
+        borderRadius: 12,
+        padding: 12,
+        display: "grid",
+        gap: 10,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+        <div>
+          <strong style={{ display: "block", fontSize: 13 }}>Current assignment</strong>
+          <span style={{ color: "#475569", fontSize: 12 }}>
+            Workflow {shortId(projection.workflowId)} linked to evidence{" "}
+            {shortId(projection.evidenceId)}.
+          </span>
+        </div>
+        <Link
+          href={`/reviewer-ops/${projection.workflowId}`}
+          style={{ color: "#0f172a", fontSize: 12, textDecoration: "underline" }}
+        >
+          Open full inspector
+        </Link>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: 8,
+          fontSize: 12,
+        }}
+      >
+        <SummaryCell
+          label="Lifecycle"
+          value={projection.lifecycleState.replace(/_/g, " ")}
+        />
+        <SummaryCell label="Priority" value={projection.priority} />
+        <SummaryCell label="SLA" value={projection.slaRollupState.replace(/_/g, " ")} />
+        <SummaryCell
+          label="Escalation"
+          value={summary.openEscalation ? summary.openEscalation.status : "None open"}
+        />
+        <SummaryCell
+          label="Coding schema"
+          value={codingSchemaId ? "Bound and ready" : "No schema bound"}
+        />
+        <SummaryCell
+          label="QC eligibility"
+          value="Eligible after approve or reject closes the workflow"
+        />
+      </div>
+      <div
+        style={{
+          background: "rgba(15, 23, 42, 0.03)",
+          border: "1px dashed rgba(15, 23, 42, 0.15)",
+          borderRadius: 10,
+          padding: "10px 12px",
+          fontSize: 12,
+          color: "#475569",
+          lineHeight: 1.5,
+        }}
+      >
+        {projection.assignedAtUtc ? (
+          <>
+            Assigned {formatRelativeTime(projection.assignedAtUtc)}.{" "}
+          </>
+        ) : null}
+        {nextDue?.dueAtUtc
+          ? `Next SLA checkpoint: ${nextDue.dimension.toLowerCase().replace(/_/g, " ")} due ${formatRelativeTime(nextDue.dueAtUtc)}.`
+          : "No due checkpoint is currently projected on this workflow."}{" "}
+        {summary.openEscalation
+          ? `Open escalation: ${summary.openEscalation.reason.toLowerCase().replace(/_/g, " ")} (${summary.openEscalation.severity}).`
+          : "No escalation is currently open."}
+      </div>
+    </section>
+  );
+}
+
+function WorkspaceGuidanceCard() {
+  return (
+    <section
+      data-reviewer-workspace-guidance
+      style={{
+        background: "#fff",
+        border: "1px solid rgba(15, 23, 42, 0.08)",
+        borderRadius: 12,
+        padding: 12,
+        display: "grid",
+        gap: 10,
+      }}
+    >
+      <div>
+        <strong style={{ display: "block", fontSize: 13 }}>How to use this page</strong>
+        <span style={{ color: "#475569", fontSize: 12, lineHeight: 1.5 }}>
+          This is the daily evidence decision surface. When no review is active,
+          claim or inspect work from reviewer queues, check SLA pressure, or
+          open evidence to start a real workflow through existing evidence
+          actions.
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Link href="/review/queues?queue=MY_REVIEWS" style={summaryLinkStyle}>
+          Open my queue
+        </Link>
+        <Link href="/review/queues?queue=UNASSIGNED" style={summaryLinkStyle}>
+          View unassigned
+        </Link>
+        <Link href="/reviewer-ops/sla" style={summaryLinkStyle}>
+          Review SLA pressure
+        </Link>
+        <Link href="/evidence" style={summaryLinkStyle}>
+          Open evidence
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function SummaryCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(15, 23, 42, 0.08)",
+        borderRadius: 10,
+        padding: "8px 10px",
+      }}
+    >
+      <div style={{ color: "#64748b", fontSize: 11 }}>{label}</div>
+      <div style={{ color: "#0f172a", fontWeight: 600 }}>{value}</div>
+    </div>
+  );
+}
+
+function shortId(id: string): string {
+  return `${id.slice(0, 8)}…`;
+}
+
+function formatRelativeTime(iso: string): string {
+  const ms = Date.parse(iso) - Date.now();
+  const abs = Math.abs(ms);
+  const hours = Math.round(abs / 3_600_000);
+  if (hours < 24) return `${hours}h ${ms <= 0 ? "ago" : "from now"}`;
+  const days = Math.round(hours / 24);
+  return `${days}d ${ms <= 0 ? "ago" : "from now"}`;
+}
+
+const summaryLinkStyle = {
+  padding: "6px 10px",
+  borderRadius: 999,
+  border: "1px solid rgba(15, 23, 42, 0.14)",
+  textDecoration: "none",
+  color: "#0f172a",
+  fontSize: 12,
+  fontWeight: 600,
+  background: "#f8fafc",
+} as const;
 
 // Phase 2A Closure — legacy EvidenceViewer replaced by
 // EvidenceViewerColumn + MediaViewer; the old function is removed.

@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { OperationalEmptyState } from "../../../../components/operational";
 import { apiFetch } from "../../../../lib/api";
 import {
   seedDefaultSchemas,
@@ -30,11 +31,22 @@ export default function CodingSchemasPage() {
 function SchemasShell() {
   const [schemas, setSchemas] = useState<CodingSchemaRow[] | null>(null);
   const [seeding, setSeeding] = useState(false);
-  const [banner, setBanner] = useState<string | null>(null);
+  const [banner, setBanner] = useState<{
+    tone: "success" | "degraded" | "error";
+    text: string;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
-    const res = await apiFetch("/v1/coding/schemas", { method: "GET" });
-    setSchemas((res?.schemas ?? []) as CodingSchemaRow[]);
+    try {
+      const res = await apiFetch("/v1/coding/schemas", { method: "GET" });
+      setSchemas((res?.schemas ?? []) as CodingSchemaRow[]);
+    } catch {
+      setSchemas([]);
+      setBanner({
+        tone: "error",
+        text: "Schema list could not be loaded. Try again or verify workspace access.",
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -45,10 +57,23 @@ function SchemasShell() {
     setSeeding(true);
     try {
       const res = await seedDefaultSchemas();
-      setBanner(
-        `Seed complete: ${res.created} created, ${res.existing} already present.`,
-      );
+      if (res.degraded || res.reason === "SCHEMA_NOT_READY") {
+        setBanner({
+          tone: "degraded",
+          text: "Schema seed is degraded: reviewer-workspace schema columns are not ready in this environment yet. No success state is being claimed.",
+        });
+      } else {
+        setBanner({
+          tone: "success",
+          text: `Seed complete: ${res.created} created, ${res.updated} updated, ${res.existing} already present, ${res.failed} failed.`,
+        });
+      }
       await refresh();
+    } catch {
+      setBanner({
+        tone: "error",
+        text: "Schema seed could not be completed. Retry after checking reviewer schema permissions.",
+      });
     } finally {
       setSeeding(false);
     }
@@ -98,25 +123,62 @@ function SchemasShell() {
           style={{
             padding: "10px 14px",
             borderRadius: 10,
-            background: "rgba(34, 197, 94, 0.08)",
-            border: "1px solid rgba(34, 197, 94, 0.4)",
+            background:
+              banner.tone === "success"
+                ? "rgba(34, 197, 94, 0.08)"
+                : banner.tone === "degraded"
+                  ? "rgba(245, 158, 11, 0.12)"
+                  : "rgba(220, 38, 38, 0.08)",
+            border:
+              banner.tone === "success"
+                ? "1px solid rgba(34, 197, 94, 0.4)"
+                : banner.tone === "degraded"
+                  ? "1px solid rgba(245, 158, 11, 0.45)"
+                  : "1px solid rgba(220, 38, 38, 0.32)",
             marginBottom: 12,
             fontSize: 13,
           }}
         >
-          {banner}
+          {banner.text}
         </div>
       ) : null}
+
+      <div
+        style={{
+          marginBottom: 14,
+          padding: "10px 12px",
+          border: "1px solid #e2e8f0",
+          borderRadius: 10,
+          background: "#f8fafc",
+          fontSize: 12,
+          color: "#475569",
+          display: "flex",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <strong style={{ color: "#0f172a" }}>Workspace-scoped schemas</strong>
+        <span>{schemas?.length ?? 0} visible in this workspace.</span>
+        <span>
+          Reviewer Workspace coding fields appear only when an active workflow is
+          bound to one of these schemas.
+        </span>
+      </div>
 
       {schemas === null ? (
         <div>Loading schemas…</div>
       ) : schemas.length === 0 ? (
-        <div
-          data-coding-schemas-empty
-          style={{ padding: "16px 18px", color: "#475569", fontSize: 14 }}
-        >
-          No schemas yet. Use <em>Seed defaults</em> to install the 6
-          pre-built schemas, or create a new schema via the API.
+        <div data-coding-schemas-empty>
+          <OperationalEmptyState
+            kicker="Coding schemas"
+            title="No coding schemas are available in this workspace yet."
+            reason="Reviewer coding appears when a workflow is bound to a published schema. Seed defaults installs the six built-in schemas when the workspace schema contract is ready."
+            actions={[
+              { label: "Open Reviewer Workspace", href: "/review/workspace" },
+              { label: "Open evidence workflows", href: "/evidence" },
+            ]}
+            emptyStateCode="coding_schemas_empty"
+          />
         </div>
       ) : (
         <table

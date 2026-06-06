@@ -213,6 +213,44 @@ function SlaDashboardPageInner() {
         </div>
       </header>
 
+      <section style={{ ...cardStyle, marginTop: 16 }}>
+        <h3 style={sectionTitleStyle}>Freshness and runtime</h3>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 10,
+          }}
+        >
+          <Stat
+            label="Latest workload snapshot"
+            value={
+              data.workloadTop[0]?.computedAtUtc
+                ? formatDateTime(data.workloadTop[0].computedAtUtc)
+                : "Not yet available"
+            }
+            tone=""
+          />
+          <Stat
+            label="Analytics range end"
+            value={
+              analytics?.range.endUtc
+                ? formatDateTime(analytics.range.endUtc)
+                : "Not yet loaded"
+            }
+            tone=""
+          />
+          <Stat label="Worker health" value="See runtime banner above" tone="" />
+        </div>
+        <p style={{ ...mutedStyle, marginTop: 10 }}>
+          Workload and assignment suggestions depend on reconcile snapshots.
+          Escalation analytics refresh separately from the queue snapshot. When
+          the runtime banner is degraded and the latest workload snapshot is
+          missing, operators should treat workload sections as stale rather than
+          assuming a true zero.
+        </p>
+      </section>
+
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
       <section style={{ ...cardStyle, marginTop: 16 }}>
@@ -557,7 +595,7 @@ function Stat({
   tone,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   tone: string;
 }) {
   const palette: Record<string, { bg: string; fg: string; border: string }> = {

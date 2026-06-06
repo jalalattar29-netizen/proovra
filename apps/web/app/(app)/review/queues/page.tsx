@@ -59,6 +59,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import {
   REVIEWER_OPS_QUEUE_TYPES,
@@ -176,11 +177,20 @@ type QcDiscoveryState =
   | { kind: "READY"; pendingCount: number };
 
 function QueuesShell() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialQueue = searchParams.get("queue");
+  const initialFilter = REVIEWER_OPS_QUEUE_TYPES.includes(
+    initialQueue as ReviewerOpsQueueType,
+  )
+    ? (initialQueue as ReviewerOpsQueueType)
+    : "MY_REVIEWS";
   const [rows, setRows] = useState<QueueRow[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<ReviewerOpsQueueType>("MY_REVIEWS");
+  const [filter, setFilter] = useState<ReviewerOpsQueueType>(initialFilter);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   // Selection state survives across pages: a row id that was selected
   // on page 1 stays selected after Load-more appends page 2. The
   // server-side bulk cap (100) is still enforced at the slice
@@ -239,6 +249,7 @@ function QueuesShell() {
         });
         setNextCursor(nextCursorValue);
         setRefreshError(null);
+        setLastRefreshedAt(new Date().toISOString());
       } catch (err) {
         // eslint-disable-next-line no-console
         console.warn("[reviewer-workspace] queue list refresh failed", {
@@ -350,6 +361,18 @@ function QueuesShell() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const queue = searchParams.get("queue");
+    if (
+      queue &&
+      REVIEWER_OPS_QUEUE_TYPES.includes(queue as ReviewerOpsQueueType) &&
+      queue !== filter
+    ) {
+      setFilter(queue as ReviewerOpsQueueType);
+      setSelected(new Set());
+    }
+  }, [filter, searchParams]);
 
   useEffect(() => {
     void refreshQc();
@@ -480,16 +503,29 @@ function QueuesShell() {
           display: "flex",
           gap: 12,
           alignItems: "baseline",
+          justifyContent: "space-between",
           marginBottom: 10,
+          flexWrap: "wrap",
         }}
       >
-        <h1 style={{ fontSize: 20, margin: 0 }}>Reviewer queues</h1>
+        <div>
+          <h1 style={{ fontSize: 20, margin: 0 }}>Reviewer queues</h1>
+          <p style={{ color: "#475569", fontSize: 12, margin: "4px 0 0" }}>
+            Triage, assignment, and bulk review actions across the current
+            workspace. Filters are URL-backed for direct links from Review
+            Workspace and saved views.
+          </p>
+        </div>
         <select
           data-reviewer-queue-filter
           value={filter}
           onChange={(e) => {
-            setFilter(e.target.value as ReviewerOpsQueueType);
+            const next = e.target.value as ReviewerOpsQueueType;
+            setFilter(next);
             setSelected(new Set());
+            router.replace(`/review/queues?queue=${encodeURIComponent(next)}`, {
+              scroll: false,
+            });
           }}
           style={{ padding: "4px 8px", fontSize: 12 }}
         >
@@ -500,6 +536,29 @@ function QueuesShell() {
           ))}
         </select>
       </header>
+
+      <div
+        style={{
+          marginBottom: 10,
+          padding: "10px 12px",
+          border: "1px solid #e2e8f0",
+          borderRadius: 10,
+          background: "#f8fafc",
+          fontSize: 12,
+          color: "#475569",
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <strong style={{ color: "#0f172a" }}>{QUEUE_LABELS[filter]}</strong>
+        <span>Loaded rows: {visibleRowCount}</span>
+        <span>Loaded pages: {Math.max(1, Math.ceil(Math.max(visibleRowCount, 1) / QUEUE_PAGE_LIMIT))}</span>
+        <span>More available: {hasMore ? "Yes" : "No"}</span>
+        <span>
+          Last refresh: {lastRefreshedAt ? new Date(lastRefreshedAt).toLocaleString() : "Not yet loaded"}
+        </span>
+      </div>
 
       <QcDiscoveryCard state={qcState} onRetry={() => void refreshQc()} />
 
@@ -612,9 +671,14 @@ function QueuesShell() {
                   <td
                     colSpan={7}
                     data-reviewer-queue-empty={filter}
-                    style={{ ...td, color: "#475569" }}
+                    style={{ ...td, color: "#475569", lineHeight: 1.5 }}
                   >
-                    {EMPTY_STATE_COPY[filter]}
+                    {EMPTY_STATE_COPY[filter]}{" "}
+                    {filter === "MY_REVIEWS"
+                      ? "Claim work from Unassigned or return to Reviewer Workspace once something is assigned."
+                      : filter === "UNASSIGNED"
+                        ? "Items appear here when real workflows are waiting for ownership."
+                        : "Change the queue filter or refresh to confirm whether work has moved."}
                   </td>
                 </tr>
               ) : null}

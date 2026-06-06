@@ -24,6 +24,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { fetchReviewerMetrics } from "../../../../lib/reviewer-workspace/reviewer-api";
@@ -68,12 +69,14 @@ export default function MetricsPage() {
 
 function MetricsShell() {
   const [state, setState] = useState<FetchState>({ kind: "LOADING" });
+  const [loadedAt, setLoadedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState({ kind: "LOADING" });
     try {
       const m = await fetchReviewerMetrics();
       setState({ kind: "READY", metrics: m });
+      setLoadedAt(new Date().toISOString());
     } catch (err) {
       // Structured warn — silent failure is forbidden.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -115,6 +118,25 @@ function MetricsShell() {
         Operational metrics describing reviewer activity. Not authenticity
         claims about content; not legal weight.
       </p>
+      <div
+        style={{
+          marginTop: 12,
+          padding: "10px 12px",
+          borderRadius: 10,
+          border: "1px solid #e2e8f0",
+          background: "#f8fafc",
+          display: "flex",
+          gap: 10,
+          flexWrap: "wrap",
+          color: "#475569",
+          fontSize: 12,
+        }}
+      >
+        <strong style={{ color: "#0f172a" }}>Scope</strong>
+        <span>Workspace-wide reviewer activity</span>
+        <span>Period: last 7 days</span>
+        <span>Updated: {loadedAt ? new Date(loadedAt).toLocaleString() : "Not yet loaded"}</span>
+      </div>
 
       {state.kind === "LOADING" ? (
         <div data-reviewer-metrics-loading style={mutedStyle}>
@@ -178,22 +200,34 @@ function MetricsShell() {
       ) : null}
 
       {state.kind === "READY" ? (
-        isMetricsEmpty(state.metrics) ? (
-          <div
-            data-reviewer-metrics-empty
-            style={{
-              marginTop: 14,
-              padding: "12px 14px",
-              background: "rgba(15, 23, 42, 0.03)",
-              border: "1px dashed rgba(15, 23, 42, 0.18)",
-              borderRadius: 10,
-              color: "#475569",
-              fontSize: 13,
-            }}
-          >
-            No reviewer activity in the last 7 days for this workspace.
-          </div>
-        ) : (
+        <>
+          {isMetricsEmpty(state.metrics) ? (
+            <div
+              data-reviewer-metrics-empty
+              style={{
+                marginTop: 14,
+                padding: "12px 14px",
+                background: "rgba(15, 23, 42, 0.03)",
+                border: "1px dashed rgba(15, 23, 42, 0.18)",
+                borderRadius: 10,
+                color: "#475569",
+                fontSize: 13,
+                lineHeight: 1.5,
+              }}
+            >
+              No reviewer activity in the last 7 days for this workspace. The
+              cards stay visible below so this reads as a true zero state, not a
+              hidden or broken metric fetch.{" "}
+              <Link href="/review/queues?queue=UNASSIGNED" style={{ color: "#0f172a" }}>
+                Open reviewer queues
+              </Link>{" "}
+              or{" "}
+              <Link href="/reviewer-ops/sla" style={{ color: "#0f172a" }}>
+                review SLA pressure
+              </Link>
+              .
+            </div>
+          ) : null}
           <div
             data-reviewer-metrics-grid
             style={{
@@ -225,7 +259,7 @@ function MetricsShell() {
               value={`${Math.round(state.metrics.avgReviewDurationMs7d / 1000)}s`}
             />
           </div>
-        )
+        </>
       ) : null}
     </div>
   );

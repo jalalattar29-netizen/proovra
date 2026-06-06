@@ -66,8 +66,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { ReviewerOpsQueueType } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
+import { resolveSavedViewQueue } from "../../lib/reviewer-workspace/reviewer-api";
 import {
   StepUpModal,
   useStepUpAction,
@@ -152,6 +154,10 @@ type SavedViewRow = {
   id?: string;
   name?: string | null;
   queueType?: string | null;
+  filter?: {
+    queue?: ReviewerOpsQueueType;
+    onlyMine?: boolean;
+  };
 };
 
 type Density = "compact" | "comfortable" | "spacious";
@@ -719,15 +725,22 @@ export function ReviewerConsole({
       data-active-tab={activeTab}
     >
       <header className="reviewer-console__header">
-        <h1>Reviewer Console</h1>
+        <h1>Review Operations Console</h1>
         <p className="reviewer-console__sub">
-          Queue · Mine · Escalations · SLA · Workload. Keyboard:{" "}
+          Monitor and manage review operations here. Daily evidence decisions
+          happen in Reviewer Workspace. Keyboard:{" "}
           <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>Enter</kbd> open ·{" "}
           <kbd>a</kbd> assign · <kbd>e</kbd> escalate · <kbd>m</kbd>{" "}
           request info · <kbd>/</kbd> filter · <kbd>Cmd</kbd>+<kbd>K</kbd>{" "}
           palette.
         </p>
       </header>
+      <div className="reviewer-console__ia-strip" data-reviewer-console-ia>
+        <a href="/review/workspace">Work: Reviewer Workspace</a>
+        <a href="/review/queues?queue=UNASSIGNED">Manage: Reviewer Queues</a>
+        <a href="/reviewer-ops/sla">Monitor: SLA Operations</a>
+        <a href="/reviewer-ops/escalations">Respond: Escalations</a>
+      </div>
 
       {/* Phase Final-Hidden-Feature-Surfacing — routing recommendations
           pane. Reads the canonical reviewer-routing recommendation
@@ -971,6 +984,7 @@ export function ReviewerConsole({
           backend's STEP_UP_REQUIRED gate. Otherwise it stays
           dormant. */}
       <StepUpModal control={stepUp} />
+      <style jsx>{reviewerConsoleStyles}</style>
     </section>
   );
 }
@@ -1062,8 +1076,9 @@ function QueueTable({
   if (rows.length === 0) {
     return (
       <p className="reviewer-console__empty">
-        No reviews match this slice. Use the saved views panel below
-        to switch slices.
+        No reviews match this slice right now. Use the queue links above to
+        switch between daily work, unassigned triage, and escalations, or save
+        a queue view once this workspace has active reviews.
       </p>
     );
   }
@@ -1175,7 +1190,12 @@ function EscalationsTable({
   busyKey: string | null;
 }) {
   if (rows.length === 0) {
-    return <p className="reviewer-console__empty">No open escalations.</p>;
+    return (
+      <p className="reviewer-console__empty">
+        No escalations are open. This usually means no review is currently
+        blocked, overdue enough to escalate, or manually raised by an operator.
+      </p>
+    );
   }
   return (
     <table className="reviewer-console__table" role="grid">
@@ -1254,7 +1274,12 @@ function WorkloadTable({
   selectionIndex: number;
 }) {
   if (rows.length === 0) {
-    return <p className="reviewer-console__empty">No workload snapshots.</p>;
+    return (
+      <p className="reviewer-console__empty">
+        No workload snapshots are available yet. Reconcile must run before this
+        tab can show reviewer capacity.
+      </p>
+    );
   }
   return (
     <table className="reviewer-console__table" role="grid">
@@ -1287,7 +1312,12 @@ function WorkloadTable({
 
 function SlaPanel({ snapshot }: { snapshot: SlaSnapshot | null }) {
   if (!snapshot) {
-    return <p className="reviewer-console__empty">SLA snapshot unavailable.</p>;
+    return (
+      <p className="reviewer-console__empty">
+        SLA snapshot unavailable. Use the SLA Operations page for runtime and
+        freshness details when the console has not received a snapshot.
+      </p>
+    );
   }
   return (
     <dl className="reviewer-console__sla">
@@ -1436,6 +1466,20 @@ function SavedViewsPanel({
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { confirm } = useConfirmAction();
+  const applySavedView = useCallback((view: SavedViewRow) => {
+    const queue = resolveSavedViewQueue(view);
+    if (queue) {
+      window.location.href = `/review/queues?queue=${encodeURIComponent(queue)}`;
+      return;
+    }
+    if (view.filter?.onlyMine) {
+      window.location.href = "/review/queues?queue=MY_REVIEWS";
+      return;
+    }
+    setError(
+      "This saved view does not expose a queue filter the console can apply directly yet.",
+    );
+  }, []);
 
   const create = useCallback(async () => {
     if (!name.trim()) return;
@@ -1630,6 +1674,7 @@ function SavedViewsPanel({
                 <button
                   type="button"
                   data-reviewer-saved-view-apply={vid}
+                  onClick={() => applySavedView(v)}
                   style={{
                     background: "transparent",
                     border: 0,
@@ -2110,6 +2155,193 @@ const modalInputStyle = {
   border: "1px solid #cbd5e1",
   borderRadius: 4,
 } as const;
+
+const reviewerConsoleStyles = `
+  .reviewer-console {
+    display: grid;
+    gap: 14px;
+    padding: 20px 24px 32px;
+    color: #0f172a;
+    background: #f8fafc;
+  }
+  .reviewer-console__header {
+    display: grid;
+    gap: 6px;
+  }
+  .reviewer-console__header h1 {
+    margin: 0;
+    font-size: 24px;
+    letter-spacing: -0.02em;
+  }
+  .reviewer-console__sub {
+    margin: 0;
+    color: #475569;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .reviewer-console__ia-strip {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .reviewer-console__ia-strip a {
+    text-decoration: none;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .reviewer-console__tabs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  .reviewer-console__tab {
+    text-align: left;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: grid;
+    gap: 4px;
+    cursor: pointer;
+  }
+  .reviewer-console__tab.is-active {
+    border-color: #0f172a;
+    box-shadow: inset 0 0 0 1px #0f172a;
+    background: #f8fafc;
+  }
+  .reviewer-console__tab-desc {
+    color: #64748b;
+    font-size: 12px;
+  }
+  .reviewer-console__tab-degraded {
+    justify-self: start;
+    font-size: 11px;
+    font-weight: 700;
+    color: #92400e;
+    background: #fef3c7;
+    border: 1px solid #fde68a;
+    border-radius: 999px;
+    padding: 2px 8px;
+    text-transform: uppercase;
+  }
+  .reviewer-console__status,
+  .reviewer-console__empty {
+    margin: 0;
+    padding: 14px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+    color: #475569;
+    line-height: 1.55;
+  }
+  .reviewer-console__error,
+  .reviewer-console__action-error {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(220, 38, 38, 0.08);
+    border: 1px solid rgba(220, 38, 38, 0.22);
+    color: #7f1d1d;
+  }
+  .reviewer-console__action-flash {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.24);
+    color: #166534;
+  }
+  .reviewer-console__filter input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #fff;
+    font-size: 13px;
+  }
+  .reviewer-console__table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .reviewer-console__table th {
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 10px 12px;
+  }
+  .reviewer-console__table td {
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .reviewer-console__sla {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin: 0;
+  }
+  .reviewer-console__sla div {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .reviewer-console__sla dt {
+    color: #64748b;
+    font-size: 11px;
+    margin-bottom: 6px;
+  }
+  .reviewer-console__sla dd {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .reviewer-console__saved-views {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px;
+    display: grid;
+    gap: 8px;
+  }
+  .reviewer-console__saved-views h2 {
+    margin: 0;
+    font-size: 15px;
+  }
+  .reviewer-console__saved-views ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 6px;
+  }
+  .reviewer-console__palette {
+    position: fixed;
+    inset: 10% 50% auto 50%;
+    transform: translateX(-50%);
+    width: min(560px, calc(100vw - 32px));
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
+    z-index: 70;
+  }
+  .reviewer-console__palette-close {
+    margin-top: 12px;
+  }
+`;
 
 // `DEFAULT_TEAM_PLACEHOLDER` is exported as a sentinel for tests that
 // need to verify the no-workspace branch renders the operator-safe

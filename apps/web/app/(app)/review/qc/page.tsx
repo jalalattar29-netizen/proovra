@@ -35,6 +35,7 @@ import {
 import { QC_FAILURE_REASONS, QC_VERDICTS } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { OperationalEmptyState } from "../../../../components/operational";
 import {
   fetchQcSamples,
   renderQcVerdict,
@@ -166,6 +167,34 @@ function QcShell() {
         Sample-based review of closed workflows. Verdicts feed reviewer
         accuracy metrics.
       </p>
+      <div
+        style={{
+          marginBottom: 14,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+          gap: 10,
+        }}
+      >
+        <QcMetric label="Pending samples" value={pending.length} />
+        <QcMetric label="Rendered verdicts" value={rendered.length} />
+        <QcMetric label="Loaded sample set" value={(rows ?? []).length} />
+      </div>
+      <div
+        style={{
+          marginBottom: 16,
+          padding: "10px 12px",
+          border: "1px solid #e2e8f0",
+          borderRadius: 10,
+          background: "#f8fafc",
+          color: "#475569",
+          fontSize: 12,
+          lineHeight: 1.55,
+        }}
+      >
+        QC samples are generated from closed workflows through the canonical
+        approve and reject lifecycle. This page shows the sampled set that has
+        reached QC, not every closed workflow in the workspace.
+      </div>
       {banner ? (
         <div
           data-qc-banner
@@ -178,6 +207,21 @@ function QcShell() {
           }}
         >
           {banner}
+        </div>
+      ) : null}
+
+      {rows !== null && rows.length === 0 ? (
+        <div style={{ marginBottom: 18 }}>
+          <OperationalEmptyState
+            kicker="Quality control"
+            title="No QC samples are available in this workspace yet."
+            reason="Samples are created from workflows that close through the real approve or reject paths. If the tables are empty, either no sampled closures exist yet or the sampled set has not reached this workspace scope."
+            actions={[
+              { label: "Open reviewer queues", href: "/review/queues?queue=COMPLETED_RECENTLY" },
+              { label: "Review SLA pressure", href: "/reviewer-ops/sla" },
+            ]}
+            emptyStateCode="review_qc_empty"
+          />
         </div>
       ) : null}
 
@@ -324,6 +368,22 @@ function QcTable({
         })}
       </tbody>
     </table>
+  );
+}
+
+function QcMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div
+      style={{
+        border: "1px solid #e2e8f0",
+        borderRadius: 10,
+        background: "#fff",
+        padding: "10px 12px",
+      }}
+    >
+      <div style={{ color: "#64748b", fontSize: 11 }}>{label}</div>
+      <div style={{ color: "#0f172a", fontSize: 18, fontWeight: 700 }}>{value}</div>
+    </div>
   );
 }
 

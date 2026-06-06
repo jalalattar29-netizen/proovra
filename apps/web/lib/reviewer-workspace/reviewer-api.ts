@@ -13,6 +13,8 @@ import type {
   CodingSchemaCategory,
   ReviewerDenialReason,
   ReviewerVerdict,
+  ReviewerOpsQueueType,
+  ReviewerOpsSavedViewFilter,
   ReviewerWorkspaceProjection,
 } from "@proovra/shared";
 
@@ -239,8 +241,74 @@ export async function fetchReviewerMetrics(): Promise<{
   return res.metrics;
 }
 
-export async function seedDefaultSchemas(): Promise<{ created: number; existing: number }> {
+export async function seedDefaultSchemas(): Promise<{
+  created: number;
+  updated: number;
+  existing: number;
+  failed: number;
+  degraded?: boolean;
+  reason?: string;
+}> {
   return apiFetch("/v1/coding/schemas/seed-defaults", { method: "POST", body: "{}" });
+}
+
+export type ReviewerOpsWorkspaceSummary = {
+  projection: {
+    workflowId: string;
+    evidenceId: string;
+    lifecycleState: string;
+    assignedToUserId: string | null;
+    assignedAtUtc: string | null;
+    priority: string;
+    slaRollupState: string;
+    slaDimensions: Array<{
+      dimension: string;
+      dueAtUtc: string | null;
+      state: string;
+    }>;
+  };
+  openEscalation: null | {
+    id: string;
+    reason: string;
+    severity: string;
+    status: string;
+    safeSummary: string;
+    createdAt: string;
+    assignedToUserId: string | null;
+  };
+  allowedLifecycleTransitions: ReadonlyArray<string>;
+};
+
+export async function fetchReviewerOpsWorkspace(
+  workflowId: string,
+  teamId: string,
+): Promise<ReviewerOpsWorkspaceSummary | null> {
+  try {
+    return (await apiFetch(
+      `/v1/reviewer-ops/workspace/${encodeURIComponent(workflowId)}?teamId=${encodeURIComponent(teamId)}`,
+      { method: "GET" },
+    )) as ReviewerOpsWorkspaceSummary;
+  } catch {
+    return null;
+  }
+}
+
+export type ReviewerSavedViewRow = {
+  id?: string;
+  name?: string | null;
+  queueType?: string | null;
+  filter?: ReviewerOpsSavedViewFilter;
+};
+
+export function resolveSavedViewQueue(
+  view: Pick<ReviewerSavedViewRow, "queueType"> & {
+    filter?: { queue?: ReviewerOpsQueueType; onlyMine?: boolean };
+  },
+): ReviewerOpsQueueType | null {
+  const queue = view.filter?.queue;
+  if (queue) return queue;
+  if (view.filter?.onlyMine) return "MY_REVIEWS";
+  return null;
 }
 
 // ---------------------------------------------------------------------------
