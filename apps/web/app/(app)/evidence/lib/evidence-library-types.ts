@@ -207,6 +207,7 @@ export type EvidenceRecord = {
   lastVerifiedSource: string | null;
   verificationPackageGeneratedAtUtc: string | null;
   verificationPackageVersion: number | null;
+  publicVerifyState: string | null;
   latestReportVersion: number | null;
   reviewReadyAtUtc: string | null;
   reviewerSummaryVersion: number | null;

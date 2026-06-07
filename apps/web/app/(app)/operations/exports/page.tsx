@@ -70,6 +70,11 @@ type ExportListItem = {
   sizeBytes: string | null;
   objectLockStoredMode: "GOVERNANCE" | "COMPLIANCE" | null;
   artifactSigned: boolean;
+  artifactSigningKeyId: string | null;
+  artifactSignedAtUtc: string | null;
+  artifactUnsignedOptOut: boolean;
+  artifactSigningWarning: string | null;
+  verificationPackageSignatureStatus: "SIGNED" | "UNSIGNED" | "NOT_APPLICABLE";
 };
 
 type ObjectLockPlatformMode =
@@ -442,6 +447,28 @@ function ExportListTable({
                       })}
                     >
                       SIGNED
+                    </span>
+                  ) : it.artifactUnsignedOptOut ? (
+                    <span
+                      style={badgeStyle({
+                        bg: "#fef2f2",
+                        fg: "#991b1b",
+                        border: "#fecaca",
+                      })}
+                    >
+                      UNSIGNED OPT-OUT
+                    </span>
+                  ) : it.kind === "verification_package_zip" ? (
+                    <span
+                      style={badgeStyle({
+                        bg: "#f1f5f9",
+                        fg: "#475569",
+                        border: "#cbd5e1",
+                      })}
+                    >
+                      {it.verificationPackageSignatureStatus === "UNSIGNED"
+                        ? "unsigned package"
+                        : "unsigned"}
                     </span>
                   ) : (
                     <span

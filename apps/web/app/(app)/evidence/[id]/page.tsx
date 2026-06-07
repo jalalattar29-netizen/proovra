@@ -195,6 +195,197 @@ function buildShareUrl(path: string | null | undefined): string | null {
   return `${base.replace(/\/+$/, "")}${normalized.startsWith("/") ? normalized : `/${normalized}`}`;
 }
 
+function buildPublishedVerificationUrl(
+  summary: ReviewWorkspaceResponse["publicVerificationSummary"] | null | undefined
+): string | null {
+  if (!summary || summary.state !== "PUBLISHED") return null;
+  return buildShareUrl(summary.sharePath);
+}
+
+function describePublicVerificationState(
+  summary: ReviewWorkspaceResponse["publicVerificationSummary"]
+): { label: string; detail: string } {
+  switch (summary.state) {
+    case "NOT_INCLUDED":
+      return {
+        label: "Not included on plan",
+        detail:
+          summary.disabledReason ||
+          "Public verification is not included in the current workspace capability set.",
+      };
+    case "NOT_CONFIGURED":
+      return {
+        label: "Not configured",
+        detail:
+          summary.disabledReason ||
+          "Public verification is supported for this workspace, but this evidence record does not have a publishable verification surface configured.",
+      };
+    case "CONFIGURED_NOT_PUBLISHED":
+      return {
+        label: "Configured but not published",
+        detail:
+          summary.disabledReason ||
+          "Public verification is configured for this evidence record, but it has not been published yet.",
+      };
+    case "PUBLISHED":
+      return {
+        label: "Published",
+        detail: "Public verification is published and the public route should resolve.",
+      };
+    case "SUSPENDED":
+      return {
+        label: "Suspended",
+        detail:
+          summary.disabledReason ||
+          "Public verification was suspended and the public route is intentionally unavailable.",
+      };
+    case "UNPUBLISHED":
+      return {
+        label: "Unpublished",
+        detail:
+          summary.disabledReason ||
+          "Public verification was unpublished and no public verification link is currently active.",
+      };
+    default:
+      return {
+        label: "State unavailable",
+        detail:
+          summary.disabledReason ||
+          "The publication state could not be resolved from the current evidence record.",
+      };
+  }
+}
+
+function describeClientSignalState(
+  status: "NOT_COLLECTED" | "COLLECTED_FALSE" | "DETECTED" | "UNAVAILABLE"
+): string {
+  switch (status) {
+    case "NOT_COLLECTED":
+      return "Client signal not collected";
+    case "COLLECTED_FALSE":
+      return "Collected: no signal detected";
+    case "DETECTED":
+      return "Signal detected";
+    case "UNAVAILABLE":
+      return "Unavailable for this evidence type";
+    default:
+      return "Not recorded";
+  }
+}
+
+function describeReportArtifactStatus(
+  artifactStatus: ReviewWorkspaceResponse["artifactStatus"]
+): string {
+  if (artifactStatus.report.available) return "Available";
+  if (artifactStatus.report.pending) return "Pending";
+  return "Not generated";
+}
+
+function describeReportPdfSignature(
+  artifactStatus: ReviewWorkspaceResponse["artifactStatus"]
+): string {
+  if (!artifactStatus.report.available || !artifactStatus.report.pdfSignature) {
+    return artifactStatus.report.pending ? "Pending" : "Unknown";
+  }
+
+  switch (artifactStatus.report.pdfSignature.status) {
+    case "SIGNED":
+      return "Signed";
+    case "UNSIGNED_OPT_OUT":
+      return "Unsigned";
+    case "SIGNING_UNAVAILABLE":
+      return "Signing unavailable";
+    case "SIGNING_FAILED":
+      return "Signing failed";
+    case "NOT_APPLICABLE":
+      return "Not applicable";
+    default:
+      return "Unknown";
+  }
+}
+
+function describeVerificationPackageStatus(
+  artifactStatus: ReviewWorkspaceResponse["artifactStatus"],
+  included: boolean
+): string {
+  if (artifactStatus.verificationPackage.available) return "Available";
+  if (artifactStatus.verificationPackage.blocked) return "Blocked";
+  if (artifactStatus.verificationPackage.pending) return "Pending";
+  if (artifactStatus.verificationPackage.unavailable) return "Unavailable";
+  return included ? "Not generated" : "Not included on plan";
+}
+
+function describePackageManifestStatus(
+  artifactStatus: ReviewWorkspaceResponse["artifactStatus"],
+  included: boolean
+): string {
+  if (artifactStatus.verificationPackage.available) {
+    return artifactStatus.verificationPackage.manifestSignature?.status === "SIGNED"
+      ? "Signed manifest present"
+      : "Unknown";
+  }
+  if (artifactStatus.verificationPackage.blocked) return "Blocked";
+  if (artifactStatus.verificationPackage.pending) return "Pending";
+  return included ? "Unknown" : "Not included on plan";
+}
+
+function describeOtsStatus(
+  workspace: ReviewWorkspaceResponse
+): { label: string; detail: string } {
+  const ots = workspace.preservationMatrix.ots;
+
+  switch (ots.effectiveStatus) {
+    case "ANCHORED":
+      return {
+        label: "Anchored",
+        detail: "OpenTimestamps anchoring is recorded for this evidence item.",
+      };
+    case "FAILED":
+      return {
+        label: "Failed",
+        detail:
+          ots.failureReason || "OpenTimestamps anchoring failed for this evidence item.",
+      };
+    case "DISABLED":
+      return {
+        label: "Disabled",
+        detail: "OpenTimestamps anchoring is disabled for this evidence item.",
+      };
+    case "PENDING":
+      return {
+        label: "Pending public anchoring",
+        detail:
+          ots.pendingReason ||
+          "OpenTimestamps proof is recorded, but public anchoring has not finalized yet.",
+      };
+    default:
+      return {
+        label: "Not configured",
+        detail: "No OpenTimestamps anchoring state is recorded in the current response.",
+      };
+  }
+}
+
+function isOtsTerminal(status: string | null | undefined): boolean {
+  return (
+    status === null ||
+    status === "ANCHORED" ||
+    status === "FAILED" ||
+    status === "DISABLED"
+  );
+}
+
+function buildTechnicalReadinessSummary(workspace: ReviewWorkspaceResponse): string {
+  if (
+    workspace.reviewDecision.label === "Ready for review" &&
+    !workspace.reviewWorkflow.status
+  ) {
+    return "Evidence is technically ready; no reviewer workflow has started yet.";
+  }
+
+  return workspace.reviewDecision.summary;
+}
+
 async function tryDownloadFile(url: string, filename: string) {
   try {
     const response = await fetch(url);
@@ -448,12 +639,12 @@ function buildRiskSignals(sourceContext: SourceContext, alerts: ReviewerAlert[])
     detail: alert.detail,
   }));
 
-  if (sourceContext.clientSignalsSummary.screenshotLike) {
+  if (sourceContext.clientSignalsSummary.screenshotLikeStatus === "DETECTED") {
     signals.push({
       severity: "warning",
-      title: "Screenshot-like signal",
+      title: "Screenshot filename heuristic",
       detail:
-        "Metadata-derived advisory signal. Requires human review and does not determine factual or legal outcome.",
+        "Filename and client-metadata heuristic only. This is advisory, not image-forensic or AI proof.",
     });
   }
 
@@ -724,14 +915,12 @@ function EvidenceDetailPageInner() {
     if (!evidenceId) return;
     if (!workspace?.evidence?.status) return;
     const status = workspace.evidence.status;
-    // Only poll while we expect a transition.
     const finalized = status === "SIGNED" || status === "REPORTED";
     if (!finalized) return;
 
     let cancelled = false;
-    let priorReportAvailable = workspace.artifactVersions?.latestReport?.available ?? false;
-    let priorPackageAvailable =
-      workspace.artifactVersions?.latestVerificationPackage?.available ?? false;
+    let priorReportAvailable = workspace.artifactStatus.report.available;
+    let priorPackageAvailable = workspace.artifactStatus.verificationPackage.available;
 
     type ArtifactStatusResponse = {
       report: { available: boolean; pending: boolean };
@@ -796,12 +985,48 @@ function EvidenceDetailPageInner() {
   }, [
     evidenceId,
     workspace?.evidence?.status,
-    workspace?.artifactVersions?.latestReport?.available,
-    workspace?.artifactVersions?.latestVerificationPackage?.available,
+    workspace?.artifactStatus?.report?.available,
+    workspace?.artifactStatus?.verificationPackage?.available,
+  ]);
+
+  useEffect(() => {
+    if (!evidenceId) return;
+    if (!workspace?.artifactStatus?.finalized) return;
+    if (isOtsTerminal(workspace.preservationMatrix.ots.effectiveStatus)) return;
+
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      if (cancelled || document.hidden) return;
+      void loadWorkspace();
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [
+    evidenceId,
+    workspace?.artifactStatus?.finalized,
+    workspace?.preservationMatrix?.ots?.effectiveStatus,
   ]);
 
   const evidence = workspace?.evidence ?? null;
   const workspaceCaps = workspace?.workspaceCapabilitySnapshot ?? null;
+  const publicVerificationState = useMemo(
+    () =>
+      workspace
+        ? describePublicVerificationState(workspace.publicVerificationSummary)
+        : null,
+    [workspace]
+  );
+  const otsStatusPresentation = useMemo(
+    () => (workspace ? describeOtsStatus(workspace) : null),
+    [workspace]
+  );
+  const technicalReadinessSummary = useMemo(
+    () => (workspace ? buildTechnicalReadinessSummary(workspace) : ""),
+    [workspace]
+  );
 
   const reviewSignals = useMemo(
     () => (workspace ? buildRiskSignals(workspace.sourceContext, workspace.reviewerAlerts) : []),
@@ -814,30 +1039,25 @@ function EvidenceDetailPageInner() {
     return [
       {
         label: "Report artifact",
-        value: workspace.artifactVersions.latestReport.available ? "Available" : "Not generated",
+        value: describeReportArtifactStatus(workspace.artifactStatus),
       },
       {
         label: "Verification package",
-        value: workspace.artifactVersions.latestVerificationPackage.available
-          ? "Available"
-          : workspaceCaps?.verificationPackageIncluded
-            ? "Not generated"
-            : "Not included on plan",
+        value: describeVerificationPackageStatus(
+          workspace.artifactStatus,
+          workspaceCaps?.verificationPackageIncluded ?? false
+        ),
       },
       {
         label: "Public verification",
-        value: workspace.publicVerificationSummary.enabled
-          ? workspace.publicVerificationSummary.published
-            ? "Enabled"
-            : "Supported but not published"
-          : "Not included on plan",
+        value: publicVerificationState?.label ?? "State unavailable",
       },
       {
         label: "Case assignment",
         value: workspace.relationships.caseName || "Unassigned",
       },
     ];
-  }, [workspace, workspaceCaps]);
+  }, [publicVerificationState, workspace, workspaceCaps]);
 
   const overviewMetadataItems = useMemo(() => {
     if (!workspace) return [];
@@ -868,10 +1088,10 @@ function EvidenceDetailPageInner() {
         value: workspace.relationships.caseName || "Unassigned",
       },
       {
-        label: "Workflow",
+        label: "Review workflow",
         value: workspace.reviewWorkflow.status
           ? workspace.reviewWorkflow.status.replace(/_/g, " ")
-          : "Not configured",
+          : "Not started",
       },
       {
         label: "Original filename",
@@ -1242,13 +1462,10 @@ function EvidenceDetailPageInner() {
   };
 
   const copyShareLink = async () => {
-    const url =
-      buildShareUrl(workspace?.publicVerificationSummary.sharePath) ||
-      workspace?.publicVerificationSummary.publicUrl ||
-      null;
+    const url = buildPublishedVerificationUrl(workspace?.publicVerificationSummary);
 
     if (!url) {
-      addToast("Public verification link is not available in the current response", "info");
+      addToast("Public verification link is only available when publication state is PUBLISHED", "info");
       return;
     }
 
@@ -1382,9 +1599,7 @@ function EvidenceDetailPageInner() {
 
   const preservation = workspace.preservationMatrix;
   const trustDecision = workspace.artifactVersions.trustDecision;
-  const shareUrl =
-    buildShareUrl(workspace.publicVerificationSummary.sharePath) ||
-    workspace.publicVerificationSummary.publicUrl;
+  const shareUrl = buildPublishedVerificationUrl(workspace.publicVerificationSummary);
 
   // Phase A0 — integrity hard-gate exposure. The terminal state set
   // by the worker when a recomputed SHA-256 disagreed with the value
@@ -1557,7 +1772,7 @@ function EvidenceDetailPageInner() {
             <Button
               variant="secondary"
               onClick={() => void copyShareLink()}
-              disabled={isIntegrityFailed}
+              disabled={isIntegrityFailed || !shareUrl}
             >
               Copy verification link
             </Button>
@@ -1626,16 +1841,16 @@ function EvidenceDetailPageInner() {
                   <div className="evidence-detail-section-header">
                     <SectionHeading
                       kicker="Overview"
-                      title={workspace.reviewDecision.label}
+                      title="Technical review readiness"
                       icon={ClipboardCheck}
                     />
                   </div>
 
-                  <p>{workspace.reviewDecision.summary}</p>
+                  <p>{technicalReadinessSummary}</p>
 
                   <div className="evidence-detail-overview-grid">
                     <div className="evidence-detail-overview-panel">
-                      <p className="evidence-detail-kicker">Review Readiness</p>
+                      <p className="evidence-detail-kicker">Technical Review Readiness</p>
                       <KeyValueGrid items={reviewReadinessItems} />
                     </div>
 
@@ -1663,7 +1878,7 @@ function EvidenceDetailPageInner() {
                           },
                           {
                             label: "OTS",
-                            value: formatValue(preservation.ots.effectiveStatus),
+                            value: otsStatusPresentation?.label ?? "Not configured",
                           },
                         ]}
                       />
@@ -1829,16 +2044,16 @@ function EvidenceDetailPageInner() {
                         value: workspace.sourceContext.locationIncluded ? "Included" : "Not included",
                       },
                       {
-                        label: "Screenshot-like signal",
-                        value: workspace.sourceContext.clientSignalsSummary.screenshotLike
-                          ? "Recorded"
-                          : "Not recorded",
+                        label: "Screenshot filename heuristic",
+                        value: describeClientSignalState(
+                          workspace.sourceContext.clientSignalsSummary.screenshotLikeStatus
+                        ),
                       },
                       {
                         label: "Folder path signal",
-                        value: workspace.sourceContext.clientSignalsSummary.folderPathPresent
-                          ? "Recorded"
-                          : "Not recorded",
+                        value: describeClientSignalState(
+                          workspace.sourceContext.clientSignalsSummary.folderPathStatus
+                        ),
                       },
                     ]}
                   />
@@ -1896,7 +2111,13 @@ function EvidenceDetailPageInner() {
                             ? `Status: ${preservation.tsa.status}`
                             : "Timestamp unavailable",
                       },
-                      { label: "OTS status", value: formatValue(preservation.ots.effectiveStatus) },
+                      { label: "OTS status", value: otsStatusPresentation?.label ?? "Not configured" },
+                      {
+                        label: "OTS last updated",
+                        value: formatValue(
+                          formatUserDateTime(preservation.ots.lastUpdatedAtUtc)
+                        ),
+                      },
                       {
                         label: "Storage protection",
                         value: preservation.storage?.verified
@@ -1905,28 +2126,37 @@ function EvidenceDetailPageInner() {
                       },
                       {
                         label: "Public anchoring",
-                        // The anchor.published flag indicates the anchor was
-                        // submitted; without a Bitcoin transaction id field on
-                        // this surface we cannot truthfully assert
-                        // "Bitcoin anchoring verified", so we use the more
-                        // conservative published-vs-pending phrasing.
-                        value: preservation.anchor?.published
-                          ? "Anchor publication recorded"
-                          : preservation.anchor?.configured
-                            ? "OpenTimestamps proof present; public anchoring pending"
-                            : "OpenTimestamps not configured",
+                        value: otsStatusPresentation?.detail ?? "No public anchoring state recorded",
                       },
                       {
                         label: "Report artifact",
-                        value: preservation.report.available
-                          ? `Version ${preservation.report.version ?? "latest"}`
-                          : "Not generated",
+                        value: `${describeReportArtifactStatus(workspace.artifactStatus)}${
+                          preservation.report.available
+                            ? ` · Version ${preservation.report.version ?? "latest"}`
+                            : ""
+                        }`,
+                      },
+                      {
+                        label: "Report PDF signature",
+                        value: describeReportPdfSignature(workspace.artifactStatus),
                       },
                       {
                         label: "Verification package",
-                        value: preservation.verificationPackage.available
-                          ? `Version ${preservation.verificationPackage.version ?? "latest"}`
-                          : "Not generated",
+                        value: `${describeVerificationPackageStatus(
+                          workspace.artifactStatus,
+                          workspaceCaps?.verificationPackageIncluded ?? false
+                        )}${
+                          preservation.verificationPackage.available
+                            ? ` · Version ${preservation.verificationPackage.version ?? "latest"}`
+                            : ""
+                        }`,
+                      },
+                      {
+                        label: "Package manifest",
+                        value: describePackageManifestStatus(
+                          workspace.artifactStatus,
+                          workspaceCaps?.verificationPackageIncluded ?? false
+                        ),
                       },
                       // Phase C #10 — retention visibility on the
                       // authenticated evidence detail surface.
@@ -2399,15 +2629,15 @@ function EvidenceDetailPageInner() {
                     items={[
                       {
                         label: "Verification status",
-                        value: workspace.publicVerificationSummary.enabled
-                          ? workspace.publicVerificationSummary.published
-                            ? "Enabled"
-                            : "Supported but not published"
-                          : "Not included on plan",
+                        value: publicVerificationState?.label ?? "State unavailable",
                       },
                       {
                         label: "Verification link",
                         value: shareUrl ? "Available" : "Not available",
+                      },
+                      {
+                        label: "Publication detail",
+                        value: publicVerificationState?.detail ?? "No publication detail available",
                       },
                       {
                         label: "Public views",
@@ -2497,11 +2727,11 @@ function EvidenceDetailPageInner() {
           <aside className="evidence-detail-sidebar">
             <section className="evidence-detail-side-block">
               <SectionHeading
-                kicker="Reviewer Decision"
-                title={workspace.reviewDecision.label}
+                kicker="Technical Review Readiness"
+                title="Technical review readiness"
                 icon={ClipboardCheck}
               />
-              <p>{workspace.reviewDecision.summary}</p>
+              <p>{technicalReadinessSummary}</p>
             </section>
 
             <section className="evidence-detail-side-block">
@@ -2525,21 +2755,25 @@ function EvidenceDetailPageInner() {
 
             <section className="evidence-detail-side-block">
               <SectionHeading
-                kicker="Review Readiness"
+                kicker="Review Workflow"
                 title="Operational summary"
                 icon={ShieldCheck}
               />
               <KeyValueGrid
                 items={[
                   {
-                    label: "Workflow",
+                    label: "Review workflow",
                     value: workspace.reviewWorkflow.status
                       ? workspace.reviewWorkflow.status.replace(/_/g, " ")
-                      : "Not configured",
+                      : "Not started",
                   },
                   {
                     label: "Priority",
                     value: workspace.reviewWorkflow.priority || "Not configured",
+                  },
+                  {
+                    label: "Technical readiness",
+                    value: workspace.reviewDecision.label,
                   },
                   {
                     label: "Case",
@@ -2563,11 +2797,11 @@ function EvidenceDetailPageInner() {
                 items={[
                   {
                     label: "Status",
-                    value: workspace.publicVerificationSummary.enabled
-                      ? workspace.publicVerificationSummary.published
-                        ? "Enabled"
-                        : "Supported but not published"
-                      : "Not included on plan",
+                    value: publicVerificationState?.label ?? "State unavailable",
+                  },
+                  {
+                    label: "State detail",
+                    value: publicVerificationState?.detail ?? "No publication detail available",
                   },
                   {
                     label: "Public views",

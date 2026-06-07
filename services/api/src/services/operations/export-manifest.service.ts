@@ -197,6 +197,11 @@ export type ExportListItem = {
   sizeBytes: string | null;
   objectLockStoredMode: "GOVERNANCE" | "COMPLIANCE" | null;
   artifactSigned: boolean;
+  artifactSigningKeyId: string | null;
+  artifactSignedAtUtc: string | null;
+  artifactUnsignedOptOut: boolean;
+  artifactSigningWarning: string | null;
+  verificationPackageSignatureStatus: "SIGNED" | "UNSIGNED" | "NOT_APPLICABLE";
 };
 
 export async function listExports(
@@ -219,6 +224,9 @@ export async function listExports(
         generatedAtUtc: true,
         storageObjectLockMode: true,
         pdfSignatureStatus: true,
+        pdfSignerKeyId: true,
+        pdfSignedAtUtc: true,
+        pdfSigningWarning: true,
         evidence: { select: { teamId: true } },
       },
       orderBy: { generatedAtUtc: "desc" },
@@ -236,6 +244,11 @@ export async function listExports(
         sizeBytes: r.sizeBytes ? r.sizeBytes.toString() : null,
         objectLockStoredMode: normaliseObjectLockMode(r.storageObjectLockMode),
         artifactSigned: r.pdfSignatureStatus === "SIGNED",
+        artifactSigningKeyId: r.pdfSignerKeyId ?? null,
+        artifactSignedAtUtc: r.pdfSignedAtUtc ? r.pdfSignedAtUtc.toISOString() : null,
+        artifactUnsignedOptOut: r.pdfSignatureStatus === "UNSIGNED_OPT_OUT",
+        artifactSigningWarning: r.pdfSigningWarning ?? null,
+        verificationPackageSignatureStatus: "NOT_APPLICABLE",
       });
     }
   }
@@ -250,12 +263,18 @@ export async function listExports(
         sizeBytes: true,
         generatedAtUtc: true,
         storageObjectLockMode: true,
-        evidence: { select: { teamId: true } },
+        evidence: { select: { teamId: true, verificationPackageMetadata: true } },
       },
       orderBy: { generatedAtUtc: "desc" },
       take: limit,
     });
     for (const p of packages) {
+      const packageMetadata = p.evidence
+        .verificationPackageMetadata as
+        | { signedManifestPresent?: boolean }
+        | null
+        | undefined;
+      const packageSigned = packageMetadata?.signedManifestPresent === true;
       out.push({
         exportId: encodeExportId("verification_package_zip", p.id),
         kind: "verification_package_zip",
@@ -266,7 +285,12 @@ export async function listExports(
         generatedAtUtc: p.generatedAtUtc.toISOString(),
         sizeBytes: p.sizeBytes ? p.sizeBytes.toString() : null,
         objectLockStoredMode: normaliseObjectLockMode(p.storageObjectLockMode),
-        artifactSigned: false,
+        artifactSigned: packageSigned,
+        artifactSigningKeyId: null,
+        artifactSignedAtUtc: null,
+        artifactUnsignedOptOut: false,
+        artifactSigningWarning: null,
+        verificationPackageSignatureStatus: packageSigned ? "SIGNED" : "UNSIGNED",
       });
     }
   }
@@ -379,7 +403,7 @@ export async function resolveExportManifest(
         storageObjectLockMode: true,
         storageObjectLockRetainUntilUtc: true,
         storageObjectLockLegalHoldStatus: true,
-        evidence: { select: { teamId: true, organizationId: true } },
+        evidence: { select: { teamId: true, organizationId: true, verificationPackageMetadata: true } },
       },
     });
     if (!p) return { ok: false, code: "not_found", message: "Export not found." };
@@ -409,7 +433,11 @@ export async function resolveExportManifest(
         storedLegalHoldStatus: normaliseLegalHold(p.storageObjectLockLegalHoldStatus),
       },
       signing: {
-        artifactSigned: false,
+        artifactSigned:
+          (p.evidence.verificationPackageMetadata as
+            | { signedManifestPresent?: boolean }
+            | null
+            | undefined)?.signedManifestPresent === true,
         artifactSigningKeyId: null,
         artifactSignedAtUtc: null,
         artifactUnsignedOptOut: false,

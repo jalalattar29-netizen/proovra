@@ -682,6 +682,7 @@ const SAFE_EVIDENCE_SELECT = {
   verificationPackageGeneratedAtUtc: true,
   verificationPackageVersion: true,
   verificationPackageMetadata: true,
+  publicVerifyState: true,
   latestReportVersion: true,
   reviewReadyAtUtc: true,
   reviewerSummaryVersion: true,
@@ -768,6 +769,39 @@ type AnchorStatusSummary = {
   anchoredAtUtc: string | null;
 };
 
+type PublicVerificationDetailState =
+  | "NOT_INCLUDED"
+  | "NOT_CONFIGURED"
+  | "CONFIGURED_NOT_PUBLISHED"
+  | "PUBLISHED"
+  | "SUSPENDED"
+  | "UNPUBLISHED"
+  | "UNKNOWN_ERROR";
+
+type ClientSignalCollectionState =
+  | "NOT_COLLECTED"
+  | "COLLECTED_FALSE"
+  | "DETECTED"
+  | "UNAVAILABLE";
+
+type ReviewWorkspacePublicVerificationSummary = {
+  state: PublicVerificationDetailState;
+  publicationState: string | null;
+  enabled: boolean;
+  configured: boolean;
+  published: boolean;
+  sharePath: string | null;
+  publicUrl: string | null;
+  routeAccessible: boolean;
+  publicViewCount: number;
+  authenticatedViewCount: number;
+  lastPublicViewAt: string | null;
+  reportDownloadCount: number;
+  verificationPackageDownloadCount: number;
+  analyticsAvailable: boolean;
+  disabledReason: string | null;
+};
+
 type SafeEvidence = {
   id: string;
   title: string;
@@ -813,6 +847,7 @@ type SafeEvidence = {
   lastVerifiedSource: prismaPkg.VerificationSource | null;
   verificationPackageGeneratedAtUtc: string | null;
   verificationPackageVersion: number | null;
+  publicVerifyState: string | null;
   latestReportVersion: number | null;
   reviewReadyAtUtc: string | null;
   reviewerSummaryVersion: number | null;
@@ -1882,6 +1917,7 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
       ? e.verificationPackageGeneratedAtUtc.toISOString()
       : null,
     verificationPackageVersion: e.verificationPackageVersion ?? null,
+    publicVerifyState: e.publicVerifyState ?? null,
     latestReportVersion: e.latestReportVersion ?? null,
     reviewReadyAtUtc: e.reviewReadyAtUtc
       ? e.reviewReadyAtUtc.toISOString()
@@ -3755,6 +3791,161 @@ function readStringClientSignal(
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function resolveClientSignalState(params: {
+  recorded: boolean;
+  detected: boolean;
+  unavailable?: boolean;
+}): ClientSignalCollectionState {
+  if (params.unavailable) return "UNAVAILABLE";
+  if (!params.recorded) return "NOT_COLLECTED";
+  return params.detected ? "DETECTED" : "COLLECTED_FALSE";
+}
+
+function buildPublicVerificationSummary(params: {
+  evidence: SelectedEvidence;
+  anchor: AnchorStatusSummary;
+  workspaceCapabilitySnapshot: ReturnType<typeof resolveWorkspaceCapabilitySnapshot>;
+  sharePath: string;
+  publicViewCount: number;
+  authenticatedViewCount: number;
+  lastPublicViewAt: string | null;
+  reportDownloadCount: number;
+  verificationPackageDownloadCount: number;
+}): ReviewWorkspacePublicVerificationSummary {
+  const publicationState =
+    typeof params.evidence.publicVerifyState === "string"
+      ? params.evidence.publicVerifyState.trim().toUpperCase()
+      : null;
+
+  if (!params.workspaceCapabilitySnapshot.publicVerifyIncluded) {
+    return {
+      state: "NOT_INCLUDED",
+      publicationState,
+      enabled: false,
+      configured: false,
+      published: false,
+      sharePath: null,
+      publicUrl: null,
+      routeAccessible: false,
+      publicViewCount: params.publicViewCount,
+      authenticatedViewCount: params.authenticatedViewCount,
+      lastPublicViewAt: params.lastPublicViewAt,
+      reportDownloadCount: params.reportDownloadCount,
+      verificationPackageDownloadCount:
+        params.verificationPackageDownloadCount,
+      analyticsAvailable: true,
+      disabledReason:
+        "Public verification is not included in the current workspace capability set.",
+    };
+  }
+
+  const configured = params.anchor.configured;
+
+  switch (publicationState) {
+    case "PUBLISHED":
+      return {
+        state: "PUBLISHED",
+        publicationState,
+        enabled: true,
+        configured,
+        published: true,
+        sharePath: params.sharePath,
+        publicUrl: params.anchor.publicUrl ?? null,
+        routeAccessible: true,
+        publicViewCount: params.publicViewCount,
+        authenticatedViewCount: params.authenticatedViewCount,
+        lastPublicViewAt: params.lastPublicViewAt,
+        reportDownloadCount: params.reportDownloadCount,
+        verificationPackageDownloadCount:
+          params.verificationPackageDownloadCount,
+        analyticsAvailable: true,
+        disabledReason: null,
+      };
+    case "SUSPENDED":
+      return {
+        state: "SUSPENDED",
+        publicationState,
+        enabled: true,
+        configured,
+        published: false,
+        sharePath: null,
+        publicUrl: null,
+        routeAccessible: false,
+        publicViewCount: params.publicViewCount,
+        authenticatedViewCount: params.authenticatedViewCount,
+        lastPublicViewAt: params.lastPublicViewAt,
+        reportDownloadCount: params.reportDownloadCount,
+        verificationPackageDownloadCount:
+          params.verificationPackageDownloadCount,
+        analyticsAvailable: true,
+        disabledReason:
+          "Public verification was suspended and the public route is intentionally unavailable.",
+      };
+    case "UNPUBLISHED":
+      return {
+        state: "UNPUBLISHED",
+        publicationState,
+        enabled: true,
+        configured,
+        published: false,
+        sharePath: null,
+        publicUrl: null,
+        routeAccessible: false,
+        publicViewCount: params.publicViewCount,
+        authenticatedViewCount: params.authenticatedViewCount,
+        lastPublicViewAt: params.lastPublicViewAt,
+        reportDownloadCount: params.reportDownloadCount,
+        verificationPackageDownloadCount:
+          params.verificationPackageDownloadCount,
+        analyticsAvailable: true,
+        disabledReason:
+          "Public verification was unpublished and the public route is intentionally unavailable.",
+      };
+    case "NOT_PUBLISHED":
+    case null:
+      return {
+        state: configured ? "CONFIGURED_NOT_PUBLISHED" : "NOT_CONFIGURED",
+        publicationState,
+        enabled: true,
+        configured,
+        published: false,
+        sharePath: null,
+        publicUrl: null,
+        routeAccessible: false,
+        publicViewCount: params.publicViewCount,
+        authenticatedViewCount: params.authenticatedViewCount,
+        lastPublicViewAt: params.lastPublicViewAt,
+        reportDownloadCount: params.reportDownloadCount,
+        verificationPackageDownloadCount:
+          params.verificationPackageDownloadCount,
+        analyticsAvailable: true,
+        disabledReason: configured
+          ? "Public verification is configured for this evidence record but has not been published."
+          : "Public verification is supported for this workspace, but no published verification record is configured for this evidence item.",
+      };
+    default:
+      return {
+        state: "UNKNOWN_ERROR",
+        publicationState,
+        enabled: true,
+        configured,
+        published: false,
+        sharePath: null,
+        publicUrl: null,
+        routeAccessible: false,
+        publicViewCount: params.publicViewCount,
+        authenticatedViewCount: params.authenticatedViewCount,
+        lastPublicViewAt: params.lastPublicViewAt,
+        reportDownloadCount: params.reportDownloadCount,
+        verificationPackageDownloadCount:
+          params.verificationPackageDownloadCount,
+        analyticsAvailable: true,
+        disabledReason:
+          "The publication state could not be resolved from the current evidence record.",
+      };
+  }
+}
+
 function buildSourceContext(params: {
   evidence: SelectedEvidence;
   parts: Array<{
@@ -3796,7 +3987,19 @@ function buildSourceContext(params: {
         : captureMethod === prismaPkg.CaptureMethod.UPLOADED_FILE ||
             captureMethod === prismaPkg.CaptureMethod.IMPORTED_DOCUMENT
           ? "imported_upload"
-          : "unknown";
+        : "unknown";
+  const clientSignalsRecorded = params.parts.some((part) =>
+    Boolean(part.clientSignals)
+  );
+  const screenshotLikeStatus = resolveClientSignalState({
+    recorded: clientSignalsRecorded,
+    detected: screenshotLike,
+  });
+  const folderPathStatus = resolveClientSignalState({
+    recorded: clientSignalsRecorded,
+    detected: folderPathPresent,
+    unavailable: sourceType === "native_capture" && !clientSignalsRecorded,
+  });
 
   return {
     sourceType,
@@ -3829,9 +4032,11 @@ function buildSourceContext(params: {
       .filter(Boolean),
     clientSignalsSummary: {
       screenshotLike,
+      screenshotLikeStatus,
       genericMime,
       oldLastModified,
       folderPathPresent,
+      folderPathStatus,
       duplicateSignals,
     },
     metadataAvailability: {
@@ -3839,7 +4044,7 @@ function buildSourceContext(params: {
         (part) => Boolean(part.originalFileName || part.mimeType)
       ),
       captureLocationRecorded: locationIncluded,
-      clientSignalsRecorded: params.parts.some((part) => Boolean(part.clientSignals)),
+      clientSignalsRecorded,
     },
     limitations: [
       "Imported upload indicates PROOVRA preserved the uploaded file and recorded integrity state. It does not independently prove original capture source.",
@@ -3849,68 +4054,104 @@ function buildSourceContext(params: {
 
 function buildResolvedReviewerAlerts(params: {
   evidenceIntelligence: EvidenceIntelligence | null;
-  workspaceCapabilitySnapshot: ReturnType<typeof resolveWorkspaceCapabilitySnapshot>;
-  anchor: AnchorStatusSummary;
-  latestReportVersion: number | null;
-  latestVerificationPackageVersion: number | null;
-  evidence: SelectedEvidence;
+  publicVerificationSummary: ReviewWorkspacePublicVerificationSummary;
+  artifactStatus: Awaited<ReturnType<typeof buildEvidenceArtifactStatus>>;
 }) {
   const baseAlerts =
-    params.evidenceIntelligence?.reviewerAlerts?.filter((alert: EvidenceIntelligence["reviewerAlerts"][number]) => {
-      if (alert.label !== "Public verification not configured") return true;
-
-      if (!params.workspaceCapabilitySnapshot.publicVerifyIncluded) {
-        return false;
-      }
-
-      return !params.anchor.published;
-    }) ?? [];
+    params.evidenceIntelligence?.reviewerAlerts?.filter(
+      (
+        alert: EvidenceIntelligence["reviewerAlerts"][number]
+      ) => alert.label !== "Public verification not configured"
+    ) ?? [];
 
   const operationalAlerts = [...baseAlerts];
 
-  if (!params.workspaceCapabilitySnapshot.publicVerifyIncluded) {
+  switch (params.publicVerificationSummary.state) {
+    case "NOT_INCLUDED":
+      operationalAlerts.push({
+        severity: "info" as const,
+        label: "Public verification not included",
+        detail:
+          "Public verification is not included in the current workspace capability set.",
+      });
+      break;
+    case "NOT_CONFIGURED":
+      operationalAlerts.push({
+        severity: "warning" as const,
+        label: "Public verification not configured",
+        detail:
+          "Public verification is supported for this workspace, but this evidence record does not have a publishable verification surface configured.",
+      });
+      break;
+    case "CONFIGURED_NOT_PUBLISHED":
+      operationalAlerts.push({
+        severity: "warning" as const,
+        label: "Public verification not published",
+        detail:
+          "Public verification is configured for this evidence record, but it has not been published yet.",
+      });
+      break;
+    case "SUSPENDED":
+      operationalAlerts.push({
+        severity: "warning" as const,
+        label: "Public verification suspended",
+        detail:
+          "Public verification was suspended and the public route is intentionally unavailable.",
+      });
+      break;
+    case "UNPUBLISHED":
+      operationalAlerts.push({
+        severity: "info" as const,
+        label: "Public verification unpublished",
+        detail:
+          "Public verification was unpublished and no public verification link is currently active.",
+      });
+      break;
+    case "UNKNOWN_ERROR":
+      operationalAlerts.push({
+        severity: "warning" as const,
+        label: "Public verification state unavailable",
+        detail:
+          "The current evidence record returned an unknown publication state. Verify the publication state before sharing.",
+      });
+      break;
+    default:
+      break;
+  }
+
+  if (!params.artifactStatus.report.available) {
     operationalAlerts.push({
-      severity: "info" as const,
-      label: "Public verification not included",
+      severity: params.artifactStatus.report.pending ? ("info" as const) : ("warning" as const),
+      label: params.artifactStatus.report.pending
+        ? "Report generation pending"
+        : "Report not generated",
       detail:
-        "Public verification is not included in the current workspace plan.",
-    });
-  } else if (!params.anchor.published) {
-    operationalAlerts.push({
-      severity: "warning" as const,
-      label: "Public verification not published",
-      detail:
-        "Public verification is supported for this workspace, but a public verification record is not published yet.",
+        params.artifactStatus.report.pending
+          ? "A fixed report artifact is still being generated."
+          : "Generate a PDF report when a fixed review artifact is required.",
     });
   }
 
-  if (!params.latestReportVersion) {
+  if (params.artifactStatus.verificationPackage.blocked) {
     operationalAlerts.push({
       severity: "warning" as const,
-      label: "Report not generated",
+      label: "Verification package blocked",
       detail:
-        "Generate a PDF report when a fixed review artifact is required.",
+        params.artifactStatus.verificationPackage.blockedReason ??
+        "Verification package generation is blocked by governance policy.",
     });
-  }
-
-  if (
-    params.workspaceCapabilitySnapshot.verificationPackageIncluded &&
-    !params.latestVerificationPackageVersion
-  ) {
+  } else if (!params.artifactStatus.verificationPackage.available) {
     operationalAlerts.push({
-      severity: "warning" as const,
-      label: "Verification package not generated",
+      severity: params.artifactStatus.verificationPackage.pending
+        ? ("info" as const)
+        : ("warning" as const),
+      label: params.artifactStatus.verificationPackage.pending
+        ? "Verification package pending"
+        : "Verification package not generated",
       detail:
-        "Generate a verification package for offline or external review when needed.",
-    });
-  }
-
-  if (!params.evidence.caseId) {
-    operationalAlerts.push({
-      severity: "info" as const,
-      label: "No case assignment",
-      detail:
-        "Case assignment is not recorded for this evidence item.",
+        params.artifactStatus.verificationPackage.pending
+          ? "The verification package is still being generated."
+          : "Generate a verification package for offline or external review when needed.",
     });
   }
 
@@ -7722,6 +7963,13 @@ const timestampDigestMatches: boolean | null =
         };
 
         const sourceContext = buildSourceContext({ evidence, parts });
+        const artifactStatus = await buildEvidenceArtifactStatus({
+          evidenceId: id,
+          evidenceStatus: evidence.status,
+          evidenceTeamId: evidence.teamId ?? null,
+          evidenceVerificationPackageMetadata:
+            evidence.verificationPackageMetadata ?? null,
+        });
         const relatedEvidenceCount = evidence.caseId
           ? await prisma.evidence.count({
               where: {
@@ -7730,16 +7978,24 @@ const timestampDigestMatches: boolean | null =
               },
             })
           : null;
+        const publicVerifyPath = `/verify/${evidence.id}`;
+        const publicVerificationSummary = buildPublicVerificationSummary({
+          evidence,
+          anchor,
+          workspaceCapabilitySnapshot,
+          sharePath: publicVerifyPath,
+          publicViewCount: publicVerifyCount,
+          authenticatedViewCount: authenticatedVerifyCount,
+          lastPublicViewAt:
+            lastPublicVerify?.createdAt?.toISOString() ?? null,
+          reportDownloadCount,
+          verificationPackageDownloadCount,
+        });
 
         const reviewerAlerts = buildResolvedReviewerAlerts({
           evidenceIntelligence,
-          workspaceCapabilitySnapshot,
-          anchor,
-          latestReportVersion: latestReport?.version ?? evidence.latestReportVersion,
-          latestVerificationPackageVersion:
-            latestVerificationPackage?.version ??
-            evidence.verificationPackageVersion,
-          evidence,
+          publicVerificationSummary,
+          artifactStatus,
         });
         const reviewerWorkflowSummary = await getEvidenceReviewerWorkflowSummary(id);
         const relationshipItems = await listEvidenceRelationships(id);
@@ -7780,8 +8036,6 @@ const timestampDigestMatches: boolean | null =
                 : "Generate a verification package when offline review is required.",
             ],
           };
-
-        const publicVerifyPath = `/verify/${evidence.id}`;
 
         auditEvidenceAction(req, {
           userId: ownerUserId,
@@ -7887,12 +8141,25 @@ const timestampDigestMatches: boolean | null =
               ots: {
                 status: evidence.otsStatus ?? null,
                 effectiveStatus: effectiveOtsStatus,
+                proofPresent: Boolean(evidence.otsProofBase64),
                 hashMatches: otsHashMatches,
                 anchoredAtUtc:
                   effectiveOtsAnchoredAtUtc?.toISOString() ?? null,
+                upgradedAtUtc:
+                  evidence.otsUpgradedAtUtc?.toISOString() ?? null,
+                lastUpdatedAtUtc:
+                  evidence.otsUpgradedAtUtc?.toISOString() ??
+                  effectiveOtsAnchoredAtUtc?.toISOString() ??
+                  null,
                 calendar: evidence.otsCalendar ?? null,
                 bitcoinTxid: evidence.otsBitcoinTxid ?? null,
                 failureReason: evidence.otsFailureReason ?? null,
+                pendingReason:
+                  effectiveOtsStatus === "PENDING"
+                    ? evidence.otsProofBase64
+                      ? "OpenTimestamps proof is recorded; public anchoring is still pending."
+                      : "OpenTimestamps anchoring has not completed yet."
+                    : null,
               },
               custodyChain: {
                 valid: custodyChain.valid,
@@ -7901,14 +8168,23 @@ const timestampDigestMatches: boolean | null =
               },
               storage,
               anchor,
-              report: {
-                available: Boolean(latestReport),
-                version: latestReport?.version ?? evidence.latestReportVersion ?? null,
-                generatedAtUtc: latestReport?.generatedAtUtc
-                  ? latestReport.generatedAtUtc.toISOString()
-                  : evidence.reportGeneratedAtUtc?.toISOString() ?? null,
+              report: artifactStatus.report,
+              verificationPackage: {
+                ...verificationPackageIntegrity,
+                pending: artifactStatus.verificationPackage.pending,
+                unavailable: artifactStatus.verificationPackage.unavailable,
+                unavailableReason:
+                  artifactStatus.verificationPackage.unavailableReason,
+                blocked: artifactStatus.verificationPackage.blocked,
+                blockedOutcome:
+                  artifactStatus.verificationPackage.blockedOutcome,
+                blockedReason:
+                  artifactStatus.verificationPackage.blockedReason,
+                blockedAtUtc:
+                  artifactStatus.verificationPackage.blockedAtUtc,
+                manifestSignature:
+                  artifactStatus.verificationPackage.manifestSignature,
               },
-              verificationPackage: verificationPackageIntegrity,
             },
             relationships: {
               caseId: caseItem?.id ?? evidence.caseId ?? null,
@@ -8005,51 +8281,22 @@ const timestampDigestMatches: boolean | null =
               fixedArtifactNote:
                 "PDF report is a fixed generated artifact. Public verification may show current verification or access state depending on implementation.",
             },
-            publicVerificationSummary: {
-              enabled: workspaceCapabilitySnapshot.publicVerifyIncluded,
-              configured: anchor.configured,
-              published: anchor.published,
-              sharePath: workspaceCapabilitySnapshot.publicVerifyIncluded
-                ? publicVerifyPath
-                : null,
-              publicUrl: anchor.publicUrl ?? null,
-              publicViewCount: publicVerifyCount,
-              authenticatedViewCount: authenticatedVerifyCount,
-              lastPublicViewAt: lastPublicVerify?.createdAt?.toISOString() ?? null,
-              reportDownloadCount,
-              verificationPackageDownloadCount,
-              analyticsAvailable: true,
-            },
+            publicVerificationSummary,
+            artifactStatus,
             artifactVersions: {
               history: artifactHistory,
-              latestReport: latestReport
-                ? {
-                    available: true,
-                    version: latestReport.version,
-                    generatedAtUtc: latestReport.generatedAtUtc.toISOString(),
-                  }
-                : {
-                    available: false,
-                    version: evidence.latestReportVersion ?? null,
-                    generatedAtUtc:
-                      evidence.reportGeneratedAtUtc?.toISOString() ?? null,
-                  },
-              latestVerificationPackage: latestVerificationPackage
-                ? {
-                    available: true,
-                    version: latestVerificationPackage.version,
-                    packageType: latestVerificationPackage.packageType ?? null,
-                    generatedAtUtc:
-                      latestVerificationPackage.generatedAtUtc.toISOString(),
-                  }
-                : {
-                    available: false,
-                    version: evidence.verificationPackageVersion ?? null,
-                    packageType: null,
-                    generatedAtUtc:
-                      evidence.verificationPackageGeneratedAtUtc?.toISOString() ??
-                      null,
-                  },
+              latestReport: {
+                available: artifactStatus.report.available,
+                version: artifactStatus.report.version,
+                generatedAtUtc: artifactStatus.report.generatedAtUtc,
+              },
+              latestVerificationPackage: {
+                available: artifactStatus.verificationPackage.available,
+                version: artifactStatus.verificationPackage.version,
+                packageType: artifactStatus.verificationPackage.packageType,
+                generatedAtUtc:
+                  artifactStatus.verificationPackage.generatedAtUtc,
+              },
               technicalMaterials: buildTechnicalMaterials({
                 evidence: {
                   fileSha256: evidence.fileSha256,
