@@ -9,7 +9,7 @@ ADD COLUMN IF NOT EXISTS "effective_at" timestamp with time zone NULL;
 ALTER TABLE "trust_center_article_versions"
 ADD COLUMN IF NOT EXISTS "effective_at" timestamp with time zone NULL;
 
-ALTER TABLE "status_component"
+ALTER TABLE "status_components"
 ADD COLUMN IF NOT EXISTS "namespace" text NOT NULL DEFAULT 'default';
 
-COMMENT ON COLUMN "status_component"."namespace" IS 'Namespace scope for status component grouping and migration stability.';
+COMMENT ON COLUMN "status_components"."namespace" IS 'Namespace scope for status component grouping and migration stability.';
