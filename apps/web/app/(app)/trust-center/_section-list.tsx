@@ -97,7 +97,7 @@ export function TrustCenterSectionList({
           {description}
         </p>
         <p style={{ marginTop: 6 }}>
-          <a href="/trust-center" style={{ fontSize: 12 }}>
+          <a href="/trust" style={{ fontSize: 12 }}>
             ← Back to Trust Center
           </a>
         </p>
@@ -158,8 +158,8 @@ export function TrustCenterSectionList({
           data-trust-center-page-phase="empty"
           style={{ color: "#475569", fontSize: 12 }}
         >
-          No published articles for this kind. Use the Trust Center landing's
-          "Re-seed defaults" action.
+          This Trust Center section is not published for the active workspace
+          yet.
         </p>
       ) : null}
 

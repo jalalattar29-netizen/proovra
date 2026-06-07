@@ -1211,9 +1211,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.trust",
     href: "/trust",
-    label: "Trust",
+    label: "Trust Center",
     description:
-      "Trust center hub — methodology, verification, signers, subprocessors, privacy.",
+      "Canonical trust center hub — methodology, verification, security, disclosures, signers, subprocessors, privacy.",
     // Trust hub renders workspace-anchored content (trust articles + subprocessor
     // snapshot + verification methodology for THIS workspace). It is a workspace
     // surface, NOT an account-tier surface, so domain=PERSONAL_WORKSPACE +
@@ -1386,29 +1386,6 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     label: "Intelligence Quality",
     description:
       "Provider, reviewer, and team correction analytics. Aggregate-only, never raw extraction.",
-    domain: "ORGANIZATION_WORKSPACE",
-    requiredCapabilities: ["GOVERNANCE_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
-    fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: [],
-    advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
-    sidebarEligible: false,
-  },
-  {
-    id: "workspace.trust_center",
-    href: "/trust-center",
-    // -------------------------------------------------------------------------
-    // workspace-surface audit — label clarification:
-    // Renamed from "Trust Center" to "Trust & Compliance" per Section 6
-    // of the audit. The new label makes the compliance-discovery pathway
-    // explicit (this surface bundles methodology, AI disclosure, security,
-    // and subprocessor disclosures used by audit reviewers and procurement).
-    // -------------------------------------------------------------------------
-    label: "Trust & Compliance",
-    description:
-      "Versioned platform-trust documentation — methodology, AI disclosure, security, subprocessors.",
     domain: "ORGANIZATION_WORKSPACE",
     requiredCapabilities: ["GOVERNANCE_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",

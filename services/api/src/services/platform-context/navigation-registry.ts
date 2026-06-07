@@ -202,15 +202,13 @@ const WORKSPACE_GROUP: NavRegistryGroup = {
       badgeKey: null,
       requiresCapability: "DASHBOARD_VIEW",
     },
-    // Phase 4A — Trust Center discoverability. The /trust-center page
-    // exposes the canonical trust hub (methodology, AI disclosure, security,
-    // subprocessors, status). Gated by DASHBOARD_VIEW so it only appears
-    // inside an active workspace context (SETTINGS_VIEW is also granted to
-    // no-workspace users, which would incorrectly include this entry).
+    // Canonical Trust Center discoverability. /trust is the single
+    // operator-facing trust hub; /trust-center is retained only as a
+    // legacy redirect to preserve deep links.
     {
-      id: "workspace.trust_center",
+      id: "workspace.trust",
       label: "Trust Center",
-      href: "/trust-center",
+      href: "/trust",
       iconKey: "trust",
       domain: "WORKSPACE",
       badgeKey: null,

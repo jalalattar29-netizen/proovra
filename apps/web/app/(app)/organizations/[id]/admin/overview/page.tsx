@@ -291,7 +291,7 @@ function Overview() {
           testId="deep-link-trust-center"
           label="Trust Center"
           description="Public trust articles + subprocessors + status."
-          href="/trust-center"
+          href="/trust"
         />
         <DeepLinkRow
           testId="deep-link-evidence-lifecycle"

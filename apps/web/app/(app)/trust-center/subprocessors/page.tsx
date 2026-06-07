@@ -13,7 +13,7 @@ import { apiFetch } from "../../../../lib/api";
 
 export default function SubprocessorsPage() {
   return (
-    <PageRouteGate routeId="workspace.trust_center">
+    <PageRouteGate routeId="workspace.trust">
       <Shell />
     </PageRouteGate>
   );
@@ -69,7 +69,7 @@ function Shell() {
           Every entry is versioned; every change writes an audit row.
         </p>
         <p>
-          <a href="/trust-center" style={{ fontSize: 12 }}>
+          <a href="/trust" style={{ fontSize: 12 }}>
             ← Back to Trust Center
           </a>
         </p>

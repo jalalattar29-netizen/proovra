@@ -199,7 +199,6 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // GOVERNANCE because they're org-overlay, not daily ops.
       "admin.identity",
       "workspace.intelligence_quality",
-      "workspace.trust_center",
       "workspace.audit_transparency",
       "workspace.evidence_lifecycle",
       "workspace.governance_platform",

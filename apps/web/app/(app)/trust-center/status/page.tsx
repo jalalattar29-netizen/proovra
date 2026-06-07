@@ -13,7 +13,7 @@ import { apiFetch } from "../../../../lib/api";
 
 export default function StatusPage() {
   return (
-    <PageRouteGate routeId="workspace.trust_center">
+    <PageRouteGate routeId="workspace.trust">
       <Shell />
     </PageRouteGate>
   );
@@ -109,7 +109,7 @@ function Shell() {
           ) : null}
         </p>
         <p>
-          <a href="/trust-center" style={{ fontSize: 12 }}>← Back to Trust Center</a>
+          <a href="/trust" style={{ fontSize: 12 }}>← Back to Trust Center</a>
         </p>
       </header>
 

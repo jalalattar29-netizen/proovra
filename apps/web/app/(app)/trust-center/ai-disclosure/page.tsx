@@ -5,7 +5,7 @@ import { TrustCenterSectionList } from "../_section-list";
 
 export default function AiDisclosurePage() {
   return (
-    <PageRouteGate routeId="workspace.trust_center">
+    <PageRouteGate routeId="workspace.trust">
       <TrustCenterSectionList
         kind="AI_DISCLOSURE"
         title="AI Disclosure Center"

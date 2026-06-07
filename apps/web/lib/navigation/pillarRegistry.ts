@@ -121,9 +121,9 @@ export const PILLAR_DEFINITIONS: ReadonlyArray<PillarDefinition> = [
   {
     id: "TRUST",
     order: 8,
-    title: "Trust",
+    title: "Trust Center",
     description:
-      "Signer health, anchor health, verification methodology — provable integrity.",
+      "Trust center, verification methodology, security posture, and provable integrity.",
     iconKey: "trust",
   },
 ];
@@ -223,7 +223,6 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   // Phase 4A — org-tier governance surfaces.
   ["admin.identity", "GOVERNANCE"],
   ["workspace.intelligence_quality", "GOVERNANCE"],
-  ["workspace.trust_center", "GOVERNANCE"],
   ["workspace.audit_transparency", "GOVERNANCE"],
   ["workspace.evidence_lifecycle", "GOVERNANCE"],
   ["workspace.governance_platform", "GOVERNANCE"],

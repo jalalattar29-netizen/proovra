@@ -56,6 +56,16 @@ const TRUST_CARDS: ReadonlyArray<TrustCard> = [
     href: "/legal/verification-methodology",
   },
   {
+    title: "AI transparency",
+    body: "Provider usage, advisory scope, data sent to models, human review boundaries, known risks, and cost transparency. Opens the published AI disclosure center.",
+    href: "/trust-center/ai-disclosure",
+  },
+  {
+    title: "Security documentation",
+    body: "Authentication, authorisation, RBAC, MFA, encryption posture, audit logging, immutability, monitoring, incident response, and recovery documentation.",
+    href: "/trust-center/security",
+  },
+  {
     title: "Public verification",
     body: "Verify a PROOVRA bundle without an account. Paste a verify token or upload a verification package — the public verifier runs the same checks the offline verifier runs.",
     href: "/verify",
@@ -69,6 +79,11 @@ const TRUST_CARDS: ReadonlyArray<TrustCard> = [
     title: "Subprocessors",
     body: "Vendors that may process customer data, with purpose, region, and certification status. Update notifications are sent 30 days before changes take effect.",
     href: "/subprocessors",
+  },
+  {
+    title: "Verification references",
+    body: "Workspace-published Trust Center, methodology, AI disclosure, security, and subprocessor references that back verify views and verification packages.",
+    href: "/verify-references",
   },
   {
     title: "Privacy policy",
@@ -180,7 +195,7 @@ export default function TrustPage() {
       >
         <header style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
-            Trust
+            Trust Center
           </h1>
           <p
             style={{
@@ -192,9 +207,10 @@ export default function TrustPage() {
             }}
           >
             Provable integrity from capture to verification. PROOVRA does not
-            assert truth — it records integrity primitives that anyone can
-            verify, air-gapped, without PROOVRA online. Every operator surface
-            you reach from here is real product, not a marketing page.
+            assert truth; it records integrity primitives, methodology,
+            security posture, and disclosure references that anyone can verify,
+            air-gapped, without PROOVRA online. Every surface linked from here
+            is a real route with bounded, honest product behavior.
           </p>
         </header>
 

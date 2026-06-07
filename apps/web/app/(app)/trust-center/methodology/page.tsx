@@ -5,7 +5,7 @@ import { TrustCenterSectionList } from "../_section-list";
 
 export default function MethodologyPage() {
   return (
-    <PageRouteGate routeId="workspace.trust_center">
+    <PageRouteGate routeId="workspace.trust">
       <div>
         {/*
           Phase 4A enterprise polish — visible cross-link to the legal
