@@ -64,7 +64,8 @@ function readRepo(rel) {
     return readFileSync(fileURLToPath(new URL(`../../../${rel}`, import.meta.url)), "utf8");
 }
 const ROUTES = readRepo("services/api/src/routes/trust-and-governance.routes.ts");
-const LANDING = readRepo("apps/web/app/(app)/trust-center/page.tsx");
+const TRUST_PAGE = readRepo("apps/web/app/(app)/trust/page.tsx");
+const REDIRECT_LANDING = readRepo("apps/web/app/(app)/trust-center/page.tsx");
 const STATUS = readRepo("apps/web/app/(app)/trust-center/status/page.tsx");
 // ===========================================================================
 // Fix A — GET routes auto-seed when the workspace is empty
@@ -75,7 +76,8 @@ describe("Production fix A — GET routes self-heal an empty Trust Center", () =
         const idx = ROUTES.indexOf('"/v1/trust/articles"');
         expect(idx, "/v1/trust/articles route must exist").toBeGreaterThan(-1);
         const slice = ROUTES.slice(idx, idx + 3500);
-        expect(slice).toMatch(/let\s+articles\s*=\s*await\s+listTrustArticles/);
+        expect(slice).toMatch(/let\s+articles\s*;/);
+        expect(slice).toMatch(/articles\s*=\s*await\s+listTrustArticles/);
         expect(slice).toMatch(/if\s*\(\s*articles\.length\s*===\s*0\s*\)\s*\{[\s\S]{0,400}ensureTrustCenterSeed/);
         // The self-heal must be wrapped in try/catch so a seed failure
         // never turns a GET into a 500.
@@ -86,7 +88,8 @@ describe("Production fix A — GET routes self-heal an empty Trust Center", () =
         const idx = ROUTES.indexOf('"/v1/trust/subprocessors"');
         expect(idx).toBeGreaterThan(-1);
         const slice = ROUTES.slice(idx, idx + 3500);
-        expect(slice).toMatch(/let\s+subprocessors\s*=\s*await\s+listSubprocessors/);
+        expect(slice).toMatch(/let\s+subprocessors\s*;/);
+        expect(slice).toMatch(/subprocessors\s*=\s*await\s+listSubprocessors/);
         expect(slice).toMatch(/if\s*\(\s*subprocessors\.length\s*===\s*0\s*\)\s*\{[\s\S]{0,400}ensureSubprocessorSeed/);
         expect(slice).toMatch(/try\s*\{[\s\S]{0,400}ensureSubprocessorSeed/);
         expect(slice).toMatch(/ensureSubprocessorSeed[\s\S]{0,400}\}\s*catch\b/);
@@ -133,27 +136,27 @@ describe("Production fix B — seed POSTs no longer require delegated tier", () 
     });
 });
 // ===========================================================================
-// Fix C — Landing "Re-seed defaults" button now seeds both + reports result
+// Fix C — duplicate /trust-center shell is retired in favour of /trust
 // ===========================================================================
-describe("Production fix C — landing button seeds articles AND subprocessors", () => {
-    it("seedDefaults POSTs to both seed endpoints in parallel", () => {
-        expect(LANDING).toMatch(/Promise\.allSettled/);
-        expect(LANDING).toMatch(/\/v1\/trust\/articles\/seed/);
-        expect(LANDING).toMatch(/\/v1\/trust\/subprocessors\/seed/);
+describe("Production fix C — /trust-center now defers to the canonical /trust page", () => {
+    it("/trust-center is a redirect-only shim", () => {
+        expect(REDIRECT_LANDING).toMatch(/from\s+["']next\/navigation["']\s*;?/);
+        expect(REDIRECT_LANDING).toMatch(/redirect\("\/trust"\)/);
     });
-    it("seed errors are surfaced (no longer silently swallowed)", () => {
-        // The previous implementation had `catch { /* swallow */ }`.
-        // The new implementation uses Promise.allSettled + a bounded
-        // summarisePart helper that emits "<label>: failed" on rejection.
-        expect(LANDING).toMatch(/summarisePart\b/);
-        expect(LANDING).toMatch(/setSeedStatus\(/);
-        expect(LANDING).toMatch(/data-trust-center-seed-status/);
+    it("the canonical /trust page carries the public trust cards instead of an empty article shell", () => {
+        expect(TRUST_PAGE).toMatch(/data-trust-section="cards"/);
+        expect(TRUST_PAGE).toMatch(/title:\s*"AI transparency"/);
+        expect(TRUST_PAGE).toMatch(/title:\s*"Security documentation"/);
+        expect(TRUST_PAGE).toMatch(/title:\s*"Subprocessors"/);
+        expect(TRUST_PAGE).toMatch(/title:\s*"Public verification"/);
     });
     it("operator vocabulary stays bounded — no env names or stack traces", () => {
         // Negative pin against accidental error-leak regressions.
-        expect(LANDING).not.toMatch(/process\.env\./);
-        expect(LANDING).not.toMatch(/err\.stack/);
-        expect(LANDING).not.toMatch(/console\.error\(.*err/);
+        expect(TRUST_PAGE).not.toMatch(/process\.env\./);
+        expect(TRUST_PAGE).not.toMatch(/err\.stack/);
+        expect(TRUST_PAGE).not.toMatch(/console\.error\(.*err/);
+        expect(REDIRECT_LANDING).not.toMatch(/process\.env\./);
+        expect(REDIRECT_LANDING).not.toMatch(/err\.stack/);
     });
 });
 // ===========================================================================
@@ -192,7 +195,8 @@ describe("Bounded guards — no Trust Center v2, no new pages", () => {
     it("the source contains no `trust-center-v2` references", () => {
         // The fix MUST be applied in-place. Any v2 ladder is a regression.
         expect(ROUTES).not.toMatch(/trust[-_]center[-_]v2/);
-        expect(LANDING).not.toMatch(/trust[-_]center[-_]v2/);
+        expect(TRUST_PAGE).not.toMatch(/trust[-_]center[-_]v2/);
+        expect(REDIRECT_LANDING).not.toMatch(/trust[-_]center[-_]v2/);
         expect(STATUS).not.toMatch(/trust[-_]center[-_]v2/);
     });
     it("no new /v1/trust/* endpoint added beyond the canonical surface", () => {

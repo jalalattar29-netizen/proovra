@@ -16,7 +16,7 @@
  *       capability gating.
  *     - LABEL_CLARIFICATION: two enterprise surfaces were renamed for
  *       operator legibility — "Intelligence Platform" → "Intelligence",
- *       "Trust Center" → "Trust & Compliance".
+ *       and the canonical trust hub now appears as "Trust Center".
  *     - EMPTY_STATE_COPY: /investigation hub and /investigation/duplicates
  *       were valid-empty on fresh workspaces (reconciliation is cron-only,
  *       perceptual similarity is producer-missing); the empty-state copy
@@ -148,10 +148,10 @@ describe("Workspace surface audit — LABEL_CLARIFICATION changes", () => {
     expect(entry).not.toMatch(/label:\s*"Intelligence Platform"/);
   });
 
-  it("workspace.trust_center label is the clarified 'Trust & Compliance' (not 'Trust Center')", () => {
-    const entry = sliceRouteEntry("workspace.trust_center");
-    expect(entry).toMatch(/label:\s*"Trust & Compliance"/);
-    expect(entry).not.toMatch(/label:\s*"Trust Center"/);
+  it("workspace.trust label is the canonical 'Trust Center' entry", () => {
+    const entry = sliceRouteEntry("workspace.trust");
+    expect(entry).toMatch(/href:\s*"\/trust"/);
+    expect(entry).toMatch(/label:\s*"Trust Center"/);
   });
 });
 

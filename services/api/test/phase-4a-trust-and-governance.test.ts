@@ -792,7 +792,7 @@ describe("Phase 4A — HTTP routes", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase 4A — UI surfaces + nav registry", () => {
-  it("Trust Center landing exists with bounded anchors", () => {
+  it("Trust Center landing redirects to canonical /trust", () => {
     const path = fileURLToPath(
       new URL(
         "../../../apps/web/app/(app)/trust-center/page.tsx",
@@ -800,10 +800,7 @@ describe("Phase 4A — UI surfaces + nav registry", () => {
       ),
     );
     const src = readFileSync(path, "utf8");
-    expect(src).toContain("data-trust-center");
-    expect(src).toContain("data-trust-center-nav");
-    expect(src).toContain("data-trust-center-section-list");
-    expect(src).toContain("/v1/trust/articles");
+    expect(src).toContain("redirect(\"/trust\")");
   });
 
   it("Methodology page exists", () => {
@@ -915,8 +912,8 @@ describe("Phase 4A — UI surfaces + nav registry", () => {
       ),
     );
     const src = readFileSync(path, "utf8");
-    expect(src).toContain("workspace.trust_center");
-    expect(src).toContain("/trust-center");
+    expect(src).toContain("workspace.trust");
+    expect(src).toContain("/trust");
     expect(src).toContain("workspace.governance_platform");
     expect(src).toContain("/governance-platform");
   });

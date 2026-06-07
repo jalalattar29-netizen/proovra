@@ -226,13 +226,15 @@ function mapTimestamptz(col: string, nullable = true): RegExp {
       );
 }
 
-function mapUuid(col: string): RegExp {
-  return new RegExp(`String\\?\\s+@map\\("${col}"\\)\\s+@db\\.Uuid`);
+function mapUuid(col: string, nullable = true): RegExp {
+  return new RegExp(
+    `String${nullable ? "\\?" : ""}\\s+@map\\("${col}"\\)\\s+@db\\.Uuid`,
+  );
 }
 
-function mapVarchar(col: string, len: number): RegExp {
+function mapVarchar(col: string, len: number, nullable = true): RegExp {
   return new RegExp(
-    `String\\?\\s+@map\\("${col}"\\)\\s+@db\\.VarChar\\(${len}\\)`,
+    `String${nullable ? "\\?" : ""}\\s+@map\\("${col}"\\)\\s+@db\\.VarChar\\(${len}\\)`,
   );
 }
 
@@ -242,8 +244,8 @@ function mapBoolean(col: string): RegExp {
   );
 }
 
-function mapJson(col: string): RegExp {
-  return new RegExp(`Json\\?\\s+@map\\("${col}"\\)`);
+function mapJson(col: string, nullable = true): RegExp {
+  return new RegExp(`Json${nullable ? "\\?" : ""}\\s+@map\\("${col}"\\)`);
 }
 
 const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
@@ -288,7 +290,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "component_keys",
     typeRe: /JSONB/,
     model: "StatusIncident",
-    mapRe: mapJson("component_keys"),
+    mapRe: mapJson("component_keys", false),
   },
   {
     migrationId: "20270805000000_phase2_drift_repair_trust_status",
@@ -312,7 +314,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "team_id",
     typeRe: /UUID/,
     model: "StatusIncidentUpdate",
-    mapRe: mapUuid("team_id"),
+    mapRe: /String\s+@map\("team_id"\)\s+@db\.Uuid/,
   },
   {
     migrationId: "20270805000000_phase2_drift_repair_trust_status",
@@ -320,7 +322,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "team_id",
     typeRe: /UUID/,
     model: "MaintenanceWindow",
-    mapRe: mapUuid("team_id"),
+    mapRe: mapUuid("team_id", false),
   },
   {
     migrationId: "20270805000000_phase2_drift_repair_trust_status",
@@ -329,8 +331,8 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     typeRe: /VARCHAR\(20\)/,
     model: "MaintenanceWindow",
     // Inline declaration — no @map (column name matches field) — so look for
-    // the bare field with @db.VarChar(20).
-    mapRe: /state\s+String\?\s+@db\.VarChar\(20\)/,
+    // the bare field with @db.VarChar(20), allowing the Prisma client default.
+    mapRe: /state\s+String(?:\s+@default\("SCHEDULED"\))?\s+@db\.VarChar\(20\)/,
   },
   {
     migrationId: "20270805000000_phase2_drift_repair_trust_status",
@@ -338,7 +340,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "description",
     typeRe: /VARCHAR\(600\)/,
     model: "MaintenanceWindow",
-    mapRe: /description\s+String\?\s+@db\.VarChar\(600\)/,
+    mapRe: /description\s+String\s+@db\.VarChar\(600\)/,
   },
   {
     migrationId: "20270805000000_phase2_drift_repair_trust_status",
@@ -346,7 +348,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "component_keys",
     typeRe: /JSONB/,
     model: "MaintenanceWindow",
-    mapRe: mapJson("component_keys"),
+    mapRe: mapJson("component_keys", false),
   },
   {
     migrationId: "20270805000000_phase2_drift_repair_trust_status",

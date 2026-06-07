@@ -143,6 +143,7 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
     // P1 contract test pins the file content + docstring endpoint
     // list, separate scope from this closure).
     { page: "settings/security/saml/page.tsx", reason: "P1.1 canonical redirect to /security-center/sso — no body to gate", revisitPhase: "PERMANENT" },
+    { page: "trust-center/page.tsx", reason: "canonical backward-compatible redirect to /trust — no body to gate", revisitPhase: "PERMANENT" },
 
     // Legacy operator page. CR1 inspected and deferred:
     // a real ~600 LoC operational console (not dead code).

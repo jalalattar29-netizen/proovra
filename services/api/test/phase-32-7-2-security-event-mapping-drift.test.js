@@ -481,6 +481,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
             // Pure additive (CREATE TABLE IF NOT EXISTS + ADD COLUMN IF NOT EXISTS);
             // zero DROP / RENAME / TRUNCATE / DELETE / UPDATE / REVOKE statements.
             "20270809000000_phase_2_1_final_drift_closure",
+            "20270819000000_phase_t_trust_center_versions_published_at_repair",
+            "20270819010000_phase_t_subprocessor_versions_runtime_repair",
         ]);
         const newer = entries.filter((name) => {
             const m = name.match(/^(\d{14})/);

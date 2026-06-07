@@ -22,10 +22,11 @@
  *     against the canonical STATUS_COMPONENT_KEYS shared enum;
  *     ensureStatusComponentsSeed lazy-called from projectStatusPage).
  *
- *   Stream D — Trust Center landing 7-tile summary band; methodology
- *     page legal cross-link; 4-phase LoadState machine in the shared
- *     _section-list component; implementation references collapsed
- *     under a <details> summary.
+ *   Stream D — canonical /trust landing + backward-compatible
+ *     /trust-center redirect; methodology page legal cross-link;
+ *     4-phase LoadState machine in the shared _section-list
+ *     component; implementation references collapsed under a
+ *     <details> summary.
  *
  * Plus bounded GUARDs:
  *   * Sentry-batch repair migration present + allowlisted.
@@ -71,7 +72,8 @@ const STATUS_SERVICE = readRepo(
 const ROUTES = readRepo(
   "services/api/src/routes/trust-and-governance.routes.ts",
 );
-const LANDING = readRepo("apps/web/app/(app)/trust-center/page.tsx");
+const TRUST_PAGE = readRepo("apps/web/app/(app)/trust/page.tsx");
+const REDIRECT_LANDING = readRepo("apps/web/app/(app)/trust-center/page.tsx");
 const METHODOLOGY_PAGE = readRepo(
   "apps/web/app/(app)/trust-center/methodology/page.tsx",
 );
@@ -361,7 +363,8 @@ describe("(14) No Trust v2 route / page exists", () => {
     expect(SUBPROCESSOR_SERVICE).not.toMatch(/trust[-_]center[-_]v2/);
     expect(STATUS_SERVICE).not.toMatch(/trust[-_]center[-_]v2/);
     expect(ROUTES).not.toMatch(/trust[-_]center[-_]v2/);
-    expect(LANDING).not.toMatch(/trust[-_]center[-_]v2/);
+    expect(TRUST_PAGE).not.toMatch(/trust[-_]center[-_]v2/);
+    expect(REDIRECT_LANDING).not.toMatch(/trust[-_]center[-_]v2/);
     expect(STATUS_PAGE).not.toMatch(/trust[-_]center[-_]v2/);
     expect(METHODOLOGY_PAGE).not.toMatch(/trust[-_]center[-_]v2/);
     expect(SECTION_LIST).not.toMatch(/trust[-_]center[-_]v2/);
@@ -436,8 +439,10 @@ describe("(16) No fake certification claims in trust-center.service.ts", () => {
 
 describe("(17) No raw stack traces / env names in Trust pages", () => {
   it("landing page does not surface .stack or process.env.", () => {
-    expect(LANDING).not.toMatch(/\.stack\b/);
-    expect(LANDING).not.toMatch(/process\.env\./);
+    expect(TRUST_PAGE).not.toMatch(/\.stack\b/);
+    expect(TRUST_PAGE).not.toMatch(/process\.env\./);
+    expect(REDIRECT_LANDING).not.toMatch(/\.stack\b/);
+    expect(REDIRECT_LANDING).not.toMatch(/process\.env\./);
   });
   it("status page does not surface .stack or process.env.", () => {
     expect(STATUS_PAGE).not.toMatch(/\.stack\b/);
@@ -486,11 +491,10 @@ describe("(18) Trust pages render distinct branches per load state", () => {
     expect(AI_DISCLOSURE_PAGE).toMatch(/TrustCenterSectionList/);
     expect(SECURITY_PAGE).toMatch(/TrustCenterSectionList/);
   });
-  it("landing renders distinct branches for empty articles vs populated grid", () => {
-    // The landing's empty branch surfaces a copy-explainable
-    // bounded message instead of leaving the grid blank.
-    expect(LANDING).toMatch(/articles\.length\s*===\s*0/);
-    expect(LANDING).toMatch(/No published articles/);
+  it("canonical /trust renders a real card grid and /trust-center redirects there", () => {
+    expect(TRUST_PAGE).toMatch(/data-trust-section="cards"/);
+    expect(TRUST_PAGE).toMatch(/data-trust-card/);
+    expect(REDIRECT_LANDING).toMatch(/redirect\("\/trust"\)/);
   });
 });
 
@@ -515,33 +519,24 @@ describe("(19) Sentry-batch repair migration is present + allowlisted", () => {
 });
 
 // ===========================================================================
-// BOUNDED GUARD (20) — Landing has 7-tile summary band
+// BOUNDED GUARD (20) — Canonical /trust page exposes the enterprise card grid
 // ===========================================================================
 
-describe("(20) Trust Center landing has a 7-tile summary band", () => {
-  it("landing carries the summary-band container attribute", () => {
-    expect(LANDING).toMatch(/data-trust-center-summary-band/);
+describe("(20) Canonical /trust page exposes the enterprise card grid", () => {
+  it("/trust stays wrapped in the canonical PageRouteGate", () => {
+    expect(TRUST_PAGE).toMatch(/PageRouteGate\s+routeId="workspace\.trust"/);
   });
-  it("landing renders >= 7 SummaryTile invocations inside the summary band", () => {
-    // The 7 tiles render via 7 `<SummaryTile slug=...` invocations in
-    // the band JSX. The shared component body declares the
-    // `data-trust-center-summary-tile={slug}` attribute ONCE — so we
-    // count call sites (slug values) instead of literal attribute
-    // occurrences. >= 7 = honest band-exists signal.
-    const callSites = LANDING.match(/<SummaryTile\b/g) ?? [];
-    expect(callSites.length).toBeGreaterThanOrEqual(7);
-    // Belt-and-braces: the attribute literal must appear at least
-    // once (component implementation present).
-    expect(LANDING).toMatch(/data-trust-center-summary-tile/);
+  it("/trust renders a non-empty set of trust cards", () => {
+    const cards = TRUST_PAGE.match(/title:\s*"/g) ?? [];
+    expect(cards.length).toBeGreaterThanOrEqual(12);
   });
-  it("landing renders all 7 expected tile slugs", () => {
-    expect(LANDING).toMatch(/slug="methodology"/);
-    expect(LANDING).toMatch(/slug="ai-disclosure"/);
-    expect(LANDING).toMatch(/slug="security"/);
-    expect(LANDING).toMatch(/slug="subprocessors"/);
-    expect(LANDING).toMatch(/slug="status"/);
-    expect(LANDING).toMatch(/slug="legal"/);
-    expect(LANDING).toMatch(/slug="verify"/);
+  it("/trust includes the required enterprise-facing disclosures and operator links", () => {
+    expect(TRUST_PAGE).toMatch(/title:\s*"AI transparency"/);
+    expect(TRUST_PAGE).toMatch(/title:\s*"Security documentation"/);
+    expect(TRUST_PAGE).toMatch(/title:\s*"Subprocessors"/);
+    expect(TRUST_PAGE).toMatch(/title:\s*"Recovery validation"/);
+    expect(TRUST_PAGE).toMatch(/href:\s*"\/trust-center\/ai-disclosure"/);
+    expect(TRUST_PAGE).toMatch(/href:\s*"\/trust-center\/security"/);
   });
 });
 

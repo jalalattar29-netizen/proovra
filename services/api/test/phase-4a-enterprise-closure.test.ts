@@ -857,7 +857,7 @@ describe("Phase 4A Closure — department scope", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase 4A Closure — security claim drift detection", () => {
-  it("runSecurityClaimChecks persists one row per SECURITY section + SCIM is UNAVAILABLE", async () => {
+  it("runSecurityClaimChecks persists one row per SECURITY section + SCIM is PARTIAL", async () => {
     const { runSecurityClaimChecks } = await import(
       "../src/services/trust/security-claim-check.service.js"
     );
@@ -890,8 +890,8 @@ describe("Phase 4A Closure — security claim drift detection", () => {
     expect(upserted.length).toBe(SECURITY_SECTIONS.length);
     const scim = projections.find((p) => p.controlKey === "SCIM");
     expect(scim).toBeDefined();
-    expect(scim?.confidence).toBe("UNAVAILABLE");
-    expect(scim?.limitation).toBe("scim_provisioning_via_idp_only");
+    expect(scim?.confidence).toBe("PARTIAL");
+    expect(scim?.limitation).toBe("scim_subset_routes_require_configuration");
   });
 });
 
@@ -1031,11 +1031,10 @@ describe("Phase 4A Closure — UI completion", () => {
     expect(srcExists(relPath)).toBe(true);
   });
 
-  it("trust-center page imports DriftBadge", () => {
+  it("trust-center landing redirects to canonical /trust", () => {
     const src = readSrc(
       "../../../apps/web/app/(app)/trust-center/page.tsx",
     );
-    expect(src).toContain("DriftBadge");
-    expect(src).toContain("_drift-badge");
+    expect(src).toContain("redirect(\"/trust\")");
   });
 });

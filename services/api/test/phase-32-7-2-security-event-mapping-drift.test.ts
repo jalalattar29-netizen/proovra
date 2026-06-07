@@ -659,6 +659,12 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Trust Center seed and status projection path. Pure additive,
       // bounded to development drift repair.
       "20270818030000_phase_t_trust_center_drift_repair",
+      // Phase T — repair missing published_at support on trust center
+      // article versions so canonical publish-state reads stop failing.
+      "20270819000000_phase_t_trust_center_versions_published_at_repair",
+      // Phase T — repair missing published_at support on subprocessor
+      // versions so canonical trust disclosures project cleanly.
+      "20270819010000_phase_t_subprocessor_versions_runtime_repair",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

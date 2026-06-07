@@ -160,7 +160,7 @@ export async function projectGovernanceDashboard(input) {
     // Security health — real signals where available.
     // mfaCoveragePct: fraction of workspace members with at least one
     // ACTIVE MfaFactor. Uses TeamMember (the schema model) not TeamMembership.
-    const [totalUsers, usersWithMfa] = await Promise.all([
+    const [totalUsers, usersWithMfa, activeSsoConnections, activeScimTokens, orgSecurityPolicy] = await Promise.all([
         prisma.teamMember
             .count({ where: { teamId: input.teamId } })
             .catch(() => 0),
@@ -170,19 +170,39 @@ export async function projectGovernanceDashboard(input) {
                 status: "ACTIVE",
                 user: { teamMembers: { some: { teamId: input.teamId } } },
             },
-            distinct: ["userId"],
-            select: { userId: true },
-        })
+                distinct: ["userId"],
+                select: { userId: true },
+            })
             .catch(() => []),
+        prisma.ssoConnection
+            .count({
+            where: {
+                teamId: input.teamId,
+                status: { notIn: ["DISABLED", "REVOKED", "PENDING"] },
+            },
+        })
+            .catch(() => 0),
+        prisma.scimProvisioningToken
+            .count({
+            where: {
+                teamId: input.teamId,
+                status: "ACTIVE",
+            },
+        })
+            .catch(() => 0),
+        prisma.organizationSecurityPolicy
+            .findUnique({
+            where: { teamId: input.teamId },
+            select: { ssoReadyFlag: true, scimReadyFlag: true },
+        })
+            .catch(() => null),
     ]);
     const usersWithMfaCount = Array.isArray(usersWithMfa) ? usersWithMfa.length : 0;
     const mfaCoveragePct = totalUsers > 0
         ? Math.round((usersWithMfaCount / totalUsers) * 100)
         : 0;
-    // samlEnabled: no SamlConnection model in current schema. Bounded honest.
-    const samlEnabled = false;
-    // scimEnabled: no SCIM endpoint in current codebase. Bounded honest.
-    const scimEnabled = false;
+    const samlEnabled = activeSsoConnections > 0 || orgSecurityPolicy?.ssoReadyFlag === true;
+    const scimEnabled = activeScimTokens > 0 || orgSecurityPolicy?.scimReadyFlag === true;
     // policyViolations: real counts from intelligenceActivityEvent where code
     // IN ('POLICY_VIOLATION','POLICY_BLOCK') — these are also written by the
     // governance policy audit. The governancePolicyAudit table is already

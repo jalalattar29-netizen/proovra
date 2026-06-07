@@ -148,7 +148,7 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
   {
     id: "trust",
     segment: "trust",
-    label: "Trust",
+    label: "Trust Center",
     description:
       "Trust Center + subprocessors summary. Canonical pages live in Trust Center.",
   },

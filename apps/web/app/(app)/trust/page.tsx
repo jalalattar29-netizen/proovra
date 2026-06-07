@@ -81,11 +81,6 @@ const TRUST_CARDS: ReadonlyArray<TrustCard> = [
     href: "/subprocessors",
   },
   {
-    title: "Verification references",
-    body: "Workspace-published Trust Center, methodology, AI disclosure, security, and subprocessor references that back verify views and verification packages.",
-    href: "/verify-references",
-  },
-  {
     title: "Privacy policy",
     body: "How PROOVRA collects, uses, and retains personal data. GDPR + UK DPA + CCPA aligned.",
     href: "/privacy",
@@ -101,18 +96,6 @@ const TRUST_CARDS: ReadonlyArray<TrustCard> = [
   // Visibility decided by the resolver downstream; cards are rendered
   // for everyone here and the underlying pages enforce capability.
   // ---------------------------------------------------------------------
-  {
-    title: "Signer health",
-    body: "KMS signer registry, current key set, rotation lineage, last successful signature timestamp. The signing surface that backs every Capture Signature + countersignature.",
-    href: "/operations/signers",
-    requires: "OPS_CENTER_VIEW",
-  },
-  {
-    title: "C2PA generation readiness",
-    body: "C2PA manifest generation readiness: provider binary, signing certificate, signing key, generation targets. Shows the bounded readiness state without revealing key bytes.",
-    href: "/operations/c2pa",
-    requires: "OPS_CENTER_VIEW",
-  },
   {
     title: "Reproducible exports",
     body: "Export manifests + reproducibility checks. Every exported bundle can be reconstructed deterministically from cold storage.",

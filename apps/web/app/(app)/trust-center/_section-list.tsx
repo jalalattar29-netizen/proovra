@@ -29,7 +29,28 @@ type LoadState =
   | { phase: "loading" }
   | { phase: "loaded"; articles: ReadonlyArray<TrustArticleProjection> }
   | { phase: "empty" }
+  | { phase: "degraded"; reason: string }
   | { phase: "error"; message: string };
+
+type TrustArticleListResponse = {
+  articles?: ReadonlyArray<TrustArticleProjection> | null;
+  degraded?: boolean;
+  reason?: string | null;
+};
+
+function degradedMessage(reason: string) {
+  switch (reason) {
+    case "SCHEMA_NOT_READY":
+      return "This Trust Center section is temporarily degraded because the required backend schema is not ready yet.";
+    case "DB_UNAVAILABLE":
+      return "This Trust Center section is temporarily degraded because the database is unavailable.";
+    case "ARTICLE_AUTO_SEED_FAILED":
+      return "This Trust Center section is temporarily degraded because the canonical seed content could not be prepared.";
+    case "ARTICLE_READ_FAILED":
+    default:
+      return "This Trust Center section is temporarily degraded because trust content could not be loaded safely.";
+  }
+}
 
 export function TrustCenterSectionList({
   kind,
@@ -49,9 +70,16 @@ export function TrustCenterSectionList({
     setBusy(true);
     setState({ phase: "loading" });
     try {
-      const res = await apiFetch(`/v1/trust/articles?kind=${kind}`, {
+      const res = (await apiFetch(`/v1/trust/articles?kind=${kind}`, {
         method: "GET",
-      });
+      })) as TrustArticleListResponse | null;
+      if (res?.degraded) {
+        setState({
+          phase: "degraded",
+          reason: String(res.reason ?? "ARTICLE_READ_FAILED"),
+        });
+        return;
+      }
       const list = (res?.articles ?? []) as ReadonlyArray<
         TrustArticleProjection
       >;
@@ -150,6 +178,28 @@ export function TrustCenterSectionList({
           }}
         >
           {state.message}
+        </div>
+      ) : null}
+
+      {state.phase === "degraded" ? (
+        <div
+          data-trust-center-page-phase="degraded"
+          data-trust-center-page-reason={state.reason}
+          style={{
+            padding: 12,
+            background: "rgba(148, 163, 184, 0.10)",
+            border: "1px solid rgba(148, 163, 184, 0.28)",
+            borderRadius: 8,
+            color: "#334155",
+            fontSize: 12,
+            display: "grid",
+            gap: 6,
+          }}
+        >
+          <div>{degradedMessage(state.reason)}</div>
+          <div>
+            Reason: <code>{state.reason}</code>
+          </div>
         </div>
       ) : null}
 

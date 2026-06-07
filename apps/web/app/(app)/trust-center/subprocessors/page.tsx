@@ -21,15 +21,45 @@ export default function SubprocessorsPage() {
 
 function Shell() {
   const [rows, setRows] = useState<ReadonlyArray<SubprocessorProjection>>([]);
+  const [reason, setReason] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  function degradedMessage(code: string) {
+    switch (code) {
+      case "SCHEMA_NOT_READY":
+        return "The Subprocessor Registry is temporarily degraded because the required backend schema is not ready yet.";
+      case "DB_UNAVAILABLE":
+        return "The Subprocessor Registry is temporarily degraded because the database is unavailable.";
+      case "SUBPROCESSOR_AUTO_SEED_FAILED":
+        return "The Subprocessor Registry is temporarily degraded because the canonical vendor seed could not be prepared.";
+      case "SUBPROCESSOR_READ_FAILED":
+      default:
+        return "The Subprocessor Registry is temporarily degraded because subprocessors could not be loaded safely.";
+    }
+  }
 
   const refresh = useCallback(async () => {
     setBusy(true);
+    setFailed(null);
     try {
       const res = await apiFetch("/v1/trust/subprocessors", { method: "GET" });
+      if ((res as { degraded?: boolean } | null)?.degraded) {
+        setRows([]);
+        setReason(
+          String(
+            (res as { reason?: string | null } | null)?.reason ??
+              "SUBPROCESSOR_READ_FAILED",
+          ),
+        );
+        return;
+      }
+      setReason(null);
       setRows((res?.subprocessors ?? []) as ReadonlyArray<SubprocessorProjection>);
     } catch {
       setRows([]);
+      setReason(null);
+      setFailed("Subprocessors could not be loaded. Press Refresh to try again.");
     } finally {
       setBusy(false);
     }
@@ -37,11 +67,12 @@ function Shell() {
 
   const seedDefaults = useCallback(async () => {
     setBusy(true);
+    setFailed(null);
     try {
       await apiFetch("/v1/trust/subprocessors/seed", { method: "POST" });
       await refresh();
     } catch {
-      /* swallow */
+      setFailed("The canonical subprocessor seed could not be applied.");
     } finally {
       setBusy(false);
     }
@@ -97,6 +128,44 @@ function Shell() {
       </div>
 
       <section style={{ background: "#fff", border: "1px solid rgba(15, 23, 42, 0.08)", borderRadius: 10, padding: 8, overflowX: "auto" }}>
+        {reason ? (
+          <div
+            data-subprocessors-phase="degraded"
+            data-subprocessors-reason={reason}
+            style={{
+              marginBottom: 8,
+              padding: 12,
+              background: "rgba(148, 163, 184, 0.10)",
+              border: "1px solid rgba(148, 163, 184, 0.28)",
+              borderRadius: 8,
+              color: "#334155",
+              fontSize: 12,
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            <div>{degradedMessage(reason)}</div>
+            <div>
+              Reason: <code>{reason}</code>
+            </div>
+          </div>
+        ) : null}
+        {failed ? (
+          <div
+            data-subprocessors-phase="error"
+            style={{
+              marginBottom: 8,
+              padding: 12,
+              background: "rgba(185, 28, 28, 0.06)",
+              border: "1px solid rgba(185, 28, 28, 0.20)",
+              borderRadius: 8,
+              color: "#7f1d1d",
+              fontSize: 12,
+            }}
+          >
+            {failed}
+          </div>
+        ) : null}
         <table data-subprocessors-table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
             <tr style={{ textAlign: "left", color: "#475569" }}>
@@ -112,7 +181,7 @@ function Shell() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {rows.length === 0 && !reason && !failed ? (
               <tr><td colSpan={9} style={{ ...td, color: "#475569" }}>No subprocessors registered.</td></tr>
             ) : (
               rows.map((r) => (

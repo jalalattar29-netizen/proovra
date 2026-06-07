@@ -854,11 +854,13 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "provider-status",
     title: "Provider status",
     summary:
-      "Live probe state per provider is exposed via /v1/intelligence/providers/health and surfaced on the Intelligence Platform landing. Bounded states: READY, NOT_CONFIGURED, DISABLED_BY_POLICY, RATE_LIMITED, BUDGET_EXCEEDED, ERROR.",
+      "Live probe state per provider is exposed via /v1/intelligence/providers/health and surfaced on the Intelligence Platform landing. Bounded states: READY, NOT_CONFIGURED, DISABLED_BY_POLICY, RATE_LIMITED, BUDGET_EXCEEDED, ERROR. Providers can be deliberately disabled without removing the rest of the trust/audit trail.",
     body:
-      "Each ProviderAdapter exposes a probe that reports its current binding state. The orchestrator never asserts READY by default — NOT_CONFIGURED is the honest verdict when credentials are absent. DISABLED_BY_POLICY surfaces when a governance policy has switched the provider off for the workspace. RATE_LIMITED + BUDGET_EXCEEDED degrade callers gracefully; ERROR surfaces the last bounded error code for operator triage. The status feeds the Intelligence Platform landing card so reviewers know in advance whether AI assistance will be available before they start a case.",
+      "Each ProviderAdapter exposes a probe that reports its current binding state. The orchestrator never asserts READY by default — NOT_CONFIGURED is the honest verdict when credentials are absent. DISABLED_BY_POLICY surfaces when a governance policy has switched the provider off for the workspace. RATE_LIMITED + BUDGET_EXCEEDED degrade callers gracefully; ERROR surfaces the last bounded error code for operator triage. Disabling a provider stops future calls; it does not delete the existing provider_usage_events, intelligence_activity_events, or reviewer correction history already recorded for prior work. The status feeds the Intelligence Platform landing card so reviewers know in advance whether AI assistance will be available before they start a case.",
     implementationReferences: [
       "services/api/src/services/intelligence/providers/provider-adapter.ts",
+      "services/api/src/services/intelligence/provider-usage.service.ts",
+      "services/api/src/services/intelligence/intelligence-activity.service.ts",
     ],
     policyTags: ["PROVIDER_STATUS"],
   },
@@ -868,11 +870,14 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "ai-activity-transparency",
     title: "AI activity transparency",
     summary:
-      "Every provider call writes a provider_usage_events row + an intelligence_activity_events lifecycle row. The Audit & Transparency Center federates both alongside reviewer corrections, redaction activity, policy audit, video timeline, and external review activity.",
+      "Every provider call writes a provider_usage_events row + an intelligence_activity_events lifecycle row. The Audit & Transparency Center federates both alongside reviewer corrections, redaction activity, policy audit, video timeline, and external review activity. The stored audit trail is metadata-first: bounded identifiers, statuses, cost, failure reason, and timestamps.",
     body:
-      "Operators can answer 'when did this provider call happen, who initiated it, did it succeed, why did it fail, what did it cost' from one place. The federation surfaces bounded counts, ids, and labels — never raw provider payloads. Date-range filtering + trend math (executive-metrics service) lets operators detect anomalies and quality drift over time. The verification package includes a snapshot of the relevant audit slice so external auditors can reproduce the activity trail offline.",
+      "Operators can answer 'when did this provider call happen, who initiated it, did it succeed, why did it fail, what did it cost' from one place. The federation surfaces bounded counts, ids, and labels — never raw provider payloads, provider API secrets, or cross-workspace joins. provider_usage_events stores provider, operation, unit, cost, decision, evidence/case/project linkage, initiator, failure reason, and occurred_at_utc; intelligence_activity_events stores bounded lifecycle codes plus optional bounded payload JSON. Date-range filtering + trend math (executive-metrics service) lets operators detect anomalies and quality drift over time. The verification package includes a snapshot of the relevant audit slice so external auditors can reproduce the activity trail offline.",
     implementationReferences: [
       "services/api/src/services/intelligence/audit-transparency.service.ts",
+      "services/api/src/services/intelligence/provider-usage.service.ts",
+      "services/api/src/services/intelligence/intelligence-activity.service.ts",
+      "services/api/src/services/intelligence/intelligence-verification-manifest.service.ts",
     ],
     policyTags: ["AI_TRANSPARENCY"],
   },
@@ -915,11 +920,12 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "outbound-flag-default",
     title: "Outbound content default",
     summary:
-      "SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND defaults to FALSE. Outbound content (sending chunk text to an external embedding provider like OpenAI) requires explicit operator opt-in. The default posture is air-gapped semantic disabled — operators must affirmatively enable outbound traffic.",
+      "SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND defaults to FALSE. Outbound content (sending chunk text to an external embedding provider like OpenAI) requires explicit operator opt-in. The default posture is air-gapped semantic disabled — operators must affirmatively enable outbound traffic, and disabling it preserves keyword search plus existing local audit history.",
     body:
-      "The dual-gate (SEMANTIC_SEARCH_ENABLED + SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND) is enforced INSIDE every provider implementation that would talk to an external service (embedding-provider.ts:261 and :545) — not relied on at a single call site, so accidentally enabling one without the other still blocks outbound traffic. Operators who run on-prem or air-gapped deployments can leave outbound disabled and either run keyword-only or wire a local embedding model in future. This default reflects PROOVRA's posture: customer data does not leave the platform without an explicit operator decision documented in env config + audit logs.",
+      "The dual-gate (SEMANTIC_SEARCH_ENABLED + SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND) is enforced INSIDE every provider implementation that would talk to an external service (embedding-provider.ts:261 and :545) — not relied on at a single call site, so accidentally enabling one without the other still blocks outbound traffic. Operators who run on-prem or air-gapped deployments can leave outbound disabled and either run keyword-only or wire a local embedding model in future. When outbound is disabled, the system records the disabled posture honestly rather than pretending semantic AI is available. This default reflects PROOVRA's posture: customer data does not leave the platform without an explicit operator decision documented in env config + audit logs.",
     implementationReferences: [
       "services/api/src/services/search/embedding-provider.ts",
+      "services/api/src/services/search/evidence-search.service.ts",
     ],
     policyTags: ["SEMANTIC_SEARCH", "OUTBOUND_DEFAULT"],
   },
@@ -948,13 +954,14 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "authorization",
     title: "Authorization",
     summary:
-      "RBAC + delegated-admin tiers + per-resource capability checks. Every route requires an explicit capability check; server-side enforcement is the source of truth.",
+      "RBAC + delegated-admin tiers + per-resource capability checks. Every route requires an explicit capability check; server-side enforcement is the source of truth. Administrative actions are further bounded by access reviews and scope-aware revocation pathways.",
     body:
-      "Capabilities are computed from the user's workspace role, delegated admin tier (Global / Org / Department / Workspace / Reviewer Lead / Security Officer / Compliance Officer), department scope membership, and per-resource permissions. The rbac-engine.service.ts evaluates capability requirements against the resolved actor context; identity/rbac.service.ts surfaces the role-to-capability projection that drives the UI's visibility hints. UI hints are never trusted: every mutation re-checks server-side. Denied requests emit a bounded denial code so operators can audit who attempted what.",
+      "Capabilities are computed from the user's workspace role, delegated admin tier (Global / Org / Department / Workspace / Reviewer Lead / Security Officer / Compliance Officer), department scope membership, and per-resource permissions. The rbac-engine.service.ts evaluates capability requirements against the resolved actor context; identity/rbac.service.ts surfaces the role-to-capability projection that drives the UI's visibility hints. UI hints are never trusted: every mutation re-checks server-side. Access reviews act as the administrative backstop: REVOKED decisions propagate into delegated-admin grants and external-reviewer assignments so over-broad access can be removed through an append-only review workflow. Denied requests emit a bounded denial code so operators can audit who attempted what.",
     implementationReferences: [
       "services/api/src/services/access-control/rbac-engine.service.ts",
       "services/api/src/services/identity/rbac.service.ts",
       "services/api/src/services/governance/delegated-admin.service.ts",
+      "services/api/src/services/governance/access-review.service.ts",
     ],
     policyTags: ["AUTHZ"],
   },
@@ -1014,14 +1021,17 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "scim",
     title: "SCIM provisioning",
     summary:
-      "SCIM 2.0 provisioning is on the enterprise roadmap and is NOT GENERALLY AVAILABLE today. Operator provisioning currently flows through workspace invitations + SAML JIT provisioning for SSO-bound external reviewers.",
+      "SCIM 2.0 user + group provisioning routes, token management, drift preview/reconciliation, and sync-failure replay exist in the product today. Availability remains configuration-dependent and the supported subset is intentionally bounded.",
     body:
-      "PROOVRA's enterprise identity story today: (1) workspace members invited via the Phase 5/6 collaboration invitation pipeline, (2) SAML JIT (just-in-time) provisioning for external-reviewer SSO bindings via saml-user-mapping.service.ts. Full SCIM 2.0 (Users + Groups endpoints, automated deprovisioning) is planned and will be surfaced under this section when shipped. Until then, deprovisioning runs through Access Reviews (access-review.service.ts) — REVOKED decisions actually revoke delegated-admin grants and external-reviewer role assignments via the propagation pathway.",
+      "PROOVRA exposes token-authenticated `/v2/scim` routes for Users and Groups, backed by scoped `ScimProvisioningToken` credentials, soft deprovisioning, and audit emission. Operators manage tokens, reconciliation preview/execute, and sync-failure replay from the SCIM Operations Center. The implementation is intentionally bounded rather than full-RFC-complete: PATCH support is limited, provisioning still requires operator configuration, and workspace readiness can remain disabled until the org explicitly enables the posture.",
     implementationReferences: [
-      "services/api/src/services/governance/access-review.service.ts",
-      "services/api/src/services/security/saml-user-mapping.service.ts",
+      "services/api/src/routes/scim.routes.ts",
+      "services/api/src/services/access-control/scim.service.ts",
+      "services/api/src/services/access-control/scim-groups.service.ts",
+      "services/api/src/services/access-control/scim-reconciliation.service.ts",
+      "apps/web/app/(app)/admin/identity/scim/page.tsx",
     ],
-    policyTags: ["SCIM", "status:planned"],
+    policyTags: ["SCIM", "status:partial"],
   },
   {
     kind: "SECURITY",
@@ -1044,11 +1054,13 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "kms",
     title: "Key management posture",
     summary:
-      "Key management is deferred: a canonical signer registry tracks signing key identifiers (report PDF, verification package, export manifest, custody event) as a read-model over env config + SecurityEvent history. AWS KMS is supported when SIGNER_PROVIDER=aws_kms; otherwise local PEM or disabled.",
+      "Signing keys are surfaced through a canonical signer registry, and AWS KMS-backed signing is supported for evidence fingerprints and package manifests when `SIGNER_PROVIDER=aws_kms`. Storage-level customer-managed keys remain an operator-owned infrastructure choice outside the app.",
     body:
-      "The signer-registry.service.ts read-model surfaces the active signer (provider, keyId, keyVersion, kmsKeyArn when applicable) plus the rotation history derived from signer_staged / signer_promoted / signer_retired / signer_revoked audit events. PROOVRA-managed KMS encryption for storage is not currently configured — operators wanting customer-managed keys configure them at the storage provider level. Private key material is never returned by any API; only operator-safe references (ARN / keyId / version) are exposed. Historical signed artefacts (Report.pdfSignerKeyId, VerificationPackage signing fields) are never mutated when keys rotate.",
+      "The signer-registry.service.ts read-model surfaces the active signer (provider, keyId, keyVersion, kmsKeyArn when applicable) plus rotation history derived from signer_staged / signer_promoted / signer_retired / signer_revoked audit events. kms-signer.ts performs AWS KMS Ed25519 signing without exposing private key material. PROOVRA does not currently manage bucket-level SSE-KMS or other storage CMKs in the application layer: operators who need that posture configure it at the storage provider.",
     implementationReferences: [
       "services/api/src/services/operations/signer-registry.service.ts",
+      "services/api/src/signing/kms-signer.ts",
+      "services/api/src/signing/signer.ts",
       "docs/security/signer-governance.md",
     ],
     policyTags: ["KMS", "status:partial"],
@@ -1108,12 +1120,13 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "access-controls",
     title: "Access controls",
     summary:
-      "Workspace anchoring at every read + write. Capability-keyed navigation. Server-side authorisation on every route. Rate limits (rate-limit.ts) gate sensitive endpoints. UI hints are never trusted: the server re-checks every mutation.",
+      "Workspace anchoring at every read + write. Capability-keyed navigation. Server-side authorisation on every route. Department scope constrains what a user can see inside a workspace. Rate limits (rate-limit.ts) gate sensitive endpoints. UI hints are never trusted: the server re-checks every mutation.",
     body:
-      "Every API route accepts a teamId from the authenticated session — there is no client-supplied workspace selector. Capability checks run via the rbac-engine.service.ts before any data is read or written, and the navigation projection only emits entries the actor's capability set covers. Department isolation narrows the read scope per resolveUserDepartmentScope so users see evidence only for their department membership unless they hold an unrestricted (org/global) tier. Rate limits (services/rate-limit.ts) use either Redis or an in-process memory bucket to throttle abusive endpoints, with cooldown for Redis outages.",
+      "Every API route accepts a teamId from the authenticated session — there is no client-supplied workspace selector. Capability checks run via the rbac-engine.service.ts before any data is read or written, and the navigation projection only emits entries the actor's capability set covers. Department isolation narrows the read scope per resolveUserDepartmentScope so users see evidence only for their department membership unless they hold an unrestricted (org/global) tier. This is PROOVRA's in-code tenant boundary: work is anchored to a workspace first, then optionally narrowed again by department scope. Rate limits (services/rate-limit.ts) use either Redis or an in-process memory bucket to throttle abusive endpoints, with cooldown for Redis outages.",
     implementationReferences: [
       "services/api/src/middleware/auth.ts",
       "services/api/src/services/access-control/rbac-engine.service.ts",
+      "services/api/src/services/governance/department-scope.service.ts",
       "services/api/src/services/rate-limit.ts",
     ],
     policyTags: ["ACCESS"],
@@ -1130,6 +1143,9 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     implementationReferences: [
       "services/api/src/services/trust/status-page.service.ts",
       "services/api/src/services/observability/otel.ts",
+      "services/api/src/services/trust/status-probes.service.ts",
+      "services/api/src/services/observability/provider.ts",
+      "services/worker/src/health.ts",
     ],
     policyTags: ["MONITORING"],
   },
@@ -1167,12 +1183,14 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "retention",
     title: "Retention",
     summary:
-      "Retention policies are governed by the Governance Policy registry (kind=RETENTION) with org / department / workspace scope + inheritance + override. Phase 4B legal hold + retention reconciliation worker enforce the configured windows.",
+      "Retention policies are first-class, versioned lifecycle objects with workspace / regulatory / evidence-type / case scope, inheritance, and append-only history. Reconciliation workers enforce the configured windows while active holds suspend destructive outcomes.",
     body:
-      "Operators define a RETENTION policy (governance-policy.service.ts) with a numeric retention window and an enforcement mode (BLOCK / WARN / AUDIT_ONLY). The Phase 4B retention reconciliation worker (RETENTION_RECONCILIATION_ENABLED env gate; default 15-minute interval) walks evidence rows whose retention window has elapsed and triggers the configured destruction or archive workflow. Legal holds (Phase 4B legal-hold.service.ts) suspend retention destruction until released. There is no default retention applied by PROOVRA — workspaces choose their own policy, and the absence of an applicable policy means evidence persists indefinitely until explicit operator action.",
+      "Operators create and version retention policies through retention-engine.service.ts, and lifecycle-orchestrator.service.ts remains the canonical writer of `Evidence.lifecycleState`. The governance reconciliation workers evaluate elapsed evidence, legal holds, and immutable retention before any destruction transition is attempted. There is no hidden global default: if a workspace does not configure an applicable policy, evidence persists until explicit operator action.",
     implementationReferences: [
-      "services/api/src/services/governance/governance-policy.service.ts",
-      "services/worker/src/index.ts",
+      "services/api/src/services/governance-lifecycle/retention-engine.service.ts",
+      "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts",
+      "services/api/src/services/lifecycle/legal-hold.service.ts",
+      "services/worker/src/governance/retention-reconciliation.worker.ts",
     ],
     policyTags: ["RETENTION"],
   },
@@ -1182,12 +1200,14 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "deletion",
     title: "Deletion",
     summary:
-      "Deletion runs through bounded workflows: governance policy enforcement, legal-hold gate, custody-event emission, and Object Lock retention check. Originals under Object Lock cannot be deleted until the retention window elapses. Every deletion request writes append-only audit rows.",
+      "Deletion runs through bounded lifecycle workflows: retention-policy evaluation, legal-hold gates, destruction reviews, destruction certificates, and lifecycle-ledger tombstoning. Originals under Object Lock cannot be deleted until retention eligibility is satisfied.",
     body:
-      "When a deletion request hits the API, the lifecycle pipeline checks (1) whether an active legal hold exists (legal-hold.service.ts blocks), (2) whether Object Lock retention has expired (bucket policy enforced by the storage provider regardless), (3) the governance retention policy verdict, and (4) the actor's delegated-admin tier. If all gates pass, a destruction event is recorded as a CustodyEvent with bounded payload + a TRUST_LIFECYCLE audit row. Verification packages exported before destruction remain offline-verifiable because the OTS proof, hash, and custody chain were captured at the time of export.",
+      "Destructive outcomes are gated twice: first by lifecycle-orchestrator.service.ts and then again by the destruction orchestrator worker at execution time. The worker emits a destruction certificate plus lineage hash, preserves tombstone rows, and records the DESTROYED transition through the lifecycle ledger rather than mutating history in place. Storage payload deletion is delegated to the existing purge processor, but the governance execution row captures the boundary and failure state so operators can audit the outcome end to end.",
     implementationReferences: [
-      "services/api/src/services/governance/governance-policy.service.ts",
-      "services/api/src/services/custody-events.service.ts",
+      "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts",
+      "services/api/src/services/lifecycle/legal-hold.service.ts",
+      "services/worker/src/governance/destruction-orchestrator.worker.ts",
+      "services/worker/src/governance/immutable-storage-reconciliation.worker.ts",
     ],
     policyTags: ["DELETION"],
   },

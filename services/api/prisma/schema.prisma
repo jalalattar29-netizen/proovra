@@ -9985,16 +9985,12 @@ model StatusComponent {
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  incidents StatusIncident[]
-
   @@unique([teamId, key], name: "teamId_key")
   @@map("status_components")
 }
 
 model StatusIncident {
   id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  // R7-trust: relaxed to nullable — services write incidents via componentKeys[] array, not a single component relation
-  componentId   String?   @map("component_id") @db.Uuid
   severity      String    @db.VarChar(20)
   state         String    @default("INVESTIGATING") @db.VarChar(30)
   title         String    @db.VarChar(300)
@@ -10002,17 +9998,15 @@ model StatusIncident {
   startedAtUtc  DateTime  @default(now()) @map("started_at_utc") @db.Timestamptz(6)
   resolvedAtUtc DateTime? @map("resolved_at_utc") @db.Timestamptz(6)
   // R7 additive
-  teamId        String?   @map("team_id") @db.Uuid
+  teamId        String    @map("team_id") @db.Uuid
   externalRef   String?   @map("external_ref") @db.VarChar(200)
-  componentKeys Json?     @map("component_keys")
+  componentKeys Json      @map("component_keys")
   postmortemUrl String?   @map("postmortem_url") @db.VarChar(600)
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  component StatusComponent?       @relation(fields: [componentId], references: [id], onDelete: Cascade)
   updates   StatusIncidentUpdate[]
 
-  @@index([componentId])
   @@map("status_incidents")
 }
 
@@ -10022,7 +10016,7 @@ model StatusIncidentUpdate {
   state            String   @db.VarChar(30)
   body             String   @db.VarChar(2000)
   // R7 additive
-  teamId           String?  @map("team_id") @db.Uuid
+  teamId           String   @map("team_id") @db.Uuid
   // R7-trust additive — service writes this on every update (status-page.service:150,186)
   authoredByUserId String?  @map("authored_by_user_id") @db.Uuid
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -10036,14 +10030,13 @@ model StatusIncidentUpdate {
 model MaintenanceWindow {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title         String   @db.VarChar(300)
-  body          String?  @db.VarChar(2000)
   startsAtUtc   DateTime @map("starts_at_utc") @db.Timestamptz(6)
   endsAtUtc     DateTime @map("ends_at_utc") @db.Timestamptz(6)
   // R7 additive
-  teamId        String?  @map("team_id") @db.Uuid
-  state         String?  @db.VarChar(20)
-  description   String?  @db.VarChar(600)
-  componentKeys Json?    @map("component_keys")
+  teamId        String   @map("team_id") @db.Uuid
+  state         String   @default("SCHEDULED") @db.VarChar(20)
+  description   String   @db.VarChar(600)
+  componentKeys Json     @map("component_keys")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

@@ -706,8 +706,8 @@ describe("Phase 4A — UI surfaces + nav registry", () => {
     it("nav registry exposes Trust Center + Governance Platform", () => {
         const path = fileURLToPath(new URL("../src/services/platform-context/navigation-registry.ts", import.meta.url));
         const src = readFileSync(path, "utf8");
-        expect(src).toContain("workspace.trust_center");
-        expect(src).toContain("/trust-center");
+        expect(src).toContain("workspace.trust");
+        expect(src).toContain("/trust");
         expect(src).toContain("workspace.governance_platform");
         expect(src).toContain("/governance-platform");
     });

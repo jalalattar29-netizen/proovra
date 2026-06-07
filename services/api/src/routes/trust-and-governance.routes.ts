@@ -150,6 +150,23 @@ async function resolveWorkspace(
   return { teamId: user.currentWorkspaceId, userId };
 }
 
+function trustDegradedReason(
+  err: unknown,
+  fallback:
+    | "ARTICLE_READ_FAILED"
+    | "ARTICLE_AUTO_SEED_FAILED"
+    | "SUBPROCESSOR_READ_FAILED"
+    | "SUBPROCESSOR_AUTO_SEED_FAILED",
+) {
+  const code =
+    err && typeof err === "object" && "code" in err
+      ? String((err as { code?: unknown }).code ?? "")
+      : "";
+  if (code === "P2021" || code === "P2022") return "SCHEMA_NOT_READY";
+  if (code === "P1001") return "DB_UNAVAILABLE";
+  return fallback;
+}
+
 const SECTION_ENUM_PER_KIND = {
   TRUST_CENTER: TRUST_CENTER_SECTIONS,
   METHODOLOGY: METHODOLOGY_SECTIONS,
@@ -176,11 +193,20 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
           state: z.enum(TRUST_ARTICLE_STATES).optional(),
         })
         .parse(req.query ?? {});
-      let articles = await listTrustArticles({
-        teamId: ctx.teamId,
-        kind: q.kind,
-        state: q.state,
-      });
+      let articles;
+      try {
+        articles = await listTrustArticles({
+          teamId: ctx.teamId,
+          kind: q.kind,
+          state: q.state,
+        });
+      } catch (err) {
+        return reply.code(200).send({
+          articles: [],
+          degraded: true,
+          reason: trustDegradedReason(err, "ARTICLE_READ_FAILED"),
+        });
+      }
       // Production fix — Trust Center auto-seed on empty workspace.
       //
       // The canonical 15+9+12+18 platform-trust articles are
@@ -212,8 +238,12 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
             kind: q.kind,
             state: q.state,
           });
-        } catch {
-          /* swallow — empty render is acceptable; do not 500 a GET */
+        } catch (err) {
+          return reply.code(200).send({
+            articles: [],
+            degraded: true,
+            reason: trustDegradedReason(err, "ARTICLE_AUTO_SEED_FAILED"),
+          });
         }
       }
       return reply.code(200).send({ articles });
@@ -352,10 +382,19 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       const q = z
         .object({ state: z.enum(SUBPROCESSOR_STATES).optional() })
         .parse(req.query ?? {});
-      let subprocessors = await listSubprocessors({
-        teamId: ctx.teamId,
-        state: q.state,
-      });
+      let subprocessors;
+      try {
+        subprocessors = await listSubprocessors({
+          teamId: ctx.teamId,
+          state: q.state,
+        });
+      } catch (err) {
+        return reply.code(200).send({
+          subprocessors: [],
+          degraded: true,
+          reason: trustDegradedReason(err, "SUBPROCESSOR_READ_FAILED"),
+        });
+      }
       // Production fix — Subprocessor registry auto-seed on empty
       // workspace. Same rationale as the articles GET above: the
       // canonical subprocessor list is platform documentation, not
@@ -372,8 +411,12 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
             teamId: ctx.teamId,
             state: q.state,
           });
-        } catch {
-          /* swallow — empty render is acceptable; do not 500 a GET */
+        } catch (err) {
+          return reply.code(200).send({
+            subprocessors: [],
+            degraded: true,
+            reason: trustDegradedReason(err, "SUBPROCESSOR_AUTO_SEED_FAILED"),
+          });
         }
       }
       return reply.code(200).send({ subprocessors });

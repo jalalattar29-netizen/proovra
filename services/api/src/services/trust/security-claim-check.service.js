@@ -14,9 +14,10 @@
  *     reference.
  *   * Workspace-anchored: every read + upsert is scoped by teamId.
  *   * Bounded vocabulary from `@proovra/shared/trust-and-governance.ts`.
- *   * Standing limitations for known structural gaps (SCIM, KMS,
- *     DELETION workflows, MONITORING module) are recorded explicitly
- *     so the Security Center never silently lies about coverage.
+ *   * Standing limitations for controls whose runtime is intentionally
+ *     bounded (for example, SCIM subset support or signing-only KMS)
+ *     are recorded explicitly so the Security Center never silently
+ *     overstates coverage.
  */
 import { existsSync } from "node:fs";
 import * as path from "node:path";
@@ -24,23 +25,13 @@ import { SECURITY_CONTROL_CONFIDENCE, SECURITY_SECTIONS, } from "@proovra/shared
 import { prisma as defaultPrisma } from "../../db.js";
 const HONEST_OVERRIDES = {
     SCIM: {
-        confidence: "UNAVAILABLE",
-        limitation: "scim_provisioning_via_idp_only",
-        implementedOverride: false,
+        confidence: "PARTIAL",
+        limitation: "scim_subset_routes_require_configuration",
+        implementedOverride: true,
     },
     KMS: {
         confidence: "PARTIAL",
-        limitation: "kms_used_via_aws_sdk_no_dedicated_module",
-        implementedOverride: true,
-    },
-    DELETION: {
-        confidence: "PLANNED",
-        limitation: "deletion_workflows_planned",
-        implementedOverride: false,
-    },
-    MONITORING: {
-        confidence: "PARTIAL",
-        limitation: "sentry_otel_coexistence_no_dedicated_monitoring_module",
+        limitation: "kms_signing_supported_storage_cmk_external",
         implementedOverride: true,
     },
 };
