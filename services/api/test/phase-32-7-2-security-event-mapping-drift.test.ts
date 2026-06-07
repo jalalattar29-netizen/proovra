@@ -651,6 +651,14 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // coding_fields.id. This is a deliberate production drift repair
       // migration for Phase 32.7.2.
       "20270817000000_phase_t_coding_schema_uuid_default_repair",
+      "20270818000000_phase_t_coding_values_updated_at_default",
+      "20270818010000_phase_t_coding_values_id_default",
+      "20270818020000_phase_t_reviewer_disagreements_defaults",
+      // Phase T — Trust Center / status / subprocessor drift repair.
+      // Adds `effective_at` to the version history tables used by the
+      // Trust Center seed and status projection path. Pure additive,
+      // bounded to development drift repair.
+      "20270818030000_phase_t_trust_center_drift_repair",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

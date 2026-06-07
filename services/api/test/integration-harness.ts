@@ -465,8 +465,7 @@ async function seedFixtures(
         status: "CREATED",
         teamId,
         ownerUserId,
-        provider: "EMAIL" as never,
-      } as never,
+      },
       select: { id: true },
     });
   }

@@ -29,7 +29,14 @@ type LoadState =
   | { phase: "loading" }
   | { phase: "loaded"; status: StatusPageProjection }
   | { phase: "empty" }
+  | { phase: "degraded"; reason: string }
   | { phase: "error"; message: string };
+
+type StatusResponse = {
+  status?: StatusPageProjection | null;
+  degraded?: boolean;
+  reason?: string | null;
+};
 
 function Shell() {
   const [state, setState] = useState<LoadState>({ phase: "loading" });
@@ -39,7 +46,18 @@ function Shell() {
     setBusy(true);
     setState({ phase: "loading" });
     try {
-      const res = await apiFetch("/v1/trust/status", { method: "GET" });
+      const res = (await apiFetch("/v1/trust/status", { method: "GET" })) as
+        | StatusResponse
+        | null;
+
+      if (res?.degraded) {
+        setState({
+          phase: "degraded",
+          reason: res.reason ?? "SCHEMA_NOT_READY",
+        });
+        return;
+      }
+
       const projection = (res?.status ?? null) as StatusPageProjection | null;
       if (projection && Array.isArray(projection.components)) {
         setState({ phase: "loaded", status: projection });
@@ -142,6 +160,43 @@ function Shell() {
           }}
         >
           {state.message}
+        </div>
+      ) : null}
+
+      {state.phase === "degraded" ? (
+        <div
+          data-status-phase="degraded"
+          style={{
+            padding: 12,
+            background: "rgba(251, 191, 36, 0.08)",
+            border: "1px solid rgba(245, 158, 11, 0.20)",
+            borderRadius: 8,
+            color: "#92400e",
+            fontSize: 12,
+          }}
+        >
+          <strong>Status page is degraded.</strong>
+          <p style={{ margin: "6px 0 0" }}>
+            {state.reason}
+          </p>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={busy}
+            style={{
+              marginTop: 10,
+              padding: "6px 12px",
+              border: "1px solid #92400e",
+              background: "#92400e",
+              color: "#fafafa",
+              fontWeight: 600,
+              fontSize: 12,
+              borderRadius: 8,
+              cursor: "pointer",
+            }}
+          >
+            Retry
+          </button>
         </div>
       ) : null}
 
