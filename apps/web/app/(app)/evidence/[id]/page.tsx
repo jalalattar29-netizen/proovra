@@ -375,6 +375,25 @@ function isOtsTerminal(status: string | null | undefined): boolean {
   );
 }
 
+function shouldPollArtifactReadiness(
+  workspace: ReviewWorkspaceResponse | null | undefined
+): boolean {
+  if (!workspace?.evidence?.status) return false;
+
+  const status = workspace.evidence.status;
+  const finalized = status === "SIGNED" || status === "REPORTED";
+  if (!finalized) return false;
+
+  const reportNeedsRefresh = !workspace.artifactStatus.report.available;
+  const verificationPackage = workspace.artifactStatus.verificationPackage;
+  const packageNeedsRefresh =
+    !verificationPackage.available &&
+    !verificationPackage.blocked &&
+    !verificationPackage.unavailable;
+
+  return reportNeedsRefresh || packageNeedsRefresh;
+}
+
 function buildTechnicalReadinessSummary(workspace: ReviewWorkspaceResponse): string {
   if (
     workspace.reviewDecision.label === "Ready for review" &&
@@ -913,14 +932,13 @@ function EvidenceDetailPageInner() {
   //   inactive tabs don't burn API calls.
   useEffect(() => {
     if (!evidenceId) return;
-    if (!workspace?.evidence?.status) return;
-    const status = workspace.evidence.status;
-    const finalized = status === "SIGNED" || status === "REPORTED";
-    if (!finalized) return;
+    if (!shouldPollArtifactReadiness(workspace)) return;
+    const activeWorkspace = workspace;
+    if (!activeWorkspace) return;
 
     let cancelled = false;
-    let priorReportAvailable = workspace.artifactStatus.report.available;
-    let priorPackageAvailable = workspace.artifactStatus.verificationPackage.available;
+    let priorReportAvailable = activeWorkspace.artifactStatus.report.available;
+    let priorPackageAvailable = activeWorkspace.artifactStatus.verificationPackage.available;
 
     type ArtifactStatusResponse = {
       report: { available: boolean; pending: boolean };
@@ -987,27 +1005,8 @@ function EvidenceDetailPageInner() {
     workspace?.evidence?.status,
     workspace?.artifactStatus?.report?.available,
     workspace?.artifactStatus?.verificationPackage?.available,
-  ]);
-
-  useEffect(() => {
-    if (!evidenceId) return;
-    if (!workspace?.artifactStatus?.finalized) return;
-    if (isOtsTerminal(workspace.preservationMatrix.ots.effectiveStatus)) return;
-
-    let cancelled = false;
-    const timer = window.setInterval(() => {
-      if (cancelled || document.hidden) return;
-      void loadWorkspace();
-    }, 10000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [
-    evidenceId,
-    workspace?.artifactStatus?.finalized,
-    workspace?.preservationMatrix?.ots?.effectiveStatus,
+    workspace?.artifactStatus?.verificationPackage?.blocked,
+    workspace?.artifactStatus?.verificationPackage?.unavailable,
   ]);
 
   const evidence = workspace?.evidence ?? null;
@@ -1608,6 +1607,10 @@ function EvidenceDetailPageInner() {
   // banner. The status pill above already renders with the "danger"
   // tone via the existing `pillTone()` helper.
   const isIntegrityFailed = evidence.status === "FAILED_HASH_MISMATCH";
+  const showManualLatestStatusCheck =
+    workspace.artifactStatus.report.available &&
+    workspace.artifactStatus.verificationPackage.available &&
+    !isOtsTerminal(workspace.preservationMatrix.ots.effectiveStatus);
 
   return (
     <div className="evidence-detail-page">
@@ -2082,6 +2085,13 @@ function EvidenceDetailPageInner() {
                       title="Recorded integrity and preservation materials"
                       icon={ShieldCheck}
                     />
+                    {showManualLatestStatusCheck ? (
+                      <div className="evidence-detail-inline-actions">
+                        <Button variant="secondary" onClick={() => void loadWorkspace()}>
+                          Check latest status
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
 
                   <KeyValueGrid

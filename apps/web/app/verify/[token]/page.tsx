@@ -48,7 +48,6 @@ import { captureException } from "../../../lib/sentry";
 import {
   firstNonEmpty,
   formatDateTime,
-  isOtsTerminalStatus,
   normalizeBool,
   normalizeEventLabel,
   otsTone,
@@ -92,6 +91,10 @@ import type {
   VerifyLifecycleTransparency,
 } from "./_verify-types";
 import { VerifyLifecycleSection } from "./_verify-lifecycle-section";
+import {
+  hasAdvancedLiveAnchoring,
+  shouldAutoPollPublicVerify,
+} from "./public-verify-consistency";
 
 // Re-export the mediaIntelligenceAdvisory shape inline so test contracts can
 // assert the field exists directly in this file without reading _verify-types.
@@ -254,6 +257,7 @@ function extractOtsStatus(data: VerifyResponse): string | null {
     null;
 
   if (!raw || !String(raw).trim()) return null;
+  // Canonical OTS states surfaced by this page: PENDING, ANCHORED, FAILED, UNAVAILABLE.
   return String(raw).trim().toUpperCase();
 }
 
@@ -420,6 +424,36 @@ function buildStoragePresentation(
     detailText:
       "Immutable storage metadata was not confirmed in the verification response.",
   };
+}
+
+function describeSnapshotSource(source?: string | null): string {
+  switch (source) {
+    case "REPORT_SNAPSHOT":
+      return "Report snapshot";
+    case "VERIFICATION_PACKAGE_SNAPSHOT":
+      return "Verification package snapshot";
+    case "LIVE_SHARED_FALLBACK":
+      return "Live fallback (no fixed snapshot)";
+    default:
+      return "Snapshot source not recorded";
+  }
+}
+
+function formatSignatureStatus(status?: string | null): string {
+  const normalized = typeof status === "string" ? status.trim().toUpperCase() : "";
+
+  switch (normalized) {
+    case "SIGNED":
+      return "Signed";
+    case "SIGNING_UNAVAILABLE":
+      return "Signing unavailable";
+    case "FAILED":
+      return "Signing failed";
+    case "PENDING":
+      return "Signing pending";
+    default:
+      return normalized ? normalized.replace(/_/g, " ") : "Not recorded";
+  }
 }
 
 function buildVerificationPackageIntegrity(params: {
@@ -2709,6 +2743,11 @@ export default function VerifyPage() {
     useState<VerifyTrustDecision | null>(null);
   const [trustSnapshotDivergence, setTrustSnapshotDivergence] =
     useState<NonNullable<VerifyResponse["trustDecisionConsistency"]> | null>(null);
+  const [verificationSnapshot, setVerificationSnapshot] =
+    useState<VerifyResponse["verificationSnapshot"]>(null);
+  const [liveAnchoring, setLiveAnchoring] =
+    useState<VerifyResponse["liveAnchoring"]>(null);
+  const [refreshingAnchoring, setRefreshingAnchoring] = useState(false);
   const [custodyDisplayCounts, setCustodyDisplayCounts] =
     useState<VerifyResponse["custodyDisplayCounts"]>(null);
   const [limitations, setLimitations] = useState<VerifyLimitations | null>(null);
@@ -2732,7 +2771,9 @@ const [activeTechnicalTab, setActiveTechnicalTab] =
 const [forensicMode, setForensicMode] = useState(false);
 
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasShownAnchoredToastRef = useRef(false);
+  const fetchVerifyRef = useRef<
+    ((options?: { background?: boolean; manual?: boolean }) => Promise<void>) | null
+  >(null);
   const isMountedRef = useRef(true);
 
   const clearPolling = () => {
@@ -2771,6 +2812,8 @@ function isAccessEventType(eventType?: string | null): boolean {
         ? data.trustDecisionConsistency
         : null
     );
+    setVerificationSnapshot(data.verificationSnapshot ?? null);
+    setLiveAnchoring(data.liveAnchoring ?? null);
     setCaptureContext(data.captureContext ?? null);
     // Phase 31.12 — set the bounded advisory state. The API has
     // already applied the public-safety projection so we just store
@@ -3196,42 +3239,35 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     clearPolling();
     setLoading(true);
     setError(null);
-    hasShownAnchoredToastRef.current = false;
 
-    const fetchVerify = async (background = false) => {
+    const fetchVerify = async (
+      options: { background?: boolean; manual?: boolean } = {},
+    ) => {
+      const background = options.background === true;
+      const manual = options.manual === true;
       try {
         const data = await apiFetch(
           `/public/verify/${encodeURIComponent(params.token)}`
         );
         if (cancelled || !isMountedRef.current) return;
 
-        const otsDetails = applyVerifyResponse(data as VerifyResponse);
+        applyVerifyResponse(data as VerifyResponse);
 
         if (!background) {
           setError(null);
         }
 
-        if ((otsDetails.status ?? "").toUpperCase() === "ANCHORED") {
-          clearPolling();
-
-          if (background && !hasShownAnchoredToastRef.current) {
-            hasShownAnchoredToastRef.current = true;
-            addToast("OpenTimestamps proof is now anchored", "success");
-          }
-
-          return;
-        }
-
-        if (isOtsTerminalStatus(otsDetails.status)) {
-          clearPolling();
-          return;
-        }
-
-        if ((otsDetails.status ?? "").toUpperCase() === "PENDING") {
+        if (shouldAutoPollPublicVerify(data as VerifyResponse)) {
           clearPolling();
           pollingTimerRef.current = setTimeout(() => {
-            void fetchVerify(true);
+            void fetchVerify({ background: true });
           }, 30000);
+        } else {
+          clearPolling();
+        }
+
+        if (manual) {
+          addToast("Anchoring status refreshed", "info");
         }
       } catch (err) {
         if (cancelled || !isMountedRef.current) return;
@@ -3250,13 +3286,18 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
         if (!cancelled && !background && isMountedRef.current) {
           setLoading(false);
         }
+        if (!cancelled && manual && isMountedRef.current) {
+          setRefreshingAnchoring(false);
+        }
       }
     };
 
-    void fetchVerify(false);
+    fetchVerifyRef.current = fetchVerify;
+    void fetchVerify();
 
     return () => {
       cancelled = true;
+      fetchVerifyRef.current = null;
       clearPolling();
     };
   }, [params?.token, addToast]);
@@ -3291,6 +3332,11 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
   const otsFailureTechnicalMessage = useMemo(
     () => sanitizeOtsFailureTechnical(otsFailureReason),
     [otsFailureReason]
+  );
+
+  const liveAnchoringAdvanced = useMemo(
+    () => hasAdvancedLiveAnchoring({ liveAnchoring }),
+    [liveAnchoring],
   );
 
   const selectedEvidenceItem = useMemo(
@@ -4597,7 +4643,15 @@ with this evidence record.
                 title="Verification Failed"
                 subtitle={error}
                 action={() => (
-                  <Button onClick={() => window.location.reload()}>Try Again</Button>
+                  <Button
+                    onClick={() => {
+                      if (!fetchVerifyRef.current) return;
+                      setLoading(true);
+                      void fetchVerifyRef.current();
+                    }}
+                  >
+                    Try Again
+                  </Button>
                 )}
               />
             </Card>
@@ -5126,6 +5180,200 @@ Reviewer Action
     </div>
   );
 })() : null}
+
+{verificationSnapshot ? (
+  <div
+    style={{
+      display: "grid",
+      gap: 16,
+    }}
+  >
+    <div
+      style={{
+        ...VERIFY_SURFACE.card,
+        padding: 18,
+        display: "grid",
+        gap: 12,
+      }}
+    >
+      <div style={{ display: "grid", gap: 6 }}>
+        <div
+          style={{
+            ...VERIFY_TYPO.kicker,
+            fontSize: 10.5,
+            color: VERIFY_BRAND.accent,
+          }}
+        >
+          Verification package snapshot
+        </div>
+        <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
+          This section reflects the verification package/report generated at the recorded time.
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 12,
+        }}
+      >
+        <SummaryField
+          label="Snapshot Source"
+          value={describeSnapshotSource(verificationSnapshot.source)}
+        />
+        <SummaryField
+          label="Generated At"
+          value={
+            verificationSnapshot.generatedAtUtc
+              ? formatDateTime(verificationSnapshot.generatedAtUtc)
+              : "Not recorded"
+          }
+        />
+        <SummaryField
+          label="Report Version"
+          value={
+            verificationSnapshot.reportVersion != null
+              ? `v${verificationSnapshot.reportVersion}`
+              : "Not recorded"
+          }
+        />
+        <SummaryField
+          label="Package Version"
+          value={
+            verificationSnapshot.packageVersion != null
+              ? `v${verificationSnapshot.packageVersion}`
+              : "Not recorded"
+          }
+        />
+        <SummaryField
+          label="OTS Status At Generation"
+          value={verificationSnapshot.otsStatusAtGeneration ?? "Not recorded in snapshot"}
+        />
+        <SummaryField
+          label="Report Signature"
+          value={formatSignatureStatus(verificationSnapshot.reportSignature?.status)}
+        />
+        <SummaryField
+          label="Package Manifest Signature"
+          value={
+            verificationSnapshot.verificationPackageSignature?.manifestSigned === true
+              ? "Signed"
+              : verificationSnapshot.verificationPackageSignature?.manifestPresent === true
+                ? "Manifest present; signature not confirmed"
+                : "Not recorded"
+          }
+        />
+        <SummaryField
+          label="Snapshot Trust Decision"
+          value={
+            verificationSnapshot.trustDecisionSnapshot?.verdictLabel ??
+            "No fixed trust-decision snapshot"
+          }
+        />
+      </div>
+    </div>
+
+    <div
+      style={{
+        ...VERIFY_SURFACE.card,
+        padding: 18,
+        display: "grid",
+        gap: 12,
+      }}
+    >
+      <div style={{ display: "grid", gap: 6 }}>
+        <div
+          style={{
+            ...VERIFY_TYPO.kicker,
+            fontSize: 10.5,
+            color: VERIFY_BRAND.warning,
+          }}
+        >
+          Live anchoring status
+        </div>
+        <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
+          This section reflects the current OpenTimestamps/public anchoring state and may advance after the package was generated.
+        </div>
+      </div>
+
+      {liveAnchoringAdvanced ? (
+        <div
+          style={{
+            border: "1px solid rgba(33,117,93,0.28)",
+            borderLeft: `5px solid ${VERIFY_BRAND.success}`,
+            background: VERIFY_BRAND.successSoft,
+            borderRadius: 18,
+            padding: 16,
+            ...VERIFY_TYPO.small,
+            fontSize: 13,
+            color: VERIFY_BRAND.ink,
+          }}
+        >
+          Anchoring has advanced since this package was generated. A newer report/package may be available.
+        </div>
+      ) : null}
+
+      {(liveAnchoring?.currentOtsStatus ?? otsStatus) === "PENDING" ? (
+        <div
+          style={{
+            border: "1px solid rgba(138,106,47,0.28)",
+            borderLeft: `5px solid ${VERIFY_BRAND.warning}`,
+            background: VERIFY_BRAND.warningSoft,
+            borderRadius: 18,
+            padding: 16,
+            ...VERIFY_TYPO.small,
+            fontSize: 13,
+            color: VERIFY_BRAND.ink,
+          }}
+        >
+          OpenTimestamps public anchoring is pending. This does not invalidate recorded integrity, TSA timestamping, signature, custody, or Object Lock.
+        </div>
+      ) : null}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 12,
+        }}
+      >
+        <SummaryField
+          label="Current OTS Status"
+          value={liveAnchoring?.currentOtsStatus ?? otsStatus ?? "Not recorded"}
+        />
+        <SummaryField
+          label="Anchored At"
+          value={
+            liveAnchoring?.otsAnchoredAtUtc
+              ? formatDateTime(liveAnchoring.otsAnchoredAtUtc)
+              : "Not recorded"
+          }
+        />
+        <SummaryField
+          label="Bitcoin Transaction"
+          value={liveAnchoring?.otsBitcoinTxid ?? "Not recorded"}
+        />
+        <SummaryField
+          label="Last Anchoring Update"
+          value={
+            liveAnchoring?.lastUpdatedAtUtc
+              ? formatDateTime(liveAnchoring.lastUpdatedAtUtc)
+              : "Not recorded"
+          }
+        />
+        <SummaryField
+          label="Latest Report"
+          value={liveAnchoring?.newerReportAvailable ? "Latest report available" : "No newer report recorded"}
+        />
+        <SummaryField
+          label="Latest Package"
+          value={liveAnchoring?.newerPackageAvailable ? "Latest package available" : "No newer package recorded"}
+        />
+      </div>
+    </div>
+  </div>
+) : null}
 
 {/*
   Phase 31.12 — Media intelligence public advisory.
@@ -6819,6 +7067,35 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                       }}
                     >
                       Copy Verification Link
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!fetchVerifyRef.current) return;
+                        setRefreshingAnchoring(true);
+                        void fetchVerifyRef.current({ manual: true });
+                      }}
+                      style={{
+                        width: "100%",
+                        minHeight: 52,
+                        borderRadius: 999,
+                        border: `1px solid ${VERIFY_BRAND.line}`,
+                        background: "rgba(255,255,255,0.54)",
+                        color: VERIFY_BRAND.ink,
+                        fontSize: 12,
+                        fontWeight: 900,
+                        letterSpacing: "0.065em",
+                        textTransform: "uppercase",
+                        cursor: refreshingAnchoring ? "progress" : "pointer",
+                        boxShadow: "0 10px 24px rgba(16,32,29,0.08)",
+                        opacity: refreshingAnchoring ? 0.7 : 1,
+                      }}
+                      disabled={refreshingAnchoring}
+                    >
+                      {refreshingAnchoring
+                        ? "Checking anchoring status..."
+                        : "Check Latest Anchoring Status"}
                     </button>
 
                     {externalPublicationUrl ? (

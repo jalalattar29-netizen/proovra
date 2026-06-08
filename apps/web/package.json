@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"(no tests)\""
+    "test": "node ./scripts/run-tests.mjs"
   },
   "dependencies": {
     "@noble/ed25519": "^3.1.0",

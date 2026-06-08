@@ -465,6 +465,40 @@ export type VerifyLifecycleTransparency = {
   } | null;
 };
 
+export type VerifySnapshotSection = {
+  source?:
+    | "REPORT_SNAPSHOT"
+    | "VERIFICATION_PACKAGE_SNAPSHOT"
+    | "LIVE_SHARED_FALLBACK"
+    | "UNAVAILABLE"
+    | null;
+  generatedAtUtc?: string | null;
+  reportVersion?: number | null;
+  packageVersion?: number | null;
+  trustDecisionSnapshot?: VerifyTrustDecision | null;
+  otsStatusAtGeneration?: string | null;
+  reportSignature?: {
+    status?: string | null;
+    signedAtUtc?: string | null;
+  } | null;
+  verificationPackageSignature?: {
+    manifestPresent?: boolean | null;
+    manifestSigned?: boolean | null;
+    packageType?: string | null;
+  } | null;
+} | null;
+
+export type VerifyLiveAnchoring = {
+  currentOtsStatus?: string | null;
+  otsAnchoredAtUtc?: string | null;
+  otsBitcoinTxid?: string | null;
+  lastUpdatedAtUtc?: string | null;
+  hasAdvancedSinceSnapshot?: boolean | null;
+  newerReportAvailable?: boolean | null;
+  newerPackageAvailable?: boolean | null;
+  autoRefreshRecommended?: boolean | null;
+} | null;
+
 export type VerifyResponse = {
   evidenceId?: string | null;
   mediaIntelligenceAdvisory?: {
@@ -494,6 +528,8 @@ export type VerifyResponse = {
         }>
       | null;
   } | null;
+  verificationSnapshot?: VerifySnapshotSection;
+  liveAnchoring?: VerifyLiveAnchoring;
   verificationStatus?: string | null;
   captureMethod?: string | null;
   identityLevelSnapshot?: string | null;

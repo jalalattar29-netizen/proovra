@@ -40,11 +40,23 @@ test("artifact rendering uses canonical report and package status helpers", () =
   assert.match(SRC, /function describePackageManifestStatus/);
 });
 
-test("OTS freshness adds slower review-workspace polling while non-terminal", () => {
+test("artifact polling is scoped to report and package readiness only", () => {
+  assert.match(SRC, /function shouldPollArtifactReadiness/);
+  assert.match(SRC, /status === "SIGNED" \|\| status === "REPORTED"/);
+  assert.match(SRC, /const reportNeedsRefresh = !workspace\.artifactStatus\.report\.available;/);
+  assert.match(
+    SRC,
+    /!verificationPackage\.available &&\s*!verificationPackage\.blocked &&\s*!verificationPackage\.unavailable/
+  );
+  assert.equal((SRC.match(/setInterval\(/g) ?? []).length, 1);
+});
+
+test("OTS pending stays passive and uses manual one-shot refresh", () => {
   assert.match(SRC, /function isOtsTerminal/);
-  assert.match(SRC, /setInterval\(\(\) => \{/);
-  assert.match(SRC, /10000/);
-  assert.match(SRC, /workspace\.preservationMatrix\.ots\.effectiveStatus/);
+  assert.match(SRC, /Check latest status/);
+  assert.match(SRC, /showManualLatestStatusCheck/);
+  assert.doesNotMatch(SRC, /window\.location\.reload/);
+  assert.doesNotMatch(SRC, /window\.setInterval/);
 });
 
 test("technical readiness wording is separated from workflow lifecycle", () => {

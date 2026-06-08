@@ -140,6 +140,7 @@ import { listEvidenceArtifacts } from "../services/evidence-review/artifact-hist
 import { buildEvidenceArtifactStatus } from "../services/evidence-artifact-status.service.js";
 import { buildEvidenceReviewGovernance } from "../services/evidence-review/governance.service.js";
 import { buildTrustDecisionConsistency } from "../services/trust-decision-consistency.service.js";
+import { buildPublicVerifyConsistencySections } from "../services/public-verify-consistency.service.js";
 
 const EvidenceTypeSchema = prismaPkg.EvidenceType
   ? z.nativeEnum(prismaPkg.EvidenceType)
@@ -10552,6 +10553,8 @@ const latestReport = await prisma.report.findFirst({
     generatedAtUtc: true,
     embeddedPreviewsSnapshot: true,
     trustDecisionSnapshot: true,
+    pdfSignatureStatus: true,
+    pdfSignedAtUtc: true,
   },
 });
 
@@ -11332,6 +11335,21 @@ const trustDecisionConsistency = buildTrustDecisionConsistency({
   accessEventsAfterSnapshot: accessEventsAfterReportGeneration.length,
 });
 
+const { verificationSnapshot, liveAnchoring } =
+  buildPublicVerifyConsistencySections({
+    source: trustDecisionConsistencySource,
+    trustDecisionSnapshot: snapshotTrustDecision,
+    latestReport,
+    latestVerificationPackage,
+    verificationPackageIntegrity,
+    currentOtsStatus: effectiveOtsStatus,
+    otsAnchoredAtUtc: effectiveOtsAnchoredAtUtc?.toISOString() ?? null,
+    otsBitcoinTxid: evidence.otsBitcoinTxid ?? null,
+    otsUpgradedAtUtc: evidence.otsUpgradedAtUtc
+      ? evidence.otsUpgradedAtUtc.toISOString()
+      : null,
+  });
+
 const custodyDisplayCounts = {
   forensicAtReportGeneration: forensicEventsAtReportGeneration.length,
   currentForensicEvents: forensicCustodyEvents.length,
@@ -11468,6 +11486,8 @@ return reply.code(200).send({
   captureTrust,
   trustDecision,
 trustDecisionConsistency,
+  verificationSnapshot,
+  liveAnchoring,
   verificationPackageIntegrity,
   c2paProvenance,
 trustDecisionSource: trustDecision

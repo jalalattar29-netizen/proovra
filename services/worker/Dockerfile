@@ -106,7 +106,12 @@ RUN apk add --no-cache \
 RUN python3 -m ensurepip || true
 RUN python3 -m venv /opt/ots-venv
 RUN /opt/ots-venv/bin/pip install --upgrade pip setuptools wheel
-RUN /opt/ots-venv/bin/pip install --no-cache-dir opentimestamps-client
+# Fail the image build unless the upstream OTS CLI is actually present
+# and reachable as `ots` in a standard runtime location.
+RUN /opt/ots-venv/bin/pip install --no-cache-dir opentimestamps-client \
+    && test -x /opt/ots-venv/bin/ots \
+    && ln -sf /opt/ots-venv/bin/ots /usr/local/bin/ots \
+    && /usr/local/bin/ots --help >/dev/null
 
 ENV PATH="/opt/ots-venv/bin:$PATH"
 ENV NODE_ENV=production
