@@ -59,10 +59,17 @@ export const ONBOARDING_STEPS_BY_MODE: Record<
       href: "/reports",
       intent: "secondary",
     },
+    // Phase IA-cleanup — the standalone /collaboration page was
+    // retired (now redirects to /inbox). The personal-mode onboarding
+    // step now points operators at the canonical attention center
+    // where mentions + assigned discussion threads + governance items
+    // surface. Step id is preserved so analytics + persona-priority
+    // tests that reference it by id stay green; href + label updated
+    // to canonical destinations.
     {
       id: "personal.collaboration-basics",
-      label: "Open collaboration",
-      href: "/collaboration",
+      label: "Check your inbox",
+      href: "/inbox",
       intent: "secondary",
     },
     {

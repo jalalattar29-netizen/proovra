@@ -665,6 +665,11 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Phase T — repair missing published_at support on subprocessor
       // versions so canonical trust disclosures project cleanly.
       "20270819010000_phase_t_subprocessor_versions_runtime_repair",
+      // Phase IA-reliability — InboxItemState (per-user read/dismiss/
+      // snooze state for /v1/me/inbox). Additive: new table + indexes,
+      // no destructive changes. See
+      // `services/api/prisma/migrations/20270820000000_add_inbox_item_state/migration.sql`.
+      "20270820000000_add_inbox_item_state",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

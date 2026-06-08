@@ -8,15 +8,18 @@ import { isValidOtsBitcoinTxid, resolveEffectiveOtsStatus } from "@proovra/share
 import * as prismaPkg from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { appendCustodyEventTx } from "./custody-events.js";
+import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { prisma } from "./db.js";
 import { enqueueOtsUpgradeJob } from "./queue.js";
-import { resolveOtsBin, resolveOtsTimeoutMs } from "./ots.service.js";
+import { resolveOtsBin, resolveOtsTimeoutMs, verifyOtsProof } from "./ots.service.js";
 import { buildOtsEvidenceUpdateData } from "./ots-state.js";
 import { enqueueReportJob } from "./processor.js";
 import { logger, withJobContext } from "./logger.js";
 import {
+  classifyOtsResult,
   parseOtsUpgradeOutput,
   shouldTreatOtsAsAnchored,
+  type OtsClassification,
 } from "./ots-upgrade-output.js";
 
 const execFileAsync = promisify(execFile);
@@ -136,6 +139,9 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
       // run's clock and `otsAnchoredAtUtc` is null for proofs that
       // never anchored.
       createdAt: true,
+      // Phase IA-reliability — required so the incident bridge can
+      // scope the OperationalIncident row to the right workspace.
+      teamId: true,
       otsProofBase64: true,
       otsStatus: true,
       otsHash: true,
@@ -213,12 +219,54 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
     const upgradedAt = now();
     const proofBase64 = updated.toString("base64");
 
+    // Phase IA-OTS-hybrid — run `ots verify` against the freshly-upgraded
+    // proof. `ots upgrade`'s text output cannot reliably distinguish a
+    // fully-anchored proof from one that has a Bitcoin txid but still
+    // needs more block confirmations — both emit "Bitcoin transaction"
+    // lines. `ots verify` IS deterministic: it emits a
+    // "Success! Bitcoin block N attests" line on a complete anchor and
+    // "Calendar attestation incomplete" / "Got 0 attestation(s)" on a
+    // partial one. We use the verify result as the authoritative signal
+    // in the classifier; the legacy heuristic is the documented fallback
+    // when verify isn't possible (e.g., missing hash).
+    const verifyResult = await verifyOtsProof({
+      proofBase64,
+      hashHex: evidence.otsHash ?? null,
+    });
+    const verify =
+      verifyResult.status === "VERIFIED" || verifyResult.status === "INCOMPLETE"
+        ? verifyResult.verify
+        : null;
+    const classification: OtsClassification = classifyOtsResult({
+      upgrade: parsedUpgrade,
+      verify,
+      existingTxid: evidence.otsBitcoinTxid,
+      commandErrored,
+      mergedErrorText: merged,
+    });
+
     // Legal boundary: the OTS proof can be preserved in an anchored state even
     // before a Bitcoin txid or other public receipt is available. The shared
     // trust engine still requires defensible public anchor material before it
     // awards a full 10/10 public-anchoring signal.
-if (shouldTreatOtsAsAnchored(parsedUpgrade)) {
-        const txidRecovered = !hasDefensibleTxid && Boolean(txid);
+// Phase IA-OTS-hybrid — promotion to ANCHORED is now gated on
+    // `classification.kind === "FULLY_ANCHORED"`, which requires
+    // `ots verify` to succeed (preferred) OR the legacy heuristic to be
+    // unambiguous (fallback when verify couldn't run). This eliminates
+    // the previous failure mode where a Bitcoin-attested-but-still-
+    // pending-confirmations proof was marked PENDING with a recovered
+    // txid forever, with no clear path to ANCHORED. Now the classifier
+    // returns ANCHOR_MATERIAL_RECOVERED for that case (handled below)
+    // and FULLY_ANCHORED only when verify confirms the block.
+    if (classification.kind === "FULLY_ANCHORED") {
+        const txidRecovered = !hasDefensibleTxid && Boolean(classification.txid);
+        // Prefer the verify-extracted anchor time when available; the
+        // `existence as of <date>` line is the canonical anchoring
+        // timestamp (the time the Bitcoin block was mined). Otherwise
+        // fall back to the upgrade clock — never invent.
+        const anchoredAtUtc = classification.anchoredAtUtc
+          ? new Date(classification.anchoredAtUtc)
+          : upgradedAt;
         await prisma.$transaction(async (tx) => {
         await tx.evidence.update({
           where: { id: evidenceId },
@@ -227,9 +275,9 @@ if (shouldTreatOtsAsAnchored(parsedUpgrade)) {
             proofBase64,
             hash: evidence.otsHash,
             calendar: evidence.otsCalendar,
-            bitcoinTxid: txid,
+            bitcoinTxid: classification.txid,
             existingBitcoinTxid: evidence.otsBitcoinTxid,
-            anchoredAtUtc: upgradedAt,
+            anchoredAtUtc,
             upgradedAtUtc: upgradedAt,
           }),
         });
@@ -243,10 +291,15 @@ if (shouldTreatOtsAsAnchored(parsedUpgrade)) {
             otsPhase: txidRecovered
               ? "anchor_material_recovered"
               : "anchored",
-            bitcoinTxid: txid ?? evidence.otsBitcoinTxid ?? null,
+            bitcoinTxid: classification.txid ?? evidence.otsBitcoinTxid ?? null,
+            blockHeight: classification.blockHeight,
+            verifyConfirmed: verify !== null,
+            verifyStatus: verifyResult.status,
             upgradedAtUtc: upgradedAt.toISOString(),
-            anchoredAtUtc: upgradedAt.toISOString(),
-            completionSource: "ots_upgrade",
+            anchoredAtUtc: anchoredAtUtc.toISOString(),
+            completionSource:
+              verify !== null ? "ots_verify" : "ots_upgrade_heuristic",
+            classifierReason: classification.reason,
           } as Prisma.InputJsonValue,
         });
       });
@@ -257,19 +310,39 @@ if (shouldTreatOtsAsAnchored(parsedUpgrade)) {
       });
 
       logger.info(
-        withJobContext({
-          jobId: job.id,
-          evidenceId,
-          durationMs: Date.now() - startedAt,
-          status: "anchored",
-        }),
+        {
+          ...withJobContext({
+            jobId: job.id,
+            evidenceId,
+            durationMs: Date.now() - startedAt,
+            status: "anchored",
+          }),
+          // Phase IA-OTS-hybrid — operator forensic context outside the
+          // canonical jobContext schema. `blockHeight` + `verifyStatus`
+          // let log queries split "verify-confirmed" anchors from
+          // legacy-heuristic anchors at a glance.
+          blockHeight: classification.blockHeight,
+          verifyStatus: verifyResult.status,
+        },
         "ots.upgrade.anchored"
       );
 
       return;
     }
 
-if (pendingOutput || !commandErrored) {
+    // Phase IA-OTS-hybrid — both ANCHOR_MATERIAL_RECOVERED (txid
+    // recovered but still pending block confirmations) and STILL_PENDING
+    // (no txid yet) flow through the same persistence branch. The
+    // classifier already disambiguated; we just pass through to keep
+    // the existing transaction shape. The legacy `pendingOutput ||
+    // !commandErrored` guard is preserved as the OR so callers without
+    // a classifier (e.g., legacy paths) still reach this branch.
+    if (
+      classification.kind === "ANCHOR_MATERIAL_RECOVERED" ||
+      classification.kind === "STILL_PENDING" ||
+      pendingOutput ||
+      !commandErrored
+    ) {
         const shouldPreserveAnchoredState =
       effectiveStatus === "ANCHORED" && !hasDefensibleTxid;
     const txidRecoveredWhileAnchored =
@@ -322,6 +395,16 @@ if (pendingOutput || !commandErrored) {
               upgradedAtUtc: upgradedAt.toISOString(),
               completionSource: "ots_upgrade",
               note: pendingReason,
+              // Phase IA-OTS-hybrid — record what `ots verify` said so
+              // the operator can see, per attempt, whether the verify
+              // step ran, whether it confirmed the anchor, and which
+              // classification the deterministic classifier produced.
+              // This is the audit trail that lets ops distinguish a
+              // legitimate ANCHOR_MATERIAL_RECOVERED from a regression.
+              verifyStatus: verifyResult.status,
+              classification: classification.kind,
+              classifierPhase: classification.phase,
+              classifierReason: classification.reason,
             } as Prisma.InputJsonValue,
           });
         }
@@ -384,6 +467,34 @@ if (pendingOutput || !commandErrored) {
             }),
             "ots.upgrade.budget_exhausted",
           );
+          // Phase IA-reliability — bridge into OperationalIncident.
+          // Global budget exhaustion is TERMINAL: the proof will never
+          // anchor on the public chain, and no further upgrade attempts
+          // will be made. CRITICAL severity so /v1/me/inbox lifts this
+          // to P1.
+          try {
+            await recordWorkerIncident({
+              teamId: evidence.teamId ?? null,
+              category: "WORKER",
+              severity: "CRITICAL",
+              fingerprint: `OTS:${evidenceId}:GLOBAL_BUDGET_EXHAUSTED`,
+              title: `OTS anchoring gave up (${evidenceId.slice(0, 8)})`,
+              safeSummary:
+                "Global budget exhausted: the OpenTimestamps proof did not anchor on the public chain within the configured retry budget — no further attempts will be made.",
+              relatedEvidenceId: evidenceId,
+              relatedJobId: job.id,
+              metadata: {
+                queueName: "ots-upgrade",
+                failureReason: "OTS_GLOBAL_BUDGET_EXHAUSTED",
+                budgetDays: readOtsGlobalBudgetDays(),
+              },
+            });
+          } catch (err) {
+            logger.warn(
+              { err, evidenceId },
+              "worker.ots.incident_bridge_failed",
+            );
+          }
           return;
         }
 

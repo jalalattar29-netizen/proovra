@@ -139,20 +139,6 @@ const WORKSPACE_GROUP = {
             badgeKey: null,
             requiresCapability: "DASHBOARD_VIEW",
         },
-        // Phase 4A — Trust Center discoverability. The /trust-center page
-        // exposes the canonical trust hub (methodology, AI disclosure, security,
-        // subprocessors, status). Gated by DASHBOARD_VIEW so it only appears
-        // inside an active workspace context (SETTINGS_VIEW is also granted to
-        // no-workspace users, which would incorrectly include this entry).
-        {
-            id: "workspace.trust_center",
-            label: "Trust Center",
-            href: "/trust-center",
-            iconKey: "trust",
-            domain: "WORKSPACE",
-            badgeKey: null,
-            requiresCapability: "DASHBOARD_VIEW",
-        },
         // Phase 4A — Governance Platform discoverability. The /governance-platform
         // page is the canonical org governance hub (departments, delegated admin,
         // policies, access reviews, cross-org). Gated by GOVERNANCE_VIEW.
@@ -408,9 +394,10 @@ const PLATFORM_HEALTH_GROUP = {
             badgeKey: null,
             requiresCapability: "RUNBOOKS_VIEW",
         },
+        // Phase IA-collapse — renamed; see navigation-registry.ts.
         {
             id: "platform.security_center",
-            label: "Security Center",
+            label: "Identity & Security",
             href: "/security-center",
             iconKey: "security_center",
             domain: "PLATFORM_HEALTH",
@@ -502,9 +489,10 @@ const ADMINISTRATION_GROUP = {
         // because it carries the same operational sensitivity (per-team
         // outbound channel + retry visibility) and inherits the same
         // admin-only audience.
+        // Phase IA-collapse — renamed; see navigation-registry.ts.
         {
             id: "admin.communications",
-            label: "Communications",
+            label: "Messaging operations",
             href: "/communications",
             iconKey: "communications",
             domain: "ADMINISTRATION",

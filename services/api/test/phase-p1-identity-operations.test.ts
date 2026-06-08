@@ -51,8 +51,13 @@ function exists(rel: string): boolean {
 // ---------------------------------------------------------------------------
 
 describe("Phase P1 — Identity operations canonical hub", () => {
+  // Phase IA-collapse — the identity-operations canonical hub moved
+  // from `/settings/security` to `/admin/identity`. `/settings/security`
+  // is now the personal Account Security home (route id
+  // `account.security`). Every assertion below reads the hub at its
+  // new canonical location.
   const HUB = readSource(
-    "../../../apps/web/app/(app)/settings/security/page.tsx",
+    "../../../apps/web/app/(app)/admin/identity/page.tsx",
   );
 
   it("renders an Identity operations title + procurement-grade subtitle", () => {
@@ -108,7 +113,119 @@ describe("Phase P1 — Identity operations canonical hub", () => {
   });
 
   it("carries a stable mount marker for E2E", () => {
-    expect(HUB).toContain('data-testid="settings-security-hub"');
+    // Phase IA-collapse — marker renamed to match the new mount URL.
+    expect(HUB).toContain('data-testid="admin-identity-hub"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1A. Phase IA-collapse — Account Security home at /settings/security
+// ---------------------------------------------------------------------------
+
+describe("Phase IA-collapse — /settings/security is the Account Security home", () => {
+  const ACCOUNT_SECURITY = readSource(
+    "../../../apps/web/app/(app)/settings/security/page.tsx",
+  );
+
+  it("is gated behind PageRouteGate(account.security)", () => {
+    expect(ACCOUNT_SECURITY).toContain("PageRouteGate");
+    expect(ACCOUNT_SECURITY).toContain('routeId="account.security"');
+  });
+
+  it("renders the Account security title and mounts PersonalSecuritySections", () => {
+    expect(ACCOUNT_SECURITY).toContain("Account security");
+    expect(ACCOUNT_SECURITY).toContain("PersonalSecuritySections");
+  });
+
+  it("links the operator-facing Identity & Security workspace console", () => {
+    expect(ACCOUNT_SECURITY).toContain('href="/security-center"');
+    expect(ACCOUNT_SECURITY).toContain("Identity &amp; Security");
+  });
+
+  it("carries a stable E2E mount marker", () => {
+    expect(ACCOUNT_SECURITY).toContain('data-testid="account-security-page"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1B. Phase IA-collapse — /collaboration redirected to /inbox
+// ---------------------------------------------------------------------------
+
+describe("Phase IA-collapse — standalone /collaboration retired", () => {
+  it("next.config.js redirects /collaboration → /inbox", () => {
+    const cfg = readSource("../../../apps/web/next.config.js");
+    expect(cfg).toMatch(
+      /source:\s*["']\/collaboration["'][\s\S]{0,150}destination:\s*["']\/inbox["']/,
+    );
+  });
+
+  it("workspace.collaboration registry entry is hidden from sidebar/cmd-K/All Tools", () => {
+    // The registry entry remains (page file + backend + DiscussionThread
+    // model are all preserved). The route is intentionally invisible to
+    // discovery surfaces because the URL redirects before the page ever
+    // renders.
+    const registry = readSource(
+      "../../../apps/web/lib/navigation/routeRegistry.ts",
+    );
+    // Find the workspace.collaboration block. We slice generously
+    // because the in-entry comment block explaining why the route is
+    // retired pushes the visibility flags >1KB past the id line.
+    const idx = registry.indexOf('id: "workspace.collaboration"');
+    expect(idx, "workspace.collaboration not found in registry").toBeGreaterThan(
+      -1,
+    );
+    const block = registry.slice(idx, idx + 3000);
+    expect(block).toMatch(/commandPaletteVisible:\s*false/);
+    expect(block).toMatch(/allToolsVisible:\s*false/);
+    expect(block).toMatch(/sidebarEligible:\s*false/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1C. Phase IA-collapse — workspace.communications + workspace.security_center demoted
+// ---------------------------------------------------------------------------
+
+describe("Phase IA-collapse — Communications + Security Center demoted from sidebar", () => {
+  const registry = readSource(
+    "../../../apps/web/lib/navigation/routeRegistry.ts",
+  );
+
+  it("workspace.communications is renamed Messaging operations and not sidebar-eligible", () => {
+    const idx = registry.indexOf('id: "workspace.communications"');
+    expect(idx, "workspace.communications not found").toBeGreaterThan(-1);
+    const block = registry.slice(idx, idx + 3000);
+    expect(block).toMatch(/label:\s*"Messaging operations"/);
+    expect(block).toMatch(/sidebarEligible:\s*false/);
+    // Still discoverable via cmd-K + All Tools (it's a real operator
+    // surface, just not a primary sidebar entry for normal users).
+    expect(block).toMatch(/commandPaletteVisible:\s*true/);
+    expect(block).toMatch(/allToolsVisible:\s*true/);
+  });
+
+  it('workspace.security_center is renamed "Identity & Security" and not sidebar-eligible', () => {
+    const idx = registry.indexOf('id: "workspace.security_center"');
+    expect(idx, "workspace.security_center not found").toBeGreaterThan(-1);
+    const block = registry.slice(idx, idx + 3000);
+    expect(block).toMatch(/label:\s*"Identity & Security"/);
+    expect(block).toMatch(/sidebarEligible:\s*false/);
+    expect(block).toMatch(/commandPaletteVisible:\s*true/);
+    expect(block).toMatch(/allToolsVisible:\s*true/);
+  });
+
+  it("account.security entry exists and is ACCOUNT-tier", () => {
+    expect(registry).toMatch(/id:\s*"account\.security"/);
+    const idx = registry.indexOf('id: "account.security"');
+    const block = registry.slice(idx, idx + 3000);
+    expect(block).toMatch(/href:\s*"\/settings\/security"/);
+    expect(block).toMatch(/domain:\s*"ACCOUNT"/);
+    expect(block).toMatch(/requiredActiveSpace:\s*"NONE"/);
+  });
+
+  it("admin.identity now lives at /admin/identity (moved from /settings/security)", () => {
+    const idx = registry.indexOf('id: "admin.identity"');
+    expect(idx).toBeGreaterThan(-1);
+    const block = registry.slice(idx, idx + 3000);
+    expect(block).toMatch(/href:\s*"\/admin\/identity"/);
   });
 });
 
@@ -302,8 +419,9 @@ describe("Phase P1 — existing identity admin surfaces preserved", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase P1 — no fake identity claims", () => {
+  // Phase IA-collapse — hub moved to /admin/identity.
   const HUB = readSource(
-    "../../../apps/web/app/(app)/settings/security/page.tsx",
+    "../../../apps/web/app/(app)/admin/identity/page.tsx",
   );
 
   it("does not claim BYO-KMS, FedRAMP, SOC2, ISO 27001 readiness", () => {

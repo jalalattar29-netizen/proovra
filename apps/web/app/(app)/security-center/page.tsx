@@ -21,7 +21,13 @@ import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
-import { PersonalSecuritySections } from "./components/PersonalSecuritySections";
+// Phase IA-collapse — `PersonalSecuritySections` (password, my sessions,
+// security events) moved to the new Account Security home at
+// `/settings/security` (route id `account.security`). This page is now
+// the workspace operator-facing Identity & Security console — MFA
+// policy, trusted devices, session revocations, MFA recovery
+// approvals. The component file remains in place because the new
+// Account Security page imports it from here.
 import {
   AccessAnomaliesCard,
   OrgHealthSnapshotCard,
@@ -294,22 +300,27 @@ function SecurityCenterPageInner() {
   return (
     <main style={pageStyle}>
       <header>
-        <h1 style={titleStyle}>Security Center</h1>
+        <h1 style={titleStyle}>Identity &amp; Security</h1>
         <p style={mutedStyle}>
-          Workspace-internal identity security operations: MFA policy,
-          trusted devices, session revocations, and the current
+          Workspace identity operations: MFA policy, trusted devices,
+          session revocations, MFA recovery approvals, and the current
           operator&apos;s risk snapshot. State is read in real time and
-          never cached client-side beyond the page lifecycle.
+          never cached client-side beyond the page lifecycle. For
+          personal account controls (password, your sessions, security
+          events), open{" "}
+          <Link href="/settings/security" style={linkStyle}>
+            Account security
+          </Link>
+          .
         </p>
       </header>
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
-      {/* D-5 closure — personal security surface (password, sessions,
-          events) is user-scoped and does not require a team. We mount
-          it above the MFA / workspace cards so the operator always
-          has a reachable change-password + active-sessions surface. */}
-      <PersonalSecuritySections />
+      {/* Phase IA-collapse — `PersonalSecuritySections` (password,
+          sessions, security events) moved to `/settings/security`
+          (route id `account.security`). This console is now purely
+          workspace operator-facing. */}
 
       {!teamId ? (
         <p style={mutedStyle}>Switch to a workspace to use security center.</p>
@@ -591,6 +602,12 @@ const sectionTitleStyle: React.CSSProperties = {
   marginBottom: 12,
 };
 const mutedStyle: React.CSSProperties = { fontSize: 13, color: "#64748b" };
+// Phase IA-collapse — inline link to Account security home.
+const linkStyle: React.CSSProperties = {
+  color: "#0f172a",
+  textDecoration: "underline",
+  fontWeight: 600,
+};
 const cardStyle: React.CSSProperties = {
   marginTop: 24,
   padding: 20,

@@ -59,14 +59,24 @@ describe("Phase 38.10 — route registry expansion (5 new routes)", () => {
     });
   }
 
-  it("all new routes are sidebar-eligible (reachable from canonical nav)", () => {
-    for (const r of [
+  it("all new routes are reachable from canonical nav (sidebar or discovery surfaces)", () => {
+    // Phase 38.10 originally pinned all five new routes to
+    // sidebarEligible=true. Phase IA-collapse retired
+    // `workspace.security_center` from the primary sidebar (it is now
+    // the operator-facing "Identity & Security" console — discoverable
+    // via All Tools, command palette, and the Settings →
+    // "Identity & Security" link). The other four remain sidebar
+    // entries. The constitutional rule is that every capability-
+    // allowed route is reachable from AT LEAST one navigation surface
+    // — sidebar OR All Tools OR command palette (see routeRegistry.ts
+    // hard rule 3). We assert that contract here.
+    const STILL_SIDEBAR_ELIGIBLE = [
       "workspace.intake_links",
       "workspace.workflows",
-      "workspace.security_center",
       "platform.runbooks",
       "review.escalations",
-    ]) {
+    ];
+    for (const r of STILL_SIDEBAR_ELIGIBLE) {
       const block = REGISTRY.match(
         new RegExp(
           `id:\\s*"${r.replace(/\./g, "\\.")}"[\\s\\S]*?sidebarEligible:\\s*(true|false)`,
@@ -74,6 +84,27 @@ describe("Phase 38.10 — route registry expansion (5 new routes)", () => {
       );
       expect(block?.[1], `${r} must be sidebarEligible`).toBe("true");
     }
+
+    // workspace.security_center: not sidebar-eligible after
+    // IA-collapse, but MUST remain reachable from cmd-K and All Tools.
+    const sc = REGISTRY.match(
+      /id:\s*"workspace\.security_center"[\s\S]*?sidebarEligible:\s*(true|false)/,
+    );
+    expect(sc?.[1], "workspace.security_center is demoted from sidebar").toBe(
+      "false",
+    );
+    const scCmdK = REGISTRY.match(
+      /id:\s*"workspace\.security_center"[\s\S]*?commandPaletteVisible:\s*(true|false)/,
+    );
+    expect(scCmdK?.[1], "workspace.security_center remains in cmd-K").toBe(
+      "true",
+    );
+    const scAllTools = REGISTRY.match(
+      /id:\s*"workspace\.security_center"[\s\S]*?allToolsVisible:\s*(true|false)/,
+    );
+    expect(scAllTools?.[1], "workspace.security_center remains in All Tools").toBe(
+      "true",
+    );
   });
 
   it("review.escalations is organization-only (matches its operational scope)", () => {

@@ -356,8 +356,13 @@ export const ROUTE_REGISTRY = [
     {
         id: "workspace.security_center",
         href: "/security-center",
-        label: "Security Center",
-        description: "MFA policy, trusted devices, session revocations.",
+        // Phase IA-collapse — see routeRegistry.ts for full context.
+        // Personal account security moved to /settings/security
+        // (account.security). This entry stays as the operator-facing
+        // workspace identity console; demoted out of the primary
+        // sidebar.
+        label: "Identity & Security",
+        description: "Workspace identity operations — MFA policy, trusted devices, session revocations, recovery approvals.",
         domain: "PERSONAL_WORKSPACE",
         requiredCapabilities: ["SECURITY_CENTER_VIEW"],
         requiredActiveSpace: "PERSONAL_OR_ORG",
@@ -366,7 +371,7 @@ export const ROUTE_REGISTRY = [
         advancedByDefault: true,
         commandPaletteVisible: true,
         allToolsVisible: true,
-        sidebarEligible: true,
+        sidebarEligible: false,
     },
     // Final Closure Remediation Part A — MfaRecoveryRequestApproval was
     // HARD_TO_FIND: backend service + UI page existed but no registry
@@ -540,17 +545,20 @@ export const ROUTE_REGISTRY = [
     {
         id: "workspace.communications",
         href: "/communications",
-        label: "Communications",
-        description: "Workspace communications and external messaging activity.",
+        // Phase IA-collapse — see routeRegistry.ts for full context.
+        // Renamed and demoted to an operator-facing messaging-operations
+        // surface.
+        label: "Messaging operations",
+        description: "SMS, WhatsApp, OTP delivery state, retry/cancel, and provider health.",
         domain: "PERSONAL_WORKSPACE",
         requiredCapabilities: ["EVIDENCE_VIEW"],
         requiredActiveSpace: "PERSONAL_OR_ORG",
         fallbackBehavior: "DEGRADED",
-        workflowTags: ["REVIEW_OPERATIONS", "LEGAL_CASEWORK"],
+        workflowTags: ["OPERATIONAL_ADMINISTRATION"],
         advancedByDefault: true,
         commandPaletteVisible: true,
         allToolsVisible: true,
-        sidebarEligible: true,
+        sidebarEligible: false,
     },
     {
         id: "workspace.intelligence",
@@ -658,17 +666,21 @@ export const ROUTE_REGISTRY = [
     {
         id: "workspace.collaboration",
         href: "/collaboration",
-        label: "Collaboration",
-        description: "Reviewer-and-above discussion threads across the workspace.",
+        // Phase IA-collapse — see routeRegistry.ts for full context.
+        // Standalone /collaboration retired; URL redirects to /inbox
+        // via next.config.js. Entry preserved so route id + href tests
+        // still pass.
+        label: "Collaboration (legacy — redirected to /inbox)",
+        description: "Legacy standalone discussion list. Redirects to /inbox; discussion threads now live on Evidence Detail → Discussion.",
         domain: "PERSONAL_WORKSPACE",
         requiredCapabilities: ["EVIDENCE_VIEW"],
         requiredActiveSpace: "PERSONAL_OR_ORG",
         fallbackBehavior: "DEGRADED",
         workflowTags: ["REVIEW_OPERATIONS", "LEGAL_CASEWORK"],
         advancedByDefault: true,
-        commandPaletteVisible: true,
-        allToolsVisible: true,
-        sidebarEligible: true,
+        commandPaletteVisible: false,
+        allToolsVisible: false,
+        sidebarEligible: false,
     },
     // PHASE 6 — Team Collaboration Platform. The canonical Team UI
     // surface. Available to BOTH personal and organization workspaces
@@ -1286,9 +1298,29 @@ export const ROUTE_REGISTRY = [
     // surfaces completely unprotected. Each entry below points at the REAL
     // page on disk; nothing here invents an empty route.
     // ---------------------------------------------------------------------------
+    // Phase IA-collapse — Account Security personal home. See
+    // routeRegistry.ts for full context.
+    {
+        id: "account.security",
+        href: "/settings/security",
+        label: "Account security",
+        description: "Personal account security — password, sessions, security events.",
+        domain: "ACCOUNT",
+        requiredCapabilities: [],
+        requiredActiveSpace: "NONE",
+        fallbackBehavior: "LOAD",
+        workflowTags: [],
+        advancedByDefault: false,
+        commandPaletteVisible: true,
+        allToolsVisible: true,
+        sidebarEligible: false,
+    },
     {
         id: "admin.identity",
-        href: "/settings/security",
+        // Phase IA-collapse — see routeRegistry.ts for full context.
+        // Admin identity hub moved from /settings/security (now Account
+        // Security) to /admin/identity.
+        href: "/admin/identity",
         label: "Identity operations",
         description: "Enterprise identity operations hub — SAML, SCIM, identity audit, active sessions.",
         domain: "ORGANIZATION_WORKSPACE",
@@ -1306,28 +1338,6 @@ export const ROUTE_REGISTRY = [
         href: "/intelligence-quality",
         label: "Intelligence Quality",
         description: "Provider, reviewer, and team correction analytics. Aggregate-only, never raw extraction.",
-        domain: "ORGANIZATION_WORKSPACE",
-        requiredCapabilities: ["GOVERNANCE_VIEW"],
-        requiredActiveSpace: "ORGANIZATION_ONLY",
-        fallbackBehavior: "REQUEST_ACCESS",
-        workflowTags: [],
-        advancedByDefault: true,
-        commandPaletteVisible: true,
-        allToolsVisible: true,
-        sidebarEligible: false,
-    },
-    {
-        id: "workspace.trust_center",
-        href: "/trust-center",
-        // -------------------------------------------------------------------------
-        // workspace-surface audit — label clarification:
-        // Renamed from "Trust Center" to "Trust & Compliance" per Section 6
-        // of the audit. The new label makes the compliance-discovery pathway
-        // explicit (this surface bundles methodology, AI disclosure, security,
-        // and subprocessor disclosures used by audit reviewers and procurement).
-        // -------------------------------------------------------------------------
-        label: "Trust & Compliance",
-        description: "Versioned platform-trust documentation — methodology, AI disclosure, security, subprocessors.",
         domain: "ORGANIZATION_WORKSPACE",
         requiredCapabilities: ["GOVERNANCE_VIEW"],
         requiredActiveSpace: "ORGANIZATION_ONLY",

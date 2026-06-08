@@ -910,11 +910,49 @@ onClick={(e) => {
                 </div>
               </Card>
 
-              {/* Phase Final-D5-PT2 — Personal security operations
-                  (password change, active sessions, sign-out everywhere,
-                  MFA enrollment, security event feed) live in the
-                  canonical Security Center. The card below is a link
-                  card; no parallel surface here. */}
+              {/* Phase IA-collapse — Account security lives at
+                  /settings/security (route id `account.security`):
+                  password change, active sessions, sign-out everywhere,
+                  recent security events. Workspace identity operations
+                  (MFA policy, trusted devices, session revocations,
+                  MFA recovery approvals) live at /security-center
+                  (route id `workspace.security_center`, label
+                  "Identity & Security"). Two cards below — one for
+                  personal, one for workspace operators. The
+                  `data-cc-security-link-card` attribute is preserved
+                  on the workspace card so the Phase Final-D5-PT2
+                  contract (the /settings page still points operators
+                  at the workspace security console) stays satisfied. */}
+              <Card
+                className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                style={cardShellStyle()}
+                data-cc-account-security-link-card
+              >
+                <div className="settings-silver-card__bg" />
+                <div className="settings-silver-card__overlay" />
+
+                <div className="settings-silver-card__content p-6 md:p-7">
+                  {sectionHeader(<Icons.Security />, "Account security")}
+
+                  <div className="grid gap-4">
+                    <p className="m-0 text-[13px] text-[#5d6d71]">
+                      Change your password, review active sessions, sign
+                      out of other devices, and view recent security
+                      events.
+                    </p>
+
+                    <Link href="/settings/security">
+                      <Button
+                        variant="secondary"
+                        className={`${velvetButtonClass()} settings-primary-btn`}
+                      >
+                        Open Account security
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </Card>
+
               <Card
                 className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
                 style={cardShellStyle()}
@@ -924,13 +962,13 @@ onClick={(e) => {
                 <div className="settings-silver-card__overlay" />
 
                 <div className="settings-silver-card__content p-6 md:p-7">
-                  {sectionHeader(<Icons.Security />, "Security Center")}
+                  {sectionHeader(<Icons.Security />, "Identity & Security")}
 
                   <div className="grid gap-4">
                     <p className="m-0 text-[13px] text-[#5d6d71]">
-                      Change your password, review active sessions, sign
-                      out of other devices, manage MFA, and view recent
-                      security events.
+                      Workspace identity operations: MFA policy, trusted
+                      devices, session revocations, and MFA recovery
+                      approvals. Operator/admin access required.
                     </p>
 
                     <Link href="/security-center">

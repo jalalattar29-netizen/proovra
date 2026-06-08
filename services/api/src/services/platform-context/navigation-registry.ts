@@ -473,9 +473,13 @@ const PLATFORM_HEALTH_GROUP: NavRegistryGroup = {
       badgeKey: null,
       requiresCapability: "RUNBOOKS_VIEW",
     },
+    // Phase IA-collapse — renamed "Security Center" → "Identity &
+    // Security". Personal account security (password, sessions,
+    // security events) moved to /settings/security; this entry remains
+    // the workspace operator-facing identity console.
     {
       id: "platform.security_center",
-      label: "Security Center",
+      label: "Identity & Security",
       href: "/security-center",
       iconKey: "security_center",
       domain: "PLATFORM_HEALTH",
@@ -569,9 +573,14 @@ const ADMINISTRATION_GROUP: NavRegistryGroup = {
     // because it carries the same operational sensitivity (per-team
     // outbound channel + retry visibility) and inherits the same
     // admin-only audience.
+    //
+    // Phase IA-collapse — renamed "Communications" → "Messaging
+    // operations" to match the operator-facing nature of the surface
+    // (SMS/WhatsApp/OTP delivery state + retry/cancel + provider
+    // health). Same href + capability.
     {
       id: "admin.communications",
-      label: "Communications",
+      label: "Messaging operations",
       href: "/communications",
       iconKey: "communications",
       domain: "ADMINISTRATION",

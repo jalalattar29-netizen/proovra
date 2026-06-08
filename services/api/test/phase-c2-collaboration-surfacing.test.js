@@ -73,8 +73,9 @@ describe("Phase C2 — /v1/me/inbox surfaces discussion signals", () => {
         expect(ME_INBOX_ROUTES).toMatch(/\/evidence\/\$\{encodeURIComponent/);
     });
     it("byCategory summary includes the new discussion categories", () => {
-        expect(ME_INBOX_ROUTES).toContain("discussion_mention: items.filter");
-        expect(ME_INBOX_ROUTES).toContain("discussion_assigned: items.filter");
+        // Phase IA-enterprise — summary now iterates filteredItems.
+        expect(ME_INBOX_ROUTES).toMatch(/discussion_mention:\s*(items|filteredItems)\.filter/);
+        expect(ME_INBOX_ROUTES).toMatch(/discussion_assigned:\s*(items|filteredItems)\.filter/);
     });
 });
 // ===========================================================================

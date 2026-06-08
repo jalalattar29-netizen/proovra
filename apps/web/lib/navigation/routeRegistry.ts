@@ -415,8 +415,17 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.security_center",
     href: "/security-center",
-    label: "Security Center",
-    description: "MFA policy, trusted devices, session revocations.",
+    // Phase IA-collapse — `/security-center` is the org/workspace
+    // identity-and-security operator console. Personal account security
+    // (password, my MFA enrollment, my sessions, my security events)
+    // moved to /settings/security (route id `account.security`); the
+    // surfaces here are MFA policy, trusted devices, session revocations,
+    // MFA recovery approvals, SSO admin. Demoted from primary sidebar
+    // (sidebarEligible=false); remains reachable via Settings →
+    // "Identity & Security" link, command palette, and All Tools.
+    label: "Identity & Security",
+    description:
+      "Workspace identity operations — MFA policy, trusted devices, session revocations, recovery approvals.",
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: ["SECURITY_CENTER_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
@@ -425,7 +434,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: true,
+    sidebarEligible: false,
   },
   // Final Closure Remediation Part A — MfaRecoveryRequestApproval was
   // HARD_TO_FIND: backend service + UI page existed but no registry
@@ -600,17 +609,26 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.communications",
     href: "/communications",
-    label: "Communications",
-    description: "Workspace communications and external messaging activity.",
+    // Phase IA-collapse — `/communications` is an operator-facing
+    // delivery state console (SMS / WhatsApp / OTP / Twilio Verify
+    // provider health, message status, retry / cancel). It is NOT a
+    // user-workflow surface — sending happens from intake-links /
+    // evidence-requests. Renamed "Messaging operations" and demoted
+    // out of the primary workspace sidebar (sidebarEligible=false);
+    // remains reachable via All Tools, the command palette, and from
+    // contextual links on evidence-request / intake-link detail.
+    label: "Messaging operations",
+    description:
+      "SMS, WhatsApp, OTP delivery state, retry/cancel, and provider health.",
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: ["EVIDENCE_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["REVIEW_OPERATIONS", "LEGAL_CASEWORK"],
+    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: true,
+    sidebarEligible: false,
   },
   {
     id: "workspace.intelligence",
@@ -719,17 +737,32 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.collaboration",
     href: "/collaboration",
-    label: "Collaboration",
-    description: "Reviewer-and-above discussion threads across the workspace.",
+    // Phase IA-collapse — `/collaboration` is RETIRED as a standalone
+    // product surface. The workspace-wide discussion list was a thin
+    // bird's-eye view of evidence discussion threads; its real
+    // capabilities (assigned-to-me, unread mentions) are already in
+    // /inbox (`discussion_mention` + `discussion_assigned` items, which
+    // deep-link to the evidence detail discussion tab). The page file +
+    // backend service + DiscussionThread / DiscussionMessage models +
+    // /v1/collaboration/threads/* routes all remain intact — the
+    // evidence detail discussion panel continues to use them. The
+    // standalone URL now redirects to /inbox (see next.config.js). This
+    // registry entry is preserved so the route id, href, and existing
+    // contract tests stay green; sidebar / cmd-K / All Tools all hide
+    // the entry, and the next.config redirect intercepts before the
+    // page renders.
+    label: "Collaboration (legacy — redirected to /inbox)",
+    description:
+      "Legacy standalone discussion list. Redirects to /inbox; discussion threads now live on Evidence Detail → Discussion.",
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: ["EVIDENCE_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
     workflowTags: ["REVIEW_OPERATIONS", "LEGAL_CASEWORK"],
     advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
-    sidebarEligible: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
   },
   // PHASE 6 — Team Collaboration Platform. The canonical Team UI
   // surface. Available to BOTH personal and organization workspaces
@@ -1366,7 +1399,15 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // ---------------------------------------------------------------------------
   {
     id: "admin.identity",
-    href: "/settings/security",
+    // Phase IA-collapse — admin identity hub moved from /settings/security
+    // (which is now the personal Account Security home — route id
+    // `account.security`) to /admin/identity, where the procurement-grade
+    // SAML / SCIM / Audit + Sessions / Runtime / Access reviews / Permission
+    // matrix / MFA admin entry points already live. The legacy URL
+    // /settings/security/{saml,scim,audit} sub-paths continue to redirect
+    // to their canonical homes via next.config.js — deep links are
+    // preserved.
+    href: "/admin/identity",
     label: "Identity operations",
     description:
       "Enterprise identity operations hub — SAML, SCIM, identity audit, active sessions.",
@@ -1376,6 +1417,29 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "REQUEST_ACCESS",
     workflowTags: [],
     advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  // Phase IA-collapse — Account Security is the personal-security home
+  // under Settings. Renders the user-scoped surfaces: password change,
+  // active sessions, "sign out other sessions", and the bounded
+  // security-events feed (the surfaces previously embedded at the top
+  // of /security-center via `PersonalSecuritySections`). ACCOUNT-tier
+  // domain + NONE active space so it loads for every authenticated user
+  // (the contained surfaces are user-scoped, not workspace-scoped).
+  {
+    id: "account.security",
+    href: "/settings/security",
+    label: "Account security",
+    description:
+      "Personal account security — password, sessions, security events.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
     sidebarEligible: false,

@@ -318,9 +318,17 @@ const TABS: ReadonlyArray<{
   },
   { id: "risk", label: "Risk", description: "Operational risk surface" },
   {
+    // Phase IA-cleanup — the tab id stays "communications" (pinned by
+    // phase-c1 contract tests + URL hash routing). The visible label
+    // is reframed to "Discussion & Activity" because the tab actually
+    // surfaces aggregated discussion threads (from /v1/cases/:id/
+    // discussion-threads), case-level comments, reviewer comments,
+    // and unresolved evidence annotations — all of which read more
+    // honestly as "discussion + activity" than as "communications".
+    // This is the post-/collaboration case-discussion surface.
     id: "communications",
-    label: "Communications",
-    description: "Notes + comments + annotations",
+    label: "Discussion & Activity",
+    description: "Discussion threads, comments, and activity",
   },
   {
     id: "assignments",
@@ -1303,9 +1311,14 @@ function CommunicationsTab({
     discussionThreads.length === 0
   ) {
     return (
+      // Phase IA-cleanup — tab-level empty state. Discussion threads
+      // are anchored to evidence (not directly to the case), so the
+      // canonical way to start one is from any evidence's Discussion
+      // tab. This copy is honest about that pattern instead of
+      // implying case-level thread creation exists.
       <EmptyState
-        title="No matter communications yet"
-        body="Discussion threads, case-level comments, reviewer comments, and evidence annotations appear here. Communications are workspace-scoped and audit-safe — they never surface on public verify pages."
+        title="No discussion activity yet"
+        body="Start a discussion from an evidence record in this case. Discussion threads, case-level comments, reviewer comments, and evidence annotations all surface here once they exist. Activity is workspace-scoped and audit-safe — it never appears on public verify pages."
       />
     );
   }

@@ -22,9 +22,26 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { logger } from "../logger.js";
 
+// Phase IA-reliability — accept every IncidentCategory enum value so
+// the worker-side bridge can land report / package / OTS / intake /
+// integration / reconciliation failures that previously vanished into
+// BullMQ DLQs without ever surfacing in /v1/me/inbox.
 export type RecordWorkerIncidentInput = {
   teamId?: string | null;
-  category: "GOVERNANCE" | "WORKER" | "STORAGE" | "DATABASE" | "AI";
+  category:
+    | "UPLOAD"
+    | "REPORT"
+    | "PACKAGE"
+    | "WEBHOOK"
+    | "COMMUNICATIONS"
+    | "IDENTITY_SECURITY"
+    | "GOVERNANCE"
+    | "STORAGE"
+    | "AI"
+    | "INTEGRATION"
+    | "DATABASE"
+    | "WORKER"
+    | "RECONCILIATION";
   severity: "INFO" | "WARNING" | "HIGH" | "CRITICAL";
   fingerprint: string;
   title: string;
@@ -61,16 +78,32 @@ function categoryToPrismaEnum(
   category: RecordWorkerIncidentInput["category"],
 ): prismaPkg.IncidentCategory {
   switch (category) {
+    case "UPLOAD":
+      return prismaPkg.IncidentCategory.UPLOAD;
+    case "REPORT":
+      return prismaPkg.IncidentCategory.REPORT;
+    case "PACKAGE":
+      return prismaPkg.IncidentCategory.PACKAGE;
+    case "WEBHOOK":
+      return prismaPkg.IncidentCategory.WEBHOOK;
+    case "COMMUNICATIONS":
+      return prismaPkg.IncidentCategory.COMMUNICATIONS;
+    case "IDENTITY_SECURITY":
+      return prismaPkg.IncidentCategory.IDENTITY_SECURITY;
     case "GOVERNANCE":
       return prismaPkg.IncidentCategory.GOVERNANCE;
-    case "WORKER":
-      return prismaPkg.IncidentCategory.WORKER;
     case "STORAGE":
       return prismaPkg.IncidentCategory.STORAGE;
-    case "DATABASE":
-      return prismaPkg.IncidentCategory.DATABASE;
     case "AI":
       return prismaPkg.IncidentCategory.AI;
+    case "INTEGRATION":
+      return prismaPkg.IncidentCategory.INTEGRATION;
+    case "DATABASE":
+      return prismaPkg.IncidentCategory.DATABASE;
+    case "WORKER":
+      return prismaPkg.IncidentCategory.WORKER;
+    case "RECONCILIATION":
+      return prismaPkg.IncidentCategory.RECONCILIATION;
   }
 }
 

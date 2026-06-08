@@ -44,17 +44,25 @@ describe("Phase 38.10 — route registry expansion (5 new routes)", () => {
             expect(REGISTRY).toMatch(new RegExp(`href:\\s*"${r.href.replace(/\//g, "\\/")}"`));
         });
     }
-    it("all new routes are sidebar-eligible (reachable from canonical nav)", () => {
-        for (const r of [
+    it("all new routes are reachable from canonical nav (sidebar or discovery surfaces)", () => {
+        // Phase IA-collapse — workspace.security_center demoted out of
+        // the primary sidebar; remains in cmd-K + All Tools.
+        const STILL_SIDEBAR_ELIGIBLE = [
             "workspace.intake_links",
             "workspace.workflows",
-            "workspace.security_center",
             "platform.runbooks",
             "review.escalations",
-        ]) {
+        ];
+        for (const r of STILL_SIDEBAR_ELIGIBLE) {
             const block = REGISTRY.match(new RegExp(`id:\\s*"${r.replace(/\./g, "\\.")}"[\\s\\S]*?sidebarEligible:\\s*(true|false)`));
             expect(block?.[1], `${r} must be sidebarEligible`).toBe("true");
         }
+        const sc = REGISTRY.match(/id:\s*"workspace\.security_center"[\s\S]*?sidebarEligible:\s*(true|false)/);
+        expect(sc?.[1], "workspace.security_center is demoted from sidebar").toBe("false");
+        const scCmdK = REGISTRY.match(/id:\s*"workspace\.security_center"[\s\S]*?commandPaletteVisible:\s*(true|false)/);
+        expect(scCmdK?.[1], "workspace.security_center remains in cmd-K").toBe("true");
+        const scAllTools = REGISTRY.match(/id:\s*"workspace\.security_center"[\s\S]*?allToolsVisible:\s*(true|false)/);
+        expect(scAllTools?.[1], "workspace.security_center remains in All Tools").toBe("true");
     });
     it("review.escalations is organization-only (matches its operational scope)", () => {
         const block = REGISTRY.match(/id:\s*"review\.escalations"[\s\S]*?requiredActiveSpace:\s*"([A-Z_]+)"/);

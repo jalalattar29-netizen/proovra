@@ -240,8 +240,9 @@ describe("Phase P1.1 — Frontend surfaces", () => {
 // 5. Honest-scope card removes the four shipped items
 // ---------------------------------------------------------------------------
 describe("Phase P1.1 — Honest-scope card hygiene", () => {
-    it("/settings/security no longer lists the four shipped follow-ups", () => {
-        const hub = readSource("../../../apps/web/app/(app)/settings/security/page.tsx");
+    it("/admin/identity no longer lists the four shipped follow-ups", () => {
+        // Phase IA-collapse — hub moved to /admin/identity.
+        const hub = readSource("../../../apps/web/app/(app)/admin/identity/page.tsx");
         expect(hub).not.toMatch(/<strong>SCIM drift reconciliation engine<\/strong>/);
         expect(hub).not.toMatch(/<strong>SSO connection health monitoring dashboard<\/strong>/);
         expect(hub).not.toMatch(/<strong>Visual SAML attribute mapping builder<\/strong>/);

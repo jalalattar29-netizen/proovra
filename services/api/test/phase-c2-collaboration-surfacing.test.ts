@@ -100,8 +100,15 @@ describe("Phase C2 — /v1/me/inbox surfaces discussion signals", () => {
   });
 
   it("byCategory summary includes the new discussion categories", () => {
-    expect(ME_INBOX_ROUTES).toContain("discussion_mention: items.filter");
-    expect(ME_INBOX_ROUTES).toContain("discussion_assigned: items.filter");
+    // Phase IA-enterprise — the summary now iterates the post-filter
+    // `filteredItems` set so counts match the active filter window.
+    // Both legacy item names accepted as a defensive fallback.
+    expect(ME_INBOX_ROUTES).toMatch(
+      /discussion_mention:\s*(items|filteredItems)\.filter/,
+    );
+    expect(ME_INBOX_ROUTES).toMatch(
+      /discussion_assigned:\s*(items|filteredItems)\.filter/,
+    );
   });
 });
 

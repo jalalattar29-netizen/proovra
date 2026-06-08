@@ -106,7 +106,13 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // lives in `/review` (workspace.review). Keeping it in WORKSPACE
       // would re-advertise the misleading "operations" framing the
       // Phase B IA reset deliberately retired.
-      "workspace.communications",
+      //
+      // Phase IA-collapse — `workspace.communications` reclassified
+      // out of WORKSPACE into SYSTEM/secondary: it is operator-facing
+      // messaging delivery state, not a workspace execution surface.
+      // `workspace.collaboration` stays here as a legacy entry — the
+      // page now redirects to /inbox (next.config.js); the registry
+      // entry remains so contract tests pinning id+href still pass.
       "workspace.collaboration",
       "workspace.intelligence",
       "investigation.hub",
@@ -149,7 +155,6 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
     primary: [
       "governance.hub",
       "account.organizations",
-      "workspace.security_center",
       "admin.teams",
       // Phase 1A — Trust hub is the cross-organisation transparency
       // surface (methodology, verification, signers, subprocessors,
@@ -158,6 +163,13 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "workspace.trust",
     ],
     secondary: [
+      // Phase IA-collapse — `workspace.security_center` (renamed
+      // "Identity & Security") demoted from GOVERNANCE/primary to
+      // /secondary. Personal account security moved to
+      // `account.security` (under SYSTEM/primary); this entry remains
+      // the workspace operator-facing identity console (MFA policy,
+      // trusted devices, session revocations, MFA recovery approvals).
+      "workspace.security_center",
       "governance.policy",
       "governance.retention",
       "governance.lifecycle",
@@ -240,6 +252,12 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
     hint: "Preferences + transparency. Solo-user safe.",
     primary: [
       "account.settings",
+      // Phase IA-collapse — Account security personal home at
+      // /settings/security. ACCOUNT-tier, NONE active space; always
+      // loads. Lives in SYSTEM primary alongside account.settings
+      // because both are personal preference / personal-control
+      // surfaces.
+      "account.security",
       "account.billing",
       "workspace.notifications",
       "workspace.integrations",
@@ -247,6 +265,12 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
     ],
     secondary: [
       "account.persona",
+      // Phase IA-collapse — `workspace.communications` (renamed
+      // "Messaging operations") moved from WORKSPACE/secondary to
+      // SYSTEM/secondary alongside the other ops health surfaces. It
+      // is an operator-facing SMS/WhatsApp/OTP delivery state console,
+      // not a workspace execution surface.
+      "workspace.communications",
       // Phase C — `workspace.workflows` administers the
       // EvidenceWorkflowTemplate catalog. It is an administration
       // surface (Phase B reframed the page from a misleading

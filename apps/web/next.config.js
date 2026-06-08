@@ -168,6 +168,21 @@ const nextConfig = {
         destination: "/operations/quotas",
         permanent: true,
       },
+      // Phase IA-collapse — /collaboration is retired as a standalone
+      // product surface. The capabilities it exposed (assigned-to-me,
+      // unread mentions, discussion attention queue) are already covered
+      // by /inbox (which surfaces `discussion_mention` + `discussion_assigned`
+      // items and deep-links straight to the evidence detail discussion
+      // tab where threads actually live). The /collaboration page file +
+      // backend service + DiscussionThread / DiscussionMessage models +
+      // /v1/collaboration/threads/* routes all remain intact — they
+      // continue to power the evidence detail discussion panel. This
+      // redirect only retires the standalone front-end entry point.
+      {
+        source: "/collaboration",
+        destination: "/inbox",
+        permanent: true,
+      },
     ];
   },
 };

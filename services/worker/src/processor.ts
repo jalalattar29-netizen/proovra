@@ -60,6 +60,7 @@ import {
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
 import { appendWorkerAnalyticsEvent } from "./analytics-events.js";
+import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { prisma } from "./db.js";
 import { env } from "./config.js";
 import { logger, withJobContext } from "./logger.js";
@@ -4102,6 +4103,18 @@ trustDecisionSnapshot:
         { removeOnComplete: true, removeOnFail: false }
       );
 
+      // Phase IA-reliability — bridge into OperationalIncident so
+      // /v1/me/inbox sees the failure. Non-retriable DLQ moves are
+      // CRITICAL — the report cannot be regenerated without operator
+      // intervention.
+      await recordReportFailureIncident({
+        evidenceId,
+        jobId: job.id,
+        error,
+        severity: "CRITICAL",
+        retriable: false,
+      });
+
       logger.error(
         {
           ...withJobContext({
@@ -4133,6 +4146,18 @@ trustDecisionSnapshot:
         { removeOnComplete: true, removeOnFail: false }
       );
 
+      // Phase IA-reliability — retry-exhausted DLQ move is HIGH. A
+      // retry-eligible job exhausted its retry budget; operators can
+      // re-queue from the DLQ console, so it isn't terminal in the
+      // same way a non-retriable failure is.
+      await recordReportFailureIncident({
+        evidenceId,
+        jobId: job.id,
+        error,
+        severity: "HIGH",
+        retriable: true,
+      });
+
       logger.error(
         {
           ...withJobContext({
@@ -4150,6 +4175,75 @@ trustDecisionSnapshot:
     }
 
     throw error;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Phase IA-reliability — report DLQ → OperationalIncident bridge.
+//
+// Called from both terminal-failure paths in `processGenerateReport` (the
+// non-retriable discard + the retry-exhausted DLQ move). Looks up the
+// evidence's teamId so the incident lands in the correct workspace
+// scope, normalises the error message into a bounded fingerprint, and
+// delegates to the worker-side `recordWorkerIncident` helper which
+// upserts the operational_incidents row + writes a child event row.
+//
+// Hard rules:
+//   * NEVER include stack traces or PII in the incident — only a
+//     truncated, normalised message + the job id + evidence id.
+//   * Fingerprint is deterministic on `evidenceId + errorClass` so
+//     repeated failures dedupe to one row.
+//   * Best-effort — incident emission failure is logged and swallowed
+//     so it never masks the original DLQ move.
+// ---------------------------------------------------------------------------
+async function recordReportFailureIncident(input: {
+  evidenceId: string;
+  jobId: string | undefined;
+  error: unknown;
+  severity: "CRITICAL" | "HIGH";
+  retriable: boolean;
+}): Promise<void> {
+  try {
+    const ev = await prisma.evidence.findUnique({
+      where: { id: input.evidenceId },
+      select: { teamId: true, title: true },
+    });
+    const rawMessage =
+      input.error instanceof Error
+        ? input.error.message
+        : typeof input.error === "string"
+          ? input.error
+          : "Unknown error";
+    const errorClass = rawMessage
+      .split(/[:\n]/, 1)[0]
+      .trim()
+      .slice(0, 80)
+      .toUpperCase()
+      .replace(/\s+/g, "_") || "UNKNOWN";
+    const fingerprint = `REPORT:${input.evidenceId}:${errorClass}`;
+    const evidenceLabel = ev?.title ? ev.title.slice(0, 80) : input.evidenceId.slice(0, 8);
+    await recordWorkerIncident({
+      teamId: ev?.teamId ?? null,
+      category: "REPORT",
+      severity: input.severity,
+      fingerprint,
+      title: input.retriable
+        ? `Report generation retry budget exhausted (${evidenceLabel})`
+        : `Report generation failure (${evidenceLabel})`,
+      safeSummary: rawMessage.slice(0, 380),
+      relatedEvidenceId: input.evidenceId,
+      relatedJobId: input.jobId ?? null,
+      metadata: {
+        queueName: "report",
+        retriable: input.retriable,
+        errorClass,
+      },
+    });
+  } catch (err) {
+    logger.warn(
+      { err, evidenceId: input.evidenceId },
+      "worker.report.incident_bridge_failed",
+    );
   }
 }
 

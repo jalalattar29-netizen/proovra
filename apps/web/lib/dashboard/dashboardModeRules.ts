@@ -126,10 +126,17 @@ export const MODE_QUICK_ACTIONS: Record<
       href: "/intake-links",
       intent: "secondary",
     },
+    // Phase IA-cleanup — the standalone /collaboration page was
+    // retired (now redirects to /inbox). The org-mode dashboard
+    // quick action now opens the canonical attention center where
+    // mentions, assigned discussion threads, escalations, governance,
+    // and review-decision items surface. Quick-action id is preserved
+    // so persona-priority + analytics tests stay green; href + label
+    // updated to canonical destinations.
     {
       id: "org.collaboration",
-      label: "Open collaboration",
-      href: "/collaboration",
+      label: "Check your inbox",
+      href: "/inbox",
       intent: "secondary",
     },
   ],

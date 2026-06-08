@@ -58,6 +58,7 @@
  *     scoped to memberships the caller already has.
  */
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { z } from "zod";
 import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -66,6 +67,83 @@ import {
   isPreferenceEnabled,
   type NotificationPreferenceType,
 } from "../services/notifications/notification-preferences.service.js";
+
+/**
+ * Phase IA-enterprise — server-driven filter enum. Every chip the
+ * frontend renders maps to one of these keys; the backend applies the
+ * filter AFTER aggregation so admin-only items never reach a non-admin
+ * caller even via crafted requests (the admin items are simply not
+ * included in the aggregation pool for that caller).
+ *
+ *   all              — no filter
+ *   critical         — tone === "critical"
+ *   assigned_to_me   — discussion_assigned + review_escalation
+ *   review           — review_decision + review_escalation
+ *   governance       — governance + access_review_pending
+ *   failures         — communication_failure + report_failure
+ *                      + verification_package_failure + ots_failure
+ *   security         — security_event_high + mfa_recovery_pending
+ *   mentions         — discussion_mention
+ *   unread           — currently equivalent to `all` because the
+ *                      inbox has no per-user read-state model;
+ *                      documented honestly so the chip can ship.
+ *   due_soon         — has a dueAt within the next 7 days
+ *   overdue          — has a dueAt in the past
+ *   admin            — admin-only categories (mfa_recovery_pending,
+ *                      communication_failure, org_admin,
+ *                      report_failure, verification_package_failure)
+ */
+const INBOX_FILTER_KEYS = [
+  "all",
+  "critical",
+  "assigned_to_me",
+  "review",
+  "governance",
+  "failures",
+  "security",
+  "mentions",
+  "unread",
+  "due_soon",
+  "overdue",
+  "admin",
+] as const;
+type InboxFilter = (typeof INBOX_FILTER_KEYS)[number];
+
+const inboxQuerySchema = z.object({
+  // Opaque cursor. Encodes a forward offset into the post-filter,
+  // post-sort items array. Base64-encoded for forward compatibility
+  // (we may swap to a richer payload later without breaking clients).
+  cursor: z.string().optional(),
+  pageSize: z.coerce.number().int().min(1).max(50).optional(),
+  filter: z.enum(INBOX_FILTER_KEYS).optional(),
+  // Existing tone enum — same key as the in-page chips. Server-side
+  // tone filtering complements the filter enum.
+  tone: z.enum(["critical", "high", "warning", "info"]).optional(),
+});
+
+const DEFAULT_PAGE_SIZE = 25;
+
+function decodeCursor(cursor: string | undefined): number {
+  if (!cursor) return 0;
+  try {
+    const decoded = Buffer.from(cursor, "base64").toString("utf8");
+    const parsed = JSON.parse(decoded) as { offset?: number };
+    const offset = parsed.offset;
+    if (typeof offset !== "number" || !Number.isFinite(offset) || offset < 0) {
+      return 0;
+    }
+    return Math.floor(offset);
+  } catch {
+    // Malformed cursor falls through to the start of the list. We do
+    // NOT throw — clients should not be able to crash the inbox by
+    // sending a bad cursor.
+    return 0;
+  }
+}
+
+function encodeCursor(offset: number): string {
+  return Buffer.from(JSON.stringify({ offset }), "utf8").toString("base64");
+}
 
 async function requireAuthAndLegal(
   req: FastifyRequest,
@@ -92,7 +170,77 @@ type InboxCategory =
   // Deep-link metadata in `context` lets the inbox row open the
   // exact evidence/matter surface anchored to the thread.
   | "discussion_mention"
-  | "discussion_assigned";
+  | "discussion_assigned"
+  // Phase IA-cleanup — post-/collaboration attention center expansion.
+  // Each new category is backed by a REAL model and gated to the actor
+  // it concerns. Admin-only categories never surface to non-admins.
+  //   * `review_escalation` — ReviewEscalation rows where
+  //       assignedToUserId = caller AND status = OPEN. Operator action
+  //       surface for the workflow-tier escalation pipeline.
+  //   * `access_review_pending` — AccessReview rows where the caller
+  //       is the subject (`subjectUserId = userId`) OR the initiator
+  //       (`initiatedByUserId = userId`) AND status = PENDING. Never
+  //       leaks access reviews where the caller has no relationship.
+  //   * `mfa_recovery_pending` — MfaRecoveryRequest rows in
+  //       PENDING_ADMIN_REVIEW for teams where the caller is OWNER or
+  //       ADMIN. Never surfaces to non-admins (the same gate that the
+  //       Identity & Security console uses).
+  //   * `communication_failure` — CommunicationMessage rows with
+  //       status = FAILED in the last 24h for teams where the caller
+  //       is OWNER or ADMIN. Same admin gate as messaging-ops mutate.
+  //   * `security_event_high` — SecurityEvent rows for THIS caller's
+  //       userId with severity = HIGH in the last 7 days. Never
+  //       surfaces other users' events even to admins; the security
+  //       center is the surface for cross-user inspection.
+  | "review_escalation"
+  | "access_review_pending"
+  | "mfa_recovery_pending"
+  | "communication_failure"
+  | "security_event_high"
+  // Phase IA-enterprise — operational failure surfacing. All three are
+  // sourced from existing persistence: `report_failure` and
+  // `verification_package_failure` come from OperationalIncident rows
+  // (category REPORT / PACKAGE) populated by the incident-generator
+  // service. `ots_failure` comes from Evidence rows where
+  // otsStatus = "FAILED" (the Phase-12 OTS anchoring pipeline writes
+  // this terminal state, encoding the specific failure code in
+  // `otsFailureReason` — e.g. OTS_GLOBAL_BUDGET_EXHAUSTED). We never
+  // surface PENDING / RETRY_SCHEDULED / WAITING_CONFIRMATIONS — those
+  // are normal lifecycle states and would be noise.
+  | "report_failure"
+  | "verification_package_failure"
+  | "ots_failure"
+  // Phase IA-reliability — intake action-required signals. All three
+  // source from canonical persisted state — NO migration. We deliberately
+  // surface only ACTIONABLE statuses; normal successful submissions
+  // never appear here.
+  //   * `intake_submission_pending_review` — EvidenceRequest rows with
+  //       status RESPONSE_RECEIVED or UNDER_REVIEW + no assigned
+  //       reviewer. The team needs to claim and triage.
+  //   * `intake_required_items_missing` — EvidenceRequest rows in
+  //       PARTIALLY_FULFILLED or NEEDS_MORE_INFO. The contributor (or
+  //       a team requester following up) needs to supply more.
+  //   * `intake_link_expiring` — WorkflowIntakeLink rows in ACTIVE
+  //       state whose `expiresAtUtc` is within the next 7 days. The
+  //       creator should renew or revoke.
+  | "intake_submission_pending_review"
+  | "intake_required_items_missing"
+  | "intake_link_expiring";
+
+/**
+ * Phase IA-enterprise — bounded operator-priority tier per item.
+ *
+ *   P1 — Critical operational failure or critical-tone signal that
+ *        blocks downstream work (report / package / OTS failure,
+ *        critical-tone governance).
+ *   P2 — Requires action (escalations, access reviews, MFA approval
+ *        queue, security events, communication failures, conflict
+ *        adjudication, org invites).
+ *   P3 — Assigned-to-me (discussion mentions + assigned threads).
+ *   P4 — Governance / admin notifications.
+ *   P5 — Awareness / onboarding signals.
+ */
+type InboxPriority = "P1" | "P2" | "P3" | "P4" | "P5";
 
 type InboxItem = {
   /**
@@ -101,13 +249,53 @@ type InboxItem = {
    * eventual receipt model could read-track on this key.
    */
   id: string;
+  /**
+   * Phase IA-reliability — deterministic per-user state key. By
+   * convention `itemKey === id` so the four mutation endpoints
+   * (/v1/me/inbox/items/:itemKey/{read,unread,dismiss,snooze}) accept
+   * the same value the frontend already has on every row. The key
+   * prefix MUST be one of `INBOX_ITEM_KEY_PREFIXES` — the mutation
+   * endpoints reject any other prefix to prevent enumeration.
+   */
+  itemKey: string;
   category: InboxCategory;
   tone: InboxTone;
+  /**
+   * Phase IA-enterprise — operator-facing priority tier. Driven by
+   * category + tone via `priorityForItem()`. Sorting prefers priority
+   * over tone so a P1 INFO never sits below a P5 WARNING.
+   */
+  priority: InboxPriority;
   title: string;
   body: string;
   href: string;
   /** ISO timestamp of the most recent occurrence of this item. */
   occurredAt: string;
+  /**
+   * Phase IA-reliability — per-user read state. Driven by an
+   * InboxItemState row keyed by (userId, itemKey). `readAt` is the
+   * timestamp on the state row; `isRead` is its boolean projection
+   * for convenience.
+   */
+  isRead: boolean;
+  readAt?: string | null;
+  /** Set only when the user actively dismissed an earlier occurrence. */
+  dismissedAt?: string | null;
+  /** Set only when the user snoozed this item; null after expiry. */
+  snoozedUntil?: string | null;
+  /** Operator-visible action capabilities. All true today; future
+   * categories that don't make sense to mark read or snooze can flip
+   * these without breaking the UI. */
+  canMarkRead: boolean;
+  canDismiss: boolean;
+  canSnooze: boolean;
+  /**
+   * Optional deadline for the action. Populated when the underlying
+   * source carries a real expiry / due date (access review dueAtUtc,
+   * MFA recovery expiresAt, org invite expiresAt). null otherwise —
+   * we never fabricate a deadline.
+   */
+  dueAt?: string | null;
   /**
    * Optional context for the operator (org name, workspace name).
    * Never PII; only short identifiers + names already visible to the
@@ -116,6 +304,235 @@ type InboxItem = {
   context: Record<string, string | number | null>;
 };
 
+/**
+ * Phase IA-reliability — allowlist of valid itemKey source-type
+ * prefixes. The four mutation endpoints reject any key whose left
+ * side isn't in this set, so a hostile client cannot use the
+ * endpoint to spray InboxItemState rows with arbitrary content. The
+ * scoping in the table (one row per (userId, itemKey)) means a
+ * misaligned key has no impact on other users, but this allowlist
+ * also keeps the table free of garbage for storage hygiene.
+ *
+ * Update this list whenever a new InboxCategory is added with an id
+ * prefix the aggregator emits. The mapping is intentionally manual
+ * so a forgotten allowlist entry surfaces as a 400 rather than a
+ * silent write.
+ */
+const INBOX_ITEM_KEY_PREFIXES = new Set<string>([
+  "onboarding",
+  "org_invite",
+  "org_admin",
+  "governance",
+  "review_decision",
+  "discussion_mention",
+  "discussion_assigned",
+  "review_escalation",
+  "access_review_pending",
+  "mfa_recovery_pending",
+  "communication_failure",
+  "security_event_high",
+  "report_failure",
+  "verification_package_failure",
+  "ots_failure",
+  "intake_submission_pending_review",
+  "intake_required_items_missing",
+  "intake_link_expiring",
+]);
+
+/**
+ * Phase IA-reliability — validate that an itemKey claims one of the
+ * known source prefixes and stays under the schema's 200-char cap.
+ * Returns the parsed source-type prefix on success and null on any
+ * shape failure. The caller surfaces null as a 400.
+ */
+function parseInboxItemKey(itemKey: string): {
+  sourceType: string;
+  sourceId: string | null;
+} | null {
+  if (typeof itemKey !== "string" || itemKey.length === 0) return null;
+  if (itemKey.length > 200) return null;
+  // Source type is everything before the first ":". The rest (possibly
+  // containing additional ":" separators — e.g. org_admin:<orgId>:pending_invites
+  // — is the source id half. Either may be empty for keys like
+  // "onboarding:no_organizations" where the right side is a literal.
+  const colon = itemKey.indexOf(":");
+  if (colon < 1 || colon === itemKey.length - 1) return null;
+  const sourceType = itemKey.slice(0, colon);
+  if (!INBOX_ITEM_KEY_PREFIXES.has(sourceType)) return null;
+  const sourceId = itemKey.slice(colon + 1);
+  // The right side must be benign — letters/digits, ":", "-", "_", ".".
+  // No "/", "?", "<", ">", whitespace, etc. — these don't appear in
+  // any UUID / slug we emit and would indicate a crafted payload.
+  if (!/^[A-Za-z0-9_.:-]+$/.test(sourceId)) return null;
+  return { sourceType, sourceId };
+}
+
+/**
+ * Phase IA-enterprise — priority tier per category. The spec maps:
+ *   P1 — report / package / OTS failure, critical-tone signals
+ *   P2 — escalation / access review / MFA approval / security event /
+ *        communication failure / review conflict / org invite
+ *   P3 — discussion mention + discussion assigned
+ *   P4 — governance + org admin rollup
+ *   P5 — onboarding + review awareness
+ *
+ * `tone === "critical"` upgrades any item to P1 so a CRITICAL
+ * governance event isn't buried behind a P2 personal escalation.
+ */
+function priorityForItem(item: {
+  category: InboxCategory;
+  tone: InboxTone;
+}): InboxPriority {
+  if (item.tone === "critical") return "P1";
+  switch (item.category) {
+    case "report_failure":
+    case "verification_package_failure":
+    case "ots_failure":
+      return "P1";
+    case "review_escalation":
+    case "access_review_pending":
+    case "mfa_recovery_pending":
+    case "security_event_high":
+    case "communication_failure":
+    case "org_invite":
+    case "intake_submission_pending_review":
+    case "intake_required_items_missing":
+      return "P2";
+    case "intake_link_expiring":
+      return "P4";
+    case "review_decision":
+      // Conflict-detected workflows are P2; awaiting-second awareness
+      // items are P5. Distinguished by id-prefix because both share
+      // the same category name.
+      return "P2"; // upgraded below per-id when known
+    case "discussion_mention":
+    case "discussion_assigned":
+      return "P3";
+    case "governance":
+    case "org_admin":
+      return "P4";
+    case "onboarding":
+      return "P5";
+    default:
+      // Future-proof: unknown categories default to "needs action"
+      // rather than getting hidden at the bottom.
+      return "P2";
+  }
+}
+
+/**
+ * Phase IA-enterprise — filter membership. For category-keyed filters
+ * we use this table; tone/due-date filters live inline because they
+ * need runtime data.
+ */
+const FILTER_CATEGORY_MEMBERS: Partial<
+  Record<InboxFilter, ReadonlyArray<InboxCategory>>
+> = {
+  assigned_to_me: ["discussion_assigned", "review_escalation"],
+  review: [
+    "review_decision",
+    "review_escalation",
+    "intake_submission_pending_review",
+  ],
+  governance: ["governance", "access_review_pending", "intake_link_expiring"],
+  failures: [
+    "communication_failure",
+    "report_failure",
+    "verification_package_failure",
+    "ots_failure",
+    // intake_required_items_missing surfaces as a "failure" in the
+    // sense that the intake didn't complete — operators expect to find
+    // it under Failures alongside report/package issues.
+    "intake_required_items_missing",
+  ],
+  security: ["security_event_high", "mfa_recovery_pending"],
+  mentions: ["discussion_mention"],
+  admin: [
+    "mfa_recovery_pending",
+    "communication_failure",
+    "org_admin",
+    "report_failure",
+    "verification_package_failure",
+    "intake_submission_pending_review",
+    "intake_link_expiring",
+  ],
+};
+
+function matchesFilter(
+  item: InboxItem,
+  filter: InboxFilter | undefined,
+  nowMs: number,
+): boolean {
+  if (!filter || filter === "all") return true;
+  // Phase IA-reliability — `unread` is now a REAL filter against the
+  // per-user InboxItemState join; an item is unread when no state row
+  // exists or its `readAt` is null. (Dismissed and snoozed items are
+  // already filtered out upstream.)
+  if (filter === "unread") return !item.isRead;
+  if (filter === "critical") return item.tone === "critical";
+  if (filter === "overdue") {
+    return item.dueAt !== null && item.dueAt !== undefined
+      ? new Date(item.dueAt).getTime() < nowMs
+      : false;
+  }
+  if (filter === "due_soon") {
+    if (!item.dueAt) return false;
+    const due = new Date(item.dueAt).getTime();
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    return due >= nowMs && due <= nowMs + sevenDays;
+  }
+  const members = FILTER_CATEGORY_MEMBERS[filter];
+  if (!members) return true;
+  return members.includes(item.category);
+}
+
+const PRIORITY_ORDER: Record<InboxPriority, number> = {
+  P1: 5,
+  P2: 4,
+  P3: 3,
+  P4: 2,
+  P5: 1,
+};
+
+const TONE_PRIORITY: Record<InboxTone, number> = {
+  critical: 4,
+  high: 3,
+  warning: 2,
+  info: 1,
+};
+
+/**
+ * Phase IA-enterprise — operator-friendly sort.
+ *
+ *   priority (P1..P5)  →
+ *   due-date posture (overdue → due-soon → no-due) →
+ *   tone (critical..info) →
+ *   occurredAt desc
+ *
+ * The due-date posture step keeps overdue items above future-due items
+ * within the same priority tier; otherwise sorting purely on
+ * occurredAt would surface a stale overdue item below a fresh-but-
+ * future item.
+ */
+function compareInboxItems(a: InboxItem, b: InboxItem, nowMs: number): number {
+  const dp = PRIORITY_ORDER[b.priority] - PRIORITY_ORDER[a.priority];
+  if (dp !== 0) return dp;
+  const aDueScore = dueScore(a.dueAt, nowMs);
+  const bDueScore = dueScore(b.dueAt, nowMs);
+  if (aDueScore !== bDueScore) return bDueScore - aDueScore;
+  const dt = TONE_PRIORITY[b.tone] - TONE_PRIORITY[a.tone];
+  if (dt !== 0) return dt;
+  return b.occurredAt.localeCompare(a.occurredAt);
+}
+
+function dueScore(dueAt: string | null | undefined, nowMs: number): number {
+  if (!dueAt) return 0;
+  const due = new Date(dueAt).getTime();
+  if (due < nowMs) return 2; // overdue — surface highest
+  if (due <= nowMs + 7 * 24 * 60 * 60 * 1000) return 1; // due soon
+  return 0;
+}
+
 export async function meInboxRoutes(app: FastifyInstance) {
   app.get(
     "/v1/me/inbox",
@@ -123,6 +540,20 @@ export async function meInboxRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const userId = getAuthUserId(req);
       const now = new Date();
+      const nowMs = now.getTime();
+
+      // Phase IA-enterprise — parse pagination + filter query. The
+      // schema rejects malformed input by silently falling through to
+      // defaults (decodeCursor swallows bad cursors and returns 0), so
+      // callers never see a 4xx for benign client glitches.
+      const parsed = inboxQuerySchema.safeParse(req.query ?? {});
+      const queryParams: z.infer<typeof inboxQuerySchema> = parsed.success
+        ? parsed.data
+        : {};
+      const pageSize = queryParams.pageSize ?? DEFAULT_PAGE_SIZE;
+      const offset = decodeCursor(queryParams.cursor);
+      const requestedFilter: InboxFilter = queryParams.filter ?? "all";
+      const requestedTone = queryParams.tone;
 
       // -----------------------------------------------------------------
       // Caller identity probe.
@@ -441,6 +872,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // Source 5: Phase C2 — unresolved discussion threads assigned to
       // the caller. Threads in status RESOLVED or CLOSED do not surface.
       // -----------------------------------------------------------------
+      const PER_CATEGORY_TAKE = 50;
       const assignedThreads =
         teamIds.length === 0
           ? []
@@ -460,13 +892,418 @@ export async function meInboxRoutes(app: FastifyInstance) {
                 updatedAt: true,
               },
               orderBy: { updatedAt: "desc" },
-              take: 100,
+              take: PER_CATEGORY_TAKE,
             });
 
       // -----------------------------------------------------------------
-      // Assemble the unified items array.
+      // Phase IA-cleanup — Source 6: workflow-tier escalations assigned
+      // to the caller. ReviewEscalation is the canonical operator-action
+      // surface (status OPEN means it still needs human action). We
+      // workspace-scope to all teams the caller belongs to so both
+      // adjudicator and assignee see their queue items.
       // -----------------------------------------------------------------
-      const items: InboxItem[] = [];
+      const myReviewEscalations =
+        teamIds.length === 0
+          ? []
+          : await prisma.reviewEscalation.findMany({
+              where: {
+                teamId: { in: teamIds },
+                assignedToUserId: userId,
+                status: "OPEN",
+              },
+              select: {
+                id: true,
+                teamId: true,
+                workflowId: true,
+                evidenceId: true,
+                reason: true,
+                severity: true,
+                safeSummary: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+              orderBy: { updatedAt: "desc" },
+              take: PER_CATEGORY_TAKE,
+            });
+
+      // -----------------------------------------------------------------
+      // Phase IA-cleanup — Source 7: access reviews where the caller is
+      // the SUBJECT (their access is being reviewed) OR the INITIATOR
+      // (they kicked the review off). We deliberately do NOT surface
+      // every pending access review in the workspace — that would leak
+      // governance signal to actors with no role in the review.
+      // Admin/team-wide queue lives in the access-review console.
+      // -----------------------------------------------------------------
+      const myAccessReviews = await prisma.accessReview.findMany({
+        where: {
+          status: { in: ["PENDING", "IN_PROGRESS"] },
+          OR: [
+            { subjectUserId: userId },
+            { initiatedByUserId: userId },
+          ],
+        },
+        select: {
+          id: true,
+          teamId: true,
+          kind: true,
+          status: true,
+          dueAtUtc: true,
+          subjectKind: true,
+          subjectUserId: true,
+          initiatedByUserId: true,
+          createdAt: true,
+        },
+        orderBy: [{ dueAtUtc: "asc" }, { createdAt: "desc" }],
+        take: PER_CATEGORY_TAKE,
+      });
+
+      // -----------------------------------------------------------------
+      // Phase IA-cleanup — Source 8: pending MFA recovery requests for
+      // teams where the caller is OWNER or ADMIN. This mirrors the
+      // gating on the existing Identity & Security console
+      // (/security-center) — admins see the queue, non-admins never do.
+      // The endpoint we call when the admin opens the queue (
+      // /v1/identity/mfa-admin/recovery-requests/:teamId) enforces the
+      // same gate server-side, so even a forged inbox would be blocked
+      // at the action surface.
+      // -----------------------------------------------------------------
+      const pendingMfaRecovery =
+        adjudicatorTeamIds.length === 0
+          ? []
+          : await prisma.mfaRecoveryRequest.findMany({
+              where: {
+                teamId: { in: adjudicatorTeamIds },
+                status: "PENDING_ADMIN_REVIEW",
+              },
+              select: {
+                id: true,
+                teamId: true,
+                userId: true,
+                reason: true,
+                requiredApprovals: true,
+                approvalCount: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: "desc" },
+              take: PER_CATEGORY_TAKE,
+            });
+
+      // -----------------------------------------------------------------
+      // Phase IA-cleanup — Source 9: recent communication delivery
+      // failures for teams where the caller is OWNER or ADMIN. Same
+      // admin gate as messaging-ops mutations. We scope to the last
+      // 24h to keep the inbox actionable (older failures still appear
+      // in /communications). Only surfaces the failed-status rows.
+      // -----------------------------------------------------------------
+      const FAILURE_WINDOW_MS = 24 * 60 * 60 * 1000;
+      const failureCutoff = new Date(now.getTime() - FAILURE_WINDOW_MS);
+      const failedCommunications =
+        adjudicatorTeamIds.length === 0
+          ? []
+          : await prisma.communicationMessage.findMany({
+              where: {
+                teamId: { in: adjudicatorTeamIds },
+                status: "FAILED",
+                updatedAt: { gte: failureCutoff },
+              },
+              select: {
+                id: true,
+                teamId: true,
+                channel: true,
+                purpose: true,
+                errorCode: true,
+                recipientPreview: true,
+                attemptCount: true,
+                updatedAt: true,
+              },
+              orderBy: { updatedAt: "desc" },
+              take: PER_CATEGORY_TAKE,
+            });
+
+      // -----------------------------------------------------------------
+      // Phase IA-cleanup — Source 10: high-severity security events for
+      // THIS caller's identity in the last 7 days. We scope to
+      // userId = caller so admins do NOT see other users' security
+      // events via this endpoint — the security center is the
+      // canonical cross-user surface. SecurityEventSeverity enum is
+      // INFO | WARNING | HIGH (no CRITICAL — verified in schema), so
+      // HIGH is the elevated tone for this category.
+      // -----------------------------------------------------------------
+      const SECURITY_EVENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+      const securityCutoff = new Date(now.getTime() - SECURITY_EVENT_WINDOW_MS);
+      const myHighSecurityEvents = await prisma.securityEvent.findMany({
+        where: {
+          userId,
+          severity: "HIGH",
+          createdAt: { gte: securityCutoff },
+        },
+        select: {
+          id: true,
+          teamId: true,
+          eventType: true,
+          severity: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: PER_CATEGORY_TAKE,
+      });
+
+      // -----------------------------------------------------------------
+      // Phase IA-enterprise — Source 11: report generation failure
+      // incidents. OperationalIncident is the canonical aggregator
+      // populated by `incident-generator.service.ts`; rows in
+      // (OPEN | ACKNOWLEDGED) state with category REPORT are the
+      // operator-relevant surface. Workspace-scoped to caller's teams.
+      // Severity (CRITICAL | HIGH | WARNING | INFO) maps directly to
+      // inbox tone.
+      // -----------------------------------------------------------------
+      const reportIncidents =
+        teamIds.length === 0
+          ? []
+          : await prisma.operationalIncident.findMany({
+              where: {
+                teamId: { in: teamIds },
+                category: "REPORT",
+                status: { in: ["OPEN", "ACKNOWLEDGED"] },
+              },
+              select: {
+                id: true,
+                teamId: true,
+                title: true,
+                safeSummary: true,
+                severity: true,
+                status: true,
+                occurrenceCount: true,
+                relatedEvidenceId: true,
+                relatedJobId: true,
+                lastSeenAtUtc: true,
+                firstSeenAtUtc: true,
+                runbookSlug: true,
+              },
+              orderBy: { lastSeenAtUtc: "desc" },
+              take: PER_CATEGORY_TAKE,
+            });
+
+      // -----------------------------------------------------------------
+      // Phase IA-enterprise — Source 12: verification package failure
+      // incidents. Same persistence + scoping as report failures, just
+      // category PACKAGE.
+      // -----------------------------------------------------------------
+      const packageIncidents =
+        teamIds.length === 0
+          ? []
+          : await prisma.operationalIncident.findMany({
+              where: {
+                teamId: { in: teamIds },
+                category: "PACKAGE",
+                status: { in: ["OPEN", "ACKNOWLEDGED"] },
+              },
+              select: {
+                id: true,
+                teamId: true,
+                title: true,
+                safeSummary: true,
+                severity: true,
+                status: true,
+                occurrenceCount: true,
+                relatedEvidenceId: true,
+                relatedJobId: true,
+                lastSeenAtUtc: true,
+                firstSeenAtUtc: true,
+                runbookSlug: true,
+              },
+              orderBy: { lastSeenAtUtc: "desc" },
+              take: PER_CATEGORY_TAKE,
+            });
+
+      // -----------------------------------------------------------------
+      // Phase IA-enterprise — Source 13: OTS anchoring failures.
+      // The OTS pipeline writes its terminal state directly on Evidence
+      // (otsStatus = "FAILED" + a machine-readable code in
+      // otsFailureReason — e.g. "OTS_GLOBAL_BUDGET_EXHAUSTED" or the
+      // normalized error from the OTS binary). We deliberately do NOT
+      // surface PENDING / WAITING_CONFIRMATIONS / RETRY_SCHEDULED —
+      // those are normal lifecycle states and would be alert spam.
+      // We also exclude soft-deleted evidence.
+      // -----------------------------------------------------------------
+      const otsFailedEvidence =
+        teamIds.length === 0
+          ? []
+          : await prisma.evidence.findMany({
+              where: {
+                teamId: { in: teamIds },
+                otsStatus: "FAILED",
+                deletedAt: null,
+              },
+              select: {
+                id: true,
+                teamId: true,
+                caseId: true,
+                title: true,
+                originalFileName: true,
+                otsFailureReason: true,
+                otsUpgradedAtUtc: true,
+                otsHash: true,
+                updatedAt: true,
+              },
+              orderBy: { otsUpgradedAtUtc: "desc" },
+              take: PER_CATEGORY_TAKE,
+            });
+
+      // -----------------------------------------------------------------
+      // Phase IA-reliability — Source 14: intake submissions pending
+      // review. We surface EvidenceRequest rows whose response has
+      // arrived (RESPONSE_RECEIVED) or is being reviewed (UNDER_REVIEW)
+      // but no reviewer has claimed ownership yet. Workspace-scoped via
+      // caller's teamIds.
+      // -----------------------------------------------------------------
+      const pendingReviewRequests =
+        teamIds.length === 0
+          ? []
+          : await prisma.evidenceRequest.findMany({
+              where: {
+                teamId: { in: teamIds },
+                status: { in: ["RESPONSE_RECEIVED", "UNDER_REVIEW"] },
+                assignedReviewerUserId: null,
+              },
+              select: {
+                id: true,
+                teamId: true,
+                title: true,
+                status: true,
+                priority: true,
+                dueAtUtc: true,
+                updatedAt: true,
+              },
+              orderBy: [{ dueAtUtc: "asc" }, { updatedAt: "desc" }],
+              take: PER_CATEGORY_TAKE,
+            });
+
+      // -----------------------------------------------------------------
+      // Phase IA-reliability — Source 15: intake submissions where
+      // required items are missing. We use the canonical
+      // EvidenceRequest.status values that explicitly mean "submission
+      // is incomplete" — PARTIALLY_FULFILLED + NEEDS_MORE_INFO. We do
+      // NOT join EvidenceRequestDeliverable here because the parent
+      // status already encodes the incompleteness; the deliverables
+      // table is the operator detail view at /evidence-requests/:id.
+      // -----------------------------------------------------------------
+      const incompleteRequests =
+        teamIds.length === 0
+          ? []
+          : await prisma.evidenceRequest.findMany({
+              where: {
+                teamId: { in: teamIds },
+                status: { in: ["PARTIALLY_FULFILLED", "NEEDS_MORE_INFO"] },
+              },
+              select: {
+                id: true,
+                teamId: true,
+                title: true,
+                status: true,
+                priority: true,
+                dueAtUtc: true,
+                updatedAt: true,
+              },
+              orderBy: [{ dueAtUtc: "asc" }, { updatedAt: "desc" }],
+              take: PER_CATEGORY_TAKE,
+            });
+
+      // -----------------------------------------------------------------
+      // Phase IA-reliability — Source 16: intake links approaching
+      // expiry. Window: next 7 days, ACTIVE links only. We
+      // intentionally cap at the WORKSPACE scope (not just the
+      // creator) so any team member sees the rollup; revocation /
+      // renewal still requires the operator role on the target route.
+      // -----------------------------------------------------------------
+      const INTAKE_LINK_EXPIRY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+      const intakeLinkExpiryCutoff = new Date(
+        nowMs + INTAKE_LINK_EXPIRY_WINDOW_MS,
+      );
+      const expiringIntakeLinks =
+        teamIds.length === 0
+          ? []
+          : await prisma.workflowIntakeLink.findMany({
+              where: {
+                teamId: { in: teamIds },
+                status: "ACTIVE",
+                expiresAtUtc: {
+                  gt: now,
+                  lt: intakeLinkExpiryCutoff,
+                },
+              },
+              select: {
+                id: true,
+                teamId: true,
+                status: true,
+                expiresAtUtc: true,
+                usedCount: true,
+                maxUses: true,
+                updatedAt: true,
+              },
+              orderBy: { expiresAtUtc: "asc" },
+              take: PER_CATEGORY_TAKE,
+            });
+
+      // -----------------------------------------------------------------
+      // Truncation tracking. We expose a per-category boolean so the
+      // frontend can render an honest "showing latest N" banner and
+      // point operators at the canonical console for the full set.
+      // No silent data loss.
+      // -----------------------------------------------------------------
+      // Per-query take limit constants. The legacy queries (governance,
+      // mentions) used 100; the new Phase-IA-cleanup queries use 50 to
+      // keep page weight bounded. The truncated flag compares against
+      // the exact limit of THAT query so we never lie about whether
+      // results were capped.
+      const LEGACY_TAKE = 100;
+      const truncated = {
+        governance: governanceRows.length >= LEGACY_TAKE,
+        discussion_mention: unreadMentions.length >= LEGACY_TAKE,
+        discussion_assigned: assignedThreads.length >= PER_CATEGORY_TAKE,
+        review_escalation: myReviewEscalations.length >= PER_CATEGORY_TAKE,
+        access_review_pending: myAccessReviews.length >= PER_CATEGORY_TAKE,
+        mfa_recovery_pending: pendingMfaRecovery.length >= PER_CATEGORY_TAKE,
+        communication_failure: failedCommunications.length >= PER_CATEGORY_TAKE,
+        security_event_high: myHighSecurityEvents.length >= PER_CATEGORY_TAKE,
+        // Phase IA-enterprise — failure categories.
+        report_failure: reportIncidents.length >= PER_CATEGORY_TAKE,
+        verification_package_failure:
+          packageIncidents.length >= PER_CATEGORY_TAKE,
+        ots_failure: otsFailedEvidence.length >= PER_CATEGORY_TAKE,
+        // Phase IA-reliability — intake categories.
+        intake_submission_pending_review:
+          pendingReviewRequests.length >= PER_CATEGORY_TAKE,
+        intake_required_items_missing:
+          incompleteRequests.length >= PER_CATEGORY_TAKE,
+        intake_link_expiring:
+          expiringIntakeLinks.length >= PER_CATEGORY_TAKE,
+      };
+      const anyTruncated = Object.values(truncated).some((v) => v);
+
+      // -----------------------------------------------------------------
+      // Assemble the unified items array.
+      //
+      // Phase IA-enterprise + Phase IA-reliability — items are
+      // assembled WITHOUT downstream-derived fields (priority comes
+      // from category+tone+id; itemKey === id; isRead / canMarkRead
+      // / canDismiss / canSnooze come from the per-user state join).
+      // Centralizing those assignments below means an emitter loop
+      // can never set them inconsistently.
+      // -----------------------------------------------------------------
+      type AssembledItem = Omit<
+        InboxItem,
+        | "priority"
+        | "itemKey"
+        | "isRead"
+        | "readAt"
+        | "dismissedAt"
+        | "snoozedUntil"
+        | "canMarkRead"
+        | "canDismiss"
+        | "canSnooze"
+      >;
+      const items: Array<AssembledItem> = [];
 
       // Onboarding — only when no org membership.
       if (orgMemberships.length === 0) {
@@ -680,6 +1517,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
             : `An open discussion is assigned to you. Status: ${t.status}.`,
           href: `/evidence/${encodeURIComponent(t.evidenceId)}?tab=discussion&thread=${encodeURIComponent(t.id)}`,
           occurredAt: t.updatedAt.toISOString(),
+          dueAt: null,
           context: {
             teamId: t.teamId,
             evidenceId: t.evidenceId,
@@ -691,46 +1529,535 @@ export async function meInboxRoutes(app: FastifyInstance) {
       }
 
       // -----------------------------------------------------------------
-      // Severity-first ordering.
+      // Phase IA-cleanup — review escalations assigned to caller.
+      // ReviewEscalation severity is "INFO" | "WARNING" | "HIGH" |
+      // "CRITICAL" (matches IncidentSeverity); we map directly. The
+      // deep-link goes to the canonical escalations console scoped to
+      // the workflow id.
       // -----------------------------------------------------------------
-      const tonePriority: Record<InboxTone, number> = {
-        critical: 4,
-        high: 3,
-        warning: 2,
-        info: 1,
+      const escalationToneMap: Record<string, InboxTone> = {
+        CRITICAL: "critical",
+        HIGH: "high",
+        WARNING: "warning",
+        INFO: "info",
       };
-      items.sort((a, b) => {
-        const sev = tonePriority[b.tone] - tonePriority[a.tone];
-        if (sev !== 0) return sev;
-        // Same severity → most recent first.
-        return b.occurredAt.localeCompare(a.occurredAt);
-      });
+      for (const esc of myReviewEscalations) {
+        items.push({
+          id: `review_escalation:${esc.id}`,
+          category: "review_escalation",
+          tone: escalationToneMap[esc.severity] ?? "warning",
+          title: `Escalation assigned to you: ${humanizeEscalationReason(esc.reason)}`,
+          body: esc.safeSummary,
+          href: `/reviewer-ops/escalations?escalationId=${encodeURIComponent(esc.id)}`,
+          occurredAt: esc.updatedAt.toISOString(),
+          dueAt: null,
+          context: {
+            teamId: esc.teamId,
+            workflowId: esc.workflowId,
+            evidenceId: esc.evidenceId ?? null,
+            reason: esc.reason,
+            severity: esc.severity,
+          },
+        });
+      }
 
       // -----------------------------------------------------------------
-      // Summary counts.
+      // Phase IA-cleanup — access reviews where the caller is subject
+      // or initiator. We surface PENDING + IN_PROGRESS as warning tone
+      // (HIGH if dueAt is in the past). dueAt is real — we never invent.
+      // -----------------------------------------------------------------
+      for (const ar of myAccessReviews) {
+        const overdue =
+          ar.dueAtUtc !== null && ar.dueAtUtc.getTime() < now.getTime();
+        const subjectLine =
+          ar.subjectUserId === userId
+            ? "Your access is being reviewed"
+            : "An access review you initiated is pending";
+        items.push({
+          id: `access_review_pending:${ar.id}`,
+          category: "access_review_pending",
+          tone: overdue ? "high" : "warning",
+          title: subjectLine,
+          body: overdue
+            ? `Review kind: ${ar.kind}. Past due — please act in the access reviews console.`
+            : `Review kind: ${ar.kind}. Open the access reviews console to certify, revoke, or suspend.`,
+          href: `/admin/identity/access-reviews?reviewId=${encodeURIComponent(ar.id)}`,
+          occurredAt: ar.createdAt.toISOString(),
+          dueAt: ar.dueAtUtc ? ar.dueAtUtc.toISOString() : null,
+          context: {
+            teamId: ar.teamId,
+            kind: ar.kind,
+            status: ar.status,
+            subjectKind: ar.subjectKind,
+            isSubject: ar.subjectUserId === userId ? 1 : 0,
+            isInitiator: ar.initiatedByUserId === userId ? 1 : 0,
+          },
+        });
+      }
+
+      // -----------------------------------------------------------------
+      // Phase IA-cleanup — pending MFA recovery requests (admin queue).
+      // Only the team OWNER/ADMIN caller's queue. The destination
+      // console (/security-center/mfa-recovery) enforces the same gate
+      // server-side at action time.
+      // -----------------------------------------------------------------
+      for (const req of pendingMfaRecovery) {
+        const teamName = teamNameById.get(req.teamId) ?? "workspace";
+        items.push({
+          id: `mfa_recovery_pending:${req.id}`,
+          category: "mfa_recovery_pending",
+          tone: "high",
+          title: `MFA recovery request pending — ${teamName}`,
+          body: `A member has requested a lost-factor reset. Approvals: ${req.approvalCount}/${req.requiredApprovals}. Quorum-based approval forces re-enrollment; it does NOT grant a session.`,
+          href: `/security-center/mfa-recovery?requestId=${encodeURIComponent(req.id)}`,
+          occurredAt: req.createdAt.toISOString(),
+          dueAt: null,
+          context: {
+            teamId: req.teamId,
+            teamName,
+            subjectUserId: req.userId,
+            requiredApprovals: req.requiredApprovals,
+            approvalCount: req.approvalCount,
+          },
+        });
+      }
+
+      // -----------------------------------------------------------------
+      // Phase IA-cleanup — recent failed communications (admin queue).
+      // Same admin gate as messaging-ops mutations. We render one item
+      // per failed message and deep-link to /communications with the
+      // failed-status filter pre-applied. The phone preview is the
+      // masked HMAC preview (e.g. "+••• 1234"); never raw.
+      // -----------------------------------------------------------------
+      for (const msg of failedCommunications) {
+        const teamName = teamNameById.get(msg.teamId) ?? "workspace";
+        items.push({
+          id: `communication_failure:${msg.id}`,
+          category: "communication_failure",
+          tone: "warning",
+          title: `Failed ${msg.channel.toLowerCase()} delivery — ${teamName}`,
+          body: `${msg.purpose} to ${msg.recipientPreview} failed after ${msg.attemptCount} attempt${msg.attemptCount === 1 ? "" : "s"}${msg.errorCode ? ` (${msg.errorCode})` : ""}. Open Messaging operations to retry or cancel.`,
+          href: `/communications?status=FAILED&messageId=${encodeURIComponent(msg.id)}`,
+          occurredAt: msg.updatedAt.toISOString(),
+          dueAt: null,
+          context: {
+            teamId: msg.teamId,
+            teamName,
+            channel: msg.channel,
+            purpose: msg.purpose,
+            errorCode: msg.errorCode ?? null,
+            attemptCount: msg.attemptCount,
+          },
+        });
+      }
+
+      // -----------------------------------------------------------------
+      // Phase IA-cleanup — high-severity security events for the
+      // caller (user-scoped). Always private to the actor; the
+      // Identity & Security console is the surface for cross-user
+      // inspection. We deep-link to the Account Security home where
+      // the user can see their personal security events feed.
+      // -----------------------------------------------------------------
+      for (const ev of myHighSecurityEvents) {
+        items.push({
+          id: `security_event_high:${ev.id}`,
+          category: "security_event_high",
+          tone: "high",
+          title: `Security alert: ${humanizeSecurityEventType(ev.eventType)}`,
+          body: `A high-severity event on your account was recorded. Open Account security to review the timeline.`,
+          href: "/settings/security",
+          occurredAt: ev.createdAt.toISOString(),
+          dueAt: null,
+          context: {
+            teamId: ev.teamId ?? null,
+            eventType: ev.eventType,
+            severity: ev.severity,
+          },
+        });
+      }
+
+      // -----------------------------------------------------------------
+      // Phase IA-enterprise — report-generation failure incidents.
+      // Maps IncidentSeverity → InboxTone directly. Deep-link prefers
+      // the related evidence detail when set (most actionable), else
+      // the Operations / Observability console where the incident
+      // lives.
+      // -----------------------------------------------------------------
+      const incidentSeverityTone: Record<string, InboxTone> = {
+        CRITICAL: "critical",
+        HIGH: "high",
+        WARNING: "warning",
+        INFO: "info",
+      };
+      for (const inc of reportIncidents) {
+        const teamName = inc.teamId
+          ? teamNameById.get(inc.teamId) ?? "workspace"
+          : "workspace";
+        const occBlurb =
+          inc.occurrenceCount > 1
+            ? ` Seen ${inc.occurrenceCount} times.`
+            : "";
+        const status = inc.status === "ACKNOWLEDGED" ? " (acknowledged)" : "";
+        items.push({
+          id: `report_failure:${inc.id}`,
+          category: "report_failure",
+          tone: incidentSeverityTone[inc.severity] ?? "high",
+          title: `Report generation failure — ${teamName}${status}`,
+          body: `${inc.safeSummary}${occBlurb}`,
+          href: inc.relatedEvidenceId
+            ? `/evidence/${encodeURIComponent(inc.relatedEvidenceId)}?tab=integrity`
+            : "/operations/observability",
+          occurredAt: inc.lastSeenAtUtc.toISOString(),
+          dueAt: null,
+          context: {
+            teamId: inc.teamId ?? null,
+            teamName,
+            incidentId: inc.id,
+            evidenceId: inc.relatedEvidenceId ?? null,
+            jobId: inc.relatedJobId ?? null,
+            occurrenceCount: inc.occurrenceCount,
+            runbook: inc.runbookSlug ?? null,
+            incidentStatus: inc.status,
+          },
+        });
+      }
+
+      // -----------------------------------------------------------------
+      // Phase IA-enterprise — verification package failure incidents.
+      // Same persistence + projection as report failures.
+      // -----------------------------------------------------------------
+      for (const inc of packageIncidents) {
+        const teamName = inc.teamId
+          ? teamNameById.get(inc.teamId) ?? "workspace"
+          : "workspace";
+        const occBlurb =
+          inc.occurrenceCount > 1
+            ? ` Seen ${inc.occurrenceCount} times.`
+            : "";
+        const status = inc.status === "ACKNOWLEDGED" ? " (acknowledged)" : "";
+        items.push({
+          id: `verification_package_failure:${inc.id}`,
+          category: "verification_package_failure",
+          tone: incidentSeverityTone[inc.severity] ?? "high",
+          title: `Verification package failure — ${teamName}${status}`,
+          body: `${inc.safeSummary}${occBlurb}`,
+          href: inc.relatedEvidenceId
+            ? `/evidence/${encodeURIComponent(inc.relatedEvidenceId)}?tab=integrity`
+            : "/operations/observability",
+          occurredAt: inc.lastSeenAtUtc.toISOString(),
+          dueAt: null,
+          context: {
+            teamId: inc.teamId ?? null,
+            teamName,
+            incidentId: inc.id,
+            evidenceId: inc.relatedEvidenceId ?? null,
+            jobId: inc.relatedJobId ?? null,
+            occurrenceCount: inc.occurrenceCount,
+            runbook: inc.runbookSlug ?? null,
+            incidentStatus: inc.status,
+          },
+        });
+      }
+
+      // -----------------------------------------------------------------
+      // Phase IA-enterprise — OTS anchoring failures. Per-evidence row
+      // with otsStatus = "FAILED". The failure code lives in
+      // `otsFailureReason` — we humanize known codes and pass through
+      // unknown error text (bounded at the schema layer).
+      //
+      // Tone: GLOBAL_BUDGET_EXHAUSTED → "critical" (terminal — the
+      // proof will never anchor on the public chain); other failures
+      // → "high" (operator-actionable, often transient infrastructure).
+      // -----------------------------------------------------------------
+      for (const ev of otsFailedEvidence) {
+        const teamName = ev.teamId
+          ? teamNameById.get(ev.teamId) ?? "workspace"
+          : "workspace";
+        const reasonCode = ev.otsFailureReason ?? "OTS_UNKNOWN_FAILURE";
+        const terminal = reasonCode.includes("OTS_GLOBAL_BUDGET_EXHAUSTED");
+        const evidenceLabel =
+          ev.title ?? ev.originalFileName ?? ev.id.slice(0, 8);
+        items.push({
+          id: `ots_failure:${ev.id}`,
+          category: "ots_failure",
+          tone: terminal ? "critical" : "high",
+          title: `OTS anchoring failed — ${evidenceLabel}`,
+          body: `${humanizeOtsFailureReason(reasonCode)} Open the evidence Integrity tab for the preservation status and operator runbook.`,
+          href: `/evidence/${encodeURIComponent(ev.id)}?tab=integrity`,
+          occurredAt: (ev.otsUpgradedAtUtc ?? ev.updatedAt).toISOString(),
+          dueAt: null,
+          context: {
+            teamId: ev.teamId ?? null,
+            teamName,
+            evidenceId: ev.id,
+            caseId: ev.caseId ?? null,
+            failureCode: reasonCode,
+            otsHash: ev.otsHash ?? null,
+          },
+        });
+      }
+
+      // -----------------------------------------------------------------
+      // Phase IA-reliability — batch-fetch per-user state for every
+      // assembled item. We do ONE round trip with `itemKey IN (...)`
+      // so the join is bounded even for the largest inbox. The state
+      // table is owned by THIS user (the FK is ON DELETE CASCADE);
+      // we additionally scope every query by `userId = caller` for
+      // defense in depth.
+      // -----------------------------------------------------------------
+      const assembledKeys = items.map((it) => it.id);
+      const stateRows =
+        assembledKeys.length === 0
+          ? []
+          : await prisma.inboxItemState.findMany({
+              where: {
+                userId,
+                itemKey: { in: assembledKeys },
+              },
+              select: {
+                itemKey: true,
+                readAt: true,
+                dismissedAt: true,
+                snoozedUntil: true,
+              },
+            });
+      const stateByKey = new Map(
+        stateRows.map((row) => [row.itemKey, row] as const),
+      );
+
+      // -----------------------------------------------------------------
+      // Phase IA-reliability — intake_submission_pending_review.
+      // Maps to P2 (action required). Deep-link goes to the canonical
+      // evidence-request detail surface.
+      // -----------------------------------------------------------------
+      for (const r of pendingReviewRequests) {
+        const teamName = r.teamId
+          ? teamNameById.get(r.teamId) ?? "workspace"
+          : "workspace";
+        const dueOverdue =
+          r.dueAtUtc !== null && r.dueAtUtc.getTime() < nowMs;
+        items.push({
+          id: `intake_submission_pending_review:${r.id}`,
+          category: "intake_submission_pending_review",
+          tone: dueOverdue ? "high" : "warning",
+          title: `Intake submission awaiting review — ${teamName}`,
+          body: `"${r.title ?? "Untitled request"}" is in ${r.status.toLowerCase().replace(/_/g, " ")} state with no assigned reviewer. Open evidence requests to claim it.`,
+          href: `/evidence-requests/${encodeURIComponent(r.id)}`,
+          occurredAt: r.updatedAt.toISOString(),
+          dueAt: r.dueAtUtc ? r.dueAtUtc.toISOString() : null,
+          context: {
+            teamId: r.teamId ?? null,
+            teamName,
+            requestId: r.id,
+            status: r.status,
+            priority: r.priority,
+          },
+        });
+      }
+
+      // -----------------------------------------------------------------
+      // Phase IA-reliability — intake_required_items_missing. The
+      // parent status carries the "incomplete" signal explicitly so we
+      // don't need a deliverable join here.
+      // -----------------------------------------------------------------
+      for (const r of incompleteRequests) {
+        const teamName = r.teamId
+          ? teamNameById.get(r.teamId) ?? "workspace"
+          : "workspace";
+        const dueOverdue =
+          r.dueAtUtc !== null && r.dueAtUtc.getTime() < nowMs;
+        const reason =
+          r.status === "NEEDS_MORE_INFO"
+            ? "the reviewer requested more information"
+            : "required deliverables are still outstanding";
+        items.push({
+          id: `intake_required_items_missing:${r.id}`,
+          category: "intake_required_items_missing",
+          tone: dueOverdue ? "high" : "warning",
+          title: `Intake incomplete — ${teamName}`,
+          body: `"${r.title ?? "Untitled request"}" cannot complete because ${reason}. Open evidence requests for the checklist.`,
+          href: `/evidence-requests/${encodeURIComponent(r.id)}`,
+          occurredAt: r.updatedAt.toISOString(),
+          dueAt: r.dueAtUtc ? r.dueAtUtc.toISOString() : null,
+          context: {
+            teamId: r.teamId ?? null,
+            teamName,
+            requestId: r.id,
+            status: r.status,
+            priority: r.priority,
+          },
+        });
+      }
+
+      // -----------------------------------------------------------------
+      // Phase IA-reliability — intake_link_expiring. P4 (awareness)
+      // because the link still works today; the operator's call is
+      // whether to rotate / extend before expiry. dueAt is the real
+      // expiresAtUtc so the operator can see the deadline.
+      // -----------------------------------------------------------------
+      for (const link of expiringIntakeLinks) {
+        const teamName = link.teamId
+          ? teamNameById.get(link.teamId) ?? "workspace"
+          : "workspace";
+        const useFraction =
+          link.maxUses !== null && link.maxUses !== undefined
+            ? ` (${link.usedCount}/${link.maxUses} uses)`
+            : "";
+        items.push({
+          id: `intake_link_expiring:${link.id}`,
+          category: "intake_link_expiring",
+          tone: "info",
+          title: `Intake link expiring soon — ${teamName}`,
+          body: `An active intake link${useFraction} expires on ${link.expiresAtUtc.toLocaleDateString()}. Open intake links to renew or revoke.`,
+          href: `/intake-links?linkId=${encodeURIComponent(link.id)}`,
+          occurredAt: link.updatedAt.toISOString(),
+          dueAt: link.expiresAtUtc.toISOString(),
+          context: {
+            teamId: link.teamId ?? null,
+            teamName,
+            linkId: link.id,
+            usedCount: link.usedCount,
+            maxUses: link.maxUses ?? null,
+          },
+        });
+      }
+
+      // -----------------------------------------------------------------
+      // Phase IA-enterprise — finalize: assign priority to every item,
+      // apply the requested server-side filters (filter + tone), sort
+      // by the operator-friendly comparator, then paginate.
+      //
+      // Phase IA-reliability — fold per-user state into each item and
+      // drop dismissed / actively-snoozed items from the default
+      // result. Snooze expiry is timestamp-based so we never need a
+      // cron — a snoozed item simply re-emerges on the next request
+      // after `snoozedUntil` passes.
+      // -----------------------------------------------------------------
+      const allItems: InboxItem[] = [];
+      for (const it of items) {
+        const state = stateByKey.get(it.id);
+        // Dismissed items disappear from default view. (A future
+        // /undismiss endpoint can null the column to bring them
+        // back; we never delete the row outright so the audit
+        // history of "I dismissed this" survives.)
+        if (state?.dismissedAt) continue;
+        // Active snooze hides the item until the timestamp passes.
+        if (state?.snoozedUntil && state.snoozedUntil.getTime() > nowMs) {
+          continue;
+        }
+        // review_decision awaiting_second is awareness-only — demote
+        // from the default P2 to P5. Recognized by its id prefix.
+        const isAwaitingSecond = it.id.startsWith(
+          "review_decision:awaiting_second:",
+        );
+        const basePriority = priorityForItem(it);
+        const priority: InboxPriority = isAwaitingSecond ? "P5" : basePriority;
+        allItems.push({
+          ...it,
+          itemKey: it.id,
+          priority,
+          isRead: state?.readAt != null,
+          readAt: state?.readAt ? state.readAt.toISOString() : null,
+          dismissedAt: null, // dismissed items already filtered out above
+          snoozedUntil: state?.snoozedUntil
+            ? state.snoozedUntil.toISOString()
+            : null,
+          canMarkRead: true,
+          canDismiss: true,
+          canSnooze: true,
+        } satisfies InboxItem);
+      }
+
+      const filteredItems = allItems.filter((it) => {
+        if (requestedTone && it.tone !== requestedTone) return false;
+        if (!matchesFilter(it, requestedFilter, nowMs)) return false;
+        return true;
+      });
+
+      filteredItems.sort((a, b) => compareInboxItems(a, b, nowMs));
+
+      const totalEstimate = filteredItems.length;
+      // Exact when no source query hit its take limit. If we capped a
+      // category, the true total may be higher — we say so honestly.
+      const totalIsExact = !anyTruncated;
+      const pagedItems = filteredItems.slice(offset, offset + pageSize);
+      const nextOffset = offset + pagedItems.length;
+      const nextCursor =
+        nextOffset < filteredItems.length ? encodeCursor(nextOffset) : null;
+
+      // -----------------------------------------------------------------
+      // Summary counts. Computed over the FULL filtered set so the UI's
+      // tone tiles + category counters reflect the entire attention
+      // queue, not just the current page.
       // -----------------------------------------------------------------
       const summary = {
-        total: items.length,
+        total: filteredItems.length,
         byTone: {
-          critical: items.filter((i) => i.tone === "critical").length,
-          high: items.filter((i) => i.tone === "high").length,
-          warning: items.filter((i) => i.tone === "warning").length,
-          info: items.filter((i) => i.tone === "info").length,
+          critical: filteredItems.filter((i) => i.tone === "critical").length,
+          high: filteredItems.filter((i) => i.tone === "high").length,
+          warning: filteredItems.filter((i) => i.tone === "warning").length,
+          info: filteredItems.filter((i) => i.tone === "info").length,
         },
         byCategory: {
-          onboarding: items.filter((i) => i.category === "onboarding").length,
-          org_invite: items.filter((i) => i.category === "org_invite").length,
-          org_admin: items.filter((i) => i.category === "org_admin").length,
-          governance: items.filter((i) => i.category === "governance").length,
-          review_decision: items.filter(
+          onboarding: filteredItems.filter((i) => i.category === "onboarding")
+            .length,
+          org_invite: filteredItems.filter((i) => i.category === "org_invite")
+            .length,
+          org_admin: filteredItems.filter((i) => i.category === "org_admin")
+            .length,
+          governance: filteredItems.filter((i) => i.category === "governance")
+            .length,
+          review_decision: filteredItems.filter(
             (i) => i.category === "review_decision",
           ).length,
-          discussion_mention: items.filter(
+          discussion_mention: filteredItems.filter(
             (i) => i.category === "discussion_mention",
           ).length,
-          discussion_assigned: items.filter(
+          discussion_assigned: filteredItems.filter(
             (i) => i.category === "discussion_assigned",
           ).length,
+          // Phase IA-cleanup — attention categories.
+          review_escalation: filteredItems.filter(
+            (i) => i.category === "review_escalation",
+          ).length,
+          access_review_pending: filteredItems.filter(
+            (i) => i.category === "access_review_pending",
+          ).length,
+          mfa_recovery_pending: filteredItems.filter(
+            (i) => i.category === "mfa_recovery_pending",
+          ).length,
+          communication_failure: filteredItems.filter(
+            (i) => i.category === "communication_failure",
+          ).length,
+          security_event_high: filteredItems.filter(
+            (i) => i.category === "security_event_high",
+          ).length,
+          // Phase IA-enterprise — failure categories.
+          report_failure: filteredItems.filter(
+            (i) => i.category === "report_failure",
+          ).length,
+          verification_package_failure: filteredItems.filter(
+            (i) => i.category === "verification_package_failure",
+          ).length,
+          ots_failure: filteredItems.filter((i) => i.category === "ots_failure")
+            .length,
+          // Phase IA-reliability — intake action categories.
+          intake_submission_pending_review: filteredItems.filter(
+            (i) => i.category === "intake_submission_pending_review",
+          ).length,
+          intake_required_items_missing: filteredItems.filter(
+            (i) => i.category === "intake_required_items_missing",
+          ).length,
+          intake_link_expiring: filteredItems.filter(
+            (i) => i.category === "intake_link_expiring",
+          ).length,
+        },
+        byPriority: {
+          P1: filteredItems.filter((i) => i.priority === "P1").length,
+          P2: filteredItems.filter((i) => i.priority === "P2").length,
+          P3: filteredItems.filter((i) => i.priority === "P3").length,
+          P4: filteredItems.filter((i) => i.priority === "P4").length,
+          P5: filteredItems.filter((i) => i.priority === "P5").length,
         },
       };
 
@@ -742,7 +2069,27 @@ export async function meInboxRoutes(app: FastifyInstance) {
           displayName: me.displayName,
         },
         summary,
-        items,
+        // Phase IA-cleanup — honest pagination signal. Per-category +
+        // top-level boolean. UI banners read these so the operator
+        // knows when to drill into the canonical console for the
+        // remainder; we never silently truncate.
+        truncated,
+        anyTruncated,
+        // Phase IA-enterprise — pagination block. `nextCursor` is null
+        // when the client has seen every item; otherwise pass it back
+        // verbatim on the next request. `totalEstimate` + `totalIsExact`
+        // power the "Showing X of Y" indicator honestly.
+        pagination: {
+          offset,
+          pageSize,
+          returned: pagedItems.length,
+          nextCursor,
+          totalEstimate,
+          totalIsExact,
+          appliedFilter: requestedFilter,
+          appliedTone: requestedTone ?? null,
+        },
+        items: pagedItems,
       });
     },
   );
@@ -811,6 +2158,214 @@ export async function meInboxRoutes(app: FastifyInstance) {
         generatedAt: now.toISOString(),
         unreadMentions,
         openAssignments,
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------
+  // Phase IA-reliability — per-item mutation endpoints.
+  //
+  //   POST /v1/me/inbox/items/:itemKey/read
+  //   POST /v1/me/inbox/items/:itemKey/unread
+  //   POST /v1/me/inbox/items/:itemKey/dismiss
+  //   POST /v1/me/inbox/items/:itemKey/snooze
+  //
+  // Each one validates the itemKey prefix against `INBOX_ITEM_KEY_PREFIXES`
+  // (defense against enumeration / arbitrary writes), then upserts the
+  // per-user InboxItemState row by the compound (userId, itemKey)
+  // unique. Writes are idempotent — a repeated mark-read POST never
+  // creates a duplicate row.
+  //
+  // Security model:
+  //   * `userId = getAuthUserId(req)` is the authority. No request
+  //     parameter, query string, or body field can substitute another
+  //     user's id.
+  //   * The endpoint never reads or returns OTHER users' state — the
+  //     upsert key is always (caller, itemKey).
+  //   * itemKey is constrained by `parseInboxItemKey()` to a known
+  //     prefix + a benign right-hand pattern. Arbitrary keys 400.
+  // ---------------------------------------------------------------------
+
+  const itemKeyParamsSchema = z.object({
+    itemKey: z.string().min(1).max(200),
+  });
+
+  const snoozeBodySchema = z.object({
+    snoozedUntil: z.string().datetime(),
+  });
+
+  /**
+   * Reject malformed item keys + extract the parsed source-type +
+   * source-id pair (used to populate the audit-context columns on
+   * the InboxItemState row). On reject, the caller's reply has
+   * already been short-circuited with 400.
+   */
+  async function resolveItemKey(
+    req: FastifyRequest,
+    reply: Parameters<typeof requireAuth>[1],
+  ): Promise<{ itemKey: string; sourceType: string; sourceId: string } | null> {
+    const parsed = itemKeyParamsSchema.safeParse(req.params);
+    if (!parsed.success) {
+      await reply.code(400).send({
+        message: "INBOX_ITEM_KEY_INVALID",
+        details: "itemKey path parameter is missing or longer than 200 chars.",
+      });
+      return null;
+    }
+    const { itemKey } = parsed.data;
+    const decoded = parseInboxItemKey(itemKey);
+    if (!decoded) {
+      await reply.code(400).send({
+        message: "INBOX_ITEM_KEY_INVALID",
+        details:
+          "itemKey must start with a known source-type prefix and contain only safe characters.",
+      });
+      return null;
+    }
+    return {
+      itemKey,
+      sourceType: decoded.sourceType,
+      sourceId: decoded.sourceId ?? "",
+    };
+  }
+
+  /**
+   * Common upsert. Always succeeds (the unique constraint makes the
+   * write idempotent) and never echoes another user's state.
+   */
+  async function upsertState(
+    userId: string,
+    parsed: { itemKey: string; sourceType: string; sourceId: string },
+    delta: {
+      readAt?: Date | null;
+      dismissedAt?: Date | null;
+      snoozedUntil?: Date | null;
+    },
+  ) {
+    return prisma.inboxItemState.upsert({
+      where: { userId_itemKey: { userId, itemKey: parsed.itemKey } },
+      create: {
+        userId,
+        itemKey: parsed.itemKey,
+        sourceType: parsed.sourceType,
+        sourceId: parsed.sourceId || null,
+        readAt: delta.readAt ?? null,
+        dismissedAt: delta.dismissedAt ?? null,
+        snoozedUntil: delta.snoozedUntil ?? null,
+      },
+      update: delta,
+      select: {
+        itemKey: true,
+        readAt: true,
+        dismissedAt: true,
+        snoozedUntil: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  app.post(
+    "/v1/me/inbox/items/:itemKey/read",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const parsed = await resolveItemKey(req, reply);
+      if (!parsed) return;
+      const row = await upsertState(userId, parsed, { readAt: new Date() });
+      return reply.code(200).send({
+        itemKey: row.itemKey,
+        isRead: row.readAt != null,
+        readAt: row.readAt ? row.readAt.toISOString() : null,
+        dismissedAt: row.dismissedAt ? row.dismissedAt.toISOString() : null,
+        snoozedUntil: row.snoozedUntil ? row.snoozedUntil.toISOString() : null,
+      });
+    },
+  );
+
+  app.post(
+    "/v1/me/inbox/items/:itemKey/unread",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const parsed = await resolveItemKey(req, reply);
+      if (!parsed) return;
+      const row = await upsertState(userId, parsed, { readAt: null });
+      return reply.code(200).send({
+        itemKey: row.itemKey,
+        isRead: row.readAt != null,
+        readAt: row.readAt ? row.readAt.toISOString() : null,
+        dismissedAt: row.dismissedAt ? row.dismissedAt.toISOString() : null,
+        snoozedUntil: row.snoozedUntil ? row.snoozedUntil.toISOString() : null,
+      });
+    },
+  );
+
+  app.post(
+    "/v1/me/inbox/items/:itemKey/dismiss",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const parsed = await resolveItemKey(req, reply);
+      if (!parsed) return;
+      const row = await upsertState(userId, parsed, {
+        dismissedAt: new Date(),
+        // Dismissing implicitly marks the item read — we'd rather be
+        // strict about read-state than have a "dismissed but unread"
+        // ghost item polluting unread counters.
+        readAt: new Date(),
+      });
+      return reply.code(200).send({
+        itemKey: row.itemKey,
+        isRead: row.readAt != null,
+        readAt: row.readAt ? row.readAt.toISOString() : null,
+        dismissedAt: row.dismissedAt ? row.dismissedAt.toISOString() : null,
+        snoozedUntil: row.snoozedUntil ? row.snoozedUntil.toISOString() : null,
+      });
+    },
+  );
+
+  app.post(
+    "/v1/me/inbox/items/:itemKey/snooze",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const parsed = await resolveItemKey(req, reply);
+      if (!parsed) return;
+      const bodyResult = snoozeBodySchema.safeParse(req.body ?? {});
+      if (!bodyResult.success) {
+        return reply.code(400).send({
+          message: "SNOOZE_PAYLOAD_INVALID",
+          details:
+            "Body must include `snoozedUntil` as an ISO-8601 datetime.",
+        });
+      }
+      const snoozedUntil = new Date(bodyResult.data.snoozedUntil);
+      // Defensive bounds — snoozedUntil must be in the future and no
+      // farther than one year out. Past-due snoozes are pointless;
+      // forever-snooze is what /dismiss is for.
+      const now = new Date();
+      const maxSnooze = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+      if (snoozedUntil.getTime() <= now.getTime()) {
+        return reply.code(400).send({
+          message: "SNOOZE_PAYLOAD_INVALID",
+          details: "snoozedUntil must be in the future.",
+        });
+      }
+      if (snoozedUntil.getTime() > maxSnooze.getTime()) {
+        return reply.code(400).send({
+          message: "SNOOZE_PAYLOAD_INVALID",
+          details: "snoozedUntil cannot be more than 365 days out.",
+        });
+      }
+      const row = await upsertState(userId, parsed, {
+        snoozedUntil,
+      });
+      return reply.code(200).send({
+        itemKey: row.itemKey,
+        isRead: row.readAt != null,
+        readAt: row.readAt ? row.readAt.toISOString() : null,
+        dismissedAt: row.dismissedAt ? row.dismissedAt.toISOString() : null,
+        snoozedUntil: row.snoozedUntil ? row.snoozedUntil.toISOString() : null,
       });
     },
   );
@@ -891,5 +2446,91 @@ function governanceKindHref(kind: string): string {
       return "/governance";
     default:
       return "/governance";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Phase IA-cleanup — operator-readable labels for the new categories.
+//
+// Escalation reasons are validated by the service layer against a fixed
+// catalog (`REVIEW_ESCALATION_REASONS` in the shared package). We render
+// the common ones as short human strings; unknown reasons fall through
+// to a normalized snake-case-to-readable transform so the inbox never
+// shows a raw enum.
+// ---------------------------------------------------------------------------
+function humanizeEscalationReason(reason: string): string {
+  switch (reason) {
+    case "SLA_BREACH":
+    case "SLA_NEAR_BREACH":
+      return "SLA breach";
+    case "REVIEWER_INACTIVITY":
+      return "Reviewer inactivity";
+    case "QUEUE_BACKLOG":
+      return "Queue backlog";
+    case "CONFLICT_DETECTED":
+      return "Reviewer conflict";
+    case "MANUAL_ESCALATION":
+      return "Manual escalation";
+    case "QC_FAILURE":
+      return "QC failure";
+    default:
+      return reason
+        .toLowerCase()
+        .replace(/_/g, " ")
+        .replace(/^./, (c) => c.toUpperCase());
+  }
+}
+
+// Bounded list of high-severity SecurityEvent eventType strings the
+// platform emits today. Unknown types fall through to the normalized
+// snake-case-to-readable transform — never raw, never invented.
+// ---------------------------------------------------------------------------
+// Phase IA-enterprise — OTS failure-reason humanizer. The OTS pipeline
+// writes a small set of machine-readable codes (with at least
+// "OTS_GLOBAL_BUDGET_EXHAUSTED" being terminal) plus the normalized
+// stderr from the OpenTimestamps binary. We map known codes to a
+// 1-sentence operator explanation and pass through unknown codes
+// truncated. We never invent a failure mode the code didn't emit.
+// ---------------------------------------------------------------------------
+function humanizeOtsFailureReason(code: string): string {
+  // Known terminal code from the worker (`ots-upgrade.processor.ts`).
+  if (code.includes("OTS_GLOBAL_BUDGET_EXHAUSTED")) {
+    return "Global budget exhausted: the proof did not anchor on the public chain within the configured retry budget — no further attempts will be made.";
+  }
+  if (code.includes("OpenTimestamps binary is missing")) {
+    return "The OpenTimestamps binary is not installed in the worker environment — restart the OTS worker with the binary on PATH.";
+  }
+  if (/calendar/i.test(code)) {
+    return "An OTS calendar was unreachable. The retry budget is unchanged; an operator can re-trigger anchoring once the calendar is available.";
+  }
+  // Unknown free-form error — surface a truncated copy. Schema is
+  // unbounded; we cap at 240 chars so a single failure doesn't blow
+  // out the inbox row body.
+  const safe = code.length > 240 ? `${code.slice(0, 237)}...` : code;
+  return `Unrecoverable failure recorded: ${safe}`;
+}
+
+function humanizeSecurityEventType(eventType: string): string {
+  switch (eventType) {
+    case "step_up_failed":
+    case "step_up_required":
+      return "Step-up verification required";
+    case "mfa_recovery_requested":
+      return "MFA recovery requested";
+    case "session_quarantined":
+      return "Session quarantined";
+    case "session_revoked_self":
+      return "Session revoked";
+    case "device_revoked":
+      return "Trusted device revoked";
+    case "password_changed":
+      return "Password changed";
+    case "anomalous_login":
+      return "Anomalous login detected";
+    default:
+      return eventType
+        .toLowerCase()
+        .replace(/_/g, " ")
+        .replace(/^./, (c) => c.toUpperCase());
   }
 }

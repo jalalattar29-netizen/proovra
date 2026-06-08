@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json && node ./scripts/copy-assets.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "repair-ots-hybrid": "node --experimental-specifier-resolution=node dist/scripts/repair-ots-hybrid-state.js"
   },
   "keywords": [],
   "author": "",

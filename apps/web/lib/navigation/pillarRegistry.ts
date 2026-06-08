@@ -178,8 +178,15 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["workspace.evidence", "CASES"],
   ["workspace.search", "CASES"],
   ["workspace.reports", "CASES"],
+  // Phase IA-collapse — `workspace.collaboration` stays in CASES even
+  // though the standalone page now redirects to /inbox. The registry
+  // entry is preserved for backward-compat tests and the underlying
+  // /v1/collaboration/threads/* service still powers Evidence Detail
+  // → Discussion (a CASES-pillar surface).
   ["workspace.collaboration", "CASES"],
-  ["workspace.communications", "CASES"],
+  // Phase IA-collapse — `workspace.communications` moved from CASES
+  // to OPERATIONS. It is operator-facing SMS/WhatsApp/OTP delivery
+  // state, not a daily case work surface.
   ["workspace.intelligence", "CASES"],
   ["investigation.hub", "CASES"],
   ["investigation.timeline", "CASES"],
@@ -234,6 +241,10 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["platform.observability", "OPERATIONS"],
   ["platform.reliability", "OPERATIONS"],
   ["platform.queue_ops", "OPERATIONS"],
+  // Phase IA-collapse — Messaging operations (SMS / WhatsApp / OTP
+  // delivery state + retry/cancel + provider health). Moved here from
+  // the CASES pillar.
+  ["workspace.communications", "OPERATIONS"],
   ["platform.media_graph", "OPERATIONS"],
   ["platform.runbooks", "OPERATIONS"],
   ["platform.automation", "OPERATIONS"],
@@ -267,6 +278,9 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   // Phase C — workflow templates administration; moved from CAPTURE.
   ["workspace.workflows", "ADMIN"],
   ["account.settings", "ADMIN"],
+  // Phase IA-collapse — Account security personal home at
+  // /settings/security.
+  ["account.security", "ADMIN"],
   ["account.persona", "ADMIN"],
   ["account.billing", "ADMIN"],
   ["platform.admin", "ADMIN"],

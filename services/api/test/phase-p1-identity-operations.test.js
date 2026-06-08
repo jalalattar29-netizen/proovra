@@ -45,7 +45,7 @@ function exists(rel) {
 // 1. Canonical hub at /settings/security
 // ---------------------------------------------------------------------------
 describe("Phase P1 — Identity operations canonical hub", () => {
-    const HUB = readSource("../../../apps/web/app/(app)/settings/security/page.tsx");
+    const HUB = readSource("../../../apps/web/app/(app)/admin/identity/page.tsx");
     it("renders an Identity operations title + procurement-grade subtitle", () => {
         expect(HUB).toContain("Identity operations");
         expect(HUB).toContain("procurement-grade");
@@ -88,7 +88,8 @@ describe("Phase P1 — Identity operations canonical hub", () => {
         expect(HUB).toContain('routeId="admin.identity"');
     });
     it("carries a stable mount marker for E2E", () => {
-        expect(HUB).toContain('data-testid="settings-security-hub"');
+        // Phase IA-collapse — marker renamed to match the new mount URL.
+        expect(HUB).toContain('data-testid="admin-identity-hub"');
     });
 });
 // ---------------------------------------------------------------------------
@@ -228,7 +229,7 @@ describe("Phase P1 — existing identity admin surfaces preserved", () => {
 // 6. Vocabulary discipline — no fake claims
 // ---------------------------------------------------------------------------
 describe("Phase P1 — no fake identity claims", () => {
-    const HUB = readSource("../../../apps/web/app/(app)/settings/security/page.tsx");
+    const HUB = readSource("../../../apps/web/app/(app)/admin/identity/page.tsx");
     it("does not claim BYO-KMS, FedRAMP, SOC2, ISO 27001 readiness", () => {
         // These are procurement claims that are NOT shipped in P1 and
         // therefore must not appear on the canonical hub.

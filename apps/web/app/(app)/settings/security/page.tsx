@@ -1,289 +1,110 @@
 "use client";
 
 /**
- * Phase P1 — Identity Operations canonical hub.
+ * Phase IA-collapse — Account Security (personal).
  *
- * `/settings/security` is the single procurement-grade entry point for
- * enterprise identity operations. It surfaces every admin-operable
- * surface the platform actually ships — and nothing it doesn't.
+ * `/settings/security` is the canonical personal account security home.
+ * It mounts the user-scoped surfaces that previously rendered at the
+ * top of `/security-center` via `PersonalSecuritySections`:
+ *
+ *   - Change password (POST /v1/identity-security/password)
+ *   - Active sessions (GET /v1/identity-security/my-sessions +
+ *     POST /v1/identity-security/my-sessions/revoke-others)
+ *   - Recent security events (GET /v1/identity-security/security-events)
  *
  * Hard rules:
- *   * No fake capability claims. Every card links to a surface backed
- *     by a real endpoint or returns the operator to the documented
- *     blocker (per the P1.0 audit).
- *   * The previous IA at `/admin/identity` + `/security-center/sso` +
- *     `/security-center/mfa-recovery` remains intact. This page is the
- *     canonical aggregator the user expects under
- *     `/settings/security`.
- *   * Step-up gating is the responsibility of each sub-page; this
- *     surface is navigation only.
+ *   * ACCOUNT-tier surface (route id `account.security`,
+ *     requiredActiveSpace="NONE") — loads for every authenticated user,
+ *     never hides on workspace issues.
+ *   * No workspace operations on this page. Workspace identity
+ *     operations (MFA policy, trusted devices, session revocations,
+ *     MFA recovery approvals) live at `/security-center`
+ *     (route id `workspace.security_center`, label "Identity &
+ *     Security"). Enterprise identity-operations procurement hub
+ *     (SAML, SCIM, audit, sessions, runtime, access reviews, RBAC,
+ *     MFA recovery approvals) lives at `/admin/identity` (route id
+ *     `admin.identity`).
+ *   * Wording is operational only — "step-up required", "session
+ *     restricted", "device revoked". Never makes safety guarantees.
  *
- * Operator vocabulary discipline:
- *   * "SAML configuration" / "SCIM operations" / "Identity audit" —
- *     the labels enterprise admins know from compliance + procurement
- *     reviews. No invented brand-speak.
+ * Phase IA-collapse history: this page previously hosted the enterprise
+ * identity-operations hub (SAML / SCIM / Audit + secondary surfaces).
+ * That hub moved to `/admin/identity` to free `/settings/security` for
+ * personal account security — matching enterprise-tool norms where
+ * "Account security" lives under Settings and admin identity operations
+ * live under Admin / Operations.
+ *
+ * Legacy deep links to `/settings/security/scim` and
+ * `/settings/security/audit` continue to redirect to their canonical
+ * destinations via `next.config.js`; `/settings/security/saml` remains
+ * its own sub-page.
  */
 
 import Link from "next/link";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import {
-  cardStyle,
-  headerRowStyle,
-  pageStyle,
-  sectionTitleStyle,
-  subtitleStyle,
-  titleStyle,
-  TOKENS,
-} from "../../admin/identity/ui-tokens";
+import { PersonalSecuritySections } from "../../security-center/components/PersonalSecuritySections";
 
-type Surface = {
-  href: string;
-  title: string;
-  description: string;
-  /** Used by the contract test to assert each card maps to a real route. */
-  canonicalPath: string;
-};
-
-const PRIMARY_SURFACES: ReadonlyArray<Surface> = [
-  {
-    href: "/settings/security/saml",
-    canonicalPath: "/settings/security/saml",
-    title: "SAML configuration",
-    description:
-      "Configure identity-provider SSO. Metadata ingestion, certificate rotation, request signing, NameID + attribute mapping, connection health checks, and IdP outage detection.",
-  },
-  {
-    href: "/settings/security/scim",
-    canonicalPath: "/settings/security/scim",
-    title: "SCIM operations",
-    description:
-      "Provisioning token lifecycle, scope-limited bearer tokens, IP allowlist, suspend / reactivate, and revoke. Destructive operations require step-up.",
-  },
-  {
-    href: "/settings/security/audit",
-    canonicalPath: "/settings/security/audit",
-    title: "Identity audit center",
-    description:
-      "Unified security-event timeline: login activity, step-up elevations, session governance, geo-risk anomalies, and provisioning events. Filters per event kind + severity.",
-  },
-];
-
-const SECONDARY_SURFACES: ReadonlyArray<Surface> = [
-  {
-    href: "/admin/identity/sessions",
-    canonicalPath: "/admin/identity/sessions",
-    title: "Active sessions",
-    description:
-      "Live session inventory. Revoke individual sessions or revoke-all for a user (step-up gated). Filter by revoked / expired.",
-  },
-  {
-    href: "/admin/identity/runtime",
-    canonicalPath: "/admin/identity/runtime",
-    title: "Runtime monitor",
-    description:
-      "Live SOC console: quarantine sessions, release safe sessions, re-score on demand, and emergency org-wide revoke (step-up gated).",
-  },
-  {
-    href: "/admin/identity/access-reviews",
-    canonicalPath: "/admin/identity/access-reviews",
-    title: "Access reviews",
-    description:
-      "Periodic + triggered access reviews. Certify, revoke, or suspend each entry. Audited via Phase 17 access-review service.",
-  },
-  {
-    href: "/admin/identity/permission-matrix",
-    canonicalPath: "/admin/identity/permission-matrix",
-    title: "Permission matrix",
-    description:
-      "Trace every permission to its source: role default, capability grant, delegated scope, or temporary elevation. Read-only inspector.",
-  },
-  {
-    href: "/security-center",
-    canonicalPath: "/security-center",
-    title: "MFA + trusted devices",
-    description:
-      "Per-user MFA enrollment posture, MFA policy editor, trusted device list with revocation, and own-session risk snapshot.",
-  },
-  {
-    href: "/security-center/mfa-recovery",
-    canonicalPath: "/security-center/mfa-recovery",
-    title: "MFA recovery approvals",
-    description:
-      "Admin queue for pending recovery requests. Quorum-based approval (step-up gated). Digest notification preferences + snooze controls.",
-  },
-];
-
-export default function SettingsSecurityHubPage() {
+export default function AccountSecurityPage() {
   return (
-    <PageRouteGate routeId="admin.identity">
-      <SettingsSecurityHubInner />
+    <PageRouteGate routeId="account.security">
+      <AccountSecurityPageInner />
     </PageRouteGate>
   );
 }
 
-function SettingsSecurityHubInner() {
+function AccountSecurityPageInner() {
   return (
-    <main style={pageStyle} data-testid="settings-security-hub">
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Identity operations</h1>
-          <p style={subtitleStyle}>
-            The procurement-grade identity + security operations entry
-            point. Every surface here is backed by an audited backend
-            endpoint and respects the workspace + organization tenancy
-            boundaries. Destructive operations require step-up where
-            flagged by the workspace step-up policy.
-          </p>
-        </div>
+    <main style={pageStyle} data-testid="account-security-page">
+      <header style={headerStyle}>
+        <h1 style={titleStyle}>Account security</h1>
+        <p style={subtitleStyle}>
+          Personal account controls — change your password, review and
+          revoke your active sessions, and inspect the bounded timeline
+          of identity and auth events tied to your account. Workspace
+          identity operations (MFA policy, trusted devices, recovery
+          approvals) live in{" "}
+          <Link href="/security-center" style={linkStyle}>
+            Identity &amp; Security
+          </Link>
+          .
+        </p>
       </header>
 
-      <section style={{ marginTop: 20 }} data-section="settings-security-primary">
-        <h3 style={sectionTitleStyle}>Primary admin surfaces</h3>
-        <p
-          style={{
-            ...subtitleStyle,
-            marginTop: 4,
-            marginBottom: 10,
-            fontSize: 12,
-          }}
-        >
-          The canonical SAML / SCIM / Audit surfaces for enterprise
-          procurement reviews.
-        </p>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-            gap: 12,
-          }}
-        >
-          {PRIMARY_SURFACES.map((s) => (
-            <Link
-              key={s.href}
-              href={s.href}
-              data-settings-security-card={s.canonicalPath}
-              style={{
-                ...cardStyle,
-                textDecoration: "none",
-                color: TOKENS.ink,
-                display: "block",
-                borderLeft: `3px solid ${TOKENS.accent}`,
-              }}
-            >
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{s.title}</div>
-              <div
-                style={{ fontSize: 12, color: TOKENS.inkMuted, marginTop: 4 }}
-              >
-                {s.description}
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section
-        style={{ marginTop: 24 }}
-        data-section="settings-security-secondary"
-      >
-        <h3 style={sectionTitleStyle}>Operational surfaces</h3>
-        <p
-          style={{
-            ...subtitleStyle,
-            marginTop: 4,
-            marginBottom: 10,
-            fontSize: 12,
-          }}
-        >
-          Live session governance, RBAC inspection, access reviews, MFA
-          posture, and recovery operations.
-        </p>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-            gap: 12,
-          }}
-        >
-          {SECONDARY_SURFACES.map((s) => (
-            <Link
-              key={s.href}
-              href={s.href}
-              data-settings-security-card={s.canonicalPath}
-              style={{
-                ...cardStyle,
-                textDecoration: "none",
-                color: TOKENS.ink,
-                display: "block",
-              }}
-            >
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{s.title}</div>
-              <div
-                style={{ fontSize: 12, color: TOKENS.inkMuted, marginTop: 4 }}
-              >
-                {s.description}
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section
-        style={{ marginTop: 24 }}
-        data-section="settings-security-honest-scope"
-      >
-        <h3 style={sectionTitleStyle}>Honest scope disclosure</h3>
-        <p
-          style={{
-            ...subtitleStyle,
-            marginTop: 4,
-            marginBottom: 10,
-            fontSize: 12,
-          }}
-        >
-          These capabilities are NOT shipped today and are bounded
-          follow-up work. The platform never surfaces fake controls.
-        </p>
-        <ul
-          style={{
-            ...subtitleStyle,
-            marginTop: 6,
-            paddingLeft: 18,
-            fontSize: 12,
-            lineHeight: 1.6,
-          }}
-          data-settings-security-bounded-followups
-        >
-          {/*
-            Phase P1.1 closed four bounded follow-ups previously listed
-            here. All shipped surfaces are reachable from `/admin/
-            identity/*`:
-              * SCIM provisioning token lifecycle
-                → /admin/identity/scim (Tokens tab)
-              * SCIM drift reconciliation
-                → /admin/identity/scim (Drift detection tab; consumes
-                  /v1/scim/reconciliation/preview + /execute)
-              * SCIM sync-failure replay
-                → /admin/identity/scim (Sync replay tab; consumes
-                  /v1/scim/sync-failures + /:id/replay)
-              * SSO connection health monitoring
-                → /security-center/sso/health
-              * Visual SAML attribute mapping builder
-                → /security-center/sso/mapping
-              * Bounded session identity timeline (scope-honest
-                replacement for "historical session replay" — identity
-                events only)
-                → /admin/identity/sessions (per-row "View timeline")
-            Final Closure Remediation Part G — verified all six shipped
-            end-to-end; nothing partially exposed remains here.
-          */}
-          <li>
-            <strong>Step-up exemption rules</strong> — admin-defined
-            waivers for specific actions/roles. Today step-up is
-            workspace-flag driven (per-action, on or off).
-          </li>
-        </ul>
-      </section>
+      {/* The three user-scoped sections (password, sessions, events). */}
+      <PersonalSecuritySections />
     </main>
   );
 }
+
+const pageStyle: React.CSSProperties = {
+  maxWidth: 920,
+  margin: "0 auto",
+  padding: "32px 24px",
+  fontFamily:
+    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  color: "#0f172a",
+};
+
+const headerStyle: React.CSSProperties = {
+  marginBottom: 12,
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: 24,
+  fontWeight: 700,
+  marginBottom: 4,
+};
+
+const subtitleStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#64748b",
+  lineHeight: 1.55,
+  marginTop: 0,
+};
+
+const linkStyle: React.CSSProperties = {
+  color: "#0f172a",
+  textDecoration: "underline",
+  fontWeight: 600,
+};

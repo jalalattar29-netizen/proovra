@@ -308,9 +308,12 @@ describe("Phase P1.1 — Frontend surfaces", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase P1.1 — Honest-scope card hygiene", () => {
-  it("/settings/security no longer lists the four shipped follow-ups", () => {
+  it("/admin/identity no longer lists the four shipped follow-ups", () => {
+    // Phase IA-collapse — hub moved from /settings/security to
+    // /admin/identity. /settings/security is now the Account Security
+    // home (route id `account.security`).
     const hub = readSource(
-      "../../../apps/web/app/(app)/settings/security/page.tsx",
+      "../../../apps/web/app/(app)/admin/identity/page.tsx",
     );
     expect(hub).not.toMatch(
       /<strong>SCIM drift reconciliation engine<\/strong>/,

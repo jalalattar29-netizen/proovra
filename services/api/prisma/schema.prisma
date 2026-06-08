@@ -832,6 +832,9 @@ model User {
   ownedTeams        Team[] @relation("TeamOwner")
   billingOwnedTeams Team[] @relation("TeamBillingOwner")
 
+  // Phase IA-reliability — per-user inbox state (read/dismiss/snooze).
+  inboxItemStates InboxItemState[]
+
   // Phase 5 — Collaboration Team back-relations. Additive only.
   createdCollaborationTeams           CollaborationTeam[]           @relation("CollaborationTeamCreatedBy")
   collaborationTeamMemberships        CollaborationTeamMember[]     @relation("CollaborationTeamMemberUser")
@@ -5816,6 +5819,98 @@ model OperationalIncidentEvent {
 
   @@index([incidentId, createdAt(sort: Desc)])
   @@map("operational_incident_events")
+}
+
+// =============================================================================
+// Phase IA-reliability — InboxItemState
+//
+// Per-user state row that the /v1/me/inbox aggregator joins against to
+// implement REAL read / unread / dismiss / snooze behavior. The
+// aggregator continues to derive the items themselves from the
+// canonical source tables (DiscussionMention, OperationalIncident,
+// EvidenceRequest, ...) — this table stores ONLY the per-user
+// adjudication of each item.
+//
+// Hard rules:
+//   * Per-user state ONLY. Never store the source row's title, body,
+//     evidence preview, or other downstream-rendered data here. If the
+//     source resolves (mention notified, incident resolved, intake
+//     fulfilled) the inbox simply stops emitting the row.
+//   * `itemKey` is a DETERMINISTIC composite of the inbox source +
+//     source id — see the `INBOX_ITEM_KEY_PREFIXES` allowlist in
+//     `services/api/src/routes/me-inbox.routes.ts` for the full
+//     taxonomy. The aggregator builds the key on every read; the four
+//     mutation endpoints reject any key whose prefix is not in the
+//     allowlist (defense against enumeration).
+//   * Unique by `(userId, itemKey)` so mark-read / dismiss / snooze
+//     POSTs are idempotent — Prisma upsert by the compound unique
+//     resolves both insert and update in one round trip.
+//   * Tenant scope: `userId` is the authority. The optional `teamId` /
+//     `orgId` columns are audit context (which workspace did the item
+//     belong to when the state was written) — they are never used as
+//     a tenancy gate. Every endpoint scopes its query to
+//     `userId = caller`.
+// =============================================================================
+
+model InboxItemState {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  userId String @map("user_id") @db.Uuid
+
+  /// Deterministic composite key (e.g. "discussion_mention:<mentionId>",
+  /// "report_failure:<incidentId>", "ots_failure:<evidenceId>"). Bounded
+  /// at 200 chars; longer keys (which would indicate a mistake in the
+  /// aggregator) are rejected at the application layer before insert.
+  itemKey String @map("item_key") @db.VarChar(200)
+
+  /// Stable short string mirror of the InboxCategory enum value the
+  /// aggregator emitted (e.g. "discussion_mention", "ots_failure"). We
+  /// store this denormalized so admin queries like "show me every
+  /// item the user has dismissed of kind X" don't have to parse the
+  /// composite key.
+  sourceType String @map("source_type") @db.VarChar(64)
+
+  /// Raw source row id (the right-hand side of itemKey). Nullable
+  /// because some kinds (`onboarding:no_organizations`) have no
+  /// underlying row id.
+  sourceId String? @map("source_id") @db.VarChar(200)
+
+  /// Audit context — which workspace / org the item belonged to when
+  /// the state was first written. NOT a tenancy gate. Nullable
+  /// because account-tier items (org invites addressed to the caller)
+  /// don't have a workspace context.
+  teamId String? @map("team_id") @db.Uuid
+  orgId  String? @map("org_id") @db.Uuid
+
+  /// Per-user state. All three are timestamps so "when did you do
+  /// this" is preserved for audit. The application semantics:
+  ///   readAt        — set on mark-read, nulled on mark-unread
+  ///   dismissedAt   — set once; the row is then hidden from the
+  ///                   default inbox forever (until the source row
+  ///                   resolves; if it re-fires under the same itemKey
+  ///                   we honor the user's dismissal). Reversible via
+  ///                   /v1/me/inbox/items/:itemKey/undismiss in a
+  ///                   future phase.
+  ///   snoozedUntil  — the inbox hides the item until this timestamp
+  ///                   passes; users can re-snooze any number of
+  ///                   times.
+  readAt       DateTime? @map("read_at") @db.Timestamptz(6)
+  dismissedAt  DateTime? @map("dismissed_at") @db.Timestamptz(6)
+  snoozedUntil DateTime? @map("snoozed_until") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemKey])
+  @@index([userId])
+  @@index([userId, dismissedAt])
+  @@index([userId, readAt])
+  @@index([userId, snoozedUntil])
+  @@index([userId, sourceType])
+  @@index([userId, teamId])
+  @@map("inbox_item_state")
 }
 
 // =============================================================================
