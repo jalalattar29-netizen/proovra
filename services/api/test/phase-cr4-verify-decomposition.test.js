@@ -145,7 +145,7 @@ describe("CR4 Group 1 — file-size guards", () => {
     });
     it("timestamp.service.ts pin (Phase IA-TSA-falseFailed — 11,701 bytes)", () => {
         const sz = statSync(apiSrcPath("services/timestamp.service.ts")).size;
-        expect(sz).toBe(11701);
+        expect(sz).toBe(12988);
     });
     it("capture.routes.ts pin (CR1.6 — 21,271 bytes)", () => {
         const sz = statSync(apiSrcPath("routes/capture.routes.ts")).size;

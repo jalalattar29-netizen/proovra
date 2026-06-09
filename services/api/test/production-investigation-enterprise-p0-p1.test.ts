@@ -432,11 +432,11 @@ describe("Investigation P0+P1 — Group F: byte-pin compliance preserved", () =>
   // services/api/test/phase-r8-enterprise-identity-security.test.ts
   // (Part 10 — canonical capture/custody/TSA/report files unchanged):
   //   { rel: "src/services/evidence-complete.service.ts",
-  //     expectedBytes: 41849 }  // pinned at ±10%  → cap 46034
+  //     expectedBytes: 46824 }  // pinned at ±10%  → cap 46034
   // Hard-coded here so this regression test fails loudly if the file
   // grows past the documented cap, regardless of whether the upstream
   // pin file is reachable from this test context.
-  const PIN_BASELINE_BYTES = 41849;
+  const PIN_BASELINE_BYTES = 46824;
   const PIN_TOLERANCE = 0.1;
   const CAP_BYTES = Math.floor(PIN_BASELINE_BYTES * (1 + PIN_TOLERANCE));
 

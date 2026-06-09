@@ -208,9 +208,9 @@ const CAPTURE_ROUTES_BYTES_EXACT = 21271;
 // extracted runEvidenceCompletePostFinalize for direct testability;
 // also observes the { queued:false } shape graph-reconcile-queue
 // returns when Redis is unavailable.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 45835;
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 46824;
 const CUSTODY_EVENTS_SVC_BYTES_EXACT = 5155;
-const TIMESTAMP_SVC_BYTES_EXACT = 11701;
+const TIMESTAMP_SVC_BYTES_EXACT = 12988;
 const PRE_CR5_AI_ASSISTANT_BYTES = 23045;
 
 // ---------------------------------------------------------------------------

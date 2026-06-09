@@ -142,18 +142,27 @@ describe("parseTsaReply — status variant handling", () => {
 // ============================================================================
 
 describe("parseTsaReply — validation guards", () => {
-  it("Granted but missing serial → tsa_missing_serial_or_generation_time", () => {
+  it("Granted but missing serial → STAMPED + tsa_serial_number_unparsed warning (Phase IA-digest-policy-hard-invariant)", () => {
+    // Previously this produced a FAILED row with failureCode
+    // `tsa_missing_serial_or_generation_time`. Under the new hard
+    // invariant a Granted token whose imprint matches the request
+    // MUST NOT be FAILED just because an optional column failed to
+    // parse — the token bytes are authoritative.
     const reply = `Status: Granted.\nTime stamp: Jan  1 00:00:00 2026 GMT\n`;
     const out = parseTsaReply(reply);
-    expect(out.granted).toBe(false);
-    expect(out.failureCode).toBe("tsa_missing_serial_or_generation_time");
+    expect(out.granted).toBe(true);
+    expect(out.failureCode).toBeNull();
+    expect(out.serialNumber).toBeNull();
+    expect(out.warnings).toContain("tsa_serial_number_unparsed");
   });
 
-  it("Granted but missing genTime → tsa_missing_serial_or_generation_time", () => {
+  it("Granted but missing genTime → STAMPED + tsa_generation_time_unparsed warning", () => {
     const reply = `Status: Granted.\nSerial number: 0xABC\n`;
     const out = parseTsaReply(reply);
-    expect(out.granted).toBe(false);
-    expect(out.failureCode).toBe("tsa_missing_serial_or_generation_time");
+    expect(out.granted).toBe(true);
+    expect(out.failureCode).toBeNull();
+    expect(out.genTimeUtc).toBeNull();
+    expect(out.warnings).toContain("tsa_generation_time_unparsed");
   });
 
   it("message imprint mismatch → tsa_message_imprint_mismatch (NEVER granted)", () => {

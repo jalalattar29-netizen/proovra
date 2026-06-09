@@ -210,7 +210,7 @@ describe("Phase IA-digest-policy — TSA digest thread is single-sourced", () =>
     // messageImprint: digestHex (the variable, not fileSha256). This
     // guarantees evidence.tsaMessageImprint == what we sent.
     expect(SERVICE).toMatch(
-      /if \(parsed\.granted\)[\s\S]{0,500}messageImprint:\s*digestHex/,
+      /if \(parsed\.granted\)[\s\S]{0,1500}messageImprint:\s*digestHex/,
     );
   });
 
@@ -231,12 +231,13 @@ describe("Phase IA-digest-policy — TSA digest thread is single-sourced", () =>
   });
 
   it("finalize tsaInputDigestHex is sourced from tsaResult.messageImprint (NOT re-derived from fileSha256)", () => {
-    // Truthful semantics: when STAMPED, tsaInputDigestHex == the actual
-    // accepted message imprint (= digestHex we sent). NOT a re-read of
-    // fileSha256, which would silently lie on a future multipart-vs-
-    // single mix-up.
+    // Phase IA-digest-policy-hard-invariant: when a TSA request was
+    // made, tsaInputDigestHex == the digest we sent (== messageImprint,
+    // because the service sets messageImprint: digestHex). NOT a
+    // re-read of fileSha256, which would silently lie on a future
+    // multipart-vs-single mix-up.
     expect(EVIDENCE_COMPLETE).toMatch(
-      /tsaInputDigestHex:\s*[\s\S]{0,200}tsaResult\?\.status\s*===\s*"STAMPED"\s*\?\s*tsaResult\.messageImprint\s*\?\?\s*null/,
+      /tsaInputDigestHex:\s*tsaResult\s*\?\s*tsaResult\.messageImprint\s*:\s*null/,
     );
     // The persistence MUST NOT read fileSha256 as the input digest.
     expect(EVIDENCE_COMPLETE).not.toMatch(

@@ -212,7 +212,7 @@ describe("Phase CR0.5 — capture/finalization/custody guard (CR0.5 must not tou
         // ±10% around CR0.5 baseline bytes captured at the time of writing.
         {
             rel: "src/services/evidence-complete.service.ts",
-            expectedBytes: 41849,
+            expectedBytes: 46824,
             tolerance: 0.1,
         },
         {

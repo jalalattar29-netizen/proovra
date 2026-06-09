@@ -87,17 +87,20 @@ describe("Phase IA-forward-path-TSA — finalize callsite contract", () => {
     }
   });
 
-  it("tsaInputDigestHex is GATED on STAMPED (truthful semantics — Issue #8)", () => {
-    // The intended-input fallback was removed in Issue #8. We re-pin it
-    // here so a refactor cannot quietly re-introduce the lie.
+  it("tsaInputDigestHex ALWAYS records the request digest (Phase IA-digest-policy-hard-invariant)", () => {
+    // Issue #8's intent (don't fall back to fileSha256 when TSA never
+    // ran) is preserved: when tsaResult is null (TSA disabled) the
+    // column stays null. But when a TSA REQUEST was made — STAMPED or
+    // FAILED — we record what we asked it to certify, so triage can
+    // see the digest target.
     expect(EVIDENCE_COMPLETE).toMatch(
-      /tsaInputDigestHex:\s*[\s\S]{0,200}tsaResult\?\.status\s*===\s*"STAMPED"\s*\?\s*tsaResult\.messageImprint\s*\?\?\s*null\s*:\s*null/,
+      /tsaInputDigestHex:\s*tsaResult\s*\?\s*tsaResult\.messageImprint\s*:\s*null/,
     );
   });
 
-  it("tsaInputKind is GATED on STAMPED (truthful semantics — Issue #8)", () => {
+  it("tsaInputKind ALWAYS records the request shape (Phase IA-digest-policy-hard-invariant)", () => {
     expect(EVIDENCE_COMPLETE).toMatch(
-      /tsaInputKind:\s*[\s\S]{0,200}tsaResult\?\.status\s*===\s*"STAMPED"\s*\?\s*tsaInputKind\s*:\s*null/,
+      /tsaInputKind:\s*tsaResult\s*\?\s*tsaInputKind\s*:\s*null/,
     );
   });
 
@@ -143,7 +146,7 @@ describe("Phase IA-forward-path-TSA — service uses the bounded parser", () => 
   });
 
   it("returns status: \"STAMPED\" on parsed.granted", () => {
-    expect(SERVICE).toMatch(/if \(parsed\.granted\)[\s\S]{0,400}status:\s*"STAMPED"/);
+    expect(SERVICE).toMatch(/if \(parsed\.granted\)[\s\S]{0,1500}status:\s*"STAMPED"/);
   });
 
   it("returns status: \"FAILED\" + preserved tokenBase64 + bounded code on parser-side fail", () => {

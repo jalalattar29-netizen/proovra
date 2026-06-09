@@ -154,7 +154,7 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     //   bounded warn logging; runEvidenceCompletePostFinalize extracted.
     expect(
       statSync(apiSrcPath("services/evidence-complete.service.ts")).size,
-    ).toBe(45835);
+    ).toBe(46824);
   });
   it("CR1.6 byte-exact pin on custody-events.service.ts holds", () => {
     expect(
@@ -163,7 +163,7 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
   });
   it("Phase IA-TSA-falseFailed byte-exact pin on timestamp.service.ts holds", () => {
     expect(statSync(apiSrcPath("services/timestamp.service.ts")).size).toBe(
-      11701,
+      12988,
     );
   });
   it("E5 byte-exact pin on claims-matrix.ts holds", () => {

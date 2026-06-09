@@ -122,7 +122,7 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
         expect(statSync(apiSrcPath("services/custody-events.service.ts")).size).toBe(5155);
     });
     it("Phase IA-TSA-falseFailed byte-exact pin on timestamp.service.ts holds", () => {
-        expect(statSync(apiSrcPath("services/timestamp.service.ts")).size).toBe(11701);
+        expect(statSync(apiSrcPath("services/timestamp.service.ts")).size).toBe(12988);
     });
     it("E5 byte-exact pin on claims-matrix.ts holds", () => {
         expect(statSync(sharedPath("claims-matrix.ts")).size).toBe(2317);

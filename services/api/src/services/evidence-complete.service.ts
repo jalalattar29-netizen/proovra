@@ -911,21 +911,30 @@ const captureMethod =
         tsaGenTimeUtc: tsaResult?.genTimeUtc ?? null,
         tsaTokenBase64: tsaResult?.tokenBase64 ?? null,
         tsaMessageImprint: tsaResult?.messageImprint ?? null,
-        // Truthful TSA semantics (Issue #8):
-        //   - tsaInputDigestHex now ONLY records the digest the TSA provider
-        //     actually accepted (i.e., what the returned token imprints).
-        //   - When TSA failed / was unavailable / not configured, this is
-        //     null. We do NOT fall back to fileSha256, because that
-        //     previously implied the TSA accepted something it did not.
-        //   - The intended-input digest is implicitly fileSha256, which is
-        //     stored in its own column. Reviewers can compare them when both
-        //     are present.
-        tsaInputDigestHex:
-          tsaResult?.status === "STAMPED"
-            ? tsaResult.messageImprint ?? null
-            : null,
-        tsaInputKind:
-          tsaResult?.status === "STAMPED" ? tsaInputKind : null,
+        // Phase IA-digest-policy-hard-invariant — semantic refresh.
+        //
+        //   tsaInputDigestHex   = the digest we sent to `openssl ts -query`
+        //                         (i.e. what the request asked the TSA to
+        //                         certify). ALWAYS persisted when a TSA
+        //                         request was made — STAMPED or FAILED.
+        //                         On STAMPED, this equals the imprint the
+        //                         response certifies (we verified
+        //                         imprintMatchesRequest before persisting).
+        //                         On FAILED, this records what we asked
+        //                         for, so triage knows the digest target.
+        //
+        //   tsaInputKind        = the shape label for that request digest
+        //                         (FILE_SHA256 or CANONICAL_PACKAGE_SHA256).
+        //                         ALWAYS persisted alongside the digest so
+        //                         the trust chain is self-describing
+        //                         without a join.
+        //
+        // Issue #8 was about NOT falling back to a random column when the
+        // TSA never ran — that intent is preserved: on rows with no
+        // tsaResult (TSA disabled / not configured) both columns remain
+        // null, because there was no request to record.
+        tsaInputDigestHex: tsaResult ? tsaResult.messageImprint : null,
+        tsaInputKind: tsaResult ? tsaInputKind : null,
         tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
         tsaStatus: tsaResult?.status ?? null,
         tsaFailureReason: tsaResult?.failureReason ?? null,
@@ -1008,14 +1017,11 @@ const captureMethod =
           tsaSerialNumber: tsaResult?.serialNumber ?? null,
           tsaGenTimeUtc: tsaResult?.genTimeUtc?.toISOString() ?? null,
           tsaMessageImprint: tsaResult?.messageImprint ?? null,
-          // Issue #8: tsaInputDigestHex only when TSA actually stamped.
-          tsaInputDigestHex:
-            tsaResult?.status === "STAMPED"
-              ? tsaResult.messageImprint ?? null
-              : null,
-          // Same gating for tsaInputKind so the chain does not imply a TSA
-          // accepted-input semantic that did not happen.
-          tsaInputKind: tsaResult?.status === "STAMPED" ? tsaInputKind : null,
+          // Phase IA-digest-policy-hard-invariant — always record what we
+          // sent + its label, regardless of STAMPED/FAILED outcome. The
+          // chain stays self-describing for triage.
+          tsaInputDigestHex: tsaResult ? tsaResult.messageImprint : null,
+          tsaInputKind: tsaResult ? tsaInputKind : null,
           tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
           tsaStatus: tsaResult?.status ?? null,
           tsaFailureReason: tsaResult?.failureReason ?? null,
@@ -1041,6 +1047,12 @@ const captureMethod =
             tsaHashAlgorithm: tsaResult.hashAlgorithm,
             tsaStatus: tsaResult.status,
             tsaFailureReason: tsaResult.failureReason,
+            // Phase IA-digest-policy-hard-invariant — surface soft
+            // parser issues for STAMPED rows so operators can see "the
+            // timestamp landed but our parser missed the serial" without
+            // re-reading the token. Empty on fully-clean STAMPED + on
+            // every FAILED row.
+            tsaParseWarnings: tsaResult.warnings,
           } as prismaPkg.Prisma.InputJsonValue,
         });
       }

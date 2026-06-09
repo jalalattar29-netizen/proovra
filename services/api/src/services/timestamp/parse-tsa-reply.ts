@@ -40,11 +40,39 @@ export type TsaParseStatusKind = "granted" | "granted_with_mods" | "other";
 export type TsaReplyFailureCode =
   | "tsa_response_parse_failed"
   | "tsa_response_not_granted"
-  | "tsa_message_imprint_mismatch"
-  | "tsa_missing_serial_or_generation_time";
+  | "tsa_message_imprint_mismatch";
+
+/**
+ * Phase IA-digest-policy-hard-invariant — non-fatal parser warnings.
+ *
+ * Soft issues with a Granted token (e.g. our parser couldn't extract
+ * the serial number, or no "Message data" block was present so we
+ * couldn't verify the imprint locally) MUST NOT downgrade the row to
+ * FAILED. The token bytes are the authoritative truth; the
+ * serial/genTime columns are convenience projections that a later
+ * repair pass can re-extract. We surface the issue as a bounded
+ * warning code so the operator can see it without losing the
+ * timestamp.
+ *
+ * `tsa_missing_serial_or_generation_time` was previously a FAILURE
+ * code; under the new digest-policy invariant it is a WARNING code.
+ * The row stays STAMPED.
+ */
+export type TsaReplyWarningCode =
+  | "tsa_serial_number_unparsed"
+  | "tsa_generation_time_unparsed"
+  | "tsa_message_imprint_not_present_in_reply";
 
 export type TsaReplyParseResult = {
-  /** True iff Granted/GrantedWithMods AND no validation issue surfaced. */
+  /**
+   * True iff (Status === Granted/GrantedWithMods) AND
+   * (imprintMatchesRequest !== false).
+   *
+   * Per the Phase IA-digest-policy-hard-invariant directive: a granted
+   * token whose response imprint equals the request digest MUST NOT
+   * downgrade to FAILED even when soft parser issues (missing serial,
+   * missing genTime) surface. The warnings array captures those.
+   */
   granted: boolean;
   /** Categorized status. `other` covers Rejected, Waiting, unknown, etc. */
   statusKind: TsaParseStatusKind;
@@ -67,12 +95,20 @@ export type TsaReplyParseResult = {
    */
   imprintMatchesRequest: boolean | null;
   /**
-   * Bounded failure code when parsing succeeded but the response should
-   * not be persisted as granted. Null on success.
+   * Bounded failure code when the response shape DISQUALIFIES persistence
+   * as granted. Null on success. Only set when the status is non-granted
+   * or the imprint disagrees with the request — never set just because
+   * an optional field failed to parse.
    */
   failureCode: TsaReplyFailureCode | null;
   /** Operator-readable summary for logs + the persisted failure reason. */
   failureReason: string | null;
+  /**
+   * Bounded warnings for soft parser issues on an otherwise-granted
+   * response. The row stays STAMPED; warnings are surfaced for operator
+   * visibility + the repair tool's queue.
+   */
+  warnings: TsaReplyWarningCode[];
 };
 
 /** Map a bounded failure code to the operator-readable persisted reason. */
@@ -84,8 +120,6 @@ export function tsaFailureCodeToReason(code: TsaReplyFailureCode): string {
       return "Trusted timestamp provider returned a non-granted status.";
     case "tsa_message_imprint_mismatch":
       return "Trusted timestamp message imprint disagreed with the digest sent — the response was not persisted.";
-    case "tsa_missing_serial_or_generation_time":
-      return "Trusted timestamp response was granted but did not include a serial number or generation time.";
   }
 }
 
@@ -219,6 +253,7 @@ export function parseTsaReply(
       imprintMatchesRequest: null,
       failureCode: "tsa_response_parse_failed",
       failureReason: tsaFailureCodeToReason("tsa_response_parse_failed"),
+      warnings: [],
     };
   }
 
@@ -240,6 +275,21 @@ export function parseTsaReply(
 
   // -----------------------------------------------------------------------
   // Outcome classification — bounded codes ONLY.
+  //
+  // Phase IA-digest-policy-hard-invariant — the HARD rule is:
+  //   "If OpenSSL says Status: Granted and parsed messageImprint
+  //    equals the digest used to create the TSA query, then persist
+  //    STAMPED, not FAILED."
+  //
+  // The ONLY conditions that disqualify a granted response from
+  // STAMPED persistence are:
+  //   1. status.kind === "other"  — provider explicitly did not grant
+  //   2. imprintMatchesRequest === false — provider certified a
+  //      different digest than the one we asked it to certify
+  //
+  // Missing serial number, missing genTime, missing "Message data"
+  // block — these are SOFT issues that produce warnings, never
+  // failure codes. The token bytes remain authoritative.
   // -----------------------------------------------------------------------
 
   if (status.kind === "other") {
@@ -253,6 +303,7 @@ export function parseTsaReply(
       imprintMatchesRequest,
       failureCode: "tsa_response_not_granted",
       failureReason: tsaFailureCodeToReason("tsa_response_not_granted"),
+      warnings: [],
     };
   }
 
@@ -270,31 +321,20 @@ export function parseTsaReply(
       imprintMatchesRequest,
       failureCode: "tsa_message_imprint_mismatch",
       failureReason: tsaFailureCodeToReason("tsa_message_imprint_mismatch"),
+      warnings: [],
     };
   }
 
-  if (serialNumber === null || genTimeUtc === null) {
-    // Granted but a critical receipt field is missing. This is the
-    // failure mode the production incident exposed: the parser found
-    // Status: Granted but the time/serial extraction failed and the
-    // whole row was downgraded to a generic provider error.
-    return {
-      granted: false,
-      statusKind: status.kind,
-      statusText: status.raw,
-      serialNumber,
-      genTimeUtc,
-      messageImprintHex,
-      imprintMatchesRequest,
-      failureCode: "tsa_missing_serial_or_generation_time",
-      failureReason: tsaFailureCodeToReason(
-        "tsa_missing_serial_or_generation_time",
-      ),
-    };
+  // Granted + imprint matches (or no expected supplied). Collect
+  // bounded warnings for any soft parser misses. STAMPED persistence
+  // proceeds regardless.
+  const warnings: TsaReplyWarningCode[] = [];
+  if (serialNumber === null) warnings.push("tsa_serial_number_unparsed");
+  if (genTimeUtc === null) warnings.push("tsa_generation_time_unparsed");
+  if (messageImprintHex === null) {
+    warnings.push("tsa_message_imprint_not_present_in_reply");
   }
 
-  // Happy path — Granted (or GrantedWithMods), imprint matches (or no
-  // expected supplied), serial + genTime parsed.
   return {
     granted: true,
     statusKind: status.kind,
@@ -305,5 +345,6 @@ export function parseTsaReply(
     imprintMatchesRequest,
     failureCode: null,
     failureReason: null,
+    warnings,
   };
 }

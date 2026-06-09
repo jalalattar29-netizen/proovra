@@ -167,7 +167,12 @@ export function deriveIntegritySnapshot(input: IntegritySnapshotInput): {
   const tsaDigestPolicyViolated =
     policyCodes.has("tsa_message_imprint_disagrees_with_input_digest") ||
     policyCodes.has("tsa_kind_label_disagrees_with_digest_source");
-  if (rawTsa === "STAMPED" && input.tsaTokenBase64 && input.tsaGenTimeUtc) {
+  if (rawTsa === "STAMPED" && input.tsaTokenBase64) {
+    // Phase IA-digest-policy-hard-invariant — a STAMPED row IS OK even
+    // when `tsaGenTimeUtc` is null. The token bytes are the authoritative
+    // signal; missing genTime is a soft parser issue that the repair
+    // tool can later fill in. Pre-fix we treated null genTime as PENDING,
+    // which forced a re-poll loop on a row that had already succeeded.
     tsaStatus = tsaDigestPolicyViolated ? "REVIEW_REQUIRED" : "OK";
     timestampDigestMatches = tsaDigestPolicyViolated ? false : true;
     if (tsaDigestPolicyViolated) reasonCodes.push("TSA_DIGEST_POLICY_VIOLATED");

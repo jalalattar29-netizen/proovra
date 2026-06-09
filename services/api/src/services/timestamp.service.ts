@@ -14,6 +14,7 @@ import {
   parseTsaReply,
   tsaFailureCodeToReason,
   type TsaReplyFailureCode,
+  type TsaReplyWarningCode,
 } from "./timestamp/parse-tsa-reply.js";
 
 const execFileAsync = promisify(execFile);
@@ -145,10 +146,10 @@ export type TimestampResult = {
   /**
    * Phase IA-TSA-falseFailed — token bytes are now PRESERVED on the
    * parser-side failure modes (tsa_response_parse_failed,
-   * tsa_missing_serial_or_generation_time, tsa_message_imprint_mismatch)
-   * so the offline repair tool (`repair-tsa-failed-with-token.ts`) can
-   * re-parse the same TSR without calling the provider again. Provider-
-   * side failure paths (HTTP error, timeout, auth) still write "".
+   * tsa_message_imprint_mismatch) so the offline repair tool
+   * (`repair-tsa-failed-with-token.ts`) can re-parse the same TSR
+   * without calling the provider again. Provider-side failure paths
+   * (HTTP error, timeout, auth) still write "".
    */
   tokenBase64: string;
   messageImprint: string;
@@ -162,6 +163,20 @@ export type TimestampResult = {
    * custody event payloads also include `failureCode` for triage.
    */
   failureCode: TsaReplyFailureCode | TsaProviderFailureCode | null;
+  /**
+   * Phase IA-digest-policy-hard-invariant — bounded soft-issue warnings
+   * surfaced on STAMPED rows whose response was granted + imprint
+   * matched the request but where the parser couldn't extract one of
+   * the optional fields (serial number, genTime, embedded imprint
+   * dump). Empty on a fully-parsed STAMPED row. Empty on FAILED rows
+   * — failures use `failureCode` instead.
+   *
+   * Per the hard invariant: a Granted token + matching imprint MUST
+   * NOT be persisted as FAILED, even when the parser reports warnings.
+   * Operators see the warnings in the custody event payload + log
+   * line; the repair tool can fill in the missing columns later.
+   */
+  warnings: TsaReplyWarningCode[];
 };
 
 async function mkWorkDir(): Promise<string> {
@@ -300,6 +315,12 @@ const parsed = await withProovraSpan(
     const tokenBase64 = tokenBuffer.toString("base64");
 
     if (parsed.granted) {
+      // Phase IA-digest-policy-hard-invariant — STAMPED is the only
+      // correct outcome here, regardless of soft parser warnings
+      // (missing serial / missing genTime / missing imprint dump).
+      // The token bytes + the verified imprint == request digest are
+      // the authoritative trust chain. Warnings are surfaced for
+      // operator visibility and the repair tool's queue.
       return {
         provider,
         url: tsaUrl,
@@ -311,13 +332,15 @@ const parsed = await withProovraSpan(
         status: "STAMPED",
         failureReason: null,
         failureCode: null,
+        warnings: parsed.warnings,
       };
     }
 
     // Parser-side failure paths (the response shape was understandable
-    // but did not pass our validation). Token bytes ARE preserved so
-    // the offline repair tool can re-parse with a future fix without
-    // calling the provider again. Failure code surfaces in
+    // but did not pass our validation — non-granted status, or the
+    // imprint disagrees with the digest we sent). Token bytes ARE
+    // preserved so the offline repair tool can re-parse with a future
+    // fix without calling the provider again. Failure code surfaces in
     // `tsaFailureReason` for operator triage.
     return {
       provider,
@@ -330,6 +353,7 @@ const parsed = await withProovraSpan(
       status: "FAILED",
       failureReason: parsed.failureReason,
       failureCode: parsed.failureCode,
+      warnings: [],
     };
   } catch (error) {
     // Subprocess / network / unrecoverable parser-not-reached failure.
@@ -347,6 +371,7 @@ const parsed = await withProovraSpan(
       status: "FAILED",
       failureReason: classified.reason,
       failureCode: classified.code,
+      warnings: [],
     };
   } finally {
     await cleanup([requestFile, responseFile, workDir]);

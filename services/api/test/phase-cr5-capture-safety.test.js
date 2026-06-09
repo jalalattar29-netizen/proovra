@@ -183,7 +183,7 @@ const CAPTURE_ROUTES_BYTES_EXACT = 21271;
 // blocking try/catch preserved.
 const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 45520;
 const CUSTODY_EVENTS_SVC_BYTES_EXACT = 5155;
-const TIMESTAMP_SVC_BYTES_EXACT = 11701;
+const TIMESTAMP_SVC_BYTES_EXACT = 12988;
 const PRE_CR5_AI_ASSISTANT_BYTES = 23045;
 // ---------------------------------------------------------------------------
 // Group 1 — Upload truth

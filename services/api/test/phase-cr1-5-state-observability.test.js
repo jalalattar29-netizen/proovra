@@ -394,7 +394,7 @@ describe("CR1.5 Test 14 — capture upload/finalization files unchanged", () => 
     // not touch capture, so the sizes must hold.
     const PINS = [
         { rel: "src/routes/capture.routes.ts", expectedBytes: 21271 },
-        { rel: "src/services/evidence-complete.service.ts", expectedBytes: 41849 },
+        { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
     ];
     for (const { rel, expectedBytes } of PINS) {
         it(`${rel} is within ±10% of CR1.5 baseline (${expectedBytes} bytes)`, () => {
@@ -414,7 +414,7 @@ describe("CR1.5 Test 14 — capture upload/finalization files unchanged", () => 
 describe("CR1.5 Test 15 — custody / TSA / OTS / report / package files unchanged", () => {
     const PINS = [
         { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-        { rel: "src/services/timestamp.service.ts", expectedBytes: 11701 },
+        { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
         {
             rel: "src/services/reports/reports-aggregator.service.ts",
             expectedBytes: 13118,

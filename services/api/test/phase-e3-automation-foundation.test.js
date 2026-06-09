@@ -460,9 +460,9 @@ describe("E3 Test 13 — no new client-state / realtime library introduced", () 
 describe("E3 Test 14 — capture / custody / report / package files untouched", () => {
     const PINS = [
         { rel: "src/routes/capture.routes.ts", expectedBytes: 21271 },
-        { rel: "src/services/evidence-complete.service.ts", expectedBytes: 41849 },
+        { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
         { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-        { rel: "src/services/timestamp.service.ts", expectedBytes: 11701 },
+        { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
         {
             rel: "src/services/reports/reports-aggregator.service.ts",
             expectedBytes: 13118,

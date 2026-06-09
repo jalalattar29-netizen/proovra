@@ -183,7 +183,7 @@ describe("CR4 Group 1 — file-size guards", () => {
     //   enqueue + post-finalize fanout) replaced with bounded warn
     //   logging; runEvidenceCompletePostFinalize extracted; queued:false
     //   shape from graph-reconcile-queue now observed explicitly.
-    expect(sz).toBe(45835);
+    expect(sz).toBe(46824);
   });
 
   it("custody-events.service.ts pin (CR1.6 — 5,155 bytes)", () => {
@@ -193,7 +193,7 @@ describe("CR4 Group 1 — file-size guards", () => {
 
   it("timestamp.service.ts pin (Phase IA-TSA-falseFailed — 11,701 bytes)", () => {
     const sz = statSync(apiSrcPath("services/timestamp.service.ts")).size;
-    expect(sz).toBe(11701);
+    expect(sz).toBe(12988);
   });
 
   it("capture.routes.ts pin (CR1.6 — 21,271 bytes)", () => {

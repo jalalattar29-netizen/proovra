@@ -505,7 +505,7 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     //   warn logging; extracted runEvidenceCompletePostFinalize.
     expect(
       statSync(apiSrcPath("services/evidence-complete.service.ts")).size,
-    ).toBe(45835);
+    ).toBe(46824);
   });
 
   it("CR1.6 byte-exact pin on custody-events.service.ts holds (5,155 bytes)", () => {
