@@ -157,7 +157,7 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["workspace.home", "HOME"],
   ["account.inbox", "HOME"],
   ["workspace.notifications", "HOME"],
-  ["dashboard.insights", "HOME"],
+  // Phase 6 cleanup — dashboard.insights retired.
 
   // -----------------------------------------------------------------
   // CAPTURE

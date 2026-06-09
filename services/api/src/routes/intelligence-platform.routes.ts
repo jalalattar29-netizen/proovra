@@ -33,9 +33,12 @@ import {
   REVIEWER_CORRECTION_KINDS,
 } from "@proovra/shared";
 
+import type { Permission } from "@proovra/shared";
+
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import {
   extractPrismaDiagnostic,
   isPrismaTableOrColumnMissing,
@@ -125,9 +128,42 @@ const BudgetCreateBody = z.object({
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function resolveWorkspace(
+// Phase 2 hardening — intelligence-platform.routes.ts authorization.
+//
+// Pre-fix the only gate was `resolveWorkspace`, which:
+//   1. read `user.currentWorkspaceId` from the User row,
+//   2. confirmed it was non-null,
+//   3. returned it as the teamId.
+//
+// It NEVER checked TeamMember membership and NEVER evaluated a
+// permission. Every authenticated user with ANY currentWorkspaceId
+// could call corrections, budget POSTs, run/{bytes,text}, and read
+// raw record payloads inside their own current workspace, regardless
+// of role.
+//
+// The new helper `authorizeWorkspace`:
+//   1. resolves currentWorkspaceId (preserves backward-compat for
+//      callers that did not pass a teamId in the request),
+//   2. routes the decision through the canonical `authorizeOrFail`
+//      middleware which calls evaluateMemberAccess (TeamMember
+//      lookup + role-to-permission mapping) and emits bounded denial
+//      codes via the central response shape,
+//   3. surfaces 404 on non-member (antiEnumeration: true) and
+//      403/401/503 on the other denial paths.
+//
+// Each call site picks the canonical permission for its surface:
+//   * intelligence.read           — list/projection reads + payload read
+//   * intelligence.feedback.write — correction create/accept/revert
+//   * intelligence.run            — run/{bytes,text} (AI provider invocation)
+//   * intelligence.policy.manage  — provider budget create/manage
+//
+// Permission names come from `packages/shared/src/permissions.ts` —
+// they are not invented. VIEWER role does NOT grant the write/run/manage
+// permissions per the canonical role table.
+async function authorizeWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
+  permission: Permission,
 ): Promise<{ teamId: string; userId: string } | null> {
   const userId = getAuthUserId(req);
   const user = await prisma.user.findUnique({
@@ -135,10 +171,18 @@ async function resolveWorkspace(
     select: { currentWorkspaceId: true },
   });
   if (!user?.currentWorkspaceId) {
-    reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
+    // Operator has no current workspace context; 404 (anti-enumeration)
+    // is consistent with authorizeOrFail's not-a-member path.
+    reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
-  return { teamId: user.currentWorkspaceId, userId };
+  const decision = await authorizeOrFail(req, reply, {
+    teamId: user.currentWorkspaceId,
+    permission,
+    antiEnumeration: true,
+  });
+  if (!decision) return null;
+  return { teamId: decision.teamId, userId: decision.actorUserId };
 }
 
 function decodeBase64(payload: string): Uint8Array {
@@ -158,7 +202,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/evidence/:evidenceId/records",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
@@ -183,7 +227,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/records/:id",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const row = await getRecordWithCorrections({
@@ -200,7 +244,10 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/evidence/:evidenceId/run/bytes",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      // Phase 2 hardening — costly AI provider invocation requires
+      // `intelligence.run`. VIEWER role does NOT grant this permission,
+      // so a workspace VIEWER can no longer trigger paid provider calls.
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.run");
       if (!ctx) return reply;
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
@@ -234,7 +281,9 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/evidence/:evidenceId/run/text",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      // Phase 2 hardening — same as run/bytes; VIEWER cannot invoke
+      // text-mode AI provider calls.
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.run");
       if (!ctx) return reply;
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
@@ -269,7 +318,13 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/corrections",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      // Phase 2 hardening — reviewer correction creation requires
+      // `intelligence.feedback.write`. VIEWER role does NOT grant this.
+      const ctx = await authorizeWorkspace(
+        req,
+        reply,
+        "intelligence.feedback.write",
+      );
       if (!ctx) return reply;
       const body = CorrectionCreateBody.parse(req.body);
       const res = await createCorrection({
@@ -290,7 +345,13 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/corrections/:id/accept",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      // Phase 2 hardening — accepting a correction mutates a reviewer
+      // record; gated on `intelligence.feedback.write`.
+      const ctx = await authorizeWorkspace(
+        req,
+        reply,
+        "intelligence.feedback.write",
+      );
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const res = await acceptCorrection({
@@ -307,7 +368,12 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/corrections/:id/revert",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      // Phase 2 hardening — same gate as accept.
+      const ctx = await authorizeWorkspace(
+        req,
+        reply,
+        "intelligence.feedback.write",
+      );
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const res = await revertCorrection({
@@ -326,7 +392,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/records/:id/corrections",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const rows = await listCorrectionsForRecord({
@@ -341,7 +407,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/evidence/:evidenceId/corrections",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
@@ -359,7 +425,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/providers/usage",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const summary = await summariseProviderUsage({ teamId: ctx.teamId });
       const recent = await listRecentUsage({ teamId: ctx.teamId, limit: 50 });
@@ -388,7 +454,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/providers/budgets",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       // Phase O Stream B — schema-drift safety net for NODE-1H
       // (provider_budgets.archived_at missing on production until the
@@ -431,7 +497,15 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/providers/budgets",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      // Phase 2 hardening — provider budget creation affects cost
+      // controls AND downstream billing exposure; gated on
+      // `intelligence.policy.manage` (admin-tier — OWNER/ADMIN only,
+      // NOT held by MEMBER/VIEWER per the canonical role table).
+      const ctx = await authorizeWorkspace(
+        req,
+        reply,
+        "intelligence.policy.manage",
+      );
       if (!ctx) return reply;
       const body = BudgetCreateBody.parse(req.body);
       const res = await createBudget({
@@ -454,7 +528,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/providers/health",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       void ctx;
       const probes = listAdapterProbes();
@@ -467,7 +541,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/executive/metrics",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const metrics = await projectExecutiveMetrics({ teamId: ctx.teamId });
       return reply.code(200).send({ metrics });
@@ -479,7 +553,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/executive/trends",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const q = z
         .object({ range: z.enum(EXECUTIVE_METRICS_RANGES).optional() })
@@ -497,7 +571,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/quality/providers",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const q = z
         .object({ range: z.enum(EXECUTIVE_METRICS_RANGES).optional() })
@@ -514,7 +588,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/quality/reviewers",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const q = z
         .object({ range: z.enum(EXECUTIVE_METRICS_RANGES).optional() })
@@ -531,7 +605,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/quality/teams",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const q = z
         .object({ range: z.enum(EXECUTIVE_METRICS_RANGES).optional() })
@@ -549,7 +623,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/records/:id/version-chain",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const chain = await getCorrectionVersionChain({
@@ -566,7 +640,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/budgets/breaches",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const q = z
         .object({ range: z.enum(EXECUTIVE_METRICS_RANGES).optional() })
@@ -583,7 +657,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/intelligence/budgets/spend",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const projection = await listBudgetSpend({ teamId: ctx.teamId });
       return reply.code(200).send({ projection });
@@ -595,7 +669,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     "/v1/audit-transparency",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
+      const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const q = z
         .object({

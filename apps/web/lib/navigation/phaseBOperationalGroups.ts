@@ -282,7 +282,7 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // page deleted; canonical surface is `workspace.integrations`,
       // already in `primary` above).
       "dashboard.quotas",
-      "dashboard.insights",
+      // Phase 6 cleanup — dashboard.insights retired.
       "dashboard.batch_analysis",
       "platform.ops_center",
       "platform.observability",

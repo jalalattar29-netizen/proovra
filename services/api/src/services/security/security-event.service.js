@@ -290,6 +290,47 @@ export async function countSecurityEventsByTeam(input, client = defaultPrisma) {
     }
     return counts;
 }
+// Phase 5 hardening — bounded allow-list for the details projection.
+// Mirror of the .ts module's allow-list and helper. See the .ts file
+// for the full documentation.
+const SECURITY_EVENT_DETAIL_ALLOWLIST = new Set([
+    "action", "source", "category", "reasonCode", "riskLevel", "count",
+    "severity", "status", "outcome",
+    "ipCountry", "ipRegion",
+    "userAgentFamily", "deviceType", "platform",
+    "evidenceId", "apiCredentialId", "webhookEndpointId", "organizationId",
+    "workflowId", "caseId", "projectId", "sessionTag", "providerName",
+    "targetType",
+    "failureReason", "failureCode", "statusCode", "attempts",
+    "occurredAtUtc", "durationMs",
+]);
+const SECURITY_EVENT_DETAIL_REDACTED_KEYS = new Set(["sessionId", "targetId"]);
+function truncatePrefix(value) {
+    if (typeof value !== "string") return null;
+    if (value.length === 0) return null;
+    return value.length <= 8 ? value : `${value.slice(0, 8)}…`;
+}
+export function projectSecurityEventDetails(details) {
+    if (!details || typeof details !== "object" || Array.isArray(details)) {
+        return { redacted: false };
+    }
+    const src = details;
+    const out = {};
+    let droppedAny = false;
+    for (const [key, value] of Object.entries(src)) {
+        if (SECURITY_EVENT_DETAIL_ALLOWLIST.has(key)) {
+            out[key] = value;
+            continue;
+        }
+        if (SECURITY_EVENT_DETAIL_REDACTED_KEYS.has(key)) {
+            const truncated = truncatePrefix(value);
+            if (truncated !== null) out[key] = truncated;
+            continue;
+        }
+        droppedAny = true;
+    }
+    return { ...out, redacted: droppedAny };
+}
 export function projectSecurityEvent(row) {
     // Phase 32.7.2 — extract the legacy relation IDs from the
     // consolidated `details` blob. `emitSecurityEvent` folds them in
@@ -297,6 +338,10 @@ export function projectSecurityEvent(row) {
     // these relations). The projection round-trips the same caller-
     // facing shape so downstream consumers don't observe a breaking
     // change.
+    //
+    // Phase 5 hardening — `details` is now allow-list-projected via
+    // `projectSecurityEventDetails` so emitters can't leak secrets /
+    // tokens / raw headers into the response.
     const detailsObj = row.details && typeof row.details === "object" && !Array.isArray(row.details)
         ? row.details
         : null;
@@ -314,7 +359,7 @@ export function projectSecurityEvent(row) {
         evidenceId: readString("evidenceId"),
         apiCredentialId: readString("apiCredentialId"),
         webhookEndpointId: readString("webhookEndpointId"),
-        details: row.details ?? null,
+        details: projectSecurityEventDetails(row.details),
         createdAt: row.createdAt.toISOString(),
     };
 }

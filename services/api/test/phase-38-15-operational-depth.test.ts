@@ -278,7 +278,7 @@ describe("Phase 38.15 — cumulative <PageRouteGate> adoption", () => {
       // Phase 38.14 — `dashboard/api-keys/page.tsx` was deleted in
       // Phase Final-A3-PT2 (canonical surface is `/integrations`).
       "app/(app)/dashboard/quotas/page.tsx",
-      "app/(app)/dashboard/insights/page.tsx",
+      // Phase 6 cleanup — dashboard/insights/page.tsx deleted.
       "app/(app)/dashboard/batch-analysis/page.tsx",
       // Phase 38.15
       "app/(app)/operations/reliability/page.tsx",
@@ -300,7 +300,8 @@ describe("Phase 38.15 — cumulative <PageRouteGate> adoption", () => {
         /PageRouteGate/,
       );
     }
-    expect(PAGES.length).toBeGreaterThanOrEqual(47);
+    // Phase 6 cleanup — dashboard/insights/page.tsx deleted.
+    expect(PAGES.length).toBeGreaterThanOrEqual(46);
   });
 });
 

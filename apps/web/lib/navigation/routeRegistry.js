@@ -782,22 +782,8 @@ export const ROUTE_REGISTRY = [
         allToolsVisible: false,
         sidebarEligible: false,
     },
-    {
-        id: "dashboard.insights",
-        href: "/dashboard/insights",
-        label: "Operational insights",
-        description: "Workspace operational analytics and distribution metrics.",
-        domain: "PERSONAL_WORKSPACE",
-        requiredCapabilities: ["DASHBOARD_VIEW"],
-        requiredActiveSpace: "PERSONAL_OR_ORG",
-        fallbackBehavior: "DEGRADED",
-        workflowTags: ["OPERATIONAL_ADMINISTRATION"],
-        advancedByDefault: true,
-        // PHASE 4 — page does not exist; hide everywhere (rule 11).
-        commandPaletteVisible: false,
-        allToolsVisible: false,
-        sidebarEligible: false,
-    },
+    // Phase 6 cleanup — `dashboard.insights` retired. Page deleted +
+    // entry removed from registry; next.config redirect → /home stays.
     {
         id: "dashboard.batch_analysis",
         href: "/dashboard/batch-analysis",

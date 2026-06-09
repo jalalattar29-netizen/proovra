@@ -368,6 +368,124 @@ export async function countSecurityEventsByTeam(
   return counts;
 }
 
+/**
+ * Phase 5 hardening — bounded allow-list for the `details` projection.
+ *
+ * Pre-fix `projectSecurityEvent` returned `row.details ?? null` verbatim,
+ * so any field an emitter set ended up in the GET /v1/security/events
+ * response. The route is OWNER/ADMIN-gated today so the immediate risk
+ * is bounded, but the projection is exposed to a workspace admin role
+ * that may later be widened. Whitelisting now prevents a future "let me
+ * just dump full request headers / cookies / IPs into the details blob"
+ * regression from quietly leaking to that surface.
+ *
+ * **Allowed (operator-meaningful) keys** — kept verbatim:
+ *   * Lifecycle: action, source, category, reasonCode, riskLevel,
+ *     count, severity, status, outcome
+ *   * Geo (coarse): ipCountry, ipRegion (NOT ipAddress / full IP)
+ *   * Device (coarse): userAgentFamily, deviceType, platform
+ *   * Identity (already partially exposed via top-level columns):
+ *     evidenceId, apiCredentialId, webhookEndpointId, organizationId,
+ *     workflowId, caseId, projectId, sessionTag, providerName
+ *   * Failure context: failureReason, failureCode, statusCode, attempts
+ *   * Time context: occurredAtUtc, durationMs
+ *
+ * **Bounded redacted** — present but truncated/transformed so operators
+ * still see *something* useful:
+ *   * sessionId       → first 8 chars + "…" (correlation without leak)
+ *   * targetId        → first 8 chars + "…"
+ *   * emailAddress    → "<redacted>" (presence flag only)
+ *
+ * **Forbidden** — silently dropped:
+ *   * Anything not on the allow-list, including: token, secret, apiKey,
+ *     apiSecret, password, cookie, authorizationHeader, headers,
+ *     stackTrace, rawPayload, providerResponse, ipAddress (full IP),
+ *     deviceFingerprint, biometricSignal, mfaCode, recoveryCode,
+ *     resetToken, sessionToken, refreshToken, accessToken.
+ *
+ * The output ALWAYS carries a `redacted: true` flag when any source key
+ * was dropped, so operators can see at a glance whether the row had
+ * additional context that wasn't surfaced.
+ *
+ * Exported so the snapshot writer + future projection callers can reuse
+ * the same allow-list without re-implementing it.
+ */
+const SECURITY_EVENT_DETAIL_ALLOWLIST = new Set<string>([
+  // Lifecycle / classification
+  "action",
+  "source",
+  "category",
+  "reasonCode",
+  "riskLevel",
+  "count",
+  "severity",
+  "status",
+  "outcome",
+  // Geo (coarse only)
+  "ipCountry",
+  "ipRegion",
+  // Device (coarse only)
+  "userAgentFamily",
+  "deviceType",
+  "platform",
+  // Identity relations (already partly exposed via top-level columns)
+  "evidenceId",
+  "apiCredentialId",
+  "webhookEndpointId",
+  "organizationId",
+  "workflowId",
+  "caseId",
+  "projectId",
+  "sessionTag",
+  "providerName",
+  "targetType",
+  // Failure context
+  "failureReason",
+  "failureCode",
+  "statusCode",
+  "attempts",
+  // Time context
+  "occurredAtUtc",
+  "durationMs",
+]);
+
+const SECURITY_EVENT_DETAIL_REDACTED_KEYS = new Set<string>([
+  "sessionId",
+  "targetId",
+]);
+
+function truncatePrefix(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  if (value.length === 0) return null;
+  return value.length <= 8 ? value : `${value.slice(0, 8)}…`;
+}
+
+export function projectSecurityEventDetails(
+  details: unknown,
+): { redacted: boolean } & Record<string, unknown> {
+  if (!details || typeof details !== "object" || Array.isArray(details)) {
+    return { redacted: false };
+  }
+  const src = details as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  let droppedAny = false;
+  for (const [key, value] of Object.entries(src)) {
+    if (SECURITY_EVENT_DETAIL_ALLOWLIST.has(key)) {
+      out[key] = value;
+      continue;
+    }
+    if (SECURITY_EVENT_DETAIL_REDACTED_KEYS.has(key)) {
+      const truncated = truncatePrefix(value);
+      if (truncated !== null) out[key] = truncated;
+      continue;
+    }
+    // Anything else is silently dropped. The `redacted: true` flag
+    // surfaces the presence of dropped fields.
+    droppedAny = true;
+  }
+  return { ...out, redacted: droppedAny };
+}
+
 export function projectSecurityEvent(row: DbSecurityEvent): {
   id: string;
   teamId: string | null;
@@ -376,7 +494,7 @@ export function projectSecurityEvent(row: DbSecurityEvent): {
   evidenceId: string | null;
   apiCredentialId: string | null;
   webhookEndpointId: string | null;
-  details: unknown;
+  details: ReturnType<typeof projectSecurityEventDetails>;
   createdAt: string;
 } {
   // Phase 32.7.2 — extract the legacy relation IDs from the
@@ -385,6 +503,10 @@ export function projectSecurityEvent(row: DbSecurityEvent): {
   // these relations). The projection round-trips the same caller-
   // facing shape so downstream consumers don't observe a breaking
   // change.
+  //
+  // Phase 5 hardening — `details` is now allow-list-projected via
+  // `projectSecurityEventDetails` so emitters can't leak secrets /
+  // tokens / raw headers into the response.
   const detailsObj =
     row.details && typeof row.details === "object" && !Array.isArray(row.details)
       ? (row.details as Record<string, unknown>)
@@ -402,7 +524,7 @@ export function projectSecurityEvent(row: DbSecurityEvent): {
     evidenceId: readString("evidenceId"),
     apiCredentialId: readString("apiCredentialId"),
     webhookEndpointId: readString("webhookEndpointId"),
-    details: row.details ?? null,
+    details: projectSecurityEventDetails(row.details),
     createdAt: row.createdAt.toISOString(),
   };
 }

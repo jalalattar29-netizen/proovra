@@ -448,15 +448,27 @@ export async function intelligenceRoutes(app: FastifyInstance) {
   // cacheable.
   // ---------------------------------------------------------------------------
 
-  app.get("/v1/intelligence/catalogs", async (_req, reply) => {
-    return reply.code(200).send({
-      jobKinds: INTELLIGENCE_JOB_KINDS,
-      jobStatuses: INTELLIGENCE_JOB_STATUSES,
-      extractedTextKinds: EXTRACTED_TEXT_KINDS,
-      entityKinds: EVIDENCE_ENTITY_KINDS,
-      similarityKinds: EVIDENCE_SIMILARITY_KINDS,
-      aiAssistanceKinds: AI_ASSISTANCE_KINDS,
-      disclaimer: AI_ADVISORY_DISCLAIMER,
-    });
-  });
+  // Phase 4 hardening — /v1/intelligence/catalogs previously had NO
+  // preHandler. Contents are static enums (operator-UI filter menus,
+  // disclaimer text) so the data risk is low, but a public endpoint on
+  // an otherwise-authenticated surface is inconsistent and lets a
+  // crawler discover the intelligence prefix without an auth gate. The
+  // route is now `requireAuth` — any signed-in user can fetch the
+  // catalog (no membership requirement: the response is the same for
+  // every workspace and contains no PII).
+  app.get(
+    "/v1/intelligence/catalogs",
+    { preHandler: requireAuth },
+    async (_req, reply) => {
+      return reply.code(200).send({
+        jobKinds: INTELLIGENCE_JOB_KINDS,
+        jobStatuses: INTELLIGENCE_JOB_STATUSES,
+        extractedTextKinds: EXTRACTED_TEXT_KINDS,
+        entityKinds: EVIDENCE_ENTITY_KINDS,
+        similarityKinds: EVIDENCE_SIMILARITY_KINDS,
+        aiAssistanceKinds: AI_ASSISTANCE_KINDS,
+        disclaimer: AI_ADVISORY_DISCLAIMER,
+      });
+    },
+  );
 }

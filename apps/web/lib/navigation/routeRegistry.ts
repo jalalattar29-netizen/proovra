@@ -866,22 +866,14 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: false,
     sidebarEligible: false,
   },
-  {
-    id: "dashboard.insights",
-    href: "/dashboard/insights",
-    label: "Operational insights",
-    description: "Workspace operational analytics and distribution metrics.",
-    domain: "PERSONAL_WORKSPACE",
-    requiredCapabilities: ["DASHBOARD_VIEW"],
-    requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "DEGRADED",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
-    advancedByDefault: true,
-    // PHASE 4 — page does not exist; hide everywhere (rule 11).
-    commandPaletteVisible: false,
-    allToolsVisible: false,
-    sidebarEligible: false,
-  },
+  // Phase 6 cleanup — `dashboard.insights` retired.
+  //
+  // The /dashboard/insights page was hidden from every nav surface and
+  // permanently redirected to /home via next.config.js. The page file
+  // called a backend route that never existed. The entry has been
+  // removed from this registry; the next.config redirect remains so any
+  // external link continues to land on /home. See the
+  // phase-ia-route-authz-hardening test for the contract pin.
   {
     id: "dashboard.batch_analysis",
     href: "/dashboard/batch-analysis",

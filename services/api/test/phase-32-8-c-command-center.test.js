@@ -387,9 +387,9 @@ describe("Phase 32.8C — old /dashboard surface disposition", () => {
         const quotas = readWeb("app/(app)/dashboard/quotas/page.tsx");
         expect(quotas).not.toMatch(/^import\s*\{\s*redirect\s*\}\s*from\s*"next\/navigation"/m);
     });
-    it("/dashboard/insights remains accessible (real /v1/insights backed — Phase 32.8D will decide canonical home)", () => {
-        const insights = readWeb("app/(app)/dashboard/insights/page.tsx");
-        expect(insights).not.toMatch(/^import\s*\{\s*redirect\s*\}\s*from\s*"next\/navigation"/m);
+    it("/dashboard/insights was retired in Phase 6 — page file + registry entries removed", () => {
+        // Phase 6 cleanup — page deleted; next.config redirect to /home stays.
+        expect(() => readWeb("app/(app)/dashboard/insights/page.tsx")).toThrow();
     });
     it("/dashboard/batch-analysis remains accessible (real evidence batching — Phase 32.8D will fold into evidence flows)", () => {
         const batch = readWeb("app/(app)/dashboard/batch-analysis/page.tsx");

@@ -177,11 +177,14 @@ describe("Phase 38.14 — dashboard subroute migrations", () => {
   // `/integrations` (team-scoped, durable, audit-backed). The page
   // file was deleted; `next.config.js` redirects the URL to
   // `/integrations`; the route id was removed from `ROUTE_REGISTRY`.
-  // The three remaining dashboard subroutes still exist and remain
-  // wrapped in PageRouteGate.
+  // The remaining dashboard subroutes still exist and remain wrapped
+  // in PageRouteGate.
+  //
+  // Phase 6 cleanup — `dashboard.insights` was retired (page deleted,
+  // registry entries removed). The next.config.js redirect from
+  // /dashboard/insights → /home preserves back-compat.
   const NEW_ROUTES: Array<{ id: string; href: string }> = [
     { id: "dashboard.quotas", href: "/dashboard/quotas" },
-    { id: "dashboard.insights", href: "/dashboard/insights" },
     {
       id: "dashboard.batch_analysis",
       href: "/dashboard/batch-analysis",
@@ -218,14 +221,11 @@ describe("Phase 38.14 — dashboard subroute migrations", () => {
     expect(fs.existsSync(apiKeysPath)).toBe(false);
   });
 
+  // Phase 6 cleanup — dashboard.insights entry removed; page deleted.
   const MIGRATIONS: Array<{ page: string; routeId: string }> = [
     {
       page: "app/(app)/dashboard/quotas/page.tsx",
       routeId: "dashboard.quotas",
-    },
-    {
-      page: "app/(app)/dashboard/insights/page.tsx",
-      routeId: "dashboard.insights",
     },
     {
       page: "app/(app)/dashboard/batch-analysis/page.tsx",
@@ -309,7 +309,7 @@ describe("Phase 38.14 — cumulative <PageRouteGate> adoption", () => {
       // canonical `/integrations`). The remaining three dashboard
       // subroutes are still PageRouteGate-wrapped.
       "app/(app)/dashboard/quotas/page.tsx",
-      "app/(app)/dashboard/insights/page.tsx",
+      // Phase 6 cleanup — `dashboard/insights/page.tsx` deleted.
       "app/(app)/dashboard/batch-analysis/page.tsx",
       // Final Closure Remediation Part A — new PageRouteGate adoptions
       // added this session to compensate for the deleted `api-keys`
@@ -326,7 +326,9 @@ describe("Phase 38.14 — cumulative <PageRouteGate> adoption", () => {
         /PageRouteGate/,
       );
     }
-    expect(PAGES.length).toBeGreaterThanOrEqual(44);
+    // Phase 6 cleanup — dashboard/insights/page.tsx deleted; the
+    // cumulative tally now sits at ≥ 43.
+    expect(PAGES.length).toBeGreaterThanOrEqual(43);
   });
 });
 
@@ -344,7 +346,7 @@ describe("Phase 38.14 — copy safety locks (positive overclaim ban)", () => {
     "components/reviewer-experience/ReviewerCommandConsole.tsx",
     "app/(app)/integrations/page.tsx",
     "app/(app)/dashboard/quotas/page.tsx",
-    "app/(app)/dashboard/insights/page.tsx",
+    // Phase 6 cleanup — dashboard/insights/page.tsx deleted.
     "app/(app)/dashboard/batch-analysis/page.tsx",
   ];
 

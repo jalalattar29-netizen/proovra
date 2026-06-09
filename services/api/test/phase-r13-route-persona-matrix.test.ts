@@ -184,7 +184,9 @@ describe("Phase R13 — Stage 7: Platform-OPS routes are PLATFORM_ADMIN-gated", 
 
 const PAGE_MISSING_ROUTE_IDS = [
   "dashboard.quotas",
-  "dashboard.insights",
+  // Phase 6 cleanup — dashboard.insights retired (page deleted +
+  // registry entry removed). The id is no longer in REGISTRY so the
+  // "hidden everywhere" check no longer applies.
   "dashboard.batch_analysis",
   "workspace.evidence_requests",
 ];

@@ -830,20 +830,59 @@ export async function enqueueOtsUpgradeJob(
     excludeJobId?: string | number | null;
   }
 ) {
-  const jobId = options?.jobId ?? buildOtsUpgradeJobId(evidenceId);
+  // Phase IA-OTS-forward-retry — the stable-jobId design (introduced in
+  // Phase Final-Worker-Visibility) collided with the BullMQ self-
+  // reschedule pattern. When `processOtsUpgrade` runs under jobId
+  // `ots-upgrade-followup-{evidenceId}` and finishes with a PENDING
+  // outcome, it tries to re-enqueue the next follow-up under the SAME
+  // jobId. The lookup below found the currently-running job in `active`
+  // state and short-circuited with `{ enqueued: false, reason: "job_active" }`,
+  // so NO follow-up was scheduled. The handler then returned cleanly,
+  // BullMQ marked the job completed, and the evidence sat in PENDING
+  // forever with no future delayed retry.
+  //
+  // Fix: when the existing job's id matches `excludeJobId` (the caller
+  // is telling us "we're inside this job — don't treat it as a
+  // blocker"), we cannot enqueue under the same id while the current
+  // job is still active. Instead, generate a discriminated jobId so
+  // the new follow-up has a distinct identity. Dedup against parallel
+  // re-enqueues is still enforced by `findRunnableOtsUpgradeJobForEvidence`
+  // (which honors `excludeJobId`); the global retry budget is enforced
+  // by `isOtsGlobalBudgetExhausted` anchored on `evidence.createdAt`.
+  //
+  // The BullMQ `attempts: 20` retry ceiling that the stable-jobId
+  // rationale was protecting only fires when a job THROWS — the
+  // happy-path PENDING return does not throw, so the ceiling never
+  // applied to this flow. The discriminator therefore does not undo
+  // any safety.
+  let jobId = options?.jobId ?? buildOtsUpgradeJobId(evidenceId);
   const existing = await otsUpgradeQueue.getJob(jobId);
 
   if (existing) {
-    const state = await existing.getState();
+    const isSelfReference =
+      options?.excludeJobId != null &&
+      String(existing.id) === String(options.excludeJobId);
 
-    if (isRunnableQueueState(state)) {
-      return { enqueued: false, reason: `job_${state}` };
-    }
+    if (isSelfReference) {
+      // We're being called from INSIDE the currently-running job that
+      // owns this jobId. BullMQ cannot accept a new job under the same
+      // id while the current one is active; use a per-attempt suffix
+      // so the new follow-up lands as a distinct queue entry. Dedup
+      // against parallel callers is still enforced by the
+      // findRunnableOtsUpgradeJobForEvidence scan below.
+      jobId = `${jobId}-${Date.now()}`;
+    } else {
+      const state = await existing.getState();
 
-    try {
-      await existing.remove();
-    } catch {
-      // ignore remove race conditions
+      if (isRunnableQueueState(state)) {
+        return { enqueued: false, reason: `job_${state}` };
+      }
+
+      try {
+        await existing.remove();
+      } catch {
+        // ignore remove race conditions
+      }
     }
   }
 

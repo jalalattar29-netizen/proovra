@@ -480,11 +480,11 @@ describe("Phase 32.8C — old /dashboard surface disposition", () => {
     );
   });
 
-  it("/dashboard/insights remains accessible (real /v1/insights backed — Phase 32.8D will decide canonical home)", () => {
-    const insights = readWeb("app/(app)/dashboard/insights/page.tsx");
-    expect(insights).not.toMatch(
-      /^import\s*\{\s*redirect\s*\}\s*from\s*"next\/navigation"/m,
-    );
+  it("/dashboard/insights was retired in Phase 6 — page file + registry entries removed", () => {
+    // Phase 6 cleanup — the page used to call /v1/insights which never
+    // had a backend route. The page is gone and the next.config.js
+    // permanent redirect to /home covers any external link.
+    expect(() => readWeb("app/(app)/dashboard/insights/page.tsx")).toThrow();
   });
 
   it("/dashboard/batch-analysis remains accessible (real evidence batching — Phase 32.8D will fold into evidence flows)", () => {

@@ -173,7 +173,10 @@ describe("Phase 32.7.2 — emitSecurityEvent folds removed FKs into metadataJson
 
 describe("Phase 32.7.2 — projectSecurityEvent round-trips FK fields from JSON", () => {
   const SRC = readApi("src/services/security/security-event.service.ts");
-  const fnIdx = SRC.indexOf("export function projectSecurityEvent");
+  // Phase 5 hardening added a sibling `projectSecurityEventDetails`
+  // helper above this function. Anchor on `(row` so we slice the
+  // single-row projection, NOT the allow-list helper.
+  const fnIdx = SRC.indexOf("export function projectSecurityEvent(row");
   expect(fnIdx).toBeGreaterThan(-1);
   const fn = SRC.slice(fnIdx, fnIdx + 2000);
 
