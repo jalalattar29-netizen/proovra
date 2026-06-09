@@ -21,6 +21,13 @@
  */
 
 import { prisma } from "../../db.js";
+// Phase IA-digest-policy — the snapshot writer now sources its
+// timestampDigestMatches / otsHashMatches signals from the canonical
+// digest-policy evaluator instead of presence-checking the token. The
+// evaluator runs over the persisted digest columns and reports bounded
+// violations; the snapshot flips matches → false ONLY when a real
+// digest disagreement is observed.
+import { evaluateDigestPolicy } from "@proovra/shared";
 
 export type IntegritySnapshotOverallStatus =
   | "OK"
@@ -32,9 +39,24 @@ export type IntegritySnapshotInput = {
   evidenceId: string;
   teamId: string | null;
   verificationStatus: string | null;
+  // ---- TSA canonical-digest set (Phase IA-digest-policy) ----
+  // Token presence was the only TSA input pre-fix; that let the writer
+  // claim `timestampDigestMatches: true` without ever comparing any
+  // digest. The canonical digest columns are now passed explicitly so
+  // the evaluator can actually run.
+  tsaStatus: string | null;
   tsaTokenBase64: string | null;
   tsaGenTimeUtc: Date | null;
+  tsaMessageImprint: string | null;
+  tsaInputDigestHex: string | null;
+  tsaInputKind: string | null;
+  // ---- OTS canonical-digest set ----
   otsStatus: string | null;
+  otsHash: string | null;
+  // ---- Content + fingerprint anchor digests ----
+  fileSha256: string | null;
+  fingerprintHash: string | null;
+  signatureBase64: string | null;
 };
 
 /** Bounded source-version label. Bump when the derivation rules change. */
@@ -111,13 +133,53 @@ export function deriveIntegritySnapshot(input: IntegritySnapshotInput): {
   const custodyChainValid =
     isOk === true ? true : isFailed ? false : isReviewRequired ? null : null;
 
-  // TSA derivation from existing columns.
+  // Phase IA-digest-policy — run the canonical digest evaluator over
+  // the persisted columns. The evaluator returns bounded violation
+  // codes when, e.g., tsaMessageImprint != tsaInputDigestHex on a
+  // STAMPED row or otsStatus claims anchored while otsHash is null.
+  // We use those bounded codes to drive the `…Matches` flags so the
+  // dashboard can no longer claim a match without an actual
+  // comparison.
+  const policy = evaluateDigestPolicy({
+    fileSha256: input.fileSha256,
+    fingerprintHash: input.fingerprintHash,
+    signatureBase64: input.signatureBase64,
+    tsaStatus: input.tsaStatus,
+    tsaMessageImprint: input.tsaMessageImprint,
+    tsaInputDigestHex: input.tsaInputDigestHex,
+    tsaInputKind: input.tsaInputKind,
+    otsStatus: input.otsStatus,
+    otsHash: input.otsHash,
+  });
+  const policyCodes = new Set(policy.violations.map((v) => v.code));
+
+  // TSA derivation:
+  //   * OK + timestampDigestMatches=true ONLY when the row is STAMPED
+  //     AND no TSA-related digest-policy violation surfaced.
+  //   * timestampDigestMatches=false when the policy violation says
+  //     the persisted imprint and input digest disagree (real bug we
+  //     want surfaced, never silently absorbed).
+  //   * null otherwise — PENDING / UNAVAILABLE / FAILED rows do not
+  //     get a definitive signal from this writer.
   let tsaStatus: string;
   let timestampDigestMatches: boolean | null;
-  if (input.tsaTokenBase64 && input.tsaGenTimeUtc) {
-    tsaStatus = "OK";
-    timestampDigestMatches = true;
-  } else if (input.tsaTokenBase64 == null && input.tsaGenTimeUtc == null) {
+  const rawTsa = (input.tsaStatus ?? "").toUpperCase();
+  const tsaDigestPolicyViolated =
+    policyCodes.has("tsa_message_imprint_disagrees_with_input_digest") ||
+    policyCodes.has("tsa_kind_label_disagrees_with_digest_source");
+  if (rawTsa === "STAMPED" && input.tsaTokenBase64 && input.tsaGenTimeUtc) {
+    tsaStatus = tsaDigestPolicyViolated ? "REVIEW_REQUIRED" : "OK";
+    timestampDigestMatches = tsaDigestPolicyViolated ? false : true;
+    if (tsaDigestPolicyViolated) reasonCodes.push("TSA_DIGEST_POLICY_VIOLATED");
+  } else if (rawTsa === "FAILED") {
+    tsaStatus = "FAILED";
+    timestampDigestMatches = null;
+    if (isOk || isReviewRequired) reasonCodes.push("TSA_FAILED");
+  } else if (
+    input.tsaTokenBase64 == null &&
+    input.tsaGenTimeUtc == null &&
+    rawTsa === ""
+  ) {
     tsaStatus = "UNAVAILABLE";
     timestampDigestMatches = null;
     if (isOk || isReviewRequired) reasonCodes.push("TSA_UNAVAILABLE");
@@ -126,13 +188,19 @@ export function deriveIntegritySnapshot(input: IntegritySnapshotInput): {
     timestampDigestMatches = null;
   }
 
-  // OTS derivation from the existing string column.
+  // OTS derivation:
+  //   * OK + otsHashMatches=true ONLY when the chain says ANCHORED
+  //     AND the digest policy did NOT flag a missing otsHash.
+  //   * otsHashMatches=false on FAILED rows or when policy says
+  //     anchored-without-persisted-hash (the chain is incomplete).
   let otsStatus: string;
   let otsHashMatches: boolean | null;
   const rawOts = (input.otsStatus ?? "").toUpperCase();
+  const otsPolicyViolated = policyCodes.has("ots_anchored_without_persisted_hash");
   if (rawOts === "ANCHORED" || rawOts === "VERIFIED") {
-    otsStatus = "OK";
-    otsHashMatches = true;
+    otsStatus = otsPolicyViolated ? "REVIEW_REQUIRED" : "OK";
+    otsHashMatches = otsPolicyViolated ? false : true;
+    if (otsPolicyViolated) reasonCodes.push("OTS_DIGEST_POLICY_VIOLATED");
   } else if (rawOts === "FAILED" || rawOts === "ERRORED") {
     otsStatus = "FAILED";
     otsHashMatches = false;
@@ -324,9 +392,21 @@ export async function backfillIntegritySnapshots(input: {
         id: true,
         teamId: true,
         verificationStatus: true,
+        // Phase IA-digest-policy — backfill MUST pass the full digest
+        // set so the evaluator can compare. Pre-fix it only carried
+        // token presence + ots status, which let the writer claim a
+        // false-positive timestampDigestMatches=true.
+        tsaStatus: true,
         tsaTokenBase64: true,
         tsaGenTimeUtc: true,
+        tsaMessageImprint: true,
+        tsaInputDigestHex: true,
+        tsaInputKind: true,
         otsStatus: true,
+        otsHash: true,
+        fileSha256: true,
+        fingerprintHash: true,
+        signatureBase64: true,
       },
     });
     for (const e of evidence) {
@@ -337,9 +417,17 @@ export async function backfillIntegritySnapshots(input: {
           verificationStatus: e.verificationStatus
             ? String(e.verificationStatus)
             : null,
+          tsaStatus: e.tsaStatus ?? null,
           tsaTokenBase64: e.tsaTokenBase64 ?? null,
           tsaGenTimeUtc: e.tsaGenTimeUtc ?? null,
+          tsaMessageImprint: e.tsaMessageImprint ?? null,
+          tsaInputDigestHex: e.tsaInputDigestHex ?? null,
+          tsaInputKind: e.tsaInputKind ?? null,
           otsStatus: e.otsStatus ?? null,
+          otsHash: e.otsHash ?? null,
+          fileSha256: e.fileSha256 ?? null,
+          fingerprintHash: e.fingerprintHash ?? null,
+          signatureBase64: e.signatureBase64 ?? null,
         });
         persisted += 1;
       } catch {

@@ -5,6 +5,7 @@ import {
   PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
 } from "@proovra/shared-evidence-presentation";
 import {
+  describeTsaDigestSource,
   getTrustDecisionConfidenceLabel,
   getTrustDecisionPresentationTone,
 } from "@proovra/shared";
@@ -273,13 +274,17 @@ const shouldRenderSignature = hasSignatureRows;
   )
     ? String(vm.technicalAppendix.tsaMessageImprint)
     : "";
-  // Issue #10: be precise about what the timestamped digest covers. For a
-  // multipart record the digest is the lead-item SHA-256 (or, where used,
-  // the synthetic composite — see the per-part checksum index in the
-  // verification package).
+  // Phase IA-digest-policy — the timestamped-digest label MUST be
+  // sourced from the persisted `tsaInputKind` column (CANONICAL_PACKAGE_SHA256
+  // or FILE_SHA256), not hard-coded. The technical-model already maps
+  // the kind into `vm.technicalAppendix.timestampDigestLabel`; the
+  // fallback below covers the edge case where that field is empty (e.g.
+  // a legacy snapshot model). Both paths now go through the same
+  // shared helper so a future divergence is caught by the digest-policy
+  // tests.
   const timestampDigestLabel =
     vm.technicalAppendix.timestampDigestLabel ??
-    "Timestamped digest (lead item SHA-256 for multipart; original file SHA-256 for single)";
+    describeTsaDigestSource(vm.technicalAppendix.tsaInputKind ?? null);
 
   const otsHash = hasMeaningfulTechnicalValue(vm.technicalAppendix.otsHash)
     ? String(vm.technicalAppendix.otsHash)

@@ -2048,6 +2048,13 @@ export type {
 export * from "./trust-and-governance.js";
 
 // -----------------------------------------------------------------------------
+// Canonical evidence digest policy — single source of truth for the
+// 5 digests (content, fingerprint, signature, tsa, ots) + invariants.
+// Browser-safe: pure functions only, no node:crypto.
+// -----------------------------------------------------------------------------
+export * from "./evidence-digest-policy.js";
+
+// -----------------------------------------------------------------------------
 // Custody hash helpers (canonicalJsonValue + buildCustodyEventHash)
 //
 // NOT re-exported from this barrel. `custody-hash.ts` imports `node:crypto`,
