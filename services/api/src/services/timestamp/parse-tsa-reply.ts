@@ -205,35 +205,58 @@ function parseGenTime(text: string): Date | null {
 
 /**
  * Extract the hex message imprint from the multi-line "Message data"
- * dump that openssl emits:
+ * dump that openssl emits.
+ *
+ * REAL production format (note the trailing ASCII rendering column):
  *
  *     Message data:
- *         0000 - 1c b2 72 4a eb 57 20 6a-b6 ad 79 5a 2f db 0e 97
- *         0010 - eb 13 49 a8 d7 b1 a0 ad-eb 09 0e 76 e6 d2 dd b9
+ *         0000 - 81 09 20 e8 5d aa ac 13-5a 5f 5c d9 68 3b 85 0a   .. .]...Z_\.h;..
+ *         0010 - 65 97 fe 04 c9 97 31 df-61 f2 ea 7a 4d fb 71 b3   e.....1.a..zM.q.
+ *                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^
+ *                hex column (the digest)                            ASCII rendering
  *
- * Stops at the next blank line or any line that doesn't fit the dump
- * shape so we never run past the block.
+ * The ASCII rendering column can include lowercase letters that ARE
+ * also valid hex digits (`a`–`f`), like the `e`, `1`, `a` on the second
+ * line above. A naive `[^\n]*` capture followed by
+ * `replace(/[^0-9a-f]/gi, "")` would absorb those characters and corrupt
+ * the imprint. That is the exact bug that drove evidence
+ * 10f3a02a-05c1-433e-a760-e816774fbd2b to false FAILED — the parsed
+ * imprint had three trailing hex chars (`e1a`) leaked from the ASCII
+ * rendering of `e.....1.a..zM.q.`, so the imprint comparison with the
+ * request digest returned false even though the TSA receipt was valid.
+ *
+ * Fix: match hex BYTES explicitly. Each byte is two hex chars
+ * optionally followed by a single space or dash separator. The greedy
+ * `+` will stop the moment it encounters the column-separator (>= 2
+ * consecutive spaces between hex column and ASCII column).
+ *
+ * Stops at the next non-conforming line so we never run past the block.
  */
 function parseMessageImprint(text: string): string | null {
   const headerIdx = text.search(/(?:^|\n)\s*Message data:\s*\n/i);
   if (headerIdx < 0) return null;
   const after = text.slice(headerIdx);
-  // Match every dump line under the header. Format:
-  //   <hex offset> - <space-separated hex pairs, optionally joined by `-`>
-  // Use [^\n]* for the capture so we stop at the line boundary —
-  // otherwise \s (which matches \n) would let the regex eat the next
-  // line's offset prefix, producing concatenated garbage.
-  const lineRe = /\n[ \t]*[0-9a-f]{4,}[ \t]*-[ \t]*([^\n]*)/gi;
+  // Phase IA-digest-policy-hard-invariant — hex-pair-explicit capture.
+  // For each dump line we match the offset header (`0000 - `, `0010 - `,
+  // ...) and then a run of `<two hex chars><optional ' ' or '-'>`. The
+  // single-space/dash separator inside the hex column matches; the
+  // multi-space gap before the ASCII column does NOT, so the capture
+  // ends BEFORE the ASCII rendering.
+  const lineRe = /\n[ \t]*[0-9a-f]{4,}[ \t]*-[ \t]*((?:[0-9a-f]{2}[ -]?)+)/gi;
   let hex = "";
   let m: RegExpExecArray | null;
   while ((m = lineRe.exec(after)) !== null) {
-    // The capture contains hex bytes plus separators (space, `-`).
-    // Drop everything that isn't a hex character to get the line's
+    // The capture contains hex bytes plus single-char separators
+    // (space, `-`). Strip the separators to get the line's
     // contribution to the digest.
     const chunk = (m[1] ?? "").replace(/[^0-9a-f]/gi, "").toLowerCase();
     if (chunk.length === 0) break;
     // Defensive sanity: post-strip MUST be hex only.
     if (!/^[0-9a-f]+$/.test(chunk)) break;
+    // Defensive sanity: each line should contribute an even number of
+    // hex chars (whole bytes). A non-even chunk indicates a regex
+    // boundary issue that would otherwise smuggle in a half-byte.
+    if (chunk.length % 2 !== 0) break;
     hex += chunk;
     // Hard cap at 256 hex chars (= 128 bytes) — far larger than any
     // sane digest. Prevents runaway concatenation on a malformed reply.
