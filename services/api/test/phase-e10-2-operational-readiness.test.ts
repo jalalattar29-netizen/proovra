@@ -337,7 +337,7 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       { rel: "src/routes/capture.routes.ts", expected: 21271 },
       { rel: "src/services/evidence-complete.service.ts", expected: 41849 },
       { rel: "src/services/custody-events.service.ts", expected: 5155 },
-      { rel: "src/services/timestamp.service.ts", expected: 7535 },
+      { rel: "src/services/timestamp.service.ts", expected: 11701 },
       {
         rel: "src/services/reports/reports-aggregator.service.ts",
         expected: 13118,

@@ -414,7 +414,7 @@ describe("CR1.5 Test 14 — capture upload/finalization files unchanged", () => 
 describe("CR1.5 Test 15 — custody / TSA / OTS / report / package files unchanged", () => {
     const PINS = [
         { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
-        { rel: "src/services/timestamp.service.ts", expectedBytes: 7535 },
+        { rel: "src/services/timestamp.service.ts", expectedBytes: 11701 },
         {
             rel: "src/services/reports/reports-aggregator.service.ts",
             expectedBytes: 13118,

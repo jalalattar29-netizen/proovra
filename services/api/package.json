@@ -22,6 +22,8 @@
     "db:not-null-readiness": "node scripts/not-null-readiness.mjs",
     "db:preflight": "node scripts/db-preflight.mjs",
     "db:use-audit-local": "node scripts/prepare-local-env.mjs",
+    "repair-tsa-failed-with-token": "node --experimental-specifier-resolution=node dist/scripts/repair-tsa-failed-with-token.js",
+    "smoke-evidence-forward-path": "node --experimental-specifier-resolution=node dist/scripts/smoke-evidence-forward-path.js",
     "deploy:safe": "node scripts/deploy-safe.mjs",
     "deploy:safe:dry": "node scripts/deploy-safe.mjs --dry-run",
     "prisma:seed": "tsx src/seed-signing-key.ts",

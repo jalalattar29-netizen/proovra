@@ -3685,7 +3685,30 @@ model SecurityEvent {
   // Stable canonical event type string. Adding one requires a code
   // change so we can keep the operator-facing labels under control.
   eventType String                @map("eventType") @db.VarChar(64)
-  severity  SecurityEventSeverity @default(INFO)
+  // Phase IA-securityEvent-driftFix —
+  // Production inspection (via the `operator does not exist:
+  // character varying = "SecurityEventSeverity"` error surfaced by
+  // /v1/me/inbox when filtering `severity: "HIGH"`) confirms the live
+  // `security_events.severity` column is VARCHAR — NOT the enum type
+  // declared by the original Phase-11 migration. The Phase 0 catchup
+  // migration realigned every other field on this table to camelCase
+  // production columns; `severity` was the last field still drifting
+  // because the Prisma model kept the enum type. Under the
+  // `@prisma/adapter-pg` driver adapter, Prisma generates SQL with an
+  // explicit enum cast on the parameter
+  // (`WHERE "severity" = $1::"SecurityEventSeverity"`), which Postgres
+  // rejects against the varchar column.
+  //
+  // Fix is Prisma-side ONLY — the column already IS varchar in
+  // production. Declaring it as `String @db.VarChar(16)` aligns the
+  // generated SQL with the live column type. The `SecurityEventSeverity`
+  // enum is retained at the schema level for documentation + back-
+  // compat with `import { SecurityEventSeverity } from "@prisma/client"`
+  // call sites that use it as a label catalog. Writers in the codebase
+  // already pass plain string literals (`severity: "HIGH"` etc.), so
+  // their behavior is unchanged. The allowed values catalog lives in
+  // application code (see `services/api/src/services/security/severity.ts`).
+  severity  String                @map("severity") @db.VarChar(16) @default("INFO")
 
   // Phase 32.7.2 — production already has these columns; Prisma
   // model declares them now so future writers (e.g., audit

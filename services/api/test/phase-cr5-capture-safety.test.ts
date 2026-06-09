@@ -210,7 +210,7 @@ const CAPTURE_ROUTES_BYTES_EXACT = 21271;
 // returns when Redis is unavailable.
 const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 45835;
 const CUSTODY_EVENTS_SVC_BYTES_EXACT = 5155;
-const TIMESTAMP_SVC_BYTES_EXACT = 7535;
+const TIMESTAMP_SVC_BYTES_EXACT = 11701;
 const PRE_CR5_AI_ASSISTANT_BYTES = 23045;
 
 // ---------------------------------------------------------------------------

@@ -555,6 +555,53 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const requestedFilter: InboxFilter = queryParams.filter ?? "all";
       const requestedTone = queryParams.tone;
 
+      // Phase IA-securityEvent-driftFix — bounded source isolation.
+      //
+      // The inbox aggregates ~16 distinct backend queries. Before this
+      // wrapper, a single failing source — e.g. the
+      // `prisma.securityEvent.findMany({ severity: "HIGH" })` query
+      // erroring with "operator does not exist: character varying =
+      // 'SecurityEventSeverity'" on a schema-drift production — would
+      // bubble up as a 500 and destroy the entire endpoint.
+      //
+      // `safelyLoadSource` lets us run each OPTIONAL source under a
+      // bounded try/catch. On failure:
+      //   * the source name is recorded in `degradedSources`
+      //   * a structured error is logged at error level
+      //   * the caller continues with the requested fallback (usually
+      //     an empty array) so the rest of the inbox keeps working
+      //
+      // CORE sources (user lookup, org memberships, team memberships,
+      // org invites, governance notifications) are deliberately NOT
+      // wrapped — if those fail the operator deserves a 500 rather
+      // than a silently broken attention center.
+      //
+      // The contract is exposed on the response envelope as
+      // `degraded: boolean` + `degradedSources: string[]` so the UI
+      // can render an honest banner without inventing fake states.
+      const degradedSources: string[] = [];
+      async function safelyLoadSource<T>(
+        name: string,
+        fn: () => Promise<T>,
+        fallback: T,
+      ): Promise<T> {
+        try {
+          return await fn();
+        } catch (err) {
+          degradedSources.push(name);
+          req.log.error(
+            {
+              err,
+              source: name,
+              userId,
+              route: "/v1/me/inbox",
+            },
+            "inbox.source_failed",
+          );
+          return fallback;
+        }
+      }
+
       // -----------------------------------------------------------------
       // Caller identity probe.
       // -----------------------------------------------------------------
@@ -839,7 +886,10 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const unreadMentions =
         teamIds.length === 0
           ? []
-          : await prisma.discussionMention.findMany({
+          : await safelyLoadSource(
+              "discussion_mention",
+              () =>
+                prisma.discussionMention.findMany({
               where: {
                 teamId: { in: teamIds },
                 mentionedUserId: userId,
@@ -866,7 +916,9 @@ export async function meInboxRoutes(app: FastifyInstance) {
               },
               orderBy: { createdAt: "desc" },
               take: 100,
-            });
+            }),
+              [],
+            );
 
       // -----------------------------------------------------------------
       // Source 5: Phase C2 — unresolved discussion threads assigned to
@@ -876,24 +928,29 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const assignedThreads =
         teamIds.length === 0
           ? []
-          : await prisma.discussionThread.findMany({
-              where: {
-                teamId: { in: teamIds },
-                assignedToUserId: userId,
-                status: { notIn: ["RESOLVED", "CLOSED"] },
-              },
-              select: {
-                id: true,
-                teamId: true,
-                evidenceId: true,
-                title: true,
-                status: true,
-                escalatedAtUtc: true,
-                updatedAt: true,
-              },
-              orderBy: { updatedAt: "desc" },
-              take: PER_CATEGORY_TAKE,
-            });
+          : await safelyLoadSource(
+              "discussion_assigned",
+              () =>
+                prisma.discussionThread.findMany({
+                  where: {
+                    teamId: { in: teamIds },
+                    assignedToUserId: userId,
+                    status: { notIn: ["RESOLVED", "CLOSED"] },
+                  },
+                  select: {
+                    id: true,
+                    teamId: true,
+                    evidenceId: true,
+                    title: true,
+                    status: true,
+                    escalatedAtUtc: true,
+                    updatedAt: true,
+                  },
+                  orderBy: { updatedAt: "desc" },
+                  take: PER_CATEGORY_TAKE,
+                }),
+              [],
+            );
 
       // -----------------------------------------------------------------
       // Phase IA-cleanup — Source 6: workflow-tier escalations assigned
@@ -905,26 +962,31 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const myReviewEscalations =
         teamIds.length === 0
           ? []
-          : await prisma.reviewEscalation.findMany({
-              where: {
-                teamId: { in: teamIds },
-                assignedToUserId: userId,
-                status: "OPEN",
-              },
-              select: {
-                id: true,
-                teamId: true,
-                workflowId: true,
-                evidenceId: true,
-                reason: true,
-                severity: true,
-                safeSummary: true,
-                createdAt: true,
-                updatedAt: true,
-              },
-              orderBy: { updatedAt: "desc" },
-              take: PER_CATEGORY_TAKE,
-            });
+          : await safelyLoadSource(
+              "review_escalation",
+              () =>
+                prisma.reviewEscalation.findMany({
+                  where: {
+                    teamId: { in: teamIds },
+                    assignedToUserId: userId,
+                    status: "OPEN",
+                  },
+                  select: {
+                    id: true,
+                    teamId: true,
+                    workflowId: true,
+                    evidenceId: true,
+                    reason: true,
+                    severity: true,
+                    safeSummary: true,
+                    createdAt: true,
+                    updatedAt: true,
+                  },
+                  orderBy: { updatedAt: "desc" },
+                  take: PER_CATEGORY_TAKE,
+                }),
+              [],
+            );
 
       // -----------------------------------------------------------------
       // Phase IA-cleanup — Source 7: access reviews where the caller is
@@ -934,28 +996,33 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // governance signal to actors with no role in the review.
       // Admin/team-wide queue lives in the access-review console.
       // -----------------------------------------------------------------
-      const myAccessReviews = await prisma.accessReview.findMany({
-        where: {
-          status: { in: ["PENDING", "IN_PROGRESS"] },
-          OR: [
-            { subjectUserId: userId },
-            { initiatedByUserId: userId },
-          ],
-        },
-        select: {
-          id: true,
-          teamId: true,
-          kind: true,
-          status: true,
-          dueAtUtc: true,
-          subjectKind: true,
-          subjectUserId: true,
-          initiatedByUserId: true,
-          createdAt: true,
-        },
-        orderBy: [{ dueAtUtc: "asc" }, { createdAt: "desc" }],
-        take: PER_CATEGORY_TAKE,
-      });
+      const myAccessReviews = await safelyLoadSource(
+        "access_review_pending",
+        () =>
+          prisma.accessReview.findMany({
+            where: {
+              status: { in: ["PENDING", "IN_PROGRESS"] },
+              OR: [
+                { subjectUserId: userId },
+                { initiatedByUserId: userId },
+              ],
+            },
+            select: {
+              id: true,
+              teamId: true,
+              kind: true,
+              status: true,
+              dueAtUtc: true,
+              subjectKind: true,
+              subjectUserId: true,
+              initiatedByUserId: true,
+              createdAt: true,
+            },
+            orderBy: [{ dueAtUtc: "asc" }, { createdAt: "desc" }],
+            take: PER_CATEGORY_TAKE,
+          }),
+        [],
+      );
 
       // -----------------------------------------------------------------
       // Phase IA-cleanup — Source 8: pending MFA recovery requests for
@@ -970,23 +1037,28 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const pendingMfaRecovery =
         adjudicatorTeamIds.length === 0
           ? []
-          : await prisma.mfaRecoveryRequest.findMany({
-              where: {
-                teamId: { in: adjudicatorTeamIds },
-                status: "PENDING_ADMIN_REVIEW",
-              },
-              select: {
-                id: true,
-                teamId: true,
-                userId: true,
-                reason: true,
-                requiredApprovals: true,
-                approvalCount: true,
-                createdAt: true,
-              },
-              orderBy: { createdAt: "desc" },
-              take: PER_CATEGORY_TAKE,
-            });
+          : await safelyLoadSource(
+              "mfa_recovery_pending",
+              () =>
+                prisma.mfaRecoveryRequest.findMany({
+                  where: {
+                    teamId: { in: adjudicatorTeamIds },
+                    status: "PENDING_ADMIN_REVIEW",
+                  },
+                  select: {
+                    id: true,
+                    teamId: true,
+                    userId: true,
+                    reason: true,
+                    requiredApprovals: true,
+                    approvalCount: true,
+                    createdAt: true,
+                  },
+                  orderBy: { createdAt: "desc" },
+                  take: PER_CATEGORY_TAKE,
+                }),
+              [],
+            );
 
       // -----------------------------------------------------------------
       // Phase IA-cleanup — Source 9: recent communication delivery
@@ -1000,25 +1072,30 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const failedCommunications =
         adjudicatorTeamIds.length === 0
           ? []
-          : await prisma.communicationMessage.findMany({
-              where: {
-                teamId: { in: adjudicatorTeamIds },
-                status: "FAILED",
-                updatedAt: { gte: failureCutoff },
-              },
-              select: {
-                id: true,
-                teamId: true,
-                channel: true,
-                purpose: true,
-                errorCode: true,
-                recipientPreview: true,
-                attemptCount: true,
-                updatedAt: true,
-              },
-              orderBy: { updatedAt: "desc" },
-              take: PER_CATEGORY_TAKE,
-            });
+          : await safelyLoadSource(
+              "communication_failure",
+              () =>
+                prisma.communicationMessage.findMany({
+                  where: {
+                    teamId: { in: adjudicatorTeamIds },
+                    status: "FAILED",
+                    updatedAt: { gte: failureCutoff },
+                  },
+                  select: {
+                    id: true,
+                    teamId: true,
+                    channel: true,
+                    purpose: true,
+                    errorCode: true,
+                    recipientPreview: true,
+                    attemptCount: true,
+                    updatedAt: true,
+                  },
+                  orderBy: { updatedAt: "desc" },
+                  take: PER_CATEGORY_TAKE,
+                }),
+              [],
+            );
 
       // -----------------------------------------------------------------
       // Phase IA-cleanup — Source 10: high-severity security events for
@@ -1031,22 +1108,27 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // -----------------------------------------------------------------
       const SECURITY_EVENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
       const securityCutoff = new Date(now.getTime() - SECURITY_EVENT_WINDOW_MS);
-      const myHighSecurityEvents = await prisma.securityEvent.findMany({
-        where: {
-          userId,
-          severity: "HIGH",
-          createdAt: { gte: securityCutoff },
-        },
-        select: {
-          id: true,
-          teamId: true,
-          eventType: true,
-          severity: true,
-          createdAt: true,
-        },
-        orderBy: { createdAt: "desc" },
-        take: PER_CATEGORY_TAKE,
-      });
+      const myHighSecurityEvents = await safelyLoadSource(
+        "security_event_high",
+        () =>
+          prisma.securityEvent.findMany({
+            where: {
+              userId,
+              severity: "HIGH",
+              createdAt: { gte: securityCutoff },
+            },
+            select: {
+              id: true,
+              teamId: true,
+              eventType: true,
+              severity: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: "desc" },
+            take: PER_CATEGORY_TAKE,
+          }),
+        [],
+      );
 
       // -----------------------------------------------------------------
       // Phase IA-enterprise — Source 11: report generation failure
@@ -1060,29 +1142,34 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const reportIncidents =
         teamIds.length === 0
           ? []
-          : await prisma.operationalIncident.findMany({
-              where: {
-                teamId: { in: teamIds },
-                category: "REPORT",
-                status: { in: ["OPEN", "ACKNOWLEDGED"] },
-              },
-              select: {
-                id: true,
-                teamId: true,
-                title: true,
-                safeSummary: true,
-                severity: true,
-                status: true,
-                occurrenceCount: true,
-                relatedEvidenceId: true,
-                relatedJobId: true,
-                lastSeenAtUtc: true,
-                firstSeenAtUtc: true,
-                runbookSlug: true,
-              },
-              orderBy: { lastSeenAtUtc: "desc" },
-              take: PER_CATEGORY_TAKE,
-            });
+          : await safelyLoadSource(
+              "report_failure",
+              () =>
+                prisma.operationalIncident.findMany({
+                  where: {
+                    teamId: { in: teamIds },
+                    category: "REPORT",
+                    status: { in: ["OPEN", "ACKNOWLEDGED"] },
+                  },
+                  select: {
+                    id: true,
+                    teamId: true,
+                    title: true,
+                    safeSummary: true,
+                    severity: true,
+                    status: true,
+                    occurrenceCount: true,
+                    relatedEvidenceId: true,
+                    relatedJobId: true,
+                    lastSeenAtUtc: true,
+                    firstSeenAtUtc: true,
+                    runbookSlug: true,
+                  },
+                  orderBy: { lastSeenAtUtc: "desc" },
+                  take: PER_CATEGORY_TAKE,
+                }),
+              [],
+            );
 
       // -----------------------------------------------------------------
       // Phase IA-enterprise — Source 12: verification package failure
@@ -1092,29 +1179,34 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const packageIncidents =
         teamIds.length === 0
           ? []
-          : await prisma.operationalIncident.findMany({
-              where: {
-                teamId: { in: teamIds },
-                category: "PACKAGE",
-                status: { in: ["OPEN", "ACKNOWLEDGED"] },
-              },
-              select: {
-                id: true,
-                teamId: true,
-                title: true,
-                safeSummary: true,
-                severity: true,
-                status: true,
-                occurrenceCount: true,
-                relatedEvidenceId: true,
-                relatedJobId: true,
-                lastSeenAtUtc: true,
-                firstSeenAtUtc: true,
-                runbookSlug: true,
-              },
-              orderBy: { lastSeenAtUtc: "desc" },
-              take: PER_CATEGORY_TAKE,
-            });
+          : await safelyLoadSource(
+              "verification_package_failure",
+              () =>
+                prisma.operationalIncident.findMany({
+                  where: {
+                    teamId: { in: teamIds },
+                    category: "PACKAGE",
+                    status: { in: ["OPEN", "ACKNOWLEDGED"] },
+                  },
+                  select: {
+                    id: true,
+                    teamId: true,
+                    title: true,
+                    safeSummary: true,
+                    severity: true,
+                    status: true,
+                    occurrenceCount: true,
+                    relatedEvidenceId: true,
+                    relatedJobId: true,
+                    lastSeenAtUtc: true,
+                    firstSeenAtUtc: true,
+                    runbookSlug: true,
+                  },
+                  orderBy: { lastSeenAtUtc: "desc" },
+                  take: PER_CATEGORY_TAKE,
+                }),
+              [],
+            );
 
       // -----------------------------------------------------------------
       // Phase IA-enterprise — Source 13: OTS anchoring failures.
@@ -1129,26 +1221,31 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const otsFailedEvidence =
         teamIds.length === 0
           ? []
-          : await prisma.evidence.findMany({
-              where: {
-                teamId: { in: teamIds },
-                otsStatus: "FAILED",
-                deletedAt: null,
-              },
-              select: {
-                id: true,
-                teamId: true,
-                caseId: true,
-                title: true,
-                originalFileName: true,
-                otsFailureReason: true,
-                otsUpgradedAtUtc: true,
-                otsHash: true,
-                updatedAt: true,
-              },
-              orderBy: { otsUpgradedAtUtc: "desc" },
-              take: PER_CATEGORY_TAKE,
-            });
+          : await safelyLoadSource(
+              "ots_failure",
+              () =>
+                prisma.evidence.findMany({
+                  where: {
+                    teamId: { in: teamIds },
+                    otsStatus: "FAILED",
+                    deletedAt: null,
+                  },
+                  select: {
+                    id: true,
+                    teamId: true,
+                    caseId: true,
+                    title: true,
+                    originalFileName: true,
+                    otsFailureReason: true,
+                    otsUpgradedAtUtc: true,
+                    otsHash: true,
+                    updatedAt: true,
+                  },
+                  orderBy: { otsUpgradedAtUtc: "desc" },
+                  take: PER_CATEGORY_TAKE,
+                }),
+              [],
+            );
 
       // -----------------------------------------------------------------
       // Phase IA-reliability — Source 14: intake submissions pending
@@ -1160,24 +1257,29 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const pendingReviewRequests =
         teamIds.length === 0
           ? []
-          : await prisma.evidenceRequest.findMany({
-              where: {
-                teamId: { in: teamIds },
-                status: { in: ["RESPONSE_RECEIVED", "UNDER_REVIEW"] },
-                assignedReviewerUserId: null,
-              },
-              select: {
-                id: true,
-                teamId: true,
-                title: true,
-                status: true,
-                priority: true,
-                dueAtUtc: true,
-                updatedAt: true,
-              },
-              orderBy: [{ dueAtUtc: "asc" }, { updatedAt: "desc" }],
-              take: PER_CATEGORY_TAKE,
-            });
+          : await safelyLoadSource(
+              "intake_submission_pending_review",
+              () =>
+                prisma.evidenceRequest.findMany({
+                  where: {
+                    teamId: { in: teamIds },
+                    status: { in: ["RESPONSE_RECEIVED", "UNDER_REVIEW"] },
+                    assignedReviewerUserId: null,
+                  },
+                  select: {
+                    id: true,
+                    teamId: true,
+                    title: true,
+                    status: true,
+                    priority: true,
+                    dueAtUtc: true,
+                    updatedAt: true,
+                  },
+                  orderBy: [{ dueAtUtc: "asc" }, { updatedAt: "desc" }],
+                  take: PER_CATEGORY_TAKE,
+                }),
+              [],
+            );
 
       // -----------------------------------------------------------------
       // Phase IA-reliability — Source 15: intake submissions where
@@ -1191,23 +1293,28 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const incompleteRequests =
         teamIds.length === 0
           ? []
-          : await prisma.evidenceRequest.findMany({
-              where: {
-                teamId: { in: teamIds },
-                status: { in: ["PARTIALLY_FULFILLED", "NEEDS_MORE_INFO"] },
-              },
-              select: {
-                id: true,
-                teamId: true,
-                title: true,
-                status: true,
-                priority: true,
-                dueAtUtc: true,
-                updatedAt: true,
-              },
-              orderBy: [{ dueAtUtc: "asc" }, { updatedAt: "desc" }],
-              take: PER_CATEGORY_TAKE,
-            });
+          : await safelyLoadSource(
+              "intake_required_items_missing",
+              () =>
+                prisma.evidenceRequest.findMany({
+                  where: {
+                    teamId: { in: teamIds },
+                    status: { in: ["PARTIALLY_FULFILLED", "NEEDS_MORE_INFO"] },
+                  },
+                  select: {
+                    id: true,
+                    teamId: true,
+                    title: true,
+                    status: true,
+                    priority: true,
+                    dueAtUtc: true,
+                    updatedAt: true,
+                  },
+                  orderBy: [{ dueAtUtc: "asc" }, { updatedAt: "desc" }],
+                  take: PER_CATEGORY_TAKE,
+                }),
+              [],
+            );
 
       // -----------------------------------------------------------------
       // Phase IA-reliability — Source 16: intake links approaching
@@ -1223,27 +1330,32 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const expiringIntakeLinks =
         teamIds.length === 0
           ? []
-          : await prisma.workflowIntakeLink.findMany({
-              where: {
-                teamId: { in: teamIds },
-                status: "ACTIVE",
-                expiresAtUtc: {
-                  gt: now,
-                  lt: intakeLinkExpiryCutoff,
-                },
-              },
-              select: {
-                id: true,
-                teamId: true,
-                status: true,
-                expiresAtUtc: true,
-                usedCount: true,
-                maxUses: true,
-                updatedAt: true,
-              },
-              orderBy: { expiresAtUtc: "asc" },
-              take: PER_CATEGORY_TAKE,
-            });
+          : await safelyLoadSource(
+              "intake_link_expiring",
+              () =>
+                prisma.workflowIntakeLink.findMany({
+                  where: {
+                    teamId: { in: teamIds },
+                    status: "ACTIVE",
+                    expiresAtUtc: {
+                      gt: now,
+                      lt: intakeLinkExpiryCutoff,
+                    },
+                  },
+                  select: {
+                    id: true,
+                    teamId: true,
+                    status: true,
+                    expiresAtUtc: true,
+                    usedCount: true,
+                    maxUses: true,
+                    updatedAt: true,
+                  },
+                  orderBy: { expiresAtUtc: "asc" },
+                  take: PER_CATEGORY_TAKE,
+                }),
+              [],
+            );
 
       // -----------------------------------------------------------------
       // Truncation tracking. We expose a per-category boolean so the
@@ -2068,6 +2180,15 @@ export async function meInboxRoutes(app: FastifyInstance) {
           email: me.email,
           displayName: me.displayName,
         },
+        // Phase IA-securityEvent-driftFix — honest degraded-source
+        // signal. When ≥1 optional source threw (e.g., schema drift,
+        // transient DB error), the response still returns 200 with the
+        // remaining sources intact, and the UI reads these fields to
+        // render a banner explaining what is currently unavailable.
+        // CORE sources (user, memberships, invites, governance) are
+        // not wrapped — their failure produces a 500 by design.
+        degraded: degradedSources.length > 0,
+        degradedSources,
         summary,
         // Phase IA-cleanup — honest pagination signal. Per-category +
         // top-level boolean. UI banners read these so the operator
