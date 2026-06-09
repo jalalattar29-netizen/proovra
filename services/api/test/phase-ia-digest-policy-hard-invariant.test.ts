@@ -129,6 +129,46 @@ describe("Phase IA-digest-policy-hard-invariant — Granted + imprint match MUST
     expect(r.warnings).toContain("tsa_serial_number_unparsed");
   });
 
+  it("Status: Granted. with trailing descriptive text still counts as granted", () => {
+    const reply = `Status info:
+Status: Granted. This token was accepted.
+
+TST info:
+Version: 1
+Hash Algorithm: sha256
+Message data:
+    0000 - 1c b2 72 4a eb 57 20 6a-b6 ad 79 5a 2f db 0e 97
+    0010 - eb 13 49 a8 d7 b1 a0 ad-eb 09 0e 76 e6 d2 dd b9
+Serial number: 0x0310230FEA
+Time stamp: Jun  9 09:50:34 2026 GMT
+`;
+    const r = parseTsaReply(reply, REQUEST_DIGEST);
+    expect(r.granted).toBe(true);
+    expect(r.failureCode).toBeNull();
+    expect(r.failureReason).toBeNull();
+    expect(r.serialNumber).toBe("0x0310230FEA");
+  });
+
+  it("Status: GrantedWithMods. with trailing descriptive text still counts as granted_with_mods", () => {
+    const reply = `Status info:
+Status: GrantedWithMods. Additional details.
+
+TST info:
+Version: 1
+Hash Algorithm: sha256
+Message data:
+    0000 - 1c b2 72 4a eb 57 20 6a-b6 ad 79 5a 2f db 0e 97
+    0010 - eb 13 49 a8 d7 b1 a0 ad-eb 09 0e 76 e6 d2 dd b9
+Serial number: 0x0310230FEA
+Time stamp: Jun  9 09:50:34 2026 GMT
+`;
+    const r = parseTsaReply(reply, REQUEST_DIGEST);
+    expect(r.granted).toBe(true);
+    expect(r.failureCode).toBeNull();
+    expect(r.failureReason).toBeNull();
+    expect(r.statusKind).toBe("granted_with_mods");
+  });
+
   it("Granted + matching imprint with MISSING GEN TIME → granted: true + warning (never FAILED)", () => {
     const r = parseTsaReply(TSR_GRANTED_NO_GEN_TIME, REQUEST_DIGEST);
     expect(r.granted).toBe(true);

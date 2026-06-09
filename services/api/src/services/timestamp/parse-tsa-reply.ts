@@ -152,11 +152,20 @@ function parseStatus(text: string): {
   const m = text.match(re);
   if (!m) return { kind: "other", raw: null };
   const raw = (m[1] ?? "").trim();
-  const cleaned = raw.replace(/[.\s]+$/g, "").toLowerCase();
-  if (cleaned === "granted") return { kind: "granted", raw };
-  if (cleaned === "grantedwithmods" || cleaned === "granted with mods") {
-    return { kind: "granted_with_mods", raw };
+
+  // Some providers may append optional descriptive text after the
+  // authoritative status token. We only care whether the response was
+  // granted or not, so allow `Granted` / `GrantedWithMods` prefixes.
+  const normalized = raw.toLowerCase().replace(/\s+/g, " ");
+  const grantedMatch = normalized.match(/^(granted(?:withmods| with mods)?)(?:[.\s].*)?$/);
+  if (grantedMatch) {
+    const prefix = grantedMatch[1];
+    if (prefix === "grantedwithmods" || prefix === "granted with mods") {
+      return { kind: "granted_with_mods", raw };
+    }
+    return { kind: "granted", raw };
   }
+
   return { kind: "other", raw };
 }
 
