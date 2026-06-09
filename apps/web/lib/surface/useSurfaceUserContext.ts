@@ -1,0 +1,53 @@
+"use client";
+
+/**
+ * Phase IA-surface-tier — shared hook that builds `SurfaceUserContext`
+ * from the canonical PlatformContext envelope.
+ *
+ * Used by `SurfaceGate`, `AppSidebarV2`, the All Tools page, the
+ * command palette, and any other consumer that needs to apply
+ * surface-tier visibility / access logic.
+ *
+ * Pure projection over the canonical envelope fields
+ * (`activeSpace` + `personalSpace` + `organizations` + `platform` +
+ * `flags`). The legacy singular-workspace field is NOT read.
+ *
+ * Fails CLOSED: while the platform-context fetch is in flight (or has
+ * failed), the hook returns `ANONYMOUS_SURFACE_CONTEXT` so hidden
+ * surfaces stay hidden during loading.
+ */
+
+import { usePlatformContext } from "../platform-context/PlatformContextProvider";
+
+import {
+  ANONYMOUS_SURFACE_CONTEXT,
+  type SurfaceUserContext,
+} from "./access";
+
+export function useSurfaceUserContext(): SurfaceUserContext {
+  const ctx = usePlatformContext();
+  const envelope = ctx?.envelope;
+  if (!envelope) return ANONYMOUS_SURFACE_CONTEXT;
+
+  // ENTERPRISE TENANT MODEL — derive plan + role from the canonical
+  // fields. activeSpace.type discriminates PERSONAL vs ORGANIZATION;
+  // org membership in organizations[] provides role + plan.
+  const activeSpace = envelope.activeSpace;
+  let plan: SurfaceUserContext["plan"] = null;
+  let role: SurfaceUserContext["role"] = null;
+  if (activeSpace?.type === "PERSONAL") {
+    plan = envelope.personalSpace?.plan ?? envelope.account?.accountPlan ?? null;
+    role = "OWNER";
+  } else if (activeSpace?.type === "ORGANIZATION") {
+    const org = envelope.organizations?.find((o) => o.id === activeSpace.id);
+    plan = org?.plan ?? null;
+    role = org?.role ?? null;
+  }
+
+  return {
+    plan,
+    role,
+    isPlatformAdmin: Boolean(envelope.platform?.isPlatformAdmin),
+    isEnterpriseWorkspace: Boolean(envelope.flags?.isEnterpriseWorkspace),
+  };
+}

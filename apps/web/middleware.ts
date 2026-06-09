@@ -1,8 +1,54 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { findSurfaceTierRule } from "./lib/surface/tiers";
+
 const APP_BASE = process.env.NEXT_PUBLIC_APP_BASE;
 const WEB_BASE = process.env.NEXT_PUBLIC_WEB_BASE;
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://api.proovra.com";
+
+/**
+ * Phase IA-surface-tier — direct-URL gate.
+ *
+ * Server-side backstop for the product surface tier model. Hidden
+ * surfaces (ENTERPRISE / INTERNAL / plan-gated) must not be reachable
+ * by typing the URL directly. The client-side `SurfaceGate` is the
+ * primary enforcement point because it has the full PlatformContext;
+ * this middleware applies a coarse path-only gate so even an
+ * unauthenticated bot can't fetch a hidden page's HTML shell.
+ *
+ * The middleware does NOT have plan/role info (the auth happens in a
+ * downstream layout). It applies the gate ONLY when the rule's
+ * `directAccessPolicy` is `notFound` AND no auth cookie exists. The
+ * authenticated case is handled by `SurfaceGate` at the page layer,
+ * which has the full context to decide tier eligibility.
+ *
+ * For redirect/forbidden policies we let the request through so the
+ * page-level gate can render the proper upgrade / 403 affordance.
+ */
+function applySurfaceTierGate(
+  req: NextRequest,
+  pathname: string,
+): NextResponse | null {
+  const rule = findSurfaceTierRule(pathname);
+  if (!rule) return null;
+  // CORE / allow → fall through.
+  if (rule.directAccessPolicy === "allow") return null;
+  // INTERNAL surfaces (e.g. /tools) are flagged notFound here. The
+  // server returns a 404-equivalent rewrite so the HTML shell is the
+  // 404 page, not the internal surface.
+  //
+  // We DO NOT 404 here for ENTERPRISE notFound surfaces — the page-
+  // level gate runs with the full PlatformContext (plan/role/admin
+  // flags) and can correctly distinguish a tenant-admin who SHOULD see
+  // the surface from a personal user who should not. Doing it here
+  // would falsely 404 enterprise customers.
+  if (rule.tier === "INTERNAL" && rule.directAccessPolicy === "notFound") {
+    const target = req.nextUrl.clone();
+    target.pathname = "/not-found";
+    return NextResponse.rewrite(target);
+  }
+  return null;
+}
 
 // Cloudflare R2 wildcard (as host allowance)
 const R2_HOST = "https://*.r2.cloudflarestorage.com";
@@ -252,6 +298,19 @@ export function middleware(req: NextRequest) {
       const res = NextResponse.redirect(target);
       if (isProd) applySecurityHeaders(res, nonce, isProd, relaxed, allowEval);
       return res;
+    }
+
+    // Phase IA-surface-tier — INTERNAL surface direct-URL gate. Runs
+    // ONLY on the app host (the marketing host has already been
+    // redirected). Rewrites to the standard not-found page so the
+    // /tools / /ops / /operations / /platform surfaces are never
+    // visible to a normal user even if they type the URL.
+    if (isAppHost) {
+      const tierGated = applySurfaceTierGate(req, pathname);
+      if (tierGated) {
+        if (isProd) applySecurityHeaders(tierGated, nonce, isProd, relaxed, allowEval);
+        return tierGated;
+      }
     }
 
     const res = nextWithNonce(req, nonce);

@@ -35,6 +35,13 @@ import {
 import { ROUTE_REGISTRY } from "../../../lib/navigation/routeRegistry";
 import { resolveRouteAccess } from "../../../lib/navigation/routeAccessResolver";
 import { resolveWorkflowExposure } from "../../../lib/navigation/workflowExposureResolver";
+// Phase IA-surface-tier — All Tools catalog applies the surface-tier
+// visibility filter before the workflow exposure resolver runs. A FREE
+// personal user sees only CORE tools; ENTERPRISE / INTERNAL surfaces
+// disappear entirely (NO "Permission required" badge for tools the
+// user's plan cannot unlock — keeps the surface focused).
+import { canAccessSurface } from "../../../lib/surface/access";
+import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContext";
 // Closure verification Part C — All Tools is an ACCOUNT-domain route
 // (capability ACCOUNT_SETTINGS_VIEW). The canonical PageRouteGate
 // enforces UX-layer access for parity with the other gated /app pages.
@@ -84,6 +91,9 @@ function groupForRoute(domain: string): GroupId {
 function AllToolsPageBody() {
   const { envelope } = usePlatformContext();
   const persona = usePersonaProfile();
+  // Phase IA-surface-tier — tier-filter the registry before the All
+  // Tools workflow exposure resolver runs.
+  const surfaceUserCtx = useSurfaceUserContext();
   // PERSONAL-FIRST RESCUE fragments come from the centralized
   // platform-context hooks — direct envelope reads for the workspace
   // fragment are forbidden outside lib/platform-context (see
@@ -93,7 +103,10 @@ function AllToolsPageBody() {
   const [query, setQuery] = useState("");
 
   const exposure = useMemo(() => {
-    const routes = ROUTE_REGISTRY.map((route) => ({
+    const tierFiltered = ROUTE_REGISTRY.filter((route) =>
+      canAccessSurface(surfaceUserCtx, route.href),
+    );
+    const routes = tierFiltered.map((route) => ({
       route,
       access: resolveRouteAccess({
         route,
@@ -119,7 +132,7 @@ function AllToolsPageBody() {
         (p) => workflowFromPersona(p).code,
       ),
     });
-  }, [envelope, persona]);
+  }, [envelope, persona, surfaceUserCtx]);
 
   // Build grouped items from the canonical exposure list. Each bucket
   // is a mutable array; `allToolsItems` itself is read-only by contract.

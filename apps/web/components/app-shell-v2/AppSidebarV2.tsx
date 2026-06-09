@@ -46,6 +46,11 @@ import {
   type WorkflowProfileCode,
 } from "../../lib/platform-context";
 import { ROUTE_REGISTRY, type RouteDefinition } from "../../lib/navigation/routeRegistry";
+// Phase IA-surface-tier — surface visibility filter. The sidebar
+// renders ONLY routes the user's plan/role unlocks. ENTERPRISE/
+// INTERNAL surfaces disappear from the personal user's nav.
+import { canAccessSurface } from "../../lib/surface/access";
+import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
 import {
   resolveRouteAccess,
   type RouteAccessResult,
@@ -524,8 +529,19 @@ export function AppSidebarV2() {
     (i) => i.category && i.category.toLowerCase().includes("governance"),
   ).length;
 
+  // Phase IA-surface-tier — pre-filter the registry by the user's
+  // surface tier before running the legacy access resolver. This is the
+  // ONE central enforcement point for sidebar visibility:
+  // ENTERPRISE/INTERNAL surfaces never even enter the access resolver
+  // pipeline for a non-eligible user, so they cannot appear in the
+  // sidebar / disclosure / fallback tiers.
+  const surfaceUserCtx = useSurfaceUserContext();
+  const tierFilteredRegistry = ROUTE_REGISTRY.filter((route) =>
+    canAccessSurface(surfaceUserCtx, route.href),
+  );
+
   // Resolve canonical access per registered route.
-  const resolved = ROUTE_REGISTRY.map((route: RouteDefinition) => {
+  const resolved = tierFilteredRegistry.map((route: RouteDefinition) => {
     const access = resolveRouteAccess({
       route,
       activeSpaceType,

@@ -49,6 +49,12 @@ import {
   resolveRouteAccess,
   type RouteAccessResult,
 } from "../../lib/navigation/routeAccessResolver";
+// Phase IA-surface-tier — command palette applies the surface-tier
+// visibility filter before the workflow ranker runs. ENTERPRISE /
+// INTERNAL surfaces never reach the palette for a non-eligible user
+// so they cannot be quick-navigated to via Cmd+K.
+import { canAccessSurface } from "../../lib/surface/access";
+import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
 import { WORKFLOW_SAFETY_STATEMENT } from "./WorkflowSafetyNotice";
 
 type IndexedItem = {
@@ -115,6 +121,8 @@ function badgeForAccessState(state: string): {
 export function CommandPalette() {
   const { envelope } = usePlatformContext();
   const persona = usePersonaProfile();
+  // Phase IA-surface-tier — surface user context for cmd-K filter.
+  const surfaceUserCtx = useSurfaceUserContext();
   // PERSONAL-FIRST RESCUE fragments come from the centralized
   // platform-context hooks — direct envelope reads for the workspace
   // fragment are forbidden outside lib/platform-context (see
@@ -140,6 +148,9 @@ export function CommandPalette() {
     );
     const items: IndexedItem[] = [];
     for (const route of ROUTE_REGISTRY) {
+      // Phase IA-surface-tier — filter ENTERPRISE / INTERNAL surfaces
+      // out of the cmd-K corpus for non-eligible users.
+      if (!canAccessSurface(surfaceUserCtx, route.href)) continue;
       const access = resolveRouteAccess({
         route,
         activeSpaceType: envelope?.activeSpace?.type ?? null,
@@ -169,7 +180,7 @@ export function CommandPalette() {
       items.push({ route, access, rank });
     }
     return items;
-  }, [envelope, persona]);
+  }, [envelope, persona, surfaceUserCtx, workspaceFragment, personalSpaceFragment]);
 
   // Filter + rank for the current query.
   const results = useMemo<IndexedItem[]>(() => {
