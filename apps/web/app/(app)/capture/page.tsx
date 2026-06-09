@@ -1038,20 +1038,24 @@ onClick={async () => {
                       className="capture-draft-pill"
                       aria-live="polite"
                       title={
-                        draftPersistence.savingState === "error"
-                          ? "Failed to save the latest changes to the server draft."
-                          : draftPersistence.lastSavedAt
-                            ? `Last saved ${draftPersistence.lastSavedAt.toLocaleTimeString()}`
-                            : "Draft is staged locally."
+                        draftPersistence.savingState === "locked"
+                          ? "This capture session is already finalized or locked. Start a new capture session to continue."
+                          : draftPersistence.savingState === "error"
+                            ? "Failed to save the latest changes to the server draft."
+                            : draftPersistence.lastSavedAt
+                              ? `Last saved ${draftPersistence.lastSavedAt.toLocaleTimeString()}`
+                              : "Draft is staged locally."
                       }
                     >
                       {draftPersistence.savingState === "saving"
                         ? "Saving draft…"
-                        : draftPersistence.savingState === "error"
-                          ? "Draft save failed"
-                          : draftPersistence.draftId
-                            ? "Draft saved"
-                            : "Draft staging"}
+                        : draftPersistence.savingState === "locked"
+                          ? "Session finalized — start a new capture"
+                          : draftPersistence.savingState === "error"
+                            ? "Draft save failed"
+                            : draftPersistence.draftId
+                              ? "Draft saved"
+                              : "Draft staging"}
                     </span>
                   </div>
                 </div>

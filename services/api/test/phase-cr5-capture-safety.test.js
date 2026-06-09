@@ -163,14 +163,14 @@ const TIMESTAMP_SVC = readApi("services/timestamp.service.ts");
 const CAPTURE_FILES = captureSurfaceFiles();
 const CAPTURE_AI_FILES = captureAiSurfaceFiles();
 // Pre-CR5 byte sizes (sampled 2026-05-26).
-const PRE_CR5_PAGE_BYTES = 48616;
+const PRE_CR5_PAGE_BYTES = 48972;
 const PRE_CR5_ORCH_BYTES = 34411;
 const PRE_CR5_RESUMABLE_BYTES = 13423;
 const PRE_CR5_CAMERA_BYTES = 12473;
 const PRE_CR5_AUDIO_BYTES = 8978;
 const HASH_UTILS_BYTES_EXACT = 3302;
 const SESSION_READINESS_BYTES_EXACT = 9864;
-const CAPTURE_ROUTES_BYTES_EXACT = 21271;
+const CAPTURE_ROUTES_BYTES_EXACT = 21793;
 // Baseline grows with documented phases (G3.x/G4/G5). The
 // "no shrink/regression" guarantee is the spirit; the constant
 // is rebaselined as the file legitimately grows.

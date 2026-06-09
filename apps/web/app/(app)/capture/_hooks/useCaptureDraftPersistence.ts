@@ -69,25 +69,58 @@ function snapshotItem(item: SessionItem): DraftItemSnapshot {
   };
 }
 
+/**
+ * Phase IA-capture-409 — bounded error shape from `apiFetch`.
+ *
+ * `apiFetch` throws a plain Error decorated with `statusCode` and
+ * `code` (see `apps/web/lib/api.ts`). The autosave loop now reads both
+ * to detect the terminal-lock condition.
+ */
+type CaptureDraftPersistError = Error & {
+  statusCode?: number;
+  code?: string;
+};
+
+function isSessionLockedError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as CaptureDraftPersistError;
+  // The canonical signal is the backend's bounded error code. The 409
+  // status is the fallback in case the code is ever absent on a future
+  // route variant — we still want to halt the autosave loop on it.
+  return e.code === "CAPTURE_SESSION_NOT_EDITABLE" || e.statusCode === 409;
+}
+
 export function useCaptureDraftPersistence({
   enabled,
 }: UseCaptureDraftPersistenceOpts) {
   const [draftId, setDraftId] = useState<string | null>(null);
-  const [savingState, setSavingState] = useState<"idle" | "saving" | "error">(
-    "idle"
-  );
+  const [savingState, setSavingState] = useState<
+    "idle" | "saving" | "error" | "locked"
+  >("idle");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const draftIdRef = useRef<string | null>(null);
   const inFlightRef = useRef(false);
   const pendingPayloadRef = useRef<CaptureDraftStateInput | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Phase IA-capture-409 — once we observe a 409 / CAPTURE_SESSION_NOT_EDITABLE
+  // for the current draftId, we MUST stop the autosave loop for this
+  // draft. Without this flag the debounce kept re-firing on every
+  // keystroke and the backend kept responding 409 forever.
+  const lockedRef = useRef(false);
 
   draftIdRef.current = draftId;
 
   const flush = useCallback(async () => {
     if (!enabled) return;
     if (inFlightRef.current) return;
+    if (lockedRef.current) {
+      // Drop any queued payload so it doesn't fire after a future
+      // scheduleSave that genuinely resets the loop (e.g. after the
+      // user starts a new capture session).
+      pendingPayloadRef.current = null;
+      return;
+    }
 
     const payload = pendingPayloadRef.current;
     if (!payload) return;
@@ -132,14 +165,42 @@ export function useCaptureDraftPersistence({
       setSavingState("idle");
       setLastSavedAt(new Date());
     } catch (err) {
-      logCaptureClientError("web_capture_draft_persist", err, {
-        hasDraftId: Boolean(draftIdRef.current),
-      });
-      setSavingState("error");
+      if (isSessionLockedError(err)) {
+        // Phase IA-capture-409 — terminal lock. The session moved out
+        // of DRAFT (e.g. FINALIZED after Review & Sign, DISCARDED, or
+        // EXPIRED). We MUST:
+        //   1. Clear the local draftId so future edits create a fresh
+        //      session via POST /v1/capture/sessions.
+        //   2. Stop the autosave loop for this draft — pendingPayload
+        //      gets dropped, debounce is cleared, and `lockedRef`
+        //      prevents any in-flight payload from re-PATCHing.
+        //   3. Surface a friendly state to the page (savingState =
+        //      "locked") — NOT the generic "error" toast that pre-fix
+        //      kept appearing on every keystroke.
+        //   4. NOT log this through `logCaptureClientError` — it is a
+        //      normal lifecycle event, not a client error.
+        lockedRef.current = true;
+        pendingPayloadRef.current = null;
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+          debounceTimerRef.current = null;
+        }
+        draftIdRef.current = null;
+        setDraftId(null);
+        setSavingState("locked");
+      } else {
+        logCaptureClientError("web_capture_draft_persist", err, {
+          hasDraftId: Boolean(draftIdRef.current),
+        });
+        setSavingState("error");
+      }
     } finally {
       inFlightRef.current = false;
-      // If a newer payload arrived while we were saving, save again.
-      if (pendingPayloadRef.current) {
+      // If a newer payload arrived while we were saving — AND the
+      // draft isn't locked — save again. The `lockedRef` check
+      // prevents the very bug we just fixed: the prior code would
+      // re-fire `flush` even when we'd just observed a 409.
+      if (pendingPayloadRef.current && !lockedRef.current) {
         void flush();
       }
     }
@@ -148,13 +209,20 @@ export function useCaptureDraftPersistence({
   const scheduleSave = useCallback(
     (next: CaptureDraftStateInput) => {
       if (!enabled) return;
+      // Phase IA-capture-409 — the prior draft was locked. Skip
+      // autosave until the page tells us a new capture session has
+      // started (via discardDraft / acknowledgeFinalized, both of
+      // which reset lockedRef). Without this, every keystroke after
+      // a finalized session reopened in the same component would
+      // re-trigger the loop.
+      if (lockedRef.current) return;
 
       // Don't create a draft for an empty / untouched session — only persist
       // once the user has done meaningful work.
 const isMeaningful =
   next.items.length > 0 ||
   Boolean(next.internalNotes.trim());
-  
+
       if (!draftIdRef.current && !isMeaningful) {
         return;
       }
@@ -180,6 +248,10 @@ const isMeaningful =
     }
     pendingPayloadRef.current = null;
     draftIdRef.current = null;
+    // Phase IA-capture-409 — clearing the session is the user-initiated
+    // recovery path from a locked draft. Reset lockedRef so the next
+    // edit can create a fresh CaptureSession via POST.
+    lockedRef.current = false;
     setDraftId(null);
     setSavingState("idle");
     setLastSavedAt(null);
@@ -189,7 +261,13 @@ const isMeaningful =
     try {
       await apiFetch(`/v1/capture/sessions/${id}`, { method: "DELETE" });
     } catch (err) {
-      logCaptureClientError("web_capture_draft_discard", err, { draftId: id });
+      // Phase IA-capture-409 — if the session is already locked/expired
+      // a DELETE may also 409. That's expected and not a client error.
+      if (!isSessionLockedError(err)) {
+        logCaptureClientError("web_capture_draft_discard", err, {
+          draftId: id,
+        });
+      }
     }
   }, []);
 
@@ -203,6 +281,10 @@ const isMeaningful =
     }
     pendingPayloadRef.current = null;
     draftIdRef.current = null;
+    // Phase IA-capture-409 — finalize is the normal end-of-life for a
+    // draft. Reset lockedRef so the operator can immediately begin a
+    // new capture session in the same page.
+    lockedRef.current = false;
     setDraftId(null);
     setSavingState("idle");
     setLastSavedAt(null);

@@ -393,7 +393,7 @@ describe("CR1.5 Test 14 — capture upload/finalization files unchanged", () => 
     // File-size pin within ±10% per the same CR0.5 pattern. CR1.5 does
     // not touch capture, so the sizes must hold.
     const PINS = [
-        { rel: "src/routes/capture.routes.ts", expectedBytes: 21271 },
+        { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
         { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
     ];
     for (const { rel, expectedBytes } of PINS) {

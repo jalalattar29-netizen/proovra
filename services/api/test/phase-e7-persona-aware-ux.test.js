@@ -288,7 +288,7 @@ describe("E7 Test 7 — 32.8 IA preserved", () => {
 // ===========================================================================
 describe("E7 Test 8 — protected core files unchanged by E7", () => {
     const PINS = [
-        { rel: "src/routes/capture.routes.ts", expectedBytes: 21271 },
+        { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
         { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
         { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
         { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },

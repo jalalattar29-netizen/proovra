@@ -198,7 +198,7 @@ describe("CR4 Group 1 — file-size guards", () => {
 
   it("capture.routes.ts pin (CR1.6 — 21,271 bytes)", () => {
     const sz = statSync(apiSrcPath("routes/capture.routes.ts")).size;
-    expect(sz).toBe(21271);
+    expect(sz).toBe(21793);
   });
 });
 

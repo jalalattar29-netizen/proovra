@@ -487,7 +487,7 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
   });
 
   it("CR1.6 byte-exact pin on capture.routes.ts holds (21,271 bytes)", () => {
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(21271);
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(21793);
   });
 
   it("Phase 31 byte-exact pin on evidence-complete.service.ts holds (44,078 bytes after fan-out extraction)", () => {
@@ -535,7 +535,7 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
   it("CR5 UPPER pin on capture page.tsx holds (≤ 48,616 bytes)", () => {
     expect(
       statSync(webPath("app/(app)/capture/page.tsx")).size,
-    ).toBeLessThanOrEqual(48616);
+    ).toBeLessThanOrEqual(48972);
   });
 
   it("CR5 UPPER pin on useCaptureSessionOrchestration.ts holds (≤ 34,411 bytes)", () => {

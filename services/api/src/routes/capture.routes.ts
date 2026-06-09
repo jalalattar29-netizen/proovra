@@ -438,9 +438,17 @@ export async function captureRoutes(app: FastifyInstance) {
         const session = await loadOwnedDraft(ownerUserId, id);
 
         if (session.status !== prismaPkg.CaptureSessionStatus.DRAFT) {
-          return reply
-            .code(409)
-            .send({ message: "Capture session is no longer editable" });
+          // Phase IA-capture-409 — bounded error code so the frontend
+          // autosave loop can detect the terminal-lock condition
+          // without string-matching the `message`. Without this, every
+          // PATCH after the session moves out of DRAFT (FINALIZED /
+          // DISCARDED / EXPIRED) was logged as a generic error and
+          // the autosave debounce kept re-firing on every keystroke.
+          return reply.code(409).send({
+            code: "CAPTURE_SESSION_NOT_EDITABLE",
+            message: "Capture session is no longer editable",
+            details: { status: session.status },
+          });
         }
 
         const data: prismaPkg.Prisma.CaptureSessionUpdateInput = {};

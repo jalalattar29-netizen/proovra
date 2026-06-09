@@ -371,7 +371,7 @@ describe("R1.5B Part 11 — documentation present + substantial", () => {
 // =============================================================================
 describe("R1.5B Part 12 — capture / custody / TSA / report / package files unchanged", () => {
     const PINS = [
-        { rel: "src/routes/capture.routes.ts", expectedBytes: 21271 },
+        { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
         { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
         { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
         { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },

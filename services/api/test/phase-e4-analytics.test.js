@@ -350,7 +350,7 @@ describe("E4 Test 6 — frontend page contract", () => {
 // ===========================================================================
 describe("E4 Test 7 — protected core files untouched", () => {
     const PINS = [
-        { rel: "src/routes/capture.routes.ts", expectedBytes: 21271 },
+        { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
         { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
         { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
         { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },

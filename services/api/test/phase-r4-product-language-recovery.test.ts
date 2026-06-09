@@ -333,7 +333,7 @@ describe("R4 Part 11 — R4 documentation present", () => {
 
 describe("R4 Part 12 — canonical capture / custody / TSA / report files unchanged", () => {
   const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21271 },
+    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
     { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
     { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
     { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },

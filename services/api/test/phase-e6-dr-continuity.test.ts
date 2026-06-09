@@ -375,7 +375,7 @@ describe("E6 Test 7 — no secret values exposed in phase doc / runbooks", () =>
 
 describe("E6 Test 8 — protected core files unchanged by E6", () => {
   const PINS: ReadonlyArray<{ rel: string; expectedBytes: number }> = [
-    { rel: "src/routes/capture.routes.ts", expectedBytes: 21271 },
+    { rel: "src/routes/capture.routes.ts", expectedBytes: 21793 },
     { rel: "src/services/evidence-complete.service.ts", expectedBytes: 46824 },
     { rel: "src/services/custody-events.service.ts", expectedBytes: 5155 },
     { rel: "src/services/timestamp.service.ts", expectedBytes: 12988 },
