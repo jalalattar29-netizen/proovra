@@ -99,7 +99,7 @@ export function CaptureOperationalSummary({
   return (
     <section
       role="status"
-      aria-label={`Capture operational summary — readiness ${LEVEL_LABEL[readiness.level]}`}
+      aria-label={`Capture readiness summary — readiness ${LEVEL_LABEL[readiness.level]}`}
       data-capture-operational-summary
       data-capture-operational-summary-level={readiness.level}
       data-capture-operational-summary-workflow={workflow}

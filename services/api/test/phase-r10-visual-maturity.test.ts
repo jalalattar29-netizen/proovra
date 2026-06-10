@@ -532,10 +532,14 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     ).toBeLessThanOrEqual(255081);
   });
 
-  it("CR5 UPPER pin on capture page.tsx holds (≤ 48,616 bytes)", () => {
+  // Phase IA-self-serve-completion rebaseline: 48,972 → 49,830 after
+  // the audit-fix pass added plain-language eyebrow + heading rename
+  // ("Reviewer note" → "Your notes") + placeholder rewrite + bounded
+  // comments. No behaviour change.
+  it("CR5 UPPER pin on capture page.tsx holds (≤ 49,830 bytes)", () => {
     expect(
       statSync(webPath("app/(app)/capture/page.tsx")).size,
-    ).toBeLessThanOrEqual(48972);
+    ).toBeLessThanOrEqual(49830);
   });
 
   it("CR5 UPPER pin on useCaptureSessionOrchestration.ts holds (≤ 34,411 bytes)", () => {

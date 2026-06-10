@@ -196,17 +196,23 @@ export function buildOtsCallout(evidence: ReportEvidence): CalloutModel {
   });
   const baseStatusTone = normalizeOtsTone(evidence.otsStatus);
 
+  // Phase IA-OTS-hybrid-fix (UX correction) — visible report cards
+  // show SHORT canonical status words: "Anchored" / "Pending" /
+  // "Failed" / "Unavailable". The detailed PENDING+txid prose lives
+  // ONLY in the technical appendix + smoke/debug output via
+  // `mapOtsStatusTechnicalDetail`. The body of this callout still
+  // explains the state in two short sentences so the reader has
+  // enough context without leaking implementation jargon.
+
   return {
     title:
       tone === "success"
-        ? "Bitcoin anchoring verified"
+        ? "Anchored"
         : tone === "warning"
-          ? baseStatusTone === "success"
-            ? "OpenTimestamps proof present; public anchoring pending"
-            : "OpenTimestamps proof present; public anchoring pending"
+          ? "Pending"
           : tone === "danger"
-            ? "OpenTimestamps anchoring failed"
-            : "OpenTimestamps unavailable",
+            ? "Failed"
+            : "Unavailable",
     body:
       tone === "success"
         ? "An OpenTimestamps proof is recorded with a Bitcoin transaction reference. This supports independent public anchoring evidence."

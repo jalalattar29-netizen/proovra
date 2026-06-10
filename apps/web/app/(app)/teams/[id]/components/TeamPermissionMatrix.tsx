@@ -416,13 +416,16 @@ export function TeamPermissionMatrix({
       className="rounded-[24px] border border-[rgba(79,112,107,0.10)] bg-white/55 p-5 md:p-6"
     >
       <header className="mb-4">
+        {/* Phase IA-self-serve-completion — "Permission matrix" reads
+            as SOC2-audit vocabulary to a 3-person law office. Renamed
+            to plain-language "Who can do what" without changing the
+            grid semantics or the underlying RBAC mapping. */}
         <h2 className="m-0 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-          Permission matrix
+          Who can do what
         </h2>
         <p className="m-0 mt-1 text-[12.5px] leading-snug text-[#6a777b]">
-          What each workspace role can do today. This matrix mirrors backend
-          enforcement — if a cell isn't checked, the API will refuse the
-          action.{" "}
+          What each role on this team can do. This list mirrors the API —
+          if a cell isn't checked, the action is blocked for that role.{" "}
           {currentRole ? (
             <>
               Your role here is{" "}

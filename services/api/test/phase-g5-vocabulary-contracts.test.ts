@@ -247,6 +247,10 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   // Team-detail page — explicitly named per backend Team model.
   "app/(app)/teams/[id]/page.tsx",
   "app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx",
+  // Phase IA-self-serve-completion — /teams landing list. Uses
+  // "Team" as the displayed entity name (same exemption as the
+  // detail page above) when the org has no displayName/name set.
+  "app/(app)/teams/page.tsx",
   // Reviewer Command Console + Governance Control Plane — older
   // surfaces that still describe the workspace as a "Team workspace".
   "components/command-center/CommandCenter.tsx",
@@ -286,6 +290,21 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   "app/(app)/collaboration-teams/[teamId]/page.tsx",
   "app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx",
   "app/(app)/collaboration-teams/invites/[token]/accept/page.tsx",
+  // -------------------------------------------------------------------
+  // Phase IA-self-serve-simplification — pricing-aligned vocabulary.
+  //
+  // The public pricing page calls one of the plans "Team". The
+  // self-serve simplification adds:
+  //   * `FreeReportsLockedNotice` — the Reports unlock copy explicitly
+  //     names "Pay-Per-Evidence, Pro, or Team" as the plans that
+  //     include reports. Renaming "Team" here would break the
+  //     pricing-page mirror that the brief requires.
+  //   * `SelfServeHomeDashboard` — the "Team activity" section is the
+  //     constitutional Collaboration Teams surface (see Phase 5/6/7
+  //     above). The brief explicitly names this section.
+  // -------------------------------------------------------------------
+  "components/reports-experience/FreeReportsLockedNotice.tsx",
+  "components/home-experience/SelfServeHomeDashboard.tsx",
 ]);
 
 describe("Phase G5.2 — Team → Workspace carryover", () => {

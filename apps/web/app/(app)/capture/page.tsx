@@ -782,8 +782,15 @@ onClick={async () => {
             </div>
 
             <div>
+              {/* Phase IA-self-serve-completion — "Evidence intake
+                  workspace" replaced with "Capture & upload" so the
+                  eyebrow matches how lawyers / journalists describe
+                  this step (capturing, not "intake-ing"). The
+                  underlying class name + Phase reference are preserved
+                  so existing visual styling and dashboards keep
+                  working. */}
               <div className="capture-enterprise-eyebrow">
-                Evidence intake workspace
+                Capture &amp; upload
               </div>
               <h1 className="capture-enterprise-title">Capture Evidence</h1>
               <p className="capture-enterprise-subtitle">
@@ -1299,7 +1306,13 @@ onClick={async () => {
       {isExpanded ? (
         <div className="capture-material-detail-row">
           <div className="capture-material-detail-main">
-            <strong>Reviewer note</strong>
+            {/* Phase IA-self-serve-completion — "Reviewer note" was
+                misleading for self-serve users: they ARE the reviewer
+                and they're adding their own notes for themselves or
+                counsel. Renamed to "Your notes" and the placeholder
+                to plain-language guidance. The underlying field
+                (`privateNote`) and API contract are unchanged. */}
+            <strong>Your notes</strong>
             <p>{mappingHelper}</p>
 
             <textarea
@@ -1310,7 +1323,7 @@ onClick={async () => {
                 })
               }
               disabled={busy}
-              placeholder="Add private reviewer comment for this material."
+              placeholder="Add a note about this material (private to you)."
               maxLength={1000}
               className="capture-material-note"
             />

@@ -93,7 +93,11 @@ describe("Phase IA-OTS-forward-retry — invariant: PENDING outcome MUST schedul
   it("the FULLY_ANCHORED branch is the ONLY terminal-success branch (no spurious follow-up)", () => {
     const idx = UPGRADE_SRC.indexOf('if (classification.kind === "FULLY_ANCHORED")');
     expect(idx).toBeGreaterThan(-1);
-    const block = UPGRADE_SRC.slice(idx, idx + 3000);
+    // Phase IA-OTS-info-fallback — widened from 3000 → 5500 to
+    // accommodate additional custody-payload fields the info probe
+    // adds (`infoStatus`, `infoFileHashMatches`, `infoBlockHeights`)
+    // and the 3-way completionSource conditional.
+    const block = UPGRADE_SRC.slice(idx, idx + 5500);
     expect(block).toMatch(/status:\s*"ANCHORED"/);
     // FULLY_ANCHORED enqueues report regen but NOT another upgrade job.
     expect(block).toMatch(/enqueueReportJob\(evidenceId,\s*\{/);

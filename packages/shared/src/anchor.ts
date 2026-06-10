@@ -117,6 +117,10 @@ export function deriveAnchorSemantics(
     anchoringStatus = "pending";
   }
 
+  // Phase IA-OTS-hybrid-fix (UX correction) — visible callers keep the
+  // existing short-form anchor labels. Detailed PENDING+txid
+  // explanation is provided to technical-appendix surfaces via the
+  // worker's `mapOtsStatusTechnicalDetail` helper, not here.
   const anchoringLabel =
     anchoringStatus === "verified"
       ? "Bitcoin anchoring verified"

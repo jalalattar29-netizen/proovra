@@ -218,6 +218,9 @@ export function mapOtsStatusPublicLabel(status) {
  * report / verify / package surfaces should prefer when they have the txid.
  */
 export function mapOtsStatusPublicLabelWithTxid(params) {
+    // Phase IA-OTS-hybrid-fix (UX correction) — visible card surfaces
+    // stay on short labels. The detailed PENDING+txid sentence lives
+    // in `mapOtsStatusTechnicalDetail` (technical appendix only).
     const status = safe(params.status, "").toUpperCase();
     const hasTxid = typeof params.bitcoinTxid === "string" &&
         /^[a-f0-9]{64}$/i.test(params.bitcoinTxid.trim());
@@ -225,6 +228,46 @@ export function mapOtsStatusPublicLabelWithTxid(params) {
         return "Bitcoin anchoring verified";
     }
     return mapOtsStatusPublicLabel(params.status);
+}
+// Phase IA-OTS-hybrid-fix (UX correction) — short canonical status
+// word for visible cover tiles + status badges. Tracks the same
+// mapping as `mapOtsStatusShortLabel` in normalizers.ts.
+export function mapOtsStatusShortLabel(status) {
+    switch (safe(status, "").toUpperCase()) {
+        case "ANCHORED":
+            return "Anchored";
+        case "PENDING":
+            return "Pending";
+        case "FAILED":
+            return "Failed";
+        case "DISABLED":
+            return "Unavailable";
+        default:
+            return "Not configured";
+    }
+}
+// Phase IA-OTS-hybrid-fix (UX correction) — long technical detail
+// for the technical appendix only. NEVER use from a card/badge.
+export function mapOtsStatusTechnicalDetail(params) {
+    const status = safe(params.status, "").toUpperCase();
+    const hasTxid = typeof params.bitcoinTxid === "string" &&
+        /^[a-f0-9]{64}$/i.test(params.bitcoinTxid.trim());
+    switch (status) {
+        case "ANCHORED":
+            return hasTxid
+                ? "OTS proof anchored; Bitcoin transaction id recorded; verification complete."
+                : "OTS proof anchored; no Bitcoin transaction id recorded yet.";
+        case "PENDING":
+            return hasTxid
+                ? "OTS proof present; Bitcoin transaction id detected; verification pending."
+                : "OTS proof present; public anchoring pending.";
+        case "FAILED":
+            return "OTS anchoring failed.";
+        case "DISABLED":
+            return "OTS unavailable.";
+        default:
+            return "OTS not configured.";
+    }
 }
 export function mapObjectLockModePublicLabel(mode) {
     switch (safe(mode, "").toUpperCase()) {

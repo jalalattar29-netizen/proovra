@@ -32,6 +32,12 @@ import {
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
+// Phase IA-self-serve-simplification — gate the admin-only "Enable
+// semantic search" deep link on /integrations eligibility. Self-serve
+// admins still have isAdmin=true, but /integrations is ENTERPRISE_ONLY
+// for their tier — they must not see the link.
+import { canAccessSurface } from "../../../lib/surface/access";
+import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContext";
 // -----------------------------------------------------------------------------
 // Wire-level types — kept loose so we don't drag the API SDK in here.
 // -----------------------------------------------------------------------------
@@ -243,6 +249,27 @@ function SearchInner() {
   // the panel and the dry-run endpoint stays unreached from the UI.
   const { envelope } = usePlatformContext();
   const isPlatformAdmin = envelope?.platform?.isPlatformAdmin === true;
+  // Phase IA-self-serve-simplification — surface-tier check for the
+  // "Enable semantic search" deep link. /integrations is ENTERPRISE
+  // (with a bounded redirect for non-eligible users), so we hide the
+  // link from sidebar/topbar/All Tools AND from this no-results CTA.
+  const surfaceUserCtx = useSurfaceUserContext();
+  const canSeeIntegrations = canAccessSurface(
+    surfaceUserCtx,
+    "/integrations",
+  );
+  // Phase IA-self-serve-completion — gates for the inspector pivot
+  // links. /workflows and /investigation are both ENTERPRISE_ONLY
+  // surfaces; clicking them as a self-serve user previously hit a
+  // bounded 404. We now hide the pivot links and rename the section
+  // so self-serve users see a clean "Related evidence" rail instead
+  // of an "Investigation pivots" rail that promised features they
+  // could not reach.
+  const canSeeWorkflows = canAccessSurface(surfaceUserCtx, "/workflows");
+  const canSeeInvestigation = canAccessSurface(
+    surfaceUserCtx,
+    "/investigation",
+  );
   const [filter, setFilter] = useState<FilterState | null>(null);
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -874,6 +901,7 @@ function SearchInner() {
                 // anywhere.
                 <NoResultsHelp
                   isAdmin={isAdmin}
+                  canSeeIntegrations={canSeeIntegrations}
                   semanticAvailable={semanticAvailable}
                   mode={effectiveMode}
                   modeUsed={modeUsed}
@@ -956,6 +984,8 @@ function SearchInner() {
               row={selected}
               relationships={relationships}
               teamId={teamId}
+              canSeeWorkflows={canSeeWorkflows}
+              canSeeInvestigation={canSeeInvestigation}
             />
           )}
         </aside>
@@ -972,10 +1002,18 @@ function Inspector({
   row,
   relationships,
   teamId,
+  canSeeWorkflows,
+  canSeeInvestigation,
 }: {
   row: ResultRow;
   relationships: Relationship[] | null;
   teamId: string;
+  // Phase IA-self-serve-completion — surface-tier gates for the
+  // pointer + pivot links. Self-serve users see the IDs but not the
+  // links, and the "Investigation pivots" section is renamed and
+  // hidden when neither investigation nor workflow links can render.
+  canSeeWorkflows: boolean;
+  canSeeInvestigation: boolean;
 }) {
   return (
     <div>
@@ -1021,12 +1059,19 @@ function Inspector({
           <KeyVal
             label="Workflow"
             value={
-              <a
-                href={`/workflows/${row.workflowInstanceId}`}
-                style={pointerLinkStyle}
-              >
-                {row.workflowInstanceId}
-              </a>
+              canSeeWorkflows ? (
+                <a
+                  href={`/workflows/${row.workflowInstanceId}`}
+                  style={pointerLinkStyle}
+                >
+                  {row.workflowInstanceId}
+                </a>
+              ) : (
+                // Phase IA-self-serve-completion — show the ID but
+                // not the link for self-serve users. /workflows is
+                // ENTERPRISE_ONLY.
+                <span>{row.workflowInstanceId}</span>
+              )
             }
             mono
           />
@@ -1051,7 +1096,16 @@ function Inspector({
         ) : null}
       </Section>
 
-      {(row.evidenceId || row.caseId) ? (
+      {/* Phase IA-self-serve-completion — for self-serve users
+          (canSeeInvestigation === false) the "Investigation pivots"
+          section is renamed "Related evidence" and the three
+          /investigation/* links are dropped. The semantic-score
+          caption still renders so users understand why a row was
+          surfaced even without the investigation tools. The section
+          only renders for self-serve when there is a semantic-score
+          caption to show; otherwise the entire block is dropped to
+          avoid an empty section header. */}
+      {canSeeInvestigation && (row.evidenceId || row.caseId) ? (
         <Section label="Investigation pivots">
           {/* Phase 15 — when the selected row carries a semantic score,
               caption the pivots so the operator knows the chain that
@@ -1106,6 +1160,17 @@ function Inspector({
               }
             />
           ) : null}
+        </Section>
+      ) : null}
+      {!canSeeInvestigation &&
+      typeof row.semanticScore === "number" &&
+      row.semanticScore > 0 ? (
+        // Self-serve rail — keep the semantic-score caption only.
+        <Section label="Related evidence">
+          <p style={semanticPivotCaptionStyle}>
+            Semantically similar to: {row.title.slice(0, 80)}
+            {row.title.length > 80 ? "…" : ""}
+          </p>
         </Section>
       ) : null}
 
@@ -1445,12 +1510,17 @@ function humaniseFallbackReason(code: string | null): string | null {
 
 function NoResultsHelp({
   isAdmin,
+  canSeeIntegrations,
   semanticAvailable,
   mode,
   modeUsed,
   onSwitchToHybrid,
 }: {
   isAdmin: boolean;
+  // Phase IA-self-serve-simplification — surface-tier gate for the
+  // "Enable semantic search" deep link. Self-serve admins still have
+  // isAdmin=true but cannot access /integrations.
+  canSeeIntegrations: boolean;
   semanticAvailable: boolean;
   // Phase 16 — the operator's requested mode + the mode the backend
   // actually ran. When the operator searched keyword-only with
@@ -1503,7 +1573,7 @@ function NoResultsHelp({
             </button>
           </li>
         ) : null}
-        {isAdmin && !semanticAvailable ? (
+        {isAdmin && canSeeIntegrations && !semanticAvailable ? (
           <li>
             <Link href="/integrations" style={pointerLinkStyle}>
               Enable semantic search

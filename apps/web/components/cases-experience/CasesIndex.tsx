@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * Phase 32.8D-frontend — Matter Operations Queue.
+ * Phase 32.8D-frontend — Cases list surface.
  *
  * The /cases route is no longer a CRUD card list. It is the
- * team-scoped Matter Operations Queue, sourced from
+ * team-scoped cases queue, sourced from
  * `GET /v1/cases/matter-queue`. Each row surfaces:
  *
  *   - case identity (name, reference number)
@@ -190,9 +190,9 @@ export function CasesIndex() {
       return (
         <main className="cc-page" data-cases-no-workspace>
           <CapabilityDegradedPanel
-            surface="Matter Operations Queue"
+            surface="Cases"
             requiredCapability="CASES_VIEW"
-            reason="No active workspace is available for this account. Create or switch into a workspace to view the matter queue."
+            reason="No active workspace is available for this account. Create or switch into a workspace to view your cases."
             alternatives={[
               { label: "View your evidence", href: "/evidence" },
               { label: "Generate a report", href: "/reports" },
@@ -231,16 +231,22 @@ export function CasesIndex() {
       <header className="cc-page-header">
         <div>
           <div className="cc-kicker" data-cases-kicker>
-            Investigation {terms.casePlural}
+            Your {terms.casePlural.toLowerCase()}
           </div>
+          {/* Phase IA-self-serve-completion — eyebrow + heading +
+              subtitle rewritten in plain language. The previous
+              wording used enterprise vocabulary that read as
+              call-centre / ops jargon to lawyers and journalists,
+              who manage cases. The counters that the old subtitle
+              narrated are still rendered in the table; only the
+              prose changed. */}
           <h1 className="cc-title" data-cases-title>
-            {terms.casePlural} Operations Queue
+            Your {terms.casePlural.toLowerCase()}
           </h1>
           <p className="cc-subtitle">
-            Real operational state of every case in this team — risk score,
-            evidence gaps, open incidents, governance blockers, reviewer
-            pressure, and legal preservation. Browse is read-only; explicit
-            actions remain audited.
+            Filter by status, risk, or what needs attention. Click a row
+            to open the case and link evidence, place legal holds, or
+            generate a report.
           </p>
         </div>
         <div className="cc-meta">
@@ -373,7 +379,12 @@ function MatterQueueFilters({
           ))}
         </select>
       </div>
-      <div className="cases-filter-chips" role="group" aria-label="Operational filters">
+      {/* Phase IA-self-serve-completion — chip label "Open incidents"
+          replaced with plain-language "Open issues" and the group
+          aria-label changed from "Operational filters" to "Filters".
+          The underlying filter key (`hasOpenIncidents`) and the API
+          contract are unchanged. */}
+      <div className="cases-filter-chips" role="group" aria-label="Filters">
         <FilterToggle
           dataKey="assigned-to-me"
           label="Assigned to me"
@@ -383,7 +394,7 @@ function MatterQueueFilters({
         />
         <FilterToggle
           dataKey="has-open-incidents"
-          label="Open incidents"
+          label="Open issues"
           active={filters.hasOpenIncidents}
           onToggle={() => set("hasOpenIncidents", !filters.hasOpenIncidents)}
         />
@@ -726,12 +737,15 @@ function reasonCodeLabel(code: string): string {
 // ---------------------------------------------------------------------------
 
 function QueueLoading() {
+  // Phase IA-self-serve-completion — loading-state heading mirrors the
+  // ready-state heading so the eyebrow does not flip from
+  // "Your cases" → "Investigation Matters" while loading.
   return (
     <main className="cc-page" data-matter-queue-loading>
       <header className="cc-page-header">
         <div>
-          <div className="cc-kicker">Investigation Matters</div>
-          <h1 className="cc-title">Matter Operations Queue</h1>
+          <div className="cc-kicker">Your cases</div>
+          <h1 className="cc-title">Your cases</h1>
         </div>
       </header>
       <section className="cc-section">

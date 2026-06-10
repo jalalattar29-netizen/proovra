@@ -159,10 +159,14 @@ export function CheckoutPanel({
       ];
     }
 
+    // Phase IA-self-serve-completion — added the first line below to
+    // make the per-user vs per-team distinction explicit. Solo lawyers
+    // / journalists evaluating "PRO allows 2 teams" could not tell
+    // whether PRO upgraded them or one team they were in.
     return [
-      "PAYG and PRO apply to your personal workspace.",
-      "PRO supports team ownership and allows up to 2 owned teams.",
-      "TEAM is the higher tier for owners who need up to 5 owned teams.",
+      "PAYG, PRO, and TEAM apply to your personal account.",
+      "Each team workspace you own can also have its own dedicated TEAM subscription.",
+      "PRO allows you to own up to 2 teams; TEAM raises that to 5.",
       "Each single team still has a hard limit of 5 actual members.",
     ];
   }, [targetType]);

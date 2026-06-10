@@ -1,0 +1,567 @@
+/**
+ * Phase IA-self-serve-audit-fixes — source-contract pins for the
+ * 34-issue audit-implementation pass.
+ *
+ * Each block below covers one fixed page. The pins are regex over the
+ * actual file text, so a future refactor that drops a gate, reverts a
+ * rename, or re-introduces a hidden href will trip the suite.
+ *
+ * Coverage map:
+ *   1. Search — /workflows + /investigation inspector gates, section
+ *      rename for self-serve.
+ *   2. Trust — /governance card surfaceHref gate + body rewrite.
+ *   3. Intake Links — feature-disabled rewrite, form label rename,
+ *      mode label rename.
+ *   4. Teams — landing page exists + matrix / access-review renames.
+ *   5. Billing — checkout-panel clarification + "shared evidence
+ *      workflows" replacement.
+ *   6. Cases List — eyebrow + filter chip + group aria-label.
+ *   7. Capture — aria-label, eyebrow, placeholder.
+ *   8. Case Detail — empty-state copy rewrites + SIU rename.
+ *   9. Evidence Detail — gates for governance / reviewer-ops /
+ *      intelligence / intake-links, plus hero + section renames.
+ *
+ *   10. Vocabulary sweep — page-level grep over the core self-serve
+ *       pages confirming the banned phrases are gone.
+ *   11. Hidden-link sweep — page-level grep confirming the core
+ *       self-serve pages do NOT render bare hrefs to the hidden
+ *       surfaces.
+ */
+
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { describe, expect, it } from "vitest";
+
+function readWeb(rel: string): string {
+  return readFileSync(
+    fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url)),
+    "utf8",
+  );
+}
+
+function webPath(rel: string): string {
+  return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
+}
+
+// ============================================================================
+// 1. Search — inspector gates
+// ============================================================================
+
+describe("Phase IA-self-serve-audit-fixes — Search inspector gates", () => {
+  const SEARCH = readWeb("app/(app)/search/page.tsx");
+
+  it("computes canSeeWorkflows + canSeeInvestigation gates", () => {
+    expect(SEARCH).toMatch(
+      /const canSeeWorkflows\s*=\s*canAccessSurface\(surfaceUserCtx,\s*"\/workflows"\)/,
+    );
+    expect(SEARCH).toMatch(
+      /const canSeeInvestigation\s*=\s*canAccessSurface\(\s*surfaceUserCtx,\s*"\/investigation"/,
+    );
+  });
+
+  it("passes both gates into the Inspector component", () => {
+    expect(SEARCH).toMatch(
+      /<Inspector[\s\S]{0,500}canSeeWorkflows=\{canSeeWorkflows\}/,
+    );
+    expect(SEARCH).toMatch(
+      /<Inspector[\s\S]{0,500}canSeeInvestigation=\{canSeeInvestigation\}/,
+    );
+  });
+
+  it("Inspector function signature declares both new props", () => {
+    expect(SEARCH).toMatch(
+      /canSeeWorkflows: boolean[\s\S]{0,200}canSeeInvestigation: boolean/,
+    );
+  });
+
+  it("Workflow pointer link is gated on canSeeWorkflows (self-serve sees the ID without a link)", () => {
+    expect(SEARCH).toMatch(
+      /canSeeWorkflows \?[\s\S]{0,400}<a[\s\S]{0,200}\/workflows\//,
+    );
+  });
+
+  it("Investigation pivots section is gated on canSeeInvestigation", () => {
+    expect(SEARCH).toMatch(
+      /canSeeInvestigation && \(row\.evidenceId \|\| row\.caseId\)[\s\S]{0,200}<Section label="Investigation pivots"/,
+    );
+  });
+
+  it("renders a 'Related evidence' fallback section for self-serve users with a semantic score", () => {
+    expect(SEARCH).toMatch(
+      /!canSeeInvestigation &&\s*[\s\S]{0,400}<Section label="Related evidence"/,
+    );
+  });
+});
+
+// ============================================================================
+// 2. Trust — Governance card gate
+// ============================================================================
+
+describe("Phase IA-self-serve-audit-fixes — Trust governance card gate", () => {
+  const TRUST = readWeb("app/(app)/trust/page.tsx");
+
+  it("file is a client component (hook usage requires it)", () => {
+    expect(TRUST).toMatch(/^[\s\S]{0,800}"use client";/);
+  });
+
+  it("imports canAccessSurface + useSurfaceUserContext", () => {
+    expect(TRUST).toMatch(
+      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/access["']/,
+    );
+    expect(TRUST).toMatch(
+      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
+    );
+  });
+
+  it("TrustCard type adds an optional surfaceHref field", () => {
+    expect(TRUST).toMatch(/surfaceHref\?: string/);
+  });
+
+  it("Governance posture card declares surfaceHref: '/governance'", () => {
+    expect(TRUST).toMatch(
+      /title:\s*"Governance posture"[\s\S]{0,400}surfaceHref:\s*"\/governance"/,
+    );
+  });
+
+  it("Governance card body no longer references 'lifecycle orchestrator'", () => {
+    expect(TRUST).not.toMatch(/Lifecycle orchestrator state/i);
+  });
+
+  it("the render loop filters by canAccessSurface before mapping cards", () => {
+    expect(TRUST).toMatch(
+      /visibleCards\s*=\s*TRUST_CARDS\.filter\([\s\S]{0,300}canAccessSurface\(surfaceUserCtx,\s*card\.surfaceHref\)/,
+    );
+    expect(TRUST).toMatch(/\{visibleCards\.map\(/);
+  });
+});
+
+// ============================================================================
+// 3. Intake Links — copy rewrites
+// ============================================================================
+
+describe("Phase IA-self-serve-audit-fixes — Intake Links copy", () => {
+  const INTAKE = readWeb("app/(app)/intake-links/page.tsx");
+
+  it("Pseudonymous mode label is now 'Alias — contributor chooses a name to display'", () => {
+    expect(INTAKE).toMatch(
+      /value:\s*"EXTERNAL_PSEUDONYMOUS",\s*label:\s*"Alias — contributor chooses a name to display"/,
+    );
+  });
+
+  it("feature-disabled state drops platform-administrator / deployment-runbook jargon", () => {
+    expect(INTAKE).not.toMatch(/platform administrator/);
+    expect(INTAKE).not.toMatch(/deployment runbook/);
+    expect(INTAKE).not.toMatch(/deployment-level configuration/);
+  });
+
+  it("feature-disabled state uses plain-language IT-admin guidance", () => {
+    expect(INTAKE).toMatch(
+      /Contact your IT administrator or your PROOVRA support contact/,
+    );
+  });
+
+  it("form label 'Workflow template' renamed to 'Evidence request form'", () => {
+    expect(INTAKE).toMatch(/<label[^>]*>Evidence request form<\/label>/);
+    expect(INTAKE).not.toMatch(/<label[^>]*>Workflow template<\/label>/);
+  });
+});
+
+// ============================================================================
+// 4. Teams — landing + matrix renames
+// ============================================================================
+
+describe("Phase IA-self-serve-audit-fixes — Teams landing + renames", () => {
+  it("/teams/page.tsx exists (landing list)", () => {
+    expect(existsSync(webPath("app/(app)/teams/page.tsx"))).toBe(true);
+  });
+
+  it("the landing page uses PageRouteGate routeId='admin.teams'", () => {
+    const SRC = readWeb("app/(app)/teams/page.tsx");
+    expect(SRC).toMatch(/<PageRouteGate routeId="admin\.teams">/);
+  });
+
+  it("the landing page reads useOrganizations() (no new API fetches)", () => {
+    const SRC = readWeb("app/(app)/teams/page.tsx");
+    expect(SRC).toMatch(/useOrganizations\(\)/);
+  });
+
+  it("the landing page renders /teams/{id} links per org", () => {
+    const SRC = readWeb("app/(app)/teams/page.tsx");
+    expect(SRC).toMatch(/href=\{`\/teams\/\$\{org\.id\}`\}/);
+  });
+
+  it("the landing page shows a 'Go to Billing' CTA when there are no teams", () => {
+    const SRC = readWeb("app/(app)/teams/page.tsx");
+    expect(SRC).toMatch(/href="\/billing"[\s\S]{0,200}Go to Billing/);
+  });
+
+  it("TeamPermissionMatrix renamed 'Permission matrix' → 'Who can do what'", () => {
+    const SRC = readWeb("app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx");
+    expect(SRC).toMatch(/Who can do what/);
+    expect(SRC).not.toMatch(/>\s*Permission matrix\s*</);
+  });
+
+  it("TeamAccessReviewCard renamed 'Access review' → 'Member roles'", () => {
+    const SRC = readWeb("app/(app)/teams/[id]/components/TeamAccessReviewCard.tsx");
+    expect(SRC).toMatch(/>\s*Member roles\s*</);
+    expect(SRC).not.toMatch(/>\s*Access review\s*</);
+  });
+});
+
+// ============================================================================
+// 5. Billing — copy fixes
+// ============================================================================
+
+describe("Phase IA-self-serve-audit-fixes — Billing copy", () => {
+  const BILLING = readWeb("app/(app)/billing/page.tsx");
+  const CHECKOUT = readWeb("components/billing/CheckoutPanel.tsx");
+
+  it("'operate shared evidence workflows' is gone", () => {
+    expect(BILLING).not.toMatch(/operate shared evidence workflows/i);
+  });
+
+  it("Billing empty-state copy uses 'share cases and evidence with collaborators'", () => {
+    // JSX text spans two source lines — allow whitespace between
+    // "and" and "evidence".
+    expect(BILLING).toMatch(
+      /share cases and\s+evidence with collaborators/,
+    );
+  });
+
+  it("CheckoutPanel lists the per-account / per-team clarification", () => {
+    expect(CHECKOUT).toMatch(
+      /PAYG, PRO, and TEAM apply to your personal account\./,
+    );
+    expect(CHECKOUT).toMatch(
+      /Each team workspace you own can also have its own dedicated TEAM subscription\./,
+    );
+  });
+});
+
+// ============================================================================
+// 6. Cases List — terminology
+// ============================================================================
+
+describe("Phase IA-self-serve-audit-fixes — Cases List terminology", () => {
+  const CASES = readWeb("components/cases-experience/CasesIndex.tsx");
+
+  it("eyebrow + heading rewritten in plain language", () => {
+    expect(CASES).not.toMatch(/Investigation \{terms\.casePlural\}/);
+    expect(CASES).not.toMatch(/Operations Queue/);
+    expect(CASES).toMatch(/Your \{terms\.casePlural\.toLowerCase\(\)\}/);
+  });
+
+  it("filter chip 'Open incidents' → 'Open issues'", () => {
+    expect(CASES).toMatch(/label="Open issues"/);
+    expect(CASES).not.toMatch(/label="Open incidents"/);
+  });
+
+  it("filter-chip group aria-label rewritten from 'Operational filters' to 'Filters'", () => {
+    expect(CASES).toMatch(/aria-label="Filters"/);
+    expect(CASES).not.toMatch(/aria-label="Operational filters"/);
+  });
+});
+
+// ============================================================================
+// 7. Capture — terminology
+// ============================================================================
+
+describe("Phase IA-self-serve-audit-fixes — Capture terminology", () => {
+  const CAPTURE = readWeb("app/(app)/capture/page.tsx");
+  const SUMMARY = readWeb("app/(app)/capture/_lib/CaptureOperationalSummary.tsx");
+
+  it("CaptureOperationalSummary aria-label uses 'readiness summary' (not 'operational summary')", () => {
+    expect(SUMMARY).toMatch(/Capture readiness summary/);
+    expect(SUMMARY).not.toMatch(/Capture operational summary —/);
+  });
+
+  it("capture page eyebrow is 'Capture & upload' (not 'Evidence intake workspace')", () => {
+    expect(CAPTURE).toMatch(/Capture &amp; upload/);
+    expect(CAPTURE).not.toMatch(/>\s*Evidence intake workspace\s*</);
+  });
+
+  it("material detail note heading renamed 'Reviewer note' → 'Your notes'", () => {
+    expect(CAPTURE).toMatch(/<strong>Your notes<\/strong>/);
+    expect(CAPTURE).not.toMatch(/<strong>Reviewer note<\/strong>/);
+  });
+
+  it("material detail placeholder is plain language", () => {
+    expect(CAPTURE).toMatch(
+      /placeholder="Add a note about this material \(private to you\)\."/,
+    );
+    expect(CAPTURE).not.toMatch(
+      /placeholder="Add private reviewer comment for this material\."/,
+    );
+  });
+});
+
+// ============================================================================
+// 8. Case Detail — empty-state rewrites
+// ============================================================================
+
+describe("Phase IA-self-serve-audit-fixes — Case Detail empty states", () => {
+  const MATTER = readWeb("components/cases-experience/MatterWorkspace.tsx");
+
+  it("Overview-tab degraded-state copy drops 'command-summary projection' + 'reviewer-ops projection'", () => {
+    expect(MATTER).not.toMatch(/command-summary projection/);
+    expect(MATTER).not.toMatch(/reviewer-ops projection/);
+    expect(MATTER).toMatch(
+      /the case summary data may be temporarily unavailable/,
+    );
+  });
+
+  it("Holds-tab empty state drops 'governance surface' + 'step-up-required'", () => {
+    expect(MATTER).not.toMatch(/matter's governance surface/);
+    expect(MATTER).not.toMatch(/step-up-required for sensitive holds/);
+    expect(MATTER).toMatch(/Use the Holds panel to place a legal hold/);
+  });
+
+  it("Decisions-tab empty state drops 'step-up token' + 'workspace's governance flag'", () => {
+    expect(MATTER).not.toMatch(/step-up token/);
+    expect(MATTER).not.toMatch(/workspace's governance flag/);
+    expect(MATTER).toMatch(
+      /may require an additional confirmation step when configured by your team/,
+    );
+  });
+
+  it("Assignments-tab empty state drops 'per-domain assignment surfaces \\(reviewer-ops, governance\\)'", () => {
+    expect(MATTER).not.toMatch(
+      /per-domain assignment surfaces \(reviewer-ops, governance\)/,
+    );
+    expect(MATTER).toMatch(/Assign teammates to this case using the Assignments panel/);
+  });
+
+  it("SIU tab label is now 'Investigation profile' (id stays 'siu' for backward compat)", () => {
+    expect(MATTER).toMatch(/id:\s*"siu",\s*[\s\S]{0,300}label:\s*"Investigation profile"/);
+  });
+});
+
+// ============================================================================
+// 9. Evidence Detail — gates + renames
+// ============================================================================
+
+describe("Phase IA-self-serve-audit-fixes — Evidence Detail gates", () => {
+  const EVI = readWeb("app/(app)/evidence/[id]/page.tsx");
+
+  it("imports canAccessSurface + useSurfaceUserContext", () => {
+    expect(EVI).toMatch(
+      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/\.\.\/lib\/surface\/access["']/,
+    );
+    expect(EVI).toMatch(
+      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
+    );
+  });
+
+  it("computes all four surface gates", () => {
+    expect(EVI).toMatch(
+      /const canSeeReviewerOps\s*=\s*canAccessSurface\(\s*surfaceUserCtx,\s*"\/reviewer-ops"/,
+    );
+    expect(EVI).toMatch(
+      /const canSeeGovernance\s*=\s*canAccessSurface\(surfaceUserCtx,\s*"\/governance"\)/,
+    );
+    expect(EVI).toMatch(
+      /const canSeeIntelligence\s*=\s*canAccessSurface\(\s*surfaceUserCtx,\s*"\/intelligence"/,
+    );
+    expect(EVI).toMatch(
+      /const canSeeIntakeLinks\s*=\s*canAccessSurface\(\s*surfaceUserCtx,\s*"\/intake-links"/,
+    );
+  });
+
+  it("Governance trio is gated by canSeeGovernance", () => {
+    expect(EVI).toMatch(
+      /\{canSeeGovernance \?\s*\(\s*<>[\s\S]{0,500}<GovernanceSummary variant="evidence"/,
+    );
+    expect(EVI).toMatch(
+      /canSeeGovernance[\s\S]{0,1000}<GovernanceIndicators/,
+    );
+    expect(EVI).toMatch(
+      /canSeeGovernance[\s\S]{0,1500}<GovernanceSnapshotPanel/,
+    );
+  });
+
+  it("EvidenceRequestPanel is gated by canSeeIntakeLinks", () => {
+    expect(EVI).toMatch(
+      /\{canSeeIntakeLinks \?\s*\(\s*<EvidenceRequestPanel/,
+    );
+  });
+
+  it("OperationalTimelinePanel is gated by canSeeReviewerOps", () => {
+    expect(EVI).toMatch(
+      /canSeeReviewerOps && workspace\.reviewWorkflow\?\.teamId[\s\S]{0,200}<OperationalTimelinePanel/,
+    );
+  });
+
+  it("ReviewerWorkflowCard + EvidenceReviewActionsPanel are gated by canSeeReviewerOps", () => {
+    expect(EVI).toMatch(
+      /\{canSeeReviewerOps \?\s*\(\s*<>[\s\S]{0,500}<ReviewerWorkflowCard/,
+    );
+    expect(EVI).toMatch(
+      /canSeeReviewerOps[\s\S]{0,2000}<EvidenceReviewActionsPanel/,
+    );
+  });
+
+  it("self-serve users see a simplified 'Review status' card instead of the workflow machinery", () => {
+    expect(EVI).toMatch(/data-self-serve-review-status/);
+    expect(EVI).toMatch(/title="Review status"/);
+  });
+
+  it("Intelligence section is gated by canSeeIntelligence", () => {
+    expect(EVI).toMatch(
+      /\{canSeeIntelligence \?\s*[\s\S]{0,500}<section className="evidence-detail-section"[\s\S]{0,800}kicker="Extracted content"/,
+    );
+  });
+
+  it("Intelligence empty-state copy drops the 'Phase 11 OCR and transcript wiring' leak", () => {
+    expect(EVI).not.toMatch(/Phase 11 OCR and transcript wiring/);
+  });
+
+  it("hero eyebrow renamed from 'Evidence Review & Defensibility Workspace' to 'Evidence record'", () => {
+    expect(EVI).not.toMatch(/Evidence Review &amp; Defensibility Workspace/);
+    expect(EVI).toMatch(
+      /<p className="evidence-detail-kicker">Evidence record<\/p>/,
+    );
+  });
+
+  it("error-card eyebrow no longer says 'Evidence Review Workspace'", () => {
+    expect(EVI).not.toMatch(/>\s*Evidence Review Workspace\s*</);
+  });
+
+  it("review-tab notes section heading renamed away from 'Reviewer Collaboration'", () => {
+    expect(EVI).not.toMatch(/Notes &amp; Reviewer Collaboration/);
+    expect(EVI).toMatch(/title="Private notes &amp; annotations"/);
+  });
+});
+
+// ============================================================================
+// 10. Vocabulary sweep — banned phrases removed from the core pages
+// ============================================================================
+
+describe("Phase IA-self-serve-audit-fixes — banned-phrase sweep", () => {
+  // Phrases that should NOT appear in ANY of the core self-serve page
+  // files after this phase. Each tuple is (label, regex, files).
+  const BANNED: Array<[string, RegExp, string[]]> = [
+    [
+      "operate shared evidence workflows",
+      /operate shared evidence workflows/i,
+      ["app/(app)/billing/page.tsx"],
+    ],
+    [
+      "platform administrator (Intake feature-disabled)",
+      /platform administrator/,
+      ["app/(app)/intake-links/page.tsx"],
+    ],
+    [
+      "Pseudonymous (Intake mode label)",
+      /Pseudonymous — contributor chooses an alias/,
+      ["app/(app)/intake-links/page.tsx"],
+    ],
+    [
+      "Cases List 'Operations Queue'",
+      /Operations Queue/,
+      ["components/cases-experience/CasesIndex.tsx"],
+    ],
+    [
+      "Cases List 'Open incidents' filter",
+      /label="Open incidents"/,
+      ["components/cases-experience/CasesIndex.tsx"],
+    ],
+    [
+      "Capture 'Evidence intake workspace' eyebrow",
+      />\s*Evidence intake workspace\s*</,
+      ["app/(app)/capture/page.tsx"],
+    ],
+    [
+      "Capture 'Reviewer note' heading",
+      /<strong>Reviewer note<\/strong>/,
+      ["app/(app)/capture/page.tsx"],
+    ],
+    [
+      "Case Detail 'step-up token'",
+      /step-up token/,
+      ["components/cases-experience/MatterWorkspace.tsx"],
+    ],
+    [
+      "Case Detail 'reviewer-ops projection'",
+      /reviewer-ops projection/,
+      ["components/cases-experience/MatterWorkspace.tsx"],
+    ],
+    [
+      "Evidence Detail 'Evidence Review & Defensibility Workspace'",
+      /Evidence Review &amp; Defensibility Workspace/,
+      ["app/(app)/evidence/[id]/page.tsx"],
+    ],
+    [
+      "Evidence Detail 'Notes & Reviewer Collaboration'",
+      /Notes &amp; Reviewer Collaboration/,
+      ["app/(app)/evidence/[id]/page.tsx"],
+    ],
+    [
+      "Trust 'Lifecycle orchestrator state'",
+      /Lifecycle orchestrator state/i,
+      ["app/(app)/trust/page.tsx"],
+    ],
+  ];
+
+  for (const [label, re, files] of BANNED) {
+    for (const f of files) {
+      it(`${f} must not contain: ${label}`, () => {
+        const src = readWeb(f);
+        expect(src).not.toMatch(re);
+      });
+    }
+  }
+});
+
+// ============================================================================
+// 11. Hidden-link sweep — none of the core self-serve pages render a bare
+//     href to a hidden ENTERPRISE surface (links are either absent, or
+//     wrapped in an explicit canAccessSurface gate).
+// ============================================================================
+
+describe("Phase IA-self-serve-audit-fixes — hidden-link sweep", () => {
+  // Pages that should NOT contain UNGATED hrefs to a hidden surface.
+  // We check each href appears either inside a canAccessSurface
+  // expression (via a literal "canSee" identifier near the href) OR
+  // not at all. The bookkeeping for "near a canSee gate" is
+  // approximated by allowing the href only when the file also
+  // declares the matching canSee constant — Search and Evidence Detail
+  // both fall in this bucket.
+  type Check = { page: string; href: string; allowedIfGate: string | null };
+
+  const CHECKS: Check[] = [
+    // Settings tree — was already gated this session
+    { page: "app/(app)/settings/page.tsx", href: "/security-center", allowedIfGate: "canSeeWorkspaceSecurity" },
+    { page: "app/(app)/settings/security/page.tsx", href: "/security-center", allowedIfGate: "canSeeWorkspaceSecurity" },
+    // Search — gated this phase
+    { page: "app/(app)/search/page.tsx", href: "/workflows/", allowedIfGate: "canSeeWorkflows" },
+    { page: "app/(app)/search/page.tsx", href: "/investigation/", allowedIfGate: "canSeeInvestigation" },
+    { page: "app/(app)/search/page.tsx", href: "/integrations", allowedIfGate: "canSeeIntegrations" },
+    // Trust — Governance card gated this phase
+    { page: "app/(app)/trust/page.tsx", href: "/governance", allowedIfGate: "canAccessSurface" },
+    // Billing — no hidden hrefs at all
+    { page: "app/(app)/billing/page.tsx", href: "/workflows", allowedIfGate: null },
+    { page: "app/(app)/billing/page.tsx", href: "/governance", allowedIfGate: null },
+  ];
+
+  for (const c of CHECKS) {
+    it(`${c.page} ${c.allowedIfGate ? `references ${c.href} only under ${c.allowedIfGate}` : `does NOT reference ${c.href}`}`, () => {
+      const src = readWeb(c.page);
+      const safe = c.href.replace(/\//g, "\\/");
+      const re = new RegExp(`href=["'\`\\{][^"'\\\`\\}]*${safe}`);
+      const hasHref = re.test(src);
+      if (!c.allowedIfGate) {
+        expect(hasHref, `${c.page} must not link to ${c.href}`).toBe(false);
+      } else if (hasHref) {
+        expect(
+          src,
+          `${c.page} links to ${c.href} but does not also reference the ${c.allowedIfGate} gate`,
+        ).toMatch(new RegExp(c.allowedIfGate));
+      } else {
+        // If the file no longer references the href at all, that's
+        // also fine — the audit just wants no UNGATED reference.
+        expect(true).toBe(true);
+      }
+    });
+  }
+});

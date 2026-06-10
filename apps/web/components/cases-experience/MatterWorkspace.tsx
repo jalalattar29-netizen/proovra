@@ -340,9 +340,14 @@ const TABS: ReadonlyArray<{
   // views, export preflight). The component was orphaned prior to
   // this mount despite a fully-wired backend at /v1/cases/:id/siu-*.
   {
+    // Phase IA-self-serve-completion — "SIU" (Special Investigation
+    // Unit) was an opaque acronym for lawyers / journalists. Renamed
+    // to plain-language "Investigation profile". The tab id stays
+    // `siu` so the keyboard shortcut (`g i`) and the underlying
+    // SiuPanel + /v1/cases/:id/siu-* endpoints are unchanged.
     id: "siu",
-    label: "SIU",
-    description: "SIU profile · checklist · indicators · export",
+    label: "Investigation profile",
+    description: "Profile · checklist · indicators · export",
   },
   { id: "audit", label: "Audit", description: "Operational traceability" },
   { id: "export", label: "Export", description: "Report + Package readiness" },
@@ -701,10 +706,13 @@ export function MatterWorkspace({
 function OverviewTab({ envelope }: { envelope: MatterEnvelope }) {
   const s = envelope.sections.commandSummary.data;
   if (!s) {
+    // Phase IA-self-serve-completion — rewrote degraded-state copy to
+    // drop the internal store names in favour of plain language.
+    // Other tabs still render even when this summary is unavailable.
     return (
       <EmptyState
-        title="Matter posture unavailable"
-        body="The command-summary projection could not be computed. Other tabs may still render. Try reloading; if the section remains degraded, the workspace's reviewer-ops projection may be temporarily unavailable."
+        title="Case summary unavailable"
+        body="The case summary couldn't load. Other tabs may still work. Try reloading the page; if this section stays empty, the case summary data may be temporarily unavailable."
       />
     );
   }
@@ -1031,10 +1039,16 @@ function HoldsTab({
 }) {
   const gov = envelope.sections.governance;
   if (gov.caseHolds.length === 0 && gov.evidenceHolds.length === 0) {
+    // Phase IA-self-serve-completion — dropped the references to
+    // "governance surface" and "parent organization's retention
+    // template" (both ENTERPRISE_ONLY surfaces) and to "step-up
+    // required" jargon. Sensitive holds may still require an extra
+    // confirmation, but that's surfaced inline when the user
+    // attempts the action, not advertised in an empty state.
     return (
       <EmptyState
         title="No holds active"
-        body="No legal or retention holds apply to this matter or its evidence. Place a hold from the matter's governance surface (audited, step-up-required for sensitive holds). Holds inherit from the parent organization's retention template when one is published."
+        body="No legal or retention holds apply to this case or its evidence. Use the Holds panel to place a legal hold when you need one."
       />
     );
   }
@@ -1113,10 +1127,15 @@ function DecisionsTab({
   const wf = envelope.sections.workflows;
   const escalations = envelope.sections.reviewerCoordination.escalations;
   if (wf.items.length === 0 && escalations.length === 0) {
+    // Phase IA-self-serve-completion — replaced identity-engineering
+    // / feature-flag jargon with plain language. The underlying
+    // behaviour (sensitive decisions may require an additional
+    // confirmation step when configured) is unchanged; the copy just
+    // describes it in words a lawyer / journalist can act on.
     return (
       <EmptyState
         title="No review decisions yet"
-        body="Reviewer decisions and escalations appear here once reviewers act on linked evidence. Sensitive decisions (approval, rejection) require a step-up token when the workspace's governance flag is set."
+        body="Decisions and escalations appear here once people act on linked evidence. Sensitive decisions (approval, rejection) may require an additional confirmation step when configured by your team."
       />
     );
   }
@@ -1415,10 +1434,13 @@ function AssignmentsTab({
 }) {
   const assignments = envelope.assignments;
   if (assignments.length === 0) {
+    // Phase IA-self-serve-completion — dropped the references to
+    // hidden enterprise assignment surfaces. The Assignments panel
+    // inline on this tab is still the right place to add people.
     return (
       <EmptyState
         title="No assignments yet"
-        body="Assign investigators, reviewers, or governance owners to this matter from the per-domain assignment surfaces (reviewer-ops, governance). Assignment audits become first-class once one or more roles are assigned."
+        body="Assign teammates to this case using the Assignments panel. The assignment history shows here once someone is assigned."
       />
     );
   }

@@ -207,14 +207,18 @@ export function TeamAccessReviewCard({ teamId }: { teamId: string }) {
       <div className="settings-silver-card__overlay" />
       <div className="settings-silver-card__content p-6 md:p-7">
         <header className="mb-4">
+          {/* Phase IA-self-serve-completion — "Access review" is
+              SOC2-audit vocabulary. Renamed to plain-language
+              "Member roles" without changing the underlying
+              aggregator endpoint or restriction semantics. */}
           <h2 className="m-0 text-[1.08rem] font-semibold tracking-[-0.03em] text-[#21353a]">
-            Access review
+            Member roles
           </h2>
           <p className="m-0 mt-1 text-[12.5px] leading-snug text-[#6a777b]">
-            Everyone with access to this workspace today — internal
-            members, pending invites, and external collaborators with
-            case-scoped grants. Use this card to verify access before
-            audits, role changes, or offboarding.
+            Everyone with access to this team today — members, pending
+            invites, and external collaborators with case-scoped access.
+            Use this list to check who can see what before changing roles
+            or removing someone.
           </p>
         </header>
 
@@ -240,9 +244,9 @@ export function TeamAccessReviewCard({ teamId }: { teamId: string }) {
           <div data-team-access-review-forbidden>
             <AccessGate
               kind="REQUEST_ACCESS"
-              surface="Access review"
-              headline="Access review is restricted to admins"
-              reason="The access-review endpoint requires Admin or Owner role on this team. If you need to audit who has access, ask a team admin to share the access-review summary with you."
+              surface="Member roles"
+              headline="Member roles can only be reviewed by admins"
+              reason="Only an Owner or Admin can see this list of members. Ask a team admin to share who has access if you need that information."
               variant="inline"
               actions={[]}
               testid="team-access-review-access-gate"

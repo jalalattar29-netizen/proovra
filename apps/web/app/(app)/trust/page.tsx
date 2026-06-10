@@ -1,3 +1,11 @@
+// Phase IA-self-serve-completion — Trust hub uses the
+// `useSurfaceUserContext` hook to filter cards bound to ENTERPRISE
+// surfaces. The hook requires a client boundary, so the file is
+// rendered as a client component. The data here is fully static
+// (the TRUST_CARDS array is the entire payload) so client-render is
+// safe and there is no SSR-data dependency to preserve.
+"use client";
+
 /**
  * PHASE 1 PART A — Trust pillar landing page (in-product Trust hub).
  *
@@ -35,6 +43,15 @@
 
 import Link from "next/link";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+// Phase IA-self-serve-completion — gate "Governance posture" + any
+// other surface-tier-restricted trust card so self-serve users do
+// not see cards that would 404 when clicked. The card-level
+// `requires` field is honored at render time by TrustCardView, but
+// for surface-tier-bounded entries we ALSO consult
+// canAccessSurface so the visibility matches the sidebar / All
+// Tools / command palette.
+import { canAccessSurface } from "../../../lib/surface/access";
+import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContext";
 
 type TrustCard = {
   title: string;
@@ -44,6 +61,13 @@ type TrustCard = {
   requires?: string;
   /** When true, the link is external (different URL family). */
   external?: boolean;
+  /**
+   * Optional surface-tier gate. When set, the card only renders if
+   * `canAccessSurface(surfaceUserCtx, surfaceHref)` returns true.
+   * This is the strict bound for ENTERPRISE-only links so a FREE /
+   * PAYG / PRO / TEAM user never sees a card that leads to a 404.
+   */
+  surfaceHref?: string;
 };
 
 const TRUST_CARDS: ReadonlyArray<TrustCard> = [
@@ -87,7 +111,7 @@ const TRUST_CARDS: ReadonlyArray<TrustCard> = [
   },
   {
     title: "Data retention",
-    body: "Retention windows by data class, customer controls, and the lifecycle orchestrator that enforces them.",
+    body: "Retention windows by data class, your retention controls, and how PROOVRA enforces them.",
     href: "/data-retention",
   },
 
@@ -109,10 +133,18 @@ const TRUST_CARDS: ReadonlyArray<TrustCard> = [
     requires: "OPS_CENTER_VIEW",
   },
   {
+    // Phase IA-self-serve-completion — body rewritten in plain
+    // language and the card is additionally gated by
+    // `surfaceHref: "/governance"` so self-serve users (FREE /
+    // PAYG / PRO / TEAM) no longer see it. /governance is
+    // ENTERPRISE_ONLY in the tier table; without this gate the
+    // card was rendered to everyone and clicking it landed on a
+    // bounded 404.
     title: "Governance posture",
-    body: "Lifecycle orchestrator state, retention compliance, destruction reviews, audit posture.",
+    body: "How retention, legal holds, and deletions are managed for your records, plus the audit trail.",
     href: "/governance",
     requires: "GOVERNANCE_VIEW",
+    surfaceHref: "/governance",
   },
 
   // ---------------------------------------------------------------------
@@ -169,6 +201,17 @@ function TrustCardView({ card }: { card: TrustCard }) {
 }
 
 export default function TrustPage() {
+  // Phase IA-self-serve-completion — surface-tier gating for the
+  // trust card grid. Cards with a `surfaceHref` are filtered by
+  // canAccessSurface so self-serve users never see a card that
+  // would 404 when clicked. Cards without `surfaceHref` (the
+  // universal trust + legal disclosures) always render.
+  const surfaceUserCtx = useSurfaceUserContext();
+  const visibleCards = TRUST_CARDS.filter((card) =>
+    card.surfaceHref
+      ? canAccessSurface(surfaceUserCtx, card.surfaceHref)
+      : true,
+  );
   return (
     <PageRouteGate routeId="workspace.trust">
       <div
@@ -205,7 +248,7 @@ export default function TrustPage() {
             gap: 14,
           }}
         >
-          {TRUST_CARDS.map((card) => (
+          {visibleCards.map((card) => (
             <TrustCardView key={card.href} card={card} />
           ))}
         </section>

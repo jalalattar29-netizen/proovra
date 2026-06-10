@@ -69,11 +69,16 @@ type WorkflowTemplateRow = {
 
 type CurrentTeamSummary = { id: string; name: string } | null;
 
+// Phase IA-self-serve-completion — mode label "Pseudonymous" replaced
+// with plain-language "Alias". The underlying API value
+// `EXTERNAL_PSEUDONYMOUS` is unchanged so the backend contract is
+// preserved; only the user-facing label was confusing for lawyers and
+// journalists.
 const INTAKE_MODES = [
   { value: "EXTERNAL_ONE_TIME", label: "One-time link (single contributor, single submission)" },
   { value: "EXTERNAL_REUSABLE", label: "Reusable link (multiple submissions)" },
   { value: "EXTERNAL_ANONYMOUS", label: "Anonymous — no identity recorded" },
-  { value: "EXTERNAL_PSEUDONYMOUS", label: "Pseudonymous — contributor chooses an alias" },
+  { value: "EXTERNAL_PSEUDONYMOUS", label: "Alias — contributor chooses a name to display" },
 ];
 
 const ACCEPTED_KIND_OPTIONS: Array<"PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT"> = [
@@ -227,19 +232,19 @@ function IntakeLinksPageInner() {
     // backend already returns a structured FEATURE_DISABLED error with a
     // bounded reason; render an operator-readable "Configuration
     // required" panel instead and route admins to the setup docs.
+    // Phase IA-self-serve-completion — replaced operator-facing
+    // infrastructure jargon with plain-language copy a self-serve
+    // user can act on. A lawyer or journalist who hits this state
+    // needs to know who to contact, not which env vars to set.
     return (
       <main style={pageStyle} data-testid="intake-links-feature-disabled">
-        <h1 style={titleStyle}>External Intake Links</h1>
+        <h1 style={titleStyle}>External intake links</h1>
         <div style={infoBoxStyle}>
-          <strong>Configuration required</strong>
+          <strong>Not enabled yet</strong>
           <p style={{ marginTop: 8 }}>
-            External intake links are not enabled on this deployment. A
-            platform administrator must complete the deployment-level
-            configuration before this feature is available in your workspace.
-          </p>
-          <p style={{ marginTop: 8 }}>
-            See the deployment runbook for the required configuration
-            steps.
+            External intake links aren't turned on for your account yet.
+            Contact your IT administrator or your PROOVRA support contact
+            to enable this feature for your workspace.
           </p>
         </div>
       </main>
@@ -439,7 +444,11 @@ function CreateLinkModal({
         <h2 style={sectionTitleStyle}>New intake link</h2>
         {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
-        <label style={labelStyle}>Workflow template</label>
+        {/* Phase IA-self-serve-completion — relabelled "Workflow
+            template" to plain-language "Evidence request form". The
+            underlying API value is the same template slug; only the
+            user-facing label was unexplained jargon for self-serve. */}
+        <label style={labelStyle}>Evidence request form</label>
         <select
           style={inputStyle}
           value={slug}

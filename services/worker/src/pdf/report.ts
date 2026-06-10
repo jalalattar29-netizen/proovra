@@ -645,6 +645,10 @@ function mapOtsStatusPublicLabelWithTxid(params: {
   status: string | null | undefined;
   bitcoinTxid: string | null | undefined;
 }): string {
+  // Phase IA-OTS-hybrid-fix (UX correction) — visible PDF surfaces
+  // keep the existing short labels. The detailed PENDING+txid
+  // explanation lives in the technical appendix via
+  // `mapOtsStatusTechnicalDetail` (see `report-v2/normalizers.ts`).
   const status = safe(params.status, "").toUpperCase();
   const hasTxid =
     typeof params.bitcoinTxid === "string" &&

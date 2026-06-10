@@ -415,9 +415,15 @@ function BillingPageInner() {
                     color: "#5d6d71",
                   }}
                 >
-                  No team workspaces found yet. Create a team workspace first if you
-                  want to operate shared evidence workflows or later activate a dedicated
-                  TEAM subscription for one of them.
+                  {/* Phase IA-self-serve-completion — "operate shared
+                      evidence workflows" replaced with plain-language
+                      copy. /workflows is ENTERPRISE_ONLY in the tier
+                      table; advertising workflow features to a
+                      self-serve user on the Billing page misleads them
+                      about what's included. */}
+                  No team workspaces yet. Create one to share cases and
+                  evidence with collaborators, or activate a dedicated TEAM
+                  subscription later to raise your owned-team limit.
                 </div>
               )}
 

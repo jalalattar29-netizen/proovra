@@ -11,7 +11,12 @@ import { appendCustodyEventTx } from "./custody-events.js";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { prisma } from "./db.js";
 import { enqueueOtsUpgradeJob } from "./queue.js";
-import { resolveOtsBin, resolveOtsTimeoutMs, verifyOtsProof } from "./ots.service.js";
+import {
+  getOtsProofInfo,
+  resolveOtsBin,
+  resolveOtsTimeoutMs,
+  verifyOtsProof,
+} from "./ots.service.js";
 import { buildOtsEvidenceUpdateData } from "./ots-state.js";
 import { enqueueReportJob } from "./processor.js";
 import { logger, withJobContext } from "./logger.js";
@@ -237,9 +242,22 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
       verifyResult.status === "VERIFIED" || verifyResult.status === "INCOMPLETE"
         ? verifyResult.verify
         : null;
+
+    // Phase IA-OTS-info-fallback — `ots info` is the deterministic
+    // offline signal that lets us classify FULLY_ANCHORED even when
+    // `ots verify` fails because the container has no local Bitcoin
+    // RPC (the typical worker deployment). The classifier consumes
+    // both signals; verify wins when it succeeds, info confirms the
+    // anchor when verify can't run.
+    const infoResult = await getOtsProofInfo({ proofBase64 });
+    const info =
+      infoResult.status === "PARSED" ? infoResult.info : null;
+
     const classification: OtsClassification = classifyOtsResult({
       upgrade: parsedUpgrade,
       verify,
+      info,
+      expectedFileHashHex: evidence.otsHash ?? null,
       existingTxid: evidence.otsBitcoinTxid,
       commandErrored,
       mergedErrorText: merged,
@@ -288,17 +306,37 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
           atUtc: upgradedAt,
           payload: {
             otsStatus: "ANCHORED",
-            otsPhase: txidRecovered
-              ? "anchor_material_recovered"
-              : "anchored",
+            // Phase IA-OTS-info-fallback — phase tag distinguishes
+            // the three FULLY_ANCHORED entry paths so operators can
+            // tell anchored-via-verify from anchored-via-info from
+            // legacy-heuristic at a glance in the custody audit.
+            otsPhase:
+              classification.phase === "anchored_via_info"
+                ? "anchored_via_info"
+                : txidRecovered
+                  ? "anchor_material_recovered"
+                  : "anchored",
             bitcoinTxid: classification.txid ?? evidence.otsBitcoinTxid ?? null,
             blockHeight: classification.blockHeight,
-            verifyConfirmed: verify !== null,
+            verifyConfirmed: verify?.verified === true,
             verifyStatus: verifyResult.status,
+            // Phase IA-OTS-info-fallback — include the info probe's
+            // status + parsed signal so the custody trail records
+            // exactly why the classifier promoted to ANCHORED.
+            infoStatus: infoResult.status,
+            infoFileHashMatches:
+              info?.fileHash != null &&
+              evidence.otsHash != null &&
+              info.fileHash === evidence.otsHash.toLowerCase(),
+            infoBlockHeights: info?.bitcoinBlockHeights ?? [],
             upgradedAtUtc: upgradedAt.toISOString(),
             anchoredAtUtc: anchoredAtUtc.toISOString(),
             completionSource:
-              verify !== null ? "ots_verify" : "ots_upgrade_heuristic",
+              classification.phase === "anchored_via_info"
+                ? "ots_info_no_verify_available"
+                : verify?.verified === true
+                  ? "ots_verify"
+                  : "ots_upgrade_heuristic",
             classifierReason: classification.reason,
           } as Prisma.InputJsonValue,
         });
@@ -402,6 +440,19 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
               // This is the audit trail that lets ops distinguish a
               // legitimate ANCHOR_MATERIAL_RECOVERED from a regression.
               verifyStatus: verifyResult.status,
+              // Phase IA-OTS-info-fallback — record the `ots info`
+              // outcome so a stuck PENDING row carries a forensic
+              // trail showing whether info had no block heights
+              // (genuine pending), wrong file hash (proof mismatch),
+              // or wasn't reachable.
+              infoStatus: infoResult.status,
+              infoFileHash: info?.fileHash ?? null,
+              infoFileHashMatches:
+                info?.fileHash != null &&
+                evidence.otsHash != null &&
+                info.fileHash === evidence.otsHash.toLowerCase(),
+              infoBlockHeights: info?.bitcoinBlockHeights ?? [],
+              infoPendingCalendars: info?.pendingCalendars ?? [],
               classification: classification.kind,
               classifierPhase: classification.phase,
               classifierReason: classification.reason,

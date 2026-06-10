@@ -25,6 +25,22 @@ import { getReviewerArtifactRoleLabel } from "@proovra/shared";
 import { Button, Modal, useToast } from "../../../../components/ui";
 import CaptureLocationMapPanel from "../../../../components/capture-location/CaptureLocationMapPanel";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+// Phase IA-self-serve-completion — surface-tier gates for the
+// enterprise components mounted on Evidence Detail. Self-serve users
+// (FREE / PAYG / PRO / TEAM) do not see:
+//   - ReviewerWorkflowCard + EvidenceReviewActionsPanel
+//     (gated on /reviewer-ops)
+//   - GovernanceSummary + GovernanceIndicators + GovernanceSnapshotPanel
+//     (gated on /governance)
+//   - OperationalTimelinePanel (gated on /reviewer-ops)
+//   - Intelligence entity-extraction section (gated on /intelligence)
+//   - EvidenceRequestPanel (gated on /intake-links eligibility — it
+//     is the external-contributor coordination feature, which is
+//     PROFESSIONAL)
+// Each gate is consulted from canAccessSurface() so the rule
+// matches sidebar, All Tools, command palette, and SurfaceGate.
+import { canAccessSurface } from "../../../../lib/surface/access";
+import { useSurfaceUserContext } from "../../../../lib/surface/useSurfaceUserContext";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -711,6 +727,29 @@ function EvidenceDetailPageInner() {
   const searchParams = useSearchParams();
   const { addToast } = useToast();
   const evidenceId = params?.id ?? "";
+
+  // Phase IA-self-serve-completion — surface-tier gates. Each gate
+  // reflects whether the corresponding ENTERPRISE / PROFESSIONAL
+  // surface is accessible to the current user. For self-serve users
+  // these all default to `false`, which collapses the enterprise
+  // components on this page to nothing (or to a simplified
+  // self-serve replacement). For enterprise / platform-admin / team
+  // workspaces the gates return `true` and the existing components
+  // continue to render verbatim, so enterprise behaviour is preserved.
+  const surfaceUserCtx = useSurfaceUserContext();
+  const canSeeReviewerOps = canAccessSurface(
+    surfaceUserCtx,
+    "/reviewer-ops",
+  );
+  const canSeeGovernance = canAccessSurface(surfaceUserCtx, "/governance");
+  const canSeeIntelligence = canAccessSurface(
+    surfaceUserCtx,
+    "/intelligence",
+  );
+  const canSeeIntakeLinks = canAccessSurface(
+    surfaceUserCtx,
+    "/intake-links",
+  );
 
   // Phase C2 — deep-link initial tab from `?tab=discussion&thread=:id`.
   // Inbox rows + topbar mention links land here; the initial tab must
@@ -1584,9 +1623,13 @@ function EvidenceDetailPageInner() {
       <div className="evidence-detail-page">
         <div className="evidence-detail-shell">
           <section className="evidence-detail-section evidence-detail-error-card">
-            <p className="evidence-detail-kicker">Evidence Review Workspace</p>
+            {/* Phase IA-self-serve-completion — "Evidence Review
+                Workspace" eyebrow + body sentence simplified to plain
+                language. The page still loads the same data; only the
+                error-state copy changed. */}
+            <p className="evidence-detail-kicker">Evidence record</p>
             <h1>Unable to load the record</h1>
-            <p>{error || "The evidence review workspace is unavailable right now."}</p>
+            <p>{error || "This evidence record is unavailable right now."}</p>
             <div className="evidence-detail-inline-actions">
               <Button onClick={() => void loadWorkspace()}>Retry</Button>
             </div>
@@ -1691,7 +1734,12 @@ function EvidenceDetailPageInner() {
               <span>Evidence Library</span>
             </button>
 
-            <p className="evidence-detail-kicker">Evidence Review &amp; Defensibility Workspace</p>
+            {/* Phase IA-self-serve-completion — "Evidence Review &
+                Defensibility Workspace" is litigation-team
+                vocabulary. Renamed to plain-language "Evidence
+                record". Enterprise users still see the same page; the
+                eyebrow just no longer reads as a service line. */}
+            <p className="evidence-detail-kicker">Evidence record</p>
 
             {editingLabel ? (
               <div className="evidence-detail-label-edit">
@@ -1823,23 +1871,44 @@ function EvidenceDetailPageInner() {
                     + GovernanceSnapshotPanel below are retained for
                     backward compatibility — they surface
                     domain-specific drill-down that the summary's
-                    bounded row list does not. */}
-                <GovernanceSummary variant="evidence" />
-                <GovernanceIndicators
-                  evidenceId={evidenceId}
-                  teamId={workspace.reviewWorkflow?.teamId ?? null}
-                />
-                {workspace.reviewWorkflow?.teamId ? (
-                  <GovernanceSnapshotPanel
-                    evidenceId={evidenceId}
-                    teamId={workspace.reviewWorkflow.teamId}
-                  />
+                    bounded row list does not.
+
+                    Phase IA-self-serve-completion — the entire
+                    governance trio (Summary + Indicators + Snapshot)
+                    is gated on canSeeGovernance. Self-serve users see
+                    nothing (their storage protection is surfaced in
+                    the existing Retention & Compliance grid lower on
+                    the page). Enterprise / platform-admin /
+                    enterprise-workspace users continue to see all
+                    three components verbatim. */}
+                {canSeeGovernance ? (
+                  <>
+                    <GovernanceSummary variant="evidence" />
+                    <GovernanceIndicators
+                      evidenceId={evidenceId}
+                      teamId={workspace.reviewWorkflow?.teamId ?? null}
+                    />
+                    {workspace.reviewWorkflow?.teamId ? (
+                      <GovernanceSnapshotPanel
+                        evidenceId={evidenceId}
+                        teamId={workspace.reviewWorkflow.teamId}
+                      />
+                    ) : null}
+                  </>
                 ) : null}
                 <ExternalIntakeSourceCard evidenceId={evidenceId} />
-                <EvidenceRequestPanel
-                  evidenceId={evidenceId}
-                  teamId={workspace.reviewWorkflow?.teamId ?? null}
-                />
+                {/* Phase IA-self-serve-completion — the external
+                    evidence-request panel is gated on intake-links
+                    eligibility. /intake-links is PROFESSIONAL, so
+                    FREE / PAYG users no longer see the "Request
+                    additional evidence" workflow. PRO / TEAM /
+                    enterprise users continue to see it. */}
+                {canSeeIntakeLinks ? (
+                  <EvidenceRequestPanel
+                    evidenceId={evidenceId}
+                    teamId={workspace.reviewWorkflow?.teamId ?? null}
+                  />
+                ) : null}
                 <section className="evidence-detail-section">
                   <div className="evidence-detail-section-header">
                     <SectionHeading
@@ -1921,12 +1990,22 @@ function EvidenceDetailPageInner() {
                     extracted entities (OCR + transcript) and the
                     OCR/transcript availability summaries that Phase 11
                     already writes. Reads the existing
-                    /v1/intelligence/evidence/:id endpoint. */}
+                    /v1/intelligence/evidence/:id endpoint.
+
+                    Phase IA-self-serve-completion — gated on
+                    canSeeIntelligence. Self-serve users (whose plan
+                    does not include the intelligence / entity-
+                    extraction surface) do not see this section. The
+                    underlying endpoint stays available for enterprise
+                    users; only the UI mount is plan-gated. The empty
+                    state also drops the "Phase 11 wiring" reference
+                    that leaked internal roadmap to end users. */}
+                {canSeeIntelligence ? (
                 <section className="evidence-detail-section">
                   <div className="evidence-detail-section-header">
                     <SectionHeading
-                      kicker="Intelligence"
-                      title="Extracted entities and content summaries"
+                      kicker="Extracted content"
+                      title="Entities and content summaries"
                       icon={FileText}
                     />
                   </div>
@@ -1938,7 +2017,7 @@ function EvidenceDetailPageInner() {
                     <>
                       <EntityChipGroup
                         entities={intelligence?.entities ?? []}
-                        emptyMessage="No entities have been extracted from OCR or transcript text for this record yet. Entities populate automatically as Phase 11 OCR and transcript wiring completes."
+                        emptyMessage="No entities have been extracted from this record yet."
                       />
                       <div
                         style={{
@@ -2012,6 +2091,7 @@ function EvidenceDetailPageInner() {
                     </>
                   )}
                 </section>
+                ) : null}
               </>
             ) : null}
 
@@ -2447,7 +2527,12 @@ function EvidenceDetailPageInner() {
                   icon={Globe}
                 />
 
-                {workspace.reviewWorkflow?.teamId ? (
+                {/* Phase IA-self-serve-completion — operational
+                    timeline (reviewer / team operational events) gated
+                    on canSeeReviewerOps. Self-serve users see the
+                    Forensic Custody Timeline + Access activity above,
+                    but not the team-only operational rail. */}
+                {canSeeReviewerOps && workspace.reviewWorkflow?.teamId ? (
                   <OperationalTimelinePanel
                     evidenceId={evidenceId}
                     teamId={workspace.reviewWorkflow.teamId}
@@ -2476,35 +2561,78 @@ function EvidenceDetailPageInner() {
                   onRemoveRelationship={handleRemoveRelationship}
                 />
 
-                <ReviewerWorkflowCard
-                  workflow={workspace.reviewWorkflow}
-                  events={workflowEvents}
-                  eventsLoading={workflowEventsLoading}
-                  actionBusy={actionBusy}
-                  onRefreshEvents={() => void loadWorkflowEvents()}
-                  onOpenEditor={() => setWorkflowOpen(true)}
-                  formatDateTime={formatUserDateTime}
-                />
+                {/* Phase IA-self-serve-completion — Reviewer Workflow
+                    card + Review Actions panel + workflow editor modal
+                    are gated on canSeeReviewerOps. Self-serve users
+                    see only the simple "Review status" card below
+                    (and the notes / annotations / AI categorization
+                    that follow). The workflow editor (setWorkflowOpen)
+                    still works for eligible users; self-serve users
+                    never see the trigger so they can't open it. */}
+                {canSeeReviewerOps ? (
+                  <>
+                    <ReviewerWorkflowCard
+                      workflow={workspace.reviewWorkflow}
+                      events={workflowEvents}
+                      eventsLoading={workflowEventsLoading}
+                      actionBusy={actionBusy}
+                      onRefreshEvents={() => void loadWorkflowEvents()}
+                      onOpenEditor={() => setWorkflowOpen(true)}
+                      formatDateTime={formatUserDateTime}
+                    />
 
-                {/* Phase 13.5 — compact review decisions panel.
-                    Stage-aware action buttons calling the Phase 13
-                    `/v1/review-operations/*` endpoints. */}
-                <EvidenceReviewActionsPanel
-                  evidenceId={evidenceId}
-                  teamId={workspace.reviewWorkflow?.teamId ?? null}
-                  currentStatus={workspace.reviewWorkflow.status ?? null}
-                  assignedToUserId={
-                    workspace.reviewWorkflow.assignedTo?.id ?? null
-                  }
-                  currentUserId={null}
-                  onChanged={() => void loadWorkflowEvents()}
-                />
+                    {/* Phase 13.5 — compact review decisions panel.
+                        Stage-aware action buttons calling the Phase 13
+                        `/v1/review-operations/*` endpoints. */}
+                    <EvidenceReviewActionsPanel
+                      evidenceId={evidenceId}
+                      teamId={workspace.reviewWorkflow?.teamId ?? null}
+                      currentStatus={workspace.reviewWorkflow.status ?? null}
+                      assignedToUserId={
+                        workspace.reviewWorkflow.assignedTo?.id ?? null
+                      }
+                      currentUserId={null}
+                      onChanged={() => void loadWorkflowEvents()}
+                    />
+                  </>
+                ) : (
+                  // Phase IA-self-serve-completion — self-serve
+                  // replacement. A simple "Review status" card that
+                  // surfaces the underlying review status without the
+                  // enterprise workflow / assignment / priority / due
+                  // date / history machinery. The user IS the
+                  // reviewer in self-serve, so a single status read
+                  // is all that's useful.
+                  <section
+                    className="evidence-detail-section"
+                    data-self-serve-review-status
+                  >
+                    <div className="evidence-detail-section-header">
+                      <SectionHeading
+                        kicker="Review"
+                        title="Review status"
+                        icon={ClipboardCheck}
+                      />
+                    </div>
+                    <p className="evidence-detail-muted">
+                      {workspace.reviewWorkflow?.status
+                        ? `Current status: ${workspace.reviewWorkflow.status}`
+                        : "No review status set."}
+                    </p>
+                  </section>
+                )}
 
                 <section className="evidence-detail-section">
                   <div className="evidence-detail-section-header">
+                    {/* Phase IA-self-serve-completion — "Notes &
+                        Reviewer Collaboration" reads as enterprise-
+                        team coordination. Renamed to plain-language
+                        "Notes". The user IS the reviewer in
+                        self-serve, so the collaboration framing was
+                        misleading. */}
                     <SectionHeading
-                      kicker="Notes &amp; Reviewer Collaboration"
-                      title="Private review materials"
+                      kicker="Notes"
+                      title="Private notes &amp; annotations"
                       icon={ClipboardCheck}
                     />
                   </div>

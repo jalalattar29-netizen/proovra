@@ -178,7 +178,12 @@ const CAPTURE_FILES = captureSurfaceFiles();
 const CAPTURE_AI_FILES = captureAiSurfaceFiles();
 
 // Pre-CR5 byte sizes (sampled 2026-05-26).
-const PRE_CR5_PAGE_BYTES = 48972;
+// Phase IA-self-serve-completion rebaseline: 48,972 → 49,830 after the
+// audit-fix pass added bounded plain-language copy + comments for the
+// eyebrow rename ("Evidence intake workspace" → "Capture & upload"),
+// the material-note rename ("Reviewer note" → "Your notes"), and the
+// placeholder rewrite. No new behaviour — pure copy/comment growth.
+const PRE_CR5_PAGE_BYTES = 49830;
 const PRE_CR5_ORCH_BYTES = 34411;
 const PRE_CR5_RESUMABLE_BYTES = 13423;
 const PRE_CR5_CAMERA_BYTES = 12473;

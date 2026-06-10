@@ -120,11 +120,17 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   { pathPrefix: "/evidence-requests", tier: "CORE", directAccessPolicy: "allow", reason: "evidence request lifecycle" },
   // Evidence detail + listing + report-latest are CORE.
   { pathPrefix: "/evidence", tier: "CORE", directAccessPolicy: "allow", reason: "evidence vault" },
-  { pathPrefix: "/intake-links", tier: "CORE", directAccessPolicy: "allow", reason: "intake links surface" },
   { pathPrefix: "/search", tier: "CORE", directAccessPolicy: "allow", reason: "search surface" },
   { pathPrefix: "/reports", tier: "CORE", directAccessPolicy: "allow", reason: "report generation" },
-  { pathPrefix: "/teams", tier: "CORE", directAccessPolicy: "allow", reason: "team workspace" },
-  { pathPrefix: "/inbox", tier: "CORE", directAccessPolicy: "allow", reason: "operational inbox" },
+  // Phase IA-surface-tier-pricing — `/teams`, `/intake-links`, `/inbox`
+  // are TEAM-collaboration surfaces. Per the pricing page they unlock
+  // at PRO/TEAM (PRO = up to 2 teams, TEAM = up to 5 teams). FREE/PAYG
+  // users see neither, matching the PAYG sidebar in the pricing brief:
+  // Home, Capture, Evidence, Cases, Search, Reports, Trust, Settings,
+  // Billing.
+  { pathPrefix: "/teams", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "team workspace (PRO/TEAM)" },
+  { pathPrefix: "/intake-links", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "intake links (PRO/TEAM)" },
+  { pathPrefix: "/inbox", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "operational inbox (PRO/TEAM)" },
   { pathPrefix: "/trust-center", tier: "CORE", directAccessPolicy: "allow", reason: "trust center" },
   { pathPrefix: "/settings", tier: "CORE", directAccessPolicy: "allow", reason: "account settings (incl. /settings/security)" },
   { pathPrefix: "/billing", tier: "CORE", directAccessPolicy: "allow", reason: "billing" },
@@ -141,30 +147,55 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   //                        actually have org memberships to manage.
   //   * `/persona`       — workflow profile picker is a power-user
   //                        affordance — TEAM tier upward.
-  { pathPrefix: "/workspaces", tier: "PROFESSIONAL", directAccessPolicy: "allow", reason: "workspace switcher (multi-workspace surface)" },
-  { pathPrefix: "/notifications", tier: "PROFESSIONAL", directAccessPolicy: "allow", reason: "notifications hub (PRO+)" },
-  { pathPrefix: "/organizations", tier: "ENTERPRISE", directAccessPolicy: "redirect", reason: "organization membership (enterprise/TEAM)" },
-  { pathPrefix: "/persona", tier: "PROFESSIONAL", directAccessPolicy: "allow", reason: "workflow profile picker (PRO+)" },
+  // Phase IA-self-serve-simplification — settings-like surfaces.
+  // For self-serve plans these belong inside /settings, not as
+  // standalone product pages. The bounded redirect targets surface
+  // operators inside the canonical Settings location instead of a
+  // hard 404.
+  { pathPrefix: "/workspaces", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/teams", reason: "workspace switcher → /teams (self-serve)" },
+  { pathPrefix: "/notifications", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/settings", reason: "notifications → /settings (self-serve)" },
+  // Phase IA-surface-tier-pricing — Organizations are ENTERPRISE_ONLY
+  // per the pricing page. Self-serve TEAM users manage collaboration
+  // through /teams; the Organizations entity (departments, governance,
+  // delegated admin, access reviews) is reserved for the sales-led
+  // enterprise plan. Direct URL returns 404 — no upsell, the surface
+  // simply does not exist for self-serve plans.
+  { pathPrefix: "/organizations", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "Organizations entity (ENTERPRISE_ONLY)" },
+  { pathPrefix: "/persona", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/settings", reason: "persona picker → /settings (self-serve)" },
   { pathPrefix: "/dashboard/batch-analysis", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "batch analysis (PRO upsell)" },
   { pathPrefix: "/dashboard/quotas", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "quota dashboard (PRO upsell)" },
 
   // ---------------------------------------------------------------------
   // PROFESSIONAL — surfaces appropriate for PRO / TEAM plans.
   // Hidden on FREE/PAYG by default; direct URL → redirect /home.
+  //
+  // Phase IA-self-serve-simplification — the formerly-PROFESSIONAL
+  // surfaces below (exchange / integrations / workflows /
+  // communications / collaboration / evidence-lifecycle / packaging)
+  // moved to ENTERPRISE. They are not packaged for self-serve plans
+  // and confuse the simplified product. See the ENTERPRISE section
+  // below for their rules.
   // ---------------------------------------------------------------------
-  { pathPrefix: "/exchange", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "exchange packages (PRO)" },
-  { pathPrefix: "/integrations", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "API keys + webhooks (PRO)" },
-  { pathPrefix: "/workflows", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "workflow templates (PRO)" },
-  { pathPrefix: "/communications", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "communications hub (PRO)" },
-  { pathPrefix: "/collaboration", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "collaboration legacy (PRO)" },
-  { pathPrefix: "/evidence-lifecycle", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "evidence lifecycle ops (PRO)" },
-  { pathPrefix: "/packaging", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "package entitlements (PRO)" },
 
   // ---------------------------------------------------------------------
   // ENTERPRISE — only visible / accessible to enterprise workspaces OR
   // users with the explicit role. Direct URL → 404 (the surface does
   // not exist for this user, full stop).
   // ---------------------------------------------------------------------
+
+  // Phase IA-self-serve-simplification — advanced professional surfaces.
+  // These were tier=PROFESSIONAL in an earlier pass but the GTM brief
+  // pulled them out of self-serve packaging. They are now ENTERPRISE
+  // until each one is product-ready as a polished self-serve surface.
+  // Per-rule redirect targets land the user on the closest self-serve
+  // equivalent so they're never lost.
+  { pathPrefix: "/collaboration", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/inbox", reason: "collaboration legacy → /inbox" },
+  { pathPrefix: "/evidence-lifecycle", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/evidence", reason: "evidence lifecycle → /evidence (self-serve)" },
+  { pathPrefix: "/exchange", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/reports", reason: "exchange → /reports (self-serve uses Reports for share/export)" },
+  { pathPrefix: "/integrations", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "API keys + webhooks (ENTERPRISE until packaged)" },
+  { pathPrefix: "/workflows", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "workflow templates (ENTERPRISE until simplified templates ship)" },
+  { pathPrefix: "/communications", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "communications hub (ENTERPRISE/ops)" },
+  { pathPrefix: "/packaging", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "packaging entitlement admin (INTERNAL/ENTERPRISE)" },
 
   // Reviewer Operations
   { pathPrefix: "/review-operations", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "reviewer operations" },
@@ -178,9 +209,13 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   { pathPrefix: "/governance", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "governance lifecycle + policy" },
 
   // Enterprise Identity / Admin
+  // Phase IA-surface-tier-pricing — explicit admin/organizations entry
+  // BEFORE the generic /admin prefix so the bound is unambiguous
+  // (first-match-wins). All three variants 404 for non-enterprise.
+  { pathPrefix: "/admin/organizations", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "admin organizations console (ENTERPRISE_ONLY)" },
   { pathPrefix: "/admin/identity", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "admin identity hub" },
   { pathPrefix: "/admin", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "admin surface (org admin / platform admin entry)" },
-  { pathPrefix: "/organization-admin", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "organization admin" },
+  { pathPrefix: "/organization-admin", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "organization admin (ENTERPRISE_ONLY)" },
   { pathPrefix: "/security-center", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "security center (admin form). /settings/security remains CORE" },
   { pathPrefix: "/identity-security", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "identity security ops" },
 

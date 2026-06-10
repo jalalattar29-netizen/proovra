@@ -29,6 +29,58 @@ function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
 
+// ---------------------------------------------------------------------------
+// Phase 38.18 test perf cache — same shape as 38.13 / 38.17. The
+// previous in-describe walker descended into `.next/`, `node_modules/`,
+// `dist/` and timed out on Windows CI. Exclude bulk build dirs and
+// build the listing once per test-file load.
+// ---------------------------------------------------------------------------
+const TSX_EXCLUDED_DIRS = new Set([
+  "node_modules",
+  ".next",
+  ".turbo",
+  ".vercel",
+  "coverage",
+  "dist",
+  "build",
+  "out",
+  ".git",
+]);
+
+function listAllTsxFilesShared(dirAbs: string): string[] {
+  const out: string[] = [];
+  const stack: string[] = [dirAbs];
+  while (stack.length > 0) {
+    const dir = stack.pop()!;
+    let entries: string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      continue;
+    }
+    for (const name of entries) {
+      if (TSX_EXCLUDED_DIRS.has(name)) continue;
+      const full = `${dir}/${name}`;
+      try {
+        const stat = statSync(full);
+        if (stat.isFile() && /\.tsx$/.test(name)) out.push(full);
+        else if (stat.isDirectory()) stack.push(full);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  return out;
+}
+
+let WEB_TSX_FILES_CACHE: string[] | null = null;
+function getWebTsxFiles(): string[] {
+  if (WEB_TSX_FILES_CACHE === null) {
+    WEB_TSX_FILES_CACHE = listAllTsxFilesShared(webPath("."));
+  }
+  return WEB_TSX_FILES_CACHE;
+}
+
 const OPSUMMARY = readWeb(
   "app/(app)/capture/_lib/CaptureOperationalSummary.tsx",
 );
@@ -219,48 +271,29 @@ describe("Phase 38.18 — ContextualHelp mounted on /teams + /search", () => {
 // =============================================================================
 
 describe("Phase 38.18 — total ContextualHelp mounts across codebase", () => {
-  function listAllTsxFiles(dirAbs: string): string[] {
-    const out: string[] = [];
-    const stack: string[] = [dirAbs];
-    while (stack.length > 0) {
-      const dir = stack.pop()!;
-      let entries: string[];
-      try {
-        entries = readdirSync(dir);
-      } catch {
-        continue;
-      }
-      for (const name of entries) {
-        const full = `${dir}/${name}`;
-        try {
-          const stat = statSync(full);
-          if (stat.isFile() && /\.tsx$/.test(name)) out.push(full);
-          else if (stat.isDirectory()) stack.push(full);
-        } catch {
-          /* ignore */
+  // Phase IA-OTS-info-fallback (test perf) — uses module-level
+  // `getWebTsxFiles()` (cached, bulk-dirs excluded) and a 30s vitest
+  // timeout. The assertion (≥ 9 mounts) is unchanged.
+  it(
+    "at least 9 .tsx files mount <ContextualHelp (full HelpSurface enum coverage)",
+    () => {
+      const all = getWebTsxFiles();
+      let mountCount = 0;
+      for (const file of all) {
+        const normalized = file.replace(/\\/g, "/");
+        if (normalized.endsWith("/ContextualHelp.tsx")) continue;
+        const src = readFileSync(file, "utf8");
+        if (/<ContextualHelp\b/.test(src)) {
+          mountCount += 1;
         }
       }
-    }
-    return out;
-  }
-
-  it("at least 9 .tsx files mount <ContextualHelp (full HelpSurface enum coverage)", () => {
-    const root = webPath(".");
-    const all = listAllTsxFiles(root);
-    let mountCount = 0;
-    for (const file of all) {
-      const normalized = file.replace(/\\/g, "/");
-      if (normalized.endsWith("/ContextualHelp.tsx")) continue;
-      const src = readFileSync(file, "utf8");
-      if (/<ContextualHelp\b/.test(src)) {
-        mountCount += 1;
-      }
-    }
-    expect(
-      mountCount,
-      `expected ≥ 9 ContextualHelp mounts, found ${mountCount}`,
-    ).toBeGreaterThanOrEqual(9);
-  });
+      expect(
+        mountCount,
+        `expected ≥ 9 ContextualHelp mounts, found ${mountCount}`,
+      ).toBeGreaterThanOrEqual(9);
+    },
+    30000,
+  );
 });
 
 // =============================================================================

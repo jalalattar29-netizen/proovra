@@ -25,6 +25,13 @@ import {
   usePlatformContext,
   workflowFromPersona,
 } from "../../lib/platform-context";
+// Phase IA-surface-tier-pricing — Organizations are ENTERPRISE_ONLY.
+// FREE/PAYG/PRO/TEAM users must NOT see the Organizations group, the
+// "Create / Join / Manage organization" actions, or the empty-state
+// hint in the workspace switcher. Self-serve users manage
+// collaboration through /teams only.
+import { canAccessSurface } from "../../lib/surface/access";
+import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
 
 /**
  * Phase 32.8 Foundation — Canonical enterprise topbar.
@@ -179,6 +186,17 @@ export function AppTopbarV2({
   }, [pathname]);
 
   const isPlatformAdmin = envelope?.platform.isPlatformAdmin === true;
+  // Phase IA-surface-tier-pricing — gate the org switcher actions on
+  // ENTERPRISE-tier eligibility. The same predicate that hides
+  // /organizations from the sidebar hides the Organizations group +
+  // Create / Join / Manage organization actions from the topbar
+  // switcher. Self-serve plans see only their personal workspace +
+  // /teams.
+  const surfaceUserCtx = useSurfaceUserContext();
+  const canSeeOrganizations = canAccessSurface(
+    surfaceUserCtx,
+    "/organizations",
+  );
   const runtimeTeamId =
     envelope?.workspace.status === "active" && envelope.workspace.scope === "TEAM"
       ? envelope.workspace.id
@@ -449,8 +467,12 @@ export function AppTopbarV2({
                 ) : null}
 
                 {/* ENTERPRISE TENANT MODEL — Organizations group.
-                    Strictly excludes isPersonal=true rows. */}
-                {organizations.length > 0 ? (
+                    Strictly excludes isPersonal=true rows.
+                    Phase IA-surface-tier-pricing — gated on ENTERPRISE
+                    eligibility (canSeeOrganizations). Self-serve plans
+                    never render this block, so an org left over from a
+                    historical enterprise downgrade does not surface. */}
+                {canSeeOrganizations && organizations.length > 0 ? (
                   <div
                     className="app-topbar-v2-workspace-menu-group"
                     data-workspace-menu-group="ORGANIZATIONS"
@@ -529,7 +551,12 @@ export function AppTopbarV2({
                   </div>
                 ) : null}
 
-                {organizations.length === 0 ? (
+                {/* Phase IA-surface-tier-pricing — empty-state hint
+                    visible only when Organizations are reachable for
+                    this user (ENTERPRISE tier). Self-serve users do
+                    not see the "no organizations" copy because
+                    organizations are not part of their plan. */}
+                {canSeeOrganizations && organizations.length === 0 ? (
                   <div
                     className="app-topbar-v2-workspace-menu-empty"
                     data-workspace-menu-empty
@@ -539,7 +566,11 @@ export function AppTopbarV2({
                 ) : null}
 
                 {/* ENTERPRISE TENANT MODEL — Actions section.
-                    Always reachable. Create / join / manage. */}
+                    Phase IA-surface-tier-pricing — gated. FREE/PAYG/PRO/
+                    TEAM users do NOT see the Create / Join / Manage
+                    organization actions because Organizations are
+                    ENTERPRISE_ONLY per the pricing page. */}
+                {canSeeOrganizations ? (
                 <div
                   className="app-topbar-v2-workspace-menu-group"
                   data-workspace-menu-group="ACTIONS"
@@ -578,6 +609,7 @@ export function AppTopbarV2({
                     Manage organizations →
                   </Link>
                 </div>
+                ) : null}
               </div>
             ) : null}
           </div>

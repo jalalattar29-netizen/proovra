@@ -8,6 +8,12 @@ import { supportedLocales, type Locale } from "@proovra/shared";
 import { Button, Card, useToast, Input } from "../../../components/ui";
 import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
+// Phase IA-self-serve-simplification — gate the "Identity & Security"
+// (workspace operator) section on /security-center eligibility. Self-
+// serve users get Account Security via /settings/security; the
+// workspace identity surface is ENTERPRISE_ONLY.
+import { canAccessSurface } from "../../../lib/surface/access";
+import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContext";
 import { LEGAL_LINKS } from "../../../lib/legalLinks";
 import { captureException } from "../../../lib/sentry";
 import { openCookiePreferences } from "../../../lib/consent";
@@ -163,6 +169,14 @@ export default function SettingsPage() {
 function SettingsPageInner() {
   const { t, locale, setLocale } = useLocale();
   const { user, setToken, updateUser } = useAuth();
+  // Phase IA-self-serve-simplification — gate the workspace-level
+  // Identity & Security card on /security-center eligibility. Self-
+  // serve users see only Account Security (/settings/security).
+  const surfaceUserCtx = useSurfaceUserContext();
+  const canSeeWorkspaceSecurity = canAccessSurface(
+    surfaceUserCtx,
+    "/security-center",
+  );
   // R1 Part 4 — pair the /v1/users/me profile PATCH with a platform
   // envelope refresh so the canonical user fields stay in sync.
   // Pre-R1, profile edits drifted from the envelope until manual
@@ -964,22 +978,42 @@ onClick={(e) => {
                 <div className="settings-silver-card__content p-6 md:p-7">
                   {sectionHeader(<Icons.Security />, "Identity & Security")}
 
-                  <div className="grid gap-4">
-                    <p className="m-0 text-[13px] text-[#5d6d71]">
-                      Workspace identity operations: MFA policy, trusted
-                      devices, session revocations, and MFA recovery
-                      approvals. Operator/admin access required.
-                    </p>
+                  {canSeeWorkspaceSecurity ? (
+                    <div className="grid gap-4">
+                      <p className="m-0 text-[13px] text-[#5d6d71]">
+                        Workspace identity operations: MFA policy, trusted
+                        devices, session revocations, and MFA recovery
+                        approvals. Operator/admin access required.
+                      </p>
 
-                    <Link href="/security-center">
-                      <Button
-                        variant="secondary"
-                        className={`${velvetButtonClass()} settings-primary-btn`}
-                      >
-                        Open Security Center
-                      </Button>
-                    </Link>
-                  </div>
+                      <Link href="/security-center" data-cc-security-link-card>
+                        <Button
+                          variant="secondary"
+                          className={`${velvetButtonClass()} settings-primary-btn`}
+                        >
+                          Open Security Center
+                        </Button>
+                      </Link>
+                    </div>
+                  ) : (
+                    /* Phase IA-self-serve-simplification — self-serve
+                       users see Account Security instead. The workspace
+                       Security Center surface is ENTERPRISE_ONLY. */
+                    <div className="grid gap-4">
+                      <p className="m-0 text-[13px] text-[#5d6d71]">
+                        Personal account controls: password, sessions,
+                        and identity events tied to your account.
+                      </p>
+                      <Link href="/settings/security">
+                        <Button
+                          variant="secondary"
+                          className={`${velvetButtonClass()} settings-primary-btn`}
+                        >
+                          Open Account Security
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
                 </div>
               </Card>
 

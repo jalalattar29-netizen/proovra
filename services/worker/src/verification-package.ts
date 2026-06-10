@@ -538,6 +538,11 @@ function getAnchorStatusLabel(
     typeof options?.bitcoinTxid === "string" &&
     /^[a-f0-9]{64}$/i.test(options.bitcoinTxid.trim());
 
+  // Phase IA-OTS-hybrid-fix (UX correction) — the verification-package
+  // anchor label stays at its existing short-form wording. The
+  // long-form technical detail ("Bitcoin transaction detected;
+  // anchoring verification pending") lives only in the technical
+  // appendix / smoke output via `mapOtsStatusTechnicalDetail`.
   switch (mode) {
     case "anchored":
       return hasTxid
@@ -2313,6 +2318,10 @@ function buildVerifyHtml(params: {
     }
 
     if (status === "PENDING") {
+      // Phase IA-OTS-hybrid-fix (UX correction) — the manifest
+      // text stays short. The detailed PENDING+txid explanation
+      // belongs in the technical appendix, not the package
+      // manifest prose.
       return "OpenTimestamps proof present; public anchoring pending.";
     }
 

@@ -32,6 +32,63 @@ function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
 
+// ---------------------------------------------------------------------------
+// Phase 38.13 test perf cache — walk the apps/web .tsx tree exactly ONCE
+// per test-file load so every it() that scans the source tree reuses the
+// same listing. The previous in-describe walker re-traversed the tree
+// per assertion AND descended into `.next/` / `node_modules/` / `dist/` /
+// build artefacts, which pushed the test over the 5-second vitest
+// timeout on Windows CI. Excluding those bulk directories makes the
+// walker ~20× faster while keeping every real source file in scope.
+// ---------------------------------------------------------------------------
+const TSX_EXCLUDED_DIRS = new Set([
+  "node_modules",
+  ".next",
+  ".turbo",
+  ".vercel",
+  "coverage",
+  "dist",
+  "build",
+  "out",
+  ".git",
+]);
+
+function listAllTsxFiles(dirAbs: string): string[] {
+  const out: string[] = [];
+  const stack: string[] = [dirAbs];
+  while (stack.length > 0) {
+    const dir = stack.pop()!;
+    let entries: string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      continue;
+    }
+    for (const name of entries) {
+      if (TSX_EXCLUDED_DIRS.has(name)) continue;
+      const full = `${dir}/${name}`;
+      try {
+        const stat = statSync(full);
+        if (stat.isFile() && /\.tsx$/.test(name)) out.push(full);
+        else if (stat.isDirectory()) stack.push(full);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  return out;
+}
+
+// Single shared listing — built lazily so other test files that don't
+// touch the apps/web tree don't pay the I/O cost.
+let WEB_TSX_FILES_CACHE: string[] | null = null;
+function getWebTsxFiles(): string[] {
+  if (WEB_TSX_FILES_CACHE === null) {
+    WEB_TSX_FILES_CACHE = listAllTsxFiles(webPath("."));
+  }
+  return WEB_TSX_FILES_CACHE;
+}
+
 const COMMAND_CENTER = readWeb("components/command-center/CommandCenter.tsx");
 const REGISTRY = readWeb("lib/navigation/routeRegistry.ts");
 const WORKSPACE_ADMIN = readWeb(
@@ -263,50 +320,34 @@ describe("Phase 38.13 — expanded copy safety lock (positive overclaim only)", 
     /"court-ready package"/i,
   ];
 
-  function listAllTsxFiles(dirAbs: string): string[] {
-    const out: string[] = [];
-    const stack: string[] = [dirAbs];
-    while (stack.length > 0) {
-      const dir = stack.pop()!;
-      let entries: string[];
-      try {
-        entries = readdirSync(dir);
-      } catch {
-        continue;
-      }
-      for (const name of entries) {
-        const full = `${dir}/${name}`;
-        try {
-          const stat = statSync(full);
-          if (stat.isFile() && /\.tsx$/.test(name)) out.push(full);
-          else if (stat.isDirectory()) stack.push(full);
-        } catch {
-          /* ignore */
+  // Phase IA-OTS-info-fallback (test perf) — the inner walker that
+  // used to live here is gone. Module-level `getWebTsxFiles()` returns
+  // a memoized listing built once per test-file load with bulk-build
+  // directories excluded. The assertion below now scans only real
+  // source files and completes well under the bumped 30s timeout on
+  // Windows CI.
+  it(
+    "no .tsx file under apps/web makes positive legal / forensic overclaim assertions",
+    () => {
+      const all = getWebTsxFiles();
+      const offenders: string[] = [];
+      for (const file of all) {
+        const src = readFileSync(file, "utf8");
+        for (const pattern of FORBIDDEN_POSITIVE_OVERCLAIM) {
+          if (pattern.test(src)) {
+            offenders.push(
+              `${file.replace(/\\/g, "/").replace(/^.*apps\/web\//, "")} — ${pattern}`,
+            );
+          }
         }
       }
-    }
-    return out;
-  }
-
-  it("no .tsx file under apps/web makes positive legal / forensic overclaim assertions", () => {
-    const root = webPath(".");
-    const all = listAllTsxFiles(root);
-    const offenders: string[] = [];
-    for (const file of all) {
-      const src = readFileSync(file, "utf8");
-      for (const pattern of FORBIDDEN_POSITIVE_OVERCLAIM) {
-        if (pattern.test(src)) {
-          offenders.push(
-            `${file.replace(/\\/g, "/").replace(/^.*apps\/web\//, "")} — ${pattern}`,
-          );
-        }
-      }
-    }
-    expect(
-      offenders,
-      `Positive legal / forensic overclaim copy is banned. Disclaimers ("we do NOT claim …") remain allowed. Offenders:\n${offenders.join("\n")}`,
-    ).toEqual([]);
-  });
+      expect(
+        offenders,
+        `Positive legal / forensic overclaim copy is banned. Disclaimers ("we do NOT claim …") remain allowed. Offenders:\n${offenders.join("\n")}`,
+      ).toEqual([]);
+    },
+    30000,
+  );
 });
 
 // =============================================================================

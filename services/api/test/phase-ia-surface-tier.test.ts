@@ -148,19 +148,20 @@ describe("Phase IA-surface-tier — rule table sanity", () => {
 // Section B — CORE sidebar for the GTM target persona
 // ============================================================================
 
-describe("Phase IA-surface-tier — CORE sidebar for personal/small-office user", () => {
-  // The GTM brief listed these as the simple sidebar for the target
-  // audience. They MUST stay CORE regardless of future hides.
+describe("Phase IA-surface-tier — CORE sidebar for FREE / PAYG user", () => {
+  // Phase IA-surface-tier-pricing — the FREE / PAYG sidebar matches
+  // the public pricing brief exactly:
+  //   Home, Capture, Evidence, Cases, Search, Reports, Trust, Settings,
+  //   Billing
+  // /teams, /intake-links, /inbox are PRO/TEAM surfaces and are no
+  // longer CORE.
   const CORE_PATHS = [
     "/home",
     "/capture",
     "/evidence",
     "/cases",
-    "/intake-links",
     "/search",
     "/reports",
-    "/teams",
-    "/inbox",
     "/trust-center",
     "/settings",
     "/settings/security",
@@ -174,6 +175,27 @@ describe("Phase IA-surface-tier — CORE sidebar for personal/small-office user"
       expect(getDirectAccessDecision(PERSONAL_FREE_USER, path).kind).toBe(
         "allow",
       );
+    });
+  }
+});
+
+describe("Phase IA-surface-tier-pricing — PRO/TEAM sidebar adds Teams/Intake Links/Inbox", () => {
+  // PRO and TEAM unlock /teams, /intake-links, /inbox per the pricing
+  // brief. FREE/PAYG do not see these — direct URL → redirect /home.
+  const PRO_TEAM_PATHS = ["/teams", "/intake-links", "/inbox"];
+
+  for (const path of PRO_TEAM_PATHS) {
+    it(`PROFESSIONAL: ${path} is visible to PRO user`, () => {
+      expect(getSurfaceTier(path)).toBe("PROFESSIONAL");
+      expect(canAccessSurface(PRO_INDIVIDUAL, path)).toBe(true);
+    });
+    it(`PROFESSIONAL: ${path} is visible to TEAM owner`, () => {
+      expect(canAccessSurface(SMALL_TEAM_OWNER, path)).toBe(true);
+    });
+    it(`PROFESSIONAL: ${path} is hidden from FREE user`, () => {
+      expect(canAccessSurface(PERSONAL_FREE_USER, path)).toBe(false);
+      const d = getDirectAccessDecision(PERSONAL_FREE_USER, path);
+      expect(d.kind).toBe("redirect");
     });
   }
 });
@@ -237,21 +259,26 @@ describe("Phase IA-surface-tier — hidden surfaces for personal/small-office us
 // ============================================================================
 
 describe("Phase IA-surface-tier — tier eligibility escalations", () => {
-  it("PRO plan unlocks PROFESSIONAL surfaces", () => {
-    expect(canAccessSurface(PRO_INDIVIDUAL, "/integrations")).toBe(true);
-    expect(canAccessSurface(PRO_INDIVIDUAL, "/workflows")).toBe(true);
-    expect(canAccessSurface(PRO_INDIVIDUAL, "/exchange")).toBe(true);
-    // PRO does NOT unlock ENTERPRISE.
+  it("PRO plan unlocks PROFESSIONAL surfaces (Teams/Intake Links/Inbox)", () => {
+    // Phase IA-self-serve-simplification — advanced PROFESSIONAL
+    // surfaces (integrations/workflows/exchange) moved to ENTERPRISE
+    // because they are not packaged for self-serve. PRO now unlocks
+    // only the simplified-product PROFESSIONAL surfaces.
+    expect(canAccessSurface(PRO_INDIVIDUAL, "/teams")).toBe(true);
+    expect(canAccessSurface(PRO_INDIVIDUAL, "/intake-links")).toBe(true);
+    expect(canAccessSurface(PRO_INDIVIDUAL, "/inbox")).toBe(true);
+    // PRO does NOT unlock ENTERPRISE (incl. the formerly-PROFESSIONAL
+    // surfaces that moved up).
     expect(canAccessSurface(PRO_INDIVIDUAL, "/governance")).toBe(false);
+    expect(canAccessSurface(PRO_INDIVIDUAL, "/integrations")).toBe(false);
+    expect(canAccessSurface(PRO_INDIVIDUAL, "/workflows")).toBe(false);
+    expect(canAccessSurface(PRO_INDIVIDUAL, "/exchange")).toBe(false);
   });
 
   it("FREE personal user does NOT see PROFESSIONAL surfaces", () => {
-    // /integrations on FREE → redirect to /home (upsell path).
-    expect(canAccessSurface(PERSONAL_FREE_USER, "/integrations")).toBe(false);
-    const decision = getDirectAccessDecision(
-      PERSONAL_FREE_USER,
-      "/integrations",
-    );
+    // FREE on /teams → redirect /home (upsell path).
+    expect(canAccessSurface(PERSONAL_FREE_USER, "/teams")).toBe(false);
+    const decision = getDirectAccessDecision(PERSONAL_FREE_USER, "/teams");
     expect(decision.kind).toBe("redirect");
     if (decision.kind === "redirect") {
       expect(decision.to).toBe("/home");
@@ -511,11 +538,18 @@ describe("Phase IA-surface-tier-correction — explicit persona checklist", () =
   });
 
   // TEAM plan still gets PROFESSIONAL (no regression for legitimate
-  // simplified-product surfaces).
-  it("TEAM owner DOES see PROFESSIONAL surfaces (regression guard)", () => {
-    expect(canAccessSurface(SMALL_TEAM_OWNER, "/integrations")).toBe(true);
-    expect(canAccessSurface(SMALL_TEAM_OWNER, "/workflows")).toBe(true);
-    expect(canAccessSurface(SMALL_TEAM_OWNER, "/exchange")).toBe(true);
+  // simplified-product surfaces). Phase IA-self-serve-simplification
+  // narrowed the PROFESSIONAL tier to teams/intake-links/inbox; the
+  // formerly-PROFESSIONAL integrations/workflows/exchange moved to
+  // ENTERPRISE because they are not packaged for self-serve.
+  it("TEAM owner DOES see the simplified PROFESSIONAL surfaces (Teams/Intake Links/Inbox)", () => {
+    expect(canAccessSurface(SMALL_TEAM_OWNER, "/teams")).toBe(true);
+    expect(canAccessSurface(SMALL_TEAM_OWNER, "/intake-links")).toBe(true);
+    expect(canAccessSurface(SMALL_TEAM_OWNER, "/inbox")).toBe(true);
+    // The advanced surfaces moved to ENTERPRISE — TEAM owner does NOT see them.
+    expect(canAccessSurface(SMALL_TEAM_OWNER, "/integrations")).toBe(false);
+    expect(canAccessSurface(SMALL_TEAM_OWNER, "/workflows")).toBe(false);
+    expect(canAccessSurface(SMALL_TEAM_OWNER, "/exchange")).toBe(false);
   });
 });
 
@@ -559,6 +593,89 @@ describe("Phase IA-surface-tier-correction — rolesUnlockingEnterprise narrowed
     expect(ACCESS_SRC).not.toMatch(
       /ctx\.plan === "TEAM"\s*&&\s*\(ctx\.role === "OWNER"\s*\|\|\s*ctx\.role === "ADMIN"\)/,
     );
+  });
+});
+
+// ============================================================================
+// Section L — Phase IA-surface-tier-pricing — Organizations ENTERPRISE_ONLY
+// ============================================================================
+
+const PAYG_USER: SurfaceUserContext = {
+  plan: "PAYG",
+  role: "OWNER",
+  isPlatformAdmin: false,
+  isEnterpriseWorkspace: false,
+};
+
+describe("Phase IA-surface-tier-pricing — Organizations are ENTERPRISE_ONLY", () => {
+  // Per the public pricing page:
+  //   FREE / PAYG / PRO / TEAM users must NOT see Organizations.
+  //   Self-serve plans manage collaboration through /teams only.
+  const ORG_PATHS = [
+    "/organizations",
+    "/organization-admin",
+    "/admin/organizations",
+  ];
+  const NON_ENTERPRISE = [
+    { name: "FREE", ctx: PERSONAL_FREE_USER },
+    { name: "PAYG", ctx: PAYG_USER },
+    { name: "PRO", ctx: PRO_INDIVIDUAL },
+    { name: "TEAM owner", ctx: SMALL_TEAM_OWNER },
+    {
+      name: "TEAM admin",
+      ctx: {
+        plan: "TEAM" as const,
+        role: "ADMIN" as const,
+        isPlatformAdmin: false,
+        isEnterpriseWorkspace: false,
+      },
+    },
+    { name: "TEAM member", ctx: SMALL_TEAM_MEMBER },
+  ];
+
+  for (const persona of NON_ENTERPRISE) {
+    for (const path of ORG_PATHS) {
+      it(`${persona.name} cannot see or open ${path}`, () => {
+        expect(canAccessSurface(persona.ctx, path)).toBe(false);
+        // Per the brief: notFound or redirect — both must be acceptable.
+        // The rule table uses notFound for ENTERPRISE_ONLY.
+        const d = getDirectAccessDecision(persona.ctx, path);
+        expect(["notFound", "redirect"]).toContain(d.kind);
+      });
+    }
+  }
+
+  it("Enterprise workspace admin CAN see /organizations", () => {
+    expect(canAccessSurface(ENTERPRISE_ADMIN, "/organizations")).toBe(true);
+    expect(canAccessSurface(ENTERPRISE_ADMIN, "/organization-admin")).toBe(true);
+  });
+
+  it("Platform admin sees /organizations + admin routes", () => {
+    expect(canAccessSurface(PLATFORM_ADMIN, "/organizations")).toBe(true);
+    expect(canAccessSurface(PLATFORM_ADMIN, "/admin/organizations")).toBe(true);
+    expect(canAccessSurface(PLATFORM_ADMIN, "/admin")).toBe(true);
+  });
+});
+
+describe("Phase IA-surface-tier-pricing — Teams visibility per pricing tier", () => {
+  it("PRO user sees /teams", () => {
+    expect(canAccessSurface(PRO_INDIVIDUAL, "/teams")).toBe(true);
+  });
+
+  it("TEAM owner sees /teams", () => {
+    expect(canAccessSurface(SMALL_TEAM_OWNER, "/teams")).toBe(true);
+  });
+
+  it("FREE user does NOT see /teams (upgrade-locked)", () => {
+    expect(canAccessSurface(PERSONAL_FREE_USER, "/teams")).toBe(false);
+    // Direct URL → redirect /home (upsell path, not 404 — the surface
+    // exists for the plan above).
+    const d = getDirectAccessDecision(PERSONAL_FREE_USER, "/teams");
+    expect(d.kind).toBe("redirect");
+  });
+
+  it("PAYG user does NOT see /teams", () => {
+    expect(canAccessSurface(PAYG_USER, "/teams")).toBe(false);
   });
 });
 

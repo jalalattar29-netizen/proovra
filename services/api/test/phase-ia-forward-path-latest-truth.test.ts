@@ -116,9 +116,13 @@ describe("Phase IA-forward-path — OTS-anchored regen produces a version bump",
   it("FULLY_ANCHORED enqueues with forceRegenerate: true + regenerateReason ots_anchored", () => {
     const idx = UP.indexOf('if (classification.kind === "FULLY_ANCHORED")');
     expect(idx).toBeGreaterThan(-1);
-    const block = UP.slice(idx, idx + 2500);
+    // Phase IA-OTS-info-fallback — widened slice (2500 → 5500) +
+    // expanded inner gaps (400 → 1200) so the additional
+    // custody-payload fields the info probe adds don't push
+    // `enqueueReportJob` out of the matched window.
+    const block = UP.slice(idx, idx + 5500);
     expect(block).toMatch(
-      /enqueueReportJob\(evidenceId,\s*\{[\s\S]{0,400}forceRegenerate:\s*true[\s\S]{0,400}regenerateReason:\s*"ots_anchored"/,
+      /enqueueReportJob\(evidenceId,\s*\{[\s\S]{0,1200}forceRegenerate:\s*true[\s\S]{0,1200}regenerateReason:\s*"ots_anchored"/,
     );
   });
 

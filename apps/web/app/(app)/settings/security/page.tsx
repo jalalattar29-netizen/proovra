@@ -44,6 +44,12 @@ import Link from "next/link";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PersonalSecuritySections } from "../../security-center/components/PersonalSecuritySections";
+// Phase IA-self-serve-simplification — gate the inline "Identity &
+// Security" deep link in the page header on /security-center
+// eligibility. Self-serve users don't see the deep link because
+// the workspace surface is ENTERPRISE_ONLY.
+import { canAccessSurface } from "../../../../lib/surface/access";
+import { useSurfaceUserContext } from "../../../../lib/surface/useSurfaceUserContext";
 
 export default function AccountSecurityPage() {
   return (
@@ -54,6 +60,11 @@ export default function AccountSecurityPage() {
 }
 
 function AccountSecurityPageInner() {
+  const surfaceUserCtx = useSurfaceUserContext();
+  const canSeeWorkspaceSecurity = canAccessSurface(
+    surfaceUserCtx,
+    "/security-center",
+  );
   return (
     <main style={pageStyle} data-testid="account-security-page">
       <header style={headerStyle}>
@@ -61,13 +72,18 @@ function AccountSecurityPageInner() {
         <p style={subtitleStyle}>
           Personal account controls — change your password, review and
           revoke your active sessions, and inspect the bounded timeline
-          of identity and auth events tied to your account. Workspace
-          identity operations (MFA policy, trusted devices, recovery
-          approvals) live in{" "}
-          <Link href="/security-center" style={linkStyle}>
-            Identity &amp; Security
-          </Link>
-          .
+          of identity and auth events tied to your account.
+          {canSeeWorkspaceSecurity ? (
+            <>
+              {" "}
+              Workspace identity operations (MFA policy, trusted devices,
+              recovery approvals) live in{" "}
+              <Link href="/security-center" style={linkStyle}>
+                Identity &amp; Security
+              </Link>
+              .
+            </>
+          ) : null}
         </p>
       </header>
 

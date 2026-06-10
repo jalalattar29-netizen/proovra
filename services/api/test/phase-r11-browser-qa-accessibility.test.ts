@@ -181,10 +181,14 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
       statSync(webPath("app/verify/[token]/page.tsx")).size,
     ).toBeLessThanOrEqual(255081);
   });
-  it("CR5 UPPER pin on capture page.tsx holds (≤ 48,616 bytes)", () => {
+  // Phase IA-self-serve-completion rebaseline: 48,972 → 49,830 after
+  // the audit-fix pass added plain-language eyebrow + heading rename
+  // ("Reviewer note" → "Your notes") + placeholder rewrite + bounded
+  // comments. No behaviour change.
+  it("CR5 UPPER pin on capture page.tsx holds (≤ 49,830 bytes)", () => {
     expect(
       statSync(webPath("app/(app)/capture/page.tsx")).size,
-    ).toBeLessThanOrEqual(48972);
+    ).toBeLessThanOrEqual(49830);
   });
   it("R10 UPPER pin on ui.tsx holds", () => {
     expect(UI_TSX.split("\n").length).toBeLessThanOrEqual(520);

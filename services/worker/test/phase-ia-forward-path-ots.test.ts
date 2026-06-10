@@ -130,7 +130,11 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
   it("FULLY_ANCHORED branch writes ANCHORED + enqueueReportJob ots_anchored", () => {
     const idx = UP.indexOf('if (classification.kind === "FULLY_ANCHORED")');
     expect(idx).toBeGreaterThan(-1);
-    const block = UP.slice(idx, idx + 2500);
+    // Phase IA-OTS-info-fallback — slice widened from 2500→5000 to
+    // accommodate the additional custody-payload fields the info
+    // probe adds (`infoStatus`, `infoFileHashMatches`,
+    // `infoBlockHeights`).
+    const block = UP.slice(idx, idx + 5000);
     expect(block).toMatch(/status:\s*"ANCHORED"/);
     expect(block).toMatch(/enqueueReportJob\(evidenceId,\s*\{/);
     expect(block).toMatch(/regenerateReason:\s*"ots_anchored"/);
@@ -139,19 +143,25 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
 
   it("FULLY_ANCHORED branch writes ANCHORED + custody event inside the SAME transaction", () => {
     const idx = UP.indexOf('if (classification.kind === "FULLY_ANCHORED")');
-    const block = UP.slice(idx, idx + 2500);
+    const block = UP.slice(idx, idx + 5000);
     expect(block).toMatch(
-      /prisma\.\$transaction\(async \(tx\) => \{[\s\S]{0,1200}tx\.evidence\.update[\s\S]{0,1200}appendCustodyEventTx\(tx,/,
+      /prisma\.\$transaction\(async \(tx\) => \{[\s\S]{0,1200}tx\.evidence\.update[\s\S]{0,1500}appendCustodyEventTx\(tx,/,
     );
   });
 
   it("FULLY_ANCHORED custody event payload exposes verifyConfirmed + completionSource", () => {
     const idx = UP.indexOf('if (classification.kind === "FULLY_ANCHORED")');
-    const block = UP.slice(idx, idx + 2500);
-    expect(block).toMatch(/verifyConfirmed:\s*verify\s*!==\s*null/);
-    expect(block).toMatch(
-      /completionSource:[\s\S]{0,200}verify\s*!==\s*null\s*\?\s*"ots_verify"\s*:\s*"ots_upgrade_heuristic"/,
-    );
+    const block = UP.slice(idx, idx + 5000);
+    // Phase IA-OTS-info-fallback — `verifyConfirmed` now means
+    // "verify succeeded" (verify?.verified === true), not just
+    // "verify ran". `completionSource` now has 3 values:
+    // `ots_info_no_verify_available` (info-confirms branch),
+    // `ots_verify` (verify-confirms branch), `ots_upgrade_heuristic`
+    // (legacy fallback).
+    expect(block).toMatch(/verifyConfirmed:\s*verify\?\.\s*verified === true/);
+    expect(block).toMatch(/"ots_info_no_verify_available"/);
+    expect(block).toMatch(/"ots_verify"/);
+    expect(block).toMatch(/"ots_upgrade_heuristic"/);
   });
 
   it("ANCHOR_MATERIAL_RECOVERED / STILL_PENDING branch keeps PENDING + records classification", () => {

@@ -221,41 +221,46 @@ describe("Phase IA-surface-tier-wiring — middleware INTERNAL gate", () => {
 describe("Phase IA-surface-tier-wiring — simplified normal-user sidebar", () => {
   const TIERS = readWeb("lib/surface/tiers.ts");
 
-  it("/workspaces is no longer CORE — moved to PROFESSIONAL", () => {
+  // Phase IA-self-serve-simplification — workspaces/notifications/persona
+  // were re-tiered AGAIN: they used to be PROFESSIONAL but the
+  // self-serve simplification brief moved them to ENTERPRISE with
+  // bounded redirects so they no longer appear as standalone product
+  // surfaces.
+  it("/workspaces is ENTERPRISE — redirects to /teams", () => {
     expect(TIERS).toMatch(
-      /pathPrefix:\s*"\/workspaces",\s*tier:\s*"PROFESSIONAL"/,
+      /pathPrefix:\s*"\/workspaces",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"redirect",\s*redirectTo:\s*"\/teams"/,
     );
   });
 
-  it("/notifications is no longer CORE — moved to PROFESSIONAL", () => {
+  it("/notifications is ENTERPRISE — redirects to /settings", () => {
     expect(TIERS).toMatch(
-      /pathPrefix:\s*"\/notifications",\s*tier:\s*"PROFESSIONAL"/,
+      /pathPrefix:\s*"\/notifications",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"redirect",\s*redirectTo:\s*"\/settings"/,
     );
   });
 
-  it("/organizations is no longer CORE — moved to ENTERPRISE", () => {
+  it("/organizations is ENTERPRISE notFound (ENTERPRISE_ONLY)", () => {
     expect(TIERS).toMatch(
-      /pathPrefix:\s*"\/organizations",\s*tier:\s*"ENTERPRISE"/,
+      /pathPrefix:\s*"\/organizations",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"notFound"/,
     );
   });
 
-  it("/persona is no longer CORE — moved to PROFESSIONAL", () => {
+  it("/persona is ENTERPRISE — redirects to /settings", () => {
     expect(TIERS).toMatch(
-      /pathPrefix:\s*"\/persona",\s*tier:\s*"PROFESSIONAL"/,
+      /pathPrefix:\s*"\/persona",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"redirect",\s*redirectTo:\s*"\/settings"/,
     );
   });
 
-  it("the 12 brief-listed CORE surfaces are still CORE", () => {
+  it("the 9 FREE/PAYG CORE surfaces are still CORE (pricing-aligned)", () => {
+    // Phase IA-surface-tier-pricing — /teams, /intake-links, /inbox
+    // moved to PROFESSIONAL. The CORE set now matches the FREE/PAYG
+    // sidebar in the pricing brief.
     const CORE = [
       "/home",
       "/capture",
       "/evidence",
       "/cases",
-      "/intake-links",
       "/search",
       "/reports",
-      "/teams",
-      "/inbox",
       "/trust-center",
       "/settings",
       "/billing",
@@ -267,5 +272,71 @@ describe("Phase IA-surface-tier-wiring — simplified normal-user sidebar", () =
         `${p} must remain CORE`,
       ).toMatch(new RegExp(`pathPrefix:\\s*"${safe}",\\s*tier:\\s*"CORE"`));
     }
+  });
+
+  it("/teams + /intake-links + /inbox are PROFESSIONAL (PRO/TEAM only)", () => {
+    expect(TIERS).toMatch(/pathPrefix:\s*"\/teams",\s*tier:\s*"PROFESSIONAL"/);
+    expect(TIERS).toMatch(
+      /pathPrefix:\s*"\/intake-links",\s*tier:\s*"PROFESSIONAL"/,
+    );
+    expect(TIERS).toMatch(/pathPrefix:\s*"\/inbox",\s*tier:\s*"PROFESSIONAL"/);
+  });
+
+  it("/organizations is ENTERPRISE with notFound policy (ENTERPRISE_ONLY)", () => {
+    expect(TIERS).toMatch(
+      /pathPrefix:\s*"\/organizations",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"notFound"/,
+    );
+  });
+
+  it("/admin/organizations + /organization-admin are ENTERPRISE notFound", () => {
+    expect(TIERS).toMatch(
+      /pathPrefix:\s*"\/admin\/organizations",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"notFound"/,
+    );
+    expect(TIERS).toMatch(
+      /pathPrefix:\s*"\/organization-admin",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"notFound"/,
+    );
+  });
+});
+
+// ============================================================================
+// AppTopbarV2 — workspace switcher hides org actions for non-enterprise
+// ============================================================================
+
+describe("Phase IA-surface-tier-pricing — topbar workspace switcher", () => {
+  const TOPBAR = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
+
+  it("imports canAccessSurface + useSurfaceUserContext", () => {
+    expect(TOPBAR).toMatch(
+      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/lib\/surface\/access["']/,
+    );
+    expect(TOPBAR).toMatch(
+      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
+    );
+  });
+
+  it("computes canSeeOrganizations from canAccessSurface(\"/organizations\")", () => {
+    // The call is split across multiple lines in the source — allow
+    // arbitrary whitespace including newlines.
+    expect(TOPBAR).toMatch(
+      /const canSeeOrganizations\s*=\s*canAccessSurface\([\s\S]{0,200}surfaceUserCtx[\s\S]{0,200}"\/organizations"/,
+    );
+  });
+
+  it("Organizations group is gated on canSeeOrganizations", () => {
+    expect(TOPBAR).toMatch(
+      /\{canSeeOrganizations && organizations\.length > 0/,
+    );
+  });
+
+  it("empty-state hint is gated on canSeeOrganizations", () => {
+    expect(TOPBAR).toMatch(
+      /\{canSeeOrganizations && organizations\.length === 0/,
+    );
+  });
+
+  it("Create/Join/Manage organization actions are gated on canSeeOrganizations", () => {
+    expect(TOPBAR).toMatch(
+      /\{canSeeOrganizations \?[\s\S]{0,2000}data-workspace-action="manage_organizations"/,
+    );
   });
 });

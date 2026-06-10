@@ -5,9 +5,11 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
 import {
+  parseOtsInfoOutput,
   parseOtsUpgradeOutput,
   parseOtsVerifyOutput,
   shouldTreatOtsAsAnchored,
+  type OtsInfoOutput,
   type OtsVerifyOutput,
 } from "./ots-upgrade-output.js";
 // Phase O1.5B — bounded OTS spans. Attributes carry calendar URL,
@@ -550,6 +552,161 @@ export async function verifyOtsProof(
     return {
       status: "ERROR",
       verify: null,
+      binaryMissing: false,
+      error: normalizeErrorMessage(error).slice(0, 380),
+    };
+  } finally {
+    await cleanup([workDir]);
+  }
+}
+
+// ===========================================================================
+// Phase IA-OTS-info-fallback — `ots info` wrapper.
+//
+// `ots info <proof.ots>` reads the proof bytes and prints a deterministic
+// dump of the contained merkle tree + attestations. It does NOT require
+// a Bitcoin RPC, a calendar HTTP call, or any other network access.
+// This makes it the canonical "is this proof already bound to a Bitcoin
+// block?" signal in containerized deployments where `ots verify -d`
+// fails because `Could not connect to Bitcoin node: /home/app/.bitcoin/
+// .cookie missing`.
+//
+// Hard rules (mirroring `verifyOtsProof`):
+//   * NEVER throws — info failures are always returned as a structured
+//     object so the processor can act on them without crashing.
+//   * NEVER persists.
+//   * Bounded timeout via `resolveOtsTimeoutMs()`.
+//   * The parsed output is exposed verbatim via `parseOtsInfoOutput` so
+//     callers can inspect block heights / pending calendars / file hash
+//     / txid independently.
+// ===========================================================================
+
+export type GetOtsProofInfoInput = {
+  /** Base64-encoded proof bytes from `Evidence.otsProofBase64`. */
+  proofBase64: string;
+};
+
+export type GetOtsProofInfoResult =
+  | {
+      status: "DISABLED";
+      info: null;
+      binaryMissing: false;
+      error: null;
+    }
+  | {
+      status: "PARSED";
+      info: OtsInfoOutput;
+      binaryMissing: false;
+      error: null;
+    }
+  | {
+      status: "BINARY_MISSING";
+      info: null;
+      binaryMissing: true;
+      error: string;
+    }
+  | {
+      status: "ERROR";
+      info: OtsInfoOutput | null;
+      binaryMissing: false;
+      error: string;
+    };
+
+export async function getOtsProofInfo(
+  input: GetOtsProofInfoInput,
+): Promise<GetOtsProofInfoResult> {
+  if (!enabled()) {
+    return {
+      status: "DISABLED",
+      info: null,
+      binaryMissing: false,
+      error: null,
+    };
+  }
+  const proofBase64 = clean(input.proofBase64);
+  if (!proofBase64) {
+    return {
+      status: "ERROR",
+      info: null,
+      binaryMissing: false,
+      error: "getOtsProofInfo called with an empty proofBase64.",
+    };
+  }
+
+  const workDir = await mkWorkDir();
+  const proofFile = path.join(workDir, "proof.ots");
+  try {
+    await fs.writeFile(proofFile, Buffer.from(proofBase64, "base64"));
+    let stdout = "";
+    let stderr = "";
+    let commandErrored = false;
+    try {
+      const result = await execFileAsync(
+        resolveOtsBin(),
+        ["info", proofFile],
+        { timeout: resolveOtsTimeoutMs() },
+      );
+      stdout = result.stdout?.toString() ?? "";
+      stderr = result.stderr?.toString() ?? "";
+    } catch (error) {
+      const e = error as {
+        stdout?: string | Buffer;
+        stderr?: string | Buffer;
+        message?: string;
+      };
+      stdout = (e.stdout ?? "").toString();
+      stderr = (e.stderr ?? e.message ?? "").toString();
+      commandErrored = true;
+    }
+
+    const merged = `${stdout}\n${stderr}`;
+    if (isBinaryMissingMessage(merged)) {
+      return {
+        status: "BINARY_MISSING",
+        info: null,
+        binaryMissing: true,
+        error:
+          "OpenTimestamps binary is missing in the worker environment.",
+      };
+    }
+
+    const parsed = parseOtsInfoOutput(stdout, stderr);
+    // PARSED requires the file-hash line to be present — without it
+    // we cannot make the security comparison against evidence.otsHash.
+    // Some `ots info` invocations on a corrupt proof print empty
+    // structure with the file hash; we still return PARSED in that
+    // case so the classifier sees `info` with the hash but no block
+    // heights, and the rule "no block attestation → not anchored"
+    // applies.
+    if (parsed.fileHash !== null) {
+      return {
+        status: "PARSED",
+        info: parsed,
+        binaryMissing: false,
+        error: null,
+      };
+    }
+    if (commandErrored) {
+      return {
+        status: "ERROR",
+        info: parsed,
+        binaryMissing: false,
+        error: parsed.raw.slice(0, 380),
+      };
+    }
+    // Edge case: the command succeeded but emitted no file-hash line.
+    // Treat as ERROR with the parsed body so the processor can fall
+    // back to the verify/upgrade signals.
+    return {
+      status: "ERROR",
+      info: parsed,
+      binaryMissing: false,
+      error: "ots info returned no `File sha256 hash` line.",
+    };
+  } catch (error) {
+    return {
+      status: "ERROR",
+      info: null,
       binaryMissing: false,
       error: normalizeErrorMessage(error).slice(0, 380),
     };

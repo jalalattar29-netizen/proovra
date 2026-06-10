@@ -44,6 +44,17 @@ import {
   getOtsGlobalBudgetMs,
   isOtsGlobalBudgetExhausted,
 } from "../ots-upgrade.processor.js";
+// Phase IA-OTS-hybrid-fix — surface the verify result + the
+// classifier output + the next delayed job runAt directly in the
+// smoke output. The probe stays read-only: `verifyOtsProof` is
+// pure (writes nothing), and `classifyOtsResult` is a pure
+// function. The point is to give operators a single command that
+// answers "why is this evidence still PENDING?"
+import { getOtsProofInfo, verifyOtsProof } from "../ots.service.js";
+import {
+  classifyOtsResult,
+  parseOtsUpgradeOutput,
+} from "../ots-upgrade-output.js";
 
 type Args = {
   evidenceId: string | null;
@@ -160,15 +171,182 @@ async function probe(evidenceId: string): Promise<{
   }
 
   const queueSummary: string[] = [];
+  let nextDelayedRunAt: string | null = null;
   for (const j of dedupedById.values()) {
     if (!j) continue;
     const st = await j.getState();
     queueSummary.push(`${j.id}=${st}`);
+    // Phase IA-OTS-hybrid-fix — surface the runAt of the soonest
+    // delayed follow-up so the operator can tell at a glance when
+    // the next retry will fire. BullMQ stores the delay window on
+    // the job (`delay` ms from `processedOn` / `timestamp`). We
+    // never invent a wall-clock — only report what's already on the
+    // job.
+    if (st === "delayed") {
+      const baseMs = j.processedOn ?? j.timestamp ?? null;
+      const delayMs = typeof j.opts?.delay === "number" ? j.opts.delay : 0;
+      if (baseMs !== null) {
+        const runAt = new Date(baseMs + delayMs).toISOString();
+        if (nextDelayedRunAt === null || runAt < nextDelayedRunAt) {
+          nextDelayedRunAt = runAt;
+        }
+      }
+    }
   }
   probes.push({
     name: "ots_upgrade_queue_jobs",
     value: queueSummary.length === 0 ? "none" : queueSummary.join("; "),
   });
+  probes.push({
+    name: "next_delayed_job_runAt",
+    value: nextDelayedRunAt ?? "none",
+  });
+
+  // -------------------------------------------------------------------
+  // Phase IA-OTS-hybrid-fix — read-only verify probe.
+  //
+  // We replay `ots verify` against the persisted proof so the operator
+  // can see WHY the proof is still PENDING:
+  //
+  //   - verify.status: VERIFIED / INCOMPLETE / ERROR / BINARY_MISSING /
+  //     DISABLED — the canonical "is the proof actually anchored?" read.
+  //   - verify.verified.blockHeight + anchoredAtUtc when the proof IS
+  //     fully anchored.
+  //   - classifier.kind: the deterministic outcome that the next
+  //     follow-up's processor will see if it re-runs verify with the
+  //     same persisted bytes. Helps operators predict the next
+  //     transition.
+  //
+  // The verify call writes nothing — it's a pure read of the proof
+  // bytes against an in-memory temp file the helper cleans up.
+  // -------------------------------------------------------------------
+  if (ev.otsProofBase64 && ev.otsHash) {
+    try {
+      const verifyResult = await verifyOtsProof({
+        proofBase64: ev.otsProofBase64,
+        hashHex: ev.otsHash,
+      });
+      probes.push({ name: "verify_status", value: verifyResult.status });
+      if (verifyResult.verify) {
+        probes.push({
+          name: "verify_verified",
+          value: String(verifyResult.verify.verified),
+        });
+        probes.push({
+          name: "verify_blockHeight",
+          value:
+            verifyResult.verify.blockHeight === null
+              ? "null"
+              : String(verifyResult.verify.blockHeight),
+        });
+        probes.push({
+          name: "verify_anchoredAtUtc",
+          value: verifyResult.verify.anchoredAtUtc ?? "null",
+        });
+      } else {
+        probes.push({ name: "verify_verified", value: "n/a" });
+      }
+      if (verifyResult.error) {
+        probes.push({
+          name: "verify_error",
+          value: verifyResult.error.slice(0, 180),
+        });
+      }
+
+      // Phase IA-OTS-info-fallback — also run `ots info` so the smoke
+      // output answers "would the classifier promote to ANCHORED if
+      // the processor re-ran right now?" The info call is a pure
+      // local read (no Bitcoin RPC, no calendar network).
+      const infoResult = await getOtsProofInfo({
+        proofBase64: ev.otsProofBase64,
+      });
+      probes.push({ name: "info_status", value: infoResult.status });
+      if (infoResult.info) {
+        probes.push({
+          name: "info_fileHash",
+          value: infoResult.info.fileHash ?? "null",
+        });
+        probes.push({
+          name: "info_fileHash_matches",
+          value: String(
+            infoResult.info.fileHash != null &&
+              ev.otsHash != null &&
+              infoResult.info.fileHash === ev.otsHash.toLowerCase(),
+          ),
+        });
+        probes.push({
+          name: "info_blockHeights",
+          value:
+            infoResult.info.bitcoinBlockHeights.length === 0
+              ? "none"
+              : infoResult.info.bitcoinBlockHeights.join(","),
+        });
+        probes.push({
+          name: "info_pendingCalendars",
+          value:
+            infoResult.info.pendingCalendars.length === 0
+              ? "none"
+              : infoResult.info.pendingCalendars.join(" | "),
+        });
+        probes.push({
+          name: "info_txid",
+          value: infoResult.info.txid ?? "null",
+        });
+      }
+      if (infoResult.error) {
+        probes.push({
+          name: "info_error",
+          value: infoResult.error.slice(0, 180),
+        });
+      }
+
+      // Predict the next classification by running the classifier
+      // against the verify + info outputs we just produced + the
+      // persisted txid. We pass an empty upgrade output because the
+      // smoke script never invokes `ots upgrade` (would mutate the
+      // proof file). The persisted txid is read from the evidence row.
+      const emptyUpgrade = parseOtsUpgradeOutput("", "");
+      const verifyForClassifier =
+        verifyResult.status === "VERIFIED" ||
+        verifyResult.status === "INCOMPLETE"
+          ? verifyResult.verify
+          : null;
+      const classification = classifyOtsResult({
+        upgrade: emptyUpgrade,
+        verify: verifyForClassifier,
+        info: infoResult.status === "PARSED" ? infoResult.info : null,
+        expectedFileHashHex: ev.otsHash,
+        existingTxid: ev.otsBitcoinTxid,
+        commandErrored: false,
+      });
+      probes.push({
+        name: "classifier_kind",
+        value: classification.kind,
+      });
+      probes.push({
+        name: "classifier_phase",
+        value: classification.phase,
+      });
+      probes.push({
+        name: "classifier_reason",
+        value: classification.reason.slice(0, 180),
+      });
+    } catch (err) {
+      probes.push({
+        name: "verify_status",
+        value: "PROBE_FAILED",
+      });
+      probes.push({
+        name: "verify_error",
+        value: (err instanceof Error ? err.message : String(err)).slice(
+          0,
+          180,
+        ),
+      });
+    }
+  } else {
+    probes.push({ name: "verify_status", value: "SKIPPED_NO_PROOF_OR_HASH" });
+  }
 
   const runnableExists = (
     await Promise.all(
