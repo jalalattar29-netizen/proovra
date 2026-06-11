@@ -164,6 +164,16 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
         //     surface rather than an operator surface.
         "BILLING_VIEW",
         "TEAM_VIEW",
+        // Phase IA-intake-access-fix — Intake Links is a core
+        // self-serve feature for PRO/TEAM users (lawyers,
+        // journalists, investigators, consultants, and small
+        // offices). The Personal Space user is the OWNER of their
+        // own workspace and must be able to create and manage
+        // intake links from there. Plan-tier gating (FREE/PAYG
+        // redirect) is enforced upstream by the surface-tier
+        // middleware — granting the capability here does not
+        // widen access for FREE/PAYG.
+        "INTAKE_LINKS_MANAGE",
       ],
       true,
     );

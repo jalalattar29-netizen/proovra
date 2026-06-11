@@ -41,6 +41,20 @@
  *   - `allToolsItems` is EVERY route with `canSeeNav: true` AND
  *     `allToolsVisible: true`, regardless of workflow.
  */
+// Phase IA-intake-access-fix — inlined to avoid creating a paired .js
+// for canonicalNavigationGroups (the .ts is the only source there).
+// Kept in sync manually with canonicalNavigationGroups.ts:45.
+const CANONICAL_PRIMARY_ROUTE_IDS = new Set([
+    "workspace.home",
+    "workspace.review",
+    "workspace.cases",
+    "workspace.evidence",
+    "workspace.capture",
+    "workspace.intake_links",
+    "account.inbox",
+    "workspace.search",
+    "workspace.reports",
+]);
 export function resolveWorkflowExposure(input) {
     const primaryItems = [];
     const secondaryItems = [];
@@ -61,14 +75,18 @@ export function resolveWorkflowExposure(input) {
             continue;
         const taggedPrimary = route.workflowTags.includes(input.primaryWorkflow);
         const taggedSecondary = input.secondaryWorkflows.some((w) => route.workflowTags.includes(w));
-        if (taggedPrimary) {
+        const isCanonicalPrimary = CANONICAL_PRIMARY_ROUTE_IDS.has(route.id);
+        if (taggedPrimary || isCanonicalPrimary) {
             primaryItems.push({
                 route,
                 access,
-                bucketReason: "primary-workflow-match",
+                bucketReason: taggedPrimary
+                    ? "primary-workflow-match"
+                    : "canonical-primary",
             });
+            continue;
         }
-        else if (taggedSecondary) {
+        if (taggedSecondary) {
             secondaryItems.push({
                 route,
                 access,

@@ -390,7 +390,13 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
     workflowTags: ["LEGAL_CASEWORK", "REVIEW_OPERATIONS"],
-    advancedByDefault: true,
+    // Phase IA-intake-access-fix — Intake Links is a CORE self-serve
+    // surface for PRO/TEAM, not an advanced add-on. It must render in
+    // the primary sidebar group instead of being demoted to "More /
+    // Advanced". The disclosure resolver still relies on
+    // `CANONICAL_PRIMARY_ROUTE_IDS` for the bounded primary set —
+    // see canonicalNavigationGroups.ts:51.
+    advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
     sidebarEligible: true,

@@ -22,6 +22,7 @@
  */
 
 import type { WorkflowProfileCode } from "../platform-context/workflowProfile";
+import { CANONICAL_PRIMARY_ROUTE_IDS } from "./canonicalNavigationGroups";
 import type { RouteAccessResult } from "./routeAccessResolver";
 import type { RouteDefinition } from "./routeRegistry";
 
@@ -42,6 +43,7 @@ export type WorkflowExposureItem = {
   bucketReason:
     | "primary-workflow-match"
     | "secondary-workflow-match"
+    | "canonical-primary"
     | "default-not-advanced"
     | "advanced-by-default"
     | "all-tools-only"
@@ -104,13 +106,25 @@ export function resolveWorkflowExposure(
       route.workflowTags.includes(w),
     );
 
-    if (taggedPrimary) {
+    // Phase IA-intake-access-fix — routes in CANONICAL_PRIMARY_ROUTE_IDS
+    // belong in the primary sidebar group for EVERY workflow profile.
+    // Without this promotion they'd fall through to advancedByDefault
+    // when the user's primary workflow doesn't tag them, which is how
+    // a PRO user's /intake-links ended up under "More / Advanced".
+    const isCanonicalPrimary = CANONICAL_PRIMARY_ROUTE_IDS.has(route.id);
+
+    if (taggedPrimary || isCanonicalPrimary) {
       primaryItems.push({
         route,
         access,
-        bucketReason: "primary-workflow-match",
+        bucketReason: taggedPrimary
+          ? "primary-workflow-match"
+          : "canonical-primary",
       });
-    } else if (taggedSecondary) {
+      continue;
+    }
+
+    if (taggedSecondary) {
       secondaryItems.push({
         route,
         access,

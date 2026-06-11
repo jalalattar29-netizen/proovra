@@ -141,13 +141,20 @@ export function PageRouteGate({
             >
               Back to home
             </Link>
-            <Link
-              href="/tools"
-              className="cases-filter-chip"
-              data-page-route-gate-all-tools
-            >
-              Browse all tools
-            </Link>
+            {/* Phase IA-intake-access-fix — same rationale as the
+                main denied branch: /tools is INTERNAL/notFound for
+                everyone except platform admins. Self-serve users
+                landing here from a stale URL must not be sent to a
+                404 surface. */}
+            {envelope?.platform?.isPlatformAdmin === true ? (
+              <Link
+                href="/tools"
+                className="cases-filter-chip"
+                data-page-route-gate-all-tools
+              >
+                Browse all tools
+              </Link>
+            ) : null}
           </div>
         </section>
       </main>
@@ -221,13 +228,20 @@ export function PageRouteGate({
               {access.secondaryAction.label}
             </Link>
           ) : null}
-          <Link
-            href="/tools"
-            className="cases-filter-chip"
-            data-page-route-gate-all-tools
-          >
-            Browse all tools
-          </Link>
+          {/* Phase IA-intake-access-fix — "Browse all tools" links to
+              /tools which is INTERNAL/notFound for self-serve users.
+              Only platform admins should see this fallback; for everyone
+              else it would route to a 404 page. Self-serve users get the
+              primary/secondary actions only. */}
+          {envelope?.platform?.isPlatformAdmin === true ? (
+            <Link
+              href="/tools"
+              className="cases-filter-chip"
+              data-page-route-gate-all-tools
+            >
+              Browse all tools
+            </Link>
+          ) : null}
         </div>
       </section>
     </main>
