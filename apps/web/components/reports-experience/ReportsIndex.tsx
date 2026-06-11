@@ -56,6 +56,91 @@ type LoadState =
   | { status: "auth_error"; code: "auth_required" | "permission_denied" }
   | { status: "unavailable"; message: string };
 
+// Phase IA-self-serve-regression-fix — user-scoped fallback. Shape
+// returned by GET /v1/reports (see services/api/src/routes/reports.routes.ts).
+type UserReportRow = {
+  evidenceId: string;
+  title: string | null;
+  type: string;
+  status: string;
+  caseId: string | null;
+  createdAt: string;
+  report: {
+    available: boolean;
+    version: number | null;
+    generatedAtUtc: string | null;
+  };
+  package: {
+    available: boolean;
+    version: number | null;
+    generatedAtUtc: string | null;
+  };
+};
+type UserReportsEnvelope = {
+  items: UserReportRow[];
+  nextCursor: string | null;
+};
+
+/**
+ * Phase IA-self-serve-regression-fix — call the user-scoped reports
+ * endpoint and adapt its shape into the artifact-envelope shape the
+ * rest of this component renders without changes. Returns null on
+ * any failure (network, 5xx, parse) so the caller can preserve the
+ * existing error message rather than masking it.
+ *
+ * The mapping is conservative:
+ *   * `report.state = "ready"` when the user-scoped endpoint says a
+ *     Report row exists; "not_requested" otherwise.
+ *   * `package.state = "ready"` when a VerificationPackage row
+ *     exists; "not_requested" otherwise.
+ *   * `verificationStatus` is omitted (null) because the user-scoped
+ *     endpoint doesn't include the integrity-verification column.
+ *   * Summary section is reported as `unavailable` so the page
+ *     gracefully degrades to "the artifact list below remains
+ *     usable" — the summary tiles are advisory only.
+ */
+async function tryUserScopedReports(): Promise<ReportsArtifactsEnvelope | null> {
+  try {
+    const envelope = (await apiFetch(`/v1/reports`, {
+      method: "GET",
+    })) as UserReportsEnvelope;
+    const items: ArtifactRow[] = (envelope.items ?? []).map((row) => ({
+      evidenceId: row.evidenceId,
+      title: row.title ?? "Untitled evidence",
+      type: row.type,
+      status: row.status,
+      verificationStatus: null,
+      caseId: row.caseId,
+      createdAt: row.createdAt,
+      report: {
+        state: row.report.available ? "ready" : "not_requested",
+        version: row.report.version,
+        generatedAtUtc: row.report.generatedAtUtc,
+      },
+      package: {
+        state: row.package.available ? "ready" : "not_requested",
+        version: row.package.version,
+        generatedAtUtc: row.package.generatedAtUtc,
+        blockedReason: null,
+      },
+    }));
+    return {
+      generatedAt: new Date().toISOString(),
+      workspace: { id: "user-scoped", role: "USER" },
+      sections: {
+        summary: { status: "unavailable", data: null },
+        artifacts: {
+          status: "ok",
+          items,
+          nextCursor: envelope.nextCursor,
+        },
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function ReportsIndex() {
   // Phase EMERGENCY-RECOVERY — Reports works for ANY active workspace
   // (personal Team with isPersonal=true OR a real team). Both have a
@@ -87,9 +172,39 @@ export function ReportsIndex() {
           `/v1/reports/artifacts?${params.toString()}`,
           { method: "GET" },
         )) as ReportsArtifactsEnvelope;
+        // Phase IA-self-serve-regression-fix — workspace-scoped
+        // aggregator returned 200 but with zero artifacts. For
+        // self-serve PERSONAL workspace users that's a known false
+        // negative: the bootstrap may have missed the TeamMember
+        // row, or evidence may live under a different teamId than
+        // the active workspace. Re-query the user-scoped fallback
+        // (`/v1/reports`) which finds reports via evidence
+        // ownership + ANY active team membership the user holds.
+        if (
+          envelope.sections.artifacts.status === "ok" &&
+          envelope.sections.artifacts.items.length === 0
+        ) {
+          const recovered = await tryUserScopedReports();
+          if (recovered) {
+            setState({ status: "ready", envelope: recovered });
+            return;
+          }
+        }
         setState({ status: "ready", envelope });
       } catch (err) {
         const e = err as { message?: string; statusCode?: number };
+        // Phase IA-self-serve-regression-fix — 404 from the
+        // workspace-scoped aggregator means "you are not a
+        // TeamMember of the supplied teamId". For self-serve
+        // PERSONAL users that's a known bootstrap gap; fall back
+        // to the user-scoped list instead of surfacing the error.
+        if (e.statusCode === 404) {
+          const recovered = await tryUserScopedReports();
+          if (recovered) {
+            setState({ status: "ready", envelope: recovered });
+            return;
+          }
+        }
         if (e.statusCode === 401) {
           setState({ status: "auth_error", code: "auth_required" });
         } else if (e.statusCode === 403) {

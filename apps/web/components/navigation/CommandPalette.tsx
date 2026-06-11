@@ -269,7 +269,13 @@ export function CommandPalette() {
       } else if (target.access.primaryAction) {
         router.push(target.access.primaryAction.href);
       } else {
-        router.push("/tools");
+        // Phase IA-self-serve-regression-fix — fallback was
+        // `/tools`, but `/tools` is INTERNAL (notFound for non-
+        // admins). For self-serve users this fallback rendered the
+        // 404 page. Route to `/home` instead — every user can reach
+        // home, so the palette never lands the user on a blank
+        // page.
+        router.push("/home");
       }
       close();
     }
@@ -388,7 +394,13 @@ export function CommandPalette() {
                     } else if (item.access.primaryAction) {
                       router.push(item.access.primaryAction.href);
                     } else {
-                      router.push("/tools");
+                      // Phase IA-self-serve-regression-fix — fallback was
+        // `/tools`, but `/tools` is INTERNAL (notFound for non-
+        // admins). For self-serve users this fallback rendered the
+        // 404 page. Route to `/home` instead — every user can reach
+        // home, so the palette never lands the user on a blank
+        // page.
+        router.push("/home");
                     }
                     close();
                   }}

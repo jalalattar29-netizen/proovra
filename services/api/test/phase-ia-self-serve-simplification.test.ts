@@ -216,80 +216,73 @@ describe("Phase IA-self-serve-simplification — FREE Reports locked notice", ()
 // ============================================================================
 
 describe("Phase IA-self-serve-simplification — SelfServeHomeDashboard", () => {
+  // Phase IA-self-serve-home-rebuild — the scaffolding shape pinned
+  // here has been replaced by the production self-serve Home. These
+  // tests are rewritten to pin the NEW shape; the full per-section
+  // + per-plan contract lives in
+  // `phase-ia-self-serve-home-rebuild.test.ts`.
   const HOME = readWeb("components/home-experience/SelfServeHomeDashboard.tsx");
+  const SECTIONS = readWeb("components/home-experience/HomeSections.tsx");
 
   it("exports SelfServeHomeDashboard", () => {
     expect(HOME).toMatch(/export function SelfServeHomeDashboard\(/);
   });
 
-  it("reads plan via useSurfaceUserContext (no envelope leak)", () => {
-    expect(HOME).toMatch(/useSurfaceUserContext/);
+  it("consumes useHomeData (the data layer the new dashboard uses)", () => {
+    expect(HOME).toMatch(/useHomeData/);
   });
 
-  it("contains the 8 bounded sections", () => {
-    for (const section of [
-      "quick-actions",
-      "recent-evidence",
-      "recent-cases",
-      "evidence-health",
-      "storage-usage",
-      "team-activity",
-      "getting-started",
-      "trust-summary",
+  it("mounts the 11 production section components in 6 rows", () => {
+    for (const name of [
+      "WorkspaceSnapshot",
+      "NextActionCard",
+      "StorageUsageCard",
+      "RecentEvidence",
+      "RecentCases",
+      "RecentReports",
+      "PipelineSnapshot",
+      "TeamActivityCard",
+      "GettingStartedChecklist",
+      "IntegrityAlerts",
+      "TrustSummary",
     ]) {
-      expect(HOME).toMatch(new RegExp(`data-self-serve-section="${section}"`));
+      expect(HOME).toMatch(new RegExp(`<${name}\\b`));
     }
   });
 
-  it("Quick actions: Capture / Create case / View reports always present", () => {
-    expect(HOME).toMatch(/Capture evidence/);
-    expect(HOME).toMatch(/Create case/);
-    expect(HOME).toMatch(/View reports/);
-  });
-
-  it("Invite teammate + intake link are gated on PRO/TEAM", () => {
-    expect(HOME).toMatch(
-      /isProOrTeam[\s\S]{0,400}Create intake link[\s\S]{0,200}Invite teammate/,
+  it("Recent Reports honours the FREE-plan locked-notice copy", () => {
+    expect(SECTIONS).toMatch(
+      /isFreePlan\s*\?[\s\S]{0,400}Pay-Per-Evidence, Pro, and Team/,
     );
   });
 
-  it("Upgrade CTA is gated on FREE/PAYG", () => {
-    expect(HOME).toMatch(
-      /\(plan === "FREE" \|\| plan === "PAYG"\)[\s\S]{0,200}Upgrade/,
+  it("Team Activity card is null-out when the view model returns null (PRO/TEAM gate lives in the normalizer)", () => {
+    expect(SECTIONS).toMatch(
+      /TeamActivityCard[\s\S]{0,500}if\s*\(!team\)\s*return\s*null/,
     );
   });
 
-  it("Team activity section is gated on PRO/TEAM", () => {
-    expect(HOME).toMatch(
-      /\{isProOrTeam \?[\s\S]{0,300}data-self-serve-section="team-activity"/,
-    );
-  });
-
-  it("Getting started checklist includes intake/invite for PRO+ only", () => {
-    expect(HOME).toMatch(
-      /\{isProOrTeam \?[\s\S]{0,500}getting-started-step="intake"[\s\S]{0,300}getting-started-step="invite"/,
+  it("Getting Started checklist is plan-aware via the view model `visible` field", () => {
+    expect(SECTIONS).toMatch(
+      /GettingStartedChecklist[\s\S]{0,500}steps\.filter\(\(s\)\s*=>\s*s\.visible\)/,
     );
   });
 
   it("Trust summary names the four bounded materials", () => {
-    expect(HOME).toMatch(/Digital signatures/);
-    expect(HOME).toMatch(/Trusted timestamps/);
-    expect(HOME).toMatch(/Public verification/);
-    expect(HOME).toMatch(/Object Lock/);
+    expect(SECTIONS).toMatch(/Digital signatures/);
+    expect(SECTIONS).toMatch(/trusted timestamp/i);
+    expect(SECTIONS).toMatch(/Object Lock/);
+    expect(SECTIONS).toMatch(/public verification link/i);
   });
 
   it("Trust summary does NOT claim legal admissibility / factual truth / certified authenticity", () => {
     // Disclaimers (e.g. "Legal admissibility is decided by reviewers
     // and courts") are EXPECTED. What we ban is the affirmative
-    // overclaim. Use the raw home string here since the disclaimer
-    // copy lives in the rendered JSX.
-    const RAW = readWeb(
-      "components/home-experience/SelfServeHomeDashboard.tsx",
-    );
-    expect(RAW).toMatch(/Legal\s+admissibility is decided/);
-    expect(RAW).not.toMatch(/PROOVRA certifies legal/);
-    expect(RAW).not.toMatch(/guarantees admissibility/);
-    expect(RAW).not.toMatch(/proves authenticity/i);
+    // overclaim.
+    expect(SECTIONS).toMatch(/Legal\s+admissibility is decided/);
+    expect(SECTIONS).not.toMatch(/PROOVRA certifies legal/);
+    expect(SECTIONS).not.toMatch(/guarantees admissibility/);
+    expect(SECTIONS).not.toMatch(/proves authenticity/i);
   });
 });
 

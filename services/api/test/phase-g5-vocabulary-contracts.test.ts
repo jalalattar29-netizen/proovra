@@ -251,6 +251,14 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   // "Team" as the displayed entity name (same exemption as the
   // detail page above) when the org has no displayName/name set.
   "app/(app)/teams/page.tsx",
+  // Phase IA-self-serve-home-rebuild — production self-serve Home.
+  // Uses "Team activity", "Invite a teammate", "Manage teams" — all
+  // canonical Collaboration Teams vocabulary (Phase 5/6/7) which is
+  // already an allowlisted constitutional product term.
+  "components/home-experience/SelfServeHomeDashboard.tsx",
+  "components/home-experience/HomeSections.tsx",
+  "components/home-experience/home-view-model.ts",
+  "components/home-experience/useHomeData.ts",
   // Reviewer Command Console + Governance Control Plane — older
   // surfaces that still describe the workspace as a "Team workspace".
   "components/command-center/CommandCenter.tsx",

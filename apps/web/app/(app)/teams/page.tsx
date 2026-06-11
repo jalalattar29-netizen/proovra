@@ -32,15 +32,25 @@
 
 import Link from "next/link";
 
-import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+// Phase IA-self-serve-regression-fix — the original page wrapped
+// content in `<PageRouteGate routeId="admin.teams">`. That routeId
+// belongs to the historic `/workspaces` admin index (route.href =
+// "/workspaces", requiredCapabilities = ["TEAM_VIEW"]). A PRO user
+// with no team yet has no TEAM_VIEW capability — so the gate denied
+// access and rendered the resolver's denial panel instead of the
+// teams landing. From the user's perspective, clicking "Invite
+// teammate" on Home appeared to open a blank/wrong page.
+//
+// Access to `/teams` is already enforced by the surface-tier middleware
+// (tiers.ts → PROFESSIONAL with redirect). FREE/PAYG users never reach
+// this page at all (middleware redirects them per the tier rule), so
+// no PageRouteGate is needed here. PRO/TEAM users always see the real
+// content below: a populated list if they have teams, or a clear
+// "No teams yet" empty state with a path to Billing if they don't.
 import { useOrganizations } from "../../../lib/platform-context";
 
 export default function TeamsLandingPage() {
-  return (
-    <PageRouteGate routeId="admin.teams">
-      <TeamsLandingPageInner />
-    </PageRouteGate>
-  );
+  return <TeamsLandingPageInner />;
 }
 
 function TeamsLandingPageInner() {
@@ -60,8 +70,8 @@ function TeamsLandingPageInner() {
         <div style={emptyStateStyle} data-teams-landing-empty>
           <strong style={emptyStateTitleStyle}>No teams yet</strong>
           <p style={emptyStateBodyStyle}>
-            Create your first team from Billing. PRO lets you own up to 2
-            teams; TEAM raises that to 5.
+            Invite members from a team page. Create your first team from
+            Billing — PRO lets you own up to 2 teams; TEAM raises that to 5.
           </p>
           <Link href="/billing" style={primaryLinkButtonStyle}>
             Go to Billing

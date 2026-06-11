@@ -175,6 +175,12 @@ import { runtimeReadinessRoutes } from "./routes/runtime-readiness.routes.js";
 import { workflowInstancesRoutes } from "./routes/workflow-instances.routes.js";
 import { dashboardRoutes } from "./routes/dashboard.routes.js";
 import { caseWorkspaceRoutes } from "./routes/case-workspace.routes.js";
+// Phase IA-self-serve-regression-fix — user-scoped reports list
+// (`GET /v1/reports`). Complements the workspace-scoped
+// `/v1/reports/artifacts` so self-serve PERSONAL users whose
+// workspace bootstrap missed the TeamMember row still see their
+// own generated reports.
+import registerReportsRoutes from "./routes/reports.routes.js";
 import { enterpriseAggregatorsRoutes } from "./routes/enterprise-aggregators.routes.js";
 import { runStartupConfigValidation } from "./config/index.js";
 // Phase P2.0 — AWS Secrets Manager hydration + runtime health route.
@@ -998,6 +1004,8 @@ allowedHeaders: [
   // pattern; no audit emissions; never triggers report/package
   // generation or signed-URL creation.
   await app.register(caseWorkspaceRoutes);
+  // Phase IA-self-serve-regression-fix — user-scoped reports list.
+  await app.register(registerReportsRoutes);
   // Phase 32.8E — Enterprise aggregators for Teams + Governance +
   // ReviewerOps:
   //   GET /v1/teams/workspace-admin

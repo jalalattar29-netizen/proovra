@@ -72,13 +72,20 @@ describe("Phase 38.8 — command palette", () => {
     expect(PALETTE).toMatch(/if \(!route\.commandPaletteVisible\) continue/);
   });
 
-  it("denied routes route to access.primaryAction OR /tools (never the denied page)", () => {
+  it("denied routes route to access.primaryAction OR /home (never the denied page)", () => {
     // The Enter / click handlers must check access.canLoad first; if
-    // false, they route to access.primaryAction.href OR /tools.
+    // false, they route to access.primaryAction.href OR /home.
+    //
+    // Phase IA-self-serve-regression-fix — the fallback was `/tools`,
+    // but /tools is INTERNAL (notFound for non-platform-admin). For
+    // self-serve users that fallback rendered the 404 page. The
+    // palette now pushes /home so every authenticated user lands on
+    // an accessible surface.
     expect(PALETTE).toMatch(
       /if \(target\.access\.canLoad\) \{[\s\S]*?\} else if \(target\.access\.primaryAction\)/,
     );
-    expect(PALETTE).toMatch(/router\.push\("\/tools"\)/);
+    expect(PALETTE).toMatch(/router\.push\("\/home"\)/);
+    expect(PALETTE).not.toMatch(/router\.push\("\/tools"\)/);
   });
 
   it("renders bounded status badges with bounded labels", () => {

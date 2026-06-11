@@ -990,7 +990,17 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // extraction orchestration MUST cross the boundary over HTTP. The
 // route is service-to-service authenticated (X-Internal-Service-Token)
 // and is argued for in the Wave 5 brief, not Phase 2 drift.
-const ROUTE_COUNT_PHASE_2_BASELINE = 92; // observed at Wave 5 close; matches `ls services/api/src/routes/` count.
+// Phase IA-self-serve-regression-fix: bumped 92 → 93. Added 1
+// legitimate new route file:
+//   - reports.routes.ts
+// User-scoped `GET /v1/reports` list endpoint. The workspace-scoped
+// /v1/reports/artifacts hard-fails with 404 for self-serve PERSONAL
+// users whose workspace bootstrap missed the TeamMember row, so
+// generated reports never appeared on /reports. The new endpoint is
+// scoped to ownerUserId + ACTIVE team membership and never widens
+// the visibility surface (same SIGNED/REPORTED filter; soft-deleted
+// evidence excluded). Argued for in the user's regression-fix brief.
+const ROUTE_COUNT_PHASE_2_BASELINE = 93;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

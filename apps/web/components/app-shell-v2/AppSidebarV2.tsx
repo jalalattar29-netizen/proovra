@@ -730,26 +730,37 @@ export function AppSidebarV2() {
             disclosureTierByRouteId={disclosureTierByRouteId}
           />
 
-          <div
-            className="app-sidebar-v2-group"
-            data-sidebar-group="All Tools"
-            data-sidebar-group-id="sidebar.all-tools"
-            data-sidebar-group-domain="ALL_TOOLS"
-          >
-            <nav className="app-sidebar-v2-nav" aria-label="All Tools">
-              <Link
-                href="/tools"
-                className={`app-sidebar-v2-link ${isActiveRoute(pathname, "/tools") ? "is-active" : ""}`}
-                data-sidebar-link-key="all-tools"
-                data-sidebar-nav-id="workspace.tools"
-              >
-                <span className="app-sidebar-v2-link-icon">
-                  <LayoutGrid size={17} strokeWidth={1.9} />
-                </span>
-                <span style={{ flex: 1 }}>All Tools</span>
-              </Link>
-            </nav>
-          </div>
+          {/* Phase IA-self-serve-regression-fix — `/tools` is INTERNAL
+              (tier rule: `directAccessPolicy: "notFound"`). The
+              All Tools group must NEVER appear in the sidebar for a
+              non-platform-admin user. Direct URL navigation is already
+              blocked by middleware; this hides the affordance so a
+              FREE / PAYG / PRO / TEAM user doesn't even see the link.
+              The platform-admin signal is taken from the canonical
+              envelope (`envelope.platform.isPlatformAdmin`) — never
+              re-derived. */}
+          {isPlatformAdmin ? (
+            <div
+              className="app-sidebar-v2-group"
+              data-sidebar-group="All Tools"
+              data-sidebar-group-id="sidebar.all-tools"
+              data-sidebar-group-domain="ALL_TOOLS"
+            >
+              <nav className="app-sidebar-v2-nav" aria-label="All Tools">
+                <Link
+                  href="/tools"
+                  className={`app-sidebar-v2-link ${isActiveRoute(pathname, "/tools") ? "is-active" : ""}`}
+                  data-sidebar-link-key="all-tools"
+                  data-sidebar-nav-id="workspace.tools"
+                >
+                  <span className="app-sidebar-v2-link-icon">
+                    <LayoutGrid size={17} strokeWidth={1.9} />
+                  </span>
+                  <span style={{ flex: 1 }}>All Tools</span>
+                </Link>
+              </nav>
+            </div>
+          ) : null}
         </div>
 
         <div className="app-sidebar-v2-trust-card">
