@@ -498,18 +498,31 @@ describe("Phase IA-home-v2 — cross-cut bug contracts still hold", () => {
 // ============================================================================
 
 describe("Phase IA-home-v2 — success criteria coverage", () => {
-  it("the dashboard mounts every component that answers the 8 required questions", () => {
+  it("the dashboard mounts every operational widget that answers the work questions", () => {
     const DASH = readWeb("components/home-experience/SelfServeHomeDashboard.tsx");
-    // 1 what needs me · 2 submissions · 3 integrity · 4 reports ·
-    // 5 intake requests · 6 incomplete cases · 7 trustworthy · 8 activity
-    expect(DASH).toMatch(/<HeroNextAction/);
-    expect(DASH).toMatch(/<SubmissionsToReview/);
-    expect(DASH).toMatch(/<RecentEvidence/);
-    expect(DASH).toMatch(/<RecentReports/);
-    expect(DASH).toMatch(/<RequestAndCollect/);
-    expect(DASH).toMatch(/<CaseHealthCard/);
+    // Operational command layout: queue · matters · intake pipeline ·
+    // report production · verification health · trust · workspace health ·
+    // activity · storage · getting started.
+    expect(DASH).toMatch(/<OperationalQueue/);
+    expect(DASH).toMatch(/<ActiveMatters/);
+    expect(DASH).toMatch(/<IntakePipelineCard/);
+    expect(DASH).toMatch(/<ReportProductionCard/);
+    expect(DASH).toMatch(/<VerificationHealthCard/);
     expect(DASH).toMatch(/<TrustStateCard/);
+    expect(DASH).toMatch(/<WorkspaceHealthCard/);
     expect(DASH).toMatch(/<ActivityFeed/);
+    expect(DASH).toMatch(/<StorageUsageCard/);
+    expect(DASH).toMatch(/<GettingStartedChecklist/);
+  });
+
+  it("the Operational Queue is the FIRST major widget (before matters/intake/reports)", () => {
+    const DASH = readWeb("components/home-experience/SelfServeHomeDashboard.tsx");
+    const queueIdx = DASH.indexOf("<OperationalQueue");
+    const mattersIdx = DASH.indexOf("<ActiveMatters");
+    const reportsIdx = DASH.indexOf("<ReportProductionCard");
+    expect(queueIdx).toBeGreaterThan(-1);
+    expect(queueIdx).toBeLessThan(mattersIdx);
+    expect(queueIdx).toBeLessThan(reportsIdx);
   });
 
   it("header is title + subtitle only — no nav-duplicate button row", () => {
@@ -519,5 +532,184 @@ describe("Phase IA-home-v2 — success criteria coverage", () => {
     const header = DASH.match(/<header[\s\S]*?<\/header>/)?.[0] ?? "";
     expect(header).not.toMatch(/<Link/);
     expect(header).not.toMatch(/<button/);
+  });
+});
+
+// ============================================================================
+// 15. Audit-findings pass — new live slices (all from real data)
+// ============================================================================
+
+describe("Phase IA-home-findings — Request & Collect live stats + retry wiring", () => {
+  it("collectionStats are real counts (active / awaiting / received / failed)", () => {
+    const vm = build("PRO");
+    // lk-1 ACTIVE usedCount 1; lk-2 REVOKED (excluded). m-1 DELIVERED.
+    expect(vm.collectionStats.activeLinks).toBe(1);
+    expect(vm.collectionStats.awaitingResponse).toBe(0); // lk-1 already used
+    expect(vm.collectionStats.receivedSubmissions).toBe(1); // r-1 in this workspace
+    expect(vm.collectionStats.failedDeliveries).toBe(0);
+  });
+
+  it("awaitingResponse counts ACTIVE links never used", () => {
+    const vm = build("PRO", {
+      intakeLinks: {
+        links: [
+          { id: "lk-a", recipientLabel: "Fresh", status: "ACTIVE", usedCount: 0, maxUses: 1, expiresAtUtc: "2026-07-01T00:00:00Z", createdAt: "2026-06-11T08:00:00Z" },
+        ],
+      },
+      communications: { messages: [] },
+    });
+    expect(vm.collectionStats.activeLinks).toBe(1);
+    expect(vm.collectionStats.awaitingResponse).toBe(1);
+  });
+
+  it("a FAILED delivery is flagged + carries the messageId the retry endpoint needs", () => {
+    const vm = build("PRO", {
+      communications: {
+        messages: [
+          { id: "m-fail", channel: "SMS", status: "FAILED", createdAt: "2026-06-11T08:05:00Z", failedAtUtc: "2026-06-11T08:06:00Z", relatedIntakeLinkId: "lk-1" },
+        ],
+      },
+    });
+    expect(vm.collection[0].delivery?.failed).toBe(true);
+    expect(vm.collection[0].delivery?.messageId).toBe("m-fail");
+    expect(vm.collectionStats.failedDeliveries).toBe(1);
+  });
+
+  it("the inline retry posts to the REAL communications retry endpoint with teamId", () => {
+    const SRC = readWeb("components/home-experience/HomeSections.tsx");
+    expect(SRC).toMatch(/\/v1\/communications\/messages\/\$\{encodeURIComponent\(messageId\)\}\/retry/);
+    expect(SRC).toMatch(/body:\s*JSON\.stringify\(\{\s*teamId:\s*workspaceId\s*\}\)/);
+    // The view model carries the active workspace id for the mutation.
+    const vm = build("PRO");
+    expect(vm.workspaceId).toBe(WS);
+  });
+});
+
+describe("Phase IA-home-findings — Trust State suspended line", () => {
+  it("verifySuspended maps from publicVerify.suspended (real count)", () => {
+    const vm = build("PRO", {
+      trustSummary: { ...TRUST, publicVerify: { published: 32, unpublished: 18, suspended: 4 } },
+    });
+    expect(vm.trustState.verifySuspended).toBe(4);
+  });
+
+  it("defaults to 0 when the backend reports none", () => {
+    const vm = build("PRO");
+    expect(vm.trustState.verifySuspended).toBe(0);
+  });
+});
+
+describe("Phase IA-home-findings — Needs Fixing strip (real failure categories)", () => {
+  const FAILURES: HomeInboxInput = {
+    items: [
+      { id: "report_failure:i-1", category: "report_failure", title: "Report generation failure — Acme", body: "Renderer crashed.", href: "/evidence/ev-1?tab=integrity", occurredAt: "2026-06-11T06:00:00Z", context: { teamId: WS, evidenceId: "ev-1" } },
+      { id: "ots_failure:ev-9", category: "ots_failure", title: "OTS anchoring failed — clip", body: "Budget exhausted.", href: "/evidence/ev-9?tab=integrity", occurredAt: "2026-06-11T05:00:00Z", context: { teamId: WS, evidenceId: "ev-9", failureCode: "OTS_GLOBAL_BUDGET_EXHAUSTED" } },
+      // Other workspace — must be filtered out.
+      { id: "report_failure:i-2", category: "report_failure", title: "Other workspace", body: "x", href: "/evidence/ev-x?tab=integrity", occurredAt: "2026-06-11T06:00:00Z", context: { teamId: "ffffffff-ffff-ffff-ffff-ffffffffffff" } },
+      // A non-failure category — must NOT appear in Needs Fixing.
+      { id: "intake_submission_pending_review:r-1", category: "intake_submission_pending_review", title: "Submission", href: "/evidence-requests/r-1", occurredAt: "2026-06-11T07:00:00Z", context: { teamId: WS } },
+    ],
+  };
+
+  it("surfaces only the three real failure categories, workspace-scoped", () => {
+    const vm = build("PRO", { inbox: FAILURES });
+    expect(vm.needsFixing).toHaveLength(2);
+    expect(vm.needsFixing.map((r) => r.category).sort()).toEqual(["ots_failure", "report_failure"]);
+    // No cross-workspace leak, no non-failure category.
+    expect(vm.needsFixing.find((r) => r.title === "Other workspace")).toBeUndefined();
+    expect(vm.needsFixing.find((r) => r.category === "intake_submission_pending_review")).toBeUndefined();
+  });
+
+  it("marks OTS global-budget exhaustion as critical (terminal) and links to the fix", () => {
+    const vm = build("PRO", { inbox: FAILURES });
+    const ots = vm.needsFixing.find((r) => r.category === "ots_failure");
+    expect(ots?.critical).toBe(true);
+    expect(ots?.href).toBe("/evidence/ev-9?tab=integrity");
+    expect(ots?.categoryLabel).toBe("Blockchain anchoring");
+  });
+
+  it("failures are promoted into the Operational Queue (critical first) with an Open-to-fix action", () => {
+    const vm = build("PRO", { inbox: FAILURES });
+    const failureItems = vm.operationalQueue.filter((q) =>
+      ["report_failure", "package_failure", "ots_failure"].includes(q.type),
+    );
+    expect(failureItems.length).toBe(2);
+    // The terminal OTS failure is critical and sits at the very top.
+    expect(vm.operationalQueue[0].type).toBe("ots_failure");
+    expect(vm.operationalQueue[0].severity).toBe("critical");
+    // Each failure deep-links to its fix surface and is flagged as a
+    // navigation fallback (no inline retry endpoint exists from Home).
+    const ots = failureItems.find((q) => q.type === "ots_failure");
+    expect(ots?.action.href).toBe("/evidence/ev-9?tab=integrity");
+    expect(ots?.fallback).toBe(true);
+  });
+});
+
+describe("Phase IA-home-findings — Case Health gaps/blockers", () => {
+  it("surfaces the real casesWithEvidenceGapsCount + a derived blockers count", () => {
+    const vm = build("PRO");
+    expect(vm.caseHealthSummary.gapsCount).toBe(1); // from cc fixture
+    expect(vm.caseHealthSummary.blockersCount).toBe(0); // no open escalations in fixture
+  });
+
+  it("counts cases carrying an open escalation as blockers", () => {
+    const vm = build("PRO", {
+      commandCenter: {
+        sections: {
+          ...CC.sections,
+          caseOperations: {
+            status: "ok",
+            data: {
+              activeCasesCount: 2,
+              casesWithEvidenceGapsCount: 2,
+              topCases: [
+                { caseId: "c-9", caseName: "Blocked matter", evidenceCount: 3, unreviewedCount: 0, overdueReviewCount: 0, openEscalationsCount: 2, hasActiveLegalHold: false },
+              ],
+            },
+          },
+        },
+      },
+    });
+    expect(vm.caseHealthSummary.gapsCount).toBe(2);
+    expect(vm.caseHealthSummary.blockersCount).toBe(1);
+  });
+});
+
+describe("Phase IA-home-findings — Storage forecast (real projection)", () => {
+  it("projects remaining records from the REAL usagePercent + record count", () => {
+    const billing: HomeBillingInput = {
+      workspaces: { personal: { storage: { usedLabel: "5 GB", limitLabel: "10 GB", usagePercent: 50, nearLimit: false, limitReached: false } } },
+    };
+    // evidenceCount from CC = uploaded 2 + signed 3 + reported 5 = 10.
+    // 10 records at 50% ⇒ ≈ 10·(100/50 − 1) = 10 more.
+    const vm = build("PRO", { billing });
+    expect(vm.storage?.forecastRecords).toBe(10);
+  });
+
+  it("returns null (no fabrication) when usage is 0%, ≥100%, or no records", () => {
+    const base = (usagePercent: number) => ({
+      workspaces: { personal: { storage: { usedLabel: "x", limitLabel: "y", usagePercent, nearLimit: false, limitReached: false } } },
+    });
+    expect(build("PRO", { billing: base(0) }).storage?.forecastRecords).toBeNull();
+    expect(build("PRO", { billing: base(100) }).storage?.forecastRecords).toBeNull();
+    // No records ⇒ cannot project.
+    const noRecords = build("PRO", {
+      billing: base(40),
+      commandCenter: null,
+      trustSummary: { totalEvidence: 0 },
+      reports: null,
+    });
+    expect(noRecords.storage?.forecastRecords).toBeNull();
+  });
+});
+
+describe("Phase IA-home-findings — Activity submission lifecycle", () => {
+  it("includes a real submission_received event sourced from the inbox occurredAt", () => {
+    const vm = build("PRO");
+    const events = vm.activity.flatMap((g) => g.events);
+    const sub = events.find((e) => e.kind === "submission_received");
+    expect(sub).toBeDefined();
+    expect(sub?.occurredAt).toBe("2026-06-11T07:00:00Z"); // r-1 receipt time
+    expect(sub?.href).toBe("/evidence-requests/r-1");
   });
 });

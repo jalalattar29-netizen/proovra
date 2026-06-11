@@ -55,30 +55,34 @@ function pageExists(route: string): boolean {
 
 type Cta = { label: string; route: string; kind: "page" | "page-dynamic" | "api" | "verify" };
 
+// NOTE: pure-navigation card-header CTAs that duplicated the sidebar
+// (Recent Evidence "View all evidence", Case Health "All cases", Trust
+// "View evidence", Reports "Open Reports", Submissions "All submissions",
+// Request&Collect "Manage intake links", Storage "Manage in Billing",
+// Team Work "Manage teams") were REMOVED in the audit-findings pass —
+// see phase-ia-home-no-dup-cta.test.ts. Only contextual + per-row deep
+// links + the inline failed-delivery retry remain, enumerated here.
 const HOME_CTAS: Cta[] = [
   { label: "Needs Attention (capture)", route: "/capture", kind: "page" },
   { label: "Needs Attention (reports)", route: "/reports", kind: "page" },
   { label: "Needs Attention (intake)", route: "/intake-links", kind: "page" },
   { label: "Needs Attention (evidence)", route: "/evidence", kind: "page" },
   { label: "Needs Attention (cases)", route: "/cases", kind: "page" },
-  { label: "Submissions — All submissions", route: "/inbox", kind: "page" },
   { label: "Submissions — Review (per row)", route: "/evidence-requests/r-1", kind: "page-dynamic" },
-  { label: "Request&Collect — manage", route: "/intake-links", kind: "page" },
   { label: "Request&Collect — create (?new=1)", route: "/intake-links?new=1", kind: "page" },
   { label: "Request&Collect — open link (?linkId=)", route: "/intake-links?linkId=lk-1", kind: "page" },
   { label: "Recent Evidence — row", route: "/evidence/ev-1", kind: "page-dynamic" },
-  { label: "Recent Evidence — all", route: "/evidence", kind: "page" },
   { label: "Recent Reports — open", route: "/evidence/ev-1", kind: "page-dynamic" },
   { label: "Recent Reports — PDF", route: "/v1/evidence/ev-1/report/latest", kind: "api" },
   { label: "Recent Reports — package", route: "/v1/evidence/ev-1/verification-package", kind: "api" },
   { label: "Recent Reports — verify page", route: "/verify/ev-1", kind: "verify" },
   { label: "Trust State — capture first", route: "/capture", kind: "page" },
-  { label: "Trust State — view evidence", route: "/evidence", kind: "page" },
   { label: "Case Health — open case", route: "/cases/c-1", kind: "page-dynamic" },
-  { label: "Case Health — all cases", route: "/cases", kind: "page" },
+  { label: "Needs Fixing — row (evidence integrity)", route: "/evidence/ev-1", kind: "page-dynamic" },
   { label: "Activity — fallback", route: "/inbox", kind: "page" },
-  { label: "Storage — billing", route: "/billing", kind: "page" },
-  { label: "Team Work — manage teams", route: "/teams", kind: "page" },
+  // Storage upgrade is a CONTEXTUAL action (only rendered when the user is
+  // near/at their limit), not a permanent nav CTA.
+  { label: "Storage — contextual upgrade", route: "/billing", kind: "page" },
 ];
 
 describe("Phase IA-home-final — every Home CTA resolves to a real route", () => {
@@ -187,9 +191,14 @@ describe("Phase IA-home-final — intake deep-links open real flows", () => {
 describe("Phase IA-home-final — empty states carry a real next action", () => {
   const SECTIONS = readWeb("components/home-experience/HomeSections.tsx");
 
-  it("Trust State empty state has a Capture-first CTA, not just text", () => {
+  it("Trust State empty state is a zero-scaffold (real zero rows) + Capture-first CTA", () => {
     expect(SECTIONS).toMatch(/data-trust-cta="capture-first"/);
-    expect(SECTIONS).toMatch(/Trust state appears after your first evidence record/);
+    // Zero-scaffold: the same structured trust rows render even when empty,
+    // with an honest explanatory line — no dead-end placeholder text.
+    expect(SECTIONS).toMatch(/data-trust-empty/);
+    expect(SECTIONS).toMatch(/No evidence captured yet/);
+    // The old passive placeholder copy is gone.
+    expect(SECTIONS).not.toMatch(/Trust state appears after your first evidence record/);
   });
 
   it("Request & Collect empty state has a Create-intake-link CTA", () => {

@@ -1,0 +1,329 @@
+/**
+ * Phase IA-home-operational — the world-class operational Home contract.
+ *
+ * Home is an operating surface, not a second sidebar. This pins the new
+ * operational widgets — Operational Queue, Intake Pipeline, Report
+ * Production, Verification Health, Workspace Health, Active Matters —
+ * against the testing requirements in the execution brief:
+ *
+ *   2  Operational Queue is the first major widget
+ *   3  Intake Pipeline shows real status from intake + communications
+ *   4  Report Production shows ready / pending / failed
+ *   5  Verification Health shows live / suspended / unpublished
+ *   6  Workspace Health summarizes work state (good/warn/problem)
+ *  11  No widget is static marketing copy
+ *  12  No fake TSA/OTS/signature values
+ *  13  Empty states include useful next actions
+ *
+ * (1, 9, 10, 14 live in the no-dup-cta + cta-validation suites; 7, 8 in
+ * phase-ia-home-v2.)
+ */
+
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { describe, expect, it } from "vitest";
+
+import {
+  normalizeHomeViewModel,
+  type HomeBillingInput,
+  type HomeCommandCenterInput,
+  type HomeCommunicationsInput,
+  type HomeInboxInput,
+  type HomeIntakeLinksInput,
+  type HomeReportsInput,
+  type HomeTrustSummaryInput,
+  type NormalizeInputs,
+} from "../../../apps/web/components/home-experience/home-view-model";
+
+function readWeb(rel: string): string {
+  return readFileSync(
+    fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url)),
+    "utf8",
+  );
+}
+
+const SECTIONS = readWeb("components/home-experience/HomeSections.tsx");
+const WS = "00000000-0000-0000-0000-0000000000aa";
+const NOW = Date.UTC(2026, 5, 12, 12, 0, 0);
+
+const CC: HomeCommandCenterInput = {
+  sections: {
+    caseOperations: {
+      status: "ok",
+      data: {
+        activeCasesCount: 3,
+        casesWithEvidenceGapsCount: 1,
+        topCases: [
+          { caseId: "c-1", caseName: "Jones v Smith", evidenceCount: 12, unreviewedCount: 2, overdueReviewCount: 1, openEscalationsCount: 0, hasActiveLegalHold: true, lastActivityAtUtc: "2026-06-12T08:00:00Z" },
+          { caseId: "c-2", caseName: "Clean matter", evidenceCount: 4, unreviewedCount: 0, overdueReviewCount: 0, openEscalationsCount: 0, hasActiveLegalHold: false, lastActivityAtUtc: "2026-06-10T08:00:00Z" },
+        ],
+      },
+    },
+    pipelineDetail: {
+      status: "ok",
+      data: {
+        evidence: { uploaded: 2, signed: 3, reported: 5 },
+        reports: { ready: 5, queued: 1, failed: 2, missingFromSigned: 3 },
+        packages: { ready: 4, queued: 0, blocked: 1, failed: 1, missingFromReported: 2 },
+        publicVerify: { published: 4, unpublished: 6, suspended: 1 },
+      },
+    },
+    timeline: { status: "ok", items: [] },
+  },
+};
+
+const TRUST: HomeTrustSummaryInput = {
+  totalEvidence: 11,
+  tsa: { stamped: 9, pending: 1, failed: 1 },
+  ots: { anchored: 8, pending: 2, failed: 1 },
+  signed: 10,
+  publicVerify: { published: 4, unpublished: 6, suspended: 1 },
+  needingAttention: 2,
+};
+
+const REPORTS: HomeReportsInput = {
+  items: [
+    { evidenceId: "ev-1", title: "Door cam", report: { available: true, version: 3, generatedAtUtc: "2026-06-12T10:00:00Z" }, package: { available: true } },
+    { evidenceId: "ev-2", title: "Voice memo", report: { available: true, version: 1, generatedAtUtc: "2026-06-12T09:00:00Z" }, package: { available: false } },
+  ],
+};
+
+const INTAKE: HomeIntakeLinksInput = {
+  links: [
+    { id: "lk-1", recipientLabel: "Witness A", status: "ACTIVE", usedCount: 1, maxUses: 1, expiresAtUtc: "2026-07-01T00:00:00Z", createdAt: "2026-06-12T08:00:00Z" },
+    { id: "lk-2", recipientLabel: "Witness B", status: "ACTIVE", usedCount: 0, maxUses: 1, expiresAtUtc: "2026-07-01T00:00:00Z", createdAt: "2026-06-12T08:00:00Z" },
+  ],
+};
+
+const COMMS: HomeCommunicationsInput = {
+  messages: [
+    { id: "m-1", channel: "SMS", status: "DELIVERED", createdAt: "2026-06-12T08:05:00Z", deliveredAtUtc: "2026-06-12T08:06:00Z", relatedIntakeLinkId: "lk-1" },
+    { id: "m-2", channel: "WHATSAPP", status: "FAILED", createdAt: "2026-06-12T08:05:00Z", failedAtUtc: "2026-06-12T08:06:00Z", relatedIntakeLinkId: "lk-2" },
+  ],
+};
+
+const INBOX: HomeInboxInput = {
+  items: [
+    { id: "intake_submission_pending_review:r-1", category: "intake_submission_pending_review", title: "Witness statement", href: "/evidence-requests/r-1", occurredAt: "2026-06-12T07:00:00Z", context: { teamId: WS, status: "RESPONSE_RECEIVED" } },
+    { id: "report_failure:i-1", category: "report_failure", title: "Report generation failure", body: "x", href: "/evidence/ev-3?tab=integrity", occurredAt: "2026-06-12T06:00:00Z", context: { teamId: WS } },
+  ],
+};
+
+function build(overrides: Partial<NormalizeInputs> = {}) {
+  return normalizeHomeViewModel({
+    plan: "PRO",
+    workspaceId: WS,
+    activeSpaceType: "ORGANIZATION",
+    commandCenter: CC,
+    trustSummary: TRUST,
+    billing: null,
+    reports: REPORTS,
+    intakeLinks: INTAKE,
+    inbox: INBOX,
+    communications: COMMS,
+    orgs: null,
+    nowMs: NOW,
+    ...overrides,
+  });
+}
+
+// ============================================================================
+// 2. Operational Queue
+// ============================================================================
+
+describe("Phase IA-home-operational — Operational Queue", () => {
+  it("orders real work: submission + failed delivery + report failure all present", () => {
+    const vm = build();
+    const types = vm.operationalQueue.map((q) => q.type);
+    expect(types).toContain("review_submission");
+    expect(types).toContain("retry_delivery");
+    expect(types).toContain("report_failure");
+  });
+
+  it("the failed-delivery item is an INLINE retry (not a nav fallback)", () => {
+    const vm = build();
+    const retry = vm.operationalQueue.find((q) => q.type === "retry_delivery");
+    expect(retry?.action.kind).toBe("retry_delivery");
+    expect(retry?.action.messageId).toBe("m-2");
+    expect(retry?.fallback).toBe(false);
+  });
+
+  it("navigation items are flagged as fallbacks (honest about no inline flow)", () => {
+    const vm = build();
+    const review = vm.operationalQueue.find((q) => q.type === "review_submission");
+    expect(review?.action.kind).toBe("navigate");
+    expect(review?.fallback).toBe(true);
+  });
+
+  it("caps the queue and prioritizes — submission outranks production gaps", () => {
+    const vm = build();
+    expect(vm.operationalQueue.length).toBeLessThanOrEqual(8);
+    const subIdx = vm.operationalQueue.findIndex((q) => q.type === "review_submission");
+    const genIdx = vm.operationalQueue.findIndex((q) => q.type === "generate_report");
+    expect(subIdx).toBeGreaterThanOrEqual(0);
+    expect(subIdx).toBeLessThan(genIdx);
+  });
+
+  it("when there is no actionable work the queue is empty and the hero is shown", () => {
+    const vm = build({ commandCenter: null, trustSummary: { totalEvidence: 5 }, reports: REPORTS, intakeLinks: null, inbox: null, communications: null });
+    expect(vm.operationalQueue).toHaveLength(0);
+    // The component renders the hero when the queue is empty.
+    expect(SECTIONS).toMatch(/items\.length === 0/);
+    expect(SECTIONS).toMatch(/<HeroNextAction action=\{hero\}/);
+  });
+});
+
+// ============================================================================
+// 3. Intake Pipeline
+// ============================================================================
+
+describe("Phase IA-home-operational — Intake Pipeline", () => {
+  it("shows real lifecycle counts from intake links + communications", () => {
+    const vm = build();
+    const byKey = Object.fromEntries(vm.intakePipeline.stages.map((s) => [s.key, s.count]));
+    expect(byKey.active).toBe(2); // lk-1 + lk-2 ACTIVE
+    expect(byKey.awaiting).toBe(1); // lk-2 unused
+    expect(byKey.received).toBe(1); // r-1 submission
+    expect(byKey.failed).toBe(1); // m-2 failed
+  });
+
+  it("the failed stage is toned danger when there are failed sends", () => {
+    const vm = build();
+    const failed = vm.intakePipeline.stages.find((s) => s.key === "failed");
+    expect(failed?.tone).toBe("danger");
+  });
+
+  it("is empty only when there is genuinely no intake activity", () => {
+    const vm = build({ intakeLinks: null, communications: null, inbox: null });
+    expect(vm.intakePipeline.empty).toBe(true);
+  });
+
+  it("the card renders a locked/upgrade explanation (not a blank) for non-Pro plans", () => {
+    expect(SECTIONS).toMatch(/data-intake-locked/);
+    expect(SECTIONS).toMatch(/data-intake-upgrade/);
+    // The dashboard locks it for FREE/PAYG (locked={!pro}).
+    const DASH = readWeb("components/home-experience/SelfServeHomeDashboard.tsx");
+    expect(DASH).toMatch(/locked=\{!pro\}/);
+  });
+});
+
+// ============================================================================
+// 4. Report Production
+// ============================================================================
+
+describe("Phase IA-home-operational — Report Production", () => {
+  it("surfaces ready / pending / failed from the real pipeline projection", () => {
+    const vm = build();
+    expect(vm.reportProduction.reportsReady).toBe(5);
+    expect(vm.reportProduction.packagesReady).toBe(4);
+    expect(vm.reportProduction.reportsPending).toBe(1 + 3); // queued + missingFromSigned
+    expect(vm.reportProduction.packagesPending).toBe(0 + 2); // queued + missingFromReported
+    expect(vm.reportProduction.reportsFailed).toBe(2);
+    expect(vm.reportProduction.packagesFailed).toBe(1 + 1); // failed + blocked
+  });
+
+  it("the card renders a failed status stat (not only ready rows)", () => {
+    expect(SECTIONS).toMatch(/data-report-production-stats/);
+    expect(SECTIONS).toMatch(/label="Failed"/);
+  });
+});
+
+// ============================================================================
+// 5. Verification Health
+// ============================================================================
+
+describe("Phase IA-home-operational — Verification Health", () => {
+  it("shows live / unpublished / suspended from real publicVerify counts", () => {
+    const vm = build();
+    expect(vm.verificationHealth.live).toBe(4);
+    expect(vm.verificationHealth.suspended).toBe(1);
+    // unpublished = total − live − suspended = 11 − 4 − 1 = 6.
+    expect(vm.verificationHealth.unpublished).toBe(6);
+  });
+
+  it("lists verifiable records (those with a ready package + verify link)", () => {
+    const vm = build();
+    expect(vm.verificationHealth.verifiable.map((v) => v.evidenceId)).toContain("ev-1");
+    expect(vm.verificationHealth.verifiable.find((v) => v.evidenceId === "ev-2")).toBeUndefined(); // no package
+  });
+
+  it("is a zero scaffold when there is no evidence (no fabricated state)", () => {
+    const vm = build({ commandCenter: null, trustSummary: { totalEvidence: 0 }, reports: null });
+    expect(vm.verificationHealth.empty).toBe(true);
+    expect(vm.verificationHealth.live).toBe(0);
+    expect(SECTIONS).toMatch(/data-verify-empty/);
+  });
+});
+
+// ============================================================================
+// 6. Workspace Health
+// ============================================================================
+
+describe("Phase IA-home-operational — Workspace Health", () => {
+  it("summarizes work state with good/warn/problem verdicts, not raw inventory", () => {
+    const vm = build();
+    const byKey = Object.fromEntries(vm.workspaceHealth.map((m) => [m.key, m]));
+    expect(byKey.complete.value).toBe(5);
+    expect(byKey.complete.tone).toBe("ok");
+    expect(byKey.need_report.tone).toBe("warn"); // missingFromSigned = 3
+    expect(byKey.integrity.tone).toBe("danger"); // needingAttention + failures > 0
+    expect(byKey.submissions.tone).toBe("warn"); // 1 submission waiting
+  });
+
+  it("storage metric reflects the real usage tone", () => {
+    const billing: HomeBillingInput = {
+      workspaces: { personal: { storage: { usedLabel: "9 GB", limitLabel: "10 GB", usagePercent: 92, nearLimit: true, limitReached: false } } },
+    };
+    const vm = build({ billing });
+    const storage = vm.workspaceHealth.find((m) => m.key === "storage");
+    expect(storage?.tone).toBe("warn");
+  });
+});
+
+// ============================================================================
+// 11 + 12. No static marketing / no fake trust values
+// ============================================================================
+
+describe("Phase IA-home-operational — honesty guards", () => {
+  it("the operational widgets contain no static marketing / fake-trust copy", () => {
+    const banned = [
+      /military-grade/i,
+      /bank-grade/i,
+      /world-class/i,
+      /100% secure/i,
+      /✓\s*Verified\b/, // a hardcoded green check, not a live count
+      /Digital signatures on every captured record/,
+    ];
+    for (const re of banned) expect(SECTIONS).not.toMatch(re);
+  });
+
+  it("trust + verification values are computed from inputs, never literals", () => {
+    // The trust card reads live fields; verification reads publicVerify.
+    expect(SECTIONS).toMatch(/trust\.tsaStamped/);
+    expect(SECTIONS).toMatch(/trust\.otsAnchored/);
+    expect(SECTIONS).toMatch(/health\.live/);
+    expect(SECTIONS).toMatch(/health\.suspended/);
+  });
+});
+
+// ============================================================================
+// 13. Empty states carry a useful next action
+// ============================================================================
+
+describe("Phase IA-home-operational — useful empty states", () => {
+  it("intake pipeline empty → create-intake-link CTA", () => {
+    expect(SECTIONS).toMatch(/data-collection-cta="create-intake-link"/);
+    expect(SECTIONS).toMatch(/href="\/intake-links\?new=1"/);
+  });
+  it("active matters empty → create-case CTA", () => {
+    expect(SECTIONS).toMatch(/data-case-cta="create-case"/);
+  });
+  it("trust state empty → capture-first CTA + zero scaffold", () => {
+    expect(SECTIONS).toMatch(/data-trust-cta="capture-first"/);
+    expect(SECTIONS).toMatch(/data-trust-empty/);
+  });
+  it("report production empty is plan-aware", () => {
+    expect(SECTIONS).toMatch(/Pay-Per-Evidence, Pro, and Team/);
+  });
+});

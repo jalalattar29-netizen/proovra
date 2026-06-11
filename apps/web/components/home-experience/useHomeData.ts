@@ -52,7 +52,10 @@ export type HomeDataState =
   | { status: "ready"; viewModel: HomeViewModel }
   | { status: "error"; viewModel: HomeViewModel; message: string };
 
-export function useHomeData(): HomeDataState {
+/** State plus a stable reload fn so inline mutations can refresh the view. */
+export type HomeData = HomeDataState & { reload: () => void };
+
+export function useHomeData(): HomeData {
   const { plan } = useSurfaceUserContext();
   const workspaceId = useActiveSpaceId();
   const activeSpace = useActiveSpace();
@@ -160,5 +163,5 @@ export function useHomeData(): HomeDataState {
     void reload();
   }, [reload]);
 
-  return state;
+  return { ...state, reload };
 }

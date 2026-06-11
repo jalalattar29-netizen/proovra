@@ -1,29 +1,36 @@
 /**
- * Phase IA-home-v2 — workflow-centric Home section components.
+ * PROOVRA Home — operational command surface components.
  *
- * Every section is wired to a real view-model slice. No static trust
- * copy, no nav-duplicating quick actions, no invented metrics. Each
- * component renders an honest empty state when its slice is genuinely
- * empty.
+ * This is NOT a second sidebar. Every widget answers a practical work
+ * question (what needs action, what's waiting, what failed, what's ready,
+ * what's trustworthy, what changed) and is wired to a real view-model
+ * slice. No static marketing copy, no fabricated values, no nav-duplicate
+ * header CTAs. Inline actions are used where a real flow exists today
+ * (failed-delivery retry); everything else deep-links to the working
+ * route and is flagged as a navigation fallback in the view model.
  */
 
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+
+import { apiFetch } from "../../lib/api";
 
 import type {
+  ActiveMatterRow,
   ActivityGroup,
-  CaseHealthRow,
+  CaseHealthSummary,
   ChecklistStep,
-  CollectionRow,
   HeroAction,
-  RecentEvidenceRow,
-  RecentReportRow,
+  IntakePipeline,
+  OperationalQueueItem,
+  ReportProduction,
   StorageUsage,
-  SubmissionRow,
   TeamWork,
   TrustState,
+  VerificationHealth,
+  WorkspaceHealthMetric,
 } from "./home-view-model";
 
 // ============================================================================
@@ -82,12 +89,9 @@ function formatRelative(iso: string | null): string {
   }
 }
 
-function humanize(raw: string): string {
-  return raw.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 // ============================================================================
-// 1. Needs Attention — hero (the single contextual primary action)
+// Hero (the single onboarding/caught-up primary — used by the queue when
+// there is no actionable work).
 // ============================================================================
 
 export function HeroNextAction({ action }: { action: HeroAction }) {
@@ -96,200 +100,231 @@ export function HeroNextAction({ action }: { action: HeroAction }) {
   const border =
     action.tone === "warn" ? "#fcd34d" : action.tone === "action" ? "#c7d2fe" : "#e2e8f0";
   return (
-    <section
-      data-self-serve-section="needs-attention"
+    <div
       data-hero-kind={action.kind}
-      style={{ ...cardStyle, background: bg, border: `1px solid ${border}`, padding: 24 }}
+      style={{ background: bg, border: `1px solid ${border}`, borderRadius: 10, padding: 20 }}
     >
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: "#475569", textTransform: "uppercase" }}>
-        {action.kind === "caught_up" ? "All caught up" : "Needs attention"}
+        {action.kind === "caught_up" ? "All caught up" : "Next step"}
       </div>
-      <h1 style={{ margin: "8px 0 6px 0", fontSize: 22, fontWeight: 700, color: "#0f172a" }}>
+      <h1 style={{ margin: "8px 0 6px 0", fontSize: 20, fontWeight: 700, color: "#0f172a" }}>
         {action.title}
       </h1>
-      <p style={{ margin: "0 0 16px 0", fontSize: 14, color: "#475569", lineHeight: 1.5 }}>
+      <p style={{ margin: "0 0 14px 0", fontSize: 14, color: "#475569", lineHeight: 1.5 }}>
         {action.detail}
       </p>
       <Link href={action.href} data-hero-href={action.href} style={primaryButtonStyle}>
         {action.ctaLabel}
       </Link>
+    </div>
+  );
+}
+
+// ============================================================================
+// 1. OPERATIONAL QUEUE — the most important widget. What needs action now.
+// ============================================================================
+
+function severityStyle(sev: OperationalQueueItem["severity"]): { bg: string; border: string; fg: string } {
+  if (sev === "critical") return { bg: "#fef2f2", border: "#fca5a5", fg: "#991b1b" };
+  if (sev === "warn") return { bg: "#fffbeb", border: "#fde68a", fg: "#9a3412" };
+  return { bg: "#eef2ff", border: "#c7d2fe", fg: "#4338ca" };
+}
+
+function QueueRow({
+  item,
+  prominent,
+  workspaceId,
+  onChanged,
+}: {
+  item: OperationalQueueItem;
+  prominent: boolean;
+  workspaceId: string | null;
+  onChanged?: () => void;
+}) {
+  const s = severityStyle(item.severity);
+  return (
+    <li
+      data-queue-item={item.id}
+      data-queue-type={item.type}
+      data-queue-severity={item.severity}
+      data-queue-fallback={String(item.fallback)}
+      style={{
+        listStyle: "none",
+        padding: prominent ? "14px 16px" : "10px 12px",
+        borderRadius: 10,
+        background: s.bg,
+        border: `1px solid ${s.border}`,
+        borderLeft: `4px solid ${s.fg}`,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: s.fg, textTransform: "uppercase" }}>
+          {item.label}
+        </span>
+        <span style={listItemTimeStyle}>{item.occurredAt ? formatRelative(item.occurredAt) : ""}</span>
+      </div>
+      <div style={{ fontSize: prominent ? 16 : 14, fontWeight: 600, color: "#0f172a", margin: "4px 0 8px 0" }}>
+        {item.title}
+      </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        {item.action.kind === "retry_delivery" && item.action.messageId ? (
+          <RetryDeliveryButton
+            messageId={item.action.messageId}
+            workspaceId={workspaceId}
+            fallbackHref={item.action.href}
+            onRetried={onChanged}
+          />
+        ) : (
+          <Link
+            href={item.action.href}
+            data-queue-action={item.fallback ? "navigate-fallback" : "navigate"}
+            style={{ ...secondaryButtonStyle, background: s.fg, color: "white", border: `1px solid ${s.fg}` }}
+          >
+            {item.action.label}
+          </Link>
+        )}
+      </div>
+    </li>
+  );
+}
+
+export function OperationalQueue({
+  items,
+  hero,
+  workspaceId,
+  onChanged,
+}: {
+  items: OperationalQueueItem[];
+  hero: HeroAction;
+  workspaceId: string | null;
+  onChanged?: () => void;
+}) {
+  return (
+    <section
+      data-self-serve-section="operational-queue"
+      data-queue-count={items.length}
+      style={{ ...cardStyle, padding: 18 }}
+    >
+      <header style={cardHeaderStyle}>
+        <h2 style={cardTitleStyle}>
+          {items.length > 0 ? `Operational queue · ${items.length}` : "Operational queue"}
+        </h2>
+      </header>
+      {items.length === 0 ? (
+        // Nothing needs action — show the onboarding/caught-up primary.
+        <HeroNextAction action={hero} />
+      ) : (
+        <ul style={{ ...listStyle, gap: 8 }}>
+          {items.map((item, i) => (
+            <QueueRow
+              key={item.id}
+              item={item}
+              prominent={i === 0}
+              workspaceId={workspaceId}
+              onChanged={onChanged}
+            />
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
 
 // ============================================================================
-// 2. Submissions needing review
+// Inline failed-delivery retry — the one real inline mutation flow today.
+// POSTs to the communications retry endpoint; degrades to the delivery
+// drawer on any error (e.g. permission) rather than dead-ending.
 // ============================================================================
 
-export function SubmissionsToReview({ rows }: { rows: SubmissionRow[] }) {
-  if (rows.length === 0) return null;
+function RetryDeliveryButton({
+  messageId,
+  workspaceId,
+  fallbackHref,
+  onRetried,
+}: {
+  messageId: string;
+  workspaceId: string | null;
+  fallbackHref: string;
+  onRetried?: () => void;
+}) {
+  const [state, setState] = useState<"idle" | "pending" | "done" | "error">("idle");
+
+  async function retry() {
+    if (!workspaceId || state === "pending" || state === "done") return;
+    setState("pending");
+    try {
+      await apiFetch(`/v1/communications/messages/${encodeURIComponent(messageId)}/retry`, {
+        method: "POST",
+        body: JSON.stringify({ teamId: workspaceId }),
+      });
+      setState("done");
+      onRetried?.();
+    } catch {
+      setState("error");
+    }
+  }
+
+  if (state === "done") {
+    return <span data-delivery-retry="done" style={{ ...chipStyle, background: "#dcfce7", color: "#166534" }}>Retry scheduled</span>;
+  }
   return (
-    <SectionCard
-      title={`Submissions waiting review · ${rows.length}`}
-      // The bare /evidence-requests list page does not ship — only the
-      // per-request detail does. "All submissions" routes to the inbox,
-      // which renders the intake_submission_pending_review items.
-      cta={{ label: "All submissions", href: "/inbox" }}
-      testId="submissions-to-review"
-    >
-      <ul style={listStyle}>
-        {rows.map((r) => (
-          <li
-            key={r.id}
-            data-submission-id={r.id}
-            data-submission-overdue={String(r.overdue)}
-            style={{ ...listItemStyle, ...listItemLinkStyle, borderLeft: `3px solid ${r.overdue ? "#dc2626" : "#4f46e5"}` }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-              <span style={listItemTitleStyle}>{r.title}</span>
-              <span style={listItemTimeStyle}>{formatRelative(r.receivedAt)}</span>
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
-              <span style={chipStyle}>{r.statusLabel}</span>
-              {r.overdue ? <span style={{ ...chipStyle, background: "#fee2e2", color: "#991b1b" }}>Overdue</span> : null}
-              <Link href={r.href} style={secondaryButtonStyle} data-submission-action="review">
-                Review
-              </Link>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </SectionCard>
+    <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+      <button
+        type="button"
+        onClick={retry}
+        disabled={state === "pending"}
+        data-delivery-retry={state}
+        style={{
+          ...secondaryButtonStyle,
+          cursor: state === "pending" ? "default" : "pointer",
+          opacity: state === "pending" ? 0.6 : 1,
+          borderColor: "#fca5a5",
+          color: "#991b1b",
+        }}
+      >
+        {state === "pending" ? "Retrying…" : "Retry delivery"}
+      </button>
+      {state === "error" ? (
+        <Link href={fallbackHref} style={{ ...listItemTimeStyle, color: "#4f46e5", fontWeight: 600 }} data-delivery-retry-fallback>
+          Open delivery →
+        </Link>
+      ) : null}
+    </span>
   );
 }
 
 // ============================================================================
-// 3. Request & Collect
+// 2. ACTIVE MATTERS — the work-centric matter portfolio.
 // ============================================================================
 
-export function RequestAndCollect({ rows }: { rows: CollectionRow[] }) {
+export function ActiveMatters({
+  rows,
+  summary,
+}: {
+  rows: ActiveMatterRow[];
+  summary: CaseHealthSummary;
+}) {
+  const showBadges = summary.gapsCount > 0 || summary.blockersCount > 0;
   return (
-    <SectionCard
-      title="Request & collect"
-      cta={{ label: "Manage intake links", href: "/intake-links" }}
-      testId="request-and-collect"
-    >
-      {rows.length === 0 ? (
-        <div>
-          <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
-            Request evidence from a client, witness, source, or contributor.
-          </p>
-          {/* Opens the real intake-links page with the create modal
-              auto-opened (the page reads ?new=1). */}
-          <Link
-            href="/intake-links?new=1"
-            data-collection-cta="create-intake-link"
-            style={{ ...secondaryButtonStyle, marginTop: 12, background: "#0f172a", color: "white", border: "1px solid #0f172a" }}
-          >
-            Create intake link
-          </Link>
+    <SectionCard title="Active matters" testId="active-matters">
+      {showBadges ? (
+        <div data-case-health-summary style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+          {summary.gapsCount > 0 ? (
+            <span data-case-gaps={summary.gapsCount} style={{ ...chipStyle, background: "#fef3c7", color: "#92400e" }}>
+              {summary.gapsCount} with evidence gaps
+            </span>
+          ) : null}
+          {summary.blockersCount > 0 ? (
+            <span data-case-blockers={summary.blockersCount} style={{ ...chipStyle, background: "#fee2e2", color: "#991b1b" }}>
+              {summary.blockersCount} blocked
+            </span>
+          ) : null}
         </div>
-      ) : (
-        <ul style={listStyle}>
-          {rows.map((r) => (
-            <li key={r.id} data-collection-id={r.id} style={{ ...listItemStyle, ...listItemLinkStyle }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                <span style={listItemTitleStyle}>{r.label}</span>
-                <span style={listItemTimeStyle}>
-                  {r.usedCount}
-                  {r.maxUses != null ? ` / ${r.maxUses}` : ""} used
-                </span>
-              </div>
-              <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
-                {r.delivery ? (
-                  <span
-                    data-delivery-status={r.delivery.status}
-                    style={{
-                      ...chipStyle,
-                      background:
-                        r.delivery.statusLabel === "Delivered"
-                          ? "#dcfce7"
-                          : r.delivery.statusLabel === "Failed"
-                            ? "#fee2e2"
-                            : "rgba(79,70,229,0.08)",
-                      color:
-                        r.delivery.statusLabel === "Delivered"
-                          ? "#166534"
-                          : r.delivery.statusLabel === "Failed"
-                            ? "#991b1b"
-                            : "#4338ca",
-                    }}
-                  >
-                    {r.delivery.channel} · {r.delivery.statusLabel}
-                  </span>
-                ) : (
-                  <span style={chipStyle}>Not yet sent</span>
-                )}
-                <Link href={r.href} style={{ ...listItemTimeStyle, color: "#4f46e5", fontWeight: 600 }}>
-                  Open →
-                </Link>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </SectionCard>
-  );
-}
-
-// ============================================================================
-// 4. Recent Evidence — with REAL integrity verdict chip
-// ============================================================================
-
-function verificationChip(v: string | null, needsAttention: boolean): { label: string; bg: string; fg: string } {
-  if (needsAttention) return { label: "Needs attention", bg: "#fef3c7", fg: "#92400e" };
-  const u = (v ?? "").toUpperCase();
-  if (u === "VERIFIED" || u === "OK") return { label: "Verified", bg: "#dcfce7", fg: "#166534" };
-  if (u === "REVIEW_REQUIRED") return { label: "Review required", bg: "#fef3c7", fg: "#92400e" };
-  if (u === "FAILED") return { label: "Integrity failed", bg: "#fee2e2", fg: "#991b1b" };
-  if (u === "PENDING") return { label: "Pending", bg: "#e0e7ff", fg: "#3730a3" };
-  return { label: "—", bg: "#f1f5f9", fg: "#475569" };
-}
-
-export function RecentEvidence({ rows }: { rows: RecentEvidenceRow[] }) {
-  return (
-    <SectionCard title="Recent evidence" cta={{ label: "View all evidence", href: "/evidence" }} testId="recent-evidence">
-      {rows.length === 0 ? (
-        <EmptyState>Upload or capture your first evidence record.</EmptyState>
-      ) : (
-        <ul style={listStyle}>
-          {rows.map((r) => {
-            const chip = verificationChip(r.verificationStatus, r.needsAttention);
-            return (
-              <li key={r.id} style={listItemStyle}>
-                <Link href={r.href} style={listItemLinkStyle} data-evidence-id={r.id}>
-                  <span style={listItemTitleStyle}>{r.title}</span>
-                  <span style={listItemMetaStyle}>
-                    <span style={chipStyle}>{humanize(r.status)}</span>
-                    <span
-                      data-evidence-verification={chip.label}
-                      style={{ ...chipStyle, background: chip.bg, color: chip.fg }}
-                    >
-                      {chip.label}
-                    </span>
-                    <span style={listItemTimeStyle}>{formatRelative(r.createdAt)}</span>
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </SectionCard>
-  );
-}
-
-// ============================================================================
-// 5. Case Health
-// ============================================================================
-
-export function CaseHealthCard({ rows }: { rows: CaseHealthRow[] }) {
-  return (
-    <SectionCard title="Case health" cta={{ label: "All cases", href: "/cases" }} testId="case-health">
+      ) : null}
       {rows.length === 0 ? (
         <div>
           <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
-            No cases need attention. Group related evidence into a case to track it.
+            No active matters yet. Group related evidence into a case to track a matter end-to-end.
           </p>
           <Link
             href="/cases"
@@ -302,11 +337,22 @@ export function CaseHealthCard({ rows }: { rows: CaseHealthRow[] }) {
       ) : (
         <ul style={listStyle}>
           {rows.map((r) => (
-            <li key={r.caseId} style={listItemStyle}>
-              <Link href={r.href} style={listItemLinkStyle} data-case-id={r.caseId}>
-                <span style={listItemTitleStyle}>{r.caseName}</span>
+            <li key={r.caseId} data-matter-id={r.caseId} data-matter-needs-work={String(r.needsWork)} style={listItemStyle}>
+              <Link href={r.href} style={listItemLinkStyle}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                  <span style={listItemTitleStyle}>{r.caseName}</span>
+                  <span style={listItemTimeStyle}>{formatRelative(r.lastActivityAtUtc)}</span>
+                </div>
                 <span style={listItemMetaStyle}>
-                  <span style={{ ...chipStyle, background: "#fef3c7", color: "#92400e" }}>{r.reason}</span>
+                  <span
+                    style={{
+                      ...chipStyle,
+                      background: r.needsWork ? "#fef3c7" : "#dcfce7",
+                      color: r.needsWork ? "#92400e" : "#166534",
+                    }}
+                  >
+                    {r.statusLabel}
+                  </span>
                   {r.hasActiveLegalHold ? <span style={chipStyle}>Legal hold</span> : null}
                   <span style={listItemTimeStyle}>
                     {r.evidenceCount} {r.evidenceCount === 1 ? "record" : "records"}
@@ -322,20 +368,172 @@ export function CaseHealthCard({ rows }: { rows: CaseHealthRow[] }) {
 }
 
 // ============================================================================
-// 6. Recent Reports
+// 3. INTAKE PIPELINE — the collection lifecycle, not a link count.
 // ============================================================================
 
-export function RecentReports({ rows, isFreePlan }: { rows: RecentReportRow[]; isFreePlan: boolean }) {
+function StageChip({ label, count, tone, last }: { label: string; count: number; tone: string; last: boolean }) {
+  const fg = tone === "danger" ? "#991b1b" : tone === "warn" ? "#9a3412" : tone === "ok" ? "#166534" : "#0f172a";
+  const bg = tone === "danger" ? "#fef2f2" : tone === "warn" ? "#fffbeb" : tone === "ok" ? "#f0fdf4" : "#f8fafc";
+  return (
+    <>
+      <div data-intake-stage={label} style={{ flex: "1 1 0", minWidth: 0, padding: "6px 6px", borderRadius: 8, background: bg, textAlign: "center" }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: fg }}>{count}</div>
+        <div style={{ fontSize: 10, color: "#5d6d71", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+      </div>
+      {!last ? <span aria-hidden style={{ color: "#cbd5e1", alignSelf: "center", fontSize: 12 }}>→</span> : null}
+    </>
+  );
+}
+
+export function IntakePipelineCard({
+  pipeline,
+  workspaceId,
+  onChanged,
+  locked,
+}: {
+  pipeline: IntakePipeline;
+  workspaceId: string | null;
+  onChanged?: () => void;
+  locked?: boolean;
+}) {
+  if (locked) {
+    return (
+      <SectionCard title="Intake pipeline" testId="intake-pipeline">
+        <div data-intake-locked>
+          <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
+            Request evidence securely from a client, witness, source, or contributor — with delivery
+            tracking and a review queue. Available on Pro and Team.
+          </p>
+          <Link
+            href="/billing"
+            data-intake-upgrade
+            style={{ ...secondaryButtonStyle, marginTop: 12, background: "#0f172a", color: "white", border: "1px solid #0f172a" }}
+          >
+            See plans
+          </Link>
+        </div>
+      </SectionCard>
+    );
+  }
+  if (pipeline.empty) {
+    return (
+      <SectionCard title="Intake pipeline" testId="intake-pipeline">
+        <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
+          Request evidence securely from a client, witness, source, or contributor — then track
+          delivery and review what comes back.
+        </p>
+        <Link
+          href="/intake-links?new=1"
+          data-collection-cta="create-intake-link"
+          style={{ ...secondaryButtonStyle, marginTop: 12, background: "#0f172a", color: "white", border: "1px solid #0f172a" }}
+        >
+          Create intake link
+        </Link>
+      </SectionCard>
+    );
+  }
+  return (
+    <SectionCard title="Intake pipeline" testId="intake-pipeline">
+      {/* Lifecycle visual — every count a real number. */}
+      <div data-intake-stages style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+        {pipeline.stages.map((st, i) => (
+          <StageChip key={st.key} label={st.label} count={st.count} tone={st.tone} last={i === pipeline.stages.length - 1} />
+        ))}
+      </div>
+      {pipeline.links.length > 0 ? (
+        <ul style={listStyle}>
+          {pipeline.links.map((r) => {
+            const failed = r.delivery?.failed === true;
+            return (
+              <li key={r.id} data-collection-id={r.id} style={{ ...listItemStyle, ...listItemLinkStyle }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                  <span style={listItemTitleStyle}>{r.label}</span>
+                  <span style={listItemTimeStyle}>
+                    {r.usedCount}
+                    {r.maxUses != null ? ` / ${r.maxUses}` : ""} used
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
+                  {r.delivery ? (
+                    <span
+                      data-delivery-status={r.delivery.status}
+                      style={{
+                        ...chipStyle,
+                        background: failed ? "#fee2e2" : r.delivery.statusLabel === "Delivered" ? "#dcfce7" : "rgba(79,70,229,0.08)",
+                        color: failed ? "#991b1b" : r.delivery.statusLabel === "Delivered" ? "#166534" : "#4338ca",
+                      }}
+                    >
+                      {r.delivery.channel} · {r.delivery.statusLabel}
+                    </span>
+                  ) : (
+                    <span style={chipStyle}>Not yet sent</span>
+                  )}
+                  {failed && r.delivery ? (
+                    <RetryDeliveryButton
+                      messageId={r.delivery.messageId}
+                      workspaceId={workspaceId}
+                      fallbackHref={r.href}
+                      onRetried={onChanged}
+                    />
+                  ) : (
+                    <Link href={r.href} style={{ ...listItemTimeStyle, color: "#4f46e5", fontWeight: 600 }}>
+                      Open →
+                    </Link>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </SectionCard>
+  );
+}
+
+// ============================================================================
+// 4. REPORT PRODUCTION — ready / pending / failed deliverable status.
+// ============================================================================
+
+function ProductionStat({ label, value, tone }: { label: string; value: number; tone?: "danger" | "ok" }) {
+  const active = value > 0;
+  const fg = tone === "danger" && active ? "#991b1b" : tone === "ok" && active ? "#166534" : "#0f172a";
+  const bg = tone === "danger" && active ? "#fef2f2" : tone === "ok" && active ? "#f0fdf4" : "#f8fafc";
+  return (
+    <div data-report-stat={label} style={{ flex: "1 1 0", minWidth: 0, padding: "6px 8px", borderRadius: 8, background: bg, textAlign: "center" }}>
+      <div style={{ fontSize: 18, fontWeight: 700, color: fg }}>{value}</div>
+      <div style={{ fontSize: 10.5, color: "#5d6d71", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+    </div>
+  );
+}
+
+export function ReportProductionCard({
+  production,
+  isFreePlan,
+}: {
+  production: ReportProduction;
+  isFreePlan: boolean;
+}) {
   const emptyCopy = isFreePlan
     ? "Reports are included with Pay-Per-Evidence, Pro, and Team."
     : "Complete an evidence record to generate your first report.";
+  const hasAny =
+    production.reportsReady + production.packagesReady + production.reportsPending + production.packagesPending + production.reportsFailed + production.packagesFailed > 0 ||
+    production.recent.length > 0;
   return (
-    <SectionCard title="Recent reports" cta={{ label: "Open Reports", href: "/reports" }} testId="recent-reports">
-      {rows.length === 0 ? (
+    <SectionCard title="Report production" testId="report-production">
+      <div data-report-production-stats style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        <ProductionStat label="Reports ready" value={production.reportsReady} tone="ok" />
+        <ProductionStat label="Packages ready" value={production.packagesReady} tone="ok" />
+        <ProductionStat label="Pending" value={production.reportsPending + production.packagesPending} />
+        <ProductionStat label="Failed" value={production.reportsFailed + production.packagesFailed} tone="danger" />
+      </div>
+      {!hasAny ? (
         <EmptyState>{emptyCopy}</EmptyState>
+      ) : production.recent.length === 0 ? (
+        <EmptyState>No reports generated yet — the counts above update as production runs.</EmptyState>
       ) : (
         <ul style={listStyle}>
-          {rows.map((r) => (
+          {production.recent.map((r) => (
             <li key={r.evidenceId} style={{ ...listItemStyle, ...listItemLinkStyle }} data-report-evidence-id={r.evidenceId}>
               <Link href={r.actions.open} style={{ ...listItemTitleStyle, textDecoration: "none" }} data-report-action="open">
                 {r.evidenceTitle}
@@ -374,52 +572,125 @@ export function RecentReports({ rows, isFreePlan }: { rows: RecentReportRow[]; i
 }
 
 // ============================================================================
-// 7. Trust State — LIVE counts (merged Health + Trust)
+// 5. VERIFICATION HEALTH — can others verify my evidence?
 // ============================================================================
 
-export function TrustStateCard({ trust }: { trust: TrustState }) {
-  if (trust.empty) {
-    return (
-      <SectionCard title="Trust state" testId="trust-state">
-        <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
-          Trust state appears after your first evidence record is captured.
+function VerifyStat({ label, value, tone }: { label: string; value: number; tone?: "danger" | "ok" }) {
+  const active = value > 0;
+  const fg = tone === "danger" && active ? "#991b1b" : tone === "ok" && active ? "#166534" : "#0f172a";
+  const bg = tone === "danger" && active ? "#fef2f2" : tone === "ok" && active ? "#f0fdf4" : "#f8fafc";
+  return (
+    <div data-verify-stat={label} style={{ flex: "1 1 0", minWidth: 0, padding: "6px 8px", borderRadius: 8, background: bg, textAlign: "center" }}>
+      <div style={{ fontSize: 18, fontWeight: 700, color: fg }}>{value}</div>
+      <div style={{ fontSize: 10.5, color: "#5d6d71", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+    </div>
+  );
+}
+
+export function VerificationHealthCard({ health }: { health: VerificationHealth }) {
+  return (
+    <SectionCard title="Verification health" testId="verification-health">
+      {health.empty ? (
+        <p data-verify-empty style={{ margin: "0 0 10px 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
+          Public verification links appear once you publish a record — letting anyone independently
+          confirm your evidence.
         </p>
+      ) : null}
+      <div data-verify-stats style={{ display: "flex", gap: 6 }}>
+        <VerifyStat label="Live" value={health.live} tone="ok" />
+        <VerifyStat label="Not published" value={health.unpublished} />
+        <VerifyStat label="Suspended" value={health.suspended} tone="danger" />
+      </div>
+      {health.unpublished > 0 ? (
         <Link
-          href="/capture"
-          data-trust-cta="capture-first"
-          style={{ ...secondaryButtonStyle, marginTop: 12, background: "#0f172a", color: "white", border: "1px solid #0f172a" }}
+          href="/evidence"
+          data-verify-publish
+          style={{ ...secondaryButtonStyle, marginTop: 10, background: "#4f46e5", color: "white", border: "1px solid #4f46e5" }}
         >
-          Capture first evidence
+          Publish verification
         </Link>
-      </SectionCard>
-    );
-  }
+      ) : null}
+      {health.verifiable.length > 0 ? (
+        <ul style={{ ...listStyle, marginTop: 10, gap: 4 }}>
+          {health.verifiable.map((v) => (
+            <li key={v.evidenceId} data-verifiable-id={v.evidenceId} style={{ ...listItemStyle, padding: "6px 8px", borderRadius: 6, background: "#f8fafc", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <span style={listItemTitleStyle}>{v.title}</span>
+              <a href={v.verifyHref} data-verify-open style={{ ...listItemTimeStyle, color: "#4f46e5", fontWeight: 600 }}>
+                Open verify →
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </SectionCard>
+  );
+}
+
+// ============================================================================
+// 6. WORKSPACE HEALTH — one work-state overview with verdicts.
+// ============================================================================
+
+export function WorkspaceHealthCard({ metrics }: { metrics: WorkspaceHealthMetric[] }) {
+  return (
+    <SectionCard title="Workspace health" testId="workspace-health">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+        {metrics.map((m) => {
+          const fg = m.tone === "danger" ? "#991b1b" : m.tone === "warn" ? "#9a3412" : m.tone === "ok" ? "#166534" : "#0f172a";
+          const bg = m.tone === "danger" ? "#fef2f2" : m.tone === "warn" ? "#fffbeb" : m.tone === "ok" ? "#f0fdf4" : "#f8fafc";
+          return (
+            <div key={m.key} data-health-metric={m.key} data-health-tone={m.tone} style={{ padding: "8px 10px", borderRadius: 8, background: bg, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "#475569" }}>{m.label}</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: fg }}>{m.value}</span>
+            </div>
+          );
+        })}
+      </div>
+    </SectionCard>
+  );
+}
+
+// ============================================================================
+// 7. TRUST STATE — live integrity counts + zero scaffold.
+// ============================================================================
+
+function trustRows(
+  trust: TrustState,
+): Array<{ key: string; label: string; value: string; tone: "ok" | "warn" | "danger" | "neutral" }> {
   const rows: Array<{ key: string; label: string; value: string; tone: "ok" | "warn" | "danger" | "neutral" }> = [
     {
       key: "tsa",
       label: "Trusted timestamps (TSA)",
       value: `${trust.tsaStamped} stamped${trust.tsaPending ? ` · ${trust.tsaPending} pending` : ""}${trust.tsaFailed ? ` · ${trust.tsaFailed} failed` : ""}`,
-      tone: trust.tsaFailed > 0 ? "danger" : trust.tsaPending > 0 ? "warn" : "ok",
+      tone: trust.tsaFailed > 0 ? "danger" : trust.tsaPending > 0 ? "warn" : trust.empty ? "neutral" : "ok",
     },
     {
       key: "ots",
       label: "OpenTimestamps (OTS)",
       value: `${trust.otsAnchored} anchored${trust.otsPending ? ` · ${trust.otsPending} pending` : ""}${trust.otsFailed ? ` · ${trust.otsFailed} failed` : ""}`,
-      tone: trust.otsFailed > 0 ? "danger" : trust.otsPending > 0 ? "warn" : "ok",
+      tone: trust.otsFailed > 0 ? "danger" : trust.otsPending > 0 ? "warn" : trust.empty ? "neutral" : "ok",
     },
     { key: "signed", label: "Signed records", value: `${trust.signed} of ${trust.totalEvidence}`, tone: "neutral" },
     { key: "verify", label: "Public verification live", value: `${trust.verifyPublished}`, tone: "neutral" },
   ];
-  if (trust.needingAttention > 0) {
-    rows.push({
-      key: "attention",
-      label: "Records needing attention",
-      value: `${trust.needingAttention}`,
-      tone: "danger",
-    });
+  if (trust.verifySuspended > 0) {
+    rows.push({ key: "verify-suspended", label: "Public verification suspended", value: `${trust.verifySuspended}`, tone: "danger" });
   }
+  if (trust.needingAttention > 0) {
+    rows.push({ key: "attention", label: "Records needing attention", value: `${trust.needingAttention}`, tone: "danger" });
+  }
+  return rows;
+}
+
+export function TrustStateCard({ trust }: { trust: TrustState }) {
+  const rows = trustRows(trust);
   return (
-    <SectionCard title="Trust state" cta={{ label: "View evidence", href: "/evidence" }} testId="trust-state">
+    <SectionCard title="Trust state" testId="trust-state">
+      {trust.empty ? (
+        <p data-trust-empty style={{ margin: "0 0 10px 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
+          No evidence captured yet — these are the integrity signals each record will earn once
+          captured.
+        </p>
+      ) : null}
       <ul style={{ ...listStyle, gap: 4 }}>
         {rows.map((r) => (
           <li
@@ -432,33 +703,34 @@ export function TrustStateCard({ trust }: { trust: TrustState }) {
               justifyContent: "space-between",
               padding: "8px 10px",
               borderRadius: 6,
-              background:
-                r.tone === "danger" ? "#fef2f2" : r.tone === "warn" ? "#fffbeb" : r.tone === "ok" ? "#f0fdf4" : "#f8fafc",
+              background: r.tone === "danger" ? "#fef2f2" : r.tone === "warn" ? "#fffbeb" : r.tone === "ok" ? "#f0fdf4" : "#f8fafc",
             }}
           >
             <span style={{ fontSize: 13, color: "#0f172a" }}>{r.label}</span>
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                color: r.tone === "danger" ? "#991b1b" : r.tone === "warn" ? "#9a3412" : r.tone === "ok" ? "#166534" : "#0f172a",
-              }}
-            >
+            <span style={{ fontSize: 13, fontWeight: 700, color: r.tone === "danger" ? "#991b1b" : r.tone === "warn" ? "#9a3412" : r.tone === "ok" ? "#166534" : "#0f172a" }}>
               {r.value}
             </span>
           </li>
         ))}
       </ul>
+      {trust.empty ? (
+        <Link
+          href="/capture"
+          data-trust-cta="capture-first"
+          style={{ ...secondaryButtonStyle, marginTop: 12, background: "#0f172a", color: "white", border: "1px solid #0f172a" }}
+        >
+          Capture first evidence
+        </Link>
+      ) : null}
       <p style={{ marginTop: 10, fontSize: 11, color: "#94a3b8", lineHeight: 1.4 }}>
-        PROOVRA records integrity signals; it does not determine factual truth or legal
-        admissibility.
+        PROOVRA records integrity signals; it does not determine factual truth or legal admissibility.
       </p>
     </SectionCard>
   );
 }
 
 // ============================================================================
-// 8. Activity — grouped by Today / Yesterday / Earlier
+// 8. RECENT ACTIVITY — grouped by Today / Yesterday / Earlier.
 // ============================================================================
 
 function activityDot(kind: string): string {
@@ -473,6 +745,7 @@ function activityDot(kind: string): string {
     intake_link_created: "#0891b2",
     intake_delivered: "#16a34a",
     intake_failed: "#dc2626",
+    submission_received: "#7c3aed",
   };
   return map[kind] ?? "#475569";
 }
@@ -480,13 +753,13 @@ function activityDot(kind: string): string {
 export function ActivityFeed({ groups }: { groups: ActivityGroup[] }) {
   if (groups.length === 0) {
     return (
-      <SectionCard title="Activity" testId="activity">
-        <EmptyState>Activity appears here as you capture evidence, generate reports, and collect submissions.</EmptyState>
+      <SectionCard title="Recent activity" testId="activity">
+        <EmptyState>Activity appears when evidence is captured, reports are generated, or intake submissions are received.</EmptyState>
       </SectionCard>
     );
   }
   return (
-    <SectionCard title="Activity" testId="activity">
+    <SectionCard title="Recent activity" testId="activity">
       {groups.map((g) => (
         <div key={g.key} data-activity-group={g.key} style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.4, margin: "4px 0" }}>
@@ -510,12 +783,12 @@ export function ActivityFeed({ groups }: { groups: ActivityGroup[] }) {
 }
 
 // ============================================================================
-// 9. Storage
+// 9. STORAGE — usage + honest capacity forecast.
 // ============================================================================
 
 export function StorageUsageCard({ usage }: { usage: StorageUsage | null }) {
   return (
-    <SectionCard title="Storage" cta={{ label: "Manage in Billing", href: "/billing" }} testId="storage-usage">
+    <SectionCard title="Storage" testId="storage-usage">
       {!usage ? (
         <EmptyState>Storage details will appear once your billing is set up.</EmptyState>
       ) : (
@@ -541,11 +814,20 @@ export function StorageUsageCard({ usage }: { usage: StorageUsage | null }) {
               }}
             />
           </div>
+          {usage.forecastRecords != null && !usage.limitReached ? (
+            <p data-storage-forecast={usage.forecastRecords} style={{ margin: "10px 0 0 0", fontSize: 12, color: "#5d6d71" }}>
+              Room for ≈ {usage.forecastRecords.toLocaleString()} more record
+              {usage.forecastRecords === 1 ? "" : "s"} at your current average size.
+            </p>
+          ) : null}
           {usage.nearLimit || usage.limitReached ? (
             <p style={{ margin: "12px 0 0 0", fontSize: 13, color: usage.limitReached ? "#991b1b" : "#9a3412" }}>
               {usage.limitReached
                 ? "Storage limit reached — top up or upgrade to keep capturing."
-                : "Approaching your storage limit."}
+                : "Approaching your storage limit."}{" "}
+              <Link href={usage.upgradeHref} data-storage-upgrade style={{ color: usage.limitReached ? "#991b1b" : "#9a3412", fontWeight: 600 }}>
+                Manage plan →
+              </Link>
             </p>
           ) : null}
         </>
@@ -555,13 +837,13 @@ export function StorageUsageCard({ usage }: { usage: StorageUsage | null }) {
 }
 
 // ============================================================================
-// 10. Team work (PRO/TEAM) — work-centric, not roster
+// 10. TEAM WORK (org workspaces only) — work-centric, not a roster.
 // ============================================================================
 
 export function TeamWorkCard({ team }: { team: TeamWork | null }) {
   if (!team) return null;
   return (
-    <SectionCard title="Team work" cta={{ label: "Manage teams", href: "/teams" }} testId="team-work">
+    <SectionCard title="Team work" testId="team-work">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
         <Stat label="Awaiting review" value={team.submissionsAwaitingReview} />
         <Stat label="Reports today" value={team.reportsToday} />
@@ -582,7 +864,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 // ============================================================================
-// 11. Getting Started — auto-collapses when complete
+// 11. GETTING STARTED — only for truly new users (auto-collapses).
 // ============================================================================
 
 export function GettingStartedChecklist({
@@ -594,8 +876,6 @@ export function GettingStartedChecklist({
 }) {
   const visible = steps.filter((s) => s.visible);
   if (visible.length === 0) return null;
-  // Auto-collapse: when every visible step is done, the whole widget
-  // disappears (no permanent "100% complete" clutter).
   if (complete) return null;
   const completedCount = visible.filter((s) => s.done).length;
   return (

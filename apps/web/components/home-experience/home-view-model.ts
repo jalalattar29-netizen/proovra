@@ -105,11 +105,46 @@ export type CollectionRow = {
   expiresAtUtc: string;
   /** Most recent delivery for this link, if any message matched. */
   delivery: {
+    /** Communication message id — the retry endpoint target. */
+    messageId: string;
     channel: string;
     status: string;
     statusLabel: string;
+    /** True only when the latest delivery is a terminal/retryable failure. */
+    failed: boolean;
     at: string | null;
   } | null;
+  href: string;
+};
+
+/**
+ * Aggregate counters for the Request & Collect header — every value is a
+ * real count derived from the active intake links + their latest
+ * delivery + the submission inbox. No estimates.
+ */
+export type CollectionStats = {
+  /** Intake links currently ACTIVE in this workspace. */
+  activeLinks: number;
+  /** ACTIVE links that have not yet been used (awaiting a response). */
+  awaitingResponse: number;
+  /** Submissions sitting in the review queue (received, not yet reviewed). */
+  receivedSubmissions: number;
+  /** ACTIVE links whose latest delivery attempt failed. */
+  failedDeliveries: number;
+};
+
+/** A real operational failure the user can act on, from the inbox. */
+export type NeedsFixingRow = {
+  id: string;
+  /** report_failure | verification_package_failure | ots_failure */
+  category: string;
+  categoryLabel: string;
+  title: string;
+  detail: string;
+  /** Critical (terminal) vs high (often transient). */
+  critical: boolean;
+  occurredAt: string;
+  /** Deep-link to the page where the failure is fixed (evidence integrity tab). */
   href: string;
 };
 
@@ -166,6 +201,8 @@ export type TrustState = {
   otsFailed: number;
   signed: number;
   verifyPublished: number;
+  /** Public verification links that were live but are now suspended. */
+  verifySuspended: number;
   needingAttention: number;
   /** True when there is genuinely nothing to show yet. */
   empty: boolean;
@@ -177,6 +214,13 @@ export type StorageUsage = {
   usagePercent: number | null;
   nearLimit: boolean;
   limitReached: boolean;
+  /**
+   * Capacity projection: roughly how many more records fit at the
+   * current average record size. Derived from the REAL usagePercent +
+   * evidence count (records ≈ count·(100/percent − 1)). null when it
+   * can't be computed honestly (no usage yet, full, or no records).
+   */
+  forecastRecords: number | null;
   upgradeHref: string;
 };
 
@@ -192,7 +236,8 @@ export type ActivityEvent = {
     | "incident_opened"
     | "intake_link_created"
     | "intake_delivered"
-    | "intake_failed";
+    | "intake_failed"
+    | "submission_received";
   label: string;
   occurredAt: string;
   href: string;
@@ -227,14 +272,155 @@ export type ChecklistStep = {
   href: string;
 };
 
+/** Header counts for the Case Health card. */
+export type CaseHealthSummary = {
+  /** Cases missing required/linked evidence (real cc counter). */
+  gapsCount: number;
+  /** Cases carrying an open escalation/blocker. */
+  blockersCount: number;
+};
+
+// ============================================================================
+// Operational surface types (world-class Home)
+// ============================================================================
+
+/**
+ * A single thing the user can act on right now. The Operational Queue is
+ * the prioritized list of these — the first major widget on Home. Every
+ * item is sourced from real backend state; `action.inline` items can be
+ * resolved without leaving Home (today: failed-delivery retry), the rest
+ * deep-link to the working detail/page route and are flagged
+ * `fallback: true` so we never pretend an inline flow exists.
+ */
+export type OperationalQueueItem = {
+  id: string;
+  type:
+    | "review_submission"
+    | "retry_delivery"
+    | "report_failure"
+    | "package_failure"
+    | "ots_failure"
+    | "generate_report"
+    | "complete_package"
+    | "publish_verification"
+    | "fix_integrity"
+    | "complete_case";
+  /** Short category label, e.g. "Submission waiting review". */
+  label: string;
+  /** The specific entity / count this item concerns. */
+  title: string;
+  /** Real timestamp where one exists (receipt, failure time); else null. */
+  occurredAt: string | null;
+  severity: "critical" | "warn" | "action";
+  action: {
+    /** "retry_delivery" runs an inline POST; "navigate" opens a route. */
+    kind: "retry_delivery" | "navigate";
+    label: string;
+    href: string;
+    /** Communication message id — only for inline retry. */
+    messageId?: string;
+  };
+  /** True when the action is a navigation fallback (no inline flow yet). */
+  fallback: boolean;
+};
+
+/** A matter/case row — work-centric, shows portfolio + what needs work. */
+export type ActiveMatterRow = {
+  caseId: string;
+  caseName: string;
+  evidenceCount: number;
+  unreviewedCount: number;
+  overdueReviewCount: number;
+  openEscalationsCount: number;
+  hasActiveLegalHold: boolean;
+  lastActivityAtUtc: string | null;
+  /** True when this matter has any incompleteness/blocker signal. */
+  needsWork: boolean;
+  /** Plain-language status, e.g. "2 unreviewed · 1 blocked" or "On track". */
+  statusLabel: string;
+  href: string;
+};
+
+/** One stage in the intake lifecycle pipeline. */
+export type IntakeStage = {
+  key: "active" | "awaiting" | "received" | "in_review" | "failed";
+  label: string;
+  count: number;
+  tone: "ok" | "warn" | "danger" | "neutral";
+};
+
+/** Intake collection lifecycle — counts + per-link rows. */
+export type IntakePipeline = {
+  stages: IntakeStage[];
+  links: CollectionRow[];
+  /** True when there is no intake activity at all (drives empty state). */
+  empty: boolean;
+};
+
+/** Report/package production status — ready / pending / failed. */
+export type ReportProduction = {
+  reportsReady: number;
+  packagesReady: number;
+  reportsPending: number;
+  packagesPending: number;
+  reportsFailed: number;
+  packagesFailed: number;
+  /** Latest generated reports with their deliverable actions. */
+  recent: RecentReportRow[];
+};
+
+/** A verifiable record the user can open on the public verify page. */
+export type VerifiableRecord = {
+  evidenceId: string;
+  title: string;
+  verifyHref: string;
+};
+
+/**
+ * Public verification posture — a user-facing deliverable status. Only
+ * the three REAL publicVerifyState values are surfaced (live / not
+ * published / suspended); we deliberately do NOT invent a "pending"
+ * verification state because the backend has none.
+ */
+export type VerificationHealth = {
+  live: number;
+  unpublished: number;
+  suspended: number;
+  /** Recently verifiable records (have a package → public verify works). */
+  verifiable: VerifiableRecord[];
+  /** True when there is no evidence yet (zero scaffold). */
+  empty: boolean;
+};
+
+/** A single workspace-health metric with a good/warn/problem verdict. */
+export type WorkspaceHealthMetric = {
+  key: string;
+  label: string;
+  value: number | string;
+  tone: "ok" | "warn" | "danger" | "neutral";
+};
+
 export type HomeViewModel = {
   plan: HomePlan;
+  /** Active workspace id — needed for workspace-scoped mutations (retry). */
+  workspaceId: string | null;
   heroAction: HeroAction;
+  /** The prioritized list of actionable items — Home's first widget. */
+  operationalQueue: OperationalQueueItem[];
   submissions: SubmissionRow[];
+  /** Real failures the user can act on (report/package/OTS). */
+  needsFixing: NeedsFixingRow[];
   collection: CollectionRow[];
+  collectionStats: CollectionStats;
+  intakePipeline: IntakePipeline;
+  reportProduction: ReportProduction;
+  verificationHealth: VerificationHealth;
+  workspaceHealth: WorkspaceHealthMetric[];
+  activeMatters: ActiveMatterRow[];
   recentEvidence: RecentEvidenceRow[];
   recentReports: RecentReportRow[];
   caseHealth: CaseHealthRow[];
+  caseHealthSummary: CaseHealthSummary;
   trustState: TrustState;
   activity: ActivityGroup[];
   storage: StorageUsage | null;
@@ -461,6 +647,27 @@ const INTAKE_SUBMISSION_CATEGORIES = new Set([
   "intake_required_items_missing",
 ]);
 
+/**
+ * Operational FAILURE categories surfaced in the "Needs fixing" strip.
+ * All three are real, persisted terminal failures from /v1/me/inbox
+ * (report/package OperationalIncident rows + Evidence.otsStatus=FAILED).
+ * We deliberately exclude PENDING / RETRY lifecycle noise.
+ */
+const INBOX_FAILURE_CATEGORIES = new Set([
+  "report_failure",
+  "verification_package_failure",
+  "ots_failure",
+]);
+
+const FAILURE_CATEGORY_LABELS: Record<string, string> = {
+  report_failure: "Report generation",
+  verification_package_failure: "Verification package",
+  ots_failure: "Blockchain anchoring",
+};
+
+/** Latest-delivery statuses we treat as an actionable failure. */
+const FAILED_DELIVERY_STATUSES = new Set(["FAILED", "UNDELIVERED"]);
+
 function statusLabel(raw: string): string {
   return raw
     .toLowerCase()
@@ -541,6 +748,30 @@ function buildSubmissions(args: {
     });
 }
 
+/** Index the latest delivery message per intake link (newest first). */
+function latestDeliveryByLink(
+  communications: HomeCommunicationsInput | null,
+): Map<string, { messageId: string; channel: string; status: string; at: string | null }> {
+  const latestByLink = new Map<
+    string,
+    { messageId: string; channel: string; status: string; at: string | null }
+  >();
+  const msgs = [...(communications?.messages ?? [])].sort((a, b) =>
+    a.createdAt < b.createdAt ? 1 : -1,
+  );
+  for (const m of msgs) {
+    if (!m.relatedIntakeLinkId) continue;
+    if (latestByLink.has(m.relatedIntakeLinkId)) continue;
+    latestByLink.set(m.relatedIntakeLinkId, {
+      messageId: m.id,
+      channel: m.channel,
+      status: m.status,
+      at: m.deliveredAtUtc ?? m.sentAtUtc ?? m.failedAtUtc ?? m.createdAt,
+    });
+  }
+  return latestByLink;
+}
+
 function buildCollection(args: {
   intakeLinks: HomeIntakeLinksInput | null;
   communications: HomeCommunicationsInput | null;
@@ -548,23 +779,7 @@ function buildCollection(args: {
   const links = (args.intakeLinks?.links ?? []).filter(
     (l) => l.status === "ACTIVE",
   );
-  // Index latest message per intake link.
-  const latestByLink = new Map<
-    string,
-    { channel: string; status: string; at: string | null }
-  >();
-  const msgs = [...(args.communications?.messages ?? [])].sort((a, b) =>
-    a.createdAt < b.createdAt ? 1 : -1,
-  );
-  for (const m of msgs) {
-    if (!m.relatedIntakeLinkId) continue;
-    if (latestByLink.has(m.relatedIntakeLinkId)) continue;
-    latestByLink.set(m.relatedIntakeLinkId, {
-      channel: m.channel,
-      status: m.status,
-      at: m.deliveredAtUtc ?? m.sentAtUtc ?? m.failedAtUtc ?? m.createdAt,
-    });
-  }
+  const latestByLink = latestDeliveryByLink(args.communications);
   return links.slice(0, 5).map((l) => {
     const d = latestByLink.get(l.id) ?? null;
     return {
@@ -576,9 +791,11 @@ function buildCollection(args: {
       expiresAtUtc: l.expiresAtUtc,
       delivery: d
         ? {
+            messageId: d.messageId,
             channel: d.channel,
             status: d.status,
             statusLabel: deliveryStatusLabel(d.status),
+            failed: FAILED_DELIVERY_STATUSES.has(d.status.toUpperCase()),
             at: d.at,
           }
         : null,
@@ -587,6 +804,75 @@ function buildCollection(args: {
       href: `/intake-links?linkId=${encodeURIComponent(l.id)}`,
     };
   });
+}
+
+/**
+ * Request & Collect header counters — all derived from real state, no
+ * estimates. `awaitingResponse` = ACTIVE links never used;
+ * `failedDeliveries` = ACTIVE links whose latest send failed.
+ */
+function buildCollectionStats(args: {
+  intakeLinks: HomeIntakeLinksInput | null;
+  communications: HomeCommunicationsInput | null;
+  receivedSubmissions: number;
+}): CollectionStats {
+  const active = (args.intakeLinks?.links ?? []).filter(
+    (l) => l.status === "ACTIVE",
+  );
+  const latestByLink = latestDeliveryByLink(args.communications);
+  let failedDeliveries = 0;
+  for (const l of active) {
+    const d = latestByLink.get(l.id);
+    if (d && FAILED_DELIVERY_STATUSES.has(d.status.toUpperCase())) {
+      failedDeliveries += 1;
+    }
+  }
+  return {
+    activeLinks: active.length,
+    awaitingResponse: active.filter((l) => (l.usedCount ?? 0) === 0).length,
+    receivedSubmissions: args.receivedSubmissions,
+    failedDeliveries,
+  };
+}
+
+/**
+ * "Needs fixing" — real operational failures from the inbox, scoped to
+ * the active workspace. Same workspace-scoping tolerance as submissions:
+ * include items with no teamId context, or whose teamId matches.
+ */
+function buildNeedsFixing(args: {
+  inbox: HomeInboxInput | null;
+  workspaceId: string | null;
+}): NeedsFixingRow[] {
+  const items = args.inbox?.items ?? [];
+  return items
+    .filter((it) => INBOX_FAILURE_CATEGORIES.has(it.category))
+    .filter(
+      (it) =>
+        !args.workspaceId ||
+        !it.context?.teamId ||
+        String(it.context.teamId) === args.workspaceId,
+    )
+    .slice(0, 6)
+    .map((it) => {
+      const failureCode = String(it.context?.failureCode ?? "");
+      // OTS global-budget exhaustion is terminal; everything else is
+      // operator-actionable (often transient infra).
+      const critical =
+        it.category === "ots_failure"
+          ? failureCode.includes("OTS_GLOBAL_BUDGET_EXHAUSTED")
+          : false;
+      return {
+        id: it.id,
+        category: it.category,
+        categoryLabel: FAILURE_CATEGORY_LABELS[it.category] ?? statusLabel(it.category),
+        title: it.title,
+        detail: it.body ?? "",
+        critical,
+        occurredAt: it.occurredAt,
+        href: it.href,
+      };
+    });
 }
 
 function buildRecentEvidence(args: {
@@ -697,12 +983,36 @@ function buildTrustState(
     otsFailed: s.ots?.failed ?? 0,
     signed: s.signed ?? 0,
     verifyPublished: s.publicVerify?.published ?? 0,
+    verifySuspended: s.publicVerify?.suspended ?? 0,
     needingAttention: s.needingAttention ?? 0,
     empty: totalEvidence === 0,
   };
 }
 
-function buildStorage(billing: HomeBillingInput | null): StorageUsage | null {
+/**
+ * Capacity projection from REAL inputs only. If `evidenceCount` records
+ * consume `usagePercent`% of the quota, the average record fills
+ * `usagePercent/evidenceCount`% — so the remaining `(100 − usagePercent)`%
+ * holds roughly `evidenceCount·(100/usagePercent − 1)` more records. We
+ * never fabricate a byte size; when we can't compute honestly we return
+ * null and the UI simply omits the forecast.
+ */
+function forecastRecordsRemaining(
+  usagePercent: number | null,
+  evidenceCount: number,
+): number | null {
+  if (usagePercent == null || !Number.isFinite(usagePercent)) return null;
+  if (usagePercent <= 0 || usagePercent >= 100) return null;
+  if (evidenceCount <= 0) return null;
+  const remaining = Math.floor(evidenceCount * (100 / usagePercent - 1));
+  if (!Number.isFinite(remaining) || remaining < 0) return null;
+  return remaining;
+}
+
+function buildStorage(
+  billing: HomeBillingInput | null,
+  evidenceCount: number,
+): StorageUsage | null {
   const s = billing?.workspaces?.personal?.storage;
   if (!s) return null;
   const polishLabel = (raw: string | undefined): string | null => {
@@ -717,13 +1027,15 @@ function buildStorage(billing: HomeBillingInput | null): StorageUsage | null {
         : n.toFixed(2).replace(/\.?0+$/, "");
     return `${rounded}${m[2]}`;
   };
+  const usagePercent =
+    typeof s.usagePercent === "number" ? roundToOneDp(s.usagePercent) : null;
   return {
     usedLabel: polishLabel(s.usedLabel),
     limitLabel: polishLabel(s.limitLabel),
-    usagePercent:
-      typeof s.usagePercent === "number" ? roundToOneDp(s.usagePercent) : null,
+    usagePercent,
     nearLimit: s.nearLimit === true,
     limitReached: s.limitReached === true,
+    forecastRecords: forecastRecordsRemaining(usagePercent, evidenceCount),
     upgradeHref: "/billing",
   };
 }
@@ -753,9 +1065,23 @@ function buildActivity(args: {
   reportsInput: HomeReportsInput | null;
   intakeLinks: HomeIntakeLinksInput | null;
   communications: HomeCommunicationsInput | null;
+  submissions: SubmissionRow[];
   nowMs: number;
 }): ActivityGroup[] {
   const events: ActivityEvent[] = [];
+
+  // 0. Intake submission lifecycle — a real external contributor sent
+  //    evidence. occurredAt is the genuine inbox receipt time.
+  for (const sub of args.submissions) {
+    if (!sub.receivedAt) continue;
+    events.push({
+      id: `sub:${sub.id}`,
+      kind: "submission_received",
+      label: `Submission received — ${sub.title}`,
+      occurredAt: sub.receivedAt,
+      href: sub.href,
+    });
+  }
 
   // 1. command-center.timeline — real evidence/report/package/hold events.
   for (const it of args.cc?.sections?.timeline?.items ?? []) {
@@ -1058,6 +1384,327 @@ function pickHeroAction(args: {
 }
 
 // ============================================================================
+// Operational surface builders (world-class Home)
+// ============================================================================
+
+type PipelineData = NonNullable<
+  NonNullable<HomeCommandCenterInput["sections"]>["pipelineDetail"]
+>["data"];
+
+/**
+ * The Operational Queue — the prioritized list of things the user can act
+ * on now. Built ENTIRELY from real backend state already in the view
+ * model. Inline actions are used where a real flow exists (failed-delivery
+ * retry); everything else deep-links to the working route and is flagged
+ * `fallback: true`. When this list is empty the dashboard shows the
+ * onboarding/caught-up hero instead.
+ */
+function buildOperationalQueue(args: {
+  submissions: SubmissionRow[];
+  needsFixing: NeedsFixingRow[];
+  collection: CollectionRow[];
+  caseHealth: CaseHealthRow[];
+  trust: TrustState;
+  pipeline: PipelineData;
+  reportCount: number;
+}): OperationalQueueItem[] {
+  const items: OperationalQueueItem[] = [];
+  const p = args.pipeline ?? null;
+
+  // 1. Critical operational failures first (terminal OTS, etc.).
+  for (const f of args.needsFixing.filter((f) => f.critical)) {
+    items.push({
+      id: `fix:${f.id}`,
+      type: failureType(f.category),
+      label: `${f.categoryLabel} failed`,
+      title: f.title,
+      occurredAt: f.occurredAt,
+      severity: "critical",
+      action: { kind: "navigate", label: "Open to fix", href: f.href },
+      fallback: true,
+    });
+  }
+
+  // 2. Submissions waiting — a real person is waiting on a decision.
+  for (const s of args.submissions) {
+    items.push({
+      id: `sub:${s.id}`,
+      type: "review_submission",
+      label: s.overdue ? "Submission overdue" : "Submission waiting review",
+      title: s.title,
+      occurredAt: s.receivedAt,
+      severity: s.overdue ? "warn" : "action",
+      action: { kind: "navigate", label: "Review", href: s.href },
+      fallback: true,
+    });
+  }
+
+  // 3. Failed deliveries — inline retry (a real flow that exists today).
+  for (const c of args.collection) {
+    if (!c.delivery?.failed) continue;
+    items.push({
+      id: `deliver:${c.delivery.messageId}`,
+      type: "retry_delivery",
+      label: "Delivery failed",
+      title: c.label,
+      occurredAt: c.delivery.at,
+      severity: "warn",
+      action: {
+        kind: "retry_delivery",
+        label: "Retry delivery",
+        href: c.href,
+        messageId: c.delivery.messageId,
+      },
+      fallback: false,
+    });
+  }
+
+  // 4. Non-critical operational failures (report/package — often transient).
+  for (const f of args.needsFixing.filter((f) => !f.critical)) {
+    items.push({
+      id: `fix:${f.id}`,
+      type: failureType(f.category),
+      label: `${f.categoryLabel} failed`,
+      title: f.title,
+      occurredAt: f.occurredAt,
+      severity: "warn",
+      action: { kind: "navigate", label: "Open to fix", href: f.href },
+      fallback: true,
+    });
+  }
+
+  // 5. Evidence ready for a report (signed, no report yet).
+  const reportsToGenerate = p?.reports?.missingFromSigned ?? 0;
+  if (reportsToGenerate > 0) {
+    items.push({
+      id: "gen:reports",
+      type: "generate_report",
+      label: "Records ready for a report",
+      title: `${reportsToGenerate} signed record${reportsToGenerate === 1 ? "" : "s"} can be finalized`,
+      occurredAt: null,
+      severity: "action",
+      action: { kind: "navigate", label: "Generate reports", href: "/reports" },
+      fallback: true,
+    });
+  }
+
+  // 6. Packages to complete (report exists, package missing/blocked).
+  const packagesToComplete =
+    (p?.packages?.missingFromReported ?? 0) + (p?.packages?.blocked ?? 0);
+  if (packagesToComplete > 0) {
+    items.push({
+      id: "complete:packages",
+      type: "complete_package",
+      label: "Verification packages to complete",
+      title: `${packagesToComplete} report${packagesToComplete === 1 ? "" : "s"} missing a package`,
+      occurredAt: null,
+      severity: "warn",
+      action: { kind: "navigate", label: "Complete packages", href: "/reports" },
+      fallback: true,
+    });
+  }
+
+  // 7. Verification ready to publish.
+  const unpublished = p?.publicVerify?.unpublished ?? 0;
+  if (unpublished > 0 && args.reportCount > 0) {
+    items.push({
+      id: "publish:verify",
+      type: "publish_verification",
+      label: "Verification ready to publish",
+      title: `${unpublished} record${unpublished === 1 ? "" : "s"} can be made publicly verifiable`,
+      occurredAt: null,
+      severity: "action",
+      action: { kind: "navigate", label: "Publish verification", href: "/evidence" },
+      fallback: true,
+    });
+  }
+
+  // 8. Integrity needing attention.
+  if (args.trust.needingAttention > 0) {
+    items.push({
+      id: "integrity:attention",
+      type: "fix_integrity",
+      label: "Records need an integrity review",
+      title: `${args.trust.needingAttention} record${args.trust.needingAttention === 1 ? "" : "s"} flagged`,
+      occurredAt: null,
+      severity: "warn",
+      action: { kind: "navigate", label: "Review integrity", href: "/evidence" },
+      fallback: true,
+    });
+  }
+
+  // 9. Matters with incomplete work.
+  for (const c of args.caseHealth) {
+    items.push({
+      id: `case:${c.caseId}`,
+      type: "complete_case",
+      label: "Matter needs work",
+      title: `${c.caseName} · ${c.reason}`,
+      occurredAt: null,
+      severity: "warn",
+      action: { kind: "navigate", label: "Open matter", href: c.href },
+      fallback: true,
+    });
+  }
+
+  return items.slice(0, 8);
+}
+
+function failureType(category: string): OperationalQueueItem["type"] {
+  if (category === "report_failure") return "report_failure";
+  if (category === "verification_package_failure") return "package_failure";
+  return "ots_failure";
+}
+
+/**
+ * Active Matters — the work-centric matter portfolio. Shows the most
+ * relevant active cases (needs-work first, then on-track), each with a
+ * real status. Sourced from command-center caseOperations.topCases.
+ */
+function buildActiveMatters(cc: HomeCommandCenterInput | null): ActiveMatterRow[] {
+  const topCases = cc?.sections?.caseOperations?.data?.topCases ?? [];
+  const rows: ActiveMatterRow[] = topCases.map((c) => {
+    const unreviewed = c.unreviewedCount ?? 0;
+    const overdue = c.overdueReviewCount ?? 0;
+    const escalations = c.openEscalationsCount ?? 0;
+    const needsWork = unreviewed > 0 || overdue > 0 || escalations > 0;
+    const reasons: string[] = [];
+    if (unreviewed > 0) reasons.push(`${unreviewed} unreviewed`);
+    if (overdue > 0) reasons.push(`${overdue} overdue`);
+    if (escalations > 0) reasons.push(`${escalations} blocked`);
+    return {
+      caseId: c.caseId,
+      caseName: c.caseName,
+      evidenceCount: c.evidenceCount,
+      unreviewedCount: unreviewed,
+      overdueReviewCount: overdue,
+      openEscalationsCount: escalations,
+      hasActiveLegalHold: c.hasActiveLegalHold === true,
+      lastActivityAtUtc: c.lastActivityAtUtc ?? null,
+      needsWork,
+      statusLabel: reasons.length > 0 ? reasons.join(" · ") : "On track",
+      href: `/cases/${encodeURIComponent(c.caseId)}`,
+    };
+  });
+  // Needs-work matters first, then on-track; cap to keep Home scannable.
+  rows.sort((a, b) => Number(b.needsWork) - Number(a.needsWork));
+  return rows.slice(0, 6);
+}
+
+/**
+ * Intake Pipeline — the collection lifecycle, not a link count. Every
+ * stage count is a real number from intake links + communications +
+ * the submission inbox.
+ */
+function buildIntakePipeline(args: {
+  collection: CollectionRow[];
+  stats: CollectionStats;
+}): IntakePipeline {
+  const s = args.stats;
+  const stages: IntakeStage[] = [
+    { key: "active", label: "Active links", count: s.activeLinks, tone: "neutral" },
+    { key: "awaiting", label: "Awaiting response", count: s.awaitingResponse, tone: s.awaitingResponse > 0 ? "warn" : "neutral" },
+    { key: "received", label: "Responses received", count: s.receivedSubmissions, tone: s.receivedSubmissions > 0 ? "ok" : "neutral" },
+    { key: "in_review", label: "Pending review", count: s.receivedSubmissions, tone: s.receivedSubmissions > 0 ? "warn" : "neutral" },
+    { key: "failed", label: "Failed sends", count: s.failedDeliveries, tone: s.failedDeliveries > 0 ? "danger" : "neutral" },
+  ];
+  return {
+    stages,
+    links: args.collection,
+    empty:
+      s.activeLinks === 0 &&
+      args.collection.length === 0 &&
+      s.receivedSubmissions === 0,
+  };
+}
+
+/**
+ * Report Production — ready / pending / failed status for the
+ * deliverables users pay for. Counts come from the command-center
+ * pipeline projection; rows from the reports list.
+ */
+function buildReportProduction(args: {
+  pipeline: PipelineData;
+  recentReports: RecentReportRow[];
+}): ReportProduction {
+  const p = args.pipeline ?? null;
+  const reportsReady =
+    p?.reports?.ready ?? args.recentReports.filter((r) => r.reportReady).length;
+  const packagesReady =
+    p?.packages?.ready ?? args.recentReports.filter((r) => r.packageReady).length;
+  return {
+    reportsReady,
+    packagesReady,
+    reportsPending: (p?.reports?.queued ?? 0) + (p?.reports?.missingFromSigned ?? 0),
+    packagesPending: (p?.packages?.queued ?? 0) + (p?.packages?.missingFromReported ?? 0),
+    reportsFailed: p?.reports?.failed ?? 0,
+    packagesFailed: (p?.packages?.failed ?? 0) + (p?.packages?.blocked ?? 0),
+    recent: args.recentReports,
+  };
+}
+
+/**
+ * Verification Health — the public-verify deliverable status. Counts are
+ * the REAL publicVerifyState aggregates from trust-summary; verifiable
+ * rows are reports whose package is ready (the public verify page works).
+ */
+function buildVerificationHealth(args: {
+  trust: TrustState;
+  recentReports: RecentReportRow[];
+}): VerificationHealth {
+  const verifiable: VerifiableRecord[] = args.recentReports
+    .filter((r) => r.packageReady && r.actions.verify)
+    .slice(0, 5)
+    .map((r) => ({
+      evidenceId: r.evidenceId,
+      title: r.evidenceTitle,
+      verifyHref: r.actions.verify as string,
+    }));
+  return {
+    live: args.trust.verifyPublished,
+    unpublished: args.trust.empty ? 0 : Math.max(0, args.trust.totalEvidence - args.trust.verifyPublished - args.trust.verifySuspended),
+    suspended: args.trust.verifySuspended,
+    verifiable,
+    empty: args.trust.empty,
+  };
+}
+
+/**
+ * Workspace Health — a single work-state overview. Each metric carries a
+ * good/warning/problem verdict rather than being a raw inventory counter.
+ */
+function buildWorkspaceHealth(args: {
+  pipeline: PipelineData;
+  trust: TrustState;
+  submissions: SubmissionRow[];
+  needsFixing: NeedsFixingRow[];
+  activeCasesCount: number;
+  reportsReady: number;
+  storage: StorageUsage | null;
+}): WorkspaceHealthMetric[] {
+  const p = args.pipeline ?? null;
+  const complete = p?.evidence?.reported ?? 0;
+  const needReport = p?.reports?.missingFromSigned ?? 0;
+  const submissionsWaiting = args.submissions.length;
+  const integrityIssues = args.trust.needingAttention + args.needsFixing.length;
+  const storageTone: WorkspaceHealthMetric["tone"] = args.storage?.limitReached
+    ? "danger"
+    : args.storage?.nearLimit
+      ? "warn"
+      : "ok";
+  const storageValue = args.storage?.usagePercent != null ? `${args.storage.usagePercent}%` : "—";
+  return [
+    { key: "complete", label: "Records complete", value: complete, tone: complete > 0 ? "ok" : "neutral" },
+    { key: "need_report", label: "Need a report", value: needReport, tone: needReport > 0 ? "warn" : "ok" },
+    { key: "active_cases", label: "Active matters", value: args.activeCasesCount, tone: "neutral" },
+    { key: "submissions", label: "Submissions waiting", value: submissionsWaiting, tone: submissionsWaiting > 0 ? "warn" : "ok" },
+    { key: "reports_ready", label: "Reports ready", value: args.reportsReady, tone: args.reportsReady > 0 ? "ok" : "neutral" },
+    { key: "integrity", label: "Integrity issues", value: integrityIssues, tone: integrityIssues > 0 ? "danger" : "ok" },
+    { key: "storage", label: "Storage used", value: storageValue, tone: storageTone },
+  ];
+}
+
+// ============================================================================
 // Main normalizer
 // ============================================================================
 
@@ -1084,7 +1731,6 @@ export function normalizeHomeViewModel(
   const nowMs = inputs.nowMs ?? Date.now();
 
   const flagged = integrityFlaggedIds(cc);
-  const storage = buildStorage(inputs.billing);
   const trustState = buildTrustState(inputs.trustSummary);
   const recentEvidence = buildRecentEvidence({
     cc,
@@ -1097,10 +1743,25 @@ export function normalizeHomeViewModel(
     inbox: inputs.inbox,
     workspaceId: inputs.workspaceId,
   });
+  const needsFixing = buildNeedsFixing({
+    inbox: inputs.inbox,
+    workspaceId: inputs.workspaceId,
+  });
   const collection = buildCollection({
     intakeLinks: inputs.intakeLinks,
     communications: inputs.communications,
   });
+  const collectionStats = buildCollectionStats({
+    intakeLinks: inputs.intakeLinks,
+    communications: inputs.communications,
+    receivedSubmissions: submissions.length,
+  });
+
+  // Case Health header counters — real cc signals.
+  const caseHealthSummary: CaseHealthSummary = {
+    gapsCount: cc?.sections?.caseOperations?.data?.casesWithEvidenceGapsCount ?? 0,
+    blockersCount: caseHealth.filter((c) => c.openEscalationsCount > 0).length,
+  };
 
   // Counters used by hero + checklist (all workspace-scoped).
   const evCounts = cc?.sections?.pipelineDetail?.data?.evidence;
@@ -1111,6 +1772,9 @@ export function normalizeHomeViewModel(
   const caseCount = cc?.sections?.caseOperations?.data?.activeCasesCount ?? 0;
   const reportCount = inputs.reports?.items?.length ?? 0;
   const intakeLinkCount = inputs.intakeLinks?.links?.length ?? 0;
+
+  // Storage forecast needs the real record count, so build it here.
+  const storage = buildStorage(inputs.billing, evidenceCount);
 
   // Reports generated today (real generatedAtUtc).
   const startOfToday = Math.floor(nowMs / 86_400_000) * 86_400_000;
@@ -1156,13 +1820,41 @@ export function normalizeHomeViewModel(
     reportsInput: inputs.reports,
     intakeLinks: inputs.intakeLinks,
     communications: inputs.communications,
+    submissions,
     nowMs,
+  });
+
+  // Operational surfaces — all composed from the slices above + the real
+  // command-center pipeline projection. No new fetches, no fabrication.
+  const pipeline = cc?.sections?.pipelineDetail?.data ?? null;
+  const reportProduction = buildReportProduction({ pipeline, recentReports });
+  const operationalQueue = buildOperationalQueue({
+    submissions,
+    needsFixing,
+    collection,
+    caseHealth,
+    trust: trustState,
+    pipeline,
+    reportCount,
+  });
+  const activeMatters = buildActiveMatters(cc);
+  const intakePipeline = buildIntakePipeline({ collection, stats: collectionStats });
+  const verificationHealth = buildVerificationHealth({ trust: trustState, recentReports });
+  const workspaceHealth = buildWorkspaceHealth({
+    pipeline,
+    trust: trustState,
+    submissions,
+    needsFixing,
+    activeCasesCount: caseCount,
+    reportsReady: reportProduction.reportsReady,
+    storage,
   });
 
   const hasAnyData =
     evidenceCount > 0 ||
     reportCount > 0 ||
     submissions.length > 0 ||
+    needsFixing.length > 0 ||
     collection.length > 0 ||
     caseHealth.length > 0 ||
     trustState.totalEvidence > 0 ||
@@ -1171,12 +1863,22 @@ export function normalizeHomeViewModel(
 
   return {
     plan: inputs.plan,
+    workspaceId: inputs.workspaceId,
     heroAction,
+    operationalQueue,
     submissions,
+    needsFixing,
     collection,
+    collectionStats,
+    intakePipeline,
+    reportProduction,
+    verificationHealth,
+    workspaceHealth,
+    activeMatters,
     recentEvidence,
     recentReports,
     caseHealth,
+    caseHealthSummary,
     trustState,
     activity,
     storage,

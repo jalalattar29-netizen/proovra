@@ -1,39 +1,40 @@
 "use client";
 
 /**
- * Phase IA-home-final — operational evidence dashboard.
+ * PROOVRA Home — operational command surface.
  *
- * Exact information architecture (Phase 15), organized around the
- * user's work, with NO sidebar-duplicating button row and NO broken
- * CTAs:
+ * This is not a second sidebar. It is the daily operating view for solo
+ * professionals, lawyers, journalists, investigators, consultants and
+ * small firms. Top to bottom it answers: what needs me now, which matters
+ * are incomplete, where my collection is, what deliverables are ready or
+ * failed, whether my evidence is trustworthy and verifiable, and what
+ * changed recently.
  *
- *   Top   : workspace title + contextual subtitle (no buttons)
- *   Band 1: Needs Attention (single contextual primary action)
- *   Band 2: Submissions Waiting Review + Request & Collect
- *   Band 3: Recent Evidence + Recent Reports
- *   Band 4: Trust State + Case Health
- *   Band 5: Activity + Storage
- *   Optional: Getting Started — only for true first-time users
- *
- * Personal Space: no Team Work. PRO/TEAM in an organization workspace:
- * Team Work appears below Getting Started. Every CTA points at a route
- * that renders (verified by phase-ia-home-cta-validation).
+ * Layout (fixed):
+ *   Header  : workspace context, no button row
+ *   Band 1  : Operational Queue
+ *   Band 2  : Active Matters | Intake Pipeline
+ *   Band 3  : Report Production | Verification Health
+ *   Band 4  : Trust State | Workspace Health
+ *   Band 5  : Recent Activity
+ *   Band 6  : Storage | Getting Started (new users only)
+ *   Trailing: Team Work (organization workspaces only — never Personal)
  */
 
 import { useHomeData } from "./useHomeData";
 import {
+  ActiveMatters,
   ActivityFeed,
-  CaseHealthCard,
   GettingStartedChecklist,
-  HeroNextAction,
   HomeSkeleton,
-  RecentEvidence,
-  RecentReports,
-  RequestAndCollect,
+  IntakePipelineCard,
+  OperationalQueue,
+  ReportProductionCard,
   StorageUsageCard,
-  SubmissionsToReview,
   TeamWorkCard,
   TrustStateCard,
+  VerificationHealthCard,
+  WorkspaceHealthCard,
 } from "./HomeSections";
 import { isFreePlan, isProOrTeam } from "./home-view-model";
 
@@ -60,47 +61,53 @@ export function SelfServeHomeDashboard() {
       data-self-serve-plan={vm.plan ?? "UNKNOWN"}
       style={pageStyle}
     >
-      {/* Top — title + subtitle, NO nav-duplicate button row. */}
+      {/* Header — workspace context only, no nav-duplicate button row. */}
       <header style={headerStyle}>
-        <h1 style={titleStyle}>Your evidence workspace</h1>
-        <p style={subtitleStyle}>What needs you, what you collected, and whether it&apos;s trustworthy.</p>
+        <h1 style={titleStyle}>Your evidence operation</h1>
+        <p style={subtitleStyle}>Evidence, intake, reports, and verification in one operational view.</p>
       </header>
 
-      {/* Band 1 — Needs Attention */}
-      <HeroNextAction action={vm.heroAction} />
+      {/* Band 1 — Operational Queue (the most important widget, first). */}
+      <OperationalQueue
+        items={vm.operationalQueue}
+        hero={vm.heroAction}
+        workspaceId={vm.workspaceId}
+        onChanged={state.reload}
+      />
 
-      {/* Band 2 — Submissions + Request & Collect */}
-      {pro ? (
-        <div style={rowTwoColStyle}>
-          <SubmissionsToReview rows={vm.submissions} />
-          <RequestAndCollect rows={vm.collection} />
-        </div>
-      ) : (
-        <SubmissionsToReview rows={vm.submissions} />
-      )}
-
-      {/* Band 3 — Recent Evidence + Recent Reports */}
+      {/* Band 2 — Active Matters + Intake Pipeline. */}
       <div style={rowTwoColStyle}>
-        <RecentEvidence rows={vm.recentEvidence} />
-        <RecentReports rows={vm.recentReports} isFreePlan={free} />
+        <ActiveMatters rows={vm.activeMatters} summary={vm.caseHealthSummary} />
+        <IntakePipelineCard
+          pipeline={vm.intakePipeline}
+          workspaceId={vm.workspaceId}
+          onChanged={state.reload}
+          locked={!pro}
+        />
       </div>
 
-      {/* Band 4 — Trust State + Case Health */}
+      {/* Band 3 — Report Production + Verification Health. */}
+      <div style={rowTwoColStyle}>
+        <ReportProductionCard production={vm.reportProduction} isFreePlan={free} />
+        <VerificationHealthCard health={vm.verificationHealth} />
+      </div>
+
+      {/* Band 4 — Trust State + Workspace Health. */}
       <div style={rowTwoColStyle}>
         <TrustStateCard trust={vm.trustState} />
-        <CaseHealthCard rows={vm.caseHealth} />
+        <WorkspaceHealthCard metrics={vm.workspaceHealth} />
       </div>
 
-      {/* Band 5 — Activity + Storage */}
+      {/* Band 5 — Recent Activity (full width). */}
+      <ActivityFeed groups={vm.activity} />
+
+      {/* Band 6 — Storage + Getting Started (new users only; auto-hides). */}
       <div style={rowTwoColStyle}>
-        <ActivityFeed groups={vm.activity} />
         <StorageUsageCard usage={vm.storage} />
+        <GettingStartedChecklist steps={vm.checklist} complete={vm.checklistComplete} />
       </div>
 
-      {/* Optional — Getting Started (auto-hides when complete). */}
-      <GettingStartedChecklist steps={vm.checklist} complete={vm.checklistComplete} />
-
-      {/* Team Work — only inside an organization workspace (null in Personal Space). */}
+      {/* Team Work — organization workspaces only (null in Personal Space). */}
       {vm.teamWork ? <TeamWorkCard team={vm.teamWork} /> : null}
     </main>
   );

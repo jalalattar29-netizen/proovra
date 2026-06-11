@@ -64,33 +64,36 @@ describe("Phase IA-self-serve-completion — /home wiring", () => {
     );
   });
 
-  it("declares an isSelfServePlan helper covering FREE/PAYG/PRO/TEAM", () => {
-    // The four self-serve plans per the public pricing page. ENTERPRISE
-    // is intentionally NOT in this list — enterprise users see the
-    // legacy CommandCenter dashboard.
-    expect(HOME).toMatch(/function\s+isSelfServePlan\s*\(/);
-    expect(HOME).toMatch(/plan === "FREE"/);
-    expect(HOME).toMatch(/plan === "PAYG"/);
-    expect(HOME).toMatch(/plan === "PRO"/);
-    expect(HOME).toMatch(/plan === "TEAM"/);
+  it("delegates the surface decision to the canonical resolveHomeSurface helper", () => {
+    // Phase IA-home-fork — the inline `isSelfServePlan`/`showSelfServe`
+    // fork was replaced by a single unit-tested pure function. The page
+    // imports + calls it. (See phase-ia-home-fork.test.ts for the
+    // decision-level cases.)
+    expect(HOME).toMatch(/import \{ resolveHomeSurface \}/);
+    expect(HOME).toMatch(/const decision = resolveHomeSurface\(\{/);
   });
 
-  it("computes isEnterprise from isPlatformAdmin OR isEnterpriseWorkspace OR plan==='ENTERPRISE'", () => {
-    expect(HOME).toMatch(/isEnterprise\s*=\s*[\s\S]{0,400}isPlatformAdmin/);
-    expect(HOME).toMatch(/isEnterprise\s*=\s*[\s\S]{0,400}isEnterpriseWorkspace/);
-    expect(HOME).toMatch(
-      /\(\s*surfaceUserCtx\.plan as string \| null\s*\)\s*===\s*"ENTERPRISE"/,
-    );
+  it("resolveHomeSurface isolates CommandCenter behind an explicit enterprise condition", () => {
+    const RESOLVER = readWeb("lib/surface/resolveHomeSurface.ts");
+    expect(RESOLVER).toMatch(/isPlatformAdmin === true/);
+    expect(RESOLVER).toMatch(/isEnterpriseWorkspace === true/);
+    expect(RESOLVER).toMatch(/plan === "ENTERPRISE"/);
+    expect(RESOLVER).toMatch(/if \(isEnterprise\) return "command-center"/);
+    // Plan null → loading, NOT command-center (the fixed fallback).
+    expect(RESOLVER).toMatch(/return "loading"/);
+    // Default is self-serve.
+    expect(RESOLVER).toMatch(/return "self-serve"/);
   });
 
-  it("renders SelfServeHomeDashboard only when NOT enterprise AND plan is self-serve", () => {
-    expect(HOME).toMatch(
-      /showSelfServe\s*=\s*!isEnterprise && isSelfServePlan\(surfaceUserCtx\.plan\)/,
-    );
-    // The render branch MUST use the discriminator.
-    expect(HOME).toMatch(
-      /showSelfServe\s*\?\s*\([\s\S]{0,400}<SelfServeHomeDashboard\s*\/>/,
-    );
+  it("renders SelfServeHomeDashboard as the default (self-serve) decision branch", () => {
+    // The self-serve render is the ELSE/default branch — every resolved
+    // non-enterprise plan lands here; CommandCenter is the guarded
+    // enterprise branch only.
+    expect(HOME).toMatch(/<SelfServeHomeDashboard\s*\/>/);
+    expect(HOME).toMatch(/decision === "command-center" \?[\s\S]{0,400}<CommandCenter\s*\/>/);
+    // The replaced inline fork must be gone.
+    expect(HOME).not.toMatch(/showSelfServe/);
+    expect(HOME).not.toMatch(/isSelfServePlan/);
   });
 
   it("preserves the existing CommandCenter branch for enterprise users", () => {

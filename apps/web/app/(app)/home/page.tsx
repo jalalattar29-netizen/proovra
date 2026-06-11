@@ -1,20 +1,23 @@
 /**
  * Phase 32.8C — /home renders the Enterprise Evidence Operations
- * Command Center.
+ * Command Center for enterprise users.
  *
- * Phase IA-self-serve-simplification — the enterprise CommandCenter
- * is now gated on plan/role. Self-serve users (FREE / PAYG / PRO /
- * TEAM) see the simplified `SelfServeHomeDashboard`. Enterprise
- * workspaces, `plan === "ENTERPRISE"` accounts, and platform admins
- * continue to see the existing operational dashboard with the
- * AccountPrioritiesBanner above it.
+ * Phase IA-home-fork — the /home surface decision is now a single,
+ * unit-tested pure function (`resolveHomeSurface`). The previous fork
+ * sent EVERY non-self-serve case — including `plan === null` (loading
+ * or no-entitlement) — to `CommandCenter`, so self-serve users (and
+ * every user during the envelope-loading window) saw the enterprise
+ * dashboard. The corrected contract:
  *
- * The split happens at /home (not in CommandCenter) so the existing
- * enterprise dashboard surface is preserved verbatim for eligible
- * users while self-serve users get a product that matches the public
- * pricing brief.
+ *   - "command-center" → ONLY platform admin / enterprise workspace /
+ *     `plan === "ENTERPRISE"`. CommandCenter is never a fallback.
+ *   - "loading"        → `plan == null`. Render a skeleton, NEVER
+ *     CommandCenter.
+ *   - "self-serve"     → every resolved non-enterprise user (FREE /
+ *     PAYG / PRO / TEAM). The single Home V2.
  *
- * Hard rules carried from Phase 32.8C (still in force):
+ * Hard rules carried from Phase 32.8C (still in force for the
+ * enterprise CommandCenter branch):
  *   - The CommandCenter is data-driven (every section is backed by
  *     real backend state).
  *   - It is workspace-aware (personal vs team behavior).
@@ -31,35 +34,39 @@ import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { CommandCenter } from "../../../components/command-center/CommandCenter";
 import { AccountPrioritiesBanner } from "../../../components/command-center/AccountPrioritiesBanner";
 import { SelfServeHomeDashboard } from "../../../components/home-experience/SelfServeHomeDashboard";
+import { HomeSkeleton } from "../../../components/home-experience/HomeSections";
 import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContext";
-
-function isSelfServePlan(plan: ReturnType<typeof useSurfaceUserContext>["plan"]): boolean {
-  // The four self-serve plans per the public pricing page.
-  return plan === "FREE" || plan === "PAYG" || plan === "PRO" || plan === "TEAM";
-}
+import { resolveHomeSurface } from "../../../lib/surface/resolveHomeSurface";
 
 export default function HomePage() {
   const surfaceUserCtx = useSurfaceUserContext();
 
-  // Enterprise workspace flag OR platform admin OR a future
-  // `plan === "ENTERPRISE"` keeps the existing operational dashboard.
-  // All four self-serve plans see the simplified self-serve home.
-  const isEnterprise =
-    surfaceUserCtx.isPlatformAdmin ||
-    surfaceUserCtx.isEnterpriseWorkspace ||
-    (surfaceUserCtx.plan as string | null) === "ENTERPRISE";
-  const showSelfServe = !isEnterprise && isSelfServePlan(surfaceUserCtx.plan);
+  const decision = resolveHomeSurface({
+    plan: surfaceUserCtx.plan,
+    isPlatformAdmin: surfaceUserCtx.isPlatformAdmin,
+    isEnterpriseWorkspace: surfaceUserCtx.isEnterpriseWorkspace,
+  });
 
   return (
     <PageRouteGate routeId="workspace.home">
-      {showSelfServe ? (
-        <div data-home-page data-self-serve-home>
-          <SelfServeHomeDashboard />
-        </div>
-      ) : (
+      {decision === "command-center" ? (
+        // Enterprise ONLY (platform admin / enterprise workspace /
+        // ENTERPRISE plan). Never reached by self-serve or unresolved
+        // users.
         <div data-home-page data-phase-a-1c-home>
           <AccountPrioritiesBanner />
           <CommandCenter />
+        </div>
+      ) : decision === "loading" ? (
+        // Plan unresolved (loading or no entitlement). Skeleton only —
+        // never the enterprise dashboard.
+        <div data-home-page data-home-loading>
+          <HomeSkeleton />
+        </div>
+      ) : (
+        // Default for every resolved self-serve user (FREE/PAYG/PRO/TEAM).
+        <div data-home-page data-self-serve-home>
+          <SelfServeHomeDashboard />
         </div>
       )}
     </PageRouteGate>
