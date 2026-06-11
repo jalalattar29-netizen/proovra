@@ -233,7 +233,10 @@ describe("Phase IA-self-serve-home-rebuild — normalizer happy path", () => {
     // Evidence records = signed + uploaded + reported = 10
     expect(vm.snapshot[0].value).toBe("10");
     expect(vm.snapshot[1].value).toBe("3");
-    expect(vm.snapshot[2].value).toBe("5"); // pipelineDetail.reports.ready
+    // Reports = length of the workspace-scoped /v1/reports list.
+    // Counter consistency rule (Phase IA-home-polish): the snapshot
+    // tile MUST come from the same workspace scope as evidence/cases.
+    expect(vm.snapshot[2].value).toBe("2");
     expect(vm.snapshot[3].value).toBe("4"); // publicVerify.published
     expect(vm.snapshot[4].value).toBe("1.2 GB / 5 GB");
     expect(vm.snapshot[4].hint).toBe("24% used");

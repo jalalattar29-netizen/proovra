@@ -160,10 +160,16 @@ export function canPlanGenerateVerificationPackage(plan: PlanType): boolean {
 }
 
 export function formatBytesHuman(bytes: bigint): string {
-  if (bytes >= TB) return `${Number(bytes) / Number(TB)} TB`;
-  if (bytes >= GB) return `${Number(bytes) / Number(GB)} GB`;
-  if (bytes >= MB) return `${Number(bytes) / Number(MB)} MB`;
-  if (bytes >= 1024n) return `${Number(bytes) / 1024} KB`;
+  const trim = (n: number): string => {
+    if (Number.isFinite(n) && Math.abs(n - Math.round(n)) < 0.005) {
+      return String(Math.round(n));
+    }
+    return n.toFixed(2).replace(/\.?0+$/, "");
+  };
+  if (bytes >= TB) return `${trim(Number(bytes) / Number(TB))} TB`;
+  if (bytes >= GB) return `${trim(Number(bytes) / Number(GB))} GB`;
+  if (bytes >= MB) return `${trim(Number(bytes) / Number(MB))} MB`;
+  if (bytes >= 1024n) return `${trim(Number(bytes) / 1024)} KB`;
   return `${bytes} B`;
 }
 

@@ -42,6 +42,12 @@ import { prisma } from "../db.js";
 const ListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   cursor: z.string().min(1).max(512).optional(),
+  // Optional workspace filter — the self-serve Home dashboard passes
+  // the active workspace id so the counter set (evidence / cases /
+  // reports) stays scoped to ONE workspace. Without it, the endpoint
+  // returns every report the caller can access across all teams, which
+  // breaks counter consistency on Home.
+  teamId: z.string().uuid().optional(),
 });
 
 type CursorShape = { c: string; i: string };
@@ -120,12 +126,30 @@ export default async function registerReportsRoutes(
       // its where-shape so the Prisma enum typing (EvidenceStatus)
       // doesn't fight the static `["SIGNED", "REPORTED"]` literal.
       // Mirror that pattern for consistency.
-      const accessClause: Record<string, unknown> = {
-        OR: [
-          { ownerUserId: userId },
-          ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : []),
-        ],
-      };
+      //
+      // When `teamId` is supplied (Home dashboard case) we scope to a
+      // single workspace. The caller must own the row OR be an active
+      // member of that workspace — same safety semantics, narrowed.
+      let accessClause: Record<string, unknown>;
+      if (query.teamId) {
+        const scopedTeamId = query.teamId;
+        const isMember = teamIds.includes(scopedTeamId);
+        accessClause = {
+          AND: [
+            { teamId: scopedTeamId },
+            isMember
+              ? { OR: [{ ownerUserId: userId }, { teamId: scopedTeamId }] }
+              : { ownerUserId: userId },
+          ],
+        };
+      } else {
+        accessClause = {
+          OR: [
+            { ownerUserId: userId },
+            ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : []),
+          ],
+        };
+      }
 
       const cursorClause: Record<string, unknown> | null = cursor
         ? {

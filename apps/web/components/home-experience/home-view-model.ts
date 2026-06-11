@@ -1,5 +1,6 @@
 /**
- * Phase IA-self-serve-home-rebuild — self-serve Home view model.
+ * Phase IA-self-serve-home-rebuild + Phase IA-home-polish — self-serve
+ * Home view model.
  *
  * The Home page consumes three existing endpoints:
  *
@@ -10,13 +11,9 @@
  *   2. GET /v1/billing/overview
  *      — storage usage + plan entitlement + storage add-ons.
  *
- *   3. GET /v1/reports
- *      — user-scoped report list (added in
- *        Phase IA-self-serve-regression-fix). Falls back gracefully
- *        when the workspace-scoped aggregator is empty.
- *
- *   (Optional, additive) GET /v1/me/operational-priorities
- *      — onboarding signals for the Getting Started checklist.
+ *   3. GET /v1/reports?teamId=<id>
+ *      — workspace-scoped report list (Phase IA-home-polish adds the
+ *        `teamId` filter so the Home counter set stays consistent).
  *
  * STRICT BOUNDARY RULES:
  *
@@ -24,24 +21,23 @@
  *     is touched. UI components NEVER see the raw envelope — they only
  *     see the sanitized view model below.
  *
- *   * `normalizeCommandCenter()` filters out every enterprise section:
+ *   * `normalizeHomeViewModel()` filters out every enterprise section:
  *     reviewerOrchestration, workloadEngine, reviewerCapacity,
  *     governancePosture, queueCongestion, queueWorkerTelemetry,
  *     incidents, predictiveRisk, accessSecurityAnomalies,
  *     accessSecurityClassifier, organizationalIntelligenceV2,
  *     organizationalHealth, operationalGraph, crossCaseIntelligenceV2,
  *     relationshipIntelligence. If any of those drift into the
- *     view model later, the source-contract test in
- *     `phase-ia-self-serve-home-rebuild.test.ts` trips.
+ *     view model later, the source-contract test trips.
  *
- *   * Vocabulary translation lives here too: the enterprise field
- *     `organizationalIntelligence` → "Your activity"; routing-queue
- *     items with `affectedDomain ∈ {reviewer_ops, governance,
- *     intelligence, security}` are dropped before the Next Action
- *     card sees them.
+ *   * Vocabulary translation lives here too.
  *
  *   * NEVER fabricate values. When data is missing, return null /
  *     empty arrays — the components render an empty state.
+ *
+ *   * COUNTER CONSISTENCY: `reports` / `evidence_records` / `cases` MUST
+ *     come from the same workspace scope so the dashboard cannot show
+ *     impossible combinations like (0 evidence, 50 reports).
  *
  * This file has no runtime React imports; it's a pure projection
  * that's directly testable in vitest.
@@ -68,20 +64,15 @@ export function isFreePlan(plan: HomePlan): boolean {
 // ============================================================================
 
 export type SnapshotTile = {
-  /** Stable key for `data-snapshot-key` attribute + test selectors. */
   key:
     | "evidence_records"
     | "cases"
     | "reports"
     | "verification_links"
     | "storage";
-  /** Short label (3 words max). */
   label: string;
-  /** Display value already formatted (e.g. "12", "1.2 GB / 5 GB", "—"). */
   value: string;
-  /** Plain-language hint shown under the value when present. */
   hint: string | null;
-  /** Click-through target when the user taps the tile. */
   href: string | null;
 };
 
@@ -108,11 +99,18 @@ export type RecentReportRow = {
   generatedAtUtc: string | null;
   reportReady: boolean;
   packageReady: boolean;
+  verifyHref: string | null;
   href: string;
+  /** Per-row actions wired up only when underlying data is present. */
+  actions: {
+    open: string;
+    reportPdf: string | null;
+    packageZip: string | null;
+    verify: string | null;
+  };
 };
 
 export type PipelineStageTile = {
-  /** Stable key for testing. */
   key:
     | "uploaded"
     | "signed"
@@ -122,13 +120,13 @@ export type PipelineStageTile = {
     | "anchored";
   label: string;
   value: number;
-  /** When non-null, surfaces a small "Pending" / "Stuck" hint. */
   tone: "neutral" | "ok" | "warn";
 };
 
 export type StorageUsage = {
   usedLabel: string | null;
   limitLabel: string | null;
+  /** 0–100, rounded to at most 1 decimal place. */
   usagePercent: number | null;
   nearLimit: boolean;
   limitReached: boolean;
@@ -154,7 +152,6 @@ export type NextAction = {
 export type IntegrityAlert = {
   id: string;
   title: string;
-  /** Plain-language self-serve copy — NEVER the raw reasonCode. */
   body: string;
   severity: "warn" | "danger";
   href: string;
@@ -169,7 +166,6 @@ export type ChecklistStep = {
     | "invite_first_teammate";
   label: string;
   done: boolean;
-  /** Hidden when the user's plan doesn't include this step. */
   visible: boolean;
   href: string;
 };
@@ -178,7 +174,6 @@ export type TeamActivity = {
   ownedTeamCount: number;
   totalMemberCount: number;
   pendingInviteCount: number;
-  /** First few orgs for the Team Activity card. */
   teams: Array<{
     id: string;
     name: string;
@@ -186,6 +181,45 @@ export type TeamActivity = {
     role: string | null;
   }>;
   manageHref: string;
+};
+
+/** A single row in the Recent Activity timeline. */
+export type ActivityEvent = {
+  id: string;
+  kind:
+    | "evidence_uploaded"
+    | "evidence_timestamped"
+    | "report_generated"
+    | "package_ready"
+    | "verification_published"
+    | "case_updated";
+  label: string;
+  occurredAt: string;
+  href: string;
+};
+
+/** Evidence Health roll-up — only items with non-zero counts surface. */
+export type EvidenceHealth = {
+  complete: number;
+  needsReport: number;
+  timestampIssues: number;
+  anchorPending: number;
+  verificationMissing: number;
+  integrityAlerts: number;
+  allClear: boolean;
+};
+
+/** Compact secondary quick actions row at the top of Home. */
+export type QuickAction = {
+  key:
+    | "upload"
+    | "create_case"
+    | "open_reports"
+    | "create_intake_link"
+    | "invite_teammate";
+  label: string;
+  href: string;
+  visible: boolean;
 };
 
 /** Full home view model the dashboard consumes. */
@@ -197,20 +231,23 @@ export type HomeViewModel = {
   recentCases: RecentCaseRow[];
   recentReports: RecentReportRow[];
   pipeline: PipelineStageTile[];
+  /** True when pipeline carries no signal — UI shows onboarding instead. */
+  pipelineEmpty: boolean;
   storage: StorageUsage | null;
   teamActivity: TeamActivity | null;
   integrityAlerts: IntegrityAlert[];
   checklist: ChecklistStep[];
+  activity: ActivityEvent[];
+  health: EvidenceHealth;
+  quickActions: QuickAction[];
   /** True when the view model has at least one signal from real data. */
   hasAnyData: boolean;
 };
 
 // ============================================================================
 // Inputs — the raw fetched shapes the normalizer accepts.
-// We type these structurally so the normalizer is portable for tests.
 // ============================================================================
 
-/** Narrowed shape of the slice of the command-center envelope we read. */
 export type HomeCommandCenterInput = {
   sections?: {
     recentEvidence?: {
@@ -267,16 +304,18 @@ export type HomeCommandCenterInput = {
         };
       } | null;
     };
-    organizationalIntelligence?: {
+    timeline?: {
       status?: string;
-      data?: {
-        evidenceCreatedLast24h?: number;
-        evidenceCreatedLast7d?: number;
-        evidenceFinalizedLast7d?: number;
-        reportsGeneratedLast7d?: number;
-        packagesGeneratedLast7d?: number;
-        activityLast7d?: number;
-      } | null;
+      items?: Array<{
+        id: string;
+        kind?: string;
+        eventType?: string;
+        occurredAtUtc?: string;
+        evidenceId?: string | null;
+        caseId?: string | null;
+        title?: string;
+        label?: string;
+      }>;
     };
     custodyIntegrityAnomalies?: {
       status?: string;
@@ -312,7 +351,6 @@ export type HomeCommandCenterInput = {
   };
 };
 
-/** Narrowed shape of /v1/billing/overview the storage card reads. */
 export type HomeBillingInput = {
   workspaces?: {
     personal?: {
@@ -327,21 +365,25 @@ export type HomeBillingInput = {
   };
 };
 
-/** Narrowed shape of GET /v1/reports the recent reports card reads. */
 export type HomeReportsInput = {
   items?: Array<{
     evidenceId: string;
     title: string | null;
+    status?: string;
+    createdAt?: string;
     report?: {
       available?: boolean;
       version?: number | null;
       generatedAtUtc?: string | null;
     };
-    package?: { available?: boolean };
+    package?: {
+      available?: boolean;
+      version?: number | null;
+      generatedAtUtc?: string | null;
+    };
   }>;
 };
 
-/** Narrowed shape of envelope.organizations for Team Activity. */
 export type HomeOrgsInput = ReadonlyArray<{
   id: string;
   name: string | null;
@@ -355,11 +397,6 @@ export type HomeOrgsInput = ReadonlyArray<{
 // Enterprise blocklist (defense in depth)
 // ============================================================================
 
-/**
- * Sections that MUST NEVER reach the self-serve view model, even if the
- * backend accidentally populates them on a PERSONAL workspace. Drives
- * the source-contract test that pins our boundary.
- */
 export const ENTERPRISE_ONLY_SECTIONS: ReadonlyArray<string> = [
   "workloadEngine",
   "reviewerOrchestration",
@@ -378,12 +415,6 @@ export const ENTERPRISE_ONLY_SECTIONS: ReadonlyArray<string> = [
   "relationshipIntelligence",
 ];
 
-/**
- * Routing-queue item domains we drop when picking a Next Action.
- * Anything from reviewer_ops / governance / security / intelligence /
- * incidents is enterprise-only or sensitive — never surfaced to
- * self-serve users.
- */
 const ENTERPRISE_DOMAINS = new Set([
   "reviewer_ops",
   "governance",
@@ -394,7 +425,7 @@ const ENTERPRISE_DOMAINS = new Set([
 ]);
 
 // ============================================================================
-// Plain-language translations for integrity reasonCodes
+// Plain-language translations
 // ============================================================================
 
 function translateIntegrityReason(code: string | undefined): string {
@@ -422,50 +453,80 @@ function severityToAlertTone(s: string | undefined): "warn" | "danger" {
   return "warn";
 }
 
+/** Map raw timeline event kinds to plain-language Home labels. */
+function translateActivityKind(
+  raw: string,
+): { kind: ActivityEvent["kind"]; label: string } | null {
+  const k = raw.toLowerCase();
+  if (k.includes("report") && (k.includes("generated") || k.includes("ready"))) {
+    return { kind: "report_generated", label: "Report generated" };
+  }
+  if (k.includes("package") && (k.includes("ready") || k.includes("generated"))) {
+    return { kind: "package_ready", label: "Verification package ready" };
+  }
+  if (k.includes("verification") && k.includes("publish")) {
+    return { kind: "verification_published", label: "Public verification link available" };
+  }
+  if (k.includes("timestamp")) {
+    return { kind: "evidence_timestamped", label: "Evidence timestamped" };
+  }
+  if (k.includes("evidence") && (k.includes("upload") || k.includes("created") || k.includes("finalized"))) {
+    return { kind: "evidence_uploaded", label: "Evidence uploaded" };
+  }
+  if (k.includes("case") && (k.includes("update") || k.includes("created"))) {
+    return { kind: "case_updated", label: "Case updated" };
+  }
+  return null;
+}
+
+/** Round to one decimal, then drop trailing ".0" → "12.4" or "12". */
+function roundToOneDp(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 10) / 10;
+}
+
 // ============================================================================
-// Normalizer — the boundary
+// Builders
 // ============================================================================
 
 type SnapshotInputs = {
-  pipeline?: HomeCommandCenterInput["sections"];
-  reportsInput?: HomeReportsInput | null;
-  storage?: StorageUsage | null;
+  cc: HomeCommandCenterInput | null;
+  reportsInput: HomeReportsInput | null;
+  storage: StorageUsage | null;
 };
 
+function evidenceTotalFromPipeline(
+  cc: HomeCommandCenterInput | null,
+): number {
+  const ev = cc?.sections?.pipelineDetail?.data?.evidence;
+  if (!ev) return 0;
+  return (ev.uploaded ?? 0) + (ev.signed ?? 0) + (ev.reported ?? 0);
+}
+
+function evidenceTotalAnyScope(
+  cc: HomeCommandCenterInput | null,
+  reportsInput: HomeReportsInput | null,
+): number {
+  const fromPipeline = evidenceTotalFromPipeline(cc);
+  if (fromPipeline > 0) return fromPipeline;
+  // Fallback: distinct evidenceIds derived from the reports endpoint.
+  // This handles the bug where pipelineDetail returns 0 for evidence
+  // even though the user has reports — that means the underlying
+  // evidence rows exist but the pipelineDetail aggregator missed them.
+  const ids = new Set<string>();
+  for (const r of reportsInput?.items ?? []) {
+    if (r.evidenceId) ids.add(r.evidenceId);
+  }
+  if (ids.size > 0) return ids.size;
+  return cc?.sections?.recentEvidence?.items?.length ?? 0;
+}
+
 function buildSnapshot(inputs: SnapshotInputs): SnapshotTile[] {
-  const p = inputs.pipeline ?? {};
-
-  const pipelineData = p.pipelineDetail?.data ?? null;
-  const evidenceTotal = pipelineData
-    ? (pipelineData.evidence?.uploaded ?? 0) +
-      (pipelineData.evidence?.signed ?? 0) +
-      (pipelineData.evidence?.reported ?? 0)
-    : null;
-
-  const recentEvidenceCount = p.recentEvidence?.items?.length ?? null;
-  const evidenceValue =
-    evidenceTotal != null && evidenceTotal > 0
-      ? String(evidenceTotal)
-      : recentEvidenceCount != null && recentEvidenceCount > 0
-        ? String(recentEvidenceCount)
-        : "0";
-
-  const cases = p.caseOperations?.data?.activeCasesCount;
-  const casesValue =
-    typeof cases === "number" ? String(cases) : "0";
-
-  const reportsReady = pipelineData?.reports?.ready ?? null;
-  const reportsListLen = inputs.reportsInput?.items?.length ?? null;
-  const reportsValue =
-    reportsReady != null && reportsReady > 0
-      ? String(reportsReady)
-      : reportsListLen != null && reportsListLen > 0
-        ? String(reportsListLen)
-        : "0";
-
-  const published = pipelineData?.publicVerify?.published ?? null;
-  const verifyValue =
-    published != null && published >= 0 ? String(published) : "0";
+  const evidence = evidenceTotalAnyScope(inputs.cc, inputs.reportsInput);
+  const cases = inputs.cc?.sections?.caseOperations?.data?.activeCasesCount ?? 0;
+  const reports = inputs.reportsInput?.items?.length ?? 0;
+  const verifyPublished =
+    inputs.cc?.sections?.pipelineDetail?.data?.publicVerify?.published ?? 0;
 
   const storageValue =
     inputs.storage?.usedLabel && inputs.storage?.limitLabel
@@ -480,28 +541,28 @@ function buildSnapshot(inputs: SnapshotInputs): SnapshotTile[] {
     {
       key: "evidence_records",
       label: "Evidence records",
-      value: evidenceValue,
+      value: String(evidence),
       hint: null,
       href: "/evidence",
     },
     {
       key: "cases",
       label: "Cases",
-      value: casesValue,
+      value: String(cases),
       hint: null,
       href: "/cases",
     },
     {
       key: "reports",
       label: "Reports",
-      value: reportsValue,
+      value: String(reports),
       hint: null,
       href: "/reports",
     },
     {
       key: "verification_links",
       label: "Verification links",
-      value: verifyValue,
+      value: String(verifyPublished),
       hint: null,
       href: "/evidence",
     },
@@ -515,16 +576,32 @@ function buildSnapshot(inputs: SnapshotInputs): SnapshotTile[] {
   ];
 }
 
-function buildRecentEvidence(
-  cc: HomeCommandCenterInput | null,
-): RecentEvidenceRow[] {
-  const items = cc?.sections?.recentEvidence?.items ?? [];
-  return items.slice(0, 5).map((it) => ({
-    id: it.id,
-    title: it.title || it.id,
-    status: it.status,
-    createdAt: it.createdAt,
-    href: `/evidence/${encodeURIComponent(it.id)}`,
+function buildRecentEvidence(args: {
+  cc: HomeCommandCenterInput | null;
+  reportsInput: HomeReportsInput | null;
+}): RecentEvidenceRow[] {
+  const items = args.cc?.sections?.recentEvidence?.items ?? [];
+  if (items.length > 0) {
+    return items.slice(0, 5).map((it) => ({
+      id: it.id,
+      title: it.title || it.id,
+      status: it.status,
+      createdAt: it.createdAt,
+      href: `/evidence/${encodeURIComponent(it.id)}`,
+    }));
+  }
+  // Phase IA-home-polish fallback: cc.recentEvidence is empty but the
+  // reports endpoint proves evidence exists in this workspace. Build a
+  // synthetic recent-evidence list from the reports rows so the
+  // dashboard never shows "no evidence" while reports are listed.
+  const reportRows = args.reportsInput?.items ?? [];
+  if (reportRows.length === 0) return [];
+  return reportRows.slice(0, 5).map((r) => ({
+    id: r.evidenceId,
+    title: r.title || r.evidenceId,
+    status: r.status ?? "SIGNED",
+    createdAt: r.createdAt ?? r.report?.generatedAtUtc ?? new Date(0).toISOString(),
+    href: `/evidence/${encodeURIComponent(r.evidenceId)}`,
   }));
 }
 
@@ -548,20 +625,43 @@ function buildRecentReports(
   return items
     .filter((r) => r.report?.available)
     .slice(0, 5)
-    .map((r) => ({
-      evidenceId: r.evidenceId,
-      evidenceTitle: r.title ?? r.evidenceId,
-      version: r.report?.version ?? null,
-      generatedAtUtc: r.report?.generatedAtUtc ?? null,
-      reportReady: r.report?.available === true,
-      packageReady: r.package?.available === true,
-      href: `/evidence/${encodeURIComponent(r.evidenceId)}`,
-    }));
+    .map((r) => {
+      const evidenceId = r.evidenceId;
+      const open = `/evidence/${encodeURIComponent(evidenceId)}`;
+      const reportPdf = r.report?.available
+        ? `/v1/evidence/${encodeURIComponent(evidenceId)}/report/latest`
+        : null;
+      const packageZip = r.package?.available
+        ? `/v1/evidence/${encodeURIComponent(evidenceId)}/verification-package`
+        : null;
+      // Public verification link is only useful when published. We
+      // don't have a published flag per-row from /v1/reports, so the
+      // UI hides this when packageReady is false.
+      const verify = r.package?.available
+        ? `/v/${encodeURIComponent(evidenceId)}`
+        : null;
+      return {
+        evidenceId,
+        evidenceTitle: r.title ?? evidenceId,
+        version: r.report?.version ?? null,
+        generatedAtUtc: r.report?.generatedAtUtc ?? null,
+        reportReady: r.report?.available === true,
+        packageReady: r.package?.available === true,
+        verifyHref: verify,
+        href: open,
+        actions: {
+          open,
+          reportPdf,
+          packageZip,
+          verify,
+        },
+      };
+    });
 }
 
 function buildPipeline(
   cc: HomeCommandCenterInput | null,
-): PipelineStageTile[] {
+): { stages: PipelineStageTile[]; empty: boolean } {
   const d = cc?.sections?.pipelineDetail?.data ?? null;
   const ev = d?.evidence ?? {};
   const rep = d?.reports ?? {};
@@ -571,7 +671,7 @@ function buildPipeline(
   const uploadedTotal =
     (ev.uploaded ?? 0) + (ev.signed ?? 0) + (ev.reported ?? 0);
 
-  return [
+  const stages: PipelineStageTile[] = [
     {
       key: "uploaded",
       label: "Uploaded",
@@ -609,6 +709,9 @@ function buildPipeline(
       tone: (pkg.failed ?? 0) > 0 ? "warn" : "neutral",
     },
   ];
+
+  const totalValue = stages.reduce((sum, s) => sum + s.value, 0);
+  return { stages, empty: totalValue === 0 };
 }
 
 function buildStorage(
@@ -616,11 +719,25 @@ function buildStorage(
 ): StorageUsage | null {
   const s = billing?.workspaces?.personal?.storage;
   if (!s) return null;
+  // Belt-and-suspenders: if the backend somehow returns a long-decimal
+  // usedLabel like "6.528212832286954 GB", normalize the numeric prefix.
+  const polishLabel = (raw: string | undefined): string | null => {
+    if (!raw) return null;
+    const m = raw.match(/^(\d+(?:\.\d+)?)(\s.*)$/);
+    if (!m) return raw;
+    const n = Number(m[1]);
+    if (!Number.isFinite(n)) return raw;
+    const rounded =
+      Math.abs(n - Math.round(n)) < 0.005
+        ? String(Math.round(n))
+        : n.toFixed(2).replace(/\.?0+$/, "");
+    return `${rounded}${m[2]}`;
+  };
   return {
-    usedLabel: s.usedLabel ?? null,
-    limitLabel: s.limitLabel ?? null,
+    usedLabel: polishLabel(s.usedLabel),
+    limitLabel: polishLabel(s.limitLabel),
     usagePercent:
-      typeof s.usagePercent === "number" ? Math.round(s.usagePercent) : null,
+      typeof s.usagePercent === "number" ? roundToOneDp(s.usagePercent) : null,
     nearLimit: s.nearLimit === true,
     limitReached: s.limitReached === true,
     upgradeHref: "/billing",
@@ -636,8 +753,6 @@ function pickNextAction(args: {
 }): NextAction {
   const { plan, cc } = args;
 
-  // 1. Highest priority — a routing-queue item the self-serve user
-  //    can act on. We drop enterprise-domain items.
   const candidates = cc?.sections?.routingQueue?.items ?? [];
   const acceptable = candidates.find(
     (it) =>
@@ -654,7 +769,6 @@ function pickNextAction(args: {
     };
   }
 
-  // 2. Pipeline-derived priorities.
   const pipeline = cc?.sections?.pipelineDetail?.data;
   if ((pipeline?.reports?.failed ?? 0) > 0) {
     return {
@@ -681,7 +795,6 @@ function pickNextAction(args: {
     };
   }
 
-  // 3. Onboarding-shaped fallbacks based on counts.
   if (args.evidenceCount === 0) {
     return {
       kind: "capture",
@@ -748,7 +861,6 @@ function buildIntegrityAlerts(
         item.href ?? `/evidence/${encodeURIComponent(item.evidenceId)}`,
     });
   }
-  // Cap to 5 so the card stays compact.
   return out.slice(0, 5);
 }
 
@@ -785,7 +897,7 @@ function buildChecklist(args: {
     {
       key: "first_intake_link",
       label: "Create an intake link",
-      done: false, // we don't have a count endpoint without a new API
+      done: false,
       visible: pro,
       href: "/intake-links",
     },
@@ -822,6 +934,131 @@ function buildTeamActivity(args: {
   };
 }
 
+function buildActivity(args: {
+  cc: HomeCommandCenterInput | null;
+  reportsInput: HomeReportsInput | null;
+}): ActivityEvent[] {
+  const out: ActivityEvent[] = [];
+
+  // 1. command-center.timeline — already a real event stream.
+  const items = args.cc?.sections?.timeline?.items ?? [];
+  for (const it of items) {
+    const raw = it.kind ?? it.eventType ?? "";
+    const translated = translateActivityKind(raw);
+    if (!translated) continue;
+    const occurredAt = it.occurredAtUtc;
+    if (!occurredAt) continue;
+    const href = it.evidenceId
+      ? `/evidence/${encodeURIComponent(it.evidenceId)}`
+      : it.caseId
+        ? `/cases/${encodeURIComponent(it.caseId)}`
+        : "/inbox";
+    out.push({
+      id: `tl:${it.id}`,
+      kind: translated.kind,
+      label: translated.label,
+      occurredAt,
+      href,
+    });
+  }
+
+  // 2. Reports list fallback / supplement — every available report is a
+  //    "report generated" event; every available package is a "package
+  //    ready" event. Useful when the timeline section is missing or empty.
+  const reportRows = args.reportsInput?.items ?? [];
+  for (const r of reportRows) {
+    if (r.report?.available && r.report.generatedAtUtc) {
+      out.push({
+        id: `rpt:${r.evidenceId}`,
+        kind: "report_generated",
+        label: "Report generated",
+        occurredAt: r.report.generatedAtUtc,
+        href: `/evidence/${encodeURIComponent(r.evidenceId)}`,
+      });
+    }
+    if (r.package?.available && r.package.generatedAtUtc) {
+      out.push({
+        id: `pkg:${r.evidenceId}`,
+        kind: "package_ready",
+        label: "Verification package ready",
+        occurredAt: r.package.generatedAtUtc,
+        href: `/evidence/${encodeURIComponent(r.evidenceId)}`,
+      });
+    }
+  }
+
+  // Deduplicate by id, prefer earlier insertions (timeline wins over
+  // synthetic report rows when both are present).
+  const seen = new Set<string>();
+  const deduped: ActivityEvent[] = [];
+  for (const e of out) {
+    if (seen.has(e.id)) continue;
+    seen.add(e.id);
+    deduped.push(e);
+  }
+  // Sort newest first, cap at 10.
+  deduped.sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1));
+  return deduped.slice(0, 10);
+}
+
+function buildHealth(args: {
+  cc: HomeCommandCenterInput | null;
+  pipelineEmpty: boolean;
+  integrityAlertCount: number;
+  evidenceCount: number;
+  reportCount: number;
+}): EvidenceHealth {
+  const d = args.cc?.sections?.pipelineDetail?.data ?? null;
+  const needsReport =
+    (d?.reports?.missingFromSigned ?? 0) + (d?.reports?.failed ?? 0);
+  const verificationMissing = d?.packages?.missingFromReported ?? 0;
+  // Timestamp issues: stuckUploading is the closest signal we have on
+  // the self-serve allowlist (no reviewer-ops / TSA-internal queues).
+  const timestampIssues = d?.evidence?.stuckUploading ?? 0;
+  // OTS anchoring is not surfaced as a separate count on the self-serve
+  // allowlist. Without a real signal we report 0 — never invent one.
+  const anchorPending = 0;
+
+  const completeApprox = Math.max(0, args.reportCount - verificationMissing);
+  const allClear =
+    !args.pipelineEmpty &&
+    needsReport === 0 &&
+    timestampIssues === 0 &&
+    verificationMissing === 0 &&
+    args.integrityAlertCount === 0;
+
+  return {
+    complete: completeApprox,
+    needsReport,
+    timestampIssues,
+    anchorPending,
+    verificationMissing,
+    integrityAlerts: args.integrityAlertCount,
+    allClear: allClear && args.evidenceCount > 0,
+  };
+}
+
+function buildQuickActions(args: { plan: HomePlan }): QuickAction[] {
+  const pro = isProOrTeam(args.plan);
+  return [
+    { key: "upload", label: "Upload evidence", href: "/capture", visible: true },
+    { key: "create_case", label: "Create case", href: "/cases", visible: true },
+    { key: "open_reports", label: "View reports", href: "/reports", visible: true },
+    {
+      key: "create_intake_link",
+      label: "Create intake link",
+      href: "/intake-links",
+      visible: pro,
+    },
+    {
+      key: "invite_teammate",
+      label: "Invite teammate",
+      href: "/teams",
+      visible: pro,
+    },
+  ];
+}
+
 // ============================================================================
 // Main normalizer
 // ============================================================================
@@ -837,26 +1074,22 @@ export type NormalizeInputs = {
 export function normalizeHomeViewModel(
   inputs: NormalizeInputs,
 ): HomeViewModel {
-  // Pull the slice of command-center we accept. The full envelope
-  // may contain enterprise sections we MUST NOT consume — restricting
-  // to the allowlist below is defence in depth on top of what the
-  // hook drops upstream.
   const cc = inputs.commandCenter;
   const storage = buildStorage(inputs.billing);
-  const recentEvidence = buildRecentEvidence(cc);
+  const recentEvidence = buildRecentEvidence({
+    cc,
+    reportsInput: inputs.reports,
+  });
   const recentCases = buildRecentCases(cc);
   const recentReports = buildRecentReports(inputs.reports);
-  const pipeline = buildPipeline(cc);
+  const pipelineBuilt = buildPipeline(cc);
 
-  const evidenceCount =
-    (cc?.sections?.pipelineDetail?.data?.evidence?.signed ?? 0) +
-    (cc?.sections?.pipelineDetail?.data?.evidence?.reported ?? 0) +
-    (cc?.sections?.pipelineDetail?.data?.evidence?.uploaded ?? 0);
+  const evidenceCount = evidenceTotalAnyScope(cc, inputs.reports);
   const caseCount = cc?.sections?.caseOperations?.data?.activeCasesCount ?? 0;
-  const reportCount = recentReports.length;
+  const reportCount = inputs.reports?.items?.length ?? 0;
 
   const snapshot = buildSnapshot({
-    pipeline: cc?.sections,
+    cc,
     reportsInput: inputs.reports,
     storage,
   });
@@ -884,12 +1117,28 @@ export function normalizeHomeViewModel(
     reportCount,
   });
 
+  const activity = buildActivity({
+    cc,
+    reportsInput: inputs.reports,
+  });
+
+  const health = buildHealth({
+    cc,
+    pipelineEmpty: pipelineBuilt.empty,
+    integrityAlertCount: integrityAlerts.length,
+    evidenceCount,
+    reportCount,
+  });
+
+  const quickActions = buildQuickActions({ plan: inputs.plan });
+
   const hasAnyData =
     snapshot.some((t) => t.value !== "0" && t.value !== "—") ||
     recentEvidence.length > 0 ||
     recentCases.length > 0 ||
     recentReports.length > 0 ||
     integrityAlerts.length > 0 ||
+    activity.length > 0 ||
     (storage?.usedLabel != null);
 
   return {
@@ -899,11 +1148,15 @@ export function normalizeHomeViewModel(
     recentEvidence,
     recentCases,
     recentReports,
-    pipeline,
+    pipeline: pipelineBuilt.stages,
+    pipelineEmpty: pipelineBuilt.empty,
     storage,
     teamActivity,
     integrityAlerts,
     checklist,
+    activity,
+    health,
+    quickActions,
     hasAnyData,
   };
 }

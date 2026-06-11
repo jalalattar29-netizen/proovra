@@ -90,6 +90,15 @@ export type RouteDefinition = {
   allToolsVisible: boolean;
   /** When true, the sidebar may render this route directly. */
   sidebarEligible: boolean;
+  /**
+   * Optional route-specific denial copy. PageRouteGate prefers this over
+   * the generic canonical guidance from `@proovra/shared` when the user
+   * lacks a required capability. Use it for routes where the canonical
+   * "Request access" panel is too vague — e.g. /intake-links should
+   * tell a Viewer-role user to ask their workspace owner instead of
+   * showing a generic capability prompt.
+   */
+  denialGuidance?: string;
 };
 
 /**
@@ -385,6 +394,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     commandPaletteVisible: true,
     allToolsVisible: true,
     sidebarEligible: true,
+    denialGuidance:
+      "Intake links are managed by workspace owners, admins, and members. Ask the owner of this workspace to add you as a member, or open Billing to start your own workspace.",
   },
   // Phase C — the /workflows surface administers EvidenceWorkflowTemplate
   // catalog entries (Phase B). It is NOT an operations surface; reviewer

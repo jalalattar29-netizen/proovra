@@ -268,18 +268,23 @@ describe("Phase IA-self-serve-simplification — SelfServeHomeDashboard", () => 
     );
   });
 
-  it("Trust summary names the four bounded materials", () => {
+  it("Trust summary names the bounded materials (compact card per Phase IA-home-polish)", () => {
+    // The compact card lists short item names; the longer
+    // narrative was removed in Phase IA-home-polish to free up
+    // vertical space without changing the trust semantics.
     expect(SECTIONS).toMatch(/Digital signatures/);
-    expect(SECTIONS).toMatch(/trusted timestamp/i);
-    expect(SECTIONS).toMatch(/Object Lock/);
-    expect(SECTIONS).toMatch(/public verification link/i);
+    expect(SECTIONS).toMatch(/Trusted timestamps/);
+    expect(SECTIONS).toMatch(/Public verification/);
+    expect(SECTIONS).toMatch(/Storage protection/);
+    expect(SECTIONS).toMatch(/Reports and packages/);
   });
 
-  it("Trust summary does NOT claim legal admissibility / factual truth / certified authenticity", () => {
-    // Disclaimers (e.g. "Legal admissibility is decided by reviewers
-    // and courts") are EXPECTED. What we ban is the affirmative
-    // overclaim.
-    expect(SECTIONS).toMatch(/Legal\s+admissibility is decided/);
+  it("Trust summary keeps the bounded legal disclaimer (does not overclaim)", () => {
+    // The Phase IA-home-polish brief mandates a short bounded
+    // disclaimer; the affirmative overclaims are still banned.
+    expect(SECTIONS).toMatch(
+      /does not determine factual\s+truth or legal admissibility/,
+    );
     expect(SECTIONS).not.toMatch(/PROOVRA certifies legal/);
     expect(SECTIONS).not.toMatch(/guarantees admissibility/);
     expect(SECTIONS).not.toMatch(/proves authenticity/i);

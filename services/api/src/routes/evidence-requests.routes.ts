@@ -45,6 +45,7 @@ import {
   listEvidenceRequestEvents,
   listEvidenceRequests,
   projectRequestForAuthenticatedView,
+  requestMoreEvidenceForResponse,
   reviewEvidenceRequestResponse,
   sendEvidenceRequest,
   transitionEvidenceRequest,
@@ -398,6 +399,12 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         .object({
           status: z.enum(["UNDER_REVIEW", "ACCEPTED", "NEEDS_MORE_INFO", "REJECTED"]),
           reviewerNote: z.string().max(4000).nullable().optional(),
+          // Phase IA-intake-completion — optionally notify the external
+          // contributor when the reviewer rejects (or requests more
+          // information). When true AND the link has a phone, the
+          // service queues a templated CommunicationMessage.
+          notifyContributor: z.boolean().optional(),
+          notifyChannel: z.enum(["SMS", "WHATSAPP"]).optional(),
         })
         .parse(req.body ?? {});
 
@@ -415,8 +422,66 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
           actorUserId: ok.userId,
           status: body.status,
           reviewerNote: body.reviewerNote ?? null,
+          notifyContributor: body.notifyContributor ?? false,
+          notifyChannel: body.notifyChannel ?? "SMS",
         });
         return reply.code(200).send({ response });
+      } catch (err) {
+        if (err instanceof EvidenceRequestError) return errorToReply(err, reply);
+        throw err;
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Phase IA-intake-completion — Request more evidence by issuing a fresh
+  // intake link in the same EvidenceRequest thread. Atomically marks the
+  // response NEEDS_MORE_INFO and returns the new link + raw token in the
+  // same one-shot reveal shape as `POST /v1/workflow/intake-links`.
+  // -------------------------------------------------------------------------
+  app.post(
+    "/v1/evidence-requests/:id/responses/:responseId/request-more",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (sendFeatureDisabled(reply)) return;
+      const params = z
+        .object({
+          id: z.string().uuid(),
+          responseId: z.string().uuid(),
+        })
+        .parse(req.params);
+      const body = z
+        .object({
+          reviewerNote: z.string().max(4000).nullable().optional(),
+          notifyContributor: z.boolean().optional(),
+          notifyChannel: z.enum(["SMS", "WHATSAPP"]).optional(),
+          expiresInHours: z.number().int().min(1).max(24 * 30).optional(),
+        })
+        .parse(req.body ?? {});
+
+      const existing = await getEvidenceRequest(params.id);
+      if (!existing)
+        return reply.code(404).send({ error: { code: "request_not_found" } });
+      const ok = await requireMember(req, reply, existing.teamId);
+      if (!ok) return;
+
+      try {
+        const result = await requestMoreEvidenceForResponse({
+          requestId: params.id,
+          teamId: existing.teamId,
+          responseId: params.responseId,
+          actorUserId: ok.userId,
+          reviewerNote: body.reviewerNote ?? null,
+          notifyContributor: body.notifyContributor ?? false,
+          notifyChannel: body.notifyChannel ?? "SMS",
+          expiresInHours: body.expiresInHours,
+        });
+        return reply.code(200).send({
+          response: result.response,
+          newIntakeLinkId: result.newIntakeLinkId,
+          rawToken: result.newRawToken,
+          communicationMessageId: result.communicationMessageId,
+        });
       } catch (err) {
         if (err instanceof EvidenceRequestError) return errorToReply(err, reply);
         throw err;

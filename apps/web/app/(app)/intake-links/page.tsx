@@ -30,6 +30,8 @@ import { usePlatformContext } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../components/navigation/OperationalBreadcrumb";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
+import { validateE164 } from "../../../lib/phone/e164";
+import { IntakeLinkDeliveryDrawer } from "../../../components/intake-links/IntakeLinkDeliveryDrawer";
 
 type LinkRow = {
   id: string;
@@ -109,7 +111,11 @@ function IntakeLinksPageInner() {
     rawToken: string;
     intakeUrl: string;
     linkId: string;
+    recipientPhone: string | null;
   } | null>(null);
+  const [deliveryDrawerLinkId, setDeliveryDrawerLinkId] = useState<string | null>(
+    null,
+  );
   const { confirm } = useConfirmAction();
 
   // Phase 32.8 Foundation cleanup — read team identity from the
@@ -321,15 +327,25 @@ function IntakeLinksPageInner() {
                     Expires {new Date(l.expiresAtUtc).toLocaleString()}
                   </div>
                 </div>
-                {l.status === "ACTIVE" ? (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button
                     type="button"
-                    style={dangerButtonStyle}
-                    onClick={() => revokeLink(l.id)}
+                    style={secondaryButtonStyle}
+                    onClick={() => setDeliveryDrawerLinkId(l.id)}
+                    data-intake-link-delivery={l.id}
                   >
-                    Revoke
+                    Delivery
                   </button>
-                ) : null}
+                  {l.status === "ACTIVE" ? (
+                    <button
+                      type="button"
+                      style={dangerButtonStyle}
+                      onClick={() => revokeLink(l.id)}
+                    >
+                      Revoke
+                    </button>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>
@@ -347,6 +363,7 @@ function IntakeLinksPageInner() {
               rawToken: created.rawToken,
               intakeUrl: intakeUrlFromToken(created.rawToken),
               linkId: created.link.id,
+              recipientPhone: created.link.recipientPhone,
             });
             setLinks((prev) => (prev ? [created.link, ...prev] : [created.link]));
           }}
@@ -356,7 +373,18 @@ function IntakeLinksPageInner() {
       {rawTokenReveal ? (
         <RawTokenRevealModal
           intakeUrl={rawTokenReveal.intakeUrl}
+          rawToken={rawTokenReveal.rawToken}
+          linkId={rawTokenReveal.linkId}
+          recipientPhone={rawTokenReveal.recipientPhone}
           onClose={() => setRawTokenReveal(null)}
+        />
+      ) : null}
+
+      {deliveryDrawerLinkId && currentTeam ? (
+        <IntakeLinkDeliveryDrawer
+          linkId={deliveryDrawerLinkId}
+          teamId={currentTeam.id}
+          onClose={() => setDeliveryDrawerLinkId(null)}
         />
       ) : null}
     </main>
@@ -382,6 +410,7 @@ function CreateLinkModal({
   const [intakeMode, setIntakeMode] = useState("EXTERNAL_ONE_TIME");
   const [recipientLabel, setRecipientLabel] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
   const [expiresInHours, setExpiresInHours] = useState(72);
   const [maxFileCount, setMaxFileCount] = useState<number | "">(10);
   const [allowedKinds, setAllowedKinds] = useState<Set<string>>(
@@ -390,6 +419,25 @@ function CreateLinkModal({
   const [consentText, setConsentText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // E.164 validation for the phone field. Empty is allowed (optional);
+  // non-empty must canonicalize. The canonicalized value is what we send
+  // to the backend so Twilio always receives a well-formed number.
+  const phoneValidation =
+    recipientPhone.trim().length === 0
+      ? { ok: true as const, canonical: "" }
+      : validateE164(recipientPhone);
+  const phoneCanonical =
+    phoneValidation.ok && phoneValidation.canonical.length > 0
+      ? phoneValidation.canonical
+      : null;
+  const phoneError =
+    !phoneValidation.ok &&
+    (phoneValidation.reason === "missing_plus"
+      ? "Include the country code, e.g. +14155550123"
+      : phoneValidation.reason === "invalid_length"
+        ? "That doesn't look like a valid international number"
+        : null);
 
   const selectedTemplate = templates.find((t) => t.slug === slug);
   const eligibleModes = selectedTemplate
@@ -410,6 +458,7 @@ function CreateLinkModal({
         intakeMode,
         recipientLabel: recipientLabel || null,
         recipientEmail: recipientEmail || null,
+        recipientPhone: phoneCanonical,
         maxUses: intakeMode === "EXTERNAL_REUSABLE" ? 1000 : 1,
         maxFileCountPerSession: maxFileCount === "" ? null : maxFileCount,
         allowedAcceptedKinds: Array.from(allowedKinds),
@@ -490,6 +539,30 @@ function CreateLinkModal({
           onChange={(e) => setRecipientEmail(e.target.value.slice(0, 320))}
         />
 
+        <label style={labelStyle}>Recipient phone (optional — required for SMS/WhatsApp)</label>
+        <input
+          style={{
+            ...inputStyle,
+            borderColor: phoneError ? "#dc2626" : inputStyle.border as string,
+          }}
+          type="tel"
+          placeholder="+14155550123"
+          autoComplete="tel"
+          value={recipientPhone}
+          onChange={(e) => setRecipientPhone(e.target.value.slice(0, 32))}
+          aria-invalid={Boolean(phoneError)}
+          data-intake-link-phone
+        />
+        {phoneError ? (
+          <p style={{ ...mutedStyle, color: "#b91c1c", marginTop: -8, marginBottom: 12 }}>
+            {phoneError}
+          </p>
+        ) : (
+          <p style={{ ...mutedStyle, marginTop: -8, marginBottom: 12 }}>
+            International format with country code (E.164). Used only if you choose to send the link by SMS or WhatsApp.
+          </p>
+        )}
+
         <label style={labelStyle}>Expires in (hours)</label>
         <input
           style={inputStyle}
@@ -555,52 +628,151 @@ function CreateLinkModal({
 }
 
 // -----------------------------------------------------------------------------
-// One-shot raw token reveal
+// One-shot raw token reveal — also the ONLY moment Send-via-SMS/WhatsApp
+// is wired, because the rawToken is unrecoverable after this modal closes.
 // -----------------------------------------------------------------------------
 
 function RawTokenRevealModal({
   intakeUrl,
+  rawToken,
+  linkId,
+  recipientPhone,
   onClose,
 }: {
   intakeUrl: string;
+  rawToken: string;
+  linkId: string;
+  recipientPhone: string | null;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [sendBusy, setSendBusy] = useState<"SMS" | "WHATSAPP" | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sentChannel, setSentChannel] = useState<"SMS" | "WHATSAPP" | null>(null);
+
+  const canSend = Boolean(recipientPhone);
+
+  async function send(channel: "SMS" | "WHATSAPP") {
+    setSendError(null);
+    setSendBusy(channel);
+    try {
+      await apiFetch(
+        `/v1/workflow/intake-links/${encodeURIComponent(linkId)}/send`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ channel, rawToken, intakeUrl }),
+        },
+      );
+      setSentChannel(channel);
+    } catch (err) {
+      const e = err as { message?: string; code?: string };
+      // Translate the backend error codes into user-readable copy.
+      const codeMap: Record<string, string> = {
+        link_missing_phone:
+          "Add a recipient phone number on the link before sending.",
+        link_revoked: "This link has been revoked.",
+        link_expired: "This link has already expired.",
+        provider_unconfigured:
+          "Messaging isn't configured for this deployment. Copy the link instead.",
+      };
+      setSendError(codeMap[e?.code ?? ""] ?? e?.message ?? "Could not send the link.");
+    } finally {
+      setSendBusy(null);
+    }
+  }
+
   return (
     <div style={modalBackdropStyle} role="dialog" aria-modal>
       <div style={modalStyle}>
         <h2 style={sectionTitleStyle}>Link created</h2>
         <p style={paragraphStyle}>
-          This link will not be shown again. Copy it now and deliver it
-          directly to the intended contributor. Anyone with the link can
-          submit evidence into the bound workflow until it expires or is
-          revoked.
+          This link will not be shown again. Send or copy it now — once you
+          close this dialog, the only way to share it is to create a new
+          link.
         </p>
         <input
           style={{ ...inputStyle, fontFamily: "monospace", fontSize: 12 }}
           readOnly
           value={intakeUrl}
           onClick={(e) => (e.target as HTMLInputElement).select()}
+          data-intake-link-url
         />
-        <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
-          <button
-            type="button"
-            style={primaryButtonStyle}
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(intakeUrl);
-                setCopied(true);
-              } catch {
-                setCopied(false);
-              }
+
+        {sendError ? (
+          <div style={errorBoxStyle} data-intake-link-send-error>
+            {sendError}
+          </div>
+        ) : null}
+        {sentChannel ? (
+          <div
+            style={{
+              ...infoBoxStyle,
+              background: "#dcfce7",
+              border: "1px solid #86efac",
+              color: "#166534",
             }}
+            data-intake-link-send-success
           >
-            {copied ? "Copied" : "Copy link"}
-          </button>
+            Queued for {sentChannel === "SMS" ? "SMS" : "WhatsApp"} delivery. Track
+            status under <strong>Delivery</strong> on the link card.
+          </div>
+        ) : null}
+
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            marginTop: 16,
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              style={canSend ? primaryButtonStyle : disabledButtonStyle}
+              onClick={() => send("SMS")}
+              disabled={!canSend || sendBusy !== null}
+              data-intake-link-send="SMS"
+            >
+              {sendBusy === "SMS" ? "Sending…" : "Send by SMS"}
+            </button>
+            <button
+              type="button"
+              style={canSend ? primaryButtonStyle : disabledButtonStyle}
+              onClick={() => send("WHATSAPP")}
+              disabled={!canSend || sendBusy !== null}
+              data-intake-link-send="WHATSAPP"
+            >
+              {sendBusy === "WHATSAPP" ? "Sending…" : "Send by WhatsApp"}
+            </button>
+            <button
+              type="button"
+              style={secondaryButtonStyle}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(intakeUrl);
+                  setCopied(true);
+                } catch {
+                  setCopied(false);
+                }
+              }}
+              data-intake-link-copy
+            >
+              {copied ? "Copied" : "Copy link"}
+            </button>
+          </div>
           <button type="button" style={secondaryButtonStyle} onClick={onClose}>
-            Close (forget link)
+            Close
           </button>
         </div>
+        {!canSend ? (
+          <p style={{ ...mutedStyle, marginTop: 12 }}>
+            Add a recipient phone number when creating the link to enable
+            Send by SMS or WhatsApp.
+          </p>
+        ) : null}
       </div>
     </div>
   );
@@ -674,6 +846,15 @@ const dangerButtonStyle: React.CSSProperties = {
   border: "1px solid #fecaca",
   borderRadius: 8,
   cursor: "pointer",
+};
+const disabledButtonStyle: React.CSSProperties = {
+  padding: "10px 20px",
+  fontWeight: 600,
+  color: "#94a3b8",
+  background: "#f1f5f9",
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  cursor: "not-allowed",
 };
 const infoBoxStyle: React.CSSProperties = {
   marginTop: 16,

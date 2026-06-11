@@ -92,8 +92,16 @@ export function useHomeData(): HomeDataState {
       return null;
     });
 
+    // Workspace-scoped: the `?teamId=` query keeps the Home counter
+    // set consistent — evidence, cases and reports all come from the
+    // same workspace. Without it, the user-scoped fallback can show
+    // reports from another workspace while the command-center counts
+    // on the active one read zero.
+    const reportsUrl = workspaceId
+      ? `/v1/reports?teamId=${encodeURIComponent(workspaceId)}`
+      : "/v1/reports";
     const reportsPromise: Promise<HomeReportsInput | null> = apiFetch(
-      "/v1/reports",
+      reportsUrl,
       { method: "GET" },
     ).catch(() => null);
 

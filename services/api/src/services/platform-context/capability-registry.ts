@@ -202,6 +202,13 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
           "REVIEW_ASSIGN",
           "REVIEW_REASSIGN",
           "REVIEW_ESCALATE",
+          // Phase IA-intake-completion — REVIEWER (and any writer) can
+          // create intake links because they already hold
+          // `workflow.intake_link.create` in the role-permission matrix
+          // (packages/shared/src/permissions.ts). Without this flag the
+          // /intake-links surface denied them via PageRouteGate even
+          // though the backend would have accepted the create call.
+          "INTAKE_LINKS_MANAGE",
           // Phase 32.8D-frontend-closure — every non-VIEWER team
           // member can change case status, link evidence, and
           // comment. Per-case CaseAssignment role gating is enforced

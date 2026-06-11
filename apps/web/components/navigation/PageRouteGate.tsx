@@ -166,12 +166,17 @@ export function PageRouteGate({
   const headline = canonicalReason
     ? denialReasonHeadline(canonicalReason)
     : "This surface is not available";
+  // Route-specific guidance > resolver-provided reason > canonical fallback.
+  // The route-specific copy is the only place the registry can tell a Viewer
+  // "ask your workspace owner" instead of the generic "request access".
   const subtitle =
-    access.reason && access.reason.length > 0
-      ? access.reason
-      : canonicalReason
-        ? denialReasonGuidance(canonicalReason)
-        : "";
+    route.denialGuidance && route.denialGuidance.length > 0
+      ? route.denialGuidance
+      : access.reason && access.reason.length > 0
+        ? access.reason
+        : canonicalReason
+          ? denialReasonGuidance(canonicalReason)
+          : "";
   return (
     <main
       className="cc-page"

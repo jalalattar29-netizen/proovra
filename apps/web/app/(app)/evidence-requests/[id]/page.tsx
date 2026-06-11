@@ -34,6 +34,7 @@ import { apiFetch } from "../../../../lib/api";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
 import { EvidenceRequestEventsTab } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 
 type AuthRequestView = {
   id: string;
@@ -122,6 +123,7 @@ function Inner() {
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [reviewerNote, setReviewerNote] = useState("");
+  const { confirm } = useConfirmAction();
 
   const load = useCallback(async () => {
     if (!requestId) return;
@@ -200,15 +202,30 @@ function Inner() {
   );
 
   const reviewResponse = useCallback(
-    async (responseId: string, decision: string) => {
+    async (responseId: string, status: string) => {
       if (!requestId) return;
       const note =
-        decision === "ACCEPTED"
+        status === "ACCEPTED"
           ? null
           : window.prompt(
               "Reviewer note (internal — visible only to workspace members):",
             );
-      setActionBusy(`review:${responseId}:${decision}`);
+      // Phase IA-intake-completion — when rejecting, offer to notify the
+      // external contributor via SMS. The backend ignores the flag when
+      // the link has no recipientPhone, so this is safe to default true.
+      const notifyContributor =
+        status === "REJECTED"
+          ? await confirm({
+              title: "Notify the contributor?",
+              description:
+                "Send an SMS letting the contributor know their submission was not accepted. The reviewer note stays internal — the SMS only carries a short, neutral message.",
+              confirmLabel: "Notify by SMS",
+              cancelLabel: "Don't notify",
+              tone: "danger",
+              testId: "evidence-request-reject-notify",
+            })
+          : false;
+      setActionBusy(`review:${responseId}:${status}`);
       try {
         await apiFetch(
           `/v1/evidence-requests/${encodeURIComponent(
@@ -218,8 +235,10 @@ function Inner() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              decision,
+              status,
               reviewerNote: note?.trim() || undefined,
+              notifyContributor,
+              notifyChannel: "SMS",
             }),
           },
         );
@@ -227,6 +246,66 @@ function Inner() {
       } catch (err) {
         const e = err as { message?: string };
         setError(e.message ?? "Could not record review decision.");
+      } finally {
+        setActionBusy(null);
+      }
+    },
+    [load, requestId],
+  );
+
+  const [requestMoreReveal, setRequestMoreReveal] = useState<{
+    intakeUrl: string;
+    sentViaMessage: boolean;
+  } | null>(null);
+
+  const requestMoreEvidence = useCallback(
+    async (responseId: string) => {
+      if (!requestId) return;
+      const note = window.prompt(
+        "What additional information do you need? (internal note, not sent to contributor)",
+      );
+      if (note === null) return;
+      const notifyContributor = await confirm({
+        title: "Send the new link to the contributor?",
+        description:
+          "We'll text the contributor a fresh intake link so they can respond with the additional information you need.",
+        confirmLabel: "Send by SMS",
+        cancelLabel: "I'll share the link manually",
+        tone: "neutral",
+        testId: "evidence-request-request-more-notify",
+      });
+      setActionBusy(`request-more:${responseId}`);
+      try {
+        const res: {
+          rawToken: string;
+          newIntakeLinkId: string;
+          communicationMessageId: string | null;
+        } = await apiFetch(
+          `/v1/evidence-requests/${encodeURIComponent(
+            requestId,
+          )}/responses/${encodeURIComponent(responseId)}/request-more`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              reviewerNote: note.trim() || undefined,
+              notifyContributor,
+              notifyChannel: "SMS",
+            }),
+          },
+        );
+        const base =
+          typeof window !== "undefined" && window.location
+            ? `${window.location.protocol}//${window.location.host}`
+            : "";
+        setRequestMoreReveal({
+          intakeUrl: `${base}/intake/${encodeURIComponent(res.rawToken)}`,
+          sentViaMessage: Boolean(res.communicationMessageId),
+        });
+        await load();
+      } catch (err) {
+        const e = err as { message?: string };
+        setError(e.message ?? "Could not create follow-up link.");
       } finally {
         setActionBusy(null);
       }
@@ -592,12 +671,12 @@ function Inner() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => reviewResponse(r.id, "NEEDS_MORE_INFO")}
+                      onClick={() => requestMoreEvidence(r.id)}
                       disabled={actionBusy !== null}
                       style={secondaryButtonStyle}
-                      data-action={`needs-more:${r.id}`}
+                      data-action={`request-more:${r.id}`}
                     >
-                      Needs more info
+                      Request more
                     </button>
                     <button
                       type="button"
@@ -642,9 +721,94 @@ function Inner() {
           </button>
         )}
       </footer>
+
+      {requestMoreReveal ? (
+        <div
+          role="dialog"
+          aria-modal
+          data-request-more-reveal
+          style={revealBackdropStyle}
+        >
+          <div style={revealCardStyle}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
+              Follow-up link created
+            </h2>
+            <p style={{ marginTop: 8, fontSize: 14, color: "#475569" }}>
+              {requestMoreReveal.sentViaMessage
+                ? "An SMS with this link has been queued for the contributor. You can also share it directly:"
+                : "Copy the link below and share it directly with the contributor. This link will not be shown again."}
+            </p>
+            <input
+              readOnly
+              value={requestMoreReveal.intakeUrl}
+              data-request-more-reveal-url
+              style={{
+                display: "block",
+                width: "100%",
+                padding: 8,
+                marginTop: 12,
+                border: "1px solid #cbd5e1",
+                borderRadius: 6,
+                fontFamily: "monospace",
+                fontSize: 12,
+                boxSizing: "border-box",
+              }}
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+            />
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginTop: 16,
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                style={primaryButtonStyle}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(requestMoreReveal.intakeUrl);
+                  } catch {
+                    /* clipboard may be unavailable */
+                  }
+                }}
+              >
+                Copy link
+              </button>
+              <button
+                type="button"
+                style={secondaryButtonStyle}
+                onClick={() => setRequestMoreReveal(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
+
+const revealBackdropStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(15, 23, 42, 0.6)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 1000,
+  padding: 16,
+};
+const revealCardStyle: React.CSSProperties = {
+  background: "white",
+  borderRadius: 12,
+  padding: 24,
+  maxWidth: 560,
+  width: "100%",
+  boxShadow: "0 20px 60px rgba(15, 23, 42, 0.25)",
+};
 
 function Chip({
   label,

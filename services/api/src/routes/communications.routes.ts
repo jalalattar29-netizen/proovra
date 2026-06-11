@@ -185,6 +185,11 @@ export async function communicationsRoutes(app: FastifyInstance) {
           channel: z.enum(COMMUNICATION_CHANNELS as unknown as [string, ...string[]]).optional(),
           purpose: z.enum(COMMUNICATION_PURPOSES as unknown as [string, ...string[]]).optional(),
           status: z.enum(COMMUNICATION_STATUSES as unknown as [string, ...string[]]).optional(),
+          // Phase IA-intake-completion — narrow the message list to a
+          // single intake link so the Intake Links UI can render a
+          // per-link delivery drawer without manually paging.
+          relatedIntakeLinkId: z.string().uuid().optional(),
+          relatedEvidenceRequestId: z.string().uuid().optional(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
@@ -196,6 +201,12 @@ export async function communicationsRoutes(app: FastifyInstance) {
           ...(q.channel ? { channel: q.channel as prismaPkg.CommunicationChannel } : {}),
           ...(q.purpose ? { purpose: q.purpose as prismaPkg.CommunicationPurpose } : {}),
           ...(q.status ? { status: q.status as prismaPkg.CommunicationStatus } : {}),
+          ...(q.relatedIntakeLinkId
+            ? { relatedIntakeLinkId: q.relatedIntakeLinkId }
+            : {}),
+          ...(q.relatedEvidenceRequestId
+            ? { relatedEvidenceRequestId: q.relatedEvidenceRequestId }
+            : {}),
         },
         orderBy: { createdAt: "desc" },
         take: Math.min(Math.max(q.limit ?? 100, 1), 500),

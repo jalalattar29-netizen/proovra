@@ -1090,10 +1090,18 @@ export async function reviewEvidenceRequestResponse(
     actorUserId: string;
     status: "UNDER_REVIEW" | "ACCEPTED" | "NEEDS_MORE_INFO" | "REJECTED";
     reviewerNote?: string | null;
+    // Phase IA-intake-completion — optionally notify the external
+    // contributor when the reviewer rejects their submission. The
+    // outbound message is short, operational, and never includes the
+    // reviewerNote (which may contain workspace-internal context).
+    // No-op when the link has no recipientPhone or notifyContributor
+    // is false.
+    notifyContributor?: boolean;
+    notifyChannel?: "SMS" | "WHATSAPP";
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<DbResponse> {
-  return client.$transaction(async (tx) => {
+  const updated = await client.$transaction(async (tx) => {
     const request = await tx.evidenceRequest.findUnique({
       where: { id: input.requestId },
     });
@@ -1128,11 +1136,220 @@ export async function reviewEvidenceRequestResponse(
       input.actorUserId,
       {
         responseId: input.responseId,
+        ...(input.notifyContributor ? { notified: true } : {}),
       } as Prisma.InputJsonValue,
     );
 
     return updated;
   });
+
+  // Notification fires AFTER the transaction commits so a transient
+  // provider error never rolls back the reviewer decision.
+  if (
+    input.notifyContributor &&
+    (input.status === "REJECTED" || input.status === "NEEDS_MORE_INFO")
+  ) {
+    await notifyContributorOfReview({
+      teamId: input.teamId,
+      requestId: input.requestId,
+      responseId: input.responseId,
+      status: input.status,
+      actorUserId: input.actorUserId,
+      channel: input.notifyChannel ?? "SMS",
+    }).catch(() => null);
+  }
+
+  return updated;
+}
+
+// -----------------------------------------------------------------------------
+// Phase IA-intake-completion — Request-more = issue a fresh intake link
+// inside the same EvidenceRequest thread, mark the response
+// NEEDS_MORE_INFO, and optionally send the new link to the contributor.
+// The one-shot raw token is returned so the UI can show the reveal modal
+// in the exact same flow as the initial create.
+// -----------------------------------------------------------------------------
+
+export type RequestMoreEvidenceResult = {
+  response: DbResponse;
+  newIntakeLinkId: string;
+  newRawToken: string;
+  communicationMessageId: string | null;
+};
+
+export async function requestMoreEvidenceForResponse(
+  input: {
+    requestId: string;
+    teamId: string;
+    responseId: string;
+    actorUserId: string;
+    reviewerNote?: string | null;
+    notifyContributor?: boolean;
+    notifyChannel?: "SMS" | "WHATSAPP";
+    /** Hours from now the new link should expire. Default 72h. */
+    expiresInHours?: number;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<RequestMoreEvidenceResult> {
+  if (workflowIntakeFeatureDisabledReason()) {
+    throw new EvidenceRequestError("intake_disabled");
+  }
+
+  const request = await client.evidenceRequest.findUnique({
+    where: { id: input.requestId },
+  });
+  if (!request || request.teamId !== input.teamId) {
+    throw new EvidenceRequestError("request_not_found");
+  }
+  const response = await client.evidenceRequestResponse.findUnique({
+    where: { id: input.responseId },
+  });
+  if (!response || response.evidenceRequestId !== input.requestId) {
+    throw new EvidenceRequestError("response_not_found");
+  }
+
+  // Reuse the same template + recipient identity from the original request
+  // so the new link continues the same thread for the same contributor.
+  const intakeMode = mapRecipientModeToIntakeMode(request.recipientMode);
+  const expiresAtUtc = new Date(
+    Date.now() + (input.expiresInHours ?? 72) * 3600 * 1000,
+  );
+
+  const created = await createWorkflowIntakeLink(
+    {
+      teamId: request.teamId,
+      workflowTemplateSlug:
+        request.workflowTemplateSlug ?? "general-evidence-record",
+      intakeMode,
+      caseId: request.caseId ?? null,
+      recipientLabel: request.recipientLabel ?? null,
+      recipientEmail: request.recipientEmail ?? null,
+      recipientPhone: request.recipientPhone ?? null,
+      maxUses: 1,
+      expiresAtUtc,
+    },
+    { actorUserId: input.actorUserId },
+    client,
+  );
+
+  // Mark the response NEEDS_MORE_INFO + audit-log the new link.
+  const updated = await client.$transaction(async (tx) => {
+    const u = await tx.evidenceRequestResponse.update({
+      where: { id: input.responseId },
+      data: {
+        status: "NEEDS_MORE_INFO",
+        reviewerNote:
+          input.reviewerNote === undefined ? undefined : input.reviewerNote ?? null,
+        reviewedAtUtc: new Date(),
+        reviewedByUserId: input.actorUserId,
+      },
+    });
+    await appendRequestEvent(
+      tx,
+      input.requestId,
+      "EVIDENCE_REQUEST_NEEDS_MORE_INFO",
+      input.actorUserId,
+      {
+        responseId: input.responseId,
+        followUpIntakeLinkId: created.link.id,
+      } as Prisma.InputJsonValue,
+    );
+    return u;
+  });
+
+  // Optionally dispatch the new link to the contributor. Failure here
+  // does NOT roll back the new link or status change — the operator
+  // can manually re-send via the reveal modal.
+  let communicationMessageId: string | null = null;
+  if (input.notifyContributor && request.recipientPhone) {
+    const team = await client.team.findUnique({
+      where: { id: request.teamId },
+      select: { name: true, evidenceWorkspaceLabel: true },
+    });
+    const workspaceName =
+      team?.evidenceWorkspaceLabel ?? team?.name ?? "the workspace";
+    const intakeUrl = renderIntakeUrl(created.rawToken);
+    const body = appendStopFooter(
+      `${workspaceName} needs more information on your submission. Please use this link to add what's needed: ${intakeUrl}`,
+    );
+    const result = await enqueueOutboundMessage(
+      {
+        teamId: request.teamId,
+        channel: input.notifyChannel ?? "SMS",
+        purpose: "EVIDENCE_REQUEST",
+        recipientPhone: request.recipientPhone,
+        body,
+        sender: "PROOVRA",
+        related: {
+          evidenceRequestId: request.id,
+          intakeLinkId: created.link.id,
+          evidenceId: request.evidenceId ?? null,
+        },
+        createdByUserId: input.actorUserId,
+      },
+      client,
+    ).catch(() => null);
+    communicationMessageId = result?.message.id ?? null;
+  }
+
+  return {
+    response: updated,
+    newIntakeLinkId: created.link.id,
+    newRawToken: created.rawToken,
+    communicationMessageId,
+  };
+}
+
+function renderIntakeUrl(rawToken: string): string {
+  const base = process.env.WORKFLOW_INTAKE_PUBLIC_BASE_URL ?? "";
+  if (!base) return `/intake/${rawToken}`;
+  return `${base.replace(/\/$/, "")}/intake/${rawToken}`;
+}
+
+async function notifyContributorOfReview(input: {
+  teamId: string;
+  requestId: string;
+  responseId: string;
+  status: "REJECTED" | "NEEDS_MORE_INFO";
+  actorUserId: string;
+  channel: "SMS" | "WHATSAPP";
+}): Promise<void> {
+  const request = await defaultPrisma.evidenceRequest.findUnique({
+    where: { id: input.requestId },
+    select: {
+      id: true,
+      teamId: true,
+      recipientPhone: true,
+      intakeLinkId: true,
+      evidenceId: true,
+    },
+  });
+  if (!request?.recipientPhone) return;
+  const team = await defaultPrisma.team.findUnique({
+    where: { id: input.teamId },
+    select: { name: true, evidenceWorkspaceLabel: true },
+  });
+  const workspaceName =
+    team?.evidenceWorkspaceLabel ?? team?.name ?? "the workspace";
+  const body = appendStopFooter(
+    input.status === "REJECTED"
+      ? `${workspaceName} reviewed your submission and could not accept it. The team may follow up if more information is needed.`
+      : `${workspaceName} needs more information on your submission. The team will follow up shortly with what's needed.`,
+  );
+  await enqueueOutboundMessage({
+    teamId: input.teamId,
+    channel: input.channel,
+    purpose: "EVIDENCE_REQUEST",
+    recipientPhone: request.recipientPhone,
+    body,
+    sender: "PROOVRA",
+    related: {
+      evidenceRequestId: request.id,
+      intakeLinkId: request.intakeLinkId ?? null,
+      evidenceId: request.evidenceId ?? null,
+    },
+    createdByUserId: input.actorUserId,
+  }).catch(() => null);
 }
 
 // -----------------------------------------------------------------------------

@@ -1,44 +1,37 @@
 "use client";
 
 /**
- * Phase IA-self-serve-home-rebuild — production self-serve Home.
+ * Phase IA-self-serve-home-rebuild + Phase IA-home-polish — production
+ * self-serve Home.
  *
- * Replaces the previous Phase IA-self-serve-simplification scaffolding
- * (which rendered placeholder dashes and static copy with no APIs)
- * with a real evidence-workspace dashboard. Layout in 6 rows:
+ * Layout (top to bottom):
  *
- *   Row 1: Workspace Snapshot (5 tiles)
- *   Row 2: Next Action + Storage Usage
- *   Row 3: Recent Evidence + Recent Cases
- *   Row 4: Recent Reports + Pipeline Snapshot
- *   Row 5: Team Activity (PRO/TEAM) + Getting Started
- *   Row 6: Integrity Alerts (when non-empty) + Trust Summary
+ *   Header     : Title + Compact Quick Actions
+ *   Row 1      : Workspace Snapshot (5 tiles)
+ *   Row 2      : Next Action + Storage Usage
+ *   Row 3      : Recent Evidence + Recent Cases
+ *   Row 4      : Recent Reports + Pipeline (or onboarding when empty)
+ *   Row 5      : Recent Activity + Evidence Health
+ *   Row 6      : Team Activity (PRO/TEAM) + Getting Started
+ *   Row 7      : Trust Summary + Integrity Alerts (when non-empty)
  *
  * Data sources (all pre-existing — NO new APIs introduced):
- *   * GET /v1/dashboard/command-center  — allowlisted slice only
- *   * GET /v1/billing/overview          — storage usage
- *   * GET /v1/reports                   — user-scoped reports list
- *   * envelope.organizations            — team activity (PRO/TEAM)
- *
- * The `home-view-model.ts` normalizer is the single boundary between
- * the raw envelope and the UI; this file just maps the view model
- * onto presentational components and never touches enterprise
- * sections (see ENTERPRISE_ONLY_SECTIONS in the view model).
- *
- * Vocabulary rules carried forward:
- *   * No "operational", "governance posture", "reviewer-ops",
- *     "SLA", "intelligence platform", "queue congestion", etc.
- *   * Plain labels only: Evidence records, Cases, Reports,
- *     Verification links, Storage, Pipeline, Trust.
+ *   * GET /v1/dashboard/command-center   — allowlisted slice only
+ *   * GET /v1/billing/overview           — storage usage
+ *   * GET /v1/reports?teamId=<id>        — workspace-scoped reports
+ *   * envelope.organizations             — team activity (PRO/TEAM)
  */
 
 import { useHomeData } from "./useHomeData";
 import {
+  CompactQuickActions,
+  EvidenceHealthCard,
   GettingStartedChecklist,
   HomeSkeleton,
   IntegrityAlerts,
   NextActionCard,
   PipelineSnapshot,
+  RecentActivity,
   RecentCases,
   RecentEvidence,
   RecentReports,
@@ -77,43 +70,45 @@ export function SelfServeHomeDashboard() {
       style={pageStyle}
     >
       <header style={headerStyle}>
-        <h1 style={titleStyle}>Your evidence workspace</h1>
-        <p style={subtitleStyle}>
-          Records, cases, reports and storage at a glance.
-        </p>
+        <div>
+          <h1 style={titleStyle}>Your evidence workspace</h1>
+          <p style={subtitleStyle}>
+            Records, cases, reports and storage at a glance.
+          </p>
+        </div>
+        <CompactQuickActions actions={vm.quickActions} />
       </header>
 
-      {/* Row 1 — Workspace Snapshot */}
       <WorkspaceSnapshot tiles={vm.snapshot} />
 
-      {/* Row 2 — Next Action + Storage */}
       <div style={rowTwoColStyle}>
         <NextActionCard action={vm.nextAction} />
         <StorageUsageCard usage={vm.storage} />
       </div>
 
-      {/* Row 3 — Recent Evidence + Recent Cases */}
       <div style={rowTwoColStyle}>
         <RecentEvidence rows={vm.recentEvidence} />
         <RecentCases rows={vm.recentCases} />
       </div>
 
-      {/* Row 4 — Recent Reports + Pipeline */}
       <div style={rowTwoColStyle}>
         <RecentReports rows={vm.recentReports} isFreePlan={free} />
-        <PipelineSnapshot stages={vm.pipeline} />
+        <PipelineSnapshot stages={vm.pipeline} empty={vm.pipelineEmpty} />
       </div>
 
-      {/* Row 5 — Team Activity (PRO/TEAM) + Getting Started */}
+      <div style={rowTwoColStyle}>
+        <RecentActivity events={vm.activity} />
+        <EvidenceHealthCard health={vm.health} />
+      </div>
+
       <div style={rowTwoColStyle}>
         <TeamActivityCard team={vm.teamActivity} />
         <GettingStartedChecklist steps={vm.checklist} />
       </div>
 
-      {/* Row 6 — Integrity Alerts (when non-empty) + Trust Summary */}
       <div style={rowTwoColStyle}>
-        <IntegrityAlerts alerts={vm.integrityAlerts} />
         <TrustSummary />
+        <IntegrityAlerts alerts={vm.integrityAlerts} />
       </div>
     </main>
   );
@@ -131,6 +126,9 @@ const pageStyle: React.CSSProperties = {
   background: "#f8fafc",
 };
 const headerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
   marginBottom: 4,
 };
 const titleStyle: React.CSSProperties = {

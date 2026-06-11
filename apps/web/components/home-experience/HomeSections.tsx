@@ -1,17 +1,11 @@
 /**
- * Phase IA-self-serve-home-rebuild — Home section components.
+ * Phase IA-self-serve-home-rebuild + Phase IA-home-polish — Home section
+ * components.
  *
- * All 11 sections of the self-serve Home live in this file so the
+ * All sections of the self-serve Home live in this file so the
  * presentation tree is reviewable in one place. Each section is a
  * pure presentational component that takes its slice of
  * `HomeViewModel`. Data fetching is upstream in `useHomeData`.
- *
- * Strict UX rules from the brief, enforced here:
- *   * No placeholder dashes when real data exists. When data is
- *     missing entirely, a graceful empty state renders.
- *   * No enterprise vocabulary. Every label is plain-language.
- *   * Skeletons + empty states are real components, not text blocks.
- *   * Each section is self-contained and can be tested in isolation.
  */
 
 "use client";
@@ -20,10 +14,13 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import type {
+  ActivityEvent,
   ChecklistStep,
+  EvidenceHealth,
   IntegrityAlert,
   NextAction,
   PipelineStageTile,
+  QuickAction,
   RecentCaseRow,
   RecentEvidenceRow,
   RecentReportRow,
@@ -96,7 +93,6 @@ function formatRelative(iso: string | null): string {
   if (days < 7) return `${days}d ago`;
   const weeks = Math.round(days / 7);
   if (weeks < 4) return `${weeks}w ago`;
-  // Fall back to a short date.
   try {
     return new Date(t).toLocaleDateString();
   } catch {
@@ -109,6 +105,38 @@ function humanizeStatus(raw: string): string {
     .toLowerCase()
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ============================================================================
+// 0. Compact Quick Actions (top of Home)
+// ============================================================================
+
+export function CompactQuickActions({ actions }: { actions: QuickAction[] }) {
+  const visible = actions.filter((a) => a.visible);
+  if (visible.length === 0) return null;
+  return (
+    <nav
+      data-self-serve-section="quick-actions"
+      aria-label="Quick actions"
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 8,
+        margin: 0,
+      }}
+    >
+      {visible.map((a) => (
+        <Link
+          key={a.key}
+          href={a.href}
+          data-quick-action-key={a.key}
+          style={quickActionStyle}
+        >
+          {a.label}
+        </Link>
+      ))}
+    </nav>
+  );
 }
 
 // ============================================================================
@@ -261,7 +289,7 @@ export function RecentCases({ rows }: { rows: RecentCaseRow[] }) {
 }
 
 // ============================================================================
-// 5. Recent Reports (with FREE-plan locked notice)
+// 5. Recent Reports — with per-row actions
 // ============================================================================
 
 export function RecentReports({
@@ -285,25 +313,73 @@ export function RecentReports({
       ) : (
         <ul style={listStyle}>
           {rows.map((r) => (
-            <li key={r.evidenceId} style={listItemStyle}>
+            <li
+              key={r.evidenceId}
+              style={{ ...listItemStyle, ...listItemLinkStyle }}
+              data-report-evidence-id={r.evidenceId}
+            >
               <Link
-                href={r.href}
-                style={listItemLinkStyle}
-                data-report-evidence-id={r.evidenceId}
+                href={r.actions.open}
+                style={{ ...listItemTitleStyle, textDecoration: "none" }}
+                data-report-action="open"
               >
-                <span style={listItemTitleStyle}>{r.evidenceTitle}</span>
-                <span style={listItemMetaStyle}>
-                  <span style={chipStyle}>
-                    Report{r.version != null ? ` v${r.version}` : ""}
-                  </span>
-                  {r.packageReady ? (
-                    <span style={chipStyle}>Package</span>
-                  ) : null}
-                  <span style={listItemTimeStyle}>
-                    {formatRelative(r.generatedAtUtc)}
-                  </span>
-                </span>
+                {r.evidenceTitle}
               </Link>
+              <span style={listItemMetaStyle}>
+                <span style={chipStyle}>
+                  Report{r.version != null ? ` v${r.version}` : ""}
+                </span>
+                {r.packageReady ? (
+                  <span style={chipStyle}>Package</span>
+                ) : null}
+                <span style={listItemTimeStyle}>
+                  {formatRelative(r.generatedAtUtc)}
+                </span>
+              </span>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  marginTop: 8,
+                  flexWrap: "wrap",
+                }}
+                data-report-actions
+              >
+                <Link
+                  href={r.actions.open}
+                  style={secondaryButtonStyle}
+                  data-report-action="open-evidence"
+                >
+                  Open
+                </Link>
+                {r.actions.reportPdf ? (
+                  <a
+                    href={r.actions.reportPdf}
+                    style={secondaryButtonStyle}
+                    data-report-action="download-pdf"
+                  >
+                    Download PDF
+                  </a>
+                ) : null}
+                {r.actions.packageZip ? (
+                  <a
+                    href={r.actions.packageZip}
+                    style={secondaryButtonStyle}
+                    data-report-action="download-package"
+                  >
+                    Download package
+                  </a>
+                ) : null}
+                {r.actions.verify ? (
+                  <a
+                    href={r.actions.verify}
+                    style={secondaryButtonStyle}
+                    data-report-action="open-verify"
+                  >
+                    Verify page
+                  </a>
+                ) : null}
+              </div>
             </li>
           ))}
         </ul>
@@ -313,10 +389,43 @@ export function RecentReports({
 }
 
 // ============================================================================
-// 6. Pipeline Snapshot — 6 mini-tiles
+// 6. Pipeline Snapshot — onboarding fallback when empty
 // ============================================================================
 
-export function PipelineSnapshot({ stages }: { stages: PipelineStageTile[] }) {
+export function PipelineSnapshot({
+  stages,
+  empty,
+}: {
+  stages: PipelineStageTile[];
+  empty: boolean;
+}) {
+  if (empty) {
+    return (
+      <SectionCard
+        title="Get started"
+        cta={{ label: "Capture evidence", href: "/capture" }}
+        testId="pipeline-onboarding"
+      >
+        <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
+          Once you capture your first evidence record, this card will show
+          how items are moving through the workspace — uploaded, signed,
+          timestamped, reported and packaged.
+        </p>
+        <ul
+          style={{
+            ...listStyle,
+            gap: 4,
+            marginTop: 10,
+            listStyle: "disc inside",
+          }}
+        >
+          <li style={{ fontSize: 12, color: "#5d6d71" }}>Upload a file or screenshot</li>
+          <li style={{ fontSize: 12, color: "#5d6d71" }}>Add details and finalize</li>
+          <li style={{ fontSize: 12, color: "#5d6d71" }}>Generate the PDF report</li>
+        </ul>
+      </SectionCard>
+    );
+  }
   return (
     <SectionCard title="Pipeline" testId="pipeline-snapshot">
       <div
@@ -451,7 +560,7 @@ export function TeamActivityCard({
         <Stat label="Pending invites" value={team.pendingInviteCount} />
       </div>
       {team.teams.length === 0 ? (
-        <EmptyState>You don't own a team yet. Create one in Billing.</EmptyState>
+        <EmptyState>You don&apos;t own a team yet. Create one in Billing.</EmptyState>
       ) : (
         <ul style={listStyle}>
           {team.teams.map((t) => (
@@ -603,7 +712,7 @@ export function GettingStartedChecklist({
 }
 
 // ============================================================================
-// 11. Trust Summary
+// 11. Trust Summary — concise card
 // ============================================================================
 
 export function TrustSummary() {
@@ -617,27 +726,196 @@ export function TrustSummary() {
           listStyle: "disc inside",
         }}
       >
-        <li style={{ fontSize: 13, color: "#475569" }}>
-          Digital signatures on every captured record.
+        <li style={{ fontSize: 12, color: "#475569" }}>
+          Digital signatures
         </li>
-        <li style={{ fontSize: 13, color: "#475569" }}>
-          RFC 3161 trusted timestamp plus OpenTimestamps public anchor.
+        <li style={{ fontSize: 12, color: "#475569" }}>
+          Trusted timestamps
         </li>
-        <li style={{ fontSize: 13, color: "#475569" }}>
-          Per-record public verification links.
+        <li style={{ fontSize: 12, color: "#475569" }}>
+          Public verification
         </li>
-        <li style={{ fontSize: 13, color: "#475569" }}>
-          Object Lock storage protection for finalized evidence.
+        <li style={{ fontSize: 12, color: "#475569" }}>
+          Storage protection
         </li>
-        <li style={{ fontSize: 13, color: "#475569" }}>
-          PDF report and verification package as your shareable outputs.
+        <li style={{ fontSize: 12, color: "#475569" }}>
+          Reports and packages
         </li>
       </ul>
-      <p style={{ marginTop: 12, fontSize: 11, color: "#94a3b8" }}>
-        Legal admissibility is decided by reviewers and courts on a
-        case-by-case basis. PROOVRA records integrity primitives — it
-        does not assert truth.
+      <p style={{ marginTop: 10, fontSize: 11, color: "#94a3b8", lineHeight: 1.4 }}>
+        PROOVRA records integrity signals; it does not determine factual
+        truth or legal admissibility.
       </p>
+    </SectionCard>
+  );
+}
+
+// ============================================================================
+// 12. Recent Activity timeline
+// ============================================================================
+
+export function RecentActivity({ events }: { events: ActivityEvent[] }) {
+  if (events.length === 0) {
+    return (
+      <SectionCard title="Activity" testId="recent-activity">
+        <EmptyState>Activity will appear here as you upload evidence and generate reports.</EmptyState>
+      </SectionCard>
+    );
+  }
+  return (
+    <SectionCard title="Activity" testId="recent-activity">
+      <ul style={{ ...listStyle, gap: 4 }}>
+        {events.map((e) => (
+          <li
+            key={e.id}
+            data-activity-kind={e.kind}
+            style={{ ...listItemStyle, padding: "6px 8px" }}
+          >
+            <Link
+              href={e.href}
+              style={{
+                display: "flex",
+                gap: 10,
+                alignItems: "center",
+                textDecoration: "none",
+                color: "inherit",
+              }}
+            >
+              <span style={activityDotStyle(e.kind)} aria-hidden />
+              <span style={{ flex: 1, fontSize: 13, color: "#0f172a" }}>
+                {e.label}
+              </span>
+              <span style={listItemTimeStyle}>
+                {formatRelative(e.occurredAt)}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </SectionCard>
+  );
+}
+
+function activityDotStyle(kind: ActivityEvent["kind"]): React.CSSProperties {
+  const colorMap: Record<ActivityEvent["kind"], string> = {
+    evidence_uploaded: "#4f46e5",
+    evidence_timestamped: "#0891b2",
+    report_generated: "#16a34a",
+    package_ready: "#0d9488",
+    verification_published: "#7c3aed",
+    case_updated: "#475569",
+  };
+  return {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: colorMap[kind],
+    flex: "0 0 auto",
+  };
+}
+
+// ============================================================================
+// 13. Evidence Health widget
+// ============================================================================
+
+export function EvidenceHealthCard({
+  health,
+}: {
+  health: EvidenceHealth;
+}) {
+  const rows: Array<{
+    key: string;
+    label: string;
+    count: number;
+    tone: "ok" | "warn" | "danger";
+  }> = [];
+  if (health.complete > 0) {
+    rows.push({
+      key: "complete",
+      label: "Complete records",
+      count: health.complete,
+      tone: "ok",
+    });
+  }
+  if (health.needsReport > 0) {
+    rows.push({
+      key: "needs_report",
+      label: "Need a report",
+      count: health.needsReport,
+      tone: "warn",
+    });
+  }
+  if (health.timestampIssues > 0) {
+    rows.push({
+      key: "timestamp_issues",
+      label: "Timestamp issues",
+      count: health.timestampIssues,
+      tone: "warn",
+    });
+  }
+  if (health.verificationMissing > 0) {
+    rows.push({
+      key: "verification_missing",
+      label: "Verification package missing",
+      count: health.verificationMissing,
+      tone: "warn",
+    });
+  }
+  if (health.integrityAlerts > 0) {
+    rows.push({
+      key: "integrity_alerts",
+      label: "Integrity alerts",
+      count: health.integrityAlerts,
+      tone: "danger",
+    });
+  }
+
+  return (
+    <SectionCard title="Evidence health" testId="evidence-health">
+      {health.allClear ? (
+        <EmptyState>No evidence issues found.</EmptyState>
+      ) : rows.length === 0 ? (
+        <EmptyState>Health summary will appear once you have evidence.</EmptyState>
+      ) : (
+        <ul style={{ ...listStyle, gap: 4 }}>
+          {rows.map((r) => (
+            <li
+              key={r.key}
+              data-health-key={r.key}
+              style={{
+                ...listItemStyle,
+                padding: "8px 10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                background:
+                  r.tone === "danger"
+                    ? "#fef2f2"
+                    : r.tone === "warn"
+                      ? "#fffbeb"
+                      : "#f0fdf4",
+                borderRadius: 6,
+              }}
+            >
+              <span style={{ fontSize: 13, color: "#0f172a" }}>{r.label}</span>
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color:
+                    r.tone === "danger"
+                      ? "#991b1b"
+                      : r.tone === "warn"
+                        ? "#9a3412"
+                        : "#166534",
+                }}
+              >
+                {r.count}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </SectionCard>
   );
 }
@@ -671,8 +949,7 @@ export function HomeSkeleton() {
 }
 
 // ============================================================================
-// Inline styles — kept here so the file is self-contained and the
-// design tokens don't drift away from the component tree.
+// Inline styles
 // ============================================================================
 
 const cardStyle: React.CSSProperties = {
@@ -813,6 +1090,30 @@ const primaryButtonStyle: React.CSSProperties = {
   borderRadius: 8,
   background: "#4f46e5",
   color: "white",
+  fontWeight: 600,
+  fontSize: 13,
+  textDecoration: "none",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  display: "inline-block",
+  padding: "5px 10px",
+  borderRadius: 6,
+  background: "white",
+  border: "1px solid #cbd5e1",
+  color: "#0f172a",
+  fontWeight: 600,
+  fontSize: 12,
+  textDecoration: "none",
+};
+
+const quickActionStyle: React.CSSProperties = {
+  display: "inline-block",
+  padding: "6px 12px",
+  borderRadius: 8,
+  background: "white",
+  border: "1px solid #cbd5e1",
+  color: "#0f172a",
   fontWeight: 600,
   fontSize: 13,
   textDecoration: "none",
