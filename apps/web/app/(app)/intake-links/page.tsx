@@ -24,6 +24,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { apiFetch } from "../../../lib/api";
 import { usePlatformContext } from "../../../lib/platform-context";
@@ -117,6 +118,27 @@ function IntakeLinksPageInner() {
     null,
   );
   const { confirm } = useConfirmAction();
+
+  // Phase IA-home-final — the Home "Request & collect" widget deep-links
+  // here to OPEN a real flow, not just navigate:
+  //   ?new=1       → auto-open the create-intake-link modal
+  //   ?linkId=<id> → auto-open that link's delivery drawer
+  // Applied once on mount so manual closes aren't re-triggered.
+  const searchParams = useSearchParams();
+  const [appliedDeepLink, setAppliedDeepLink] = useState(false);
+  useEffect(() => {
+    if (appliedDeepLink) return;
+    if (searchParams.get("new") === "1") {
+      setShowCreate(true);
+      setAppliedDeepLink(true);
+      return;
+    }
+    const linkId = searchParams.get("linkId");
+    if (linkId) {
+      setDeliveryDrawerLinkId(linkId);
+      setAppliedDeepLink(true);
+    }
+  }, [searchParams, appliedDeepLink]);
 
   // Phase IA-intake-personal-space-fix — accept BOTH PERSONAL and
   // ORGANIZATION active spaces. The original guard required

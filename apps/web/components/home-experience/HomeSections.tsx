@@ -24,7 +24,6 @@ import type {
   SubmissionRow,
   TeamWork,
   TrustState,
-  WorkflowLauncher,
 } from "./home-view-model";
 
 // ============================================================================
@@ -88,25 +87,7 @@ function humanize(raw: string): string {
 }
 
 // ============================================================================
-// 0. Workflow launchers (replaces nav-duplicating Quick Actions)
-// ============================================================================
-
-export function WorkflowLaunchers({ launchers }: { launchers: WorkflowLauncher[] }) {
-  const visible = launchers.filter((l) => l.visible);
-  if (visible.length === 0) return null;
-  return (
-    <nav data-self-serve-section="workflow-launchers" aria-label="Start a workflow" style={launcherRowStyle}>
-      {visible.map((l) => (
-        <Link key={l.key} href={l.href} data-launcher-key={l.key} style={launcherStyle}>
-          {l.label}
-        </Link>
-      ))}
-    </nav>
-  );
-}
-
-// ============================================================================
-// 1. Hero — Next Action (expanded)
+// 1. Needs Attention — hero (the single contextual primary action)
 // ============================================================================
 
 export function HeroNextAction({ action }: { action: HeroAction }) {
@@ -116,12 +97,12 @@ export function HeroNextAction({ action }: { action: HeroAction }) {
     action.tone === "warn" ? "#fcd34d" : action.tone === "action" ? "#c7d2fe" : "#e2e8f0";
   return (
     <section
-      data-self-serve-section="hero-next-action"
+      data-self-serve-section="needs-attention"
       data-hero-kind={action.kind}
       style={{ ...cardStyle, background: bg, border: `1px solid ${border}`, padding: 24 }}
     >
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: "#475569", textTransform: "uppercase" }}>
-        {action.kind === "caught_up" ? "All caught up" : "What needs you"}
+        {action.kind === "caught_up" ? "All caught up" : "Needs attention"}
       </div>
       <h1 style={{ margin: "8px 0 6px 0", fontSize: 22, fontWeight: 700, color: "#0f172a" }}>
         {action.title}
@@ -144,8 +125,11 @@ export function SubmissionsToReview({ rows }: { rows: SubmissionRow[] }) {
   if (rows.length === 0) return null;
   return (
     <SectionCard
-      title={`Submissions needing review · ${rows.length}`}
-      cta={{ label: "All requests", href: "/evidence-requests" }}
+      title={`Submissions waiting review · ${rows.length}`}
+      // The bare /evidence-requests list page does not ship — only the
+      // per-request detail does. "All submissions" routes to the inbox,
+      // which renders the intake_submission_pending_review items.
+      cta={{ label: "All submissions", href: "/inbox" }}
       testId="submissions-to-review"
     >
       <ul style={listStyle}>
@@ -186,10 +170,20 @@ export function RequestAndCollect({ rows }: { rows: CollectionRow[] }) {
       testId="request-and-collect"
     >
       {rows.length === 0 ? (
-        <EmptyState>
-          No active intake links. Create one to request evidence from a client, source,
-          witness, or contributor.
-        </EmptyState>
+        <div>
+          <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
+            Request evidence from a client, witness, source, or contributor.
+          </p>
+          {/* Opens the real intake-links page with the create modal
+              auto-opened (the page reads ?new=1). */}
+          <Link
+            href="/intake-links?new=1"
+            data-collection-cta="create-intake-link"
+            style={{ ...secondaryButtonStyle, marginTop: 12, background: "#0f172a", color: "white", border: "1px solid #0f172a" }}
+          >
+            Create intake link
+          </Link>
+        </div>
       ) : (
         <ul style={listStyle}>
           {rows.map((r) => (
@@ -293,7 +287,18 @@ export function CaseHealthCard({ rows }: { rows: CaseHealthRow[] }) {
   return (
     <SectionCard title="Case health" cta={{ label: "All cases", href: "/cases" }} testId="case-health">
       {rows.length === 0 ? (
-        <EmptyState>No cases need attention. Incomplete matters will appear here.</EmptyState>
+        <div>
+          <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
+            No cases need attention. Group related evidence into a case to track it.
+          </p>
+          <Link
+            href="/cases"
+            data-case-cta="create-case"
+            style={{ ...secondaryButtonStyle, marginTop: 12, background: "#0f172a", color: "white", border: "1px solid #0f172a" }}
+          >
+            Create case
+          </Link>
+        </div>
       ) : (
         <ul style={listStyle}>
           {rows.map((r) => (
@@ -376,10 +381,16 @@ export function TrustStateCard({ trust }: { trust: TrustState }) {
   if (trust.empty) {
     return (
       <SectionCard title="Trust state" testId="trust-state">
-        <EmptyState>
-          Once you capture evidence, this card shows live trust posture — trusted
-          timestamps, on-chain anchors, signatures and public verification.
-        </EmptyState>
+        <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
+          Trust state appears after your first evidence record is captured.
+        </p>
+        <Link
+          href="/capture"
+          data-trust-cta="capture-first"
+          style={{ ...secondaryButtonStyle, marginTop: 12, background: "#0f172a", color: "white", border: "1px solid #0f172a" }}
+        >
+          Capture first evidence
+        </Link>
       </SectionCard>
     );
   }
@@ -658,8 +669,5 @@ const chipStyle: React.CSSProperties = { display: "inline-block", padding: "2px 
 
 const primaryButtonStyle: React.CSSProperties = { display: "inline-block", padding: "10px 18px", borderRadius: 8, background: "#4f46e5", color: "white", fontWeight: 600, fontSize: 14, textDecoration: "none" };
 const secondaryButtonStyle: React.CSSProperties = { display: "inline-block", padding: "5px 10px", borderRadius: 6, background: "white", border: "1px solid #cbd5e1", color: "#0f172a", fontWeight: 600, fontSize: 12, textDecoration: "none" };
-
-const launcherRowStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8, margin: 0 };
-const launcherStyle: React.CSSProperties = { display: "inline-block", padding: "8px 14px", borderRadius: 8, background: "#0f172a", color: "white", fontWeight: 600, fontSize: 13, textDecoration: "none" };
 
 const skeletonRowStyle: React.CSSProperties = { height: 180, borderRadius: 12, background: "linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)" };

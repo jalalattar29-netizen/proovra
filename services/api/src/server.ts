@@ -181,6 +181,7 @@ import { caseWorkspaceRoutes } from "./routes/case-workspace.routes.js";
 // workspace bootstrap missed the TeamMember row still see their
 // own generated reports.
 import registerReportsRoutes from "./routes/reports.routes.js";
+import { devLoginRoutes, devAuthEnabled } from "./dev/dev-login.js";
 import { enterpriseAggregatorsRoutes } from "./routes/enterprise-aggregators.routes.js";
 import { runStartupConfigValidation } from "./config/index.js";
 // Phase P2.0 — AWS Secrets Manager hydration + runtime health route.
@@ -833,6 +834,12 @@ allowedHeaders: [
   // in via OPERATIONAL_SEEDING_ENABLED=true.
   if (process.env.OPERATIONAL_SEEDING_ENABLED === "true") {
     await app.register(opsSeedRoutes);
+  }
+  // Phase IA-home-acceptance — dev/staging-only impersonation login for
+  // the Playwright Home acceptance suite. NEVER mounted in production
+  // (devAuthEnabled() returns false when NODE_ENV==="production").
+  if (devAuthEnabled()) {
+    await app.register(devLoginRoutes);
   }
   await app.register(governanceSnapshotRoutes);
   await app.register(runtimeReadinessRoutes);

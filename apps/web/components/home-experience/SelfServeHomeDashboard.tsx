@@ -1,25 +1,23 @@
 "use client";
 
 /**
- * Phase IA-home-v2 — workflow-centric self-serve Home.
+ * Phase IA-home-final — operational evidence dashboard.
  *
- * Information architecture (top → bottom), organized around jobs, not
- * database tables:
+ * Exact information architecture (Phase 15), organized around the
+ * user's work, with NO sidebar-duplicating button row and NO broken
+ * CTAs:
  *
- *   Header  : workspace context + workflow launchers
- *   BAND 1 — "What needs me"
- *     • Hero Next Action (expanded, prioritized)
- *     • Submissions needing review (only when present)
- *   BAND 2 — "My work"
- *     • Request & Collect          • Recent Evidence (integrity chips)
- *     • Case Health                • Recent Reports
- *   BAND 3 — "Is it trustworthy"
- *     • Trust State (live counts)  • Activity (grouped)
- *     • Storage                    • Team work (PRO/TEAM)
- *   Getting Started (auto-collapses when complete)
+ *   Top   : workspace title + contextual subtitle (no buttons)
+ *   Band 1: Needs Attention (single contextual primary action)
+ *   Band 2: Submissions Waiting Review + Request & Collect
+ *   Band 3: Recent Evidence + Recent Reports
+ *   Band 4: Trust State + Case Health
+ *   Band 5: Activity + Storage
+ *   Optional: Getting Started — only for true first-time users
  *
- * Solo (Personal Space) sees the same surface minus team work and the
- * PRO-only launchers. No reviewer/governance language anywhere.
+ * Personal Space: no Team Work. PRO/TEAM in an organization workspace:
+ * Team Work appears below Getting Started. Every CTA points at a route
+ * that renders (verified by phase-ia-home-cta-validation).
  */
 
 import { useHomeData } from "./useHomeData";
@@ -36,7 +34,6 @@ import {
   SubmissionsToReview,
   TeamWorkCard,
   TrustStateCard,
-  WorkflowLaunchers,
 } from "./HomeSections";
 import { isFreePlan, isProOrTeam } from "./home-view-model";
 
@@ -63,41 +60,48 @@ export function SelfServeHomeDashboard() {
       data-self-serve-plan={vm.plan ?? "UNKNOWN"}
       style={pageStyle}
     >
+      {/* Top — title + subtitle, NO nav-duplicate button row. */}
       <header style={headerStyle}>
-        <div>
-          <h1 style={titleStyle}>{pro ? "Your workspace" : "Your evidence workspace"}</h1>
-          <p style={subtitleStyle}>What needs you, what you collected, and whether it's trustworthy.</p>
-        </div>
-        <WorkflowLaunchers launchers={vm.launchers} />
+        <h1 style={titleStyle}>Your evidence workspace</h1>
+        <p style={subtitleStyle}>What needs you, what you collected, and whether it&apos;s trustworthy.</p>
       </header>
 
-      {/* BAND 1 — What needs me */}
+      {/* Band 1 — Needs Attention */}
       <HeroNextAction action={vm.heroAction} />
-      <SubmissionsToReview rows={vm.submissions} />
 
-      {/* BAND 2 — My work */}
+      {/* Band 2 — Submissions + Request & Collect */}
+      {pro ? (
+        <div style={rowTwoColStyle}>
+          <SubmissionsToReview rows={vm.submissions} />
+          <RequestAndCollect rows={vm.collection} />
+        </div>
+      ) : (
+        <SubmissionsToReview rows={vm.submissions} />
+      )}
+
+      {/* Band 3 — Recent Evidence + Recent Reports */}
       <div style={rowTwoColStyle}>
-        {pro ? <RequestAndCollect rows={vm.collection} /> : <RecentEvidence rows={vm.recentEvidence} />}
-        {pro ? <RecentEvidence rows={vm.recentEvidence} /> : <RecentReports rows={vm.recentReports} isFreePlan={free} />}
-      </div>
-      <div style={rowTwoColStyle}>
-        <CaseHealthCard rows={vm.caseHealth} />
-        {pro ? <RecentReports rows={vm.recentReports} isFreePlan={free} /> : <StorageUsageCard usage={vm.storage} />}
+        <RecentEvidence rows={vm.recentEvidence} />
+        <RecentReports rows={vm.recentReports} isFreePlan={free} />
       </div>
 
-      {/* BAND 3 — Is it trustworthy */}
+      {/* Band 4 — Trust State + Case Health */}
       <div style={rowTwoColStyle}>
         <TrustStateCard trust={vm.trustState} />
-        <ActivityFeed groups={vm.activity} />
-      </div>
-      <div style={rowTwoColStyle}>
-        {pro ? <StorageUsageCard usage={vm.storage} /> : <GettingStartedChecklist steps={vm.checklist} complete={vm.checklistComplete} />}
-        {pro ? <TeamWorkCard team={vm.teamWork} /> : null}
+        <CaseHealthCard rows={vm.caseHealth} />
       </div>
 
-      {pro ? (
-        <GettingStartedChecklist steps={vm.checklist} complete={vm.checklistComplete} />
-      ) : null}
+      {/* Band 5 — Activity + Storage */}
+      <div style={rowTwoColStyle}>
+        <ActivityFeed groups={vm.activity} />
+        <StorageUsageCard usage={vm.storage} />
+      </div>
+
+      {/* Optional — Getting Started (auto-hides when complete). */}
+      <GettingStartedChecklist steps={vm.checklist} complete={vm.checklistComplete} />
+
+      {/* Team Work — only inside an organization workspace (null in Personal Space). */}
+      {vm.teamWork ? <TeamWorkCard team={vm.teamWork} /> : null}
     </main>
   );
 }
@@ -112,7 +116,7 @@ const pageStyle: React.CSSProperties = {
   gap: 18,
   background: "#f8fafc",
 };
-const headerStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 12, marginBottom: 4 };
+const headerStyle: React.CSSProperties = { marginBottom: 4 };
 const titleStyle: React.CSSProperties = { fontSize: 24, fontWeight: 700, margin: 0 };
 const subtitleStyle: React.CSSProperties = { margin: "4px 0 0 0", fontSize: 14, color: "#5d6d71" };
 const rowTwoColStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 };

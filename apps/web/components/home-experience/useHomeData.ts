@@ -27,6 +27,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 import {
+  useActiveSpace,
   useActiveSpaceId,
   useOrganizations,
 } from "../../lib/platform-context";
@@ -54,6 +55,8 @@ export type HomeDataState =
 export function useHomeData(): HomeDataState {
   const { plan } = useSurfaceUserContext();
   const workspaceId = useActiveSpaceId();
+  const activeSpace = useActiveSpace();
+  const activeSpaceType = activeSpace?.type ?? null;
   const orgs = useOrganizations();
 
   const [state, setState] = useState<HomeDataState>({
@@ -139,6 +142,7 @@ export function useHomeData(): HomeDataState {
     const viewModel = normalizeHomeViewModel({
       plan: plan as HomePlan,
       workspaceId: workspaceId ?? null,
+      activeSpaceType,
       commandCenter: cc,
       trustSummary,
       billing,
@@ -150,7 +154,7 @@ export function useHomeData(): HomeDataState {
     });
 
     setState({ status: "ready", viewModel });
-  }, [workspaceId, plan, orgs]);
+  }, [workspaceId, activeSpaceType, plan, orgs]);
 
   useEffect(() => {
     void reload();

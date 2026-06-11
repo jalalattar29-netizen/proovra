@@ -40,6 +40,9 @@
 
 export type HomePlan = "FREE" | "PAYG" | "PRO" | "TEAM" | null;
 
+/** Which kind of workspace the user is currently in. */
+export type ActiveSpaceType = "PERSONAL" | "ORGANIZATION" | null;
+
 export function isProOrTeam(plan: HomePlan): boolean {
   return plan === "PRO" || plan === "TEAM";
 }
@@ -224,23 +227,9 @@ export type ChecklistStep = {
   href: string;
 };
 
-/** A workflow launcher — opens/launches a flow, never duplicates nav. */
-export type WorkflowLauncher = {
-  key:
-    | "capture"
-    | "request_evidence"
-    | "review_submission"
-    | "generate_report"
-    | "publish_verification";
-  label: string;
-  href: string;
-  visible: boolean;
-};
-
 export type HomeViewModel = {
   plan: HomePlan;
   heroAction: HeroAction;
-  launchers: WorkflowLauncher[];
   submissions: SubmissionRow[];
   collection: CollectionRow[];
   recentEvidence: RecentEvidenceRow[];
@@ -593,6 +582,8 @@ function buildCollection(args: {
             at: d.at,
           }
         : null,
+      // Opens the real intake-links page with this link's delivery
+      // drawer pre-opened (the page reads ?linkId=).
       href: `/intake-links?linkId=${encodeURIComponent(l.id)}`,
     };
   });
@@ -644,8 +635,11 @@ function buildRecentReports(
       const packageZip = r.package?.available
         ? `/v1/evidence/${encodeURIComponent(evidenceId)}/verification-package`
         : null;
+      // Canonical public verify page is /verify/:evidenceId (the
+      // [token] route segment accepts the evidence id — matches
+      // buildVerificationUrl in evidence-library-formatters.ts).
       const verify = r.package?.available
-        ? `/v/${encodeURIComponent(evidenceId)}`
+        ? `/verify/${encodeURIComponent(evidenceId)}`
         : null;
       return {
         evidenceId,
@@ -840,11 +834,16 @@ function buildActivity(args: {
 
 function buildTeamWork(args: {
   plan: HomePlan;
+  activeSpaceType: ActiveSpaceType;
   orgs: HomeOrgsInput | null;
   workspaceId: string | null;
   submissionsCount: number;
   reportsToday: number;
 }): TeamWork | null {
+  // Team Work is ONLY meaningful inside an organization workspace.
+  // A PRO user sitting in their Personal Space must NOT see it, even
+  // if they belong to a team elsewhere (Phase 10 rule).
+  if (args.activeSpaceType !== "ORGANIZATION") return null;
   if (!isProOrTeam(args.plan)) return null;
   const orgs = args.orgs ?? [];
   // Scope to the active workspace's org when we can match it; otherwise
@@ -911,37 +910,6 @@ function buildChecklist(args: {
       done: args.teamMemberCount > 1,
       visible: pro,
       href: "/teams",
-    },
-  ];
-}
-
-function buildLaunchers(plan: HomePlan): WorkflowLauncher[] {
-  const pro = isProOrTeam(plan);
-  return [
-    { key: "capture", label: "Capture evidence", href: "/capture", visible: true },
-    {
-      key: "request_evidence",
-      label: "Request evidence",
-      href: "/intake-links",
-      visible: pro,
-    },
-    {
-      key: "review_submission",
-      label: "Review submissions",
-      href: "/evidence-requests",
-      visible: pro,
-    },
-    {
-      key: "generate_report",
-      label: "Generate report",
-      href: "/reports",
-      visible: true,
-    },
-    {
-      key: "publish_verification",
-      label: "Publish verification",
-      href: "/evidence",
-      visible: true,
     },
   ];
 }
@@ -1096,6 +1064,7 @@ function pickHeroAction(args: {
 export type NormalizeInputs = {
   plan: HomePlan;
   workspaceId: string | null;
+  activeSpaceType: ActiveSpaceType;
   commandCenter: HomeCommandCenterInput | null;
   trustSummary: HomeTrustSummaryInput | null;
   billing: HomeBillingInput | null;
@@ -1152,6 +1121,7 @@ export function normalizeHomeViewModel(
 
   const teamWork = buildTeamWork({
     plan: inputs.plan,
+    activeSpaceType: inputs.activeSpaceType,
     orgs: inputs.orgs,
     workspaceId: inputs.workspaceId,
     submissionsCount: submissions.length,
@@ -1189,8 +1159,6 @@ export function normalizeHomeViewModel(
     nowMs,
   });
 
-  const launchers = buildLaunchers(inputs.plan);
-
   const hasAnyData =
     evidenceCount > 0 ||
     reportCount > 0 ||
@@ -1204,7 +1172,6 @@ export function normalizeHomeViewModel(
   return {
     plan: inputs.plan,
     heroAction,
-    launchers,
     submissions,
     collection,
     recentEvidence,

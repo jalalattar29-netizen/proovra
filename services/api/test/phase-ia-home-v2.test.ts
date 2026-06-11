@@ -143,6 +143,7 @@ function build(plan: "FREE" | "PAYG" | "PRO" | "TEAM", overrides: Partial<Parame
   return normalizeHomeViewModel({
     plan,
     workspaceId: WS,
+    activeSpaceType: "ORGANIZATION",
     commandCenter: CC,
     trustSummary: TRUST,
     billing: null,
@@ -176,7 +177,7 @@ describe("Phase IA-home-v2 — hero next action", () => {
 
   it("onboarding hero when workspace is empty", () => {
     const vm = normalizeHomeViewModel({
-      plan: "FREE", workspaceId: WS, commandCenter: null, trustSummary: null,
+      plan: "FREE", workspaceId: WS, activeSpaceType: "PERSONAL", commandCenter: null, trustSummary: null,
       billing: null, reports: null, intakeLinks: null, inbox: null, communications: null, orgs: null, nowMs: FIXED_NOW,
     });
     expect(vm.heroAction.kind).toBe("capture_first");
@@ -375,27 +376,26 @@ describe("Phase IA-home-v2 — storage formatting", () => {
 // ============================================================================
 
 describe("Phase IA-home-v2 — plan visibility", () => {
-  it("FREE/PAYG: no team work card, intake/invite checklist + launchers hidden", () => {
+  it("FREE/PAYG: no team work card, intake/invite checklist hidden", () => {
     for (const plan of ["FREE", "PAYG"] as const) {
       const vm = build(plan);
       expect(vm.teamWork).toBeNull();
       const visibleSteps = vm.checklist.filter((s) => s.visible).map((s) => s.key);
       expect(visibleSteps).not.toContain("first_intake_link");
       expect(visibleSteps).not.toContain("invite_first_teammate");
-      const launchers = vm.launchers.filter((l) => l.visible).map((l) => l.key);
-      expect(launchers).not.toContain("request_evidence");
-      expect(launchers).not.toContain("review_submission");
     }
   });
 
-  it("PRO/TEAM: team work present, intake/invite + request/review launchers visible", () => {
+  it("PRO/TEAM in an ORGANIZATION workspace: team work present", () => {
     for (const plan of ["PRO", "TEAM"] as const) {
       const vm = build(plan);
       expect(vm.teamWork).not.toBeNull();
-      const launchers = vm.launchers.filter((l) => l.visible).map((l) => l.key);
-      expect(launchers).toContain("request_evidence");
-      expect(launchers).toContain("review_submission");
     }
+  });
+
+  it("PRO in a PERSONAL space: team work is hidden (Phase 10 — no roster from another team)", () => {
+    const vm = build("PRO", { activeSpaceType: "PERSONAL" });
+    expect(vm.teamWork).toBeNull();
   });
 
   it("team work is work-centric (awaiting review + reports today), not a roster headcount only", () => {
@@ -512,9 +512,12 @@ describe("Phase IA-home-v2 — success criteria coverage", () => {
     expect(DASH).toMatch(/<ActivityFeed/);
   });
 
-  it("workflow launchers replace nav-duplicating quick actions (no CompactQuickActions)", () => {
+  it("header is title + subtitle only — no nav-duplicate button row", () => {
     const DASH = readWeb("components/home-experience/SelfServeHomeDashboard.tsx");
-    expect(DASH).toMatch(/<WorkflowLaunchers/);
     expect(DASH).not.toMatch(/CompactQuickActions/);
+    expect(DASH).not.toMatch(/WorkflowLaunchers/);
+    const header = DASH.match(/<header[\s\S]*?<\/header>/)?.[0] ?? "";
+    expect(header).not.toMatch(/<Link/);
+    expect(header).not.toMatch(/<button/);
   });
 });
