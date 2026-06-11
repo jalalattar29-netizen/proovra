@@ -1,58 +1,51 @@
 "use client";
 
 /**
- * Phase IA-self-serve-home-rebuild + Phase IA-home-polish — production
- * self-serve Home.
+ * Phase IA-home-v2 — workflow-centric self-serve Home.
  *
- * Layout (top to bottom):
+ * Information architecture (top → bottom), organized around jobs, not
+ * database tables:
  *
- *   Header     : Title + Compact Quick Actions
- *   Row 1      : Workspace Snapshot (5 tiles)
- *   Row 2      : Next Action + Storage Usage
- *   Row 3      : Recent Evidence + Recent Cases
- *   Row 4      : Recent Reports + Pipeline (or onboarding when empty)
- *   Row 5      : Recent Activity + Evidence Health
- *   Row 6      : Team Activity (PRO/TEAM) + Getting Started
- *   Row 7      : Trust Summary + Integrity Alerts (when non-empty)
+ *   Header  : workspace context + workflow launchers
+ *   BAND 1 — "What needs me"
+ *     • Hero Next Action (expanded, prioritized)
+ *     • Submissions needing review (only when present)
+ *   BAND 2 — "My work"
+ *     • Request & Collect          • Recent Evidence (integrity chips)
+ *     • Case Health                • Recent Reports
+ *   BAND 3 — "Is it trustworthy"
+ *     • Trust State (live counts)  • Activity (grouped)
+ *     • Storage                    • Team work (PRO/TEAM)
+ *   Getting Started (auto-collapses when complete)
  *
- * Data sources (all pre-existing — NO new APIs introduced):
- *   * GET /v1/dashboard/command-center   — allowlisted slice only
- *   * GET /v1/billing/overview           — storage usage
- *   * GET /v1/reports?teamId=<id>        — workspace-scoped reports
- *   * envelope.organizations             — team activity (PRO/TEAM)
+ * Solo (Personal Space) sees the same surface minus team work and the
+ * PRO-only launchers. No reviewer/governance language anywhere.
  */
 
 import { useHomeData } from "./useHomeData";
 import {
-  CompactQuickActions,
-  EvidenceHealthCard,
+  ActivityFeed,
+  CaseHealthCard,
   GettingStartedChecklist,
+  HeroNextAction,
   HomeSkeleton,
-  IntegrityAlerts,
-  NextActionCard,
-  PipelineSnapshot,
-  RecentActivity,
-  RecentCases,
   RecentEvidence,
   RecentReports,
+  RequestAndCollect,
   StorageUsageCard,
-  TeamActivityCard,
-  TrustSummary,
-  WorkspaceSnapshot,
+  SubmissionsToReview,
+  TeamWorkCard,
+  TrustStateCard,
+  WorkflowLaunchers,
 } from "./HomeSections";
-import { isFreePlan } from "./home-view-model";
+import { isFreePlan, isProOrTeam } from "./home-view-model";
 
 export function SelfServeHomeDashboard() {
   const state = useHomeData();
 
   if (state.status === "loading") {
     return (
-      <main
-        className="self-serve-home"
-        data-self-serve-home
-        data-self-serve-home-state="loading"
-        style={pageStyle}
-      >
+      <main className="self-serve-home" data-self-serve-home data-self-serve-home-state="loading" style={pageStyle}>
         <HomeSkeleton />
       </main>
     );
@@ -60,6 +53,7 @@ export function SelfServeHomeDashboard() {
 
   const vm = state.viewModel;
   const free = isFreePlan(vm.plan);
+  const pro = isProOrTeam(vm.plan);
 
   return (
     <main
@@ -71,45 +65,39 @@ export function SelfServeHomeDashboard() {
     >
       <header style={headerStyle}>
         <div>
-          <h1 style={titleStyle}>Your evidence workspace</h1>
-          <p style={subtitleStyle}>
-            Records, cases, reports and storage at a glance.
-          </p>
+          <h1 style={titleStyle}>{pro ? "Your workspace" : "Your evidence workspace"}</h1>
+          <p style={subtitleStyle}>What needs you, what you collected, and whether it's trustworthy.</p>
         </div>
-        <CompactQuickActions actions={vm.quickActions} />
+        <WorkflowLaunchers launchers={vm.launchers} />
       </header>
 
-      <WorkspaceSnapshot tiles={vm.snapshot} />
+      {/* BAND 1 — What needs me */}
+      <HeroNextAction action={vm.heroAction} />
+      <SubmissionsToReview rows={vm.submissions} />
 
+      {/* BAND 2 — My work */}
       <div style={rowTwoColStyle}>
-        <NextActionCard action={vm.nextAction} />
-        <StorageUsageCard usage={vm.storage} />
+        {pro ? <RequestAndCollect rows={vm.collection} /> : <RecentEvidence rows={vm.recentEvidence} />}
+        {pro ? <RecentEvidence rows={vm.recentEvidence} /> : <RecentReports rows={vm.recentReports} isFreePlan={free} />}
+      </div>
+      <div style={rowTwoColStyle}>
+        <CaseHealthCard rows={vm.caseHealth} />
+        {pro ? <RecentReports rows={vm.recentReports} isFreePlan={free} /> : <StorageUsageCard usage={vm.storage} />}
       </div>
 
+      {/* BAND 3 — Is it trustworthy */}
       <div style={rowTwoColStyle}>
-        <RecentEvidence rows={vm.recentEvidence} />
-        <RecentCases rows={vm.recentCases} />
+        <TrustStateCard trust={vm.trustState} />
+        <ActivityFeed groups={vm.activity} />
+      </div>
+      <div style={rowTwoColStyle}>
+        {pro ? <StorageUsageCard usage={vm.storage} /> : <GettingStartedChecklist steps={vm.checklist} complete={vm.checklistComplete} />}
+        {pro ? <TeamWorkCard team={vm.teamWork} /> : null}
       </div>
 
-      <div style={rowTwoColStyle}>
-        <RecentReports rows={vm.recentReports} isFreePlan={free} />
-        <PipelineSnapshot stages={vm.pipeline} empty={vm.pipelineEmpty} />
-      </div>
-
-      <div style={rowTwoColStyle}>
-        <RecentActivity events={vm.activity} />
-        <EvidenceHealthCard health={vm.health} />
-      </div>
-
-      <div style={rowTwoColStyle}>
-        <TeamActivityCard team={vm.teamActivity} />
-        <GettingStartedChecklist steps={vm.checklist} />
-      </div>
-
-      <div style={rowTwoColStyle}>
-        <TrustSummary />
-        <IntegrityAlerts alerts={vm.integrityAlerts} />
-      </div>
+      {pro ? (
+        <GettingStartedChecklist steps={vm.checklist} complete={vm.checklistComplete} />
+      ) : null}
     </main>
   );
 }
@@ -118,32 +106,13 @@ const pageStyle: React.CSSProperties = {
   maxWidth: 1200,
   margin: "0 auto",
   padding: "28px 24px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   display: "flex",
   flexDirection: "column",
   gap: 18,
   background: "#f8fafc",
 };
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 12,
-  marginBottom: 4,
-};
-const titleStyle: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 700,
-  margin: 0,
-};
-const subtitleStyle: React.CSSProperties = {
-  margin: 0,
-  marginTop: 4,
-  fontSize: 14,
-  color: "#5d6d71",
-};
-const rowTwoColStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: 14,
-};
+const headerStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 12, marginBottom: 4 };
+const titleStyle: React.CSSProperties = { fontSize: 24, fontWeight: 700, margin: 0 };
+const subtitleStyle: React.CSSProperties = { margin: "4px 0 0 0", fontSize: 14, color: "#5d6d71" };
+const rowTwoColStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 };

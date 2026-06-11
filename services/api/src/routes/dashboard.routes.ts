@@ -39,6 +39,7 @@ import { buildCommandCenter } from "../services/dashboard/command-center.service
 import { getLatestOrgHealthSnapshot } from "../services/dashboard/org-health.service.js";
 import { listReviewerRoutingRecommendations } from "../services/dashboard/reviewer-capacity.service.js";
 import { listWorkspaceAccessAnomalies } from "../services/dashboard/access-anomaly.service.js";
+import { buildTrustSummary } from "../services/dashboard/trust-summary.service.js";
 
 const Query = z.object({ teamId: z.string().uuid() });
 
@@ -82,6 +83,26 @@ export async function dashboardRoutes(app: FastifyInstance) {
       });
 
       return reply.code(200).send(envelope);
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase IA-home-v2 — workspace trust summary. Powers the Home "Trust
+  // State" card with REAL integrity totals (TSA stamped / OTS anchored /
+  // signed / public-verify / needing-attention), aggregated straight
+  // from the Evidence table's trust columns. Same auth posture as the
+  // command center: any ACTIVE member of the workspace may read it.
+  // ---------------------------------------------------------------------------
+  app.get(
+    "/v1/dashboard/trust-summary",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const query = Query.parse(req.query ?? {});
+      const member = await requireMember(req, reply, query.teamId);
+      if (!member) return;
+
+      const summary = await buildTrustSummary({ teamId: query.teamId });
+      return reply.code(200).send(summary);
     },
   );
 

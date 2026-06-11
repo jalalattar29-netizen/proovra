@@ -118,18 +118,41 @@ function IntakeLinksPageInner() {
   );
   const { confirm } = useConfirmAction();
 
-  // Phase 32.8 Foundation cleanup — read team identity from the
-  // canonical platform context envelope (workspace name + id).
-  // No /v1/users/me, no /v1/teams direct fetch.
+  // Phase IA-intake-personal-space-fix — accept BOTH PERSONAL and
+  // ORGANIZATION active spaces. The original guard required
+  // `workspace.scope === "TEAM"`, which left PRO/TEAM users on their
+  // Personal Space staring at "Switch to a workspace" even though the
+  // backend's `prisma.teamMember` lookup works fine for a personal
+  // workspace (it's stored as a Team row with the user as OWNER).
+  //
+  // We read the canonical `activeSpace` field directly — it's the
+  // post-tenant-model source of truth. The legacy `workspace.scope`
+  // field is deprecated and should not be consulted here.
   const ctxEnvelope = usePlatformContext().envelope;
   useEffect(() => {
     if (!ctxEnvelope) return;
-    const ws = ctxEnvelope.workspace;
-    if (ws.status === "active" && ws.scope === "TEAM" && ws.id) {
-      setCurrentTeam({ id: ws.id, name: ws.name ?? "Team workspace" });
-    } else {
-      setCurrentTeam(null);
+    // Prefer the canonical `activeSpace`. Fall back to the legacy
+    // `workspace` envelope when the backend hasn't projected
+    // `activeSpace` yet (older deployments).
+    const active = ctxEnvelope.activeSpace;
+    if (active?.id) {
+      const name =
+        active.type === "PERSONAL"
+          ? "Personal Space"
+          : active.displayName ?? "Team workspace";
+      setCurrentTeam({ id: active.id, name });
+      return;
     }
+    const ws = ctxEnvelope.workspace;
+    if (ws.status === "active" && ws.id) {
+      const name =
+        ws.scope === "PERSONAL"
+          ? "Personal Space"
+          : ws.name ?? "Team workspace";
+      setCurrentTeam({ id: ws.id, name });
+      return;
+    }
+    setCurrentTeam(null);
   }, [ctxEnvelope]);
 
   // Load links once we know the workspace.
@@ -284,8 +307,8 @@ function IntakeLinksPageInner() {
       </header>
 
       {!currentTeam ? (
-        <div style={infoBoxStyle}>
-          Switch to a workspace to manage intake links.
+        <div style={infoBoxStyle} data-intake-links-loading>
+          Loading workspace…
         </div>
       ) : null}
 
@@ -293,9 +316,9 @@ function IntakeLinksPageInner() {
 
       {currentTeam && links !== null ? (
         links.length === 0 ? (
-          <div style={infoBoxStyle}>
-            No intake links yet. Create one to invite an external contributor
-            to upload evidence into a workflow.
+          <div style={infoBoxStyle} data-intake-links-empty>
+            Create a secure intake link to request evidence from a
+            client, source, witness, or contributor.
           </div>
         ) : (
           <ul style={{ listStyle: "none", padding: 0, marginTop: 24 }}>
