@@ -40,6 +40,7 @@ import {
 import {
   EvidenceActivityChart,
   EvidenceTypeDonutCard,
+  ExecutiveSummaryBand,
   HomeHeader,
   KpiRow,
   RecentEvidenceCard,
@@ -78,7 +79,9 @@ export function SelfServeHomeDashboard() {
         hero={vm.heroAction}
       />
 
-      {/* Band 0 — KPI row (real numbers only). */}
+      {/* Band 0 — Executive Summary (one state, one sentence, one
+          action — Phase HOME-EXEC) + KPI row (real numbers only). */}
+      <ExecutiveSummaryBand summary={vm.executiveSummary} />
       <KpiRow kpis={vm.kpis} />
 
       {/* Band 1 — Operational Queue (what needs me NOW) + activity chart. */}

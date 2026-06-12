@@ -737,3 +737,81 @@ test("INTEL: /search reads the q deep-link param and seeds the live filter", () 
   assert.match(SEARCH_SRC, /setQDraft\(initialQ\)/);
   assert.match(SEARCH_SRC, /\.\.\.\(initialQ \? \{ q: initialQ \} : \{\}\)/);
 });
+
+// ===========================================================================
+// Phase HOME-EXEC — Executive Summary regression locks.
+// ===========================================================================
+
+test("EXEC: TSA failures force a critical summary (never healthy)", () => {
+  const vm = normalizeHomeViewModel(
+    baseInputs({
+      trustSummary: { totalEvidence: 50, signed: 50, tsa: { stamped: 17, failed: 33 } },
+    }),
+  );
+  const ex = vm.executiveSummary;
+  assert.equal(ex.overallStatus, "critical");
+  assert.equal(ex.statusLabel, "Critical");
+  assert.match(ex.summaryTitle, /33 TSA timestamp/);
+  assert.ok(ex.summarySentence.length > 20);
+  assert.equal(ex.affectedCount, 33);
+  assert.ok(ex.actionHref, "critical summary carries an action");
+  assert.ok(ex.derivedFrom.includes("dashboard/trust-summary.tsa.failed"));
+});
+
+test("EXEC: integrity attention → action_required; OTS pending only → needs_attention", () => {
+  const integrity = normalizeHomeViewModel(
+    baseInputs({ trustSummary: { totalEvidence: 20, signed: 20, needingAttention: 14 } }),
+  );
+  assert.equal(integrity.executiveSummary.overallStatus, "action_required");
+  assert.match(integrity.executiveSummary.summarySentence, /integrity review/i);
+
+  const pending = normalizeHomeViewModel(
+    baseInputs({ trustSummary: { totalEvidence: 10, signed: 10, ots: { anchored: 0, pending: 10 } } }),
+  );
+  assert.equal(pending.executiveSummary.overallStatus, "needs_attention");
+});
+
+test("EXEC: all-clear data → Healthy with the normal-operations sentence", () => {
+  const vm = normalizeHomeViewModel(
+    baseInputs({
+      trustSummary: {
+        totalEvidence: 5,
+        signed: 5,
+        tsa: { stamped: 5 },
+        ots: { anchored: 5 },
+        publicVerify: { published: 5 },
+      },
+    }),
+  );
+  const ex = vm.executiveSummary;
+  assert.equal(ex.overallStatus, "healthy");
+  assert.match(ex.summarySentence, /operating normally/);
+  assert.equal(ex.topCause, null);
+});
+
+test("EXEC: zero-data user gets the onboarding summary, never fake health", () => {
+  const ex = normalizeHomeViewModel(baseInputs()).executiveSummary;
+  assert.equal(ex.overallStatus, "onboarding");
+  assert.match(ex.summaryTitle, /first evidence workflow/i);
+  assert.equal(ex.actionHref, "/capture");
+});
+
+test("EXEC: unsigned records block the healthy state", () => {
+  const vm = normalizeHomeViewModel(
+    baseInputs({ trustSummary: { totalEvidence: 10, signed: 7, tsa: { stamped: 10 }, ots: { anchored: 10 } } }),
+  );
+  assert.notEqual(vm.executiveSummary.overallStatus, "healthy");
+});
+
+test("EXEC: suspended verification → action_required + danger issue first", () => {
+  const vm = normalizeHomeViewModel(
+    baseInputs({
+      trustSummary: { totalEvidence: 10, signed: 10, publicVerify: { published: 8, suspended: 2 } },
+    }),
+  );
+  assert.equal(vm.executiveSummary.overallStatus, "action_required");
+  const first = vm.verificationHealth.issues[0];
+  assert.equal(first?.key, "suspended_verification");
+  assert.equal(first?.count, 2);
+  assert.equal(first?.tone, "danger");
+});

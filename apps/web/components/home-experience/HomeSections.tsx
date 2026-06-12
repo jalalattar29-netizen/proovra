@@ -460,9 +460,9 @@ export function ActiveMatters({
                         data-matter-verification-status={r.verificationStatus}
                         {...(r.hasReport ? { "data-matter-has-report": true } : {})}
                         style={{ ...chipStyle, background: HOME_TINTS.teal, color: HOME_COLORS.teal, fontVariantNumeric: "tabular-nums" }}
-                        title={`${r.reportsReadyCount} with reports · ${r.packagesReadyCount} with packages · ${r.verifyLiveCount} verifiable`}
+                        title={`${r.evidenceCount} records · ${r.reportsReadyCount} with reports (${Math.max(0, r.evidenceCount - r.reportsReadyCount)} without) · ${r.packagesReadyCount} with packages · ${r.verifyLiveCount} verifiable`}
                       >
-                        R {r.reportsReadyCount} · P {r.packagesReadyCount} · V {r.verifyLiveCount}
+                        E {r.evidenceCount} · R {r.reportsReadyCount} · P {r.packagesReadyCount} · V {r.verifyLiveCount}
                       </span>
                     ) : null}
                     {r.hasActiveLegalHold ? <span style={chipStyle}>Legal hold</span> : null}

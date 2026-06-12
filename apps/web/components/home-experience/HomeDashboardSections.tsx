@@ -20,6 +20,7 @@ import { useRouter } from "next/navigation";
 import type {
   EvidenceActivitySeries,
   EvidenceTypeDistribution,
+  ExecutiveSummary,
   HeroAction,
   HomeKpi,
   RichRecentEvidenceRow,
@@ -138,6 +139,93 @@ export function HomeHeader({
         </Link>
       </div>
     </header>
+  );
+}
+
+// ============================================================================
+// Executive Summary — one-glance workspace state (Phase HOME-EXEC).
+// Compact band, never duplicates the queue: one state, one sentence,
+// one action. All values come from vm.executiveSummary (decision
+// engine + trust floors); nothing here invents copy.
+// ============================================================================
+
+const EXEC_STATE: Record<
+  ExecutiveSummary["overallStatus"],
+  { tone: "ok" | "warn" | "danger" | "neutral"; accent: string; tint: string }
+> = {
+  healthy: { tone: "ok", accent: HOME_COLORS.ok, tint: HOME_TINTS.ok },
+  needs_attention: { tone: "warn", accent: HOME_COLORS.warn, tint: HOME_TINTS.warn },
+  action_required: { tone: "danger", accent: HOME_COLORS.danger, tint: HOME_TINTS.danger },
+  critical: { tone: "danger", accent: HOME_COLORS.dangerDeep, tint: "rgba(220, 38, 38, 0.12)" },
+  onboarding: { tone: "neutral", accent: HOME_COLORS.indigo, tint: HOME_TINTS.indigo },
+};
+
+export function ExecutiveSummaryBand({ summary }: { summary: ExecutiveSummary }) {
+  const s = EXEC_STATE[summary.overallStatus];
+  const tone = toneColor(s.tone);
+  return (
+    <section
+      className="home-card"
+      data-self-serve-section="executive-summary"
+      data-exec-status={summary.overallStatus}
+      style={{
+        ...homeCardStyle,
+        padding: "14px 18px",
+        borderLeft: `4px solid ${s.accent}`,
+        background: `linear-gradient(135deg, ${s.tint} 0%, rgba(255,255,255,0) 45%), ${HOME_COLORS.card}`,
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        flexWrap: "wrap",
+      }}
+    >
+      <span
+        data-exec-status-chip
+        style={{
+          ...homeChipStyle,
+          background: tone.bg,
+          color: tone.fg,
+          fontSize: 11,
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+          flexShrink: 0,
+        }}
+      >
+        {summary.statusLabel}
+      </span>
+      <div style={{ flex: 1, minWidth: 240 }}>
+        <div data-exec-title style={{ fontSize: 14, fontWeight: 700, color: HOME_COLORS.ink }}>
+          {summary.summaryTitle}
+        </div>
+        <p data-exec-sentence style={{ margin: "2px 0 0 0", fontSize: 12.5, lineHeight: 1.5, color: HOME_COLORS.slate }}>
+          {summary.summarySentence}
+        </p>
+        {summary.secondarySignals.length > 0 ? (
+          <p data-exec-secondary style={{ margin: "4px 0 0 0", fontSize: 11, color: HOME_COLORS.muted }}>
+            Also: {summary.secondarySignals.join(" · ")}
+          </p>
+        ) : null}
+      </div>
+      {summary.actionHref && summary.actionLabel ? (
+        <Link
+          href={summary.actionHref}
+          data-exec-action
+          title={summary.recommendedAction ?? undefined}
+          style={{
+            flexShrink: 0,
+            padding: "8px 14px",
+            borderRadius: 9,
+            background: s.accent,
+            color: "white",
+            fontWeight: 650,
+            fontSize: 12.5,
+            textDecoration: "none",
+          }}
+        >
+          {summary.actionLabel}
+        </Link>
+      ) : null}
+    </section>
   );
 }
 

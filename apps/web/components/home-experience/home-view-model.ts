@@ -503,12 +503,39 @@ export type IntakePipeline = {
  * action navigates to the surface where the fix lives.
  */
 export type DeliverableIssue = {
-  key: "failed_deliverables" | "package_gap" | "publish_ready";
+  key: "failed_deliverables" | "package_gap" | "publish_ready" | "suspended_verification";
   label: string;
   count: number;
   tone: "danger" | "warn" | "action";
   actionLabel: string;
   href: string;
+};
+
+/**
+ * Phase HOME-EXEC — the one-glance executive state of the workspace.
+ * Composed purely from the decision engine + health verdict; every
+ * sentence is backed by the same real counters (derivedFrom lists
+ * them). Zero-data users get an onboarding summary, never fake health.
+ */
+export type ExecutiveSummary = {
+  overallStatus:
+    | "healthy"
+    | "needs_attention"
+    | "action_required"
+    | "critical"
+    | "onboarding";
+  statusLabel: string;
+  summaryTitle: string;
+  summarySentence: string;
+  /** The single highest-ranked cause (decision label), null when healthy. */
+  topCause: string | null;
+  affectedCount: number;
+  recommendedAction: string | null;
+  actionLabel: string | null;
+  actionHref: string | null;
+  /** Up to two next-ranked decision labels. */
+  secondarySignals: string[];
+  derivedFrom: string[];
 };
 
 export type ReportProduction = {
@@ -688,6 +715,8 @@ export type HomeViewModel = {
   workspacePriorities: WorkspacePriority[];
   /** Overall workspace verdict derived from the health metric tones. */
   workspaceHealthOverall: "healthy" | "needs_attention" | "action_required";
+  /** Phase HOME-EXEC — the one-glance executive state band. */
+  executiveSummary: ExecutiveSummary;
 };
 
 // ============================================================================
@@ -1800,6 +1829,120 @@ function buildWorkspacePriorities(args: {
   return out.slice(0, 5);
 }
 
+/**
+ * Phase HOME-EXEC — compose the executive summary from the decision
+ * engine + raw trust counters. Status floor rules (spec):
+ *   - TSA failures / terminal anchoring / storage limit  → critical
+ *   - integrity attention / failed output / suspended    → action_required
+ *   - OTS pending, unsigned, submissions, gaps, near-limit→ needs_attention
+ *   - none of the above (with data)                       → healthy
+ *   - zero data                                           → onboarding
+ * Never "healthy" while any trust/integrity signal is open.
+ */
+function buildExecutiveSummary(args: {
+  showGettingStarted: boolean;
+  trust: TrustState;
+  priorities: WorkspacePriority[];
+  reportProduction: ReportProduction;
+  verificationHealth: VerificationHealth;
+  storage: StorageUsage | null;
+}): ExecutiveSummary {
+  if (args.showGettingStarted) {
+    return {
+      overallStatus: "onboarding",
+      statusLabel: "Getting started",
+      summaryTitle: "Start your first evidence workflow",
+      summarySentence:
+        "Capture evidence, create a case, generate a report, and share verification — this summary becomes live workspace health as you work.",
+      topCause: null,
+      affectedCount: 0,
+      recommendedAction: "Capture your first evidence record.",
+      actionLabel: "Capture evidence",
+      actionHref: "/capture",
+      secondarySignals: [],
+      derivedFrom: [
+        "dashboard/trust-summary.totalEvidence",
+        "reports.items.length",
+        "dashboard/command-center.caseOperations.activeCasesCount",
+      ],
+    };
+  }
+
+  const failedOutput =
+    args.reportProduction.reportsFailed + args.reportProduction.packagesFailed;
+  const unsigned = Math.max(0, args.trust.totalEvidence - args.trust.signed);
+
+  const overallStatus: ExecutiveSummary["overallStatus"] =
+    args.trust.tsaFailed > 0 ||
+    args.trust.otsFailed > 0 ||
+    args.storage?.limitReached
+      ? "critical"
+      : args.trust.needingAttention > 0 ||
+          failedOutput > 0 ||
+          args.trust.verifySuspended > 0
+        ? "action_required"
+        : args.priorities.some((p) => p.severity !== "info") ||
+            unsigned > 0 ||
+            args.trust.otsPending > 0
+          ? "needs_attention"
+          : "healthy";
+
+  const top = args.priorities[0] ?? null;
+  const statusLabel =
+    overallStatus === "critical"
+      ? "Critical"
+      : overallStatus === "action_required"
+        ? "Action required"
+        : overallStatus === "needs_attention"
+          ? "Needs attention"
+          : "Healthy";
+
+  if (overallStatus === "healthy") {
+    return {
+      overallStatus,
+      statusLabel,
+      summaryTitle: "Workspace is healthy",
+      summarySentence:
+        "Evidence, reports, packages, and verification are operating normally.",
+      topCause: null,
+      affectedCount: 0,
+      recommendedAction: null,
+      actionLabel: null,
+      actionHref: null,
+      secondarySignals: args.priorities.slice(0, 2).map((p) => p.label),
+      derivedFrom: [
+        "dashboard/trust-summary.tsa.failed",
+        "dashboard/trust-summary.needingAttention",
+        "dashboard/trust-summary.ots.pending",
+        "dashboard/command-center.pipelineDetail.reports.failed",
+      ],
+    };
+  }
+
+  // Sentence: the top cause + its consequence (from the decision).
+  const summarySentence = top
+    ? `${top.label} — ${top.whyItMatters}`
+    : overallStatus === "needs_attention" && unsigned > 0
+      ? `${unsigned} record${unsigned === 1 ? "" : "s"} are not signed yet — signing completes their integrity chain.`
+      : "Operational signals need review.";
+
+  return {
+    overallStatus,
+    statusLabel,
+    summaryTitle: top?.label ?? "Workspace needs review",
+    summarySentence,
+    topCause: top?.label ?? null,
+    affectedCount: top?.count ?? unsigned,
+    recommendedAction: top?.recommendedAction ?? null,
+    actionLabel: top?.actionLabel ?? null,
+    actionHref: top?.href ?? null,
+    secondarySignals: args.priorities.slice(1, 3).map((p) => p.label),
+    derivedFrom: top
+      ? top.derivedFrom
+      : ["dashboard/trust-summary.signed", "dashboard/trust-summary.totalEvidence"],
+  };
+}
+
 function pickHeroAction(args: {
   plan: HomePlan;
   cc: HomeCommandCenterInput | null;
@@ -2379,6 +2522,18 @@ function buildVerificationHealth(args: {
       tone: "warn",
       actionLabel: "Open reports",
       href: "/reports",
+    });
+  }
+  // Phase HOME-EXEC — suspended verification is action-required: a
+  // previously shareable page is no longer externally verifiable.
+  if (args.trust.verifySuspended > 0) {
+    issues.unshift({
+      key: "suspended_verification",
+      label: "Suspended verification needs review",
+      count: args.trust.verifySuspended,
+      tone: "danger",
+      actionLabel: "Open evidence",
+      href: "/evidence",
     });
   }
 
@@ -2971,6 +3126,16 @@ export function normalizeHomeViewModel(
         ? "needs_attention"
         : "healthy";
 
+  // Phase HOME-EXEC — composed from the decision engine + trust floors.
+  const executiveSummary = buildExecutiveSummary({
+    showGettingStarted,
+    trust: trustState,
+    priorities: workspacePriorities,
+    reportProduction,
+    verificationHealth,
+    storage,
+  });
+
   return {
     plan: inputs.plan,
     workspaceId: inputs.workspaceId,
@@ -3003,5 +3168,6 @@ export function normalizeHomeViewModel(
     showGettingStarted,
     workspacePriorities,
     workspaceHealthOverall,
+    executiveSummary,
   };
 }
