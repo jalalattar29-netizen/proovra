@@ -134,14 +134,36 @@ export default async function registerReportsRoutes(
       if (query.teamId) {
         const scopedTeamId = query.teamId;
         const isMember = teamIds.includes(scopedTeamId);
-        accessClause = {
-          AND: [
-            { teamId: scopedTeamId },
-            isMember
-              ? { OR: [{ ownerUserId: userId }, { teamId: scopedTeamId }] }
-              : { ownerUserId: userId },
-          ],
-        };
+        // Phase HOME-DATA-OWNERSHIP — when the scoped workspace is the
+        // CALLER'S OWN personal team, legacy rows created before the
+        // team-id backfill carry `teamId NULL` but are still owned by
+        // the caller. Without this arm the Home dashboard (which always
+        // passes teamId) showed 0 reports while the user owned hundreds.
+        // Bound to ownerUserId === caller, so nothing cross-tenant can
+        // ever match.
+        const scopedTeam = await prisma.team.findUnique({
+          where: { id: scopedTeamId },
+          select: { isPersonal: true, ownerUserId: true },
+        });
+        const isCallersPersonalTeam =
+          scopedTeam?.isPersonal === true && scopedTeam.ownerUserId === userId;
+        if (isCallersPersonalTeam) {
+          accessClause = {
+            OR: [
+              { teamId: scopedTeamId },
+              { AND: [{ ownerUserId: userId }, { teamId: null }] },
+            ],
+          };
+        } else {
+          accessClause = {
+            AND: [
+              { teamId: scopedTeamId },
+              isMember
+                ? { OR: [{ ownerUserId: userId }, { teamId: scopedTeamId }] }
+                : { ownerUserId: userId },
+            ],
+          };
+        }
       } else {
         accessClause = {
           OR: [

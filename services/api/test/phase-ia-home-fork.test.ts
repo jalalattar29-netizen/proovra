@@ -75,6 +75,16 @@ describe("Phase IA-home-fork — resolveHomeSurface", () => {
     ).toBe("command-center");
   });
 
+  it("TEAM plan + isEnterpriseWorkspace flag → STILL self-serve (flag means TEAM-billed, not Enterprise)", () => {
+    // The backend derives flags.isEnterpriseWorkspace from
+    // ENTERPRISE_PLAN_KEYS = {"TEAM"} — every TEAM-billed workspace
+    // raises it. The Home contract counts TEAM as self-serve, so the
+    // flag alone must not route a TEAM workspace to CommandCenter.
+    expect(
+      resolveHomeSurface({ plan: "TEAM", isPlatformAdmin: false, isEnterpriseWorkspace: true }),
+    ).toBe("self-serve");
+  });
+
   it("ENTERPRISE plan → command-center", () => {
     expect(resolveHomeSurface({ ...SELF_SERVE, plan: "ENTERPRISE" })).toBe(
       "command-center",

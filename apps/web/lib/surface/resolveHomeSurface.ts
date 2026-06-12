@@ -37,10 +37,19 @@ export type HomeSurfaceInput = {
 export function resolveHomeSurface(input: HomeSurfaceInput): HomeSurfaceDecision {
   // 1. CommandCenter renders ONLY behind an explicit enterprise signal.
   //    This is the only path to CommandCenter — there is no fallback.
+  //
+  //    Phase HOME-DATA-OWNERSHIP correction: the backend envelope flag
+  //    `flags.isEnterpriseWorkspace` is derived from
+  //    ENTERPRISE_PLAN_KEYS = {"TEAM"} (platform-context.service.ts) —
+  //    i.e. it currently means "TEAM-billed workspace", NOT a real
+  //    Enterprise tier (PlanType has no ENTERPRISE value yet). The Home
+  //    contract counts TEAM as SELF-SERVE, so a resolved TEAM plan must
+  //    never be routed to CommandCenter by that flag alone. When a real
+  //    ENTERPRISE tier ships, `plan === "ENTERPRISE"` already covers it.
   const isEnterprise =
     input.isPlatformAdmin === true ||
-    input.isEnterpriseWorkspace === true ||
-    input.plan === "ENTERPRISE";
+    input.plan === "ENTERPRISE" ||
+    (input.isEnterpriseWorkspace === true && input.plan !== "TEAM");
   if (isEnterprise) return "command-center";
 
   // 2. Plan not yet resolved (envelope loading, or no entitlement row).

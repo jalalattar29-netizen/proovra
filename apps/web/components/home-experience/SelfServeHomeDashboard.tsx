@@ -10,14 +10,15 @@
  * failed, whether my evidence is trustworthy and verifiable, and what
  * changed recently.
  *
- * Layout (fixed):
- *   Header  : workspace context, no button row
- *   Band 1  : Operational Queue
- *   Band 2  : Active Matters | Intake Pipeline
- *   Band 3  : Report Production | Verification Health
- *   Band 4  : Trust State | Workspace Health
- *   Band 5  : Recent Activity
- *   Band 6  : Storage | Getting Started (new users only)
+ * Layout (Phase HOME-KPI):
+ *   Header  : greeting + search + inbox indicator + ONE primary action
+ *   Band 0  : KPI row (5 cards — all real data)
+ *   Band 1  : Operational Queue (2fr) | Evidence Activity chart (3fr)
+ *   Band 2  : Recent Evidence | Evidence by Type
+ *   Band 3  : Active Matters | Intake Pipeline
+ *   Band 4  : Report Production | Verification Health
+ *   Band 5  : Trust State | Workspace Health
+ *   Band 6  : Recent Activity | Storage + Getting Started
  *   Trailing: Team Work (organization workspaces only — never Personal)
  */
 
@@ -36,6 +37,13 @@ import {
   VerificationHealthCard,
   WorkspaceHealthCard,
 } from "./HomeSections";
+import {
+  EvidenceActivityChart,
+  EvidenceTypeDonutCard,
+  HomeHeader,
+  KpiRow,
+  RecentEvidenceCard,
+} from "./HomeDashboardSections";
 import { isFreePlan, isProOrTeam } from "./home-view-model";
 
 export function SelfServeHomeDashboard() {
@@ -61,21 +69,34 @@ export function SelfServeHomeDashboard() {
       data-self-serve-plan={vm.plan ?? "UNKNOWN"}
       style={pageStyle}
     >
-      {/* Header — workspace context only, no nav-duplicate button row. */}
-      <header style={headerStyle}>
-        <h1 style={titleStyle}>Your evidence operation</h1>
-        <p style={subtitleStyle}>Evidence, intake, reports, and verification in one operational view.</p>
-      </header>
-
-      {/* Band 1 — Operational Queue (the most important widget, first). */}
-      <OperationalQueue
-        items={vm.operationalQueue}
+      {/* Header — greeting, search, inbox indicator, one primary action. */}
+      <HomeHeader
+        workspaceName={vm.workspaceName}
+        inboxCount={vm.inboxCount}
         hero={vm.heroAction}
-        workspaceId={vm.workspaceId}
-        onChanged={state.reload}
       />
 
-      {/* Band 2 — Active Matters + Intake Pipeline. */}
+      {/* Band 0 — KPI row (real numbers only). */}
+      <KpiRow kpis={vm.kpis} />
+
+      {/* Band 1 — Operational Queue (what needs me NOW) + activity chart. */}
+      <div style={rowQueueChartStyle}>
+        <OperationalQueue
+          items={vm.operationalQueue}
+          hero={vm.heroAction}
+          workspaceId={vm.workspaceId}
+          onChanged={state.reload}
+        />
+        <EvidenceActivityChart series={vm.activitySeries} />
+      </div>
+
+      {/* Band 2 — Recent Evidence + type distribution. */}
+      <div style={rowTwoColStyle}>
+        <RecentEvidenceCard rows={vm.richRecentEvidence} />
+        <EvidenceTypeDonutCard distribution={vm.typeDistribution} />
+      </div>
+
+      {/* Band 3 — Active Matters + Intake Pipeline. */}
       <div style={rowTwoColStyle}>
         <ActiveMatters rows={vm.activeMatters} summary={vm.caseHealthSummary} />
         <IntakePipelineCard
@@ -86,25 +107,25 @@ export function SelfServeHomeDashboard() {
         />
       </div>
 
-      {/* Band 3 — Report Production + Verification Health. */}
+      {/* Band 4 — Report Production + Verification Health. */}
       <div style={rowTwoColStyle}>
         <ReportProductionCard production={vm.reportProduction} isFreePlan={free} />
         <VerificationHealthCard health={vm.verificationHealth} />
       </div>
 
-      {/* Band 4 — Trust State + Workspace Health. */}
+      {/* Band 5 — Trust State + Workspace Health. */}
       <div style={rowTwoColStyle}>
         <TrustStateCard trust={vm.trustState} />
         <WorkspaceHealthCard metrics={vm.workspaceHealth} />
       </div>
 
-      {/* Band 5 — Recent Activity (full width). */}
-      <ActivityFeed groups={vm.activity} />
-
-      {/* Band 6 — Storage + Getting Started (new users only; auto-hides). */}
+      {/* Band 6 — Recent Activity + Storage / Getting Started. */}
       <div style={rowTwoColStyle}>
-        <StorageUsageCard usage={vm.storage} />
-        <GettingStartedChecklist steps={vm.checklist} complete={vm.checklistComplete} />
+        <ActivityFeed groups={vm.activity} />
+        <div style={stackColStyle}>
+          <StorageUsageCard usage={vm.storage} />
+          <GettingStartedChecklist steps={vm.checklist} complete={vm.checklistComplete} />
+        </div>
       </div>
 
       {/* Team Work — organization workspaces only (null in Personal Space). */}
@@ -114,16 +135,15 @@ export function SelfServeHomeDashboard() {
 }
 
 const pageStyle: React.CSSProperties = {
-  maxWidth: 1200,
+  maxWidth: 1240,
   margin: "0 auto",
   padding: "28px 24px",
   fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   display: "flex",
   flexDirection: "column",
-  gap: 18,
+  gap: 16,
   background: "#f8fafc",
 };
-const headerStyle: React.CSSProperties = { marginBottom: 4 };
-const titleStyle: React.CSSProperties = { fontSize: 24, fontWeight: 700, margin: 0 };
-const subtitleStyle: React.CSSProperties = { margin: "4px 0 0 0", fontSize: 14, color: "#5d6d71" };
 const rowTwoColStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 };
+const rowQueueChartStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "3fr 2fr", gap: 14, alignItems: "start" };
+const stackColStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 14 };

@@ -66,8 +66,7 @@ import {
   type WorkflowDecisionRow,
   writeCodingValue,
 } from "../../../../lib/reviewer-workspace/reviewer-api";
-import { useActiveSpace } from "../../../../lib/platform-context";
-import { useActiveSpaceId } from "../../../../lib/platform-context";
+import { useActiveSpace, useActiveSpaceId } from "../../../../lib/platform-context";
 import type { ReviewerAnnotationSummary } from "../../../../lib/reviewer-workspace/annotation-types";
 import { MediaViewer } from "../../../../components/reviewer-workspace/viewers/MediaViewer";
 import { AnnotationPanel } from "../../../../components/reviewer-workspace/AnnotationPanel";

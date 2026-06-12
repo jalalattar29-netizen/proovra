@@ -38,6 +38,7 @@ import {
   type HomeBillingInput,
   type HomeCommandCenterInput,
   type HomeCommunicationsInput,
+  type HomeEvidenceListInput,
   type HomeInboxInput,
   type HomeIntakeLinksInput,
   type HomeOrgsInput,
@@ -115,6 +116,16 @@ export function useHomeData(): HomeData {
           }).catch(() => null)
         : Promise.resolve(null);
 
+    // Phase HOME-KPI — newest 100 accessible records. User-scoped on
+    // the server; the normalizer scopes to the active workspace
+    // (personal spaces also accept legacy teamId-null rows). Feeds the
+    // KPI sparkline, the activity chart, the type donut and the
+    // Recent Evidence card.
+    const evidenceListPromise: Promise<HomeEvidenceListInput | null> = apiFetch(
+      "/v1/evidence?limit=100&sort=newest",
+      { method: "GET" },
+    ).catch(() => null);
+
     const [
       cc,
       trustSummary,
@@ -123,6 +134,7 @@ export function useHomeData(): HomeData {
       intakeLinks,
       inbox,
       communications,
+      evidenceList,
     ] = await Promise.all([
       ccPromise,
       trustPromise,
@@ -131,6 +143,7 @@ export function useHomeData(): HomeData {
       intakeLinksPromise,
       inboxPromise,
       communicationsPromise,
+      evidenceListPromise,
     ]);
 
     const orgsInput: HomeOrgsInput = orgs.map((o) => ({
@@ -145,6 +158,7 @@ export function useHomeData(): HomeData {
     const viewModel = normalizeHomeViewModel({
       plan: plan as HomePlan,
       workspaceId: workspaceId ?? null,
+      workspaceName: activeSpace?.displayName ?? null,
       activeSpaceType,
       commandCenter: cc,
       trustSummary,
@@ -154,10 +168,11 @@ export function useHomeData(): HomeData {
       inbox,
       communications,
       orgs: orgsInput,
+      evidenceList,
     });
 
     setState({ status: "ready", viewModel });
-  }, [workspaceId, activeSpaceType, plan, orgs]);
+  }, [workspaceId, activeSpaceType, activeSpace?.displayName, plan, orgs]);
 
   useEffect(() => {
     void reload();

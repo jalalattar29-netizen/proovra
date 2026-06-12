@@ -159,6 +159,12 @@ const JsonValueSchema: z.ZodType<Prisma.JsonValue> = z.lazy(() =>
 
 const CreateEvidenceBody = z.object({
   type: EvidenceTypeSchema,
+  // Phase HOME-DATA-OWNERSHIP — the capture client sends the ACTIVE
+  // workspace id (personal Team id or team workspace id). Optional for
+  // backward compatibility: when omitted, createEvidence resolves the
+  // owner's personal Team and stamps it. Membership is enforced inside
+  // createEvidence; a forged foreign teamId yields 403.
+  teamId: z.string().uuid().optional(),
   mimeType: z.string().min(1).max(128).optional(),
   internalNotes: z.string().trim().max(4000).optional(),
   originalFileName: z.string().trim().min(1).max(255).optional(),
@@ -4386,6 +4392,10 @@ export async function evidenceRoutes(app: FastifyInstance) {
     try {
 const result = await createEvidence({
   ownerUserId,
+  // Phase HOME-DATA-OWNERSHIP — pass the client's active workspace id
+  // through. createEvidence stamps a REAL team id on every row
+  // (personal Team when omitted/personal) and enforces membership.
+  teamId: body.teamId ?? null,
   type: body.type,
   mimeType: body.mimeType,
   internalNotes: body.internalNotes ?? null,
@@ -4409,7 +4419,18 @@ intakePlanJson:
           where: { id: result.id },
           select: { teamId: true },
         });
-        if (createdForQuota?.teamId) {
+        // Phase HOME-DATA-OWNERSHIP — every row now carries a teamId,
+        // including personal captures (stamped with the personal Team
+        // id). The team-quota entitlement engine governs REAL team
+        // workspaces only; personal captures stay governed by the plan
+        // gates inside createEvidence, so skip when isPersonal.
+        const quotaTeam = createdForQuota?.teamId
+          ? await prisma.team.findUnique({
+              where: { id: createdForQuota.teamId },
+              select: { isPersonal: true },
+            })
+          : null;
+        if (createdForQuota?.teamId && quotaTeam?.isPersonal !== true) {
           const { assertQuotaEntitlement, recordEntitlementUsage } = await import(
             "../services/packaging/entitlement.service.js"
           );

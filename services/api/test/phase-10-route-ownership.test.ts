@@ -77,11 +77,18 @@ describe("Phase 10 — route registry route-ownership", () => {
 // next.config.js redirect
 // ---------------------------------------------------------------------------
 
-describe("Phase 10 — next.config.js still 308-redirects /teams → /workspaces", () => {
+describe("Phase HOME-DATA-OWNERSHIP — /teams is canonical (no redirect away)", () => {
   const cfg = readFileSync(NEXT_CONFIG_PATH, "utf8");
 
-  it("the /teams → /workspaces redirect is present", () => {
-    expect(cfg).toMatch(
+  it("next.config.js does NOT redirect /teams to /workspaces", () => {
+    // The Phase 10 redirect shadowed the self-serve landing at
+    // app/(app)/teams/page.tsx (Phase IA-self-serve-completion), so
+    // Home's "Invite a teammate" CTA dead-ended on the TEAM_VIEW-gated
+    // /workspaces surface — a BLANK page for personal-space users.
+    // /teams is now the canonical self-serve team surface; legacy
+    // /workspaces deep links map back via the surface-tier rule
+    // (lib/surface/tiers.ts → redirectTo "/teams").
+    expect(cfg).not.toMatch(
       /source:\s*"\/teams"[\s\S]{0,200}destination:\s*"\/workspaces"/,
     );
   });

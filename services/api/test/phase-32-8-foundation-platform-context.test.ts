@@ -755,14 +755,12 @@ describe("Phase 32.8 Foundation — Teams restoration (F-4)", () => {
     expect(NAV).toMatch(/requiresCapability:\s*['"]TEAM_VIEW['"]/);
   });
 
-  it("/teams URL resolves to the workspace administration panel via canonical /workspaces", () => {
-    // Phase Final-Closure-Remediation — the canonical surface for the
-    // workspace administration panel is `/workspaces/page.tsx`; the
-    // legacy `/teams` URL is now a permanent 308 redirect declared in
-    // `next.config.js`. Behaviour parity preserved; routing layer is
-    // the single source of truth.
+  it("/workspaces keeps the workspace administration panel; /teams is NOT redirected away", () => {
+    // Phase HOME-DATA-OWNERSHIP — the /teams → /workspaces redirect was
+    // REMOVED (it shadowed the self-serve /teams landing and blanked
+    // Home's "Invite a teammate" for personal-space users).
     expect(WEB_WORKSPACES_PAGE).toMatch(/WorkspaceAdministrationHome/);
-    expect(WEB_NEXT_CONFIG).toMatch(
+    expect(WEB_NEXT_CONFIG).not.toMatch(
       /source:\s*["']\/teams["'][\s\S]{0,200}destination:\s*["']\/workspaces["']/,
     );
   });

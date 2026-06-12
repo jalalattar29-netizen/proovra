@@ -361,14 +361,13 @@ describe("ENTERPRISE TENANT MODEL — workspace switcher", () => {
 // =============================================================================
 
 describe("ENTERPRISE TENANT MODEL — /teams page", () => {
-  it("/teams URL renders the canonical WorkspaceAdministrationHome via redirect to /workspaces", () => {
-    // Phase Final-Closure-Remediation — the duplicate /teams page was
-    // deleted; the canonical /workspaces surface owns the
-    // WorkspaceAdministrationHome mount. The legacy /teams URL is
-    // preserved as a permanent 308 redirect declared in next.config.js.
+  it("/workspaces owns WorkspaceAdministrationHome; /teams is NOT redirected away", () => {
+    // Phase HOME-DATA-OWNERSHIP — the /teams → /workspaces redirect was
+    // REMOVED (it shadowed the self-serve /teams landing and blanked
+    // Home's "Invite a teammate" for personal-space users).
     expect(WEB_WORKSPACES_PAGE).toMatch(/WorkspaceAdministrationHome/);
     expect(WEB_WORKSPACES_PAGE).not.toMatch(/^\s*export\s+default[\s\S]{0,200}WorkspaceAdminPanel/m);
-    expect(WEB_NEXT_CONFIG).toMatch(
+    expect(WEB_NEXT_CONFIG).not.toMatch(
       /source:\s*["']\/teams["'][\s\S]{0,200}destination:\s*["']\/workspaces["']/,
     );
   });

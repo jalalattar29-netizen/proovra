@@ -3,6 +3,9 @@ import { useRouter } from "next/navigation";
 
 import { useToast } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
+// Phase HOME-DATA-OWNERSHIP — capture stamps the ACTIVE workspace id
+// (personal Team id or team id) on every new evidence record.
+import { useActiveSpaceId } from "../../../../lib/platform-context";
 // Phase 30.12 — resumable upload adoption. Only the routing helper +
 // chunk planner are imported eagerly; the orchestrator type is
 // imported as a type-only reference so the bundle isn't pulled in
@@ -227,6 +230,7 @@ export function useCaptureSessionOrchestration({
 }: UseCaptureSessionOrchestrationParams) {
   const router = useRouter();
   const { addToast } = useToast();
+  const activeSpaceId = useActiveSpaceId();
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -641,6 +645,9 @@ export function useCaptureSessionOrchestration({
         method: "POST",
         body: JSON.stringify({
           type: rootType,
+          // Active workspace stamp; backend resolves the personal Team
+          // itself when omitted (envelope still loading).
+          teamId: activeSpaceId ?? undefined,
           mimeType: primaryMimeType,
           internalNotes: internalNotes.trim() || undefined,
           originalFileName: items[0]?.relativePath || primaryFile.name,
@@ -655,11 +662,9 @@ export function useCaptureSessionOrchestration({
       });
 
       const evidenceId = created.id as string;
-      // Phase 30.12 — teamId is null for personal-workspace evidence.
-      // The resumable fork engages only when teamId is non-null AND
-      // the resumable adoption hook is supplied AND the env flag is
-      // on AND the file is large enough. All other paths run the
-      // legacy XHR PUT flow verbatim.
+      // Phase 30.12/HOME-DATA-OWNERSHIP — the server echoes the stamped
+      // team id (never null now). Resumable fork: teamId + hook + env
+      // flag + large file; all other paths use the legacy XHR PUT flow.
       const evidenceTeamId =
         (created as { teamId?: string | null }).teamId ?? null;
       setSessionStatus("Uploading preserved evidence items...");

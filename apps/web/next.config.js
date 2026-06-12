@@ -107,11 +107,16 @@ const nextConfig = {
         destination: "/admin/identity/timeline",
         permanent: true,
       },
-      {
-        source: "/teams",
-        destination: "/workspaces",
-        permanent: true,
-      },
+      // Phase HOME-DATA-OWNERSHIP — the `/teams` → `/workspaces`
+      // redirect (Phase Final-Closure-Remediation) is REMOVED. Phase
+      // IA-self-serve-completion later shipped a real self-serve
+      // landing page at app/(app)/teams/page.tsx, but this server
+      // redirect fired first, so the page was unreachable: Home's
+      // "Invite a teammate" → /teams → /workspaces → PageRouteGate
+      // (admin.teams, TEAM_VIEW) → BLANK page for every personal-space
+      // user. /teams is now canonical for self-serve team management;
+      // the reverse mapping (/workspaces → /teams for self-serve) is
+      // handled by the surface-tier rule in lib/surface/tiers.ts.
       {
         source: "/identity",
         destination: "/admin/identity",

@@ -184,7 +184,13 @@ const CAPTURE_AI_FILES = captureAiSurfaceFiles();
 // the material-note rename ("Reviewer note" → "Your notes"), and the
 // placeholder rewrite. No new behaviour — pure copy/comment growth.
 const PRE_CR5_PAGE_BYTES = 49830;
-const PRE_CR5_ORCH_BYTES = 34411;
+// Phase HOME-DATA-OWNERSHIP rebaseline: 34,411 → 34,744. The capture
+// orchestration now stamps the ACTIVE workspace id (useActiveSpaceId →
+// `teamId` in the POST /v1/evidence body) so personal evidence is never
+// orphaned with team_id NULL again. Real behaviour change, minimal
+// footprint: one import, one hook call, one body field + bounded
+// comments.
+const PRE_CR5_ORCH_BYTES = 34744;
 const PRE_CR5_RESUMABLE_BYTES = 13423;
 const PRE_CR5_CAMERA_BYTES = 12473;
 const PRE_CR5_AUDIO_BYTES = 8978;

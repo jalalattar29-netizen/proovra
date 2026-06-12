@@ -31,6 +31,7 @@ import { prisma } from "../src/db.js";
 import "../src/register-shared-runtime.js";
 
 import { HOME_PERSONAS } from "../src/dev/home-personas.js";
+import { REQUIRED_LEGAL_VERSIONS } from "../src/legal/legal-versioning.js";
 
 if (process.env.NODE_ENV === "production") {
   // eslint-disable-next-line no-console
@@ -108,11 +109,31 @@ async function createUserWorkspace(personaKey: keyof typeof HOME_PERSONAS): Prom
       providerUserId: `home-persona-${p.key}`,
       email: p.email,
       displayName: `Persona ${p.key}`,
+      // The platform-context envelope resolves the ACTIVE space from
+      // currentWorkspaceId. Without it the team-org persona falls back
+      // to an auto-bootstrapped personal space and the Home acceptance
+      // run inspects the wrong (empty) workspace.
+      currentWorkspaceId: p.workspaceId,
     },
   });
 
   await prisma.entitlement.create({
     data: { userId: p.userId, plan: p.plan, active: true },
+  });
+
+  // Personas must pass the requireLegalAcceptance gate — otherwise
+  // /v1/me/inbox and /v1/billing/overview return 428 and the Home
+  // Storage / inbox-driven widgets render their degraded states.
+  await prisma.userLegalAcceptance.createMany({
+    data: Object.entries(REQUIRED_LEGAL_VERSIONS).map(
+      ([policyKey, policyVersion]) => ({
+        userId: p.userId,
+        policyKey,
+        policyVersion,
+        source: "home-persona-seed",
+      }),
+    ),
+    skipDuplicates: true,
   });
 
   const organizationId = ORG_BY_PERSONA[p.key];
@@ -148,6 +169,9 @@ async function seedProPopulated(): Promise<void> {
       type: "PHOTO",
       ownerUserId: p.userId,
       teamId: p.workspaceId,
+      // Phase A1 CHECK (evidence_team_implies_org_chk): team_id NOT
+      // NULL requires organization_id NOT NULL.
+      organizationId: ORG_BY_PERSONA[p.key],
       title: "Door camera capture — 2026-06-09",
       status: "REPORTED",
       verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
@@ -205,6 +229,9 @@ async function seedProPopulated(): Promise<void> {
       maxUses: 1,
       usedCount: 0,
       allowedAcceptedKinds: ["PHOTO", "DOCUMENT"],
+      // Prisma 7 driver adapters send NULL for omitted scalar lists —
+      // the column is NOT NULL with no default, so set it explicitly.
+      ipAllowlistCidrs: [],
       expiresAtUtc: new Date(NOW.getTime() + 7 * 24 * 3600_000),
       createdByUserId: p.userId,
       createdAt: hoursAgo(5),
@@ -248,6 +275,8 @@ async function seedTeamOrg(): Promise<void> {
       type: "DOCUMENT",
       ownerUserId: p.userId,
       teamId: p.workspaceId,
+      // Phase A1 CHECK — see seedProPopulated.
+      organizationId: ORG_BY_PERSONA[p.key],
       caseId: ID.teamCase,
       title: "Field statement — contributor upload",
       status: "REPORTED",
@@ -301,6 +330,7 @@ async function seedTeamOrg(): Promise<void> {
       maxUses: 100,
       usedCount: 3,
       allowedAcceptedKinds: ["PHOTO", "VIDEO", "DOCUMENT"],
+      ipAllowlistCidrs: [],
       expiresAtUtc: new Date(NOW.getTime() + 14 * 24 * 3600_000),
       createdByUserId: p.userId,
       createdAt: hoursAgo(8),

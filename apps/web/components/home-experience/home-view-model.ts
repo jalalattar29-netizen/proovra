@@ -400,10 +400,82 @@ export type WorkspaceHealthMetric = {
   tone: "ok" | "warn" | "danger" | "neutral";
 };
 
+// ============================================================================
+// Phase HOME-KPI — premium dashboard surfaces (KPIs, activity series,
+// type distribution, rich recent-evidence rows). Every number is
+// derived from real backend data; the evidence-list sample is labelled
+// as a sample when it is one.
+// ============================================================================
+
+export type HomeKpi = {
+  key: "evidence" | "matters" | "trust" | "deliverables" | "intake";
+  label: string;
+  /** Pre-formatted display value ("334", "92%", "12 / 3"). */
+  value: string;
+  /** One-line context: what changed or what the number means. */
+  subtitle: string;
+  tone: "ok" | "warn" | "danger" | "neutral";
+  /** Last-7-day daily counts for the sparkline; null = not enough data. */
+  spark: number[] | null;
+  href: string;
+  /** FREE-plan lock (intake KPI only). */
+  locked?: boolean;
+};
+
+export type ActivityPoint = {
+  /** Short day label, e.g. "Mon 9". */
+  dayLabel: string;
+  evidence: number;
+  reports: number;
+};
+
+export type EvidenceActivitySeries = {
+  /** Oldest → newest, fixed 14 days. */
+  points: ActivityPoint[];
+  totalEvidence: number;
+  totalReports: number;
+  /** True when the 100-record list cap may truncate the series. */
+  sampled: boolean;
+};
+
+export type EvidenceTypeSlice = {
+  key: string;
+  label: string;
+  count: number;
+  /** Percent of the sampled records, rounded; slices sum to ~100. */
+  percent: number;
+};
+
+export type EvidenceTypeDistribution = {
+  slices: EvidenceTypeSlice[];
+  sampleSize: number;
+  /** True when the list cap means this is the latest-N sample. */
+  sampled: boolean;
+};
+
+export type RichRecentEvidenceRow = {
+  id: string;
+  title: string;
+  typeKey: string;
+  typeLabel: string;
+  caseId: string | null;
+  createdAt: string;
+  trustChip: { label: string; tone: "ok" | "warn" | "danger" | "neutral" };
+  href: string;
+};
+
 export type HomeViewModel = {
   plan: HomePlan;
   /** Active workspace id — needed for workspace-scoped mutations (retry). */
   workspaceId: string | null;
+  /** Workspace display name for the greeting line. */
+  workspaceName: string | null;
+  kpis: HomeKpi[];
+  activitySeries: EvidenceActivitySeries;
+  typeDistribution: EvidenceTypeDistribution;
+  richRecentEvidence: RichRecentEvidenceRow[];
+  /** Count of open inbox items — drives the header notification dot. */
+  inboxCount: number;
   heroAction: HeroAction;
   /** The prioritized list of actionable items — Home's first widget. */
   operationalQueue: OperationalQueueItem[];
@@ -615,6 +687,23 @@ export type HomeOrgsInput = ReadonlyArray<{
   role: string | null;
   membershipStatus: string;
 }>;
+
+/** GET /v1/evidence?limit=100&sort=newest — list projection subset. */
+export type HomeEvidenceListInput = {
+  items?: Array<{
+    id: string;
+    title?: string | null;
+    displayFileName?: string | null;
+    type?: string;
+    status?: string;
+    verificationStatus?: string | null;
+    latestReportVersion?: number | null;
+    createdAt?: string;
+    caseId?: string | null;
+    teamId?: string | null;
+  }>;
+  pageInfo?: { hasMore?: boolean };
+};
 
 // ============================================================================
 // Enterprise blocklist (defence in depth)
@@ -1708,9 +1797,310 @@ function buildWorkspaceHealth(args: {
 // Main normalizer
 // ============================================================================
 
+// ============================================================================
+// Phase HOME-KPI builders — pure, real-data-only.
+// ============================================================================
+
+type WorkspaceEvidenceItem = NonNullable<HomeEvidenceListInput["items"]>[number];
+
+/**
+ * Scope the user-wide /v1/evidence list to the ACTIVE workspace.
+ * Personal spaces also accept legacy `teamId null` rows (pre-backfill
+ * databases); organization workspaces are strict.
+ */
+function scopeEvidenceList(args: {
+  list: HomeEvidenceListInput | null;
+  workspaceId: string | null;
+  activeSpaceType: ActiveSpaceType;
+}): WorkspaceEvidenceItem[] {
+  const items = args.list?.items ?? [];
+  if (!args.workspaceId) return items;
+  if (args.activeSpaceType === "ORGANIZATION") {
+    return items.filter((it) => it.teamId === args.workspaceId);
+  }
+  return items.filter(
+    (it) => it.teamId === args.workspaceId || it.teamId == null,
+  );
+}
+
+const EVIDENCE_TYPE_LABELS: Record<string, string> = {
+  PHOTO: "Images",
+  VIDEO: "Videos",
+  AUDIO: "Audio",
+  DOCUMENT: "Documents",
+  SCREEN: "Screen captures",
+};
+
+function evidenceTypeLabel(raw: string | undefined): string {
+  const key = (raw ?? "").toUpperCase();
+  return EVIDENCE_TYPE_LABELS[key] ?? "Other";
+}
+
+/** Honest per-row trust chip from REAL Evidence columns only. */
+function recentEvidenceTrustChip(it: WorkspaceEvidenceItem): {
+  label: string;
+  tone: "ok" | "warn" | "danger" | "neutral";
+} {
+  const verdict = (it.verificationStatus ?? "").toUpperCase();
+  if (verdict === "FAILED" || verdict === "REVIEW_REQUIRED") {
+    return { label: "Needs attention", tone: "danger" };
+  }
+  if (it.latestReportVersion != null) {
+    return { label: "Report ready", tone: "ok" };
+  }
+  const status = (it.status ?? "").toUpperCase();
+  if (status === "REPORTED") return { label: "Report ready", tone: "ok" };
+  if (status === "SIGNED") return { label: "Sealed", tone: "ok" };
+  if (status === "UPLOADING" || status === "CREATED") {
+    return { label: "In progress", tone: "warn" };
+  }
+  if (status === "UPLOADED") return { label: "Needs report", tone: "warn" };
+  return { label: "Recorded", tone: "neutral" };
+}
+
+function buildRichRecentEvidence(
+  scoped: WorkspaceEvidenceItem[],
+): RichRecentEvidenceRow[] {
+  return scoped.slice(0, 6).map((it) => ({
+    id: it.id,
+    title: it.title?.trim() || it.displayFileName?.trim() || it.id,
+    typeKey: (it.type ?? "OTHER").toUpperCase(),
+    typeLabel: evidenceTypeLabel(it.type),
+    caseId: it.caseId ?? null,
+    createdAt: it.createdAt ?? "",
+    trustChip: recentEvidenceTrustChip(it),
+    href: `/evidence/${encodeURIComponent(it.id)}`,
+  }));
+}
+
+function buildTypeDistribution(args: {
+  scoped: WorkspaceEvidenceItem[];
+  listHasMore: boolean;
+}): EvidenceTypeDistribution {
+  const counts = new Map<string, number>();
+  for (const it of args.scoped) {
+    const label = evidenceTypeLabel(it.type);
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  const total = args.scoped.length;
+  const slices: EvidenceTypeSlice[] = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, count]) => ({
+      key: label.toUpperCase().replace(/\s+/g, "_"),
+      label,
+      count,
+      percent: total > 0 ? Math.round((count / total) * 100) : 0,
+    }));
+  return { slices, sampleSize: total, sampled: args.listHasMore };
+}
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function buildActivitySeries(args: {
+  scoped: WorkspaceEvidenceItem[];
+  reports: HomeReportsInput | null;
+  listHasMore: boolean;
+  nowMs: number;
+}): EvidenceActivitySeries {
+  const DAYS = 14;
+  const dayMs = 86_400_000;
+  const startOfToday = Math.floor(args.nowMs / dayMs) * dayMs;
+  const evidence = new Array<number>(DAYS).fill(0);
+  const reports = new Array<number>(DAYS).fill(0);
+
+  const bucket = (iso: string | null | undefined): number | null => {
+    if (!iso) return null;
+    const t = Date.parse(iso);
+    if (!Number.isFinite(t)) return null;
+    const idx = Math.floor((startOfToday + dayMs - 1 - t) / dayMs);
+    return idx >= 0 && idx < DAYS ? idx : null;
+  };
+
+  for (const it of args.scoped) {
+    const idx = bucket(it.createdAt);
+    if (idx != null) evidence[idx] += 1;
+  }
+  for (const r of args.reports?.items ?? []) {
+    const idx = bucket(r.report?.generatedAtUtc ?? null);
+    if (idx != null) reports[idx] += 1;
+  }
+
+  const points: ActivityPoint[] = [];
+  for (let i = DAYS - 1; i >= 0; i -= 1) {
+    const dayStart = startOfToday - i * dayMs;
+    const d = new Date(dayStart);
+    points.push({
+      dayLabel: `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()}`,
+      evidence: evidence[i],
+      reports: reports[i],
+    });
+  }
+  return {
+    points,
+    totalEvidence: evidence.reduce((a, b) => a + b, 0),
+    totalReports: reports.reduce((a, b) => a + b, 0),
+    sampled: args.listHasMore,
+  };
+}
+
+function formatKpiNumber(n: number): string {
+  if (n >= 10_000) return `${Math.round(n / 1000)}k`;
+  return String(n);
+}
+
+function buildKpis(args: {
+  plan: HomePlan;
+  trust: TrustState;
+  scoped: WorkspaceEvidenceItem[];
+  listHasMore: boolean;
+  caseCount: number;
+  caseHealthSummary: CaseHealthSummary;
+  reportProduction: ReportProduction;
+  collectionStats: CollectionStats;
+  submissionsCount: number;
+  nowMs: number;
+}): HomeKpi[] {
+  const dayMs = 86_400_000;
+  const startOfToday = Math.floor(args.nowMs / dayMs) * dayMs;
+
+  // 7-day sparkline + delta from the (scoped) evidence list sample.
+  const spark = new Array<number>(7).fill(0);
+  for (const it of args.scoped) {
+    const t = it.createdAt ? Date.parse(it.createdAt) : NaN;
+    if (!Number.isFinite(t)) continue;
+    const idx = Math.floor((startOfToday + dayMs - 1 - t) / dayMs);
+    if (idx >= 0 && idx < 7) spark[6 - idx] += 1;
+  }
+  const last7 = spark.reduce((a, b) => a + b, 0);
+  const totalEvidence = args.trust.totalEvidence;
+  const evidenceSubtitle =
+    totalEvidence === 0
+      ? "No records yet — capture your first"
+      : last7 > 0
+        ? `+${last7}${args.listHasMore && last7 >= 100 ? "+" : ""} in the last 7 days`
+        : "No new records this week";
+
+  const mattersAttention =
+    args.caseHealthSummary.gapsCount + args.caseHealthSummary.blockersCount;
+
+  // Trust-ready: REAL signed count from trust-summary; live verify pages.
+  const signed = args.trust.signed;
+  const trustValue =
+    totalEvidence >= 10
+      ? `${Math.round((signed / Math.max(1, totalEvidence)) * 100)}%`
+      : formatKpiNumber(signed);
+  const trustSubtitle =
+    totalEvidence === 0
+      ? "Trust state appears with your first record"
+      : totalEvidence >= 10
+        ? `${formatKpiNumber(signed)} of ${formatKpiNumber(totalEvidence)} sealed · ${formatKpiNumber(args.trust.verifyPublished)} verify pages live`
+        : `sealed records · ${formatKpiNumber(args.trust.verifyPublished)} verify pages live`;
+
+  const rp = args.reportProduction;
+  const deliverablesFailed = rp.reportsFailed + rp.packagesFailed;
+  const deliverablesPending = rp.reportsPending + rp.packagesPending;
+
+  const cs = args.collectionStats;
+  const pro = isProOrTeam(args.plan);
+
+  return [
+    {
+      key: "evidence",
+      label: "Total evidence",
+      value: formatKpiNumber(totalEvidence),
+      subtitle: evidenceSubtitle,
+      tone: totalEvidence > 0 ? "ok" : "neutral",
+      spark: last7 > 0 ? spark : null,
+      href: "/evidence",
+    },
+    {
+      key: "matters",
+      label: "Active matters",
+      value: formatKpiNumber(args.caseCount),
+      subtitle:
+        args.caseCount === 0
+          ? "No open matters"
+          : mattersAttention > 0
+            ? `${mattersAttention} need${mattersAttention === 1 ? "s" : ""} attention`
+            : "All matters on track",
+      tone:
+        mattersAttention > 0 ? "warn" : args.caseCount > 0 ? "ok" : "neutral",
+      spark: null,
+      href: "/cases",
+    },
+    {
+      key: "trust",
+      label: "Trust ready",
+      value: trustValue,
+      subtitle: trustSubtitle,
+      tone:
+        args.trust.needingAttention > 0
+          ? "danger"
+          : signed > 0
+            ? "ok"
+            : "neutral",
+      spark: null,
+      href: "/evidence",
+    },
+    {
+      key: "deliverables",
+      label: "Reports & packages",
+      value: `${formatKpiNumber(rp.reportsReady)} / ${formatKpiNumber(rp.packagesReady)}`,
+      subtitle:
+        deliverablesFailed > 0
+          ? `${deliverablesFailed} failed · ${deliverablesPending} pending`
+          : deliverablesPending > 0
+            ? `${deliverablesPending} pending`
+            : rp.reportsReady + rp.packagesReady > 0
+              ? "ready reports / packages"
+              : "No deliverables yet",
+      tone:
+        deliverablesFailed > 0
+          ? "danger"
+          : deliverablesPending > 0
+            ? "warn"
+            : rp.reportsReady + rp.packagesReady > 0
+              ? "ok"
+              : "neutral",
+      spark: null,
+      href: "/reports",
+    },
+    {
+      key: "intake",
+      label: "Intake & submissions",
+      value: pro
+        ? `${formatKpiNumber(cs.activeLinks)} / ${formatKpiNumber(args.submissionsCount)}`
+        : "—",
+      subtitle: !pro
+        ? "Included with PRO"
+        : cs.failedDeliveries > 0
+          ? `${cs.failedDeliveries} failed deliver${cs.failedDeliveries === 1 ? "y" : "ies"}`
+          : args.submissionsCount > 0
+            ? `${args.submissionsCount} awaiting review`
+            : cs.activeLinks > 0
+              ? "links active / pending review"
+              : "No active intake links",
+      tone: !pro
+        ? "neutral"
+        : cs.failedDeliveries > 0
+          ? "danger"
+          : args.submissionsCount > 0
+            ? "warn"
+            : cs.activeLinks > 0
+              ? "ok"
+              : "neutral",
+      spark: null,
+      href: pro ? "/intake-links" : "/billing",
+      locked: !pro,
+    },
+  ];
+}
+
 export type NormalizeInputs = {
   plan: HomePlan;
   workspaceId: string | null;
+  /** Active workspace display name (greeting line). */
+  workspaceName?: string | null;
   activeSpaceType: ActiveSpaceType;
   commandCenter: HomeCommandCenterInput | null;
   trustSummary: HomeTrustSummaryInput | null;
@@ -1720,6 +2110,8 @@ export type NormalizeInputs = {
   inbox: HomeInboxInput | null;
   communications: HomeCommunicationsInput | null;
   orgs: HomeOrgsInput | null;
+  /** GET /v1/evidence?limit=100 — KPI sparkline / chart / donut source. */
+  evidenceList?: HomeEvidenceListInput | null;
   /** Injected for deterministic day-bucketing in tests. */
   nowMs?: number;
 };
@@ -1861,9 +2253,47 @@ export function normalizeHomeViewModel(
     activity.length > 0 ||
     storage?.usedLabel != null;
 
+  // Phase HOME-KPI — premium dashboard surfaces (all real data).
+  const scopedEvidence = scopeEvidenceList({
+    list: inputs.evidenceList ?? null,
+    workspaceId: inputs.workspaceId,
+    activeSpaceType: inputs.activeSpaceType,
+  });
+  const listHasMore = inputs.evidenceList?.pageInfo?.hasMore === true;
+  const kpis = buildKpis({
+    plan: inputs.plan,
+    trust: trustState,
+    scoped: scopedEvidence,
+    listHasMore,
+    caseCount,
+    caseHealthSummary,
+    reportProduction,
+    collectionStats,
+    submissionsCount: submissions.length,
+    nowMs,
+  });
+  const activitySeries = buildActivitySeries({
+    scoped: scopedEvidence,
+    reports: inputs.reports,
+    listHasMore,
+    nowMs,
+  });
+  const typeDistribution = buildTypeDistribution({
+    scoped: scopedEvidence,
+    listHasMore,
+  });
+  const richRecentEvidence = buildRichRecentEvidence(scopedEvidence);
+  const inboxCount = (inputs.inbox?.items ?? []).length;
+
   return {
     plan: inputs.plan,
     workspaceId: inputs.workspaceId,
+    workspaceName: inputs.workspaceName ?? null,
+    kpis,
+    activitySeries,
+    typeDistribution,
+    richRecentEvidence,
+    inboxCount,
     heroAction,
     operationalQueue,
     submissions,

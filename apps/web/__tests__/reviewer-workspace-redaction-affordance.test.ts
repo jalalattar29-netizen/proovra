@@ -313,9 +313,13 @@ test("SidePaneEvidence denial copy avoids RATE_LIMITED collapse", () => {
 // ---------------------------------------------------------------------------
 
 test("workspace page derives canRequestRedaction from useActiveSpace role label", () => {
+  // Tolerates a combined import ({ useActiveSpace, useActiveSpaceId })
+  // — the sibling decision-wiring test REQUIRES the combined form, and
+  // the previous exact-singleton regex made the two tests mutually
+  // unsatisfiable (the suite could never be green).
   assert.match(
     PAGE_SOURCE,
-    /import\s*\{\s*useActiveSpace\s*\}\s*from\s*"\.\.\/\.\.\/\.\.\/\.\.\/lib\/platform-context"/,
+    /import\s*\{[^}]*useActiveSpace[^}]*\}\s*from\s*"\.\.\/\.\.\/\.\.\/\.\.\/lib\/platform-context"/,
     "Workspace page must import useActiveSpace from the canonical platform-context.",
   );
   assert.match(

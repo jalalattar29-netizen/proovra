@@ -259,12 +259,12 @@ describe("Phase G0 (B0.5) — /workspaces canonical frontend route", () => {
     expect(WORKSPACES_PAGE).toContain("OperationalBreadcrumb");
   });
 
-  it("legacy /teams URL continues to surface the workspace administration view (backward-compat)", () => {
-    // Phase Final-Closure-Remediation — the duplicate `/teams/page.tsx`
-    // shim was deleted; the legacy URL is preserved as a permanent 308
-    // redirect in `next.config.js` to the canonical `/workspaces`
-    // surface (which is itself PageRouteGate-wrapped on `admin.teams`).
-    expect(NEXT_CONFIG).toMatch(
+  it("the workspace administration view stays at /workspaces; /teams is NOT redirected away", () => {
+    // Phase HOME-DATA-OWNERSHIP — the /teams → /workspaces redirect was
+    // REMOVED (it shadowed the self-serve /teams landing and blanked
+    // Home's "Invite a teammate" for personal-space users). The admin
+    // view remains at /workspaces, gate intact.
+    expect(NEXT_CONFIG).not.toMatch(
       /source:\s*["']\/teams["'][\s\S]{0,200}destination:\s*["']\/workspaces["']/,
     );
     expect(WORKSPACES_PAGE).toContain("WorkspaceAdministrationHome");

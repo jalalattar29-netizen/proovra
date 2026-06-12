@@ -19,7 +19,10 @@
  * Read-only. Never mutates. Never emits an audit event.
  */
 
+import type { Prisma } from "@prisma/client";
+
 import { prisma } from "../../db.js";
+import { workspaceEvidenceWhere } from "../workspace-personal-scope.service.js";
 
 export type TrustSummary = {
   /** Total non-deleted evidence in the workspace. */
@@ -73,7 +76,13 @@ function otsBucket(raw: string | null): "anchored" | "pending" | "failed" | "non
 export async function buildTrustSummary(input: {
   teamId: string;
 }): Promise<TrustSummary> {
-  const baseWhere = { teamId: input.teamId, deletedAt: null } as const;
+  // Phase HOME-DATA-OWNERSHIP — for personal workspaces the filter
+  // also matches the owner's legacy `team_id NULL` rows (pre-backfill
+  // databases). Strict teamId filter for real team workspaces.
+  const scopeWhere = await workspaceEvidenceWhere(input.teamId);
+  const baseWhere: Prisma.EvidenceWhereInput = {
+    AND: [scopeWhere, { deletedAt: null }],
+  };
 
   // GROUP BY on the real columns. Each call is a single aggregate query;
   // the numbers are direct counts, never derived.

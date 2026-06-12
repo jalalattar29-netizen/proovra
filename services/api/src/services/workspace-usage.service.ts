@@ -195,16 +195,33 @@ export async function getWorkspaceUsage(
 ): Promise<WorkspaceUsage> {
   const caps = getPlanCapabilities(scope.plan);
 
+  // Phase HOME-DATA-OWNERSHIP — personal usage covers BOTH legacy rows
+  // (team_id NULL) and rows stamped with the owner's personal Team id
+  // (new captures + backfilled rows). Without the OR, every backfilled
+  // byte would silently vanish from personal storage accounting.
+  // (Evidence has no `team` relation field, so the personal team id is
+  // resolved first.)
+  const personalTeamForUsage = scope.teamId
+    ? null
+    : await prisma.team.findFirst({
+        where: { ownerUserId: scope.ownerUserId, isPersonal: true },
+        select: { id: true },
+      });
+  const personalEvidenceWhere = {
+    ownerUserId: scope.ownerUserId,
+    deletedAt: null,
+    OR: [
+      { teamId: null },
+      ...(personalTeamForUsage ? [{ teamId: personalTeamForUsage.id }] : []),
+    ],
+  };
+
   const evidenceWhere = scope.teamId
     ? {
         teamId: scope.teamId,
         deletedAt: null,
       }
-    : {
-        ownerUserId: scope.ownerUserId,
-        teamId: null,
-        deletedAt: null,
-      };
+    : personalEvidenceWhere;
 
   const reportWhere = scope.teamId
     ? {
@@ -214,11 +231,7 @@ export async function getWorkspaceUsage(
         },
       }
     : {
-        evidence: {
-          ownerUserId: scope.ownerUserId,
-          teamId: null,
-          deletedAt: null,
-        },
+        evidence: personalEvidenceWhere,
       };
 
   const verificationPackageWhere = scope.teamId
@@ -229,11 +242,7 @@ export async function getWorkspaceUsage(
         },
       }
     : {
-        evidence: {
-          ownerUserId: scope.ownerUserId,
-          teamId: null,
-          deletedAt: null,
-        },
+        evidence: personalEvidenceWhere,
       };
 
   const [

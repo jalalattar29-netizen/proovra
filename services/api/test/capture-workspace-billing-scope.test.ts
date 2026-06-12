@@ -119,18 +119,21 @@ describe("Capture scope hotfix — createEvidence honors explicit teamId only", 
     expect(src).toMatch(/params\.teamId\s*\?\?\s*null/);
   });
 
-  it("the Capture orchestration POST /v1/evidence body does NOT send teamId", () => {
+  it("the Capture orchestration POST /v1/evidence body sends the ACTIVE workspace id (Phase HOME-DATA-OWNERSHIP)", () => {
     const src = readSource(
       "../../../apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts",
     );
-    // Capture must never auto-attach a teamId in the create body. The
-    // route receives an undefined teamId → service treats it as
-    // PERSONAL → billing gate is the personal one.
+    // Phase HOME-DATA-OWNERSHIP inverted the old rule. Capture now
+    // stamps the ACTIVE workspace id (personal Team id or team
+    // workspace id) so evidence is never orphaned with team_id NULL.
+    // The id comes from useActiveSpaceId() — NEVER from a capture
+    // template and NEVER from owner.currentWorkspaceId on the server.
+    expect(src).toMatch(/useActiveSpaceId/);
     const postBlock = src.slice(
       src.indexOf('apiFetch("/v1/evidence"'),
-      src.indexOf('apiFetch("/v1/evidence"') + 800,
+      src.indexOf('apiFetch("/v1/evidence"') + 1200,
     );
-    expect(postBlock).not.toMatch(/teamId\s*:/);
+    expect(postBlock).toMatch(/teamId:\s*activeSpaceId\s*\?\?\s*undefined/);
   });
 });
 

@@ -42,11 +42,23 @@ export async function assertWorkspaceAllowsEvidenceCreation(
     return;
   }
 
+  // Phase HOME-DATA-OWNERSHIP — personal records are no longer
+  // `teamId NULL`-only: new captures stamp the owner's personal Team
+  // id, and the backfill migrates legacy NULL rows to it. Count both
+  // shapes so plan limits survive the migration. (Evidence has no
+  // `team` relation field, so the personal team id is resolved first.)
+  const personalTeam = await prisma.team.findFirst({
+    where: { ownerUserId: scope.ownerUserId, isPersonal: true },
+    select: { id: true },
+  });
   const evidenceCount = await prisma.evidence.count({
     where: {
       ownerUserId: scope.ownerUserId,
-      teamId: null,
       deletedAt: null,
+      OR: [
+        { teamId: null },
+        ...(personalTeam ? [{ teamId: personalTeam.id }] : []),
+      ],
     },
   });
 

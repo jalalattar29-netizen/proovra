@@ -22,6 +22,7 @@ import {
   resolveCaseDestructiveGate,
   evaluateCrossTeamAttach,
 } from "../services/cases/case-permission.service.js";
+import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
 
 // Phase 4B Final Closure I5 — legal-hold gate for case deletion.
 // Queries CASE + WORKSPACE + ORGANIZATION holds scoped to the teamId.
@@ -167,11 +168,20 @@ export async function casesRoutes(app: FastifyInstance) {
       }
     }
 
+    // Phase HOME-DATA-OWNERSHIP — cases follow the same ownership rule
+    // as evidence: every row carries a REAL team id. When the client
+    // does not pin a team workspace, the case belongs to the owner's
+    // personal Team (bootstrapped if missing). "teamId NULL means
+    // personal" is dead for new rows.
+    const effectiveCaseTeamId =
+      body.teamId ??
+      (await ensurePersonalWorkspace({ userId: ownerUserId })).teamId;
+
     const created = await prisma.case.create({
       data: {
         name: body.name,
         ownerUserId,
-        teamId: body.teamId ?? null,
+        teamId: effectiveCaseTeamId,
       },
     });
 

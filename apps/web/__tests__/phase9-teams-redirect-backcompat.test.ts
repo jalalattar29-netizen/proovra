@@ -1,31 +1,26 @@
 /**
- * Phase 9 audit — regression lock: `/teams` → `/workspaces` backcompat
- * redirect must remain in `apps/web/next.config.js`.
+ * Phase 9 audit — `/teams` URL contract. REWRITTEN by Phase
+ * HOME-DATA-OWNERSHIP.
  *
- * Context (Phase 9 binding rules):
- *   - Team is NOT Workspace. Workspace kinds remain ONLY PERSONAL,
- *     ORGANIZATION. Team is a separate collaboration feature available
- *     inside both PERSONAL and ORGANIZATION workspaces.
- *   - In a prior phase (Final-Closure-Remediation), the legacy
- *     `/teams` URL was collapsed because it had become a duplicate of
- *     the canonical `/workspaces` admin surface. The redirect was put
- *     in place so deep links to `/teams` (bookmarks, emails, external
- *     docs) keep resolving.
- *   - If a future refactor accidentally drops the redirect, those deep
- *     links 404. Worse, since "Team" and "Workspace" are intentionally
- *     distinct concepts under the Phase 9 vocabulary contract, a fresh
- *     `/teams` page added later would collide with the legacy URL
- *     semantics. The redirect is the seam that keeps the old URL
- *     pointing at the canonical admin surface while the live "Team"
- *     feature lives at its own routes.
+ * History:
+ *   - Phase Final-Closure-Remediation collapsed a then-duplicate
+ *     `/teams` page into `/workspaces` and added a permanent server
+ *     redirect. The original version of this test locked that redirect.
+ *   - Phase IA-self-serve-completion later shipped a REAL self-serve
+ *     landing page at `app/(app)/teams/page.tsx` ("Your teams") and
+ *     pointed Home's "Invite a teammate" checklist step at `/teams` —
+ *     but the Phase 9 redirect still fired first, so the page was
+ *     unreachable and every personal-space user who clicked "Invite a
+ *     teammate" landed on `/workspaces`, whose `admin.teams`
+ *     PageRouteGate (TEAM_VIEW) rendered a BLANK page.
+ *   - Phase HOME-DATA-OWNERSHIP resolves the collision: `/teams` is
+ *     canonical for self-serve team management; the redirect is GONE.
+ *     Legacy deep links to `/workspaces` are mapped back to `/teams`
+ *     for self-serve plans by the surface-tier rule in
+ *     `lib/surface/tiers.ts` (`/workspaces` → redirectTo "/teams").
  *
- * This test reads `next.config.js` as plain text and asserts the
- * canonical redirect entry is present. We intentionally do NOT import
- * the config: Next's config file is ESM-with-side-effects and pulling
- * it into a test runtime would drag in the Next build pipeline. Plain
- * substring assertions are sufficient to catch accidental deletion.
- *
- * Allowed fix kind under Phase 9: NEW_TEST (regression lock only).
+ * This test now locks the corrected contract so the blank-page
+ * regression can never silently return.
  */
 
 import test from "node:test";
@@ -37,89 +32,59 @@ import { dirname, resolve } from "node:path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const NEXT_CONFIG_PATH = resolve(__dirname, "..", "next.config.js");
+const TIERS_PATH = resolve(__dirname, "..", "lib", "surface", "tiers.ts");
+const TEAMS_PAGE_PATH = resolve(
+  __dirname,
+  "..",
+  "app",
+  "(app)",
+  "teams",
+  "page.tsx",
+);
 
 const NEXT_CONFIG_SOURCE = readFileSync(NEXT_CONFIG_PATH, "utf8");
+const TIERS_SOURCE = readFileSync(TIERS_PATH, "utf8");
+const TEAMS_PAGE_SOURCE = readFileSync(TEAMS_PAGE_PATH, "utf8");
 
-test("next.config.js declares an async redirects() function", () => {
-  assert.match(
-    NEXT_CONFIG_SOURCE,
-    /async\s+redirects\s*\(\s*\)\s*\{/,
-    "next.config.js must expose an async redirects() function — the " +
-      "Phase 9 backcompat redirects live inside it.",
-  );
-});
-
-test("next.config.js contains the canonical /teams → /workspaces redirect", () => {
-  // Match the entry tolerantly: order of keys, quote style, and
-  // whitespace can drift across formatter passes. What we care about
-  // is the (source, destination, permanent: true) triple appearing
-  // together in a single redirect object literal.
+test("next.config.js does NOT redirect /teams away (the self-serve landing must be reachable)", () => {
   const redirectPattern =
-    /\{\s*source:\s*["']\/teams["']\s*,\s*destination:\s*["']\/workspaces["']\s*,\s*permanent:\s*true\s*,?\s*\}/;
-
-  assert.match(
-    NEXT_CONFIG_SOURCE,
-    redirectPattern,
-    "The Phase 9 audit requires that next.config.js continues to " +
-      "redirect `/teams` → `/workspaces` (permanent). This redirect " +
-      "was introduced when the duplicate `/teams` page was retired " +
-      "in favor of the canonical `/workspaces` admin surface. " +
-      "Removing it would 404 every legacy deep link and break the " +
-      "Workspace vs Team vocabulary contract that Phase 9 locks in.",
-  );
-});
-
-test("the /teams redirect is permanent (308), not temporary (307)", () => {
-  // Belt-and-braces: a future contributor might preserve the source
-  // and destination but flip `permanent: true` → `false`. That would
-  // silently demote the redirect from 308 → 307, which breaks
-  // search-engine canonicalization and confuses HTTP caches. Lock the
-  // status explicitly.
-  const teamsBlockMatch = NEXT_CONFIG_SOURCE.match(
-    /\{\s*source:\s*["']\/teams["'][\s\S]*?\}/,
-  );
-
-  assert.ok(
-    teamsBlockMatch,
-    "Could not locate the `/teams` redirect block in next.config.js.",
-  );
-
-  assert.match(
-    teamsBlockMatch![0],
-    /permanent:\s*true/,
-    "The `/teams` redirect must remain permanent (308). Phase 9 " +
-      "treats legacy URL collapses as canonical moves, not " +
-      "temporary diversions.",
-  );
+    /\{\s*source:\s*["']\/teams["']\s*,\s*destination:/;
 
   assert.doesNotMatch(
-    teamsBlockMatch![0],
-    /permanent:\s*false/,
-    "The `/teams` redirect must not be flipped to a temporary " +
-      "(307) redirect.",
+    NEXT_CONFIG_SOURCE,
+    redirectPattern,
+    "A server redirect for `/teams` shadows app/(app)/teams/page.tsx " +
+      "entirely — Home's 'Invite a teammate' CTA then lands on the " +
+      "gated /workspaces surface, which renders BLANK for personal-" +
+      "space users. /teams is the canonical self-serve team surface; " +
+      "do not reintroduce the redirect.",
   );
 });
 
-test("the /teams redirect destination is exactly /workspaces (not /workspaces/...)", () => {
-  // Guard against a well-meaning but wrong refactor: pointing
-  // `/teams` at a deeper page (e.g. `/workspaces/teams` or
-  // `/workspaces/list`) would re-tangle the Team vs Workspace
-  // vocabulary. The canonical destination is the `/workspaces` admin
-  // landing exactly.
-  const teamsBlockMatch = NEXT_CONFIG_SOURCE.match(
-    /\{\s*source:\s*["']\/teams["'][\s\S]*?\}/,
-  );
-
-  assert.ok(
-    teamsBlockMatch,
-    "Could not locate the `/teams` redirect block in next.config.js.",
-  );
-
+test("the self-serve /teams landing page exists and renders real content", () => {
   assert.match(
-    teamsBlockMatch![0],
-    /destination:\s*["']\/workspaces["']/,
-    "The `/teams` redirect must target `/workspaces` exactly. A " +
-      "deeper destination would re-introduce the Team/Workspace " +
-      "vocabulary collision that Phase 9 forbids.",
+    TEAMS_PAGE_SOURCE,
+    /TeamsLandingPage/,
+    "app/(app)/teams/page.tsx must export the self-serve teams landing.",
+  );
+  // It must not be wrapped in the admin.teams gate that blanked it
+  // historically (capability TEAM_VIEW is not held by personal users).
+  // Assert on the IMPORT — the page header comment legitimately
+  // mentions the gate string when documenting the old bug.
+  assert.doesNotMatch(
+    TEAMS_PAGE_SOURCE,
+    /import\s*\{[^}]*PageRouteGate[^}]*\}/,
+    "The /teams landing must not re-wrap itself in the admin.teams " +
+      "gate — that gate denies personal-space users and produced the " +
+      "historic blank page.",
+  );
+});
+
+test("legacy /workspaces deep links map back to /teams for self-serve (tier rule)", () => {
+  assert.match(
+    TIERS_SOURCE,
+    /pathPrefix:\s*["']\/workspaces["'][\s\S]{0,200}?redirectTo:\s*["']\/teams["']/,
+    "lib/surface/tiers.ts must keep the /workspaces → /teams mapping " +
+      "so legacy bookmarks keep resolving for self-serve users.",
   );
 });

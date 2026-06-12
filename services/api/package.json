@@ -18,6 +18,8 @@
     "db:diff-guard": "node scripts/db-diff-guard.mjs",
     "db:backfill:orgs": "node scripts/backfill-organizations.mjs",
     "db:backfill:orgs:dry": "node scripts/backfill-organizations.mjs --dry-run",
+    "db:backfill:personal-teams": "tsx scripts/backfill-personal-team-ownership.ts",
+    "db:backfill:personal-teams:apply": "tsx scripts/backfill-personal-team-ownership.ts --apply --bootstrap-missing",
     "db:check-org-consistency": "node scripts/check-org-consistency.mjs",
     "db:not-null-readiness": "node scripts/not-null-readiness.mjs",
     "db:preflight": "node scripts/db-preflight.mjs",

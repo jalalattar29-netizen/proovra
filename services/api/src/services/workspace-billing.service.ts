@@ -94,12 +94,27 @@ export async function getPersonalWorkspaceScope(
       }),
     ]);
 
+  // Phase HOME-DATA-OWNERSHIP — a TEAM-tier account still owns a
+  // personal workspace. `getPlanCapabilities(TEAM).allowsPersonalWorkspace`
+  // is false, and the previous behaviour was to let
+  // assertWorkspacePlanCompatible THROW here — which 500'd
+  // /v1/billing/overview and broke personal-scope resolution (incl.
+  // capture) for every TEAM-plan account. The platform already treats
+  // TEAM accounts as pro-grade (PRO_PLAN_KEYS = {PRO, TEAM} in
+  // platform-context), so resolve the personal scope at PRO grade
+  // instead of throwing. Team workspaces keep full TEAM semantics via
+  // getTeamWorkspaceScope; this only affects the PERSONAL space.
+  const personalPlan = getPlanCapabilities(entitlement.plan)
+    .allowsPersonalWorkspace
+    ? entitlement.plan
+    : prismaPkg.PlanType.PRO;
+
   const scope: WorkspaceScope = {
     workspaceType: "PERSONAL",
     ownerUserId: userId,
     teamId: null,
     organizationId: personalTeam?.organizationId ?? null,
-    plan: entitlement.plan,
+    plan: personalPlan,
     credits: entitlement.credits ?? 0,
     teamSeats: 0,
     storageBytesOverride: null,

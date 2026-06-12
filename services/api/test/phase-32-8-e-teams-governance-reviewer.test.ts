@@ -405,15 +405,16 @@ describe("Phase 32.8E — enterprise aggregator routes", () => {
 // =============================================================================
 
 describe("Phase 32.8E — /teams workspace administration", () => {
-  it("the /teams URL resolves to the canonical WorkspaceAdministrationHome via /workspaces", () => {
-    // ENTERPRISE TENANT MODEL — /teams renders the canonical home
-    // (Personal Space card + Organizations list + Create/Join CTAs +
-    // duplicate diagnostic). Phase Final-Closure-Remediation deleted
-    // the duplicate `app/(app)/teams/page.tsx` shim and routed the
-    // legacy URL via `next.config.js` `redirects()` to the canonical
-    // `/workspaces` surface; behaviour parity preserved.
+  it("/workspaces keeps the canonical WorkspaceAdministrationHome; /teams is self-serve canonical", () => {
+    // Phase HOME-DATA-OWNERSHIP — the /teams → /workspaces redirect was
+    // REMOVED: it shadowed the self-serve /teams landing
+    // (app/(app)/teams/page.tsx, Phase IA-self-serve-completion) and
+    // blanked Home's "Invite a teammate" for personal-space users.
+    // /workspaces still mounts WorkspaceAdministrationHome; the
+    // reverse mapping (/workspaces → /teams for self-serve) lives in
+    // lib/surface/tiers.ts.
     expect(WORKSPACES_PAGE).toMatch(/<WorkspaceAdministrationHome\s*\/>/);
-    expect(NEXT_CONFIG).toMatch(
+    expect(NEXT_CONFIG).not.toMatch(
       /source:\s*["']\/teams["'][\s\S]{0,200}destination:\s*["']\/workspaces["']/,
     );
   });

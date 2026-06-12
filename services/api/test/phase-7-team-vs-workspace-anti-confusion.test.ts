@@ -175,9 +175,13 @@ describe("Phase 7 Closure — workspace kinds are bounded to PERSONAL + ORGANIZA
 // ---------------------------------------------------------------------------
 
 describe("Phase 7 Closure — Collaboration Teams vs Workspaces URL separation", () => {
-  it("the legacy /teams URL family 308-redirects to /workspaces (the canonical workspace list)", () => {
+  it("/teams is canonical for self-serve teams — no redirect to /workspaces", () => {
+    // Phase HOME-DATA-OWNERSHIP — the old 308 redirect shadowed the
+    // self-serve /teams landing (app/(app)/teams/page.tsx) and blanked
+    // Home's "Invite a teammate" CTA for personal-space users. Legacy
+    // /workspaces deep links map back via lib/surface/tiers.ts.
     const cfg = readFileSync(resolve(WEB_ROOT, "next.config.js"), "utf8");
-    expect(cfg).toMatch(
+    expect(cfg).not.toMatch(
       /source:\s*"\/teams"[\s\S]{0,200}destination:\s*"\/workspaces"/,
     );
   });

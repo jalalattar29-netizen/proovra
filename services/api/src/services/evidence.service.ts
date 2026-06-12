@@ -24,6 +24,7 @@ import {
   buildStrictDepartmentScopeWhere,
   resolveUserDepartmentScope,
 } from "./governance/department-scope.service.js";
+import { ensurePersonalWorkspace } from "./platform-context/workspace-bootstrap.service.js";
 
 function must(name: string): string {
   const v = process.env[name];
@@ -198,9 +199,33 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   // and trip the TEAM plan gate, even when the user picked a template
   // like "Legal Matter" that has no team implications. Templates only
   // describe checklist structure; they never imply workspace scope.
-  const effectiveTeamId = params.teamId ?? null;
+  //
+  // Phase HOME-DATA-OWNERSHIP — "team_id NULL means personal" is dead.
+  // Every evidence row now carries a REAL team id:
+  //
+  //   - teamId omitted              → resolve (or bootstrap) the owner's
+  //     personal Team row and stamp ITS id. Billing stays PERSONAL
+  //     (entitlement-based) — stamping the personal team id is a data-
+  //     ownership decision, not a billing decision.
+  //   - teamId = caller's personal Team → same as omitted (PERSONAL
+  //     billing, personal team id stamped).
+  //   - teamId = a real team workspace → unchanged TEAM semantics.
+  //
+  // This is what makes workspace-scoped reads (Home dashboard,
+  // trust-summary, command-center, reports?teamId=…) see personal
+  // evidence. Rows are never created with team_id NULL again.
+  let effectiveTeamId = params.teamId ?? null;
+  let isPersonalWorkspaceCapture = false;
 
   if (effectiveTeamId) {
+    const targetTeam = await prisma.team.findUnique({
+      where: { id: effectiveTeamId },
+      select: { isPersonal: true, ownerUserId: true },
+    });
+    isPersonalWorkspaceCapture =
+      targetTeam?.isPersonal === true &&
+      targetTeam.ownerUserId === params.ownerUserId;
+
     const membership = await prisma.teamMember.findUnique({
       where: {
         teamId_userId: {
@@ -211,7 +236,11 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
       select: { teamId: true },
     });
 
-    if (!membership) {
+    if (!membership && isPersonalWorkspaceCapture) {
+      // Self-heal: the bootstrap upserts the OWNER membership row for
+      // the caller's own personal team.
+      await ensurePersonalWorkspace({ userId: params.ownerUserId });
+    } else if (!membership) {
       const err: Error & { statusCode?: number; code?: string } = new Error(
         "Forbidden team workspace"
       );
@@ -219,24 +248,36 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
       err.code = "TEAM_WORKSPACE_FORBIDDEN";
       throw err;
     }
+  } else {
+    const personal = await ensurePersonalWorkspace({
+      userId: params.ownerUserId,
+    });
+    effectiveTeamId = personal.teamId;
+    isPersonalWorkspaceCapture = true;
   }
 
-  const workspaceTeam = effectiveTeamId
-    ? await prisma.team.findUnique({
-        where: { id: effectiveTeamId },
-        select: {
-          id: true,
-          name: true,
-          legalName: true,
-          verificationState: true,
-          evidenceWorkspaceLabel: true,
-        },
-      })
-    : null;
+  // Snapshots and TEAM billing semantics only apply to REAL team
+  // workspaces. A personal capture stamps the personal team id on the
+  // row but keeps the historical personal behavior everywhere else:
+  // PERSONAL billing scope (entitlement-based, no TEAM_PLAN gate), no
+  // workspace name snapshot, no ORGANIZATION_ACCOUNT identity level.
+  const workspaceTeam =
+    effectiveTeamId && !isPersonalWorkspaceCapture
+      ? await prisma.team.findUnique({
+          where: { id: effectiveTeamId },
+          select: {
+            id: true,
+            name: true,
+            legalName: true,
+            verificationState: true,
+            evidenceWorkspaceLabel: true,
+          },
+        })
+      : null;
 
   const scope = await resolveWorkspaceScopeForUser({
     ownerUserId: params.ownerUserId,
-    teamId: effectiveTeamId,
+    teamId: isPersonalWorkspaceCapture ? null : effectiveTeamId,
   });
 
   await assertWorkspaceAllowsEvidenceCreation(scope);
@@ -259,12 +300,13 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   // both into the EVIDENCE_CREATED custody payload below. The strict
   // fragment is exercised here so any future query that joins evidence
   // by departmentId can read the same canonical shape from the chain.
-  const departmentScopeContext = effectiveTeamId
-    ? await resolveUserDepartmentScope({
-        teamId: effectiveTeamId,
-        userId: params.ownerUserId,
-      }).catch(() => null)
-    : null;
+  const departmentScopeContext =
+    effectiveTeamId && !isPersonalWorkspaceCapture
+      ? await resolveUserDepartmentScope({
+          teamId: effectiveTeamId,
+          userId: params.ownerUserId,
+        }).catch(() => null)
+      : null;
   const departmentScopeStrictWhere = departmentScopeContext
     ? buildStrictDepartmentScopeWhere(departmentScopeContext)
     : undefined;
@@ -288,7 +330,10 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     provider: owner.provider,
     emailVerifiedAt: owner.emailVerifiedAt ?? null,
     currentWorkspaceVerified: organizationVerifiedSnapshot,
-    currentWorkspaceId: effectiveTeamId,
+    // Personal captures keep their personal identity semantics — the
+    // stamped personal team id must NOT promote them to
+    // ORGANIZATION_ACCOUNT.
+    currentWorkspaceId: isPersonalWorkspaceCapture ? null : effectiveTeamId,
   });
 
   const workspaceNameSnapshot =
@@ -307,7 +352,13 @@ data: {
   ownerUserId: params.ownerUserId,
   originalFileName: resolvedFileNames.originalFileName,
   displayFileName: resolvedFileNames.displayFileName,
-  teamId: scope.teamId,
+  // Phase HOME-DATA-OWNERSHIP — always the REAL resolved team id
+  // (personal Team row for personal captures, team workspace id for
+  // team captures). Never null. `scope.teamId` is intentionally NOT
+  // used here: for personal captures the billing scope is PERSONAL
+  // (scope.teamId === null) while the data-ownership stamp is the
+  // personal team id.
+  teamId: effectiveTeamId,
   // Phase A1 — write the resolved organization id, NOT the team id.
   // The earlier `organizationId: scope.teamId` was a real bug: it
   // stored the Team uuid in the Organization column. The A1
@@ -456,7 +507,10 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
   // failure here MUST NOT fail evidence creation.
   ensureUploadSession({
     evidenceId: created.id,
-    teamId: scope.teamId ?? null,
+    // Mirror the Evidence row's stamped team id (personal Team id for
+    // personal captures) so the observational session and the evidence
+    // row never disagree about workspace ownership.
+    teamId: effectiveTeamId,
   })
     .then(() =>
       safeTransitionUploadSession({
@@ -495,7 +549,8 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
     id: created.id,
     // Phase 30.12 — expose teamId so the capture page can drive
     // resumable upload session creation (which requires teamId in
-    // every authorize call). Null for personal workspaces.
+    // every authorize call). Phase HOME-DATA-OWNERSHIP: never null —
+    // personal captures return the owner's personal Team id.
     teamId: effectiveTeamId,
     status: EvidenceStatus.UPLOADING,
     upload: {
