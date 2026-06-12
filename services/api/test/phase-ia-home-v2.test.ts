@@ -323,28 +323,39 @@ describe("Phase IA-home-v2 — activity feed", () => {
 // ============================================================================
 
 describe("Phase IA-home-v2 — getting started real signals", () => {
-  it("first_intake_link.done derives from a REAL intake link count (never hardcoded false)", () => {
-    const VM = readWeb("components/home-experience/home-view-model.ts");
-    expect(VM).toMatch(/done:\s*args\.intakeLinkCount > 0/);
-    // The literal hardcoded-false bug must not return.
-    expect(VM).not.toMatch(/key:\s*"first_intake_link"[\s\S]{0,200}done:\s*false/);
-  });
-
-  it("invite_first_teammate.done requires more than the owner (memberCount > 1)", () => {
-    const VM = readWeb("components/home-experience/home-view-model.ts");
-    expect(VM).toMatch(/done:\s*args\.teamMemberCount > 1/);
-  });
-
-  it("with intake link present + team of 4, both PRO steps complete from real data", () => {
+  // Phase HOME-POLISH — onboarding was reduced to the four core
+  // workflow steps (capture → case → report → share verification).
+  // Intake/invite steps were retired from onboarding; they surface
+  // as Workspace Priorities for active users instead.
+  it("the onboarding card has exactly the four core workflow steps", () => {
     const vm = build("PRO");
-    const steps = vm.checklist;
-    expect(steps.find((s) => s.key === "first_intake_link")?.done).toBe(true);
-    expect(steps.find((s) => s.key === "invite_first_teammate")?.done).toBe(true);
+    expect(vm.checklist.map((s) => s.key)).toEqual([
+      "capture_first",
+      "create_first_case",
+      "first_report",
+      "share_verification",
+    ]);
+  });
+
+  it("share_verification.done derives from REAL live verify pages (never hardcoded)", () => {
+    const VM = readWeb("components/home-experience/home-view-model.ts");
+    expect(VM).toMatch(/done:\s*args\.verifyPublished > 0/);
+    expect(VM).not.toMatch(/key:\s*"share_verification"[\s\S]{0,200}done:\s*false/);
+  });
+
+  it("Getting Started is gated to TRULY NEW users only (showGettingStarted)", () => {
+    const VM = readWeb("components/home-experience/home-view-model.ts");
+    expect(VM).toMatch(
+      /showGettingStarted =\s*\n?\s*evidenceCount === 0 &&\s*\n?\s*reportCount === 0 &&\s*\n?\s*caseCount === 0 &&\s*\n?\s*trustState\.verifyPublished === 0/,
+    );
+    // Active fixture user (evidence + reports present) never sees it.
+    const vm = build("PRO");
+    expect(vm.showGettingStarted).toBe(false);
   });
 
   it("checklistComplete flips true only when every visible step is done; UI auto-collapses", () => {
     const vm = build("PRO");
-    // capture+case+report+intake+invite all satisfied by fixtures.
+    // Fixtures satisfy capture+case+report+published verification.
     expect(vm.checklistComplete).toBe(true);
     const SRC = readWeb("components/home-experience/HomeSections.tsx");
     expect(SRC).toMatch(/if \(complete\) return null/);

@@ -85,25 +85,21 @@ describe("Phase IA-self-serve-regression-fix — BUG 2: Invite teammate + /teams
   const HOME = readWeb("components/home-experience/SelfServeHomeDashboard.tsx");
   const TEAMS = readWeb("app/(app)/teams/page.tsx");
 
-  it("Invite teammate row is plan-gated on isProOrTeam (FREE/PAYG hidden)", () => {
-    // Phase IA-self-serve-home-rebuild — the Invite teammate CTA is
-    // now driven by the home view model's checklist `visible` flag
-    // (`invite_first_teammate` step), gated on `isProOrTeam(plan)`.
-    // The same shape pins the Intake-link step.
+  it("the onboarding checklist no longer carries an Invite-teammate step at all (Phase HOME-POLISH)", () => {
+    // Phase HOME-POLISH retired intake/invite from onboarding entirely:
+    // Getting Started is the four core workflow steps only (capture →
+    // case → report → share verification). The historic blank-page CTA
+    // cannot regress if the step does not exist.
     const VM = readWeb("components/home-experience/home-view-model.ts");
-    expect(VM).toMatch(
-      /isProOrTeam\(args\.plan\)[\s\S]{0,800}invite_first_teammate/,
-    );
+    expect(VM).not.toMatch(/invite_first_teammate/);
   });
 
-  it("FREE/PAYG do NOT receive the Invite teammate step in the checklist", () => {
-    // The view model's `buildChecklist` derives `visible: pro` for
-    // intake/invite — pinning the function name + the `pro` flag
-    // ensures the FREE/PAYG branch can't accidentally widen it.
+  it("intake surfaces remain plan-gated on isProOrTeam (FREE/PAYG never see them)", () => {
+    // The create-intake-link Workspace Priority is gated by
+    // isProOrTeam; the intake pipeline card locks for non-pro plans.
     const VM = readWeb("components/home-experience/home-view-model.ts");
-    expect(VM).toMatch(
-      /function buildChecklist\([\s\S]{0,2000}invite_first_teammate[\s\S]{0,400}visible:\s*pro/,
-    );
+    expect(VM).toMatch(/isProOrTeam\(args\.plan\)[\s\S]{0,400}create_intake_link/);
+    expect(HOME).toMatch(/locked=\{!pro\}/);
   });
 
   it("/teams/page.tsx no longer wraps content in JSX `<PageRouteGate routeId=\"admin.teams\">`", () => {

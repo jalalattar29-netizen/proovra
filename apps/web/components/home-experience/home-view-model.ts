@@ -264,11 +264,30 @@ export type ChecklistStep = {
     | "capture_first"
     | "create_first_case"
     | "first_report"
-    | "first_intake_link"
-    | "invite_first_teammate";
+    | "share_verification";
   label: string;
   done: boolean;
   visible: boolean;
+  href: string;
+};
+
+/**
+ * Phase HOME-POLISH — one prioritized workspace action for ACTIVE
+ * users (replaces the onboarding checklist once real work exists).
+ * Every priority is derived from live operational data — never static
+ * copy.
+ */
+export type WorkspacePriority = {
+  key:
+    | "resolve_integrity"
+    | "publish_verification"
+    | "review_submissions"
+    | "complete_packages"
+    | "create_intake_link";
+  label: string;
+  /** Real count behind the priority (0 ⇒ the priority is omitted). */
+  count: number;
+  tone: "danger" | "warn" | "action";
   href: string;
 };
 
@@ -322,6 +341,12 @@ export type OperationalQueueItem = {
   };
   /** True when the action is a navigation fallback (no inline flow yet). */
   fallback: boolean;
+  /**
+   * Phase HOME-POLISH — optional supporting breakdown lines (e.g. the
+   * integrity item lists "3 TSA failed · 10 OTS pending · 5 unsigned").
+   * Every line is a real count; empty/omitted when nothing to break down.
+   */
+  breakdown?: string[];
 };
 
 /** A matter/case row — work-centric, shows portfolio + what needs work. */
@@ -500,6 +525,16 @@ export type HomeViewModel = {
   checklist: ChecklistStep[];
   /** True once every visible checklist step is done — UI collapses it. */
   checklistComplete: boolean;
+  /**
+   * Phase HOME-POLISH — onboarding renders for TRULY NEW users only:
+   * zero evidence AND zero reports AND zero matters AND zero live
+   * verification pages. Active users get Workspace Priorities instead.
+   */
+  showGettingStarted: boolean;
+  /** Real prioritized actions for active users (replaces onboarding). */
+  workspacePriorities: WorkspacePriority[];
+  /** Overall workspace verdict derived from the health metric tones. */
+  workspaceHealthOverall: "healthy" | "needs_attention" | "action_required";
   hasAnyData: boolean;
 };
 
@@ -1176,10 +1211,16 @@ function buildActivity(args: {
   for (const it of args.cc?.sections?.timeline?.items ?? []) {
     const mapped = ACTIVITY_KIND_LABELS[(it.kind ?? "").toLowerCase()];
     if (!mapped || !it.occurredAt) continue;
+    // Phase HOME-POLISH — never render "… — Untitled" spam: when the
+    // backend label carries no real entity name, fall back to the
+    // canonical event label instead.
+    const rawLabel = (it.label ?? "").trim();
+    const isUntitled =
+      rawLabel.length === 0 || /\buntitled\b\s*$/i.test(rawLabel);
     events.push({
       id: `tl:${it.id}`,
       kind: mapped.kind,
-      label: it.label ?? mapped.label,
+      label: isUntitled ? mapped.label : rawLabel,
       occurredAt: it.occurredAt,
       href: it.href ?? "/inbox",
     });
@@ -1279,54 +1320,117 @@ function buildTeamWork(args: {
   };
 }
 
+/**
+ * Phase HOME-POLISH — onboarding is for TRULY NEW users only. The card
+ * is the compact "Start your first evidence workflow" with the four
+ * core steps. Intake/teammate steps were removed from onboarding —
+ * they reappear naturally as Workspace Priorities once real work
+ * exists.
+ */
 function buildChecklist(args: {
-  plan: HomePlan;
   evidenceCount: number;
   caseCount: number;
   reportCount: number;
-  intakeLinkCount: number;
-  teamMemberCount: number;
+  verifyPublished: number;
 }): ChecklistStep[] {
-  const pro = isProOrTeam(args.plan);
   return [
     {
       key: "capture_first",
-      label: "Capture your first evidence record",
+      label: "Capture evidence",
       done: args.evidenceCount > 0,
       visible: true,
       href: "/capture",
     },
     {
       key: "create_first_case",
-      label: "Create your first case",
+      label: "Create a case",
       done: args.caseCount > 0,
       visible: true,
       href: "/cases",
     },
     {
       key: "first_report",
-      label: "Generate or unlock your first report",
+      label: "Generate report",
       done: args.reportCount > 0,
       visible: true,
       href: "/reports",
     },
     {
-      key: "first_intake_link",
-      label: "Create an intake link",
-      // Real signal: an intake link row exists in this workspace.
-      done: args.intakeLinkCount > 0,
-      visible: pro,
-      href: "/intake-links",
-    },
-    {
-      key: "invite_first_teammate",
-      label: "Invite a teammate",
-      // Real signal: the active org has more than just the owner.
-      done: args.teamMemberCount > 1,
-      visible: pro,
-      href: "/teams",
+      key: "share_verification",
+      label: "Share verification",
+      // Real signal: at least one public verification page is live.
+      done: args.verifyPublished > 0,
+      visible: true,
+      href: "/evidence",
     },
   ];
+}
+
+/**
+ * Phase HOME-POLISH — Workspace Priorities for ACTIVE users. Each
+ * priority is derived from a real operational counter; zero-count
+ * priorities never render. Bounded to 5.
+ */
+function buildWorkspacePriorities(args: {
+  plan: HomePlan;
+  trust: TrustState;
+  pipeline: PipelineData;
+  submissionsCount: number;
+  collectionStats: CollectionStats;
+  reportCount: number;
+}): WorkspacePriority[] {
+  const p = args.pipeline ?? null;
+  const out: WorkspacePriority[] = [];
+
+  if (args.trust.needingAttention > 0) {
+    out.push({
+      key: "resolve_integrity",
+      label: "Resolve integrity issues",
+      count: args.trust.needingAttention,
+      tone: "danger",
+      href: "/evidence",
+    });
+  }
+  if (args.submissionsCount > 0) {
+    out.push({
+      key: "review_submissions",
+      label: "Review submissions",
+      count: args.submissionsCount,
+      tone: "warn",
+      href: "/inbox",
+    });
+  }
+  const packagesMissing =
+    (p?.packages?.missingFromReported ?? 0) + (p?.packages?.blocked ?? 0);
+  if (packagesMissing > 0) {
+    out.push({
+      key: "complete_packages",
+      label: "Complete missing packages",
+      count: packagesMissing,
+      tone: "warn",
+      href: "/reports",
+    });
+  }
+  const unpublished = p?.publicVerify?.unpublished ?? 0;
+  if (unpublished > 0 && args.reportCount > 0) {
+    out.push({
+      key: "publish_verification",
+      label: "Publish verification links",
+      count: unpublished,
+      tone: "action",
+      href: "/evidence",
+    });
+  }
+  if (isProOrTeam(args.plan) && args.collectionStats.activeLinks === 0) {
+    out.push({
+      key: "create_intake_link",
+      label: "Create an intake link",
+      count: 1,
+      tone: "action",
+      href: "/intake-links?new=1",
+    });
+  }
+  return out.slice(0, 5);
 }
 
 function pickHeroAction(args: {
@@ -1608,8 +1712,15 @@ function buildOperationalQueue(args: {
     });
   }
 
-  // 8. Integrity needing attention.
+  // 8. Integrity needing attention — with the real severity breakdown
+  // (Phase HOME-POLISH): every line is a live trust-summary counter.
   if (args.trust.needingAttention > 0) {
+    const unsigned = Math.max(0, args.trust.totalEvidence - args.trust.signed);
+    const breakdown: string[] = [];
+    if (args.trust.tsaFailed > 0) breakdown.push(`${args.trust.tsaFailed} TSA failed`);
+    if (args.trust.otsFailed > 0) breakdown.push(`${args.trust.otsFailed} OTS failed`);
+    if (args.trust.otsPending > 0) breakdown.push(`${args.trust.otsPending} OTS pending`);
+    if (unsigned > 0) breakdown.push(`${unsigned} unsigned`);
     items.push({
       id: "integrity:attention",
       type: "fix_integrity",
@@ -1619,6 +1730,7 @@ function buildOperationalQueue(args: {
       severity: "warn",
       action: { kind: "navigate", label: "Review integrity", href: "/evidence" },
       fallback: true,
+      breakdown,
     });
   }
 
@@ -1858,12 +1970,30 @@ function recentEvidenceTrustChip(it: WorkspaceEvidenceItem): {
   return { label: "Recorded", tone: "neutral" };
 }
 
+/**
+ * Phase HOME-POLISH — title fallback hierarchy. Never spam the generic
+ * default when a real name exists, and never show a raw UUID:
+ *   1. evidence title
+ *   2. original/display filename
+ *   3. "Case evidence — <type>" when linked to a matter
+ *   4. "<type> record · <short id>" as the last resort
+ */
+function recentEvidenceTitle(it: WorkspaceEvidenceItem): string {
+  const title = it.title?.trim();
+  if (title && !/^digital evidence record$/i.test(title)) return title;
+  const file = it.displayFileName?.trim();
+  if (file) return file;
+  const typeLabel = evidenceTypeLabel(it.type);
+  if (it.caseId) return `Case evidence — ${typeLabel}`;
+  return `${typeLabel} record · ${it.id.slice(0, 8)}`;
+}
+
 function buildRichRecentEvidence(
   scoped: WorkspaceEvidenceItem[],
 ): RichRecentEvidenceRow[] {
   return scoped.slice(0, 6).map((it) => ({
     id: it.id,
-    title: it.title?.trim() || it.displayFileName?.trim() || it.id,
+    title: recentEvidenceTitle(it),
     typeKey: (it.type ?? "OTHER").toUpperCase(),
     typeLabel: evidenceTypeLabel(it.type),
     caseId: it.caseId ?? null,
@@ -2163,7 +2293,6 @@ export function normalizeHomeViewModel(
     recentEvidence.length;
   const caseCount = cc?.sections?.caseOperations?.data?.activeCasesCount ?? 0;
   const reportCount = inputs.reports?.items?.length ?? 0;
-  const intakeLinkCount = inputs.intakeLinks?.links?.length ?? 0;
 
   // Storage forecast needs the real record count, so build it here.
   const storage = buildStorage(inputs.billing, evidenceCount);
@@ -2185,16 +2314,23 @@ export function normalizeHomeViewModel(
   });
 
   const checklist = buildChecklist({
-    plan: inputs.plan,
     evidenceCount,
     caseCount,
     reportCount,
-    intakeLinkCount,
-    teamMemberCount: teamWork?.members ?? 0,
+    verifyPublished: trustState.verifyPublished,
   });
   const visibleSteps = checklist.filter((s) => s.visible);
   const checklistComplete =
     visibleSteps.length > 0 && visibleSteps.every((s) => s.done);
+
+  // Phase HOME-POLISH — onboarding is for TRULY NEW users only.
+  // Any real work (evidence, reports, matters, live verification)
+  // permanently retires the Getting Started card.
+  const showGettingStarted =
+    evidenceCount === 0 &&
+    reportCount === 0 &&
+    caseCount === 0 &&
+    trustState.verifyPublished === 0;
 
   const heroAction = pickHeroAction({
     plan: inputs.plan,
@@ -2285,6 +2421,22 @@ export function normalizeHomeViewModel(
   const richRecentEvidence = buildRichRecentEvidence(scopedEvidence);
   const inboxCount = (inputs.inbox?.items ?? []).length;
 
+  // Phase HOME-POLISH — active-user priorities + overall health verdict.
+  const workspacePriorities = buildWorkspacePriorities({
+    plan: inputs.plan,
+    trust: trustState,
+    pipeline,
+    submissionsCount: submissions.length,
+    collectionStats,
+    reportCount,
+  });
+  const workspaceHealthOverall: HomeViewModel["workspaceHealthOverall"] =
+    workspaceHealth.some((m) => m.tone === "danger")
+      ? "action_required"
+      : workspaceHealth.some((m) => m.tone === "warn")
+        ? "needs_attention"
+        : "healthy";
+
   return {
     plan: inputs.plan,
     workspaceId: inputs.workspaceId,
@@ -2315,6 +2467,9 @@ export function normalizeHomeViewModel(
     teamWork,
     checklist,
     checklistComplete,
+    showGettingStarted,
+    workspacePriorities,
+    workspaceHealthOverall,
     hasAnyData,
   };
 }

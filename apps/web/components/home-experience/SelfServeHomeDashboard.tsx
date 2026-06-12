@@ -43,7 +43,9 @@ import {
   HomeHeader,
   KpiRow,
   RecentEvidenceCard,
+  WorkspacePrioritiesCard,
 } from "./HomeDashboardSections";
+import { homePageStyle } from "./home-theme";
 import { isFreePlan, isProOrTeam } from "./home-view-model";
 
 export function SelfServeHomeDashboard() {
@@ -116,15 +118,21 @@ export function SelfServeHomeDashboard() {
       {/* Band 5 — Trust State + Workspace Health. */}
       <div style={rowTwoColStyle}>
         <TrustStateCard trust={vm.trustState} />
-        <WorkspaceHealthCard metrics={vm.workspaceHealth} />
+        <WorkspaceHealthCard metrics={vm.workspaceHealth} overall={vm.workspaceHealthOverall} />
       </div>
 
-      {/* Band 6 — Recent Activity + Storage / Getting Started. */}
+      {/* Band 6 — Recent Activity + Storage / onboarding-or-priorities.
+          Phase HOME-POLISH: Getting Started renders for TRULY NEW users
+          only; active users get real Workspace Priorities instead. */}
       <div style={rowTwoColStyle}>
         <ActivityFeed groups={vm.activity} />
         <div style={stackColStyle}>
           <StorageUsageCard usage={vm.storage} />
-          <GettingStartedChecklist steps={vm.checklist} complete={vm.checklistComplete} />
+          {vm.showGettingStarted ? (
+            <GettingStartedChecklist steps={vm.checklist} complete={vm.checklistComplete} />
+          ) : (
+            <WorkspacePrioritiesCard priorities={vm.workspacePriorities} />
+          )}
         </div>
       </div>
 
@@ -134,16 +142,19 @@ export function SelfServeHomeDashboard() {
   );
 }
 
-const pageStyle: React.CSSProperties = {
-  maxWidth: 1240,
-  margin: "0 auto",
-  padding: "28px 24px",
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  display: "flex",
-  flexDirection: "column",
-  gap: 16,
-  background: "#f8fafc",
+// Phase HOME-POLISH — the soft pearl surface from home-theme.ts.
+const pageStyle: React.CSSProperties = homePageStyle;
+// minmax(0, …) keeps charts/lists from forcing horizontal overflow on
+// narrow viewports; auto-fit collapses to one column under ~720px.
+const rowTwoColStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))",
+  gap: 14,
 };
-const rowTwoColStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 };
-const rowQueueChartStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "3fr 2fr", gap: 14, alignItems: "start" };
+const rowQueueChartStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))",
+  gap: 14,
+  alignItems: "start",
+};
 const stackColStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 14 };

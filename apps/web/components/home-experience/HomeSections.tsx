@@ -32,6 +32,16 @@ import type {
   VerificationHealth,
   WorkspaceHealthMetric,
 } from "./home-view-model";
+import {
+  HOME_COLORS,
+  HOME_TINTS,
+  homeCardCtaStyle,
+  homeCardHeaderStyle,
+  homeCardStyle,
+  homeCardTitleStyle,
+  toneColor,
+  type HomeTone,
+} from "./home-theme";
 
 // ============================================================================
 // Shared primitives
@@ -95,22 +105,33 @@ function formatRelative(iso: string | null): string {
 // ============================================================================
 
 export function HeroNextAction({ action }: { action: HeroAction }) {
-  const bg =
-    action.tone === "warn" ? "#fffbeb" : action.tone === "action" ? "#eef2ff" : "#f8fafc";
-  const border =
-    action.tone === "warn" ? "#fcd34d" : action.tone === "action" ? "#c7d2fe" : "#e2e8f0";
+  const caughtUp = action.kind === "caught_up";
+  const bg = caughtUp
+    ? "linear-gradient(145deg, rgba(5,150,105,0.08) 0%, rgba(14,116,144,0.05) 100%)"
+    : action.tone === "warn"
+      ? "#fffaf0"
+      : action.tone === "action"
+        ? "linear-gradient(145deg, rgba(79,70,229,0.07) 0%, rgba(109,40,217,0.04) 100%)"
+        : HOME_COLORS.soft;
+  const border = caughtUp
+    ? "rgba(5,150,105,0.22)"
+    : action.tone === "warn"
+      ? "rgba(217,119,6,0.28)"
+      : action.tone === "action"
+        ? "rgba(79,70,229,0.22)"
+        : HOME_COLORS.cardBorder;
   return (
     <div
       data-hero-kind={action.kind}
-      style={{ background: bg, border: `1px solid ${border}`, borderRadius: 10, padding: 20 }}
+      style={{ background: bg, border: `1px solid ${border}`, borderRadius: 14, padding: 20 }}
     >
-      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: "#475569", textTransform: "uppercase" }}>
-        {action.kind === "caught_up" ? "All caught up" : "Next step"}
+      <div style={{ fontSize: 11, fontWeight: 750, letterSpacing: 0.6, color: caughtUp ? HOME_COLORS.okDeep : HOME_COLORS.slate, textTransform: "uppercase" }}>
+        {caughtUp ? "All clear" : "Next step"}
       </div>
-      <h1 style={{ margin: "8px 0 6px 0", fontSize: 20, fontWeight: 700, color: "#0f172a" }}>
+      <h1 style={{ margin: "8px 0 6px 0", fontSize: 20, fontWeight: 720, color: HOME_COLORS.ink }}>
         {action.title}
       </h1>
-      <p style={{ margin: "0 0 14px 0", fontSize: 14, color: "#475569", lineHeight: 1.5 }}>
+      <p style={{ margin: "0 0 14px 0", fontSize: 14, color: HOME_COLORS.slate, lineHeight: 1.5 }}>
         {action.detail}
       </p>
       <Link href={action.href} data-hero-href={action.href} style={primaryButtonStyle}>
@@ -124,10 +145,17 @@ export function HeroNextAction({ action }: { action: HeroAction }) {
 // 1. OPERATIONAL QUEUE — the most important widget. What needs action now.
 // ============================================================================
 
-function severityStyle(sev: OperationalQueueItem["severity"]): { bg: string; border: string; fg: string } {
-  if (sev === "critical") return { bg: "#fef2f2", border: "#fca5a5", fg: "#991b1b" };
-  if (sev === "warn") return { bg: "#fffbeb", border: "#fde68a", fg: "#9a3412" };
-  return { bg: "#eef2ff", border: "#c7d2fe", fg: "#4338ca" };
+function severityStyle(sev: OperationalQueueItem["severity"]): {
+  bg: string;
+  border: string;
+  fg: string;
+  chipLabel: string;
+} {
+  if (sev === "critical")
+    return { bg: "#fef2f2", border: "rgba(220,38,38,0.28)", fg: HOME_COLORS.dangerDeep, chipLabel: "Critical" };
+  if (sev === "warn")
+    return { bg: "#fffaf0", border: "rgba(217,119,6,0.28)", fg: HOME_COLORS.warnDeep, chipLabel: "Needs attention" };
+  return { bg: "rgba(79,70,229,0.05)", border: "rgba(79,70,229,0.22)", fg: "#4338ca", chipLabel: "Action" };
 }
 
 function QueueRow({
@@ -151,21 +179,38 @@ function QueueRow({
       style={{
         listStyle: "none",
         padding: prominent ? "14px 16px" : "10px 12px",
-        borderRadius: 10,
+        borderRadius: 12,
         background: s.bg,
         border: `1px solid ${s.border}`,
         borderLeft: `4px solid ${s.fg}`,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: s.fg, textTransform: "uppercase" }}>
-          {item.label}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <span
+            data-queue-priority-chip={item.severity}
+            style={{ ...chipStyle, background: s.fg, color: "white", fontSize: 10, letterSpacing: 0.4, textTransform: "uppercase" }}
+          >
+            {s.chipLabel}
+          </span>
+          <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: s.fg, textTransform: "uppercase" }}>
+            {item.label}
+          </span>
         </span>
         <span style={listItemTimeStyle}>{item.occurredAt ? formatRelative(item.occurredAt) : ""}</span>
       </div>
-      <div style={{ fontSize: prominent ? 16 : 14, fontWeight: 600, color: "#0f172a", margin: "4px 0 8px 0" }}>
+      <div style={{ fontSize: prominent ? 16 : 14, fontWeight: 650, color: HOME_COLORS.ink, margin: "5px 0 8px 0" }}>
         {item.title}
       </div>
+      {item.breakdown && item.breakdown.length > 0 ? (
+        <div data-queue-breakdown style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "0 0 9px 0" }}>
+          {item.breakdown.map((b) => (
+            <span key={b} style={{ ...chipStyle, background: "rgba(255,255,255,0.75)", color: s.fg, border: `1px solid ${s.border}` }}>
+              {b}
+            </span>
+          ))}
+        </div>
+      ) : null}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         {item.action.kind === "retry_delivery" && item.action.messageId ? (
           <RetryDeliveryButton
@@ -214,17 +259,29 @@ export function OperationalQueue({
         // Nothing needs action — show the onboarding/caught-up primary.
         <HeroNextAction action={hero} />
       ) : (
-        <ul style={{ ...listStyle, gap: 8 }}>
-          {items.map((item, i) => (
-            <QueueRow
-              key={item.id}
-              item={item}
-              prominent={i === 0}
-              workspaceId={workspaceId}
-              onChanged={onChanged}
-            />
-          ))}
-        </ul>
+        <>
+          {/* Phase HOME-POLISH — top 3 only; the queue stays scannable. */}
+          <ul style={{ ...listStyle, gap: 8 }}>
+            {items.slice(0, 3).map((item, i) => (
+              <QueueRow
+                key={item.id}
+                item={item}
+                prominent={i === 0}
+                workspaceId={workspaceId}
+                onChanged={onChanged}
+              />
+            ))}
+          </ul>
+          {items.length > 3 ? (
+            <Link
+              href="/inbox"
+              data-queue-more={items.length - 3}
+              style={{ display: "inline-block", marginTop: 10, fontSize: 12, fontWeight: 600, color: HOME_COLORS.indigo, textDecoration: "none" }}
+            >
+              +{items.length - 3} more in your inbox →
+            </Link>
+          ) : null}
+        </>
       )}
     </section>
   );
@@ -596,8 +653,27 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
           confirm your evidence.
         </p>
       ) : null}
-      <div data-verify-stats style={{ display: "flex", gap: 6 }}>
-        <VerifyStat label="Live" value={health.live} tone="ok" />
+      {/* Phase HOME-POLISH — Live verification is PROOVRA's public
+          face: it gets the hero treatment, not a flat tile. */}
+      <div data-verify-stats style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+        <div
+          data-verify-stat="Live"
+          style={{
+            flex: "1.4 1 0",
+            minWidth: 0,
+            padding: "10px 12px",
+            borderRadius: 12,
+            background: `linear-gradient(145deg, ${HOME_TINTS.teal} 0%, rgba(14,116,144,0.03) 100%)`,
+            border: "1px solid rgba(14,116,144,0.18)",
+          }}
+        >
+          <div style={{ fontSize: 26, fontWeight: 780, color: HOME_COLORS.teal, lineHeight: 1 }}>
+            {health.live}
+          </div>
+          <div style={{ fontSize: 11, color: HOME_COLORS.slate, marginTop: 4 }}>
+            verification page{health.live === 1 ? "" : "s"} live
+          </div>
+        </div>
         <VerifyStat label="Not published" value={health.unpublished} />
         <VerifyStat label="Suspended" value={health.suspended} tone="danger" />
       </div>
@@ -630,17 +706,50 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
 // 6. WORKSPACE HEALTH — one work-state overview with verdicts.
 // ============================================================================
 
-export function WorkspaceHealthCard({ metrics }: { metrics: WorkspaceHealthMetric[] }) {
+const HEALTH_OVERALL: Record<
+  "healthy" | "needs_attention" | "action_required",
+  { label: string; tone: HomeTone }
+> = {
+  healthy: { label: "Healthy", tone: "ok" },
+  needs_attention: { label: "Needs attention", tone: "warn" },
+  action_required: { label: "Action required", tone: "danger" },
+};
+
+export function WorkspaceHealthCard({
+  metrics,
+  overall,
+}: {
+  metrics: WorkspaceHealthMetric[];
+  overall: "healthy" | "needs_attention" | "action_required";
+}) {
+  const verdict = HEALTH_OVERALL[overall];
+  const vc = toneColor(verdict.tone);
   return (
     <SectionCard title="Workspace health" testId="workspace-health">
+      {/* Phase HOME-POLISH — one overall verdict derived from the
+          metric tones, then the health board. */}
+      <div
+        data-health-overall={overall}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "8px 12px",
+          borderRadius: 10,
+          background: vc.bg,
+          marginBottom: 10,
+        }}
+      >
+        <span aria-hidden style={{ width: 9, height: 9, borderRadius: 999, background: vc.dot }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: vc.fg }}>{verdict.label}</span>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
         {metrics.map((m) => {
-          const fg = m.tone === "danger" ? "#991b1b" : m.tone === "warn" ? "#9a3412" : m.tone === "ok" ? "#166534" : "#0f172a";
-          const bg = m.tone === "danger" ? "#fef2f2" : m.tone === "warn" ? "#fffbeb" : m.tone === "ok" ? "#f0fdf4" : "#f8fafc";
+          const c = toneColor(m.tone);
           return (
-            <div key={m.key} data-health-metric={m.key} data-health-tone={m.tone} style={{ padding: "8px 10px", borderRadius: 8, background: bg, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: "#475569" }}>{m.label}</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: fg }}>{m.value}</span>
+            <div key={m.key} data-health-metric={m.key} data-health-tone={m.tone} style={{ padding: "8px 10px", borderRadius: 10, background: c.bg, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, color: HOME_COLORS.slate }}>{m.label}</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: c.fg }}>{m.value}</span>
             </div>
           );
         })}
@@ -765,12 +874,28 @@ export function ActivityFeed({ groups }: { groups: ActivityGroup[] }) {
           <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.4, margin: "4px 0" }}>
             {g.label}
           </div>
-          <ul style={{ ...listStyle, gap: 4 }}>
+          {/* Phase HOME-POLISH — timeline treatment: dot column with a
+              connecting rail, not a flat list. */}
+          <ul style={{ ...listStyle, gap: 0, borderLeft: "2px solid rgba(15,23,42,0.07)", marginLeft: 4, paddingLeft: 0 }}>
             {g.events.map((e) => (
-              <li key={e.id} data-activity-kind={e.kind} style={{ ...listItemStyle, padding: "6px 8px" }}>
+              <li key={e.id} data-activity-kind={e.kind} style={{ ...listItemStyle, padding: "5px 8px 5px 0" }}>
                 <Link href={e.href} style={{ display: "flex", gap: 10, alignItems: "center", textDecoration: "none", color: "inherit" }}>
-                  <span aria-hidden style={{ width: 8, height: 8, borderRadius: 999, background: activityDot(e.kind), flex: "0 0 auto" }} />
-                  <span style={{ flex: 1, fontSize: 13, color: "#0f172a" }}>{e.label}</span>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 9,
+                      height: 9,
+                      borderRadius: 999,
+                      background: activityDot(e.kind),
+                      flex: "0 0 auto",
+                      marginLeft: -5.5,
+                      border: "2px solid white",
+                      boxShadow: "0 0 0 1px rgba(15,23,42,0.06)",
+                    }}
+                  />
+                  <span style={{ flex: 1, fontSize: 13, color: HOME_COLORS.ink, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {e.label}
+                  </span>
                   <span style={listItemTimeStyle}>{formatRelative(e.occurredAt)}</span>
                 </Link>
               </li>
@@ -877,9 +1002,8 @@ export function GettingStartedChecklist({
   const visible = steps.filter((s) => s.visible);
   if (visible.length === 0) return null;
   if (complete) return null;
-  const completedCount = visible.filter((s) => s.done).length;
   return (
-    <SectionCard title={`Getting started · ${completedCount}/${visible.length}`} testId="getting-started">
+    <SectionCard title="Start your first evidence workflow" testId="getting-started">
       <ul style={{ ...listStyle, gap: 4 }}>
         {visible.map((s) => (
           <li key={s.key} data-checklist-step={s.key} data-checklist-done={String(s.done)} style={{ ...listItemStyle, padding: "8px 10px" }}>
@@ -933,10 +1057,12 @@ export function HomeSkeleton() {
 // Styles
 // ============================================================================
 
-const cardStyle: React.CSSProperties = { background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16, margin: 0 };
-const cardHeaderStyle: React.CSSProperties = { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 };
-const cardTitleStyle: React.CSSProperties = { margin: 0, fontSize: 14, fontWeight: 700, color: "#0f172a", textTransform: "uppercase", letterSpacing: 0.4 };
-const cardCtaStyle: React.CSSProperties = { fontSize: 12, color: "#4f46e5", textDecoration: "none", fontWeight: 600 };
+// Phase HOME-POLISH — every SectionCard now uses the shared premium
+// card vocabulary from home-theme.ts (glassy white, soft depth).
+const cardStyle: React.CSSProperties = homeCardStyle;
+const cardHeaderStyle: React.CSSProperties = homeCardHeaderStyle;
+const cardTitleStyle: React.CSSProperties = homeCardTitleStyle;
+const cardCtaStyle: React.CSSProperties = homeCardCtaStyle;
 const cardBodyStyle: React.CSSProperties = { margin: 0 };
 
 const listStyle: React.CSSProperties = { listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 };
@@ -947,7 +1073,17 @@ const listItemMetaStyle: React.CSSProperties = { display: "flex", gap: 6, alignI
 const listItemTimeStyle: React.CSSProperties = { fontSize: 11, color: "#94a3b8" };
 const chipStyle: React.CSSProperties = { display: "inline-block", padding: "2px 8px", borderRadius: 999, background: "rgba(79, 70, 229, 0.08)", color: "#4338ca", fontSize: 11, fontWeight: 600 };
 
-const primaryButtonStyle: React.CSSProperties = { display: "inline-block", padding: "10px 18px", borderRadius: 8, background: "#4f46e5", color: "white", fontWeight: 600, fontSize: 14, textDecoration: "none" };
-const secondaryButtonStyle: React.CSSProperties = { display: "inline-block", padding: "5px 10px", borderRadius: 6, background: "white", border: "1px solid #cbd5e1", color: "#0f172a", fontWeight: 600, fontSize: 12, textDecoration: "none" };
+const primaryButtonStyle: React.CSSProperties = {
+  display: "inline-block",
+  padding: "10px 18px",
+  borderRadius: 10,
+  background: `linear-gradient(135deg, ${HOME_COLORS.wineDeep} 0%, ${HOME_COLORS.wine} 100%)`,
+  color: "white",
+  fontWeight: 650,
+  fontSize: 14,
+  textDecoration: "none",
+  boxShadow: "0 2px 8px rgba(122, 22, 56, 0.25)",
+};
+const secondaryButtonStyle: React.CSSProperties = { display: "inline-block", padding: "5px 11px", borderRadius: 8, background: "white", border: "1px solid rgba(15,23,42,0.14)", color: HOME_COLORS.ink, fontWeight: 600, fontSize: 12, textDecoration: "none", boxShadow: "0 1px 2px rgba(15,23,42,0.04)" };
 
 const skeletonRowStyle: React.CSSProperties = { height: 180, borderRadius: 12, background: "linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)" };

@@ -1,13 +1,14 @@
 /**
- * PROOVRA Home — premium dashboard surfaces (Phase HOME-KPI).
+ * PROOVRA Home — premium dashboard surfaces (Phase HOME-KPI, polished
+ * in Phase HOME-POLISH).
  *
  * Top KPI row, evidence-activity chart, recent-evidence list and the
  * evidence-type distribution. Pure presentation over the view-model:
  * every number on these cards is real backend data; sampled series are
  * labelled as samples. SVG/CSS only — no chart library.
  *
- * Visual tone: PROOVRA evidence-operations — light surface, dark slate
- * text, restrained indigo accent. Serious, legal-grade, not playful.
+ * Visual system: home-theme.ts — pearl surface, glassy cards, icon
+ * blocks, wine/indigo/teal accents. Legal-grade, not consumer-toy.
  */
 
 "use client";
@@ -22,7 +23,50 @@ import type {
   HeroAction,
   HomeKpi,
   RichRecentEvidenceRow,
+  WorkspacePriority,
 } from "./home-view-model";
+import {
+  HOME_COLORS,
+  HOME_TINTS,
+  homeCardCtaStyle,
+  homeCardHeaderStyle,
+  homeCardStyle,
+  homeCardTitleStyle,
+  homeChipStyle,
+  iconBlockStyle,
+  toneColor,
+} from "./home-theme";
+
+// ============================================================================
+// Inline icon set — small, serious, stroke-based. No emoji.
+// ============================================================================
+
+function Icon({ d, color, size = 18 }: { d: string; color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d={d} stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+const ICONS = {
+  evidence: "M7 3h7l5 5v13H7zM14 3v5h5M10 13h5M10 17h5",
+  matters: "M4 7h5l2 2h9v10H4zM4 7V5h6",
+  shield: "M12 3l7 3v6c0 4.4-3 7.4-7 9-4-1.6-7-4.6-7-9V6zM9.5 12l2 2 3.5-3.5",
+  report: "M6 3h9l4 4v14H6zM14 3v5h5M9.5 12h6M9.5 16h6",
+  inboxIcon: "M4 13l3-8h10l3 8v6H4zM4 13h5l1.5 2.5h3L15 13h5",
+  search: "M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.5 15.5L20 20",
+  bell: "M12 3a6 6 0 0 0-6 6v3.5l-1.6 3.2a.7.7 0 0 0 .63 1.01h13.94a.7.7 0 0 0 .63-1.01L18 12.5V9a6 6 0 0 0-6-6Zm-2.2 15a2.4 2.4 0 0 0 4.4 0",
+  spark: "M13 3L5 14h6l-1 7 8-11h-6z",
+} as const;
+
+const KPI_ICON: Record<HomeKpi["key"], { d: string; color: string; tint: string }> = {
+  evidence: { d: ICONS.evidence, color: HOME_COLORS.wine, tint: HOME_TINTS.wine },
+  matters: { d: ICONS.matters, color: HOME_COLORS.indigo, tint: HOME_TINTS.indigo },
+  trust: { d: ICONS.shield, color: HOME_COLORS.teal, tint: HOME_TINTS.teal },
+  deliverables: { d: ICONS.report, color: HOME_COLORS.violet, tint: HOME_TINTS.violet },
+  intake: { d: ICONS.inboxIcon, color: HOME_COLORS.warnDeep, tint: HOME_TINTS.warn },
+};
 
 // ============================================================================
 // Header — greeting, search, inbox indicator, ONE primary action.
@@ -65,8 +109,11 @@ export function HomeHeader({
             const q = query.trim();
             router.push(q ? `/search?q=${encodeURIComponent(q)}` : "/search");
           }}
-          style={{ margin: 0 }}
+          style={{ margin: 0, position: "relative" }}
         >
+          <span style={searchIconStyle} aria-hidden>
+            <Icon d={ICONS.search} color={HOME_COLORS.muted} size={15} />
+          </span>
           <input
             type="search"
             value={query}
@@ -79,21 +126,11 @@ export function HomeHeader({
         </form>
         <Link
           href="/inbox"
-          aria-label={
-            inboxCount > 0 ? `Inbox — ${inboxCount} items` : "Inbox"
-          }
+          aria-label={inboxCount > 0 ? `Inbox — ${inboxCount} items` : "Inbox"}
           style={bellWrapStyle}
           data-home-inbox-indicator
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path
-              d="M12 3a6 6 0 0 0-6 6v3.5l-1.6 3.2a.7.7 0 0 0 .63 1.01h13.94a.7.7 0 0 0 .63-1.01L18 12.5V9a6 6 0 0 0-6-6Zm-2.2 15a2.4 2.4 0 0 0 4.4 0"
-              stroke="#334155"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <Icon d={ICONS.bell} color={HOME_COLORS.slate} size={17} />
           {inboxCount > 0 ? <span style={bellDotStyle} data-home-inbox-dot /> : null}
         </Link>
         <Link href={primary.href} style={headerPrimaryCtaStyle} data-home-primary-cta>
@@ -105,34 +142,38 @@ export function HomeHeader({
 }
 
 // ============================================================================
-// KPI row
+// KPI row — reference-grade cards: icon block, big number, trend,
+// sparkline, status dot, soft per-key gradient.
 // ============================================================================
 
-const TONE_COLORS: Record<HomeKpi["tone"], { dot: string; text: string }> = {
-  ok: { dot: "#059669", text: "#065f46" },
-  warn: { dot: "#d97706", text: "#92400e" },
-  danger: { dot: "#dc2626", text: "#991b1b" },
-  neutral: { dot: "#94a3b8", text: "#475569" },
-};
-
-function Sparkline({ values }: { values: number[] }) {
-  const w = 72;
-  const h = 24;
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  const w = 84;
+  const h = 30;
   const max = Math.max(...values, 1);
   const step = w / Math.max(1, values.length - 1);
-  const points = values
-    .map((v, i) => `${(i * step).toFixed(1)},${(h - 3 - (v / max) * (h - 6)).toFixed(1)}`)
-    .join(" ");
+  const pts = values.map(
+    (v, i) =>
+      [i * step, h - 4 - (v / max) * (h - 9)] as const,
+  );
+  const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const area = `0,${h} ${line} ${w},${h}`;
+  const gid = `spark-${color.replace(/[^a-z0-9]/gi, "")}`;
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden style={{ display: "block" }}>
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={area} fill={`url(#${gid})`} />
       <polyline
-        points={points}
+        points={line}
         fill="none"
-        stroke="#4f46e5"
+        stroke={color}
         strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"
-        opacity={0.85}
       />
     </svg>
   );
@@ -141,30 +182,103 @@ function Sparkline({ values }: { values: number[] }) {
 export function KpiRow({ kpis }: { kpis: HomeKpi[] }) {
   return (
     <div style={kpiRowStyle} data-home-kpi-row>
-      {kpis.map((k) => (
-        <Link key={k.key} href={k.href} style={kpiCardStyle} data-home-kpi={k.key}>
-          <div style={kpiTopStyle}>
-            <span style={kpiLabelStyle}>{k.label}</span>
-            <span
-              aria-hidden
-              style={{ ...kpiToneDotStyle, background: TONE_COLORS[k.tone].dot }}
-            />
-          </div>
-          <div style={kpiValueRowStyle}>
-            <span style={kpiValueStyle}>{k.locked ? "—" : k.value}</span>
-            {k.spark && k.spark.some((v) => v > 0) ? <Sparkline values={k.spark} /> : null}
-          </div>
-          <span style={{ ...kpiSubtitleStyle, color: TONE_COLORS[k.tone].text }}>
-            {k.subtitle}
-          </span>
-        </Link>
-      ))}
+      {kpis.map((k) => {
+        const icon = KPI_ICON[k.key];
+        const tone = toneColor(k.tone);
+        return (
+          <Link
+            key={k.key}
+            href={k.href}
+            style={{
+              ...kpiCardStyle,
+              background: `linear-gradient(160deg, ${icon.tint} 0%, rgba(255,255,255,0) 36%), ${HOME_COLORS.card}`,
+            }}
+            data-home-kpi={k.key}
+          >
+            <div style={kpiTopStyle}>
+              <span style={iconBlockStyle(icon.tint, 34)}>
+                <Icon d={icon.d} color={icon.color} size={17} />
+              </span>
+              <span style={kpiLabelStyle}>{k.label}</span>
+              <span
+                aria-hidden
+                title={k.tone}
+                style={{ ...kpiToneDotStyle, background: tone.dot }}
+              />
+            </div>
+            <div style={kpiValueRowStyle}>
+              <span style={kpiValueStyle}>{k.locked ? "—" : k.value}</span>
+              {k.spark && k.spark.some((v) => v > 0) ? (
+                <Sparkline values={k.spark} color={icon.color} />
+              ) : null}
+            </div>
+            <span style={{ ...kpiSubtitleStyle, color: tone.fg }}>{k.subtitle}</span>
+          </Link>
+        );
+      })}
     </div>
   );
 }
 
 // ============================================================================
-// Evidence Activity chart — 14-day dual-series bar chart, pure SVG.
+// Workspace Priorities — the active-user replacement for onboarding.
+// Every row is a real operational counter.
+// ============================================================================
+
+export function WorkspacePrioritiesCard({
+  priorities,
+}: {
+  priorities: WorkspacePriority[];
+}) {
+  return (
+    <section className="home-card" style={homeCardStyle} data-self-serve-section="workspace-priorities">
+      <header style={homeCardHeaderStyle}>
+        <h2 style={homeCardTitleStyle}>Workspace priorities</h2>
+      </header>
+      {priorities.length === 0 ? (
+        <div style={allClearStyle} data-priorities-clear>
+          <span style={iconBlockStyle(HOME_TINTS.ok, 34)}>
+            <Icon d={ICONS.shield} color={HOME_COLORS.ok} size={17} />
+          </span>
+          <div>
+            <div style={{ fontSize: 13.5, fontWeight: 650, color: HOME_COLORS.okDeep }}>
+              All clear
+            </div>
+            <div style={{ fontSize: 12, color: HOME_COLORS.slate }}>
+              No workspace priorities need attention right now.
+            </div>
+          </div>
+        </div>
+      ) : (
+        <ul style={priorityListStyle}>
+          {priorities.map((p) => {
+            const tone = toneColor(p.tone === "action" ? "neutral" : p.tone);
+            return (
+              <li key={p.key} style={{ margin: 0 }}>
+                <Link href={p.href} style={priorityRowStyle} data-priority={p.key}>
+                  <span aria-hidden style={{ ...kpiToneDotStyle, background: tone.dot }} />
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: HOME_COLORS.ink }}>
+                    {p.label}
+                  </span>
+                  {p.key !== "create_intake_link" ? (
+                    <span style={{ ...homeChipStyle, background: tone.bg, color: tone.fg }}>
+                      {p.count}
+                    </span>
+                  ) : null}
+                  <span aria-hidden style={{ color: HOME_COLORS.muted, fontSize: 13 }}>→</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+// ============================================================================
+// Evidence Activity chart — 14-day dual-series, gradient bars, hover
+// titles, legend. Pure SVG.
 // ============================================================================
 
 export function EvidenceActivityChart({
@@ -175,28 +289,35 @@ export function EvidenceActivityChart({
   const hasData = series.totalEvidence > 0 || series.totalReports > 0;
 
   return (
-    <section className="home-card" style={chartCardStyle} data-self-serve-section="evidence-activity">
+    <section className="home-card" style={homeCardStyle} data-self-serve-section="evidence-activity">
       <header style={chartHeaderStyle}>
-        <div>
-          <h2 style={cardTitleStyle}>Evidence activity</h2>
-          <span style={chartSubtitleStyle}>
-            Last 14 days{series.sampled ? " · latest 100 records" : ""}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={iconBlockStyle(HOME_TINTS.indigo, 32)}>
+            <Icon d={ICONS.spark} color={HOME_COLORS.indigo} size={16} />
           </span>
+          <div>
+            <h2 style={homeCardTitleStyle}>Evidence activity</h2>
+            <span style={chartSubtitleStyle}>
+              Last 14 days{series.sampled ? " · latest 100 records" : ""}
+            </span>
+          </div>
         </div>
         {hasData ? (
           <div style={legendStyle}>
             <span style={legendItemStyle}>
-              <span style={{ ...legendSwatchStyle, background: "#4f46e5" }} />
-              Evidence captured ({series.totalEvidence})
+              <span style={{ ...legendSwatchStyle, background: HOME_COLORS.wine }} />
+              Evidence ({series.totalEvidence})
             </span>
             <span style={legendItemStyle}>
-              <span style={{ ...legendSwatchStyle, background: "#0e7490" }} />
-              Reports generated ({series.totalReports})
+              <span style={{ ...legendSwatchStyle, background: HOME_COLORS.teal }} />
+              Reports ({series.totalReports})
             </span>
           </div>
         ) : null}
       </header>
-      {hasData ? <ActivityBars series={series} /> : (
+      {hasData ? (
+        <ActivityBars series={series} />
+      ) : (
         <p style={chartEmptyStyle}>
           Activity appears here as evidence is captured and reports are
           generated.
@@ -208,22 +329,18 @@ export function EvidenceActivityChart({
 
 function ActivityBars({ series }: { series: EvidenceActivitySeries }) {
   const W = 720;
-  const H = 180;
+  const H = 190;
   const PAD_L = 26;
   const PAD_B = 22;
-  const PAD_T = 8;
+  const PAD_T = 10;
   const innerW = W - PAD_L - 6;
   const innerH = H - PAD_B - PAD_T;
   const n = series.points.length;
   const group = innerW / n;
-  const barW = Math.min(11, group / 2.6);
-  const max = Math.max(
-    1,
-    ...series.points.map((p) => Math.max(p.evidence, p.reports)),
-  );
+  const barW = Math.min(12, group / 2.6);
+  const max = Math.max(1, ...series.points.map((p) => Math.max(p.evidence, p.reports)));
   const y = (v: number) => PAD_T + innerH - (v / max) * innerH;
 
-  // Up to 4 horizontal gridlines on integer ticks.
   const tickCount = Math.min(4, max);
   const ticks = Array.from({ length: tickCount }, (_, i) =>
     Math.round(((i + 1) / tickCount) * max),
@@ -236,15 +353,25 @@ function ActivityBars({ series }: { series: EvidenceActivitySeries }) {
       role="img"
       aria-label={`Evidence activity over the last 14 days: ${series.totalEvidence} evidence records, ${series.totalReports} reports.`}
     >
+      <defs>
+        <linearGradient id="ha-ev" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={HOME_COLORS.wine} />
+          <stop offset="100%" stopColor="#a8345f" />
+        </linearGradient>
+        <linearGradient id="ha-rp" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={HOME_COLORS.teal} />
+          <stop offset="100%" stopColor="#38b6c9" />
+        </linearGradient>
+      </defs>
       {ticks.map((t) => (
         <g key={t}>
-          <line x1={PAD_L} x2={W - 4} y1={y(t)} y2={y(t)} stroke="#e2e8f0" strokeWidth="1" />
-          <text x={PAD_L - 6} y={y(t) + 3.5} textAnchor="end" fontSize="9" fill="#94a3b8">
+          <line x1={PAD_L} x2={W - 4} y1={y(t)} y2={y(t)} stroke="rgba(15,23,42,0.06)" strokeWidth="1" />
+          <text x={PAD_L - 6} y={y(t) + 3.5} textAnchor="end" fontSize="9" fill={HOME_COLORS.muted}>
             {t}
           </text>
         </g>
       ))}
-      <line x1={PAD_L} x2={W - 4} y1={y(0)} y2={y(0)} stroke="#cbd5e1" strokeWidth="1" />
+      <line x1={PAD_L} x2={W - 4} y1={y(0)} y2={y(0)} stroke="rgba(15,23,42,0.14)" strokeWidth="1" />
       {series.points.map((p, i) => {
         const cx = PAD_L + i * group + group / 2;
         return (
@@ -254,25 +381,27 @@ function ActivityBars({ series }: { series: EvidenceActivitySeries }) {
                 x={cx - barW - 1}
                 y={y(p.evidence)}
                 width={barW}
-                height={Math.max(1.5, y(0) - y(p.evidence))}
-                rx={2}
-                fill="#4f46e5"
-                opacity={0.9}
-              />
+                height={Math.max(2, y(0) - y(p.evidence))}
+                rx={2.5}
+                fill="url(#ha-ev)"
+              >
+                <title>{`${p.dayLabel}: ${p.evidence} evidence record${p.evidence === 1 ? "" : "s"}`}</title>
+              </rect>
             ) : null}
             {p.reports > 0 ? (
               <rect
                 x={cx + 1}
                 y={y(p.reports)}
                 width={barW}
-                height={Math.max(1.5, y(0) - y(p.reports))}
-                rx={2}
-                fill="#0e7490"
-                opacity={0.85}
-              />
+                height={Math.max(2, y(0) - y(p.reports))}
+                rx={2.5}
+                fill="url(#ha-rp)"
+              >
+                <title>{`${p.dayLabel}: ${p.reports} report${p.reports === 1 ? "" : "s"} generated`}</title>
+              </rect>
             ) : null}
             {i % 2 === 0 ? (
-              <text x={cx} y={H - 8} textAnchor="middle" fontSize="9" fill="#64748b">
+              <text x={cx} y={H - 8} textAnchor="middle" fontSize="9" fill={HOME_COLORS.muted}>
                 {p.dayLabel}
               </text>
             ) : null}
@@ -295,23 +424,12 @@ const TYPE_GLYPHS: Record<string, string> = {
   SCREEN: "SCR",
 };
 
-const CHIP_TONES: Record<string, React.CSSProperties> = {
-  ok: { background: "rgba(5, 150, 105, 0.09)", color: "#065f46" },
-  warn: { background: "rgba(217, 119, 6, 0.10)", color: "#92400e" },
-  danger: { background: "rgba(220, 38, 38, 0.09)", color: "#991b1b" },
-  neutral: { background: "rgba(100, 116, 139, 0.10)", color: "#475569" },
-};
-
-export function RecentEvidenceCard({
-  rows,
-}: {
-  rows: RichRecentEvidenceRow[];
-}) {
+export function RecentEvidenceCard({ rows }: { rows: RichRecentEvidenceRow[] }) {
   return (
-    <section className="home-card" style={cardStyle} data-self-serve-section="recent-evidence">
-      <header style={cardHeaderStyle}>
-        <h2 style={cardTitleStyle}>Recent evidence</h2>
-        <Link href="/evidence" style={cardCtaStyle}>
+    <section className="home-card" style={homeCardStyle} data-self-serve-section="recent-evidence">
+      <header style={homeCardHeaderStyle}>
+        <h2 style={homeCardTitleStyle}>Recent evidence</h2>
+        <Link href="/evidence" style={homeCardCtaStyle}>
           All evidence →
         </Link>
       </header>
@@ -321,27 +439,29 @@ export function RecentEvidenceCard({
         </p>
       ) : (
         <ul style={recentListStyle}>
-          {rows.map((r) => (
-            <li key={r.id} style={{ margin: 0, padding: 0 }}>
-              <Link href={r.href} style={recentRowStyle} data-recent-evidence-id={r.id}>
-                <span style={typeBadgeStyle} aria-hidden>
-                  {TYPE_GLYPHS[r.typeKey] ?? "EVD"}
-                </span>
-                <span style={{ minWidth: 0, flex: 1 }}>
-                  <span style={recentTitleStyle}>{r.title}</span>
-                  <span style={recentMetaStyle}>
-                    {r.typeLabel}
-                    {r.caseId ? " · in case" : ""} · {formatRelativeShort(r.createdAt)}
+          {rows.map((r) => {
+            const chip = toneColor(r.trustChip.tone);
+            return (
+              <li key={r.id} style={{ margin: 0, padding: 0 }}>
+                <Link href={r.href} style={recentRowStyle} data-recent-evidence-id={r.id}>
+                  <span style={typeBadgeStyle} aria-hidden>
+                    {TYPE_GLYPHS[r.typeKey] ?? "EVD"}
                   </span>
-                </span>
-                <span
-                  style={{ ...recentChipStyle, ...(CHIP_TONES[r.trustChip.tone] ?? CHIP_TONES.neutral) }}
-                >
-                  {r.trustChip.label}
-                </span>
-              </Link>
-            </li>
-          ))}
+                  <span style={{ minWidth: 0, flex: 1 }}>
+                    <span style={recentTitleStyle}>{r.title}</span>
+                    <span style={recentMetaStyle}>
+                      {r.typeLabel}
+                      {r.caseId ? " · in case" : ""} · {formatRelativeShort(r.createdAt)}
+                    </span>
+                  </span>
+                  <span style={{ ...homeChipStyle, background: chip.bg, color: chip.fg }}>
+                    {r.trustChip.label}
+                  </span>
+                  <span aria-hidden style={{ color: HOME_COLORS.muted, fontSize: 13 }}>→</span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
@@ -369,7 +489,14 @@ function formatRelativeShort(iso: string): string {
 // Evidence by type — SVG donut + legend (sample-labelled).
 // ============================================================================
 
-const DONUT_COLORS = ["#4f46e5", "#0e7490", "#b45309", "#475569", "#94a3b8", "#64748b"];
+const DONUT_COLORS = [
+  HOME_COLORS.wine,
+  HOME_COLORS.indigo,
+  HOME_COLORS.teal,
+  HOME_COLORS.violet,
+  "#64748b",
+  "#94a3b8",
+];
 
 export function EvidenceTypeDonutCard({
   distribution,
@@ -378,9 +505,9 @@ export function EvidenceTypeDonutCard({
 }) {
   const { slices, sampleSize, sampled } = distribution;
   return (
-    <section className="home-card" style={cardStyle} data-self-serve-section="evidence-types">
-      <header style={cardHeaderStyle}>
-        <h2 style={cardTitleStyle}>Evidence by type</h2>
+    <section className="home-card" style={homeCardStyle} data-self-serve-section="evidence-types">
+      <header style={homeCardHeaderStyle}>
+        <h2 style={homeCardTitleStyle}>Evidence by type</h2>
         <span style={chartSubtitleStyle}>
           {sampleSize > 0
             ? sampled
@@ -403,9 +530,9 @@ export function EvidenceTypeDonutCard({
                 <span
                   style={{ ...legendSwatchStyle, background: DONUT_COLORS[i % DONUT_COLORS.length] }}
                 />
-                <span style={{ flex: 1, color: "#334155" }}>{s.label}</span>
-                <span style={{ color: "#0f172a", fontWeight: 600 }}>{s.count}</span>
-                <span style={{ color: "#94a3b8", width: 38, textAlign: "right" }}>
+                <span style={{ flex: 1, color: HOME_COLORS.slate }}>{s.label}</span>
+                <span style={{ color: HOME_COLORS.ink, fontWeight: 650 }}>{s.count}</span>
+                <span style={{ color: HOME_COLORS.muted, width: 38, textAlign: "right" }}>
                   {s.percent}%
                 </span>
               </li>
@@ -424,42 +551,45 @@ function Donut({
   slices: EvidenceTypeDistribution["slices"];
   total: number;
 }) {
-  const R = 40;
+  const R = 42;
   const C = 2 * Math.PI * R;
   let offset = 0;
   return (
     <svg
-      width="120"
-      height="120"
-      viewBox="0 0 120 120"
+      width="128"
+      height="128"
+      viewBox="0 0 128 128"
       role="img"
       aria-label={`Evidence type distribution across ${total} records.`}
     >
-      <circle cx="60" cy="60" r={R} fill="none" stroke="#f1f5f9" strokeWidth="16" />
+      <circle cx="64" cy="64" r={R} fill="none" stroke="#eef0f5" strokeWidth="15" />
       {slices.map((s, i) => {
         const frac = total > 0 ? s.count / total : 0;
         const dash = frac * C;
         const el = (
           <circle
             key={s.key}
-            cx="60"
-            cy="60"
+            cx="64"
+            cy="64"
             r={R}
             fill="none"
             stroke={DONUT_COLORS[i % DONUT_COLORS.length]}
-            strokeWidth="16"
+            strokeWidth="15"
+            strokeLinecap={slices.length > 1 ? "butt" : "round"}
             strokeDasharray={`${dash} ${C - dash}`}
             strokeDashoffset={-offset}
-            transform="rotate(-90 60 60)"
-          />
+            transform="rotate(-90 64 64)"
+          >
+            <title>{`${s.label}: ${s.count} (${s.percent}%)`}</title>
+          </circle>
         );
         offset += dash;
         return el;
       })}
-      <text x="60" y="57" textAnchor="middle" fontSize="20" fontWeight="700" fill="#0f172a">
+      <text x="64" y="61" textAnchor="middle" fontSize="22" fontWeight="750" fill={HOME_COLORS.ink}>
         {total}
       </text>
-      <text x="60" y="73" textAnchor="middle" fontSize="9" fill="#64748b">
+      <text x="64" y="77" textAnchor="middle" fontSize="9.5" fill={HOME_COLORS.muted}>
         records
       </text>
     </svg>
@@ -478,18 +608,19 @@ const headerWrapStyle: React.CSSProperties = {
   flexWrap: "wrap",
 };
 const headerTitleStyle: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 700,
+  fontSize: 25,
+  fontWeight: 750,
   margin: 0,
-  color: "#0f172a",
+  color: HOME_COLORS.ink,
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
+  letterSpacing: -0.3,
 };
 const headerSubtitleStyle: React.CSSProperties = {
   margin: "4px 0 0 0",
-  fontSize: 14,
-  color: "#5d6d71",
+  fontSize: 13.5,
+  color: HOME_COLORS.slate,
 };
 const headerActionsStyle: React.CSSProperties = {
   display: "flex",
@@ -497,15 +628,24 @@ const headerActionsStyle: React.CSSProperties = {
   gap: 10,
   flexWrap: "wrap",
 };
+const searchIconStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 11,
+  top: "50%",
+  transform: "translateY(-50%)",
+  display: "inline-flex",
+  pointerEvents: "none",
+};
 const searchInputStyle: React.CSSProperties = {
   width: 250,
-  padding: "9px 13px",
-  borderRadius: 9,
-  border: "1px solid #cbd5e1",
+  padding: "9px 13px 9px 32px",
+  borderRadius: 10,
+  border: `1px solid ${HOME_COLORS.cardBorder}`,
   background: "white",
   fontSize: 13,
-  color: "#0f172a",
+  color: HOME_COLORS.ink,
   outline: "none",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
 };
 const bellWrapStyle: React.CSSProperties = {
   position: "relative",
@@ -514,10 +654,11 @@ const bellWrapStyle: React.CSSProperties = {
   justifyContent: "center",
   width: 38,
   height: 38,
-  borderRadius: 9,
-  border: "1px solid #cbd5e1",
+  borderRadius: 10,
+  border: `1px solid ${HOME_COLORS.cardBorder}`,
   background: "white",
   textDecoration: "none",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
 };
 const bellDotStyle: React.CSSProperties = {
   position: "absolute",
@@ -526,52 +667,55 @@ const bellDotStyle: React.CSSProperties = {
   width: 8,
   height: 8,
   borderRadius: 999,
-  background: "#dc2626",
+  background: HOME_COLORS.danger,
   border: "1.5px solid white",
 };
 const headerPrimaryCtaStyle: React.CSSProperties = {
   display: "inline-block",
   padding: "10px 18px",
-  borderRadius: 9,
-  background: "#1e293b",
+  borderRadius: 10,
+  background: `linear-gradient(135deg, ${HOME_COLORS.wineDeep} 0%, ${HOME_COLORS.wine} 100%)`,
   color: "white",
-  fontWeight: 600,
+  fontWeight: 650,
   fontSize: 13.5,
   textDecoration: "none",
   whiteSpace: "nowrap",
-  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.18)",
+  boxShadow: "0 2px 8px rgba(122, 22, 56, 0.28)",
 };
 
 const kpiRowStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(196px, 1fr))",
   gap: 12,
 };
 const kpiCardStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: 6,
-  background: "white",
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
+  gap: 8,
+  border: `1px solid ${HOME_COLORS.cardBorder}`,
+  borderRadius: 16,
   padding: "14px 16px",
   textDecoration: "none",
   color: "inherit",
-  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+  boxShadow:
+    "0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 28px rgba(15, 23, 42, 0.05)",
   minWidth: 0,
 };
 const kpiTopStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  justifyContent: "space-between",
-  gap: 8,
+  gap: 9,
 };
 const kpiLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
+  flex: 1,
+  fontSize: 10.5,
+  fontWeight: 750,
   letterSpacing: 0.5,
   textTransform: "uppercase",
-  color: "#64748b",
+  color: HOME_COLORS.slate,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
 };
 const kpiToneDotStyle: React.CSSProperties = {
   width: 8,
@@ -584,36 +728,22 @@ const kpiValueRowStyle: React.CSSProperties = {
   alignItems: "flex-end",
   justifyContent: "space-between",
   gap: 8,
-  minHeight: 30,
+  minHeight: 32,
 };
 const kpiValueStyle: React.CSSProperties = {
-  fontSize: 26,
-  fontWeight: 750,
+  fontSize: 28,
+  fontWeight: 780,
   lineHeight: 1,
-  color: "#0f172a",
+  color: HOME_COLORS.ink,
   fontVariantNumeric: "tabular-nums",
+  letterSpacing: -0.5,
 };
 const kpiSubtitleStyle: React.CSSProperties = {
   fontSize: 11.5,
   lineHeight: 1.45,
+  fontWeight: 550,
 };
 
-const cardStyle: React.CSSProperties = {
-  background: "white",
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  padding: 16,
-  margin: 0,
-  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
-};
-const chartCardStyle: React.CSSProperties = { ...cardStyle };
-const cardHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "baseline",
-  justifyContent: "space-between",
-  marginBottom: 10,
-  gap: 10,
-};
 const chartHeaderStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "flex-start",
@@ -622,42 +752,24 @@ const chartHeaderStyle: React.CSSProperties = {
   gap: 10,
   flexWrap: "wrap",
 };
-const cardTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 14,
-  fontWeight: 700,
-  color: "#0f172a",
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-};
-const cardCtaStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#4f46e5",
-  textDecoration: "none",
-  fontWeight: 600,
-};
 const chartSubtitleStyle: React.CSSProperties = {
   fontSize: 11,
-  color: "#94a3b8",
+  color: HOME_COLORS.muted,
 };
 const chartEmptyStyle: React.CSSProperties = {
   margin: 0,
   padding: "14px 0",
-  color: "#5d6d71",
+  color: HOME_COLORS.slate,
   fontSize: 13,
   lineHeight: 1.6,
 };
-const legendStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 14,
-  flexWrap: "wrap",
-};
+const legendStyle: React.CSSProperties = { display: "flex", gap: 14, flexWrap: "wrap" };
 const legendItemStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
   fontSize: 11.5,
-  color: "#475569",
+  color: HOME_COLORS.slate,
 };
 const legendSwatchStyle: React.CSSProperties = {
   display: "inline-block",
@@ -679,9 +791,9 @@ const recentRowStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 10,
-  padding: "8px 10px",
-  borderRadius: 8,
-  background: "rgba(15, 23, 42, 0.02)",
+  padding: "9px 11px",
+  borderRadius: 10,
+  background: HOME_COLORS.soft,
   textDecoration: "none",
   color: "inherit",
 };
@@ -689,21 +801,21 @@ const typeBadgeStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  width: 36,
-  height: 30,
-  borderRadius: 7,
-  background: "rgba(79, 70, 229, 0.08)",
-  color: "#4338ca",
+  width: 38,
+  height: 32,
+  borderRadius: 9,
+  background: HOME_TINTS.wine,
+  color: HOME_COLORS.wine,
   fontSize: 10,
-  fontWeight: 700,
+  fontWeight: 750,
   letterSpacing: 0.4,
   flexShrink: 0,
 };
 const recentTitleStyle: React.CSSProperties = {
   display: "block",
   fontSize: 13,
-  fontWeight: 600,
-  color: "#0f172a",
+  fontWeight: 620,
+  color: HOME_COLORS.ink,
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
@@ -712,16 +824,7 @@ const recentMetaStyle: React.CSSProperties = {
   display: "block",
   marginTop: 2,
   fontSize: 11,
-  color: "#94a3b8",
-};
-const recentChipStyle: React.CSSProperties = {
-  display: "inline-block",
-  padding: "3px 9px",
-  borderRadius: 999,
-  fontSize: 11,
-  fontWeight: 600,
-  whiteSpace: "nowrap",
-  flexShrink: 0,
+  color: HOME_COLORS.muted,
 };
 
 const donutWrapStyle: React.CSSProperties = {
@@ -745,4 +848,32 @@ const donutLegendItemStyle: React.CSSProperties = {
   alignItems: "center",
   gap: 8,
   fontSize: 12.5,
+};
+
+const priorityListStyle: React.CSSProperties = {
+  listStyle: "none",
+  padding: 0,
+  margin: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+const priorityRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "9px 11px",
+  borderRadius: 10,
+  background: HOME_COLORS.soft,
+  textDecoration: "none",
+  color: "inherit",
+};
+const allClearStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  padding: "12px 12px",
+  borderRadius: 12,
+  background: HOME_TINTS.ok,
+  border: "1px solid rgba(5, 150, 105, 0.18)",
 };
