@@ -1,7 +1,7 @@
 /**
  * Phase IA-home-acceptance — shared persona definitions.
  *
- * Single source of truth for the three Home-acceptance personas. Both
+ * Single source of truth for the four Home-acceptance personas. Both
  * the seed script (`scripts/seed-home-personas.ts`) and the dev-login
  * route (`routes/dev-auth.routes.ts`) import this so the persona keys,
  * user ids, workspace ids and plans never drift out of sync.
@@ -14,7 +14,11 @@
  * data table that is safe to import anywhere.
  */
 
-export type HomePersonaKey = "pro-empty" | "pro-populated" | "team-org";
+export type HomePersonaKey =
+  | "pro-empty"
+  | "pro-populated"
+  | "pro-issues"
+  | "team-org";
 
 export type HomePersona = {
   key: HomePersonaKey;
@@ -48,6 +52,20 @@ export const HOME_PERSONAS: Record<HomePersonaKey, HomePersona> = {
     workspaceType: "PERSONAL",
     workspaceName: "Personal Space",
   },
+  // Phase HOME-PROOF — the "issues" acceptance persona: every
+  // operational problem state Home must surface (TSA failed, OTS
+  // pending, unsigned record, report-without-package,
+  // package-without-publication, failed delivery) plus all four
+  // evidence types for the by-type donut.
+  "pro-issues": {
+    key: "pro-issues",
+    userId: "0e000000-0000-4000-8000-000000000004",
+    email: "pro-issues@home-personas.local",
+    plan: "PRO",
+    workspaceId: "0e000000-0000-4000-8000-0000000000a4",
+    workspaceType: "PERSONAL",
+    workspaceName: "Personal Space",
+  },
   "team-org": {
     key: "team-org",
     userId: "0e000000-0000-4000-8000-000000000003",
@@ -62,9 +80,10 @@ export const HOME_PERSONAS: Record<HomePersonaKey, HomePersona> = {
 export const HOME_PERSONA_KEYS: HomePersonaKey[] = [
   "pro-empty",
   "pro-populated",
+  "pro-issues",
   "team-org",
 ];
 
 export function isHomePersonaKey(value: string): value is HomePersonaKey {
-  return value === "pro-empty" || value === "pro-populated" || value === "team-org";
+  return HOME_PERSONA_KEYS.includes(value as HomePersonaKey);
 }

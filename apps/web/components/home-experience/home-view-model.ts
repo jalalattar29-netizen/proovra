@@ -258,6 +258,7 @@ export type ActivityEvent = {
     | "report_generated"
     | "package_generated"
     | "verification_published"
+    | "request_more_sent"
     | "lifecycle_transition"
     | "destruction_review"
     | "hold_placed"
@@ -926,6 +927,8 @@ export type HomeEvidenceListInput = {
     title?: string | null;
     displayFileName?: string | null;
     type?: string;
+    mimeType?: string | null;
+    captureMethod?: string | null;
     status?: string;
     verificationStatus?: string | null;
     latestReportVersion?: number | null;
@@ -1398,8 +1401,6 @@ const ACTIVITY_KIND_LABELS: Record<string, { kind: ActivityEvent["kind"]; label:
   package_generated: { kind: "package_generated", label: "Verification package generated" },
   hold_placed: { kind: "hold_placed", label: "Legal hold placed" },
   hold_released: { kind: "hold_released", label: "Legal hold released" },
-  escalation_opened: { kind: "escalation_opened", label: "Review escalation opened" },
-  incident_opened: { kind: "incident_opened", label: "Incident opened" },
   // Phase HOME-FIELD-WIRING (Ticket 3C) — timeline kinds the API
   // already emitted but the VM silently filtered. Self-serve labels;
   // raw event names never leak to the UI.
@@ -1425,10 +1426,20 @@ function buildActivity(args: {
   reportsInput: HomeReportsInput | null;
   intakeLinks: HomeIntakeLinksInput | null;
   communications: HomeCommunicationsInput | null;
+  inbox: HomeInboxInput | null;
   submissions: SubmissionRow[];
   nowMs: number;
 }): ActivityGroup[] {
   const events: ActivityEvent[] = [];
+  const linkLabelById = new Map<string, string>();
+  for (const link of args.intakeLinks?.links ?? []) {
+    const label =
+      link.recipientLabel?.trim() ||
+      link.recipientPhone?.trim() ||
+      link.workflowTemplateSlug?.trim() ||
+      "Intake link";
+    linkLabelById.set(link.id, label);
+  }
 
   // 0. Intake submission lifecycle — a real external contributor sent
   //    evidence. occurredAt is the genuine inbox receipt time.
@@ -1440,6 +1451,21 @@ function buildActivity(args: {
       label: `Submission received — ${sub.title}`,
       occurredAt: sub.receivedAt,
       href: sub.href,
+    });
+  }
+  for (const item of args.inbox?.items ?? []) {
+    if (
+      item.category !== "intake_required_items_missing" ||
+      !item.occurredAt
+    ) {
+      continue;
+    }
+    events.push({
+      id: `req-more:${item.id}`,
+      kind: "request_more_sent",
+      label: `Request more sent — ${item.title}`,
+      occurredAt: item.occurredAt,
+      href: item.href,
     });
   }
 
@@ -1465,10 +1491,11 @@ function buildActivity(args: {
   // 2. Intake link creation — real createdAt from the links list.
   for (const l of args.intakeLinks?.links ?? []) {
     if (!l.createdAt) continue;
+    const label = linkLabelById.get(l.id) ?? "Intake link";
     events.push({
       id: `link:${l.id}`,
       kind: "intake_link_created",
-      label: "Intake link created",
+      label: `Intake link created — ${label}`,
       occurredAt: l.createdAt,
       href: `/intake-links?linkId=${encodeURIComponent(l.id)}`,
     });
@@ -1476,11 +1503,16 @@ function buildActivity(args: {
 
   // 3. Delivery events — real sent/delivered/failed from communications.
   for (const m of args.communications?.messages ?? []) {
+    const linkLabel = m.relatedIntakeLinkId
+      ? linkLabelById.get(m.relatedIntakeLinkId)
+      : null;
     if (m.deliveredAtUtc) {
       events.push({
         id: `msg-d:${m.id}`,
         kind: "intake_delivered",
-        label: `Intake link delivered (${m.channel})`,
+        label: linkLabel
+          ? `Intake link delivered — ${linkLabel}`
+          : `Intake link delivered (${m.channel})`,
         occurredAt: m.deliveredAtUtc,
         href: "/intake-links",
       });
@@ -1488,7 +1520,9 @@ function buildActivity(args: {
       events.push({
         id: `msg-f:${m.id}`,
         kind: "intake_failed",
-        label: `Intake delivery failed (${m.channel})`,
+        label: linkLabel
+          ? `Delivery failed — ${linkLabel}`
+          : `Intake delivery failed (${m.channel})`,
         occurredAt: m.failedAtUtc,
         href: "/intake-links",
       });
@@ -2621,6 +2655,64 @@ const EVIDENCE_TYPE_LABELS: Record<string, string> = {
   SCREEN: "Screen captures",
 };
 
+const HOME_EVIDENCE_CATEGORY_ORDER = [
+  "Images",
+  "Documents",
+  "Videos",
+  "Audio",
+  "Archives",
+  "Folders",
+  "Other Files",
+] as const;
+
+function normalizeMime(mime: string | null | undefined): string {
+  return String(mime ?? "").trim().toLowerCase();
+}
+
+function isArchiveMime(mime: string): boolean {
+  return [
+    "application/zip",
+    "application/x-zip-compressed",
+    "application/gzip",
+    "application/x-gzip",
+    "application/x-7z-compressed",
+    "application/x-rar-compressed",
+    "application/vnd.rar",
+    "application/x-tar",
+    "application/x-bzip2",
+  ].includes(mime);
+}
+
+function isDocumentMime(mime: string): boolean {
+  if (mime === "application/pdf") return true;
+  if (mime.startsWith("text/")) return true;
+  if (mime.includes("json") || mime.includes("xml")) return true;
+  if (mime.includes("msword")) return true;
+  if (mime.includes("officedocument")) return true;
+  if (mime.includes("spreadsheet")) return true;
+  if (mime.includes("presentation")) return true;
+  if (mime === "application/rtf" || mime === "text/rtf") return true;
+  return false;
+}
+
+function classifyHomeEvidenceCategory(it: WorkspaceEvidenceItem): (typeof HOME_EVIDENCE_CATEGORY_ORDER)[number] {
+  const captureMethod = String(it.captureMethod ?? "").toUpperCase();
+  const mime = normalizeMime(it.mimeType);
+  const type = String(it.type ?? "").toUpperCase();
+
+  if (captureMethod === "MULTIPART_PACKAGE") return "Folders";
+  if (mime && isArchiveMime(mime)) return "Archives";
+  if (mime.startsWith("image/") || type === "PHOTO") return "Images";
+  if (mime.startsWith("video/") || type === "VIDEO") return "Videos";
+  if (mime.startsWith("audio/") || type === "AUDIO") return "Audio";
+  if (mime && isDocumentMime(mime)) return "Documents";
+  if (type === "DOCUMENT" && !mime) return "Documents";
+  if (type === "DOCUMENT" && mime && !isArchiveMime(mime)) {
+    return isDocumentMime(mime) ? "Documents" : "Other Files";
+  }
+  return "Other Files";
+}
+
 function evidenceTypeLabel(raw: string | undefined): string {
   const key = (raw ?? "").toUpperCase();
   return EVIDENCE_TYPE_LABELS[key] ?? "Other";
@@ -2687,12 +2779,13 @@ function buildTypeDistribution(args: {
 }): EvidenceTypeDistribution {
   const counts = new Map<string, number>();
   for (const it of args.scoped) {
-    const label = evidenceTypeLabel(it.type);
+    const label = classifyHomeEvidenceCategory(it);
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
   const total = args.scoped.length;
-  const slices: EvidenceTypeSlice[] = [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
+  const slices: EvidenceTypeSlice[] = HOME_EVIDENCE_CATEGORY_ORDER
+    .map((label) => [label, counts.get(label) ?? 0] as const)
+    .filter(([, count]) => count > 0)
     .map(([label, count]) => ({
       key: label.toUpperCase().replace(/\s+/g, "_"),
       label,
@@ -3031,6 +3124,7 @@ export function normalizeHomeViewModel(
     reportsInput: inputs.reports,
     intakeLinks: inputs.intakeLinks,
     communications: inputs.communications,
+    inbox: inputs.inbox,
     submissions,
     nowMs,
   });

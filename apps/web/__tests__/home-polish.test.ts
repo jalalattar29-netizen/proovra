@@ -185,24 +185,34 @@ test("Evidence Activity series builds from real evidence + report timestamps", (
 // 5 — Donut distribution.
 // ---------------------------------------------------------------------------
 
-test("Evidence-by-type donut reflects the real type distribution", () => {
+test("Evidence-by-type donut reflects the real type distribution, including archive/folder/other file classification", () => {
   const t = new Date(NOW - 3600_000).toISOString();
   const vm = normalizeHomeViewModel(
     baseInputs({
       evidenceList: {
         items: [
-          { id: "a", type: "PHOTO", createdAt: t, teamId: WS },
-          { id: "b", type: "PHOTO", createdAt: t, teamId: WS },
-          { id: "c", type: "DOCUMENT", createdAt: t, teamId: WS },
-          { id: "d", type: "VIDEO", createdAt: t, teamId: WS },
+          { id: "a", type: "PHOTO", mimeType: "image/jpeg", createdAt: t, teamId: WS },
+          { id: "b", type: "PHOTO", mimeType: "image/jpeg", createdAt: t, teamId: WS },
+          { id: "c", type: "DOCUMENT", mimeType: "application/pdf", createdAt: t, teamId: WS },
+          { id: "d", type: "VIDEO", mimeType: "video/mp4", createdAt: t, teamId: WS },
+          { id: "e", type: "AUDIO", mimeType: "audio/mpeg", createdAt: t, teamId: WS },
+          { id: "f", type: "DOCUMENT", mimeType: "application/zip", createdAt: t, teamId: WS },
+          { id: "g", type: "DOCUMENT", mimeType: "application/octet-stream", captureMethod: "MULTIPART_PACKAGE", createdAt: t, teamId: WS },
+          { id: "h", type: "DOCUMENT", mimeType: "application/octet-stream", createdAt: t, teamId: WS },
         ],
       },
     }),
   );
-  assert.equal(vm.typeDistribution.sampleSize, 4);
+  assert.equal(vm.typeDistribution.sampleSize, 8);
   const images = vm.typeDistribution.slices.find((s) => s.label === "Images");
+  const archives = vm.typeDistribution.slices.find((s) => s.label === "Archives");
+  const folders = vm.typeDistribution.slices.find((s) => s.label === "Folders");
+  const other = vm.typeDistribution.slices.find((s) => s.label === "Other Files");
   assert.equal(images?.count, 2);
-  assert.equal(images?.percent, 50);
+  assert.equal(images?.percent, 25);
+  assert.equal(archives?.count, 1);
+  assert.equal(folders?.count, 1);
+  assert.equal(other?.count, 1);
 });
 
 // ---------------------------------------------------------------------------
@@ -730,6 +740,40 @@ test("INTEL: verification_published events render; identical labels collapse ×N
   const reports = today?.events.filter((e) => e.kind === "report_generated") ?? [];
   assert.equal(reports.length, 1, "identical report labels collapse to one row");
   assert.equal(reports[0].repeatCount, 3);
+});
+
+test("INTEL: request-more activity is surfaced from inbox and incident/escalation noise stays off self-serve Home", () => {
+  const t = (h: number) => new Date(NOW - h * 3600_000).toISOString();
+  const vm = normalizeHomeViewModel(
+    baseInputs({
+      inbox: {
+        items: [
+          {
+            id: "req-more",
+            category: "intake_required_items_missing",
+            title: "Witness photos — need clearer plate image",
+            href: "/evidence-requests/req-more",
+            occurredAt: t(1),
+            context: { teamId: WS },
+          },
+        ],
+      },
+      commandCenter: {
+        sections: {
+          timeline: {
+            items: [
+              { id: "i1", kind: "incident_opened", occurredAt: t(2), label: "Incident opened — Report generation failed", href: "/ops/observability" },
+              { id: "e1", kind: "escalation_opened", occurredAt: t(3), label: "Escalation opened — overdue review", href: "/reviewer-ops/escalations" },
+            ],
+          },
+        },
+      },
+    }),
+  );
+  const labels = vm.activity.flatMap((g) => g.events.map((e) => e.label));
+  assert.ok(labels.includes("Request more sent — Witness photos — need clearer plate image"));
+  assert.ok(!labels.some((label) => /Incident opened/i.test(label)));
+  assert.ok(!labels.some((label) => /Escalation opened/i.test(label)));
 });
 
 test("INTEL: /search reads the q deep-link param and seeds the live filter", () => {

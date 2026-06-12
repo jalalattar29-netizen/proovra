@@ -66,9 +66,10 @@ describe("Phase IA-dev-auth — production safety", () => {
 // ============================================================================
 
 describe("Phase IA-dev-auth — persona allowlist + minting", () => {
-  it("accepts ONLY the three fixed persona keys", () => {
-    expect(HOME_PERSONA_KEYS).toEqual(["pro-empty", "pro-populated", "team-org"]);
+  it("accepts ONLY the four fixed persona keys", () => {
+    expect(HOME_PERSONA_KEYS).toEqual(["pro-empty", "pro-populated", "pro-issues", "team-org"]);
     expect(isHomePersonaKey("pro-empty")).toBe(true);
+    expect(isHomePersonaKey("pro-issues")).toBe(true);
     expect(isHomePersonaKey("admin")).toBe(false);
     expect(isHomePersonaKey("../../etc/passwd")).toBe(false);
   });
@@ -105,6 +106,8 @@ describe("Phase IA-dev-auth — persona allowlist + minting", () => {
     // The personas the brief mandates.
     expect(HOME_PERSONAS["pro-empty"].workspaceType).toBe("PERSONAL");
     expect(HOME_PERSONAS["pro-populated"].workspaceType).toBe("PERSONAL");
+    expect(HOME_PERSONAS["pro-issues"].workspaceType).toBe("PERSONAL");
+    expect(HOME_PERSONAS["pro-issues"].plan).toBe("PRO");
     expect(HOME_PERSONAS["team-org"].workspaceType).toBe("ORGANIZATION");
     expect(HOME_PERSONAS["team-org"].plan).toBe("TEAM");
   });
@@ -171,16 +174,18 @@ describe("Phase IA-dev-auth — Playwright acceptance spec", () => {
 
   const SPEC = readFileSync(specPath, "utf8");
 
-  it("logs in as all three personas via /v1/dev/login", () => {
+  it("logs in as all four personas via /v1/dev/login", () => {
     expect(SPEC).toMatch(/\/v1\/dev\/login\?persona=/);
     expect(SPEC).toMatch(/loginAs\(page, "pro-empty"\)/);
     expect(SPEC).toMatch(/loginAs\(page, "pro-populated"\)/);
+    expect(SPEC).toMatch(/loginAs\(page, "pro-issues"\)/);
     expect(SPEC).toMatch(/loginAs\(page, "team-org"\)/);
   });
 
   it("takes a screenshot per persona", () => {
     expect(SPEC).toMatch(/pro-empty\.png/);
     expect(SPEC).toMatch(/pro-populated\.png/);
+    expect(SPEC).toMatch(/pro-issues\.png/);
     expect(SPEC).toMatch(/team-org\.png/);
   });
 
@@ -206,13 +211,17 @@ describe("Phase IA-dev-auth — Playwright acceptance spec", () => {
   });
 
   it("verifies Request & Collect shows live intake/delivery data", () => {
-    expect(SPEC).toMatch(/data-collection-id/);
-    expect(SPEC).toMatch(/data-delivery-status='DELIVERED'/);
+    expect(SPEC).toMatch(/data-self-serve-section='intake-pipeline'/);
+    expect(SPEC).toMatch(/Witness — Jane Doe/i);
+    expect(SPEC).toMatch(/Delivered/i);
+    expect(SPEC).toMatch(/Pending review/i);
+    expect(SPEC).toMatch(/Needs more info/i);
   });
 
-  it("verifies Submissions appears for the team-org persona", () => {
-    expect(SPEC).toMatch(/submissions-to-review/);
-    expect(SPEC).toMatch(/data-submission-action='review'/);
+  it("verifies the team-org persona proves intake-review and matter-readiness states", () => {
+    expect(SPEC).toMatch(/data-self-serve-section='team-work'/);
+    expect(SPEC).toMatch(/data-matter-verdict='action_required'/);
+    expect(SPEC).toMatch(/data-activity-kind='request_more_sent'/);
   });
 
   it("verifies Activity shows real events", () => {

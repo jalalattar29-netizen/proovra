@@ -196,9 +196,9 @@ describe("Phase 32.8C — service layer composition", () => {
     }
   });
 
-  it("detectWorkspaceScope marks single-member workspaces as PERSONAL and multi-member as TEAM", () => {
+  it("detectWorkspaceScope uses the workspace's personal/team flag rather than member count", () => {
     expect(SERVICE).toMatch(
-      /scope:\s*memberCount\s*<=\s*1\s*\?\s*"PERSONAL"\s*:\s*"TEAM"/,
+      /scope:\s*team\?\.isPersonal\s*===\s*true\s*\?\s*"PERSONAL"\s*:\s*"TEAM"/,
     );
   });
 });

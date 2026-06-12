@@ -470,6 +470,17 @@ export function ActiveMatters({
                       {r.evidenceCount} {r.evidenceCount === 1 ? "record" : "records"}
                     </span>
                   </span>
+                  <span
+                    style={{
+                      marginTop: 8,
+                      display: "inline-flex",
+                      fontSize: 12,
+                      fontWeight: 650,
+                      color: HOME_COLORS.indigo,
+                    }}
+                  >
+                    Open matter →
+                  </span>
                 </Link>
               </li>
             );
@@ -971,6 +982,7 @@ function activityDot(kind: string): string {
     report_generated: "#16a34a",
     package_generated: "#0d9488",
     verification_published: "#0e7490",
+    request_more_sent: "#b45309",
     lifecycle_transition: "#0891b2",
     destruction_review: "#b45309",
     hold_placed: "#9333ea",

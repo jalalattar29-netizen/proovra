@@ -1,0 +1,95 @@
+{
+  "pro-empty": {
+    "executive-summary": "GETTING STARTED\nStart your first evidence workflow\n\nCapture evidence, create a case, generate a report, and share verification — this summary becomes live workspace health as you work.\n\nCapture evidence",
+    "evidence-types": "EVIDENCE BY TYPE\n\nThe distribution of your evidence types appears after the first capture.",
+    "active-matters": "ACTIVE MATTERS\n\nNo active matters yet. Group related evidence into a case to track a matter end-to-end.\n\nCreate case",
+    "intake-pipeline": "INTAKE PIPELINE\n\nRequest evidence securely from a client, witness, source, or contributor — then track delivery and review what comes back.\n\nCreate intake link",
+    "report-production": "REPORT PRODUCTION\n0\nReports ready\n0\nPackages ready\n0\nPending\n0\nFailed\n\nComplete an evidence record to generate your first report.",
+    "verification-health": "VERIFICATION HEALTH\n\nPublic verification links appear once you publish a record — letting anyone independently confirm your evidence.\n\n0\nverification pages live\n0\nNot published\n0\nSuspended",
+    "activity": "RECENT ACTIVITY\n\nActivity appears when evidence is captured, reports are generated, or intake submissions are received.",
+    "team-work": null,
+    "workspace-health": "WORKSPACE HEALTH\nHealthy\nRecords complete\n0\nNeed a report\n0\nActive matters\n0\nSubmissions waiting\n0\nReports ready\n0\nIntegrity issues\n0\nStorage used\n0%",
+    "activityKinds": [],
+    "matterVerdicts": []
+  },
+  "pro-populated": {
+    "executive-summary": "HEALTHY\nWorkspace is healthy\n\nEvidence, reports, packages, and verification are operating normally.\n\nAlso: 2 reports are ready to share",
+    "evidence-types": "EVIDENCE BY TYPE\n2 records\n2\nrecords\nImages\n1\n50%\nDocuments\n1\n50%",
+    "active-matters": "ACTIVE MATTERS\n2 unlinked records\n\nNo active matters yet. Group related evidence into a case to track a matter end-to-end.\n\nCreate case",
+    "intake-pipeline": "INTAKE PIPELINE\n1\nActive links\n→\n1\nDelivered\n→\n1\nAwaiting response\n→\n0\nPending review\n→\n0\nNeeds more info\n→\n0\nFailed sends\nWitness — Jane Doe\n0 / 1 used · expires in 7d\nNot yet sent\nOpen →",
+    "report-production": "REPORT PRODUCTION\n2\nReports ready\n2\nPackages ready\n0\nPending\n0\nFailed\nDoor camera capture — 2026-06-09\nReport v1\nPackage\n2h ago\nOpen\nDownload PDF\nDownload package\nVerify page\nIncident statement packet\nReport v1\nPackage\n12h ago\nOpen\nDownload PDF\nDownload package\nVerify page",
+    "verification-health": "VERIFICATION HEALTH\n2\nverification pages live\n0\nNot published\n0\nSuspended\nRECENTLY PUBLISHED\nVerification published — Door camera capture — 2026-06-09\n2h ago\nVerification published — Incident statement packet\n11h ago\nDoor camera capture — 2026-06-09\nOpen verify →\nIncident statement packet\nOpen verify →",
+    "activity": "RECENT ACTIVITY\nTODAY\nEvidence reported — Incident statement packet\n27m ago\nEvidence reported — Door camera capture — 2026-06-09\n27m ago\nPackage v1 generated — Door camera capture — 2026-06-09\n1h ago\nVerification published — Door camera capture — 2026-06-09\n2h ago\nReport v1 generated — Door camera capture — 2026-06-09\n2h ago\nIntake link delivered (SMS)\n4h ago\nIntake link created — Witness — Jane Doe\n5h ago\nPackage v1 generated — Incident statement packet\n10h ago\nVerification published — Incident statement packet\n11h ago\nReport v1 generated — Incident statement packet\n12h ago",
+    "team-work": null,
+    "workspace-health": "WORKSPACE HEALTH\nHealthy\nRecords complete\n2\nNeed a report\n0\nActive matters\n0\nSubmissions waiting\n0\nReports ready\n2\nIntegrity issues\n0\nStorage used\n0%",
+    "activityKinds": [
+      "evidence_finalized",
+      "evidence_finalized",
+      "package_generated",
+      "verification_published",
+      "report_generated",
+      "intake_delivered",
+      "intake_link_created",
+      "package_generated",
+      "verification_published",
+      "report_generated"
+    ],
+    "matterVerdicts": []
+  },
+  "pro-issues": {
+    "executive-summary": "CRITICAL\n1 TSA timestamp failed\n\n1 TSA timestamp failed — Failed timestamping weakens time-based evidence confidence for these records.\n\nAlso: 2 OTS proofs are still pending · 1 package is missing\n\nOpen affected records",
+    "evidence-types": "EVIDENCE BY TYPE\n8 records\n8\nrecords\nImages\n2\n25%\nDocuments\n1\n13%\nVideos\n1\n13%\nAudio\n1\n13%\nArchives\n1\n13%\nFolders\n1\n13%\nOther Files\n1\n13%",
+    "active-matters": "ACTIVE MATTERS\n8 unlinked records\n\nNo active matters yet. Group related evidence into a case to track a matter end-to-end.\n\nCreate case",
+    "intake-pipeline": "INTAKE PIPELINE\n1\nActive links\n→\n0\nDelivered\n→\n1\nAwaiting response\n→\n0\nPending review\n→\n0\nNeeds more info\n→\n0\nFailed sends\nSource — WhatsApp request\n0 / 1 used · expires in 7d\nNot yet sent\nOpen →",
+    "report-production": "REPORT PRODUCTION\n4\nReports ready\n3\nPackages ready\n1\nPending\n2\nFailed\n2 · Failed deliverables need attention\nOpen inbox →\n1 · Reported evidence missing a package\nOpen reports →\n1 · Reports ready but verification not published\nPublish verification →\nLease agreement scan\nReport v2\nPackage\n9h ago\nOpen\nDownload PDF\nDownload package\nVerify page\nCamera export archive\nReport v1\nPackage\n12h ago\nOpen\nDownload PDF\nDownload package\nVerify page\nWitness call recording\nReport v1\n14h ago\nOpen\nDownload PDF\nSite entrance photo\nReport v1\nPackage\n6h ago\nOpen\nDownload PDF\nDownload package\nVerify page",
+    "verification-health": "VERIFICATION HEALTH\n1\nverification page live\n6\nNot published\n1\nSuspended\n1 · Suspended verification needs review\nOpen evidence →\n1 · Package ready but verification not published\nPublish verification →\n1 · Report ready but package missing\nOpen reports →\nPublish verification\nRECENTLY PUBLISHED\nVerification published — Site entrance photo\n4h ago\nLease agreement scan\nOpen verify →\nCamera export archive\nOpen verify →\nSite entrance photo\nOpen verify →",
+    "activity": "RECENT ACTIVITY\nTODAY\nEvidence signed — Parking-lot folder upload\n28m ago\nEvidence reported — Camera export archive\n28m ago\nEvidence reported — Site entrance photo\n28m ago\nEvidence reported — Lease agreement scan\n28m ago\nEvidence reported — Witness call recording\n28m ago\nEvidence signed — Warehouse door photo\n28m ago\nVerification published — Site entrance photo\n4h ago\nPackage v1 generated — Site entrance photo\n5h ago\nIntake delivery failed (WHATSAPP)\n6h ago\nReport v1 generated — Site entrance photo\n6h ago\nIntake link created — Source — WhatsApp request\n7h ago\nPackage v1 generated — Lease agreement scan\n8h ago",
+    "team-work": null,
+    "workspace-health": "WORKSPACE HEALTH\nAction required\nRecords complete\n4\nNeed a report\n0\nActive matters\n0\nSubmissions waiting\n0\nReports ready\n4\nIntegrity issues\n2\nStorage used\n0%",
+    "activityKinds": [
+      "evidence_finalized",
+      "evidence_finalized",
+      "evidence_finalized",
+      "evidence_finalized",
+      "evidence_finalized",
+      "evidence_finalized",
+      "verification_published",
+      "package_generated",
+      "intake_failed",
+      "report_generated",
+      "intake_link_created",
+      "package_generated"
+    ],
+    "matterVerdicts": []
+  },
+  "team-org": {
+    "executive-summary": "NEEDS ATTENTION\n2 submissions waiting for review\n\n2 submissions waiting for review — External evidence is not part of the trusted record until you review it.\n\nAlso: 2 matters need evidence work · 1 OTS proof is still pending\n\nReview submissions",
+    "evidence-types": "EVIDENCE BY TYPE\n3 records\n3\nrecords\nImages\n1\n33%\nDocuments\n1\n33%\nVideos\n1\n33%",
+    "active-matters": "ACTIVE MATTERS\n1 not reviewed\nHarbor Incident\n28m ago\nAction required\n1 overdue · no report yet\nE 1 · R 0 · P 0 · V 0\n1 record\nOpen matter →\nAcme v. Borealis\n28m ago\nNeeds work\n1 unreviewed · no report yet\nE 1 · R 0 · P 0 · V 0\n1 record\nOpen matter →\nOperation Lighthouse\n28m ago\nHealthy\nE 1 · R 1 · P 1 · V 1\n1 record\nOpen matter →",
+    "intake-pipeline": "INTAKE PIPELINE\n1\nActive links\n→\n1\nDelivered\n→\n0\nAwaiting response\n→\n1\nPending review\n→\n1\nNeeds more info\n→\n0\nFailed sends\nSource — confidential\n3 / 100 used · expires in 14d\nNot yet sent\nOpen →",
+    "report-production": "REPORT PRODUCTION\n1\nReports ready\n1\nPackages ready\n0\nPending\n0\nFailed\nField statement — contributor upload\nReport v1\nPackage\n3h ago\nOpen\nDownload PDF\nDownload package\nVerify page",
+    "verification-health": "VERIFICATION HEALTH\n1\nverification page live\n2\nNot published\n0\nSuspended\nPublish verification\nRECENTLY PUBLISHED\nVerification published — Field statement — contributor upload\n3h ago\nField statement — contributor upload\nOpen verify →",
+    "activity": "RECENT ACTIVITY\nTODAY\nEvidence signed — Supplier yard overview clip\n28m ago\nRequest more sent — Intake incomplete — Acme Investigations\n28m ago\nSubmission received — Intake incomplete — Acme Investigations\n28m ago\nSubmission received — Intake submission awaiting review — Acme Investigations\n28m ago\nEvidence reported — Field statement — contributor upload\n28m ago\nRetention review recorded — export package queued for policy check\n2h ago\nPackage v1 generated — Field statement — contributor upload\n2h ago\nVerification published — Field statement — contributor upload\n3h ago\nReport v1 generated — Field statement — contributor upload\n3h ago\nEvidence lifecycle updated — report-ready package prepared\n4h ago\nIntake link delivered (WHATSAPP)\n7h ago\nIntake link created — Source — confidential\n8h ago",
+    "team-work": "TEAM WORK\nManage team →\n2\nAwaiting review\n1\nReports today\n1\nMembers\n0\nPending invites",
+    "workspace-health": "WORKSPACE HEALTH\nNeeds attention\nRecords complete\n1\nNeed a report\n0\nActive matters\n3\nSubmissions waiting\n2\nReports ready\n1\nIntegrity issues\n0\nStorage used\n0%",
+    "activityKinds": [
+      "evidence_finalized",
+      "request_more_sent",
+      "submission_received",
+      "submission_received",
+      "evidence_finalized",
+      "destruction_review",
+      "package_generated",
+      "verification_published",
+      "report_generated",
+      "lifecycle_transition",
+      "intake_delivered",
+      "intake_link_created"
+    ],
+    "matterVerdicts": [
+      "action_required",
+      "needs_work",
+      "healthy"
+    ]
+  }
+}

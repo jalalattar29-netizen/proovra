@@ -1,7 +1,7 @@
 /**
  * Phase IA-home-acceptance — dev/staging-only impersonation login.
  *
- *   GET /v1/dev/login?persona=pro-empty | pro-populated | team-org
+ *   GET /v1/dev/login?persona=pro-empty | pro-populated | pro-issues | team-org
  *
  * Mints a real PROOVRA session token (the EXACT same `signJwt` the
  * production email-login route uses) for one of the fixed acceptance
@@ -20,7 +20,7 @@
  *      the surface does not exist at all.
  *   2. The handler itself re-checks both conditions and 404s otherwise,
  *      so even a mis-registration in production is inert.
- *   3. Only the three hard-coded persona keys are accepted — there is
+ *   3. Only the four hard-coded persona keys are accepted — there is
  *      no way to mint a token for an arbitrary user id.
  *
  * It writes NOTHING to the database and emits no audit event. It only
@@ -56,7 +56,7 @@ export async function devLoginRoutes(app: FastifyInstance): Promise<void> {
           error: {
             code: "invalid_persona",
             message:
-              "persona must be one of: pro-empty, pro-populated, team-org",
+              "persona must be one of: pro-empty, pro-populated, pro-issues, team-org",
           },
         });
       }

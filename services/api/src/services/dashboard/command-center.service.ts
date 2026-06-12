@@ -1121,11 +1121,17 @@ async function detectWorkspaceScope(teamId: string): Promise<{
   scope: WorkspaceScope;
   memberCount: number;
 }> {
-  const memberCount = await prisma.teamMember.count({
-    where: { teamId, status: "ACTIVE" },
-  });
+  const [memberCount, team] = await Promise.all([
+    prisma.teamMember.count({
+      where: { teamId, status: "ACTIVE" },
+    }),
+    prisma.team.findUnique({
+      where: { id: teamId },
+      select: { isPersonal: true },
+    }),
+  ]);
   return {
-    scope: memberCount <= 1 ? "PERSONAL" : "TEAM",
+    scope: team?.isPersonal === true ? "PERSONAL" : "TEAM",
     memberCount,
   };
 }
@@ -1739,7 +1745,7 @@ async function runCaseOperations(
       },
     });
     const caseIds = recentCases.map((c) => c.id);
-    const [evidenceCounts, holdsByCase, reviewByCase] = await Promise.all([
+    const [evidenceCounts, holdsByCase, reviewByCase, unreviewedByCase] = await Promise.all([
       prisma.evidence.groupBy({
         by: ["caseId"],
         where: { caseId: { in: caseIds } },
@@ -1768,6 +1774,18 @@ async function runCaseOperations(
             take: 500,
           })
         : Promise.resolve([]),
+      scope === "TEAM"
+        ? prisma.evidence.groupBy({
+            by: ["caseId"],
+            where: {
+              teamId,
+              caseId: { in: caseIds },
+              status: { in: ["UPLOADED", "SIGNED"] },
+              reviewWorkflow: null,
+            },
+            _count: { _all: true },
+          })
+        : Promise.resolve([]),
     ]);
     const reviewByCaseMap = new Map<
       string,
@@ -1784,6 +1802,10 @@ async function runCaseOperations(
     const evidenceCountMap = new Map<string, number>();
     for (const e of evidenceCounts) {
       if (e.caseId) evidenceCountMap.set(e.caseId, e._count._all);
+    }
+    const unreviewedByCaseMap = new Map<string, number>();
+    for (const e of unreviewedByCase) {
+      if (e.caseId) unreviewedByCaseMap.set(e.caseId, e._count._all);
     }
     const holdsSet = new Set<string>();
     for (const h of holdsByCase) holdsSet.add(h.caseId);
@@ -1864,7 +1886,7 @@ async function runCaseOperations(
       caseId: c.id,
       caseName: c.name,
       evidenceCount: evidenceCountMap.get(c.id) ?? 0,
-      unreviewedCount: 0, // populated lazily — keeps query bounded
+      unreviewedCount: unreviewedByCaseMap.get(c.id) ?? 0,
       overdueReviewCount: reviewByCaseMap.get(c.id)?.overdue ?? 0,
       openEscalationsCount: openEscalationsByCase.get(c.id) ?? 0,
       hasActiveLegalHold: holdsSet.has(c.id),
@@ -2460,6 +2482,10 @@ async function runTimeline(
         evidenceId: true,
         version: true,
         generatedAtUtc: true,
+        // Phase HOME-PROOF — entity title for a rich activity label
+        // ("Report v2 generated — Water damage record"), so distinct
+        // reports never collapse into an anonymous "×N" row.
+        evidence: { select: { title: true } },
       },
     });
     anyOk = true;
@@ -2468,7 +2494,9 @@ async function runTimeline(
         id: `report:${r.id}`,
         kind: "report_generated",
         occurredAt: r.generatedAtUtc.toISOString(),
-        label: `Report generated · v${r.version}`,
+        label: r.evidence?.title
+          ? `Report v${r.version} generated — ${r.evidence.title}`
+          : `Report generated · v${r.version}`,
         subtitle: null,
         href: `/evidence/${r.evidenceId}`,
         severity: "info",
@@ -2492,6 +2520,8 @@ async function runTimeline(
         evidenceId: true,
         version: true,
         generatedAtUtc: true,
+        // Phase HOME-PROOF — entity title for a rich activity label.
+        evidence: { select: { title: true } },
       },
     });
     anyOk = true;
@@ -2500,7 +2530,9 @@ async function runTimeline(
         id: `package:${r.id}`,
         kind: "package_generated",
         occurredAt: r.generatedAtUtc.toISOString(),
-        label: `Verification package generated · v${r.version}`,
+        label: r.evidence?.title
+          ? `Package v${r.version} generated — ${r.evidence.title}`
+          : `Verification package generated · v${r.version}`,
         subtitle: null,
         href: `/evidence/${r.evidenceId}`,
         severity: "info",
