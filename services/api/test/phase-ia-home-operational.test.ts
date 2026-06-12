@@ -180,12 +180,32 @@ describe("Phase IA-home-operational — Operational Queue", () => {
 
 describe("Phase IA-home-operational — Intake Pipeline", () => {
   it("shows real lifecycle counts from intake links + communications", () => {
+    // Phase HOME-FIELD-WIRING (Ticket 2) — every stage is a DISTINCT
+    // real count; the old "received" stage (which duplicated the
+    // pending-review number) is gone.
     const vm = build();
     const byKey = Object.fromEntries(vm.intakePipeline.stages.map((s) => [s.key, s.count]));
     expect(byKey.active).toBe(2); // lk-1 + lk-2 ACTIVE
+    expect(byKey.delivered).toBe(1); // m-1 has deliveredAtUtc
     expect(byKey.awaiting).toBe(1); // lk-2 unused
-    expect(byKey.received).toBe(1); // r-1 submission
+    expect(byKey.in_review).toBe(1); // r-1 pending-review inbox item
+    expect(byKey.needs_more).toBe(0); // no intake_required_items_missing
     expect(byKey.failed).toBe(1); // m-2 failed
+    expect(byKey.received).toBeUndefined(); // duplicated stage removed
+  });
+
+  it("pending review and needs-more-info come from DIFFERENT inbox categories", () => {
+    const vm = build({
+      inbox: {
+        items: [
+          ...(INBOX.items ?? []),
+          { id: "intake_required_items_missing:r-2", category: "intake_required_items_missing", title: "More material needed", href: "/evidence-requests/r-2", occurredAt: "2026-06-12T07:30:00Z", context: { teamId: WS, status: "NEEDS_MORE_INFO" } },
+        ],
+      },
+    });
+    const byKey = Object.fromEntries(vm.intakePipeline.stages.map((s) => [s.key, s.count]));
+    expect(byKey.in_review).toBe(1);
+    expect(byKey.needs_more).toBe(1);
   });
 
   it("the failed stage is toned danger when there are failed sends", () => {
@@ -214,13 +234,52 @@ describe("Phase IA-home-operational — Intake Pipeline", () => {
 
 describe("Phase IA-home-operational — Report Production", () => {
   it("surfaces ready / pending / failed from the real pipeline projection", () => {
+    // Phase HOME-FIELD-WIRING (Ticket 1) — the API's missingFromSigned/
+    // missingFromReported are LITERAL ALIASES of `queued`; pending now
+    // reads the single authoritative counter (never the sum).
     const vm = build();
     expect(vm.reportProduction.reportsReady).toBe(5);
     expect(vm.reportProduction.packagesReady).toBe(4);
-    expect(vm.reportProduction.reportsPending).toBe(1 + 3); // queued + missingFromSigned
-    expect(vm.reportProduction.packagesPending).toBe(0 + 2); // queued + missingFromReported
+    expect(vm.reportProduction.reportsPending).toBe(1); // queued only
+    expect(vm.reportProduction.packagesPending).toBe(0); // queued only
     expect(vm.reportProduction.reportsFailed).toBe(2);
     expect(vm.reportProduction.packagesFailed).toBe(1 + 1); // failed + blocked
+  });
+
+  it("duplicate-alias payload never double-counts (queued=5 alias=5 ⇒ pending=5)", () => {
+    const vm = build({
+      commandCenter: {
+        sections: {
+          pipelineDetail: {
+            status: "ok",
+            data: {
+              reports: { ready: 0, queued: 5, failed: 0, missingFromSigned: 5 },
+              packages: { ready: 0, queued: 3, blocked: 0, failed: 0, missingFromReported: 3 },
+            },
+          },
+        },
+      },
+    });
+    expect(vm.reportProduction.reportsPending).toBe(5);
+    expect(vm.reportProduction.packagesPending).toBe(3);
+  });
+
+  it("older payloads carrying only the alias still surface pending (fallback, not zero)", () => {
+    const vm = build({
+      commandCenter: {
+        sections: {
+          pipelineDetail: {
+            status: "ok",
+            data: {
+              reports: { ready: 0, failed: 0, missingFromSigned: 7 },
+              packages: { ready: 0, failed: 0, missingFromReported: 2 },
+            },
+          },
+        },
+      },
+    });
+    expect(vm.reportProduction.reportsPending).toBe(7);
+    expect(vm.reportProduction.packagesPending).toBe(2);
   });
 
   it("the card renders a failed status stat (not only ready rows)", () => {

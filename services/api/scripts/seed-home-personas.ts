@@ -32,6 +32,10 @@ import "../src/register-shared-runtime.js";
 
 import { HOME_PERSONAS } from "../src/dev/home-personas.js";
 import { REQUIRED_LEGAL_VERSIONS } from "../src/legal/legal-versioning.js";
+// Phase HOME-PROOF — index seeded evidence through the SAME indexer the
+// production finalize pipeline uses, so /v1/search (which reads
+// evidence_search_documents) finds persona fixtures. No bespoke rows.
+import { indexEvidence } from "../src/services/search/evidence-indexing.service.js";
 
 if (process.env.NODE_ENV === "production") {
   // eslint-disable-next-line no-console
@@ -179,6 +183,9 @@ async function seedProPopulated(): Promise<void> {
       otsStatus: "ANCHORED",
       signatureBase64: "ZGV2LXNpZ25hdHVyZS1wcm8tcG9wdWxhdGVk",
       publicVerifyState: "PUBLISHED",
+      // Phase HOME-INTELLIGENCE — the timeline projects the publish
+      // event from this real timestamp (production publish flow sets it).
+      publicVerifyPublishedAtUtc: hoursAgo(2),
       createdAt: hoursAgo(20),
     },
   });
@@ -285,6 +292,7 @@ async function seedTeamOrg(): Promise<void> {
       otsStatus: "PENDING",
       signatureBase64: "ZGV2LXNpZ25hdHVyZS10ZWFt",
       publicVerifyState: "PUBLISHED",
+      publicVerifyPublishedAtUtc: hoursAgo(3),
       createdAt: hoursAgo(30),
     },
   });
@@ -380,6 +388,17 @@ async function main(): Promise<void> {
   await createUserWorkspace("team-org");
   await seedProPopulated();
   await seedTeamOrg();
+  // Phase HOME-PROOF — build evidence_search_documents rows via the
+  // canonical indexer (the production finalize pipeline's writer), so
+  // the canonical /v1/search finds the fixtures.
+  const proPopulated = HOME_PERSONAS["pro-populated"];
+  const teamOrg = HOME_PERSONAS["team-org"];
+  const indexed = await Promise.all([
+    indexEvidence({ teamId: proPopulated.workspaceId, evidenceId: ID.proPopulatedEvidence }),
+    indexEvidence({ teamId: teamOrg.workspaceId, evidenceId: ID.teamEvidence }),
+  ]);
+  // eslint-disable-next-line no-console
+  console.log("search index:", indexed.map((r) => (r.ok ? "ok" : r.reason)).join(", "));
   // eslint-disable-next-line no-console
   console.log("Done. Personas:");
   for (const p of Object.values(HOME_PERSONAS)) {

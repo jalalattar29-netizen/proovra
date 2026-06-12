@@ -295,9 +295,29 @@ function SearchInner() {
 
   // Phase 32.8 Foundation cleanup — initialize filter when teamId
   // resolves from the canonical platform context.
+  //
+  // Phase HOME-INTELLIGENCE — honor `/search?q=…` deep links: the Home
+  // header search routes here with a query, but this page previously
+  // ignored the URL and waited for manual input. Read `q` once at
+  // init (window is client-only-safe inside useEffect; avoids the
+  // useSearchParams Suspense requirement) and seed BOTH the draft box
+  // and the live filter so results load immediately.
   useEffect(() => {
     if (!teamId) return;
-    setFilter({ teamId, sort: "UPDATED_DESC", limit: DEFAULT_LIMIT });
+    let initialQ = "";
+    try {
+      initialQ =
+        new URLSearchParams(window.location.search).get("q")?.trim() ?? "";
+    } catch {
+      // Non-browser environment — fall through to an empty query.
+    }
+    if (initialQ) setQDraft(initialQ);
+    setFilter({
+      teamId,
+      sort: "UPDATED_DESC",
+      limit: DEFAULT_LIMIT,
+      ...(initialQ ? { q: initialQ } : {}),
+    });
   }, [teamId]);
 
   // Saved views.

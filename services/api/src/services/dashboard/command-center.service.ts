@@ -534,6 +534,17 @@ export type CaseOperationsItem = {
   openEscalationsCount: number;
   hasActiveLegalHold: boolean;
   lastActivityAtUtc: string | null;
+  // Phase HOME-DECISIONS — per-matter deliverable readiness. Bounded
+  // read-only aggregates over the existing Evidence relations
+  // (reports / verificationPackages / publicVerifyState), computed
+  // ONLY for the ≤TOP_CASES_LIMIT case ids already selected above —
+  // never a workspace-wide scan.
+  /** Evidence records in this matter with ≥1 report. */
+  reportsReadyCount: number;
+  /** Evidence records in this matter with ≥1 verification package. */
+  packagesReadyCount: number;
+  /** Evidence records in this matter with a LIVE public verify page. */
+  verifyLiveCount: number;
 };
 
 /** Reviewer orchestration — per-reviewer triage snapshot. */
@@ -585,6 +596,9 @@ export type TimelineEvent = {
     | "evidence_finalized"
     | "report_generated"
     | "package_generated"
+    // Phase HOME-INTELLIGENCE — projected from the existing
+    // Evidence.publicVerifyPublishedAtUtc column (read-only).
+    | "verification_published"
     | "lifecycle_transition"
     | "hold_placed"
     | "hold_released"
@@ -1799,6 +1813,53 @@ async function runCaseOperations(
       }
     }
 
+    // Phase HOME-DECISIONS — per-matter deliverable readiness. Three
+    // bounded groupBy queries over the ≤TOP_CASES_LIMIT case ids (the
+    // relations are the same ones the anomaly/timeline sections already
+    // traverse). Failure degrades to zeros, never poisons the section.
+    const toCaseCountMap = (
+      rows: Array<{ caseId: string | null; _count: { _all: number } }>,
+    ): Map<string, number> => {
+      const m = new Map<string, number>();
+      for (const r of rows) if (r.caseId) m.set(r.caseId, r._count._all);
+      return m;
+    };
+    const [reportsByCase, packagesByCase, verifyLiveByCase] =
+      await Promise.all([
+        prisma.evidence
+          .groupBy({
+            by: ["caseId"],
+            where: { teamId, caseId: { in: caseIds }, reports: { some: {} } },
+            _count: { _all: true },
+          })
+          .then(toCaseCountMap)
+          .catch(() => new Map<string, number>()),
+        prisma.evidence
+          .groupBy({
+            by: ["caseId"],
+            where: {
+              teamId,
+              caseId: { in: caseIds },
+              verificationPackages: { some: {} },
+            },
+            _count: { _all: true },
+          })
+          .then(toCaseCountMap)
+          .catch(() => new Map<string, number>()),
+        prisma.evidence
+          .groupBy({
+            by: ["caseId"],
+            where: {
+              teamId,
+              caseId: { in: caseIds },
+              publicVerifyState: "PUBLISHED",
+            },
+            _count: { _all: true },
+          })
+          .then(toCaseCountMap)
+          .catch(() => new Map<string, number>()),
+      ]);
+
     const topCases: CaseOperationsItem[] = recentCases.map((c) => ({
       caseId: c.id,
       caseName: c.name,
@@ -1808,6 +1869,9 @@ async function runCaseOperations(
       openEscalationsCount: openEscalationsByCase.get(c.id) ?? 0,
       hasActiveLegalHold: holdsSet.has(c.id),
       lastActivityAtUtc: c.updatedAt.toISOString(),
+      reportsReadyCount: reportsByCase.get(c.id) ?? 0,
+      packagesReadyCount: packagesByCase.get(c.id) ?? 0,
+      verifyLiveCount: verifyLiveByCase.get(c.id) ?? 0,
     }));
 
     return {
@@ -2121,15 +2185,26 @@ async function runPipelineDetail(
         },
         reports: {
           ready: reportsReady,
+          // `queued` = signed evidence with no report yet (eligible for
+          // generation): max(0, signed − reportsReady). There is no
+          // separate "actively generating" counter in this projection.
           queued: reportsQueued,
           failed: failedReports,
+          // Phase HOME-FIELD-WIRING — `missingFromSigned` is a LITERAL
+          // ALIAS of `queued`, kept for response-shape compatibility.
+          // Consumers must read ONE of the two, never sum them (the
+          // Home dashboard double-counted pending until Ticket 1).
           missingFromSigned: reportsQueued,
         },
         packages: {
           ready: packagesReady,
+          // `queued` = reported evidence with no package yet:
+          // max(0, reported − packagesReady).
           queued: packagesQueued,
           blocked: blockedPackages,
           failed: failedPackages,
+          // ALIAS of `queued` — same compatibility note as
+          // `reports.missingFromSigned` above. Never sum with `queued`.
           missingFromReported: packagesQueued,
         },
         publicVerify: {
@@ -2428,6 +2503,45 @@ async function runTimeline(
         label: `Verification package generated · v${r.version}`,
         subtitle: null,
         href: `/evidence/${r.evidenceId}`,
+        severity: "info",
+      });
+    }
+  } catch {
+    anyFailed = true;
+  }
+
+  // Phase HOME-INTELLIGENCE — public verification published. The
+  // publish flow already persists `publicVerifyPublishedAtUtc` (and a
+  // PUBLIC_VERIFY_PUBLISHED custody event); the timeline simply never
+  // projected it. Minimal read-only projection over the existing
+  // Evidence columns — no new tables, no writes.
+  try {
+    const rows = await prisma.evidence.findMany({
+      where: {
+        teamId,
+        publicVerifyState: "PUBLISHED",
+        publicVerifyPublishedAtUtc: { gte: since14d },
+      },
+      orderBy: { publicVerifyPublishedAtUtc: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        title: true,
+        publicVerifyPublishedAtUtc: true,
+      },
+    });
+    anyOk = true;
+    for (const r of rows) {
+      if (!r.publicVerifyPublishedAtUtc) continue;
+      items.push({
+        id: `verify-published:${r.id}`,
+        kind: "verification_published",
+        occurredAt: r.publicVerifyPublishedAtUtc.toISOString(),
+        label: r.title
+          ? `Verification published — ${r.title}`
+          : "Verification published",
+        subtitle: null,
+        href: `/evidence/${r.id}`,
         severity: "info",
       });
     }
@@ -4267,6 +4381,8 @@ function classifyTimelineDomain(kind: TimelineEvent["kind"]): OperationalDomain 
       return "reports";
     case "package_generated":
       return "packages";
+    case "verification_published":
+      return "packages";
     case "lifecycle_transition":
       return "evidence_pipeline";
     case "hold_placed":
@@ -4328,6 +4444,8 @@ function annotateTimelineEvents(
           return "Evidence transitioned to a finalized state. The downstream report + package pipeline takes over from here.";
         case "report_generated":
           return "A report row was created. The verification package pipeline continues if governance permits.";
+        case "verification_published":
+          return "A public verification page went live for this record — anyone with the link can independently confirm it.";
         case "package_generated":
           return "A verification package row was created. Operators may now offer download or external review.";
         case "lifecycle_transition":

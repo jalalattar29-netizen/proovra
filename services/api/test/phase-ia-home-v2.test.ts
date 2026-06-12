@@ -551,12 +551,14 @@ describe("Phase IA-home-v2 — success criteria coverage", () => {
 // ============================================================================
 
 describe("Phase IA-home-findings — Request & Collect live stats + retry wiring", () => {
-  it("collectionStats are real counts (active / awaiting / received / failed)", () => {
+  it("collectionStats are real DISTINCT counts (Phase HOME-FIELD-WIRING Ticket 2)", () => {
     const vm = build("PRO");
     // lk-1 ACTIVE usedCount 1; lk-2 REVOKED (excluded). m-1 DELIVERED.
     expect(vm.collectionStats.activeLinks).toBe(1);
+    expect(vm.collectionStats.delivered).toBe(1); // m-1 deliveredAtUtc
     expect(vm.collectionStats.awaitingResponse).toBe(0); // lk-1 already used
-    expect(vm.collectionStats.receivedSubmissions).toBe(1); // r-1 in this workspace
+    expect(vm.collectionStats.pendingReview).toBe(1); // r-1 pending-review item
+    expect(vm.collectionStats.needsMoreInfo).toBe(0);
     expect(vm.collectionStats.failedDeliveries).toBe(0);
   });
 

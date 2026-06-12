@@ -98,10 +98,12 @@ export type SubmissionRow = {
 export type CollectionRow = {
   id: string;
   label: string;
-  /** ACTIVE / EXPIRED / REVOKED */
-  status: string;
+  // Phase HOME-FIELD-WIRING (Ticket 4) — `status` was removed: rows
+  // are pre-filtered to ACTIVE links, so the field was a constant
+  // with no UI or test consumer.
   usedCount: number;
   maxUses: number | null;
+  /** Rendered as "expires …" on the intake link row (Ticket 4). */
   expiresAtUtc: string;
   /** Most recent delivery for this link, if any message matched. */
   delivery: {
@@ -112,6 +114,7 @@ export type CollectionRow = {
     statusLabel: string;
     /** True only when the latest delivery is a terminal/retryable failure. */
     failed: boolean;
+    /** Delivery/sent/failed timestamp — rendered on the chip (Ticket 4). */
     at: string | null;
   } | null;
   href: string;
@@ -125,10 +128,27 @@ export type CollectionRow = {
 export type CollectionStats = {
   /** Intake links currently ACTIVE in this workspace. */
   activeLinks: number;
+  /**
+   * Phase HOME-FIELD-WIRING (Ticket 2) — intake-link messages with a
+   * real `deliveredAtUtc`. Distinct from link counts: this counts
+   * confirmed deliveries.
+   */
+  delivered: number;
   /** ACTIVE links that have not yet been used (awaiting a response). */
   awaitingResponse: number;
-  /** Submissions sitting in the review queue (received, not yet reviewed). */
-  receivedSubmissions: number;
+  /**
+   * Submissions awaiting the user's review decision — inbox category
+   * `intake_submission_pending_review` (EvidenceRequest
+   * RESPONSE_RECEIVED / UNDER_REVIEW, unassigned), workspace-scoped,
+   * UNSLICED count.
+   */
+  pendingReview: number;
+  /**
+   * Submissions returned for more material — inbox category
+   * `intake_required_items_missing` (PARTIALLY_FULFILLED /
+   * NEEDS_MORE_INFO), workspace-scoped, UNSLICED count.
+   */
+  needsMoreInfo: number;
   /** ACTIVE links whose latest delivery attempt failed. */
   failedDeliveries: number;
 };
@@ -196,9 +216,16 @@ export type TrustState = {
   tsaStamped: number;
   tsaPending: number;
   tsaFailed: number;
+  /**
+   * Phase HOME-FIELD-WIRING (Ticket 3B) — records with no TSA attempt
+   * yet (trust-summary `tsa.none`). Neutral state, not a failure.
+   */
+  tsaNone: number;
   otsAnchored: number;
   otsPending: number;
   otsFailed: number;
+  /** Records with no OTS anchoring yet (`ots.none`). Neutral state. */
+  otsNone: number;
   signed: number;
   verifyPublished: number;
   /** Public verification links that were live but are now suspended. */
@@ -230,6 +257,9 @@ export type ActivityEvent = {
     | "evidence_finalized"
     | "report_generated"
     | "package_generated"
+    | "verification_published"
+    | "lifecycle_transition"
+    | "destruction_review"
     | "hold_placed"
     | "hold_released"
     | "escalation_opened"
@@ -241,6 +271,12 @@ export type ActivityEvent = {
   label: string;
   occurredAt: string;
   href: string;
+  /**
+   * Phase HOME-INTELLIGENCE — identical labels inside one day bucket
+   * collapse to a single row ("Report generated ×3"); the newest
+   * occurrence keeps its timestamp. Undefined/1 ⇒ single event.
+   */
+  repeatCount?: number;
 };
 
 /** Activity bucketed into Today / Yesterday / Earlier. */
@@ -272,23 +308,44 @@ export type ChecklistStep = {
 };
 
 /**
- * Phase HOME-POLISH — one prioritized workspace action for ACTIVE
- * users (replaces the onboarding checklist once real work exists).
- * Every priority is derived from live operational data — never static
- * copy.
+ * Phase HOME-INTELLIGENCE — a ranked, explained workspace action for
+ * ACTIVE users. Every priority is derived from live operational data
+ * (often COMBINING domains — e.g. reports ready + verification
+ * unpublished); never static copy, never fabricated.
  */
 export type WorkspacePriority = {
   key:
+    | "tsa_failures"
+    | "anchoring_terminal"
     | "resolve_integrity"
-    | "publish_verification"
     | "review_submissions"
     | "complete_packages"
+    | "matters_need_reports"
+    | "ots_pending"
+    | "publish_verification"
+    | "reports_ready"
+    | "storage_pressure"
     | "create_intake_link";
-  label: string;
+  /** critical > warning > info — drives ranking and the chip. */
+  severity: "critical" | "warning" | "info";
+  /** evidence / matter / report / package / verification / intake / trust / storage. */
+  domains: string[];
   /** Real count behind the priority (0 ⇒ the priority is omitted). */
   count: number;
-  tone: "danger" | "warn" | "action";
+  /** What happened — "14 records need integrity review". */
+  label: string;
+  /** Why it matters / what happens if ignored, in plain language. */
+  whyItMatters: string;
+  /** The recommended next step, as a sentence. */
+  recommendedAction: string;
+  /** CTA label for the action button. */
+  actionLabel: string;
   href: string;
+  /**
+   * The REAL source API fields this decision derives from
+   * (endpoint.field notation) — auditability, never marketing.
+   */
+  derivedFrom: string[];
 };
 
 /** Header counts for the Case Health card. */
@@ -297,6 +354,17 @@ export type CaseHealthSummary = {
   gapsCount: number;
   /** Cases carrying an open escalation/blocker. */
   blockersCount: number;
+  /**
+   * Phase HOME-FIELD-WIRING (Ticket 3A) — workspace-level counters the
+   * API already exposed but the VM previously dropped:
+   * `caseOperations.data.unlinkedEvidenceCount` (records not attached
+   * to any matter) and `.unreviewedEvidenceCount` (records not yet
+   * reviewed). NOTE: the per-case `topCases[].unreviewedCount` is
+   * hardcoded 0 server-side — these SECTION-level counters are the
+   * only accurate source.
+   */
+  unlinkedCount: number;
+  unreviewedCount: number;
 };
 
 // ============================================================================
@@ -361,6 +429,37 @@ export type ActiveMatterRow = {
   lastActivityAtUtc: string | null;
   /** True when this matter has any incompleteness/blocker signal. */
   needsWork: boolean;
+  /**
+   * Phase HOME-INTELLIGENCE — true when at least one report exists for
+   * evidence in this matter (per-case aggregate, with /v1/reports
+   * items[].caseId as fallback for older payloads).
+   */
+  hasReport: boolean;
+  /**
+   * Phase HOME-DECISIONS — per-matter deliverable readiness from the
+   * bounded caseOperations aggregates (records with ≥1 report / ≥1
+   * package / a live public verify page).
+   */
+  reportsReadyCount: number;
+  packagesReadyCount: number;
+  verifyLiveCount: number;
+  /**
+   * Where this matter sits in the deliverable chain:
+   *   needs_report → missing_package → needs_publication → ready.
+   * "none" when the matter has no evidence yet.
+   */
+  verificationStatus:
+    | "ready"
+    | "needs_publication"
+    | "missing_package"
+    | "needs_report"
+    | "none";
+  /**
+   * Matter verdict: "action_required" (open escalations / overdue
+   * reviews), "needs_work" (deliverable chain incomplete or unreviewed
+   * work), "healthy".
+   */
+  verdict: "healthy" | "needs_work" | "action_required";
   /** Plain-language status, e.g. "2 unreviewed · 1 blocked" or "On track". */
   statusLabel: string;
   href: string;
@@ -368,7 +467,21 @@ export type ActiveMatterRow = {
 
 /** One stage in the intake lifecycle pipeline. */
 export type IntakeStage = {
-  key: "active" | "awaiting" | "received" | "in_review" | "failed";
+  /**
+   * Phase HOME-FIELD-WIRING (Ticket 2) — each key maps to a DISTINCT
+   * backend count (see CollectionStats). The old "received" stage was
+   * removed: a total-received counter (including accepted submissions)
+   * is not exposed by any consumed endpoint, and an "Accepted /
+   * Converted" stage is likewise not exposed — both are hidden rather
+   * than duplicated from another number.
+   */
+  key:
+    | "active"
+    | "delivered"
+    | "awaiting"
+    | "in_review"
+    | "needs_more"
+    | "failed";
   label: string;
   count: number;
   tone: "ok" | "warn" | "danger" | "neutral";
@@ -383,6 +496,21 @@ export type IntakePipeline = {
 };
 
 /** Report/package production status — ready / pending / failed. */
+/**
+ * Phase HOME-INTELLIGENCE — an aggregate deliverable issue with a real
+ * count and a working route. No retry buttons are fabricated: failed
+ * deliverables surface as OperationalIncident inbox items, so the
+ * action navigates to the surface where the fix lives.
+ */
+export type DeliverableIssue = {
+  key: "failed_deliverables" | "package_gap" | "publish_ready";
+  label: string;
+  count: number;
+  tone: "danger" | "warn" | "action";
+  actionLabel: string;
+  href: string;
+};
+
 export type ReportProduction = {
   reportsReady: number;
   packagesReady: number;
@@ -390,6 +518,8 @@ export type ReportProduction = {
   packagesPending: number;
   reportsFailed: number;
   packagesFailed: number;
+  /** Cross-signal "needs action" issues (Phase HOME-INTELLIGENCE). */
+  needsAction: DeliverableIssue[];
   /** Latest generated reports with their deliverable actions. */
   recent: RecentReportRow[];
 };
@@ -413,6 +543,21 @@ export type VerificationHealth = {
   suspended: number;
   /** Recently verifiable records (have a package → public verify works). */
   verifiable: VerifiableRecord[];
+  /**
+   * Phase HOME-INTELLIGENCE — cross-signal verification issues, each a
+   * real aggregate count: packages ready but verification unpublished
+   * (pipeline.publicVerify × packages), and reported evidence missing
+   * a package. Recent verify-view analytics exist only on a
+   * per-evidence endpoint (review-workspace) — NOT shown here rather
+   * than fetched N+1 (documented future capability).
+   */
+  issues: DeliverableIssue[];
+  /**
+   * Phase HOME-DECISIONS — recently published verification pages,
+   * projected from the command-center timeline's
+   * `verification_published` events (Evidence.publicVerifyPublishedAtUtc).
+   */
+  recentPublications: Array<{ label: string; href: string; occurredAt: string }>;
   /** True when there is no evidence yet (zero scaffold). */
   empty: boolean;
 };
@@ -515,11 +660,19 @@ export type HomeViewModel = {
   workspaceHealth: WorkspaceHealthMetric[];
   activeMatters: ActiveMatterRow[];
   recentEvidence: RecentEvidenceRow[];
-  recentReports: RecentReportRow[];
   caseHealth: CaseHealthRow[];
   caseHealthSummary: CaseHealthSummary;
   trustState: TrustState;
   activity: ActivityGroup[];
+  // Phase HOME-FIELD-WIRING (Ticket 4) — field audit outcome:
+  //   * `submissions`, `needsFixing`, `collection`, `collectionStats`,
+  //     `caseHealth`, `recentEvidence`, `HeroAction.count`, and
+  //     `SubmissionRow.status/statusLabel` are KEPT: they are tested
+  //     intermediates (phase-ia-home-v2) that also feed derived
+  //     widgets (queue, pipeline, hero, evidence-count fallback).
+  //   * `recentReports` is now INTERNAL only (feeds reportProduction +
+  //     verificationHealth; no UI/test consumer on the VM).
+  //   * `hasAnyData` was REMOVED (no consumer anywhere).
   storage: StorageUsage | null;
   teamWork: TeamWork | null;
   checklist: ChecklistStep[];
@@ -535,7 +688,6 @@ export type HomeViewModel = {
   workspacePriorities: WorkspacePriority[];
   /** Overall workspace verdict derived from the health metric tones. */
   workspaceHealthOverall: "healthy" | "needs_attention" | "action_required";
-  hasAnyData: boolean;
 };
 
 // ============================================================================
@@ -571,6 +723,11 @@ export type HomeCommandCenterInput = {
           openEscalationsCount?: number;
           hasActiveLegalHold?: boolean;
           lastActivityAtUtc?: string | null;
+          // Phase HOME-DECISIONS — per-matter deliverable readiness
+          // (bounded aggregates added to the caseOperations projection).
+          reportsReadyCount?: number;
+          packagesReadyCount?: number;
+          verifyLiveCount?: number;
         }>;
       } | null;
     };
@@ -607,14 +764,17 @@ export type HomeCommandCenterInput = {
     };
     timeline?: {
       status?: string;
+      // Phase HOME-FIELD-WIRING (Ticket 3C) — the API also emits
+      // `subtitle` and `severity` per item; Home's one-line activity
+      // rows render neither (severity is conveyed by the kind-colored
+      // dot), so they are deliberately EXCLUDED from this input type
+      // rather than carried as dead fields.
       items?: Array<{
         id: string;
         kind?: string;
         occurredAt?: string;
         label?: string;
-        subtitle?: string;
         href?: string;
-        severity?: string;
       }>;
     };
     custodyIntegrityAnomalies?: {
@@ -669,6 +829,13 @@ export type HomeReportsInput = {
     title: string | null;
     status?: string;
     createdAt?: string;
+    /**
+     * Phase HOME-INTELLIGENCE — the matter this evidence belongs to.
+     * Emitted by /v1/reports since its inception (Evidence.caseId,
+     * reports.routes.ts), previously dropped here. Powers per-matter
+     * report-readiness on Active Matters.
+     */
+    caseId?: string | null;
     report?: { available?: boolean; version?: number | null; generatedAtUtc?: string | null };
     package?: { available?: boolean; version?: number | null; generatedAtUtc?: string | null };
   }>;
@@ -909,7 +1076,6 @@ function buildCollection(args: {
     return {
       id: l.id,
       label: l.recipientLabel ?? l.recipientPhone ?? l.workflowTemplateSlug ?? "Intake link",
-      status: l.status,
       usedCount: l.usedCount,
       maxUses: l.maxUses,
       expiresAtUtc: l.expiresAtUtc,
@@ -935,10 +1101,18 @@ function buildCollection(args: {
  * estimates. `awaitingResponse` = ACTIVE links never used;
  * `failedDeliveries` = ACTIVE links whose latest send failed.
  */
+/**
+ * Phase HOME-FIELD-WIRING (Ticket 2) — every stat is a DISTINCT real
+ * count. The old shape reused one `receivedSubmissions` number for two
+ * pipeline stages; the pipeline now reads four independent sources:
+ * intake links (IL), delivery messages (CM), and the two intake inbox
+ * categories (IB), each counted separately.
+ */
 function buildCollectionStats(args: {
   intakeLinks: HomeIntakeLinksInput | null;
   communications: HomeCommunicationsInput | null;
-  receivedSubmissions: number;
+  inbox: HomeInboxInput | null;
+  workspaceId: string | null;
 }): CollectionStats {
   const active = (args.intakeLinks?.links ?? []).filter(
     (l) => l.status === "ACTIVE",
@@ -951,10 +1125,33 @@ function buildCollectionStats(args: {
       failedDeliveries += 1;
     }
   }
+
+  // Confirmed deliveries — messages with a real deliveredAtUtc.
+  const delivered = (args.communications?.messages ?? []).filter(
+    (m) => m.deliveredAtUtc != null,
+  ).length;
+
+  // Workspace-scoped UNSLICED inbox counts per intake category (the
+  // SubmissionRow list is capped at 6 for display; stage counts must
+  // not inherit that cap).
+  const inWorkspace = (it: NonNullable<HomeInboxInput["items"]>[number]) =>
+    !args.workspaceId ||
+    !it.context?.teamId ||
+    String(it.context.teamId) === args.workspaceId;
+  const items = args.inbox?.items ?? [];
+  const pendingReview = items.filter(
+    (it) => it.category === "intake_submission_pending_review" && inWorkspace(it),
+  ).length;
+  const needsMoreInfo = items.filter(
+    (it) => it.category === "intake_required_items_missing" && inWorkspace(it),
+  ).length;
+
   return {
     activeLinks: active.length,
+    delivered,
     awaitingResponse: active.filter((l) => (l.usedCount ?? 0) === 0).length,
-    receivedSubmissions: args.receivedSubmissions,
+    pendingReview,
+    needsMoreInfo,
     failedDeliveries,
   };
 }
@@ -1102,9 +1299,11 @@ function buildTrustState(
     tsaStamped: s.tsa?.stamped ?? 0,
     tsaPending: s.tsa?.pending ?? 0,
     tsaFailed: s.tsa?.failed ?? 0,
+    tsaNone: s.tsa?.none ?? 0,
     otsAnchored: s.ots?.anchored ?? 0,
     otsPending: s.ots?.pending ?? 0,
     otsFailed: s.ots?.failed ?? 0,
+    otsNone: s.ots?.none ?? 0,
     signed: s.signed ?? 0,
     verifyPublished: s.publicVerify?.published ?? 0,
     verifySuspended: s.publicVerify?.suspended ?? 0,
@@ -1172,6 +1371,14 @@ const ACTIVITY_KIND_LABELS: Record<string, { kind: ActivityEvent["kind"]; label:
   hold_released: { kind: "hold_released", label: "Legal hold released" },
   escalation_opened: { kind: "escalation_opened", label: "Review escalation opened" },
   incident_opened: { kind: "incident_opened", label: "Incident opened" },
+  // Phase HOME-FIELD-WIRING (Ticket 3C) — timeline kinds the API
+  // already emitted but the VM silently filtered. Self-serve labels;
+  // raw event names never leak to the UI.
+  lifecycle_transition: { kind: "lifecycle_transition", label: "Evidence lifecycle updated" },
+  destruction_review: { kind: "destruction_review", label: "Retention review recorded" },
+  // Phase HOME-INTELLIGENCE — projected by the new command-center
+  // timeline source over Evidence.publicVerifyPublishedAtUtc.
+  verification_published: { kind: "verification_published", label: "Verification published" },
 };
 
 function dayBucket(iso: string, nowMs: number): "today" | "yesterday" | "earlier" {
@@ -1279,12 +1486,31 @@ function buildActivity(args: {
   for (const e of capped) {
     groups[dayBucket(e.occurredAt, args.nowMs)].push(e);
   }
+
+  // Phase HOME-INTELLIGENCE — collapse identical labels inside one day
+  // bucket ("Report generated" ×3 → one row with repeatCount). The
+  // newest occurrence keeps its id/time/href; titled events with
+  // distinct labels never merge.
+  const collapse = (list: ActivityEvent[]): ActivityEvent[] => {
+    const byLabel = new Map<string, ActivityEvent>();
+    for (const e of list) {
+      const k = `${e.kind}:${e.label}`;
+      const prior = byLabel.get(k);
+      if (!prior) {
+        byLabel.set(k, { ...e });
+      } else {
+        prior.repeatCount = (prior.repeatCount ?? 1) + 1;
+      }
+    }
+    return [...byLabel.values()];
+  };
+
   const out: ActivityGroup[] = [];
-  if (groups.today.length) out.push({ key: "today", label: "Today", events: groups.today });
+  if (groups.today.length) out.push({ key: "today", label: "Today", events: collapse(groups.today) });
   if (groups.yesterday.length)
-    out.push({ key: "yesterday", label: "Yesterday", events: groups.yesterday });
+    out.push({ key: "yesterday", label: "Yesterday", events: collapse(groups.yesterday) });
   if (groups.earlier.length)
-    out.push({ key: "earlier", label: "Earlier", events: groups.earlier });
+    out.push({ key: "earlier", label: "Earlier", events: collapse(groups.earlier) });
   return out;
 }
 
@@ -1367,9 +1593,11 @@ function buildChecklist(args: {
 }
 
 /**
- * Phase HOME-POLISH — Workspace Priorities for ACTIVE users. Each
- * priority is derived from a real operational counter; zero-count
- * priorities never render. Bounded to 5.
+ * Phase HOME-INTELLIGENCE — ranked Workspace Priorities for ACTIVE
+ * users. Each rule combines REAL operational counters across domains
+ * and carries a plain-language reason + recommended action. Ranking:
+ * critical > warning > info, ties broken by affected count. Zero-count
+ * rules never emit; zero data emits nothing (the UI shows all-clear).
  */
 function buildWorkspacePriorities(args: {
   plan: HomePlan;
@@ -1378,58 +1606,197 @@ function buildWorkspacePriorities(args: {
   submissionsCount: number;
   collectionStats: CollectionStats;
   reportCount: number;
+  criticalFailuresCount: number;
+  mattersNeedingWork: number;
+  reportsReady: number;
+  storage: StorageUsage | null;
 }): WorkspacePriority[] {
   const p = args.pipeline ?? null;
   const out: WorkspacePriority[] = [];
 
+  // ---- critical -----------------------------------------------------------
+  if (args.storage?.limitReached) {
+    out.push({
+      key: "storage_pressure",
+      severity: "critical",
+      domains: ["storage"],
+      count: 1,
+      label: "Storage limit reached",
+      whyItMatters: "New captures are blocked until space is freed or the plan is topped up.",
+      recommendedAction: "Manage storage or upgrade before capturing more evidence.",
+      actionLabel: "Manage storage",
+      href: "/billing",
+      derivedFrom: ["billing/overview.workspaces.personal.storage.limitReached"],
+    });
+  }
+  if (args.trust.tsaFailed > 0) {
+    out.push({
+      key: "tsa_failures",
+      severity: "critical",
+      domains: ["trust", "evidence"],
+      count: args.trust.tsaFailed,
+      label: `${args.trust.tsaFailed} TSA timestamp${args.trust.tsaFailed === 1 ? "" : "s"} failed`,
+      whyItMatters: "Failed timestamping weakens time-based evidence confidence for these records.",
+      recommendedAction: "Open the affected records and review their timestamp state.",
+      actionLabel: "Open affected records",
+      href: "/evidence",
+      derivedFrom: ["dashboard/trust-summary.tsa.failed"],
+    });
+  }
+  if (args.criticalFailuresCount > 0) {
+    out.push({
+      key: "anchoring_terminal",
+      severity: "critical",
+      domains: ["trust", "evidence"],
+      count: args.criticalFailuresCount,
+      label: `${args.criticalFailuresCount} anchoring failure${args.criticalFailuresCount === 1 ? "" : "s"} are terminal`,
+      whyItMatters: "Blockchain anchoring cannot be retried for these records — they will stay unanchored.",
+      recommendedAction: "Open each failure to decide how to document the gap.",
+      actionLabel: "Open to fix",
+      href: "/inbox",
+      derivedFrom: ["me/inbox.category=ots_failure.context.failureCode"],
+    });
+  }
+
+  // ---- warning ------------------------------------------------------------
   if (args.trust.needingAttention > 0) {
     out.push({
       key: "resolve_integrity",
-      label: "Resolve integrity issues",
+      severity: "warning",
+      domains: ["trust", "evidence"],
       count: args.trust.needingAttention,
-      tone: "danger",
+      label: `${args.trust.needingAttention} record${args.trust.needingAttention === 1 ? "" : "s"} need integrity review`,
+      whyItMatters: "These records may not be ready for trusted reports or external verification.",
+      recommendedAction: "Review each flagged record's integrity verdict.",
+      actionLabel: "Review integrity",
       href: "/evidence",
+      derivedFrom: ["dashboard/trust-summary.needingAttention"],
     });
   }
   if (args.submissionsCount > 0) {
     out.push({
       key: "review_submissions",
-      label: "Review submissions",
+      severity: "warning",
+      domains: ["intake"],
       count: args.submissionsCount,
-      tone: "warn",
+      label: `${args.submissionsCount} submission${args.submissionsCount === 1 ? "" : "s"} waiting for review`,
+      whyItMatters: "External evidence is not part of the trusted record until you review it.",
+      recommendedAction: "Review and accept or return each submission.",
+      actionLabel: "Review submissions",
       href: "/inbox",
+      derivedFrom: ["me/inbox.category=intake_submission_pending_review"],
     });
   }
   const packagesMissing =
-    (p?.packages?.missingFromReported ?? 0) + (p?.packages?.blocked ?? 0);
+    p?.packages?.queued ?? p?.packages?.missingFromReported ?? 0;
   if (packagesMissing > 0) {
     out.push({
       key: "complete_packages",
-      label: "Complete missing packages",
+      severity: "warning",
+      domains: ["report", "package"],
       count: packagesMissing,
-      tone: "warn",
+      label: `${packagesMissing} package${packagesMissing === 1 ? " is" : "s are"} missing`,
+      whyItMatters: "Verification packages are needed for portable external review of reported evidence.",
+      recommendedAction: "Complete the missing packages from the reports surface.",
+      actionLabel: "Complete packages",
       href: "/reports",
+      derivedFrom: ["dashboard/command-center.pipelineDetail.packages.queued"],
     });
   }
+  if (args.mattersNeedingWork > 0) {
+    out.push({
+      key: "matters_need_reports",
+      severity: "warning",
+      domains: ["matter", "report"],
+      count: args.mattersNeedingWork,
+      label: `${args.mattersNeedingWork} matter${args.mattersNeedingWork === 1 ? "" : "s"} need${args.mattersNeedingWork === 1 ? "s" : ""} evidence work`,
+      whyItMatters: "These matters have gaps or missing deliverables in their evidence chain.",
+      recommendedAction: "Open each matter and complete its report, package, or review work.",
+      actionLabel: "Open matters",
+      href: "/cases",
+      derivedFrom: [
+        "dashboard/command-center.caseOperations.topCases",
+        "reports.items.caseId",
+      ],
+    });
+  }
+  if (args.storage?.nearLimit && !args.storage.limitReached) {
+    out.push({
+      key: "storage_pressure",
+      severity: "warning",
+      domains: ["storage"],
+      count: 1,
+      label: "Storage is close to its limit",
+      whyItMatters: "Uploads may be blocked if the workspace reaches its storage limit.",
+      recommendedAction: "Free space or extend storage before it runs out.",
+      actionLabel: "Manage storage",
+      href: "/billing",
+      derivedFrom: ["billing/overview.workspaces.personal.storage.nearLimit"],
+    });
+  }
+  if (args.trust.otsPending > 0) {
+    out.push({
+      key: "ots_pending",
+      severity: "warning",
+      domains: ["trust"],
+      count: args.trust.otsPending,
+      label: `${args.trust.otsPending} OTS proof${args.trust.otsPending === 1 ? " is" : "s are"} still pending`,
+      whyItMatters: "Bitcoin anchoring can take time, but long-pending proofs should be checked.",
+      recommendedAction: "Review the anchoring status of the pending records.",
+      actionLabel: "Review anchoring",
+      href: "/evidence",
+      derivedFrom: ["dashboard/trust-summary.ots.pending"],
+    });
+  }
+
+  // ---- info ---------------------------------------------------------------
   const unpublished = p?.publicVerify?.unpublished ?? 0;
   if (unpublished > 0 && args.reportCount > 0) {
     out.push({
       key: "publish_verification",
-      label: "Publish verification links",
+      severity: "info",
+      domains: ["verification", "report"],
       count: unpublished,
-      tone: "action",
+      label: `${unpublished} record${unpublished === 1 ? " is" : "s are"} ready but not publicly verifiable`,
+      whyItMatters: "External recipients cannot independently verify these records yet.",
+      recommendedAction: "Publish their verification pages so links can be shared.",
+      actionLabel: "Publish verification",
       href: "/evidence",
+      derivedFrom: ["dashboard/command-center.pipelineDetail.publicVerify.unpublished"],
+    });
+  }
+  if (args.reportsReady > 0) {
+    out.push({
+      key: "reports_ready",
+      severity: "info",
+      domains: ["report"],
+      count: args.reportsReady,
+      label: `${args.reportsReady} report${args.reportsReady === 1 ? " is" : "s are"} ready to share`,
+      whyItMatters: "These records already have report output available for download or review.",
+      recommendedAction: "Open report production to download or share them.",
+      actionLabel: "Open reports",
+      href: "/reports",
+      derivedFrom: ["dashboard/command-center.pipelineDetail.reports.ready"],
     });
   }
   if (isProOrTeam(args.plan) && args.collectionStats.activeLinks === 0) {
     out.push({
       key: "create_intake_link",
-      label: "Create an intake link",
+      severity: "info",
+      domains: ["intake"],
       count: 1,
-      tone: "action",
+      label: "Create an intake link to request evidence",
+      whyItMatters: "Evidence from clients, witnesses, or sources arrives tracked and reviewable.",
+      recommendedAction: "Create a secure intake link and send it to your contributor.",
+      actionLabel: "Create link",
       href: "/intake-links?new=1",
+      derivedFrom: ["workflow/intake-links.links.status=ACTIVE"],
     });
   }
+
+  // Rank: severity first, then affected count.
+  const rank = { critical: 2, warning: 1, info: 0 } as const;
+  out.sort((a, b) => rank[b.severity] - rank[a.severity] || b.count - a.count);
   return out.slice(0, 5);
 }
 
@@ -1762,17 +2129,58 @@ function failureType(category: string): OperationalQueueItem["type"] {
  * relevant active cases (needs-work first, then on-track), each with a
  * real status. Sourced from command-center caseOperations.topCases.
  */
-function buildActiveMatters(cc: HomeCommandCenterInput | null): ActiveMatterRow[] {
+function buildActiveMatters(
+  cc: HomeCommandCenterInput | null,
+  /**
+   * Phase HOME-INTELLIGENCE — caseIds that have at least one evidence
+   * record with an available report (derived from /v1/reports
+   * items[].caseId — already emitted, previously dropped).
+   */
+  reportCaseIds: ReadonlySet<string>,
+): ActiveMatterRow[] {
   const topCases = cc?.sections?.caseOperations?.data?.topCases ?? [];
   const rows: ActiveMatterRow[] = topCases.map((c) => {
     const unreviewed = c.unreviewedCount ?? 0;
     const overdue = c.overdueReviewCount ?? 0;
     const escalations = c.openEscalationsCount ?? 0;
-    const needsWork = unreviewed > 0 || overdue > 0 || escalations > 0;
+    // Phase HOME-DECISIONS — per-matter deliverable counts from the
+    // bounded caseOperations aggregates; /v1/reports caseIds remain
+    // the fallback for older payloads without the new fields.
+    const reportsReadyCount =
+      c.reportsReadyCount ?? (reportCaseIds.has(c.caseId) ? 1 : 0);
+    const packagesReadyCount = c.packagesReadyCount ?? 0;
+    const verifyLiveCount = c.verifyLiveCount ?? 0;
+    const hasReport = reportsReadyCount > 0;
+
+    // Deliverable-chain position (only real counts; "none" = no evidence).
+    const verificationStatus: ActiveMatterRow["verificationStatus"] =
+      c.evidenceCount === 0
+        ? "none"
+        : !hasReport
+          ? "needs_report"
+          : packagesReadyCount === 0
+            ? "missing_package"
+            : verifyLiveCount === 0
+              ? "needs_publication"
+              : "ready";
+
+    const chainIncomplete =
+      c.evidenceCount > 0 && verificationStatus !== "ready";
+    const needsWork =
+      unreviewed > 0 || overdue > 0 || escalations > 0 || chainIncomplete;
     const reasons: string[] = [];
     if (unreviewed > 0) reasons.push(`${unreviewed} unreviewed`);
     if (overdue > 0) reasons.push(`${overdue} overdue`);
     if (escalations > 0) reasons.push(`${escalations} blocked`);
+    if (verificationStatus === "needs_report") reasons.push("no report yet");
+    else if (verificationStatus === "missing_package") reasons.push("package missing");
+    else if (verificationStatus === "needs_publication") reasons.push("verification not published");
+    const verdict: ActiveMatterRow["verdict"] =
+      escalations > 0 || overdue > 0
+        ? "action_required"
+        : needsWork
+          ? "needs_work"
+          : "healthy";
     return {
       caseId: c.caseId,
       caseName: c.caseName,
@@ -1783,12 +2191,19 @@ function buildActiveMatters(cc: HomeCommandCenterInput | null): ActiveMatterRow[
       hasActiveLegalHold: c.hasActiveLegalHold === true,
       lastActivityAtUtc: c.lastActivityAtUtc ?? null,
       needsWork,
+      hasReport,
+      reportsReadyCount,
+      packagesReadyCount,
+      verifyLiveCount,
+      verificationStatus,
+      verdict,
       statusLabel: reasons.length > 0 ? reasons.join(" · ") : "On track",
       href: `/cases/${encodeURIComponent(c.caseId)}`,
     };
   });
-  // Needs-work matters first, then on-track; cap to keep Home scannable.
-  rows.sort((a, b) => Number(b.needsWork) - Number(a.needsWork));
+  // Action-required first, then needs-work, then healthy.
+  const rank = { action_required: 2, needs_work: 1, healthy: 0 } as const;
+  rows.sort((a, b) => rank[b.verdict] - rank[a.verdict]);
   return rows.slice(0, 6);
 }
 
@@ -1802,11 +2217,15 @@ function buildIntakePipeline(args: {
   stats: CollectionStats;
 }): IntakePipeline {
   const s = args.stats;
+  // Phase HOME-FIELD-WIRING (Ticket 2) — six stages, six DISTINCT
+  // real counts (links / deliveries / unused links / the two intake
+  // inbox categories / failed deliveries). No stage shares a source.
   const stages: IntakeStage[] = [
     { key: "active", label: "Active links", count: s.activeLinks, tone: "neutral" },
+    { key: "delivered", label: "Delivered", count: s.delivered, tone: s.delivered > 0 ? "ok" : "neutral" },
     { key: "awaiting", label: "Awaiting response", count: s.awaitingResponse, tone: s.awaitingResponse > 0 ? "warn" : "neutral" },
-    { key: "received", label: "Responses received", count: s.receivedSubmissions, tone: s.receivedSubmissions > 0 ? "ok" : "neutral" },
-    { key: "in_review", label: "Pending review", count: s.receivedSubmissions, tone: s.receivedSubmissions > 0 ? "warn" : "neutral" },
+    { key: "in_review", label: "Pending review", count: s.pendingReview, tone: s.pendingReview > 0 ? "warn" : "neutral" },
+    { key: "needs_more", label: "Needs more info", count: s.needsMoreInfo, tone: s.needsMoreInfo > 0 ? "warn" : "neutral" },
     { key: "failed", label: "Failed sends", count: s.failedDeliveries, tone: s.failedDeliveries > 0 ? "danger" : "neutral" },
   ];
   return {
@@ -1815,7 +2234,8 @@ function buildIntakePipeline(args: {
     empty:
       s.activeLinks === 0 &&
       args.collection.length === 0 &&
-      s.receivedSubmissions === 0,
+      s.pendingReview === 0 &&
+      s.needsMoreInfo === 0,
   };
 }
 
@@ -1833,13 +2253,72 @@ function buildReportProduction(args: {
     p?.reports?.ready ?? args.recentReports.filter((r) => r.reportReady).length;
   const packagesReady =
     p?.packages?.ready ?? args.recentReports.filter((r) => r.packageReady).length;
+  // Phase HOME-FIELD-WIRING (Ticket 1) — pending double-count fix.
+  // The command-center API emits `missingFromSigned` as a LITERAL
+  // ALIAS of `reports.queued` (command-center.service.ts — both are
+  // `reportsQueued = max(0, signed − reportsReady)`), and
+  // `missingFromReported` as an alias of `packages.queued`. The old
+  // `queued + missingFromSigned` sum therefore showed DOUBLE the real
+  // backlog. Authoritative meaning of the single counter:
+  //   reports.queued / missingFromSigned   = signed records with no
+  //                                          report yet (eligible).
+  //   packages.queued / missingFromReported = reported records with no
+  //                                          package yet (eligible).
+  //   *.failed                              = failed generation
+  //                                          (OperationalIncident).
+  // We read `queued` and fall back to its alias for older payloads —
+  // never both.
+  const reportsPending = p?.reports?.queued ?? p?.reports?.missingFromSigned ?? 0;
+  const packagesPending =
+    p?.packages?.queued ?? p?.packages?.missingFromReported ?? 0;
+  const reportsFailed = p?.reports?.failed ?? 0;
+  const packagesFailed = (p?.packages?.failed ?? 0) + (p?.packages?.blocked ?? 0);
+
+  // Phase HOME-INTELLIGENCE — cross-signal "needs action" issues.
+  // Every count is a real aggregate; failed deliverables live as
+  // OperationalIncident inbox items, so the action routes there (no
+  // fabricated retry — no retry endpoint exists for report jobs).
+  const unpublished = p?.publicVerify?.unpublished ?? 0;
+  const needsAction: DeliverableIssue[] = [];
+  if (reportsFailed + packagesFailed > 0) {
+    needsAction.push({
+      key: "failed_deliverables",
+      label: "Failed deliverables need attention",
+      count: reportsFailed + packagesFailed,
+      tone: "danger",
+      actionLabel: "Open inbox",
+      href: "/inbox",
+    });
+  }
+  if (packagesPending > 0) {
+    needsAction.push({
+      key: "package_gap",
+      label: "Reported evidence missing a package",
+      count: packagesPending,
+      tone: "warn",
+      actionLabel: "Open reports",
+      href: "/reports",
+    });
+  }
+  if (reportsReady > 0 && unpublished > 0) {
+    needsAction.push({
+      key: "publish_ready",
+      label: "Reports ready but verification not published",
+      count: Math.min(reportsReady, unpublished),
+      tone: "action",
+      actionLabel: "Publish verification",
+      href: "/evidence",
+    });
+  }
+
   return {
     reportsReady,
     packagesReady,
-    reportsPending: (p?.reports?.queued ?? 0) + (p?.reports?.missingFromSigned ?? 0),
-    packagesPending: (p?.packages?.queued ?? 0) + (p?.packages?.missingFromReported ?? 0),
-    reportsFailed: p?.reports?.failed ?? 0,
-    packagesFailed: (p?.packages?.failed ?? 0) + (p?.packages?.blocked ?? 0),
+    reportsPending,
+    packagesPending,
+    reportsFailed,
+    packagesFailed,
+    needsAction,
     recent: args.recentReports,
   };
 }
@@ -1852,7 +2331,20 @@ function buildReportProduction(args: {
 function buildVerificationHealth(args: {
   trust: TrustState;
   recentReports: RecentReportRow[];
+  pipeline: PipelineData;
+  cc: HomeCommandCenterInput | null;
 }): VerificationHealth {
+  // Phase HOME-DECISIONS — recent publications from the timeline's
+  // verification_published events (real publish timestamps).
+  const recentPublications = (args.cc?.sections?.timeline?.items ?? [])
+    .filter((it) => it.kind === "verification_published" && it.occurredAt)
+    .sort((a, b) => ((a.occurredAt ?? "") < (b.occurredAt ?? "") ? 1 : -1))
+    .slice(0, 3)
+    .map((it) => ({
+      label: it.label ?? "Verification published",
+      href: it.href ?? "/evidence",
+      occurredAt: it.occurredAt as string,
+    }));
   const verifiable: VerifiableRecord[] = args.recentReports
     .filter((r) => r.packageReady && r.actions.verify)
     .slice(0, 5)
@@ -1861,11 +2353,42 @@ function buildVerificationHealth(args: {
       title: r.evidenceTitle,
       verifyHref: r.actions.verify as string,
     }));
+
+  // Phase HOME-INTELLIGENCE — cross-signal issues (all real aggregates).
+  const p = args.pipeline ?? null;
+  const packagesReady = p?.packages?.ready ?? 0;
+  const verifyUnpublished = p?.publicVerify?.unpublished ?? 0;
+  const packagesMissing =
+    p?.packages?.queued ?? p?.packages?.missingFromReported ?? 0;
+  const issues: DeliverableIssue[] = [];
+  if (packagesReady > 0 && verifyUnpublished > 0) {
+    issues.push({
+      key: "publish_ready",
+      label: "Package ready but verification not published",
+      count: Math.min(packagesReady, verifyUnpublished),
+      tone: "action",
+      actionLabel: "Publish verification",
+      href: "/evidence",
+    });
+  }
+  if (packagesMissing > 0) {
+    issues.push({
+      key: "package_gap",
+      label: "Report ready but package missing",
+      count: packagesMissing,
+      tone: "warn",
+      actionLabel: "Open reports",
+      href: "/reports",
+    });
+  }
+
   return {
     live: args.trust.verifyPublished,
     unpublished: args.trust.empty ? 0 : Math.max(0, args.trust.totalEvidence - args.trust.verifyPublished - args.trust.verifySuspended),
     suspended: args.trust.verifySuspended,
     verifiable,
+    issues,
+    recentPublications,
     empty: args.trust.empty,
   };
 }
@@ -2276,13 +2799,18 @@ export function normalizeHomeViewModel(
   const collectionStats = buildCollectionStats({
     intakeLinks: inputs.intakeLinks,
     communications: inputs.communications,
-    receivedSubmissions: submissions.length,
+    inbox: inputs.inbox,
+    workspaceId: inputs.workspaceId,
   });
 
   // Case Health header counters — real cc signals.
   const caseHealthSummary: CaseHealthSummary = {
     gapsCount: cc?.sections?.caseOperations?.data?.casesWithEvidenceGapsCount ?? 0,
     blockersCount: caseHealth.filter((c) => c.openEscalationsCount > 0).length,
+    // Ticket 3A — previously exposed by the API but dropped here.
+    unlinkedCount: cc?.sections?.caseOperations?.data?.unlinkedEvidenceCount ?? 0,
+    unreviewedCount:
+      cc?.sections?.caseOperations?.data?.unreviewedEvidenceCount ?? 0,
   };
 
   // Counters used by hero + checklist (all workspace-scoped).
@@ -2365,9 +2893,21 @@ export function normalizeHomeViewModel(
     pipeline,
     reportCount,
   });
-  const activeMatters = buildActiveMatters(cc);
+  // Phase HOME-INTELLIGENCE — caseIds that already have a report
+  // (from /v1/reports items[].caseId — exposed all along).
+  const reportCaseIds = new Set<string>(
+    (inputs.reports?.items ?? [])
+      .filter((r) => r.report?.available && r.caseId)
+      .map((r) => String(r.caseId)),
+  );
+  const activeMatters = buildActiveMatters(cc, reportCaseIds);
   const intakePipeline = buildIntakePipeline({ collection, stats: collectionStats });
-  const verificationHealth = buildVerificationHealth({ trust: trustState, recentReports });
+  const verificationHealth = buildVerificationHealth({
+    trust: trustState,
+    recentReports,
+    pipeline,
+    cc,
+  });
   const workspaceHealth = buildWorkspaceHealth({
     pipeline,
     trust: trustState,
@@ -2377,17 +2917,6 @@ export function normalizeHomeViewModel(
     reportsReady: reportProduction.reportsReady,
     storage,
   });
-
-  const hasAnyData =
-    evidenceCount > 0 ||
-    reportCount > 0 ||
-    submissions.length > 0 ||
-    needsFixing.length > 0 ||
-    collection.length > 0 ||
-    caseHealth.length > 0 ||
-    trustState.totalEvidence > 0 ||
-    activity.length > 0 ||
-    storage?.usedLabel != null;
 
   // Phase HOME-KPI — premium dashboard surfaces (all real data).
   const scopedEvidence = scopeEvidenceList({
@@ -2421,7 +2950,8 @@ export function normalizeHomeViewModel(
   const richRecentEvidence = buildRichRecentEvidence(scopedEvidence);
   const inboxCount = (inputs.inbox?.items ?? []).length;
 
-  // Phase HOME-POLISH — active-user priorities + overall health verdict.
+  // Phase HOME-INTELLIGENCE — ranked active-user priorities (cross-
+  // domain signals) + overall health verdict.
   const workspacePriorities = buildWorkspacePriorities({
     plan: inputs.plan,
     trust: trustState,
@@ -2429,6 +2959,10 @@ export function normalizeHomeViewModel(
     submissionsCount: submissions.length,
     collectionStats,
     reportCount,
+    criticalFailuresCount: needsFixing.filter((f) => f.critical).length,
+    mattersNeedingWork: activeMatters.filter((m) => m.verdict !== "healthy").length,
+    reportsReady: reportProduction.reportsReady,
+    storage,
   });
   const workspaceHealthOverall: HomeViewModel["workspaceHealthOverall"] =
     workspaceHealth.some((m) => m.tone === "danger")
@@ -2458,7 +2992,6 @@ export function normalizeHomeViewModel(
     workspaceHealth,
     activeMatters,
     recentEvidence,
-    recentReports,
     caseHealth,
     caseHealthSummary,
     trustState,
@@ -2470,6 +3003,5 @@ export function normalizeHomeViewModel(
     showGettingStarted,
     workspacePriorities,
     workspaceHealthOverall,
-    hasAnyData,
   };
 }

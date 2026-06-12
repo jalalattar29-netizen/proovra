@@ -81,6 +81,24 @@ function EmptyState({ children }: { children: ReactNode }) {
   );
 }
 
+/** Future-facing variant for expiry labels ("in 3d", "in 5h"). */
+function formatRelativeFuture(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "—";
+  const minutes = Math.round((t - Date.now()) / 60000);
+  if (minutes <= 0) return "now";
+  if (minutes < 60) return `in ${minutes}m`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `in ${hours}h`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `in ${days}d`;
+  try {
+    return new Date(t).toLocaleDateString();
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
 function formatRelative(iso: string | null): string {
   if (!iso) return "—";
   const t = Date.parse(iso);
@@ -361,7 +379,11 @@ export function ActiveMatters({
   rows: ActiveMatterRow[];
   summary: CaseHealthSummary;
 }) {
-  const showBadges = summary.gapsCount > 0 || summary.blockersCount > 0;
+  const showBadges =
+    summary.gapsCount > 0 ||
+    summary.blockersCount > 0 ||
+    summary.unlinkedCount > 0 ||
+    summary.unreviewedCount > 0;
   return (
     <SectionCard title="Active matters" testId="active-matters">
       {showBadges ? (
@@ -374,6 +396,17 @@ export function ActiveMatters({
           {summary.blockersCount > 0 ? (
             <span data-case-blockers={summary.blockersCount} style={{ ...chipStyle, background: "#fee2e2", color: "#991b1b" }}>
               {summary.blockersCount} blocked
+            </span>
+          ) : null}
+          {/* Ticket 3A — workspace-level record counters (hidden at 0). */}
+          {summary.unlinkedCount > 0 ? (
+            <span data-case-unlinked={summary.unlinkedCount} style={{ ...chipStyle, background: "rgba(79,70,229,0.08)", color: "#4338ca" }}>
+              {summary.unlinkedCount} unlinked record{summary.unlinkedCount === 1 ? "" : "s"}
+            </span>
+          ) : null}
+          {summary.unreviewedCount > 0 ? (
+            <span data-case-unreviewed={summary.unreviewedCount} style={{ ...chipStyle, background: "#fef3c7", color: "#92400e" }}>
+              {summary.unreviewedCount} not reviewed
             </span>
           ) : null}
         </div>
@@ -393,31 +426,54 @@ export function ActiveMatters({
         </div>
       ) : (
         <ul style={listStyle}>
-          {rows.map((r) => (
-            <li key={r.caseId} data-matter-id={r.caseId} data-matter-needs-work={String(r.needsWork)} style={listItemStyle}>
-              <Link href={r.href} style={listItemLinkStyle}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                  <span style={listItemTitleStyle}>{r.caseName}</span>
-                  <span style={listItemTimeStyle}>{formatRelative(r.lastActivityAtUtc)}</span>
-                </div>
-                <span style={listItemMetaStyle}>
-                  <span
-                    style={{
-                      ...chipStyle,
-                      background: r.needsWork ? "#fef3c7" : "#dcfce7",
-                      color: r.needsWork ? "#92400e" : "#166534",
-                    }}
-                  >
-                    {r.statusLabel}
+          {rows.map((r) => {
+            // Phase HOME-INTELLIGENCE — verdict chip: Action required /
+            // Needs work / Healthy, plus a report-readiness chip from
+            // /v1/reports caseIds.
+            const verdictChip =
+              r.verdict === "action_required"
+                ? { label: "Action required", bg: "#fee2e2", fg: "#991b1b" }
+                : r.verdict === "needs_work"
+                  ? { label: "Needs work", bg: "#fef3c7", fg: "#92400e" }
+                  : { label: "Healthy", bg: "#dcfce7", fg: "#166534" };
+            return (
+              <li key={r.caseId} data-matter-id={r.caseId} data-matter-verdict={r.verdict} data-matter-needs-work={String(r.needsWork)} style={listItemStyle}>
+                <Link href={r.href} style={listItemLinkStyle}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                    <span style={listItemTitleStyle}>{r.caseName}</span>
+                    <span style={listItemTimeStyle}>{formatRelative(r.lastActivityAtUtc)}</span>
+                  </div>
+                  <span style={listItemMetaStyle}>
+                    <span style={{ ...chipStyle, background: verdictChip.bg, color: verdictChip.fg }}>
+                      {verdictChip.label}
+                    </span>
+                    {r.statusLabel !== "On track" ? (
+                      <span style={{ ...chipStyle, background: "rgba(15,23,42,0.04)", color: HOME_COLORS.slate }}>
+                        {r.statusLabel}
+                      </span>
+                    ) : null}
+                    {/* Phase HOME-DECISIONS — deliverable chain: records
+                        with reports / packages / live verify pages. */}
+                    {r.evidenceCount > 0 ? (
+                      <span
+                        data-matter-chain
+                        data-matter-verification-status={r.verificationStatus}
+                        {...(r.hasReport ? { "data-matter-has-report": true } : {})}
+                        style={{ ...chipStyle, background: HOME_TINTS.teal, color: HOME_COLORS.teal, fontVariantNumeric: "tabular-nums" }}
+                        title={`${r.reportsReadyCount} with reports · ${r.packagesReadyCount} with packages · ${r.verifyLiveCount} verifiable`}
+                      >
+                        R {r.reportsReadyCount} · P {r.packagesReadyCount} · V {r.verifyLiveCount}
+                      </span>
+                    ) : null}
+                    {r.hasActiveLegalHold ? <span style={chipStyle}>Legal hold</span> : null}
+                    <span style={listItemTimeStyle}>
+                      {r.evidenceCount} {r.evidenceCount === 1 ? "record" : "records"}
+                    </span>
                   </span>
-                  {r.hasActiveLegalHold ? <span style={chipStyle}>Legal hold</span> : null}
-                  <span style={listItemTimeStyle}>
-                    {r.evidenceCount} {r.evidenceCount === 1 ? "record" : "records"}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          ))}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </SectionCard>
@@ -508,6 +564,11 @@ export function IntakePipelineCard({
                   <span style={listItemTimeStyle}>
                     {r.usedCount}
                     {r.maxUses != null ? ` / ${r.maxUses}` : ""} used
+                    {/* Ticket 4 — expiresAtUtc was mapped but never
+                        rendered; useful intake metadata. */}
+                    {r.expiresAtUtc ? (
+                      <span data-link-expires={r.expiresAtUtc}> · expires {formatRelativeFuture(r.expiresAtUtc)}</span>
+                    ) : null}
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
@@ -521,6 +582,9 @@ export function IntakePipelineCard({
                       }}
                     >
                       {r.delivery.channel} · {r.delivery.statusLabel}
+                      {/* Ticket 4 — delivery.at was mapped but never
+                          rendered; shows when the last attempt happened. */}
+                      {r.delivery.at ? ` · ${formatRelative(r.delivery.at)}` : ""}
                     </span>
                   ) : (
                     <span style={chipStyle}>Not yet sent</span>
@@ -584,6 +648,25 @@ export function ReportProductionCard({
         <ProductionStat label="Pending" value={production.reportsPending + production.packagesPending} />
         <ProductionStat label="Failed" value={production.reportsFailed + production.packagesFailed} tone="danger" />
       </div>
+      {/* Phase HOME-INTELLIGENCE — deliverable issues that need the
+          user (failures, package gaps, unpublished verification). */}
+      {production.needsAction.length > 0 ? (
+        <ul data-report-needs-action style={{ ...listStyle, marginBottom: 10, gap: 5 }}>
+          {production.needsAction.map((i) => {
+            const c = toneColor(i.tone === "action" ? "neutral" : i.tone);
+            return (
+              <li key={i.key} data-report-issue={i.key} style={{ ...listItemStyle, display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 8, background: c.bg }}>
+                <span style={{ flex: 1, fontSize: 12.5, color: c.fg, fontWeight: 600 }}>
+                  {i.count} · {i.label}
+                </span>
+                <Link href={i.href} style={{ fontSize: 12, fontWeight: 650, color: HOME_COLORS.indigo, textDecoration: "none" }}>
+                  {i.actionLabel} →
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
       {!hasAny ? (
         <EmptyState>{emptyCopy}</EmptyState>
       ) : production.recent.length === 0 ? (
@@ -677,6 +760,25 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
         <VerifyStat label="Not published" value={health.unpublished} />
         <VerifyStat label="Suspended" value={health.suspended} tone="danger" />
       </div>
+      {/* Phase HOME-INTELLIGENCE — cross-signal verification issues
+          (package↔publish and report↔package gaps), real counts only. */}
+      {health.issues.length > 0 ? (
+        <ul data-verify-issues style={{ ...listStyle, marginTop: 10, gap: 5 }}>
+          {health.issues.map((i) => {
+            const c = toneColor(i.tone === "action" ? "neutral" : i.tone);
+            return (
+              <li key={i.key} data-verify-issue={i.key} style={{ ...listItemStyle, display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 8, background: c.bg }}>
+                <span style={{ flex: 1, fontSize: 12.5, color: c.fg, fontWeight: 600 }}>
+                  {i.count} · {i.label}
+                </span>
+                <Link href={i.href} style={{ fontSize: 12, fontWeight: 650, color: HOME_COLORS.indigo, textDecoration: "none" }}>
+                  {i.actionLabel} →
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
       {health.unpublished > 0 ? (
         <Link
           href="/evidence"
@@ -685,6 +787,25 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
         >
           Publish verification
         </Link>
+      ) : null}
+      {/* Phase HOME-DECISIONS — recently published verification pages
+          (real publish timestamps from the timeline projection). */}
+      {health.recentPublications.length > 0 ? (
+        <div data-verify-recent-publications style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: HOME_COLORS.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>
+            Recently published
+          </div>
+          <ul style={{ ...listStyle, gap: 4 }}>
+            {health.recentPublications.map((pub) => (
+              <li key={pub.href + pub.occurredAt} style={{ ...listItemStyle, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, background: HOME_TINTS.teal }}>
+                <Link href={pub.href} style={{ ...listItemTitleStyle, textDecoration: "none", color: HOME_COLORS.teal, fontSize: 12.5 }}>
+                  {pub.label}
+                </Link>
+                <span style={listItemTimeStyle}>{formatRelative(pub.occurredAt)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
       {health.verifiable.length > 0 ? (
         <ul style={{ ...listStyle, marginTop: 10, gap: 4 }}>
@@ -769,13 +890,15 @@ function trustRows(
     {
       key: "tsa",
       label: "Trusted timestamps (TSA)",
-      value: `${trust.tsaStamped} stamped${trust.tsaPending ? ` · ${trust.tsaPending} pending` : ""}${trust.tsaFailed ? ` · ${trust.tsaFailed} failed` : ""}`,
+      // Ticket 3B — "not stamped" is a NEUTRAL bucket (no attempt yet),
+      // appended only when > 0; it never changes the row tone.
+      value: `${trust.tsaStamped} stamped${trust.tsaPending ? ` · ${trust.tsaPending} pending` : ""}${trust.tsaFailed ? ` · ${trust.tsaFailed} failed` : ""}${trust.tsaNone ? ` · ${trust.tsaNone} not stamped` : ""}`,
       tone: trust.tsaFailed > 0 ? "danger" : trust.tsaPending > 0 ? "warn" : trust.empty ? "neutral" : "ok",
     },
     {
       key: "ots",
       label: "OpenTimestamps (OTS)",
-      value: `${trust.otsAnchored} anchored${trust.otsPending ? ` · ${trust.otsPending} pending` : ""}${trust.otsFailed ? ` · ${trust.otsFailed} failed` : ""}`,
+      value: `${trust.otsAnchored} anchored${trust.otsPending ? ` · ${trust.otsPending} pending` : ""}${trust.otsFailed ? ` · ${trust.otsFailed} failed` : ""}${trust.otsNone ? ` · ${trust.otsNone} not anchored yet` : ""}`,
       tone: trust.otsFailed > 0 ? "danger" : trust.otsPending > 0 ? "warn" : trust.empty ? "neutral" : "ok",
     },
     { key: "signed", label: "Signed records", value: `${trust.signed} of ${trust.totalEvidence}`, tone: "neutral" },
@@ -847,6 +970,9 @@ function activityDot(kind: string): string {
     evidence_finalized: "#4f46e5",
     report_generated: "#16a34a",
     package_generated: "#0d9488",
+    verification_published: "#0e7490",
+    lifecycle_transition: "#0891b2",
+    destruction_review: "#b45309",
     hold_placed: "#9333ea",
     hold_released: "#7c3aed",
     escalation_opened: "#d97706",
@@ -895,6 +1021,12 @@ export function ActivityFeed({ groups }: { groups: ActivityGroup[] }) {
                   />
                   <span style={{ flex: 1, fontSize: 13, color: HOME_COLORS.ink, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {e.label}
+                    {/* Phase HOME-INTELLIGENCE — collapsed repeats. */}
+                    {e.repeatCount && e.repeatCount > 1 ? (
+                      <span data-activity-repeat={e.repeatCount} style={{ color: HOME_COLORS.muted, fontWeight: 600 }}>
+                        {" "}×{e.repeatCount}
+                      </span>
+                    ) : null}
                   </span>
                   <span style={listItemTimeStyle}>{formatRelative(e.occurredAt)}</span>
                 </Link>
@@ -968,7 +1100,14 @@ export function StorageUsageCard({ usage }: { usage: StorageUsage | null }) {
 export function TeamWorkCard({ team }: { team: TeamWork | null }) {
   if (!team) return null;
   return (
-    <SectionCard title="Team work" testId="team-work">
+    // Ticket 4 — manageHref was computed but never rendered; it now
+    // drives the card CTA (the /teams landing is a verified-working
+    // self-serve surface).
+    <SectionCard
+      title="Team work"
+      testId="team-work"
+      cta={{ label: "Manage team", href: team.manageHref }}
+    >
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
         <Stat label="Awaiting review" value={team.submissionsAwaitingReview} />
         <Stat label="Reports today" value={team.reportsToday} />

@@ -225,17 +225,30 @@ export function KpiRow({ kpis }: { kpis: HomeKpi[] }) {
 // Every row is a real operational counter.
 // ============================================================================
 
+const PRIORITY_SEVERITY: Record<
+  WorkspacePriority["severity"],
+  { label: string; tone: "danger" | "warn" | "neutral" }
+> = {
+  critical: { label: "Critical", tone: "danger" },
+  warning: { label: "Warning", tone: "warn" },
+  info: { label: "Info", tone: "neutral" },
+};
+
 export function WorkspacePrioritiesCard({
   priorities,
 }: {
   priorities: WorkspacePriority[];
 }) {
+  // Phase HOME-INTELLIGENCE — ranked executive summary: top 3 with
+  // severity chip, plain-language reason, and a direct action.
+  const top = priorities.slice(0, 3);
+  const more = priorities.length - top.length;
   return (
     <section className="home-card" style={homeCardStyle} data-self-serve-section="workspace-priorities">
       <header style={homeCardHeaderStyle}>
         <h2 style={homeCardTitleStyle}>Workspace priorities</h2>
       </header>
-      {priorities.length === 0 ? (
+      {top.length === 0 ? (
         <div style={allClearStyle} data-priorities-clear>
           <span style={iconBlockStyle(HOME_TINTS.ok, 34)}>
             <Icon d={ICONS.shield} color={HOME_COLORS.ok} size={17} />
@@ -250,27 +263,48 @@ export function WorkspacePrioritiesCard({
           </div>
         </div>
       ) : (
-        <ul style={priorityListStyle}>
-          {priorities.map((p) => {
-            const tone = toneColor(p.tone === "action" ? "neutral" : p.tone);
-            return (
-              <li key={p.key} style={{ margin: 0 }}>
-                <Link href={p.href} style={priorityRowStyle} data-priority={p.key}>
-                  <span aria-hidden style={{ ...kpiToneDotStyle, background: tone.dot }} />
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: HOME_COLORS.ink }}>
-                    {p.label}
-                  </span>
-                  {p.key !== "create_intake_link" ? (
-                    <span style={{ ...homeChipStyle, background: tone.bg, color: tone.fg }}>
-                      {p.count}
-                    </span>
-                  ) : null}
-                  <span aria-hidden style={{ color: HOME_COLORS.muted, fontSize: 13 }}>→</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          <ul style={priorityListStyle}>
+            {top.map((p) => {
+              const sev = PRIORITY_SEVERITY[p.severity];
+              const tone = toneColor(sev.tone);
+              return (
+                <li key={p.key} style={{ margin: 0 }}>
+                  <div style={priorityRowV2Style} data-priority={p.key} data-priority-severity={p.severity}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                      <span
+                        data-priority-chip={p.severity}
+                        style={{ ...homeChipStyle, background: tone.bg, color: tone.fg, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}
+                      >
+                        {sev.label}
+                      </span>
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: 650, color: HOME_COLORS.ink, minWidth: 0 }}>
+                        {p.label}
+                      </span>
+                    </div>
+                    {/* Phase HOME-DECISIONS — what it means + what to do. */}
+                    <p style={priorityReasonStyle} data-priority-why>
+                      {p.whyItMatters}
+                    </p>
+                    <Link
+                      href={p.href}
+                      style={priorityActionStyle}
+                      data-priority-action={p.key}
+                      title={p.recommendedAction}
+                    >
+                      {p.actionLabel} →
+                    </Link>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {more > 0 ? (
+            <span data-priorities-more={more} style={{ display: "block", marginTop: 8, fontSize: 11.5, color: HOME_COLORS.muted }}>
+              +{more} lower-priority item{more === 1 ? "" : "s"} tracked
+            </span>
+          ) : null}
+        </>
       )}
     </section>
   );
@@ -858,15 +892,26 @@ const priorityListStyle: React.CSSProperties = {
   flexDirection: "column",
   gap: 6,
 };
-const priorityRowStyle: React.CSSProperties = {
+const priorityRowV2Style: React.CSSProperties = {
   display: "flex",
-  alignItems: "center",
-  gap: 10,
-  padding: "9px 11px",
+  flexDirection: "column",
+  gap: 5,
+  padding: "10px 12px",
   borderRadius: 10,
   background: HOME_COLORS.soft,
+};
+const priorityReasonStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 11.5,
+  lineHeight: 1.45,
+  color: HOME_COLORS.slate,
+};
+const priorityActionStyle: React.CSSProperties = {
+  alignSelf: "flex-start",
+  fontSize: 12,
+  fontWeight: 650,
+  color: HOME_COLORS.indigo,
   textDecoration: "none",
-  color: "inherit",
 };
 const allClearStyle: React.CSSProperties = {
   display: "flex",
