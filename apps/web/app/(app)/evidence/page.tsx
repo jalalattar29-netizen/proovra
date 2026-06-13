@@ -61,6 +61,7 @@ const DEFAULT_FILTERS: EvidenceFilterState = {
   tsaStatus: "all",
   otsStatus: "all",
   publicVerifyState: "all",
+  verificationStatus: "all",
 };
 
 function buildEvidenceListPath(query: EvidenceListQuery) {
@@ -88,6 +89,9 @@ function buildEvidenceListPath(query: EvidenceListQuery) {
   if (query.publicVerifyState && query.publicVerifyState !== "all") {
     params.set("publicVerifyState", query.publicVerifyState);
   }
+  if (query.verificationStatus && query.verificationStatus !== "all") {
+    params.set("verificationStatus", query.verificationStatus);
+  }
   if (query.sort) params.set("sort", query.sort);
 
   return `/v1/evidence?${params.toString()}`;
@@ -101,22 +105,41 @@ function buildEvidenceListPath(query: EvidenceListQuery) {
  * the active filter visible (so the user understands *why* the list
  * is reduced) and dismissable in one click.
  */
+type TrustChipKey = "tsaStatus" | "otsStatus" | "publicVerifyState" | "verificationStatus" | "status" | "type";
+
+function humaniseTrustFilterValue(raw: string): string {
+  return raw
+    .split(",")
+    .map((v) => v.trim().toUpperCase().replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()))
+    .join(" / ");
+}
+
 function ActiveTrustFilterChips({
   filters,
   onClear,
 }: {
   filters: EvidenceFilterState;
-  onClear: (key: "tsaStatus" | "otsStatus" | "publicVerifyState" | "status" | "type") => void;
+  onClear: (key: TrustChipKey) => void;
 }) {
-  const chips: Array<{ key: "tsaStatus" | "otsStatus" | "publicVerifyState" | "status" | "type"; label: string }> = [];
+  const chips: Array<{ key: TrustChipKey; label: string }> = [];
   if (filters.tsaStatus && filters.tsaStatus !== "all") {
-    chips.push({ key: "tsaStatus", label: `Trust timestamp: ${filters.tsaStatus}` });
+    chips.push({ key: "tsaStatus", label: `Trust timestamp: ${humaniseTrustFilterValue(filters.tsaStatus)}` });
   }
   if (filters.otsStatus && filters.otsStatus !== "all") {
-    chips.push({ key: "otsStatus", label: `Blockchain anchor: ${filters.otsStatus}` });
+    chips.push({ key: "otsStatus", label: `Blockchain anchor: ${humaniseTrustFilterValue(filters.otsStatus)}` });
   }
   if (filters.publicVerifyState && filters.publicVerifyState !== "all") {
-    chips.push({ key: "publicVerifyState", label: `Public verification: ${filters.publicVerifyState.replace(/_/g, " ")}` });
+    chips.push({ key: "publicVerifyState", label: `Public verification: ${humaniseTrustFilterValue(filters.publicVerifyState)}` });
+  }
+  // Phase HOME-CLOSURE — render the "needs integrity review" filter
+  // with a friendlier label than its raw enum union ("REVIEW_REQUIRED,
+  // FAILED"). This is the new filter the Home Review integrity
+  // priority deep-links into.
+  if (filters.verificationStatus && filters.verificationStatus !== "all") {
+    const vsLabel = /REVIEW_REQUIRED.*FAILED|FAILED.*REVIEW_REQUIRED/i.test(filters.verificationStatus)
+      ? "Needs integrity review"
+      : humaniseTrustFilterValue(filters.verificationStatus);
+    chips.push({ key: "verificationStatus", label: vsLabel });
   }
   if (chips.length === 0) return null;
   return (
@@ -184,6 +207,8 @@ function readUrlFilterOverrides(): Partial<EvidenceFilterState> {
   if (ots) out.otsStatus = ots.toUpperCase();
   const pv = params.get("publicVerifyState");
   if (pv) out.publicVerifyState = pv.toUpperCase();
+  const vs = params.get("verificationStatus");
+  if (vs) out.verificationStatus = vs.toUpperCase();
   const status = params.get("status");
   if (status) out.status = status.toLowerCase();
   const type = params.get("type");
@@ -283,6 +308,8 @@ function EvidenceLibraryPageInner() {
       otsStatus: filters.otsStatus !== "all" ? filters.otsStatus : undefined,
       publicVerifyState:
         filters.publicVerifyState !== "all" ? filters.publicVerifyState : undefined,
+      verificationStatus:
+        filters.verificationStatus !== "all" ? filters.verificationStatus : undefined,
       sort:
         filters.sort === "oldest" || filters.sort === "priority"
           ? filters.sort
@@ -300,6 +327,7 @@ function EvidenceLibraryPageInner() {
       filters.tsaStatus,
       filters.otsStatus,
       filters.publicVerifyState,
+      filters.verificationStatus,
     ]
   );
 
@@ -952,7 +980,15 @@ function EvidenceLibraryPageInner() {
           collapsedByDefault
         />
         <EvidenceMetrics items={metrics} />
-        <ActiveTrustFilterChips filters={filters} onClear={(key) => updateFilters({ ...filters, [key]: "all" })} />
+        <ActiveTrustFilterChips
+          filters={filters}
+          onClear={(key) =>
+            updateFilters({
+              ...filters,
+              [key]: key === "type" || key === "status" ? "all" : "all",
+            })
+          }
+        />
         <EvidenceFilters
           value={filters}
           onChange={updateFilters}

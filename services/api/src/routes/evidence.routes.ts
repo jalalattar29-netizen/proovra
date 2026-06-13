@@ -2188,17 +2188,19 @@ function buildEvidenceListBaseWhere(params: {
   const typeFilter = buildEvidenceListTypeFilter(query.type);
   const caseAssignmentFilter = buildEvidenceListCaseAssignmentFilter(query.caseAssignment);
   const reportReadyFilter = buildEvidenceListReportReadyFilter(query.reportReady);
-  // Phase HOME-PROOF — trust signal filters wire directly to existing
-  // Evidence columns. Each is opt-in (omit param → no filter).
-  const tsaFilter = query.tsaStatus
-    ? ({ tsaStatus: query.tsaStatus } satisfies Prisma.EvidenceWhereInput)
-    : null;
-  const otsFilter = query.otsStatus
-    ? ({ otsStatus: query.otsStatus } satisfies Prisma.EvidenceWhereInput)
-    : null;
-  const publicVerifyFilter = query.publicVerifyState
-    ? ({ publicVerifyState: query.publicVerifyState } satisfies Prisma.EvidenceWhereInput)
-    : null;
+  // Phase HOME-PROOF / HOME-CLOSURE — trust signal filters wire
+  // directly to existing Evidence columns. Each filter is opt-in and
+  // accepts a list (collapsed to `equals` if length === 1) so the
+  // SQL stays index-friendly for the common single-value case.
+  const inOrEq = <T extends string>(values: T[] | null): T | { in: T[] } | null => {
+    if (!values || values.length === 0) return null;
+    if (values.length === 1) return values[0]!;
+    return { in: values };
+  };
+  const tsaFilter = inOrEq(query.tsaStatus);
+  const otsFilter = inOrEq(query.otsStatus);
+  const publicVerifyFilter = inOrEq(query.publicVerifyState);
+  const verificationStatusFilter = inOrEq(query.verificationStatus);
 
   return {
     AND: [
@@ -2211,9 +2213,14 @@ function buildEvidenceListBaseWhere(params: {
       ...(typeFilter ? [typeFilter] : []),
       ...(caseAssignmentFilter ? [caseAssignmentFilter] : []),
       ...(reportReadyFilter ? [reportReadyFilter] : []),
-      ...(tsaFilter ? [tsaFilter] : []),
-      ...(otsFilter ? [otsFilter] : []),
-      ...(publicVerifyFilter ? [publicVerifyFilter] : []),
+      ...(tsaFilter !== null ? [{ tsaStatus: tsaFilter } satisfies Prisma.EvidenceWhereInput] : []),
+      ...(otsFilter !== null ? [{ otsStatus: otsFilter } satisfies Prisma.EvidenceWhereInput] : []),
+      ...(publicVerifyFilter !== null
+        ? [{ publicVerifyState: publicVerifyFilter } satisfies Prisma.EvidenceWhereInput]
+        : []),
+      ...(verificationStatusFilter !== null
+        ? [{ verificationStatus: verificationStatusFilter } satisfies Prisma.EvidenceWhereInput]
+        : []),
     ],
   };
 }
@@ -2670,17 +2677,23 @@ type EvidenceListQuery = {
   caseAssignment: z.infer<typeof EvidenceListCaseAssignmentSchema>;
   reportReady: "all" | "ready" | "missing";
   /**
-   * Phase HOME-PROOF — Trust signal filters. Allow the Home priority
-   * widgets to deep-link to filtered Evidence views (e.g. "show only
-   * records where TSA timestamping failed"). Read-only filters that
-   * map directly to existing Evidence columns; no schema change.
+   * Phase HOME-PROOF / HOME-CLOSURE — Trust signal filters. Allow Home
+   * priority widgets to deep-link to filtered Evidence views (e.g.
+   * "show only records where TSA timestamping failed"). Each accepts
+   * EITHER a single value or a comma-separated list (`FAILED` or
+   * `FAILED,REJECTED,ERROR`) so a destination's record count can
+   * exactly match the source bucket count on Home (the trust-summary
+   * buckets accept multiple raw status values per bucket — see
+   * trust-summary.service.ts:tsaBucket/otsBucket).
    *
    * tsaStatus / otsStatus are plain VARCHAR columns (not enums) in
-   * the Prisma schema; publicVerifyState IS a typed enum.
+   * the Prisma schema; publicVerifyState and verificationStatus are
+   * typed enums.
    */
-  tsaStatus: string | null;
-  otsStatus: string | null;
-  publicVerifyState: prismaPkg.PublicVerifyState | null;
+  tsaStatus: string[] | null;
+  otsStatus: string[] | null;
+  publicVerifyState: prismaPkg.PublicVerifyState[] | null;
+  verificationStatus: prismaPkg.VerificationStatus[] | null;
   sort: EvidenceListSort;
 };
 
@@ -2860,21 +2873,30 @@ function parseEvidenceListQuery(query: Record<string, unknown>): EvidenceListQue
       ? EvidenceListSortSchema.parse(query.sort.trim().toLowerCase())
       : "newest";
 
-  // Phase HOME-PROOF — trust signal filters (Home priority deep-links).
-  const tsaStatus = parseEvidenceEnumFilter<(typeof EVIDENCE_TSA_STATUSES)[number]>(
+  // Phase HOME-PROOF / HOME-CLOSURE — trust signal filters. Each
+  // accepts a comma-separated list, so a Home priority count whose
+  // bucket spans several raw values (e.g. tsa.failed includes
+  // FAILED|REJECTED|ERROR) can deep-link to an Evidence view that
+  // returns the SAME records.
+  const tsaStatus = parseEvidenceMultiEnumFilter<(typeof EVIDENCE_TSA_STATUSES)[number]>(
     query.tsaStatus,
     EVIDENCE_TSA_STATUSES,
     "tsaStatus",
   );
-  const otsStatus = parseEvidenceEnumFilter<(typeof EVIDENCE_OTS_STATUSES)[number]>(
+  const otsStatus = parseEvidenceMultiEnumFilter<(typeof EVIDENCE_OTS_STATUSES)[number]>(
     query.otsStatus,
     EVIDENCE_OTS_STATUSES,
     "otsStatus",
   );
-  const publicVerifyState = parseEvidenceEnumFilter<prismaPkg.PublicVerifyState>(
+  const publicVerifyState = parseEvidenceMultiEnumFilter<prismaPkg.PublicVerifyState>(
     query.publicVerifyState,
     PUBLIC_VERIFY_STATES,
     "publicVerifyState",
+  );
+  const verificationStatus = parseEvidenceMultiEnumFilter<prismaPkg.VerificationStatus>(
+    query.verificationStatus,
+    VERIFICATION_STATUSES,
+    "verificationStatus",
   );
 
   return {
@@ -2890,6 +2912,7 @@ function parseEvidenceListQuery(query: Record<string, unknown>): EvidenceListQue
     tsaStatus,
     otsStatus,
     publicVerifyState,
+    verificationStatus,
     sort,
   };
 }
@@ -2897,13 +2920,20 @@ function parseEvidenceListQuery(query: Record<string, unknown>): EvidenceListQue
 // tsaStatus / otsStatus are stored as plain VARCHAR(32) in the schema
 // — the source of truth for permitted values lives in the worker code
 // (services/api/src/services/timestamping, services/api/src/services/opentimestamps).
-// The lists here are the union of every value those services write so
-// the Home priority deep-links can use any of them.
+// The lists here MUST be the union of every value those services write
+// AND every value the dashboard buckets accept (see trust-summary.service.ts:
+// tsaBucket/otsBucket) so the Home priority deep-links can match exact
+// bucket sets like `FAILED,REJECTED,ERROR`.
 const EVIDENCE_TSA_STATUSES = [
   "OK",
+  "STAMPED",
+  "GRANTED",
   "PENDING",
+  "QUEUED",
   "RETRYING",
   "FAILED",
+  "REJECTED",
+  "ERROR",
   "MANUAL_VERIFIED",
   "SKIPPED",
   "REVOKED",
@@ -2912,11 +2942,16 @@ const EVIDENCE_TSA_STATUSES = [
 
 const EVIDENCE_OTS_STATUSES = [
   "DISABLED",
+  "OK",
+  "VERIFIED",
+  "ANCHORED",
   "PENDING",
   "QUEUED",
+  "UPGRADING",
   "SUBMITTED",
-  "ANCHORED",
   "FAILED",
+  "ERRORED",
+  "ERROR",
   "ABANDONED",
 ] as const;
 
@@ -2927,23 +2962,47 @@ const PUBLIC_VERIFY_STATES = [
   "SUSPENDED",
 ] as const satisfies readonly prismaPkg.PublicVerifyState[];
 
-function parseEvidenceEnumFilter<T extends string>(
+const VERIFICATION_STATUSES = [
+  "MATERIALS_AVAILABLE",
+  "RECORDED_INTEGRITY_VERIFIED",
+  "REVIEW_REQUIRED",
+  "FAILED",
+] as const satisfies readonly prismaPkg.VerificationStatus[];
+
+/**
+ * Phase HOME-CLOSURE — accept a single value OR a comma-separated
+ * list. The Home trust-summary buckets group several raw status
+ * values together (e.g. tsaBucket "failed" = FAILED|REJECTED|ERROR),
+ * so a deep-link from Home into Evidence has to be able to filter
+ * by the exact same set of values to make the destination dataset
+ * match the source count.
+ */
+function parseEvidenceMultiEnumFilter<T extends string>(
   raw: unknown,
   allowed: readonly T[],
   label: string,
-): T | null {
+): T[] | null {
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
   if (!trimmed) return null;
-  const normalized = trimmed.toUpperCase();
-  if ((allowed as readonly string[]).includes(normalized)) {
-    return normalized as T;
+  const tokens = trimmed
+    .split(",")
+    .map((s) => s.trim().toUpperCase())
+    .filter((s) => s.length > 0);
+  if (tokens.length === 0) return null;
+  const out: T[] = [];
+  for (const tok of tokens) {
+    if ((allowed as readonly string[]).includes(tok)) {
+      out.push(tok as T);
+    } else {
+      const err: Error & { statusCode?: number } = new Error(
+        `Invalid ${label} filter: ${tok}`,
+      );
+      err.statusCode = 400;
+      throw err;
+    }
   }
-  const err: Error & { statusCode?: number } = new Error(
-    `Invalid ${label} filter: ${trimmed}`,
-  );
-  err.statusCode = 400;
-  throw err;
+  return out;
 }
 
 
@@ -6927,6 +6986,7 @@ await appendCustodyEvent({
         tsaStatus: null,
         otsStatus: null,
         publicVerifyState: null,
+        verificationStatus: null,
         sort: "newest",
       },
       userId,

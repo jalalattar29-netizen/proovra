@@ -921,10 +921,12 @@ test("PROOF: PDF inside a multipart capture is classified as Documents, not Fold
   assert.equal(byLabel["Folders"], 1, "only the unknown-MIME multipart record → Folders");
 });
 
-// PROOF-3 — Workspace Priority hrefs deep-link to filtered Evidence
-// views, never bare /evidence. The Evidence page reads these params
-// and reflects them in the filter chip strip.
-test("PROOF: priority hrefs deep-link to filtered Evidence (not bare /evidence)", () => {
+// PROOF-3 (CLOSURE) — Workspace Priority hrefs deep-link to the EXACT
+// dataset the Home count was derived from. Each priority's href set
+// of trust-status values must match the trust-summary bucket that
+// produced the count, or the destination shows a different number of
+// records than Home advertised.
+test("CLOSURE: priority hrefs match the trust-summary bucket — destination count == Home count", () => {
   const trustVm = normalizeHomeViewModel(
     baseInputs({
       trustSummary: {
@@ -937,9 +939,15 @@ test("PROOF: priority hrefs deep-link to filtered Evidence (not bare /evidence)"
     }),
   );
   const byKey = Object.fromEntries(trustVm.workspacePriorities.map((p) => [p.key, p.href]));
-  assert.equal(byKey["tsa_failures"], "/evidence?tsaStatus=FAILED");
-  assert.equal(byKey["ots_pending"], "/evidence?otsStatus=PENDING");
-  assert.equal(byKey["resolve_integrity"], "/evidence?status=uploaded");
+  // tsa.failed bucket = FAILED | REJECTED | ERROR (trust-summary.service.ts:64)
+  assert.equal(byKey["tsa_failures"], "/evidence?tsaStatus=FAILED,REJECTED,ERROR");
+  // ots.pending bucket = PENDING | UPGRADING | QUEUED (trust-summary.service.ts:71)
+  assert.equal(byKey["ots_pending"], "/evidence?otsStatus=PENDING,UPGRADING,QUEUED");
+  // needingAttention = verificationStatus IN (REVIEW_REQUIRED, FAILED) (trust-summary.service.ts:111-114)
+  // CRITICAL REGRESSION LOCK: this must NEVER again be "/evidence?status=uploaded",
+  // which filtered the wrong column entirely (Evidence.status, not Evidence.verificationStatus).
+  assert.equal(byKey["resolve_integrity"], "/evidence?verificationStatus=REVIEW_REQUIRED,FAILED");
+  assert.notEqual(byKey["resolve_integrity"], "/evidence?status=uploaded");
 
   const verifyVm = normalizeHomeViewModel(
     baseInputs({
@@ -952,7 +960,9 @@ test("PROOF: priority hrefs deep-link to filtered Evidence (not bare /evidence)"
     }),
   );
   const verifyByKey = Object.fromEntries(verifyVm.workspacePriorities.map((p) => [p.key, p.href]));
-  assert.equal(verifyByKey["publish_verification"], "/evidence?publicVerifyState=NOT_PUBLISHED");
+  // publicVerify.unpublished bucket includes both NOT_PUBLISHED and UNPUBLISHED
+  // (trust-summary.service.ts:132-134).
+  assert.equal(verifyByKey["publish_verification"], "/evidence?publicVerifyState=NOT_PUBLISHED,UNPUBLISHED");
 });
 
 // PROOF-4 — Rich activity labels never collapse a real entity into

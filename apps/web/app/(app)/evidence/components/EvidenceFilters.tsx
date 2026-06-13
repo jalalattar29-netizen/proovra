@@ -12,12 +12,15 @@ export type EvidenceFilterState = {
   retention: string;
   sort: string;
   /**
-   * Phase HOME-PROOF — backend-side trust signal filters used by Home
-   * priority deep-links. "" / "all" = no filter.
+   * Phase HOME-PROOF / HOME-CLOSURE — backend-side trust signal
+   * filters used by Home priority deep-links. "" / "all" = no filter.
+   * Values may be single (`FAILED`) or comma-separated
+   * (`FAILED,REJECTED,ERROR`) to match the Home bucket count exactly.
    */
   tsaStatus: string;
   otsStatus: string;
   publicVerifyState: string;
+  verificationStatus: string;
 };
 
 export function EvidenceFilters({

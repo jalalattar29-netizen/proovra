@@ -1712,7 +1712,11 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "Failed timestamping weakens time-based evidence confidence for these records.",
       recommendedAction: "Open the affected records and review their timestamp state.",
       actionLabel: "Open affected records",
-      href: "/evidence?tsaStatus=FAILED",
+      // Phase HOME-CLOSURE — trust-summary.tsa.failed counts the
+      // bucket `tsaBucket(raw) === "failed"`, which is
+      // FAILED | REJECTED | ERROR. Pass the exact same set so the
+      // Evidence list returns the same N records.
+      href: "/evidence?tsaStatus=FAILED,REJECTED,ERROR",
       derivedFrom: ["dashboard/trust-summary.tsa.failed"],
     });
   }
@@ -1742,10 +1746,11 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "These records may not be ready for trusted reports or external verification.",
       recommendedAction: "Review each flagged record's integrity verdict.",
       actionLabel: "Review integrity",
-      // Records that need integrity review are those that completed
-      // capture (UPLOADED) but didn't reach SIGNED/REPORTED — proxy
-      // through status=uploaded which IS a supported list filter.
-      href: "/evidence?status=uploaded",
+      // Phase HOME-CLOSURE — trust-summary.needingAttention is the
+      // EXACT count of evidence where verificationStatus IN
+      // (REVIEW_REQUIRED, FAILED) (trust-summary.service.ts:110-115).
+      // Deep-link into the SAME dataset, not status=uploaded.
+      href: "/evidence?verificationStatus=REVIEW_REQUIRED,FAILED",
       derivedFrom: ["dashboard/trust-summary.needingAttention"],
     });
   }
@@ -1820,7 +1825,10 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "Bitcoin anchoring can take time, but long-pending proofs should be checked.",
       recommendedAction: "Review the anchoring status of the pending records.",
       actionLabel: "Review anchoring",
-      href: "/evidence?otsStatus=PENDING",
+      // Phase HOME-CLOSURE — trust-summary.ots.pending counts
+      // otsBucket "pending" = PENDING | UPGRADING | QUEUED
+      // (trust-summary.service.ts:68-73).
+      href: "/evidence?otsStatus=PENDING,UPGRADING,QUEUED",
       derivedFrom: ["dashboard/trust-summary.ots.pending"],
     });
   }
@@ -1837,7 +1845,11 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "External recipients cannot independently verify these records yet.",
       recommendedAction: "Publish their verification pages so links can be shared.",
       actionLabel: "Publish verification",
-      href: "/evidence?publicVerifyState=NOT_PUBLISHED",
+      // Phase HOME-CLOSURE — pipelineDetail.publicVerify.unpublished
+      // is built from publicVerifyState IN (NOT_PUBLISHED, UNPUBLISHED)
+      // (see trust-summary.service.ts's verifyGroups bucket logic +
+      // command-center pipelineDetail). Match the same set.
+      href: "/evidence?publicVerifyState=NOT_PUBLISHED,UNPUBLISHED",
       derivedFrom: ["dashboard/command-center.pipelineDetail.publicVerify.unpublished"],
     });
   }

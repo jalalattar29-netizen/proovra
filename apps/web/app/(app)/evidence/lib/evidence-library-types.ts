@@ -29,10 +29,12 @@ export type EvidenceListQuery = {
   caseAssignment?: "all" | "assigned" | "unassigned";
   caseId?: string;
   reportReady?: "all" | "ready" | "missing";
-  /** Phase HOME-PROOF — trust signal filters. */
+  /** Phase HOME-PROOF / HOME-CLOSURE — trust signal filters (single
+   * value or comma-separated list). */
   tsaStatus?: string;
   otsStatus?: string;
   publicVerifyState?: string;
+  verificationStatus?: string;
   sort?: "newest" | "oldest" | "priority";
 };
 
