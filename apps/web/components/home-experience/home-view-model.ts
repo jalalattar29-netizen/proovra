@@ -51,6 +51,49 @@ export function isFreePlan(plan: HomePlan): boolean {
 }
 
 // ============================================================================
+// Phase HOME-CTA-NORMALIZATION — single source of truth for Home CTA
+// destinations. Every Home surface that points at "review integrity"
+// (Workspace Priorities row, Operational Queue card, future surfaces)
+// imports the SAME constant; the destination dataset is then
+// guaranteed to match the count Home displays, and a future change
+// only needs to land here.
+//
+// The header CTA is deliberately a NEUTRAL navigation target
+// ("Evidence Queue", unfiltered) — the operational decisions live in
+// the queue + priorities cards, not in the header.
+// ============================================================================
+
+/**
+ * Records where `verificationStatus IN (REVIEW_REQUIRED, FAILED)` —
+ * the exact dataset behind `trustSummary.needingAttention`
+ * (see services/api/src/services/dashboard/trust-summary.service.ts:110-115).
+ */
+export const HOME_INTEGRITY_REVIEW_HREF =
+  "/evidence?verificationStatus=REVIEW_REQUIRED,FAILED";
+
+/**
+ * Records where `tsaStatus` falls in the `tsaBucket("failed")` union
+ * (FAILED | REJECTED | ERROR, trust-summary.service.ts:64).
+ */
+export const HOME_TSA_FAILURES_HREF = "/evidence?tsaStatus=FAILED,REJECTED,ERROR";
+
+/**
+ * Records where `otsStatus` falls in the `otsBucket("pending")` union
+ * (PENDING | UPGRADING | QUEUED, trust-summary.service.ts:71).
+ */
+export const HOME_OTS_PENDING_HREF = "/evidence?otsStatus=PENDING,UPGRADING,QUEUED";
+
+/**
+ * Records where verification is not yet public (NOT_PUBLISHED or
+ * UNPUBLISHED — both fold into the `publicVerify.unpublished` count).
+ */
+export const HOME_PUBLISH_VERIFICATION_HREF =
+  "/evidence?publicVerifyState=NOT_PUBLISHED,UNPUBLISHED";
+
+/** Unfiltered Evidence queue — the canonical "primary workspace" link. */
+export const HOME_EVIDENCE_QUEUE_HREF = "/evidence";
+
+// ============================================================================
 // View-model types — what the UI sees
 // ============================================================================
 
@@ -1712,11 +1755,8 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "Failed timestamping weakens time-based evidence confidence for these records.",
       recommendedAction: "Open the affected records and review their timestamp state.",
       actionLabel: "Open affected records",
-      // Phase HOME-CLOSURE — trust-summary.tsa.failed counts the
-      // bucket `tsaBucket(raw) === "failed"`, which is
-      // FAILED | REJECTED | ERROR. Pass the exact same set so the
-      // Evidence list returns the same N records.
-      href: "/evidence?tsaStatus=FAILED,REJECTED,ERROR",
+      // Phase HOME-CTA-NORMALIZATION — single source of truth.
+      href: HOME_TSA_FAILURES_HREF,
       derivedFrom: ["dashboard/trust-summary.tsa.failed"],
     });
   }
@@ -1746,11 +1786,10 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "These records may not be ready for trusted reports or external verification.",
       recommendedAction: "Review each flagged record's integrity verdict.",
       actionLabel: "Review integrity",
-      // Phase HOME-CLOSURE — trust-summary.needingAttention is the
-      // EXACT count of evidence where verificationStatus IN
-      // (REVIEW_REQUIRED, FAILED) (trust-summary.service.ts:110-115).
-      // Deep-link into the SAME dataset, not status=uploaded.
-      href: "/evidence?verificationStatus=REVIEW_REQUIRED,FAILED",
+      // Phase HOME-CTA-NORMALIZATION — single source of truth shared
+      // by this priority, the Operational Queue "Records need an
+      // integrity review" CTA, and any future surface.
+      href: HOME_INTEGRITY_REVIEW_HREF,
       derivedFrom: ["dashboard/trust-summary.needingAttention"],
     });
   }
@@ -1825,10 +1864,8 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "Bitcoin anchoring can take time, but long-pending proofs should be checked.",
       recommendedAction: "Review the anchoring status of the pending records.",
       actionLabel: "Review anchoring",
-      // Phase HOME-CLOSURE — trust-summary.ots.pending counts
-      // otsBucket "pending" = PENDING | UPGRADING | QUEUED
-      // (trust-summary.service.ts:68-73).
-      href: "/evidence?otsStatus=PENDING,UPGRADING,QUEUED",
+      // Phase HOME-CTA-NORMALIZATION — single source of truth.
+      href: HOME_OTS_PENDING_HREF,
       derivedFrom: ["dashboard/trust-summary.ots.pending"],
     });
   }
@@ -1845,11 +1882,8 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "External recipients cannot independently verify these records yet.",
       recommendedAction: "Publish their verification pages so links can be shared.",
       actionLabel: "Publish verification",
-      // Phase HOME-CLOSURE — pipelineDetail.publicVerify.unpublished
-      // is built from publicVerifyState IN (NOT_PUBLISHED, UNPUBLISHED)
-      // (see trust-summary.service.ts's verifyGroups bucket logic +
-      // command-center pipelineDetail). Match the same set.
-      href: "/evidence?publicVerifyState=NOT_PUBLISHED,UNPUBLISHED",
+      // Phase HOME-CTA-NORMALIZATION — single source of truth.
+      href: HOME_PUBLISH_VERIFICATION_HREF,
       derivedFrom: ["dashboard/command-center.pipelineDetail.publicVerify.unpublished"],
     });
   }
@@ -2067,7 +2101,11 @@ function pickHeroAction(args: {
       title: `${args.trust.needingAttention} record${args.trust.needingAttention === 1 ? "" : "s"} need an integrity review`,
       detail: "These records didn't pass an integrity check — review before sharing.",
       count: args.trust.needingAttention,
-      href: "/evidence",
+      // Phase HOME-CTA-NORMALIZATION — share the single integrity
+      // href so the heroAction CTA, the Operational Queue card and the
+      // Workspace Priorities row all open the exact same dataset that
+      // matches `needingAttention`.
+      href: HOME_INTEGRITY_REVIEW_HREF,
       ctaLabel: "Review integrity",
       tone: "warn",
     };
@@ -2081,7 +2119,8 @@ function pickHeroAction(args: {
       title: `${unpublished} record${unpublished === 1 ? "" : "s"} ready to publish`,
       detail: "Make a public verification link available so others can verify your evidence.",
       count: unpublished,
-      href: "/evidence",
+      // Phase HOME-CTA-NORMALIZATION — single source of truth.
+      href: HOME_PUBLISH_VERIFICATION_HREF,
       ctaLabel: "Publish verification",
       tone: "action",
     };
@@ -2297,8 +2336,11 @@ function buildOperationalQueue(args: {
       title: `${args.trust.needingAttention} record${args.trust.needingAttention === 1 ? "" : "s"} flagged`,
       occurredAt: null,
       severity: "warn",
-      action: { kind: "navigate", label: "Review integrity", href: "/evidence" },
-      fallback: true,
+      // Phase HOME-CTA-NORMALIZATION — share the single integrity
+      // href used by the Workspace Priorities row, so clicking either
+      // CTA opens the same dataset (count matches displayed N).
+      action: { kind: "navigate", label: "Review integrity", href: HOME_INTEGRITY_REVIEW_HREF },
+      fallback: false,
       breakdown,
     });
   }

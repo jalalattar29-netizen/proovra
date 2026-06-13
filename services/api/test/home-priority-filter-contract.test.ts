@@ -46,21 +46,42 @@ function readAllowlist(src: string, name: string): string[] {
 }
 
 /**
- * Extract the values from a Home priority href such as
- *   href: "/evidence?otsStatus=PENDING,UPGRADING,QUEUED"
- * by locating the priority key (`key: "ots_pending"`) then the
- * following href on the same object.
+ * Read the value of an exported string constant such as
+ *   export const HOME_INTEGRITY_REVIEW_HREF = "/evidence?...";
+ * Phase HOME-CTA-NORMALIZATION made the priority hrefs go through
+ * shared constants, so we follow the constant instead of trying to
+ * read the literal from each priority block.
  */
-function readPriorityHref(src: string, key: string): { param: string; values: string[] } {
-  const blockRe = new RegExp(
-    `key:\\s*"${key}"[\\s\\S]*?href:\\s*"([^"]+)"`,
-  );
-  const match = blockRe.exec(src);
-  expect(match, `priority block for ${key} not found in home-view-model.ts`).toBeTruthy();
-  const href = match![1]!;
+function readHrefConstant(src: string, name: string): string {
+  const re = new RegExp(`export\\s+const\\s+${name}\\s*=\\s*"([^"]+)"`);
+  const match = re.exec(src);
+  expect(match, `${name} constant not found in home-view-model.ts`).toBeTruthy();
+  return match![1]!;
+}
+
+/** Parse a "/evidence?param=A,B,C" href into `{param, values}`. */
+function splitHref(href: string): { param: string; values: string[] } {
   const q = href.split("?")[1] ?? "";
   const [param, raw] = q.split("=");
-  return { param: param!, values: (raw ?? "").split(",").map((s) => s.trim()).filter(Boolean) };
+  return {
+    param: param ?? "",
+    values: (raw ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  };
+}
+
+/**
+ * Verify the priority's source block in home-view-model.ts uses the
+ * shared constant (not a re-introduced literal). This locks the
+ * "single source of truth" property so a future drift fails CI.
+ */
+function assertPriorityUsesConstant(src: string, key: string, constantName: string): void {
+  const blockRe = new RegExp(`key:\\s*"${key}"[\\s\\S]{0,1500}?href:\\s*([A-Za-z_]+)`);
+  const match = blockRe.exec(src);
+  expect(match, `priority block for ${key} not found`).toBeTruthy();
+  expect(match![1], `priority ${key} must use the ${constantName} constant`).toBe(constantName);
 }
 
 describe("Home priority hrefs must use values the Evidence filter accepts", () => {
@@ -85,45 +106,49 @@ describe("Home priority hrefs must use values the Evidence filter accepts", () =
     expect(allowlists.tsaStatus).toContain("ERROR");
   });
 
-  it("Home `ots_pending` priority emits only values in EVIDENCE_OTS_STATUSES (Sentry-noise regression lock)", () => {
-    const { param, values } = readPriorityHref(HOME_VM_SRC, "ots_pending");
+  it("HOME_OTS_PENDING_HREF emits only values in EVIDENCE_OTS_STATUSES (Sentry-noise regression lock)", () => {
+    const { param, values } = splitHref(readHrefConstant(HOME_VM_SRC, "HOME_OTS_PENDING_HREF"));
     expect(param).toBe("otsStatus");
     expect(values.length).toBeGreaterThan(0);
     for (const v of values) {
-      expect(allowlists.otsStatus, `ots_pending href value ${v} must be in EVIDENCE_OTS_STATUSES`).toContain(v);
+      expect(allowlists.otsStatus, `HOME_OTS_PENDING_HREF value ${v} must be in EVIDENCE_OTS_STATUSES`).toContain(v);
     }
+    assertPriorityUsesConstant(HOME_VM_SRC, "ots_pending", "HOME_OTS_PENDING_HREF");
   });
 
-  it("Home `tsa_failures` priority emits only values in EVIDENCE_TSA_STATUSES", () => {
-    const { param, values } = readPriorityHref(HOME_VM_SRC, "tsa_failures");
+  it("HOME_TSA_FAILURES_HREF emits only values in EVIDENCE_TSA_STATUSES", () => {
+    const { param, values } = splitHref(readHrefConstant(HOME_VM_SRC, "HOME_TSA_FAILURES_HREF"));
     expect(param).toBe("tsaStatus");
     for (const v of values) {
-      expect(allowlists.tsaStatus, `tsa_failures href value ${v} must be in EVIDENCE_TSA_STATUSES`).toContain(v);
+      expect(allowlists.tsaStatus, `HOME_TSA_FAILURES_HREF value ${v} must be in EVIDENCE_TSA_STATUSES`).toContain(v);
     }
+    assertPriorityUsesConstant(HOME_VM_SRC, "tsa_failures", "HOME_TSA_FAILURES_HREF");
   });
 
-  it("Home `publish_verification` priority emits only values in PUBLIC_VERIFY_STATES", () => {
-    const { param, values } = readPriorityHref(HOME_VM_SRC, "publish_verification");
+  it("HOME_PUBLISH_VERIFICATION_HREF emits only values in PUBLIC_VERIFY_STATES", () => {
+    const { param, values } = splitHref(readHrefConstant(HOME_VM_SRC, "HOME_PUBLISH_VERIFICATION_HREF"));
     expect(param).toBe("publicVerifyState");
     for (const v of values) {
-      expect(allowlists.publicVerifyState, `publish_verification href value ${v} must be in PUBLIC_VERIFY_STATES`).toContain(v);
+      expect(allowlists.publicVerifyState, `HOME_PUBLISH_VERIFICATION_HREF value ${v} must be in PUBLIC_VERIFY_STATES`).toContain(v);
     }
+    assertPriorityUsesConstant(HOME_VM_SRC, "publish_verification", "HOME_PUBLISH_VERIFICATION_HREF");
   });
 
-  it("Home `resolve_integrity` priority emits only values in VERIFICATION_STATUSES", () => {
-    const { param, values } = readPriorityHref(HOME_VM_SRC, "resolve_integrity");
+  it("HOME_INTEGRITY_REVIEW_HREF emits only values in VERIFICATION_STATUSES (and the priority uses the constant)", () => {
+    const { param, values } = splitHref(readHrefConstant(HOME_VM_SRC, "HOME_INTEGRITY_REVIEW_HREF"));
     expect(param).toBe("verificationStatus");
     for (const v of values) {
-      expect(allowlists.verificationStatus, `resolve_integrity href value ${v} must be in VERIFICATION_STATUSES`).toContain(v);
+      expect(allowlists.verificationStatus, `HOME_INTEGRITY_REVIEW_HREF value ${v} must be in VERIFICATION_STATUSES`).toContain(v);
     }
+    assertPriorityUsesConstant(HOME_VM_SRC, "resolve_integrity", "HOME_INTEGRITY_REVIEW_HREF");
   });
 
-  it("Home `resolve_integrity` priority must NEVER again use ?status=uploaded (wrong column!)", () => {
+  it("HOME_INTEGRITY_REVIEW_HREF must NEVER again use ?status=uploaded (wrong column!)", () => {
     // Original bug: integrity count came from verificationStatus IN (REVIEW_REQUIRED,FAILED)
     // but the href filtered Evidence.status. This lock prevents regression.
-    const { values } = readPriorityHref(HOME_VM_SRC, "resolve_integrity");
-    expect(values).not.toContain("uploaded");
-    expect(values).not.toContain("UPLOADED");
+    const integrityHref = readHrefConstant(HOME_VM_SRC, "HOME_INTEGRITY_REVIEW_HREF");
+    expect(integrityHref).not.toContain("status=uploaded");
+    expect(integrityHref).not.toContain("status=UPLOADED");
   });
 
   it("parseEvidenceMultiEnumFilter throws AppError(VALIDATION_ERROR) — so invalid filter values return HTTP 400, not 500 (Sentry)", () => {

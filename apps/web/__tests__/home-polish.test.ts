@@ -965,6 +965,84 @@ test("CLOSURE: priority hrefs match the trust-summary bucket — destination cou
   assert.equal(verifyByKey["publish_verification"], "/evidence?publicVerifyState=NOT_PUBLISHED,UNPUBLISHED");
 });
 
+// CTA-NORMALIZATION — three Home Integrity surfaces (header, queue,
+// priority) used to all be labelled "Review Integrity" with two of
+// them routing to bare /evidence (no filter). The normalization pass:
+//   (a) renames the header CTA to "Evidence Queue" → /evidence
+//       (independent of operational state — header is navigation, not
+//       a duplicate decision surface);
+//   (b) makes the Operational Queue card and the Workspace Priorities
+//       row share the SAME constant integrity href, so clicking
+//       either opens the exact dataset whose count Home displayed.
+test("CTA-NORM: Header CTA is 'Evidence Queue' → /evidence (never duplicates the queue's Review Integrity)", () => {
+  // Static source check — the SelfServeHomeDashboard hands the
+  // HomeHeader the heroAction; HomeHeader's primary logic now ignores
+  // heroAction.ctaLabel / .href except in the start_capture case.
+  assert.match(DASH_SRC, /hero\.kind === "capture_first"\s*\?\s*\{\s*label:\s*"Capture evidence"/);
+  assert.match(DASH_SRC, /\{\s*label:\s*"Evidence Queue"\s*,\s*href:\s*"\/evidence"\s*\}/);
+  // Regression lock — must NEVER again use hero.ctaLabel for the header
+  // primary, which is what duplicated "Review Integrity" twice.
+  assert.ok(
+    !/label:\s*hero\.ctaLabel/.test(DASH_SRC),
+    "HomeHeader must not derive its label from hero.ctaLabel anymore",
+  );
+});
+
+test("CTA-NORM: Operational Queue integrity CTA reuses HOME_INTEGRITY_REVIEW_HREF — same dataset as the priority row", () => {
+  const vm = normalizeHomeViewModel(
+    baseInputs({
+      trustSummary: {
+        totalEvidence: 50,
+        signed: 36,
+        tsa: { stamped: 30, failed: 3 },
+        ots: { anchored: 28, pending: 5 },
+        needingAttention: 14,
+      },
+    }),
+  );
+  const queueIntegrity = vm.operationalQueue.find((q) => q.type === "fix_integrity");
+  const priorityIntegrity = vm.workspacePriorities.find((p) => p.key === "resolve_integrity");
+  assert.ok(queueIntegrity, "operational queue integrity item exists");
+  assert.ok(priorityIntegrity, "workspace priority integrity row exists");
+  // The exact same href — single source of truth.
+  assert.equal(queueIntegrity!.action.href, "/evidence?verificationStatus=REVIEW_REQUIRED,FAILED");
+  assert.equal(queueIntegrity!.action.href, priorityIntegrity!.href);
+  // Used to be a navigation fallback (bare /evidence) — now real.
+  assert.equal(queueIntegrity!.fallback, false);
+});
+
+test("CTA-NORM: heroAction.fix_integrity also points at the same integrity dataset (used by Operational Queue empty-state)", () => {
+  const vm = normalizeHomeViewModel(
+    baseInputs({
+      trustSummary: {
+        totalEvidence: 20,
+        signed: 16,
+        tsa: { stamped: 16, failed: 0 },
+        ots: { anchored: 14, pending: 0 },
+        needingAttention: 4,
+      },
+    }),
+  );
+  // The heroAction is computed by pickHeroAction and now uses the
+  // shared constant; verify its href matches the queue+priority href.
+  assert.equal(vm.heroAction.kind, "fix_integrity");
+  assert.equal(vm.heroAction.href, "/evidence?verificationStatus=REVIEW_REQUIRED,FAILED");
+});
+
+test("CTA-NORM: source-level single-source-of-truth — every integrity surface uses HOME_INTEGRITY_REVIEW_HREF", () => {
+  // The literal string must appear in the constant declaration and
+  // NOWHERE ELSE in the view-model file (i.e. nobody is hardcoding it).
+  const literal = "/evidence?verificationStatus=REVIEW_REQUIRED,FAILED";
+  const occurrences = VM_SRC.split(literal).length - 1;
+  assert.equal(
+    occurrences,
+    1,
+    `expected the integrity href literal to appear EXACTLY ONCE in home-view-model.ts (in the constant declaration); found ${occurrences}`,
+  );
+  // And the constant must be exported.
+  assert.match(VM_SRC, /export\s+const\s+HOME_INTEGRITY_REVIEW_HREF\s*=/);
+});
+
 // PROOF-4 — Rich activity labels never collapse a real entity into
 // a generic "Untitled ×N". The backend builder uses title → display
 // filename → original filename → short id as a deterministic fallback.

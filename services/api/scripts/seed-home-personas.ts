@@ -546,7 +546,13 @@ async function seedProIssues(): Promise<void> {
       displayFileName: "warehouse-door.jpg",
       captureMethod: "SECURE_CAMERA",
       status: "SIGNED",
-      verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
+      // Phase HOME-CTA-NORMALIZATION proof — a TSA failure realistically
+      // bubbles up to "needs human review" (verificationStatus = REVIEW_REQUIRED
+      // or FAILED). With this set, trustSummary.needingAttention > 0, so the
+      // Operational Queue "Records need an integrity review" item + the
+      // Workspace Priorities "resolve_integrity" row both render and the
+      // shared HOME_INTEGRITY_REVIEW_HREF can be live-proven.
+      verificationStatus: "REVIEW_REQUIRED",
       tsaStatus: "FAILED",
       otsStatus: "ANCHORED",
       signatureBase64: "ZGV2LXNpZy1pc3N1ZXMtMQ==",

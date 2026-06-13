@@ -85,12 +85,18 @@ export function HomeHeader({
   const router = useRouter();
   const [query, setQuery] = useState("");
 
-  // One primary action only: the contextual hero action when it is
-  // operational work, otherwise Capture evidence.
+  // Phase HOME-CTA-NORMALIZATION — the header is a NEUTRAL navigation
+  // target, not a duplicate of the Operational Queue / Workspace
+  // Priorities decision surfaces.
+  //   - True onboarding (no evidence yet) → "Capture evidence"
+  //   - Everyone else → "Evidence Queue" (unfiltered)
+  // This guarantees a unique purpose per CTA and removes the
+  // double-rendered "Review Integrity" that previously appeared in
+  // both the header and the queue card.
   const primary =
-    hero.kind !== "caught_up" && hero.href
-      ? { label: hero.ctaLabel || "Open", href: hero.href }
-      : { label: "Capture evidence", href: "/capture" };
+    hero.kind === "capture_first"
+      ? { label: "Capture evidence", href: "/capture" }
+      : { label: "Evidence Queue", href: "/evidence" };
 
   return (
     <header style={headerWrapStyle} data-home-header>
