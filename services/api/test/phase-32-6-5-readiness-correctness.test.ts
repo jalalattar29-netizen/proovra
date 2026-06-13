@@ -185,12 +185,30 @@ describe("Phase 32.6.5 — Sentry filter catches `Stream isn't writeable`", () =
       const returnEventCount =
         (beforeSendBlock.match(/return\s+event;/g) ?? []).length;
       expect(returnEventCount).toBe(1);
-      // And there must still be exactly one `return null;` inside
-      // the bounded filter (the bounded-signature drop).
+      // Phase CAPTURE-HARDENING — the API's beforeSend now has THREE
+      // bounded drop paths: (1) ZodError instance, (2) AppError 4xx
+      // instance, (3) the original Redis/message-includes filter.
+      // The worker sentry init only carries the original 1.
+      const isApi = src === API_SENTRY;
+      const expectedReturnNull = isApi ? 3 : 1;
       const returnNullCount =
         (beforeSendBlock.match(/return\s+null;/g) ?? []).length;
-      expect(returnNullCount).toBe(1);
+      expect(returnNullCount).toBe(expectedReturnNull);
     }
+  });
+
+  // Phase CAPTURE-HARDENING — every new bounded drop in API beforeSend
+  // must remain instance-typed (ZodError / AppError with 4xx). A
+  // future regression that introduces a substring-match drop on
+  // arbitrary error messages would weaken the bound; this lock
+  // catches that.
+  it("API beforeSend's new drop paths are instance-typed (not message-match)", () => {
+    expect(API_SENTRY).toMatch(
+      /if\s*\(\s*err\s+instanceof\s+ZodError\s*\)\s*\{\s*return\s+null;?\s*\}/,
+    );
+    expect(API_SENTRY).toMatch(
+      /if\s*\(\s*isAppError\(err\)\s*&&\s*err\.statusCode\s*>=\s*400\s*&&\s*err\.statusCode\s*<\s*500\s*\)\s*\{\s*return\s+null;?\s*\}/,
+    );
   });
 });
 

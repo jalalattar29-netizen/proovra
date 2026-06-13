@@ -62,6 +62,11 @@ export const SECURITY_EVENT_TYPES = [
   "finalize_duplicate_detected",
   // Phase 30.7 — finalize refused by upload-session gate.
   "finalize_blocked_by_upload_session",
+  // Phase CAPTURE-HARDENING — finalize refused because the intake
+  // plan declared required checklist steps that no EvidencePart was
+  // mapped to. Recorded as a security event so operators can spot
+  // clients that bypass the frontend gate.
+  "finalize_blocked_by_checklist",
   // Phase 30.8 — S3 native multipart lifecycle observability.
   "multipart_initiate_failed",
   "multipart_complete_failed",

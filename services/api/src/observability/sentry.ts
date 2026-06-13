@@ -3,6 +3,8 @@ import * as Sentry from "@sentry/node";
 // rate is governed by SENTRY_PROFILES_SAMPLE_RATE (default 0.1) so
 // production never accidentally profiles at 100%.
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
+import { ZodError } from "zod";
+import { isAppError } from "../errors.js";
 
 let sentryReady = false;
 
@@ -173,6 +175,22 @@ export function initSentry() {
       // only suppressing the duplicate Sentry alert that the
       // readiness response already carries.
       const err = hint?.originalException;
+
+      // Phase CAPTURE-HARDENING — client-input validation failures
+      // are HTTP 4xx business outcomes, never server-side bugs.
+      // The Fastify error handler already returns 400 + warn-log for
+      // ZodError / AppError without explicitly calling
+      // captureException, but a future code path (a stray try/catch,
+      // an integration default-handler, a renamed wrapper) could
+      // accidentally surface one. This belt-and-braces filter
+      // guarantees they never reach Sentry as high-priority alerts.
+      if (err instanceof ZodError) {
+        return null;
+      }
+      if (isAppError(err) && err.statusCode >= 400 && err.statusCode < 500) {
+        return null;
+      }
+
       const message =
         err instanceof Error
           ? err.message

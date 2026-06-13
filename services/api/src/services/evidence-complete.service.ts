@@ -34,6 +34,8 @@ import { safeTransitionUploadSession } from "./reliability/upload-session.servic
 import { evaluateUploadSessionFinalizeGate } from "./uploads/upload-session.service.js";
 import { enqueueGraphReconcileJob } from "../queue/graph-reconcile-queue.js";
 import { warn as logWarn } from "../utils/logger.js";
+import { AppError, ErrorCode } from "../errors.js";
+import { validateRequiredChecklistMapping } from "./capture-checklist-gate.js";
 
 type HttpError = Error & { statusCode: number };
 
@@ -613,6 +615,37 @@ export async function completeEvidence(params: {
           { statusCode: 400 }
         );
         throw err;
+      }
+
+      // Phase CAPTURE-HARDENING — server-side required-checklist gate.
+      // Runs BEFORE signature / TSA / Object Lock / report enqueue, so
+      // a rejected finalize never produces a custody / signature /
+      // package artifact. See validateRequiredChecklistMapping JSDoc.
+      const checklistVerdict = validateRequiredChecklistMapping({
+        intakePlanJson: evidence.intakePlanJson,
+        parts: parts.map((p) => ({ checklistStepId: p.checklistStepId })),
+      });
+      if (checklistVerdict.enforced && checklistVerdict.missing.length > 0) {
+        // Audit the rejection so operators can see when a client tried
+        // to bypass the frontend gate. No Sentry capture — this is a
+        // business validation result, not an unexpected error.
+        safeEmitSecurityEvent({
+          teamId: evidence.teamId,
+          eventType: "finalize_blocked_by_checklist",
+          severity: "WARNING",
+          evidenceId: evidence.id,
+          details: {
+            missingRequiredSteps: checklistVerdict.missing,
+          },
+        });
+        throw new AppError(
+          ErrorCode.VALIDATION_ERROR,
+          "Required checklist steps are not satisfied.",
+          {
+            field: "intakePlanJson.requiredSteps",
+            missingRequiredSteps: checklistVerdict.missing,
+          },
+        );
       }
 
       let sizeBytesNum = 0;

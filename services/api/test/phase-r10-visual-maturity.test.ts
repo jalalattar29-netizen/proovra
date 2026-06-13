@@ -503,9 +503,13 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     //   producer wiring lives in the fanout helper.
     // Phase Repair: 44,078 → 45,835 — replaced bare catches with bounded
     //   warn logging; extracted runEvidenceCompletePostFinalize.
+    // Phase CAPTURE-HARDENING: 46,824 → 48,332 — server-side checklist
+    //   gate added before sealing (validator import + guard block +
+    //   AppError throw + security event). Read-only logic, single
+    //   early-return path.
     expect(
       statSync(apiSrcPath("services/evidence-complete.service.ts")).size,
-    ).toBe(46824);
+    ).toBe(48332);
   });
 
   it("CR1.6 byte-exact pin on custody-events.service.ts holds (5,155 bytes)", () => {

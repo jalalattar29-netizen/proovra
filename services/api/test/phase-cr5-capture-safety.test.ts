@@ -219,7 +219,12 @@ const CAPTURE_ROUTES_BYTES_EXACT = 21793;
 // extracted runEvidenceCompletePostFinalize for direct testability;
 // also observes the { queued:false } shape graph-reconcile-queue
 // returns when Redis is unavailable.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 46824;
+// Phase CAPTURE-HARDENING rebaseline: 46,824 → 48,332. Server-side
+// required-checklist gate added (validateRequiredChecklistMapping
+// import + guard block + AppError throw + security event). Pure read
+// followed by an early throw — no change to the sealing/custody
+// chain semantics.
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 48332;
 const CUSTODY_EVENTS_SVC_BYTES_EXACT = 5155;
 const TIMESTAMP_SVC_BYTES_EXACT = 12988;
 const PRE_CR5_AI_ASSISTANT_BYTES = 23045;

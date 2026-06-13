@@ -183,7 +183,12 @@ describe("CR4 Group 1 — file-size guards", () => {
     //   enqueue + post-finalize fanout) replaced with bounded warn
     //   logging; runEvidenceCompletePostFinalize extracted; queued:false
     //   shape from graph-reconcile-queue now observed explicitly.
-    expect(sz).toBe(46824);
+    // Phase CAPTURE-HARDENING rebaseline: 46,824 → 48,332. The server-side
+    //   required-checklist gate was added before the signature/TSA/lock
+    //   work — pulls validateRequiredChecklistMapping + AppError import +
+    //   guard block + audit security event. Pure read; no change to the
+    //   custody chain or sealing semantics.
+    expect(sz).toBe(48332);
   });
 
   it("custody-events.service.ts pin (CR1.6 — 5,155 bytes)", () => {
