@@ -11,6 +11,13 @@ export type EvidenceFilterState = {
   caseAssignment: string;
   retention: string;
   sort: string;
+  /**
+   * Phase HOME-PROOF — backend-side trust signal filters used by Home
+   * priority deep-links. "" / "all" = no filter.
+   */
+  tsaStatus: string;
+  otsStatus: string;
+  publicVerifyState: string;
 };
 
 export function EvidenceFilters({

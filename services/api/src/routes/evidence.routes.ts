@@ -2188,6 +2188,17 @@ function buildEvidenceListBaseWhere(params: {
   const typeFilter = buildEvidenceListTypeFilter(query.type);
   const caseAssignmentFilter = buildEvidenceListCaseAssignmentFilter(query.caseAssignment);
   const reportReadyFilter = buildEvidenceListReportReadyFilter(query.reportReady);
+  // Phase HOME-PROOF — trust signal filters wire directly to existing
+  // Evidence columns. Each is opt-in (omit param → no filter).
+  const tsaFilter = query.tsaStatus
+    ? ({ tsaStatus: query.tsaStatus } satisfies Prisma.EvidenceWhereInput)
+    : null;
+  const otsFilter = query.otsStatus
+    ? ({ otsStatus: query.otsStatus } satisfies Prisma.EvidenceWhereInput)
+    : null;
+  const publicVerifyFilter = query.publicVerifyState
+    ? ({ publicVerifyState: query.publicVerifyState } satisfies Prisma.EvidenceWhereInput)
+    : null;
 
   return {
     AND: [
@@ -2200,6 +2211,9 @@ function buildEvidenceListBaseWhere(params: {
       ...(typeFilter ? [typeFilter] : []),
       ...(caseAssignmentFilter ? [caseAssignmentFilter] : []),
       ...(reportReadyFilter ? [reportReadyFilter] : []),
+      ...(tsaFilter ? [tsaFilter] : []),
+      ...(otsFilter ? [otsFilter] : []),
+      ...(publicVerifyFilter ? [publicVerifyFilter] : []),
     ],
   };
 }
@@ -2655,6 +2669,18 @@ type EvidenceListQuery = {
   type: string | null;
   caseAssignment: z.infer<typeof EvidenceListCaseAssignmentSchema>;
   reportReady: "all" | "ready" | "missing";
+  /**
+   * Phase HOME-PROOF — Trust signal filters. Allow the Home priority
+   * widgets to deep-link to filtered Evidence views (e.g. "show only
+   * records where TSA timestamping failed"). Read-only filters that
+   * map directly to existing Evidence columns; no schema change.
+   *
+   * tsaStatus / otsStatus are plain VARCHAR columns (not enums) in
+   * the Prisma schema; publicVerifyState IS a typed enum.
+   */
+  tsaStatus: string | null;
+  otsStatus: string | null;
+  publicVerifyState: prismaPkg.PublicVerifyState | null;
   sort: EvidenceListSort;
 };
 
@@ -2834,6 +2860,23 @@ function parseEvidenceListQuery(query: Record<string, unknown>): EvidenceListQue
       ? EvidenceListSortSchema.parse(query.sort.trim().toLowerCase())
       : "newest";
 
+  // Phase HOME-PROOF — trust signal filters (Home priority deep-links).
+  const tsaStatus = parseEvidenceEnumFilter<(typeof EVIDENCE_TSA_STATUSES)[number]>(
+    query.tsaStatus,
+    EVIDENCE_TSA_STATUSES,
+    "tsaStatus",
+  );
+  const otsStatus = parseEvidenceEnumFilter<(typeof EVIDENCE_OTS_STATUSES)[number]>(
+    query.otsStatus,
+    EVIDENCE_OTS_STATUSES,
+    "otsStatus",
+  );
+  const publicVerifyState = parseEvidenceEnumFilter<prismaPkg.PublicVerifyState>(
+    query.publicVerifyState,
+    PUBLIC_VERIFY_STATES,
+    "publicVerifyState",
+  );
+
   return {
     caseId,
     scope,
@@ -2844,8 +2887,63 @@ function parseEvidenceListQuery(query: Record<string, unknown>): EvidenceListQue
     type,
     caseAssignment,
     reportReady: reportReadyRaw as EvidenceListQuery["reportReady"],
+    tsaStatus,
+    otsStatus,
+    publicVerifyState,
     sort,
   };
+}
+
+// tsaStatus / otsStatus are stored as plain VARCHAR(32) in the schema
+// — the source of truth for permitted values lives in the worker code
+// (services/api/src/services/timestamping, services/api/src/services/opentimestamps).
+// The lists here are the union of every value those services write so
+// the Home priority deep-links can use any of them.
+const EVIDENCE_TSA_STATUSES = [
+  "OK",
+  "PENDING",
+  "RETRYING",
+  "FAILED",
+  "MANUAL_VERIFIED",
+  "SKIPPED",
+  "REVOKED",
+  "EXPIRED",
+] as const;
+
+const EVIDENCE_OTS_STATUSES = [
+  "DISABLED",
+  "PENDING",
+  "QUEUED",
+  "SUBMITTED",
+  "ANCHORED",
+  "FAILED",
+  "ABANDONED",
+] as const;
+
+const PUBLIC_VERIFY_STATES = [
+  "NOT_PUBLISHED",
+  "PUBLISHED",
+  "UNPUBLISHED",
+  "SUSPENDED",
+] as const satisfies readonly prismaPkg.PublicVerifyState[];
+
+function parseEvidenceEnumFilter<T extends string>(
+  raw: unknown,
+  allowed: readonly T[],
+  label: string,
+): T | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.toUpperCase();
+  if ((allowed as readonly string[]).includes(normalized)) {
+    return normalized as T;
+  }
+  const err: Error & { statusCode?: number } = new Error(
+    `Invalid ${label} filter: ${trimmed}`,
+  );
+  err.statusCode = 400;
+  throw err;
 }
 
 
@@ -6826,6 +6924,9 @@ await appendCustodyEvent({
         type: null,
         caseAssignment: "all",
         reportReady: "all",
+        tsaStatus: null,
+        otsStatus: null,
+        publicVerifyState: null,
         sort: "newest",
       },
       userId,

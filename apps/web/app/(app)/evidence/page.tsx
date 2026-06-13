@@ -58,6 +58,9 @@ const DEFAULT_FILTERS: EvidenceFilterState = {
   caseAssignment: "all",
   retention: "all",
   sort: "newest",
+  tsaStatus: "all",
+  otsStatus: "all",
+  publicVerifyState: "all",
 };
 
 function buildEvidenceListPath(query: EvidenceListQuery) {
@@ -76,9 +79,116 @@ function buildEvidenceListPath(query: EvidenceListQuery) {
   if (query.reportReady && query.reportReady !== "all") {
     params.set("reportReady", query.reportReady);
   }
+  if (query.tsaStatus && query.tsaStatus !== "all") {
+    params.set("tsaStatus", query.tsaStatus);
+  }
+  if (query.otsStatus && query.otsStatus !== "all") {
+    params.set("otsStatus", query.otsStatus);
+  }
+  if (query.publicVerifyState && query.publicVerifyState !== "all") {
+    params.set("publicVerifyState", query.publicVerifyState);
+  }
   if (query.sort) params.set("sort", query.sort);
 
   return `/v1/evidence?${params.toString()}`;
+}
+
+/**
+ * Phase HOME-PROOF — visible chip strip for trust-signal filters.
+ *
+ * When Home priority links land here they apply a backend filter that
+ * isn't reflected in the existing dropdown UI. The chip strip makes
+ * the active filter visible (so the user understands *why* the list
+ * is reduced) and dismissable in one click.
+ */
+function ActiveTrustFilterChips({
+  filters,
+  onClear,
+}: {
+  filters: EvidenceFilterState;
+  onClear: (key: "tsaStatus" | "otsStatus" | "publicVerifyState" | "status" | "type") => void;
+}) {
+  const chips: Array<{ key: "tsaStatus" | "otsStatus" | "publicVerifyState" | "status" | "type"; label: string }> = [];
+  if (filters.tsaStatus && filters.tsaStatus !== "all") {
+    chips.push({ key: "tsaStatus", label: `Trust timestamp: ${filters.tsaStatus}` });
+  }
+  if (filters.otsStatus && filters.otsStatus !== "all") {
+    chips.push({ key: "otsStatus", label: `Blockchain anchor: ${filters.otsStatus}` });
+  }
+  if (filters.publicVerifyState && filters.publicVerifyState !== "all") {
+    chips.push({ key: "publicVerifyState", label: `Public verification: ${filters.publicVerifyState.replace(/_/g, " ")}` });
+  }
+  if (chips.length === 0) return null;
+  return (
+    <div
+      data-evidence-active-filter-chips
+      style={{
+        display: "flex",
+        gap: 8,
+        flexWrap: "wrap",
+        margin: "8px 0 4px",
+      }}
+    >
+      {chips.map((c) => (
+        <span
+          key={c.key}
+          data-evidence-filter-chip={c.key}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "4px 8px",
+            borderRadius: 999,
+            background: "#eef2ff",
+            color: "#3730a3",
+            fontSize: 12.5,
+            fontWeight: 600,
+          }}
+        >
+          {c.label}
+          <button
+            type="button"
+            onClick={() => onClear(c.key)}
+            aria-label={`Clear ${c.label}`}
+            style={{
+              border: "none",
+              background: "transparent",
+              color: "#3730a3",
+              cursor: "pointer",
+              fontWeight: 700,
+              padding: 0,
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Phase HOME-PROOF — read trust-signal filters from URL on first load.
+ * Lets Home priority deep-links land on a pre-filtered Evidence view
+ * (e.g. `/evidence?tsaStatus=FAILED`). We deliberately read the URL
+ * directly (not useSearchParams) to avoid Suspense boundaries here.
+ */
+function readUrlFilterOverrides(): Partial<EvidenceFilterState> {
+  if (typeof window === "undefined") return {};
+  const params = new URLSearchParams(window.location.search);
+  const out: Partial<EvidenceFilterState> = {};
+  const tsa = params.get("tsaStatus");
+  if (tsa) out.tsaStatus = tsa.toUpperCase();
+  const ots = params.get("otsStatus");
+  if (ots) out.otsStatus = ots.toUpperCase();
+  const pv = params.get("publicVerifyState");
+  if (pv) out.publicVerifyState = pv.toUpperCase();
+  const status = params.get("status");
+  if (status) out.status = status.toLowerCase();
+  const type = params.get("type");
+  if (type) out.type = type.toLowerCase();
+  return out;
 }
 
 // Phase 38.9 — wrap in canonical PageRouteGate. The inner component
@@ -123,6 +233,20 @@ function EvidenceLibraryPageInner() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const defaultSavedViewAppliedRef = useRef(false);
+  const urlFiltersAppliedRef = useRef(false);
+
+  // Phase HOME-PROOF — apply URL trust-signal filters once on mount so
+  // Home priority deep-links (e.g. /evidence?tsaStatus=FAILED) land on
+  // a pre-filtered view. Subsequent edits to filters go through the
+  // normal updateFilters path.
+  useEffect(() => {
+    if (urlFiltersAppliedRef.current) return;
+    urlFiltersAppliedRef.current = true;
+    const overrides = readUrlFilterOverrides();
+    if (Object.keys(overrides).length > 0) {
+      setFilters((prev) => ({ ...prev, ...overrides }));
+    }
+  }, []);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -155,6 +279,10 @@ function EvidenceLibraryPageInner() {
           : filters.exportReadiness === "report-missing"
             ? "missing"
             : "all",
+      tsaStatus: filters.tsaStatus !== "all" ? filters.tsaStatus : undefined,
+      otsStatus: filters.otsStatus !== "all" ? filters.otsStatus : undefined,
+      publicVerifyState:
+        filters.publicVerifyState !== "all" ? filters.publicVerifyState : undefined,
       sort:
         filters.sort === "oldest" || filters.sort === "priority"
           ? filters.sort
@@ -169,6 +297,9 @@ function EvidenceLibraryPageInner() {
       filters.sort,
       filters.status,
       filters.type,
+      filters.tsaStatus,
+      filters.otsStatus,
+      filters.publicVerifyState,
     ]
   );
 
@@ -821,6 +952,7 @@ function EvidenceLibraryPageInner() {
           collapsedByDefault
         />
         <EvidenceMetrics items={metrics} />
+        <ActiveTrustFilterChips filters={filters} onClear={(key) => updateFilters({ ...filters, [key]: "all" })} />
         <EvidenceFilters
           value={filters}
           onChange={updateFilters}

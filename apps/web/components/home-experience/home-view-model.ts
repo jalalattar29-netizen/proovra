@@ -190,8 +190,13 @@ export type RecentReportRow = {
   href: string;
   actions: {
     open: string;
-    reportPdf: string | null;
-    packageZip: string | null;
+    /**
+     * API path (NOT an app route) — UI must call apiFetch and open the
+     * returned presigned URL. Direct <a href> navigation will 404
+     * because the browser sends no Authorization header.
+     */
+    reportPdfApiPath: string | null;
+    packageZipApiPath: string | null;
     verify: string | null;
   };
 };
@@ -1268,10 +1273,15 @@ function buildRecentReports(
     .map((r) => {
       const evidenceId = r.evidenceId;
       const open = `/evidence/${encodeURIComponent(evidenceId)}`;
-      const reportPdf = r.report?.available
+      // Phase HOME-PROOF — these are API paths (not app routes). The UI
+      // calls them through apiFetch and opens the returned presigned
+      // URL in a new tab. The previous shape rendered them as <a href>
+      // which navigated to the API host without an Authorization
+      // header and 404'd.
+      const reportPdfApiPath = r.report?.available
         ? `/v1/evidence/${encodeURIComponent(evidenceId)}/report/latest`
         : null;
-      const packageZip = r.package?.available
+      const packageZipApiPath = r.package?.available
         ? `/v1/evidence/${encodeURIComponent(evidenceId)}/verification-package`
         : null;
       // Canonical public verify page is /verify/:evidenceId (the
@@ -1288,7 +1298,7 @@ function buildRecentReports(
         reportReady: r.report?.available === true,
         packageReady: r.package?.available === true,
         href: open,
-        actions: { open, reportPdf, packageZip, verify },
+        actions: { open, reportPdfApiPath, packageZipApiPath, verify },
       };
     });
 }
@@ -1702,7 +1712,7 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "Failed timestamping weakens time-based evidence confidence for these records.",
       recommendedAction: "Open the affected records and review their timestamp state.",
       actionLabel: "Open affected records",
-      href: "/evidence",
+      href: "/evidence?tsaStatus=FAILED",
       derivedFrom: ["dashboard/trust-summary.tsa.failed"],
     });
   }
@@ -1732,7 +1742,10 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "These records may not be ready for trusted reports or external verification.",
       recommendedAction: "Review each flagged record's integrity verdict.",
       actionLabel: "Review integrity",
-      href: "/evidence",
+      // Records that need integrity review are those that completed
+      // capture (UPLOADED) but didn't reach SIGNED/REPORTED — proxy
+      // through status=uploaded which IS a supported list filter.
+      href: "/evidence?status=uploaded",
       derivedFrom: ["dashboard/trust-summary.needingAttention"],
     });
   }
@@ -1807,7 +1820,7 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "Bitcoin anchoring can take time, but long-pending proofs should be checked.",
       recommendedAction: "Review the anchoring status of the pending records.",
       actionLabel: "Review anchoring",
-      href: "/evidence",
+      href: "/evidence?otsStatus=PENDING",
       derivedFrom: ["dashboard/trust-summary.ots.pending"],
     });
   }
@@ -1824,7 +1837,7 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "External recipients cannot independently verify these records yet.",
       recommendedAction: "Publish their verification pages so links can be shared.",
       actionLabel: "Publish verification",
-      href: "/evidence",
+      href: "/evidence?publicVerifyState=NOT_PUBLISHED",
       derivedFrom: ["dashboard/command-center.pipelineDetail.publicVerify.unpublished"],
     });
   }
@@ -2695,21 +2708,63 @@ function isDocumentMime(mime: string): boolean {
   return false;
 }
 
+/**
+ * Phase HOME-PROOF — Evidence by Type classification.
+ *
+ * The backend EvidenceType enum is only PHOTO/VIDEO/AUDIO/DOCUMENT.
+ * We compose a richer 7-category UI taxonomy (Images / Documents /
+ * Videos / Audio / Archives / Folders / Other Files) using the
+ * authoritative mimeType + EvidenceType signals.
+ *
+ * BUG FIX: the previous implementation short-circuited
+ * `captureMethod === "MULTIPART_PACKAGE"` to "Folders" BEFORE inspecting
+ * the MIME type, which meant an uploaded PDF, image, or video that
+ * happened to be ingested through the multipart code path was
+ * mislabelled as a folder. The correct precedence is:
+ *
+ *   1. authoritative file-content signals — MIME, then the backend
+ *      EvidenceType enum (a record's substantive nature wins);
+ *   2. only THEN, if no specific category fits, treat
+ *      MULTIPART_PACKAGE as a "Folder" (a true container record with
+ *      no single file content type);
+ *   3. otherwise "Other Files".
+ *
+ * The category set itself is documented as a UI-only taxonomy
+ * (Archives / Folders / Other Files are not EvidenceType enum values).
+ */
 function classifyHomeEvidenceCategory(it: WorkspaceEvidenceItem): (typeof HOME_EVIDENCE_CATEGORY_ORDER)[number] {
   const captureMethod = String(it.captureMethod ?? "").toUpperCase();
   const mime = normalizeMime(it.mimeType);
   const type = String(it.type ?? "").toUpperCase();
+  const mimeIsGeneric = mime === "application/octet-stream" || mime === "binary/octet-stream";
 
-  if (captureMethod === "MULTIPART_PACKAGE") return "Folders";
+  // 1. Specific MIME types — the file's actual content is the most
+  //    authoritative signal. Catches the classic PDF-mislabelled-as-
+  //    folder bug: a real document MIME pins the record to Documents
+  //    even when its capture path was multipart.
   if (mime && isArchiveMime(mime)) return "Archives";
-  if (mime.startsWith("image/") || type === "PHOTO") return "Images";
-  if (mime.startsWith("video/") || type === "VIDEO") return "Videos";
-  if (mime.startsWith("audio/") || type === "AUDIO") return "Audio";
+  if (mime.startsWith("image/")) return "Images";
+  if (mime.startsWith("video/")) return "Videos";
+  if (mime.startsWith("audio/")) return "Audio";
   if (mime && isDocumentMime(mime)) return "Documents";
-  if (type === "DOCUMENT" && !mime) return "Documents";
-  if (type === "DOCUMENT" && mime && !isArchiveMime(mime)) {
-    return isDocumentMime(mime) ? "Documents" : "Other Files";
+
+  // 2. EvidenceType enum — used when MIME is absent or generic. The
+  //    enum is still authoritative for media (PHOTO/VIDEO/AUDIO) even
+  //    when MIME is silent. For DOCUMENT we only commit to "Documents"
+  //    when MIME is *truly absent* (legacy records); a generic
+  //    "octet-stream" MIME on a DOCUMENT row reflects an unknown
+  //    binary and should fall through to either Folders (if part of a
+  //    multipart capture) or Other Files.
+  if (!mime || mimeIsGeneric) {
+    if (type === "PHOTO") return "Images";
+    if (type === "VIDEO") return "Videos";
+    if (type === "AUDIO") return "Audio";
+    if (type === "DOCUMENT" && !mime) return "Documents";
   }
+
+  // 3. Container record with no resolvable file-content category.
+  if (captureMethod === "MULTIPART_PACKAGE") return "Folders";
+
   return "Other Files";
 }
 

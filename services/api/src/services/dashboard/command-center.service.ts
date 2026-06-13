@@ -2450,15 +2450,33 @@ async function runTimeline(
       },
       orderBy: { updatedAt: "desc" },
       take: 10,
-      select: { id: true, title: true, status: true, updatedAt: true },
+      // Phase HOME-PROOF — pull filename fallbacks so the activity
+      // label never collapses to "Evidence signed — Untitled ×5". The
+      // VM groups by `${kind}:${label}`, so distinct titles produce
+      // distinct rows.
+      select: {
+        id: true,
+        title: true,
+        displayFileName: true,
+        originalFileName: true,
+        status: true,
+        updatedAt: true,
+      },
     });
     anyOk = true;
     for (const r of rows) {
+      const entityName =
+        (r.title?.trim() && !/^digital evidence record$/i.test(r.title.trim())
+          ? r.title.trim()
+          : null) ??
+        r.displayFileName?.trim() ??
+        r.originalFileName?.trim() ??
+        `record ${r.id.slice(0, 8)}`;
       items.push({
         id: `evidence_finalized:${r.id}:${r.updatedAt.getTime()}`,
         kind: "evidence_finalized",
         occurredAt: r.updatedAt.toISOString(),
-        label: `Evidence ${r.status.toLowerCase()} — ${r.title ?? "Untitled"}`,
+        label: `Evidence ${r.status.toLowerCase()} — ${entityName}`,
         subtitle: null,
         href: `/evidence/${r.id}`,
         severity: "info",
@@ -2482,21 +2500,31 @@ async function runTimeline(
         evidenceId: true,
         version: true,
         generatedAtUtc: true,
-        // Phase HOME-PROOF — entity title for a rich activity label
-        // ("Report v2 generated — Water damage record"), so distinct
-        // reports never collapse into an anonymous "×N" row.
-        evidence: { select: { title: true } },
+        // Phase HOME-PROOF — entity title (with filename fallback) for
+        // a rich activity label ("Report v2 generated — Water damage
+        // record"), so distinct reports never collapse into an
+        // anonymous "×N" row.
+        evidence: {
+          select: { title: true, displayFileName: true, originalFileName: true },
+        },
       },
     });
     anyOk = true;
     for (const r of rows) {
+      const name =
+        (r.evidence?.title?.trim() && !/^digital evidence record$/i.test(r.evidence.title.trim())
+          ? r.evidence.title.trim()
+          : null) ??
+        r.evidence?.displayFileName?.trim() ??
+        r.evidence?.originalFileName?.trim() ??
+        null;
       items.push({
         id: `report:${r.id}`,
         kind: "report_generated",
         occurredAt: r.generatedAtUtc.toISOString(),
-        label: r.evidence?.title
-          ? `Report v${r.version} generated — ${r.evidence.title}`
-          : `Report generated · v${r.version}`,
+        label: name
+          ? `Report v${r.version} generated — ${name}`
+          : `Report v${r.version} generated — record ${r.evidenceId.slice(0, 8)}`,
         subtitle: null,
         href: `/evidence/${r.evidenceId}`,
         severity: "info",
@@ -2520,19 +2548,27 @@ async function runTimeline(
         evidenceId: true,
         version: true,
         generatedAtUtc: true,
-        // Phase HOME-PROOF — entity title for a rich activity label.
-        evidence: { select: { title: true } },
+        evidence: {
+          select: { title: true, displayFileName: true, originalFileName: true },
+        },
       },
     });
     anyOk = true;
     for (const r of rows) {
+      const name =
+        (r.evidence?.title?.trim() && !/^digital evidence record$/i.test(r.evidence.title.trim())
+          ? r.evidence.title.trim()
+          : null) ??
+        r.evidence?.displayFileName?.trim() ??
+        r.evidence?.originalFileName?.trim() ??
+        null;
       items.push({
         id: `package:${r.id}`,
         kind: "package_generated",
         occurredAt: r.generatedAtUtc.toISOString(),
-        label: r.evidence?.title
-          ? `Package v${r.version} generated — ${r.evidence.title}`
-          : `Verification package generated · v${r.version}`,
+        label: name
+          ? `Package v${r.version} generated — ${name}`
+          : `Package v${r.version} generated — record ${r.evidenceId.slice(0, 8)}`,
         subtitle: null,
         href: `/evidence/${r.evidenceId}`,
         severity: "info",

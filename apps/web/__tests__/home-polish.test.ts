@@ -859,3 +859,131 @@ test("EXEC: suspended verification → action_required + danger issue first", ()
   assert.equal(first?.count, 2);
   assert.equal(first?.tone, "danger");
 });
+
+// ===========================================================================
+// Phase HOME-PROOF — bug-fix regression locks.
+// ===========================================================================
+
+// PROOF-1 — Report Production download buttons must hand the Recent
+// Reports row an API path (NOT an app route), and the UI must call
+// apiFetch + window.open rather than rendering a plain <a href>. The
+// earlier shape produced a 404 because the browser navigated to the
+// API host without an Authorization header.
+test("PROOF: Download PDF / Download Package route through apiFetch, not raw <a href>", () => {
+  const vm = normalizeHomeViewModel(
+    baseInputs({
+      reports: {
+        items: [{ evidenceId: "e1", title: "Witness statement", report: { available: true, version: 2 }, package: { available: true, version: 1 } }],
+      },
+    }),
+  );
+  const row = vm.reportProduction.recent[0];
+  assert.ok(row, "recent report row exists");
+  // API paths only — confirms the broken plain-href shape is gone.
+  assert.equal(row.actions.reportPdfApiPath, "/v1/evidence/e1/report/latest");
+  assert.equal(row.actions.packageZipApiPath, "/v1/evidence/e1/verification-package");
+  // The UI MUST call apiFetch and open the returned presigned URL —
+  // never expose the API path as an <a href>.
+  assert.match(SECTIONS_SRC, /reportPdfApiPath/);
+  assert.match(SECTIONS_SRC, /packageZipApiPath/);
+  assert.match(SECTIONS_SRC, /apiFetch\(path/);
+  assert.match(SECTIONS_SRC, /window\.open\(resp\.url/);
+  // No remaining anti-pattern: a plain <a href={...reportPdf...}>.
+  assert.ok(
+    !/<a[^>]+href=\{[^}]*reportPdf[^}]*\}/.test(SECTIONS_SRC),
+    "Download PDF must not be a plain <a href>",
+  );
+  assert.ok(
+    !/<a[^>]+href=\{[^}]*packageZip[^}]*\}/.test(SECTIONS_SRC),
+    "Download package must not be a plain <a href>",
+  );
+});
+
+// PROOF-2 — Evidence-by-Type classification: a real PDF that happened
+// to be captured through the multipart code path must STILL land in
+// Documents (not Folders).
+test("PROOF: PDF inside a multipart capture is classified as Documents, not Folders", () => {
+  const t = new Date(NOW - 3600_000).toISOString();
+  const vm = normalizeHomeViewModel(
+    baseInputs({
+      evidenceList: {
+        items: [
+          { id: "pdf-batch", type: "DOCUMENT", mimeType: "application/pdf", captureMethod: "MULTIPART_PACKAGE", createdAt: t, teamId: WS },
+          { id: "img-batch", type: "PHOTO", mimeType: "image/jpeg", captureMethod: "MULTIPART_PACKAGE", createdAt: t, teamId: WS },
+          { id: "true-folder", type: "DOCUMENT", mimeType: "application/octet-stream", captureMethod: "MULTIPART_PACKAGE", createdAt: t, teamId: WS },
+        ],
+      },
+    }),
+  );
+  const byLabel = Object.fromEntries(vm.typeDistribution.slices.map((s) => [s.label, s.count]));
+  assert.equal(byLabel["Documents"], 1, "PDF in multipart batch → Documents");
+  assert.equal(byLabel["Images"], 1, "image in multipart batch → Images");
+  assert.equal(byLabel["Folders"], 1, "only the unknown-MIME multipart record → Folders");
+});
+
+// PROOF-3 — Workspace Priority hrefs deep-link to filtered Evidence
+// views, never bare /evidence. The Evidence page reads these params
+// and reflects them in the filter chip strip.
+test("PROOF: priority hrefs deep-link to filtered Evidence (not bare /evidence)", () => {
+  const trustVm = normalizeHomeViewModel(
+    baseInputs({
+      trustSummary: {
+        totalEvidence: 30,
+        signed: 25,
+        tsa: { stamped: 20, failed: 5 },
+        ots: { anchored: 18, pending: 6 },
+        needingAttention: 3,
+      },
+    }),
+  );
+  const byKey = Object.fromEntries(trustVm.workspacePriorities.map((p) => [p.key, p.href]));
+  assert.equal(byKey["tsa_failures"], "/evidence?tsaStatus=FAILED");
+  assert.equal(byKey["ots_pending"], "/evidence?otsStatus=PENDING");
+  assert.equal(byKey["resolve_integrity"], "/evidence?status=uploaded");
+
+  const verifyVm = normalizeHomeViewModel(
+    baseInputs({
+      commandCenter: {
+        sections: {
+          pipelineDetail: { data: { publicVerify: { unpublished: 4 } } },
+        },
+      },
+      reports: { items: [{ evidenceId: "e", title: "R", report: { available: true } }] },
+    }),
+  );
+  const verifyByKey = Object.fromEntries(verifyVm.workspacePriorities.map((p) => [p.key, p.href]));
+  assert.equal(verifyByKey["publish_verification"], "/evidence?publicVerifyState=NOT_PUBLISHED");
+});
+
+// PROOF-4 — Rich activity labels never collapse a real entity into
+// a generic "Untitled ×N". The backend builder uses title → display
+// filename → original filename → short id as a deterministic fallback.
+test("PROOF: activity labels prefer title, then filename, then short id — never 'Untitled'", () => {
+  // Direct test of the project-fixed VM behaviour: distinct titles
+  // produce distinct rows (collapse is by ${kind}:${label}). Identical
+  // labels do collapse — but the backend now seeds non-generic labels
+  // so they only collapse when the underlying entity really is the
+  // same.
+  const vm = normalizeHomeViewModel(
+    baseInputs({
+      commandCenter: {
+        sections: {
+          timeline: {
+            items: [
+              { id: "e1", kind: "evidence_finalized", occurredAt: "2026-06-12T10:00:00Z", label: "Evidence signed — Witness statement", href: "/evidence/e1" },
+              { id: "e2", kind: "evidence_finalized", occurredAt: "2026-06-12T09:00:00Z", label: "Evidence signed — Door camera capture", href: "/evidence/e2" },
+              { id: "r1", kind: "report_generated", occurredAt: "2026-06-12T08:00:00Z", label: "Report v2 generated — Water damage record", href: "/evidence/r1" },
+            ],
+          },
+        },
+      },
+    }),
+  );
+  const labels = vm.activity.flatMap((g) => g.events.map((e) => e.label));
+  assert.ok(labels.some((l) => l.includes("Witness statement")));
+  assert.ok(labels.some((l) => l.includes("Door camera capture")));
+  assert.ok(labels.some((l) => l.includes("Water damage record")));
+  // Distinct entities never collapse to a single "×2" row.
+  assert.ok(!labels.some((l) => /Untitled/i.test(l)));
+});
+

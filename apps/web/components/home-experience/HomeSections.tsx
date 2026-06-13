@@ -694,31 +694,106 @@ export function ReportProductionCard({
                 {r.packageReady ? <span style={chipStyle}>Package</span> : null}
                 <span style={listItemTimeStyle}>{formatRelative(r.generatedAtUtc)}</span>
               </span>
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }} data-report-actions>
-                <Link href={r.actions.open} style={secondaryButtonStyle} data-report-action="open-evidence">
-                  Open
-                </Link>
-                {r.actions.reportPdf ? (
-                  <a href={r.actions.reportPdf} style={secondaryButtonStyle} data-report-action="download-pdf">
-                    Download PDF
-                  </a>
-                ) : null}
-                {r.actions.packageZip ? (
-                  <a href={r.actions.packageZip} style={secondaryButtonStyle} data-report-action="download-package">
-                    Download package
-                  </a>
-                ) : null}
-                {r.actions.verify ? (
-                  <a href={r.actions.verify} style={secondaryButtonStyle} data-report-action="open-verify">
-                    Verify page
-                  </a>
-                ) : null}
-              </div>
+              <ReportRowActions row={r} />
             </li>
           ))}
         </ul>
       )}
     </SectionCard>
+  );
+}
+
+/**
+ * Phase HOME-PROOF — Download PDF/Package action row.
+ *
+ * The earlier implementation rendered the API URLs (e.g.
+ * `/v1/evidence/:id/report/latest`) as plain <a href> targets, which
+ * meant the browser navigated directly to the API host with no
+ * Authorization header → 404. The Reports page solves this by calling
+ * `apiFetch` and opening the returned presigned URL in a new tab; we
+ * use the exact same flow here so Home and the Reports page share one
+ * authoritative download path.
+ */
+function ReportRowActions({ row }: { row: import("./home-view-model").RecentReportRow }) {
+  const [busy, setBusy] = useState<"pdf" | "package" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function trigger(kind: "pdf" | "package", path: string) {
+    if (busy) return;
+    setBusy(kind);
+    setError(null);
+    try {
+      const resp = (await apiFetch(path, { method: "GET" })) as
+        | { url?: string; code?: string; message?: string }
+        | null;
+      if (resp?.url) {
+        window.open(resp.url, "_blank", "noopener,noreferrer");
+      } else if (resp?.code === "verification_package_pending") {
+        setError(resp.message ?? "Package is still generating.");
+      } else {
+        setError(kind === "pdf" ? "Report URL is unavailable." : "Package URL is unavailable.");
+      }
+    } catch (e) {
+      const err = e as { statusCode?: number; message?: string };
+      if (err.statusCode === 202) {
+        setError(kind === "pdf" ? "Report is still generating." : "Package is still generating.");
+      } else if (err.statusCode === 403) {
+        setError("You don't have permission to download this.");
+      } else if (err.statusCode === 409) {
+        setError(err.message ?? "Download blocked by workspace policy.");
+      } else if (err.statusCode === 404) {
+        setError("File not found.");
+      } else {
+        setError(err.message ?? "Could not start download.");
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const pdfPath = row.actions.reportPdfApiPath;
+  const pkgPath = row.actions.packageZipApiPath;
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }} data-report-actions>
+        <Link href={row.actions.open} style={secondaryButtonStyle} data-report-action="open-evidence">
+          Open
+        </Link>
+        {pdfPath ? (
+          <button
+            type="button"
+            onClick={() => void trigger("pdf", pdfPath)}
+            disabled={busy !== null}
+            style={{ ...secondaryButtonStyle, cursor: busy ? "wait" : "pointer", border: "1px solid #e2e8f0", background: "#fff" }}
+            data-report-action="download-pdf"
+          >
+            {busy === "pdf" ? "Opening…" : "Download PDF"}
+          </button>
+        ) : null}
+        {pkgPath ? (
+          <button
+            type="button"
+            onClick={() => void trigger("package", pkgPath)}
+            disabled={busy !== null}
+            style={{ ...secondaryButtonStyle, cursor: busy ? "wait" : "pointer", border: "1px solid #e2e8f0", background: "#fff" }}
+            data-report-action="download-package"
+          >
+            {busy === "package" ? "Opening…" : "Download package"}
+          </button>
+        ) : null}
+        {row.actions.verify ? (
+          <a href={row.actions.verify} style={secondaryButtonStyle} data-report-action="open-verify">
+            Verify page
+          </a>
+        ) : null}
+      </div>
+      {error ? (
+        <div data-report-action-error style={{ marginTop: 6, fontSize: 12, color: "#991b1b" }}>
+          {error}
+        </div>
+      ) : null}
+    </>
   );
 }
 
