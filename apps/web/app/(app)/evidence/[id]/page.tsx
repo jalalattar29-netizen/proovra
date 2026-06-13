@@ -400,9 +400,26 @@ function shouldPollArtifactReadiness(
   const finalized = status === "SIGNED" || status === "REPORTED";
   if (!finalized) return false;
 
-  const reportNeedsRefresh = !workspace.artifactStatus.report.available;
+  // Phase CAPTURE-CLOSURE Part A — when the workspace plan does not
+  // include report/package generation, the report worker rejects the
+  // job up front (REPORT_NOT_INCLUDED_IN_PLAN — handled as a business
+  // outcome, see services/worker/src/processor.ts catch). The
+  // artifact will NEVER attach for plan-excluded users, so polling
+  // /artifacts/status forever wastes API calls and confuses the user.
+  // Stop polling for any artifact whose plan-gate is closed.
+  const caps = workspace.workspaceCapabilitySnapshot;
+  const reportReachable =
+    caps?.reportsIncluded !== false ||
+    workspace.artifactStatus.report.available === true;
+  const packageReachable =
+    caps?.verificationPackageIncluded !== false ||
+    workspace.artifactStatus.verificationPackage.available === true;
+
+  const reportNeedsRefresh =
+    reportReachable && !workspace.artifactStatus.report.available;
   const verificationPackage = workspace.artifactStatus.verificationPackage;
   const packageNeedsRefresh =
+    packageReachable &&
     !verificationPackage.available &&
     !verificationPackage.blocked &&
     !verificationPackage.unavailable;
@@ -2095,6 +2112,37 @@ function EvidenceDetailPageInner() {
                   intakePlanJson={workspace.evidence.intakePlanJson ?? null}
                   contentItems={workspace.evidence.contentItems ?? []}
                 />
+                {/* Phase CAPTURE-NOTE-OVERVIEW-FIX (P0 Bug 3) — the
+                    record-level capture private note was rendered
+                    ONLY on the Review tab. After finalize the user
+                    lands on Overview and looked for the note where
+                    they wrote it; finding nothing, they concluded
+                    the note was lost. Surface the same string here
+                    too with a clear "Capture note" label + the
+                    privacy disclaimer the Capture sidebar promised,
+                    so the user sees their note immediately on
+                    landing. (The Review-tab surface stays — it is
+                    the canonical edit-context spot.) */}
+                {evidence.internalNotes ? (
+                  <section
+                    className="evidence-detail-section"
+                    data-evidence-section="capture-note"
+                  >
+                    <div className="evidence-detail-section-header">
+                      <h3 style={{ margin: 0, fontSize: 14, fontWeight: 650 }}>
+                        Capture note (private)
+                      </h3>
+                    </div>
+                    <p style={{ margin: "4px 0 8px 0", whiteSpace: "pre-wrap" }}>
+                      {evidence.internalNotes}
+                    </p>
+                    <p className="evidence-detail-muted" style={{ fontSize: 12 }}>
+                      Visible only inside the authenticated app. Excluded
+                      from public verification, the fixed PDF report, and
+                      the verification package.
+                    </p>
+                  </section>
+                ) : null}
                 <section className="evidence-detail-section">
                   <div className="evidence-detail-section-header">
                     <SectionHeading
@@ -2933,6 +2981,46 @@ function EvidenceDetailPageInner() {
 
             {activeTab === "artifacts" ? (
               <>
+                {/* Phase CAPTURE-CLOSURE Part A — when the plan does
+                    not include report/package generation, the report
+                    worker rejects the job and the artifact never
+                    attaches. Render a single honest banner instead
+                    of (a) silent never-pending state, or (b) a
+                    download button that 404s. The download buttons
+                    are already gated by reportsIncluded /
+                    verificationPackageIncluded (downloadReport /
+                    downloadVerificationPackage in this file). The
+                    banner explains the WHY so the user understands
+                    the missing artifacts.
+
+                    No fake upgrade CTA — that would imply an
+                    in-product checkout path which doesn't exist
+                    today. */}
+                {workspaceCaps && !workspaceCaps.reportsIncluded &&
+                 !workspace.artifactStatus.report.available ? (
+                  <section
+                    className="evidence-detail-section"
+                    data-evidence-section="reports-plan-gated"
+                    style={{
+                      borderLeft: "4px solid #d97706",
+                      background: "#fef3c7",
+                      padding: "12px 14px",
+                      borderRadius: 8,
+                    }}
+                  >
+                    <strong style={{ display: "block", marginBottom: 4, color: "#78350f", fontSize: 13.5 }}>
+                      Reports are not included in this plan
+                    </strong>
+                    <p className="evidence-detail-muted" style={{ margin: 0, fontSize: 12.5, color: "#78350f" }}>
+                      Report PDFs and verification packages are part of
+                      Pay-Per-Evidence, Pro, and Team plans. Your
+                      evidence record itself is signed and preserved —
+                      the chain-of-custody chain remains intact — but
+                      no downloadable report artifact will be
+                      generated on your current plan.
+                    </p>
+                  </section>
+                ) : null}
                 <ArtifactHistorySection
                   history={workspace.artifactVersions.history}
                   onDownloadReport={() => void downloadReport()}
@@ -3063,17 +3151,25 @@ function EvidenceDetailPageInner() {
             ) : null}
           </main>
 
-          <aside className="evidence-detail-sidebar">
-            <section className="evidence-detail-side-block">
-              <SectionHeading
-                kicker="Technical Review Readiness"
-                title="Technical review readiness"
-                icon={ClipboardCheck}
-              />
-              <p>{technicalReadinessSummary}</p>
-            </section>
-
-            <section className="evidence-detail-side-block">
+          {/* Phase CAPTURE-CLOSURE Part C — sidebar is "Status + next
+              action", not a second report. Removed two duplicates
+              from the previous version:
+                - "Technical Review Readiness" block (the same
+                  one-line summary is part of the Overview reviewer
+                  decision card).
+                - The full Public Verification KeyValueGrid (counts
+                  + state detail are already in the Artifacts tab's
+                  "External verification and export activity"
+                  KeyValueGrid). Kept only the publication-state
+                  chip + the shortcut link.
+              Kept verbatim:
+                - Risk signals (unique to the sidebar; the Overview
+                  surface intentionally summarises differently).
+                - Operational summary (workflow status + priority +
+                  case + due date is the action-oriented block that
+                  drives next steps; it's not duplicated in tabs). */}
+          <aside className="evidence-detail-sidebar" data-evidence-sidebar="status-and-next-action">
+            <section className="evidence-detail-side-block" data-evidence-side="risk-signals">
               <SectionHeading kicker="Risk Signals" title="Reviewer attention" icon={TriangleAlert} />
               {reviewSignals.length === 0 ? (
                 <p className="evidence-detail-muted">No advisory risk signals in the current response.</p>
@@ -3092,7 +3188,7 @@ function EvidenceDetailPageInner() {
               )}
             </section>
 
-            <section className="evidence-detail-side-block">
+            <section className="evidence-detail-side-block" data-evidence-side="operational-summary">
               <SectionHeading
                 kicker="Review Workflow"
                 title="Operational summary"
@@ -3111,10 +3207,6 @@ function EvidenceDetailPageInner() {
                     value: workspace.reviewWorkflow.priority || "Not configured",
                   },
                   {
-                    label: "Technical readiness",
-                    value: workspace.reviewDecision.label,
-                  },
-                  {
                     label: "Case",
                     value: workspace.relationships.caseName || "Unassigned",
                   },
@@ -3126,42 +3218,27 @@ function EvidenceDetailPageInner() {
               />
             </section>
 
-            <section className="evidence-detail-side-block">
+            <section className="evidence-detail-side-block" data-evidence-side="public-verification-shortcut">
               <SectionHeading
                 kicker="Public Verification"
-                title="External verification summary"
+                title={publicVerificationState?.label ?? "State unavailable"}
                 icon={Globe}
               />
-              <KeyValueGrid
-                items={[
-                  {
-                    label: "Status",
-                    value: publicVerificationState?.label ?? "State unavailable",
-                  },
-                  {
-                    label: "State detail",
-                    value: publicVerificationState?.detail ?? "No publication detail available",
-                  },
-                  {
-                    label: "Public views",
-                    value: String(workspace.publicVerificationSummary.publicViewCount),
-                  },
-                  {
-                    label: "Report downloads",
-                    value: String(workspace.publicVerificationSummary.reportDownloadCount),
-                  },
-                  {
-                    label: "Package downloads",
-                    value: String(workspace.publicVerificationSummary.verificationPackageDownloadCount),
-                  },
-                ]}
-              />
-
               {shareUrl ? (
-                <a href={shareUrl} className="evidence-detail-inline-link" target="_blank" rel="noreferrer">
-                  Open verification surface
+                <a
+                  href={shareUrl}
+                  className="evidence-detail-inline-link"
+                  target="_blank"
+                  rel="noreferrer"
+                  data-evidence-side-publish-link
+                >
+                  Open verification surface →
                 </a>
-              ) : null}
+              ) : (
+                <p className="evidence-detail-muted" style={{ fontSize: 12.5 }}>
+                  {publicVerificationState?.detail ?? "No publication detail available."}
+                </p>
+              )}
             </section>
           </aside>
         </div>

@@ -1327,6 +1327,59 @@ onClick={async () => {
               maxLength={1000}
               className="capture-material-note"
             />
+
+            {/* Phase CAPTURE-CLOSURE Part E — item-level source label.
+                The backend column `EvidencePart.sourceLabel` was
+                already persisted (the orchestration hook sent it,
+                the review-workspace contentItems projection exposed
+                it, and the Evidence Detail item card renders it) —
+                but Capture had no input. Adding a short field here
+                so users can name the source per item (e.g. "Phone
+                camera, on-site" / "Witness recording", etc.).
+                Distinct from the per-item private note and from the
+                evidence-level capture note. Limited to 120 chars
+                (matches `EvidencePart.sourceLabel @db.VarChar(120)`
+                in prisma/schema.prisma). */}
+            <label
+              style={{
+                display: "block",
+                marginTop: 10,
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: "#475569",
+              }}
+            >
+              Source (optional)
+            </label>
+            <input
+              type="text"
+              data-capture-item-source-label
+              value={item.sourceLabel ?? ""}
+              onChange={(event) =>
+                updateSessionItem(item.id, {
+                  sourceLabel: event.target.value,
+                })
+              }
+              disabled={busy}
+              placeholder="e.g. Phone camera, on-site"
+              maxLength={120}
+              style={{
+                marginTop: 4,
+                width: "100%",
+                padding: "6px 8px",
+                fontSize: 13,
+                border: "1px solid #cbd5e1",
+                borderRadius: 6,
+                background: busy ? "#f8fafc" : "white",
+              }}
+            />
+            <p
+              className="evidence-detail-muted"
+              style={{ margin: "4px 0 0 0", fontSize: 11.5 }}
+            >
+              Shown on the evidence record as the item's source context.
+              Not included in the public verification page or report.
+            </p>
           </div>
         </div>
       ) : null}

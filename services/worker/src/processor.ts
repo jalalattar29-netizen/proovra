@@ -4067,7 +4067,39 @@ trustDecisionSnapshot:
       return;
     }
 
-    captureException(error, { requestId, evidenceId, jobId: job.id ?? null });
+    // Phase CAPTURE-PLAN-GATE-FIX (P0 Bug 2 + P0 Bug 4) — plan-gate
+    // denial is a BUSINESS outcome, not an unhandled server error.
+    // The API-side `canPlanGenerateReports(scope.plan)` check in
+    // evidence-complete.service.ts is supposed to be the only enqueue
+    // gate, so if the worker reaches this branch the most likely
+    // cause is either a stale entitlement read or a free-plan user
+    // whose UI offered a button it shouldn't have. Either way:
+    //   - do NOT capture in Sentry (no debugger pages woken up)
+    //   - DO log at warn so operators can see the divergence
+    //   - DO still discard + DLQ so the job doesn't keep retrying
+    //   - DO record a non-retriable failure incident so the UI can
+    //     surface a "Reports not included in your plan" state instead
+    //     of polling forever.
+    const isPlanDenial =
+      error instanceof Error && error.message === "REPORT_NOT_INCLUDED_IN_PLAN";
+
+    if (!isPlanDenial) {
+      captureException(error, { requestId, evidenceId, jobId: job.id ?? null });
+    } else {
+      logger.warn(
+        {
+          ...withJobContext({
+            requestId,
+            jobId: job.id,
+            evidenceId,
+            attempt: job.attemptsMade + 1,
+            status: "plan_gate_denied",
+          }),
+          errorCode: "REPORT_NOT_INCLUDED_IN_PLAN",
+        },
+        "GenerateReportJob refused: plan does not include reports"
+      );
+    }
 
     const durationMs = Date.now() - start;
 

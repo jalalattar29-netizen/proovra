@@ -183,7 +183,11 @@ const CAPTURE_AI_FILES = captureAiSurfaceFiles();
 // eyebrow rename ("Evidence intake workspace" → "Capture & upload"),
 // the material-note rename ("Reviewer note" → "Your notes"), and the
 // placeholder rewrite. No new behaviour — pure copy/comment growth.
-const PRE_CR5_PAGE_BYTES = 49830;
+// Phase CAPTURE-CLOSURE rebaseline: 49,830 → 51,999 — added the
+// per-item sourceLabel <input> + label + disclaimer in the expanded
+// material card (the backend column already existed; Capture just
+// had no UI to populate it).
+const PRE_CR5_PAGE_BYTES = 51999;
 // Phase HOME-DATA-OWNERSHIP rebaseline: 34,411 → 34,744. The capture
 // orchestration now stamps the ACTIVE workspace id (useActiveSpaceId →
 // `teamId` in the POST /v1/evidence body) so personal evidence is never
@@ -227,7 +231,10 @@ const CAPTURE_ROUTES_BYTES_EXACT = 21793;
 const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 48332;
 const CUSTODY_EVENTS_SVC_BYTES_EXACT = 5155;
 const TIMESTAMP_SVC_BYTES_EXACT = 12988;
-const PRE_CR5_AI_ASSISTANT_BYTES = 23045;
+// Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the
+// "AI advisory is not saved" transient disclaimer + bounded JSDoc
+// comment. No new behaviour, no extra POST surface.
+const PRE_CR5_AI_ASSISTANT_BYTES = 24618;
 
 // ---------------------------------------------------------------------------
 // Group 1 — Upload truth

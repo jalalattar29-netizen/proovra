@@ -619,6 +619,35 @@ export function CaptureAiAssistant({
                             "AI assistance is advisory and does not determine factual truth, authorship, authenticity, or legal admissibility."}
                         </p>
                       </div>
+
+                      {/* Phase CAPTURE-CLOSURE Part D — explicit
+                          transience disclaimer. The advisor result is
+                          NOT persisted (no AI advisory table, no
+                          column on Evidence). It is computed on
+                          demand and discarded when this dialog
+                          closes. Surfacing this honestly avoids the
+                          "did my AI review save?" confusion and
+                          documents the design without inventing a
+                          fake save state. */}
+                      <div
+                        className="capture-ai-section"
+                        data-capture-ai-transience
+                        style={{
+                          borderTop: "1px solid #e2e8f0",
+                          marginTop: 12,
+                          paddingTop: 10,
+                        }}
+                      >
+                        <p style={{ margin: 0, fontSize: 12.5, color: "#64748b" }}>
+                          <strong>AI advisory is not saved.</strong>{" "}
+                          This review runs against your session
+                          metadata only (uploaded contents are never
+                          sent). Output is not persisted on the
+                          evidence record, the report, or the
+                          verification package. Re-run to see fresh
+                          guidance after editing materials.
+                        </p>
+                      </div>
                     </>
                   )}
                 </div>

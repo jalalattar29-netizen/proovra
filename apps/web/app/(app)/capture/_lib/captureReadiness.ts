@@ -49,9 +49,42 @@ export type CaptureReadinessSummary = {
  * select which subset to evaluate.
  */
 
+/**
+ * Phase CAPTURE-READINESS-FIX (P0 Bug 1) — the dropdown in
+ * apps/web/app/(app)/capture/page.tsx writes `role = "Primary
+ * evidence"` (human-readable, capitalised, space) but the checks
+ * here were comparing against legacy slug values `"primary_evidence"`
+ * / `"primary_overview_media"`. Net result: a correctly mapped
+ * primary item registered as "not primary" and the readiness panel
+ * kept asking the user to "Mark a primary evidence item".
+ *
+ * The authoritative signal is the `checklistStepId`, which IS the
+ * slug from the template (`primary_evidence`, `primary_overview_media`,
+ * `primary_scene_overview`, `primary_document_media`, etc. — every
+ * template's primary step id begins with `primary_`). We keep the
+ * legacy `role`-string match as a back-compat path so any cached
+ * draft from before this fix keeps satisfying the criterion.
+ */
+function isPrimaryByStepId(checklistStepId: string | null | undefined): boolean {
+  if (!checklistStepId) return false;
+  return /^primary[_-]/i.test(checklistStepId.trim());
+}
+function isSupportingByStepId(checklistStepId: string | null | undefined): boolean {
+  if (!checklistStepId) return false;
+  const s = checklistStepId.trim().toLowerCase();
+  return s.startsWith("supporting_") || s.startsWith("context_") || s.startsWith("witness_");
+}
+
 function hasAnyPrimaryItem(items: ReadonlyArray<SessionItem>): boolean {
   return items.some(
-    (i) => i.role === "primary_evidence" || i.role === "primary_overview_media",
+    (i) =>
+      // Legacy slug role written by older drafts.
+      i.role === "primary_evidence" ||
+      i.role === "primary_overview_media" ||
+      // Current path: the dropdown writes a checklistStepId beginning
+      // with "primary_" whenever the user maps the item to a primary
+      // template step.
+      isPrimaryByStepId(i.checklistStepId),
   );
 }
 function hasAnySupportingContext(items: ReadonlyArray<SessionItem>): boolean {
@@ -60,7 +93,10 @@ function hasAnySupportingContext(items: ReadonlyArray<SessionItem>): boolean {
       i.role === "supporting_context" ||
       i.role === "supporting_ownership_document" ||
       i.role === "context_statement" ||
-      i.role === "context_audio_statement",
+      i.role === "context_audio_statement" ||
+      // Same fix as hasAnyPrimaryItem: trust the template's slug
+      // mapping, not the human-readable role string.
+      isSupportingByStepId(i.checklistStepId),
   );
 }
 function hasAnyContextNote(items: ReadonlyArray<SessionItem>): boolean {

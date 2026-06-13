@@ -188,10 +188,12 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
   // the audit-fix pass added plain-language eyebrow + heading rename
   // ("Reviewer note" → "Your notes") + placeholder rewrite + bounded
   // comments. No behaviour change.
-  it("CR5 UPPER pin on capture page.tsx holds (≤ 49,830 bytes)", () => {
+  it("CR5 UPPER pin on capture page.tsx holds (≤ 51,999 bytes)", () => {
+    // Phase CAPTURE-CLOSURE rebaseline: added per-item sourceLabel
+    // input + label + disclaimer (backend column already existed).
     expect(
       statSync(webPath("app/(app)/capture/page.tsx")).size,
-    ).toBeLessThanOrEqual(49830);
+    ).toBeLessThanOrEqual(51999);
   });
   it("R10 UPPER pin on ui.tsx holds", () => {
     expect(UI_TSX.split("\n").length).toBeLessThanOrEqual(520);

@@ -635,12 +635,23 @@ export function EvidenceTypeDonutCard({
   return (
     <section className="home-card" style={homeCardStyle} data-self-serve-section="evidence-types">
       <header style={homeCardHeaderStyle}>
-        <h2 style={homeCardTitleStyle}>Evidence by type</h2>
-        <span style={chartSubtitleStyle}>
+        {/* Phase CAPTURE-CLOSURE Part B — widget is record-level by
+            construction (one row per Evidence record, classified by
+            its primary MIME / EvidenceType). A multipart package
+            containing PDF+image+video counts ONCE under the primary
+            file's category — never as three separate rows. The old
+            "Evidence by type" wording implied a file-level count.
+            Truthful rename + subtitle clarifies the contract. */}
+        <h2 style={homeCardTitleStyle}>Records by type</h2>
+        <span
+          style={chartSubtitleStyle}
+          data-evidence-types-subtitle
+          title="Counts primary evidence records, not files inside packages."
+        >
           {sampleSize > 0
             ? sampled
-              ? `latest ${sampleSize} records`
-              : `${sampleSize} record${sampleSize === 1 ? "" : "s"}`
+              ? `latest ${sampleSize} records · by primary type`
+              : `${sampleSize} record${sampleSize === 1 ? "" : "s"} · by primary type`
             : ""}
         </span>
       </header>

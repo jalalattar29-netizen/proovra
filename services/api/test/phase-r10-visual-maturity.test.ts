@@ -540,10 +540,13 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
   // the audit-fix pass added plain-language eyebrow + heading rename
   // ("Reviewer note" → "Your notes") + placeholder rewrite + bounded
   // comments. No behaviour change.
-  it("CR5 UPPER pin on capture page.tsx holds (≤ 49,830 bytes)", () => {
+  it("CR5 UPPER pin on capture page.tsx holds (≤ 51,999 bytes)", () => {
+    // Phase CAPTURE-CLOSURE rebaseline: per-item sourceLabel input
+    // was added in the expanded material card; backend column was
+    // already populated by the orchestration hook.
     expect(
       statSync(webPath("app/(app)/capture/page.tsx")).size,
-    ).toBeLessThanOrEqual(49830);
+    ).toBeLessThanOrEqual(51999);
   });
 
   it("CR5 UPPER pin on useCaptureSessionOrchestration.ts holds (≤ 34,744 bytes)", () => {
