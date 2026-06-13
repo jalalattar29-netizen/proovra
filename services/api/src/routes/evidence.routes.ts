@@ -59,6 +59,7 @@ import {
   buildEvidencePreviewPolicy,
 } from "@proovra/shared-evidence-presentation";
 import { z } from "zod";
+import { AppError, ErrorCode } from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
@@ -2976,6 +2977,10 @@ const VERIFICATION_STATUSES = [
  * so a deep-link from Home into Evidence has to be able to filter
  * by the exact same set of values to make the destination dataset
  * match the source count.
+ *
+ * Invalid tokens raise an `AppError(VALIDATION_ERROR)` so the global
+ * error handler returns HTTP 400 (not 500) and Sentry treats it as a
+ * client input mistake — not an unhandled server exception.
  */
 function parseEvidenceMultiEnumFilter<T extends string>(
   raw: unknown,
@@ -2995,11 +3000,11 @@ function parseEvidenceMultiEnumFilter<T extends string>(
     if ((allowed as readonly string[]).includes(tok)) {
       out.push(tok as T);
     } else {
-      const err: Error & { statusCode?: number } = new Error(
+      throw new AppError(
+        ErrorCode.VALIDATION_ERROR,
         `Invalid ${label} filter: ${tok}`,
+        { field: label, value: tok },
       );
-      err.statusCode = 400;
-      throw err;
     }
   }
   return out;
