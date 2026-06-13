@@ -7923,14 +7923,26 @@ await appendCustodyEvent({
           parts,
         });
 
-        const privateNoteByPartId = new Map(
-          parts.map((part) => [part.id, part.privateNote ?? null] as const)
-        );
+        // Phase CAPTURE-DETAIL-WIRING — the per-part capture metadata
+        // (privateNote / privateRole / sourceLabel / clientSignals) is
+        // persisted from POST /v1/evidence/:id/parts but until this
+        // projection only `privateNote` made it into the review-
+        // workspace contentItems response. Each is workspace-internal
+        // (the public-verify projection deliberately omits them), so
+        // attaching them here is safe and unblocks the Evidence Detail
+        // UI from rendering capture-time context.
+        const partLookup = new Map(parts.map((part) => [part.id, part] as const));
 
-        const contentItems = content.items.map((item) => ({
-          ...item,
-          privateNote: privateNoteByPartId.get(item.id) ?? null,
-        }));
+        const contentItems = content.items.map((item) => {
+          const part = partLookup.get(item.id);
+          return {
+            ...item,
+            privateNote: part?.privateNote ?? null,
+            privateRole: part?.privateRole ?? null,
+            sourceLabel: part?.sourceLabel ?? null,
+            clientSignals: part?.clientSignals ?? null,
+          };
+        });
 
         const defaultPreviewItem =
           contentItems.find((item) => item.previewable && item.viewUrl) ??

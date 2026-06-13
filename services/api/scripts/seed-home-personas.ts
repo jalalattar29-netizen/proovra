@@ -967,6 +967,95 @@ async function main(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(`  ${p.key.padEnd(14)} user=${p.userId} workspace=${p.workspaceId} (${p.workspaceType}, ${p.plan})`);
   }
+
+  // Phase CAPTURE-DETAIL-WIRING — backfill signing-key metadata on
+  // every seeded evidence row that carries a signature but no
+  // signing_key_id. The /v1/evidence/:id/review-workspace handler
+  // explicitly 409s when a SIGNED row's signing_keys row is missing;
+  // without this backfill the entire detail page returns an error
+  // for every seed evidence id. The 'audit_local_ed25519' row is
+  // created by the shared signing-key bootstrap script that runs
+  // ahead of this seed; we only need to point each evidence row at
+  // it. Idempotent — runs over every signed row each time.
+  const backfilled = await prisma.evidence.updateMany({
+    where: {
+      signatureBase64: { not: null },
+      OR: [{ signingKeyId: null }, { signingKeyVersion: null }],
+    },
+    data: {
+      signingKeyId: "audit_local_ed25519",
+      signingKeyVersion: 1,
+    },
+  });
+  // eslint-disable-next-line no-console
+  console.log(`signing-key backfill: ${backfilled.count} signed rows pointed at audit_local_ed25519`);
+
+  // Phase CAPTURE-DETAIL-WIRING — seed one rich capture-notes part on
+  // the pro-issues TSA-failed photo so the Evidence Detail UI has a
+  // record that visibly exercises:
+  //   - Evidence.internalNotes
+  //   - Evidence.intakePlanJson (template summary + required steps)
+  //   - EvidencePart.privateNote / privateRole / sourceLabel / checklistStepId / clientSignals
+  // The proof is the data path Capture → finalize → review-workspace
+  // → UI; without an exemplar the detail page never showed these.
+  const richEvidenceId = ID.issuesPhotoTsaFailed;
+  await prisma.evidence.update({
+    where: { id: richEvidenceId },
+    data: {
+      internalNotes:
+        "Captured during after-hours inspection. Storage was unsecured. Witness present.",
+      intakePlanJson: {
+        templateId: "general-evidence-record",
+        templateName: "General Evidence Record",
+        mode: "CHECKLIST_REQUIRED",
+        locationRequirement: "recommended",
+        requiredSteps: [
+          { id: "primary_evidence", title: "Primary evidence file" },
+          { id: "context_photo", title: "Context photo" },
+        ],
+        optionalSteps: [{ id: "witness_statement", title: "Witness statement" }],
+      },
+    },
+  });
+  // The seeded photo row has no EvidencePart yet — create one with
+  // the full per-item capture metadata. Idempotent via unique key
+  // (evidenceId, partIndex).
+  await prisma.evidencePart.upsert({
+    where: {
+      evidenceId_partIndex: { evidenceId: richEvidenceId, partIndex: 0 },
+    },
+    create: {
+      evidenceId: richEvidenceId,
+      partIndex: 0,
+      originalFileName: "door-hinge.jpg",
+      mimeType: "image/jpeg",
+      sha256:
+        "0000000000000000000000000000000000000000000000000000000000000001",
+      sizeBytes: BigInt(1024),
+      storageBucket: "dev-bucket",
+      storageKey: `evidence/${richEvidenceId}/parts/000-door-hinge.jpg`,
+      privateNote: "Primary photo of door — hinge visibly broken",
+      privateRole: "Primary evidence",
+      checklistStepId: "primary_evidence",
+      sourceLabel: "Phone camera, on-site",
+      clientSignals: {
+        captureTimeUtc: "2026-06-12T19:42:00Z",
+        browserMediaCaptureAvailable: true,
+        folderPathPresent: false,
+        locationIncluded: true,
+        screenshotLike: false,
+        genericMime: false,
+        oldLastModified: false,
+      },
+      uploadedAtUtc: hoursAgo(26),
+    },
+    update: {
+      privateNote: "Primary photo of door — hinge visibly broken",
+      privateRole: "Primary evidence",
+      checklistStepId: "primary_evidence",
+      sourceLabel: "Phone camera, on-site",
+    },
+  });
 }
 
 main()

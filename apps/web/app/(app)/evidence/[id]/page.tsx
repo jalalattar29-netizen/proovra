@@ -586,6 +586,18 @@ function PreviewWorkspace({
       <div className="evidence-detail-item-grid">
         {workspace.evidence.contentItems?.map((item) => {
           const privateItemNote = privateItemNotesById.get(item.id);
+          // Phase CAPTURE-DETAIL-WIRING — per-part capture metadata
+          // (privateRole + sourceLabel) is workspace-internal and is
+          // returned by /v1/evidence/:id/review-workspace. Surface it
+          // alongside privateNote so the reviewer sees the same
+          // context the capturer recorded. The role + checklist label
+          // are already rendered via describeContentItemRole(); the
+          // raw `privateRole` is what the capturer typed and may
+          // diverge from the auto-resolved artifact role.
+          const itemWithMeta = item as typeof item & {
+            privateRole?: string | null;
+            sourceLabel?: string | null;
+          };
           return (
             <div key={item.id} className="evidence-detail-item-card">
               <div className="evidence-detail-item-row">
@@ -601,8 +613,29 @@ function PreviewWorkspace({
                 <span>Role</span>
                 <strong>{describeContentItemRole(item)}</strong>
               </div>
+              {itemWithMeta.privateRole ? (
+                <div
+                  className="evidence-detail-definition-inline"
+                  data-content-item-private-role
+                >
+                  <span>Capture role (private)</span>
+                  <strong>{itemWithMeta.privateRole}</strong>
+                </div>
+              ) : null}
+              {itemWithMeta.sourceLabel ? (
+                <div
+                  className="evidence-detail-definition-inline"
+                  data-content-item-source-label
+                >
+                  <span>Source</span>
+                  <strong>{itemWithMeta.sourceLabel}</strong>
+                </div>
+              ) : null}
               {privateItemNote ? (
-                <div className="evidence-detail-definition-inline">
+                <div
+                  className="evidence-detail-definition-inline"
+                  data-content-item-private-note
+                >
                   <span>Private item note</span>
                   <strong>{privateItemNote}</strong>
                 </div>
@@ -625,6 +658,128 @@ function KeyValueGrid({ items }: { items: Array<{ label: string; value: string }
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * Phase CAPTURE-DETAIL-WIRING — render the capture template summary.
+ *
+ * The intake plan JSON is recorded at evidence creation time (see
+ * apps/web/.../useCaptureSessionOrchestration.ts ~602). When the
+ * intake mode is CHECKLIST_REQUIRED the user explicitly committed to
+ * mapping every required step to a real material; the server enforces
+ * that at /complete (services/api/.../capture-checklist-gate.ts), and
+ * here we surface the same information back to the reviewer so they
+ * can see the workflow promise the capturer made.
+ *
+ * Hidden when intakePlanJson is absent (legacy rows or template-less
+ * captures) — never invents data.
+ */
+function CaptureTemplateCard({
+  intakePlanJson,
+  contentItems,
+}: {
+  intakePlanJson: unknown;
+  contentItems: Array<{ checklistStepId?: string | null }>;
+}) {
+  if (!intakePlanJson || typeof intakePlanJson !== "object") return null;
+  const plan = intakePlanJson as Record<string, unknown>;
+  const templateName =
+    typeof plan.templateName === "string" ? plan.templateName : null;
+  const templateId =
+    typeof plan.templateId === "string" ? plan.templateId : null;
+  const mode = typeof plan.mode === "string" ? plan.mode : null;
+  const locationRequirement =
+    typeof plan.locationRequirement === "string"
+      ? plan.locationRequirement
+      : null;
+  const required = Array.isArray(plan.requiredSteps)
+    ? (plan.requiredSteps as Array<{ id?: string; title?: string }>)
+    : [];
+  const optional = Array.isArray(plan.optionalSteps)
+    ? (plan.optionalSteps as Array<{ id?: string; title?: string }>)
+    : [];
+
+  // Nothing useful to show when the plan carries no template metadata.
+  if (!templateName && !templateId && required.length === 0 && optional.length === 0) {
+    return null;
+  }
+
+  const mappedIds = new Set<string>();
+  for (const it of contentItems) {
+    if (it.checklistStepId) mappedIds.add(it.checklistStepId);
+  }
+  const requiredMappedCount = required.filter(
+    (s) => s.id && mappedIds.has(s.id),
+  ).length;
+  const requiredMissing = required.filter(
+    (s) => s.id && !mappedIds.has(s.id),
+  );
+
+  return (
+    <section
+      className="evidence-detail-section"
+      data-evidence-section="capture-template"
+    >
+      <div className="evidence-detail-section-header">
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 650 }}>
+          Capture template
+        </h3>
+      </div>
+      <KeyValueGrid
+        items={[
+          { label: "Template", value: templateName || templateId || "Not recorded" },
+          {
+            label: "Mode",
+            value:
+              mode === "CHECKLIST_REQUIRED"
+                ? "Checklist required"
+                : mode === "FLEXIBLE"
+                  ? "Flexible"
+                  : (mode ?? "Not recorded"),
+          },
+          {
+            label: "Required steps mapped",
+            value:
+              required.length === 0
+                ? "None declared"
+                : `${requiredMappedCount} of ${required.length}`,
+          },
+          {
+            label: "Optional steps declared",
+            value: optional.length === 0 ? "None" : String(optional.length),
+          },
+          {
+            label: "Location",
+            value:
+              locationRequirement === "required"
+                ? "Required"
+                : locationRequirement === "recommended"
+                  ? "Recommended"
+                  : locationRequirement === "optional"
+                    ? "Optional"
+                    : "Not recorded",
+          },
+        ]}
+      />
+      {requiredMissing.length > 0 ? (
+        <div
+          data-capture-template-missing
+          style={{
+            marginTop: 8,
+            padding: "8px 10px",
+            background: "#fef3c7",
+            border: "1px solid #fcd34d",
+            borderRadius: 6,
+            fontSize: 12.5,
+            color: "#78350f",
+          }}
+        >
+          <strong>Unmapped required step{requiredMissing.length === 1 ? "" : "s"}:</strong>{" "}
+          {requiredMissing.map((s) => s.title || s.id || "Untitled").join(" · ")}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -1844,20 +1999,40 @@ function EvidenceDetailPageInner() {
           </div>
         </section>
 
-        <nav className="evidence-detail-tabs" aria-label="Evidence detail sections">
-          {DETAIL_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`evidence-detail-tab ${activeTab === tab.id ? "is-active" : ""}`}
-              onClick={() => setActiveTab(tab.id)}
-              aria-pressed={activeTab === tab.id}
+        {(() => {
+          // Phase CAPTURE-DETAIL-WIRING — Discussion is a TEAM-only
+          // surface (threads carry teamId; personal workspaces have a
+          // synthetic Personal Team UUID but no real coordination
+          // need). Hide the Discussion tab when this evidence belongs
+          // to a personal workspace; clicking the (now-absent) tab
+          // is no longer possible. The endpoint stays available for
+          // legitimate team callers.
+          const isPersonalWorkspace = workspaceCaps?.workspaceType === "PERSONAL";
+          const visibleTabs = DETAIL_TABS.filter(
+            (t) => !(t.id === "discussion" && isPersonalWorkspace),
+          );
+          return (
+            <nav
+              className="evidence-detail-tabs"
+              aria-label="Evidence detail sections"
+              data-evidence-tabs-visible-count={visibleTabs.length}
             >
-              <tab.icon size={15} strokeWidth={2.1} aria-hidden="true" />
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+              {visibleTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={`evidence-detail-tab ${activeTab === tab.id ? "is-active" : ""}`}
+                  onClick={() => setActiveTab(tab.id)}
+                  aria-pressed={activeTab === tab.id}
+                  data-evidence-tab={tab.id}
+                >
+                  <tab.icon size={15} strokeWidth={2.1} aria-hidden="true" />
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          );
+        })()}
 
         <div className="evidence-detail-layout">
           <main className="evidence-detail-main">
@@ -1909,6 +2084,17 @@ function EvidenceDetailPageInner() {
                     teamId={workspace.reviewWorkflow?.teamId ?? null}
                   />
                 ) : null}
+                {/* Phase CAPTURE-DETAIL-WIRING — capture template
+                    summary. The intakePlanJson was previously
+                    persisted at finalize-time and is exposed by
+                    /v1/evidence/:id/review-workspace but had no UI
+                    surface. Without it the reviewer cannot see which
+                    template the capturer used or whether every
+                    required step was satisfied. */}
+                <CaptureTemplateCard
+                  intakePlanJson={workspace.evidence.intakePlanJson ?? null}
+                  contentItems={workspace.evidence.contentItems ?? []}
+                />
                 <section className="evidence-detail-section">
                   <div className="evidence-detail-section-header">
                     <SectionHeading
@@ -2835,15 +3021,30 @@ function EvidenceDetailPageInner() {
             ) : null}
 
             {activeTab === "technical" ? (
-              <section className="evidence-detail-section">
+              <section
+                className="evidence-detail-section"
+                data-evidence-section="technical-appendix"
+              >
                 <div className="evidence-detail-section-header">
                   <SectionHeading
-                    kicker="Technical Appendix"
+                    kicker="Technical Appendix · Advanced"
                     title="Structured technical materials"
                     icon={FileText}
                   />
                 </div>
-                <details open>
+                <p
+                  className="evidence-detail-muted"
+                  style={{ marginTop: 4, marginBottom: 8, fontSize: 12.5 }}
+                >
+                  Advanced raw JSON. Useful for support / debug; not
+                  required for reviewing the record. Click to expand.
+                </p>
+                {/* Phase CAPTURE-DETAIL-WIRING — collapsed by default.
+                    Previously rendered with `<details open>` which
+                    exposed unbounded internal JSON to every viewer of
+                    the page. The data is still here, but the user
+                    now opts in. */}
+                <details data-evidence-raw-appendix>
                   <summary className="evidence-detail-raw-summary">Raw technical appendix</summary>
                   <pre className="evidence-detail-raw-block">
                     {JSON.stringify(
