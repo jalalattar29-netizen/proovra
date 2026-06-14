@@ -81,11 +81,25 @@ export async function getPersonalWorkspaceScope(
     teamId: null,
   });
 
+  // Phase WORKER-PLAN-PARITY-FIX — mirror the API's PERSONAL-scope
+  // PRO upgrade. The API resolver (services/api/src/services/
+  // workspace-billing.service.ts:107-110) checks whether the owner's
+  // entitlement plan supports a personal workspace; if it doesn't
+  // (e.g. raw TEAM entitlement where `allowsPersonalWorkspace=false`),
+  // the personal scope is resolved at PRO grade. Without this match
+  // the worker would deny reports for owners whose API call already
+  // queued them, producing the REPORT_NOT_INCLUDED_IN_PLAN mismatch
+  // that left evidence stuck at SIGNED.
+  const rawPlan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
+  const personalPlan = getPlanCapabilities(rawPlan).allowsPersonalWorkspace
+    ? rawPlan
+    : prismaPkg.PlanType.PRO;
+
   return {
     workspaceType: "PERSONAL",
     ownerUserId,
     teamId: null,
-    plan: entitlement?.plan ?? prismaPkg.PlanType.FREE,
+    plan: personalPlan,
     credits: entitlement?.credits ?? 0,
     teamSeats: entitlement?.teamSeats ?? 0,
     storageBytesOverride: null,
@@ -112,11 +126,36 @@ export async function getTeamWorkspaceScope(
     throw new Error("TEAM_NOT_FOUND_FOR_EVIDENCE");
   }
 
+  // Phase WORKER-PLAN-PARITY-FIX — mirror the API's three-tier
+  // effective-plan rule (services/api/src/services/
+  // workspace-billing.service.ts:174-180):
+  //
+  //   1. Team billing is ACTIVE / PAST_DUE → use team.billingPlan
+  //   2. Otherwise, if the owner's entitlement supports team
+  //      workspaces (PRO / TEAM at owner grade) → use that
+  //   3. Otherwise → FREE
+  //
+  // The middle tier is the one the worker was missing. A personal
+  // capture lives on the user's auto-bootstrapped personal-team
+  // whose billingStatus is rarely ACTIVE/PAST_DUE; without this
+  // fallback the worker resolved every such evidence as FREE and
+  // denied the report job that the API had already enqueued under
+  // the owner's real (PRO/TEAM) entitlement.
+  const ownerEntitlement = await prisma.entitlement.findFirst({
+    where: { userId: team.ownerUserId, active: true },
+    orderBy: { createdAt: "desc" },
+    select: { plan: true },
+  });
+  const ownerPlan = ownerEntitlement?.plan ?? prismaPkg.PlanType.FREE;
+  const ownerPlanSupportsTeams =
+    getPlanCapabilities(ownerPlan).allowsTeamWorkspace;
   const effectivePlan =
     team.billingStatus === prismaPkg.TeamBillingStatus.ACTIVE ||
     team.billingStatus === prismaPkg.TeamBillingStatus.PAST_DUE
       ? team.billingPlan
-      : prismaPkg.PlanType.FREE;
+      : ownerPlanSupportsTeams
+        ? ownerPlan
+        : prismaPkg.PlanType.FREE;
 
   const activeStorageAddonBytes = await getActiveStorageAddonBytes({
     ownerUserId: team.ownerUserId,

@@ -13,7 +13,10 @@ import { CaptureReadinessPanel } from "./_lib/CaptureReadinessPanel";
 import { CaptureSuggestionsPanel } from "./_lib/CaptureSuggestionsPanel";
 import { CaptureIntakeRail } from "./_lib/CaptureIntakeRail";
 import { CaptureOperationalSummary } from "./_lib/CaptureOperationalSummary";
-import { computeCaptureReadiness } from "./_lib/captureReadiness";
+import {
+  computeCaptureReadiness,
+  getRoleFromChecklistStep,
+} from "./_lib/captureReadiness";
 import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
 import { CaptureBottomBar } from "../../../components/capture-v2/CaptureBottomBar";
 import { CaptureCameraOverlay } from "../../../components/capture-v2/CaptureCameraOverlay";
@@ -110,42 +113,6 @@ function CapturePageInner() {
     if (normalized.includes("context") || normalized.includes("supplement"))
       return "Context";
     return "Context";
-  };
-
-  const getRoleFromChecklistStep = (step: ChecklistStep) => {
-    const id = step.id.toLowerCase();
-
-    const primaryStepIds = [
-      "primary_evidence",
-      "primary_media",
-      "overview_media",
-      "damage_close_up",
-      "ownership_document",
-      "scene_overview",
-      "close_up_detail",
-      "policy_document",
-      "screenshot_export",
-    ];
-
-    const supportingStepIds = [
-      "supporting_context",
-      "optional_statement",
-      "optional_audio",
-      "supporting_exhibit",
-      "source_context",
-      "optional_timeline",
-      "witness_statement",
-      "supporting_file",
-      "supporting_evidence",
-      "reviewer_context",
-      "source_safe_note",
-      "supporting_document",
-    ];
-
-    if (primaryStepIds.includes(id)) return "Primary";
-    if (supportingStepIds.includes(id)) return "Supporting";
-
-    return step.required ? "Primary" : "Supporting";
   };
 
   const getRoleRequirementDisplayLabel = (

@@ -115,6 +115,28 @@ const FINGERPRINT_MAX = 120;
 const TITLE_MAX = 180;
 const SUMMARY_MAX = 400;
 
+// Phase WORKER-INCIDENT-SAFESUMMARY-FIX — operational_incidents.safe_summary
+// is `String NOT NULL @db.VarChar(400)` (schema.prisma:5692). A caller
+// passing an empty / whitespace-only / undefined `safeSummary` would
+// either trip the DB constraint (Postgres rejects NULL even when the
+// TS type says `string`, because Prisma silently coerces `undefined` to
+// SQL NULL) or write a useless empty row that operators can't read.
+//
+// The user reported this in prod: when the worker hit
+// REPORT_NOT_INCLUDED_IN_PLAN, the bridge tried to record the incident
+// and the insert blew up with "null value in column safeSummary",
+// hiding the REAL failure from the operator inbox.
+//
+// Coerce here so EVERY caller gets a deterministic, operator-readable
+// fallback even if the input was malformed.
+function coerceSafeSummary(raw: unknown): string {
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return "(no detail provided)";
+}
+
 function safeJsonSnapshot(
   v: Record<string, unknown>,
 ): prismaPkg.Prisma.InputJsonValue {
@@ -146,7 +168,10 @@ export async function recordWorkerIncident(
   }
   const fingerprint = clipString(input.fingerprint, FINGERPRINT_MAX);
   const title = clipString(input.title, TITLE_MAX);
-  const safeSummary = clipString(input.safeSummary, SUMMARY_MAX);
+  // Coerce BEFORE clip — if a caller passed empty/undefined, we use a
+  // deterministic fallback rather than INSERT NULL into a NOT NULL
+  // column and lose the operator-facing record entirely.
+  const safeSummary = clipString(coerceSafeSummary(input.safeSummary), SUMMARY_MAX);
   const teamId = input.teamId ?? null;
   const sanitisedMetadata =
     input.metadata != null

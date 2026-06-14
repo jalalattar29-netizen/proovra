@@ -4240,12 +4240,23 @@ async function recordReportFailureIncident(input: {
       where: { id: input.evidenceId },
       select: { teamId: true, title: true },
     });
-    const rawMessage =
-      input.error instanceof Error
+    // Phase WORKER-INCIDENT-SAFESUMMARY-FIX — always produce a
+    // non-empty rawMessage. WorkerError carries its code in `.message`
+    // and may also expose `.code` directly. Either way we want a
+    // deterministic operator-readable string so safeSummary downstream
+    // cannot collapse to empty.
+    const errorCode =
+      input.error && typeof (input.error as { code?: unknown }).code === "string"
+        ? ((input.error as { code: string }).code)
+        : null;
+    const errorMessage =
+      input.error instanceof Error && input.error.message
         ? input.error.message
-        : typeof input.error === "string"
+        : typeof input.error === "string" && input.error
           ? input.error
-          : "Unknown error";
+          : null;
+    const rawMessage =
+      errorMessage || errorCode || "Unknown error";
     const errorClass = rawMessage
       .split(/[:\n]/, 1)[0]
       .trim()

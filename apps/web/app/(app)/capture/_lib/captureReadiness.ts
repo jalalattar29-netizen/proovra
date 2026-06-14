@@ -19,7 +19,7 @@
  */
 
 import type { WorkflowProfileCode } from "../../../../lib/platform-context";
-import type { SessionItem } from "./types";
+import type { ChecklistStep, SessionItem } from "./types";
 
 export type ReadinessLevel = "draft" | "developing" | "ready";
 
@@ -50,43 +50,92 @@ export type CaptureReadinessSummary = {
  */
 
 /**
- * Phase CAPTURE-READINESS-FIX (P0 Bug 1) — the dropdown in
- * apps/web/app/(app)/capture/page.tsx writes `role = "Primary
- * evidence"` (human-readable, capitalised, space) but the checks
- * here were comparing against legacy slug values `"primary_evidence"`
- * / `"primary_overview_media"`. Net result: a correctly mapped
- * primary item registered as "not primary" and the readiness panel
- * kept asking the user to "Mark a primary evidence item".
+ * Phase CAPTURE-PRIMARY-CANONICAL-FIX —
  *
- * The authoritative signal is the `checklistStepId`, which IS the
- * slug from the template (`primary_evidence`, `primary_overview_media`,
- * `primary_scene_overview`, `primary_document_media`, etc. — every
- * template's primary step id begins with `primary_`). We keep the
- * legacy `role`-string match as a back-compat path so any cached
- * draft from before this fix keeps satisfying the criterion.
+ * The "primary evidence captured" criterion is a UNIVERSAL operational
+ * concept across all capture templates (General Evidence Record,
+ * Insurance Claim, Legal Matter, Incident/Investigation, Compliance
+ * Audit, Journalism/Field Capture, plus any future template). Whenever
+ * the operator marks ANY staged item as primary, the criterion must
+ * satisfy — independent of which template is selected and which
+ * specific primary step the item is mapped to.
+ *
+ * The authoritative signal is `SessionItem.checklistStepId`. Every
+ * template's primary step IDs begin with the `primary_` prefix (or
+ * `primary-`), so the canonical predicate is a prefix test.
+ *
+ * Back-compat: legacy drafts written before the dropdown was rebuilt
+ * stored the role as the literal slug (`role = "primary_evidence"`)
+ * or as a different slug per template. We keep an explicit match for
+ * the two slug variants that ever leaked into drafts so a hydrated
+ * pre-fix draft still satisfies the criterion.
+ *
+ * These helpers are EXPORTED so every consumer (this readiness
+ * computer, the dropdown's `getRoleFromChecklistStep` label code in
+ * page.tsx, future suggestion engines, future analytics) reads from
+ * ONE definition. Duplicating the predicate is the bug class this
+ * file is now armoured against.
  */
-function isPrimaryByStepId(checklistStepId: string | null | undefined): boolean {
+export function isPrimaryChecklistStepId(
+  checklistStepId: string | null | undefined,
+): boolean {
   if (!checklistStepId) return false;
   return /^primary[_-]/i.test(checklistStepId.trim());
 }
-function isSupportingByStepId(checklistStepId: string | null | undefined): boolean {
+
+export function isSupportingChecklistStepId(
+  checklistStepId: string | null | undefined,
+): boolean {
   if (!checklistStepId) return false;
   const s = checklistStepId.trim().toLowerCase();
-  return s.startsWith("supporting_") || s.startsWith("context_") || s.startsWith("witness_");
-}
-
-function hasAnyPrimaryItem(items: ReadonlyArray<SessionItem>): boolean {
-  return items.some(
-    (i) =>
-      // Legacy slug role written by older drafts.
-      i.role === "primary_evidence" ||
-      i.role === "primary_overview_media" ||
-      // Current path: the dropdown writes a checklistStepId beginning
-      // with "primary_" whenever the user maps the item to a primary
-      // template step.
-      isPrimaryByStepId(i.checklistStepId),
+  return (
+    s.startsWith("supporting_") ||
+    s.startsWith("context_") ||
+    s.startsWith("witness_")
   );
 }
+
+/**
+ * THE canonical primary-evidence detector. Every readiness consumer
+ * MUST go through this helper — never reimplement the predicate.
+ */
+export function hasPrimaryEvidence(
+  items: ReadonlyArray<SessionItem>,
+): boolean {
+  return items.some(
+    (i) =>
+      // Legacy slug role written by older drafts (pre-dropdown fix).
+      i.role === "primary_evidence" ||
+      i.role === "primary_overview_media" ||
+      // Current path: the dropdown writes a `checklistStepId` whose
+      // slug begins with `primary_` whenever the user maps the item
+      // to ANY template's primary step.
+      isPrimaryChecklistStepId(i.checklistStepId),
+  );
+}
+
+/**
+ * Aliased internally to keep the diff small. New callers MUST use the
+ * exported `hasPrimaryEvidence` so the canonical name is the entry
+ * point of choice.
+ */
+const hasAnyPrimaryItem = hasPrimaryEvidence;
+
+/**
+ * Canonical role label for a template checklist step. Lifted out of
+ * `capture/page.tsx` so the dropdown's role label and the readiness
+ * predicate share ONE definition — neither file can drift from the
+ * other. Returns `"Primary"` when the step id matches the canonical
+ * primary prefix, `"Supporting"` when it matches the supporting /
+ * context / witness prefix, and falls back to the step's `required`
+ * flag for any future template that doesn't follow the convention.
+ */
+export function getRoleFromChecklistStep(step: ChecklistStep): "Primary" | "Supporting" {
+  if (isPrimaryChecklistStepId(step.id)) return "Primary";
+  if (isSupportingChecklistStepId(step.id)) return "Supporting";
+  return step.required ? "Primary" : "Supporting";
+}
+
 function hasAnySupportingContext(items: ReadonlyArray<SessionItem>): boolean {
   return items.some(
     (i) =>
@@ -94,9 +143,7 @@ function hasAnySupportingContext(items: ReadonlyArray<SessionItem>): boolean {
       i.role === "supporting_ownership_document" ||
       i.role === "context_statement" ||
       i.role === "context_audio_statement" ||
-      // Same fix as hasAnyPrimaryItem: trust the template's slug
-      // mapping, not the human-readable role string.
-      isSupportingByStepId(i.checklistStepId),
+      isSupportingChecklistStepId(i.checklistStepId),
   );
 }
 function hasAnyContextNote(items: ReadonlyArray<SessionItem>): boolean {
