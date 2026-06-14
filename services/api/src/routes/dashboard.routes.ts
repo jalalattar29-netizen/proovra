@@ -40,6 +40,7 @@ import { getLatestOrgHealthSnapshot } from "../services/dashboard/org-health.ser
 import { listReviewerRoutingRecommendations } from "../services/dashboard/reviewer-capacity.service.js";
 import { listWorkspaceAccessAnomalies } from "../services/dashboard/access-anomaly.service.js";
 import { buildTrustSummary } from "../services/dashboard/trust-summary.service.js";
+import { buildRecordsByType } from "../services/dashboard/records-by-type.service.js";
 
 const Query = z.object({ teamId: z.string().uuid() });
 
@@ -103,6 +104,29 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
       const summary = await buildTrustSummary({ teamId: query.teamId });
       return reply.code(200).send(summary);
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase HOME-RECORDS-BY-TYPE — workspace-scoped aggregation that
+  // powers the Home "Records by primary type" donut. Replaces the
+  // previous client-side classification over the latest-100 evidence
+  // list (which presented a sample as if it were the whole workspace).
+  // Returns BOTH `records` (one count per Evidence row, by primary
+  // type) AND `files` (one count per EvidencePart, by file MIME) so
+  // the two concepts can be displayed side-by-side without mixing.
+  // Same auth posture as the rest of /v1/dashboard/*.
+  // ---------------------------------------------------------------------------
+  app.get(
+    "/v1/dashboard/records-by-type",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const query = Query.parse(req.query ?? {});
+      const member = await requireMember(req, reply, query.teamId);
+      if (!member) return;
+
+      const aggregate = await buildRecordsByType({ teamId: query.teamId });
+      return reply.code(200).send(aggregate);
     },
   );
 

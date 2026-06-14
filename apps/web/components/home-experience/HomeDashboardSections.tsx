@@ -96,7 +96,11 @@ export function HomeHeader({
   const primary =
     hero.kind === "capture_first"
       ? { label: "Capture evidence", href: "/capture" }
-      : { label: "Evidence Queue", href: "/evidence" };
+      // Phase HOME-COPY — "All evidence" reads plainly across all
+      // user types (individual through enterprise) and avoids the
+      // "Queue" jargon that suggested an operational worklist.
+      // Same destination, plainer label.
+      : { label: "All evidence", href: "/evidence" };
 
   return (
     <header style={headerWrapStyle} data-home-header>
@@ -340,7 +344,11 @@ export function WorkspacePrioritiesCard({
   return (
     <section className="home-card" style={homeCardStyle} data-self-serve-section="workspace-priorities">
       <header style={homeCardHeaderStyle}>
-        <h2 style={homeCardTitleStyle}>Workspace priorities</h2>
+        {/* Phase HOME-COPY — "What needs attention" reads more
+            directly than "Workspace priorities" (which sounded like
+            an enterprise OKR list). Same ordered priority items;
+            clearer title for individuals and journalists alike. */}
+        <h2 style={homeCardTitleStyle}>What needs attention</h2>
       </header>
       {top.length === 0 ? (
         <div style={allClearStyle} data-priorities-clear>
@@ -628,41 +636,124 @@ const DONUT_COLORS = [
 
 export function EvidenceTypeDonutCard({
   distribution,
+  preservedFiles,
 }: {
   distribution: EvidenceTypeDistribution;
+  /**
+   * Phase HOME-RECORDS-BY-TYPE — "Preserved files by type" view (one
+   * count per EvidencePart). When present, the card renders a Records
+   * / Files toggle. Null when the backend aggregate endpoint is
+   * unavailable — the toggle is hidden rather than mixing concepts.
+   */
+  preservedFiles?: EvidenceTypeDistribution | null;
 }) {
-  const { slices, sampleSize, sampled } = distribution;
+  const hasFilesView =
+    !!preservedFiles && preservedFiles.sampleSize >= 0;
+  const [mode, setMode] = useState<"records" | "files">("records");
+  const active =
+    mode === "files" && preservedFiles ? preservedFiles : distribution;
+  const { slices, sampleSize, source } = active;
+  const isFilesMode = mode === "files" && !!preservedFiles;
+  const isAggregate = source === "workspace-aggregate";
+  // Subtitle is provenance-honest: workspace-aggregate counts every
+  // active non-deleted row; latest-sample reflects the latest-100 list
+  // and is labelled as a sample so users don't mistake it for the
+  // whole workspace.
+  const subtitle =
+    sampleSize > 0
+      ? isFilesMode
+        ? `${sampleSize} file${sampleSize === 1 ? "" : "s"} preserved · inside evidence records`
+        : isAggregate
+          ? `${sampleSize} record${sampleSize === 1 ? "" : "s"} · by primary type`
+          : `latest ${sampleSize} records sampled · by primary type`
+      : "";
+  const subtitleTitle = isFilesMode
+    ? "Counts each preserved file inside multipart evidence packages."
+    : "Counts primary evidence records, not files inside packages.";
   return (
     <section className="home-card" style={homeCardStyle} data-self-serve-section="evidence-types">
       <header style={homeCardHeaderStyle}>
-        {/* Phase CAPTURE-CLOSURE Part B — widget is record-level by
-            construction (one row per Evidence record, classified by
-            its primary MIME / EvidenceType). A multipart package
-            containing PDF+image+video counts ONCE under the primary
-            file's category — never as three separate rows. The old
-            "Evidence by type" wording implied a file-level count.
-            Truthful rename + subtitle clarifies the contract. */}
+        {/* Phase HOME-RECORDS-BY-TYPE — record-level by default. When
+            the backend aggregate endpoint is reachable, a Files toggle
+            exposes the EvidencePart-level view ("Preserved files by
+            type") side-by-side without mixing the two concepts. The
+            old "Evidence by type" wording implied a file-level count;
+            the truthful rename + provenance subtitle make the contract
+            explicit. */}
         <h2 style={homeCardTitleStyle}>Records by type</h2>
         <span
           style={chartSubtitleStyle}
           data-evidence-types-subtitle
-          title="Counts primary evidence records, not files inside packages."
+          title={subtitleTitle}
         >
-          {sampleSize > 0
-            ? sampled
-              ? `latest ${sampleSize} records · by primary type`
-              : `${sampleSize} record${sampleSize === 1 ? "" : "s"} · by primary type`
-            : ""}
+          {subtitle}
         </span>
+        {hasFilesView ? (
+          <div
+            role="tablist"
+            aria-label="Records or preserved files"
+            data-evidence-types-toggle
+            style={{
+              display: "inline-flex",
+              gap: 0,
+              marginTop: 4,
+              borderRadius: 999,
+              border: `1px solid ${HOME_COLORS.cardBorder}`,
+              padding: 2,
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "records"}
+              data-evidence-types-tab="records"
+              onClick={() => setMode("records")}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 999,
+                border: 0,
+                cursor: "pointer",
+                background:
+                  mode === "records" ? HOME_COLORS.ink : "transparent",
+                color:
+                  mode === "records" ? "#fff" : HOME_COLORS.slate,
+              }}
+            >
+              Records
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "files"}
+              data-evidence-types-tab="files"
+              onClick={() => setMode("files")}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 999,
+                border: 0,
+                cursor: "pointer",
+                background:
+                  mode === "files" ? HOME_COLORS.ink : "transparent",
+                color:
+                  mode === "files" ? "#fff" : HOME_COLORS.slate,
+              }}
+            >
+              Preserved files
+            </button>
+          </div>
+        ) : null}
       </header>
       {sampleSize === 0 ? (
         <p style={chartEmptyStyle}>
-          The distribution of your evidence types appears after the first
-          capture.
+          {isFilesMode
+            ? "No files have been preserved yet."
+            : "The distribution of your evidence types appears after the first capture."}
         </p>
       ) : (
         <div style={donutWrapStyle}>
-          <Donut slices={slices} total={sampleSize} />
+          <Donut slices={slices} total={sampleSize} files={isFilesMode} />
           <ul style={donutLegendStyle}>
             {slices.map((s, i) => (
               <li key={s.key} style={donutLegendItemStyle}>
@@ -686,9 +777,11 @@ export function EvidenceTypeDonutCard({
 function Donut({
   slices,
   total,
+  files,
 }: {
   slices: EvidenceTypeDistribution["slices"];
   total: number;
+  files?: boolean;
 }) {
   const R = 42;
   const C = 2 * Math.PI * R;
@@ -699,7 +792,11 @@ function Donut({
       height="128"
       viewBox="0 0 128 128"
       role="img"
-      aria-label={`Evidence type distribution across ${total} records.`}
+      aria-label={
+        files
+          ? `Preserved files by type across ${total} files.`
+          : `Evidence type distribution across ${total} records.`
+      }
     >
       <circle cx="64" cy="64" r={R} fill="none" stroke="#eef0f5" strokeWidth="15" />
       {slices.map((s, i) => {
@@ -729,7 +826,7 @@ function Donut({
         {total}
       </text>
       <text x="64" y="77" textAnchor="middle" fontSize="9.5" fill={HOME_COLORS.muted}>
-        records
+        {files ? "files" : "records"}
       </text>
     </svg>
   );

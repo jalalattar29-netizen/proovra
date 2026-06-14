@@ -977,18 +977,19 @@ test("CLOSURE: priority hrefs match the trust-summary bucket — destination cou
 // CTA-NORMALIZATION — three Home Integrity surfaces (header, queue,
 // priority) used to all be labelled "Review Integrity" with two of
 // them routing to bare /evidence (no filter). The normalization pass:
-//   (a) renames the header CTA to "Evidence Queue" → /evidence
+//   (a) renames the header CTA to "All evidence" → /evidence
 //       (independent of operational state — header is navigation, not
-//       a duplicate decision surface);
+//       a duplicate decision surface; was "Evidence Queue" before the
+//       Phase HOME-COPY plain-language pass);
 //   (b) makes the Operational Queue card and the Workspace Priorities
 //       row share the SAME constant integrity href, so clicking
 //       either opens the exact dataset whose count Home displayed.
-test("CTA-NORM: Header CTA is 'Evidence Queue' → /evidence (never duplicates the queue's Review Integrity)", () => {
+test("CTA-NORM: Header CTA is 'All evidence' → /evidence (never duplicates the queue's Review Integrity)", () => {
   // Static source check — the SelfServeHomeDashboard hands the
   // HomeHeader the heroAction; HomeHeader's primary logic now ignores
   // heroAction.ctaLabel / .href except in the start_capture case.
   assert.match(DASH_SRC, /hero\.kind === "capture_first"\s*\?\s*\{\s*label:\s*"Capture evidence"/);
-  assert.match(DASH_SRC, /\{\s*label:\s*"Evidence Queue"\s*,\s*href:\s*"\/evidence"\s*\}/);
+  assert.match(DASH_SRC, /\{\s*label:\s*"All evidence"\s*,\s*href:\s*"\/evidence"\s*\}/);
   // Regression lock — must NEVER again use hero.ctaLabel for the header
   // primary, which is what duplicated "Review Integrity" twice.
   assert.ok(

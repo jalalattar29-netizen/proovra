@@ -3,23 +3,39 @@
 /**
  * PROOVRA Home — operational command surface.
  *
- * This is not a second sidebar. It is the daily operating view for solo
- * professionals, lawyers, journalists, investigators, consultants and
- * small firms. Top to bottom it answers: what needs me now, which matters
- * are incomplete, where my collection is, what deliverables are ready or
- * failed, whether my evidence is trustworthy and verifiable, and what
- * changed recently.
+ * Daily operating view for solo professionals, lawyers, journalists,
+ * investigators, consultants and small firms.
  *
- * Layout (Phase HOME-KPI):
- *   Header  : greeting + search + inbox indicator + ONE primary action
- *   Band 0  : KPI row (5 cards — all real data)
- *   Band 1  : Operational Queue (2fr) | Evidence Activity chart (3fr)
- *   Band 2  : Recent Evidence | Evidence by Type
- *   Band 3  : Active Matters | Intake Pipeline
- *   Band 4  : Report Production | Verification Health
- *   Band 5  : Trust State | Workspace Health
- *   Band 6  : Recent Activity | Storage + Getting Started
- *   Trailing: Team Work (organization workspaces only — never Personal)
+ * Layout (Phase HOME-IA, 3-layer):
+ *
+ *   Header — greeting + search + inbox + ONE primary action
+ *
+ *   ───────────────────────────────────────────────────────────────
+ *   Layer 1 — Overview ("what do I have, what's ready, what needs me")
+ *   ───────────────────────────────────────────────────────────────
+ *     • Executive Summary (one state, one sentence, one action)
+ *     • KPI row (5 real numbers)
+ *
+ *   ───────────────────────────────────────────────────────────────
+ *   Layer 2 — Your work right now ("the operational pile")
+ *   ───────────────────────────────────────────────────────────────
+ *     • Action needed (Op Queue)        | What needs attention
+ *     • Active Matters                  | Intake Pipeline
+ *     • Report Production               | Recent Evidence
+ *
+ *   ───────────────────────────────────────────────────────────────
+ *   Layer 3 — Verification & details ("trust + technical context")
+ *   ───────────────────────────────────────────────────────────────
+ *     • Verification summary            | Public verification links
+ *     • Workspace health                | Records by type
+ *     • Evidence activity (chart)       | Recent activity
+ *     • Storage usage                   | (Getting Started / extras)
+ *
+ *   Trailing — Team Work (organization workspaces only)
+ *
+ * Layer headings are visual dividers, not navigation. They reduce
+ * cognitive overload by clustering related cards instead of
+ * presenting 12+ cards as one flat list.
  */
 
 import { useHomeData } from "./useHomeData";
@@ -79,12 +95,30 @@ export function SelfServeHomeDashboard() {
         hero={vm.heroAction}
       />
 
-      {/* Band 0 — Executive Summary (one state, one sentence, one
-          action — Phase HOME-EXEC) + KPI row (real numbers only). */}
+      {/* ─────────────────────────────────────────────────────────
+          LAYER 1 — Overview. What do I have? What is ready?
+          What needs me right now? Two surfaces only: the one-line
+          Executive Summary + the five real-number KPIs.
+          ───────────────────────────────────────────────────────── */}
+      <HomeLayerHeader
+        layer={1}
+        title="Overview"
+        subtitle="What you have, what is ready, what needs you right now."
+      />
       <ExecutiveSummaryBand summary={vm.executiveSummary} />
       <KpiRow kpis={vm.kpis} />
 
-      {/* Band 1 — Operational Queue (what needs me NOW) + activity chart. */}
+      {/* ─────────────────────────────────────────────────────────
+          LAYER 2 — Your work right now. The operational pile: open
+          actions, matters, intake, report production, recent
+          captures. Everything in this layer is something the user
+          can act on; trust signals live in Layer 3.
+          ───────────────────────────────────────────────────────── */}
+      <HomeLayerHeader
+        layer={2}
+        title="Your work"
+        subtitle="Open actions, matters, intake, and report production."
+      />
       <div style={rowQueueChartStyle}>
         <OperationalQueue
           items={vm.operationalQueue}
@@ -92,16 +126,15 @@ export function SelfServeHomeDashboard() {
           workspaceId={vm.workspaceId}
           onChanged={state.reload}
         />
-        <EvidenceActivityChart series={vm.activitySeries} />
+        {vm.showGettingStarted ? (
+          <GettingStartedChecklist
+            steps={vm.checklist}
+            complete={vm.checklistComplete}
+          />
+        ) : (
+          <WorkspacePrioritiesCard priorities={vm.workspacePriorities} />
+        )}
       </div>
-
-      {/* Band 2 — Recent Evidence + type distribution. */}
-      <div style={rowTwoColStyle}>
-        <RecentEvidenceCard rows={vm.richRecentEvidence} />
-        <EvidenceTypeDonutCard distribution={vm.typeDistribution} />
-      </div>
-
-      {/* Band 3 — Active Matters + Intake Pipeline. */}
       <div style={rowTwoColStyle}>
         <ActiveMatters rows={vm.activeMatters} summary={vm.caseHealthSummary} />
         <IntakePipelineCard
@@ -111,37 +144,124 @@ export function SelfServeHomeDashboard() {
           locked={!pro}
         />
       </div>
-
-      {/* Band 4 — Report Production + Verification Health. */}
       <div style={rowTwoColStyle}>
         <ReportProductionCard production={vm.reportProduction} isFreePlan={free} />
-        <VerificationHealthCard health={vm.verificationHealth} />
+        <RecentEvidenceCard rows={vm.richRecentEvidence} />
       </div>
 
-      {/* Band 5 — Trust State + Workspace Health. */}
+      {/* ─────────────────────────────────────────────────────────
+          LAYER 3 — Verification & details. Trust posture (the
+          verification summary + public-verification links), what's
+          in the workspace (records by type, workspace health),
+          and the context streams (activity chart, recent activity,
+          storage). Lower altitude — read it when you want detail,
+          ignore it when you don't.
+          ───────────────────────────────────────────────────────── */}
+      <HomeLayerHeader
+        layer={3}
+        title="Verification & details"
+        subtitle="Trust posture, distribution, recent activity, and storage."
+      />
       <div style={rowTwoColStyle}>
         <TrustStateCard trust={vm.trustState} />
-        <WorkspaceHealthCard metrics={vm.workspaceHealth} overall={vm.workspaceHealthOverall} />
+        <VerificationHealthCard health={vm.verificationHealth} />
       </div>
-
-      {/* Band 6 — Recent Activity + Storage / onboarding-or-priorities.
-          Phase HOME-POLISH: Getting Started renders for TRULY NEW users
-          only; active users get real Workspace Priorities instead. */}
       <div style={rowTwoColStyle}>
+        <WorkspaceHealthCard metrics={vm.workspaceHealth} overall={vm.workspaceHealthOverall} />
+        <EvidenceTypeDonutCard
+          distribution={vm.typeDistribution}
+          preservedFiles={vm.preservedFilesByType}
+        />
+      </div>
+      <div style={rowTwoColStyle}>
+        <EvidenceActivityChart series={vm.activitySeries} />
         <ActivityFeed groups={vm.activity} />
-        <div style={stackColStyle}>
-          <StorageUsageCard usage={vm.storage} />
-          {vm.showGettingStarted ? (
-            <GettingStartedChecklist steps={vm.checklist} complete={vm.checklistComplete} />
-          ) : (
-            <WorkspacePrioritiesCard priorities={vm.workspacePriorities} />
-          )}
-        </div>
+      </div>
+      <div style={rowTwoColStyle}>
+        <StorageUsageCard usage={vm.storage} />
+        <div />
       </div>
 
       {/* Team Work — organization workspaces only (null in Personal Space). */}
       {vm.teamWork ? <TeamWorkCard team={vm.teamWork} /> : null}
     </main>
+  );
+}
+
+/**
+ * Phase HOME-IA — section divider for the 3-layer Home.
+ *
+ * Lightweight visual chip + heading + subtitle. NOT a navigation
+ * surface — these are reading-flow cues that cluster cards by
+ * altitude so the user isn't presented with 12+ unrelated tiles
+ * as one flat wall.
+ *
+ * The `data-home-layer` attribute is the contract for tests +
+ * analytics + future scroll-anchors; it MUST stay stable across
+ * copy revisions.
+ */
+function HomeLayerHeader({
+  layer,
+  title,
+  subtitle,
+}: {
+  layer: 1 | 2 | 3;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <header
+      data-home-layer={layer}
+      data-home-layer-title={title}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        padding: "10px 4px 2px",
+        marginTop: layer === 1 ? 4 : 14,
+      }}
+    >
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: 0.4,
+          textTransform: "uppercase",
+          color: "#64748b",
+        }}
+      >
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 18,
+            height: 18,
+            borderRadius: 999,
+            background: "rgba(15,23,42,0.06)",
+            color: "#0f172a",
+            fontSize: 10,
+            fontWeight: 700,
+          }}
+        >
+          {layer}
+        </span>
+        <span>{title}</span>
+      </div>
+      <p
+        style={{
+          margin: 0,
+          fontSize: 12.5,
+          color: "#475569",
+          lineHeight: 1.4,
+        }}
+      >
+        {subtitle}
+      </p>
+    </header>
   );
 }
 
@@ -160,4 +280,3 @@ const rowQueueChartStyle: React.CSSProperties = {
   gap: 14,
   alignItems: "start",
 };
-const stackColStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 14 };

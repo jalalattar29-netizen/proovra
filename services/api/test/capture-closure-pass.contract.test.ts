@@ -87,7 +87,14 @@ describe("Part B — Donut renamed + truthful subtitle", () => {
   });
 
   it("hover title attribute documents that the count is records-not-files", () => {
-    expect(HOME_DASH).toMatch(/title="Counts primary evidence records, not files inside packages\."/);
+    // Phase HOME-RECORDS-BY-TYPE — the title is now a dynamic
+    // expression `title={subtitleTitle}` (records vs preserved-files
+    // mode), but the records-mode copy literal is still load-bearing
+    // and must remain in source so the records view stays honest.
+    expect(HOME_DASH).toMatch(/title=\{subtitleTitle\}/);
+    expect(HOME_DASH).toMatch(
+      /"Counts primary evidence records, not files inside packages\."/,
+    );
   });
 });
 

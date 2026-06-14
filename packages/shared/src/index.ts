@@ -25,6 +25,16 @@ export type LegalVersions = z.infer<typeof LegalVersionsSchema>;
 
 export * from "./i18n.js";
 
+// Phase HOME-RECORDS-BY-TYPE — shared classifier so the backend
+// aggregation service and the frontend view-model use one definition.
+export {
+  RECORDS_BY_TYPE_CATEGORIES,
+  classifyEvidenceCategory,
+  emptyRecordsByTypeAggregate,
+  type RecordsByTypeCategory,
+  type RecordsByTypeAggregate,
+} from "./records-by-type-classifier.js";
+
 // PROOVRA Phase 2 — Target Domain Blueprint architectural constants.
 // See docs/architecture/proovra-domain-model.md
 export {

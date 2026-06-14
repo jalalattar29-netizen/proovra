@@ -45,6 +45,7 @@ import {
   type HomePlan,
   type HomeReportsInput,
   type HomeTrustSummaryInput,
+  type HomeRecordsByTypeInput,
   type HomeViewModel,
 } from "./home-view-model";
 
@@ -87,6 +88,19 @@ export function useHomeData(): HomeData {
           () => null,
         )
       : Promise.resolve(null);
+
+    // Phase HOME-RECORDS-BY-TYPE — workspace-aggregated donut counts.
+    // Returns { records, files } where `records` counts Evidence rows
+    // and `files` counts EvidencePart rows, both excluding soft-deleted.
+    // Partial-failure tolerant: if the endpoint is unavailable the
+    // view-model falls back to the legacy latest-100 classifier for
+    // records and hides `preservedFilesByType` (no parts fallback exists).
+    const recordsByTypePromise: Promise<HomeRecordsByTypeInput | null> =
+      workspaceId
+        ? apiFetch(scoped("/v1/dashboard/records-by-type"), {
+            method: "GET",
+          }).catch(() => null)
+        : Promise.resolve(null);
 
     const billingPromise: Promise<HomeBillingInput | null> = apiFetch(
       "/v1/billing/overview",
@@ -135,6 +149,7 @@ export function useHomeData(): HomeData {
       inbox,
       communications,
       evidenceList,
+      recordsByType,
     ] = await Promise.all([
       ccPromise,
       trustPromise,
@@ -144,6 +159,7 @@ export function useHomeData(): HomeData {
       inboxPromise,
       communicationsPromise,
       evidenceListPromise,
+      recordsByTypePromise,
     ]);
 
     const orgsInput: HomeOrgsInput = orgs.map((o) => ({
@@ -169,6 +185,7 @@ export function useHomeData(): HomeData {
       communications,
       orgs: orgsInput,
       evidenceList,
+      recordsByType,
     });
 
     setState({ status: "ready", viewModel });

@@ -201,11 +201,16 @@ test("Operational Issues is GREEN (zero) when no stuck evidence and no failed in
 // 3 — Records complete renamed to Records reported
 // ---------------------------------------------------------------------------
 
-test("Workspace Health renames 'Records complete' → 'Records reported'", () => {
+test("Workspace Health row labels match the Phase HOME-COPY plain-language pass", () => {
+  // Phase HOME-COPY — "Records reported" overclaimed: it suggested a
+  // legal/forensic report. The Workspace Health row counts records
+  // that HAVE a produced report, so "Records with a report" is the
+  // accurate plain-English description. The `key` is unchanged so
+  // downstream tests / analytics still find the row.
   const vm = normalizeHomeViewModel(baseInputs());
   const complete = vm.workspaceHealth.find((m) => m.key === "complete");
   assert.ok(complete);
-  assert.equal(complete.label, "Records reported");
+  assert.equal(complete.label, "Records with a report");
 });
 
 // ---------------------------------------------------------------------------

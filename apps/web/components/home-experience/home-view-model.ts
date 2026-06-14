@@ -713,6 +713,16 @@ export type EvidenceTypeDistribution = {
   sampleSize: number;
   /** True when the list cap means this is the latest-N sample. */
   sampled: boolean;
+  /**
+   * Phase HOME-RECORDS-BY-TYPE — provenance of the counts.
+   *   - "workspace-aggregate": every active non-deleted row was counted
+   *     by the API service (records-by-type.service.ts). The donut
+   *     reflects the whole workspace.
+   *   - "latest-sample": legacy fallback when the new endpoint is
+   *     unavailable; counts come from the latest-100 evidence list.
+   *     The widget must surface this as "Latest N records sampled".
+   */
+  source: "workspace-aggregate" | "latest-sample";
 };
 
 export type RichRecentEvidenceRow = {
@@ -735,6 +745,15 @@ export type HomeViewModel = {
   kpis: HomeKpi[];
   activitySeries: EvidenceActivitySeries;
   typeDistribution: EvidenceTypeDistribution;
+  /**
+   * Phase HOME-RECORDS-BY-TYPE — "Preserved files by type" view.
+   * One count per EvidencePart row (a multipart record with 5 images +
+   * 1 PDF contributes 6 file counts). Distinct from `typeDistribution`
+   * which counts Evidence ROWS. Null when the backend aggregate
+   * endpoint is unavailable — the widget hides the toggle in that case
+   * rather than mixing records and files.
+   */
+  preservedFilesByType: EvidenceTypeDistribution | null;
   richRecentEvidence: RichRecentEvidenceRow[];
   /** Count of open inbox items — drives the header notification dot. */
   inboxCount: number;
@@ -1025,6 +1044,26 @@ export type HomeEvidenceListInput = {
     teamId?: string | null;
   }>;
   pageInfo?: { hasMore?: boolean };
+};
+
+// ----------------------------------------------------------------------------
+// Phase HOME-RECORDS-BY-TYPE — backend aggregation envelope.
+//
+// Shape mirrors `RecordsByTypeResponse` from the API service
+// (services/api/src/services/dashboard/records-by-type.service.ts).
+// The hook fetches /v1/dashboard/records-by-type and passes the raw
+// JSON straight in; partial-failure returns null so the view-model
+// falls back to the legacy latest-100 classifier transparently.
+// ----------------------------------------------------------------------------
+export type HomeRecordsByTypeInput = {
+  records?: {
+    total?: number;
+    byCategory?: Record<string, number>;
+  };
+  files?: {
+    total?: number;
+    byCategory?: Record<string, number>;
+  };
 };
 
 // ============================================================================
@@ -2752,14 +2791,27 @@ function buildWorkspaceHealth(args: {
       ? "warn"
       : "ok";
   const storageValue = args.storage?.usagePercent != null ? `${args.storage.usagePercent}%` : "—";
+  // Phase HOME-COPY — plainer, less forensic-flavoured labels.
+  //   * "Records reported" → "Records with a report" — describes
+  //     what the count actually is (records that have at least one
+  //     produced report) without verbing "report" in a way that
+  //     implied legal reporting.
+  //   * "Operational issues" → "Records with delivery issues" —
+  //     "Operational" is enterprise jargon; the delivery wording
+  //     makes the connection to the failed reports/packages tile
+  //     explicit.
+  //   * "Integrity issues" → "Records flagged for review" — the
+  //     prior wording read as a forensic finding; PROOVRA does NOT
+  //     determine integrity as fact, only surfaces records that
+  //     warrant human review.
   return [
-    { key: "complete", label: "Records reported", value: reported, tone: reported > 0 ? "ok" : "neutral" },
+    { key: "complete", label: "Records with a report", value: reported, tone: reported > 0 ? "ok" : "neutral" },
     { key: "need_report", label: "Need a report", value: needReport, tone: needReport > 0 ? "warn" : "ok" },
     { key: "active_cases", label: "Active matters", value: args.activeCasesCount, tone: "neutral" },
     { key: "submissions", label: "Submissions waiting", value: submissionsWaiting, tone: submissionsWaiting > 0 ? "warn" : "ok" },
     { key: "reports_ready", label: "Reports ready", value: args.reportsReady, tone: reportsReadyTone },
-    { key: "operational", label: "Operational issues", value: operationalIssues, tone: operationalIssues > 0 ? "danger" : "ok" },
-    { key: "integrity", label: "Integrity issues", value: integrityIssues, tone: integrityIssues > 0 ? "danger" : "ok" },
+    { key: "operational", label: "Records with delivery issues", value: operationalIssues, tone: operationalIssues > 0 ? "danger" : "ok" },
+    { key: "integrity", label: "Records flagged for review", value: integrityIssues, tone: integrityIssues > 0 ? "danger" : "ok" },
     { key: "storage", label: "Storage used", value: storageValue, tone: storageTone },
   ];
 }
@@ -2914,14 +2966,20 @@ function recentEvidenceTrustChip(it: WorkspaceEvidenceItem): {
 } {
   const verdict = (it.verificationStatus ?? "").toUpperCase();
   if (verdict === "FAILED" || verdict === "REVIEW_REQUIRED") {
-    return { label: "Needs attention", tone: "danger" };
+    return { label: "Flagged for review", tone: "danger" };
   }
   if (it.latestReportVersion != null) {
     return { label: "Report ready", tone: "ok" };
   }
   const status = (it.status ?? "").toUpperCase();
   if (status === "REPORTED") return { label: "Report ready", tone: "ok" };
-  if (status === "SIGNED") return { label: "Sealed", tone: "ok" };
+  // Phase HOME-COPY-FIX — "Sealed" overclaimed legal closure (court-
+  // sealed / final). The actual state is just status === "SIGNED" —
+  // the Ed25519 signature column is populated. Rename to "Signed" so
+  // the chip matches the underlying state and carries no legal
+  // overclaim. The KPI subtitle was cleaned up earlier (task #49);
+  // this completes the rename for the per-row chip.
+  if (status === "SIGNED") return { label: "Signed", tone: "ok" };
   if (status === "UPLOADING" || status === "CREATED") {
     return { label: "In progress", tone: "warn" };
   }
@@ -2981,7 +3039,56 @@ function buildTypeDistribution(args: {
       count,
       percent: total > 0 ? Math.round((count / total) * 100) : 0,
     }));
-  return { slices, sampleSize: total, sampled: args.listHasMore };
+  return {
+    slices,
+    sampleSize: total,
+    sampled: args.listHasMore,
+    source: "latest-sample",
+  };
+}
+
+/**
+ * Phase HOME-RECORDS-BY-TYPE — convert a backend-aggregated
+ * { total, byCategory: {Images: n, ...} } envelope into the
+ * EvidenceTypeDistribution shape the donut consumes. Always
+ * `source: "workspace-aggregate"` and `sampled: false` — the
+ * counts cover every active non-deleted row in scope.
+ *
+ * Defensive about category names: only keys in the canonical
+ * 7-category order are rendered; anything else is dropped silently
+ * (frontend cannot fabricate a slice the UI doesn't have an icon
+ * for). Categories are emitted in the canonical display order.
+ */
+function buildTypeDistributionFromAggregate(aggregate: {
+  total?: number;
+  byCategory?: Record<string, number>;
+}): EvidenceTypeDistribution {
+  const byCategory = aggregate.byCategory ?? {};
+  const total = Number.isFinite(aggregate.total)
+    ? Number(aggregate.total)
+    : Object.values(byCategory).reduce(
+        (sum, n) => sum + (Number.isFinite(n) ? Number(n) : 0),
+        0,
+      );
+  const slices: EvidenceTypeSlice[] = HOME_EVIDENCE_CATEGORY_ORDER
+    .map((label) => {
+      const raw = byCategory[label];
+      const count = Number.isFinite(raw) ? Number(raw) : 0;
+      return [label, count] as const;
+    })
+    .filter(([, count]) => count > 0)
+    .map(([label, count]) => ({
+      key: label.toUpperCase().replace(/\s+/g, "_"),
+      label,
+      count,
+      percent: total > 0 ? Math.round((count / total) * 100) : 0,
+    }));
+  return {
+    slices,
+    sampleSize: total,
+    sampled: false,
+    source: "workspace-aggregate",
+  };
 }
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -3226,6 +3333,14 @@ export type NormalizeInputs = {
   orgs: HomeOrgsInput | null;
   /** GET /v1/evidence?limit=100 — KPI sparkline / chart / donut source. */
   evidenceList?: HomeEvidenceListInput | null;
+  /**
+   * Phase HOME-RECORDS-BY-TYPE — GET /v1/dashboard/records-by-type.
+   * Workspace-aggregated counts for the Records/Files donut. When
+   * null/undefined the view-model falls back to the legacy
+   * latest-100 classifier for records (no fallback for files —
+   * `preservedFilesByType` becomes null).
+   */
+  recordsByType?: HomeRecordsByTypeInput | null;
   /** Injected for deterministic day-bucketing in tests. */
   nowMs?: number;
 };
@@ -3412,10 +3527,23 @@ export function normalizeHomeViewModel(
     listHasMore,
     nowMs,
   });
-  const typeDistribution = buildTypeDistribution({
-    scoped: scopedEvidence,
-    listHasMore,
-  });
+  // Phase HOME-RECORDS-BY-TYPE — prefer the workspace-aggregate
+  // endpoint (counts every active non-deleted row). Fall back to the
+  // legacy latest-100 classifier ONLY if the endpoint is unavailable;
+  // the widget surfaces the source so users can tell which is which.
+  const recordsAggregate = inputs.recordsByType?.records;
+  const typeDistribution =
+    recordsAggregate &&
+    (typeof recordsAggregate.total === "number" ||
+      recordsAggregate.byCategory)
+      ? buildTypeDistributionFromAggregate(recordsAggregate)
+      : buildTypeDistribution({ scoped: scopedEvidence, listHasMore });
+  const filesAggregate = inputs.recordsByType?.files;
+  const preservedFilesByType =
+    filesAggregate &&
+    (typeof filesAggregate.total === "number" || filesAggregate.byCategory)
+      ? buildTypeDistributionFromAggregate(filesAggregate)
+      : null;
   const richRecentEvidence = buildRichRecentEvidence(scopedEvidence);
   const inboxCount = (inputs.inbox?.items ?? []).length;
 
@@ -3457,6 +3585,7 @@ export function normalizeHomeViewModel(
     kpis,
     activitySeries,
     typeDistribution,
+    preservedFilesByType,
     richRecentEvidence,
     inboxCount,
     heroAction,

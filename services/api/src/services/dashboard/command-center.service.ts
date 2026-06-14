@@ -2263,9 +2263,28 @@ async function runPipelineDetail(
       packageVersionsTotal,
       publicVerify,
     ] = await Promise.all([
+        // Phase HOME-NUMERIC-TRUTH-FIX — soft-deleted rows MUST be
+        // excluded from the status groupBy. Without `deletedAt: null`
+        // every status bucket (CREATED/UPLOADING/UPLOADED/SIGNED/
+        // REPORTED) inflated by any soft-deleted row, and the
+        // downstream arithmetic at line 2316-2317 ran:
+        //
+        //   reportsQueued  = max(0, signed   - reportsReady)
+        //   packagesQueued = max(0, reported - packagesReady)
+        //
+        // — where `signed`/`reported` came from this groupBy (no
+        // deletedAt filter) but `reportsReady`/`packagesReady` DO
+        // filter `deletedAt: null`. The asymmetry produced impossible
+        // numbers like "Records reported = 222" against "Total
+        // evidence = 123" on dashboards where soft-deletes existed
+        // (the proof sandbox in /tmp/audit-prove-hypothesis.sql shows
+        // 100 active REPORTED + 99 soft-deleted REPORTED reproducing
+        // `reported=200`, `packagesQueued=199` exactly via the
+        // unfixed query, then `reported=101`, `packagesQueued=100`
+        // with this filter applied).
         prisma.evidence.groupBy({
           by: ["status"],
-          where: { teamId },
+          where: { teamId, deletedAt: null },
           _count: { _all: true },
         }),
         prisma.evidence.count({
@@ -2295,9 +2314,15 @@ async function runPipelineDetail(
         prisma.verificationPackage.count({
           where: { evidence: { teamId, deletedAt: null } },
         }),
+        // Phase HOME-NUMERIC-TRUTH-FIX — same `deletedAt: null`
+        // omission as the status groupBy above. publicVerify.published
+        // / .unpublished / .suspended feed the Verification Health
+        // widget and its arithmetic interacts with `packagesReady`
+        // (which already filters deletedAt). Soft-deleted rows would
+        // inflate every bucket here too.
         prisma.evidence.groupBy({
           by: ["publicVerifyState"],
-          where: { teamId },
+          where: { teamId, deletedAt: null },
           _count: { _all: true },
         }),
       ]);

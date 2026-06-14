@@ -270,7 +270,12 @@ export function OperationalQueue({
     >
       <header style={cardHeaderStyle}>
         <h2 style={cardTitleStyle}>
-          {items.length > 0 ? `Operational queue · ${items.length}` : "Operational queue"}
+          {/* Phase HOME-COPY — "Action needed" is plainer than the
+              previous "Operational queue" (enterprise jargon that
+              didn't read well for individuals, journalists, or small
+              businesses). Same data; clearer intent — these are the
+              things the user can act on right now. */}
+          {items.length > 0 ? `Action needed · ${items.length}` : "Action needed"}
         </h2>
       </header>
       {items.length === 0 ? (
@@ -815,7 +820,7 @@ function VerifyStat({ label, value, tone }: { label: string; value: number; tone
 
 export function VerificationHealthCard({ health }: { health: VerificationHealth }) {
   return (
-    <SectionCard title="Verification health" testId="verification-health">
+    <SectionCard title="Public verification links" testId="verification-health">
       {health.empty ? (
         <p data-verify-empty style={{ margin: "0 0 10px 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
           Public verification links appear once you publish a record — letting anyone independently
@@ -975,7 +980,11 @@ function trustRows(
   const rows: Array<{ key: string; label: string; value: string; tone: "ok" | "warn" | "danger" | "neutral" }> = [
     {
       key: "tsa",
-      label: "Trusted timestamps (TSA)",
+      // Phase HOME-COPY — "Trusted timestamps" implied a legal trust
+      // claim PROOVRA does not assert. The plain description of what
+      // TSA actually does (a third-party time-stamp on the file hash)
+      // is safer and clearer for a non-technical reader.
+      label: "Time-stamp proof (TSA)",
       // Ticket 3B — "not stamped" is a NEUTRAL bucket (no attempt yet),
       // appended only when > 0; it never changes the row tone.
       value: `${trust.tsaStamped} stamped${trust.tsaPending ? ` · ${trust.tsaPending} pending` : ""}${trust.tsaFailed ? ` · ${trust.tsaFailed} failed` : ""}${trust.tsaNone ? ` · ${trust.tsaNone} not stamped` : ""}`,
@@ -988,10 +997,10 @@ function trustRows(
       tone: trust.otsFailed > 0 ? "danger" : trust.otsPending > 0 ? "warn" : trust.empty ? "neutral" : "ok",
     },
     { key: "signed", label: "Signed records", value: `${trust.signed} of ${trust.totalEvidence}`, tone: "neutral" },
-    { key: "verify", label: "Public verification live", value: `${trust.verifyPublished}`, tone: "neutral" },
+    { key: "verify", label: "Public verification links live", value: `${trust.verifyPublished}`, tone: "neutral" },
   ];
   if (trust.verifySuspended > 0) {
-    rows.push({ key: "verify-suspended", label: "Public verification suspended", value: `${trust.verifySuspended}`, tone: "danger" });
+    rows.push({ key: "verify-suspended", label: "Public verification links paused", value: `${trust.verifySuspended}`, tone: "danger" });
   }
   if (trust.needingAttention > 0) {
     rows.push({ key: "attention", label: "Records needing attention", value: `${trust.needingAttention}`, tone: "danger" });
@@ -1002,7 +1011,7 @@ function trustRows(
 export function TrustStateCard({ trust }: { trust: TrustState }) {
   const rows = trustRows(trust);
   return (
-    <SectionCard title="Trust state" testId="trust-state">
+    <SectionCard title="Verification summary" testId="trust-state">
       {trust.empty ? (
         <p data-trust-empty style={{ margin: "0 0 10px 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
           No evidence captured yet — these are the integrity signals each record will earn once
