@@ -273,20 +273,40 @@ test("Phase 6 — raw trustDecisionSnapshot JSON lives ONLY in the Technical App
 
 test("Phase 6 — every Technical Appendix block is collapsed by default (`<details>` without `open`)", () => {
   // Each `<details>` in the appendix MUST NOT carry `open` so the
-  // technical material is opt-in.
-  const detailsTags = APPENDIX.match(/<details[^>]*>/g) ?? [];
+  // technical material is opt-in — EXCEPT the structured
+  // Trust Decision Summary block (Phase EVIDENCE-TRUSTDECISION-
+  // STRUCTURED), which is intentionally default-expanded because
+  // it replaces the prior raw-JSON dump as the single most useful
+  // forensic-reviewer surface on the page. The exception is pinned
+  // by data-attribute so future blocks must explicitly justify
+  // adding themselves to the allowlist.
+  const TRUST_SUMMARY_BLOCK_ATTR = 'data-evidence-technical-block="trust-decision-summary"';
+  const detailsTags = APPENDIX.match(/<details[\s\S]*?>/g) ?? [];
   assert.ok(detailsTags.length >= 3, "appendix should have multiple details blocks");
   for (const tag of detailsTags) {
+    if (tag.includes(TRUST_SUMMARY_BLOCK_ATTR)) continue;
     assert.doesNotMatch(tag, /\bopen\b/, `appendix <details> must be closed by default: ${tag}`);
   }
 });
 
-test("Phase 6 — AI categorization card is hidden when status === 'DISABLED'", () => {
-  // Wrapper component probes the endpoint once and short-circuits
-  // when the status is DISABLED instead of always mounting the
-  // underlying card.
-  assert.match(REVIEW, /AiCategorizationCardWhenActive/);
-  assert.match(REVIEW, /status === "DISABLED"/);
+test("Phase 6 — AI categorization is rendered by ONE canonical panel that handles DISABLED inline", () => {
+  // Phase EVIDENCE-AI-CONSOLIDATION — the prior wrapper
+  // `AiCategorizationCardWhenActive` + the duplicate
+  // `EvidenceAiCategorizationCard` from `hidden-feature-panels/`
+  // were removed. The single canonical surface is
+  // `<AiCategorizationPanel>`, which handles DISABLED inline + carries
+  // one disclaimer. Both the wrapper and the duplicate card mount
+  // must be gone from the Review tab.
+  assert.match(REVIEW, /<AiCategorizationPanel/);
+  assert.doesNotMatch(REVIEW, /AiCategorizationCardWhenActive/);
+  assert.doesNotMatch(REVIEW, /EvidenceAiCategorizationCard/);
+  // The DISABLED-state copy now lives inside the canonical panel.
+  const fs = readFileSync(
+    resolve(__dirname, "../app/(app)/evidence/components/AiCategorizationPanel.tsx"),
+    "utf8",
+  );
+  assert.match(fs, /status === "DISABLED"/);
+  assert.match(fs, /AI categorization is not active for this record/);
 });
 
 // ---------------------------------------------------------------------------

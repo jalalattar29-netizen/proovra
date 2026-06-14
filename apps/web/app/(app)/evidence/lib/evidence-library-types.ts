@@ -439,11 +439,43 @@ export type EvidenceComparisonResponse = {
   mismatchFlags?: Record<string, unknown> | null;
 };
 
+// Phase EVIDENCE-DUPLICATES-GROUPING — the duplicates endpoint
+// returns a deduped, grouped view in addition to the legacy four
+// per-category arrays. The grouped variant is the one the UI now
+// consumes; the legacy arrays stay in the type for back-compat.
+export type EvidenceDuplicateMatchReason =
+  | "exact_hash"
+  | "fingerprint"
+  | "part_hash"
+  | "metadata";
+
+export type EvidenceDuplicateGroupedMatch = {
+  evidenceId: string;
+  /**
+   * The raw `evidence.title` column WITHOUT the backend's
+   * "Digital Evidence Record" fallback. Null when the column is
+   * empty so the UI cascade can fall through to displayFileName /
+   * originalFileName / type label.
+   */
+  rawTitle: string | null;
+  displayFileName: string | null;
+  originalFileName: string | null;
+  type: string;
+  mimeType: string | null;
+  itemCount: number;
+  createdAt: string;
+  matchReasons: EvidenceDuplicateMatchReason[];
+  /** ≥0 — how many part-level hashes matched this record. */
+  matchedPartsCount: number;
+};
+
 export type EvidenceDuplicatesResponse = {
   exactHashMatches?: EvidenceListItem[];
   fingerprintMatches?: EvidenceListItem[];
   partHashMatches?: EvidenceListItem[];
   possibleMetadataMatches?: EvidenceListItem[];
+  groupedMatches?: EvidenceDuplicateGroupedMatch[];
+  totalRecords?: number;
   limitation?: string;
 };
 

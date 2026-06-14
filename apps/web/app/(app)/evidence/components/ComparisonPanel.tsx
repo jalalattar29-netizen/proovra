@@ -13,7 +13,7 @@ function renderValue(value: unknown) {
 
 function renderGroup(
   title: string,
-  group: Record<string, unknown> | null | undefined
+  group: Record<string, unknown> | null | undefined,
 ) {
   if (!group) {
     return (
@@ -37,6 +37,28 @@ function renderGroup(
       </div>
     </div>
   );
+}
+
+/**
+ * Phase EVIDENCE-MISMATCH-HIDE — the backend currently hardcodes
+ * every `mismatchFlags.*` value to `null` (dead scaffolding for a
+ * future forensic comparison feature). Showing a card titled
+ * "Mismatch flags" with three blank `originalVsRecordedHash` /
+ * `originalVsVerificationPackageManifest` / `previewVsOriginal`
+ * rows leaks raw field names to normal users and signals broken
+ * UI. Hide the card entirely while every flag is null/undefined;
+ * when the backend actually populates them, the card will render
+ * automatically.
+ *
+ * NOT a backend change — backend stays exactly as it is. We just
+ * stop surfacing the scaffolding in the UI.
+ */
+function hasAnyMismatchFlag(group: Record<string, unknown> | null | undefined): boolean {
+  if (!group) return false;
+  for (const value of Object.values(group)) {
+    if (value !== null && value !== undefined) return true;
+  }
+  return false;
 }
 
 export function ComparisonPanel({ evidenceId }: { evidenceId: string }) {
@@ -101,7 +123,12 @@ export function ComparisonPanel({ evidenceId }: { evidenceId: string }) {
               "Verification package",
               data.verificationPackage as Record<string, unknown> | null
             )}
-            {renderGroup("Mismatch flags", data.mismatchFlags as Record<string, unknown> | null)}
+            {hasAnyMismatchFlag(data.mismatchFlags as Record<string, unknown> | null)
+              ? renderGroup(
+                  "Mismatch flags",
+                  data.mismatchFlags as Record<string, unknown> | null,
+                )
+              : null}
           </div>
         ) : null}
       </details>

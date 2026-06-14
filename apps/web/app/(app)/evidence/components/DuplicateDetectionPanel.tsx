@@ -1,37 +1,188 @@
 "use client";
 
+/**
+ * Phase EVIDENCE-DUPLICATES-GROUPING — Duplicate Detection panel.
+ *
+ * Before this pass the panel rendered the four per-category arrays
+ * the backend returns (exact / fingerprint / part / metadata). Two
+ * problems:
+ *   1. The backend pre-substituted "Digital Evidence Record" for
+ *      every null/empty title via `resolveEvidenceTitle`, so the
+ *      UI's filename/type cascade never ran. Every row showed the
+ *      same fallback.
+ *   2. The same record could appear in 2–3 of the four arrays and
+ *      the part-level array repeated a parent record once per
+ *      matching part — so a single duplicate with 8 matching parts
+ *      produced 8 identical rows.
+ *
+ * This pass consumes the new `groupedMatches` view that the
+ * `/v1/evidence/:id/duplicates` endpoint returns. Each record
+ * appears ONCE with its real title (or filename / type / shortId
+ * fallback) and the combined list of match reasons. Legacy
+ * per-category arrays in the response are ignored by the UI but
+ * kept on the wire for any other consumer.
+ */
+
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import type {
+  EvidenceDuplicateGroupedMatch,
+  EvidenceDuplicateMatchReason,
   EvidenceDuplicatesResponse,
-  EvidenceListItem,
 } from "../lib/evidence-library-types";
 import { shortId } from "../lib/evidence-library-formatters";
-import { getDisplayTitle } from "../lib/evidence-library-status";
+import { formatUserDateTime } from "../../../../lib/date";
 
-function DuplicateGroup({
-  title,
-  items,
-}: {
-  title: string;
-  items: EvidenceListItem[];
-}) {
+const MATCH_REASON_LABELS: Record<EvidenceDuplicateMatchReason, string> = {
+  exact_hash: "Exact file hash",
+  fingerprint: "Fingerprint",
+  part_hash: "Part-level hash",
+  metadata: "Filename + size",
+};
+
+/**
+ * Phase EVIDENCE-DUPLICATES-GROUPING — frontend title cascade.
+ *
+ * Runs the cascade the original UI was supposed to run before the
+ * backend pre-substituted "Digital Evidence Record":
+ *   1. rawTitle (user-provided + non-generic)
+ *   2. displayFileName
+ *   3. originalFileName
+ *   4. Evidence-type label ("Photo", "Document", etc.)
+ *   5. Shortened evidence id (last resort)
+ *
+ * Skips the title if it matches the historical "Digital Evidence
+ * Record" sentinel (legacy data may carry this verbatim because of
+ * the prior fallback being persisted somewhere upstream).
+ */
+function chooseDisplayTitle(match: EvidenceDuplicateGroupedMatch): string {
+  const t = match.rawTitle?.trim();
+  if (t && t !== "Digital Evidence Record") return t;
+  const display = match.displayFileName?.trim();
+  if (display) return display;
+  const original = match.originalFileName?.trim();
+  if (original) return original;
+  const typeLabel = humaniseType(match.type, match.mimeType, match.itemCount);
+  if (typeLabel) return typeLabel;
+  return shortId(match.evidenceId);
+}
+
+function humaniseType(
+  type: string,
+  mimeType: string | null,
+  itemCount: number,
+): string {
+  const upper = String(type ?? "").toUpperCase();
+  const multipart = itemCount > 1 ? ` · ${itemCount} items` : "";
+  switch (upper) {
+    case "PHOTO":
+      return `Photo${multipart}`;
+    case "VIDEO":
+      return `Video${multipart}`;
+    case "AUDIO":
+      return `Audio${multipart}`;
+    case "DOCUMENT":
+      return `Document${multipart}`;
+    case "SCREEN":
+      return `Screen capture${multipart}`;
+    default:
+      if (mimeType) return `${mimeType}${multipart}`;
+      return itemCount > 1 ? `Multipart record · ${itemCount} items` : "";
+  }
+}
+
+function MatchReasonsRow({ match }: { match: EvidenceDuplicateGroupedMatch }) {
   return (
-    <div className="evidence-library-note-card">
-      <strong>{title}</strong>
-      {items.length === 0 ? (
-        <p>No accessible matches recorded.</p>
-      ) : (
-        <div className="evidence-library-result-list">
-          {items.map((item) => (
-            <div key={item.id} className="evidence-library-result-row">
-              <strong>{getDisplayTitle(item)}</strong>
-              <span>{shortId(item.id)}</span>
-            </div>
-          ))}
-        </div>
-      )}
+    <div
+      data-evidence-duplicate-match-reasons
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 4,
+        marginTop: 6,
+      }}
+    >
+      {match.matchReasons.map((reason) => (
+        <span
+          key={reason}
+          data-evidence-duplicate-match-reason={reason}
+          className="evidence-detail-pill neutral"
+          style={{ fontSize: 11 }}
+        >
+          {MATCH_REASON_LABELS[reason] ?? reason}
+          {reason === "part_hash" && match.matchedPartsCount > 1
+            ? ` × ${match.matchedPartsCount}`
+            : ""}
+        </span>
+      ))}
     </div>
+  );
+}
+
+function DuplicateRecordCard({ match }: { match: EvidenceDuplicateGroupedMatch }) {
+  const title = chooseDisplayTitle(match);
+  return (
+    <article
+      data-evidence-duplicate-record={match.evidenceId}
+      className="evidence-library-result-row"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        padding: "10px 12px",
+        border: "1px solid rgba(15, 23, 42, 0.08)",
+        borderRadius: 8,
+        background: "#ffffff",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <strong style={{ fontSize: 13.5 }}>{title}</strong>
+        <span
+          className="evidence-detail-muted"
+          style={{ fontSize: 12 }}
+          data-evidence-duplicate-record-id
+        >
+          {shortId(match.evidenceId)}
+        </span>
+        <span
+          className="evidence-detail-muted"
+          style={{ fontSize: 12, marginLeft: "auto" }}
+          data-evidence-duplicate-record-created-at
+        >
+          {match.createdAt ? formatUserDateTime(match.createdAt) : ""}
+        </span>
+      </div>
+      <MatchReasonsRow match={match} />
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginTop: 4,
+        }}
+      >
+        <a
+          href={`/evidence/${encodeURIComponent(match.evidenceId)}`}
+          target="_blank"
+          rel="noreferrer"
+          data-evidence-duplicate-open
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: "#1e40af",
+            textDecoration: "none",
+          }}
+        >
+          Open record →
+        </a>
+      </div>
+    </article>
   );
 }
 
@@ -50,19 +201,17 @@ export function DuplicateDetectionPanel({ evidenceId }: { evidenceId: string }) 
       setError(null);
       try {
         const response = (await apiFetch(
-          `/v1/evidence/${evidenceId}/duplicates`
+          `/v1/evidence/${evidenceId}/duplicates`,
         )) as EvidenceDuplicatesResponse;
-        if (!cancelled) {
-          setData(response);
-        }
+        if (!cancelled) setData(response);
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Duplicate detection unavailable");
+          setError(
+            loadError instanceof Error ? loadError.message : "Duplicate detection unavailable",
+          );
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     };
 
@@ -73,36 +222,64 @@ export function DuplicateDetectionPanel({ evidenceId }: { evidenceId: string }) 
     };
   }, [evidenceId, open]);
 
-  const totalMatches =
-    (data?.exactHashMatches?.length ?? 0) +
-    (data?.fingerprintMatches?.length ?? 0) +
-    (data?.partHashMatches?.length ?? 0) +
-    (data?.possibleMetadataMatches?.length ?? 0);
+  const groupedMatches = data?.groupedMatches ?? [];
+  const totalRecords = data?.totalRecords ?? groupedMatches.length;
 
   return (
     <section className="evidence-library-panel">
-      <details open={open} onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}>
-        <summary className="evidence-library-expand-summary">Duplicate detection</summary>
+      <details
+        open={open}
+        onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}
+      >
+        <summary className="evidence-library-expand-summary">
+          Duplicate detection
+        </summary>
         <p className="evidence-library-muted">
-          Duplicate detection is limited to accessible records and recorded hashes or metadata.
+          Duplicate detection is limited to accessible records and recorded
+          hashes or metadata.
         </p>
 
-        {loading ? <p className="evidence-library-muted">Checking accessible duplicates...</p> : null}
+        {loading ? (
+          <p className="evidence-library-muted">
+            Checking accessible duplicates...
+          </p>
+        ) : null}
         {error ? <p className="evidence-library-muted">{error}</p> : null}
-        {!loading && !error && data && totalMatches === 0 ? (
-          <p className="evidence-library-muted">No accessible duplicates detected.</p>
+
+        {!loading && !error && data && totalRecords === 0 ? (
+          <p
+            className="evidence-library-muted"
+            data-evidence-duplicate-empty
+          >
+            No accessible duplicate or related records found.
+          </p>
         ) : null}
 
-        {!loading && !error && data ? (
-          <div className="evidence-library-note-grid">
-            <DuplicateGroup title="Exact hash matches" items={data.exactHashMatches ?? []} />
-            <DuplicateGroup title="Fingerprint matches" items={data.fingerprintMatches ?? []} />
-            <DuplicateGroup title="Part-level hash matches" items={data.partHashMatches ?? []} />
-            <DuplicateGroup
-              title="Possible metadata duplicates"
-              items={data.possibleMetadataMatches ?? []}
-            />
-          </div>
+        {!loading && !error && data && totalRecords > 0 ? (
+          <>
+            <p
+              className="evidence-detail-muted"
+              data-evidence-duplicate-summary
+              style={{ marginTop: 4 }}
+            >
+              {totalRecords === 1
+                ? "1 record shares one or more file hashes or metadata."
+                : `${totalRecords} records share one or more file hashes or metadata.`}
+            </p>
+            <div
+              data-evidence-duplicate-records
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                marginTop: 8,
+              }}
+            >
+              {groupedMatches.map((match) => (
+                <DuplicateRecordCard key={match.evidenceId} match={match} />
+              ))}
+            </div>
+          </>
         ) : null}
       </details>
     </section>

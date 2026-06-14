@@ -110,15 +110,22 @@ describe("Phase Final-Hidden-Feature-Surfacing — host pages mount each panel",
     expect(f).toMatch(/CaseRiskPanel/);
     expect(f).toMatch(/<CaseRiskPanel\s+caseId/);
   });
-  it("/evidence/[id] mounts EvidenceAiCategorizationCard", () => {
-    // Phase EVIDENCE-IA-DECOMPOSE — the card moved from page.tsx
-    // into EvidenceReviewTab.tsx and is now wrapped by
-    // AiCategorizationCardWhenActive (Phase 6: hide when DISABLED).
-    // It still mounts as <EvidenceAiCategorizationCard evidenceId=...>
-    // inside the wrapper.
+  it("/evidence/[id] surfaces AI categorization via the canonical AiCategorizationPanel", () => {
+    // Phase EVIDENCE-AI-CONSOLIDATION — the prior two-component
+    // chain (`AiCategorizationCardWhenActive` wrapping the
+    // hidden-feature `EvidenceAiCategorizationCard`) was
+    // consolidated into a single canonical surface,
+    // `<AiCategorizationPanel>`, which hits the same backend
+    // endpoint and carries one disclaimer + the DISABLED handling
+    // inline. The hidden-feature card is no longer mounted on
+    // this page; the feature still surfaces via the canonical
+    // panel below.
     const f = read("apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx");
-    expect(f).toMatch(/EvidenceAiCategorizationCard/);
-    expect(f).toMatch(/<EvidenceAiCategorizationCard\s+evidenceId/);
+    expect(f).toMatch(/<AiCategorizationPanel\s+evidenceId/);
+    const panel = read(
+      "apps/web/app/(app)/evidence/components/AiCategorizationPanel.tsx",
+    );
+    expect(panel).toMatch(/\/v1\/evidence\/\$\{evidenceId\}\/ai-categorization/);
   });
   it("/governance/lifecycle mounts ImmutableStorageDriftSection", () => {
     const f = read("apps/web/app/(app)/governance/lifecycle/page.tsx");

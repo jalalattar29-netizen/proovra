@@ -7136,11 +7136,113 @@ await appendCustodyEvent({
           : Promise.resolve([]),
       ]);
 
+    // Phase EVIDENCE-DUPLICATES-GROUPING — assemble a deduped,
+    // grouped view of the four match arrays. The existing per-
+    // category arrays stay in the response (back-compat for any
+    // other consumer + tests); the UI prefers the new
+    // `groupedMatches` array, which:
+    //
+    //   - dedupes across the four arrays so a record that matches
+    //     by exact hash + fingerprint + part hash appears ONCE;
+    //   - groups part-level matches by parent evidenceId so a
+    //     single record with 8 matching parts appears ONCE, with
+    //     `matchedPartsCount: 8`;
+    //   - returns `rawTitle: string | null` (the unsubstituted
+    //     evidence.title column) so the UI's cascade
+    //     (title → displayFileName → originalFileName → type
+    //     → shortId) can actually run. Previously the backend
+    //     pre-substituted "Digital Evidence Record" via
+    //     `resolveEvidenceTitle` and that masked the empty title,
+    //     so every row rendered the same fallback.
+    //
+    // The grouping is pure post-processing — no schema changes,
+    // no new queries, no permission changes.
+    type MatchReason =
+      | "exact_hash"
+      | "fingerprint"
+      | "part_hash"
+      | "metadata";
+
+    type GroupedMatch = {
+      evidenceId: string;
+      rawTitle: string | null;
+      displayFileName: string | null;
+      originalFileName: string | null;
+      type: string;
+      mimeType: string | null;
+      itemCount: number;
+      createdAt: string;
+      matchReasons: MatchReason[];
+      matchedPartsCount: number;
+    };
+
+    const grouped = new Map<string, GroupedMatch>();
+    const addToGroup = (
+      rows: typeof exactHashMatches,
+      reason: MatchReason,
+    ) => {
+      for (const row of rows) {
+        const existing = grouped.get(row.id);
+        if (existing) {
+          if (!existing.matchReasons.includes(reason)) {
+            existing.matchReasons.push(reason);
+          }
+          if (reason === "part_hash") {
+            // We don't yet know the exact part overlap count here,
+            // so increment by 1 per matching record to keep the
+            // count an honest lower bound. A future enhancement can
+            // run a `count()` on the part-hash overlap.
+            existing.matchedPartsCount += 1;
+          }
+        } else {
+          grouped.set(row.id, {
+            evidenceId: row.id,
+            // The raw title column — NOT routed through
+            // resolveEvidenceTitle (which would inject the
+            // "Digital Evidence Record" fallback). The UI cascades
+            // through displayFileName / originalFileName / type
+            // before falling back to a shortened id.
+            rawTitle: typeof row.title === "string" && row.title.trim() ? row.title.trim() : null,
+            displayFileName: row.displayFileName ?? null,
+            originalFileName: row.originalFileName ?? null,
+            type: row.type,
+            mimeType: row.mimeType ?? null,
+            itemCount: row._count.parts > 0 ? row._count.parts : 1,
+            createdAt: row.createdAt.toISOString(),
+            matchReasons: [reason],
+            matchedPartsCount: reason === "part_hash" ? 1 : 0,
+          });
+        }
+      }
+    };
+
+    addToGroup(exactHashMatches, "exact_hash");
+    addToGroup(fingerprintMatches, "fingerprint");
+    addToGroup(partHashMatches, "part_hash");
+    addToGroup(possibleMetadataMatches, "metadata");
+
+    const groupedMatches = Array.from(grouped.values()).sort((a, b) => {
+      // Stronger evidence first: exact_hash > fingerprint >
+      // part_hash > metadata. Within the same strength, newest
+      // record first.
+      const strength = (m: GroupedMatch) => {
+        if (m.matchReasons.includes("exact_hash")) return 0;
+        if (m.matchReasons.includes("fingerprint")) return 1;
+        if (m.matchReasons.includes("part_hash")) return 2;
+        return 3;
+      };
+      const diff = strength(a) - strength(b);
+      if (diff !== 0) return diff;
+      return a.createdAt < b.createdAt ? 1 : -1;
+    });
+
     return reply.code(200).send({
       exactHashMatches: exactHashMatches.map(mapEvidenceListItem),
       fingerprintMatches: fingerprintMatches.map(mapEvidenceListItem),
       partHashMatches: partHashMatches.map(mapEvidenceListItem),
       possibleMetadataMatches: possibleMetadataMatches.map(mapEvidenceListItem),
+      groupedMatches,
+      totalRecords: groupedMatches.length,
       limitation:
         "Duplicate detection is limited to accessible records and recorded hashes or metadata.",
     });

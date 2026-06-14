@@ -157,11 +157,19 @@ describe("CAPTURE-DETAIL-WIRING — structural fixes", () => {
   });
 
   it("Technical Appendix details block is COLLAPSED by default (no `open` attribute)", () => {
-    // Must contain a <details> for the raw appendix that is NOT open.
-    expect(DETAIL_PAGE).toMatch(/<details\s+data-evidence-raw-appendix>/);
-    // Regression guard — the previous `<details open>` form must NOT
-    // re-appear for the raw appendix.
-    expect(DETAIL_PAGE).not.toMatch(/<details\s+open>\s*\n\s*<summary[^>]*>Raw technical appendix/);
+    // Phase EVIDENCE-TRUSTDECISION-STRUCTURED — the raw-appendix
+    // <details> is now gated behind `?debug=1` (the inline
+    // `data-evidence-raw-debug-gated` attribute marks it). The tag
+    // exists in source as
+    //   <details data-evidence-raw-appendix data-evidence-raw-debug-gated>
+    // and must still NOT carry `open`. The previous always-on
+    // `<details open>` form must remain absent.
+    expect(DETAIL_PAGE).toMatch(
+      /<details\s+data-evidence-raw-appendix\s+data-evidence-raw-debug-gated>/,
+    );
+    expect(DETAIL_PAGE).not.toMatch(
+      /<details\s+open>\s*\n\s*<summary[^>]*>Raw technical appendix/,
+    );
   });
 
   it("Technical Appendix tab kicker says `Advanced` so the user is warned", () => {

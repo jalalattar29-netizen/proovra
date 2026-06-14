@@ -4,16 +4,12 @@
  * Human review workspace. Workflow status / case assignment / notes /
  * comments / annotations / reviewer actions / AI advisory.
  *
- * Phase 2 — NOT_STARTED structured empty state with suggested
- * actions (Assign reviewer / Add comment / Attach to case / Review
- * risk signals / Open report).
- *
- * Phase 6 — AI categorization card is hidden when the workspace has
- * no AI configured. The underlying card returns `status: "DISABLED"`
- * after a backend probe; we wrap it in a guard that fetches the same
- * endpoint once and hides the card outright when DISABLED, instead of
- * rendering the "AI categorization is not configured" placeholder
- * that wasted vertical space on every record.
+ * Phase EVIDENCE-AI-CONSOLIDATION (this pass) — there is now ONE
+ * canonical AI categorization surface: <AiCategorizationPanel>.
+ * The prior on-mount wrapper card + the duplicate hidden-feature
+ * panel mount are gone. Same backend endpoint, same data, ONE
+ * disclaimer, ONE component mount. Disabled state collapses
+ * inside the single panel — no large inactive section.
  *
  * Phase 1 — "Workspace and record retention state" was duplicated
  * by the Integrity tab's "Verification & preservation" block (same
@@ -24,7 +20,6 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
 import { ClipboardCheck } from "lucide-react";
 import {
   KeyValueGrid,
@@ -32,7 +27,6 @@ import {
   type EvidenceDetailCtx,
 } from "./_lib";
 import { Button } from "../../../../../components/ui";
-import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { ReviewerCommentsPanel } from "../../components/ReviewerCommentsPanel";
 import { LegalNotesPanel } from "../../components/LegalNotesPanel";
@@ -40,46 +34,10 @@ import { AnnotationPanel } from "../../components/AnnotationPanel";
 import { ComparisonPanel } from "../../components/ComparisonPanel";
 import { DuplicateDetectionPanel } from "../../components/DuplicateDetectionPanel";
 import { AiCategorizationPanel } from "../../components/AiCategorizationPanel";
-import { EvidenceAiCategorizationCard } from "../../../../../components/hidden-feature-panels/HiddenFeaturePanels";
 import { EvidenceRelationshipsSection } from "../components/EvidenceRelationshipsSection";
 import { ReviewerWorkflowCard } from "../components/ReviewerWorkflowCard";
 import { EvidenceReviewActionsPanel } from "../components/EvidenceReviewActionsPanel";
 import { ReviewerAuditTrailSection } from "../components/ReviewerAuditTrailSection";
-
-/**
- * Phase 6 — probe `/ai-categorization` once and hide the entire AI
- * card when the workspace has no AI configured. The underlying
- * `EvidenceAiCategorizationCard` was unconditionally mounted and
- * rendered a heading + "advisory" caveat + "AI categorization is not
- * configured for this workspace." for every record on every workspace
- * that hadn't enabled the feature. That wasted page real estate.
- */
-function AiCategorizationCardWhenActive({ evidenceId }: { evidenceId: string }) {
-  const [decision, setDecision] = useState<"loading" | "hidden" | "show">("loading");
-
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch(`/v1/evidence/${encodeURIComponent(evidenceId)}/ai-categorization`)
-      .then((res: { categorization?: { status?: string } }) => {
-        if (cancelled) return;
-        const status = res?.categorization?.status;
-        setDecision(status === "DISABLED" || status == null ? "hidden" : "show");
-      })
-      .catch(() => {
-        if (cancelled) return;
-        // 403 / 404 / any failure → treat as hidden. The endpoint
-        // returns 403 for users without access; the card itself
-        // would have shown a denial caveat. Cleaner to hide.
-        setDecision("hidden");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [evidenceId]);
-
-  if (decision !== "show") return null;
-  return <EvidenceAiCategorizationCard evidenceId={evidenceId} />;
-}
 
 function NotStartedEmptyState({ ctx }: { ctx: EvidenceDetailCtx }) {
   const {
@@ -285,17 +243,18 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           <ReviewerCommentsPanel evidenceId={evidence.id} />
           <LegalNotesPanel evidenceId={evidence.id} />
           <AnnotationPanel evidenceId={evidence.id} defaultPartId={workspace.parts[0]?.id ?? null} />
-          {/* Phase 6 — only mount the AI card when AI is actually
-              configured for this workspace. Avoids the "AI
-              categorization is not configured" placeholder that
-              wasted page real estate on every record. */}
-          <AiCategorizationCardWhenActive evidenceId={evidence.id} />
+          {/* Phase EVIDENCE-AI-CONSOLIDATION — AI categorization is
+              now rendered ONCE as <AiCategorizationPanel> below in
+              the Advanced review tools row. The duplicate
+              hidden-feature mount that used to live here is gone. */}
         </div>
       </section>
 
       {/* Phase EVIDENCE-IA — comparison / duplicate / AI advisory
           panels. These are operational tools the reviewer uses inline;
-          they stay on the Review tab. */}
+          they stay on the Review tab. AI categorization renders ONCE
+          here (was previously also mounted as a separate card above —
+          consolidated to a single panel with one disclaimer). */}
       <ComparisonPanel evidenceId={evidence.id} />
       <DuplicateDetectionPanel evidenceId={evidence.id} />
       <AiCategorizationPanel evidenceId={evidence.id} />
