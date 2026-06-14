@@ -387,17 +387,27 @@ describe("capture draft governance (Governance Item 2)", () => {
 
 describe("claims governance surfaces (Governance Item 3)", () => {
   it("keeps verify and evidence-detail copy inside the claims matrix boundary", () => {
+    // Phase EVIDENCE-IA-DECOMPOSE — evidence/[id]/page.tsx was split
+    // into _tabs/*; concatenate every tab body so the forbidden-
+    // patterns check covers what the user actually sees.
+    const EVIDENCE_DETAIL_FILES = [
+      "page.tsx",
+      "_tabs/_lib.tsx",
+      "_tabs/EvidenceOverviewTab.tsx",
+      "_tabs/EvidenceIntegrityTab.tsx",
+      "_tabs/EvidenceCustodyTab.tsx",
+      "_tabs/EvidenceReviewTab.tsx",
+      "_tabs/EvidenceArtifactsTab.tsx",
+      "_tabs/EvidenceDiscussionTab.tsx",
+      "_tabs/EvidenceTechnicalAppendixTab.tsx",
+    ];
     const surfaces = [
       readRepoFile("apps", "web", "app", "verify", "[token]", "page.tsx"),
-      readRepoFile(
-        "apps",
-        "web",
-        "app",
-        "(app)",
-        "evidence",
-        "[id]",
-        "page.tsx"
-      ),
+      EVIDENCE_DETAIL_FILES.map((rel) => {
+        const parts = ["apps", "web", "app", "(app)", "evidence", "[id]"];
+        rel.split("/").forEach((seg) => parts.push(seg));
+        return readRepoFile(...parts);
+      }).join("\n\n"),
     ];
 
     for (const surface of surfaces) {
@@ -447,15 +457,26 @@ describe("multipart reviewer wording (Governance Item 4)", () => {
       "[token]",
       "page.tsx"
     );
-    const evidenceDetailSource = readRepoFile(
-      "apps",
-      "web",
-      "app",
-      "(app)",
-      "evidence",
-      "[id]",
-      "page.tsx"
-    );
+    // Phase EVIDENCE-IA-DECOMPOSE — PROOVRA_MULTIPART_REVIEWER_EXPLANATION
+    // was moved into EvidenceTechnicalAppendixTab.tsx (kept on the
+    // technical appendix per Phase 6).
+    const evidenceDetailSource = [
+      "page.tsx",
+      "_tabs/_lib.tsx",
+      "_tabs/EvidenceOverviewTab.tsx",
+      "_tabs/EvidenceIntegrityTab.tsx",
+      "_tabs/EvidenceCustodyTab.tsx",
+      "_tabs/EvidenceReviewTab.tsx",
+      "_tabs/EvidenceArtifactsTab.tsx",
+      "_tabs/EvidenceDiscussionTab.tsx",
+      "_tabs/EvidenceTechnicalAppendixTab.tsx",
+    ]
+      .map((rel) => {
+        const parts = ["apps", "web", "app", "(app)", "evidence", "[id]"];
+        rel.split("/").forEach((seg) => parts.push(seg));
+        return readRepoFile(...parts);
+      })
+      .join("\n\n");
 
     expect(verifyPageSource).toContain("PROOVRA_MULTIPART_REVIEWER_EXPLANATION");
     expect(evidenceDetailSource).toContain(

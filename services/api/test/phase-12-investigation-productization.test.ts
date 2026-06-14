@@ -122,7 +122,23 @@ function readSrc(path: string): string {
 // ===========================================================================
 
 describe("Phase 12 UI_SURFACE_EXISTING_DATA — evidence detail intelligence section", () => {
-  const src = readSrc(EVIDENCE_DETAIL_PAGE);
+  // Phase EVIDENCE-IA-DECOMPOSE — page.tsx was split into _tabs/*;
+  // concatenate the orchestrator + every tab body so source-shape
+  // assertions still find the Intelligence section snippets.
+  const EVIDENCE_DETAIL_DIR = resolve(WEB_ROOT, "app/(app)/evidence/[id]");
+  const src = [
+    "page.tsx",
+    "_tabs/_lib.tsx",
+    "_tabs/EvidenceOverviewTab.tsx",
+    "_tabs/EvidenceIntegrityTab.tsx",
+    "_tabs/EvidenceCustodyTab.tsx",
+    "_tabs/EvidenceReviewTab.tsx",
+    "_tabs/EvidenceArtifactsTab.tsx",
+    "_tabs/EvidenceDiscussionTab.tsx",
+    "_tabs/EvidenceTechnicalAppendixTab.tsx",
+  ]
+    .map((rel) => readSrc(resolve(EVIDENCE_DETAIL_DIR, rel)))
+    .join("\n\n");
 
   it("imports the new typed intelligence client (fetchEvidenceIntelligence)", () => {
     expect(src).toMatch(/fetchEvidenceIntelligence/);

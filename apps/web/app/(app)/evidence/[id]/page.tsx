@@ -1,5 +1,30 @@
 "use client";
 
+/**
+ * Phase EVIDENCE-IA — Evidence Detail page orchestrator.
+ *
+ * State, callbacks, hero, tabs navigation, sidebar, and modals only.
+ * Tab bodies live in `./_tabs/*` and consume a single `EvidenceDetailCtx`
+ * prop bag.
+ *
+ * Previously this file was 3,614 lines / 147 KB. Phase 0 extracted
+ * the 7 tab bodies into separate components without behavior change;
+ * subsequent phases (Phase 1–6) trimmed duplication, restructured
+ * information architecture into the agreed 5-layer model, rewrote
+ * copy for legal safety + plain language, and moved every technical
+ * structure to the Technical Appendix tab.
+ *
+ * 5-layer IA:
+ *   Layer 1 — Hero (top of page)                — name, status, actions, legal boundary
+ *   Layer 2 — Review workspace                   — Review tab
+ *   Layer 3 — Evidence content                   — Overview tab (preview + metadata)
+ *   Layer 4 — Verification & preservation        — Integrity tab
+ *   Layer 5 — Technical Appendix / advanced     — Technical Appendix tab
+ *
+ * The "What needs attention" risk strip lives directly below the hero
+ * (Phase 3) so users see problems BEFORE any tab body renders.
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -8,7 +33,6 @@ import {
   FileText,
   Globe,
   History,
-  ImageIcon,
   LayoutGrid,
   MessageSquare,
   Package,
@@ -16,99 +40,52 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
-import {
-  PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
-  PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
-  PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
-} from "@proovra/shared-evidence-presentation";
-import { getReviewerArtifactRoleLabel } from "@proovra/shared";
 import { Button, Modal, useToast } from "../../../../components/ui";
-import CaptureLocationMapPanel from "../../../../components/capture-location/CaptureLocationMapPanel";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-// Phase IA-self-serve-completion — surface-tier gates for the
-// enterprise components mounted on Evidence Detail. Self-serve users
-// (FREE / PAYG / PRO / TEAM) do not see:
-//   - ReviewerWorkflowCard + EvidenceReviewActionsPanel
-//     (gated on /reviewer-ops)
-//   - GovernanceSummary + GovernanceIndicators + GovernanceSnapshotPanel
-//     (gated on /governance)
-//   - OperationalTimelinePanel (gated on /reviewer-ops)
-//   - Intelligence entity-extraction section (gated on /intelligence)
-//   - EvidenceRequestPanel (gated on /intake-links eligibility — it
-//     is the external-contributor coordination feature, which is
-//     PROFESSIONAL)
-// Each gate is consulted from canAccessSurface() so the rule
-// matches sidebar, All Tools, command palette, and SurfaceGate.
 import { canAccessSurface } from "../../../../lib/surface/access";
 import { useSurfaceUserContext } from "../../../../lib/surface/useSurfaceUserContext";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
 import { formatUserDateTime } from "../../../../lib/date";
-import { ReviewerCommentsPanel } from "../components/ReviewerCommentsPanel";
-import { LegalNotesPanel } from "../components/LegalNotesPanel";
-import { AnnotationPanel } from "../components/AnnotationPanel";
-import { EvidenceAiCategorizationCard } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
-import { ComparisonPanel } from "../components/ComparisonPanel";
-import { DuplicateDetectionPanel } from "../components/DuplicateDetectionPanel";
-import { AiCategorizationPanel } from "../components/AiCategorizationPanel";
 import type { CaseOption } from "../lib/evidence-library-types";
-import type {
-  ReviewWorkspaceResponse,
-  ReviewerAlert,
-  SourceContext,
-  TimelineEvent,
-} from "./review-workspace-types";
-import { ReviewerWorkflowCard } from "./components/ReviewerWorkflowCard";
-import { EvidenceReviewActionsPanel } from "./components/EvidenceReviewActionsPanel";
-import { EvidenceRelationshipsSection } from "./components/EvidenceRelationshipsSection";
-import { ArtifactHistorySection } from "./components/ArtifactHistorySection";
-import { ReviewerAuditTrailSection } from "./components/ReviewerAuditTrailSection";
-import EvidenceDiscussionPanel from "./components/EvidenceDiscussionPanel";
-// Phase 12 — surface OCR + transcript + extracted entities that the
-// Phase 11 wiring already produces. Display-only; reads the existing
-// `/v1/intelligence/evidence/:id` endpoint via a typed client.
+import type { ReviewWorkspaceResponse } from "./review-workspace-types";
 import {
   fetchEvidenceIntelligence,
   type IntelligenceEvidenceResponse,
 } from "../../../../lib/api/intelligence";
-import { EntityChipGroup } from "../../../../components/intelligence/EntityChipGroup";
-// Phase 6 — surfaces "Source: External intake" + safe reviewer status
-// controls when (and only when) the evidence row arrived via the external
-// intake pipeline. Returns null for every other evidence record, so this
-// import is a no-op for the authenticated capture path.
-import ExternalIntakeSourceCard from "./components/ExternalIntakeSourceCard";
-// Phase 7 — surfaces linked EvidenceRequests with deliverables + responses
-// + reviewer actions. Renders an empty-state CTA when no requests exist,
-// so it never visually clutters records that have no operational
-// coordination need.
-import EvidenceRequestPanel from "./components/EvidenceRequestPanel";
-// Phase 9.5 — workspace governance indicators (legal hold, retention,
-// policy gates). Renders null when no constraint is active.
-import GovernanceIndicators from "./components/GovernanceIndicators";
-import { GovernanceSummary } from "../../../../components/governance/GovernanceSummary";
 import {
   ExportPackageEligibilityBadge,
-  GovernanceSnapshotPanel,
-  OperationalTimelinePanel,
   RuntimeStatusBanner,
 } from "../../../../components/operational";
-// Phase G3.2 — Presence + collision wiring. PresenceIndicator
-// surfaces other operators viewing this evidence (bounded 30s
-// heartbeat poll). CollisionWarning compares the workflow
-// updatedAt captured at mount with the freshest envelope read so
-// operators see when the record has changed under them.
 import { PresenceIndicator } from "../../../../components/presence/PresenceIndicator";
 import { CollisionWarning } from "../../../../components/presence/CollisionWarning";
 import "./evidence-detail.css";
-
-type EvidenceDetailTab =
-  | "overview"
-  | "integrity"
-  | "custody"
-  | "review"
-  | "artifacts"
-  | "discussion"
-  | "technical";
+import {
+  SectionHeading,
+  buildPublishedVerificationUrl,
+  buildRiskSignals,
+  buildTechnicalReadinessSummary,
+  describeOtsStatus,
+  describePublicVerificationState,
+  describeReportArtifactStatus,
+  describeVerificationPackageStatus,
+  formatBytes,
+  formatValue,
+  isOtsTerminal,
+  pillTone,
+  shortId,
+  shouldPollArtifactReadiness,
+  tryDownloadFile,
+  type EvidenceDetailCtx,
+  type EvidenceDetailTab,
+} from "./_tabs/_lib";
+import { EvidenceOverviewTab } from "./_tabs/EvidenceOverviewTab";
+import { EvidenceIntegrityTab } from "./_tabs/EvidenceIntegrityTab";
+import { EvidenceCustodyTab } from "./_tabs/EvidenceCustodyTab";
+import { EvidenceReviewTab } from "./_tabs/EvidenceReviewTab";
+import { EvidenceArtifactsTab } from "./_tabs/EvidenceArtifactsTab";
+import { EvidenceDiscussionTab } from "./_tabs/EvidenceDiscussionTab";
+import { EvidenceTechnicalAppendixTab } from "./_tabs/EvidenceTechnicalAppendixTab";
 
 const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string; icon: LucideIcon }> = [
   { id: "overview", label: "Overview", icon: LayoutGrid },
@@ -116,775 +93,10 @@ const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string; icon: LucideIco
   { id: "custody", label: "Custody", icon: History },
   { id: "review", label: "Review", icon: ClipboardCheck },
   { id: "artifacts", label: "Artifacts", icon: Package },
-  // Phase C2 — Discussion tab. Surfaces the Phase 16 discussion
-  // backend that already exists (threads / messages / mentions)
-  // as a first-class evidence-context collaboration surface.
   { id: "discussion", label: "Discussion", icon: MessageSquare },
   { id: "technical", label: "Technical Appendix", icon: FileText },
 ];
 
-function SectionHeading({
-  kicker,
-  title,
-  icon: Icon,
-}: {
-  kicker: string;
-  title: string;
-  icon: LucideIcon;
-}) {
-  return (
-    <div className="evidence-detail-heading">
-      <span className="evidence-detail-heading-icon" aria-hidden="true">
-        <Icon size={16} strokeWidth={2} />
-      </span>
-      <div className="evidence-detail-heading-copy">
-        <p className="evidence-detail-kicker">{kicker}</p>
-        <h2>{title}</h2>
-      </div>
-    </div>
-  );
-}
-
-function shortId(value: string | null | undefined): string {
-  const text = (value ?? "").trim();
-  if (!text) return "Not available";
-  if (text.length <= 14) return text;
-  return `${text.slice(0, 8)}…${text.slice(-6)}`;
-}
-
-function formatBytes(sizeBytes: string | number | null | undefined) {
-  const numeric =
-    typeof sizeBytes === "number"
-      ? sizeBytes
-      : typeof sizeBytes === "string"
-        ? Number(sizeBytes)
-        : Number.NaN;
-
-  if (!Number.isFinite(numeric) || numeric <= 0) return "Not recorded";
-
-  const units = ["B", "KB", "MB", "GB", "TB"] as const;
-  let value = numeric;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${value.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
-}
-
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "Not recorded";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  return String(value);
-}
-
-function describeContentItemRole(item: {
-  isPrimary: boolean;
-  artifactRole?: "primary_evidence" | "supporting_evidence" | "attachment" | null;
-  artifactRoleLabel?: string | null;
-  checklistStepLabel?: string | null;
-}) {
-  const roleLabel =
-    item.artifactRoleLabel ??
-    (item.artifactRole ? getReviewerArtifactRoleLabel(item.artifactRole) : null) ??
-    (item.isPrimary ? "Primary evidence" : "Supporting evidence");
-  const checklistLabel =
-    typeof item.checklistStepLabel === "string" && item.checklistStepLabel.trim()
-      ? item.checklistStepLabel.trim()
-      : null;
-
-  return checklistLabel ? `${roleLabel} • ${checklistLabel}` : roleLabel;
-}
-
-function buildShareUrl(path: string | null | undefined): string | null {
-  const normalized = path?.trim();
-  if (!normalized) return null;
-
-  const base =
-    (typeof window !== "undefined" ? window.location.origin : null) ??
-    process.env.NEXT_PUBLIC_APP_BASE?.trim() ??
-    process.env.NEXT_PUBLIC_WEB_BASE?.trim() ??
-    "";
-
-  return `${base.replace(/\/+$/, "")}${normalized.startsWith("/") ? normalized : `/${normalized}`}`;
-}
-
-function buildPublishedVerificationUrl(
-  summary: ReviewWorkspaceResponse["publicVerificationSummary"] | null | undefined
-): string | null {
-  if (!summary || summary.state !== "PUBLISHED") return null;
-  return buildShareUrl(summary.sharePath);
-}
-
-function describePublicVerificationState(
-  summary: ReviewWorkspaceResponse["publicVerificationSummary"]
-): { label: string; detail: string } {
-  switch (summary.state) {
-    case "NOT_INCLUDED":
-      return {
-        label: "Not included on plan",
-        detail:
-          summary.disabledReason ||
-          "Public verification is not included in the current workspace capability set.",
-      };
-    case "NOT_CONFIGURED":
-      return {
-        label: "Not configured",
-        detail:
-          summary.disabledReason ||
-          "Public verification is supported for this workspace, but this evidence record does not have a publishable verification surface configured.",
-      };
-    case "CONFIGURED_NOT_PUBLISHED":
-      return {
-        label: "Configured but not published",
-        detail:
-          summary.disabledReason ||
-          "Public verification is configured for this evidence record, but it has not been published yet.",
-      };
-    case "PUBLISHED":
-      return {
-        label: "Published",
-        detail: "Public verification is published and the public route should resolve.",
-      };
-    case "SUSPENDED":
-      return {
-        label: "Suspended",
-        detail:
-          summary.disabledReason ||
-          "Public verification was suspended and the public route is intentionally unavailable.",
-      };
-    case "UNPUBLISHED":
-      return {
-        label: "Unpublished",
-        detail:
-          summary.disabledReason ||
-          "Public verification was unpublished and no public verification link is currently active.",
-      };
-    default:
-      return {
-        label: "State unavailable",
-        detail:
-          summary.disabledReason ||
-          "The publication state could not be resolved from the current evidence record.",
-      };
-  }
-}
-
-function describeClientSignalState(
-  status: "NOT_COLLECTED" | "COLLECTED_FALSE" | "DETECTED" | "UNAVAILABLE"
-): string {
-  switch (status) {
-    case "NOT_COLLECTED":
-      return "Client signal not collected";
-    case "COLLECTED_FALSE":
-      return "Collected: no signal detected";
-    case "DETECTED":
-      return "Signal detected";
-    case "UNAVAILABLE":
-      return "Unavailable for this evidence type";
-    default:
-      return "Not recorded";
-  }
-}
-
-function describeReportArtifactStatus(
-  artifactStatus: ReviewWorkspaceResponse["artifactStatus"]
-): string {
-  if (artifactStatus.report.available) return "Available";
-  if (artifactStatus.report.pending) return "Pending";
-  return "Not generated";
-}
-
-function describeReportPdfSignature(
-  artifactStatus: ReviewWorkspaceResponse["artifactStatus"]
-): string {
-  if (!artifactStatus.report.available || !artifactStatus.report.pdfSignature) {
-    return artifactStatus.report.pending ? "Pending" : "Unknown";
-  }
-
-  switch (artifactStatus.report.pdfSignature.status) {
-    case "SIGNED":
-      return "Signed";
-    case "UNSIGNED_OPT_OUT":
-      return "Unsigned";
-    case "SIGNING_UNAVAILABLE":
-      return "Signing unavailable";
-    case "SIGNING_FAILED":
-      return "Signing failed";
-    case "NOT_APPLICABLE":
-      return "Not applicable";
-    default:
-      return "Unknown";
-  }
-}
-
-function describeVerificationPackageStatus(
-  artifactStatus: ReviewWorkspaceResponse["artifactStatus"],
-  included: boolean
-): string {
-  if (artifactStatus.verificationPackage.available) return "Available";
-  if (artifactStatus.verificationPackage.blocked) return "Blocked";
-  if (artifactStatus.verificationPackage.pending) return "Pending";
-  if (artifactStatus.verificationPackage.unavailable) return "Unavailable";
-  return included ? "Not generated" : "Not included on plan";
-}
-
-function describePackageManifestStatus(
-  artifactStatus: ReviewWorkspaceResponse["artifactStatus"],
-  included: boolean
-): string {
-  if (artifactStatus.verificationPackage.available) {
-    return artifactStatus.verificationPackage.manifestSignature?.status === "SIGNED"
-      ? "Signed manifest present"
-      : "Unknown";
-  }
-  if (artifactStatus.verificationPackage.blocked) return "Blocked";
-  if (artifactStatus.verificationPackage.pending) return "Pending";
-  return included ? "Unknown" : "Not included on plan";
-}
-
-function describeOtsStatus(
-  workspace: ReviewWorkspaceResponse
-): { label: string; detail: string } {
-  const ots = workspace.preservationMatrix.ots;
-
-  switch (ots.effectiveStatus) {
-    case "ANCHORED":
-      return {
-        label: "Anchored",
-        detail: "OpenTimestamps anchoring is recorded for this evidence item.",
-      };
-    case "FAILED":
-      return {
-        label: "Failed",
-        detail:
-          ots.failureReason || "OpenTimestamps anchoring failed for this evidence item.",
-      };
-    case "DISABLED":
-      return {
-        label: "Disabled",
-        detail: "OpenTimestamps anchoring is disabled for this evidence item.",
-      };
-    case "PENDING":
-      return {
-        label: "Pending public anchoring",
-        detail:
-          ots.pendingReason ||
-          "OpenTimestamps proof is recorded, but public anchoring has not finalized yet.",
-      };
-    default:
-      return {
-        label: "Not configured",
-        detail: "No OpenTimestamps anchoring state is recorded in the current response.",
-      };
-  }
-}
-
-function isOtsTerminal(status: string | null | undefined): boolean {
-  return (
-    status === null ||
-    status === "ANCHORED" ||
-    status === "FAILED" ||
-    status === "DISABLED"
-  );
-}
-
-function shouldPollArtifactReadiness(
-  workspace: ReviewWorkspaceResponse | null | undefined
-): boolean {
-  if (!workspace?.evidence?.status) return false;
-
-  const status = workspace.evidence.status;
-  const finalized = status === "SIGNED" || status === "REPORTED";
-  if (!finalized) return false;
-
-  // Phase CAPTURE-CLOSURE Part A — when the workspace plan does not
-  // include report/package generation, the report worker rejects the
-  // job up front (REPORT_NOT_INCLUDED_IN_PLAN — handled as a business
-  // outcome, see services/worker/src/processor.ts catch). The
-  // artifact will NEVER attach for plan-excluded users, so polling
-  // /artifacts/status forever wastes API calls and confuses the user.
-  // Stop polling for any artifact whose plan-gate is closed.
-  const caps = workspace.workspaceCapabilitySnapshot;
-  const reportReachable =
-    caps?.reportsIncluded !== false ||
-    workspace.artifactStatus.report.available === true;
-  const packageReachable =
-    caps?.verificationPackageIncluded !== false ||
-    workspace.artifactStatus.verificationPackage.available === true;
-
-  const reportNeedsRefresh =
-    reportReachable && !workspace.artifactStatus.report.available;
-  const verificationPackage = workspace.artifactStatus.verificationPackage;
-  const packageNeedsRefresh =
-    packageReachable &&
-    !verificationPackage.available &&
-    !verificationPackage.blocked &&
-    !verificationPackage.unavailable;
-
-  return reportNeedsRefresh || packageNeedsRefresh;
-}
-
-function buildTechnicalReadinessSummary(workspace: ReviewWorkspaceResponse): string {
-  if (
-    workspace.reviewDecision.label === "Ready for review" &&
-    !workspace.reviewWorkflow.status
-  ) {
-    return "Evidence is technically ready; no reviewer workflow has started yet.";
-  }
-
-  return workspace.reviewDecision.summary;
-}
-
-async function tryDownloadFile(url: string, filename: string) {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Download fetch failed");
-
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = objectUrl;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(objectUrl);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function pillTone(status: string) {
-  const normalized = status.trim().toUpperCase();
-
-  if (
-    normalized.includes("READY") ||
-    normalized.includes("VERIFIED") ||
-    normalized.includes("ACTIVE") ||
-    normalized.includes("AVAILABLE") ||
-    normalized.includes("RECORDED") ||
-    normalized.includes("ANCHORED")
-  ) {
-    return "success";
-  }
-
-  if (
-    normalized.includes("WARNING") ||
-    normalized.includes("LIMIT") ||
-    normalized.includes("PENDING") ||
-    normalized.includes("REVIEW") ||
-    normalized.includes("SUPPORTED")
-  ) {
-    return "warning";
-  }
-
-  if (
-    normalized.includes("FAILED") ||
-    normalized.includes("DANGER") ||
-    normalized.includes("DELETED") ||
-    normalized.includes("TRASH")
-  ) {
-    return "danger";
-  }
-
-  return "neutral";
-}
-
-function PreviewWorkspace({
-  workspace,
-  onOpenOriginal,
-  onDownloadOriginal,
-}: {
-  workspace: ReviewWorkspaceResponse;
-  onOpenOriginal: () => void;
-  onDownloadOriginal: () => void;
-}) {
-  const privateItemNotesById = useMemo(
-    () =>
-      new Map(
-        workspace.parts.map((part) => [part.id, part.privateNote ?? null] as const)
-      ),
-    [workspace.parts]
-  );
-
-  const defaultItem =
-    workspace.evidence.contentItems?.find(
-      (item) => item.id === workspace.evidence.defaultPreviewItemId
-    ) ??
-    workspace.evidence.contentItems?.find((item) => item.previewable && item.viewUrl) ??
-    workspace.evidence.primaryContentItem ??
-    null;
-
-  const renderPreview = () => {
-    if (!defaultItem || !defaultItem.viewUrl) {
-      return (
-        <div className="evidence-detail-preview-placeholder">
-          <strong>Open the original evidence record to review preserved content.</strong>
-          <p>Reviewer-facing preview is not available for this selection in the current response.</p>
-        </div>
-      );
-    }
-
-    if (defaultItem.kind === "image") {
-      return (
-        <img
-          src={defaultItem.viewUrl}
-          alt={defaultItem.label}
-          className="evidence-detail-preview-media"
-        />
-      );
-    }
-
-    if (defaultItem.kind === "video") {
-      return (
-        <video
-          controls
-          preload="metadata"
-          className="evidence-detail-preview-media"
-          src={defaultItem.viewUrl}
-        >
-          Your browser could not load this video preview.
-        </video>
-      );
-    }
-
-    if (defaultItem.kind === "audio") {
-      return (
-        <div className="evidence-detail-preview-audio">
-          <audio controls preload="metadata" src={defaultItem.viewUrl}>
-            Your browser could not load this audio preview.
-          </audio>
-        </div>
-      );
-    }
-
-    if (defaultItem.kind === "pdf") {
-      return (
-        <iframe
-          title={defaultItem.label}
-          src={defaultItem.viewUrl}
-          className="evidence-detail-preview-frame"
-        />
-      );
-    }
-
-    return (
-      <div className="evidence-detail-preview-placeholder">
-        <strong>Preview is not available for this file type.</strong>
-        <p>Use the original access actions to review the preserved material directly.</p>
-      </div>
-    );
-  };
-
-  return (
-    <section className="evidence-detail-section">
-      <div className="evidence-detail-section-header">
-        <SectionHeading
-          kicker="Evidence Preview"
-          title="Primary review surface"
-          icon={ImageIcon}
-        />
-        <div className="evidence-detail-inline-actions">
-          <Button variant="secondary" onClick={onOpenOriginal}>
-            Open original
-          </Button>
-          <Button variant="secondary" onClick={onDownloadOriginal}>
-            Download
-          </Button>
-        </div>
-      </div>
-
-      <div className="evidence-detail-preview-shell">{renderPreview()}</div>
-
-      <div className="evidence-detail-item-grid">
-        {workspace.evidence.contentItems?.map((item) => {
-          const privateItemNote = privateItemNotesById.get(item.id);
-          // Phase CAPTURE-DETAIL-WIRING — per-part capture metadata
-          // (privateRole + sourceLabel) is workspace-internal and is
-          // returned by /v1/evidence/:id/review-workspace. Surface it
-          // alongside privateNote so the reviewer sees the same
-          // context the capturer recorded. The role + checklist label
-          // are already rendered via describeContentItemRole(); the
-          // raw `privateRole` is what the capturer typed and may
-          // diverge from the auto-resolved artifact role.
-          const itemWithMeta = item as typeof item & {
-            privateRole?: string | null;
-            sourceLabel?: string | null;
-          };
-          return (
-            <div key={item.id} className="evidence-detail-item-card">
-              <div className="evidence-detail-item-row">
-                <strong>{item.label}</strong>
-                <span className={`evidence-detail-pill ${pillTone(item.kind)}`}>{item.kind}</span>
-              </div>
-              <p>{item.originalFileName || "Original filename not recorded"}</p>
-              <div className="evidence-detail-definition-inline">
-                <span>Size</span>
-                <strong>{item.displaySizeLabel || formatBytes(item.sizeBytes)}</strong>
-              </div>
-              <div className="evidence-detail-definition-inline">
-                <span>Role</span>
-                <strong>{describeContentItemRole(item)}</strong>
-              </div>
-              {itemWithMeta.privateRole ? (
-                <div
-                  className="evidence-detail-definition-inline"
-                  data-content-item-private-role
-                >
-                  <span>Capture role (private)</span>
-                  <strong>{itemWithMeta.privateRole}</strong>
-                </div>
-              ) : null}
-              {itemWithMeta.sourceLabel ? (
-                <div
-                  className="evidence-detail-definition-inline"
-                  data-content-item-source-label
-                >
-                  <span>Source</span>
-                  <strong>{itemWithMeta.sourceLabel}</strong>
-                </div>
-              ) : null}
-              {privateItemNote ? (
-                <div
-                  className="evidence-detail-definition-inline"
-                  data-content-item-private-note
-                >
-                  <span>Private item note</span>
-                  <strong>{privateItemNote}</strong>
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function KeyValueGrid({ items }: { items: Array<{ label: string; value: string }> }) {
-  return (
-    <div className="evidence-detail-data-grid">
-      {items.map((item) => (
-        <div key={item.label} className="evidence-detail-data-cell">
-          <span>{item.label}</span>
-          <strong>{item.value}</strong>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Phase CAPTURE-DETAIL-WIRING — render the capture template summary.
- *
- * The intake plan JSON is recorded at evidence creation time (see
- * apps/web/.../useCaptureSessionOrchestration.ts ~602). When the
- * intake mode is CHECKLIST_REQUIRED the user explicitly committed to
- * mapping every required step to a real material; the server enforces
- * that at /complete (services/api/.../capture-checklist-gate.ts), and
- * here we surface the same information back to the reviewer so they
- * can see the workflow promise the capturer made.
- *
- * Hidden when intakePlanJson is absent (legacy rows or template-less
- * captures) — never invents data.
- */
-function CaptureTemplateCard({
-  intakePlanJson,
-  contentItems,
-}: {
-  intakePlanJson: unknown;
-  contentItems: Array<{ checklistStepId?: string | null }>;
-}) {
-  if (!intakePlanJson || typeof intakePlanJson !== "object") return null;
-  const plan = intakePlanJson as Record<string, unknown>;
-  const templateName =
-    typeof plan.templateName === "string" ? plan.templateName : null;
-  const templateId =
-    typeof plan.templateId === "string" ? plan.templateId : null;
-  const mode = typeof plan.mode === "string" ? plan.mode : null;
-  const locationRequirement =
-    typeof plan.locationRequirement === "string"
-      ? plan.locationRequirement
-      : null;
-  const required = Array.isArray(plan.requiredSteps)
-    ? (plan.requiredSteps as Array<{ id?: string; title?: string }>)
-    : [];
-  const optional = Array.isArray(plan.optionalSteps)
-    ? (plan.optionalSteps as Array<{ id?: string; title?: string }>)
-    : [];
-
-  // Nothing useful to show when the plan carries no template metadata.
-  if (!templateName && !templateId && required.length === 0 && optional.length === 0) {
-    return null;
-  }
-
-  const mappedIds = new Set<string>();
-  for (const it of contentItems) {
-    if (it.checklistStepId) mappedIds.add(it.checklistStepId);
-  }
-  const requiredMappedCount = required.filter(
-    (s) => s.id && mappedIds.has(s.id),
-  ).length;
-  const requiredMissing = required.filter(
-    (s) => s.id && !mappedIds.has(s.id),
-  );
-
-  return (
-    <section
-      className="evidence-detail-section"
-      data-evidence-section="capture-template"
-    >
-      <div className="evidence-detail-section-header">
-        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 650 }}>
-          Capture template
-        </h3>
-      </div>
-      <KeyValueGrid
-        items={[
-          { label: "Template", value: templateName || templateId || "Not recorded" },
-          {
-            label: "Mode",
-            value:
-              mode === "CHECKLIST_REQUIRED"
-                ? "Checklist required"
-                : mode === "FLEXIBLE"
-                  ? "Flexible"
-                  : (mode ?? "Not recorded"),
-          },
-          {
-            label: "Required steps mapped",
-            value:
-              required.length === 0
-                ? "None declared"
-                : `${requiredMappedCount} of ${required.length}`,
-          },
-          {
-            label: "Optional steps declared",
-            value: optional.length === 0 ? "None" : String(optional.length),
-          },
-          {
-            label: "Location",
-            value:
-              locationRequirement === "required"
-                ? "Required"
-                : locationRequirement === "recommended"
-                  ? "Recommended"
-                  : locationRequirement === "optional"
-                    ? "Optional"
-                    : "Not recorded",
-          },
-        ]}
-      />
-      {requiredMissing.length > 0 ? (
-        <div
-          data-capture-template-missing
-          style={{
-            marginTop: 8,
-            padding: "8px 10px",
-            background: "#fef3c7",
-            border: "1px solid #fcd34d",
-            borderRadius: 6,
-            fontSize: 12.5,
-            color: "#78350f",
-          }}
-        >
-          <strong>Unmapped required step{requiredMissing.length === 1 ? "" : "s"}:</strong>{" "}
-          {requiredMissing.map((s) => s.title || s.id || "Untitled").join(" · ")}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function EventTimeline({
-  title,
-  subtitle,
-  events,
-  icon,
-}: {
-  title: string;
-  subtitle: string;
-  events: TimelineEvent[];
-  icon: LucideIcon;
-}) {
-  return (
-    <section className="evidence-detail-section">
-      <div className="evidence-detail-section-header">
-        <SectionHeading kicker={title} title={subtitle} icon={icon} />
-      </div>
-
-      {events.length === 0 ? (
-        <p className="evidence-detail-muted">No events recorded in the current API response.</p>
-      ) : (
-        <div className="evidence-detail-timeline">
-          {events.map((event) => (
-            <article key={`${event.sequence}-${event.eventType}`} className="evidence-detail-timeline-item">
-              <div className="evidence-detail-timeline-dot" aria-hidden="true" />
-              <div>
-                <div className="evidence-detail-item-row">
-                  <strong>{event.eventType.replace(/_/g, " ")}</strong>
-                  <span>{formatUserDateTime(event.atUtc)}</span>
-                </div>
-                <p>{event.payloadSummary || "No event summary recorded."}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function buildRiskSignals(sourceContext: SourceContext, alerts: ReviewerAlert[]) {
-  const signals = alerts.map((alert) => ({
-    severity: alert.severity,
-    title: alert.label,
-    detail: alert.detail,
-  }));
-
-  if (sourceContext.clientSignalsSummary.screenshotLikeStatus === "DETECTED") {
-    signals.push({
-      severity: "warning",
-      title: "Screenshot filename heuristic",
-      detail:
-        "Filename and client-metadata heuristic only. This is advisory, not image-forensic or AI proof.",
-    });
-  }
-
-  if (sourceContext.clientSignalsSummary.genericMime) {
-    signals.push({
-      severity: "info",
-      title: "Generic MIME type",
-      detail: "Generic file typing was recorded in client signals. Review source context separately.",
-    });
-  }
-
-  if (sourceContext.clientSignalsSummary.oldLastModified) {
-    signals.push({
-      severity: "warning",
-      title: "Old last-modified signal",
-      detail: "Client metadata indicates an older modification timestamp. This is advisory only.",
-    });
-  }
-
-  if (sourceContext.importedUpload) {
-    signals.push({
-      severity: "info",
-      title: "Imported upload",
-      detail:
-        "Imported upload means PROOVRA preserved the uploaded file and recorded integrity state. It does not independently prove original capture source.",
-    });
-  }
-
-  return signals;
-}
-
-// Phase 38.13 — wrap in canonical PageRouteGate inheriting from parent
-// `workspace.evidence` route.
 export default function EvidenceDetailPage() {
   return (
     <PageRouteGate routeId="workspace.evidence">
@@ -900,32 +112,12 @@ function EvidenceDetailPageInner() {
   const { addToast } = useToast();
   const evidenceId = params?.id ?? "";
 
-  // Phase IA-self-serve-completion — surface-tier gates. Each gate
-  // reflects whether the corresponding ENTERPRISE / PROFESSIONAL
-  // surface is accessible to the current user. For self-serve users
-  // these all default to `false`, which collapses the enterprise
-  // components on this page to nothing (or to a simplified
-  // self-serve replacement). For enterprise / platform-admin / team
-  // workspaces the gates return `true` and the existing components
-  // continue to render verbatim, so enterprise behaviour is preserved.
   const surfaceUserCtx = useSurfaceUserContext();
-  const canSeeReviewerOps = canAccessSurface(
-    surfaceUserCtx,
-    "/reviewer-ops",
-  );
+  const canSeeReviewerOps = canAccessSurface(surfaceUserCtx, "/reviewer-ops");
   const canSeeGovernance = canAccessSurface(surfaceUserCtx, "/governance");
-  const canSeeIntelligence = canAccessSurface(
-    surfaceUserCtx,
-    "/intelligence",
-  );
-  const canSeeIntakeLinks = canAccessSurface(
-    surfaceUserCtx,
-    "/intake-links",
-  );
+  const canSeeIntelligence = canAccessSurface(surfaceUserCtx, "/intelligence");
+  const canSeeIntakeLinks = canAccessSurface(surfaceUserCtx, "/intake-links");
 
-  // Phase C2 — deep-link initial tab from `?tab=discussion&thread=:id`.
-  // Inbox rows + topbar mention links land here; the initial tab must
-  // honor the explicit operator intent.
   const initialTab: EvidenceDetailTab = (() => {
     const raw = searchParams?.get("tab");
     switch (raw) {
@@ -942,6 +134,7 @@ function EvidenceDetailPageInner() {
     }
   })();
   const initialThreadId = searchParams?.get("thread") ?? null;
+
   const [activeTab, setActiveTab] = useState<EvidenceDetailTab>(initialTab);
   const [workspace, setWorkspace] = useState<ReviewWorkspaceResponse | null>(null);
   const [cases, setCases] = useState<CaseOption[]>([]);
@@ -977,31 +170,16 @@ function EvidenceDetailPageInner() {
   const [relationshipTargetId, setRelationshipTargetId] = useState("");
   const [relationshipType, setRelationshipType] = useState("RELATED");
   const [relationshipNote, setRelationshipNote] = useState("");
-  // Phase 28-H hotfix — eligibility badge is informational only. The
-  // download routes already run enforceSensitiveAction(...) server-side,
-  // which is the authoritative gate. Disable the button ONLY when the
-  // snapshot has loaded and reports a confirmed non-eligible decision.
-  // Loading / unknown / missing-teamId / 403 → leave the button enabled
-  // and let the backend respond.
   const [exportDisabled, setExportDisabled] = useState(false);
   const [packageDisabled, setPackageDisabled] = useState(false);
-  // Phase G3.2 — collision detection. `initialUpdatedAtUtc` is
-  // captured on the FIRST successful load and never moves; the
-  // CollisionWarning compares it against the freshest envelope.
-  const [initialUpdatedAtUtc, setInitialUpdatedAtUtc] = useState<
-    string | null
-  >(null);
-  // Phase 12 — intelligence projection (entities + extracted-text
-  // summaries) for the overview tab. The endpoint already exists; we
-  // simply display what it returns. `null` while loading or on
-  // permission-denied (collapses to empty-state copy).
-  const [intelligence, setIntelligence] =
-    useState<IntelligenceEvidenceResponse | null>(null);
+  const [initialUpdatedAtUtc, setInitialUpdatedAtUtc] = useState<string | null>(null);
+  const [intelligence, setIntelligence] = useState<IntelligenceEvidenceResponse | null>(null);
   const [intelligenceLoaded, setIntelligenceLoaded] = useState(false);
+  const [pollStartedAt, setPollStartedAt] = useState<number | null>(null);
+  const [stalePending, setStalePending] = useState(false);
 
   const loadWorkflowEvents = async () => {
     if (!evidenceId) return;
-
     setWorkflowEventsLoading(true);
     try {
       const response = (await apiFetch(`/v1/evidence/${evidenceId}/reviewer-workflow/events`)) as {
@@ -1015,7 +193,6 @@ function EvidenceDetailPageInner() {
           actor: { id: string; email: string | null; displayName: string | null } | null;
         }>;
       };
-
       setWorkflowEvents(Array.isArray(response.items) ? response.items : []);
     } catch (loadError) {
       captureException(loadError, {
@@ -1030,39 +207,27 @@ function EvidenceDetailPageInner() {
 
   const loadWorkspace = async () => {
     if (!evidenceId) return;
-
     setLoading(true);
     setError(null);
-
     try {
       const [workspaceResult, casesResult] = await Promise.allSettled([
         apiFetch(`/v1/evidence/${evidenceId}/review-workspace`),
         apiFetch("/v1/cases"),
       ]);
-
-      if (workspaceResult.status !== "fulfilled") {
-        throw workspaceResult.reason;
-      }
-
+      if (workspaceResult.status !== "fulfilled") throw workspaceResult.reason;
       const workspaceData = workspaceResult.value as ReviewWorkspaceResponse;
-
       setWorkspace(workspaceData);
-      // Phase G3.2 — capture the workflow updatedAt the first time
-      // the page loads. Subsequent reloads update `workspace` (which
-      // CollisionWarning treats as the current side); the initial
-      // side is the snapshot the operator opened with.
-      setInitialUpdatedAtUtc((prev) =>
-        prev ?? workspaceData.reviewWorkflow.updatedAt ?? null,
-      );
+      setInitialUpdatedAtUtc((prev) => prev ?? workspaceData.reviewWorkflow.updatedAt ?? null);
       setLabelDraft(workspaceData.evidence.displayTitle || workspaceData.evidence.title);
       setWorkflowStatusDraft(workspaceData.reviewWorkflow.status || "NOT_STARTED");
       setWorkflowPriorityDraft(workspaceData.reviewWorkflow.priority || "NORMAL");
       setWorkflowAssigneeDraft(workspaceData.reviewWorkflow.assignedTo?.id || "");
       setWorkflowDueAtDraft(
-        workspaceData.reviewWorkflow.dueAt ? workspaceData.reviewWorkflow.dueAt.slice(0, 16) : ""
+        workspaceData.reviewWorkflow.dueAt
+          ? workspaceData.reviewWorkflow.dueAt.slice(0, 16)
+          : "",
       );
       setWorkflowNoteDraft("");
-
       if (casesResult.status === "fulfilled") {
         const items = Array.isArray(casesResult.value?.items)
           ? (casesResult.value.items as CaseOption[])
@@ -1093,9 +258,6 @@ function EvidenceDetailPageInner() {
     void loadWorkflowEvents();
   }, [evidenceId]);
 
-  // Phase 12 — Hydrate the intelligence projection once the workspace
-  // is known. Bounded, single-shot fetch. Never blocks the rest of the
-  // page if the endpoint fails (collapses to empty state).
   useEffect(() => {
     const teamId = workspace?.reviewWorkflow?.teamId ?? null;
     if (!evidenceId || !teamId) return;
@@ -1111,65 +273,20 @@ function EvidenceDetailPageInner() {
     };
   }, [evidenceId, workspace?.reviewWorkflow?.teamId]);
 
-  // Phase 32.5 — Artifact-readiness polling.
-  //
-  // Background:
-  //   Evidence transitions to SIGNED synchronously at finalize time.
-  //   The report worker then runs asynchronously (~1-5s) and updates
-  //   evidence.status to REPORTED + creates the Report row.
-  //
-  //   Previously the page did a one-shot fetch on mount, so users
-  //   saw SIGNED state with disabled download buttons and had to
-  //   manually refresh to see REPORTED. That created the impression
-  //   "downloads are broken" — even though the routes worked.
-  //
-  // Fix:
-  //   Poll the side-effect-free /v1/evidence/:id/artifacts/status
-  //   endpoint every 3s while:
-  //     * evidence is finalized (SIGNED or REPORTED), AND
-  //     * either the report is still pending OR the verification
-  //       package is still pending.
-  //
-  //   When the polling sees the pending → ready transition, it
-  //   triggers a single loadWorkspace() so the page re-hydrates
-  //   with the new state + the download buttons enable.
-  //
-  // Side-effect contract:
-  //   The artifact-status endpoint NEVER creates custody events,
-  //   reviewer audit events, or download counters (verified by the
-  //   route's contract test). Polling it is safe.
-  //
-  //   Polling pauses when the tab is hidden (document.hidden) so
-  //   inactive tabs don't burn API calls.
-  // Phase CAPTURE-ARTIFACT-PIPELINE — stale-pending detection.
-  // The page polls /artifacts/status every 3s while the worker is
-  // expected to produce a report + package. In production the worker
-  // is always running. In local dev, the worker is a SEPARATE process
-  // (services/worker) and `pnpm dev` / `dev:web` / `dev:all` did not
-  // start it before this pass — see root package.json. If the worker
-  // is silently absent, the API will keep returning `pending: true`
-  // forever and the user sees an endless spinner with no explanation.
-  //
-  // After STALE_PENDING_AFTER_MS of polling without success, stop the
-  // loop and surface a "Generation is taking longer than expected"
-  // state with an explicit refresh action. This avoids:
-  //   - infinite polling burning API calls,
-  //   - the user not knowing the workflow stalled,
-  //   - silent dev-stack misconfiguration.
-  const [pollStartedAt, setPollStartedAt] = useState<number | null>(null);
-  const [stalePending, setStalePending] = useState(false);
+  // Phase 32.5 — Artifact-readiness polling. Identical contract to
+  // the pre-decomposition implementation. Side-effect-free endpoint
+  // (verified by the artifact-status route's contract test). The
+  // 60s stale window then surfaces an actionable state instead of
+  // looping forever.
   useEffect(() => {
     if (!evidenceId) return;
     if (!shouldPollArtifactReadiness(workspace)) {
-      // Reset the stale window when we're no longer expected to poll
-      // (e.g. caps changed, artifacts attached, or terminal state).
       setPollStartedAt(null);
       setStalePending(false);
       return;
     }
     const activeWorkspace = workspace;
     if (!activeWorkspace) return;
-    // First time the polling becomes eligible — stamp the window.
     if (pollStartedAt === null) setPollStartedAt(Date.now());
 
     let cancelled = false;
@@ -1186,10 +303,6 @@ function EvidenceDetailPageInner() {
       };
     };
 
-    // 60s window before surfacing the "taking too long" banner. After
-    // that we stop polling — the user can hit refresh manually once
-    // the underlying issue (worker offline, queue stalled, etc.) is
-    // resolved.
     const STALE_PENDING_AFTER_MS = 60_000;
 
     const pollOnce = async (): Promise<boolean> => {
@@ -1207,18 +320,12 @@ function EvidenceDetailPageInner() {
         priorPackageAvailable = packageNowAvailable;
         if (stateChanged) {
           await loadWorkspace();
-          // Progress made — reset stale window so subsequent slowness
-          // gets its own grace period.
           setPollStartedAt(Date.now());
           setStalePending(false);
         }
-        // Decide whether to keep polling.
         const reportStillPending = r.report?.pending === true;
         const packageStillPending = r.verificationPackage?.pending === true;
         const stillWaiting = reportStillPending || packageStillPending;
-        // Stale guard — if we've been waiting beyond the window
-        // without seeing progress, give up and surface the
-        // actionable state.
         const startedAt = pollStartedAt ?? Date.now();
         if (stillWaiting && Date.now() - startedAt > STALE_PENDING_AFTER_MS) {
           setStalePending(true);
@@ -1226,16 +333,12 @@ function EvidenceDetailPageInner() {
         }
         return stillWaiting;
       } catch {
-        // Best-effort. A transient network error keeps polling
-        // alive on the next tick; we never surface an error toast
-        // from the polling path.
         return true;
       }
     };
 
     let timer: ReturnType<typeof setInterval> | null = null;
     let shouldContinue = true;
-    // Kick the first poll immediately, then settle into the interval.
     void pollOnce().then((cont) => {
       if (cancelled) return;
       shouldContinue = cont;
@@ -1266,81 +369,39 @@ function EvidenceDetailPageInner() {
 
   const evidence = workspace?.evidence ?? null;
   const workspaceCaps = workspace?.workspaceCapabilitySnapshot ?? null;
+
   const publicVerificationState = useMemo(
-    () =>
-      workspace
-        ? describePublicVerificationState(workspace.publicVerificationSummary)
-        : null,
-    [workspace]
+    () => (workspace ? describePublicVerificationState(workspace.publicVerificationSummary) : null),
+    [workspace],
   );
   const otsStatusPresentation = useMemo(
     () => (workspace ? describeOtsStatus(workspace) : null),
-    [workspace]
+    [workspace],
   );
   const technicalReadinessSummary = useMemo(
     () => (workspace ? buildTechnicalReadinessSummary(workspace) : ""),
-    [workspace]
+    [workspace],
   );
-
   const reviewSignals = useMemo(
     () => (workspace ? buildRiskSignals(workspace.sourceContext, workspace.reviewerAlerts) : []),
-    [workspace]
+    [workspace],
   );
 
-  const reviewReadinessItems = useMemo(() => {
-    if (!workspace) return [];
-
-    return [
-      {
-        label: "Report artifact",
-        value: describeReportArtifactStatus(workspace.artifactStatus),
-      },
-      {
-        label: "Verification package",
-        value: describeVerificationPackageStatus(
-          workspace.artifactStatus,
-          workspaceCaps?.verificationPackageIncluded ?? false
-        ),
-      },
-      {
-        label: "Public verification",
-        value: publicVerificationState?.label ?? "State unavailable",
-      },
-      {
-        label: "Case assignment",
-        value: workspace.relationships.caseName || "Unassigned",
-      },
-    ];
-  }, [publicVerificationState, workspace, workspaceCaps]);
-
+  // Phase 4 — single consolidated metadata grid for the Overview
+  // "Record summary" card. Same fields the previous two-panel
+  // layout exposed, in one place.
   const overviewMetadataItems = useMemo(() => {
     if (!workspace) return [];
-
     return [
-      {
-        label: "Created",
-        value: formatUserDateTime(workspace.evidence.createdAt),
-      },
+      { label: "Created", value: formatUserDateTime(workspace.evidence.createdAt) },
       {
         label: "Captured",
         value: formatValue(formatUserDateTime(workspace.evidence.capturedAtUtc)),
       },
-      {
-        label: "MIME type",
-        value: workspace.evidence.mimeType || "Not recorded",
-      },
-      {
-        label: "File size",
-        value: formatBytes(workspace.evidence.sizeBytes),
-      },
-      {
-        label: "Workspace",
-        value: workspaceCaps?.workspaceName || "Not recorded",
-      },
-      {
-        label: "Case",
-        value: workspace.relationships.caseName || "Unassigned",
-      },
+      { label: "MIME type", value: workspace.evidence.mimeType || "Not recorded" },
+      { label: "File size", value: formatBytes(workspace.evidence.sizeBytes) },
+      { label: "Workspace", value: workspaceCaps?.workspaceName || "Not recorded" },
+      { label: "Case", value: workspace.relationships.caseName || "Unassigned" },
       {
         label: "Review workflow",
         value: workspace.reviewWorkflow.status
@@ -1357,9 +418,33 @@ function EvidenceDetailPageInner() {
     ];
   }, [workspace, workspaceCaps]);
 
+  const reviewReadinessItems = useMemo(() => {
+    if (!workspace) return [];
+    return [
+      {
+        label: "Report artifact",
+        value: describeReportArtifactStatus(workspace.artifactStatus),
+      },
+      {
+        label: "Verification package",
+        value: describeVerificationPackageStatus(
+          workspace.artifactStatus,
+          workspaceCaps?.verificationPackageIncluded ?? false,
+        ),
+      },
+      {
+        label: "Public verification",
+        value: publicVerificationState?.label ?? "State unavailable",
+      },
+      {
+        label: "Case assignment",
+        value: workspace.relationships.caseName || "Unassigned",
+      },
+    ];
+  }, [publicVerificationState, workspace, workspaceCaps]);
+
   const saveWorkflow = async () => {
     if (!evidenceId) return;
-
     setActionBusy(true);
     try {
       await apiFetch(`/v1/evidence/${evidenceId}/reviewer-workflow`, {
@@ -1372,7 +457,6 @@ function EvidenceDetailPageInner() {
           note: workflowNoteDraft || null,
         }),
       });
-
       addToast("Reviewer workflow updated", "success");
       setWorkflowOpen(false);
       await Promise.all([loadWorkspace(), loadWorkflowEvents()]);
@@ -1381,7 +465,10 @@ function EvidenceDetailPageInner() {
         feature: "web_evidence_workflow_update",
         evidenceId,
       });
-      addToast(saveError instanceof Error ? saveError.message : "Failed to update workflow", "error");
+      addToast(
+        saveError instanceof Error ? saveError.message : "Failed to update workflow",
+        "error",
+      );
     } finally {
       setActionBusy(false);
     }
@@ -1389,7 +476,6 @@ function EvidenceDetailPageInner() {
 
   const saveRelationship = async () => {
     if (!evidenceId || !relationshipTargetId) return;
-
     setActionBusy(true);
     try {
       await apiFetch(`/v1/evidence/${evidenceId}/relationships`, {
@@ -1400,7 +486,6 @@ function EvidenceDetailPageInner() {
           note: relationshipNote || null,
         }),
       });
-
       addToast("Relationship recorded", "success");
       setRelationshipOpen(false);
       setRelationshipTargetId("");
@@ -1412,24 +497,22 @@ function EvidenceDetailPageInner() {
         feature: "web_evidence_relationship_create",
         evidenceId,
       });
-      addToast(saveError instanceof Error ? saveError.message : "Failed to create relationship", "error");
+      addToast(
+        saveError instanceof Error ? saveError.message : "Failed to create relationship",
+        "error",
+      );
     } finally {
       setActionBusy(false);
     }
   };
 
-  // Phase 2.1 — Evidence relationship removal. The DELETE endpoint
-  // already existed (services/api/src/routes/evidence.routes.ts:6739)
-  // with full audit emission, but had no UI affordance. Confirmation
-  // is done in the child component before this handler fires.
   const handleRemoveRelationship = async (relationshipId: string) => {
     if (!evidenceId) return;
     setActionBusy(true);
     try {
-      await apiFetch(
-        `/v1/evidence/${evidenceId}/relationships/${relationshipId}`,
-        { method: "DELETE" },
-      );
+      await apiFetch(`/v1/evidence/${evidenceId}/relationships/${relationshipId}`, {
+        method: "DELETE",
+      });
       addToast("Relationship removed", "success");
       await loadWorkspace();
     } catch (deleteError) {
@@ -1439,9 +522,7 @@ function EvidenceDetailPageInner() {
         relationshipId,
       });
       addToast(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Failed to remove relationship",
+        deleteError instanceof Error ? deleteError.message : "Failed to remove relationship",
         "error",
       );
     } finally {
@@ -1451,14 +532,12 @@ function EvidenceDetailPageInner() {
 
   const handleSaveLabel = async () => {
     if (!evidenceId || !labelDraft.trim()) return;
-
     setActionBusy(true);
     try {
       await apiFetch(`/v1/evidence/${evidenceId}/label`, {
         method: "PATCH",
         body: JSON.stringify({ label: labelDraft.trim() }),
       });
-
       setEditingLabel(false);
       addToast("Evidence label updated", "success");
       await loadWorkspace();
@@ -1467,7 +546,10 @@ function EvidenceDetailPageInner() {
         feature: "web_evidence_detail_update_label",
         evidenceId,
       });
-      addToast(updateError instanceof Error ? updateError.message : "Failed to update label", "error");
+      addToast(
+        updateError instanceof Error ? updateError.message : "Failed to update label",
+        "error",
+      );
     } finally {
       setActionBusy(false);
     }
@@ -1475,19 +557,16 @@ function EvidenceDetailPageInner() {
 
   const openOriginal = async () => {
     if (!evidenceId) return;
-
     try {
       const data = (await apiFetch(`/v1/evidence/${evidenceId}/original`)) as {
         url?: string | null;
         publicUrl?: string | null;
       };
-
       const url = data.publicUrl ?? data.url ?? null;
       if (!url) {
         addToast("Original file not available", "info");
         return;
       }
-
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (openError) {
       addToast("Failed to open original", "error");
@@ -1497,60 +576,55 @@ function EvidenceDetailPageInner() {
 
   const downloadOriginal = async () => {
     if (!evidenceId) return;
-
     try {
       const data = (await apiFetch(`/v1/evidence/${evidenceId}/original`)) as {
         url?: string | null;
         publicUrl?: string | null;
         originalFileName?: string | null;
       };
-
       const url = data.url ?? data.publicUrl ?? null;
       if (!url) {
         addToast("Original file not available", "info");
         return;
       }
-
       const ok = await tryDownloadFile(url, data.originalFileName || `evidence-${evidenceId}`);
-      if (!ok) {
-        window.open(url, "_blank", "noopener,noreferrer");
-      }
-
+      if (!ok) window.open(url, "_blank", "noopener,noreferrer");
       addToast("Original downloaded", "success");
     } catch (downloadError) {
       addToast("Failed to download original", "error");
-      captureException(downloadError, { feature: "web_evidence_download_original", evidenceId });
+      captureException(downloadError, {
+        feature: "web_evidence_download_original",
+        evidenceId,
+      });
     }
   };
 
   const downloadReport = async () => {
     if (!evidenceId || !workspaceCaps) return;
-
     if (!workspaceCaps.reportsIncluded) {
       addToast("PDF reports are not included on the current workspace plan", "info");
       return;
     }
-
     try {
       const data = (await apiFetch(`/v1/evidence/${evidenceId}/report/latest`)) as {
         url?: string | null;
       };
-
       if (!data.url) {
         addToast("Report not available", "info");
         return;
       }
-
       window.open(data.url, "_blank", "noopener,noreferrer");
     } catch (downloadError) {
       addToast("Failed to download report", "error");
-      captureException(downloadError, { feature: "web_evidence_download_report", evidenceId });
+      captureException(downloadError, {
+        feature: "web_evidence_download_report",
+        evidenceId,
+      });
     }
   };
 
   const downloadVerificationPackage = async () => {
     if (!evidenceId || !workspaceCaps) return;
-
     if (!workspaceCaps.verificationPackageIncluded) {
       addToast(
         "Verification packages are not included on the current workspace plan",
@@ -1558,26 +632,7 @@ function EvidenceDetailPageInner() {
       );
       return;
     }
-
-    // Phase 32.6.4 — map the backend's Phase 32.6.1 state machine
-    // onto bounded, enterprise-safe user-facing messages.
-    //
-    // Backend status codes (services/api/src/routes/evidence.routes.ts):
-    //   200 → { url, version, ... }                         → download
-    //   202 verification_package_pending                    → "still being generated"
-    //   403 PACKAGE_BLOCKED_BY_POLICY                       → "blocked by governance policy"
-    //   404 verification_package_not_found                  → "not found"
-    //   409 verification_package_blocked                    → "blocked by governance policy"
-    //   410 verification_package_unavailable                → "unavailable for this workspace context"
-    //   503 GOVERNANCE_CHECK_FAILED                         → "governance check temporarily unavailable"
-    //
-    // We deliberately do NOT expose `reason`, `outcome`, `blockedAtUtc`,
-    // signed URLs, bucket names, or any other internal storage detail.
-    // Backend is authoritative.
     try {
-      // The 200 path returns a JSON body containing `url`. The 202
-      // path also returns 2xx (so `apiFetch` resolves) but with no
-      // `url` — instead it carries `{ code, message }`.
       const data = (await apiFetch(
         `/v1/evidence/${evidenceId}/verification-package`,
       )) as {
@@ -1585,19 +640,14 @@ function EvidenceDetailPageInner() {
         code?: string | null;
         message?: string | null;
       };
-
       if (data && typeof data.url === "string" && data.url.length > 0) {
         const ok = await tryDownloadFile(
           data.url,
           `verification-package-${evidenceId}.zip`,
         );
-        if (!ok) {
-          window.open(data.url, "_blank", "noopener,noreferrer");
-        }
+        if (!ok) window.open(data.url, "_blank", "noopener,noreferrer");
         return;
       }
-
-      // 2xx without a URL — most likely a 202 "pending" body.
       if (data && data.code === "verification_package_pending") {
         addToast(
           "Verification package is still being generated. Retry shortly.",
@@ -1605,10 +655,6 @@ function EvidenceDetailPageInner() {
         );
         return;
       }
-
-      // Defensive: a 2xx with neither url nor pending code should
-      // never reach us under the current backend contract, but we
-      // still surface a bounded message rather than a hang.
       addToast("Verification package is temporarily unavailable.", "info");
     } catch (downloadError) {
       const e = downloadError as {
@@ -1617,21 +663,16 @@ function EvidenceDetailPageInner() {
         requestId?: string;
         message?: string;
       };
-
       let userMessage = "Unable to download verification package.";
       let tone: "info" | "error" = "error";
-
-      // Map by code first (more specific than status), then by status.
       switch (e?.code) {
         case "verification_package_pending":
-          userMessage =
-            "Verification package is still being generated. Retry shortly.";
+          userMessage = "Verification package is still being generated. Retry shortly.";
           tone = "info";
           break;
         case "verification_package_blocked":
         case "PACKAGE_BLOCKED_BY_POLICY":
-          userMessage =
-            "Verification package is blocked by governance policy.";
+          userMessage = "Verification package is blocked by governance policy.";
           tone = "info";
           break;
         case "verification_package_unavailable":
@@ -1645,20 +686,17 @@ function EvidenceDetailPageInner() {
           break;
         case "GOVERNANCE_CHECK_FAILED":
         case "governance_schema_unavailable":
-          userMessage =
-            "Governance check is temporarily unavailable. Retry shortly.";
+          userMessage = "Governance check is temporarily unavailable. Retry shortly.";
           tone = "info";
           break;
         default:
-          // Fall through to status-based mapping.
           switch (e?.statusCode) {
             case 401:
               userMessage = "Sign-in required to download this package.";
               tone = "info";
               break;
             case 403:
-              userMessage =
-                "Verification package is blocked by governance policy.";
+              userMessage = "Verification package is blocked by governance policy.";
               tone = "info";
               break;
             case 404:
@@ -1666,8 +704,7 @@ function EvidenceDetailPageInner() {
               tone = "info";
               break;
             case 409:
-              userMessage =
-                "Verification package is blocked by governance policy.";
+              userMessage = "Verification package is blocked by governance policy.";
               tone = "info";
               break;
             case 410:
@@ -1685,13 +722,7 @@ function EvidenceDetailPageInner() {
               tone = "error";
           }
       }
-
       addToast(userMessage, tone);
-
-      // Only surface a Sentry breadcrumb for genuinely unexpected
-      // failures (network / parsing / 5xx that aren't the bounded
-      // governance-unavailable case). The bounded governance / state
-      // codes are expected operator-visible signals, not bugs.
       const isExpectedBoundedSignal =
         e?.code === "verification_package_pending" ||
         e?.code === "verification_package_blocked" ||
@@ -1705,7 +736,6 @@ function EvidenceDetailPageInner() {
         e?.statusCode === 404 ||
         e?.statusCode === 409 ||
         e?.statusCode === 410;
-
       if (!isExpectedBoundedSignal) {
         captureException(downloadError, {
           feature: "web_evidence_download_verification_package",
@@ -1717,24 +747,27 @@ function EvidenceDetailPageInner() {
 
   const copyShareLink = async () => {
     const url = buildPublishedVerificationUrl(workspace?.publicVerificationSummary);
-
     if (!url) {
-      addToast("Public verification link is only available when publication state is PUBLISHED", "info");
+      addToast(
+        "Public verification link is only available when publication state is PUBLISHED",
+        "info",
+      );
       return;
     }
-
     try {
       await navigator.clipboard.writeText(url);
       addToast("Verification link copied", "success");
     } catch (copyError) {
       addToast("Failed to copy verification link", "error");
-      captureException(copyError, { feature: "web_evidence_copy_share_link", evidenceId });
+      captureException(copyError, {
+        feature: "web_evidence_copy_share_link",
+        evidenceId,
+      });
     }
   };
 
   const runRecordAction = async (path: string, successMessage: string) => {
     if (!evidenceId) return;
-
     setActionBusy(true);
     try {
       await apiFetch(path, { method: "POST", body: JSON.stringify({}) });
@@ -1742,7 +775,11 @@ function EvidenceDetailPageInner() {
       await loadWorkspace();
     } catch (runError) {
       addToast(runError instanceof Error ? runError.message : "Action failed", "error");
-      captureException(runError, { feature: "web_evidence_record_action", evidenceId, path });
+      captureException(runError, {
+        feature: "web_evidence_record_action",
+        evidenceId,
+        path,
+      });
     } finally {
       setActionBusy(false);
     }
@@ -1750,7 +787,6 @@ function EvidenceDetailPageInner() {
 
   const moveToTrash = async () => {
     if (!evidenceId) return;
-
     setActionBusy(true);
     try {
       await apiFetch(`/v1/evidence/${evidenceId}`, { method: "DELETE" });
@@ -1766,14 +802,12 @@ function EvidenceDetailPageInner() {
 
   const restoreTrash = async () => {
     if (!evidenceId) return;
-
     setActionBusy(true);
     try {
       await apiFetch(`/v1/evidence/${evidenceId}/restore`, {
         method: "POST",
         body: JSON.stringify({ restore: true }),
       });
-
       addToast("Evidence restored from trash", "success");
       await loadWorkspace();
     } catch (runError) {
@@ -1786,19 +820,20 @@ function EvidenceDetailPageInner() {
 
   const assignCase = async () => {
     if (!evidenceId || !selectedCaseId) return;
-
     setActionBusy(true);
     try {
       await apiFetch(`/v1/cases/${selectedCaseId}/evidence`, {
         method: "POST",
         body: JSON.stringify({ evidenceId }),
       });
-
       addToast("Evidence added to case", "success");
       setAssignCaseOpen(false);
       await loadWorkspace();
     } catch (runError) {
-      addToast(runError instanceof Error ? runError.message : "Assignment failed", "error");
+      addToast(
+        runError instanceof Error ? runError.message : "Assignment failed",
+        "error",
+      );
       captureException(runError, { feature: "web_evidence_assign_case", evidenceId });
     } finally {
       setActionBusy(false);
@@ -1807,13 +842,11 @@ function EvidenceDetailPageInner() {
 
   const removeCase = async () => {
     if (!evidenceId || !workspace?.relationships.caseId) return;
-
     setActionBusy(true);
     try {
       await apiFetch(`/v1/cases/${workspace.relationships.caseId}/evidence/${evidenceId}`, {
         method: "DELETE",
       });
-
       addToast("Evidence removed from case", "success");
       await loadWorkspace();
     } catch (runError) {
@@ -1839,10 +872,6 @@ function EvidenceDetailPageInner() {
       <div className="evidence-detail-page">
         <div className="evidence-detail-shell">
           <section className="evidence-detail-section evidence-detail-error-card">
-            {/* Phase IA-self-serve-completion — "Evidence Review
-                Workspace" eyebrow + body sentence simplified to plain
-                language. The page still loads the same data; only the
-                error-state copy changed. */}
             <p className="evidence-detail-kicker">Evidence record</p>
             <h1>Unable to load the record</h1>
             <p>{error || "This evidence record is unavailable right now."}</p>
@@ -1858,35 +887,78 @@ function EvidenceDetailPageInner() {
   const preservation = workspace.preservationMatrix;
   const trustDecision = workspace.artifactVersions.trustDecision;
   const shareUrl = buildPublishedVerificationUrl(workspace.publicVerificationSummary);
-
-  // Phase A0 — integrity hard-gate exposure. The terminal state set
-  // by the worker when a recomputed SHA-256 disagreed with the value
-  // recorded at completion. We disable every report / package /
-  // share / publish action and render an operationally-specific
-  // banner. The status pill above already renders with the "danger"
-  // tone via the existing `pillTone()` helper.
   const isIntegrityFailed = evidence.status === "FAILED_HASH_MISMATCH";
   const showManualLatestStatusCheck =
     workspace.artifactStatus.report.available &&
     workspace.artifactStatus.verificationPackage.available &&
     !isOtsTerminal(workspace.preservationMatrix.ots.effectiveStatus);
 
+  const canSeeDiscussion =
+    workspaceCaps?.discussionEnabled === true ||
+    workspaceCaps?.discussionReadOnly === true;
+  const visibleTabs = DETAIL_TABS.filter(
+    (t) => !(t.id === "discussion" && !canSeeDiscussion),
+  );
+
+  // Single context bag passed into every tab. Adding a new field
+  // here costs one assignment + one type entry in `_lib.tsx`.
+  const ctx: EvidenceDetailCtx = {
+    workspace,
+    evidence,
+    workspaceCaps,
+    preservation,
+    trustDecision,
+    evidenceId,
+    publicVerificationState,
+    otsStatusPresentation,
+    technicalReadinessSummary,
+    reviewSignals,
+    reviewReadinessItems,
+    overviewMetadataItems,
+    shareUrl,
+    isIntegrityFailed,
+    showManualLatestStatusCheck,
+    initialThreadId,
+    canSeeReviewerOps,
+    canSeeGovernance,
+    canSeeIntelligence,
+    canSeeIntakeLinks,
+    intelligence,
+    intelligenceLoaded,
+    workflowEvents,
+    workflowEventsLoading,
+    actionBusy,
+    stalePending,
+    setStalePending,
+    setPollStartedAt,
+    loadWorkspace,
+    loadWorkflowEvents,
+    openOriginal,
+    downloadOriginal,
+    downloadReport,
+    downloadVerificationPackage,
+    runRecordAction,
+    restoreTrash,
+    removeCase,
+    handleRemoveRelationship,
+    setSelectedCaseId,
+    setAssignCaseOpen,
+    setArchiveOpen,
+    setTrashOpen,
+    setWorkflowOpen,
+    setRelationshipOpen,
+    routerPush: (href: string) => router.push(href),
+  };
+
   return (
     <div className="evidence-detail-page">
       <div className="evidence-detail-shell">
         {workspace.reviewWorkflow?.teamId ? (
-          // Phase 32.7 — scope to the core_evidence domain so a
-          // degraded reviewer/search/governance subsystem doesn't
-          // poison the evidence detail page.
           <RuntimeStatusBanner
             teamId={workspace.reviewWorkflow.teamId}
             forDomains={["core_evidence"]}
           />
         ) : null}
-        {/* Phase G3.2 — Presence + collision wiring. PresenceIndicator
-            polls every 30s; CollisionWarning fires when another
-            operator's mutation moves the workflow updatedAt past the
-            snapshot the operator opened with. */}
         {workspace.reviewWorkflow?.teamId ? (
           <div
             style={{
@@ -1931,14 +1003,19 @@ function EvidenceDetailPageInner() {
               Integrity check failed
             </strong>
             <span style={{ fontSize: 13, lineHeight: 1.5 }}>
-              The uploaded file&rsquo;s SHA-256 does not match the
-              recomputed server-side fingerprint. This evidence record
-              cannot be used. Re-upload or recapture the source
-              material as a new evidence record. The original record is
-              preserved for forensic inspection.
+              The uploaded file&rsquo;s SHA-256 does not match the recomputed
+              server-side fingerprint. This evidence record cannot be used. Re-upload or
+              recapture the source material as a new evidence record. The original
+              record is preserved for forensic inspection.
             </span>
           </aside>
         ) : null}
+
+        {/* LAYER 1 — Hero. Title, status pills, legal boundary, and
+            the five canonical actions (Download Report PDF / Download
+            Verification Package ZIP / Copy verification link / Lock /
+            Edit label). The legal boundary statement is rendered
+            verbatim from the backend; copy is not altered here. */}
         <section className="evidence-detail-hero">
           <div className="evidence-detail-hero-main">
             <button
@@ -1950,17 +1027,18 @@ function EvidenceDetailPageInner() {
               <span>Evidence Library</span>
             </button>
 
-            {/* Phase IA-self-serve-completion — "Evidence Review &
-                Defensibility Workspace" is litigation-team
-                vocabulary. Renamed to plain-language "Evidence
-                record". Enterprise users still see the same page; the
-                eyebrow just no longer reads as a service line. */}
             <p className="evidence-detail-kicker">Evidence record</p>
 
             {editingLabel ? (
               <div className="evidence-detail-label-edit">
-                <input value={labelDraft} onChange={(event) => setLabelDraft(event.target.value)} />
-                <Button onClick={() => void handleSaveLabel()} disabled={actionBusy || !labelDraft.trim()}>
+                <input
+                  value={labelDraft}
+                  onChange={(event) => setLabelDraft(event.target.value)}
+                />
+                <Button
+                  onClick={() => void handleSaveLabel()}
+                  disabled={actionBusy || !labelDraft.trim()}
+                >
                   Save label
                 </Button>
                 <Button variant="secondary" onClick={() => setEditingLabel(false)}>
@@ -1973,15 +1051,19 @@ function EvidenceDetailPageInner() {
 
             <p className="evidence-detail-subtitle">
               {evidence.displayDescription ||
-                "Authoritative reviewer workspace for preserved evidence content, technical verification, custody chronology, export readiness, and internal review context."}
+                "Reviewer workspace for preserved evidence content, verification, custody chronology, export readiness, and review context."}
             </p>
 
             <div className="evidence-detail-hero-meta">
               <span className={`evidence-detail-pill ${pillTone(evidence.status)}`}>
                 {evidence.status.replace(/_/g, " ")}
               </span>
-              <span className="evidence-detail-pill neutral">{workspace.classification.evidenceTypeLabel}</span>
-              <span className="evidence-detail-pill neutral">Record {shortId(evidence.id)}</span>
+              <span className="evidence-detail-pill neutral">
+                {workspace.classification.evidenceTypeLabel}
+              </span>
+              <span className="evidence-detail-pill neutral">
+                Record {shortId(evidence.id)}
+              </span>
               <span className="evidence-detail-pill neutral">
                 {workspace.relationships.multipart
                   ? `${workspace.relationships.itemCount} items`
@@ -2024,10 +1106,6 @@ function EvidenceDetailPageInner() {
               onClick={() => void downloadReport()}
               disabled={exportDisabled || isIntegrityFailed}
             >
-              {/* Phase A2 — disambiguated label. The downloadable
-                  artifact behind this button is the Report PDF
-                  specifically (a separate file from the Verification
-                  Package ZIP). */}
               Download Report PDF
             </Button>
             <Button
@@ -2060,1238 +1138,72 @@ function EvidenceDetailPageInner() {
           </div>
         </section>
 
-        {(() => {
-          // Phase DISCUSSION-CAPABILITY-FIX — Discussion tab visibility
-          // is now driven by a backend-computed capability flag on
-          // `WorkspaceCapabilitySnapshot`. We MUST NOT infer
-          // visibility from `workspaceType`, `teamId`, or active
-          // member counts — those signals are brittle now that
-          // personal workspaces carry a synthetic personal-team UUID
-          // (see memory: home-zero-data-root-cause).
-          //
-          //   discussionEnabled  — caller can read AND post.
-          //   discussionReadOnly — caller can read existing history
-          //                        only (composer hidden). Used when
-          //                        the workspace no longer qualifies
-          //                        for writable discussion but
-          //                        coordination history exists and
-          //                        must remain accessible.
-          //
-          // See services/api/src/routes/evidence.routes.ts
-          // `computeDiscussionCapability` for the source-of-truth
-          // rule.
-          const canSeeDiscussion =
-            workspaceCaps?.discussionEnabled === true ||
-            workspaceCaps?.discussionReadOnly === true;
-          const visibleTabs = DETAIL_TABS.filter(
-            (t) => !(t.id === "discussion" && !canSeeDiscussion),
-          );
-          return (
-            <nav
-              className="evidence-detail-tabs"
-              aria-label="Evidence detail sections"
-              data-evidence-tabs-visible-count={visibleTabs.length}
+        {/* Phase 3 — "What needs attention" strip directly below the
+            hero. Users must immediately see "is there a problem?"
+            before any tab body renders. Shows top 3 risk signals,
+            unassigned case, missing reviewer, missing report, missing
+            package. Compact: hidden when there is nothing to act on. */}
+        <WhatNeedsAttentionStrip
+          ctx={ctx}
+          onAssignCase={() => {
+            setSelectedCaseId(workspace.relationships.caseId || "");
+            setAssignCaseOpen(true);
+          }}
+          onAssignReviewer={() => setWorkflowOpen(true)}
+          onGoToArtifacts={() => setActiveTab("artifacts")}
+          onGoToReview={() => setActiveTab("review")}
+        />
+
+        <nav
+          className="evidence-detail-tabs"
+          aria-label="Evidence detail sections"
+          data-evidence-tabs-visible-count={visibleTabs.length}
+        >
+          {visibleTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`evidence-detail-tab ${activeTab === tab.id ? "is-active" : ""}`}
+              onClick={() => setActiveTab(tab.id)}
+              aria-pressed={activeTab === tab.id}
+              data-evidence-tab={tab.id}
             >
-              {visibleTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  className={`evidence-detail-tab ${activeTab === tab.id ? "is-active" : ""}`}
-                  onClick={() => setActiveTab(tab.id)}
-                  aria-pressed={activeTab === tab.id}
-                  data-evidence-tab={tab.id}
-                >
-                  <tab.icon size={15} strokeWidth={2.1} aria-hidden="true" />
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
-          );
-        })()}
+              <tab.icon size={15} strokeWidth={2.1} aria-hidden="true" />
+              {tab.label}
+            </button>
+          ))}
+        </nav>
 
         <div className="evidence-detail-layout">
           <main className="evidence-detail-main">
-            {activeTab === "overview" ? (
-              <>
-                {/* Phase G3 (G2.x closure) — Evidence governance
-                    summary mount. The Phase G1 GovernanceSummary
-                    component aggregates lifecycle / retention / holds
-                    / destruction / export eligibility into one
-                    deterministic block. Existing LifecycleIndicators
-                    + GovernanceSnapshotPanel below are retained for
-                    backward compatibility — they surface
-                    domain-specific drill-down that the summary's
-                    bounded row list does not.
-
-                    Phase IA-self-serve-completion — the entire
-                    governance trio (Summary + Indicators + Snapshot)
-                    is gated on canSeeGovernance. Self-serve users see
-                    nothing (their storage protection is surfaced in
-                    the existing Retention & Compliance grid lower on
-                    the page). Enterprise / platform-admin /
-                    enterprise-workspace users continue to see all
-                    three components verbatim. */}
-                {canSeeGovernance ? (
-                  <>
-                    <GovernanceSummary variant="evidence" />
-                    <GovernanceIndicators
-                      evidenceId={evidenceId}
-                      teamId={workspace.reviewWorkflow?.teamId ?? null}
-                    />
-                    {workspace.reviewWorkflow?.teamId ? (
-                      <GovernanceSnapshotPanel
-                        evidenceId={evidenceId}
-                        teamId={workspace.reviewWorkflow.teamId}
-                      />
-                    ) : null}
-                  </>
-                ) : null}
-                <ExternalIntakeSourceCard evidenceId={evidenceId} />
-                {/* Phase IA-self-serve-completion — the external
-                    evidence-request panel is gated on intake-links
-                    eligibility. /intake-links is PROFESSIONAL, so
-                    FREE / PAYG users no longer see the "Request
-                    additional evidence" workflow. PRO / TEAM /
-                    enterprise users continue to see it. */}
-                {canSeeIntakeLinks ? (
-                  <EvidenceRequestPanel
-                    evidenceId={evidenceId}
-                    teamId={workspace.reviewWorkflow?.teamId ?? null}
-                  />
-                ) : null}
-                {/* Phase CAPTURE-DETAIL-WIRING — capture template
-                    summary. The intakePlanJson was previously
-                    persisted at finalize-time and is exposed by
-                    /v1/evidence/:id/review-workspace but had no UI
-                    surface. Without it the reviewer cannot see which
-                    template the capturer used or whether every
-                    required step was satisfied. */}
-                <CaptureTemplateCard
-                  intakePlanJson={workspace.evidence.intakePlanJson ?? null}
-                  contentItems={workspace.evidence.contentItems ?? []}
-                />
-                {/* Phase CAPTURE-NOTE-OVERVIEW-FIX (P0 Bug 3) — the
-                    record-level capture private note was rendered
-                    ONLY on the Review tab. After finalize the user
-                    lands on Overview and looked for the note where
-                    they wrote it; finding nothing, they concluded
-                    the note was lost. Surface the same string here
-                    too with a clear "Capture note" label + the
-                    privacy disclaimer the Capture sidebar promised,
-                    so the user sees their note immediately on
-                    landing. (The Review-tab surface stays — it is
-                    the canonical edit-context spot.) */}
-                {evidence.internalNotes ? (
-                  <section
-                    className="evidence-detail-section"
-                    data-evidence-section="capture-note"
-                  >
-                    <div className="evidence-detail-section-header">
-                      <h3 style={{ margin: 0, fontSize: 14, fontWeight: 650 }}>
-                        Capture note (private)
-                      </h3>
-                    </div>
-                    <p style={{ margin: "4px 0 8px 0", whiteSpace: "pre-wrap" }}>
-                      {evidence.internalNotes}
-                    </p>
-                    <p className="evidence-detail-muted" style={{ fontSize: 12 }}>
-                      Visible only inside the authenticated app. Excluded
-                      from public verification, the fixed PDF report, and
-                      the verification package.
-                    </p>
-                  </section>
-                ) : null}
-                <section className="evidence-detail-section">
-                  <div className="evidence-detail-section-header">
-                    <SectionHeading
-                      kicker="Overview"
-                      title="Technical review readiness"
-                      icon={ClipboardCheck}
-                    />
-                  </div>
-
-                  <p>{technicalReadinessSummary}</p>
-
-                  <div className="evidence-detail-overview-grid">
-                    <div className="evidence-detail-overview-panel">
-                      <p className="evidence-detail-kicker">Technical Review Readiness</p>
-                      <KeyValueGrid items={reviewReadinessItems} />
-                    </div>
-
-                    <div className="evidence-detail-overview-panel">
-                      <p className="evidence-detail-kicker">Verification Proof</p>
-                      <KeyValueGrid
-                        items={[
-                          {
-                            label: "Integrity",
-                            value: preservation.verificationStatusLabel,
-                          },
-                          {
-                            label: "Custody chain",
-                            value: preservation.custodyChain.valid
-                              ? "Chain continuity recorded"
-                              : "Review required",
-                          },
-                          {
-                            label: "Signature",
-                            value: preservation.signature.valid
-                              ? "Signature applied and validated"
-                              : preservation.signature.recorded
-                                ? "Signature recorded"
-                                : "Not recorded",
-                          },
-                          {
-                            label: "OTS",
-                            value: otsStatusPresentation?.label ?? "Not configured",
-                          },
-                        ]}
-                      />
-                    </div>
-                  </div>
-
-                  {workspace.reviewDecision.nextActions.length > 0 ? (
-                    <div className="evidence-detail-note-box">
-                      <strong>Recommended next actions</strong>
-                      <ul className="evidence-detail-flat-list">
-                        {workspace.reviewDecision.nextActions.map((item) => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                </section>
-
-                <PreviewWorkspace
-                  workspace={workspace}
-                  onOpenOriginal={() => void openOriginal()}
-                  onDownloadOriginal={() => void downloadOriginal()}
-                />
-
-                <section className="evidence-detail-section">
-                  <div className="evidence-detail-section-header">
-                    <SectionHeading
-                      kicker="Core Metadata"
-                      title="Record state at a glance"
-                      icon={FileText}
-                    />
-                  </div>
-                  <KeyValueGrid items={overviewMetadataItems} />
-                </section>
-
-                {/* Phase 12 — Intelligence projection. Surfaces the
-                    extracted entities (OCR + transcript) and the
-                    OCR/transcript availability summaries that Phase 11
-                    already writes. Reads the existing
-                    /v1/intelligence/evidence/:id endpoint.
-
-                    Phase IA-self-serve-completion — gated on
-                    canSeeIntelligence. Self-serve users (whose plan
-                    does not include the intelligence / entity-
-                    extraction surface) do not see this section. The
-                    underlying endpoint stays available for enterprise
-                    users; only the UI mount is plan-gated. The empty
-                    state also drops the "Phase 11 wiring" reference
-                    that leaked internal roadmap to end users. */}
-                {canSeeIntelligence ? (
-                <section className="evidence-detail-section">
-                  <div className="evidence-detail-section-header">
-                    <SectionHeading
-                      kicker="Extracted content"
-                      title="Entities and content summaries"
-                      icon={FileText}
-                    />
-                  </div>
-                  {!intelligenceLoaded ? (
-                    <p className="evidence-detail-muted">
-                      Loading extracted entity summary…
-                    </p>
-                  ) : (
-                    <>
-                      <EntityChipGroup
-                        entities={intelligence?.entities ?? []}
-                        emptyMessage="No entities have been extracted from this record yet."
-                      />
-                      <div
-                        style={{
-                          marginTop: 12,
-                          display: "grid",
-                          gridTemplateColumns:
-                            "repeat(auto-fill, minmax(220px, 1fr))",
-                          gap: 8,
-                        }}
-                      >
-                        {(intelligence?.extractedTexts ?? []).length === 0 ? (
-                          <p className="evidence-detail-muted">
-                            No OCR or transcript extraction has been
-                            recorded yet for this record.
-                          </p>
-                        ) : (
-                          (intelligence?.extractedTexts ?? []).map((text) => (
-                            <div
-                              key={text.id}
-                              style={{
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 8,
-                                padding: 10,
-                                background: "#f8fafc",
-                                fontSize: 12,
-                                color: "#0f172a",
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 4,
-                              }}
-                            >
-                              <strong style={{ fontSize: 11, color: "#334155" }}>
-                                {text.kind.replace(/_/g, " ")}
-                              </strong>
-                              <span style={{ color: "#475569" }}>
-                                Provider: {text.provider}
-                                {text.providerVersion
-                                  ? ` (${text.providerVersion})`
-                                  : ""}
-                              </span>
-                              <span style={{ color: "#475569" }}>
-                                Status: {text.status}
-                                {text.wordCount != null
-                                  ? ` · ${text.wordCount} words`
-                                  : ""}
-                              </span>
-                              {text.confidence != null ? (
-                                <span style={{ color: "#475569" }}>
-                                  Confidence:{" "}
-                                  {Math.round(
-                                    Math.max(
-                                      0,
-                                      Math.min(1, text.confidence),
-                                    ) * 100,
-                                  )}
-                                  %
-                                </span>
-                              ) : null}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                      {intelligence?.disclaimer ? (
-                        <p
-                          className="evidence-detail-muted"
-                          style={{ marginTop: 8 }}
-                        >
-                          {intelligence.disclaimer}
-                        </p>
-                      ) : null}
-                    </>
-                  )}
-                </section>
-                ) : null}
-              </>
-            ) : null}
-
-            {activeTab === "integrity" ? (
-              <>
-                <section className="evidence-detail-section">
-                  <div className="evidence-detail-section-header">
-                    <SectionHeading
-                      kicker="Source &amp; Capture Context"
-                      title="Capture provenance context"
-                      icon={ImageIcon}
-                    />
-                  </div>
-
-                  <KeyValueGrid
-                    items={[
-                      {
-                        label: "Source type",
-                        value: workspace.sourceContext.sourceType.replace(/_/g, " "),
-                      },
-                      { label: "Capture method", value: workspace.sourceContext.captureMethodLabel },
-                      { label: "Device time", value: formatValue(workspace.sourceContext.deviceTimeIso) },
-                      {
-                        label: "Captured at",
-                        value: formatValue(formatUserDateTime(workspace.sourceContext.capturedAtUtc)),
-                      },
-                      {
-                        label: "Uploaded at",
-                        value: formatValue(formatUserDateTime(workspace.sourceContext.uploadedAtUtc)),
-                      },
-                      {
-                        label: "Location included",
-                        value: workspace.sourceContext.locationIncluded ? "Included" : "Not included",
-                      },
-                      {
-                        label: "Screenshot filename heuristic",
-                        value: describeClientSignalState(
-                          workspace.sourceContext.clientSignalsSummary.screenshotLikeStatus
-                        ),
-                      },
-                      {
-                        label: "Folder path signal",
-                        value: describeClientSignalState(
-                          workspace.sourceContext.clientSignalsSummary.folderPathStatus
-                        ),
-                      },
-                    ]}
-                  />
-
-                  {workspace.sourceCaptureLocation ? (
-                    <div className="evidence-detail-map-shell">
-                      <CaptureLocationMapPanel
-                        lat={workspace.sourceCaptureLocation.lat ?? 0}
-                        lng={workspace.sourceCaptureLocation.lng ?? 0}
-                        accuracyMeters={workspace.sourceCaptureLocation.accuracyMeters}
-                      />
-                      <p className="evidence-detail-muted">{workspace.sourceCaptureLocation.legalBoundary}</p>
-                    </div>
-                  ) : null}
-
-                  <div className="evidence-detail-note-box">
-                    <strong>Boundary</strong>
-                    <p>{workspace.sourceContext.limitations[0]}</p>
-                  </div>
-                </section>
-
-                <section className="evidence-detail-section">
-                  <div className="evidence-detail-section-header">
-                    <SectionHeading
-                      kicker="Preservation Matrix"
-                      title="Recorded integrity and preservation materials"
-                      icon={ShieldCheck}
-                    />
-                    {showManualLatestStatusCheck ? (
-                      <div className="evidence-detail-inline-actions">
-                        <Button variant="secondary" onClick={() => void loadWorkspace()}>
-                          Check latest status
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <KeyValueGrid
-                    items={[
-                      { label: "Verification status", value: preservation.verificationStatusLabel },
-                      {
-                        label: "SHA-256 recorded",
-                        value: preservation.sha256Recorded ? "Recorded" : "Not recorded",
-                      },
-                      {
-                        label: "Fingerprint hash",
-                        value: preservation.fingerprintHashRecorded ? "Recorded" : "Not recorded",
-                      },
-                      {
-                        label: "Signature",
-                        value: preservation.signature.recorded
-                          ? preservation.signature.valid
-                            ? "Recorded and validated"
-                            : "Recorded"
-                          : "Not recorded",
-                      },
-                      {
-                        label: "TSA timestamp",
-                        value: preservation.tsa.timestampAvailable
-                          ? "Timestamp recorded"
-                          : preservation.tsa.status
-                            ? `Status: ${preservation.tsa.status}`
-                            : "Timestamp unavailable",
-                      },
-                      { label: "OTS status", value: otsStatusPresentation?.label ?? "Not configured" },
-                      {
-                        label: "OTS last updated",
-                        value: formatValue(
-                          formatUserDateTime(preservation.ots.lastUpdatedAtUtc)
-                        ),
-                      },
-                      {
-                        label: "Storage protection",
-                        value: preservation.storage?.verified
-                          ? "Recorded"
-                          : "Not exposed in current API response",
-                      },
-                      {
-                        label: "Public anchoring",
-                        value: otsStatusPresentation?.detail ?? "No public anchoring state recorded",
-                      },
-                      {
-                        label: "Report artifact",
-                        value: `${describeReportArtifactStatus(workspace.artifactStatus)}${
-                          preservation.report.available
-                            ? ` · Version ${preservation.report.version ?? "latest"}`
-                            : ""
-                        }`,
-                      },
-                      {
-                        label: "Report PDF signature",
-                        value: describeReportPdfSignature(workspace.artifactStatus),
-                      },
-                      {
-                        label: "Verification package",
-                        value: `${describeVerificationPackageStatus(
-                          workspace.artifactStatus,
-                          workspaceCaps?.verificationPackageIncluded ?? false
-                        )}${
-                          preservation.verificationPackage.available
-                            ? ` · Version ${preservation.verificationPackage.version ?? "latest"}`
-                            : ""
-                        }`,
-                      },
-                      {
-                        label: "Package manifest",
-                        value: describePackageManifestStatus(
-                          workspace.artifactStatus,
-                          workspaceCaps?.verificationPackageIncluded ?? false
-                        ),
-                      },
-                      // Phase C #10 — retention visibility on the
-                      // authenticated evidence detail surface.
-                      {
-                        label: "Retention until",
-                        value: workspace.evidence?.retentionUntilUtc
-                          ? `Recorded — ${formatValue(formatUserDateTime(workspace.evidence.retentionUntilUtc))}`
-                          : "No record-level retention deadline recorded",
-                      },
-                      {
-                        label: "Object Lock retention mode",
-                        value: workspace.evidence?.storageObjectLockMode
-                          ? String(workspace.evidence.storageObjectLockMode)
-                          : "Not asserted (storage immutability not confirmed for this record)",
-                      },
-                      {
-                        label: "Object Lock retention until",
-                        value: workspace.evidence?.storageObjectLockRetainUntilUtc
-                          ? formatValue(
-                              formatUserDateTime(
-                                workspace.evidence.storageObjectLockRetainUntilUtc
-                              )
-                            )
-                          : "Not asserted",
-                      },
-                      {
-                        label: "Legal hold",
-                        value:
-                          workspace.evidence?.storageObjectLockLegalHoldStatus ===
-                          "ON"
-                            ? "Legal hold active"
-                            : workspace.evidence?.storageObjectLockLegalHoldStatus ===
-                                "OFF"
-                              ? "Legal hold off"
-                              : "No legal hold metadata recorded",
-                      },
-                    ]}
-                  />
-                </section>
-
-                <section className="evidence-detail-section">
-                  <div className="evidence-detail-section-header">
-                    <SectionHeading
-                      kicker="Verification History"
-                      title="Fixed artifacts and post-report activity"
-                      icon={History}
-                    />
-                  </div>
-
-                  <KeyValueGrid
-                    items={[
-                      {
-                        label: "Report generated at",
-                        value: formatValue(formatUserDateTime(workspace.snapshot.reportGeneratedAtUtc)),
-                      },
-                      {
-                        label: "Verification package generated at",
-                        value: formatValue(
-                          formatUserDateTime(workspace.snapshot.verificationPackageGeneratedAtUtc)
-                        ),
-                      },
-                      {
-                        label: "Forensic events at report time",
-                        value: String(workspace.custodyDisplayCounts.forensicAtReportGeneration),
-                      },
-                      {
-                        label: "Current forensic events",
-                        value: String(workspace.custodyDisplayCounts.currentForensicEvents),
-                      },
-                      {
-                        label: "Access events after report",
-                        value: String(workspace.custodyDisplayCounts.accessAfterReportGeneration),
-                      },
-                      {
-                        label: "Current status",
-                        value: workspace.snapshot.currentStatus.replace(/_/g, " "),
-                      },
-                    ]}
-                  />
-
-                  <div className="evidence-detail-note-box">
-                    <strong>Snapshot boundary</strong>
-                    <p>{workspace.snapshot.fixedArtifactNote}</p>
-                  </div>
-
-                  <div className="evidence-detail-note-box">
-                    <strong>Integrity drift</strong>
-                    <p>{workspace.integrityDrift.note}</p>
-                  </div>
-
-                  {/*
-                    Phase C #2 — surface the snapshot/live divergence on the
-                    authenticated evidence detail surface too. The verify page
-                    has the same callout for public viewers; this one is for
-                    the reviewer.
-                  */}
-                  {workspace.artifactVersions.trustDecisionConsistency
-                    ?.consistentWithSnapshot === false ? (
-                    <div
-                      role={
-                        workspace.artifactVersions.trustDecisionConsistency
-                          ?.tone === "danger"
-                          ? "alert"
-                          : "status"
-                      }
-                      className="evidence-detail-note-box"
-                      style={{
-                        borderLeft:
-                          workspace.artifactVersions.trustDecisionConsistency
-                            ?.tone === "danger"
-                            ? "5px solid #b54738"
-                            : workspace.artifactVersions
-                                  .trustDecisionConsistency?.accessOnly
-                              ? "5px solid #0b2e27"
-                              : "5px solid #b8861f",
-                        background:
-                          workspace.artifactVersions.trustDecisionConsistency
-                            ?.tone === "danger"
-                            ? "#fff3f1"
-                            : workspace.artifactVersions
-                                  .trustDecisionConsistency?.accessOnly
-                              ? "rgba(11,46,39,0.06)"
-                              : "#fef7e8",
-                      }}
-                    >
-                      <strong>Snapshot boundary update</strong>
-                      <p>
-                        {workspace.artifactVersions.trustDecisionConsistency
-                          ?.accessOnly
-                          ? "No integrity mismatch detected. Live access activity now differs from the fixed report snapshot, and this is informational activity drift only."
-                          : workspace.artifactVersions.trustDecisionConsistency
-                            ?.tone === "danger"
-                              ? "A live integrity-relevant divergence was detected between the current state and the fixed report snapshot. Review the current technical materials to understand the exact issue."
-                              : "Live verification now differs from the fixed report snapshot. Review current technical materials to understand the nature of the change."}
-                      </p>
-                      <p>
-                        The trust decision shown here is sourced from the fixed
-                        snapshot taken at report or package generation time.
-                        The reasons below explain what changed later in the live
-                        state.
-                      </p>
-                      {workspace.artifactVersions.trustDecisionConsistency
-                        ?.reasons?.length ? (
-                        <ul>
-                          {workspace.artifactVersions.trustDecisionConsistency.reasons.map(
-                            (reason, index) => (
-                              <li key={`${reason.code ?? "reason"}-${index}`}>
-                                <strong>
-                                  {reason.label ?? "Snapshot difference detected"}.
-                                </strong>{" "}
-                                {reason.detail ??
-                                  "Review the live technical materials for the current state."}
-                              </li>
-                            )
-                          )}
-                        </ul>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </section>
-
-                {/*
-                  Phase C #11 — concise reviewer audit drilldown. Surfaces the
-                  forensic vs access split, custody chain validity, and the
-                  hash-semantics flag in one spot so reviewers don't have to
-                  spelunk through the raw JSON appendix.
-                */}
-                <section className="evidence-detail-section">
-                  <div className="evidence-detail-section-header">
-                    <SectionHeading
-                      kicker="Reviewer Audit Drilldown"
-                      title="Forensic chain, access analytics, and hash semantics"
-                      icon={ShieldCheck}
-                    />
-                  </div>
-
-                  <KeyValueGrid
-                    items={[
-                      {
-                        label: "Custody chain validity",
-                        value: preservation.custodyChain.valid
-                          ? `Continuous (${preservation.custodyChain.mode})`
-                          : `Review required (${preservation.custodyChain.reason ?? "unknown"})`,
-                      },
-                      {
-                        label: "Forensic events at report time",
-                        value: String(
-                          workspace.custodyDisplayCounts.forensicAtReportGeneration
-                        ),
-                      },
-                      {
-                        label: "Forensic events now",
-                        value: String(
-                          workspace.custodyDisplayCounts.currentForensicEvents
-                        ),
-                      },
-                      {
-                        label: "Access / view events after report",
-                        value: String(
-                          workspace.custodyDisplayCounts.accessAfterReportGeneration
-                        ),
-                      },
-                      ...(() => {
-                        // technicalMaterials is loosely typed (Record<string, unknown>);
-                        // narrow to a small reader to make the rendering clean.
-                        const tm = (workspace.artifactVersions
-                          .technicalMaterials ?? {}) as {
-                          hashSemantics?: string | null;
-                          multipartManifestSha256?: string | null;
-                          tsaInputDigestHex?: string | null;
-                        };
-                        return [
-                          {
-                            label: "Hash semantics",
-                            value:
-                              tm.hashSemantics === "single_file"
-                                ? "Single-file SHA-256"
-                                : tm.hashSemantics === "multipart_composite"
-                                  ? "Multipart composite (with reproducible manifest digest)"
-                                  : tm.hashSemantics ===
-                                      "multipart_composite_legacy"
-                                    ? "Multipart composite (legacy record — reproduce from per-part hashes in the verification package)"
-                                    : "Not specified",
-                          },
-                          {
-                            label: "Multipart manifest SHA-256",
-                            value:
-                              tm.multipartManifestSha256 ??
-                              "Not applicable / not stored",
-                          },
-                          {
-                            label: "TSA accepted message imprint",
-                            value:
-                              tm.tsaInputDigestHex ?? "TSA token not present",
-                          },
-                        ];
-                      })(),
-                    ]}
-                  />
-
-                  <p className="evidence-detail-muted">
-                    Forensic custody events are technical chain events
-                    (creation, signature, retention, timestamp). Access events
-                    are read-only views and downloads. The two are kept
-                    separate so the chain is not diluted by analytics traffic.
-                  </p>
-                  {(() => {
-                    const tm = (workspace.artifactVersions.technicalMaterials ??
-                      {}) as {
-                      hashSemantics?: string | null;
-                    };
-                    return tm.hashSemantics === "multipart_composite" ||
-                      tm.hashSemantics === "multipart_composite_legacy" ? (
-                      <p className="evidence-detail-muted">
-                        {PROOVRA_MULTIPART_REVIEWER_EXPLANATION}{" "}
-                        {PROOVRA_MULTIPART_RECOMPUTATION_NOTE}{" "}
-                        {PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE}
-                      </p>
-                    ) : null;
-                  })()}
-                </section>
-              </>
-            ) : null}
-
-            {activeTab === "custody" ? (
-              <>
-                <EventTimeline
-                  title="Forensic Custody Timeline"
-                  subtitle="Integrity-relevant lifecycle chronology"
-                  events={workspace.custodyLifecycle.forensicEvents}
-                  icon={History}
-                />
-
-                <EventTimeline
-                  title="Access & Security Activity"
-                  subtitle="Viewing, download, and verification access activity"
-                  events={workspace.custodyLifecycle.accessEvents}
-                  icon={Globe}
-                />
-
-                {/* Phase IA-self-serve-completion — operational
-                    timeline (reviewer / team operational events) gated
-                    on canSeeReviewerOps. Self-serve users see the
-                    Forensic Custody Timeline + Access activity above,
-                    but not the team-only operational rail. */}
-                {canSeeReviewerOps && workspace.reviewWorkflow?.teamId ? (
-                  <OperationalTimelinePanel
-                    evidenceId={evidenceId}
-                    teamId={workspace.reviewWorkflow.teamId}
-                  />
-                ) : null}
-              </>
-            ) : null}
-
-            {activeTab === "review" ? (
-              <>
-                <EvidenceRelationshipsSection
-                  caseName={workspace.relationships.caseName}
-                  relatedEvidenceCount={workspace.relationships.relatedEvidenceCount}
-                  multipart={workspace.relationships.multipart}
-                  itemCount={workspace.relationships.itemCount}
-                  note={workspace.relationships.note}
-                  items={workspace.relationships.items}
-                  actionBusy={actionBusy}
-                  onAssignCase={() => {
-                    setSelectedCaseId(workspace.relationships.caseId || "");
-                    setAssignCaseOpen(true);
-                  }}
-                  onRemoveCase={workspace.relationships.caseId ? () => void removeCase() : null}
-                  onOpenRelationshipEditor={() => setRelationshipOpen(true)}
-                  onOpenLinkedEvidence={(id) => router.push(`/evidence/${id}`)}
-                  onRemoveRelationship={handleRemoveRelationship}
-                />
-
-                {/* Phase IA-self-serve-completion — Reviewer Workflow
-                    card + Review Actions panel + workflow editor modal
-                    are gated on canSeeReviewerOps. Self-serve users
-                    see only the simple "Review status" card below
-                    (and the notes / annotations / AI categorization
-                    that follow). The workflow editor (setWorkflowOpen)
-                    still works for eligible users; self-serve users
-                    never see the trigger so they can't open it. */}
-                {canSeeReviewerOps ? (
-                  <>
-                    <ReviewerWorkflowCard
-                      workflow={workspace.reviewWorkflow}
-                      events={workflowEvents}
-                      eventsLoading={workflowEventsLoading}
-                      actionBusy={actionBusy}
-                      onRefreshEvents={() => void loadWorkflowEvents()}
-                      onOpenEditor={() => setWorkflowOpen(true)}
-                      formatDateTime={formatUserDateTime}
-                    />
-
-                    {/* Phase 13.5 — compact review decisions panel.
-                        Stage-aware action buttons calling the Phase 13
-                        `/v1/review-operations/*` endpoints. */}
-                    <EvidenceReviewActionsPanel
-                      evidenceId={evidenceId}
-                      teamId={workspace.reviewWorkflow?.teamId ?? null}
-                      currentStatus={workspace.reviewWorkflow.status ?? null}
-                      assignedToUserId={
-                        workspace.reviewWorkflow.assignedTo?.id ?? null
-                      }
-                      currentUserId={null}
-                      onChanged={() => void loadWorkflowEvents()}
-                    />
-                  </>
-                ) : (
-                  // Phase IA-self-serve-completion — self-serve
-                  // replacement. A simple "Review status" card that
-                  // surfaces the underlying review status without the
-                  // enterprise workflow / assignment / priority / due
-                  // date / history machinery. The user IS the
-                  // reviewer in self-serve, so a single status read
-                  // is all that's useful.
-                  <section
-                    className="evidence-detail-section"
-                    data-self-serve-review-status
-                  >
-                    <div className="evidence-detail-section-header">
-                      <SectionHeading
-                        kicker="Review"
-                        title="Review status"
-                        icon={ClipboardCheck}
-                      />
-                    </div>
-                    <p className="evidence-detail-muted">
-                      {workspace.reviewWorkflow?.status
-                        ? `Current status: ${workspace.reviewWorkflow.status}`
-                        : "No review status set."}
-                    </p>
-                  </section>
-                )}
-
-                <section className="evidence-detail-section">
-                  <div className="evidence-detail-section-header">
-                    {/* Phase IA-self-serve-completion — "Notes &
-                        Reviewer Collaboration" reads as enterprise-
-                        team coordination. Renamed to plain-language
-                        "Notes". The user IS the reviewer in
-                        self-serve, so the collaboration framing was
-                        misleading. */}
-                    <SectionHeading
-                      kicker="Notes"
-                      title="Private notes &amp; annotations"
-                      icon={ClipboardCheck}
-                    />
-                  </div>
-
-                  <div className="evidence-detail-note-box">
-                    <strong>Boundary</strong>
-                    <p>
-                      Private review notes are not included in public verification or external packages unless
-                      explicitly exported.
-                    </p>
-                  </div>
-
-                  {workspace.governance ? (
-                    <div className="evidence-detail-note-box">
-                      <strong>Governance</strong>
-                      <p>
-                        {workspace.governance.reviewerComments.label},{" "}
-                        {workspace.governance.legalNotes.label}, and{" "}
-                        {workspace.governance.annotations.label} are internal workspace materials. They are not
-                        included in public verification, the fixed PDF report, or the verification package.
-                      </p>
-                    </div>
-                  ) : null}
-
-                  {evidence.internalNotes ? (
-                    <div className="evidence-detail-note-box">
-                      <strong>Private session note</strong>
-                      <p>{evidence.internalNotes}</p>
-                    </div>
-                  ) : null}
-
-                  <div className="evidence-detail-embedded-panels">
-                    <ReviewerCommentsPanel evidenceId={evidence.id} />
-                    <LegalNotesPanel evidenceId={evidence.id} />
-                    <AnnotationPanel evidenceId={evidence.id} defaultPartId={workspace.parts[0]?.id ?? null} />
-                    {/* Phase Final-Hidden-Feature-Surfacing — AI
-                        categorization advisory card. Reviewer must
-                        verify any classification — copy is explicit. */}
-                    <EvidenceAiCategorizationCard evidenceId={evidence.id} />
-                  </div>
-                </section>
-
-                <section className="evidence-detail-section">
-                  <div className="evidence-detail-section-header">
-                    <SectionHeading
-                      kicker="Retention &amp; Compliance"
-                      title="Workspace and record retention state"
-                      icon={ShieldCheck}
-                    />
-                  </div>
-
-                  <KeyValueGrid
-                    items={[
-                      { label: "Workspace type", value: workspaceCaps.workspaceType },
-                      { label: "Billing status", value: formatValue(workspaceCaps.billingStatus) },
-                      { label: "Storage used", value: formatValue(workspaceCaps.storageUsedLabel) },
-                      { label: "Storage remaining", value: formatValue(workspaceCaps.storageRemainingLabel) },
-                      { label: "Locked at", value: formatValue(formatUserDateTime(evidence.lockedAt)) },
-                      { label: "Archived at", value: formatValue(formatUserDateTime(evidence.archivedAt)) },
-                      { label: "Deleted at", value: formatValue(formatUserDateTime(evidence.deletedAt)) },
-                      {
-                        label: "Delete scheduled for",
-                        value: formatValue(formatUserDateTime(evidence.deleteScheduledForUtc)),
-                      },
-                      {
-                        label: "Object lock",
-                        value: preservation.storage?.mode || "Not exposed in current API response",
-                      },
-                      {
-                        label: "Legal hold",
-                        value: preservation.storage?.legalHold || "Not exposed in current API response",
-                      },
-                    ]}
-                  />
-
-                  <div className="evidence-detail-inline-actions">
-                    {evidence.archivedAt ? (
-                      <Button
-                        variant="secondary"
-                        onClick={() =>
-                          void runRecordAction(
-                            `/v1/evidence/${evidence.id}/unarchive`,
-                            "Evidence restored from archive"
-                          )
-                        }
-                      >
-                        Restore archive
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="secondary"
-                        onClick={() => setArchiveOpen(true)}
-                        disabled={evidence.deletedAt != null}
-                      >
-                        Archive
-                      </Button>
-                    )}
-
-                    {evidence.deletedAt ? (
-                      <Button variant="secondary" onClick={() => void restoreTrash()}>
-                        Restore from trash
-                      </Button>
-                    ) : (
-                      <Button variant="secondary" onClick={() => setTrashOpen(true)}>
-                        Move to trash
-                      </Button>
-                    )}
-                  </div>
-                </section>
-              </>
-            ) : null}
-
-            {activeTab === "artifacts" ? (
-              <>
-                {/* Phase CAPTURE-ARTIFACT-PIPELINE — stale-pending
-                    banner. When polling has waited beyond the grace
-                    window (60s) without artifacts attaching, surface
-                    an actionable state instead of an endless
-                    spinner. The most common root cause in local dev
-                    is the worker process not running (root
-                    package.json `dev:*` scripts didn't include
-                    services/worker until this pass). In production
-                    this signals a stalled queue or job DLQ. */}
-                {stalePending ? (
-                  <section
-                    className="evidence-detail-section"
-                    data-evidence-section="artifact-stale-pending"
-                    style={{
-                      borderLeft: "4px solid #d97706",
-                      background: "#fef3c7",
-                      padding: "12px 14px",
-                      borderRadius: 8,
-                    }}
-                  >
-                    <strong style={{ display: "block", marginBottom: 4, color: "#78350f", fontSize: 13.5 }}>
-                      Report generation is taking longer than expected
-                    </strong>
-                    <p className="evidence-detail-muted" style={{ margin: "0 0 8px 0", fontSize: 12.5, color: "#78350f" }}>
-                      The signed evidence record is preserved — the
-                      chain-of-custody and integrity columns are
-                      intact. The downstream report and verification
-                      package are still pending. Click refresh below
-                      to re-check status, or contact support if this
-                      persists.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStalePending(false);
-                        setPollStartedAt(null);
-                        void loadWorkspace();
-                      }}
-                      data-evidence-action="artifact-stale-refresh"
-                      style={{
-                        border: "1px solid #d97706",
-                        background: "white",
-                        color: "#78350f",
-                        padding: "5px 10px",
-                        borderRadius: 6,
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Re-check status
-                    </button>
-                  </section>
-                ) : null}
-                {/* Phase CAPTURE-CLOSURE Part A — when the plan does
-                    not include report/package generation, the report
-                    worker rejects the job and the artifact never
-                    attaches. Render a single honest banner instead
-                    of (a) silent never-pending state, or (b) a
-                    download button that 404s. The download buttons
-                    are already gated by reportsIncluded /
-                    verificationPackageIncluded (downloadReport /
-                    downloadVerificationPackage in this file). The
-                    banner explains the WHY so the user understands
-                    the missing artifacts.
-
-                    No fake upgrade CTA — that would imply an
-                    in-product checkout path which doesn't exist
-                    today. */}
-                {workspaceCaps && !workspaceCaps.reportsIncluded &&
-                 !workspace.artifactStatus.report.available ? (
-                  <section
-                    className="evidence-detail-section"
-                    data-evidence-section="reports-plan-gated"
-                    style={{
-                      borderLeft: "4px solid #d97706",
-                      background: "#fef3c7",
-                      padding: "12px 14px",
-                      borderRadius: 8,
-                    }}
-                  >
-                    <strong style={{ display: "block", marginBottom: 4, color: "#78350f", fontSize: 13.5 }}>
-                      Reports are not included in this plan
-                    </strong>
-                    <p className="evidence-detail-muted" style={{ margin: 0, fontSize: 12.5, color: "#78350f" }}>
-                      Report PDFs and verification packages are part of
-                      Pay-Per-Evidence, Pro, and Team plans. Your
-                      evidence record itself is signed and preserved —
-                      the chain-of-custody chain remains intact — but
-                      no downloadable report artifact will be
-                      generated on your current plan.
-                    </p>
-                  </section>
-                ) : null}
-                <ArtifactHistorySection
-                  history={workspace.artifactVersions.history}
-                  onDownloadReport={() => void downloadReport()}
-                  onDownloadVerificationPackage={() => void downloadVerificationPackage()}
-                  formatDateTime={formatUserDateTime}
-                  formatBytes={formatBytes}
-                />
-
-                <section className="evidence-detail-section">
-                  <div className="evidence-detail-section-header">
-                    <SectionHeading
-                      kicker="Public Verification &amp; Sharing"
-                      title="External verification and export activity"
-                      icon={Globe}
-                    />
-                  </div>
-                  <KeyValueGrid
-                    items={[
-                      {
-                        label: "Verification status",
-                        value: publicVerificationState?.label ?? "State unavailable",
-                      },
-                      {
-                        label: "Verification link",
-                        value: shareUrl ? "Available" : "Not available",
-                      },
-                      {
-                        label: "Publication detail",
-                        value: publicVerificationState?.detail ?? "No publication detail available",
-                      },
-                      {
-                        label: "Public views",
-                        value: String(workspace.publicVerificationSummary.publicViewCount),
-                      },
-                      {
-                        label: "Report downloads",
-                        value: String(workspace.publicVerificationSummary.reportDownloadCount),
-                      },
-                      {
-                        label: "Package downloads",
-                        value: String(workspace.publicVerificationSummary.verificationPackageDownloadCount),
-                      },
-                      {
-                        label: "Last public view",
-                        value: formatValue(
-                          formatUserDateTime(workspace.publicVerificationSummary.lastPublicViewAt)
-                        ),
-                      },
-                    ]}
-                  />
-                </section>
-              </>
-            ) : null}
-
-            {activeTab === "review" ? (
-              <>
-                <ComparisonPanel evidenceId={evidence.id} />
-                <DuplicateDetectionPanel evidenceId={evidence.id} />
-                <AiCategorizationPanel evidenceId={evidence.id} />
-
-                <ReviewerAuditTrailSection
-                  items={workspace.reviewerAudit ?? []}
-                  formatDateTime={formatUserDateTime}
-                />
-              </>
-            ) : null}
-
-            {activeTab === "discussion" ? (
-              <section
-                className="evidence-detail-section"
-                data-evidence-discussion-section
-              >
-                <div className="evidence-detail-section-header">
-                  <SectionHeading
-                    kicker="Discussion"
-                    title="Operational evidence coordination"
-                    icon={MessageSquare}
-                  />
-                </div>
-                <EvidenceDiscussionPanel
-                  evidenceId={evidenceId}
-                  teamId={workspace.reviewWorkflow?.teamId ?? null}
-                  initialThreadId={initialThreadId}
-                  // Phase DISCUSSION-CAPABILITY-FIX — when the
-                  // workspace no longer qualifies for writable
-                  // discussion but history exists, the tab stays
-                  // visible and the composer is hidden so the audit
-                  // trail remains accessible without inviting new
-                  // posts that the backend would reject.
-                  readOnly={workspaceCaps?.discussionReadOnly === true}
-                />
-              </section>
-            ) : null}
-
+            {activeTab === "overview" ? <EvidenceOverviewTab ctx={ctx} /> : null}
+            {activeTab === "integrity" ? <EvidenceIntegrityTab ctx={ctx} /> : null}
+            {activeTab === "custody" ? <EvidenceCustodyTab ctx={ctx} /> : null}
+            {activeTab === "review" ? <EvidenceReviewTab ctx={ctx} /> : null}
+            {activeTab === "artifacts" ? <EvidenceArtifactsTab ctx={ctx} /> : null}
+            {activeTab === "discussion" ? <EvidenceDiscussionTab ctx={ctx} /> : null}
             {activeTab === "technical" ? (
-              <section
-                className="evidence-detail-section"
-                data-evidence-section="technical-appendix"
-              >
-                <div className="evidence-detail-section-header">
-                  <SectionHeading
-                    kicker="Technical Appendix · Advanced"
-                    title="Structured technical materials"
-                    icon={FileText}
-                  />
-                </div>
-                <p
-                  className="evidence-detail-muted"
-                  style={{ marginTop: 4, marginBottom: 8, fontSize: 12.5 }}
-                >
-                  Advanced raw JSON. Useful for support / debug; not
-                  required for reviewing the record. Click to expand.
-                </p>
-                {/* Phase CAPTURE-DETAIL-WIRING — collapsed by default.
-                    Previously rendered with `<details open>` which
-                    exposed unbounded internal JSON to every viewer of
-                    the page. The data is still here, but the user
-                    now opts in. */}
-                <details data-evidence-raw-appendix>
-                  <summary className="evidence-detail-raw-summary">Raw technical appendix</summary>
-                  <pre className="evidence-detail-raw-block">
-                    {JSON.stringify(
-                      {
-                        trustDecision,
-                        trustDecisionConsistency: workspace.artifactVersions.trustDecisionConsistency,
-                        technicalMaterials: workspace.artifactVersions.technicalMaterials,
-                        preservationMatrix: preservation,
-                      },
-                      null,
-                      2
-                    )}
-                  </pre>
-                </details>
-              </section>
+              <EvidenceTechnicalAppendixTab ctx={ctx} />
             ) : null}
           </main>
 
-          {/* Phase CAPTURE-CLOSURE Part C — sidebar is "Status + next
-              action", not a second report. Removed two duplicates
-              from the previous version:
-                - "Technical Review Readiness" block (the same
-                  one-line summary is part of the Overview reviewer
-                  decision card).
-                - The full Public Verification KeyValueGrid (counts
-                  + state detail are already in the Artifacts tab's
-                  "External verification and export activity"
-                  KeyValueGrid). Kept only the publication-state
-                  chip + the shortcut link.
-              Kept verbatim:
-                - Risk signals (unique to the sidebar; the Overview
-                  surface intentionally summarises differently).
-                - Operational summary (workflow status + priority +
-                  case + due date is the action-oriented block that
-                  drives next steps; it's not duplicated in tabs). */}
-          <aside className="evidence-detail-sidebar" data-evidence-sidebar="status-and-next-action">
-            <section className="evidence-detail-side-block" data-evidence-side="risk-signals">
-              <SectionHeading kicker="Risk Signals" title="Reviewer attention" icon={TriangleAlert} />
+          <aside
+            className="evidence-detail-sidebar"
+            data-evidence-sidebar="status-and-next-action"
+          >
+            <section
+              className="evidence-detail-side-block"
+              data-evidence-side="risk-signals"
+            >
+              <SectionHeading
+                kicker="Risk Signals"
+                title="Reviewer attention"
+                icon={TriangleAlert}
+              />
               {reviewSignals.length === 0 ? (
-                <p className="evidence-detail-muted">No advisory risk signals in the current response.</p>
+                <p className="evidence-detail-muted">
+                  No advisory risk signals in the current response.
+                </p>
               ) : (
                 <div className="evidence-detail-signal-list">
                   {reviewSignals.slice(0, 4).map((signal) => (
@@ -3307,37 +1219,49 @@ function EvidenceDetailPageInner() {
               )}
             </section>
 
-            <section className="evidence-detail-side-block" data-evidence-side="operational-summary">
+            <section
+              className="evidence-detail-side-block"
+              data-evidence-side="operational-summary"
+            >
               <SectionHeading
                 kicker="Review Workflow"
                 title="Operational summary"
                 icon={ShieldCheck}
               />
-              <KeyValueGrid
-                items={[
-                  {
-                    label: "Review workflow",
-                    value: workspace.reviewWorkflow.status
+              <div className="evidence-detail-data-grid">
+                <div className="evidence-detail-data-cell">
+                  <span>Review workflow</span>
+                  <strong>
+                    {workspace.reviewWorkflow.status
                       ? workspace.reviewWorkflow.status.replace(/_/g, " ")
-                      : "Not started",
-                  },
-                  {
-                    label: "Priority",
-                    value: workspace.reviewWorkflow.priority || "Not configured",
-                  },
-                  {
-                    label: "Case",
-                    value: workspace.relationships.caseName || "Unassigned",
-                  },
-                  {
-                    label: "Due date",
-                    value: formatValue(formatUserDateTime(workspace.reviewWorkflow.dueAt)),
-                  },
-                ]}
-              />
+                      : "Not started"}
+                  </strong>
+                </div>
+                <div className="evidence-detail-data-cell">
+                  <span>Priority</span>
+                  <strong>{workspace.reviewWorkflow.priority || "Not configured"}</strong>
+                </div>
+                <div className="evidence-detail-data-cell">
+                  <span>Case</span>
+                  <strong>{workspace.relationships.caseName || "Unassigned"}</strong>
+                </div>
+                <div className="evidence-detail-data-cell">
+                  <span>Due date</span>
+                  <strong>
+                    {formatValue(formatUserDateTime(workspace.reviewWorkflow.dueAt))}
+                  </strong>
+                </div>
+              </div>
             </section>
 
-            <section className="evidence-detail-side-block" data-evidence-side="public-verification-shortcut">
+            {/* Phase CAPTURE-CLOSURE Part C — compact public-verification
+                shortcut. Sidebar only carries the publication-state chip
+                + a shortcut link (no full KeyValueGrid duplication); the
+                detail counts live in the Artifacts tab. */}
+            <section
+              className="evidence-detail-side-block"
+              data-evidence-side="public-verification-shortcut"
+            >
               <SectionHeading
                 kicker="Public Verification"
                 title={publicVerificationState?.label ?? "State unavailable"}
@@ -3372,7 +1296,10 @@ function EvidenceDetailPageInner() {
             <Button variant="secondary" onClick={() => setAssignCaseOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => void assignCase()} disabled={actionBusy || !selectedCaseId}>
+            <Button
+              onClick={() => void assignCase()}
+              disabled={actionBusy || !selectedCaseId}
+            >
               Save assignment
             </Button>
           </>
@@ -3463,7 +1390,8 @@ function EvidenceDetailPageInner() {
               ) : null}
             </select>
             <p className="evidence-detail-muted">
-              Reviewer assignment uses currently accessible reviewer identities from the loaded workflow state.
+              Reviewer assignment uses currently accessible reviewer identities from the
+              loaded workflow state.
             </p>
           </label>
 
@@ -3497,7 +1425,10 @@ function EvidenceDetailPageInner() {
             <Button variant="secondary" onClick={() => setRelationshipOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => void saveRelationship()} disabled={actionBusy || !relationshipTargetId}>
+            <Button
+              onClick={() => void saveRelationship()}
+              disabled={actionBusy || !relationshipTargetId}
+            >
               Save relationship
             </Button>
           </>
@@ -3505,16 +1436,15 @@ function EvidenceDetailPageInner() {
       >
         <div className="evidence-detail-modal-stack">
           <p className="evidence-detail-muted">
-            Enter the linked evidence record ID. The target must be an accessible evidence record.
+            Enter the linked evidence record ID. The target must be an accessible
+            evidence record.
           </p>
-
           <input
             className="evidence-detail-input"
             value={relationshipTargetId}
             onChange={(event) => setRelationshipTargetId(event.target.value)}
             placeholder="Linked evidence UUID"
           />
-
           <label className="evidence-detail-field">
             <span>Relationship type</span>
             <select
@@ -3538,7 +1468,6 @@ function EvidenceDetailPageInner() {
               ))}
             </select>
           </label>
-
           <label className="evidence-detail-field">
             <span>Note</span>
             <textarea
@@ -3560,7 +1489,9 @@ function EvidenceDetailPageInner() {
               Cancel
             </Button>
             <Button
-              onClick={() => void runRecordAction(`/v1/evidence/${evidenceId}/lock`, "Evidence locked")}
+              onClick={() =>
+                void runRecordAction(`/v1/evidence/${evidenceId}/lock`, "Evidence locked")
+              }
               disabled={actionBusy}
             >
               Confirm lock
@@ -3568,7 +1499,10 @@ function EvidenceDetailPageInner() {
           </>
         }
       >
-        <p>Locking preserves the current record state and prevents further mutable updates to the evidence record.</p>
+        <p>
+          Locking preserves the current record state and prevents further mutable
+          updates to the evidence record.
+        </p>
       </Modal>
 
       <Modal
@@ -3581,7 +1515,12 @@ function EvidenceDetailPageInner() {
               Cancel
             </Button>
             <Button
-              onClick={() => void runRecordAction(`/v1/evidence/${evidenceId}/archive`, "Evidence archived")}
+              onClick={() =>
+                void runRecordAction(
+                  `/v1/evidence/${evidenceId}/archive`,
+                  "Evidence archived",
+                )
+              }
               disabled={actionBusy}
             >
               Archive
@@ -3589,7 +1528,10 @@ function EvidenceDetailPageInner() {
           </>
         }
       >
-        <p>Archiving changes operational visibility. It does not change recorded integrity materials.</p>
+        <p>
+          Archiving changes operational visibility. It does not change recorded
+          integrity materials.
+        </p>
       </Modal>
 
       <Modal
@@ -3607,8 +1549,164 @@ function EvidenceDetailPageInner() {
           </>
         }
       >
-        <p>Trash state is operational retention handling and must not be confused with technical integrity failure.</p>
+        <p>
+          Trash state is operational retention handling and must not be confused with
+          technical integrity failure.
+        </p>
       </Modal>
     </div>
   );
 }
+
+/**
+ * Phase 3 — "What needs attention" strip.
+ *
+ * Compact, action-oriented summary directly below the hero. Surfaces:
+ *   - top 3 risk signals (read from the existing buildRiskSignals);
+ *   - missing case assignment;
+ *   - missing reviewer (workflow status NOT_STARTED or absent);
+ *   - missing report (REPORTED status but artifact not available);
+ *   - missing verification package (same gate).
+ *
+ * Renders nothing when there is nothing to act on — avoids visual
+ * noise on clean records. Existing buttons / tabs are reachable
+ * elsewhere; this strip is the high-altitude "have I done X yet?"
+ * surface that users requested.
+ */
+function WhatNeedsAttentionStrip({
+  ctx,
+  onAssignCase,
+  onAssignReviewer,
+  onGoToArtifacts,
+  onGoToReview,
+}: {
+  ctx: EvidenceDetailCtx;
+  onAssignCase: () => void;
+  onAssignReviewer: () => void;
+  onGoToArtifacts: () => void;
+  onGoToReview: () => void;
+}) {
+  const { workspace, workspaceCaps, reviewSignals } = ctx;
+
+  const needsCase = !workspace.relationships.caseId && !workspace.relationships.caseName;
+  const needsReviewer =
+    !workspace.reviewWorkflow?.status ||
+    workspace.reviewWorkflow.status === "NOT_STARTED";
+  const missingReport =
+    workspaceCaps?.reportsIncluded !== false &&
+    !workspace.artifactStatus.report.available;
+  const missingPackage =
+    workspaceCaps?.verificationPackageIncluded !== false &&
+    !workspace.artifactStatus.verificationPackage.available &&
+    !workspace.artifactStatus.verificationPackage.blocked &&
+    !workspace.artifactStatus.verificationPackage.unavailable;
+
+  const topRisks = reviewSignals.slice(0, 3);
+
+  const hasAnything =
+    needsCase ||
+    needsReviewer ||
+    missingReport ||
+    missingPackage ||
+    topRisks.length > 0;
+  if (!hasAnything) return null;
+
+  return (
+    <section
+      className="evidence-detail-section"
+      data-evidence-attention-strip
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        padding: "12px 14px",
+        borderLeft: "4px solid #d97706",
+        background: "#fffbeb",
+        borderRadius: 8,
+        marginBottom: 12,
+      }}
+    >
+      <strong style={{ fontSize: 13, color: "#7c2d12", letterSpacing: 0.02 }}>
+        What needs attention
+      </strong>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {topRisks.map((s) => (
+          <span
+            key={`${s.title}-${s.detail}`}
+            className={`evidence-detail-pill ${
+              s.severity === "warning" ? "warning" : s.severity === "info" ? "neutral" : "danger"
+            }`}
+            data-evidence-attention-risk
+            title={s.detail}
+          >
+            {s.title}
+          </span>
+        ))}
+        {needsCase ? (
+          <button
+            type="button"
+            data-evidence-attention-action="assign-case"
+            onClick={onAssignCase}
+            style={pillButtonStyle}
+          >
+            No case assigned · Assign
+          </button>
+        ) : null}
+        {needsReviewer ? (
+          <button
+            type="button"
+            data-evidence-attention-action="assign-reviewer"
+            onClick={onAssignReviewer}
+            style={pillButtonStyle}
+          >
+            Review not started · Start
+          </button>
+        ) : null}
+        {missingReport ? (
+          <button
+            type="button"
+            data-evidence-attention-action="missing-report"
+            onClick={onGoToArtifacts}
+            style={pillButtonStyle}
+          >
+            Report not available · Artifacts
+          </button>
+        ) : null}
+        {missingPackage ? (
+          <button
+            type="button"
+            data-evidence-attention-action="missing-package"
+            onClick={onGoToArtifacts}
+            style={pillButtonStyle}
+          >
+            Verification package not available · Artifacts
+          </button>
+        ) : null}
+      </div>
+      {topRisks.length === 0 && !needsCase && !needsReviewer ? (
+        <button
+          type="button"
+          data-evidence-attention-action="open-review"
+          onClick={onGoToReview}
+          style={{
+            ...pillButtonStyle,
+            alignSelf: "flex-start",
+          }}
+        >
+          Open review workspace
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+const pillButtonStyle: React.CSSProperties = {
+  border: "1px solid #d97706",
+  background: "white",
+  color: "#7c2d12",
+  padding: "4px 10px",
+  borderRadius: 999,
+  fontSize: 12.5,
+  fontWeight: 600,
+  cursor: "pointer",
+};

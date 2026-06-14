@@ -25,12 +25,30 @@ import { describe, expect, it } from "vitest";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
 const REPO_ROOT = resolve(__dirname, "..", "..", "..");
 
-const PAGE = readFileSync(
-  resolve(REPO_ROOT, "apps", "web", "app", "(app)", "evidence", "[id]", "page.tsx"),
-  "utf8",
-);
+// Phase EVIDENCE-IA-DECOMPOSE — page.tsx was split into _tabs/*;
+// concatenate the orchestrator + every tab body so source-shape
+// assertions still find the relevant snippets.
+const PAGE = [
+  "page.tsx",
+  "_tabs/_lib.tsx",
+  "_tabs/EvidenceOverviewTab.tsx",
+  "_tabs/EvidenceIntegrityTab.tsx",
+  "_tabs/EvidenceCustodyTab.tsx",
+  "_tabs/EvidenceReviewTab.tsx",
+  "_tabs/EvidenceArtifactsTab.tsx",
+  "_tabs/EvidenceDiscussionTab.tsx",
+  "_tabs/EvidenceTechnicalAppendixTab.tsx",
+]
+  .map((rel) =>
+    readFileSync(
+      resolve(REPO_ROOT, "apps", "web", "app", "(app)", "evidence", "[id]", rel),
+      "utf8",
+    ),
+  )
+  .join("\n\n");
 const HOME_DASH = readFileSync(
   resolve(REPO_ROOT, "apps", "web", "components", "home-experience", "HomeDashboardSections.tsx"),
   "utf8",

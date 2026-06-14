@@ -111,7 +111,12 @@ describe("Phase Final-Hidden-Feature-Surfacing — host pages mount each panel",
     expect(f).toMatch(/<CaseRiskPanel\s+caseId/);
   });
   it("/evidence/[id] mounts EvidenceAiCategorizationCard", () => {
-    const f = read("apps/web/app/(app)/evidence/[id]/page.tsx");
+    // Phase EVIDENCE-IA-DECOMPOSE — the card moved from page.tsx
+    // into EvidenceReviewTab.tsx and is now wrapped by
+    // AiCategorizationCardWhenActive (Phase 6: hide when DISABLED).
+    // It still mounts as <EvidenceAiCategorizationCard evidenceId=...>
+    // inside the wrapper.
+    const f = read("apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx");
     expect(f).toMatch(/EvidenceAiCategorizationCard/);
     expect(f).toMatch(/<EvidenceAiCategorizationCard\s+evidenceId/);
   });

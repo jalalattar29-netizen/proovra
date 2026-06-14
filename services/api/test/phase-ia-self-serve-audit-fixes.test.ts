@@ -342,7 +342,20 @@ describe("Phase IA-self-serve-audit-fixes — Case Detail empty states", () => {
 // ============================================================================
 
 describe("Phase IA-self-serve-audit-fixes — Evidence Detail gates", () => {
-  const EVI = readWeb("app/(app)/evidence/[id]/page.tsx");
+  // Phase EVIDENCE-IA-DECOMPOSE — page.tsx was split into _tabs/*;
+  // concatenate the orchestrator + every tab body so source-shape
+  // assertions still find the relevant snippets.
+  const EVI = [
+    "app/(app)/evidence/[id]/page.tsx",
+    "app/(app)/evidence/[id]/_tabs/_lib.tsx",
+    "app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
+    "app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+    "app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx",
+    "app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+    "app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+    "app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx",
+    "app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx",
+  ].map(readWeb).join("\n\n");
 
   it("imports canAccessSurface + useSurfaceUserContext", () => {
     expect(EVI).toMatch(

@@ -235,8 +235,11 @@ describe("Phase 14 — /search canonical route (frontend)", () => {
 
 describe("Phase 14 — Stage 6 deep-link affordances (frontend)", () => {
   it("evidence/[id]/page.tsx imports EntityChipGroup (which links chips into /search?q=)", () => {
+    // Phase EVIDENCE-IA-DECOMPOSE — EntityChipGroup moved from
+    // page.tsx into EvidenceOverviewTab.tsx; the deep-link wiring
+    // is preserved there.
     const src = read(
-      resolve(WEB_ROOT, "app/(app)/evidence/[id]/page.tsx"),
+      resolve(WEB_ROOT, "app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx"),
     );
     expect(src).toContain("EntityChipGroup");
   });

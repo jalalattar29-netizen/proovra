@@ -25,22 +25,39 @@ import { describe, expect, it } from "vitest";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const PAGE_SRC = readFileSync(
-  resolve(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "apps",
-    "web",
-    "app",
-    "(app)",
-    "evidence",
-    "[id]",
-    "page.tsx",
-  ),
-  "utf8",
-);
+// Phase EVIDENCE-IA-DECOMPOSE — page.tsx was split into _tabs/*;
+// concatenate the orchestrator + every tab body so source-shape
+// assertions still find the capture-note section snippet.
+const PAGE_SRC = [
+  "page.tsx",
+  "_tabs/_lib.tsx",
+  "_tabs/EvidenceOverviewTab.tsx",
+  "_tabs/EvidenceIntegrityTab.tsx",
+  "_tabs/EvidenceCustodyTab.tsx",
+  "_tabs/EvidenceReviewTab.tsx",
+  "_tabs/EvidenceArtifactsTab.tsx",
+  "_tabs/EvidenceDiscussionTab.tsx",
+  "_tabs/EvidenceTechnicalAppendixTab.tsx",
+]
+  .map((rel) =>
+    readFileSync(
+      resolve(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "apps",
+        "web",
+        "app",
+        "(app)",
+        "evidence",
+        "[id]",
+        rel,
+      ),
+      "utf8",
+    ),
+  )
+  .join("\n\n");
 
 describe("Evidence Detail — Overview capture-note surface (P0 Bug 3)", () => {
   it("Overview section data hook exists", () => {

@@ -140,9 +140,20 @@ describe("Phase 32.5 → 32.6.6 — artifact status projection", () => {
 // =============================================================================
 
 describe("Phase 32.5 — evidence detail page artifact polling", () => {
-  const PAGE_SRC = readSource(
+  // Phase EVIDENCE-IA-DECOMPOSE — page.tsx was split into _tabs/*;
+  // concatenate the orchestrator + every tab body so source-shape
+  // assertions still find the relevant snippets.
+  const PAGE_SRC = [
     "../../../apps/web/app/(app)/evidence/[id]/page.tsx",
-  );
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx",
+  ].map(readSource).join("\n\n");
 
   it("polls /v1/evidence/:id/artifacts/status (the side-effect-free endpoint)", () => {
     expect(PAGE_SRC).toMatch(

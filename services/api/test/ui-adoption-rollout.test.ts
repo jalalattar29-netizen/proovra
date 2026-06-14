@@ -282,14 +282,52 @@ describe("Observability dashboard (full adoption)", () => {
 // =============================================================================
 
 describe("Evidence detail page (full adoption)", () => {
-  const src = readSource(
+  // Phase EVIDENCE-IA-DECOMPOSE — page.tsx was split into _tabs/*;
+  // concatenate the orchestrator + every tab body so source-shape
+  // assertions still find the relevant snippets. Operational
+  // imports (ExportPackageEligibilityBadge / OperationalTimelinePanel /
+  // RuntimeStatusBanner) are split across orchestrator + tabs:
+  //   - RuntimeStatusBanner + ExportPackageEligibilityBadge → page.tsx
+  //   - OperationalTimelinePanel → EvidenceCustodyTab.tsx
+  //   - GovernanceSnapshotPanel → EvidenceOverviewTab.tsx
+  const src = [
     "../../../apps/web/app/(app)/evidence/[id]/page.tsx",
-  );
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx",
+    "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx",
+  ].map(readSource).join("\n\n");
 
   it("imports ExportPackageEligibilityBadge + GovernanceSnapshotPanel + OperationalTimelinePanel + RuntimeStatusBanner from the operational barrel", () => {
-    expect(src).toMatch(
-      /import\s*\{[\s\S]*?ExportPackageEligibilityBadge[\s\S]*?GovernanceSnapshotPanel[\s\S]*?OperationalTimelinePanel[\s\S]*?RuntimeStatusBanner[\s\S]*?\}\s*from\s*"[\.\/]+components\/operational"/,
-    );
+    // Phase EVIDENCE-IA-DECOMPOSE — the four operational-barrel
+    // imports are split across files now (page.tsx, _tabs/
+    // EvidenceOverviewTab.tsx, _tabs/EvidenceCustodyTab.tsx). The
+    // contract is per-name: each must be imported from a relative
+    // path ending in `components/operational`, somewhere in the
+    // evidence-detail surface. The concatenated `src` covers all
+    // tab files.
+    const operationalBarrel = /from\s*"[\.\/]+components\/operational"/;
+    for (const name of [
+      "ExportPackageEligibilityBadge",
+      "GovernanceSnapshotPanel",
+      "OperationalTimelinePanel",
+      "RuntimeStatusBanner",
+    ]) {
+      // The name must appear inside an import that resolves to the
+      // operational barrel. Match `import { ... NAME ... } from "...operational"`.
+      const importLine = new RegExp(
+        `import\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from\\s*"[\\.\\/]+components\\/operational"`,
+      );
+      expect(src, `${name} should be imported from components/operational`).toMatch(
+        importLine,
+      );
+    }
+    // Sanity — the barrel is actually referenced somewhere.
+    expect(src).toMatch(operationalBarrel);
   });
 
   it("renders RuntimeStatusBanner inside the evidence-detail-shell (operator sees runtime state above the hero)", () => {

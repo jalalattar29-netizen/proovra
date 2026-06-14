@@ -53,9 +53,20 @@ function stripComments(src: string): string {
 const ME_INBOX_ROUTES = readSource("../src/routes/me-inbox.routes.ts");
 const COLLAB_ROUTES = readSource("../src/routes/collaboration.routes.ts");
 const CASE_ROUTES = readSource("../src/routes/case-workspace.routes.ts");
-const EVIDENCE_PAGE = readSource(
+// Phase EVIDENCE-IA-DECOMPOSE — page.tsx was split into _tabs/*;
+// concatenate the orchestrator + every tab body so source-shape
+// assertions still find the relevant snippets.
+const EVIDENCE_PAGE = [
   "../../../apps/web/app/(app)/evidence/[id]/page.tsx",
-);
+  "../../../apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx",
+  "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx",
+  "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+  "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx",
+  "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+  "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
+  "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx",
+  "../../../apps/web/app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx",
+].map(readSource).join("\n\n");
 const DISCUSSION_PANEL = readSource(
   "../../../apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx",
 );
@@ -258,8 +269,12 @@ describe("Phase C2 — /evidence/[id] Discussion tab", () => {
   });
 
   it("imports EvidenceDiscussionPanel from the local components folder", () => {
+    // Phase EVIDENCE-IA-DECOMPOSE — the Discussion tab body moved
+    // into _tabs/EvidenceDiscussionTab.tsx, so the import path
+    // climbs one extra `..` to reach the sibling components folder.
+    // Either depth is accepted.
     expect(EVIDENCE_PAGE).toMatch(
-      /import\s+EvidenceDiscussionPanel\s+from\s+"\.\/components\/EvidenceDiscussionPanel"/,
+      /import\s+EvidenceDiscussionPanel\s+from\s+"\.\.?\/components\/EvidenceDiscussionPanel"/,
     );
   });
 });
