@@ -42,8 +42,41 @@ export type TrustSummary = {
     failed: number;
     none: number;
   };
-  /** Evidence carrying an Ed25519 signature. */
+  /**
+   * Evidence carrying an Ed25519 signature. NOTE: this is NOT a
+   * "ready" or "deliverable-complete" signal — signing happens BEFORE
+   * the report worker runs. Use `endToEndReady` for headline readiness.
+   * Kept on the response for the Trust State card (where it correctly
+   * counts "signed records").
+   */
   signed: number;
+  /**
+   * Phase HOME-TRUTH-FIX — operationally-truthful headline count.
+   *
+   * Predicate: `status = REPORTED` AND at least one Report row exists
+   * AND at least one VerificationPackage row exists AND public
+   * verification is not SUSPENDED.
+   *
+   * This is the predicate the Home "End-to-end ready" KPI uses. Unlike
+   * `signed`, it cannot show green when the report worker has stalled.
+   * It does NOT require TSA/OTS success — those are presented as
+   * separate trust signals so the headline number stays focused on the
+   * deliverable chain.
+   */
+  endToEndReady: number;
+  /**
+   * Count of evidence with `status = SIGNED` and no Report row. These
+   * are records the user successfully finalised but for which the
+   * report worker has not produced a deliverable. Surfaces as
+   * Operational Issues on Home.
+   */
+  signedWithoutReport: number;
+  /**
+   * Count of evidence with `status = REPORTED` and no
+   * VerificationPackage row. These are records whose report generated
+   * but whose package builder did not.
+   */
+  reportedWithoutPackage: number;
   publicVerify: {
     published: number;
     unpublished: number;
@@ -86,8 +119,23 @@ export async function buildTrustSummary(input: {
 
   // GROUP BY on the real columns. Each call is a single aggregate query;
   // the numbers are direct counts, never derived.
-  const [tsaGroups, otsGroups, verifyGroups, totalEvidence, signed, needingAttention] =
-    await Promise.all([
+  //
+  // Phase HOME-TRUTH-FIX — three new counts added at the bottom
+  // (endToEndReady / signedWithoutReport / reportedWithoutPackage).
+  // These give the Home headline KPI a predicate that cannot show
+  // green when the report worker has stalled — the exact failure mode
+  // (puppeteer __name) that previously left Trust Ready at 100%.
+  const [
+    tsaGroups,
+    otsGroups,
+    verifyGroups,
+    totalEvidence,
+    signed,
+    needingAttention,
+    endToEndReady,
+    signedWithoutReport,
+    reportedWithoutPackage,
+  ] = await Promise.all([
       prisma.evidence.groupBy({
         by: ["tsaStatus"],
         where: baseWhere,
@@ -111,6 +159,37 @@ export async function buildTrustSummary(input: {
         where: {
           ...baseWhere,
           verificationStatus: { in: ["REVIEW_REQUIRED", "FAILED"] as never },
+        },
+      }),
+      // End-to-end ready — every link in the deliverable chain must
+      // exist. status REPORTED + Report row + Package row + verify
+      // not actively suspended. TSA/OTS deliberately NOT required:
+      // those are presented as separate trust signals (see the
+      // dedicated Trust State rows) so the headline number stays
+      // about the deliverable chain.
+      prisma.evidence.count({
+        where: {
+          ...baseWhere,
+          status: "REPORTED" as never,
+          reports: { some: {} },
+          verificationPackages: { some: {} },
+          NOT: { publicVerifyState: "SUSPENDED" as never },
+        },
+      }),
+      // Stuck-SIGNED — operational issue surfaced on Home.
+      prisma.evidence.count({
+        where: {
+          ...baseWhere,
+          status: "SIGNED" as never,
+          reports: { none: {} },
+        },
+      }),
+      // Stuck-REPORTED — package builder never produced a row.
+      prisma.evidence.count({
+        where: {
+          ...baseWhere,
+          status: "REPORTED" as never,
+          verificationPackages: { none: {} },
         },
       }),
     ]);
@@ -138,6 +217,9 @@ export async function buildTrustSummary(input: {
     tsa,
     ots,
     signed,
+    endToEndReady,
+    signedWithoutReport,
+    reportedWithoutPackage,
     publicVerify,
     needingAttention,
   };

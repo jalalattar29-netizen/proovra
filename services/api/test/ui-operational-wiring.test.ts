@@ -179,8 +179,14 @@ describe("ExportPackageEligibilityBadge", () => {
     expect(src).toMatch(
       /unknown:\s*true[\s\S]*?eligible:\s*false/,
     );
-    // The badge tells the operator the action is blocked.
-    expect(src).toContain("Unknown — blocked");
+    // Phase EVIDENCE-DETAIL-CLEANUP — the badge no longer emits the
+    // "Unknown — blocked" pill literal; the fail-closed signal is
+    // now carried by the alert panel title and the
+    // data-eligibility-state="unknown" attribute. The behavior the
+    // older assertion was protecting (operator is told the action
+    // is blocked) is preserved by these checks.
+    expect(src).toMatch(/data-eligibility-state=\{[^}]*?"unknown"/);
+    expect(src).toMatch(/eligibility unavailable/i);
   });
 
   it("loading state disables the action", () => {
@@ -198,11 +204,25 @@ describe("ExportPackageEligibilityBadge", () => {
     expect(src).toMatch(/onEligibilityChange\?\.\(\{/);
   });
 
-  it("never claims the action is ready when state is unknown", () => {
-    // Pill labels must use distinct vocabulary per state.
-    expect(src).toMatch(/"Export allowed"|"Package allowed"/);
-    expect(src).toMatch(/"Export blocked"|"Package blocked"/);
-    expect(src).toContain('"Unknown — blocked"');
+  it("never claims the action is ready when state is unknown or loading", () => {
+    // Phase EVIDENCE-DETAIL-CLEANUP — the "Export allowed" /
+    // "Package allowed" / "Unknown — blocked" pill literals were
+    // removed. The component now renders NOTHING for the eligible
+    // and loading branches (no positive-state noise), and a single
+    // warning panel for blocked and unknown. The behavior this test
+    // was protecting — "never imply readiness when state is not
+    // eligible" — is now enforced more strictly: the component
+    // returns null for eligible/loading and returns a clearly-tagged
+    // alert panel for blocked/unknown.
+    expect(src).not.toMatch(/"Export allowed"/);
+    expect(src).not.toMatch(/"Package allowed"/);
+    expect(src).not.toMatch(/"Unknown — blocked"/);
+    // The new explicit short-circuit for non-blocked states.
+    expect(src).toMatch(
+      /if\s*\(\s*state\.loading\s*\|\|\s*state\.eligible\s*\)\s*\{\s*\n\s*return\s+null\s*;/,
+    );
+    // The unknown / blocked panel is tagged role="alert".
+    expect(src).toMatch(/role="alert"/);
   });
 });
 

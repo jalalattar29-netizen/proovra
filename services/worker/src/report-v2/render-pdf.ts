@@ -161,89 +161,109 @@ await page.setContent(html, {
   timeout: 30_000,
 });
 
-await page.evaluate(async () => {
-  const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
-  if (fonts?.ready) {
+// Phase REPORT-RENDERER-FIX — the evaluate bodies are passed as
+// PLAIN STRINGS, not as TypeScript arrow functions, so that the
+// worker's transpiler (tsx → esbuild in dev, tsc → JS in prod)
+// cannot inject helpers like `__name(fn, "label")` that puppeteer
+// then serialises via .toString() and sends to the browser where
+// they are undefined → `ReferenceError: __name is not defined`.
+//
+// Each string body is plain ES2022 that the headless Chrome can
+// execute verbatim, with no module syntax, no TypeScript syntax,
+// and no helper references. The browser still understands modern
+// JavaScript so async/await/Array.from/Promise/Promise.race are
+// fine; we just keep the body out of the transpiler's reach.
+await page.evaluate(
+  `(async () => {
+    const fonts = document.fonts;
+    if (fonts && fonts.ready) {
+      await Promise.race([
+        fonts.ready,
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
+    }
+
+    const images = Array.from(document.images);
     await Promise.race([
-      fonts.ready,
-      new Promise((resolve) => setTimeout(resolve, 3000)),
+      Promise.all(
+        images.map((img) => {
+          if (img.complete) return Promise.resolve();
+          return new Promise((resolve) => {
+            const done = () => resolve();
+            img.addEventListener("load", done, { once: true });
+            img.addEventListener("error", done, { once: true });
+          });
+        })
+      ),
+      new Promise((resolve) => setTimeout(resolve, 5000)),
     ]);
-  }
+  })()`,
+);
 
-  const images = Array.from(document.images);
-  await Promise.race([
-    Promise.all(
-      images.map((img) => {
-        if (img.complete) return Promise.resolve();
+    const footerData = (await page.evaluate(
+      `(() => {
+        const text = (selector) =>
+          (document.querySelector(selector) || {}).textContent
+            ? document.querySelector(selector).textContent.trim() || null
+            : null;
 
-        return new Promise<void>((resolve) => {
-          const done = () => resolve();
-          img.addEventListener("load", done, { once: true });
-          img.addEventListener("error", done, { once: true });
-        });
-      })
-    ),
-    new Promise((resolve) => setTimeout(resolve, 5000)),
-  ]);
-});
+        const meta = (name) => {
+          const node = document.querySelector('meta[name="' + name + '"]');
+          if (!node) return null;
+          const v = node.getAttribute("content");
+          return v ? v.trim() || null : null;
+        };
 
-    const footerData = await page.evaluate(() => {
-      function text(selector: string): string | null {
-        return document.querySelector(selector)?.textContent?.trim() || null;
-      }
-
-      function meta(name: string): string | null {
-        return (
-          document
-            .querySelector(`meta[name="${name}"]`)
-            ?.getAttribute("content")
-            ?.trim() || null
-        );
-      }
-
-      function findValueByLabel(label: string): string | null {
-        const cards = Array.from(document.querySelectorAll(".cover-meta-card"));
-        for (const card of cards) {
-          const labelText =
-            card.querySelector(".cover-meta-label")?.textContent?.trim() || "";
-          if (labelText.toLowerCase() === label.toLowerCase()) {
-            return (
-              card.querySelector(".cover-meta-value")?.textContent?.trim() ||
-              null
-            );
+        const findValueByLabel = (label) => {
+          const cards = Array.from(document.querySelectorAll(".cover-meta-card"));
+          for (const card of cards) {
+            const lEl = card.querySelector(".cover-meta-label");
+            const labelText = (lEl && lEl.textContent ? lEl.textContent.trim() : "") || "";
+            if (labelText.toLowerCase() === label.toLowerCase()) {
+              const vEl = card.querySelector(".cover-meta-value");
+              return (vEl && vEl.textContent ? vEl.textContent.trim() : "") || null;
+            }
           }
-        }
+          return null;
+        };
 
-        return null;
-      }
+        const bodyMatch =
+          document.body && document.body.textContent
+            ? document.body.textContent.match(
+                /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+              )
+            : null;
 
-      const evidenceReference =
-        findValueByLabel("Evidence Reference") ||
-        text("[data-evidence-reference]") ||
-        document.body.textContent?.match(
-          /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
-        )?.[0] ||
-        null;
+        const evidenceReference =
+          findValueByLabel("Evidence Reference") ||
+          text("[data-evidence-reference]") ||
+          (bodyMatch ? bodyMatch[0] : null) ||
+          null;
 
-      return {
-        evidenceReference,
-        version:
-          meta("proovra-report-version") ||
-          document
-            .querySelector(".report-root")
-            ?.getAttribute("data-report-version")
-            ?.trim() ||
-          "1",
-        generatedDateUtc:
-          meta("proovra-report-generated-date") ||
-          document
-            .querySelector(".report-root")
-            ?.getAttribute("data-generated-date-utc")
-            ?.trim() ||
-          meta("proovra-report-generated-at") ||
-          "",
-      };
-    });
+        const root = document.querySelector(".report-root");
+
+        return {
+          evidenceReference,
+          version:
+            meta("proovra-report-version") ||
+            (root && root.getAttribute("data-report-version")
+              ? root.getAttribute("data-report-version").trim()
+              : null) ||
+            "1",
+          generatedDateUtc:
+            meta("proovra-report-generated-date") ||
+            (root && root.getAttribute("data-generated-date-utc")
+              ? root.getAttribute("data-generated-date-utc").trim()
+              : null) ||
+            meta("proovra-report-generated-at") ||
+            "",
+        };
+      })()`,
+    )) as {
+      evidenceReference: string | null;
+      version: string;
+      generatedDateUtc: string;
+    };
 
     const footerTemplate = buildFooterTemplate({
 reportId: fullReportId(footerData.evidenceReference),

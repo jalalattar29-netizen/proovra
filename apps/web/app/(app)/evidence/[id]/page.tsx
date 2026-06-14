@@ -1141,11 +1141,36 @@ function EvidenceDetailPageInner() {
   //
   //   Polling pauses when the tab is hidden (document.hidden) so
   //   inactive tabs don't burn API calls.
+  // Phase CAPTURE-ARTIFACT-PIPELINE — stale-pending detection.
+  // The page polls /artifacts/status every 3s while the worker is
+  // expected to produce a report + package. In production the worker
+  // is always running. In local dev, the worker is a SEPARATE process
+  // (services/worker) and `pnpm dev` / `dev:web` / `dev:all` did not
+  // start it before this pass — see root package.json. If the worker
+  // is silently absent, the API will keep returning `pending: true`
+  // forever and the user sees an endless spinner with no explanation.
+  //
+  // After STALE_PENDING_AFTER_MS of polling without success, stop the
+  // loop and surface a "Generation is taking longer than expected"
+  // state with an explicit refresh action. This avoids:
+  //   - infinite polling burning API calls,
+  //   - the user not knowing the workflow stalled,
+  //   - silent dev-stack misconfiguration.
+  const [pollStartedAt, setPollStartedAt] = useState<number | null>(null);
+  const [stalePending, setStalePending] = useState(false);
   useEffect(() => {
     if (!evidenceId) return;
-    if (!shouldPollArtifactReadiness(workspace)) return;
+    if (!shouldPollArtifactReadiness(workspace)) {
+      // Reset the stale window when we're no longer expected to poll
+      // (e.g. caps changed, artifacts attached, or terminal state).
+      setPollStartedAt(null);
+      setStalePending(false);
+      return;
+    }
     const activeWorkspace = workspace;
     if (!activeWorkspace) return;
+    // First time the polling becomes eligible — stamp the window.
+    if (pollStartedAt === null) setPollStartedAt(Date.now());
 
     let cancelled = false;
     let priorReportAvailable = activeWorkspace.artifactStatus.report.available;
@@ -1160,6 +1185,12 @@ function EvidenceDetailPageInner() {
         unavailableReason?: string | null;
       };
     };
+
+    // 60s window before surfacing the "taking too long" banner. After
+    // that we stop polling — the user can hit refresh manually once
+    // the underlying issue (worker offline, queue stalled, etc.) is
+    // resolved.
+    const STALE_PENDING_AFTER_MS = 60_000;
 
     const pollOnce = async (): Promise<boolean> => {
       try {
@@ -1176,11 +1207,24 @@ function EvidenceDetailPageInner() {
         priorPackageAvailable = packageNowAvailable;
         if (stateChanged) {
           await loadWorkspace();
+          // Progress made — reset stale window so subsequent slowness
+          // gets its own grace period.
+          setPollStartedAt(Date.now());
+          setStalePending(false);
         }
         // Decide whether to keep polling.
         const reportStillPending = r.report?.pending === true;
         const packageStillPending = r.verificationPackage?.pending === true;
-        return reportStillPending || packageStillPending;
+        const stillWaiting = reportStillPending || packageStillPending;
+        // Stale guard — if we've been waiting beyond the window
+        // without seeing progress, give up and surface the
+        // actionable state.
+        const startedAt = pollStartedAt ?? Date.now();
+        if (stillWaiting && Date.now() - startedAt > STALE_PENDING_AFTER_MS) {
+          setStalePending(true);
+          return false;
+        }
+        return stillWaiting;
       } catch {
         // Best-effort. A transient network error keeps polling
         // alive on the next tick; we never surface an error toast
@@ -2017,16 +2061,30 @@ function EvidenceDetailPageInner() {
         </section>
 
         {(() => {
-          // Phase CAPTURE-DETAIL-WIRING — Discussion is a TEAM-only
-          // surface (threads carry teamId; personal workspaces have a
-          // synthetic Personal Team UUID but no real coordination
-          // need). Hide the Discussion tab when this evidence belongs
-          // to a personal workspace; clicking the (now-absent) tab
-          // is no longer possible. The endpoint stays available for
-          // legitimate team callers.
-          const isPersonalWorkspace = workspaceCaps?.workspaceType === "PERSONAL";
+          // Phase DISCUSSION-CAPABILITY-FIX — Discussion tab visibility
+          // is now driven by a backend-computed capability flag on
+          // `WorkspaceCapabilitySnapshot`. We MUST NOT infer
+          // visibility from `workspaceType`, `teamId`, or active
+          // member counts — those signals are brittle now that
+          // personal workspaces carry a synthetic personal-team UUID
+          // (see memory: home-zero-data-root-cause).
+          //
+          //   discussionEnabled  — caller can read AND post.
+          //   discussionReadOnly — caller can read existing history
+          //                        only (composer hidden). Used when
+          //                        the workspace no longer qualifies
+          //                        for writable discussion but
+          //                        coordination history exists and
+          //                        must remain accessible.
+          //
+          // See services/api/src/routes/evidence.routes.ts
+          // `computeDiscussionCapability` for the source-of-truth
+          // rule.
+          const canSeeDiscussion =
+            workspaceCaps?.discussionEnabled === true ||
+            workspaceCaps?.discussionReadOnly === true;
           const visibleTabs = DETAIL_TABS.filter(
-            (t) => !(t.id === "discussion" && isPersonalWorkspace),
+            (t) => !(t.id === "discussion" && !canSeeDiscussion),
           );
           return (
             <nav
@@ -2981,6 +3039,60 @@ function EvidenceDetailPageInner() {
 
             {activeTab === "artifacts" ? (
               <>
+                {/* Phase CAPTURE-ARTIFACT-PIPELINE — stale-pending
+                    banner. When polling has waited beyond the grace
+                    window (60s) without artifacts attaching, surface
+                    an actionable state instead of an endless
+                    spinner. The most common root cause in local dev
+                    is the worker process not running (root
+                    package.json `dev:*` scripts didn't include
+                    services/worker until this pass). In production
+                    this signals a stalled queue or job DLQ. */}
+                {stalePending ? (
+                  <section
+                    className="evidence-detail-section"
+                    data-evidence-section="artifact-stale-pending"
+                    style={{
+                      borderLeft: "4px solid #d97706",
+                      background: "#fef3c7",
+                      padding: "12px 14px",
+                      borderRadius: 8,
+                    }}
+                  >
+                    <strong style={{ display: "block", marginBottom: 4, color: "#78350f", fontSize: 13.5 }}>
+                      Report generation is taking longer than expected
+                    </strong>
+                    <p className="evidence-detail-muted" style={{ margin: "0 0 8px 0", fontSize: 12.5, color: "#78350f" }}>
+                      The signed evidence record is preserved — the
+                      chain-of-custody and integrity columns are
+                      intact. The downstream report and verification
+                      package are still pending. Click refresh below
+                      to re-check status, or contact support if this
+                      persists.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStalePending(false);
+                        setPollStartedAt(null);
+                        void loadWorkspace();
+                      }}
+                      data-evidence-action="artifact-stale-refresh"
+                      style={{
+                        border: "1px solid #d97706",
+                        background: "white",
+                        color: "#78350f",
+                        padding: "5px 10px",
+                        borderRadius: 6,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Re-check status
+                    </button>
+                  </section>
+                ) : null}
                 {/* Phase CAPTURE-CLOSURE Part A — when the plan does
                     not include report/package generation, the report
                     worker rejects the job and the artifact never
@@ -3104,6 +3216,13 @@ function EvidenceDetailPageInner() {
                   evidenceId={evidenceId}
                   teamId={workspace.reviewWorkflow?.teamId ?? null}
                   initialThreadId={initialThreadId}
+                  // Phase DISCUSSION-CAPABILITY-FIX — when the
+                  // workspace no longer qualifies for writable
+                  // discussion but history exists, the tab stays
+                  // visible and the composer is hidden so the audit
+                  // trail remains accessible without inviting new
+                  // posts that the backend would reject.
+                  readOnly={workspaceCaps?.discussionReadOnly === true}
                 />
               </section>
             ) : null}

@@ -43,7 +43,15 @@ test("artifact rendering uses canonical report and package status helpers", () =
 test("artifact polling is scoped to report and package readiness only", () => {
   assert.match(SRC, /function shouldPollArtifactReadiness/);
   assert.match(SRC, /status === "SIGNED" \|\| status === "REPORTED"/);
-  assert.match(SRC, /const reportNeedsRefresh = !workspace\.artifactStatus\.report\.available;/);
+  // Phase CAPTURE-CLOSURE Part A — polling stops once a plan-gated
+  // artifact is unreachable (workspaceCapabilitySnapshot.reportsIncluded /
+  // verificationPackageIncluded === false). The predicate is now:
+  //   reportNeedsRefresh = reportReachable && !workspace.artifactStatus.report.available
+  // (and the symmetric form for the verification package).
+  assert.match(
+    SRC,
+    /reportNeedsRefresh\s*=\s*\n?\s*reportReachable\s*&&\s*!workspace\.artifactStatus\.report\.available/,
+  );
   assert.match(
     SRC,
     /!verificationPackage\.available &&\s*!verificationPackage\.blocked &&\s*!verificationPackage\.unavailable/

@@ -71,11 +71,27 @@ const PAGE_SOURCE = readFileSync(PAGE_PATH, "utf8");
 // ---------------------------------------------------------------------------
 
 test("queue page sends queue=<enum> as the backend route expects", () => {
+  // The page now also includes `teamId=` as the leading param for
+  // workspace scoping (correct — backend rejects cross-tenant calls).
+  // Pin the FOUR things that matter: endpoint, teamId, queue=<filter>,
+  // and limit — without forcing a specific param ORDER (which would
+  // break every future query-string extension).
   assert.match(
     PAGE_SOURCE,
-    /\/v1\/reviewer-ops\/queue\?queue=\$\{encodeURIComponent\(filter\)\}&limit=/,
-    "Queue fetch must use the `queue=` parameter the backend Zod " +
-      "accepts. The previous `state=` was silently dropped.",
+    /\/v1\/reviewer-ops\/queue\?[^`]*\bqueue=\$\{encodeURIComponent\(filter\)\}/,
+    "Queue fetch must send `queue=<filter>` as a URL-encoded query " +
+      "param (backend Zod accepts `queue=`, not the legacy `state=`).",
+  );
+  assert.match(
+    PAGE_SOURCE,
+    /\/v1\/reviewer-ops\/queue\?[^`]*\bteamId=\$\{encodeURIComponent\(teamId\)\}/,
+    "Queue fetch must scope to teamId so cross-workspace results " +
+      "are impossible.",
+  );
+  assert.match(
+    PAGE_SOURCE,
+    /\/v1\/reviewer-ops\/queue\?[^`]*\blimit=\$\{QUEUE_PAGE_LIMIT\}/,
+    "Queue fetch must include the limit param bound to QUEUE_PAGE_LIMIT.",
   );
 });
 
@@ -98,8 +114,12 @@ test("queue page caps limit at the backend max (100, not 200)", () => {
   // The fetch URLs must not contain `limit=200`. We scope the
   // check to the apiFetch template literals (header docs may still
   // reference the legacy value to explain the Phase 3 delta).
+  //
+  // Regex updated to be param-order tolerant — the page now leads
+  // with `teamId=` (correct workspace scoping). We grep every
+  // `/v1/reviewer-ops/queue?…` template literal.
   const fetchSnippets = PAGE_SOURCE.match(
-    /\/v1\/reviewer-ops\/queue\?queue=\$\{encodeURIComponent\(filter\)\}&limit=[^`]+/g,
+    /\/v1\/reviewer-ops\/queue\?[^`]+/g,
   );
   assert.ok(
     fetchSnippets && fetchSnippets.length >= 1,
@@ -110,6 +130,12 @@ test("queue page caps limit at the backend max (100, not 200)", () => {
       snippet,
       /limit=200/,
       "Queue fetch URL must not request limit=200 — backend caps at 100.",
+    );
+    // Limit must be bound to the constant, not a hardcoded number.
+    assert.match(
+      snippet,
+      /limit=\$\{QUEUE_PAGE_LIMIT\}/,
+      `Queue fetch URL must bind limit to QUEUE_PAGE_LIMIT. Got: ${snippet.slice(0, 200)}`,
     );
   }
 });

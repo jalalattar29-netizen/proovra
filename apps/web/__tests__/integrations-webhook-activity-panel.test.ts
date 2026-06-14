@@ -294,10 +294,53 @@ test("page-level link uses the Next.js Link component", () => {
     /import Link from "next\/link"/,
     "next/link must be imported (canonical in-app navigation primitive).",
   );
+  // The link MUST be rendered as a <Link …> element (not a bare <a>) —
+  // sibling tests already pin the href + the isAdmin gate; here we
+  // pin the JSX shape so any future refactor can't downgrade it.
+  // We anchor on the unique `data-testid` for this specific link
+  // (`integrations-view-all-activity-link`) so the assertion is
+  // robust to attribute ordering and to the addition of new
+  // attributes — what matters is that THIS link is a <Link> with
+  // BOTH href + title attributes present.
+  const linkBlockMatch = PAGE_SOURCE.match(
+    /<Link\b([\s\S]{0,500}?)data-testid="integrations-view-all-activity-link"([\s\S]{0,500}?)>/,
+  );
+  assert.ok(
+    linkBlockMatch,
+    "Could not locate the integration-activity <Link> opening tag. " +
+      "The link must be a Next.js <Link> with " +
+      "data-testid=\"integrations-view-all-activity-link\".",
+  );
+  const linkAttrs = (linkBlockMatch![1] ?? "") + (linkBlockMatch![2] ?? "");
   assert.match(
-    PAGE_SOURCE,
-    /title="Opens the full Team Activity timeline with the integration scope pre-applied\."/,
-    "The link must carry a tooltip explaining the destination.",
+    linkAttrs,
+    /href=\{`\/teams\/\$\{encodeURIComponent\(teamId\)\}\?activityTarget=integration`\}/,
+    "The integration-activity <Link> must point at " +
+      "/teams/<teamId>?activityTarget=integration.",
+  );
+  // The link MUST carry a meaningful tooltip explaining where it
+  // leads. Tooltip COPY was reworded in the source ("workspace
+  // activity timeline filtered to integration events"); we no
+  // longer pin the exact wording — instead we pin (a) the tooltip
+  // attribute is present on the link element, (b) its text
+  // mentions both the destination ("activity") AND the filter
+  // semantics ("integration"). This catches a missing/blank tooltip
+  // without bricking on future copy iterations.
+  const tooltipMatch = linkAttrs.match(/title="([^"]+)"/);
+  assert.ok(
+    tooltipMatch,
+    "The integration-activity <Link> must carry a `title` tooltip.",
+  );
+  const tooltip = tooltipMatch![1];
+  assert.match(
+    tooltip,
+    /activity/i,
+    `Tooltip must explain the destination (mention "activity"). Got: "${tooltip}"`,
+  );
+  assert.match(
+    tooltip,
+    /integration/i,
+    `Tooltip must explain the filter scope (mention "integration"). Got: "${tooltip}"`,
   );
 });
 

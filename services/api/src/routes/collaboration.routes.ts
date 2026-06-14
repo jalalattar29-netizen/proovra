@@ -38,6 +38,8 @@ import {
   DISCUSSION_THREAD_VISIBILITIES,
 } from "@proovra/shared";
 
+import prismaPkg from "@prisma/client";
+
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -71,7 +73,28 @@ async function requireReviewerMember(
   const membership = await prisma.teamMember.findUnique({
     where: { teamId_userId: { teamId, userId } },
   });
-  if (!membership) {
+  // Phase DISCUSSION-CAPABILITY-FIX (backend-parity) — the
+  // collaboration routes must reject SUSPENDED / REVOKED memberships
+  // even when the underlying role still carries the reviewer
+  // permission. Without this check, a suspended user whose
+  // TeamMember row still exists could call /v1/collaboration/*
+  // directly and bypass the workspace's access-lifecycle controls.
+  //
+  // The Evidence Detail capability flag
+  // (`workspaceCapabilitySnapshot.discussionEnabled` — see
+  // services/api/src/routes/evidence.routes.ts
+  // `computeDiscussionCapability`) already requires status === ACTIVE
+  // for the same reason; this guard brings the backend write surface
+  // into parity so the frontend gate and the backend authorization
+  // never disagree.
+  //
+  // Anti-enumeration: every rejection path returns the same opaque
+  // 404 — we never leak whether the team / membership / permission
+  // is the gating factor.
+  const isActiveMember =
+    membership !== null &&
+    membership.status === prismaPkg.TeamMemberStatus.ACTIVE;
+  if (!isActiveMember) {
     reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }

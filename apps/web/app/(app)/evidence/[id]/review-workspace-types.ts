@@ -35,6 +35,14 @@ export type WorkspaceCapabilitySnapshot = {
   seatsUsed: number | null;
   seatsRemaining: number | null;
   overSeatLimit: boolean | null;
+  // Phase DISCUSSION-CAPABILITY-FIX — backend-computed capability
+  // flags that gate the Discussion tab on Evidence Detail. The
+  // frontend MUST consume these directly and must NOT infer
+  // visibility from workspaceType, teamId, or active member counts.
+  // See services/api/src/routes/evidence.routes.ts
+  // `computeDiscussionCapability` for the source-of-truth rule.
+  discussionEnabled: boolean;
+  discussionReadOnly: boolean;
 };
 
 export type ClientSignalCollectionState =

@@ -24,6 +24,7 @@
  * 16 ships internal-only routes. Contributor write integration ties
  * into the existing external intake flow (deferred wiring).
  */
+import prismaPkg from "@prisma/client";
 import { z } from "zod";
 import { DISCUSSION_PARTICIPANT_ROLES, DISCUSSION_THREAD_KINDS, DISCUSSION_THREAD_STATUSES, DISCUSSION_THREAD_VISIBILITIES, } from "@proovra/shared";
 import { getAuthUserId } from "../auth.js";
@@ -37,7 +38,13 @@ async function requireReviewerMember(req, reply, teamId) {
     const membership = await prisma.teamMember.findUnique({
         where: { teamId_userId: { teamId, userId } },
     });
-    if (!membership) {
+    // Phase DISCUSSION-CAPABILITY-FIX (backend-parity) — reject
+    // SUSPENDED / REVOKED memberships even when the role still carries
+    // the reviewer permission. Anti-enumeration: every rejection path
+    // returns the same opaque 404.
+    const isActiveMember = membership !== null &&
+        membership.status === prismaPkg.TeamMemberStatus.ACTIVE;
+    if (!isActiveMember) {
         reply.code(404).send({ error: { code: "not_found" } });
         return null;
     }

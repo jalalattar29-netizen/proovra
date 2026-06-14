@@ -140,6 +140,13 @@ import {
 import { listEvidenceArtifacts } from "../services/evidence-review/artifact-history.service.js";
 import { buildEvidenceArtifactStatus } from "../services/evidence-artifact-status.service.js";
 import { buildEvidenceReviewGovernance } from "../services/evidence-review/governance.service.js";
+// Phase DISCUSSION-CAPABILITY-FIX — `requirePermission()` is the
+// canonical role/permission matrix lookup used by collaboration.routes
+// (`requireReviewerMember`). The Evidence Detail page must compute its
+// Discussion-tab gate using the SAME predicate the discussion routes
+// enforce — otherwise the tab can show for callers who would 404 on
+// every click, or hide for callers who legitimately have access.
+import { requirePermission } from "../services/governance.service.js";
 import { buildTrustDecisionConsistency } from "../services/trust-decision-consistency.service.js";
 import { buildPublicVerifyConsistencySections } from "../services/public-verify-consistency.service.js";
 
@@ -3871,15 +3878,79 @@ function buildPublicCustodyLifecycle(params: {
 
 type BillingOverviewSnapshot = Awaited<ReturnType<typeof readBillingOverview>>;
 
+// Phase DISCUSSION-CAPABILITY-FIX — capability inputs for the
+// Discussion tab. The handler loads these alongside `overview` so the
+// snapshot can return a fully-resolved `discussionEnabled` /
+// `discussionReadOnly` pair, and the frontend never has to infer
+// visibility from `workspaceType` or `teamId` (both of which are
+// brittle now that personal workspaces carry a synthetic personal-team
+// UUID — see memory: home-zero-data-root-cause).
+type DiscussionCapabilityInputs = {
+  team: { isPersonal: boolean } | null;
+  callerMembership:
+    | {
+        role: prismaPkg.TeamRole;
+        status: prismaPkg.TeamMemberStatus;
+      }
+    | null;
+  existingDiscussionThreadCount: number;
+};
+
+function computeDiscussionCapability(inputs: DiscussionCapabilityInputs): {
+  discussionEnabled: boolean;
+  discussionReadOnly: boolean;
+} {
+  // Mirror the collaboration route's permission predicate exactly —
+  // `requireReviewerMember` in collaboration.routes.ts checks:
+  //   (1) caller has a TeamMember row for that team
+  //   (2) caller's role grants `evidence_request.review`
+  // We additionally require status === ACTIVE because a SUSPENDED /
+  // REVOKED row must never carry collaboration capability, even
+  // though the collaboration route currently doesn't inspect status
+  // (pre-existing gap — tightening the FRONTEND gate is safe and
+  // correct).
+  const hasActiveMembership =
+    inputs.callerMembership !== null &&
+    inputs.callerMembership.status === prismaPkg.TeamMemberStatus.ACTIVE;
+
+  const hasReviewerPermission =
+    hasActiveMembership &&
+    requirePermission(inputs.callerMembership!.role, "evidence_request.review")
+      .allowed;
+
+  const isRealCollaborationWorkspace =
+    inputs.team !== null && inputs.team.isPersonal === false;
+
+  const discussionEnabled =
+    isRealCollaborationWorkspace && hasReviewerPermission;
+
+  // Read-only fallback: when the workspace no longer qualifies for
+  // writable discussion (e.g. evidence imported into a personal
+  // workspace, or workspace plan changed) but discussion HISTORY
+  // exists and the caller has both a membership row and reviewer
+  // permission, surface the history as read-only so the audit trail
+  // remains accessible. Approved by the user as a strict preference
+  // over silently dropping the tab.
+  const discussionReadOnly =
+    !discussionEnabled &&
+    inputs.existingDiscussionThreadCount > 0 &&
+    hasReviewerPermission;
+
+  return { discussionEnabled, discussionReadOnly };
+}
+
 function resolveWorkspaceCapabilitySnapshot(params: {
   overview: BillingOverviewSnapshot;
   evidence: SelectedEvidence;
+  discussion: DiscussionCapabilityInputs;
 }) {
   const teamWorkspace = params.evidence.teamId
     ? params.overview.workspaces.teams.find(
         (team) => team.id === params.evidence.teamId
       ) ?? null
     : null;
+
+  const discussionFlags = computeDiscussionCapability(params.discussion);
 
   if (teamWorkspace) {
     return {
@@ -3903,6 +3974,7 @@ function resolveWorkspaceCapabilitySnapshot(params: {
       seatsUsed: teamWorkspace.seats?.used ?? null,
       seatsRemaining: teamWorkspace.seats?.remaining ?? null,
       overSeatLimit: teamWorkspace.overSeatLimit ?? null,
+      ...discussionFlags,
     };
   }
 
@@ -3933,6 +4005,7 @@ function resolveWorkspaceCapabilitySnapshot(params: {
     seatsUsed: null,
     seatsRemaining: null,
     overSeatLimit: null,
+    ...discussionFlags,
   };
 }
 
@@ -7651,6 +7724,10 @@ await appendCustodyEvent({
           authenticatedVerifyCount,
           reportDownloadCount,
           verificationPackageDownloadCount,
+          // Phase DISCUSSION-CAPABILITY-FIX — capability inputs.
+          discussionTeamRow,
+          callerTeamMembership,
+          existingDiscussionThreadCount,
         ] = await Promise.all([
           getEvidenceItemCount(id),
           readBillingOverview(ownerUserId),
@@ -7766,11 +7843,43 @@ await appendCustodyEvent({
                 prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
             },
           }),
+          // Phase DISCUSSION-CAPABILITY-FIX — three small reads that
+          // back the Discussion-tab capability gate. Conditional on
+          // evidence.teamId because personal evidence (no team) trivially
+          // returns `discussionEnabled: false` / `discussionReadOnly: false`
+          // without any DB hit.
+          evidence.teamId
+            ? prisma.team.findUnique({
+                where: { id: evidence.teamId },
+                select: { isPersonal: true },
+              })
+            : Promise.resolve(null),
+          evidence.teamId
+            ? prisma.teamMember.findUnique({
+                where: {
+                  teamId_userId: {
+                    teamId: evidence.teamId,
+                    userId: ownerUserId,
+                  },
+                },
+                select: { role: true, status: true },
+              })
+            : Promise.resolve(null),
+          evidence.teamId
+            ? prisma.discussionThread.count({
+                where: { evidenceId: id, teamId: evidence.teamId },
+              })
+            : Promise.resolve(0),
         ]);
 
         const workspaceCapabilitySnapshot = resolveWorkspaceCapabilitySnapshot({
           overview,
           evidence,
+          discussion: {
+            team: discussionTeamRow,
+            callerMembership: callerTeamMembership,
+            existingDiscussionThreadCount,
+          },
         });
 
         const evidenceIntelligence = await buildEvidenceIntelligence({

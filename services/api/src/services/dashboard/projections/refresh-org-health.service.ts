@@ -63,20 +63,32 @@ export async function refreshOrgHealthProjection(
   ] = await Promise.all([
     client.evidence.count({ where: { teamId, deletedAt: null } }),
     client.case.count({ where: { teamId } }),
-    // "Pending" = report row absent for evidence. Use a bounded EXISTS-
-    // style query via Prisma's `none` filter on the related Report table.
+    // Phase HOME-TRUTH-FIX — "Pending" must be scoped to evidence that
+    // has finished the upload+signature pipeline. Pre-SIGNED evidence
+    // (CREATED / UPLOADING / UPLOADED / FAILED_HASH_MISMATCH) is not
+    // legitimately "pending a report" — it is pending a prior step or
+    // is in a terminal failure state. Without this status filter the
+    // projection treats stalled uploads as "missing reports", producing
+    // false-positive counts that contradict the user-facing
+    // /v1/dashboard/command-center pipelineDetail.reports.queued
+    // arithmetic (which IS correctly status-scoped).
     client.evidence.count({
       where: {
         teamId,
         deletedAt: null,
+        status: { in: ["SIGNED", "REPORTED"] as never },
         reports: { none: {} },
       },
     }),
-    // Same for VerificationPackage.
+    // Same shape for VerificationPackage — a package is only
+    // legitimately "missing" once the report has been produced, i.e.
+    // evidence reached REPORTED. Pre-REPORTED rows are NOT missing a
+    // package; they have not yet reached the package-generation stage.
     client.evidence.count({
       where: {
         teamId,
         deletedAt: null,
+        status: "REPORTED" as never,
         verificationPackages: { none: {} },
       },
     }),

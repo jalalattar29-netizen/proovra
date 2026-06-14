@@ -274,7 +274,23 @@ export type TrustState = {
   otsFailed: number;
   /** Records with no OTS anchoring yet (`ots.none`). Neutral state. */
   otsNone: number;
+  /**
+   * Evidence carrying an Ed25519 signature. NOT a readiness signal —
+   * signing happens before the report worker runs, so this can read
+   * 100% while every record is missing a deliverable. Use only for
+   * the Trust State card row labelled "Signed records".
+   */
   signed: number;
+  /**
+   * Phase HOME-TRUTH-FIX — end-to-end ready predicate (status=REPORTED
+   * ∧ has Report ∧ has Package ∧ not suspended). The headline KPI uses
+   * THIS, not `signed`.
+   */
+  endToEndReady: number;
+  /** Evidence stuck at SIGNED with no Report row. Operational issue. */
+  signedWithoutReport: number;
+  /** Evidence at REPORTED with no Package row. Operational issue. */
+  reportedWithoutPackage: number;
   verifyPublished: number;
   /** Public verification links that were live but are now suspended. */
   verifySuspended: number;
@@ -882,7 +898,31 @@ export type HomeTrustSummaryInput = {
   totalEvidence?: number;
   tsa?: { stamped?: number; pending?: number; failed?: number; none?: number };
   ots?: { anchored?: number; pending?: number; failed?: number; none?: number };
+  /**
+   * Evidence carrying an Ed25519 signature. NOTE: this is NOT the
+   * headline-KPI predicate — signing happens before the report worker
+   * runs, so this can read 100% while every record is missing a
+   * deliverable. Used only by the Trust State card (labelled "Signed
+   * records") and the per-section visualisations.
+   */
   signed?: number;
+  /**
+   * Phase HOME-TRUTH-FIX — backend-computed end-to-end readiness:
+   * status=REPORTED ∧ has Report ∧ has Package ∧ not suspended ∧ not
+   * deleted. This is the predicate the headline "End-to-end ready"
+   * KPI uses. Cannot show green when the report worker has stalled.
+   */
+  endToEndReady?: number;
+  /**
+   * Count of evidence with status=SIGNED and no Report row. Surfaces
+   * as an Operational Issue on Home (not a content-integrity issue).
+   */
+  signedWithoutReport?: number;
+  /**
+   * Count of evidence with status=REPORTED and no VerificationPackage
+   * row. Surfaces as an Operational Issue on Home.
+   */
+  reportedWithoutPackage?: number;
   publicVerify?: { published?: number; unpublished?: number; suspended?: number };
   needingAttention?: number;
 };
@@ -1390,6 +1430,9 @@ function buildTrustState(
     otsFailed: s.ots?.failed ?? 0,
     otsNone: s.ots?.none ?? 0,
     signed: s.signed ?? 0,
+    endToEndReady: s.endToEndReady ?? 0,
+    signedWithoutReport: s.signedWithoutReport ?? 0,
+    reportedWithoutPackage: s.reportedWithoutPackage ?? 0,
     verifyPublished: s.publicVerify?.published ?? 0,
     verifySuspended: s.publicVerify?.suspended ?? 0,
     needingAttention: s.needingAttention ?? 0,
@@ -2660,13 +2703,49 @@ function buildWorkspaceHealth(args: {
   needsFixing: NeedsFixingRow[];
   activeCasesCount: number;
   reportsReady: number;
+  reportsPending: number;
+  reportsFailed: number;
+  packagesPending: number;
+  packagesFailed: number;
   storage: StorageUsage | null;
 }): WorkspaceHealthMetric[] {
+  // Phase HOME-TRUTH-FIX —
+  //   * "Records complete" → "Records reported" (label honesty: the
+  //     metric counts evidence with status=REPORTED; "complete" reads
+  //     as end-to-end deliverable-complete, which it is NOT).
+  //   * Added "Operational issues" — sum of stuck-SIGNED +
+  //     stuck-REPORTED + open report/package failure incidents +
+  //     pending counts. The previous "Integrity issues" only counted
+  //     `verificationStatus IN ('REVIEW_REQUIRED','FAILED')`, which
+  //     STAYS 0 / GREEN during the puppeteer __name failure mode —
+  //     the exact gap this fix closes.
+  //   * "Reports ready" now uses `warn` tone when signed evidence
+  //     exists but zero reports are ready (was permanently `neutral`
+  //     at 0, hiding the failure visually).
+  //   * "Integrity issues" wording deliberately kept narrow:
+  //     verificationStatus-flagged records only. Deliverable-pipeline
+  //     issues live under "Operational issues" to avoid implying a
+  //     content-integrity failure where there is none.
   const p = args.pipeline ?? null;
-  const complete = p?.evidence?.reported ?? 0;
+  const reported = p?.evidence?.reported ?? 0;
+  const signed = p?.evidence?.signed ?? 0;
   const needReport = p?.reports?.missingFromSigned ?? 0;
   const submissionsWaiting = args.submissions.length;
   const integrityIssues = args.trust.needingAttention + args.needsFixing.length;
+  const operationalIssues =
+    args.trust.signedWithoutReport +
+    args.trust.reportedWithoutPackage +
+    args.reportsFailed +
+    args.packagesFailed;
+  // Reports-ready tone is warn (not neutral) when finalised evidence
+  // exists but no report has been produced — surfaces the failure
+  // visually even if the operator only scans tones.
+  const reportsReadyTone: WorkspaceHealthMetric["tone"] =
+    args.reportsReady > 0
+      ? "ok"
+      : signed > 0
+        ? "warn"
+        : "neutral";
   const storageTone: WorkspaceHealthMetric["tone"] = args.storage?.limitReached
     ? "danger"
     : args.storage?.nearLimit
@@ -2674,11 +2753,12 @@ function buildWorkspaceHealth(args: {
       : "ok";
   const storageValue = args.storage?.usagePercent != null ? `${args.storage.usagePercent}%` : "—";
   return [
-    { key: "complete", label: "Records complete", value: complete, tone: complete > 0 ? "ok" : "neutral" },
+    { key: "complete", label: "Records reported", value: reported, tone: reported > 0 ? "ok" : "neutral" },
     { key: "need_report", label: "Need a report", value: needReport, tone: needReport > 0 ? "warn" : "ok" },
     { key: "active_cases", label: "Active matters", value: args.activeCasesCount, tone: "neutral" },
     { key: "submissions", label: "Submissions waiting", value: submissionsWaiting, tone: submissionsWaiting > 0 ? "warn" : "ok" },
-    { key: "reports_ready", label: "Reports ready", value: args.reportsReady, tone: args.reportsReady > 0 ? "ok" : "neutral" },
+    { key: "reports_ready", label: "Reports ready", value: args.reportsReady, tone: reportsReadyTone },
+    { key: "operational", label: "Operational issues", value: operationalIssues, tone: operationalIssues > 0 ? "danger" : "ok" },
     { key: "integrity", label: "Integrity issues", value: integrityIssues, tone: integrityIssues > 0 ? "danger" : "ok" },
     { key: "storage", label: "Storage used", value: storageValue, tone: storageTone },
   ];
@@ -2993,18 +3073,37 @@ function buildKpis(args: {
   const mattersAttention =
     args.caseHealthSummary.gapsCount + args.caseHealthSummary.blockersCount;
 
-  // Trust-ready: REAL signed count from trust-summary; live verify pages.
-  const signed = args.trust.signed;
+  // Phase HOME-TRUTH-FIX — End-to-end ready KPI.
+  //
+  // BEFORE this pass, the headline KPI was "Trust ready" computed as
+  // `signed / totalEvidence` where `signed` only meant the Ed25519
+  // signature column was non-null. Signing happens BEFORE the report
+  // worker runs, so the KPI could read 100% while every fresh capture
+  // was stuck at SIGNED with no Report and no VerificationPackage
+  // (the exact failure mode of the puppeteer __name regression we
+  // fixed). The subtitle's word "sealed" compounded the misreading.
+  //
+  // The KPI now uses `endToEndReady` — a backend-computed predicate
+  // that requires status=REPORTED ∧ has Report ∧ has Package ∧ not
+  // suspended. It CANNOT read green when the report worker has
+  // stalled.
+  //
+  // The Trust State card still shows `signed` correctly labelled as
+  // "Signed records" so no information is lost; it just no longer
+  // anchors the headline KPI.
+  const endToEndReady = args.trust.endToEndReady;
+  const stuck =
+    args.trust.signedWithoutReport + args.trust.reportedWithoutPackage;
   const trustValue =
     totalEvidence >= 10
-      ? `${Math.round((signed / Math.max(1, totalEvidence)) * 100)}%`
-      : formatKpiNumber(signed);
+      ? `${Math.round((endToEndReady / Math.max(1, totalEvidence)) * 100)}%`
+      : formatKpiNumber(endToEndReady);
   const trustSubtitle =
     totalEvidence === 0
-      ? "Trust state appears with your first record"
-      : totalEvidence >= 10
-        ? `${formatKpiNumber(signed)} of ${formatKpiNumber(totalEvidence)} sealed · ${formatKpiNumber(args.trust.verifyPublished)} verify pages live`
-        : `sealed records · ${formatKpiNumber(args.trust.verifyPublished)} verify pages live`;
+      ? "End-to-end readiness appears with your first record"
+      : stuck > 0
+        ? `${formatKpiNumber(endToEndReady)} of ${formatKpiNumber(totalEvidence)} have report + package · ${formatKpiNumber(stuck)} need attention`
+        : `${formatKpiNumber(endToEndReady)} of ${formatKpiNumber(totalEvidence)} have report + package · ${formatKpiNumber(args.trust.verifyPublished)} verify pages live`;
 
   const rp = args.reportProduction;
   const deliverablesFailed = rp.reportsFailed + rp.packagesFailed;
@@ -3039,16 +3138,21 @@ function buildKpis(args: {
       href: "/cases",
     },
     {
+      // Key kept as "trust" to preserve any consumers that filter by
+      // it (deep-linked banners, e2e tests). Label + formula are the
+      // operationally-truthful ones.
       key: "trust",
-      label: "Trust ready",
+      label: "End-to-end ready",
       value: trustValue,
       subtitle: trustSubtitle,
       tone:
         args.trust.needingAttention > 0
           ? "danger"
-          : signed > 0
-            ? "ok"
-            : "neutral",
+          : stuck > 0
+            ? "warn"
+            : endToEndReady > 0
+              ? "ok"
+              : "neutral",
       spark: null,
       href: "/evidence",
     },
@@ -3273,6 +3377,13 @@ export function normalizeHomeViewModel(
     needsFixing,
     activeCasesCount: caseCount,
     reportsReady: reportProduction.reportsReady,
+    // Phase HOME-TRUTH-FIX — Operational Issues needs the failed +
+    // pending counts so a stalled report worker shows in the health
+    // card without having to scroll to the Report Production section.
+    reportsPending: reportProduction.reportsPending,
+    reportsFailed: reportProduction.reportsFailed,
+    packagesPending: reportProduction.packagesPending,
+    packagesFailed: reportProduction.packagesFailed,
     storage,
   });
 

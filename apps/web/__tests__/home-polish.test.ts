@@ -128,11 +128,18 @@ test("active users get real Workspace Priorities instead", () => {
 // ---------------------------------------------------------------------------
 
 test("KPI cards render real view-model values (no fabrication)", () => {
+  // Phase HOME-TRUTH-FIX — the "trust" KPI now uses `endToEndReady`
+  // (status=REPORTED ∧ has Report ∧ has Package), NOT `signed`. The
+  // previous predicate could show 100% when every record was missing
+  // a deliverable (puppeteer __name failure mode). To keep this test
+  // meaningful we feed BOTH counts and assert the KPI reflects
+  // `endToEndReady`, not `signed`.
   const vm = normalizeHomeViewModel(
     baseInputs({
       trustSummary: {
         totalEvidence: 334,
-        signed: 300,
+        signed: 300, // 300 records have a signature
+        endToEndReady: 200, // ...but only 200 have full deliverable chain
         publicVerify: { published: 118 },
         needingAttention: 0,
       },
@@ -147,8 +154,10 @@ test("KPI cards render real view-model values (no fabrication)", () => {
   const byKey = Object.fromEntries(vm.kpis.map((k) => [k.key, k]));
   assert.equal(byKey.evidence.value, "334");
   assert.equal(byKey.matters.value, "7");
-  // ≥10 records ⇒ percentage; 300/334 ⇒ 90%.
-  assert.equal(byKey.trust.value, `${Math.round((300 / 334) * 100)}%`);
+  // ≥10 records ⇒ percentage. The KPI must use endToEndReady (200),
+  // NOT signed (300). 200/334 ⇒ 60%.
+  assert.equal(byKey.trust.value, `${Math.round((200 / 334) * 100)}%`);
+  assert.equal(byKey.trust.label, "End-to-end ready");
   assert.equal(byKey.deliverables.value, "12 / 9");
 });
 

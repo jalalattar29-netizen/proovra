@@ -128,10 +128,23 @@ describe("CAPTURE-DETAIL-WIRING — Evidence Detail page", () => {
 });
 
 describe("CAPTURE-DETAIL-WIRING — structural fixes", () => {
-  it("Discussion tab is filtered out when workspace is PERSONAL", () => {
-    expect(DETAIL_PAGE).toMatch(/isPersonalWorkspace\s*=\s*workspaceCaps\?\.workspaceType\s*===\s*"PERSONAL"/);
+  it("Discussion tab is gated on the backend-computed discussionEnabled / discussionReadOnly flags, NOT on workspaceType labels", () => {
+    // Phase DISCUSSION-CAPABILITY-FIX — the previous label-based gate
+    // (`workspaceType === "PERSONAL"`) was brittle now that personal
+    // workspaces carry a synthetic personal-team UUID. The page now
+    // consumes the backend-computed capability flags directly. The
+    // full truth-table for the flags themselves is locked by
+    // test/workspace-capability-snapshot-discussion.contract.test.ts.
     expect(DETAIL_PAGE).toMatch(
-      /visibleTabs\s*=\s*DETAIL_TABS\.filter\([\s\S]{0,200}t\.id\s*===\s*"discussion"\s*&&\s*isPersonalWorkspace/,
+      /canSeeDiscussion\s*=\s*\n?\s*workspaceCaps\?\.discussionEnabled\s*===\s*true\s*\|\|\s*\n?\s*workspaceCaps\?\.discussionReadOnly\s*===\s*true/,
+    );
+    expect(DETAIL_PAGE).toMatch(
+      /visibleTabs\s*=\s*DETAIL_TABS\.filter\([\s\S]{0,200}t\.id\s*===\s*"discussion"\s*&&\s*!canSeeDiscussion/,
+    );
+    // Regression guard — the brittle label-based predicate must NOT
+    // re-appear as the gating expression.
+    expect(DETAIL_PAGE).not.toMatch(
+      /const\s+isPersonalWorkspace\s*=\s*workspaceCaps\?\.workspaceType\s*===\s*"PERSONAL"/,
     );
   });
 

@@ -148,10 +148,20 @@ export default function EvidenceDiscussionPanel({
   evidenceId,
   teamId,
   initialThreadId,
+  // Phase DISCUSSION-CAPABILITY-FIX — when true, the panel renders
+  // thread list + message history but HIDES the composer and the
+  // post-action affordance. This is set by the parent when the
+  // workspace no longer qualifies for writable discussion but
+  // history exists and must remain accessible. Read-only mode is
+  // purely UI politeness — the backend write routes already reject
+  // ineligible callers; this just avoids surfacing controls the
+  // operator cannot use.
+  readOnly = false,
 }: {
   evidenceId: string;
   teamId: string | null;
   initialThreadId?: string | null;
+  readOnly?: boolean;
 }) {
   const [threads, setThreads] = useState<Thread[] | null>(null);
   const [loadingThreads, setLoadingThreads] = useState(true);
@@ -313,8 +323,27 @@ export default function EvidenceDiscussionPanel({
     <section
       className="evidence-discussion-panel"
       data-evidence-discussion-panel
+      data-evidence-discussion-mode={readOnly ? "read-only" : "writable"}
       style={panelStyle}
     >
+      {readOnly ? (
+        <div
+          data-evidence-discussion-readonly-banner
+          role="note"
+          style={{
+            border: "1px solid #fcd34d",
+            background: "#fef3c7",
+            color: "#78350f",
+            padding: "0.45rem 0.7rem",
+            borderRadius: 6,
+            fontSize: 12.5,
+            marginBottom: "0.6rem",
+          }}
+        >
+          Read-only — existing discussion history is preserved, but new
+          messages cannot be posted in the current workspace context.
+        </div>
+      ) : null}
       <header style={{ marginBottom: "0.75rem" }}>
         <div
           style={{
@@ -681,7 +710,16 @@ export default function EvidenceDiscussionPanel({
                 </ol>
               )}
 
-              {selectedThread.status === "RESOLVED" ||
+              {readOnly ? (
+                <p
+                  style={{ fontSize: 12, opacity: 0.72, marginTop: 12 }}
+                  data-evidence-discussion-readonly-message-form-hidden
+                >
+                  This workspace is in read-only mode for discussion.
+                  History above is preserved; new messages cannot be
+                  posted.
+                </p>
+              ) : selectedThread.status === "RESOLVED" ||
               selectedThread.status === "CLOSED" ? (
                 <p
                   style={{ fontSize: 12, opacity: 0.72, marginTop: 12 }}

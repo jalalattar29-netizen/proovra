@@ -118,6 +118,11 @@ export type OperationalPressureItem = {
     | "missing_package"
     | "failed_report"
     | "failed_package"
+    // Phase HOME-TRUTH-FIX — timestamp-provider failure items so
+    // TSA / OTS issues escalate into the Operational Queue rather
+    // than living only in the Trust State row counts.
+    | "tsa_failed"
+    | "ots_failed"
     | "retry_storm"
     | "governance_conflict"
     | "policy_conflict"
@@ -184,7 +189,12 @@ export type ReasonCode =
   | "INTEGRITY_REVIEW_REQUIRED"
   | "INTEGRITY_FAILED"
   | "CUSTODY_GAP"
-  | "ACCESS_ANOMALY";
+  | "ACCESS_ANOMALY"
+  // Phase HOME-TRUTH-FIX — timestamp-provider failures (RFC 3161 /
+  // OpenTimestamps). Operational issue, NOT a content-integrity
+  // claim — wording is deliberately neutral about evidence validity.
+  | "TSA_FAILED"
+  | "OTS_FAILED";
 
 export type OperationalDomain =
   | "review_ops"
@@ -475,6 +485,40 @@ const ROUTING_CATALOG: Record<
     requiredRoles: ["OWNER", "ADMIN"],
     escalationPath: "Platform on-call",
   },
+  // Phase HOME-TRUTH-FIX — TSA / OTS escalation entries. Wording is
+  // deliberately neutral: a timestamp-provider failure means the
+  // RFC 3161 / OpenTimestamps anchoring step did not complete; it is
+  // NOT a claim that the evidence content is invalid or tampered.
+  tsa_failed: {
+    reasonCode: "TSA_FAILED",
+    affectedDomain: "evidence_pipeline",
+    affectedEntityType: "evidence",
+    operationalExplanation:
+      "Trusted timestamp (RFC 3161) anchoring did not complete for this evidence.",
+    recommendedAction:
+      "Open the evidence to review the timestamp status; retry anchoring if appropriate.",
+    primaryRoute: "/evidence",
+    secondaryRoute: "/ops/observability",
+    sourceTable: "Evidence",
+    requiredPermission: "evidence.finalize",
+    requiredRoles: ["OWNER", "ADMIN", "MEMBER"],
+    escalationPath: "Workspace owner",
+  },
+  ots_failed: {
+    reasonCode: "OTS_FAILED",
+    affectedDomain: "evidence_pipeline",
+    affectedEntityType: "evidence",
+    operationalExplanation:
+      "OpenTimestamps public anchoring did not complete for this evidence.",
+    recommendedAction:
+      "Open the evidence to review the OpenTimestamps status; retry anchoring if appropriate.",
+    primaryRoute: "/evidence",
+    secondaryRoute: "/ops/observability",
+    sourceTable: "Evidence",
+    requiredPermission: "evidence.finalize",
+    requiredRoles: ["OWNER", "ADMIN", "MEMBER"],
+    escalationPath: "Workspace owner",
+  },
 };
 
 /**
@@ -570,13 +614,29 @@ export type PipelineDetail = {
     stuckUploading: number;
   };
   reports: {
+    /**
+     * Phase HOME-TRUTH-FIX — `ready` is the number of EVIDENCE
+     * RECORDS with at least one Report row (deleted evidence
+     * excluded). Previously this counted Report ROWS, which inflated
+     * with each regenerated version.
+     */
     ready: number;
+    /**
+     * Raw count of Report rows for non-deleted evidence — the
+     * "versions" metric. Never label this as "reports ready" in UI.
+     */
+    versionsTotal: number;
     queued: number;
     failed: number;
     missingFromSigned: number;
   };
   packages: {
+    /**
+     * Phase HOME-TRUTH-FIX — number of EVIDENCE RECORDS with at least
+     * one VerificationPackage row (deleted evidence excluded).
+     */
     ready: number;
+    versionsTotal: number;
     queued: number;
     blocked: number;
     failed: number;
@@ -1416,6 +1476,76 @@ async function runOperationalPressure(
     anyFailed = true;
   }
 
+  // Phase HOME-TRUTH-FIX — TSA failures. Surfacing the count was
+  // previously buried inside the Trust State card; an operator who
+  // skimmed the Operational Queue would miss it entirely. We escalate
+  // each failed-TSA evidence as a `tsa_failed` pressure item so the
+  // top-of-page queue cannot stay silent when timestamping is broken.
+  //
+  // Vocabulary: this is an *operational timestamp issue* — wording
+  // deliberately avoids "integrity failure" / "invalid evidence" /
+  // any claim about the underlying record being untrustworthy. TSA
+  // failure means the RFC 3161 anchoring step failed, not that the
+  // captured content is wrong.
+  try {
+    const rows = await prisma.evidence.findMany({
+      where: {
+        teamId,
+        deletedAt: null,
+        tsaStatus: { in: ["FAILED", "REJECTED", "ERROR"] as never },
+      },
+      orderBy: { updatedAt: "asc" },
+      take: PRESSURE_PER_KIND,
+      select: { id: true, title: true, updatedAt: true },
+    });
+    anyOk = true;
+    pushKindResults(
+      rows.map((r) => ({
+        id: `tsa_failed:${r.id}`,
+        category: "tsa_failed",
+        severity: "warning",
+        title: `Trusted timestamp issue — ${r.title ?? "Untitled"}`,
+        subtitle: "RFC 3161 anchoring did not complete",
+        href: `/evidence/${r.id}`,
+        occurredAt: r.updatedAt.toISOString(),
+      })),
+    );
+  } catch {
+    anyFailed = true;
+  }
+
+  // Phase HOME-TRUTH-FIX — OTS failures. Same rationale + vocabulary
+  // discipline as the TSA item above. OpenTimestamps anchoring is a
+  // separate timestamp provider; a failure here does not imply
+  // content-integrity failure, only that the anchor step did not
+  // succeed.
+  try {
+    const rows = await prisma.evidence.findMany({
+      where: {
+        teamId,
+        deletedAt: null,
+        otsStatus: { in: ["FAILED", "ERRORED", "ERROR"] as never },
+      },
+      orderBy: { updatedAt: "asc" },
+      take: PRESSURE_PER_KIND,
+      select: { id: true, title: true, updatedAt: true },
+    });
+    anyOk = true;
+    pushKindResults(
+      rows.map((r) => ({
+        id: `ots_failed:${r.id}`,
+        category: "ots_failed",
+        severity: "warning",
+        title: `OpenTimestamps anchor issue — ${r.title ?? "Untitled"}`,
+        subtitle: "Public timestamp anchoring did not complete",
+        href: `/evidence/${r.id}`,
+        occurredAt: r.updatedAt.toISOString(),
+      })),
+    );
+  } catch {
+    anyFailed = true;
+  }
+
   // Failed report / package jobs — via operational incidents
   try {
     const incidents = await prisma.operationalIncident.findMany({
@@ -2115,8 +2245,24 @@ async function runPipelineDetail(
     const stuckCutoff = new Date(
       Date.now() - STUCK_UPLOAD_HOURS * 60 * 60 * 1000,
     );
-    const [grouped, stuckUploading, reportsReady, packagesReady, publicVerify] =
-      await Promise.all([
+    // Phase HOME-TRUTH-FIX —
+    //   * `reportsReady` / `packagesReady` are now evidence-distinct
+    //     counts ("number of EVIDENCE records with at least one report",
+    //     not "number of report ROWS"). The previous shape inflated
+    //     with each regenerated version and ignored deleted-evidence
+    //     reports — drifting away from /v1/reports' user-visible list.
+    //   * `reportVersionsTotal` / `packageVersionsTotal` preserve the
+    //     raw-row count for surfaces that explicitly want it; they
+    //     must NEVER be labelled "reports ready".
+    const [
+      grouped,
+      stuckUploading,
+      reportsReady,
+      packagesReady,
+      reportVersionsTotal,
+      packageVersionsTotal,
+      publicVerify,
+    ] = await Promise.all([
         prisma.evidence.groupBy({
           by: ["status"],
           where: { teamId },
@@ -2129,11 +2275,25 @@ async function runPipelineDetail(
             updatedAt: { lt: stuckCutoff },
           },
         }),
+        prisma.evidence.count({
+          where: {
+            teamId,
+            deletedAt: null,
+            reports: { some: {} },
+          },
+        }),
+        prisma.evidence.count({
+          where: {
+            teamId,
+            deletedAt: null,
+            verificationPackages: { some: {} },
+          },
+        }),
         prisma.report.count({
-          where: { evidence: { teamId } },
+          where: { evidence: { teamId, deletedAt: null } },
         }),
         prisma.verificationPackage.count({
-          where: { evidence: { teamId } },
+          where: { evidence: { teamId, deletedAt: null } },
         }),
         prisma.evidence.groupBy({
           by: ["publicVerifyState"],
@@ -2206,7 +2366,13 @@ async function runPipelineDetail(
           stuckUploading,
         },
         reports: {
+          // Phase HOME-TRUTH-FIX — `ready` is the number of EVIDENCE
+          // RECORDS with at least one Report row (deleted evidence
+          // excluded). Previously this counted Report ROWS, inflating
+          // with each regenerated version. `versionsTotal` preserves
+          // the raw-row count for surfaces that explicitly want it.
           ready: reportsReady,
+          versionsTotal: reportVersionsTotal,
           // `queued` = signed evidence with no report yet (eligible for
           // generation): max(0, signed − reportsReady). There is no
           // separate "actively generating" counter in this projection.
@@ -2220,6 +2386,7 @@ async function runPipelineDetail(
         },
         packages: {
           ready: packagesReady,
+          versionsTotal: packageVersionsTotal,
           // `queued` = reported evidence with no package yet:
           // max(0, reported − packagesReady).
           queued: packagesQueued,
