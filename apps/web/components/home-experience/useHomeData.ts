@@ -23,7 +23,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 import {
@@ -176,6 +176,48 @@ export function useHomeData(): HomeData {
 
   useEffect(() => {
     void reload();
+  }, [reload]);
+
+  // Phase HOME-RECORDS-BY-TYPE-FIX —
+  //
+  // Before this hook fix, Home only refetched when its dependency
+  // set changed (workspaceId / plan / orgs) or on first mount. The
+  // Next.js App Router preserves /home in its router cache, so a
+  // user who captures evidence (router.push("/evidence/${id}") on
+  // finalize) and later returns to /home is shown the SNAPSHOT from
+  // before the capture — the donut, the activity chart, and the
+  // Recent Evidence rail all stay stale until a hard refresh. The
+  // user-visible symptom is "Records by type stays static after I
+  // captured a new image".
+  //
+  // The minimal robust fix is the standard SWR/React-Query pattern:
+  // refetch when the browser tab regains visibility OR window focus,
+  // throttled so back-to-back focus events don't hammer the API.
+  // No endpoint changes, no schema changes, no classifier changes.
+  //
+  // 2-second throttle: prevents a focus-then-visibility double-fire
+  // and any rapid tab toggling. The data is bounded (≤100 rows of
+  // ≤10 fields each) so a stale window of up to 2 s is acceptable.
+  const lastReloadAtRef = useRef<number>(0);
+  const STALE_WINDOW_MS = 2_000;
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    const maybeRefresh = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastReloadAtRef.current < STALE_WINDOW_MS) return;
+      lastReloadAtRef.current = now;
+      void reload();
+    };
+    // Initial mount sets the marker so the immediate `reload()` above
+    // doesn't count against the throttle.
+    lastReloadAtRef.current = Date.now();
+    document.addEventListener("visibilitychange", maybeRefresh);
+    window.addEventListener("focus", maybeRefresh);
+    return () => {
+      document.removeEventListener("visibilitychange", maybeRefresh);
+      window.removeEventListener("focus", maybeRefresh);
+    };
   }, [reload]);
 
   return { ...state, reload };

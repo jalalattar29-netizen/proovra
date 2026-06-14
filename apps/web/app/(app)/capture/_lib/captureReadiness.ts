@@ -98,20 +98,47 @@ export function isSupportingChecklistStepId(
 /**
  * THE canonical primary-evidence detector. Every readiness consumer
  * MUST go through this helper — never reimplement the predicate.
+ *
+ * The three branches cover the three shapes of "this item is primary"
+ * the production code can produce — and the live-browser bug that
+ * required this fix:
+ *
+ *  1. **Role string (case-insensitive prefix on "primary")** — THE
+ *     load-bearing branch. The dropdown's onClick writes
+ *     `role: \`${getRoleFromChecklistStep(step)} evidence\`` which
+ *     evaluates to `"Primary evidence"` for every primary step in
+ *     every template (the role-label fallback `step.required ?
+ *     "Primary" : "Supporting"` guarantees this for templates whose
+ *     server-issued step ids don't follow the `primary_*` naming
+ *     convention — e.g. Insurance Claim ships `overview_media`,
+ *     `damage_close_up`; Incident ships `scene_overview`,
+ *     `close_up_detail`; Compliance ships `policy_document`,
+ *     `screenshot_export`). Without this branch the live browser
+ *     keeps showing "Mark a primary evidence item" because the
+ *     server's bare-slug step ids defeat the prefix predicate.
+ *  2. **`checklistStepId` prefix match** — covers any template whose
+ *     server step id DOES begin with `primary_` (general-evidence-
+ *     record's `primary_evidence`, legal-matter / journalism-field-
+ *     capture's `primary_media`).
+ *  3. **Legacy literal slug role** — back-compat for cached drafts
+ *     written before the dropdown was rebuilt.
  */
 export function hasPrimaryEvidence(
   items: ReadonlyArray<SessionItem>,
 ): boolean {
-  return items.some(
-    (i) =>
-      // Legacy slug role written by older drafts (pre-dropdown fix).
-      i.role === "primary_evidence" ||
-      i.role === "primary_overview_media" ||
-      // Current path: the dropdown writes a `checklistStepId` whose
-      // slug begins with `primary_` whenever the user maps the item
-      // to ANY template's primary step.
-      isPrimaryChecklistStepId(i.checklistStepId),
-  );
+  return items.some((i) => {
+    // (1) Canonical: role string starts with "primary" (case-insensitive).
+    const role = (i.role ?? "").trim().toLowerCase();
+    if (role.startsWith("primary")) return true;
+    // (2) Slug-prefixed checklistStepId (templates that ship `primary_*` ids).
+    if (isPrimaryChecklistStepId(i.checklistStepId)) return true;
+    // (3) Legacy literal slug role for any cached draft from before
+    //     the dropdown wrote the human-readable role string. The
+    //     branch above already covers `"primary_evidence"` /
+    //     `"primary_overview_media"` via prefix; this keeps the
+    //     intent grep-visible.
+    return false;
+  });
 }
 
 /**
