@@ -82,16 +82,30 @@ function AiCategorizationCardWhenActive({ evidenceId }: { evidenceId: string }) 
 }
 
 function NotStartedEmptyState({ ctx }: { ctx: EvidenceDetailCtx }) {
-  const { workspace, setAssignCaseOpen, setSelectedCaseId, setWorkflowOpen, routerPush } = ctx;
+  const {
+    workspace,
+    canSeeReviewerOps,
+    setAssignCaseOpen,
+    setSelectedCaseId,
+    setWorkflowOpen,
+    routerPush,
+  } = ctx;
 
-  // Phase 2 — structured empty state with suggested actions. The
-  // page orchestrator routes the "Open report" action to the
-  // Artifacts tab via setActiveTab (passed indirectly here via the
-  // workspace nav URL; routerPush keeps the page in scope).
+  // Phase EVIDENCE-REVIEW-VISIBILITY — the suggested-action list +
+  // the "Assign reviewer" button only render when the workspace
+  // exposes the reviewer-ops surface. On a Personal Space or any
+  // self-serve context the user IS the reviewer; there is no
+  // assignment to make. We keep the heading + neutral copy so the
+  // empty state still tells the user "nothing has happened here
+  // yet"; the action set shrinks to the affordances that work
+  // (attach to case, open report).
+  const showReviewerActions = canSeeReviewerOps;
+
   return (
     <section
       className="evidence-detail-section"
       data-evidence-review-empty="NOT_STARTED"
+      data-evidence-review-empty-reviewer-ops={showReviewerActions ? "true" : "false"}
     >
       <div className="evidence-detail-section-header">
         <SectionHeading
@@ -101,11 +115,12 @@ function NotStartedEmptyState({ ctx }: { ctx: EvidenceDetailCtx }) {
         />
       </div>
       <p className="evidence-detail-muted" style={{ marginBottom: 10 }}>
-        The evidence record is preserved and verified. No reviewer has
-        started a structured review yet. Common next steps:
+        {showReviewerActions
+          ? "The evidence record is preserved and verified. No reviewer has started a structured review yet. Common next steps:"
+          : "The evidence record is preserved and verified. You can add a note or attach this record to a case below."}
       </p>
       <ul className="evidence-detail-flat-list" style={{ marginBottom: 12 }}>
-        <li>Assign a reviewer</li>
+        {showReviewerActions ? <li>Assign a reviewer</li> : null}
         <li>Add a comment or legal note</li>
         <li>Attach this record to a case</li>
         <li>Open the risk signals in the sidebar</li>
@@ -121,9 +136,11 @@ function NotStartedEmptyState({ ctx }: { ctx: EvidenceDetailCtx }) {
         >
           Attach to case
         </Button>
-        <Button variant="secondary" onClick={() => setWorkflowOpen(true)}>
-          Assign reviewer
-        </Button>
+        {showReviewerActions ? (
+          <Button variant="secondary" onClick={() => setWorkflowOpen(true)}>
+            Assign reviewer
+          </Button>
+        ) : null}
         <Button
           variant="secondary"
           onClick={() => routerPush(`/evidence/${workspace.evidence.id}?tab=artifacts`)}

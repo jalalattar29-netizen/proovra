@@ -205,7 +205,31 @@ function EvidenceDetailPageInner() {
     }
   };
 
-  const loadWorkspace = async () => {
+  /**
+   * Phase EVIDENCE-STALE-BANNER-FIX — load (or reload) the review
+   * workspace. The optional `bumpBaseline` parameter is the load-
+   * bearing knob that distinguishes:
+   *
+   *   bumpBaseline: false (default, on first mount + background
+   *     polling) — `initialUpdatedAtUtc` is set only once and never
+   *     moves. This is what powers the "another operator changed
+   *     this record" warning — subsequent loads that surface a
+   *     newer `reviewWorkflow.updatedAt` trigger CollisionWarning.
+   *
+   *   bumpBaseline: true (passed by saveWorkflow on success, by the
+   *     CollisionWarning Reload click, and by any other action the
+   *     CURRENT user initiated that they expect to advance the
+   *     baseline) — `initialUpdatedAtUtc` is replaced with the new
+   *     post-fetch value so the warning clears. This is what fixes
+   *     the false positive where a user's own self-initiated
+   *     workflow save was being interpreted as a foreign update.
+   *
+   * Backend conflict protection is unchanged — PATCH routes still
+   * reject stale writes server-side (409). This pass only fixes
+   * the client-side baseline so the warning surface stops shouting
+   * at users about their own writes.
+   */
+  const loadWorkspace = async (opts?: { bumpBaseline?: boolean }) => {
     if (!evidenceId) return;
     setLoading(true);
     setError(null);
@@ -217,7 +241,12 @@ function EvidenceDetailPageInner() {
       if (workspaceResult.status !== "fulfilled") throw workspaceResult.reason;
       const workspaceData = workspaceResult.value as ReviewWorkspaceResponse;
       setWorkspace(workspaceData);
-      setInitialUpdatedAtUtc((prev) => prev ?? workspaceData.reviewWorkflow.updatedAt ?? null);
+      const newUpdatedAt = workspaceData.reviewWorkflow.updatedAt ?? null;
+      if (opts?.bumpBaseline) {
+        setInitialUpdatedAtUtc(newUpdatedAt);
+      } else {
+        setInitialUpdatedAtUtc((prev) => prev ?? newUpdatedAt);
+      }
       setLabelDraft(workspaceData.evidence.displayTitle || workspaceData.evidence.title);
       setWorkflowStatusDraft(workspaceData.reviewWorkflow.status || "NOT_STARTED");
       setWorkflowPriorityDraft(workspaceData.reviewWorkflow.priority || "NORMAL");
@@ -459,7 +488,16 @@ function EvidenceDetailPageInner() {
       });
       addToast("Reviewer workflow updated", "success");
       setWorkflowOpen(false);
-      await Promise.all([loadWorkspace(), loadWorkflowEvents()]);
+      // Phase EVIDENCE-STALE-BANNER-FIX — bump the baseline so the
+      // user's own successful save is NOT interpreted by
+      // CollisionWarning as "another operator changed this record".
+      // External changes between this baseline-bump and the next
+      // render still trip the warning because the bump only fires
+      // on user-initiated paths.
+      await Promise.all([
+        loadWorkspace({ bumpBaseline: true }),
+        loadWorkflowEvents(),
+      ]);
     } catch (saveError) {
       captureException(saveError, {
         feature: "web_evidence_workflow_update",
@@ -980,7 +1018,11 @@ function EvidenceDetailPageInner() {
           entityLabel="Evidence record"
           initialUpdatedAtUtc={initialUpdatedAtUtc}
           currentUpdatedAtUtc={workspace.reviewWorkflow.updatedAt ?? null}
-          onReload={() => void loadWorkspace()}
+          // Phase EVIDENCE-STALE-BANNER-FIX — clicking Reload is an
+          // explicit operator consent to advance the baseline to
+          // the latest server state. Without the bump, the warning
+          // would stick after the user reloaded.
+          onReload={() => void loadWorkspace({ bumpBaseline: true })}
         />
         {isIntegrityFailed ? (
           <aside
@@ -1319,8 +1361,16 @@ function EvidenceDetailPageInner() {
         </select>
       </Modal>
 
+      {/* Phase EVIDENCE-REVIEW-VISIBILITY — the reviewer-workflow
+          modal is enterprise/team machinery (assignment, priority,
+          due date, structured note). It only renders for users who
+          can access the /reviewer-ops surface; on Personal Space the
+          modal is unmounted entirely so a stale `workflowOpen=true`
+          state can never surface enterprise controls. Self-serve
+          users keep the per-record review status + notes/comments
+          panels in the Review tab body. */}
       <Modal
-        isOpen={workflowOpen}
+        isOpen={canSeeReviewerOps && workflowOpen}
         onClose={() => setWorkflowOpen(false)}
         title="Update reviewer workflow"
         actions={
@@ -1586,12 +1636,18 @@ function WhatNeedsAttentionStrip({
   onGoToArtifacts: () => void;
   onGoToReview: () => void;
 }) {
-  const { workspace, workspaceCaps, reviewSignals } = ctx;
+  const { workspace, workspaceCaps, reviewSignals, canSeeReviewerOps } = ctx;
 
   const needsCase = !workspace.relationships.caseId && !workspace.relationships.caseName;
+  // Phase EVIDENCE-REVIEW-VISIBILITY — only surface the
+  // "Assign reviewer" prompt when the workspace exposes the
+  // reviewer-ops surface. On a Personal Space / self-serve
+  // context the user IS the reviewer; pestering them to
+  // assign one is misleading.
   const needsReviewer =
-    !workspace.reviewWorkflow?.status ||
-    workspace.reviewWorkflow.status === "NOT_STARTED";
+    canSeeReviewerOps &&
+    (!workspace.reviewWorkflow?.status ||
+      workspace.reviewWorkflow.status === "NOT_STARTED");
   const missingReport =
     workspaceCaps?.reportsIncluded !== false &&
     !workspace.artifactStatus.report.available;
@@ -1634,9 +1690,17 @@ function WhatNeedsAttentionStrip({
           <span
             key={`${s.title}-${s.detail}`}
             className={`evidence-detail-pill ${
-              s.severity === "warning" ? "warning" : s.severity === "info" ? "neutral" : "danger"
+              s.severity === "danger"
+                ? "danger"
+                : s.severity === "warning"
+                  ? "warning"
+                  : // Phase EVIDENCE-RISK-TONE — "info" and "neutral"
+                    // both render with the muted pill class so advisory
+                    // notes don't shout from the attention strip.
+                    "neutral"
             }`}
             data-evidence-attention-risk
+            data-evidence-attention-risk-severity={s.severity}
             title={s.detail}
           >
             {s.title}

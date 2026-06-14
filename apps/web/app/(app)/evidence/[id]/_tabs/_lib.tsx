@@ -59,7 +59,7 @@ export type EvidenceDetailCtx = {
   publicVerificationState: { label: string; detail: string } | null;
   otsStatusPresentation: { label: string; detail: string } | null;
   technicalReadinessSummary: string;
-  reviewSignals: Array<{ severity: string; title: string; detail: string }>;
+  reviewSignals: RiskSignal[];
   reviewReadinessItems: Array<{ label: string; value: string }>;
   overviewMetadataItems: Array<{ label: string; value: string }>;
   shareUrl: string | null;
@@ -499,14 +499,56 @@ export async function tryDownloadFile(url: string, filename: string) {
   }
 }
 
-export function buildRiskSignals(sourceContext: SourceContext, alerts: ReviewerAlert[]) {
-  const signals: Array<{ severity: string; title: string; detail: string }> = alerts.map(
-    (alert) => ({
-      severity: alert.severity,
-      title: alert.label,
-      detail: alert.detail,
-    }),
-  );
+/**
+ * Phase EVIDENCE-RISK-TONE — risk-signal severity tiers.
+ *
+ *   "danger"   — real failure the user must act on
+ *                (hash mismatch, signature missing, TSA failed,
+ *                public verification suspended, etc.). Red.
+ *   "warning"  — operational issue (missing report, missing
+ *                package, real review escalation). Amber/orange.
+ *   "info"     — informational context that may matter, but is
+ *                not an alert. Teal.
+ *   "neutral"  — advisory metadata note that is normal for most
+ *                evidence types. Soft gray. Sorts last; never
+ *                crowds out a real signal in the top-4 sidebar
+ *                slice. New tier added so heuristic-only flags
+ *                ("file modified before upload" for any existing
+ *                document) stop being painted as yellow warnings.
+ */
+export type RiskSignalSeverity = "danger" | "warning" | "info" | "neutral";
+
+export type RiskSignal = {
+  severity: RiskSignalSeverity;
+  title: string;
+  detail: string;
+};
+
+const RISK_SEVERITY_ORDER: Record<RiskSignalSeverity, number> = {
+  danger: 0,
+  warning: 1,
+  info: 2,
+  neutral: 3,
+};
+
+function normalizeSeverity(s: string | null | undefined): RiskSignalSeverity {
+  if (s === "danger" || s === "warning" || s === "info" || s === "neutral") return s;
+  // Backend may emit "critical" / "low" / etc. Map conservatively
+  // — unknown severities default to "info" rather than "warning"
+  // so a future backend label cannot accidentally over-alert.
+  if (s === "critical" || s === "high") return "danger";
+  return "info";
+}
+
+export function buildRiskSignals(
+  sourceContext: SourceContext,
+  alerts: ReviewerAlert[],
+): RiskSignal[] {
+  const signals: RiskSignal[] = alerts.map((alert) => ({
+    severity: normalizeSeverity(alert.severity),
+    title: alert.label,
+    detail: alert.detail,
+  }));
 
   if (sourceContext.clientSignalsSummary.screenshotLikeStatus === "DETECTED") {
     signals.push({
@@ -526,10 +568,19 @@ export function buildRiskSignals(sourceContext: SourceContext, alerts: ReviewerA
   }
 
   if (sourceContext.clientSignalsSummary.oldLastModified) {
+    // Phase EVIDENCE-RISK-TONE — downgraded from "warning" to
+    // "neutral". An older file lastModified is COMMON for normal
+    // evidence (existing PDFs, scanned policy documents, photos
+    // exported from another device, downloaded files). It does
+    // not affect verificationStatus, trustDecision, end-to-end
+    // readiness, report generation, or package generation; the
+    // server-side reviewerAlerts surface stays untouched. New
+    // label + copy reflect the actual operational meaning.
     signals.push({
-      severity: "warning",
-      title: "Old last-modified signal",
-      detail: "Client metadata indicates an older modification timestamp. This is advisory only.",
+      severity: "neutral",
+      title: "File timestamp note",
+      detail:
+        "Client metadata shows the file was modified before upload. This is common for existing documents and is advisory only.",
     });
   }
 
@@ -541,6 +592,14 @@ export function buildRiskSignals(sourceContext: SourceContext, alerts: ReviewerA
         "Imported upload means PROOVRA preserved the uploaded file and recorded integrity state. It does not independently prove original capture source.",
     });
   }
+
+  // Phase EVIDENCE-RISK-TONE — stable severity-first sort so
+  // neutral notes never push a real warning out of the sidebar's
+  // top-4 slice. Equal-severity signals keep their relative push
+  // order (Array.prototype.sort is stable in V8 / spec).
+  signals.sort(
+    (a, b) => RISK_SEVERITY_ORDER[a.severity] - RISK_SEVERITY_ORDER[b.severity],
+  );
 
   return signals;
 }

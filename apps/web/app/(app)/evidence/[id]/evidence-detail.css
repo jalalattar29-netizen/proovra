@@ -523,6 +523,21 @@
   border-color: rgba(180, 35, 24, 0.18);
 }
 
+/* Phase EVIDENCE-RISK-TONE — soft-gray "neutral" tier for
+   advisory metadata notes (e.g. "File timestamp note") that
+   are common for normal evidence and must not visually
+   over-alert. Reserved for signals that do not influence
+   integrity, reports, or packages. */
+.evidence-detail-signal-card.neutral {
+  background: #f8fafc;
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #475569;
+}
+.evidence-detail-signal-card.neutral strong {
+  color: #334155;
+  font-weight: 600;
+}
+
 .evidence-detail-timeline {
   display: grid;
   gap: 0;
