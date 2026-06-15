@@ -26,9 +26,16 @@ import { getAuthUserId } from "../auth.js";
 
 export const NOTIFICATION_CRON_HEADER = "x-proovra-cron-secret";
 export const INTEGRATION_CRON_HEADER = "x-proovra-integration-cron-secret";
+// Search-reindex production-safe internal endpoint
+// (`POST /v1/internal/search/reindex`). Header + env-var pair follows
+// the existing cron-secret pattern: same constant-time compare via
+// `checkCronSecret`, same fail-closed-in-prod posture, same
+// non-prod admin fallback.
+export const SEARCH_REINDEX_HEADER = "x-internal-secret";
 
 const NOTIFICATION_SECRET_ENV = "NOTIFICATION_CRON_SECRET";
 const INTEGRATION_SECRET_ENV = "INTEGRATION_CRON_SECRET";
+const SEARCH_REINDEX_SECRET_ENV = "SEARCH_REINDEX_SECRET";
 
 function readSecret(env: string): string | null {
   const v = process.env[env];
@@ -146,5 +153,38 @@ export function requireIntegrationCronSecret(
     reply,
     INTEGRATION_SECRET_ENV,
     INTEGRATION_CRON_HEADER,
+  );
+}
+
+/**
+ * Search-reindex internal-only authentication gate.
+ *
+ * Used by `POST /v1/internal/search/reindex` — the no-user-auth
+ * production-safe surface for forcibly populating
+ * `evidence_search_documents` when an existing workspace has zero
+ * indexed rows. Symmetrical guarantees to the other two cron-secret
+ * checks:
+ *
+ *   - Constant-time HMAC comparison via `checkCronSecret`.
+ *   - Fails closed in production when SEARCH_REINDEX_SECRET is unset
+ *     (503 CONFIGURATION_ERROR), so a misconfigured prod deploy can
+ *     never silently expose the surface.
+ *   - In non-production, falls back to an OWNER/ADMIN-on-any-team
+ *     check so local dev doesn't require setting up the secret.
+ *   - Header is `x-internal-secret`. Env var is
+ *     `SEARCH_REINDEX_SECRET`.
+ *
+ * The endpoint itself is REGISTERED unconditionally — only this gate
+ * decides whether a request can reach the handler.
+ */
+export function requireSearchReindexSecret(
+  req: FastifyRequest,
+  reply: FastifyReply,
+): Promise<boolean> {
+  return checkCronSecret(
+    req,
+    reply,
+    SEARCH_REINDEX_SECRET_ENV,
+    SEARCH_REINDEX_HEADER,
   );
 }

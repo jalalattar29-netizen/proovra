@@ -26,6 +26,7 @@
     "db:use-audit-local": "node scripts/prepare-local-env.mjs",
     "repair-tsa-failed-with-token": "node --experimental-specifier-resolution=node dist/scripts/repair-tsa-failed-with-token.js",
     "smoke-evidence-forward-path": "node --experimental-specifier-resolution=node dist/scripts/smoke-evidence-forward-path.js",
+    "backfill:search": "node --experimental-specifier-resolution=node dist/scripts/backfill-search-index.js",
     "deploy:safe": "node scripts/deploy-safe.mjs",
     "deploy:safe:dry": "node scripts/deploy-safe.mjs --dry-run",
     "prisma:seed": "tsx src/seed-signing-key.ts",

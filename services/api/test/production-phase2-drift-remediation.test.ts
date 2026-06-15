@@ -1000,7 +1000,19 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // scoped to ownerUserId + ACTIVE team membership and never widens
 // the visibility surface (same SIGNED/REPORTED filter; soft-deleted
 // evidence excluded). Argued for in the user's regression-fix brief.
-const ROUTE_COUNT_PHASE_2_BASELINE = 93;
+// Search-reindex incident fix: bumped 93 → 94. Added 1 legitimate new
+// route file:
+//   - internal-reindex.routes.ts
+// `POST /v1/internal/search/reindex` — secret-gated workspace reindex
+// surface. Required because production hit `evidence_search_documents
+// = 0` (0/119 indexed in the affected workspace) and the existing
+// user-auth `POST /v1/search/reconcile` cannot be invoked from inside
+// the API container without minting a user token. The new endpoint
+// reuses the canonical `runWorkspaceReindex` service (zero
+// reimplementation of projection logic) and is gated by
+// `SEARCH_REINDEX_SECRET` via the existing cron-secret middleware —
+// it does NOT weaken auth on /v1/search/reconcile.
+const ROUTE_COUNT_PHASE_2_BASELINE = 94;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

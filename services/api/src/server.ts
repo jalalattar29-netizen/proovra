@@ -74,6 +74,12 @@ import { billingRoutes } from "./routes/billing.routes.js";
 import { webhooksRoutes } from "./routes/webhooks.routes.js";
 import { casesRoutes } from "./routes/cases.routes.js";
 import { searchRoutes } from "./routes/search.routes.js";
+// Secret-gated internal reindex endpoint
+// (`POST /v1/internal/search/reindex`). Separate from the user-auth
+// `POST /v1/search/reconcile` surface so an operator can repair an
+// empty `evidence_search_documents` table from inside the container
+// without minting a user token.
+import { internalReindexRoutes } from "./routes/internal-reindex.routes.js";
 import { reviewerOpsRoutes } from "./routes/reviewer-ops.routes.js";
 // Phase C0 — Reviewer Console aggregator. Composes the existing
 // reviewer-ops services into one bounded envelope for the canonical
@@ -893,6 +899,7 @@ allowedHeaders: [
   // the core workspace routes so governance depends on team context.
   await app.register(trustAndGovernanceRoutes);
   await app.register(searchRoutes);
+  await app.register(internalReindexRoutes);
   await app.register(reviewerOpsRoutes);
   // Phase C0 — Reviewer Console aggregator. Read-only; composes
   // existing reviewer-ops services. Registered alongside the
