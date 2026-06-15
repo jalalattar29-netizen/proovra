@@ -32,6 +32,7 @@ import type * as prismaPkg from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import { extractPrismaErrorDetail } from "./evidence-indexing.service.js";
 
 const MAX_TITLE = 200;
 const MAX_SUBTITLE = 200;
@@ -48,7 +49,17 @@ function clip(s: string | null | undefined, max: number): string | null {
 
 export type IndexArtifactResult =
   | { ok: true; documentId: string; created: boolean }
-  | { ok: false; reason: string };
+  | {
+      ok: false;
+      reason: string;
+      // Same Prisma-error pass-through as IndexResult — surface
+      // error.code / error.meta / error.message instead of
+      // collapsing to "upsert_failed", so the CLI + reconcile route
+      // can tell the operator which column failed.
+      prismaCode?: string;
+      prismaMeta?: Record<string, unknown>;
+      prismaMessage?: string;
+    };
 
 // ----------------------------------------------------------------------------
 // REPORT
@@ -392,19 +403,27 @@ async function upsert(
     return { ok: true, documentId: row.id, created: true };
   } catch (err) {
     bump("search_indexing_failed_total");
+    const detail = extractPrismaErrorDetail(err);
     safeEmitSecurityEvent({
       teamId: input.teamId,
       eventType: "search_indexing_drift_detected",
       severity: "WARNING",
       details: {
-        reason: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+        reason: detail.prismaMessage?.slice(0, 200) ?? "unknown",
+        prismaCode: detail.prismaCode ?? null,
+        prismaMeta: detail.prismaMeta ?? null,
         documentType: input.documentType,
         sourceId: input.sourceId,
       },
     });
     return {
       ok: false,
-      reason: err instanceof Error ? err.message.slice(0, 200) : "upsert_failed",
+      reason: detail.prismaMessage
+        ? detail.prismaMessage.slice(0, 200)
+        : "upsert_failed",
+      prismaCode: detail.prismaCode,
+      prismaMeta: detail.prismaMeta,
+      prismaMessage: detail.prismaMessage,
     };
   }
 }

@@ -23,6 +23,7 @@ import * as prismaPkg from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import { extractPrismaErrorDetail } from "./evidence-indexing.service.js";
 
 export type IndexCaseInput = {
   teamId: string;
@@ -31,7 +32,13 @@ export type IndexCaseInput = {
 
 export type IndexCaseResult =
   | { ok: true; documentId: string; created: boolean }
-  | { ok: false; reason: string };
+  | {
+      ok: false;
+      reason: string;
+      prismaCode?: string;
+      prismaMeta?: Record<string, unknown>;
+      prismaMessage?: string;
+    };
 
 const MAX_TITLE = 200;
 const MAX_SUBTITLE = 200;
@@ -213,19 +220,27 @@ async function upsert(
     return { ok: true, documentId: row.id, created: true };
   } catch (err) {
     bump("search_indexing_failed_total");
+    const detail = extractPrismaErrorDetail(err);
     safeEmitSecurityEvent({
       teamId,
       eventType: "search_indexing_drift_detected",
       severity: "WARNING",
       details: {
-        reason: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+        reason: detail.prismaMessage?.slice(0, 200) ?? "unknown",
+        prismaCode: detail.prismaCode ?? null,
+        prismaMeta: detail.prismaMeta ?? null,
         documentType: "CASE",
         sourceId: caseRow.id,
       },
     });
     return {
       ok: false,
-      reason: err instanceof Error ? err.message.slice(0, 200) : "upsert_failed",
+      reason: detail.prismaMessage
+        ? detail.prismaMessage.slice(0, 200)
+        : "upsert_failed",
+      prismaCode: detail.prismaCode,
+      prismaMeta: detail.prismaMeta,
+      prismaMessage: detail.prismaMessage,
     };
   }
 }

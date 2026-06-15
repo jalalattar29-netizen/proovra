@@ -174,7 +174,14 @@ export async function runWorkspaceReindex(
       } else {
         evidence.failed += 1;
         log.warn(
-          { teamId, evidenceId: row.id, reason: r.reason },
+          {
+            teamId,
+            evidenceId: row.id,
+            reason: r.reason,
+            prismaCode: r.prismaCode ?? null,
+            prismaMeta: r.prismaMeta ?? null,
+            prismaMessage: r.prismaMessage ?? null,
+          },
           "search.reindex.evidence.failed",
         );
       }
@@ -205,7 +212,14 @@ export async function runWorkspaceReindex(
         } else {
           cases.failed += 1;
           log.warn(
-            { teamId, caseId: row.id, reason: r.reason },
+            {
+              teamId,
+              caseId: row.id,
+              reason: r.reason,
+              prismaCode: r.prismaCode ?? null,
+              prismaMeta: r.prismaMeta ?? null,
+              prismaMessage: r.prismaMessage ?? null,
+            },
             "search.reindex.case.failed",
           );
         }
@@ -237,7 +251,14 @@ export async function runWorkspaceReindex(
         } else {
           reports.failed += 1;
           log.warn(
-            { teamId, reportId: row.id, reason: r.reason },
+            {
+              teamId,
+              reportId: row.id,
+              reason: r.reason,
+              prismaCode: r.prismaCode ?? null,
+              prismaMeta: r.prismaMeta ?? null,
+              prismaMessage: r.prismaMessage ?? null,
+            },
             "search.reindex.report.failed",
           );
         }
@@ -268,7 +289,14 @@ export async function runWorkspaceReindex(
         } else {
           packages.failed += 1;
           log.warn(
-            { teamId, packageId: row.id, reason: r.reason },
+            {
+              teamId,
+              packageId: row.id,
+              reason: r.reason,
+              prismaCode: r.prismaCode ?? null,
+              prismaMeta: r.prismaMeta ?? null,
+              prismaMessage: r.prismaMessage ?? null,
+            },
             "search.reindex.package.failed",
           );
         }
@@ -298,7 +326,14 @@ export async function runWorkspaceReindex(
         } else {
           notes.failed += 1;
           log.warn(
-            { teamId, noteId: row.id, reason: r.reason },
+            {
+              teamId,
+              noteId: row.id,
+              reason: r.reason,
+              prismaCode: r.prismaCode ?? null,
+              prismaMeta: r.prismaMeta ?? null,
+              prismaMessage: r.prismaMessage ?? null,
+            },
             "search.reindex.note.failed",
           );
         }

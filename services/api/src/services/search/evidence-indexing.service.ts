@@ -66,7 +66,22 @@ export type IndexWorkflowInstanceInput = {
 
 export type IndexResult =
   | { ok: true; documentId: string; created: boolean }
-  | { ok: false; reason: string };
+  | {
+      ok: false;
+      reason: string;
+      // Surface the underlying Prisma failure when one is available.
+      // Pre-fix, the indexer collapsed every Prisma exception to
+      // `reason: "upsert_failed"` and the actual NOT NULL / type
+      // mismatch was lost — meaning a production schema-drift
+      // incident produced 119/0 indexed with the operator stuck
+      // re-reading the same opaque string. These fields preserve
+      // `error.code`, `error.meta`, and `error.message` from the
+      // Prisma client so the CLI + reconcile route can log them
+      // and the operator can write the corrective migration.
+      prismaCode?: string;
+      prismaMeta?: Record<string, unknown>;
+      prismaMessage?: string;
+    };
 
 const SEARCH_DOC_TYPE_SET = new Set<string>(SEARCH_DOCUMENT_TYPES);
 
@@ -205,6 +220,7 @@ async function upsertSearchDocument(
     };
   } catch (err) {
     bump("search_indexing_failed_total");
+    const detail = extractPrismaErrorDetail(err);
     safeEmitSecurityEvent({
       teamId: input.teamId,
       eventType: "search_indexing_failed",
@@ -212,11 +228,54 @@ async function upsertSearchDocument(
       details: {
         documentType: input.documentType,
         sourceId: input.sourceId,
-        reason: err instanceof Error ? err.message.slice(0, 120) : "unknown",
+        reason: detail.prismaMessage?.slice(0, 200) ?? "unknown",
+        prismaCode: detail.prismaCode ?? null,
+        prismaMeta: detail.prismaMeta ?? null,
       },
     });
-    return { ok: false, reason: "upsert_failed" };
+    // Do NOT collapse to a generic "upsert_failed" — that hid a
+    // production NOT-NULL constraint violation for two phases.
+    // Surface the Prisma code/meta/message so the CLI and reconcile
+    // route can log them.
+    return {
+      ok: false,
+      reason: detail.prismaMessage
+        ? detail.prismaMessage.slice(0, 200)
+        : "upsert_failed",
+      prismaCode: detail.prismaCode,
+      prismaMeta: detail.prismaMeta,
+      prismaMessage: detail.prismaMessage,
+    };
   }
+}
+
+/**
+ * Extract code / meta / message from any error a Prisma call can
+ * throw. Works for `PrismaClientKnownRequestError`
+ * (code === "P2002" etc., with `meta`), the validation +
+ * initialization variants (no `code` but still has `message`), and
+ * plain JS errors. Always returns plain primitives so the result is
+ * safe to log + safe to serialize to JSON.
+ */
+export function extractPrismaErrorDetail(err: unknown): {
+  prismaCode?: string;
+  prismaMeta?: Record<string, unknown>;
+  prismaMessage?: string;
+} {
+  if (!err) return {};
+  const e = err as {
+    code?: unknown;
+    meta?: unknown;
+    message?: unknown;
+  };
+  const prismaCode = typeof e.code === "string" ? e.code : undefined;
+  const prismaMessage =
+    typeof e.message === "string" ? e.message.slice(0, 500) : undefined;
+  const prismaMeta =
+    e.meta && typeof e.meta === "object"
+      ? (e.meta as Record<string, unknown>)
+      : undefined;
+  return { prismaCode, prismaMeta, prismaMessage };
 }
 
 function sanitiseString(value: string, max: number): string {

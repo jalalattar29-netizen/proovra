@@ -673,6 +673,16 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // no destructive changes. See
       // `services/api/prisma/migrations/20270820000000_add_inbox_item_state/migration.sql`.
       "20270820000000_add_inbox_item_state",
+      // Search-index drift repair — drops NOT NULL on legacy
+      // camelCase columns on `evidence_search_documents`. These
+      // columns were left in place when the canonical write
+      // surface moved to snake_case; production accumulated 144
+      // evidence rows against 0 search documents because every
+      // `Prisma.create()` raised a NOT NULL violation on the
+      // camelCase shadow. Idempotent (gated on
+      // information_schema.columns + is_nullable='NO'). Scoped to
+      // exactly evidence_search_documents.
+      "20270821000000_phase_search_evidence_search_documents_legacy_drop_not_null",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);
