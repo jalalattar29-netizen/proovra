@@ -1,49 +1,26 @@
 /**
- * Phase CASE-ARCHIVE-RESTORE — Archive ↔ Restore lifecycle contract.
+ * Phase CASES-PERSONAL-UX-CLEANUP — Archive ↔ Restore lifecycle
+ * contract. Replaces the prior CASE-ARCHIVE-RESTORE pinning to
+ * reflect the simplified Personal / Small-Business contract:
  *
- * Source-pinned across backend + frontend. Asserts:
+ *   - Archive is reachable in one click from every active status
+ *     (no ladder through INVESTIGATING / ON_HOLD / RESOLVED /
+ *     CLOSED). The backend state machine row now permits
+ *     `<active> → ARCHIVED` directly.
  *
- *   1. Backend state machine adds `ARCHIVED → CLOSED` (one-hop
- *      restore). Every other transition is unchanged.
+ *   - Restore lands the case in OPEN (not CLOSED), so the user
+ *     ends up on a visible state in the personal mental model.
  *
- *   2. Backend emits a dedicated `cases.restored` audit event in
- *      addition to the existing `cases.status_changed` event, with
- *      the spec's payload (caseId, actorUserId, previousStatus,
- *      restoredStatus, reason). Uses the existing
- *      `appendPlatformAuditLog` infrastructure — no parallel
- *      logging system.
+ *   - The Settings tab exposes exactly ONE status button at any
+ *     given time: "Archive Case" when active, "Restore Case" when
+ *     ARCHIVED. The legacy "Move to <X>" transition loop is gone.
  *
- *   3. The `cases.restored` event fires ONLY when from===ARCHIVED
- *      AND to===CLOSED (not on every status change).
+ *   - The audit event `cases.restored` keeps firing, but on the
+ *     ARCHIVED → OPEN edge instead of the old ARCHIVED → CLOSED
+ *     edge.
  *
- *   4. The same `STATUS_CHANGE` authorization gate is reused — no
- *      new auth surface, no relaxed permission.
- *
- *   5. The legal-hold guard (`CLOSURE_STATUSES`) still applies to
- *      the restore-to-CLOSED transition (fail-closed when an
- *      active hold exists on the case).
- *
- *   6. The closure-cascade body is untouched — restoring to CLOSED
- *      doesn't reactivate any previously-removed assignments
- *      (history preserved).
- *
- *   7. The route at POST /v1/cases/:id/status accepts toStatus
- *      "CLOSED" with no special-casing — the state-machine change
- *      alone unlocks the path.
- *
- *   8. The Settings tab renders a dedicated "Restore Case" button
- *      (not the generic "Close case" label) when current status is
- *      ARCHIVED, gated on the same canChangeStatus capability.
- *
- *   9. The restore confirmation uses the canonical
- *      `useConfirmAction()` modal with the spec-locked title +
- *      description + button label. No `window.confirm`.
- *
- *  10. Enterprise MatterWorkspace surface is untouched (the
- *      Personal-mode SimpleCaseDetail owns the restore UI).
- *
- *  11. No schema change, no evidence mutation, no report/package
- *      mutation, no custody mutation, no retention change.
+ *   - No new routes, no schema change, no relaxed authorization,
+ *     no parallel logging system, no `window.confirm`.
  */
 
 import { strict as assert } from "node:assert";
@@ -74,37 +51,44 @@ const MATTER_WORKSPACE = src(
 );
 
 // ===========================================================================
-// Backend state machine
+// Backend state machine — one-hop archive + OPEN-target restore
 // ===========================================================================
 
-test("ARCHIVED is no longer terminal — the state machine permits ARCHIVED → CLOSED", () => {
-  assert.match(LIFECYCLE, /ARCHIVED:\s*\["CLOSED"\]/);
-  // Anti-regression: the prior terminal stub is gone.
-  assert.doesNotMatch(LIFECYCLE, /ARCHIVED:\s*\[\],\s*\/\/\s*terminal/);
-});
-
-test("Every other transition is unchanged", () => {
-  // Spot-pin each row of the table that is NOT touched by this phase.
-  assert.match(LIFECYCLE, /OPEN:\s*\["INVESTIGATING",\s*"ON_HOLD",\s*"RESOLVED"\]/);
-  assert.match(LIFECYCLE, /INVESTIGATING:\s*\["ON_HOLD",\s*"RESOLVED"\]/);
-  assert.match(LIFECYCLE, /ON_HOLD:\s*\["INVESTIGATING",\s*"RESOLVED"\]/);
-  assert.match(LIFECYCLE, /RESOLVED:\s*\["CLOSED",\s*"INVESTIGATING"\]/);
+test("Every active status permits a one-hop ARCHIVED transition", () => {
+  assert.match(
+    LIFECYCLE,
+    /OPEN:\s*\["INVESTIGATING",\s*"ON_HOLD",\s*"RESOLVED",\s*"ARCHIVED"\]/,
+  );
+  assert.match(
+    LIFECYCLE,
+    /INVESTIGATING:\s*\["ON_HOLD",\s*"RESOLVED",\s*"ARCHIVED"\]/,
+  );
+  assert.match(
+    LIFECYCLE,
+    /ON_HOLD:\s*\["INVESTIGATING",\s*"RESOLVED",\s*"ARCHIVED"\]/,
+  );
+  assert.match(
+    LIFECYCLE,
+    /RESOLVED:\s*\["CLOSED",\s*"INVESTIGATING",\s*"ARCHIVED"\]/,
+  );
   assert.match(LIFECYCLE, /CLOSED:\s*\["ARCHIVED",\s*"RESOLVED"\]/);
 });
 
+test("ARCHIVED restores to OPEN (not CLOSED) so the user lands on a visible state", () => {
+  assert.match(LIFECYCLE, /ARCHIVED:\s*\["OPEN"\]/);
+  // Anti-regression: the prior CLOSED-target stub is gone.
+  assert.doesNotMatch(LIFECYCLE, /ARCHIVED:\s*\["CLOSED"\]/);
+});
+
 // ===========================================================================
-// Audit event
+// Audit event — `cases.restored` fires on the new ARCHIVED → OPEN edge
 // ===========================================================================
 
-test("Restore emits a dedicated `cases.restored` audit event with the spec payload", () => {
-  // The new audit block fires only when from===ARCHIVED AND
-  // to===CLOSED. The payload carries caseId, actorUserId,
-  // previousStatus, restoredStatus, reason.
+test("Restore emits a dedicated `cases.restored` audit event when from===ARCHIVED && to===OPEN", () => {
   assert.match(
     LIFECYCLE,
-    /if \(from === "ARCHIVED" && input\.toStatus === "CLOSED"\) \{\s*\n?\s*await appendPlatformAuditLog\(\{[\s\S]{0,400}?action:\s*"cases\.restored"/,
+    /if \(from === "ARCHIVED" && input\.toStatus === "OPEN"\) \{\s*\n?\s*await appendPlatformAuditLog\(\{[\s\S]{0,400}?action:\s*"cases\.restored"/,
   );
-  // Payload field set.
   for (const field of [
     "caseId: existing.id",
     "actorUserId: input.actorUserId",
@@ -119,9 +103,6 @@ test("Restore emits a dedicated `cases.restored` audit event with the spec paylo
 });
 
 test("Restore audit event reuses the canonical appendPlatformAuditLog infrastructure (no parallel logger)", () => {
-  // The `cases.restored` emission must use the SAME helper as
-  // every other lifecycle audit event — no new logging system.
-  // Source-pinned by the import + the explicit call.
   assert.match(LIFECYCLE, /import \{ appendPlatformAuditLog \} from/);
   assert.match(
     LIFECYCLE,
@@ -130,9 +111,6 @@ test("Restore audit event reuses the canonical appendPlatformAuditLog infrastruc
 });
 
 test("Existing `cases.status_changed` audit event STILL fires on every transition (back-compat)", () => {
-  // Restore writes BOTH events — the canonical status_changed AND
-  // the dedicated restored event. Analytics consumers counting
-  // status_changed must keep working.
   assert.match(LIFECYCLE, /action:\s*"cases\.status_changed"/);
 });
 
@@ -140,22 +118,18 @@ test("Existing `cases.status_changed` audit event STILL fires on every transitio
 // Authorization + legal-hold + cascade — none weakened
 // ===========================================================================
 
-test("Restore reuses the existing STATUS_CHANGE permission gate — no relaxed auth surface", () => {
-  // The route handler runs `gateCaseMutation("STATUS_CHANGE", ...)`
-  // for every status change. There is no separate restore-specific
-  // permission path.
+test("Status mutations reuse the existing STATUS_CHANGE permission gate — no relaxed auth surface", () => {
   assert.match(
     ROUTE,
     /"\/v1\/cases\/:id\/status"[\s\S]{0,400}?gateCaseMutation\(reply,\s*"STATUS_CHANGE"/,
   );
-  // STATUS_CHANGE permission rules unchanged.
   assert.match(
     PERMISSION,
     /case "STATUS_CHANGE":[\s\S]{0,400}?isOwnerOrAdmin \|\| isTeamWriter/,
   );
 });
 
-test("Legal-hold guard still applies to the restore transition (target is CLOSED, which is in CLOSURE_STATUSES)", () => {
+test("Legal-hold guard still applies to ARCHIVED-target transitions (CLOSURE_STATUSES contains ARCHIVED)", () => {
   assert.match(LIFECYCLE, /const CLOSURE_STATUSES = new Set\(\["CLOSED",\s*"ARCHIVED"\]\)/);
   assert.match(
     LIFECYCLE,
@@ -163,13 +137,10 @@ test("Legal-hold guard still applies to the restore transition (target is CLOSED
   );
 });
 
-test("Closure cascade body is untouched — restoring to CLOSED does NOT reactivate removed assignments", () => {
-  // The cascade still fires on transition TO CLOSED/ARCHIVED but
-  // its body is unchanged: it deactivates ACTIVE assignments. After
-  // archive, all assignments are already REMOVED; restoring to
-  // CLOSED re-runs the cascade (no-op, idempotent), it never
-  // reactivates anything. Source-pin the cascade shape so any
-  // future "reactivate on restore" regression fails here.
+test("Closure cascade body is untouched — restoring to OPEN does NOT reactivate removed assignments", () => {
+  // Restoring to OPEN is NOT in CLOSURE_STATUSES so the cascade
+  // does not fire at all on restore. Pin the cascade shape so a
+  // future "reactivate on restore" regression still fails here.
   assert.match(
     LIFECYCLE,
     /client\.caseAssignment\.updateMany\(\{\s*\n?\s*where:\s*\{\s*caseId:\s*existing\.id,\s*status:\s*"ACTIVE"\s*\},\s*\n?\s*data:\s*\{\s*\n?\s*status:\s*"REMOVED",/,
@@ -180,17 +151,14 @@ test("Closure cascade body is untouched — restoring to CLOSED does NOT reactiv
 // Route — no special-casing for restore
 // ===========================================================================
 
-test("POST /v1/cases/:id/status accepts toStatus 'CLOSED' with no new branch (state-machine alone unlocks the path)", () => {
-  // The body schema enum already includes every state including
-  // CLOSED. Restore is just a state transition the table now
-  // permits — there is no route-level special-case for it.
+test("POST /v1/cases/:id/status accepts toStatus 'OPEN' with no new branch (state-machine alone unlocks the path)", () => {
+  // The body schema enum already includes every state. Restore is
+  // a state transition the table now permits — no route-level
+  // special-case for it.
   assert.match(
     ROUTE,
     /"OPEN",\s*\n?\s*"INVESTIGATING",\s*\n?\s*"ON_HOLD",\s*\n?\s*"RESOLVED",\s*\n?\s*"CLOSED",\s*\n?\s*"ARCHIVED"/,
   );
-  // No new route added for restore — Phase requirement: "Implement
-  // using the existing lifecycle service. Do NOT create duplicate
-  // lifecycle systems."
   assert.doesNotMatch(ROUTE, /"\/v1\/cases\/:id\/restore"/);
 });
 
@@ -198,85 +166,116 @@ test("POST /v1/cases/:id/status accepts toStatus 'CLOSED' with no new branch (st
 // Schema — no changes
 // ===========================================================================
 
-test("No new Prisma model / enum value added for restore (schema-stable)", () => {
+test("No new Prisma model / enum value added for the simplified lifecycle (schema-stable)", () => {
   const SCHEMA = src("services/api/prisma/schema.prisma");
-  // `CaseStatus` enum is unchanged.
   assert.match(
     SCHEMA,
     /enum CaseStatus \{\s*\n?\s*OPEN\s*\n?\s*INVESTIGATING\s*\n?\s*ON_HOLD\s*\n?\s*RESOLVED\s*\n?\s*CLOSED\s*\n?\s*ARCHIVED\s*\n?\s*\}/,
   );
-  // No `CaseRestoreEvent` table or similar parallel system.
   assert.doesNotMatch(SCHEMA, /model CaseRestoreEvent/);
 });
 
 // ===========================================================================
-// Frontend Settings tab — Restore button + canonical confirm
+// Frontend helpers — ALLOWED_STATUS_TRANSITIONS mirrors backend
 // ===========================================================================
 
-test("helpers.ts ALLOWED_STATUS_TRANSITIONS map mirrors the new backend ARCHIVED → CLOSED entry", () => {
-  assert.match(HELPERS, /ARCHIVED:\s*\["CLOSED"\]/);
+test("helpers.ts ALLOWED_STATUS_TRANSITIONS mirrors the new backend table (every row, OPEN-target restore)", () => {
+  assert.match(
+    HELPERS,
+    /OPEN:\s*\["INVESTIGATING",\s*"ON_HOLD",\s*"RESOLVED",\s*"ARCHIVED"\]/,
+  );
+  assert.match(
+    HELPERS,
+    /INVESTIGATING:\s*\["ON_HOLD",\s*"RESOLVED",\s*"ARCHIVED"\]/,
+  );
+  assert.match(
+    HELPERS,
+    /ON_HOLD:\s*\["INVESTIGATING",\s*"RESOLVED",\s*"ARCHIVED"\]/,
+  );
+  assert.match(
+    HELPERS,
+    /RESOLVED:\s*\["CLOSED",\s*"INVESTIGATING",\s*"ARCHIVED"\]/,
+  );
+  assert.match(HELPERS, /CLOSED:\s*\["ARCHIVED",\s*"RESOLVED"\]/);
+  assert.match(HELPERS, /ARCHIVED:\s*\["OPEN"\]/);
 });
 
+// ===========================================================================
+// Settings tab — single Archive ↔ Restore button, no legacy ladder
+// ===========================================================================
+
 test("Settings tab renders a DEDICATED Restore Case button when current status is ARCHIVED", () => {
-  // The Restore button uses its own primary-variant Button (not via
-  // the generic transition loop) so the spec-locked copy doesn't
-  // leak the "Move to Closed" / "Close case" label.
   assert.match(
     COMPONENT,
     /\{caseDetail\.status === "ARCHIVED" \? \(\s*\n?\s*<Button[\s\S]{0,400}?data-simple-case-settings-status-restore[\s\S]{0,300}?Restore Case\s*\n?\s*<\/Button>/,
   );
-  // Generic transition loop is now the ELSE branch so it cannot
-  // also render a Close-case button for the ARCHIVED row.
-  assert.match(COMPONENT, /\) : \(\s*\n?\s*allowedTransitions\.map\(\(toStatus\) => \(/);
+  // The data-attribute on the restore button locks the OPEN target.
+  assert.match(COMPONENT, /data-simple-case-settings-status-to="OPEN"/);
 });
 
-test("Restore button is gated on canChangeStatus (the existing capability the envelope already exposes)", () => {
-  // Two anchors near each other — JSX attribute order is `disabled`
-  // BEFORE `data-simple-case-settings-status-restore`, so do an
-  // anchored window search around the data attribute and assert
-  // the disabled expression appears in the same Button element.
-  const anchor = COMPONENT.indexOf("data-simple-case-settings-status-restore");
-  assert.ok(anchor > 0, "Restore button data attribute not found");
-  const window = COMPONENT.slice(Math.max(0, anchor - 300), anchor + 300);
-  assert.match(window, /disabled=\{!canChangeStatus \|\| busy\}/);
+test("Settings tab renders a DEDICATED Archive Case button when status is NOT ARCHIVED", () => {
+  assert.match(
+    COMPONENT,
+    /\) : \(\s*\n?\s*<Button[\s\S]{0,400}?data-simple-case-settings-status-archive[\s\S]{0,300}?Archive Case\s*\n?\s*<\/Button>/,
+  );
+  assert.match(COMPONENT, /data-simple-case-settings-status-to="ARCHIVED"/);
 });
 
-test("Restore uses the canonical useConfirmAction() modal with the spec-locked copy", () => {
-  // Title + description + button copy + tone all locked.
+test("Settings status section no longer iterates `allowedTransitions` (legacy ladder removed)", () => {
+  assert.doesNotMatch(COMPONENT, /allowedTransitions\.map\(\(toStatus\) => \(/);
+  // The intermediate "Move to <X>" labels must not appear anywhere
+  // in the Settings status JSX.
+  assert.doesNotMatch(COMPONENT, /Move to Investigating/);
+  assert.doesNotMatch(COMPONENT, /Move to On Hold/);
+  assert.doesNotMatch(COMPONENT, /Move to Resolved/);
+  assert.doesNotMatch(COMPONENT, /Close case/);
+});
+
+test("Archive + Restore buttons are gated on canChangeStatus (the envelope's existing capability)", () => {
+  for (const anchorName of [
+    "data-simple-case-settings-status-restore",
+    "data-simple-case-settings-status-archive",
+  ]) {
+    const anchor = COMPONENT.indexOf(anchorName);
+    assert.ok(anchor > 0, `${anchorName} not found`);
+    const window = COMPONENT.slice(Math.max(0, anchor - 300), anchor + 300);
+    assert.match(window, /disabled=\{!canChangeStatus \|\| busy\}/);
+  }
+});
+
+test("Restore uses the canonical useConfirmAction() modal with spec-locked copy", () => {
   assert.match(
     COMPONENT,
     /const ok = await confirm\(\{\s*\n?\s*title:\s*"Restore Case",\s*\n?\s*description:\s*\n?\s*"This will return the case to the active case list\. Linked evidence, reports, verification packages, comments, notes, and audit history remain unchanged\."/,
   );
   assert.match(COMPONENT, /confirmLabel:\s*"Restore Case"/);
-  assert.match(COMPONENT, /tone:\s*"neutral"/);
   assert.match(COMPONENT, /testId:\s*"simple-case-settings-restore"/);
 });
 
-test("Restore POSTs to /v1/cases/:id/status with toStatus 'CLOSED' (re-uses handleStatusChange)", () => {
-  // No new fetch path. The dedicated restore handler delegates to
-  // the same `handleStatusChange("CLOSED")` mutation used by every
-  // other lifecycle transition.
+test("Archive uses the canonical useConfirmAction() modal with spec-locked copy", () => {
   assert.match(
     COMPONENT,
-    /const handleRestore = useCallback\(async \(\)[\s\S]{0,600}?await handleStatusChange\("CLOSED"\);/,
+    /const ok = await confirm\(\{\s*\n?\s*title:\s*"Archive Case",\s*\n?\s*description:[\s\S]{0,400}?"This hides the case from the active list\. Linked evidence, reports, verification packages, comments, notes, and audit history remain preserved and unchanged\./,
+  );
+  assert.match(COMPONENT, /confirmLabel:\s*"Archive Case"/);
+  assert.match(COMPONENT, /testId:\s*"simple-case-settings-archive"/);
+});
+
+test("Restore POSTs to /v1/cases/:id/status with toStatus 'OPEN' (re-uses handleStatusChange)", () => {
+  assert.match(
+    COMPONENT,
+    /const handleRestore = useCallback\(async \(\)[\s\S]{0,800}?await handleStatusChange\("OPEN"\);/,
   );
 });
 
-test("Archive button no longer surfaces when the case is ARCHIVED (it's hidden by the dedicated-restore branch)", () => {
-  // Source-pin: in the ARCHIVED branch the only Button rendered is
-  // the Restore Case button. The Archive label only appears inside
-  // the ELSE branch (generic transition loop), so it cannot render
-  // when status === "ARCHIVED".
-  const archivedBranchStart = COMPONENT.indexOf(
-    'caseDetail.status === "ARCHIVED" ? (',
+test("Archive POSTs to /v1/cases/:id/status with toStatus 'ARCHIVED' (re-uses handleStatusChange)", () => {
+  assert.match(
+    COMPONENT,
+    /const handleArchive = useCallback\(async \(\)[\s\S]{0,800}?await handleStatusChange\("ARCHIVED"\);/,
   );
-  const elseBranchStart = COMPONENT.indexOf(") : (", archivedBranchStart);
-  const archivedBranch = COMPONENT.slice(archivedBranchStart, elseBranchStart);
-  assert.doesNotMatch(archivedBranch, /Archive case/);
 });
 
-test("Settings tab terminal-state copy is no longer ARCHIVED-specific (no transitions == empty body, not 'final status')", () => {
-  // Old copy said "Archived is a final status …" — that's wrong now.
+test("Settings tab no longer renders the legacy 'Archived is a final status' copy", () => {
   assert.doesNotMatch(
     COMPONENT,
     /Archived is a final status — no further transitions are available from here\./,
@@ -284,8 +283,6 @@ test("Settings tab terminal-state copy is no longer ARCHIVED-specific (no transi
 });
 
 test("No window.confirm reintroduced (Phase Final-D3 guard cross-check)", () => {
-  // Anti-regression: a refactor must not silently swap the
-  // canonical hook back to the browser primitive.
   assert.doesNotMatch(COMPONENT, /window\.confirm\(/);
   assert.doesNotMatch(COMPONENT, /globalThis\.confirm\(/);
 });
@@ -295,9 +292,6 @@ test("No window.confirm reintroduced (Phase Final-D3 guard cross-check)", () => 
 // ===========================================================================
 
 test("Enterprise MatterWorkspace surface has NO new Restore UI (Personal-mode SimpleCaseDetail owns it)", () => {
-  // Restore is a Personal-mode affordance. Enterprise users hit
-  // the same backend endpoint via API; the legacy MatterWorkspace
-  // does not (and should not) sprout a new button.
   assert.doesNotMatch(MATTER_WORKSPACE, /Restore Case/);
   assert.doesNotMatch(MATTER_WORKSPACE, /data-simple-case-settings-status-restore/);
 });

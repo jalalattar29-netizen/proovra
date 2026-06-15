@@ -180,36 +180,35 @@ test("Risk select is gated on canSeeAdvancedCaseOps (hidden on personal workspac
   );
 });
 
-test("'Open issues' + 'Missing report or package' chips render for ALL audiences", () => {
-  // Both chips must NOT sit inside the advanced-gate conditional.
-  // We check the data-keys appear BEFORE the first
-  // `{canSeeAdvancedCaseOps ? (` inside the chips block.
-  const chipsBlockStart = CASES_PAGE.indexOf('aria-label="Filters"');
-  assert.ok(chipsBlockStart > 0);
-  const advancedGateAfterChips = CASES_PAGE.indexOf(
-    "{canSeeAdvancedCaseOps ? (",
-    chipsBlockStart,
-  );
-  assert.ok(advancedGateAfterChips > chipsBlockStart);
-  const unconditionalRegion = CASES_PAGE.slice(chipsBlockStart, advancedGateAfterChips);
-  assert.match(unconditionalRegion, /dataKey="has-open-incidents"/);
-  assert.match(unconditionalRegion, /dataKey="missing-artifact"/);
-  // Spec asks for the plain-language label.
-  assert.match(unconditionalRegion, /label="Missing report or package"/);
+test("Personal-mode chip strip is gone — no 'Open issues' or 'Missing report or package' chip renders", () => {
+  // Phase CASES-PERSONAL-UX-CLEANUP removed every chip from the
+  // Cases list page. The page is now Search + Status + Create +
+  // cards + count + empty states only. Neither the personal chips
+  // nor their data-keys may render anywhere on the surface.
+  assert.doesNotMatch(CASES_PAGE, /dataKey="has-open-incidents"/);
+  assert.doesNotMatch(CASES_PAGE, /dataKey="missing-artifact"/);
+  assert.doesNotMatch(CASES_PAGE, /label="Missing report or package"/);
+  // The chip-group container was deleted along with its chip
+  // children — no aria-labelled Filters group remains.
+  assert.doesNotMatch(CASES_PAGE, /aria-label="Filters"/);
 });
 
-test("'Assigned to me', 'Governance blockers', 'Overdue workflows', 'Active legal hold' chips are gated on canSeeAdvancedCaseOps", () => {
-  const chipsBlockStart = CASES_PAGE.indexOf('aria-label="Filters"');
-  const chipsBlockEnd = CASES_PAGE.indexOf("</section>", chipsBlockStart);
-  const advancedGateStart = CASES_PAGE.indexOf(
-    "{canSeeAdvancedCaseOps ? (",
-    chipsBlockStart,
-  );
-  const advancedGateRegion = CASES_PAGE.slice(advancedGateStart, chipsBlockEnd);
-  assert.match(advancedGateRegion, /dataKey="assigned-to-me"/);
-  assert.match(advancedGateRegion, /dataKey="has-governance-blockers"/);
-  assert.match(advancedGateRegion, /dataKey="has-overdue-workflows"/);
-  assert.match(advancedGateRegion, /dataKey="has-legal-hold"/);
+test("Advanced-mode chip strip is gone — no 'Assigned to me' / 'Governance blockers' / 'Overdue workflows' / 'Active legal hold' chip renders", () => {
+  // The advanced-mode chips were removed at the same time as the
+  // personal ones. Enterprise users keep reaching the equivalent
+  // backend filters via the matter-queue API directly (see the
+  // Filter state shape test below).
+  for (const dataKey of [
+    "assigned-to-me",
+    "has-governance-blockers",
+    "has-overdue-workflows",
+    "has-legal-hold",
+  ]) {
+    assert.doesNotMatch(
+      CASES_PAGE,
+      new RegExp(`dataKey="${dataKey}"`),
+    );
+  }
 });
 
 test("Filter state shape is unchanged — backend selectors are preserved (visibility-only gate)", () => {

@@ -260,13 +260,20 @@ describe("Phase IA-self-serve-audit-fixes — Cases List terminology", () => {
     );
   });
 
-  it("filter chip 'Open incidents' → 'Open issues'", () => {
-    expect(CASES).toMatch(/label="Open issues"/);
+  it("legacy 'Open incidents' / 'Open issues' chip is gone (Phase CASES-PERSONAL-UX-CLEANUP removed the chip strip)", () => {
+    // The chip strip was removed per spec — the page now exposes
+    // only Search, Status filter, Create case, cards, and count.
+    // Both the old enterprise label and the prior personal rename
+    // must be absent from the surface.
     expect(CASES).not.toMatch(/label="Open incidents"/);
+    expect(CASES).not.toMatch(/label="Open issues"/);
   });
 
-  it("filter-chip group aria-label rewritten from 'Operational filters' to 'Filters'", () => {
-    expect(CASES).toMatch(/aria-label="Filters"/);
+  it("legacy 'Operational filters' / 'Filters' chip-group container is gone (chip strip removed)", () => {
+    // The aria-labelled chip group container was deleted along with
+    // its chip children — nothing on the personal Cases list needs
+    // that container anymore.
+    expect(CASES).not.toMatch(/aria-label="Filters"/);
     expect(CASES).not.toMatch(/aria-label="Operational filters"/);
   });
 });

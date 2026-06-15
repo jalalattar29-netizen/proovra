@@ -34,6 +34,7 @@ import {
   addCaseAssignment,
   removeCaseAssignment,
   addCaseComment,
+  deleteCaseComment,
   resolveCaseComment,
   addEvidenceLink,
   removeEvidenceLink,
@@ -100,7 +101,11 @@ function handleCaseError(reply: FastifyReply, err: unknown): boolean {
             err.code === "evidence_link_exists" ||
             err.code === "assignment_exists"
           ? 409
-          : 400;
+          : // Phase CASES-PERSONAL-UX-CLEANUP — author-only delete
+            // returns 403 so the frontend can render a precise toast.
+            err.code === "comment_forbidden"
+            ? 403
+            : 400;
     reply.code(status).send({ error: { code: err.code } });
     return true;
   }
@@ -1026,6 +1031,48 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
           userAgent: clientUa(req),
         });
         return reply.code(200).send({ comment: row });
+      } catch (err) {
+        if (handleCaseError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  // Phase CASES-PERSONAL-UX-CLEANUP — author-only DELETE of a case
+  // comment ("note"). Two-layer authorization:
+  //   1. The route requires the caller to be a case member with the
+  //      COMMENT mutation gate (same gate used to create notes).
+  //   2. The lifecycle service enforces author-only deletion — a
+  //      different member of the same case cannot delete someone
+  //      else's note. The service returns `comment_forbidden` →
+  //      HTTP 403 (mapped by `handleCaseError`).
+  // No new schema, no enterprise moderation, no admin override —
+  // the destructive surface stays narrowly bounded.
+  app.delete(
+    "/v1/cases/:id/comments/:commentId",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = z
+        .object({ id: z.string().uuid(), commentId: z.string().uuid() })
+        .parse(req.params);
+      const access = await requireCaseAccess(req, reply, params.id);
+      if (!access) return;
+      const member = await gateCaseMutation(
+        reply,
+        "COMMENT",
+        params.id,
+        access,
+      );
+      if (!member) return;
+      try {
+        const result = await deleteCaseComment({
+          caseId: params.id,
+          commentId: params.commentId,
+          actorUserId: member.userId,
+          ipAddress: clientIp(req),
+          userAgent: clientUa(req),
+        });
+        return reply.code(200).send(result);
       } catch (err) {
         if (handleCaseError(reply, err)) return;
         throw err;

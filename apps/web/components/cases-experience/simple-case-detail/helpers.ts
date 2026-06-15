@@ -31,24 +31,25 @@ export function caseStatusLabel(status: string | null | undefined): string {
 
 /**
  * Allowed status transitions, mirroring the backend state machine in
- * `services/api/src/services/cases/case-lifecycle.service.ts`. Used by
- * the Settings tab to render only the transitions the API will accept.
- * Source-pinned by a contract test.
+ * `services/api/src/services/cases/case-lifecycle.service.ts`. Used
+ * exclusively by the Settings tab to decide whether the simplified
+ * Archive / Restore button is reachable. The visible lifecycle for
+ * Personal / Small-Business users is binary (Open ↔ Archived); the
+ * intermediate enterprise transitions (INVESTIGATING / ON_HOLD /
+ * RESOLVED / CLOSED) live in the backend table but are NOT exposed
+ * as buttons on this surface. Source-pinned by a contract test.
  *
- * Phase CASE-ARCHIVE-RESTORE — ARCHIVED is no longer terminal. The
- * only path INTO ARCHIVED is `CLOSED → ARCHIVED`, so the only valid
- * restore is the inverse: `ARCHIVED → CLOSED`. The Settings tab
- * renders this transition as a dedicated "Restore case" button
- * (not via the generic transition loop) so the copy + confirm modal
- * follow the spec.
+ * Phase CASES-PERSONAL-UX-CLEANUP — ARCHIVED is reachable from every
+ * active status (one-hop archive). Restore lands in OPEN so the user
+ * lands on the natural "active" state with no hidden Closed step.
  */
 export const ALLOWED_STATUS_TRANSITIONS: Record<string, ReadonlyArray<string>> = {
-  OPEN: ["INVESTIGATING", "ON_HOLD", "RESOLVED"],
-  INVESTIGATING: ["ON_HOLD", "RESOLVED"],
-  ON_HOLD: ["INVESTIGATING", "RESOLVED"],
-  RESOLVED: ["CLOSED", "INVESTIGATING"],
+  OPEN: ["INVESTIGATING", "ON_HOLD", "RESOLVED", "ARCHIVED"],
+  INVESTIGATING: ["ON_HOLD", "RESOLVED", "ARCHIVED"],
+  ON_HOLD: ["INVESTIGATING", "RESOLVED", "ARCHIVED"],
+  RESOLVED: ["CLOSED", "INVESTIGATING", "ARCHIVED"],
   CLOSED: ["ARCHIVED", "RESOLVED"],
-  ARCHIVED: ["CLOSED"],
+  ARCHIVED: ["OPEN"],
 };
 
 export type DeliverableSummary = {

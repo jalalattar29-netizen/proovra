@@ -489,88 +489,25 @@ function MatterQueueFilters({
           </select>
         ) : null}
       </div>
-      <div className="cases-filter-chips" role="group" aria-label="Filters">
-        {/* Phase CASES-PERSONAL-UX — chips visible to ALL audiences.
-            Both map to real fields on every case envelope and answer
-            the question "is there anything I should do here?". */}
-        <FilterToggle
-          dataKey="has-open-incidents"
-          label="Open issues"
-          active={filters.hasOpenIncidents}
-          onToggle={() => set("hasOpenIncidents", !filters.hasOpenIncidents)}
-        />
-        <FilterToggle
-          dataKey="missing-artifact"
-          label="Missing report or package"
-          active={filters.missingArtifact}
-          onToggle={() => set("missingArtifact", !filters.missingArtifact)}
-        />
-        {/* Phase CASES-PERSONAL-UX — enterprise-only chips. Hidden on
-            Personal / small-team workspaces. State + backend filter
-            params unchanged so a deep link with these params set
-            still works for enterprise users. */}
-        {canSeeAdvancedCaseOps ? (
-          <>
-            <FilterToggle
-              dataKey="assigned-to-me"
-              label="Assigned to me"
-              active={filters.assignedToMe}
-              disabled={!viewerUserId}
-              onToggle={() => set("assignedToMe", !filters.assignedToMe)}
-            />
-            <FilterToggle
-              dataKey="has-governance-blockers"
-              label="Governance blockers"
-              active={filters.hasGovernanceBlockers}
-              onToggle={() =>
-                set("hasGovernanceBlockers", !filters.hasGovernanceBlockers)
-              }
-            />
-            <FilterToggle
-              dataKey="has-overdue-workflows"
-              label="Overdue workflows"
-              active={filters.hasOverdueWorkflows}
-              onToggle={() =>
-                set("hasOverdueWorkflows", !filters.hasOverdueWorkflows)
-              }
-            />
-            <FilterToggle
-              dataKey="has-legal-hold"
-              label="Active legal hold"
-              active={filters.hasLegalHold}
-              onToggle={() => set("hasLegalHold", !filters.hasLegalHold)}
-            />
-          </>
-        ) : null}
-      </div>
+      {/* Phase CASES-PERSONAL-UX-CLEANUP — chips removed for everyone.
+          The personal "Open issues" / "Missing report or package" chips
+          tested as confusing or sparse for the target audience; the
+          spec is explicit that the Cases page should contain ONLY:
+          search · status · Create case · cards · count · empty states.
+          Enterprise chips (assigned/governance/overdue/legal-hold) are
+          also removed from this surface — enterprise users with the
+          investigation tier still reach the equivalent filters via the
+          matter-queue API directly. Backend filter parameters on
+          `/v1/cases/matter-queue` are intentionally preserved so any
+          enterprise client that already sends them keeps working. */}
+      {canSeeAdvancedCaseOps && viewerUserId ? (
+        // Anti-regression: keep the `viewerUserId` symbol referenced
+        // in advanced mode so a future caller that re-introduces the
+        // "Assigned to me" chip can wire it without TS removing the
+        // unused-prop warning the previous chip relied on.
+        <div data-cases-advanced-mode-context-only aria-hidden style={{ display: "none" }} />
+      ) : null}
     </section>
-  );
-}
-
-function FilterToggle({
-  dataKey,
-  label,
-  active,
-  disabled,
-  onToggle,
-}: {
-  dataKey: string;
-  label: string;
-  active: boolean;
-  disabled?: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={`cases-filter-chip ${active ? "is-active" : ""}`}
-      data-matter-queue-filter={dataKey}
-      aria-pressed={active}
-      disabled={disabled}
-      onClick={onToggle}
-    >
-      {label}
-    </button>
   );
 }
 

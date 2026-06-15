@@ -387,13 +387,18 @@ describe("Phase 32.8D — case lifecycle service", () => {
 
   it("status transitions are explicitly enumerated", () => {
     expect(LIFECYCLE).toMatch(/ALLOWED_TRANSITIONS/);
-    expect(LIFECYCLE).toMatch(/OPEN:\s*\["INVESTIGATING",\s*"ON_HOLD",\s*"RESOLVED"\]/);
-    // Phase CASE-ARCHIVE-RESTORE — ARCHIVED is no longer terminal.
-    // The ONLY transition out of ARCHIVED is the inverse of the
-    // ONLY transition INTO ARCHIVED (CLOSED → ARCHIVED). One-hop
-    // restore keeps the audit trail clean and preserves
-    // `closedAtUtc` + `closureReason`.
-    expect(LIFECYCLE).toMatch(/ARCHIVED:\s*\["CLOSED"\]/);
+    // Phase CASES-PERSONAL-UX-CLEANUP — every active status permits
+    // a one-hop ARCHIVED transition so Personal / Small-Business
+    // users can archive in a single click. The intermediate
+    // enterprise transitions (INVESTIGATING / ON_HOLD / RESOLVED)
+    // remain available so the matter-queue / enterprise surfaces
+    // keep working.
+    expect(LIFECYCLE).toMatch(
+      /OPEN:\s*\["INVESTIGATING",\s*"ON_HOLD",\s*"RESOLVED",\s*"ARCHIVED"\]/,
+    );
+    // Restore lands the case in OPEN (not CLOSED) so the user ends
+    // up on a state visible to the personal UI immediately.
+    expect(LIFECYCLE).toMatch(/ARCHIVED:\s*\["OPEN"\]/);
   });
 
   it("active legal hold blocks CLOSED/ARCHIVED transitions", () => {

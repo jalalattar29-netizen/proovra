@@ -46,7 +46,6 @@ import type {
   MatterWorkspaceEnvelope,
 } from "../types";
 import {
-  ALLOWED_STATUS_TRANSITIONS,
   caseStatusLabel,
   deriveNeedsAttention,
   formatRelative,
@@ -239,8 +238,6 @@ export function SimpleCaseDetail({
           evidenceCount={evidenceItems.length}
           deliverables={deliverables}
           needsAttention={needsAttention}
-          onGoToEvidence={() => setActiveTab("evidence")}
-          onGoToReports={() => setActiveTab("reports")}
         />
       ) : null}
       {activeTab === "evidence" ? (
@@ -267,8 +264,10 @@ export function SimpleCaseDetail({
           comments={caseComments}
           canComment={viewer.canComment}
           canResolveComment={viewer.canResolveComment}
+          viewerUserId={viewer.userId}
           onReload={reload}
           addToast={addToast}
+          confirm={confirm}
         />
       ) : null}
       {activeTab === "settings" ? (
@@ -381,15 +380,11 @@ function OverviewTab({
   evidenceCount,
   deliverables,
   needsAttention,
-  onGoToEvidence,
-  onGoToReports,
 }: {
   caseDetail: MatterWorkspaceCaseHeader;
   evidenceCount: number;
   deliverables: ReturnType<typeof summariseDeliverables>;
   needsAttention: ReturnType<typeof deriveNeedsAttention>;
-  onGoToEvidence: () => void;
-  onGoToReports: () => void;
 }) {
   return (
     <section
@@ -466,15 +461,10 @@ function OverviewTab({
         )}
       </div>
 
-      <div
-        className="cc-card"
-        style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}
-      >
-        <Button onClick={onGoToEvidence}>Open evidence list</Button>
-        <Button variant="secondary" onClick={onGoToReports}>
-          Open reports & packages
-        </Button>
-      </div>
+      {/* Phase CASES-PERSONAL-UX-CLEANUP — the prior CTA card
+          duplicated the tab strip and was removed per spec. The
+          tab bar above the Overview body is the canonical
+          navigation; no second surface is needed. */}
     </section>
   );
 }
@@ -654,17 +644,38 @@ function EvidenceTab({
                 >
                   Open
                 </Button>
+                {/* Phase CASES-PERSONAL-UX-CLEANUP — the previous
+                    code disabled this button when `linkId === null`
+                    (legacy `Evidence.caseId` attachment, common for
+                    Personal users who never used the CaseEvidenceLink
+                    table). The backend DELETE route at
+                    /v1/cases/:id/evidence/:evidenceId already handles
+                    both attachment paths — it unconditionally NULLs
+                    `evidence.caseId` (and `teamId`). The defensive
+                    disable was wrong and left personal-user evidence
+                    permanently un-removable from the UI. Enable for
+                    every linked evidence row; backend authorization
+                    stays authoritative. */}
                 <Button
                   variant="secondary"
                   disabled={
-                    !viewer.canUnlinkEvidence ||
                     busyId === item.id ||
-                    item.linkId === null
+                    // Allow either the canonical or the legacy unlink
+                    // permission. The DELETE route below handles both
+                    // attachment paths the same way (sets
+                    // `evidence.caseId = null`); the viewer.* flags
+                    // are computed by the case-permission matrix so
+                    // either flag being true means the user can
+                    // unlink this row.
+                    !(
+                      viewer.canUnlinkEvidence ||
+                      viewer.canUnlinkLegacyEvidence
+                    )
                   }
                   title={
-                    item.linkId === null
-                      ? "Legacy attachment — unlink from the evidence record."
-                      : (viewer.disabledReasons.unlinkEvidence ?? undefined)
+                    viewer.disabledReasons.unlinkEvidence ??
+                    viewer.disabledReasons.unlinkLegacyEvidence ??
+                    undefined
                   }
                   onClick={() => void handleRemove(item.id, item.title)}
                   data-simple-case-evidence-remove={item.id}
@@ -928,15 +939,26 @@ function NotesTab({
   comments,
   canComment,
   canResolveComment,
+  viewerUserId,
   onReload,
   addToast,
+  confirm,
 }: {
   caseId: string;
   comments: NonNullable<MatterWorkspaceEnvelope["sections"]["notes"]>["caseComments"];
   canComment: boolean;
   canResolveComment: boolean;
+  /**
+   * Phase CASES-PERSONAL-UX-CLEANUP — used to gate the per-row
+   * "Delete" affordance on author-only notes. Backend
+   * `DELETE /v1/cases/:id/comments/:commentId` enforces the same
+   * predicate (returns 403 `comment_forbidden` otherwise); this is
+   * the corresponding UI hint, not a substitute.
+   */
+  viewerUserId: string;
   onReload: () => Promise<void>;
   addToast: ToastFn;
+  confirm: ConfirmFn;
 }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -983,6 +1005,42 @@ function NotesTab({
       }
     },
     [caseId, onReload, addToast],
+  );
+
+  // Phase CASES-PERSONAL-UX-CLEANUP — author-only delete. Confirms
+  // via the canonical ConfirmActionModal, then DELETE through the
+  // new backend route. Backend re-validates author identity; this
+  // hook only renders the affordance when the viewer wrote the
+  // note (see the per-row `c.authorUserId === viewerUserId` check
+  // below).
+  const handleDelete = useCallback(
+    async (commentId: string) => {
+      const ok = await confirm({
+        title: "Delete this note?",
+        description:
+          "Notes are private workspace notes. Deleting removes it from the case. Linked evidence, reports, and verification packages are not affected.",
+        confirmLabel: "Delete note",
+        tone: "danger",
+        testId: "simple-case-notes-delete",
+      });
+      if (!ok) return;
+      setBusy(true);
+      try {
+        await apiFetch(`/v1/cases/${caseId}/comments/${commentId}`, {
+          method: "DELETE",
+        });
+        await onReload();
+        addToast("Note deleted.", "success");
+      } catch (err) {
+        addToast(
+          err instanceof Error ? err.message : "Could not delete note.",
+          "error",
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [caseId, onReload, addToast, confirm],
   );
 
   return (
@@ -1073,23 +1131,42 @@ function NotesTab({
                   {formatRelative(c.createdAt)}
                   {c.resolvedAtUtc ? ` · resolved ${formatRelative(c.resolvedAtUtc)}` : ""}
                 </span>
-                {!c.resolvedAtUtc && canResolveComment ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleResolve(c.id)}
-                    data-simple-case-notes-resolve={c.id}
-                    disabled={busy}
-                    style={{
-                      border: "none",
-                      background: "transparent",
-                      color: "#1e40af",
-                      cursor: "pointer",
-                      fontSize: 11,
-                    }}
-                  >
-                    Mark resolved
-                  </button>
-                ) : null}
+                <div style={{ display: "flex", gap: 12 }}>
+                  {!c.resolvedAtUtc && canResolveComment ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleResolve(c.id)}
+                      data-simple-case-notes-resolve={c.id}
+                      disabled={busy}
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        color: "#1e40af",
+                        cursor: "pointer",
+                        fontSize: 11,
+                      }}
+                    >
+                      Mark resolved
+                    </button>
+                  ) : null}
+                  {c.authorUserId === viewerUserId ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(c.id)}
+                      data-simple-case-notes-delete={c.id}
+                      disabled={busy}
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        color: "#b91c1c",
+                        cursor: "pointer",
+                        fontSize: 11,
+                      }}
+                    >
+                      Delete
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </li>
           ))}
@@ -1124,8 +1201,6 @@ function SettingsTab({
 }) {
   const [nameDraft, setNameDraft] = useState(caseDetail.name);
   const [busy, setBusy] = useState(false);
-  const allowedTransitions =
-    ALLOWED_STATUS_TRANSITIONS[caseDetail.status] ?? [];
   // Settings is allowed when canMutate (rename) or canChangeStatus or canManage (delete).
   const canRename = viewer.canMutate;
   const canChangeStatus = viewer.canChangeStatus;
@@ -1177,14 +1252,11 @@ function SettingsTab({
     [caseId, onReload, addToast],
   );
 
-  // Phase CASE-ARCHIVE-RESTORE — dedicated restore handler with the
-  // canonical ConfirmActionModal. The transition is still
-  // POST /v1/cases/:id/status with toStatus: "CLOSED" (the new
-  // ARCHIVED → CLOSED entry in the backend state machine), but the
-  // restore confirmation copy is spec-locked and distinct from the
-  // generic status-transition path so the user sees "Restore case"
-  // instead of "Move to Closed". Wraps the same handleStatusChange
-  // mutation — single network call, single audit emission.
+  // Phase CASES-PERSONAL-UX-CLEANUP — restore now lands the case in
+  // OPEN (the personal-user mental model: Open ↔ Archived). The
+  // backend state machine accepts ARCHIVED → OPEN and emits the
+  // same `cases.restored` audit event. Same canonical confirm modal
+  // with spec-locked copy.
   const handleRestore = useCallback(async () => {
     const ok = await confirm({
       title: "Restore Case",
@@ -1195,7 +1267,25 @@ function SettingsTab({
       testId: "simple-case-settings-restore",
     });
     if (!ok) return;
-    await handleStatusChange("CLOSED");
+    await handleStatusChange("OPEN");
+  }, [confirm, handleStatusChange]);
+
+  // Phase CASES-PERSONAL-UX-CLEANUP — single Archive action wraps the
+  // existing status-change mutation with toStatus: "ARCHIVED". The
+  // backend now accepts this from any non-archived state, so the
+  // user clicks once. Confirmation copy explains the reversibility
+  // explicitly so the user understands it's not a delete.
+  const handleArchive = useCallback(async () => {
+    const ok = await confirm({
+      title: "Archive Case",
+      description:
+        "This hides the case from the active list. Linked evidence, reports, verification packages, comments, notes, and audit history remain preserved and unchanged. You can restore the case from the Archived filter at any time.",
+      confirmLabel: "Archive Case",
+      tone: "neutral",
+      testId: "simple-case-settings-archive",
+    });
+    if (!ok) return;
+    await handleStatusChange("ARCHIVED");
   }, [confirm, handleStatusChange]);
 
   const handleDelete = useCallback(async () => {
@@ -1265,6 +1355,13 @@ function SettingsTab({
         </div>
       </div>
 
+      {/* Phase CASES-PERSONAL-UX-CLEANUP — Status card now exposes
+          ONLY the simplified Archive ↔ Restore toggle. The previous
+          enterprise transition buttons led nowhere meaningful for
+          personal/SB users and were removed per spec. The backend
+          state machine still accepts every transition; intermediate
+          states remain reachable for enterprise callers via the
+          matter-queue / status API directly. */}
       <div
         className="cc-card"
         data-simple-case-settings-status
@@ -1274,60 +1371,37 @@ function SettingsTab({
         <p className="cc-muted" style={{ marginTop: 4 }}>
           Current status: {caseStatusLabel(caseDetail.status)}
         </p>
-        {allowedTransitions.length === 0 ? (
-          <p
-            className="cc-muted"
-            data-simple-case-settings-status-terminal
-            style={{ marginTop: 6 }}
-          >
-            No status changes are available right now.
-          </p>
-        ) : (
-          <div
-            style={{
-              marginTop: 6,
-              display: "flex",
-              gap: 6,
-              flexWrap: "wrap",
-            }}
-          >
-            {/* Phase CASE-ARCHIVE-RESTORE — when the current status is
-                ARCHIVED, the only allowed transition is CLOSED, but
-                the user-facing action is "Restore case" with a
-                dedicated confirm dialog (spec-locked copy). Render
-                that as a single primary affordance and skip the
-                generic transition loop so the Close-case label
-                doesn't leak through. */}
-            {caseDetail.status === "ARCHIVED" ? (
-              <Button
-                onClick={() => void handleRestore()}
-                disabled={!canChangeStatus || busy}
-                data-simple-case-settings-status-restore
-                data-simple-case-settings-status-to="CLOSED"
-                title={viewer.disabledReasons.changeStatus ?? undefined}
-              >
-                Restore Case
-              </Button>
-            ) : (
-              allowedTransitions.map((toStatus) => (
-                <Button
-                  key={toStatus}
-                  variant="secondary"
-                  onClick={() => void handleStatusChange(toStatus)}
-                  disabled={!canChangeStatus || busy}
-                  data-simple-case-settings-status-to={toStatus}
-                  title={viewer.disabledReasons.changeStatus ?? undefined}
-                >
-                  {toStatus === "ARCHIVED"
-                    ? "Archive case"
-                    : toStatus === "CLOSED"
-                      ? "Close case"
-                      : `Move to ${caseStatusLabel(toStatus)}`}
-                </Button>
-              ))
-            )}
-          </div>
-        )}
+        <div
+          style={{
+            marginTop: 6,
+            display: "flex",
+            gap: 6,
+            flexWrap: "wrap",
+          }}
+        >
+          {caseDetail.status === "ARCHIVED" ? (
+            <Button
+              onClick={() => void handleRestore()}
+              disabled={!canChangeStatus || busy}
+              data-simple-case-settings-status-restore
+              data-simple-case-settings-status-to="OPEN"
+              title={viewer.disabledReasons.changeStatus ?? undefined}
+            >
+              Restore Case
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              onClick={() => void handleArchive()}
+              disabled={!canChangeStatus || busy}
+              data-simple-case-settings-status-archive
+              data-simple-case-settings-status-to="ARCHIVED"
+              title={viewer.disabledReasons.changeStatus ?? undefined}
+            >
+              Archive Case
+            </Button>
+          )}
+        </div>
       </div>
 
       <div

@@ -33,6 +33,10 @@ export type CaseErrorCode =
   | "assignment_exists"
   | "assignment_not_found"
   | "comment_not_found"
+  // Phase CASES-PERSONAL-UX-CLEANUP — comment delete is allowed only
+  // when the actor is the comment's author. Backend returns
+  // `comment_forbidden` so the route can map it to 403.
+  | "comment_forbidden"
   | "invalid_assignee";
 
 export class CaseError extends Error {
@@ -54,21 +58,31 @@ export type CaseActorContext = {
 // ---------------------------------------------------------------------------
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  OPEN: ["INVESTIGATING", "ON_HOLD", "RESOLVED"],
-  INVESTIGATING: ["ON_HOLD", "RESOLVED"],
-  ON_HOLD: ["INVESTIGATING", "RESOLVED"],
-  RESOLVED: ["CLOSED", "INVESTIGATING"],
+  // Phase CASES-PERSONAL-UX-CLEANUP — Personal / Small-Business users
+  // see only an "Archive case" button (no Move-to-Investigating /
+  // On-Hold / Resolved / Close ladder). To make that single button
+  // work from any active state, ARCHIVED is now reachable directly
+  // from every non-terminal status. The historical multi-step ladder
+  // (OPEN → INVESTIGATING → … → CLOSED → ARCHIVED) is preserved for
+  // enterprise callers that send those intermediate transitions
+  // explicitly; we simply added ARCHIVED as an additional permitted
+  // target. The legal-hold guard at `CLOSURE_STATUSES` still fires on
+  // any transition INTO CLOSED or ARCHIVED, so an active hold blocks
+  // archive fail-closed regardless of the source state.
+  OPEN: ["INVESTIGATING", "ON_HOLD", "RESOLVED", "ARCHIVED"],
+  INVESTIGATING: ["ON_HOLD", "RESOLVED", "ARCHIVED"],
+  ON_HOLD: ["INVESTIGATING", "RESOLVED", "ARCHIVED"],
+  RESOLVED: ["CLOSED", "INVESTIGATING", "ARCHIVED"],
   CLOSED: ["ARCHIVED", "RESOLVED"],
-  // Phase CASE-ARCHIVE-RESTORE — ARCHIVED is no longer terminal. The
-  // only path INTO ARCHIVED is `CLOSED → ARCHIVED`, so the only valid
-  // restore is the inverse: `ARCHIVED → CLOSED`. This keeps the
-  // lifecycle one-hop reversible, preserves `closedAtUtc` and
-  // `closureReason`, and lets the operator continue the existing
-  // CLOSED → RESOLVED → INVESTIGATING reopen path if needed.
-  // The legal-hold guard at `CLOSURE_STATUSES` still applies to this
-  // transition (target is CLOSED), so an active hold blocks restore
-  // fail-closed — the same way it blocks the original archive.
-  ARCHIVED: ["CLOSED"],
+  // Phase CASES-PERSONAL-UX-CLEANUP — Restore now lands in OPEN
+  // (the personal-user mental model: Open ↔ Archived is the visible
+  // binary). The prior CLOSED target was structurally symmetric for
+  // the enterprise lifecycle, but CLOSED is hidden in the personal
+  // Settings tab — restoring there would leave the user with no
+  // visible next action. OPEN is the natural "active" landing state
+  // and the existing reopen ladder (OPEN → INVESTIGATING → …) stays
+  // available for enterprise callers that send those transitions.
+  ARCHIVED: ["OPEN"],
 };
 
 function transitionAllowed(from: string, to: string): boolean {
@@ -204,8 +218,8 @@ export async function changeCaseStatus(
   });
 
   // Phase CASE-ARCHIVE-RESTORE — dedicated `cases.restored` audit
-  // event on the restore transition (ARCHIVED → CLOSED). Emitted
-  // in addition to the canonical `cases.status_changed` row so:
+  // event on the restore transition (ARCHIVED → OPEN). Emitted in
+  // addition to the canonical `cases.status_changed` row so:
   //   - Audit consumers that count `cases.status_changed` for
   //     analytics keep working (back-compat).
   //   - A targeted query for `action: "cases.restored"` surfaces
@@ -213,7 +227,9 @@ export async function changeCaseStatus(
   //     for the `fromStatus === "ARCHIVED"` predicate.
   // Same `appendPlatformAuditLog` infrastructure — no parallel
   // logging system, no schema change.
-  if (from === "ARCHIVED" && input.toStatus === "CLOSED") {
+  // Phase CASES-PERSONAL-UX-CLEANUP — restore target is now OPEN
+  // (was CLOSED). The trigger condition is updated accordingly.
+  if (from === "ARCHIVED" && input.toStatus === "OPEN") {
     await appendPlatformAuditLog({
       userId: input.actorUserId,
       action: "cases.restored",
@@ -418,6 +434,62 @@ export async function addCaseComment(
     db: client,
   });
   return row;
+}
+
+/**
+ * Phase CASES-PERSONAL-UX-CLEANUP — author-only delete of a case
+ * comment ("note"). Personal / Small-Business users need to be
+ * able to remove a note they themselves wrote; per the spec we do
+ * NOT introduce enterprise moderation (no admin override, no
+ * reviewer-resolve flow). The author predicate is enforced here
+ * regardless of any workspace role the actor holds.
+ *
+ * The row is hard-deleted (no `deletedAt` column on
+ * `CaseComment`) so there's no audit-tombstone to render. The
+ * platform audit log carries the destructive action.
+ *
+ * Hard rules:
+ *   - Only the comment author may delete; everyone else (including
+ *     workspace OWNER/ADMIN) gets `comment_forbidden`.
+ *   - Returns `comment_not_found` for unknown ids OR ids that
+ *     belong to a different case (anti-enumeration).
+ *   - Writes a `cases.comment_deleted` audit log row with the
+ *     existing `appendPlatformAuditLog` infrastructure.
+ *   - Touches NO evidence / report / package / custody / retention
+ *     fields.
+ */
+export async function deleteCaseComment(
+  input: CaseActorContext & { caseId: string; commentId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ removed: true; commentId: string }> {
+  const existing = await client.caseComment.findFirst({
+    where: { id: input.commentId, caseId: input.caseId },
+  });
+  if (!existing) throw new CaseError("comment_not_found");
+  if (existing.authorUserId !== input.actorUserId) {
+    throw new CaseError("comment_forbidden");
+  }
+  await client.caseComment.delete({ where: { id: existing.id } });
+  await appendPlatformAuditLog({
+    userId: input.actorUserId,
+    action: "cases.comment_deleted",
+    category: "cases.lifecycle",
+    severity: "info",
+    source: "case_lifecycle_service",
+    outcome: "success",
+    resourceType: "case_comment",
+    resourceId: existing.id,
+    metadata: {
+      teamId: existing.teamId,
+      caseId: input.caseId,
+      authorUserId: existing.authorUserId,
+      visibility: existing.visibility,
+    },
+    ipAddress: input.ipAddress ?? null,
+    userAgent: input.userAgent ?? null,
+    db: client,
+  });
+  return { removed: true, commentId: existing.id };
 }
 
 export async function resolveCaseComment(

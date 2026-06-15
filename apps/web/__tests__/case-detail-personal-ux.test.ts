@@ -221,15 +221,16 @@ test("Frontend ALLOWED_STATUS_TRANSITIONS map matches the backend transition set
   // assert the frontend map is structurally identical so the
   // Settings tab never offers a transition the API would reject.
   //
-  // Phase CASE-ARCHIVE-RESTORE — ARCHIVED is no longer terminal;
-  // `ARCHIVED → CLOSED` is the inverse of `CLOSED → ARCHIVED`.
+  // Phase CASES-PERSONAL-UX-CLEANUP — one-hop archive from every
+  // active status; restore lands in OPEN so the case is visible
+  // again on the active list immediately.
   const expected: Record<string, ReadonlyArray<string>> = {
-    OPEN: ["INVESTIGATING", "ON_HOLD", "RESOLVED"],
-    INVESTIGATING: ["ON_HOLD", "RESOLVED"],
-    ON_HOLD: ["INVESTIGATING", "RESOLVED"],
-    RESOLVED: ["CLOSED", "INVESTIGATING"],
+    OPEN: ["INVESTIGATING", "ON_HOLD", "RESOLVED", "ARCHIVED"],
+    INVESTIGATING: ["ON_HOLD", "RESOLVED", "ARCHIVED"],
+    ON_HOLD: ["INVESTIGATING", "RESOLVED", "ARCHIVED"],
+    RESOLVED: ["CLOSED", "INVESTIGATING", "ARCHIVED"],
     CLOSED: ["ARCHIVED", "RESOLVED"],
-    ARCHIVED: ["CLOSED"],
+    ARCHIVED: ["OPEN"],
   };
   for (const [from, allowed] of Object.entries(expected)) {
     assert.deepEqual(
@@ -241,12 +242,12 @@ test("Frontend ALLOWED_STATUS_TRANSITIONS map matches the backend transition set
 });
 
 test("Backend lifecycle service still enforces the same allowed-transition set (anti-regression)", () => {
-  // Spot-check the most important transitions: CLOSED → ARCHIVED is
-  // the only legal route to archive. Phase CASE-ARCHIVE-RESTORE adds
-  // ARCHIVED → CLOSED as the inverse restore path.
-  assert.match(CASE_LIFECYCLE, /OPEN:[\s\S]{0,200}?INVESTIGATING/);
+  // Spot-check the most important transitions: every active state
+  // permits a one-hop ARCHIVED transition (Phase CASES-PERSONAL-
+  // UX-CLEANUP) and the restore target is OPEN.
+  assert.match(CASE_LIFECYCLE, /OPEN:[\s\S]{0,200}?INVESTIGATING[\s\S]{0,200}?ARCHIVED/);
   assert.match(CASE_LIFECYCLE, /CLOSED:[\s\S]{0,200}?ARCHIVED/);
-  assert.match(CASE_LIFECYCLE, /ARCHIVED:\s*\["CLOSED"\]/);
+  assert.match(CASE_LIFECYCLE, /ARCHIVED:\s*\["OPEN"\]/);
 });
 
 // ===========================================================================
