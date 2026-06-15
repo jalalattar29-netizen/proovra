@@ -385,20 +385,19 @@ describe("Phase 32.8D — case lifecycle service", () => {
     }
   });
 
-  it("status transitions are explicitly enumerated", () => {
+  it("status transitions are derived from a canonical STATUS_VALUES list (any → any)", () => {
     expect(LIFECYCLE).toMatch(/ALLOWED_TRANSITIONS/);
-    // Phase CASES-PERSONAL-UX-CLEANUP — every active status permits
-    // a one-hop ARCHIVED transition so Personal / Small-Business
-    // users can archive in a single click. The intermediate
-    // enterprise transitions (INVESTIGATING / ON_HOLD / RESOLVED)
-    // remain available so the matter-queue / enterprise surfaces
-    // keep working.
+    // Phase CASES-STATUS-MANUAL — case status is plain
+    // organizational metadata for personal users. The transition
+    // table is now Object.fromEntries over STATUS_VALUES with
+    // self-transitions excluded — every status reaches every
+    // other status. Legal-hold and audit logic are unchanged.
     expect(LIFECYCLE).toMatch(
-      /OPEN:\s*\["INVESTIGATING",\s*"ON_HOLD",\s*"RESOLVED",\s*"ARCHIVED"\]/,
+      /const STATUS_VALUES = \[\s*\n?\s*"OPEN",\s*\n?\s*"INVESTIGATING",\s*\n?\s*"ON_HOLD",\s*\n?\s*"RESOLVED",\s*\n?\s*"CLOSED",\s*\n?\s*"ARCHIVED",\s*\n?\s*\] as const;/,
     );
-    // Restore lands the case in OPEN (not CLOSED) so the user ends
-    // up on a state visible to the personal UI immediately.
-    expect(LIFECYCLE).toMatch(/ARCHIVED:\s*\["OPEN"\]/);
+    expect(LIFECYCLE).toMatch(
+      /const ALLOWED_TRANSITIONS: Record<string, string\[\]> = Object\.fromEntries\(/,
+    );
   });
 
   it("active legal hold blocks CLOSED/ARCHIVED transitions", () => {

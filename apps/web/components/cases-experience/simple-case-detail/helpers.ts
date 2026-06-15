@@ -30,27 +30,41 @@ export function caseStatusLabel(status: string | null | undefined): string {
 }
 
 /**
- * Allowed status transitions, mirroring the backend state machine in
- * `services/api/src/services/cases/case-lifecycle.service.ts`. Used
- * exclusively by the Settings tab to decide whether the simplified
- * Archive / Restore button is reachable. The visible lifecycle for
- * Personal / Small-Business users is binary (Open ↔ Archived); the
- * intermediate enterprise transitions (INVESTIGATING / ON_HOLD /
- * RESOLVED / CLOSED) live in the backend table but are NOT exposed
- * as buttons on this surface. Source-pinned by a contract test.
- *
- * Phase CASES-PERSONAL-UX-CLEANUP — ARCHIVED is reachable from every
- * active status (one-hop archive). Restore lands in OPEN so the user
- * lands on the natural "active" state with no hidden Closed step.
+ * Phase CASES-STATUS-MANUAL — the personal Settings tab now exposes
+ * case status as a plain organizational dropdown (Open / Investigating
+ * / On hold / Resolved / Closed / Archived). Every option is always
+ * reachable from every other option; status is not a workflow state
+ * machine for personal/SB users. This ordered list is the single
+ * source of truth for the dropdown's options and for the cases-list
+ * filter. Source-pinned by `cases-status-selector.test.ts`.
  */
-export const ALLOWED_STATUS_TRANSITIONS: Record<string, ReadonlyArray<string>> = {
-  OPEN: ["INVESTIGATING", "ON_HOLD", "RESOLVED", "ARCHIVED"],
-  INVESTIGATING: ["ON_HOLD", "RESOLVED", "ARCHIVED"],
-  ON_HOLD: ["INVESTIGATING", "RESOLVED", "ARCHIVED"],
-  RESOLVED: ["CLOSED", "INVESTIGATING", "ARCHIVED"],
-  CLOSED: ["ARCHIVED", "RESOLVED"],
-  ARCHIVED: ["OPEN"],
-};
+export const CASE_STATUS_OPTIONS: ReadonlyArray<{
+  value: string;
+  label: string;
+}> = [
+  { value: "OPEN", label: "Open" },
+  { value: "INVESTIGATING", label: "Investigating" },
+  { value: "ON_HOLD", label: "On hold" },
+  { value: "RESOLVED", label: "Resolved" },
+  { value: "CLOSED", label: "Closed" },
+  { value: "ARCHIVED", label: "Archived" },
+];
+
+/**
+ * Backend transition table mirror. The backend now allows ANY status
+ * to ANY status (case status is plain metadata for personal users);
+ * this map mirrors that shape so any contract test pin keeps a single
+ * client/server source of truth.
+ */
+export const ALLOWED_STATUS_TRANSITIONS: Record<string, ReadonlyArray<string>> =
+  Object.fromEntries(
+    CASE_STATUS_OPTIONS.map((o) => [
+      o.value,
+      CASE_STATUS_OPTIONS.filter((x) => x.value !== o.value).map(
+        (x) => x.value,
+      ),
+    ]),
+  );
 
 export type DeliverableSummary = {
   /** Number of linked evidence records with at least one Report row. */

@@ -150,9 +150,13 @@ test("SimpleCaseDetail uses /v1/cases/:id/matter-workspace as the single envelop
 });
 
 test("Attach flow uses POST /v1/cases/:id/evidence with { evidenceId } body", () => {
+  // Phase CASES-ATTACH-PICKER-MULTI — the modal now fires one
+  // POST per selected id via Promise.allSettled, using the
+  // ES2015 shorthand `{ evidenceId }`. Same single-attach
+  // endpoint as before — no batch endpoint introduced.
   assert.match(
     COMPONENT,
-    /apiFetch\(`\/v1\/cases\/\$\{caseId\}\/evidence`,\s*\{\s*\n?\s*method: "POST",\s*\n?\s*body: JSON\.stringify\(\{ evidenceId: selected \}\),/,
+    /apiFetch\(`\/v1\/cases\/\$\{caseId\}\/evidence`,\s*\{\s*\n?\s*method: "POST",\s*\n?\s*body: JSON\.stringify\(\{ evidenceId \}\),/,
   );
 });
 
@@ -215,39 +219,33 @@ test("Notes use POST /v1/cases/:id/comments and POST /v1/cases/:id/comments/:com
 // Status-transition map mirrors the backend state machine
 // ===========================================================================
 
-test("Frontend ALLOWED_STATUS_TRANSITIONS map matches the backend transition set", () => {
-  // Backend state machine — extracted from
-  // services/api/src/services/cases/case-lifecycle.service.ts. We
-  // assert the frontend map is structurally identical so the
-  // Settings tab never offers a transition the API would reject.
-  //
-  // Phase CASES-PERSONAL-UX-CLEANUP — one-hop archive from every
-  // active status; restore lands in OPEN so the case is visible
-  // again on the active list immediately.
-  const expected: Record<string, ReadonlyArray<string>> = {
-    OPEN: ["INVESTIGATING", "ON_HOLD", "RESOLVED", "ARCHIVED"],
-    INVESTIGATING: ["ON_HOLD", "RESOLVED", "ARCHIVED"],
-    ON_HOLD: ["INVESTIGATING", "RESOLVED", "ARCHIVED"],
-    RESOLVED: ["CLOSED", "INVESTIGATING", "ARCHIVED"],
-    CLOSED: ["ARCHIVED", "RESOLVED"],
-    ARCHIVED: ["OPEN"],
-  };
-  for (const [from, allowed] of Object.entries(expected)) {
+test("Frontend ALLOWED_STATUS_TRANSITIONS map matches the backend (any → any) transition set", () => {
+  // Phase CASES-STATUS-MANUAL — case status is plain organizational
+  // metadata for personal users. Every status can transition to
+  // every other status; the map is derived from the canonical
+  // CASE_STATUS_OPTIONS list. Self-transitions are excluded.
+  const ALL = ["OPEN", "INVESTIGATING", "ON_HOLD", "RESOLVED", "CLOSED", "ARCHIVED"];
+  for (const from of ALL) {
+    const expected = ALL.filter((to) => to !== from);
     assert.deepEqual(
-      ALLOWED_STATUS_TRANSITIONS[from],
-      allowed,
+      [...(ALLOWED_STATUS_TRANSITIONS[from] ?? [])].sort(),
+      [...expected].sort(),
       `transition map mismatch for ${from}`,
     );
   }
 });
 
-test("Backend lifecycle service still enforces the same allowed-transition set (anti-regression)", () => {
-  // Spot-check the most important transitions: every active state
-  // permits a one-hop ARCHIVED transition (Phase CASES-PERSONAL-
-  // UX-CLEANUP) and the restore target is OPEN.
-  assert.match(CASE_LIFECYCLE, /OPEN:[\s\S]{0,200}?INVESTIGATING[\s\S]{0,200}?ARCHIVED/);
-  assert.match(CASE_LIFECYCLE, /CLOSED:[\s\S]{0,200}?ARCHIVED/);
-  assert.match(CASE_LIFECYCLE, /ARCHIVED:\s*\["OPEN"\]/);
+test("Backend lifecycle service derives the transition table from STATUS_VALUES (any → any)", () => {
+  // The hardcoded ladder rows are gone; the table is one
+  // Object.fromEntries call over the canonical STATUS_VALUES list.
+  assert.match(
+    CASE_LIFECYCLE,
+    /const STATUS_VALUES = \[\s*\n?\s*"OPEN",\s*\n?\s*"INVESTIGATING",\s*\n?\s*"ON_HOLD",\s*\n?\s*"RESOLVED",\s*\n?\s*"CLOSED",\s*\n?\s*"ARCHIVED",\s*\n?\s*\] as const;/,
+  );
+  assert.match(
+    CASE_LIFECYCLE,
+    /const ALLOWED_TRANSITIONS: Record<string, string\[\]> = Object\.fromEntries\(/,
+  );
 });
 
 // ===========================================================================

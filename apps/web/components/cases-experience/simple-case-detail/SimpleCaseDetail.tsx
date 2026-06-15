@@ -50,6 +50,7 @@ import type {
   MatterWorkspaceEnvelope,
 } from "../types";
 import {
+  CASE_STATUS_OPTIONS,
   caseStatusLabel,
   deriveNeedsAttention,
   formatRelative,
@@ -304,10 +305,35 @@ export function SimpleCaseDetail({
           caseId={caseId}
           existingEvidenceIds={new Set(evidenceItems.map((i) => i.id))}
           onClose={() => setAttachOpen(false)}
-          onAttached={async () => {
+          onAttached={async ({ succeeded, failed }) => {
+            // Phase CASES-ATTACH-PICKER-MULTI — partial-success
+            // aware toast. Close only when at least one row landed;
+            // when EVERY row failed we keep the dialog open so the
+            // user can retry without losing the selection.
+            if (succeeded === 0 && failed > 0) {
+              addToast(
+                failed === 1
+                  ? "Could not link the selected evidence record."
+                  : `Could not link the ${failed} selected evidence records.`,
+                "error",
+              );
+              return;
+            }
             setAttachOpen(false);
             await reload();
-            addToast("Evidence linked to case.", "success");
+            if (failed === 0) {
+              addToast(
+                succeeded === 1
+                  ? "Evidence linked to case."
+                  : `${succeeded} evidence records linked to case.`,
+                "success",
+              );
+            } else {
+              addToast(
+                `${succeeded} evidence record${succeeded === 1 ? "" : "s"} linked. ${failed} could not be linked.`,
+                "error",
+              );
+            }
           }}
           onError={(msg) => addToast(msg, "error")}
         />
@@ -716,23 +742,34 @@ function EvidenceTab({
 }
 
 /**
- * Phase CASES-ATTACH-PICKER — searchable evidence-picker dialog.
- * Replaces the prior native <select> which only displayed
- * `${type} — ${status} — ${short id}` — useless to a personal user
- * who identifies evidence by filename. The picker:
+ * Phase CASES-ATTACH-PICKER (+ MULTI) — searchable, MULTI-SELECT
+ * evidence-picker dialog. Replaces the prior native <select> AND
+ * the single-select v1 of this dialog. The picker:
  *
  *   - renders one row per attachable evidence record using the
  *     canonical `getDisplayTitle()` cascade (real filenames),
+ *   - supports selecting MULTIPLE rows in one pass (checkbox +
+ *     row-click toggle); selection persists while the user types
+ *     in the search box (search only filters the visible rows),
  *   - filters client-side as the user types (the backend already
  *     scopes by owner + not-attached + not-deleted + not-archived,
- *     so the candidate set is small and client filtering keeps the
- *     UI responsive without input-focus churn),
- *   - lets the user click a row OR a "Select" button to pick,
- *   - keeps the "Link selected evidence" button disabled until
- *     something is selected,
- *   - calls the existing POST /v1/cases/:id/evidence attach
- *     endpoint, which still enforces `evaluateCrossTeamAttach`
- *     (cross-workspace attach remains blocked at the backend).
+ *     so the candidate set is small and client filtering keeps
+ *     the UI responsive without input-focus churn),
+ *   - shows informational "Report ready / missing" + "Package
+ *     ready / missing" hints per row. These are NEVER eligibility
+ *     conditions: a record without a report or verification
+ *     package is still attachable (per phase spec — backend has no
+ *     readiness filter either),
+ *   - keeps the footer button disabled until at least one row is
+ *     selected and shows the live count ("Link 3 selected evidence
+ *     records"),
+ *   - submits via the existing `POST /v1/cases/:id/evidence`
+ *     attach endpoint once per selected record (the backend has
+ *     no batch attach endpoint — see audit). Each request is
+ *     run via `Promise.allSettled`; the parent toast handles
+ *     all-ok / partial / all-failed cases.
+ *   - cross-workspace attach is still blocked at the backend by
+ *     `evaluateCrossTeamAttach` — frontend just sends the ids.
  */
 type AttachCandidate = {
   id: string;
@@ -759,13 +796,27 @@ function AttachEvidenceModal({
   caseId: string;
   existingEvidenceIds: Set<string>;
   onClose: () => void;
-  onAttached: () => Promise<void>;
+  onAttached: (result: {
+    succeeded: number;
+    failed: number;
+  }) => Promise<void>;
   onError: (message: string) => void;
 }) {
   const [candidates, setCandidates] = useState<AttachCandidate[] | null>(null);
-  const [selected, setSelected] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectedCount = selectedIds.size;
 
   useEffect(() => {
     let cancelled = false;
@@ -814,22 +865,39 @@ function AttachEvidenceModal({
   });
 
   const handleAttach = useCallback(async () => {
-    if (!selected) return;
+    if (selectedIds.size === 0) return;
     setBusy(true);
-    try {
-      await apiFetch(`/v1/cases/${caseId}/evidence`, {
-        method: "POST",
-        body: JSON.stringify({ evidenceId: selected }),
+    const ids = Array.from(selectedIds);
+    // Backend has no batch attach endpoint (audit confirmed —
+    // POST /v1/cases/:id/evidence takes a single evidenceId).
+    // Fire concurrently via Promise.allSettled so a single
+    // rejection doesn't abort the rest; we surface partial
+    // success through the parent's onAttached callback.
+    const results = await Promise.allSettled(
+      ids.map((evidenceId) =>
+        apiFetch(`/v1/cases/${caseId}/evidence`, {
+          method: "POST",
+          body: JSON.stringify({ evidenceId }),
+        }),
+      ),
+    );
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    // Drop the just-attached ids from the selection so the user
+    // can retry only the failed rows if they want.
+    if (succeeded > 0) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        results.forEach((r, idx) => {
+          if (r.status === "fulfilled") next.delete(ids[idx]);
+        });
+        return next;
       });
-      setSelected("");
       setQuery("");
-      await onAttached();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Could not link evidence.");
-    } finally {
-      setBusy(false);
     }
-  }, [caseId, selected, onAttached, onError]);
+    setBusy(false);
+    await onAttached({ succeeded, failed });
+  }, [caseId, selectedIds, onAttached]);
 
   return (
     <div
@@ -931,13 +999,13 @@ function AttachEvidenceModal({
               }}
             >
               {visibleCandidates.map((c) => {
-                const isSelected = selected === c.id;
+                const isSelected = selectedIds.has(c.id);
                 return (
                   <li
                     key={c.id}
                     data-simple-case-attach-row={c.id}
                     data-selected={isSelected ? "true" : "false"}
-                    onClick={() => setSelected(c.id)}
+                    onClick={() => toggleSelected(c.id)}
                     style={{
                       padding: "10px 12px",
                       cursor: "pointer",
@@ -951,56 +1019,88 @@ function AttachEvidenceModal({
                       gap: 12,
                     }}
                   >
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        minWidth: 0,
+                        flex: 1,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        readOnly
+                        aria-label={`Select ${getDisplayTitle(c)}`}
+                        data-simple-case-attach-row-checkbox={c.id}
+                        disabled={busy}
                         style={{
-                          fontWeight: 600,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          width: 16,
+                          height: 16,
+                          flexShrink: 0,
+                          cursor: "pointer",
+                          pointerEvents: "none",
                         }}
-                        data-simple-case-attach-row-title
-                      >
-                        {getDisplayTitle(c)}
-                      </div>
-                      <div
-                        className="cc-muted"
-                        style={{
-                          fontSize: 12,
-                          marginTop: 2,
-                          display: "flex",
-                          gap: 8,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <span>{c.type}</span>
-                        <span aria-hidden>·</span>
-                        <span>{c.status}</span>
-                        <span aria-hidden>·</span>
-                        <span>{c.id.slice(0, 8)}</span>
-                        <span
-                          data-simple-case-attach-row-report={
-                            c.reportReady ? "ready" : "missing"
-                          }
-                          style={{ color: c.reportReady ? "#15803d" : "#92400e" }}
+                      />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          data-simple-case-attach-row-title
                         >
-                          {c.reportReady ? "Report ready" : "Report missing"}
-                        </span>
-                        <span
-                          data-simple-case-attach-row-package={
-                            c.packageReady ? "ready" : "missing"
-                          }
-                          style={{ color: c.packageReady ? "#15803d" : "#92400e" }}
+                          {getDisplayTitle(c)}
+                        </div>
+                        {/* Phase CASES-ATTACH-PICKER-MULTI — these
+                            badges are INFORMATIONAL only. A record
+                            with "Report missing" or "Package missing"
+                            is still attachable; backend has no
+                            readiness filter on attach. Color is
+                            kept neutral muted so the badges don't
+                            read as eligibility errors. */}
+                        <div
+                          className="cc-muted"
+                          style={{
+                            fontSize: 12,
+                            marginTop: 2,
+                            display: "flex",
+                            gap: 8,
+                            flexWrap: "wrap",
+                          }}
                         >
-                          {c.packageReady ? "Package ready" : "Package missing"}
-                        </span>
+                          <span>{c.type}</span>
+                          <span aria-hidden>·</span>
+                          <span>{c.status}</span>
+                          <span aria-hidden>·</span>
+                          <span>{c.id.slice(0, 8)}</span>
+                          <span
+                            data-simple-case-attach-row-report={
+                              c.reportReady ? "ready" : "missing"
+                            }
+                            style={{ color: "#475569" }}
+                          >
+                            {c.reportReady ? "Report ready" : "Report missing"}
+                          </span>
+                          <span
+                            data-simple-case-attach-row-package={
+                              c.packageReady ? "ready" : "missing"
+                            }
+                            style={{ color: "#475569" }}
+                          >
+                            {c.packageReady ? "Package ready" : "Package missing"}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelected(c.id);
+                        toggleSelected(c.id);
                       }}
                       data-simple-case-attach-row-select={c.id}
                       disabled={busy}
@@ -1027,20 +1127,38 @@ function AttachEvidenceModal({
           style={{
             marginTop: 16,
             display: "flex",
-            justifyContent: "flex-end",
+            justifyContent: "space-between",
+            alignItems: "center",
             gap: 8,
           }}
         >
-          <Button variant="secondary" onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => void handleAttach()}
-            disabled={!selected || busy}
-            data-simple-case-attach-confirm
+          <span
+            className="cc-muted"
+            data-simple-case-attach-selected-count={selectedCount}
+            style={{ fontSize: 12 }}
           >
-            {busy ? "Linking…" : "Link selected evidence"}
-          </Button>
+            {selectedCount === 0
+              ? "Select one or more evidence records"
+              : selectedCount === 1
+                ? "1 evidence record selected"
+                : `${selectedCount} evidence records selected`}
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button variant="secondary" onClick={onClose} disabled={busy}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void handleAttach()}
+              disabled={selectedCount === 0 || busy}
+              data-simple-case-attach-confirm
+            >
+              {busy
+                ? "Linking…"
+                : selectedCount <= 1
+                  ? "Link selected evidence"
+                  : `Link ${selectedCount} selected evidence records`}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -1443,8 +1561,29 @@ function SettingsTab({
     }
   }, [caseId, nameDraft, caseDetail.name, onReload, addToast]);
 
+  // Phase CASES-STATUS-MANUAL — Status is exposed as one dropdown.
+  // Confirmation step is owned here so a misclick on the <select>
+  // never silently mutates the case. The user-visible message
+  // explicitly states the change is organizational only — no
+  // evidence / report / package / notes / audit-history change.
+  // Backend audit logging is unchanged: every status change still
+  // appends `cases.status_changed`, and ARCHIVED → OPEN still
+  // appends the `cases.restored` event for analytics back-compat.
   const handleStatusChange = useCallback(
-    async (toStatus: string) => {
+    async (toStatus: string): Promise<boolean> => {
+      if (toStatus === caseDetail.status) return false;
+      const ok = await confirm({
+        title: "Change case status",
+        description: `Change this case from ${caseStatusLabel(
+          caseDetail.status,
+        )} to ${caseStatusLabel(
+          toStatus,
+        )}? This only updates case organization. Linked evidence, reports, verification packages, notes, and audit history remain unchanged.`,
+        confirmLabel: "Change status",
+        tone: "neutral",
+        testId: "simple-case-settings-status",
+      });
+      if (!ok) return false;
       setBusy(true);
       try {
         await apiFetch(`/v1/cases/${caseId}/status`, {
@@ -1452,54 +1591,20 @@ function SettingsTab({
           body: JSON.stringify({ toStatus }),
         });
         await onReload();
-        addToast(`Case moved to ${caseStatusLabel(toStatus)}.`, "success");
+        addToast("Case status updated.", "success");
+        return true;
       } catch (err) {
         addToast(
           err instanceof Error ? err.message : "Could not change status.",
           "error",
         );
+        return false;
       } finally {
         setBusy(false);
       }
     },
-    [caseId, onReload, addToast],
+    [caseId, caseDetail.status, onReload, addToast, confirm],
   );
-
-  // Phase CASES-PERSONAL-UX-CLEANUP — restore now lands the case in
-  // OPEN (the personal-user mental model: Open ↔ Archived). The
-  // backend state machine accepts ARCHIVED → OPEN and emits the
-  // same `cases.restored` audit event. Same canonical confirm modal
-  // with spec-locked copy.
-  const handleRestore = useCallback(async () => {
-    const ok = await confirm({
-      title: "Restore Case",
-      description:
-        "This will return the case to the active case list. Linked evidence, reports, verification packages, comments, notes, and audit history remain unchanged.",
-      confirmLabel: "Restore Case",
-      tone: "neutral",
-      testId: "simple-case-settings-restore",
-    });
-    if (!ok) return;
-    await handleStatusChange("OPEN");
-  }, [confirm, handleStatusChange]);
-
-  // Phase CASES-PERSONAL-UX-CLEANUP — single Archive action wraps the
-  // existing status-change mutation with toStatus: "ARCHIVED". The
-  // backend now accepts this from any non-archived state, so the
-  // user clicks once. Confirmation copy explains the reversibility
-  // explicitly so the user understands it's not a delete.
-  const handleArchive = useCallback(async () => {
-    const ok = await confirm({
-      title: "Archive Case",
-      description:
-        "This hides the case from the active list. Linked evidence, reports, verification packages, comments, notes, and audit history remain preserved and unchanged. You can restore the case from the Archived filter at any time.",
-      confirmLabel: "Archive Case",
-      tone: "neutral",
-      testId: "simple-case-settings-archive",
-    });
-    if (!ok) return;
-    await handleStatusChange("ARCHIVED");
-  }, [confirm, handleStatusChange]);
 
   const handleDelete = useCallback(async () => {
     // Phase CASE-DETAIL-PERSONAL-UX — canonical ConfirmActionModal.
@@ -1568,52 +1673,68 @@ function SettingsTab({
         </div>
       </div>
 
-      {/* Phase CASES-PERSONAL-UX-CLEANUP — Status card now exposes
-          ONLY the simplified Archive ↔ Restore toggle. The previous
-          enterprise transition buttons led nowhere meaningful for
-          personal/SB users and were removed per spec. The backend
-          state machine still accepts every transition; intermediate
-          states remain reachable for enterprise callers via the
-          matter-queue / status API directly. */}
+      {/* Phase CASES-STATUS-MANUAL — Status is plain organizational
+          metadata. One dropdown lets the user pick any status from
+          any other status. Archive / Restore are no longer separate
+          buttons — Archived is just one option in this list. The
+          dropdown is controlled: on change we open the canonical
+          confirm modal; on cancel/error the <select>'s `value` is
+          driven from `caseDetail.status` so it snaps back to the
+          current status without extra local state. */}
       <div
         className="cc-card"
         data-simple-case-settings-status
         style={{ marginTop: 16 }}
       >
-        <strong>Status</strong>
-        <p className="cc-muted" style={{ marginTop: 4 }}>
-          Current status: {caseStatusLabel(caseDetail.status)}
-        </p>
-        <div
-          style={{
-            marginTop: 6,
-            display: "flex",
-            gap: 6,
-            flexWrap: "wrap",
-          }}
+        <label
+          htmlFor="simple-case-settings-status-select"
+          style={{ display: "block", fontWeight: 600 }}
         >
-          {caseDetail.status === "ARCHIVED" ? (
-            <Button
-              onClick={() => void handleRestore()}
-              disabled={!canChangeStatus || busy}
-              data-simple-case-settings-status-restore
-              data-simple-case-settings-status-to="OPEN"
-              title={viewer.disabledReasons.changeStatus ?? undefined}
-            >
-              Restore Case
-            </Button>
-          ) : (
-            <Button
-              variant="secondary"
-              onClick={() => void handleArchive()}
-              disabled={!canChangeStatus || busy}
-              data-simple-case-settings-status-archive
-              data-simple-case-settings-status-to="ARCHIVED"
-              title={viewer.disabledReasons.changeStatus ?? undefined}
-            >
-              Archive Case
-            </Button>
-          )}
+          Case status
+        </label>
+        <p
+          className="cc-muted"
+          data-simple-case-settings-status-help
+          style={{ marginTop: 4 }}
+        >
+          Use status to organize your case. This does not change
+          evidence integrity, reports, packages, or retention.
+        </p>
+        <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+          <select
+            id="simple-case-settings-status-select"
+            data-simple-case-settings-status-select
+            value={caseDetail.status}
+            disabled={!canChangeStatus || busy}
+            title={viewer.disabledReasons.changeStatus ?? undefined}
+            onChange={(e) => {
+              const next = e.target.value;
+              // Reset the visible value immediately so a Cancel or
+              // server error doesn't leave the dropdown stuck on
+              // the rejected option. `value` is bound to the
+              // envelope; once the change is confirmed and the
+              // envelope reloads, the dropdown re-renders to the
+              // new status.
+              e.target.value = caseDetail.status;
+              void handleStatusChange(next);
+            }}
+            style={{
+              padding: "6px 10px",
+              border: "1px solid rgba(15, 23, 42, 0.2)",
+              borderRadius: 4,
+              minWidth: 180,
+            }}
+          >
+            {CASE_STATUS_OPTIONS.map((opt) => (
+              <option
+                key={opt.value}
+                value={opt.value}
+                data-simple-case-settings-status-option={opt.value}
+              >
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

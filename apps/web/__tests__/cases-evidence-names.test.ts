@@ -86,11 +86,11 @@ test("Settings tab is still mounted in the canonical tab order", () => {
   );
 });
 
-test("Rename / Archive / Restore / Delete actions are still rendered", () => {
+test("Rename / Status / Delete actions are still rendered (status now via single dropdown — Phase CASES-STATUS-MANUAL)", () => {
   for (const anchor of [
     "data-simple-case-settings-rename",
-    "data-simple-case-settings-status-archive",
-    "data-simple-case-settings-status-restore",
+    // Archive + Restore folded into the canonical status <select>.
+    "data-simple-case-settings-status-select",
     "data-simple-case-settings-delete-trigger",
   ]) {
     assert.ok(

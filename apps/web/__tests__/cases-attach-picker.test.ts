@@ -131,7 +131,7 @@ test("AttachEvidenceModal is mounted exactly once — at page level — with onA
   // mount.
   assert.match(
     SIMPLE_DETAIL,
-    /\{attachOpen \? \(\s*\n?\s*<AttachEvidenceModal[\s\S]{0,600}?existingEvidenceIds=\{new Set\(evidenceItems\.map[\s\S]{0,400}?await reload\(\);/,
+    /\{attachOpen \? \(\s*\n?\s*<AttachEvidenceModal[\s\S]{0,1200}?existingEvidenceIds=\{new Set\(evidenceItems\.map[\s\S]{0,1600}?await reload\(\);/,
   );
   // Only one `<AttachEvidenceModal` JSX usage in the whole file.
   const mounts = SIMPLE_DETAIL.match(/<AttachEvidenceModal\b/g) ?? [];
@@ -142,8 +142,12 @@ test("AttachEvidenceModal is mounted exactly once — at page level — with onA
 // Searchable picker — replaces the native <select>
 // ===========================================================================
 
-test("Native <select> picker is gone (data-simple-case-attach-select removed)", () => {
-  assert.doesNotMatch(SIMPLE_DETAIL, /data-simple-case-attach-select/);
+test("Native <select> picker is gone (data-simple-case-attach-select removed) — only `-selected-count` is allowed", () => {
+  // The legacy native <select> wore `data-simple-case-attach-select`.
+  // The new picker exposes `data-simple-case-attach-selected-count`
+  // for the live selection counter — that one is intentional and
+  // must not be matched as a regression.
+  assert.doesNotMatch(SIMPLE_DETAIL, /data-simple-case-attach-select(?!ed-count)\b/);
 });
 
 test("Picker has a real search input (Search evidence by name, type, or record ID)", () => {
@@ -169,22 +173,29 @@ test("Picker renders one row per candidate via getDisplayTitle (not the raw type
   );
 });
 
-test("Picker exposes per-row Select buttons + row-click selection", () => {
-  // Row-click selection (onClick on the <li>).
+test("Picker exposes per-row Select buttons + row-click toggle (multi-select)", () => {
+  // Row-click TOGGLES selection (multi-select), not assigns.
   assert.match(
     SIMPLE_DETAIL,
-    /data-simple-case-attach-row=\{c\.id\}[\s\S]{0,400}?onClick=\{\(\) => setSelected\(c\.id\)\}/,
+    /data-simple-case-attach-row=\{c\.id\}[\s\S]{0,400}?onClick=\{\(\) => toggleSelected\(c\.id\)\}/,
   );
-  // Per-row Select button.
+  // Per-row Select button still present + also toggles.
   assert.match(SIMPLE_DETAIL, /data-simple-case-attach-row-select=\{c\.id\}/);
 });
 
-test("Footer 'Link selected evidence' button is disabled until a row is selected", () => {
-  // Confirm button uses `disabled={!selected || busy}` and shows
-  // the spec-locked label.
+test("Footer confirm button is disabled when no rows are selected and shows a count-aware label", () => {
+  // The disabled predicate now reads from `selectedCount`, not
+  // a single-string selection. Label varies by count.
   assert.match(
     SIMPLE_DETAIL,
-    /disabled=\{!selected \|\| busy\}\s*\n?\s*data-simple-case-attach-confirm[\s\S]{0,200}?Link selected evidence/,
+    /disabled=\{selectedCount === 0 \|\| busy\}\s*\n?\s*data-simple-case-attach-confirm/,
+  );
+  // Single-select label preserved for the 1-selected case.
+  assert.match(SIMPLE_DETAIL, /"Link selected evidence"/);
+  // Multi-select label includes the count.
+  assert.match(
+    SIMPLE_DETAIL,
+    /`Link \$\{selectedCount\} selected evidence records`/,
   );
 });
 
@@ -223,28 +234,58 @@ test("Search filters by name/type/status/short-id (haystack includes title, disp
 // Attach success/error behaviour
 // ===========================================================================
 
-test("Successful attach calls POST /v1/cases/:id/evidence then onAttached, clearing search + selection", () => {
+test("Multi-attach fires one POST per selected evidenceId via Promise.allSettled (no batch endpoint exists in backend)", () => {
+  // Each selected id is sent to the same single-attach endpoint.
+  // The frontend never tries to invent a batch endpoint.
   assert.match(
     SIMPLE_DETAIL,
-    /apiFetch\(`\/v1\/cases\/\$\{caseId\}\/evidence`,\s*\{\s*\n?\s*method: "POST",\s*\n?\s*body: JSON\.stringify\(\{ evidenceId: selected \}\),\s*\n?\s*\}\);\s*\n?\s*setSelected\(""\);\s*\n?\s*setQuery\(""\);\s*\n?\s*await onAttached\(\);/,
+    /Promise\.allSettled\(\s*\n?\s*ids\.map\(\(evidenceId\) =>\s*\n?\s*apiFetch\(`\/v1\/cases\/\$\{caseId\}\/evidence`,\s*\{\s*\n?\s*method: "POST",\s*\n?\s*body: JSON\.stringify\(\{ evidenceId \}\),/,
   );
 });
 
-test("On success the page-level onAttached refreshes via reload() and shows 'Evidence linked to case.' toast", () => {
+test("Successful rows are removed from the selection so the user can retry only failed rows", () => {
+  // Anti-regression: a partial-success run must drop the
+  // fulfilled ids from selectedIds (so the next click only
+  // retries the failures).
   assert.match(
     SIMPLE_DETAIL,
-    /onAttached=\{async \(\) => \{\s*\n?\s*setAttachOpen\(false\);\s*\n?\s*await reload\(\);\s*\n?\s*addToast\("Evidence linked to case\.", "success"\);\s*\n?\s*\}\}/,
+    /setSelectedIds\(\(prev\) => \{\s*\n?\s*const next = new Set\(prev\);\s*\n?\s*results\.forEach\(\(r, idx\) => \{\s*\n?\s*if \(r\.status === "fulfilled"\) next\.delete\(ids\[idx\]\);/,
   );
 });
 
-test("On error the dialog stays open and a clean user-facing error toast fires (no raw JSON)", () => {
-  // The catch path calls onError(...) with a bounded message and
-  // sets busy=false. busy not staying true means the dialog
-  // remains usable; the modal is only closed in the success path.
+test("Page-level onAttached receives {succeeded, failed} and renders count-aware toasts", () => {
+  // The page-side handler branches on count to choose the right
+  // toast: success / partial / all-failed.
   assert.match(
     SIMPLE_DETAIL,
-    /catch \(err\) \{\s*\n?\s*onError\(err instanceof Error \? err\.message : "Could not link evidence\."\);/,
+    /onAttached=\{async \(\{ succeeded, failed \}\) => \{/,
   );
+  // Single + multi success messages.
+  assert.match(SIMPLE_DETAIL, /"Evidence linked to case\."/);
+  assert.match(
+    SIMPLE_DETAIL,
+    /`\$\{succeeded\} evidence records linked to case\.`/,
+  );
+  // Partial-failure message.
+  assert.match(
+    SIMPLE_DETAIL,
+    /linked\. \$\{failed\} could not be linked\./,
+  );
+});
+
+test("All-failed run keeps the dialog open (so the user can retry without losing selection)", () => {
+  // Pin the early-return inside the guard. The dialog close
+  // (`setAttachOpen(false)`) lives AFTER the guard so it only
+  // runs when at least one attach succeeded.
+  assert.match(
+    SIMPLE_DETAIL,
+    /if \(succeeded === 0 && failed > 0\) \{[\s\S]{0,800}?return;\s*\n?\s*\}/,
+  );
+  // Sanity: setAttachOpen(false) appears AFTER the guard so the
+  // close-dialog path is gated by "at least one succeeded".
+  const guardIdx = SIMPLE_DETAIL.indexOf("if (succeeded === 0 && failed > 0)");
+  const closeIdx = SIMPLE_DETAIL.indexOf("setAttachOpen(false);", guardIdx);
+  assert.ok(closeIdx > guardIdx, "setAttachOpen(false) must come after the all-failed guard");
 });
 
 // ===========================================================================

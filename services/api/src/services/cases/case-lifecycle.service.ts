@@ -57,33 +57,40 @@ export type CaseActorContext = {
 // Status transitions
 // ---------------------------------------------------------------------------
 
-const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  // Phase CASES-PERSONAL-UX-CLEANUP — Personal / Small-Business users
-  // see only an "Archive case" button (no Move-to-Investigating /
-  // On-Hold / Resolved / Close ladder). To make that single button
-  // work from any active state, ARCHIVED is now reachable directly
-  // from every non-terminal status. The historical multi-step ladder
-  // (OPEN → INVESTIGATING → … → CLOSED → ARCHIVED) is preserved for
-  // enterprise callers that send those intermediate transitions
-  // explicitly; we simply added ARCHIVED as an additional permitted
-  // target. The legal-hold guard at `CLOSURE_STATUSES` still fires on
-  // any transition INTO CLOSED or ARCHIVED, so an active hold blocks
-  // archive fail-closed regardless of the source state.
-  OPEN: ["INVESTIGATING", "ON_HOLD", "RESOLVED", "ARCHIVED"],
-  INVESTIGATING: ["ON_HOLD", "RESOLVED", "ARCHIVED"],
-  ON_HOLD: ["INVESTIGATING", "RESOLVED", "ARCHIVED"],
-  RESOLVED: ["CLOSED", "INVESTIGATING", "ARCHIVED"],
-  CLOSED: ["ARCHIVED", "RESOLVED"],
-  // Phase CASES-PERSONAL-UX-CLEANUP — Restore now lands in OPEN
-  // (the personal-user mental model: Open ↔ Archived is the visible
-  // binary). The prior CLOSED target was structurally symmetric for
-  // the enterprise lifecycle, but CLOSED is hidden in the personal
-  // Settings tab — restoring there would leave the user with no
-  // visible next action. OPEN is the natural "active" landing state
-  // and the existing reopen ladder (OPEN → INVESTIGATING → …) stays
-  // available for enterprise callers that send those transitions.
-  ARCHIVED: ["OPEN"],
-};
+// Phase CASES-STATUS-MANUAL — case status is now treated as plain
+// organizational metadata for Personal / Small-Business users: a
+// label for filtering, badges, and visual grouping. It is NOT a
+// workflow state machine. The Settings tab exposes ONE dropdown
+// that lets the user pick any status from any other status. The
+// table below therefore allows every transition (any → any), with
+// the single exception that a no-op self-transition still falls
+// through to the existing equality guard in changeCaseStatus.
+//
+// What stays unchanged:
+//   - `cases.status_changed` audit event still fires on every
+//     transition (no parallel logging path).
+//   - `cases.restored` audit event still fires on ARCHIVED → OPEN
+//     for analytics back-compat (consumers count restores).
+//   - `CLOSURE_STATUSES` legal-hold guard still rejects ANY
+//     transition INTO CLOSED or ARCHIVED while an active legal hold
+//     exists. Legal hold is a real constraint, not a workflow rule.
+//   - The closure cascade body (deactivate ACTIVE assignments on
+//     transition INTO CLOSED/ARCHIVED) still runs.
+const STATUS_VALUES = [
+  "OPEN",
+  "INVESTIGATING",
+  "ON_HOLD",
+  "RESOLVED",
+  "CLOSED",
+  "ARCHIVED",
+] as const;
+
+const ALLOWED_TRANSITIONS: Record<string, string[]> = Object.fromEntries(
+  STATUS_VALUES.map((from) => [
+    from,
+    STATUS_VALUES.filter((to) => to !== from),
+  ]),
+);
 
 function transitionAllowed(from: string, to: string): boolean {
   return (ALLOWED_TRANSITIONS[from] ?? []).includes(to);

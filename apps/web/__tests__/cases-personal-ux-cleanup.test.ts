@@ -121,16 +121,14 @@ test("Settings status section no longer renders any `Move to <X>` button", () =>
   }
 });
 
-test("Settings status section is exactly one of: Archive Case (active) or Restore Case (archived)", () => {
-  // Pin the conditional that renders the single button.
-  assert.match(
-    SIMPLE_DETAIL,
-    /\{caseDetail\.status === "ARCHIVED" \? \(\s*\n?\s*<Button[\s\S]{0,400}?data-simple-case-settings-status-restore/,
-  );
-  assert.match(
-    SIMPLE_DETAIL,
-    /\) : \(\s*\n?\s*<Button[\s\S]{0,400}?data-simple-case-settings-status-archive/,
-  );
+test("Settings status section is one <select> dropdown (Phase CASES-STATUS-MANUAL)", () => {
+  // Phase CASES-STATUS-MANUAL folded the prior Archive/Restore
+  // buttons into the canonical status dropdown. The two
+  // dedicated data-attributes are gone; their replacement is a
+  // single `data-simple-case-settings-status-select` <select>.
+  assert.doesNotMatch(SIMPLE_DETAIL, /data-simple-case-settings-status-archive/);
+  assert.doesNotMatch(SIMPLE_DETAIL, /data-simple-case-settings-status-restore/);
+  assert.match(SIMPLE_DETAIL, /data-simple-case-settings-status-select/);
 });
 
 // ===========================================================================
