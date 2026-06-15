@@ -112,6 +112,37 @@ type SearchResponse = {
   fallbackReason?: string | null;
 };
 
+// Search-runtime-diagnostics — workspace-scoped envelope returned by
+// GET /v1/search/diagnostics. Used to render explicit empty-state
+// copy ("Search index preparing", "Workspace has no records yet")
+// when the underlying cause is NOT "no matching rows" — preventing
+// the runtime path from rendering a misleading "0 results."
+// Older backends without the endpoint return 404; the page collapses
+// to null and falls back to the legacy empty-state branches.
+type SearchDiagnostics = {
+  workspace: { id: string; name: string | null; isPersonal: boolean | null };
+  evidence: { total: number };
+  index: {
+    total: number;
+    byType: Record<string, number>;
+    evidenceIndexed: number;
+    evidenceTotal: number;
+    coverage: number | null;
+  };
+  health: "healthy" | "partial_index" | "empty_index" | "empty_workspace";
+  queryProbe: {
+    q: string;
+    matchedTotal: number;
+    matchedByType: Record<string, number>;
+  } | null;
+  runtime: {
+    dbServerIp: string | null;
+    dbServerPort: number | null;
+    dbName: string | null;
+    nodeEnv: string | null;
+  };
+};
+
 // Phase 16 — semantic status envelope returned by
 // GET /v1/search/semantic/status. The endpoint is a thin projection
 // over the workspace-scoped embedding provider gate + the most recent
@@ -334,6 +365,17 @@ function SearchInner() {
     useState<SemanticBackfillResponse | null>(null);
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillError, setBackfillError] = useState<string | null>(null);
+  // Search-runtime-diagnostics — workspace-scoped health envelope used
+  // to render explicit empty-state copy ("Search index preparing",
+  // "Workspace has no records yet") instead of a misleading
+  // "0 results" when the underlying cause is API down / empty index /
+  // wrong workspace. One fetch per teamId. Missing endpoint (older
+  // backend) collapses to null and the page falls back to the legacy
+  // empty-state branches.
+  const [searchHealth, setSearchHealth] = useState<SearchDiagnostics | null>(
+    null,
+  );
+  const [searchHealthError, setSearchHealthError] = useState<boolean>(false);
 
   // Phase 32.8 Foundation cleanup — initialize filter when teamId
   // resolves from the canonical platform context.
@@ -409,6 +451,34 @@ function SearchInner() {
     };
   }, [teamId]);
 
+  // Search-runtime-diagnostics — fetch once per teamId. Used to render
+  // explicit empty-state copy ("Search index preparing", "Workspace has
+  // no records yet") when the cause of an empty result is NOT "no
+  // matching rows". One fetch per workspace; a 404 (older backend) or
+  // any other failure collapses to null + searchHealthError=true so the
+  // page degrades to the legacy empty-state branches.
+  useEffect(() => {
+    if (!teamId) return;
+    let cancelled = false;
+    setSearchHealthError(false);
+    apiFetch(
+      `/v1/search/diagnostics?teamId=${encodeURIComponent(teamId)}`,
+      { method: "GET" },
+    )
+      .then((r: SearchDiagnostics) => {
+        if (cancelled) return;
+        setSearchHealth(r);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSearchHealth(null);
+        setSearchHealthError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [teamId]);
+
   // Run query on filter change.
   useEffect(() => {
     if (!filter) return;
@@ -417,6 +487,24 @@ function SearchInner() {
     runSearch(filter)
       .then((r) => {
         if (cancelled) return;
+        // Search-runtime-diagnostics — harden against malformed /
+        // empty 200 responses. `apiFetch` returns `null` when the
+        // server sends a non-JSON 200 (e.g. a reverse-proxy HTML
+        // error page), and an old backend could in theory respond
+        // with a JSON body missing `rows`. Both used to silently land
+        // in the "0 results" empty-state branch. Treat both as
+        // explicit transport errors so the user sees the
+        // "Search is temporarily unavailable" copy instead.
+        if (
+          !r ||
+          typeof r !== "object" ||
+          !Array.isArray((r as SearchResponse).rows)
+        ) {
+          throw Object.assign(
+            new Error("Malformed response from search API"),
+            { code: "MALFORMED_RESPONSE" },
+          );
+        }
         setResults(r);
         setError(null);
         if (!r.rows.find((x) => x.documentId === selected?.documentId)) {
@@ -835,6 +923,46 @@ function SearchInner() {
               onRun={runBackfillDryRun}
             />
           ) : null}
+          {/* Search-runtime-diagnostics — single-line workspace + index
+              health chip. Surfaces the workspace name being searched
+              (so a wrong-workspace mismatch is visible at a glance) and
+              the coverage of the search index. Hidden when the
+              diagnostics endpoint is unavailable (older backends) so
+              the legacy operator surface is unaffected. */}
+          {searchHealth ? (
+            <div
+              style={searchHealthChipStyle(searchHealth.health)}
+              data-search-health={searchHealth.health}
+              data-search-health-workspace-id={searchHealth.workspace.id}
+              data-search-health-workspace-name={
+                searchHealth.workspace.name ?? ""
+              }
+              data-search-health-evidence-total={searchHealth.index.evidenceTotal}
+              data-search-health-evidence-indexed={
+                searchHealth.index.evidenceIndexed
+              }
+              title={`API DB ${searchHealth.runtime.dbName ?? "(unknown)"} @ ${searchHealth.runtime.dbServerIp ?? "?"}:${searchHealth.runtime.dbServerPort ?? "?"} • ${searchHealth.runtime.nodeEnv ?? "?"}`}
+            >
+              <strong>
+                {searchHealth.workspace.name ?? "Workspace"}
+              </strong>{" "}
+              ·{" "}
+              {searchHealth.health === "healthy"
+                ? `${searchHealth.index.evidenceIndexed} records indexed`
+                : searchHealth.health === "partial_index"
+                  ? `${searchHealth.index.evidenceIndexed}/${searchHealth.index.evidenceTotal} indexed (catching up)`
+                  : searchHealth.health === "empty_index"
+                    ? `Search index preparing (0/${searchHealth.index.evidenceTotal})`
+                    : `Workspace has 0 records`}
+            </div>
+          ) : searchHealthError ? (
+            <div
+              style={searchHealthChipStyle("unknown")}
+              data-search-health="unknown"
+            >
+              Search index status unavailable
+            </div>
+          ) : null}
         </div>
         <form
           onSubmit={submitQuery}
@@ -1147,12 +1275,74 @@ function SearchInner() {
                     OCR text and transcripts when available.
                   </p>
                 </div>
+              ) : searchHealth?.health === "empty_workspace" ? (
+                // Search-runtime-diagnostics — the workspace itself
+                // has no evidence yet. Searching anything will return
+                // 0, but the cause is "no records exist in this
+                // workspace", not "your query didn't match." Distinct
+                // copy + a hint to switch workspaces if the user
+                // expected records here.
+                <div data-search-empty-state-kind="empty-workspace">
+                  <strong>
+                    Workspace
+                    {searchHealth.workspace.name
+                      ? ` "${searchHealth.workspace.name}"`
+                      : ""}{" "}
+                    has no records yet
+                  </strong>
+                  <p style={{ marginTop: 6 }}>
+                    Add evidence, cases, reports, packages, or notes —
+                    or switch to a workspace that has them. The
+                    current workspace contains 0 records.
+                  </p>
+                </div>
+              ) : searchHealth?.health === "empty_index" ? (
+                // Search-runtime-diagnostics — workspace has records
+                // but the search index is empty (lifecycle hook never
+                // ran, or backfill not started). Distinct copy so the
+                // user understands the records exist; they just
+                // aren't searchable yet.
+                <div data-search-empty-state-kind="empty-index">
+                  <strong>Search index is preparing</strong>
+                  <p style={{ marginTop: 6 }}>
+                    This workspace has {searchHealth.index.evidenceTotal}{" "}
+                    records, but none have been indexed yet. Indexing
+                    runs automatically; reload in a moment. If this
+                    persists, contact support.
+                  </p>
+                </div>
+              ) : searchHealth?.health === "partial_index" ? (
+                // Search-runtime-diagnostics — backfill in progress.
+                // The user MAY get 0 results because their record
+                // hasn't been indexed yet. Tell them so.
+                <div data-search-empty-state-kind="partial-index">
+                  <strong>No matching results yet</strong>
+                  <p style={{ marginTop: 6 }}>
+                    Search index is still catching up
+                    ({searchHealth.index.evidenceIndexed} of{" "}
+                    {searchHealth.index.evidenceTotal} records indexed).
+                    Reload in a moment if you expected a recent
+                    record.
+                  </p>
+                </div>
               ) : (
+                // Search-runtime-diagnostics — fully indexed, query
+                // truly has no hits in THIS workspace. Surface the
+                // workspace name so a wrong-workspace mistake is
+                // visible.
                 <div data-search-empty-state-kind="no-match">
-                  <strong>No matching results</strong>
+                  <strong>
+                    No matches
+                    {searchHealth?.workspace?.name
+                      ? ` in "${searchHealth.workspace.name}"`
+                      : ""}
+                  </strong>
                   <p style={{ marginTop: 6 }}>
                     Try a different filename, case name, report title,
-                    note, or record ID.
+                    note, or record ID
+                    {searchHealth?.workspace?.name
+                      ? ` — or switch workspace if the record lives elsewhere.`
+                      : "."}
                   </p>
                 </div>
               )}
@@ -1877,6 +2067,35 @@ const _semanticSearchChipStyle: React.CSSProperties = {
   border: "1px solid #cbd5e1",
   borderRadius: 999,
 };
+
+// Search-runtime-diagnostics — workspace + index-health chip. Color
+// codes the four health states so a wrong workspace or empty index is
+// visible at a glance, independent of empty-state copy.
+function searchHealthChipStyle(
+  health: "healthy" | "partial_index" | "empty_index" | "empty_workspace" | "unknown",
+): React.CSSProperties {
+  const tone =
+    health === "healthy"
+      ? { bg: "#ecfdf5", border: "#a7f3d0", fg: "#065f46" }
+      : health === "partial_index"
+        ? { bg: "#fffbeb", border: "#fde68a", fg: "#92400e" }
+        : health === "empty_index"
+          ? { bg: "#fef2f2", border: "#fecaca", fg: "#991b1b" }
+          : health === "empty_workspace"
+            ? { bg: "#f8fafc", border: "#cbd5e1", fg: "#475569" }
+            : { bg: "#f8fafc", border: "#cbd5e1", fg: "#64748b" };
+  return {
+    display: "inline-block",
+    marginTop: 8,
+    padding: "3px 10px",
+    fontSize: 11,
+    fontWeight: 500,
+    background: tone.bg,
+    color: tone.fg,
+    border: `1px solid ${tone.border}`,
+    borderRadius: 999,
+  };
+}
 
 // Phase 15 — palette-aware status chip. Uses the same colour family as
 // the existing badge palette on this page so we do not introduce a new

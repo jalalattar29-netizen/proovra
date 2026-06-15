@@ -1227,6 +1227,158 @@ export async function searchRoutes(app: FastifyInstance) {
     },
   );
 
+  // ---------------------------------------------------------------------------
+  // Search-runtime-diagnostics — answers "why does the UI show 0 results?"
+  //
+  // Returns the workspace-scoped, in-prod-safe view of search health so
+  // the UI can render explicit empty-state copy instead of an ambiguous
+  // "0 results" when the real cause is one of:
+  //   - API reachable but index empty / partial
+  //   - DB pointed at a different server than expected
+  //   - Active workspace ≠ workspace that owns the records
+  //
+  // Auth: requireSearchActor (same gate as /v1/search). Does NOT expose
+  // any field that wasn't already derivable from the search endpoint, so
+  // safe to ship to all tiers — including prod.
+  //
+  // Optional `?q=` runs the same Prisma OR over title/subtitle/summary/
+  // searchableText as executeSearch and returns the matched count only
+  // (no rows) — so the user can sanity-check "does q=X match anything
+  // in THIS workspace right now" without authenticating Prisma against
+  // an external DB.
+  // ---------------------------------------------------------------------------
+  app.get(
+    "/v1/search/diagnostics",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const parsed = z
+        .object({
+          teamId: z.string().uuid(),
+          q: z.string().min(1).max(200).optional(),
+        })
+        .safeParse(req.query ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: { code: "validation_error", detail: parsed.error.flatten() },
+        });
+      }
+      const { teamId, q } = parsed.data;
+      const actor = await requireSearchActor(req, reply, teamId);
+      if (!actor) return;
+
+      const [team, evidenceTotal, indexedByTypeRaw, dbServer] = await Promise.all([
+        prisma.team.findUnique({
+          where: { id: teamId },
+          select: { id: true, name: true, isPersonal: true },
+        }),
+        prisma.evidence.count({
+          where: { teamId, deletedAt: null },
+        }),
+        prisma.$queryRaw<Array<{ document_type: string; n: bigint }>>`
+          SELECT document_type, COUNT(*)::bigint AS n
+            FROM evidence_search_documents
+           WHERE team_id = ${teamId}::uuid
+           GROUP BY document_type`,
+        prisma.$queryRaw<Array<{ server_ip: string | null; server_port: number | null; db: string }>>`
+          SELECT inet_server_addr()::text AS server_ip,
+                 inet_server_port() AS server_port,
+                 current_database() AS db`,
+      ]);
+
+      const indexedByType: Record<string, number> = {};
+      let indexedTotal = 0;
+      for (const row of indexedByTypeRaw) {
+        const n = Number(row.n);
+        indexedByType[row.document_type] = n;
+        indexedTotal += n;
+      }
+      const indexedEvidence = indexedByType.EVIDENCE ?? 0;
+
+      // Sample query probe — same OR shape as executeSearch. Honors
+      // reviewer-restriction gate so the count matches what the user
+      // would actually see in search results.
+      let queryProbe: {
+        q: string;
+        matchedTotal: number;
+        matchedByType: Record<string, number>;
+      } | null = null;
+      if (q && q.trim().length > 0) {
+        const probeWhere: prismaPkg.Prisma.EvidenceSearchDocumentWhereInput = {
+          teamId,
+          ...(actor.isReviewerCapable ? {} : { reviewerRestricted: false }),
+          OR: [
+            { title: { contains: q, mode: "insensitive" } },
+            { subtitle: { contains: q, mode: "insensitive" } },
+            { summary: { contains: q, mode: "insensitive" } },
+            { searchableText: { contains: q, mode: "insensitive" } },
+          ],
+        };
+        const matchRows = await prisma.evidenceSearchDocument.findMany({
+          where: probeWhere,
+          select: { documentType: true },
+        });
+        const matchedByType: Record<string, number> = {};
+        for (const r of matchRows) {
+          matchedByType[r.documentType] =
+            (matchedByType[r.documentType] ?? 0) + 1;
+        }
+        queryProbe = {
+          q,
+          matchedTotal: matchRows.length,
+          matchedByType,
+        };
+      }
+
+      // Health classification — the single signal the frontend uses to
+      // pick which empty-state copy to render.
+      //   "healthy"        — index has at least one EVIDENCE row AND
+      //                      indexedEvidence === evidenceTotal
+      //   "partial_index"  — index has some EVIDENCE rows but fewer
+      //                      than evidenceTotal (backfill running)
+      //   "empty_index"    — index has zero rows for this workspace
+      //                      AND workspace has evidence (indexing not
+      //                      yet run / lifecycle hook broken)
+      //   "empty_workspace"— workspace itself has no evidence
+      const health: "healthy" | "partial_index" | "empty_index" | "empty_workspace" =
+        evidenceTotal === 0
+          ? "empty_workspace"
+          : indexedEvidence === 0
+            ? "empty_index"
+            : indexedEvidence < evidenceTotal
+              ? "partial_index"
+              : "healthy";
+
+      const server = dbServer[0] ?? null;
+
+      return reply.code(200).send({
+        workspace: {
+          id: teamId,
+          name: team?.name ?? null,
+          isPersonal: team?.isPersonal ?? null,
+        },
+        evidence: { total: evidenceTotal },
+        index: {
+          total: indexedTotal,
+          byType: indexedByType,
+          evidenceIndexed: indexedEvidence,
+          evidenceTotal,
+          coverage:
+            evidenceTotal === 0
+              ? null
+              : Math.round((indexedEvidence / evidenceTotal) * 1000) / 10,
+        },
+        health,
+        queryProbe,
+        runtime: {
+          dbServerIp: server?.server_ip ?? null,
+          dbServerPort: server?.server_port ?? null,
+          dbName: server?.db ?? null,
+          nodeEnv: process.env.NODE_ENV ?? null,
+        },
+      });
+    },
+  );
+
   // Reference SEARCH_DOCUMENT_TYPES / SEARCH_SORT_MODES to keep them
   // surfaced for OpenAPI tooling (avoids unused-import lint noise).
   void SEARCH_DOCUMENT_TYPES;
