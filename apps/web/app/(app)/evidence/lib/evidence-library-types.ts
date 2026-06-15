@@ -292,6 +292,35 @@ export type EvidenceRecord = {
     privacyNotice?: string | null;
   } | null;
   evidenceIntelligence?: EvidenceIntelligence | null;
+  /**
+   * Phase EVIDENCE-DELETE-ELIGIBILITY — additive, read-only.
+   * Computed server-side from the existing retention columns + the
+   * EvidenceLegalHold table. The UI prefers this over its
+   * client-side mirror because it includes the legal-hold lookup
+   * that lives outside the evidence row. Optional for back-compat
+   * with any client that hits an older API build.
+   */
+  deleteEligibility?: EvidenceDeleteEligibility | null;
+};
+
+/**
+ * Phase EVIDENCE-DELETE-ELIGIBILITY — shape mirrors the backend
+ * type in services/api/src/services/evidence/evidence-delete-eligibility.service.ts.
+ * Source-pinned contract tests assert the two stay in lockstep.
+ */
+export type EvidenceDeleteReasonCode =
+  | "COMPLIANCE_RETENTION"
+  | "LEGAL_HOLD"
+  | "RETENTION_UNTIL"
+  | "EVIDENCE_LOCKED"
+  | "ALREADY_DELETED"
+  | "UNKNOWN";
+
+export type EvidenceDeleteEligibility = {
+  canMoveToTrash: boolean;
+  reasonCode: EvidenceDeleteReasonCode | null;
+  blockedUntil: string | null;
+  message: string;
 };
 
 export type EvidenceResponse = {

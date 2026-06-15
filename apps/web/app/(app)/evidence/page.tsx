@@ -1222,6 +1222,7 @@ function EvidenceLibraryPageInner() {
               selectedIds.size > 0 ? (
                 <BulkActionsToolbar
                   selectedCount={selectedIds.size}
+                  selectedItems={visibleItems.filter((item) => selectedIds.has(item.id))}
                   availableCases={library.cases}
                   onClear={clearSelection}
                   onRun={runBulkAction}

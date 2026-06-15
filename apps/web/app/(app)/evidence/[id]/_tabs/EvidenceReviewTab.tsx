@@ -28,6 +28,11 @@ import {
 } from "./_lib";
 import { Button } from "../../../../../components/ui";
 import { formatUserDateTime } from "../../../../../lib/date";
+import {
+  ARCHIVE_AS_ALTERNATIVE_COPY,
+  getEvidenceDeletionEligibility,
+} from "../../lib/evidence-delete-eligibility";
+import { canManageEvidenceRelationships } from "../../lib/evidence-relationships-visibility";
 import { ReviewerCommentsPanel } from "../../components/ReviewerCommentsPanel";
 import { LegalNotesPanel } from "../../components/LegalNotesPanel";
 import { AnnotationPanel } from "../../components/AnnotationPanel";
@@ -116,6 +121,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
     evidence,
     evidenceId,
     canSeeReviewerOps,
+    canSeeInvestigation,
     actionBusy,
     workflowEvents,
     workflowEventsLoading,
@@ -132,6 +138,14 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
     setArchiveOpen,
     setTrashOpen,
   } = ctx;
+
+  // Phase EVIDENCE-RELATIONSHIPS-GATE — hide the Manage button and the
+  // per-row Remove buttons on Personal / non-investigation workspaces.
+  // Items still render read-only when present.
+  const relationshipsVisibility = canManageEvidenceRelationships({
+    canSeeInvestigation,
+    existingRelationshipCount: workspace.relationships.items.length,
+  });
 
   // Phase 2 — show the NOT_STARTED empty state when nobody has
   // started a structured review yet. Once a reviewer sets any
@@ -152,6 +166,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         note={workspace.relationships.note}
         items={workspace.relationships.items}
         actionBusy={actionBusy}
+        canManageRelationships={relationshipsVisibility.canManage}
         onAssignCase={() => {
           setSelectedCaseId(workspace.relationships.caseId || "");
           setAssignCaseOpen(true);
@@ -306,39 +321,106 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             },
           ]}
         />
-        <div className="evidence-detail-inline-actions">
-          {evidence.archivedAt ? (
-            <Button
-              variant="secondary"
-              onClick={() =>
-                void runRecordAction(
-                  `/v1/evidence/${evidence.id}/unarchive`,
-                  "Evidence restored from archive",
-                )
-              }
-            >
-              Restore archive
-            </Button>
-          ) : (
-            <Button
-              variant="secondary"
-              onClick={() => setArchiveOpen(true)}
-              disabled={evidence.deletedAt != null}
-            >
-              Archive
-            </Button>
-          )}
+        {/* Phase EVIDENCE-DELETE-ELIGIBILITY — gate Move to trash on
+            the canonical helper so the button is disabled BEFORE the
+            user clicks rather than failing with a 409 toast. Archive
+            stays the recommended alternative; the helper text below
+            the disabled trash button says so. */}
+        {(() => {
+          const eligibility = getEvidenceDeletionEligibility(evidence);
+          const trashDisabled = !eligibility.canMoveToTrash;
+          const archiveDisabled =
+            evidence.deletedAt != null || evidence.archivedAt != null;
+          // When trash is blocked by retention and archive IS
+          // available, the spec asks us to make Archive visually
+          // recommended. We use the existing primary `variant`
+          // (default) for Archive in that case; otherwise keep the
+          // status quo secondary styling.
+          const archiveIsRecommended = trashDisabled && !archiveDisabled;
+          return (
+            <>
+              <div
+                className="evidence-detail-inline-actions"
+                data-evidence-record-actions
+              >
+                {evidence.archivedAt ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() =>
+                      void runRecordAction(
+                        `/v1/evidence/${evidence.id}/unarchive`,
+                        "Evidence restored from archive",
+                      )
+                    }
+                  >
+                    Restore archive
+                  </Button>
+                ) : (
+                  <Button
+                    variant={archiveIsRecommended ? "primary" : "secondary"}
+                    onClick={() => setArchiveOpen(true)}
+                    disabled={archiveDisabled}
+                    data-evidence-action="archive"
+                    data-archive-recommended={archiveIsRecommended ? "true" : "false"}
+                  >
+                    Archive evidence
+                  </Button>
+                )}
 
-          {evidence.deletedAt ? (
-            <Button variant="secondary" onClick={() => void restoreTrash()}>
-              Restore from trash
-            </Button>
-          ) : (
-            <Button variant="secondary" onClick={() => setTrashOpen(true)}>
-              Move to trash
-            </Button>
-          )}
-        </div>
+                {evidence.deletedAt ? (
+                  <Button variant="secondary" onClick={() => void restoreTrash()}>
+                    Restore from trash
+                  </Button>
+                ) : (
+                  // Spec: keep the disabled control visible (consistent
+                  // affordance) but never let the click reach
+                  // setTrashOpen — that's exactly the "modal opens then
+                  // fails" UX we're killing.
+                  <span
+                    data-evidence-trash-wrapper
+                    data-evidence-trash-disabled={trashDisabled ? "true" : "false"}
+                    title={trashDisabled ? eligibility.message : undefined}
+                  >
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        if (trashDisabled) return;
+                        setTrashOpen(true);
+                      }}
+                      disabled={trashDisabled}
+                      aria-disabled={trashDisabled}
+                      aria-describedby={
+                        trashDisabled ? "evidence-trash-helper" : undefined
+                      }
+                      data-evidence-action="trash"
+                      data-evidence-trash-reason={
+                        eligibility.reasonCode ?? "ELIGIBLE"
+                      }
+                    >
+                      Move to trash
+                    </Button>
+                  </span>
+                )}
+              </div>
+
+              {trashDisabled && !evidence.deletedAt ? (
+                <div
+                  id="evidence-trash-helper"
+                  className="evidence-detail-note-box"
+                  data-evidence-trash-helper
+                  data-evidence-trash-reason={eligibility.reasonCode ?? "UNKNOWN"}
+                  style={{ marginTop: 10 }}
+                >
+                  <strong>Move to trash is unavailable</strong>
+                  <p>{eligibility.message}</p>
+                  {!archiveDisabled ? (
+                    <p style={{ marginTop: 4 }}>{ARCHIVE_AS_ALTERNATIVE_COPY}</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          );
+        })()}
       </section>
     </>
   );

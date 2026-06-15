@@ -23,6 +23,7 @@ export function EvidenceRelationshipsSection({
   note,
   items,
   actionBusy,
+  canManageRelationships = true,
   onAssignCase,
   onRemoveCase,
   onOpenRelationshipEditor,
@@ -40,6 +41,14 @@ export function EvidenceRelationshipsSection({
   note: string | null;
   items: RelationshipItem[];
   actionBusy: boolean;
+  /**
+   * Phase EVIDENCE-RELATIONSHIPS-GATE — when false (Personal /
+   * non-investigation workspaces), the Manage button + per-row
+   * Remove buttons are hidden. Items still render as read-only
+   * when present. Defaults to `true` for back-compat with any
+   * caller that hasn't yet passed it.
+   */
+  canManageRelationships?: boolean;
   onAssignCase: () => void;
   onRemoveCase: (() => void) | null;
   onOpenRelationshipEditor: () => void;
@@ -63,9 +72,15 @@ export function EvidenceRelationshipsSection({
               Remove case
             </Button>
           ) : null}
-          <Button onClick={onOpenRelationshipEditor} disabled={actionBusy}>
-            Manage relationships
-          </Button>
+          {canManageRelationships ? (
+            <Button
+              onClick={onOpenRelationshipEditor}
+              disabled={actionBusy}
+              data-evidence-action="manage-relationships"
+            >
+              Manage relationships
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -116,7 +131,7 @@ export function EvidenceRelationshipsSection({
                   <Button variant="secondary" onClick={() => onOpenLinkedEvidence(item.linkedEvidence.id)}>
                     Open linked evidence
                   </Button>
-                  {onRemoveRelationship ? (
+                  {onRemoveRelationship && canManageRelationships ? (
                     <Button
                       variant="secondary"
                       disabled={actionBusy}

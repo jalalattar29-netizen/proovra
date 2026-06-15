@@ -4,7 +4,9 @@ import type {
   CaseOption,
   EvidenceBulkAction,
   EvidenceBulkActionResponse,
+  EvidenceListItem,
 } from "../lib/evidence-library-types";
+import { getEvidenceDeletionEligibility } from "../lib/evidence-delete-eligibility";
 
 const ACTION_OPTIONS = [
   { value: "ADD_TO_CASE", label: "Add to Case" },
@@ -18,11 +20,18 @@ const ACTION_OPTIONS = [
 
 export function BulkActionsToolbar({
   selectedCount,
+  selectedItems = [],
   availableCases,
   onClear,
   onRun,
 }: {
   selectedCount: number;
+  /**
+   * Phase EVIDENCE-DELETE-ELIGIBILITY — the toolbar uses these to
+   * detect retention-protected selections BEFORE the user clicks
+   * Move to Trash. Optional for back-compat with any older caller.
+   */
+  selectedItems?: EvidenceListItem[];
   availableCases: CaseOption[];
   onClear: () => void;
   onRun: (action: EvidenceBulkAction, caseId?: string) => Promise<EvidenceBulkActionResponse>;
@@ -39,6 +48,21 @@ export function BulkActionsToolbar({
     const option = ACTION_OPTIONS.find((item) => item.value === action);
     return option?.label ?? action;
   }, [action]);
+
+  // Phase EVIDENCE-DELETE-ELIGIBILITY — count selected records that
+  // backend would refuse to trash. Same helper used everywhere else
+  // so the categorisation cannot drift across surfaces.
+  const protectedSelected = useMemo(() => {
+    if (action !== "TRASH") return [];
+    return selectedItems
+      .map((item) => ({ item, eligibility: getEvidenceDeletionEligibility(item) }))
+      .filter(({ eligibility }) => !eligibility.canMoveToTrash);
+  }, [action, selectedItems]);
+  const protectedCount = protectedSelected.length;
+  const eligibleCount = action === "TRASH"
+    ? Math.max(0, selectedCount - protectedCount)
+    : selectedCount;
+  const allSelectedProtected = action === "TRASH" && protectedCount > 0 && eligibleCount === 0;
 
   const runAction = async () => {
     setRunning(true);
@@ -75,7 +99,12 @@ export function BulkActionsToolbar({
         ) : null}
         <Button
           onClick={() => setConfirmOpen(true)}
-          disabled={selectedCount === 0 || (needsCase && !caseId)}
+          disabled={
+            selectedCount === 0 ||
+            (needsCase && !caseId) ||
+            allSelectedProtected
+          }
+          data-bulk-trash-blocked={allSelectedProtected ? "true" : "false"}
         >
           Run Bulk Action
         </Button>
@@ -83,6 +112,28 @@ export function BulkActionsToolbar({
           Clear Selection
         </Button>
       </div>
+      {action === "TRASH" && protectedCount > 0 ? (
+        <div
+          className="evidence-library-bulk-helper"
+          data-bulk-trash-helper
+          style={{
+            marginTop: 8,
+            padding: "8px 12px",
+            border: "1px solid rgba(15, 23, 42, 0.12)",
+            borderRadius: 6,
+            background: "#fff7ed",
+          }}
+        >
+          <strong>
+            {protectedCount} of {selectedCount} selected records cannot be moved to trash
+          </strong>
+          <p style={{ margin: "4px 0 0 0" }}>
+            {allSelectedProtected
+              ? "All selected records are protected by retention or legal hold. Use Archive instead to remove them from Active evidence without deleting protected records."
+              : `${eligibleCount} eligible record${eligibleCount === 1 ? "" : "s"} will be moved to trash; ${protectedCount} protected record${protectedCount === 1 ? "" : "s"} will be skipped.`}
+          </p>
+        </div>
+      ) : null}
 
       <Modal
         isOpen={confirmOpen}

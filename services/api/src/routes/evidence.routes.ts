@@ -98,6 +98,16 @@ import {
 // See `custody-events-observability.ts` for the rationale.
 import { noteCustodyFailure } from "../services/custody-events-observability.js";
 import { buildEvidenceIntelligence } from "../services/evidence-intelligence.service.js";
+// Phase EVIDENCE-DELETE-ELIGIBILITY — single source of truth for
+// "can this record be moved to trash right now?". Used on the
+// Evidence Detail response so the UI can disable the action BEFORE
+// the user clicks. The actual delete route guards
+// (assertEvidenceNotLocked / assertEvidenceDeletionAllowedByRetention /
+// canDeleteEvidence / gateRetentionAction) are untouched.
+import {
+  computeEvidenceDeleteEligibility,
+  DELETE_ELIGIBILITY_RESPONSE_FIELD,
+} from "../services/evidence/evidence-delete-eligibility.service.js";
 import {
   attestEvidenceCertification,
   listEvidenceCertifications,
@@ -5551,7 +5561,111 @@ return {
       return reply.code(400).send({ message: "Unlock is not allowed" });
     }
   );
-  
+
+  // Phase EVIDENCE-LIFECYCLE-UNLOCK — controlled unlock with audit.
+  //
+  // The original lock route accepted `{locked: false}` only to reject it
+  // (line above). The workspace-level lock state is OPERATIONAL — it
+  // freezes mutable workspace updates on the record, but does NOT touch
+  // Object Lock retention, COMPLIANCE mode, legal hold, report
+  // immutability, package immutability, or the custody chain. Those
+  // remain authoritatively enforced by their own guards (storage, hash
+  // checks, signature, retention engine, etc.).
+  //
+  // This endpoint adds the missing "controlled unlock with audit"
+  // affordance the enterprise UX requires:
+  //
+  //   - same auth + ownership-access gate as `/lock`
+  //   - 409 if not locked (nothing to unlock)
+  //   - clears `lockedAt` + `lockedByUserId` and writes an audit log
+  //     entry with the optional caller-supplied reason
+  //   - NO custody event written — the CustodyEventType enum has no
+  //     `EVIDENCE_UNLOCKED` member and the spec forbids schema changes
+  //     without approval. The reviewer-audit log is the authoritative
+  //     surface for the unlock action.
+  app.post(
+    "/v1/evidence/:id/unlock",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const body = z
+        .object({ reason: z.string().trim().max(500).optional() })
+        .parse(req.body ?? {});
+
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      let evidence: SelectedEvidence;
+      try {
+        evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
+      }
+
+      if (!evidence.lockedAt) {
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.unlock",
+          outcome: "blocked",
+          severity: "info",
+          resourceId: id,
+          metadata: { reason: "not_locked" },
+        });
+        return reply.code(409).send({
+          code: "EVIDENCE_NOT_LOCKED",
+          message: "Evidence is not locked",
+        });
+      }
+
+      const updated = await prisma.evidence.update({
+        where: { id },
+        data: { lockedAt: null, lockedByUserId: null },
+        select: SAFE_EVIDENCE_SELECT,
+      });
+
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.unlock",
+        outcome: "success",
+        resourceId: id,
+        metadata: {
+          unlockedByUserId: ownerUserId,
+          previousLockedByUserId: evidence.lockedByUserId,
+          previousLockedAt: evidence.lockedAt?.toISOString() ?? null,
+          // The caller-supplied reason is stored in the audit metadata
+          // verbatim. We deliberately do NOT trim/lower it so the audit
+          // record matches what the user typed (within the 500-char cap).
+          reason: body.reason ?? null,
+        },
+      });
+
+      const storage = await getStorageProtectionSummary(
+        updated.storageBucket,
+        updated.storageKey,
+        {
+          storageRegion: updated.storageRegion,
+          storageObjectLockMode: updated.storageObjectLockMode,
+          storageObjectLockRetainUntilUtc: updated.storageObjectLockRetainUntilUtc,
+          storageObjectLockLegalHoldStatus: updated.storageObjectLockLegalHoldStatus,
+        },
+      );
+
+      return reply.code(200).send({
+        evidence: {
+          ...toSafeEvidence(updated),
+          storage,
+        },
+      });
+    },
+  );
+
+
 
   app.post(
     "/v1/evidence/:id/archive",
@@ -9046,6 +9160,24 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
           itemCount,
         });
 
+        // Phase EVIDENCE-DELETE-ELIGIBILITY — additive read-only field
+        // computed from existing retention columns + the legal-hold
+        // table. Lets the UI disable "Move to trash" before the
+        // user clicks. Backend reject paths are unchanged; this
+        // mirrors the same precedence so the UI's reason matches
+        // what the API would actually return on a delete attempt.
+        const deleteEligibility = await computeEvidenceDeleteEligibility({
+          id: evidence.id,
+          deletedAt: evidence.deletedAt ?? null,
+          lockedAt: evidence.lockedAt ?? null,
+          storageObjectLockMode: evidence.storageObjectLockMode ?? null,
+          storageObjectLockRetainUntilUtc:
+            evidence.storageObjectLockRetainUntilUtc ?? null,
+          storageObjectLockLegalHoldStatus:
+            evidence.storageObjectLockLegalHoldStatus ?? null,
+          retentionUntilUtc: evidence.retentionUntilUtc ?? null,
+        });
+
         return reply.code(200).send({
           evidence: toJsonSafe({
             ...toSafeEvidence(evidence),
@@ -9073,6 +9205,7 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
             primaryContentItem: content.primaryItem,
             previewPolicy: content.previewPolicy,
             evidenceIntelligence,
+            [DELETE_ELIGIBILITY_RESPONSE_FIELD]: deleteEligibility,
           }),
         });
                   } catch (err) {

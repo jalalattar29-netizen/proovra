@@ -72,6 +72,11 @@ export type EvidenceDetailCtx = {
   canSeeGovernance: boolean;
   canSeeIntelligence: boolean;
   canSeeIntakeLinks: boolean;
+  // Phase EVIDENCE-RELATIONSHIPS-GATE — true on workspaces where the
+  // /investigation surface (graph/timeline/relationships) is reachable.
+  // Manage Relationships UI in the Review tab gates on this OR on the
+  // presence of existing relationships.
+  canSeeInvestigation: boolean;
 
   // Intelligence projection
   intelligence:

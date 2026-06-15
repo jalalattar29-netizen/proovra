@@ -212,6 +212,186 @@ export async function casesRoutes(app: FastifyInstance) {
   app.get("/v1/cases", { preHandler: requireAuthAndLegal }, async (req, reply) => {
     const ownerUserId = getAuthUserId(req);
 
+    // Phase ASSIGN-CASE-ELIGIBILITY — optional `?eligibleForEvidenceId=<uuid>`.
+    // When present, the selector returns ONLY cases the given evidence record
+    // can actually be attached to:
+    //
+    //   - the user must already have read access to the evidence (same
+    //     access surface as `getEvidenceWithReadAccess`);
+    //   - the case must be in the SAME workspace as the evidence
+    //     (`case.teamId === evidence.teamId`, mirroring
+    //     `evaluateCrossTeamAttach` — strict equality, null↔null OK);
+    //   - the case must not be archived OR soft-deleted;
+    //   - team-membership access to a case is honoured only when the
+    //     `TeamMember.status = 'ACTIVE'` (suspended / revoked members
+    //     no longer see their old team's cases in the selector — they
+    //     still couldn't actually attach via the existing gate, but
+    //     showing the option was misleading).
+    //
+    // When the parameter is ABSENT the behaviour is exactly as before
+    // (back-compat for any client still calling /v1/cases without it).
+    //
+    // The existing attach gate (`evaluateCrossTeamAttach` in
+    // case-permission.service.ts) is untouched — this endpoint only
+    // narrows the selector so the cross-workspace rejection toast
+    // never fires in normal use.
+    const rawQuery = (req.query ?? {}) as { eligibleForEvidenceId?: unknown };
+    const eligibleForEvidenceId = (() => {
+      const parsed = z
+        .object({ eligibleForEvidenceId: z.string().uuid().optional() })
+        .safeParse({ eligibleForEvidenceId: rawQuery.eligibleForEvidenceId });
+      return parsed.success ? parsed.data.eligibleForEvidenceId ?? null : null;
+    })();
+
+    if (eligibleForEvidenceId) {
+      // 1. Build ACTIVE-only memberships. Stricter than the default
+      //    branch — see comment above. Used for both the evidence
+      //    read-access check AND the case OR-union.
+      const activeMemberTeams = await prisma.teamMember.findMany({
+        where: { userId: ownerUserId, status: prismaPkg.TeamMemberStatus.ACTIVE },
+        select: { teamId: true },
+      });
+      const activeMemberTeamIds = activeMemberTeams.map((t) => t.teamId);
+
+      // 2. Pre-compute the cases the user can access. Used twice:
+      //    once to widen the evidence read-access check (a user may
+      //    have access to an evidence only because it is already
+      //    attached to a case they can see), and once as the
+      //    OR-union for the eligibility case query below.
+      const accessibleCases = await prisma.case.findMany({
+        where: {
+          OR: [
+            { ownerUserId },
+            { access: { some: { userId: ownerUserId } } },
+            ...(activeMemberTeamIds.length > 0
+              ? [
+                  {
+                    teamId: { in: activeMemberTeamIds },
+                    access: { none: {} },
+                  },
+                ]
+              : []),
+          ],
+        },
+        select: { id: true },
+      });
+      const accessibleCaseIds = accessibleCases.map((c) => c.id);
+
+      // 3. Load the evidence + enforce read access. Mirrors
+      //    `getEvidenceWithReadAccess`:
+      //      - direct owner, OR
+      //      - team-member of the evidence's team (ACTIVE only — the
+      //        helper does not require ACTIVE, but the eligibility
+      //        path tightens it deliberately), OR
+      //      - already attached to a case the user can access.
+      //    If no row → 404 (anti-enumeration).
+      //
+      //    Evidence has NO Prisma navigation field to Case (the
+      //    schema only carries the FK column `caseId`), so we use
+      //    the pre-computed `accessibleCaseIds` list instead of a
+      //    relation traversal.
+      const evidence = await prisma.evidence.findFirst({
+        where: {
+          id: eligibleForEvidenceId,
+          OR: [
+            { ownerUserId },
+            ...(activeMemberTeamIds.length > 0
+              ? [{ teamId: { in: activeMemberTeamIds } }]
+              : []),
+            ...(accessibleCaseIds.length > 0
+              ? [{ caseId: { in: accessibleCaseIds } }]
+              : []),
+          ],
+        },
+        select: { id: true, teamId: true },
+      });
+      if (!evidence) {
+        auditCaseAction(req, {
+          userId: ownerUserId,
+          action: "cases.list",
+          outcome: "blocked",
+          severity: "warning",
+          metadata: {
+            reason: "evidence_not_found_or_forbidden",
+            eligibleForEvidenceId,
+          },
+        });
+        return reply.code(404).send({
+          code: "EVIDENCE_NOT_FOUND",
+          message: "Evidence not found",
+        });
+      }
+
+      // 4. Build the eligibility WHERE. Same OR-union for user
+      //    visibility as the default branch, then AND-narrowed by:
+      //
+      //      - strict same-workspace (`teamId` strictly equal to
+      //        the evidence's `teamId` — null↔null is matched as
+      //        Prisma treats `{ teamId: null }` as `IS NULL`);
+      //
+      //      - status NOT IN (ARCHIVED, CLOSED). The Case model
+      //        has no `archivedAt` / `deletedAt` columns (cases
+      //        track lifecycle via the `status` enum), so the
+      //        spec's "exclude archived / deleted" rule maps to
+      //        excluding the inactive status values that the
+      //        attach gate would later fail on anyway.
+      const eligibleOr: Array<Record<string, unknown>> = [
+        { ownerUserId },
+        { access: { some: { userId: ownerUserId } } },
+      ];
+      if (activeMemberTeamIds.length > 0) {
+        eligibleOr.push({
+          teamId: { in: activeMemberTeamIds },
+          access: { none: {} },
+        });
+      }
+
+      const eligibleItems = await prisma.case.findMany({
+        where: {
+          AND: [
+            { teamId: evidence.teamId },
+            {
+              status: {
+                notIn: [
+                  prismaPkg.CaseStatus.ARCHIVED,
+                  prismaPkg.CaseStatus.CLOSED,
+                ],
+              },
+            },
+            { OR: eligibleOr },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      });
+
+      auditCaseAction(req, {
+        userId: ownerUserId,
+        action: "cases.list",
+        outcome: "success",
+        metadata: {
+          count: eligibleItems.length,
+          mode: "eligibility",
+          eligibleForEvidenceId,
+          evidenceTeamId: evidence.teamId,
+        },
+      });
+
+      fireCaseAnalyticsEvent({
+        eventType: "case_list_viewed",
+        userId: ownerUserId,
+        req,
+        entityType: "case_list",
+        metadata: {
+          count: eligibleItems.length,
+          mode: "eligibility",
+        },
+      });
+
+      return reply.code(200).send({ items: eligibleItems });
+    }
+
+    // Default behaviour — unchanged from before the eligibility flag.
     const memberTeams = await prisma.teamMember.findMany({
       where: { userId: ownerUserId },
       select: { teamId: true },

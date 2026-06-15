@@ -117,6 +117,15 @@ function EvidenceDetailPageInner() {
   const canSeeGovernance = canAccessSurface(surfaceUserCtx, "/governance");
   const canSeeIntelligence = canAccessSurface(surfaceUserCtx, "/intelligence");
   const canSeeIntakeLinks = canAccessSurface(surfaceUserCtx, "/intake-links");
+  // Phase EVIDENCE-RELATIONSHIPS-GATE — Manage Relationships is an
+  // evidence-graph workflow useful for enterprise / legal / investigation
+  // setups, but noisy for Personal / small-team workspaces. Tied to the
+  // existing `/investigation` surface (graph/timeline/relationships,
+  // ENTERPRISE tier). When the user can't reach that surface AND has no
+  // existing relationships on this record, the Manage button + per-row
+  // Remove buttons are hidden; the read-only Linked-evidence list still
+  // shows if items already exist.
+  const canSeeInvestigation = canAccessSurface(surfaceUserCtx, "/investigation");
 
   const initialTab: EvidenceDetailTab = (() => {
     const raw = searchParams?.get("tab");
@@ -146,7 +155,15 @@ function EvidenceDetailPageInner() {
   const [selectedCaseId, setSelectedCaseId] = useState("");
   const [assignCaseOpen, setAssignCaseOpen] = useState(false);
   const [lockOpen, setLockOpen] = useState(false);
+  // Phase EVIDENCE-LIFECYCLE-UNLOCK — controlled unlock UI. Reason is
+  // optional but encouraged; passes through to the audit log entry.
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  const [unlockReasonDraft, setUnlockReasonDraft] = useState("");
   const [archiveOpen, setArchiveOpen] = useState(false);
+  // Phase EVIDENCE-LIFECYCLE-RESTORE-ARCHIVED — modal for the restore
+  // counterpart so success follows the same close-and-refresh flow as
+  // every other lifecycle action (previously fired immediately on click).
+  const [restoreArchivedOpen, setRestoreArchivedOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const [workflowStatusDraft, setWorkflowStatusDraft] = useState("NOT_STARTED");
@@ -234,9 +251,18 @@ function EvidenceDetailPageInner() {
     setLoading(true);
     setError(null);
     try {
+      // Phase ASSIGN-CASE-ELIGIBILITY — request the eligibility-narrowed
+      // case list for this specific evidence. The server-side filter
+      // returns only cases in the same workspace as the evidence,
+      // excluding archived/deleted cases and inactive-member teams,
+      // so the dropdown can no longer offer a case the attach gate
+      // would reject. The attach backend gate is unchanged and still
+      // authoritative if a client bypasses the UI.
       const [workspaceResult, casesResult] = await Promise.allSettled([
         apiFetch(`/v1/evidence/${evidenceId}/review-workspace`),
-        apiFetch("/v1/cases"),
+        apiFetch(
+          `/v1/cases?eligibleForEvidenceId=${encodeURIComponent(evidenceId)}`,
+        ),
       ]);
       if (workspaceResult.status !== "fulfilled") throw workspaceResult.reason;
       const workspaceData = workspaceResult.value as ReviewWorkspaceResponse;
@@ -804,13 +830,39 @@ function EvidenceDetailPageInner() {
     }
   };
 
-  const runRecordAction = async (path: string, successMessage: string) => {
+  /**
+   * Phase EVIDENCE-LIFECYCLE-MODALS — enterprise modal close-on-success.
+   *
+   * Previously the action handlers fired the request + toast + reload,
+   * but the parent modal stayed open and the user had to click Cancel
+   * after the success toast appeared. That looks broken. The fix is
+   * an optional `onSuccess` callback fired AFTER the mutation +
+   * reload complete — call sites pass `() => setXxxOpen(false)` (and
+   * any draft-state resets) so the modal closes only on a real
+   * success. On failure the modal stays open with the error toast.
+   *
+   * Optional `body` lets the unlock modal pass a reason payload while
+   * archive/lock/etc. continue to POST an empty body. The default
+   * `{}` body matches the existing behaviour.
+   */
+  const runRecordAction = async (
+    path: string,
+    successMessage: string,
+    options?: {
+      onSuccess?: () => void;
+      body?: Record<string, unknown>;
+    },
+  ) => {
     if (!evidenceId) return;
     setActionBusy(true);
     try {
-      await apiFetch(path, { method: "POST", body: JSON.stringify({}) });
+      await apiFetch(path, {
+        method: "POST",
+        body: JSON.stringify(options?.body ?? {}),
+      });
       addToast(successMessage, "success");
       await loadWorkspace();
+      options?.onSuccess?.();
     } catch (runError) {
       addToast(runError instanceof Error ? runError.message : "Action failed", "error");
       captureException(runError, {
@@ -823,13 +875,14 @@ function EvidenceDetailPageInner() {
     }
   };
 
-  const moveToTrash = async () => {
+  const moveToTrash = async (options?: { onSuccess?: () => void }) => {
     if (!evidenceId) return;
     setActionBusy(true);
     try {
       await apiFetch(`/v1/evidence/${evidenceId}`, { method: "DELETE" });
       addToast("Evidence moved to trash", "success");
       await loadWorkspace();
+      options?.onSuccess?.();
     } catch (runError) {
       addToast(runError instanceof Error ? runError.message : "Delete failed", "error");
       captureException(runError, { feature: "web_evidence_move_to_trash", evidenceId });
@@ -961,6 +1014,7 @@ function EvidenceDetailPageInner() {
     canSeeGovernance,
     canSeeIntelligence,
     canSeeIntakeLinks,
+    canSeeInvestigation,
     intelligence,
     intelligenceLoaded,
     workflowEvents,
@@ -1163,17 +1217,57 @@ function EvidenceDetailPageInner() {
             >
               Copy verification link
             </Button>
-            <Button
-              variant="secondary"
-              onClick={() => setLockOpen(true)}
-              disabled={
-                Boolean(evidence.lockedAt) ||
-                evidence.deletedAt != null ||
-                isIntegrityFailed
-              }
-            >
-              {evidence.lockedAt ? "Record locked" : "Lock record"}
-            </Button>
+            {/* Phase EVIDENCE-LIFECYCLE-TOGGLE — Lock and Unlock are now
+                a true two-way toggle. Unlock is a separate controlled
+                modal with an optional reason that ends up in the audit
+                log; the backend rejects unlock when the record is not
+                actually locked. Both actions auto-close their modal on
+                success and refresh the detail. */}
+            {evidence.lockedAt ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setUnlockReasonDraft("");
+                  setUnlockOpen(true);
+                }}
+                disabled={evidence.deletedAt != null}
+                data-evidence-action="unlock-record"
+              >
+                Unlock record
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => setLockOpen(true)}
+                disabled={evidence.deletedAt != null || isIntegrityFailed}
+                data-evidence-action="lock-record"
+              >
+                Lock record
+              </Button>
+            )}
+            {/* Phase EVIDENCE-LIFECYCLE-TOGGLE — Archive/Restore archived
+                toggle. Lives in the hero so it's discoverable as the
+                primary "remove from active" action when the trash is
+                disabled by COMPLIANCE retention. */}
+            {evidence.archivedAt ? (
+              <Button
+                variant="secondary"
+                onClick={() => setRestoreArchivedOpen(true)}
+                disabled={evidence.deletedAt != null}
+                data-evidence-action="restore-archived"
+              >
+                Restore archived evidence
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => setArchiveOpen(true)}
+                disabled={evidence.deletedAt != null}
+                data-evidence-action="archive-evidence"
+              >
+                Archive evidence
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => setEditingLabel(true)}>
               Edit label
             </Button>
@@ -1335,30 +1429,52 @@ function EvidenceDetailPageInner() {
         title="Assign evidence to case"
         actions={
           <>
-            <Button variant="secondary" onClick={() => setAssignCaseOpen(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setAssignCaseOpen(false)}
+              disabled={actionBusy}
+            >
               Cancel
             </Button>
             <Button
               onClick={() => void assignCase()}
-              disabled={actionBusy || !selectedCaseId}
+              disabled={actionBusy || !selectedCaseId || cases.length === 0}
+              data-evidence-modal-action="confirm-assign-case"
             >
               Save assignment
             </Button>
           </>
         }
       >
-        <select
-          className="evidence-detail-select"
-          value={selectedCaseId}
-          onChange={(event) => setSelectedCaseId(event.target.value)}
-        >
-          <option value="">Select case</option>
-          {cases.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
+        {/* Phase ASSIGN-CASE-ELIGIBILITY — the cases array is now the
+            eligibility-narrowed list from
+            `/v1/cases?eligibleForEvidenceId=...`. When the workspace
+            has no attachable cases (no same-team active case, or all
+            of them are archived/deleted) the dropdown collapses to a
+            single read-only empty-state message and Save is disabled.
+            The backend cross-workspace gate stays authoritative. */}
+        {cases.length === 0 ? (
+          <p
+            className="evidence-detail-muted"
+            data-evidence-assign-case-empty
+          >
+            No attachable cases are available in this workspace.
+          </p>
+        ) : (
+          <select
+            className="evidence-detail-select"
+            value={selectedCaseId}
+            onChange={(event) => setSelectedCaseId(event.target.value)}
+            data-evidence-assign-case-select
+          >
+            <option value="">Select case</option>
+            {cases.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        )}
       </Modal>
 
       {/* Phase EVIDENCE-REVIEW-VISIBILITY — the reviewer-workflow
@@ -1529,20 +1645,33 @@ function EvidenceDetailPageInner() {
         </div>
       </Modal>
 
+      {/* Phase EVIDENCE-LIFECYCLE-MODALS — close-on-success + refresh.
+          Each lifecycle modal now closes automatically once the
+          mutation completes AND the workspace has reloaded. The
+          modal stays open with the error toast on failure. */}
       <Modal
         isOpen={lockOpen}
         onClose={() => setLockOpen(false)}
         title="Lock evidence record"
         actions={
           <>
-            <Button variant="secondary" onClick={() => setLockOpen(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setLockOpen(false)}
+              disabled={actionBusy}
+            >
               Cancel
             </Button>
             <Button
               onClick={() =>
-                void runRecordAction(`/v1/evidence/${evidenceId}/lock`, "Evidence locked")
+                void runRecordAction(
+                  `/v1/evidence/${evidenceId}/lock`,
+                  "Evidence record locked.",
+                  { onSuccess: () => setLockOpen(false) },
+                )
               }
               disabled={actionBusy}
+              data-evidence-modal-action="confirm-lock"
             >
               Confirm lock
             </Button>
@@ -1551,36 +1680,160 @@ function EvidenceDetailPageInner() {
       >
         <p>
           Locking preserves the current record state and prevents further mutable
-          updates to the evidence record.
+          updates to this evidence record.
         </p>
+      </Modal>
+
+      {/* Phase EVIDENCE-LIFECYCLE-UNLOCK — controlled unlock with audit
+          trail. Optional reason is stored verbatim on the audit log
+          entry; the backend rejects with 409 EVIDENCE_NOT_LOCKED when
+          the record is not actually locked. Object Lock retention,
+          legal hold, report immutability, and the custody chain are
+          unaffected — unlock only restores mutable workspace updates. */}
+      <Modal
+        isOpen={unlockOpen}
+        onClose={() => setUnlockOpen(false)}
+        title="Unlock evidence record"
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setUnlockOpen(false)}
+              disabled={actionBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() =>
+                void runRecordAction(
+                  `/v1/evidence/${evidenceId}/unlock`,
+                  "Evidence record unlocked.",
+                  {
+                    body: unlockReasonDraft.trim().length > 0
+                      ? { reason: unlockReasonDraft.trim() }
+                      : {},
+                    onSuccess: () => {
+                      setUnlockOpen(false);
+                      setUnlockReasonDraft("");
+                    },
+                  },
+                )
+              }
+              disabled={actionBusy}
+              data-evidence-modal-action="confirm-unlock"
+            >
+              Confirm unlock
+            </Button>
+          </>
+        }
+      >
+        <p>
+          Unlocking allows permitted workspace users to make mutable updates
+          again. The unlock action is recorded in the audit trail.
+        </p>
+        <p className="evidence-detail-muted" style={{ marginTop: 8 }}>
+          Unlocking does not change retention, legal hold, Object Lock,
+          generated reports, verification packages, or the custody chain.
+        </p>
+        <label
+          style={{
+            display: "block",
+            marginTop: 12,
+            fontSize: 13,
+            color: "#1f2937",
+          }}
+        >
+          <span style={{ display: "block", marginBottom: 4 }}>
+            Reason for unlocking (optional)
+          </span>
+          <input
+            type="text"
+            value={unlockReasonDraft}
+            onChange={(event) => setUnlockReasonDraft(event.target.value)}
+            maxLength={500}
+            placeholder="e.g. correcting label after upload"
+            data-evidence-unlock-reason
+            style={{
+              width: "100%",
+              padding: "6px 8px",
+              borderRadius: 4,
+              border: "1px solid rgba(15, 23, 42, 0.2)",
+              fontSize: 13,
+            }}
+          />
+        </label>
       </Modal>
 
       <Modal
         isOpen={archiveOpen}
         onClose={() => setArchiveOpen(false)}
-        title="Archive evidence"
+        title="Archive evidence record"
         actions={
           <>
-            <Button variant="secondary" onClick={() => setArchiveOpen(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setArchiveOpen(false)}
+              disabled={actionBusy}
+            >
               Cancel
             </Button>
             <Button
               onClick={() =>
                 void runRecordAction(
                   `/v1/evidence/${evidenceId}/archive`,
-                  "Evidence archived",
+                  "Evidence record archived.",
+                  { onSuccess: () => setArchiveOpen(false) },
                 )
               }
               disabled={actionBusy}
+              data-evidence-modal-action="confirm-archive"
             >
-              Archive
+              Archive evidence
             </Button>
           </>
         }
       >
         <p>
-          Archiving changes operational visibility. It does not change recorded
-          integrity materials.
+          Archive removes this record from Active evidence while preserving it
+          under retention and keeping verification materials available.
+        </p>
+      </Modal>
+
+      {/* Phase EVIDENCE-LIFECYCLE-RESTORE-ARCHIVED — confirmation modal
+          for restore so it follows the same close-and-refresh pattern
+          as every other lifecycle action. Backend route unchanged. */}
+      <Modal
+        isOpen={restoreArchivedOpen}
+        onClose={() => setRestoreArchivedOpen(false)}
+        title="Restore archived evidence"
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setRestoreArchivedOpen(false)}
+              disabled={actionBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() =>
+                void runRecordAction(
+                  `/v1/evidence/${evidenceId}/unarchive`,
+                  "Evidence record restored to Active.",
+                  { onSuccess: () => setRestoreArchivedOpen(false) },
+                )
+              }
+              disabled={actionBusy}
+              data-evidence-modal-action="confirm-restore-archived"
+            >
+              Restore evidence
+            </Button>
+          </>
+        }
+      >
+        <p>
+          Restoring returns this record to Active evidence. Retention and
+          verification history remain unchanged.
         </p>
       </Modal>
 
@@ -1590,10 +1843,20 @@ function EvidenceDetailPageInner() {
         title="Move evidence to trash"
         actions={
           <>
-            <Button variant="secondary" onClick={() => setTrashOpen(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setTrashOpen(false)}
+              disabled={actionBusy}
+            >
               Cancel
             </Button>
-            <Button onClick={() => void moveToTrash()} disabled={actionBusy}>
+            <Button
+              onClick={() =>
+                void moveToTrash({ onSuccess: () => setTrashOpen(false) })
+              }
+              disabled={actionBusy}
+              data-evidence-modal-action="confirm-trash"
+            >
               Move to trash
             </Button>
           </>
