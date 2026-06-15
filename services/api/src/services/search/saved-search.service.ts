@@ -188,6 +188,58 @@ export async function deleteSavedView(
   return true;
 }
 
+// -----------------------------------------------------------------------------
+// Phase SEARCH-REMEDIATION-3 — saved-view rename.
+//
+// Authorization mirrors deleteSavedView:
+//   - PRIVATE views: only the creator can rename.
+//   - TEAM views: only the creator can rename (the route layer
+//     additionally gates admin renames if/when that's added). This
+//     keeps the contract strictly tighter than delete: a TEAM-admin
+//     can clean up a stale TEAM view by deleting, but cannot
+//     silently retitle someone else's view.
+// -----------------------------------------------------------------------------
+export type RenameSavedViewInput = {
+  id: string;
+  teamId: string;
+  actorUserId: string;
+  name: string;
+};
+
+export async function renameSavedView(
+  input: RenameSavedViewInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<SavedViewProjection | null> {
+  const trimmed = input.name.trim();
+  if (trimmed.length === 0 || trimmed.length > 120) return null;
+  const row = await client.savedSearchView.findFirst({
+    where: { id: input.id, teamId: input.teamId },
+  });
+  if (!row) return null;
+  if (row.createdByUserId !== input.actorUserId) {
+    // Same-workspace but different creator. Reject silently —
+    // route returns 404 so creator identity isn't disclosed.
+    return null;
+  }
+  const updated = await client.savedSearchView.update({
+    where: { id: row.id },
+    data: { name: trimmed },
+  });
+  await appendPlatformAuditLog({
+    userId: input.actorUserId,
+    action: "search.saved_view.rename",
+    category: "search",
+    severity: "info",
+    source: "search_service",
+    outcome: "success",
+    resourceType: "saved_search_view",
+    resourceId: row.id,
+    metadata: { teamId: input.teamId, visibility: row.visibility },
+    db: client,
+  });
+  return projectView(updated);
+}
+
 /**
  * Best-effort: touch `lastUsedAtUtc` so operators can prune stale
  * views via reconcile. Never throws to the caller.

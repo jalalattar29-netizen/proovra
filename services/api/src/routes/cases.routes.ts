@@ -185,6 +185,16 @@ export async function casesRoutes(app: FastifyInstance) {
       },
     });
 
+    // Phase SEARCH-REMEDIATION — index the new case so it shows up
+    // in global search immediately (no worker dependency, no
+    // reconciliation delay). `indexCase` is best-effort.
+    if (created.teamId) {
+      const { indexCase } = await import(
+        "../services/search/case-indexing.service.js"
+      );
+      void indexCase({ teamId: created.teamId, caseId: created.id });
+    }
+
     auditCaseAction(req, {
       userId: ownerUserId,
       action: "cases.create",
@@ -874,6 +884,15 @@ export async function casesRoutes(app: FastifyInstance) {
         where: { id },
         data: { name: body.name },
       });
+
+      // Phase SEARCH-REMEDIATION — keep the search projection in
+      // sync on rename so search-by-new-name works immediately.
+      if (updated.teamId) {
+        const { indexCase } = await import(
+          "../services/search/case-indexing.service.js"
+        );
+        void indexCase({ teamId: updated.teamId, caseId: updated.id });
+      }
 
       auditCaseAction(req, {
         userId,

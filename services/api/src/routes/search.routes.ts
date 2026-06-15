@@ -31,6 +31,7 @@ import {
   createSavedView,
   deleteSavedView,
   listSavedViewsForUser,
+  renameSavedView,
 } from "../services/search/saved-search.service.js";
 import {
   indexEvidence,
@@ -747,6 +748,38 @@ export async function searchRoutes(app: FastifyInstance) {
   );
 
   // -------------------------------------------------------------------------
+  // Phase SEARCH-REMEDIATION-3 — PATCH /v1/search/saved-views/:id
+  // Body: { teamId, name }. Renames the view if the caller is the
+  // creator. Anti-enumeration: returns 404 for any mismatch
+  // (wrong team, wrong creator, missing row, invalid name).
+  // -------------------------------------------------------------------------
+  app.patch(
+    "/v1/search/saved-views/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      const body = z
+        .object({
+          teamId: z.string().uuid(),
+          name: z.string().min(1).max(120),
+        })
+        .parse(req.body ?? {});
+      const actor = await requireSearchActor(req, reply, body.teamId);
+      if (!actor) return;
+      const updated = await renameSavedView({
+        id,
+        teamId: body.teamId,
+        actorUserId: actor.userId,
+        name: body.name,
+      });
+      if (!updated) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      return reply.code(200).send({ view: updated });
+    },
+  );
+
+  // -------------------------------------------------------------------------
   // GET /v1/search/relationships/:evidenceId
   // -------------------------------------------------------------------------
   app.get(
@@ -997,6 +1030,241 @@ export async function searchRoutes(app: FastifyInstance) {
         fallbackReason:
           enabled && provider.name === "disabled" ? "PROVIDER_UNAVAILABLE" : null,
         usage,
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase SEARCH-REMEDIATION — type-ahead suggest endpoint.
+  // GET /v1/search/suggest?teamId=...&q=v1 → top-10 title prefixes.
+  // Returns the same row shape as /v1/search (so the UI can render
+  // suggestions identically to a normal result), but with a cap on
+  // payload size and only one column read (title). No relevance
+  // ranking — just `title ILIKE :q || '%' OR title ILIKE '%' || :q
+  // || '%'` ordered by recency.
+  // ---------------------------------------------------------------------------
+  app.get(
+    "/v1/search/suggest",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z
+        .object({
+          teamId: z.string().uuid(),
+          q: z.string().min(1).max(80),
+          limit: z.coerce.number().int().min(1).max(20).optional(),
+        })
+        .parse(req.query ?? {});
+      const actor = await requireSearchActor(req, reply, q.teamId);
+      if (!actor) return;
+      const limit = q.limit ?? 10;
+      // Anchor on prefix match first (preferred), then substring.
+      // One query with OR — Prisma adds both clauses and Postgres
+      // dedupes via the unique id.
+      const rows = await prisma.evidenceSearchDocument.findMany({
+        where: {
+          teamId: q.teamId,
+          // Non-reviewer actors never see reviewer-restricted rows.
+          ...(actor.isReviewerCapable ? {} : { reviewerRestricted: false }),
+          OR: [
+            { title: { contains: q.q, mode: "insensitive" } },
+            { searchableText: { contains: q.q, mode: "insensitive" } },
+          ],
+        },
+        select: {
+          id: true,
+          documentType: true,
+          sourceId: true,
+          title: true,
+          subtitle: true,
+          evidenceId: true,
+          caseId: true,
+          sourceUpdatedAtUtc: true,
+        },
+        orderBy: [{ sourceUpdatedAtUtc: "desc" }],
+        take: limit,
+      });
+      return reply.code(200).send({
+        suggestions: rows.map((r) => ({
+          id: r.id,
+          documentType: r.documentType,
+          sourceId: r.sourceId,
+          title: r.title,
+          subtitle: r.subtitle,
+          evidenceId: r.evidenceId,
+          caseId: r.caseId,
+          updatedAt: r.sourceUpdatedAtUtc.toISOString(),
+        })),
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase SEARCH-REMEDIATION — reconciliation endpoint.
+  // POST /v1/search/reconcile { teamId } — finds non-deleted evidence
+  // and non-deleted cases in this team that have no matching
+  // evidence_search_documents row and re-indexes them. Returns
+  // {indexed, skipped, failed} counts. The endpoint is safe to call
+  // repeatedly (the indexer upserts by (teamId, documentType,
+  // sourceId)) and is the manual surface that powers the periodic
+  // sweeper from the worker side.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/search/reconcile",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = z
+        .object({
+          teamId: z.string().uuid(),
+          // Hard ceiling: never process more than 1k rows per
+          // request; large workspaces can call repeatedly.
+          batch: z.coerce.number().int().min(1).max(1000).optional(),
+        })
+        .parse(req.body ?? {});
+      const actor = await requireSearchActor(req, reply, body.teamId);
+      if (!actor) return;
+      const limit = body.batch ?? 500;
+
+      const { indexEvidence } = await import(
+        "../services/search/evidence-indexing.service.js"
+      );
+      const { indexCase } = await import(
+        "../services/search/case-indexing.service.js"
+      );
+      // Phase SEARCH-REMEDIATION-2 — extend reconcile to cover the
+      // remaining workspace entities: reports, packages, and notes.
+      const { indexReport, indexPackage, indexNote } = await import(
+        "../services/search/artifact-indexing.service.js"
+      );
+
+      // Find orphaned evidence — non-deleted, has teamId, no doc.
+      const orphanEvidence = await prisma.$queryRaw<
+        Array<{ id: string }>
+      >`SELECT e.id::text AS id
+         FROM evidence e
+         LEFT JOIN evidence_search_documents esd
+           ON esd.team_id = e.team_id
+          AND esd.document_type = 'EVIDENCE'
+          AND esd.source_id = e.id
+         WHERE e.deleted_at IS NULL
+           AND e.team_id = ${body.teamId}::uuid
+           AND esd.id IS NULL
+         LIMIT ${limit}`;
+
+      const orphanCases = await prisma.$queryRaw<
+        Array<{ id: string }>
+      >`SELECT c.id::text AS id
+         FROM cases c
+         LEFT JOIN evidence_search_documents esd
+           ON esd.team_id = c.team_id
+          AND esd.document_type = 'CASE'
+          AND esd.source_id = c.id
+         WHERE c.team_id = ${body.teamId}::uuid
+           AND esd.id IS NULL
+         LIMIT ${limit}`;
+
+      const orphanReports = await prisma.$queryRaw<
+        Array<{ id: string }>
+      >`SELECT r.id::text AS id
+         FROM reports r
+         JOIN evidence e ON e.id = r.evidence_id
+         LEFT JOIN evidence_search_documents esd
+           ON esd.team_id = e.team_id
+          AND esd.document_type = 'REPORT'
+          AND esd.source_id = r.id
+         WHERE e.deleted_at IS NULL
+           AND e.team_id = ${body.teamId}::uuid
+           AND esd.id IS NULL
+         LIMIT ${limit}`;
+
+      const orphanPackages = await prisma.$queryRaw<
+        Array<{ id: string }>
+      >`SELECT p.id::text AS id
+         FROM verification_packages p
+         JOIN evidence e ON e.id = p.evidence_id
+         LEFT JOIN evidence_search_documents esd
+           ON esd.team_id = e.team_id
+          AND esd.document_type = 'PACKAGE'
+          AND esd.source_id = p.id
+         WHERE e.deleted_at IS NULL
+           AND e.team_id = ${body.teamId}::uuid
+           AND esd.id IS NULL
+         LIMIT ${limit}`;
+
+      const orphanNotes = await prisma.$queryRaw<
+        Array<{ id: string }>
+      >`SELECT cc.id::text AS id
+         FROM case_comments cc
+         LEFT JOIN evidence_search_documents esd
+           ON esd.team_id = cc.team_id
+          AND esd.document_type = 'NOTE'
+          AND esd.source_id = cc.id
+         WHERE cc.team_id = ${body.teamId}::uuid
+           AND esd.id IS NULL
+         LIMIT ${limit}`;
+
+      let evidenceIndexed = 0;
+      let evidenceFailed = 0;
+      for (const row of orphanEvidence) {
+        const r = await indexEvidence({ teamId: body.teamId, evidenceId: row.id });
+        if (r.ok) evidenceIndexed += 1;
+        else evidenceFailed += 1;
+      }
+      let caseIndexed = 0;
+      let caseFailed = 0;
+      for (const row of orphanCases) {
+        const r = await indexCase({ teamId: body.teamId, caseId: row.id });
+        if (r.ok) caseIndexed += 1;
+        else caseFailed += 1;
+      }
+      let reportIndexed = 0;
+      let reportFailed = 0;
+      for (const row of orphanReports) {
+        const r = await indexReport({ reportId: row.id });
+        if (r.ok) reportIndexed += 1;
+        else reportFailed += 1;
+      }
+      let packageIndexed = 0;
+      let packageFailed = 0;
+      for (const row of orphanPackages) {
+        const r = await indexPackage({ packageId: row.id });
+        if (r.ok) packageIndexed += 1;
+        else packageFailed += 1;
+      }
+      let noteIndexed = 0;
+      let noteFailed = 0;
+      for (const row of orphanNotes) {
+        const r = await indexNote({ noteId: row.id });
+        if (r.ok) noteIndexed += 1;
+        else noteFailed += 1;
+      }
+
+      return reply.code(200).send({
+        teamId: body.teamId,
+        evidence: {
+          orphans: orphanEvidence.length,
+          indexed: evidenceIndexed,
+          failed: evidenceFailed,
+        },
+        cases: {
+          orphans: orphanCases.length,
+          indexed: caseIndexed,
+          failed: caseFailed,
+        },
+        reports: {
+          orphans: orphanReports.length,
+          indexed: reportIndexed,
+          failed: reportFailed,
+        },
+        packages: {
+          orphans: orphanPackages.length,
+          indexed: packageIndexed,
+          failed: packageFailed,
+        },
+        notes: {
+          orphans: orphanNotes.length,
+          indexed: noteIndexed,
+          failed: noteFailed,
+        },
       });
     },
   );

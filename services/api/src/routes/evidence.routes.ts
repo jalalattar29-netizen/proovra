@@ -4997,6 +4997,21 @@ if (
         select: SAFE_EVIDENCE_SELECT,
       });
 
+      // Phase SEARCH-REMEDIATION — keep the search projection in
+      // sync on rename. `indexEvidence` is best-effort (it swallows
+      // its own errors and emits a security event on failure) so we
+      // call it inline rather than via the queue: the
+      // matter-workspace handler upstream of this route already
+      // expects synchronous semantics, the projection write is one
+      // small upsert, and this removes the dependency on the worker
+      // being online for personal-user renames to be searchable.
+      if (updated.teamId) {
+        const { indexEvidence } = await import(
+          "../services/search/evidence-indexing.service.js"
+        );
+        void indexEvidence({ teamId: updated.teamId, evidenceId: id });
+      }
+
       auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.update_label",

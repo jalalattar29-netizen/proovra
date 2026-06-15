@@ -315,18 +315,15 @@ describe("Phase IA-self-serve-completion — Search page gates /integrations", (
     );
   });
 
-  it("passes canSeeIntegrations into NoResultsHelp", () => {
-    expect(SEARCH).toMatch(
-      /<NoResultsHelp[\s\S]{0,300}canSeeIntegrations=\{canSeeIntegrations\}/,
-    );
-  });
-
-  it("the 'Enable semantic search' link is gated on isAdmin AND canSeeIntegrations", () => {
-    // Both gates MUST be applied — isAdmin (existing role gate) plus
-    // the new surface-tier gate. A self-serve admin must not see the
-    // link to /integrations even though they're an admin.
-    expect(SEARCH).toMatch(
-      /isAdmin && canSeeIntegrations && !semanticAvailable[\s\S]{0,200}<Link href="\/integrations"/,
-    );
+  it("Phase SEARCH-REMEDIATION-3 — `NoResultsHelp` is gone (the truthful empty-state branches replaced it)", () => {
+    // The legacy `<NoResultsHelp>` component carried persona +
+    // canSeeIntegrations + mode signals into a single muddled
+    // "try semantic search" footer. The center empty state now
+    // distinguishes 4 honest modes (loading / error / idle /
+    // no-match), each with bounded copy. The component name and
+    // the canSeeIntegrations prop on it are both gone.
+    expect(SEARCH).not.toMatch(/<NoResultsHelp\b/);
+    expect(SEARCH).toMatch(/data-search-empty-state-kind="no-match"/);
+    expect(SEARCH).toMatch(/data-search-empty-state-kind="idle"/);
   });
 });

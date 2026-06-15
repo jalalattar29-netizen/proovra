@@ -422,6 +422,34 @@ export async function addCaseComment(
         "REVIEWERS") as prismaPkg.CaseCommentVisibility,
     },
   });
+
+  // Phase SEARCH-REMEDIATION-2 — index this note immediately so it
+  // becomes searchable (and contributes to its parent case's
+  // searchable text via the case indexer's note-snippet block).
+  // Best-effort: indexNote swallows its own errors. We also re-run
+  // the case indexer so a "search Acme depot" query that should
+  // match a comment body on the Acme case keeps working.
+  if (existing.teamId) {
+    void (async () => {
+      try {
+        const { indexNote } = await import(
+          "../search/artifact-indexing.service.js"
+        );
+        await indexNote({ noteId: row.id }, client);
+      } catch {
+        /* best-effort */
+      }
+      try {
+        const { indexCase } = await import("../search/case-indexing.service.js");
+        await indexCase(
+          { teamId: existing.teamId!, caseId: existing.id },
+          client,
+        );
+      } catch {
+        /* best-effort */
+      }
+    })();
+  }
   await appendPlatformAuditLog({
     userId: input.actorUserId,
     action: "cases.comment_added",
@@ -477,6 +505,35 @@ export async function deleteCaseComment(
     throw new CaseError("comment_forbidden");
   }
   await client.caseComment.delete({ where: { id: existing.id } });
+
+  // Phase SEARCH-REMEDIATION-2 — drop the NOTE projection and
+  // re-index the parent case so its note-snippet block no longer
+  // contains the deleted body.
+  if (existing.teamId) {
+    void (async () => {
+      try {
+        await client.evidenceSearchDocument.deleteMany({
+          where: {
+            teamId: existing.teamId!,
+            documentType: "NOTE",
+            sourceId: existing.id,
+          },
+        });
+      } catch {
+        /* best-effort */
+      }
+      try {
+        const { indexCase } = await import("../search/case-indexing.service.js");
+        await indexCase(
+          { teamId: existing.teamId!, caseId: existing.caseId },
+          client,
+        );
+      } catch {
+        /* best-effort */
+      }
+    })();
+  }
+
   await appendPlatformAuditLog({
     userId: input.actorUserId,
     action: "cases.comment_deleted",

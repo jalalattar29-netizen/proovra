@@ -251,10 +251,18 @@ describe("Phase 38.2 — resolvePersonaHint library", () => {
 // =============================================================================
 
 describe("Phase 38.2 — terminology rollout", () => {
-  it("Search page imports useTerminology + renders persona-tuned heading", () => {
-    expect(SEARCH).toMatch(/useTerminology/);
+  it("Search page heading is plain 'Search' (Phase SEARCH-REMEDIATION removed persona aliasing)", () => {
+    // Phase SEARCH-REMEDIATION — the page now serves Personal /
+    // Small-Business users as a unified "Search" across evidence,
+    // cases, reports, notes and OCR text. The persona-tuned
+    // "{terms.evidence} Discovery" heading was misleading because
+    // (1) it implied evidence-only scope when the index now also
+    // covers cases/reports/packages/notes, and (2) "Discovery"
+    // is an enterprise legal-procedure term unfamiliar to
+    // Personal users.
     expect(SEARCH).toMatch(/data-search-title/);
-    expect(SEARCH).toMatch(/\{terms\.evidence\}\s*Discovery/);
+    expect(SEARCH).toMatch(/data-search-title>\s*\n?\s*Search\s*\n?\s*<\/h1>/);
+    expect(SEARCH).not.toMatch(/\{terms\.evidence\}\s*Discovery/);
   });
 
   it("Cases queue table renders the plain-language title + spec empty-state copy (no persona aliasing)", () => {

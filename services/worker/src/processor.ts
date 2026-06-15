@@ -3917,6 +3917,69 @@ trustDecisionSnapshot:
             effectivePlan: prepared.effectivePlan,
           },
         }).catch(() => null);
+
+        // Phase SEARCH-REMEDIATION-3 — index the freshly-finalised
+        // package + its co-finalised report directly into
+        // evidence_search_documents. Best-effort: any failure here
+        // is swallowed and logged; it must NEVER surface to the
+        // report/package generation pipeline. The reconciliation
+        // sweeper backstops orphan rows in case this hook misses.
+        try {
+          const created = await prisma.verificationPackage.findFirst({
+            where: {
+              evidenceId: prepared.evidenceId,
+              version: prepared.version,
+            },
+            select: { id: true },
+          });
+          if (created) {
+            const { indexPackage } = await import(
+              "../../api/src/services/search/artifact-indexing.service.js"
+            );
+            const res = await indexPackage({ packageId: created.id });
+            if (!res.ok) {
+              logger.warn(
+                {
+                  packageId: created.id,
+                  reason: res.reason,
+                },
+                "search_index.package_skipped",
+              );
+            }
+          }
+          // Same for the report row co-finalized at this version.
+          const co = await prisma.report.findFirst({
+            where: {
+              evidenceId: prepared.evidenceId,
+              version: prepared.version,
+            },
+            select: { id: true },
+          });
+          if (co) {
+            const { indexReport } = await import(
+              "../../api/src/services/search/artifact-indexing.service.js"
+            );
+            const res = await indexReport({ reportId: co.id });
+            if (!res.ok) {
+              logger.warn(
+                {
+                  reportId: co.id,
+                  reason: res.reason,
+                },
+                "search_index.report_skipped",
+              );
+            }
+          }
+        } catch (err) {
+          logger.warn(
+            {
+              err: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+              evidenceId: prepared.evidenceId,
+              version: prepared.version,
+            },
+            "search_index.lifecycle_failed",
+          );
+        }
       } catch (verificationError) {
         captureException(verificationError, {
           requestId,

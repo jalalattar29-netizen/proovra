@@ -34,6 +34,16 @@ import { z } from "zod";
 
 export const SEARCH_DOCUMENT_TYPES = [
   "EVIDENCE",
+  // Phase SEARCH-REMEDIATION — first-class workspace entities. The
+  // previous list (EVIDENCE + WORKFLOW + ...) hid Cases, Reports,
+  // Packages and Notes from search even though the Home placeholder
+  // promised them — a personal user searching for a case name got
+  // zero hits. These four entries make those entities searchable
+  // through the same denormalized `evidence_search_documents` table.
+  "CASE",
+  "REPORT",
+  "PACKAGE",
+  "NOTE",
   "WORKFLOW",
   "WORKFLOW_STEP",
   "REVIEW_EVENT",

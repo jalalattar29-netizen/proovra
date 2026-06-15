@@ -223,9 +223,16 @@ describe("Phase 14 — /search canonical route (frontend)", () => {
     expect(src).toMatch(/investigation\/duplicates\?evidenceId=/);
   });
 
-  it("search/page.tsx empty-state copy points operators at broader queries / upload", () => {
+  it("Phase SEARCH-REMEDIATION-3 — empty-state is split into 4 truthful branches (loading / error / idle / no-match)", () => {
     const src = read(SEARCH_PAGE_PATH);
-    expect(src).toContain("No results yet");
+    // The legacy "No results yet" line (which ran for both the
+    // pre-query and the zero-match case) was replaced by four
+    // distinct, honestly-labelled empty states.
+    expect(src).not.toContain("No results yet");
+    expect(src).toContain('data-search-empty-state-kind="idle"');
+    expect(src).toContain('data-search-empty-state-kind="no-match"');
+    expect(src).toContain('data-search-empty-state-kind="error"');
+    expect(src).toContain('data-search-empty-state-kind="loading"');
   });
 });
 

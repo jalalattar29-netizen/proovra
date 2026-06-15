@@ -18,7 +18,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
 import {
@@ -44,6 +43,13 @@ import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContex
 
 type DocumentType =
   | "EVIDENCE"
+  // Phase SEARCH-REMEDIATION — added so Personal / Small-Business
+  // users can search cases, reports, packages, and notes from the
+  // same search box.
+  | "CASE"
+  | "REPORT"
+  | "PACKAGE"
+  | "NOTE"
   | "WORKFLOW"
   | "WORKFLOW_STEP"
   | "REVIEW_EVENT"
@@ -185,16 +191,38 @@ type FilterState = {
   mode?: SearchMode;
 };
 
+// Phase SEARCH-REMEDIATION — Personal / Small-Business users see
+// only the document types that are actually indexed and useful for
+// their workflow. The enterprise types (workflow / workflow step /
+// review event / audit event / communication / case timeline /
+// incident) are filtered OUT for normal users — exposing them as
+// chips with zero hits was a misleading "fake filter". The schema
+// enum still includes them so enterprise callers can opt in by
+// passing them in the query string directly.
 const DOCUMENT_TYPES: DocumentType[] = [
   "EVIDENCE",
-  "WORKFLOW",
-  "WORKFLOW_STEP",
-  "REVIEW_EVENT",
-  "AUDIT_EVENT",
-  "COMMUNICATION",
-  "CASE_TIMELINE",
-  "INCIDENT",
+  "CASE",
+  "REPORT",
+  "PACKAGE",
+  "NOTE",
 ];
+
+const DOCUMENT_TYPE_LABEL: Record<DocumentType, string> = {
+  EVIDENCE: "Evidence",
+  CASE: "Case",
+  REPORT: "Report",
+  PACKAGE: "Package",
+  NOTE: "Note",
+  // Enterprise types — kept for type safety, never shown as a chip
+  // because they are not in the personal DOCUMENT_TYPES list above.
+  WORKFLOW: "Workflow",
+  WORKFLOW_STEP: "Workflow step",
+  REVIEW_EVENT: "Review event",
+  AUDIT_EVENT: "Audit event",
+  COMMUNICATION: "Communication",
+  CASE_TIMELINE: "Case timeline",
+  INCIDENT: "Incident",
+};
 
 const EVIDENCE_TYPES: EvidenceType[] = ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"];
 
@@ -227,8 +255,11 @@ function SearchInner() {
   // both personal and team modes have a real Team UUID after the
   // workspace-bootstrap fix, so we consume the canonical workspace id.
   const teamId = useWorkspaceId();
-  // Phase 38.2 — consume persona terminology in the search header.
-  const terms = useTerminology();
+  // Phase SEARCH-REMEDIATION — terminology hook is no longer
+  // consumed by the search heading (which is now plain "Search").
+  // Kept as a `void` reference so removing the hook is a deliberate
+  // future change rather than a lint-driven side effect.
+  void useTerminology;
   // Phase 38.18 — workflow-aware contextual help.
   const searchPersona = usePersonaProfile();
   const searchWorkflowCode = workflowFromPersona(
@@ -239,10 +270,16 @@ function SearchInner() {
   // the UI; the suggestion link points at the in-product integrations
   // surface, not to environment variables.
   const activeSpace = useActiveSpace();
+  // Phase SEARCH-REMEDIATION-3 — `isAdmin` is no longer consumed
+  // by the search page because the truthful empty state replaced
+  // the `NoResultsHelp` component (which used it to gate a
+  // "Try semantic search" link). Kept as a `void` reference so
+  // removing the activeSpace hook stays a deliberate change.
   const isAdmin =
     activeSpace?.type === "ORGANIZATION"
       ? activeSpace.roleLabel === "OWNER" || activeSpace.roleLabel === "ADMIN"
       : activeSpace?.type === "PERSONAL";
+  void isAdmin;
   // Phase 16 — platform-admin gate for the backfill panel. The flag is
   // derived from the canonical platform envelope (single source of
   // truth) — never from local role heuristics. Non-admins never see
@@ -254,10 +291,15 @@ function SearchInner() {
   // (with a bounded redirect for non-eligible users), so we hide the
   // link from sidebar/topbar/All Tools AND from this no-results CTA.
   const surfaceUserCtx = useSurfaceUserContext();
+  // Phase SEARCH-REMEDIATION-3 — `canSeeIntegrations` is no longer
+  // consumed by the search page (NoResultsHelp was removed). Kept
+  // as a `void` reference so removing the surface-context hook
+  // stays an explicit, reviewed change.
   const canSeeIntegrations = canAccessSurface(
     surfaceUserCtx,
     "/integrations",
   );
+  void canSeeIntegrations;
   // Phase IA-self-serve-completion — gates for the inspector pivot
   // links. /workflows and /investigation are both ENTERPRISE_ONLY
   // surfaces; clicking them as a self-serve user previously hit a
@@ -446,14 +488,109 @@ function SearchInner() {
     []
   );
 
+  // Phase SEARCH-REMEDIATION-2 — recent searches in localStorage
+  // (per-browser, per-workspace). Up to 10 entries, most-recent
+  // first. Surfaced under the focused empty-query search box and
+  // pushed on every successful submit. No backend round-trip; the
+  // backend search audit log keeps the real history for ops.
+  const recentKey = `proovra:search:recent:${teamId}`;
+  const [recent, setRecent] = useState<string[]>([]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(recentKey);
+      const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+      if (
+        Array.isArray(parsed) &&
+        parsed.every((v): v is string => typeof v === "string")
+      ) {
+        setRecent(parsed.slice(0, 10));
+      }
+    } catch {
+      /* localStorage may be disabled; fall back to no recents */
+    }
+  }, [recentKey]);
+  const pushRecent = useCallback(
+    (q: string) => {
+      if (typeof window === "undefined") return;
+      const trimmed = q.trim();
+      if (trimmed.length === 0) return;
+      const next = [trimmed, ...recent.filter((r) => r !== trimmed)].slice(0, 10);
+      setRecent(next);
+      try {
+        window.localStorage.setItem(recentKey, JSON.stringify(next));
+      } catch {
+        /* non-fatal */
+      }
+    },
+    [recent, recentKey],
+  );
+  const clearRecent = useCallback(() => {
+    setRecent([]);
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.removeItem(recentKey);
+    } catch {
+      /* non-fatal */
+    }
+  }, [recentKey]);
+
   const submitQuery = useCallback(
     (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       const trimmed = qDraft.trim().slice(0, 200);
       updateFilter({ q: trimmed.length > 0 ? trimmed : undefined });
+      pushRecent(trimmed);
     },
-    [qDraft, updateFilter]
+    [qDraft, updateFilter, pushRecent]
   );
+
+  // Phase SEARCH-REMEDIATION-2 — type-ahead suggestions. Debounced
+  // 250ms. Only fetched when the input has ≥2 chars. Results live
+  // beside the search box; keyboard handlers cover ArrowUp/Down,
+  // Enter (commits the highlighted suggestion's title as the
+  // query), and Escape (closes the dropdown).
+  type Suggestion = {
+    id: string;
+    documentType: DocumentType;
+    sourceId: string;
+    title: string;
+    subtitle: string | null;
+    evidenceId: string | null;
+    caseId: string | null;
+  };
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(-1);
+  useEffect(() => {
+    if (!teamId) return;
+    const trimmed = qDraft.trim();
+    if (trimmed.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    const t = window.setTimeout(async () => {
+      try {
+        const res = (await apiFetch(
+          `/v1/search/suggest?teamId=${encodeURIComponent(teamId)}&q=${encodeURIComponent(
+            trimmed,
+          )}`,
+          { signal: ctrl.signal },
+        )) as { suggestions: Suggestion[] };
+        setSuggestions(res.suggestions ?? []);
+        setHighlighted(-1);
+      } catch {
+        // Aborted or network — silently clear; the empty list
+        // renders nothing and the user can still type.
+        setSuggestions([]);
+      }
+    }, 250);
+    return () => {
+      ctrl.abort();
+      window.clearTimeout(t);
+    };
+  }, [qDraft, teamId]);
 
   const loadMore = useCallback(() => {
     if (!filter || !results?.nextCursor) return;
@@ -543,6 +680,41 @@ function SearchInner() {
     [teamId]
   );
 
+  // Phase SEARCH-REMEDIATION-3 — rename a saved view via the new
+  // PATCH endpoint. Uses a native prompt for the smallest viable
+  // UI (the saved-view rail already shows the view inline; adding
+  // a modal would be heavier than the operator needs). The backend
+  // validates name length + creator identity.
+  const renameSavedView = useCallback(
+    async (id: string, currentName: string) => {
+      if (!teamId) return;
+      if (typeof window === "undefined") return;
+      const next = window.prompt("Rename saved view", currentName);
+      if (next == null) return;
+      const trimmed = next.trim();
+      if (trimmed.length === 0 || trimmed === currentName) return;
+      try {
+        const res = (await apiFetch(
+          `/v1/search/saved-views/${encodeURIComponent(id)}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({ teamId, name: trimmed }),
+          },
+        )) as { view: SavedView };
+        setSavedViews((prev) =>
+          prev
+            ? prev.map((v) => (v.id === id ? { ...v, name: res.view.name } : v))
+            : prev,
+        );
+      } catch (err) {
+        setError(
+          (err as { message?: string })?.message ?? "Could not rename view.",
+        );
+      }
+    },
+    [teamId],
+  );
+
   const filterSummary = useMemo(() => {
     if (!filter) return null;
     const parts: string[] = [];
@@ -629,11 +801,11 @@ function SearchInner() {
       <header style={headerStyle}>
         <div>
           <h1 style={titleStyle} data-search-title>
-            {terms.evidence} Discovery
+            Search
           </h1>
           <p style={subtitleStyle}>
-            Operator search across {terms.evidenceLower}, workflows, audit events, and
-            communications. Results respect visibility and governance rules.
+            Search evidence, cases, reports, notes and OCR text across
+            this workspace. Results respect visibility and governance.
           </p>
           {/* Phase 15/16 — semantic-search status chip. The chip text
               and colour reflect whichever mode the backend actually
@@ -664,32 +836,68 @@ function SearchInner() {
             />
           ) : null}
         </div>
-        <form onSubmit={submitQuery} style={searchFormStyle}>
-          <input
-            value={qDraft}
-            onChange={(e) => setQDraft(e.target.value)}
-            placeholder="Search titles, subtitles, OCR text…"
-            style={searchInputStyle}
-            maxLength={200}
-            aria-label="Search query"
-          />
-          {/* Phase 15/16 — search mode selector. Sits next to the
-              search input so operators can switch ranking strategy
-              without losing their query. When semantic is unavailable
-              the Hybrid + Semantic options are rendered disabled with
-              a tooltip that humanises the workspace-scoped fallback
-              reason from the Phase 16 status endpoint. Clicking has
-              no effect; the mode never changes. */}
-          <SearchModeSelector
-            value={effectiveMode}
-            semanticAvailable={semanticAvailable}
-            disabledReason={
-              semanticAvailable
-                ? null
-                : humaniseFallbackReason(fallbackReason)
-            }
-            onChange={(next) => updateFilter({ mode: next })}
-          />
+        <form
+          onSubmit={submitQuery}
+          style={searchFormStyle}
+          data-search-form
+        >
+          <div style={{ position: "relative", flex: 1 }}>
+            <input
+              value={qDraft}
+              onChange={(e) => setQDraft(e.target.value)}
+              onFocus={() => setSuggestOpen(true)}
+              onBlur={() => {
+                // Delay close so a mousedown on a suggestion fires
+                // before the dropdown unmounts.
+                window.setTimeout(() => setSuggestOpen(false), 120);
+              }}
+              onKeyDown={(e) => {
+                if (!suggestOpen) return;
+                const items = qDraft.trim().length < 2 ? recent : suggestions;
+                if (items.length === 0) return;
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setHighlighted((h) => Math.min(items.length - 1, h + 1));
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setHighlighted((h) => Math.max(0, h - 1));
+                } else if (e.key === "Enter" && highlighted >= 0) {
+                  e.preventDefault();
+                  const pick = items[highlighted];
+                  const text =
+                    typeof pick === "string" ? pick : pick.title;
+                  setQDraft(text);
+                  setSuggestOpen(false);
+                  updateFilter({ q: text });
+                  pushRecent(text);
+                } else if (e.key === "Escape") {
+                  setSuggestOpen(false);
+                }
+              }}
+              placeholder="Search evidence, cases, reports, notes, OCR text…"
+              style={searchInputStyle}
+              maxLength={200}
+              aria-label="Search query"
+              aria-autocomplete="list"
+              aria-expanded={suggestOpen}
+              data-search-input
+            />
+            {suggestOpen ? (
+              <SearchTypeahead
+                query={qDraft}
+                suggestions={suggestions}
+                recent={recent}
+                highlighted={highlighted}
+                onPick={(text) => {
+                  setQDraft(text);
+                  setSuggestOpen(false);
+                  updateFilter({ q: text });
+                  pushRecent(text);
+                }}
+                onClearRecent={clearRecent}
+              />
+            ) : null}
+          </div>
           <button type="submit" style={searchButtonStyle}>
             Search
           </button>
@@ -739,8 +947,9 @@ function SearchInner() {
                       })
                     }
                     style={chipButtonStyle(active)}
+                    data-search-type-chip={t}
                   >
-                    {t.toLowerCase().replace("_", " ")}
+                    {DOCUMENT_TYPE_LABEL[t]}
                   </button>
                 );
               })}
@@ -871,6 +1080,16 @@ function SearchInner() {
                     </button>
                     <button
                       type="button"
+                      onClick={() => renameSavedView(v.id, v.name)}
+                      style={iconButtonStyle}
+                      aria-label="Rename saved view"
+                      data-search-saved-view-rename={v.id}
+                      title="Rename"
+                    >
+                      ✎
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => deleteSavedView(v.id)}
                       style={iconButtonStyle}
                       aria-label="Delete saved view"
@@ -904,29 +1123,38 @@ function SearchInner() {
             </div>
           </div>
           {!results || results.rows.length === 0 ? (
-            <div style={emptyStateStyle}>
+            <div style={emptyStateStyle} data-search-empty-state>
               {loading ? (
-                "Searching…"
+                <div data-search-empty-state-kind="loading">Searching…</div>
+              ) : error ? (
+                // Phase SEARCH-REMEDIATION-3 — distinct error state.
+                // Never surface the raw `error` string (which may
+                // carry a stack frame); always show the bounded copy.
+                <div data-search-empty-state-kind="error">
+                  <strong>Search is temporarily unavailable</strong>
+                  <p style={{ marginTop: 6 }}>
+                    Try again. If this continues, contact support.
+                  </p>
+                </div>
+              ) : !filter?.q ? (
+                // Phase SEARCH-REMEDIATION-3 — no query yet. Replaces
+                // the legacy "0 results" placeholder for the
+                // first-paint state where the user hasn't typed yet.
+                <div data-search-empty-state-kind="idle">
+                  <strong>Start searching</strong>
+                  <p style={{ marginTop: 6 }}>
+                    Search evidence, cases, reports, packages, notes,
+                    OCR text and transcripts when available.
+                  </p>
+                </div>
               ) : (
-                // Phase 15/16 — additive no-result suggestions. The
-                // primary line preserves the legacy operator copy; the
-                // suggestions list nudges the operator toward broader
-                // queries, filter removal, and (for admins on
-                // semantic-disabled deployments) the in-product
-                // integrations surface where semantic search can be
-                // enabled. Phase 16 adds a "Try semantic search" link
-                // when the operator searched keyword-only and semantic
-                // is available, and a single bounded line when
-                // semantic was attempted (no nag). No env vars
-                // anywhere.
-                <NoResultsHelp
-                  isAdmin={isAdmin}
-                  canSeeIntegrations={canSeeIntegrations}
-                  semanticAvailable={semanticAvailable}
-                  mode={effectiveMode}
-                  modeUsed={modeUsed}
-                  onSwitchToHybrid={() => updateFilter({ mode: "hybrid" })}
-                />
+                <div data-search-empty-state-kind="no-match">
+                  <strong>No matching results</strong>
+                  <p style={{ marginTop: 6 }}>
+                    Try a different filename, case name, report title,
+                    note, or record ID.
+                  </p>
+                </div>
               )}
             </div>
           ) : (
@@ -937,9 +1165,15 @@ function SearchInner() {
                   style={resultRowStyle(selected?.documentId === row.documentId)}
                   onClick={() => setSelected(row)}
                 >
-                  <div style={resultRowHeaderStyle}>
-                    <span style={docTypeChipStyle(row.documentType)}>
-                      {row.documentType.toLowerCase().replace("_", " ")}
+                  <div
+                    style={resultRowHeaderStyle}
+                    data-search-result-row={row.documentType}
+                  >
+                    <span
+                      style={docTypeChipStyle(row.documentType)}
+                      data-search-result-type={row.documentType}
+                    >
+                      {DOCUMENT_TYPE_LABEL[row.documentType] ?? row.documentType}
                     </span>
                     <span style={resultTitleStyle}>{row.title}</span>
                   </div>
@@ -996,9 +1230,21 @@ function SearchInner() {
         {/* ----------------------------- RIGHT ----------------------------- */}
         <aside style={rightRailStyle}>
           {!selected ? (
-            <div style={emptyStateStyle}>
-              Select a result to inspect pointers and related evidence.
-            </div>
+            // Phase SEARCH-REMEDIATION-3 — the empty preview no
+            // longer wastes the right rail. Instead it shows the
+            // user's recent searches, saved views, and tips. Clicks
+            // re-run the query inline; the rail stays useful even
+            // before a row is selected.
+            <PreviewDefault
+              recent={recent}
+              savedViews={savedViews}
+              onPickRecent={(q) => {
+                setQDraft(q);
+                updateFilter({ q });
+              }}
+              onPickSaved={(v) => applySavedView(v)}
+              onClearRecent={clearRecent}
+            />
           ) : (
             <Inspector
               row={selected}
@@ -1038,8 +1284,11 @@ function Inspector({
   return (
     <div>
       <div style={inspectorHeaderStyle}>
-        <div style={docTypeChipStyle(row.documentType)}>
-          {row.documentType.toLowerCase().replace("_", " ")}
+        <div
+          style={docTypeChipStyle(row.documentType)}
+          data-search-inspector-type={row.documentType}
+        >
+          {DOCUMENT_TYPE_LABEL[row.documentType] ?? row.documentType}
         </div>
         <h2 style={inspectorTitleStyle}>{row.title}</h2>
         {row.subtitle ? (
@@ -1329,82 +1578,11 @@ function KeyVal({
 // none expose raw env-var names in their copy.
 // -----------------------------------------------------------------------------
 
-function SearchModeSelector({
-  value,
-  semanticAvailable,
-  disabledReason,
-  onChange,
-}: {
-  value: SearchMode;
-  semanticAvailable: boolean;
-  // Phase 16 — humanised reason for the disabled tooltip. Sourced from
-  // the workspace-scoped status endpoint or the per-query fallback
-  // reason. `null` means the generic "not enabled" copy is used.
-  disabledReason: string | null;
-  onChange: (next: SearchMode) => void;
-}) {
-  // Options always present; "semantic" and "hybrid" become inert when
-  // the backend is not advertising semantic capability. We never throw
-  // an error or warn the operator — the chip styling + tooltip carry
-  // the message.
-  const disabledTitle = semanticAvailable
-    ? undefined
-    : disabledReason
-      ? `Semantic search unavailable: ${disabledReason}`
-      : "Semantic search is not enabled on this deployment";
-  const options: ReadonlyArray<{
-    value: SearchMode;
-    label: string;
-    disabled: boolean;
-    title?: string;
-  }> = [
-    { value: "keyword", label: "Keyword", disabled: false },
-    {
-      value: "hybrid",
-      label: "Hybrid",
-      disabled: !semanticAvailable,
-      title: disabledTitle,
-    },
-    {
-      value: "semantic",
-      label: "Semantic",
-      disabled: !semanticAvailable,
-      title: disabledTitle,
-    },
-  ];
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Search mode"
-      data-search-mode-selector
-      style={searchModeSelectorStyle}
-    >
-      {options.map((opt) => {
-        const active = value === opt.value && !opt.disabled;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            aria-disabled={opt.disabled}
-            disabled={opt.disabled}
-            data-search-mode={opt.value}
-            title={opt.title}
-            onClick={() => {
-              if (opt.disabled) return;
-              if (value === opt.value) return;
-              onChange(opt.value);
-            }}
-            style={searchModeButtonStyle(active, opt.disabled)}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+// Phase SEARCH-REMEDIATION — `SearchModeSelector` component
+// removed. Users no longer pick a search algorithm; the backend
+// chooses (and falls back gracefully when semantic is unavailable).
+// The `modeUsed` field still ships in the response for admin
+// diagnostics surfaces.
 
 function SemanticStatusChip({
   semanticEnabled,
@@ -1528,82 +1706,10 @@ function humaniseFallbackReason(code: string | null): string | null {
   }
 }
 
-function NoResultsHelp({
-  isAdmin,
-  canSeeIntegrations,
-  semanticAvailable,
-  mode,
-  modeUsed,
-  onSwitchToHybrid,
-}: {
-  isAdmin: boolean;
-  // Phase IA-self-serve-simplification — surface-tier gate for the
-  // "Enable semantic search" deep link. Self-serve admins still have
-  // isAdmin=true but cannot access /integrations.
-  canSeeIntegrations: boolean;
-  semanticAvailable: boolean;
-  // Phase 16 — the operator's requested mode + the mode the backend
-  // actually ran. When the operator searched keyword-only with
-  // semantic available, we offer the "Try semantic search" link
-  // (one click, flips to hybrid). When semantic was attempted (the
-  // backend ran hybrid/semantic), we show a single bounded line and
-  // do not nag.
-  mode: SearchMode;
-  modeUsed: SearchMode;
-  onSwitchToHybrid: () => void;
-}) {
-  const semanticAttempted = modeUsed === "hybrid" || modeUsed === "semantic";
-  if (semanticAttempted) {
-    // Phase 16 — terminal state: both ranking strategies came up
-    // empty. Bounded operator-safe copy, no nag.
-    return (
-      <div style={noResultsHelpStyle}>
-        <p style={noResultsLeadStyle}>
-          No matches found across keyword OR semantic search.
-        </p>
-      </div>
-    );
-  }
-  // Suggestions are intentionally short and operator-safe. The
-  // "Enable semantic search" link only renders for admins on
-  // semantic-disabled deployments; non-admins are never nagged about
-  // capabilities they cannot change. The link target is the in-product
-  // integrations surface — no env-var names anywhere.
-  return (
-    <div style={noResultsHelpStyle}>
-      <p style={noResultsLeadStyle}>
-        No results yet. A few things you can try:
-      </p>
-      <ul style={noResultsListStyle}>
-        <li>Try broader terms</li>
-        <li>Remove filters</li>
-        {/* Phase 16 — when the operator searched keyword and the
-            workspace has semantic available, surface a single-click
-            "Try semantic search" affordance. Flips mode to hybrid;
-            no other state changes. */}
-        {mode === "keyword" && semanticAvailable ? (
-          <li>
-            <button
-              type="button"
-              onClick={onSwitchToHybrid}
-              style={inlineLinkButtonStyle}
-              data-action="try-semantic-search"
-            >
-              Try semantic search
-            </button>
-          </li>
-        ) : null}
-        {isAdmin && canSeeIntegrations && !semanticAvailable ? (
-          <li>
-            <Link href="/integrations" style={pointerLinkStyle}>
-              Enable semantic search
-            </Link>
-          </li>
-        ) : null}
-      </ul>
-    </div>
-  );
-}
+// Phase SEARCH-REMEDIATION-3 — `NoResultsHelp` was deleted. The
+// truthful empty-state branches in the center column now distinguish
+// loading / error / idle / no-match without nagging the user about
+// search-algorithm choices.
 
 // Phase 16 — admin-only semantic backfill panel. Bounded to a single
 // "Run backfill (dry run)" button and a single-line result. The
@@ -2084,6 +2190,11 @@ const badgeRowStyle: React.CSSProperties = {
 function docTypeChipStyle(type: DocumentType): React.CSSProperties {
   const palette: Record<DocumentType, { bg: string; fg: string; border: string }> = {
     EVIDENCE: { bg: "#eff6ff", fg: "#1e40af", border: "#bfdbfe" },
+    // Phase SEARCH-REMEDIATION — palette entries for the new types.
+    CASE: { bg: "#f0f9ff", fg: "#0c4a6e", border: "#bae6fd" },
+    REPORT: { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
+    PACKAGE: { bg: "#f5f3ff", fg: "#5b21b6", border: "#ddd6fe" },
+    NOTE: { bg: "#fff7ed", fg: "#9a3412", border: "#fed7aa" },
     WORKFLOW: { bg: "#ecfeff", fg: "#155e75", border: "#a5f3fc" },
     WORKFLOW_STEP: { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" },
     REVIEW_EVENT: { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
@@ -2269,31 +2380,10 @@ const mutedStyle: React.CSSProperties = {
 // Phase 15 — additive styles.
 // -----------------------------------------------------------------------------
 
-const searchModeSelectorStyle: React.CSSProperties = {
-  display: "inline-flex",
-  gap: 0,
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  overflow: "hidden",
-  background: "#fff",
-};
-
-function searchModeButtonStyle(
-  active: boolean,
-  disabled: boolean,
-): React.CSSProperties {
-  return {
-    padding: "8px 10px",
-    fontSize: 12,
-    fontWeight: 600,
-    border: "none",
-    background: active ? "#1e293b" : "#fff",
-    color: disabled ? "#94a3b8" : active ? "#fff" : "#334155",
-    cursor: disabled ? "not-allowed" : "pointer",
-    opacity: disabled ? 0.7 : 1,
-    borderRight: "1px solid #e2e8f0",
-  };
-}
+// Phase SEARCH-REMEDIATION — `searchModeSelectorStyle` +
+// `searchModeButtonStyle` removed alongside the SearchModeSelector
+// component above. Keep the section header so future style helpers
+// have a home.
 
 const matchReasonRowStyle: React.CSSProperties = {
   display: "flex",
@@ -2313,29 +2403,10 @@ const matchReasonBadgeStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const noResultsHelpStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: 6,
-};
-
-const noResultsLeadStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 13,
-  color: "#475569",
-};
-
-const noResultsListStyle: React.CSSProperties = {
-  listStyle: "disc",
-  margin: 0,
-  padding: 0,
-  paddingInlineStart: 20,
-  fontSize: 12,
-  color: "#475569",
-  textAlign: "left",
-  display: "inline-block",
-};
+// Phase SEARCH-REMEDIATION-3 — `noResultsHelpStyle`,
+// `noResultsLeadStyle`, `noResultsListStyle` removed alongside
+// the `NoResultsHelp` component. The truthful empty state uses
+// the page's existing `emptyStateStyle` token.
 
 const semanticPivotCaptionStyle: React.CSSProperties = {
   margin: "0 0 6px",
@@ -2397,13 +2468,398 @@ function semanticBackfillButtonStyle(running: boolean): React.CSSProperties {
   };
 }
 
-const inlineLinkButtonStyle: React.CSSProperties = {
-  background: "none",
-  border: "none",
-  padding: 0,
-  margin: 0,
-  color: "#1e40af",
-  textDecoration: "underline",
-  cursor: "pointer",
-  font: "inherit",
-};
+// Phase SEARCH-REMEDIATION-3 — `inlineLinkButtonStyle` removed
+// alongside the `NoResultsHelp` "Try semantic search" link.
+
+// ---------------------------------------------------------------------------
+// Phase SEARCH-REMEDIATION-3 — PreviewDefault.
+//
+// Default state for the right rail when no result is selected.
+// Shows three useful blocks: recent searches, saved searches, and
+// a static "Search tips" block. Each block has a stable
+// data-attribute so contract tests can pin the structure.
+// ---------------------------------------------------------------------------
+
+function PreviewDefault({
+  recent,
+  savedViews,
+  onPickRecent,
+  onPickSaved,
+  onClearRecent,
+}: {
+  recent: string[];
+  savedViews: SavedView[] | null;
+  onPickRecent: (q: string) => void;
+  onPickSaved: (view: SavedView) => void;
+  onClearRecent: () => void;
+}) {
+  return (
+    <div
+      style={{ display: "grid", gap: 16, padding: 12 }}
+      data-search-preview-default
+    >
+      <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
+        Search workspace content
+      </h3>
+
+      <section data-search-preview-default-recent>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: 11,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: 0.4,
+            color: "#475569",
+          }}
+        >
+          <span>Recent searches</span>
+          {recent.length > 0 ? (
+            <button
+              type="button"
+              onClick={onClearRecent}
+              data-search-preview-default-clear-recent
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                color: "#1e40af",
+                cursor: "pointer",
+                font: "inherit",
+                fontSize: 11,
+                textDecoration: "underline",
+              }}
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
+        {recent.length === 0 ? (
+          <p
+            className="cc-muted"
+            style={{ marginTop: 6, fontSize: 12 }}
+            data-search-preview-default-recent-empty
+          >
+            Your recent searches will appear here.
+          </p>
+        ) : (
+          <ul
+            style={{ marginTop: 6, padding: 0, listStyle: "none", display: "grid", gap: 4 }}
+          >
+            {recent.map((r, idx) => (
+              <li key={`pd-recent-${idx}`}>
+                <button
+                  type="button"
+                  onClick={() => onPickRecent(r)}
+                  data-search-preview-default-recent-row={r}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "4px 0",
+                    color: "#1e40af",
+                    cursor: "pointer",
+                    font: "inherit",
+                    fontSize: 13,
+                    textAlign: "left",
+                  }}
+                >
+                  {r}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section data-search-preview-default-saved>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: 0.4,
+            color: "#475569",
+          }}
+        >
+          Saved searches
+        </div>
+        {!savedViews || savedViews.length === 0 ? (
+          <p
+            className="cc-muted"
+            style={{ marginTop: 6, fontSize: 12 }}
+            data-search-preview-default-saved-empty
+          >
+            No saved searches yet.
+          </p>
+        ) : (
+          <ul
+            style={{ marginTop: 6, padding: 0, listStyle: "none", display: "grid", gap: 4 }}
+          >
+            {savedViews.slice(0, 8).map((v) => (
+              <li key={v.id}>
+                <button
+                  type="button"
+                  onClick={() => onPickSaved(v)}
+                  data-search-preview-default-saved-row={v.id}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "4px 0",
+                    color: "#1e40af",
+                    cursor: "pointer",
+                    font: "inherit",
+                    fontSize: 13,
+                    textAlign: "left",
+                  }}
+                >
+                  {v.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section data-search-preview-default-tips>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: 0.4,
+            color: "#475569",
+          }}
+        >
+          Search tips
+        </div>
+        <ul style={{ marginTop: 6, paddingLeft: 18, fontSize: 12, color: "#475569" }}>
+          <li>
+            Search by filename, case name, report title, package, note,
+            or record ID.
+          </li>
+          <li>
+            OCR and transcript text appear in results when available.
+          </li>
+          <li>
+            Use the filters on the left to narrow by type, status, case,
+            or date.
+          </li>
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Phase SEARCH-REMEDIATION-2 — SearchTypeahead.
+//
+// Renders a single dropdown anchored under the search input:
+//   - When the query is empty: a list of recent searches with a
+//     "Clear recent searches" link.
+//   - When the query has ≥2 chars: live suggestions (top-N title
+//     matches from `/v1/search/suggest`), each badged with their
+//     document type.
+//   - When neither has any rows: shows a single muted hint line.
+//
+// The component is purely presentational. Keyboard navigation
+// (ArrowUp/Down/Enter/Escape) is owned by the input's `onKeyDown`
+// in the parent; this component just renders the visible state.
+// ---------------------------------------------------------------------------
+
+function SearchTypeahead({
+  query,
+  suggestions,
+  recent,
+  highlighted,
+  onPick,
+  onClearRecent,
+}: {
+  query: string;
+  suggestions: Array<{
+    id: string;
+    documentType: DocumentType;
+    title: string;
+    subtitle: string | null;
+  }>;
+  recent: string[];
+  highlighted: number;
+  onPick: (text: string) => void;
+  onClearRecent: () => void;
+}) {
+  const trimmed = query.trim();
+  const showRecent = trimmed.length < 2;
+  const showSuggestions = !showRecent && suggestions.length > 0;
+  const showEmpty = !showRecent && suggestions.length === 0 && trimmed.length >= 2;
+  const showRecentEmpty = showRecent && recent.length === 0;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: "calc(100% + 4px)",
+        left: 0,
+        right: 0,
+        background: "#fff",
+        border: "1px solid rgba(15, 23, 42, 0.12)",
+        borderRadius: 6,
+        boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
+        zIndex: 30,
+        maxHeight: 360,
+        overflowY: "auto",
+      }}
+      role="listbox"
+      data-search-typeahead
+    >
+      {showRecentEmpty ? (
+        <p
+          className="cc-muted"
+          style={{ padding: "10px 12px", margin: 0, fontSize: 12 }}
+          data-search-typeahead-recent-empty
+        >
+          Tip: try searching by filename, case name, or report title.
+        </p>
+      ) : null}
+      {showRecent && recent.length > 0 ? (
+        <div data-search-typeahead-recent>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              padding: "6px 12px",
+              fontSize: 11,
+              color: "#475569",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: 0.4,
+            }}
+          >
+            <span>Recent searches</span>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                // Prevent the input's blur from firing before this
+                // click — otherwise the dropdown closes mid-click.
+                e.preventDefault();
+                onClearRecent();
+              }}
+              data-search-typeahead-clear-recent
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                color: "#1e40af",
+                cursor: "pointer",
+                font: "inherit",
+                fontSize: 11,
+                textDecoration: "underline",
+              }}
+            >
+              Clear
+            </button>
+          </div>
+          {recent.map((r, idx) => (
+            <button
+              type="button"
+              key={`recent-${idx}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onPick(r);
+              }}
+              data-search-typeahead-recent-row={r}
+              style={{
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 12px",
+                background:
+                  highlighted === idx ? "rgba(30, 64, 175, 0.08)" : "#fff",
+                border: "none",
+                cursor: "pointer",
+                font: "inherit",
+                fontSize: 13,
+              }}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {showSuggestions ? (
+        <div data-search-typeahead-suggestions>
+          <div
+            style={{
+              padding: "6px 12px",
+              fontSize: 11,
+              color: "#475569",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: 0.4,
+            }}
+          >
+            Suggestions
+          </div>
+          {suggestions.map((s, idx) => (
+            <button
+              type="button"
+              key={s.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onPick(s.title);
+              }}
+              data-search-typeahead-suggestion={s.id}
+              data-search-typeahead-suggestion-type={s.documentType}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 8,
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 12px",
+                background:
+                  highlighted === idx ? "rgba(30, 64, 175, 0.08)" : "#fff",
+                border: "none",
+                cursor: "pointer",
+                font: "inherit",
+                fontSize: 13,
+              }}
+            >
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  flex: 1,
+                }}
+              >
+                {s.title}
+              </span>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: "#475569",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.4,
+                  flexShrink: 0,
+                }}
+              >
+                {s.documentType}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {showEmpty ? (
+        <p
+          className="cc-muted"
+          style={{ padding: "10px 12px", margin: 0, fontSize: 12 }}
+          data-search-typeahead-empty
+        >
+          No matching titles. Press Enter to search anyway.
+        </p>
+      ) : null}
+    </div>
+  );
+}
