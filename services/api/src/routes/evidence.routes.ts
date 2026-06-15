@@ -6137,6 +6137,178 @@ await appendCustodyEvent({
     });
   });
 
+  /**
+   * Phase EVIDENCE-LIBRARY-DATA-ACCURACY — workspace-scoped summary.
+   *
+   * Returns workspace-scoped counts that match the same accessibility
+   * + scope + filter envelope the list endpoint uses (via the shared
+   * `buildEvidenceListBaseWhere` helper). The Evidence Library UI
+   * uses these as the workspace truth for its metric cards; counts
+   * derived from the loaded page (50-row server slice) are labelled
+   * "On this page" in the UI so users never read a page count as a
+   * workspace total.
+   *
+   * Two load-bearing accuracy decisions:
+   *
+   *   1. `packagesReadyCount` is computed from the REAL
+   *      `verificationPackages.some` relation — NOT from
+   *      `latestReportVersion`. A record whose report succeeded but
+   *      whose package generation failed correctly counts as MISSING
+   *      here, never as READY.
+   *
+   *   2. `packagesMissingCount` is `status === REPORTED AND no
+   *      package row`. We deliberately bind missing to REPORTED so
+   *      records that have not yet finalised do not inflate the
+   *      missing-package action surface.
+   *
+   * Additive — no destructive change to the list response, no schema
+   * change, no permission change. The UI never silently falls back
+   * to the report-version proxy if this endpoint fails; the package
+   * metric instead shows "Package readiness unavailable".
+   */
+  app.get(
+    "/v1/evidence/library-summary",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const parsedQuery = parseEvidenceListQuery(req.query as Record<string, unknown>);
+      const { caseId, scope } = parsedQuery;
+
+      if (caseId) {
+        await assertCaseAccess(ownerUserId, caseId);
+      }
+
+      const memberTeams = await prisma.teamMember.findMany({
+        where: { userId: ownerUserId },
+        select: { teamId: true },
+      });
+      const memberTeamIds = memberTeams.map((entry) => entry.teamId);
+
+      const accessibleCases = await prisma.case.findMany({
+        where: {
+          OR: [
+            { ownerUserId },
+            { access: { some: { userId: ownerUserId } } },
+            ...(memberTeamIds.length > 0
+              ? [
+                  {
+                    teamId: { in: memberTeamIds },
+                    access: { none: {} },
+                  },
+                ]
+              : []),
+          ],
+        },
+        select: { id: true },
+      });
+      const accessibleCaseIds = accessibleCases.map((entry) => entry.id);
+
+      const baseWhere = buildEvidenceListBaseWhere({
+        query: parsedQuery,
+        userId: ownerUserId,
+        memberTeamIds,
+        accessibleCaseIds,
+      });
+
+      const REPORTS_READY_PREDICATE: Prisma.EvidenceWhereInput = {
+        reports: { some: {} },
+      };
+      const PACKAGES_READY_PREDICATE: Prisma.EvidenceWhereInput = {
+        verificationPackages: { some: {} },
+      };
+      const PACKAGES_MISSING_PREDICATE: Prisma.EvidenceWhereInput = {
+        AND: [
+          { status: prismaPkg.EvidenceStatus.REPORTED },
+          { verificationPackages: { none: {} } },
+        ],
+      };
+      const STORAGE_PROTECTED_PREDICATE: Prisma.EvidenceWhereInput = {
+        OR: [
+          { storageObjectLockMode: { not: null } },
+          { storageObjectLockRetainUntilUtc: { not: null } },
+          { storageObjectLockLegalHoldStatus: { not: null } },
+        ],
+      };
+      const STORAGE_NEEDS_REVIEW_PREDICATE: Prisma.EvidenceWhereInput = {
+        AND: [
+          { storageObjectLockMode: null },
+          { storageObjectLockRetainUntilUtc: null },
+          { storageObjectLockLegalHoldStatus: null },
+        ],
+      };
+      const MULTIPART_PREDICATE: Prisma.EvidenceWhereInput = {
+        parts: { some: { partIndex: { gt: 0 } } },
+      };
+      const VERIFICATION_ISSUES_PREDICATE: Prisma.EvidenceWhereInput = {
+        verificationStatus: {
+          in: [
+            prismaPkg.VerificationStatus.REVIEW_REQUIRED,
+            prismaPkg.VerificationStatus.FAILED,
+          ],
+        },
+      };
+      const UNASSIGNED_PREDICATE: Prisma.EvidenceWhereInput = {
+        caseId: null,
+      };
+
+      const compose = (extra: Prisma.EvidenceWhereInput): Prisma.EvidenceWhereInput => ({
+        AND: [baseWhere, extra],
+      });
+
+      const [
+        totalActiveRecords,
+        reportsReadyCount,
+        packagesReadyCount,
+        packagesMissingCount,
+        storageProtectedCount,
+        storageNeedsReviewCount,
+        multipartCount,
+        verificationIssuesCount,
+        unassignedCount,
+      ] = await Promise.all([
+        prisma.evidence.count({ where: baseWhere }),
+        prisma.evidence.count({ where: compose(REPORTS_READY_PREDICATE) }),
+        prisma.evidence.count({ where: compose(PACKAGES_READY_PREDICATE) }),
+        prisma.evidence.count({ where: compose(PACKAGES_MISSING_PREDICATE) }),
+        prisma.evidence.count({ where: compose(STORAGE_PROTECTED_PREDICATE) }),
+        prisma.evidence.count({ where: compose(STORAGE_NEEDS_REVIEW_PREDICATE) }),
+        prisma.evidence.count({ where: compose(MULTIPART_PREDICATE) }),
+        prisma.evidence.count({ where: compose(VERIFICATION_ISSUES_PREDICATE) }),
+        prisma.evidence.count({ where: compose(UNASSIGNED_PREDICATE) }),
+      ]);
+
+      // Needs-action is a distinct-records count over the OR-union
+      // of the three "real problem" predicates. Computing it as a
+      // single query (instead of summing) avoids double-counting a
+      // record that matches more than one branch (e.g. verification
+      // issue + unassigned).
+      const needsActionCount = await prisma.evidence.count({
+        where: compose({
+          OR: [
+            VERIFICATION_ISSUES_PREDICATE,
+            PACKAGES_MISSING_PREDICATE,
+            UNASSIGNED_PREDICATE,
+          ],
+        }),
+      });
+
+      return reply.code(200).send({
+        scope,
+        source: "workspace_total",
+        totalActiveRecords,
+        reportsReadyCount,
+        packagesReadyCount,
+        packagesMissingCount,
+        storageProtectedCount,
+        storageNeedsReviewCount,
+        multipartCount,
+        verificationIssuesCount,
+        unassignedCount,
+        needsActionCount,
+      });
+    },
+  );
+
   // Phase G4.5 — `/v1/evidence/saved-views/*` route handlers moved to
   // `evidence.saved-views.routes.ts`. The registration call is at
   // the top of `evidenceRoutes`. No semantic change.

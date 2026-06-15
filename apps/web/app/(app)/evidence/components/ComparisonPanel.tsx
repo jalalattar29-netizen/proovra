@@ -11,6 +11,48 @@ function renderValue(value: unknown) {
   return JSON.stringify(value);
 }
 
+/**
+ * Phase EVIDENCE-COMPARISON-CLEANUP (FIX 4) — humanise the comparison
+ * payload. Each card now renders a short summary line up front
+ * (presence + size + integrity hint) and tucks the full raw
+ * key/value grid behind a "Technical details" `<details>` block.
+ *
+ * The data is NOT removed — every field that previously rendered
+ * still renders, just one click deeper. This keeps engineering
+ * access to the raw structure while normal reviewers see only the
+ * one-line summary by default.
+ */
+function summariseGroup(group: Record<string, unknown> | null | undefined): string {
+  if (!group) return "Comparison not available";
+  const sha256 =
+    typeof group.sha256 === "string"
+      ? group.sha256
+      : typeof group.fileSha256 === "string"
+        ? group.fileSha256
+        : null;
+  const sizeBytes =
+    typeof group.sizeBytes === "number" || typeof group.sizeBytes === "string"
+      ? group.sizeBytes
+      : typeof group.bytes === "number" || typeof group.bytes === "string"
+        ? group.bytes
+        : null;
+  const mimeType =
+    typeof group.mimeType === "string"
+      ? group.mimeType
+      : typeof group.contentType === "string"
+        ? group.contentType
+        : null;
+  const fragments: string[] = [];
+  if (mimeType) fragments.push(mimeType);
+  if (sizeBytes) fragments.push(`${sizeBytes} B`);
+  if (sha256) fragments.push(`SHA-256 ${String(sha256).slice(0, 8)}…`);
+  if (fragments.length === 0) {
+    const keyCount = Object.keys(group).length;
+    return keyCount > 0 ? `${keyCount} recorded field${keyCount === 1 ? "" : "s"}` : "Recorded";
+  }
+  return fragments.join(" · ");
+}
+
 function renderGroup(
   title: string,
   group: Record<string, unknown> | null | undefined,
@@ -25,16 +67,36 @@ function renderGroup(
   }
 
   return (
-    <div className="evidence-library-note-card">
+    <div className="evidence-library-note-card" data-comparison-card={title}>
       <strong>{title}</strong>
-      <div className="evidence-library-definition-grid">
-        {Object.entries(group).map(([key, value]) => (
-          <div key={key}>
-            <span>{key}</span>
-            <strong>{renderValue(value)}</strong>
-          </div>
-        ))}
-      </div>
+      <p style={{ fontSize: 12.5, color: "#475569", margin: "2px 0 6px 0" }}>
+        {summariseGroup(group)}
+      </p>
+      {/* FIX 4 — the raw key/value grid moves behind a collapsed
+          `<details>` so the comparison card no longer dumps the full
+          backend payload (and any stray `JSON.stringify(...)` cell
+          value) into the default view. Engineering can still expand
+          it on demand; the data is preserved, just one click deeper. */}
+      <details data-comparison-technical-details>
+        <summary
+          style={{
+            cursor: "pointer",
+            fontSize: 12,
+            color: "#475569",
+            fontWeight: 600,
+          }}
+        >
+          Technical details
+        </summary>
+        <div className="evidence-library-definition-grid" style={{ marginTop: 6 }}>
+          {Object.entries(group).map(([key, value]) => (
+            <div key={key}>
+              <span>{key}</span>
+              <strong>{renderValue(value)}</strong>
+            </div>
+          ))}
+        </div>
+      </details>
     </div>
   );
 }

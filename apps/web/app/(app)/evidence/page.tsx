@@ -6,6 +6,8 @@ import { useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
+import { canAccessSurface } from "../../../lib/surface/access";
+import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContext";
 import {
   usePersonaProfile as useEvidencePersonaProfile,
   workflowFromPersona as evidenceWorkflowFromPersona,
@@ -27,6 +29,7 @@ import type {
   EvidenceBulkActionResponse,
   CasesListResponse,
   DetailWorkspaceState,
+  EvidenceLibrarySummaryResponse,
   EvidenceListItem,
   EvidenceListQuery,
   EvidenceListResponse,
@@ -63,6 +66,44 @@ const DEFAULT_FILTERS: EvidenceFilterState = {
   publicVerifyState: "all",
   verificationStatus: "all",
 };
+
+/**
+ * Phase EVIDENCE-LIBRARY-DATA-ACCURACY — summary endpoint URL.
+ *
+ * The summary accepts the same filter parameters as the list
+ * endpoint (it reuses `parseEvidenceListQuery` +
+ * `buildEvidenceListBaseWhere` server-side), so the workspace
+ * counts stay in lock-step with whatever filters the user has
+ * applied. Pagination params (limit / cursor) are deliberately
+ * omitted — the summary is an aggregation, not a page.
+ */
+function buildEvidenceLibrarySummaryPath(query: EvidenceListQuery) {
+  const params = new URLSearchParams();
+  params.set("scope", query.scope);
+  if (query.search) params.set("search", query.search);
+  if (query.status && query.status !== "all") params.set("status", query.status);
+  if (query.type && query.type !== "all") params.set("type", query.type);
+  if (query.caseAssignment && query.caseAssignment !== "all") {
+    params.set("caseAssignment", query.caseAssignment);
+  }
+  if (query.caseId) params.set("caseId", query.caseId);
+  if (query.reportReady && query.reportReady !== "all") {
+    params.set("reportReady", query.reportReady);
+  }
+  if (query.tsaStatus && query.tsaStatus !== "all") {
+    params.set("tsaStatus", query.tsaStatus);
+  }
+  if (query.otsStatus && query.otsStatus !== "all") {
+    params.set("otsStatus", query.otsStatus);
+  }
+  if (query.publicVerifyState && query.publicVerifyState !== "all") {
+    params.set("publicVerifyState", query.publicVerifyState);
+  }
+  if (query.verificationStatus && query.verificationStatus !== "all") {
+    params.set("verificationStatus", query.verificationStatus);
+  }
+  return `/v1/evidence/library-summary?${params.toString()}`;
+}
 
 function buildEvidenceListPath(query: EvidenceListQuery) {
   const params = new URLSearchParams();
@@ -257,6 +298,17 @@ function EvidenceLibraryPageInner() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  /**
+   * Phase EVIDENCE-LIBRARY-DATA-ACCURACY — workspace summary.
+   *
+   * Null when the new `/v1/evidence/library-summary` endpoint is
+   * unreachable. The metric cards then label every non-trivial
+   * card "On this page" and the package-readiness card specifically
+   * says "Package readiness unavailable" — we NEVER fall back to the
+   * `latestReportVersion` proxy for package state.
+   */
+  const [workspaceSummary, setWorkspaceSummary] =
+    useState<EvidenceLibrarySummaryResponse | null>(null);
   const defaultSavedViewAppliedRef = useRef(false);
   const urlFiltersAppliedRef = useRef(false);
 
@@ -384,9 +436,25 @@ function EvidenceLibraryPageInner() {
       setError(null);
 
       try {
-        const evidence = (await apiFetch(
-          buildEvidenceListPath(query)
-        )) as EvidenceListResponse;
+        // Phase EVIDENCE-LIBRARY-DATA-ACCURACY — list + summary in
+        // parallel. List failure remains a hard fail (existing
+        // behaviour). Summary failure is soft: we null the state
+        // and the metric cards transparently surface the fallback
+        // labels — package readiness specifically becomes
+        // "Package readiness unavailable" (no silent
+        // latestReportVersion proxy).
+        const [evidence, summarySettled] = await Promise.all([
+          apiFetch(buildEvidenceListPath(query)) as Promise<EvidenceListResponse>,
+          (async () => {
+            try {
+              return (await apiFetch(
+                buildEvidenceLibrarySummaryPath(query),
+              )) as EvidenceLibrarySummaryResponse;
+            } catch {
+              return null;
+            }
+          })(),
+        ]);
 
         if (evidenceRequestRef.current !== requestId) {
           return;
@@ -398,6 +466,7 @@ function EvidenceLibraryPageInner() {
           pageInfo: evidence.pageInfo ?? null,
           totalCount: typeof evidence.totalCount === "number" ? evidence.totalCount : undefined,
         }));
+        setWorkspaceSummary(summarySettled);
       } catch (loadError) {
         if (evidenceRequestRef.current !== requestId) {
           return;
@@ -411,6 +480,10 @@ function EvidenceLibraryPageInner() {
           items: [],
           pageInfo: null,
         }));
+        // Phase EVIDENCE-LIBRARY-DATA-ACCURACY — clear the summary
+        // too so the metric cards switch to the honest fallback
+        // labels instead of showing stale workspace numbers.
+        setWorkspaceSummary(null);
         captureException(loadError, {
           feature: "web_evidence_library_scope_load",
           query,
@@ -609,54 +682,175 @@ function EvidenceLibraryPageInner() {
     [selectedId, visibleItems]
   );
 
+  /**
+   * Phase EVIDENCE-LIBRARY-DATA-ACCURACY — informational metric cards.
+   *
+   * The cards are read-only — they do NOT apply filters when clicked
+   * (the EvidenceMetrics component renders plain divs, not buttons).
+   * The page's filtering happens in the dropdown filter row + saved
+   * views, unchanged from before.
+   *
+   * Each card's `detail` line carries the source scope so the user
+   * never reads a page-loaded count as a workspace total:
+   *
+   *   "Workspace total · {scope}"  — backend `/v1/evidence/library-summary`
+   *   "On this page"               — derived from `visibleItems`
+   *   "Package readiness unavailable" — backend summary failed; we
+   *                                     do NOT fall back to
+   *                                     `latestReportVersion`
+   *                                     because that is a proxy that
+   *                                     misreports records whose
+   *                                     report succeeded but whose
+   *                                     package generation failed.
+   */
   const metrics = useMemo(() => {
-    const lockedCount = visibleItems.filter((item) => item.storage?.verified).length;
-    const reportCount = visibleItems.filter((item) => Boolean(item.latestReportVersion)).length;
-    const reviewReadyCount = visibleItems.filter((item) => Boolean(item.reviewReadyAtUtc)).length;
-    const caseLinkedCount = visibleItems.filter((item) => Boolean(item.caseId)).length;
-    const multipartCount = visibleItems.filter((item) => item.itemCount > 1).length;
+    const usingWorkspaceTotal = workspaceSummary !== null;
+    const workspaceScopeDetail = `Workspace total · ${filters.scope}`;
+    const pageScopeDetail = "On this page";
+
+    // Page-derived (safe fallbacks for non-package values).
+    const pageReviewReadyCount = visibleItems.filter((item) => Boolean(item.reviewReadyAtUtc)).length;
+    const pageMultipartCount = visibleItems.filter((item) => item.itemCount > 1).length;
+    const pageProtectedCount = visibleItems.filter((item) => item.storage?.verified).length;
+    const pageUnassignedCount = visibleItems.filter((item) => !item.caseId).length;
+
+    // Card 1 — Total active records. Workspace total when available,
+    // else fall through to the existing list-response totalCount, else
+    // the current page count (clearly labelled).
+    const activeRecordsCard = usingWorkspaceTotal
+      ? {
+          label: "Active records",
+          value: String(workspaceSummary.totalActiveRecords),
+          detail: workspaceScopeDetail,
+        }
+      : typeof library.totalCount === "number"
+        ? {
+            label: "Active records",
+            value: String(library.totalCount),
+            detail: `Workspace total · ${filters.scope}`,
+          }
+        : {
+            label: "Active records",
+            value: String(visibleItems.length),
+            detail: pageScopeDetail,
+          };
+
+    // Card 2 — Reports ready. Workspace via real `reports.some` count.
+    // Page fallback via `latestReportVersion` (the list field IS the
+    // report-version count, so the proxy is honest here — the issue
+    // was only with PACKAGE readiness).
+    const reportsReadyCard = usingWorkspaceTotal
+      ? {
+          label: "Reports ready",
+          value: String(workspaceSummary.reportsReadyCount),
+          tone: "success" as const,
+          detail: workspaceScopeDetail,
+        }
+      : {
+          label: "Reports ready",
+          value: String(visibleItems.filter((item) => Boolean(item.latestReportVersion)).length),
+          tone: "success" as const,
+          detail: pageScopeDetail,
+        };
+
+    // Card 3 — Verification packages ready. THIS IS THE
+    // LOAD-BEARING ACCURACY FIX. We refuse to fall back to a
+    // `latestReportVersion` proxy because report-ready does not
+    // imply package-ready (failure mode: report succeeds, package
+    // generation fails). When the backend summary is unavailable,
+    // we surface that honestly.
+    const packagesReadyCard = usingWorkspaceTotal
+      ? {
+          label: "Verification packages ready",
+          value: String(workspaceSummary.packagesReadyCount),
+          tone: "success" as const,
+          detail: workspaceScopeDetail,
+        }
+      : {
+          label: "Verification packages ready",
+          value: "—",
+          detail: "Package readiness unavailable",
+        };
+
+    // Card 4 — Verification packages missing. Same accuracy rule.
+    const packagesMissingCard = usingWorkspaceTotal
+      ? {
+          label: "Verification packages missing",
+          value: String(workspaceSummary.packagesMissingCount),
+          tone: workspaceSummary.packagesMissingCount > 0
+            ? ("warning" as const)
+            : ("default" as const),
+          detail: workspaceScopeDetail,
+        }
+      : {
+          label: "Verification packages missing",
+          value: "—",
+          detail: "Package readiness unavailable",
+        };
+
+    // Card 5 — Storage protection. Workspace mirrors the list
+    // mapper's `storage.verified` predicate (OR of objectLockMode /
+    // retainUntil / legalHold). Page fallback uses the same field.
+    const storageProtectedCard = usingWorkspaceTotal
+      ? {
+          label: "Storage protection",
+          value: String(workspaceSummary.storageProtectedCount),
+          detail: workspaceScopeDetail,
+        }
+      : {
+          label: "Storage protection",
+          value: String(pageProtectedCount),
+          detail: pageScopeDetail,
+        };
+
+    // Card 6 — Multipart packages. Workspace via real
+    // `parts.some(partIndex > 0)`. Page fallback via `itemCount > 1`.
+    const multipartCard = usingWorkspaceTotal
+      ? {
+          label: "Multipart packages",
+          value: String(workspaceSummary.multipartCount),
+          detail: workspaceScopeDetail,
+        }
+      : {
+          label: "Multipart packages",
+          value: String(pageMultipartCount),
+          detail: pageScopeDetail,
+        };
+
+    // Card 7 — Unassigned records (no case linkage).
+    const unassignedCard = usingWorkspaceTotal
+      ? {
+          label: "Unassigned records",
+          value: String(workspaceSummary.unassignedCount),
+          detail: workspaceScopeDetail,
+        }
+      : {
+          label: "Unassigned records",
+          value: String(pageUnassignedCount),
+          detail: pageScopeDetail,
+        };
+
+    // Card 8 — Review-ready markers (page only — no equivalent
+    // workspace metric is needed for the operational view and the
+    // existing list field is reliable per row).
+    const reviewReadyCard = {
+      label: "Review-ready records",
+      value: String(pageReviewReadyCount),
+      tone: "success" as const,
+      detail: pageScopeDetail,
+    };
 
     return [
-      {
-        label: library.totalCount ? "Records in view" : "Page results",
-        value: library.totalCount ? String(library.totalCount) : String(visibleItems.length),
-        detail: `Server scope: ${filters.scope}`,
-      },
-      {
-        label: "Loaded on page",
-        value: String(visibleItems.length),
-        detail: "Current server-filtered results.",
-      },
-      {
-        label: "Report versions recorded",
-        value: String(reportCount),
-        tone: "success" as const,
-        detail: "Based on list response fields only.",
-      },
-      {
-        label: "Review-ready markers",
-        value: String(reviewReadyCount),
-        tone: "success" as const,
-      },
-      {
-        label: "Case-linked records",
-        value: String(caseLinkedCount),
-      },
-      {
-        label: "Storage protection recorded",
-        value: String(lockedCount),
-      },
-      {
-        label: "Multipart packages",
-        value: String(multipartCount),
-      },
-      {
-        label: "Package readiness",
-        value: "Detail check",
-        detail: "Verification package state is confirmed only from record detail endpoints.",
-      },
+      activeRecordsCard,
+      reportsReadyCard,
+      packagesReadyCard,
+      packagesMissingCard,
+      storageProtectedCard,
+      multipartCard,
+      unassignedCard,
+      reviewReadyCard,
     ];
-  }, [filters.scope, library.totalCount, visibleItems]);
+  }, [filters.scope, library.totalCount, visibleItems, workspaceSummary]);
 
   const pageLabel = useMemo(() => `Page ${pageNumber}`, [pageNumber]);
   const resultsLabel = useMemo(() => {
@@ -968,6 +1162,15 @@ function EvidenceLibraryPageInner() {
     evidencePersona.primaryProfile,
   ).code;
 
+  // Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) — capability gate.
+  // The QueueSelectionPreview's reviewer-assignment + due-date rows
+  // are enterprise-only — they assume an external reviewer is on
+  // the workflow. Personal Space / small-business workspaces hide
+  // those rows; the user IS the reviewer there. Backend
+  // authorization is unchanged — this is a visibility cleanup only.
+  const surfaceUserCtx = useSurfaceUserContext();
+  const canSeeReviewerOps = canAccessSurface(surfaceUserCtx, "/reviewer-ops");
+
   return (
     <div className="section app-section evidence-library-page">
       <div className="evidence-library-shell">
@@ -1046,6 +1249,7 @@ function EvidenceLibraryPageInner() {
             loading={detailLoading}
             error={detailError}
             caseName={selectedItem?.caseId ? getCaseName(selectedItem.caseId, caseMap) : null}
+            canSeeReviewerOps={canSeeReviewerOps}
             onOpenRecord={() => (selectedItem ? openRecord(selectedItem.id) : undefined)}
             onDownloadReport={() =>
               selectedItem ? void downloadReport(selectedItem.id) : undefined

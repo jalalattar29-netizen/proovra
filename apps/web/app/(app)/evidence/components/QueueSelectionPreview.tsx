@@ -2,7 +2,12 @@ import { Button, Card } from "../../../../components/ui";
 import type { DetailWorkspaceState, EvidenceListItem } from "../lib/evidence-library-types";
 import { buildReportAvailability, buildVerificationPackageAvailability, hasPublicVerification } from "../lib/evidence-library-helpers";
 import { formatUtcDateTime, shortId } from "../lib/evidence-library-formatters";
-import { getDisplayTitle, getEvidenceTypeLabel, getRecordStatusLabel } from "../lib/evidence-library-status";
+import {
+  getDisplayTitle,
+  getEvidenceTypeLabel,
+  getRecordStatusLabel,
+  getVerificationStatusLabel,
+} from "../lib/evidence-library-status";
 import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 
@@ -64,6 +69,7 @@ export function QueueSelectionPreview({
   loading,
   error,
   caseName,
+  canSeeReviewerOps = true,
   onOpenRecord,
   onDownloadReport,
   onDownloadVerificationPackage,
@@ -74,6 +80,15 @@ export function QueueSelectionPreview({
   loading: boolean;
   error: string | null;
   caseName: string | null;
+  /**
+   * Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) — when false
+   * (Personal Space / small-business workspaces without reviewer
+   * ops), the preview hides the assigned-reviewer and due-date
+   * rows since the user IS the reviewer there. Backend auth is
+   * unchanged — this is visibility-only. Defaults to `true` for
+   * back-compat with any caller that doesn't yet pass it.
+   */
+  canSeeReviewerOps?: boolean;
   onOpenRecord: () => void;
   onDownloadReport: () => void;
   onDownloadVerificationPackage: () => void;
@@ -135,24 +150,44 @@ export function QueueSelectionPreview({
             <strong>{getDisplayTitle(item)}</strong>
             <p>{shortId(item.id)}</p>
           </div>
-          <div className="evidence-library-key-card">
+          <div className="evidence-library-key-card" data-preview-status>
             <span>Status</span>
             <strong>{getRecordStatusLabel(item.status)}</strong>
-            <p>{getEvidenceTypeLabel(item)}</p>
-          </div>
-          <div className="evidence-library-key-card">
-            <span>Case</span>
-            <strong>{caseName ?? "Unassigned"}</strong>
+            {/* FIX 2 — surface the integrity verification state
+                directly in the preview. Previously only the type
+                label appeared here, so reviewers had to open the
+                record to see whether the integrity check flagged
+                anything. Data already on `item`, no new fetch. */}
+            <p data-preview-integrity>{getVerificationStatusLabel(item.verificationStatus)}</p>
             <p>
-              {item.reviewWorkflow?.assignedTo?.displayName ??
-                item.reviewWorkflow?.assignedTo?.email ??
-                "No reviewer assigned"}
+              {getEvidenceTypeLabel(item)}
+              {item.itemCount > 1 ? ` · ${item.itemCount} items` : ""}
             </p>
           </div>
-          <div className="evidence-library-key-card">
+          <div className="evidence-library-key-card" data-preview-case>
+            <span>Case</span>
+            <strong>{caseName ?? "Unassigned"}</strong>
+            {/* FIX 6 — reviewer-assignment row only when reviewer-ops
+                is in scope. Personal Space hides it. */}
+            {canSeeReviewerOps ? (
+              <p data-preview-assigned-reviewer>
+                {item.reviewWorkflow?.assignedTo?.displayName ??
+                  item.reviewWorkflow?.assignedTo?.email ??
+                  "No reviewer assigned"}
+              </p>
+            ) : null}
+          </div>
+          <div className="evidence-library-key-card" data-preview-created>
             <span>Created</span>
             <strong>{formatUtcDateTime(item.createdAt)}</strong>
-            <p>{item.reviewWorkflow?.dueAt ? `Due ${formatUtcDateTime(item.reviewWorkflow.dueAt)}` : "No due date recorded"}</p>
+            {/* FIX 6 — due-date row is enterprise-only, same gate. */}
+            {canSeeReviewerOps ? (
+              <p data-preview-due-date>
+                {item.reviewWorkflow?.dueAt
+                  ? `Due ${formatUtcDateTime(item.reviewWorkflow.dueAt)}`
+                  : "No due date recorded"}
+              </p>
+            ) : null}
           </div>
         </div>
 

@@ -115,6 +115,32 @@ export type EvidenceListResponse = {
   totalCount?: number;
 };
 
+/**
+ * Phase EVIDENCE-LIBRARY-DATA-ACCURACY — workspace-scoped totals
+ * returned by `GET /v1/evidence/library-summary`. Used by the
+ * Evidence Library metric cards to render real workspace counts
+ * with honest "Workspace total" / "On this page" labels.
+ *
+ * Package readiness is computed from the REAL `verificationPackages`
+ * relation (NOT the `latestReportVersion` proxy). When this endpoint
+ * is unavailable the UI shows "Package readiness unavailable" for the
+ * packages metric — it never falls back to the proxy silently.
+ */
+export type EvidenceLibrarySummaryResponse = {
+  scope?: EvidenceListScope;
+  source: "workspace_total";
+  totalActiveRecords: number;
+  reportsReadyCount: number;
+  packagesReadyCount: number;
+  packagesMissingCount: number;
+  storageProtectedCount: number;
+  storageNeedsReviewCount: number;
+  multipartCount: number;
+  verificationIssuesCount: number;
+  unassignedCount: number;
+  needsActionCount: number;
+};
+
 export type CaseOption = {
   id: string;
   name: string;

@@ -220,7 +220,12 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           </p>
         </div>
 
-        {workspace.governance ? (
+        {/* Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) — the
+            governance note describes the reviewer/legal/annotation
+            posture for the three enterprise panels below. When those
+            panels are hidden for non-reviewer-ops workspaces, this
+            note has nothing to describe and is hidden with them. */}
+        {workspace.governance && canSeeReviewerOps ? (
           <div className="evidence-detail-note-box">
             <strong>Governance</strong>
             <p>
@@ -239,15 +244,27 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           </div>
         ) : null}
 
-        <div className="evidence-detail-embedded-panels">
-          <ReviewerCommentsPanel evidenceId={evidence.id} />
-          <LegalNotesPanel evidenceId={evidence.id} />
-          <AnnotationPanel evidenceId={evidence.id} defaultPartId={workspace.parts[0]?.id ?? null} />
-          {/* Phase EVIDENCE-AI-CONSOLIDATION — AI categorization is
-              now rendered ONCE as <AiCategorizationPanel> below in
-              the Advanced review tools row. The duplicate
-              hidden-feature mount that used to live here is gone. */}
-        </div>
+        {/* Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) — Reviewer
+            Comments, Legal Notes, and Annotations are enterprise /
+            collaboration / reviewer-ops features. Personal Space and
+            small-business workspaces without reviewer ops hide them
+            entirely. Backend authorization is unchanged — this is a
+            visibility cleanup only. The empty enterprise-only mounts
+            were noise on self-serve. */}
+        {canSeeReviewerOps ? (
+          <div
+            className="evidence-detail-embedded-panels"
+            data-evidence-review-enterprise-panels
+          >
+            <ReviewerCommentsPanel evidenceId={evidence.id} />
+            <LegalNotesPanel evidenceId={evidence.id} />
+            <AnnotationPanel evidenceId={evidence.id} defaultPartId={workspace.parts[0]?.id ?? null} />
+            {/* Phase EVIDENCE-AI-CONSOLIDATION — AI categorization is
+                now rendered ONCE as <AiCategorizationPanel> below in
+                the Advanced review tools row. The duplicate
+                hidden-feature mount that used to live here is gone. */}
+          </div>
+        ) : null}
       </section>
 
       {/* Phase EVIDENCE-IA — comparison / duplicate / AI advisory

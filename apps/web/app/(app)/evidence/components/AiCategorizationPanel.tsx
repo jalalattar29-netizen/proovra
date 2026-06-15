@@ -75,9 +75,13 @@ export function AiCategorizationPanel({ evidenceId }: { evidenceId: string }) {
         {error ? <p className="evidence-library-muted">{error}</p> : null}
 
         {!loading && data?.status === "DISABLED" ? (
+          // Phase EVIDENCE-LIBRARY-AI-DEDUPE (FIX 5) — the canonical
+          // AI advisory sits at the top of this `<details>` block;
+          // we used to repeat the backend-stamped `data.legalDisclaimer`
+          // here too, which made the user read the same caveat twice.
+          // The single inline disclaimer carries the legal floor.
           <div className="evidence-library-disabled-placeholder">
             <strong>AI categorization is not active for this record.</strong>
-            <p>{data.legalDisclaimer}</p>
           </div>
         ) : null}
 
@@ -147,10 +151,11 @@ export function AiCategorizationPanel({ evidenceId }: { evidenceId: string }) {
                 {data.model ?? "Model not recorded"} • {data.updatedAt ?? "No update timestamp"}
               </p>
             </div>
-            <div className="evidence-library-note-card">
-              <strong>Legal boundary</strong>
-              <p>{data.legalDisclaimer}</p>
-            </div>
+            {/* Phase EVIDENCE-LIBRARY-AI-DEDUPE (FIX 5) — the
+                "Legal boundary" card here duplicated the canonical
+                inline disclaimer at the top of this panel. Removed
+                to stop the user reading the same caveat twice; the
+                legal protection is unchanged. */}
           </div>
           </>
         ) : null}

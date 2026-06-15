@@ -32,21 +32,93 @@ export function getEvidenceScope(item: Pick<EvidenceListItem, "archivedAt" | "de
   return "active";
 }
 
+/**
+ * Phase EVIDENCE-LIBRARY-NAMES — generic-title sentinels.
+ *
+ * The backend's `mapEvidenceListItem` (evidence.routes.ts) routes
+ * every list item's title through `resolveEvidenceTitle`, which
+ * substitutes the literal "Digital Evidence Record" for null/empty
+ * titles. That backend default is reasonable for surfaces that
+ * cannot run a fallback cascade — but on the Evidence Library /
+ * preview / row / duplicate / relationship surfaces it MASKS the
+ * empty state from this client cascade and causes every untitled
+ * record to render the same generic line.
+ *
+ * `GENERIC_TITLE_SENTINELS` lists every legacy backend fallback we
+ * treat as "no title set" so the UI cascade can fall through to
+ * the file name / type label / short id.
+ */
+const GENERIC_TITLE_SENTINELS = new Set<string>([
+  "Digital Evidence Record",
+  "Evidence record",
+  "Untitled evidence record",
+]);
+
+function isGenericFallbackTitle(value: string | null | undefined): boolean {
+  const trimmed = value?.trim();
+  return !trimmed || GENERIC_TITLE_SENTINELS.has(trimmed);
+}
+
+/**
+ * Build a "N files" label for multipart packages when no
+ * user-provided label exists. Falls back to the canonical type
+ * label + count when the type helper does not already include the
+ * count. Returns null for single-item records.
+ */
+function buildMultipartPackageLabel(
+  item: Pick<EvidenceListItem, "itemCount" | "type" | "mimeType">,
+): string | null {
+  const count = item.itemCount ?? 0;
+  if (count <= 1) return null;
+  const typeLabel = getReviewerEvidenceTypeLabel({
+    itemCount: count,
+    evidenceType: item.type,
+    mimeType: item.mimeType,
+  });
+  if (/\d/.test(typeLabel)) return typeLabel;
+  return `${typeLabel} · ${count} files`;
+}
+
+/**
+ * Phase EVIDENCE-LIBRARY-NAMES — shared title cascade.
+ *
+ * Display priority (FIX 1 of "targeted enterprise fixes"):
+ *   1. user-provided evidence title (if NOT a generic sentinel)
+ *   2. displayFileName  — e.g. "Witness Statement.pdf"
+ *   3. originalFileName — e.g. "v1 (31).pdf"
+ *   4. multipart package label — e.g. "Document · 5 files"
+ *   5. type + short record id  — e.g. "Photo · 7c4f9d"
+ *   6. "Evidence record {shortId}" — last resort
+ *
+ * Used on every Evidence Library + Evidence Detail surface so the
+ * cascade can't drift between row / preview / duplicate /
+ * relationship consumers.
+ */
 export function getDisplayTitle(
-  item: Pick<EvidenceListItem, "title" | "displayFileName" | "originalFileName" | "type" | "mimeType" | "itemCount"> |
-    Pick<EvidenceRecord, "title" | "displayFileName" | "originalFileName" | "type" | "mimeType" | "itemCount">
+  item: Pick<EvidenceListItem, "id" | "title" | "displayFileName" | "originalFileName" | "type" | "mimeType" | "itemCount"> |
+    Pick<EvidenceRecord, "id" | "title" | "displayFileName" | "originalFileName" | "type" | "mimeType" | "itemCount">
 ): string {
   const direct = item.title?.trim();
-  if (direct) return direct;
+  if (direct && !isGenericFallbackTitle(direct)) return direct;
 
   const fileLabel = item.displayFileName?.trim() || item.originalFileName?.trim();
   if (fileLabel) return fileLabel;
 
-  return getReviewerEvidenceTypeLabel({
+  const multipart = buildMultipartPackageLabel(item);
+  if (multipart) return multipart;
+
+  const typeLabel = getReviewerEvidenceTypeLabel({
     itemCount: item.itemCount,
     evidenceType: item.type,
     mimeType: item.mimeType,
   });
+  if (typeLabel && !isGenericFallbackTitle(typeLabel)) {
+    const shortRef = String(item.id ?? "").slice(0, 6);
+    return shortRef ? `${typeLabel} · ${shortRef}` : typeLabel;
+  }
+
+  const id = String(item.id ?? "");
+  return id ? `Evidence record ${id.slice(0, 8)}` : "Evidence record";
 }
 
 export function getRecordStatusLabel(status: string | null | undefined): string {
