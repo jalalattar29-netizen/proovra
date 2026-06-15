@@ -41,6 +41,10 @@ import { Button, useToast } from "../../ui";
 // repo-wide Phase Final-D3 contract forbids raw `window.confirm` in
 // apps/web; this is the parity replacement.
 import { useConfirmAction } from "../../ui/ConfirmActionModal";
+// Phase CASES-EVIDENCE-NAMES — reuse the canonical Evidence Library
+// title cascade so Case Detail rows never render "Untitled evidence"
+// when filename fields exist on the record.
+import { getDisplayTitle } from "../../../app/(app)/evidence/lib/evidence-library-status";
 import type {
   MatterWorkspaceCaseHeader,
   MatterWorkspaceEnvelope,
@@ -192,7 +196,6 @@ export function SimpleCaseDetail({
         evidenceCount={evidenceItems.length}
         isReloading={Boolean(isReloading)}
         onAddEvidence={() => setActiveTab("evidence")}
-        onGoToSettings={() => setActiveTab("settings")}
       />
 
       <nav
@@ -295,13 +298,11 @@ function SimpleCaseHeader({
   evidenceCount,
   isReloading,
   onAddEvidence,
-  onGoToSettings,
 }: {
   caseDetail: MatterWorkspaceCaseHeader;
   evidenceCount: number;
   isReloading: boolean;
   onAddEvidence: () => void;
-  onGoToSettings: () => void;
 }) {
   return (
     <header className="cc-page-header" data-simple-case-header>
@@ -353,18 +354,17 @@ function SimpleCaseHeader({
         ) : null}
       </div>
       <div className="cc-meta">
+        {/* Phase CASES-PERSONAL-UX-CLEANUP (Final) — the header
+            now exposes ONLY the primary action ("Add evidence").
+            The previous "Case settings" button duplicated the
+            Settings tab and was removed per spec — clicking it
+            already routed to the tab so there was no second
+            destination. */}
         <Button
           onClick={onAddEvidence}
           data-simple-case-action="add-evidence"
         >
           Add evidence
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={onGoToSettings}
-          data-simple-case-action="settings"
-        >
-          Case settings
         </Button>
       </div>
     </header>
@@ -610,7 +610,12 @@ function EvidenceTab({
               }}
             >
               <div>
-                <div style={{ fontWeight: 600 }}>{item.title}</div>
+                <div
+                  style={{ fontWeight: 600 }}
+                  data-simple-case-evidence-title
+                >
+                  {getDisplayTitle(item)}
+                </div>
                 <div
                   className="cc-muted"
                   style={{ fontSize: 12, display: "flex", gap: 8 }}
@@ -677,7 +682,7 @@ function EvidenceTab({
                     viewer.disabledReasons.unlinkLegacyEvidence ??
                     undefined
                   }
-                  onClick={() => void handleRemove(item.id, item.title)}
+                  onClick={() => void handleRemove(item.id, getDisplayTitle(item))}
                   data-simple-case-evidence-remove={item.id}
                 >
                   Remove from case
@@ -893,7 +898,12 @@ function ReportsPackagesTab({
               }}
             >
               <div>
-                <div style={{ fontWeight: 600 }}>{item.title}</div>
+                <div
+                  style={{ fontWeight: 600 }}
+                  data-simple-case-reports-title
+                >
+                  {getDisplayTitle(item)}
+                </div>
                 <div
                   className="cc-muted"
                   style={{ fontSize: 12, display: "flex", gap: 8 }}

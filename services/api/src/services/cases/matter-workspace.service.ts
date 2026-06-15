@@ -125,7 +125,22 @@ export type MatterWorkspaceEnvelope = {
       status: SectionStatus;
       items: Array<{
         id: string;
-        title: string;
+        /**
+         * Phase CASES-EVIDENCE-NAMES — the raw stored title (or
+         * null). Clients run the canonical title cascade via
+         * `getDisplayTitle()` (see
+         * apps/web/app/(app)/evidence/lib/evidence-library-status.ts).
+         * Pre-cascade this field was always a string with a generic
+         * "Untitled evidence" sentinel; that substitution was moved
+         * to the client so the cascade can fall through to filename
+         * fields.
+         */
+        title: string | null;
+        displayFileName: string | null;
+        originalFileName: string | null;
+        mimeType: string | null;
+        /** Multipart packages: number of EvidenceItem parts (>= 1). */
+        itemCount: number;
         type: string;
         status: string;
         verificationStatus: string | null;
@@ -638,6 +653,16 @@ async function runEvidenceBoard(
         createdAt: true,
         latestReportVersion: true,
         verificationPackageVersion: true,
+        // Phase CASES-EVIDENCE-NAMES — expose the same filename
+        // columns the Evidence Library / Evidence Detail surfaces
+        // use so the Case Detail UI can run the canonical title
+        // cascade (`getDisplayTitle` in evidence-library-status.ts).
+        // The backend no longer substitutes a literal sentinel for
+        // null titles — the cascade does that on the client.
+        displayFileName: true,
+        originalFileName: true,
+        mimeType: true,
+        _count: { select: { parts: true } },
       },
     });
     // Look up linkId/linkRole/linkSource for the items present so the
@@ -660,7 +685,15 @@ async function runEvidenceBoard(
       status: "ok",
       items: items.map((e) => ({
         id: e.id,
-        title: e.title ?? "Untitled evidence",
+        // Phase CASES-EVIDENCE-NAMES — pass the real title (or
+        // null) so the client runs the canonical cascade. The
+        // backward-compatible default still resolves to a
+        // meaningful string in the client via `getDisplayTitle`.
+        title: e.title ?? null,
+        displayFileName: e.displayFileName ?? null,
+        originalFileName: e.originalFileName ?? null,
+        mimeType: e.mimeType ?? null,
+        itemCount: e._count.parts > 0 ? e._count.parts : 1,
         type: String(e.type),
         status: String(e.status),
         verificationStatus: e.verificationStatus

@@ -152,7 +152,21 @@ export type MatterWorkspaceEnvelope = {
       status: SectionStatus;
       items: Array<{
         id: string;
-        title: string;
+        /**
+         * Phase CASES-EVIDENCE-NAMES — raw stored title (or null).
+         * The Case Detail surface runs the canonical
+         * `getDisplayTitle()` cascade from
+         * `app/(app)/evidence/lib/evidence-library-status.ts` over
+         * (title, displayFileName, originalFileName, type,
+         * mimeType, itemCount, id) so it never renders a literal
+         * "Untitled evidence" when filename fields exist.
+         */
+        title: string | null;
+        displayFileName: string | null;
+        originalFileName: string | null;
+        mimeType: string | null;
+        /** Multipart packages: number of EvidenceItem parts (>= 1). */
+        itemCount: number;
         type: string;
         status: string;
         verificationStatus: string | null;

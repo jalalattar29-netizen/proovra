@@ -65,9 +65,11 @@ function isGenericFallbackTitle(value: string | null | undefined): boolean {
  * label + count when the type helper does not already include the
  * count. Returns null for single-item records.
  */
-function buildMultipartPackageLabel(
-  item: Pick<EvidenceListItem, "itemCount" | "type" | "mimeType">,
-): string | null {
+function buildMultipartPackageLabel(item: {
+  itemCount: number | null | undefined;
+  type: EvidenceListItem["type"] | EvidenceRecord["type"] | string | null | undefined;
+  mimeType: string | null | undefined;
+}): string | null {
   const count = item.itemCount ?? 0;
   if (count <= 1) return null;
   const typeLabel = getReviewerEvidenceTypeLabel({
@@ -94,10 +96,28 @@ function buildMultipartPackageLabel(
  * cascade can't drift between row / preview / duplicate /
  * relationship consumers.
  */
-export function getDisplayTitle(
-  item: Pick<EvidenceListItem, "id" | "title" | "displayFileName" | "originalFileName" | "type" | "mimeType" | "itemCount"> |
-    Pick<EvidenceRecord, "id" | "title" | "displayFileName" | "originalFileName" | "type" | "mimeType" | "itemCount">
-): string {
+/**
+ * Structural input shape for the title cascade. Accepts either the
+ * Evidence Library list item, the Evidence Detail record, or any
+ * surface that exposes the same nullable filename fields (e.g.
+ * Case Detail matter-workspace evidence rows — Phase
+ * CASES-EVIDENCE-NAMES). The function is already null-safe
+ * internally (every field is read through optional chaining), so
+ * widening the contract here does not change runtime behaviour for
+ * the original callers — it only stops surfaces with `title:
+ * string | null` from needing a cast.
+ */
+type DisplayTitleInput = {
+  id: string | null | undefined;
+  title: string | null | undefined;
+  displayFileName: string | null | undefined;
+  originalFileName: string | null | undefined;
+  type: EvidenceListItem["type"] | EvidenceRecord["type"] | string | null | undefined;
+  mimeType: string | null | undefined;
+  itemCount: number | null | undefined;
+};
+
+export function getDisplayTitle(item: DisplayTitleInput): string {
   const direct = item.title?.trim();
   if (direct && !isGenericFallbackTitle(direct)) return direct;
 
