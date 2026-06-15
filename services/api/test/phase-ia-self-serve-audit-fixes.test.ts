@@ -246,10 +246,18 @@ describe("Phase IA-self-serve-audit-fixes — Billing copy", () => {
 describe("Phase IA-self-serve-audit-fixes — Cases List terminology", () => {
   const CASES = readWeb("components/cases-experience/CasesIndex.tsx");
 
-  it("eyebrow + heading rewritten in plain language", () => {
+  it("heading rewritten in plain language (no persona aliasing, no 'Operations Queue', no kicker duplicate)", () => {
+    // Phase CASES-PERSONAL-UX (audit-driven follow-up) — the Cases
+    // page header is now plain "Cases" without persona aliasing or
+    // a kicker duplicate. The prior `Your {terms.casePlural...}`
+    // wording is gone.
     expect(CASES).not.toMatch(/Investigation \{terms\.casePlural\}/);
     expect(CASES).not.toMatch(/Operations Queue/);
-    expect(CASES).toMatch(/Your \{terms\.casePlural\.toLowerCase\(\)\}/);
+    expect(CASES).not.toMatch(/Your \{terms\.casePlural\.toLowerCase\(\)\}/);
+    expect(CASES).not.toMatch(/data-cases-kicker/);
+    expect(CASES).toMatch(
+      /<h1 className="cc-title" data-cases-title>\s*\n?\s*Cases\s*\n?\s*<\/h1>/,
+    );
   });
 
   it("filter chip 'Open incidents' → 'Open issues'", () => {

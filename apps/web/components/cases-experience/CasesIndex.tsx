@@ -36,13 +36,22 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { apiFetch } from "../../lib/api";
+// Phase CASES-PERSONAL-UX — capability gate. The investigation surface
+// (ENTERPRISE-tier) is the existing signal for evidence-graph /
+// reviewer-ops / legal-ops workflows. We reuse it as the on/off switch
+// for the advanced Cases filters and card details so Personal /
+// small-team users see a simple list and enterprise users keep every
+// existing counter. Backend selectors are untouched — filter state is
+// preserved and still POSTs to the server, we just don't render the
+// advanced controls on personal workspaces.
+import { canAccessSurface } from "../../lib/surface/access";
+import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
 import {
   CapabilityDegradedPanel,
   useActiveWorkspaceId,
   usePersonaProfile,
   usePersonalSpace,
   usePlatformContext,
-  useTerminology,
   workflowFromPersona,
 } from "../../lib/platform-context";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
@@ -100,7 +109,7 @@ const DEFAULT_FILTERS: QueueFilters = {
 
 type LoadState =
   | { status: "loading" }
-  | { status: "ready"; envelope: MatterQueueEnvelope }
+  | { status: "ready"; envelope: MatterQueueEnvelope; isReloading?: boolean }
   | { status: "auth_error"; code: "auth_required" | "permission_denied" }
   | { status: "unavailable"; message: string };
 
@@ -117,28 +126,63 @@ export function CasesIndex() {
   // still the authority on visibility / capabilities.
   const workspaceId = useActiveWorkspaceId();
   const personalSpace = usePersonalSpace();
-  // Phase 38.1 — consume persona terminology. UI-only; canonical labels
-  // remain unchanged on the backend.
-  const terms = useTerminology();
+  // Phase CASES-PERSONAL-UX — persona terminology is no longer
+  // applied to the Cases page header. The audience is personal /
+  // small-business users for whom "Cases" is the plain-language
+  // term; persona-tuned aliases (Matters / Claims / Investigations)
+  // were jargon for this surface. Persona terminology is still used
+  // elsewhere (Home, Evidence pages); only this header opted out.
   const viewerUserId = ctx.envelope?.user.id ?? null;
   // Phase 38.17 — workflow-aware contextual help.
   const personaProfile = usePersonaProfile();
   const workflowCode = workflowFromPersona(personaProfile.primaryProfile).code;
 
   const [filters, setFilters] = useState<QueueFilters>(DEFAULT_FILTERS);
+  // Phase CASES-PERSONAL-UX — debounced view of `filters.search`. The
+  // raw input value updates instantly (so the input stays focused and
+  // responsive); only this debounced copy feeds the network request,
+  // which both eliminates per-keystroke server thrash and removes the
+  // re-render storm that used to remount the input every time.
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  // Phase CASES-PERSONAL-UX — capability gate. ENTERPRISE-tier
+  // workspaces see the full risk/governance/legal-hold/overdue/
+  // assignment UI; Personal and small-team workspaces see the
+  // simplified Cases list (Status + Open issues + Missing
+  // report/package). Backend filter state still posts everything;
+  // hiding the controls just stops surfacing them.
+  const surfaceUserCtx = useSurfaceUserContext();
+  const canSeeAdvancedCaseOps = canAccessSurface(
+    surfaceUserCtx,
+    "/investigation",
+  );
   // Phase 2.1 — Create Case modal local state. Toggled by the new
   // "Create case" button in the header and by the empty-state CTA.
   const [createOpen, setCreateOpen] = useState(false);
   const router = useRouter();
 
-  // Build the canonical query string from the filter state. The
-  // matter-queue endpoint takes the bounded params verbatim.
+  // Phase CASES-PERSONAL-UX — debounce the search input (300ms). The
+  // raw `filters.search` updates immediately on each keystroke (the
+  // controlled input renders the user's typed text); `appliedSearch`
+  // lags behind and is the only thing that triggers a refetch. This
+  // is the actual fix for "input loses focus after the first
+  // character" — the previous code remounted the whole tree on every
+  // keystroke because reload() flipped state to "loading".
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppliedSearch(filters.search.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
+
+  // Build the canonical query string from the applied (debounced)
+  // filter state. The matter-queue endpoint takes the bounded params
+  // verbatim.
   const queryString = useMemo(() => {
     if (!workspaceId) return "";
     const qs = new URLSearchParams();
     qs.set("teamId", workspaceId);
-    if (filters.search.trim()) qs.set("search", filters.search.trim());
+    if (appliedSearch) qs.set("search", appliedSearch);
     if (filters.status) qs.set("status", filters.status);
     if (filters.riskLevel) qs.set("riskLevel", filters.riskLevel);
     if (filters.assignedToMe && viewerUserId)
@@ -149,11 +193,20 @@ export function CasesIndex() {
     if (filters.hasLegalHold) qs.set("hasLegalHold", "true");
     if (filters.missingArtifact) qs.set("missingArtifact", "true");
     return qs.toString();
-  }, [workspaceId, filters, viewerUserId]);
+  }, [workspaceId, appliedSearch, filters, viewerUserId]);
 
   const reload = useCallback(async () => {
     if (!workspaceId) return;
-    setState({ status: "loading" });
+    // Phase CASES-PERSONAL-UX — persist the previous successful
+    // envelope across reloads so the page chrome (header + filters
+    // + input) stays mounted with stable React identity. Previously
+    // every reload flipped state to {status:"loading"} which made
+    // the parent return <QueueLoading/> and remount the input.
+    setState((prev) =>
+      prev.status === "ready"
+        ? { status: "ready", envelope: prev.envelope, isReloading: true }
+        : { status: "loading" },
+    );
     try {
       const envelope = (await apiFetch(`/v1/cases/matter-queue?${queryString}`, {
         method: "GET",
@@ -207,12 +260,17 @@ export function CasesIndex() {
     return <QueueLoading />;
   }
 
-  if (state.status === "loading") return <QueueLoading />;
+  // Phase CASES-PERSONAL-UX — terminal error states (auth / outage)
+  // still take over the whole page. The loading-on-first-load case
+  // ALSO takes over the page (no envelope yet to render around). On
+  // subsequent reloads (envelope already present in state), we keep
+  // the page chrome mounted so the search input never loses focus.
   if (state.status === "auth_error") return <QueueAuthError code={state.code} />;
   if (state.status === "unavailable")
     return <QueueUnavailable message={state.message} onRetry={reload} />;
+  if (state.status === "loading") return <QueueLoading />;
 
-  const { envelope } = state;
+  const { envelope, isReloading } = state;
   // Phase 32.8D + R9 personal-first rescue: when the active workspace
   // is the personal space (no team workspace), the queue still renders
   // the full matter view (personal users have CASES_VIEW). We mark the
@@ -221,41 +279,58 @@ export function CasesIndex() {
   // workspace path without changing the operator-facing UI.
   const isPersonalMode =
     !!personalSpace?.id && personalSpace.id === workspaceId;
+  // Active-filter detection so the empty state can pick the right
+  // message ("No cases yet" vs "No cases match these filters").
+  const anyFilterActive =
+    appliedSearch.length > 0 ||
+    filters.status !== "" ||
+    filters.riskLevel !== "" ||
+    filters.assignedToMe ||
+    filters.hasOpenIncidents ||
+    filters.hasGovernanceBlockers ||
+    filters.hasOverdueWorkflows ||
+    filters.hasLegalHold ||
+    filters.missingArtifact;
   return (
     <main
       className="cc-page"
       data-cases-index
       data-matter-queue
       data-cases-personal-mode={isPersonalMode ? "true" : "false"}
+      data-cases-advanced-mode={canSeeAdvancedCaseOps ? "true" : "false"}
     >
       <header className="cc-page-header">
         <div>
-          <div className="cc-kicker" data-cases-kicker>
-            Your {terms.casePlural.toLowerCase()}
-          </div>
-          {/* Phase IA-self-serve-completion — eyebrow + heading +
-              subtitle rewritten in plain language. The previous
-              wording used enterprise vocabulary that read as
-              call-centre / ops jargon to lawyers and journalists,
-              who manage cases. The counters that the old subtitle
-              narrated are still rendered in the table; only the
-              prose changed. */}
+          {/* Phase CASES-PERSONAL-UX — single canonical title. The
+              prior layout repeated "Your cases" as both kicker and h1,
+              and the subtitle leaned on enterprise jargon (legal
+              holds, etc). Personal / small-business audience gets a
+              plain-language title + a one-line description of the
+              concept. */}
           <h1 className="cc-title" data-cases-title>
-            Your {terms.casePlural.toLowerCase()}
+            Cases
           </h1>
-          <p className="cc-subtitle">
-            Filter by status, risk, or what needs attention. Click a row
-            to open the case and link evidence, place legal holds, or
-            generate a report.
+          <p className="cc-subtitle" data-cases-subtitle>
+            Group related evidence into simple workspaces for incidents,
+            claims, projects, or reviews.
           </p>
         </div>
         <div className="cc-meta">
           <span data-matter-queue-total>
-            {envelope.total} {envelope.total === 1 ? "matter" : "matters"}
+            {envelope.total} {envelope.total === 1 ? "case" : "cases"}
           </span>
           <span title={envelope.generatedAt} data-matter-queue-generated-at>
             Refreshed {formatRelativeTime(envelope.generatedAt)}
           </span>
+          {isReloading ? (
+            <span
+              className="cc-muted"
+              data-matter-queue-reloading
+              style={{ marginLeft: 8, fontSize: 12 }}
+            >
+              Updating…
+            </span>
+          ) : null}
           {/* Phase 2.1 — canonical Create Case CTA. Server enforces
               permissions; the button is visible to any team member so
               they get a structured AccessGate inside the modal on 403
@@ -281,7 +356,7 @@ export function CasesIndex() {
         stateNotes={
           envelope.total === 0
             ? [
-                `No ${terms.casePlural.toLowerCase()} yet — use the Create case button above, or link evidence into an existing matter.`,
+                "No cases yet — use the Create case button above, or link evidence into an existing case.",
               ]
             : undefined
         }
@@ -291,11 +366,16 @@ export function CasesIndex() {
         filters={filters}
         viewerUserId={viewerUserId}
         onChange={setFilters}
+        canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
       />
 
       <MatterQueueTable
         items={envelope.items}
         totalBeforeFilter={envelope.total}
+        anyFilterActive={anyFilterActive}
+        canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
+        onClearFilters={() => setFilters(DEFAULT_FILTERS)}
+        onCreateCase={() => setCreateOpen(true)}
       />
 
       {/* Phase 2.1 — Create Case modal. Mounted at the page level so
@@ -323,14 +403,37 @@ export function CasesIndex() {
 // Filters
 // ---------------------------------------------------------------------------
 
+/**
+ * Phase CASES-PERSONAL-UX — human-readable status labels for the
+ * Status select. The underlying enum values stay UPPER_SNAKE_CASE for
+ * the API contract.
+ */
+const STATUS_LABEL: Record<(typeof CASE_STATUSES)[number], string> = {
+  OPEN: "Open",
+  INVESTIGATING: "Investigating",
+  ON_HOLD: "On hold",
+  RESOLVED: "Resolved",
+  CLOSED: "Closed",
+  ARCHIVED: "Archived",
+};
+
 function MatterQueueFilters({
   filters,
   viewerUserId,
   onChange,
+  canSeeAdvancedCaseOps,
 }: {
   filters: QueueFilters;
   viewerUserId: string | null;
   onChange: (f: QueueFilters) => void;
+  /**
+   * Phase CASES-PERSONAL-UX — when false (Personal Workspace and
+   * non-investigation tiers), the risk select + assigned/governance/
+   * overdue/legal-hold chips are NOT rendered. Backend selectors are
+   * unchanged; existing filter state is still serialised to the URL
+   * for users who arrive via a deep link.
+   */
+  canSeeAdvancedCaseOps: boolean;
 }) {
   const set = <K extends keyof QueueFilters>(key: K, value: QueueFilters[K]) =>
     onChange({ ...filters, [key]: value });
@@ -358,40 +461,38 @@ function MatterQueueFilters({
           <option value="">Any status</option>
           {CASE_STATUSES.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {STATUS_LABEL[s]}
             </option>
           ))}
         </select>
-        <select
-          aria-label="Risk level"
-          value={filters.riskLevel}
-          onChange={(e) =>
-            set("riskLevel", e.target.value as MatterRiskLevel | "")
-          }
-          data-matter-queue-risk-select
-          className="cases-filter-chip"
-        >
-          <option value="">Any risk</option>
-          {RISK_LEVELS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+        {/* Phase CASES-PERSONAL-UX — risk select is enterprise-only.
+            On personal workspaces the CaseRiskSnapshot table is
+            mostly unpopulated so this filter would always return
+            "NONE" results, and the vocabulary is unfamiliar to the
+            target audience. Backend filter param + selector intact. */}
+        {canSeeAdvancedCaseOps ? (
+          <select
+            aria-label="Risk level"
+            value={filters.riskLevel}
+            onChange={(e) =>
+              set("riskLevel", e.target.value as MatterRiskLevel | "")
+            }
+            data-matter-queue-risk-select
+            className="cases-filter-chip"
+          >
+            <option value="">Any risk</option>
+            {RISK_LEVELS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        ) : null}
       </div>
-      {/* Phase IA-self-serve-completion — chip label "Open incidents"
-          replaced with plain-language "Open issues" and the group
-          aria-label changed from "Operational filters" to "Filters".
-          The underlying filter key (`hasOpenIncidents`) and the API
-          contract are unchanged. */}
       <div className="cases-filter-chips" role="group" aria-label="Filters">
-        <FilterToggle
-          dataKey="assigned-to-me"
-          label="Assigned to me"
-          active={filters.assignedToMe}
-          disabled={!viewerUserId}
-          onToggle={() => set("assignedToMe", !filters.assignedToMe)}
-        />
+        {/* Phase CASES-PERSONAL-UX — chips visible to ALL audiences.
+            Both map to real fields on every case envelope and answer
+            the question "is there anything I should do here?". */}
         <FilterToggle
           dataKey="has-open-incidents"
           label="Open issues"
@@ -399,33 +500,48 @@ function MatterQueueFilters({
           onToggle={() => set("hasOpenIncidents", !filters.hasOpenIncidents)}
         />
         <FilterToggle
-          dataKey="has-governance-blockers"
-          label="Governance blockers"
-          active={filters.hasGovernanceBlockers}
-          onToggle={() =>
-            set("hasGovernanceBlockers", !filters.hasGovernanceBlockers)
-          }
-        />
-        <FilterToggle
-          dataKey="has-overdue-workflows"
-          label="Overdue workflows"
-          active={filters.hasOverdueWorkflows}
-          onToggle={() =>
-            set("hasOverdueWorkflows", !filters.hasOverdueWorkflows)
-          }
-        />
-        <FilterToggle
-          dataKey="has-legal-hold"
-          label="Active legal hold"
-          active={filters.hasLegalHold}
-          onToggle={() => set("hasLegalHold", !filters.hasLegalHold)}
-        />
-        <FilterToggle
           dataKey="missing-artifact"
-          label="Missing report/package"
+          label="Missing report or package"
           active={filters.missingArtifact}
           onToggle={() => set("missingArtifact", !filters.missingArtifact)}
         />
+        {/* Phase CASES-PERSONAL-UX — enterprise-only chips. Hidden on
+            Personal / small-team workspaces. State + backend filter
+            params unchanged so a deep link with these params set
+            still works for enterprise users. */}
+        {canSeeAdvancedCaseOps ? (
+          <>
+            <FilterToggle
+              dataKey="assigned-to-me"
+              label="Assigned to me"
+              active={filters.assignedToMe}
+              disabled={!viewerUserId}
+              onToggle={() => set("assignedToMe", !filters.assignedToMe)}
+            />
+            <FilterToggle
+              dataKey="has-governance-blockers"
+              label="Governance blockers"
+              active={filters.hasGovernanceBlockers}
+              onToggle={() =>
+                set("hasGovernanceBlockers", !filters.hasGovernanceBlockers)
+              }
+            />
+            <FilterToggle
+              dataKey="has-overdue-workflows"
+              label="Overdue workflows"
+              active={filters.hasOverdueWorkflows}
+              onToggle={() =>
+                set("hasOverdueWorkflows", !filters.hasOverdueWorkflows)
+              }
+            />
+            <FilterToggle
+              dataKey="has-legal-hold"
+              label="Active legal hold"
+              active={filters.hasLegalHold}
+              onToggle={() => set("hasLegalHold", !filters.hasLegalHold)}
+            />
+          </>
+        ) : null}
       </div>
     </section>
   );
@@ -465,33 +581,88 @@ function FilterToggle({
 function MatterQueueTable({
   items,
   totalBeforeFilter,
+  anyFilterActive,
+  canSeeAdvancedCaseOps,
+  onClearFilters,
+  onCreateCase,
 }: {
   items: ReadonlyArray<MatterQueueItem>;
   totalBeforeFilter: number;
+  /**
+   * Phase CASES-PERSONAL-UX — drives which of the two spec-locked
+   * empty-state messages renders. When the workspace genuinely has
+   * no cases (totalBeforeFilter === 0 AND no filters are active),
+   * we show the "create your first case" empty state. When the user
+   * narrowed an existing list to zero, we show the "no matches" one
+   * with a Clear filters affordance.
+   */
+  anyFilterActive: boolean;
+  canSeeAdvancedCaseOps: boolean;
+  onClearFilters: () => void;
+  onCreateCase: () => void;
 }) {
-  // Phase 38.2 — consume persona terminology in the queue title +
-  // empty-state copy. Defaults retain "Matters" for LAWYER but switch
-  // to "Claims" for INSURANCE, "Investigations" for INVESTIGATOR, etc.
-  const terms = useTerminology();
   return (
     <section className="cc-section" data-matter-queue-table>
       <header className="cc-section-header">
         <h2 className="cc-section-title" data-matter-queue-title>
           {items.length === totalBeforeFilter
-            ? `${terms.casePlural} · ${items.length}`
-            : `${terms.casePlural} · ${items.length} of ${totalBeforeFilter}`}
+            ? `Cases · ${items.length}`
+            : `Cases · ${items.length} of ${totalBeforeFilter}`}
         </h2>
       </header>
       {items.length === 0 ? (
-        <div className="cc-section-note" data-matter-queue-empty>
-          No {terms.casePlural.toLowerCase()} match the current filters. Clear
-          filters or open a {terms.caseLower} from the {terms.evidenceLower} detail
-          to begin {terms.caseLower} coordination.
-        </div>
+        // Phase CASES-PERSONAL-UX — two distinct empty states. The
+        // workspace-has-no-cases-yet state is a real onboarding
+        // moment; the filtered-to-zero state must offer a quick
+        // clear path so the user doesn't think the page is broken.
+        totalBeforeFilter === 0 && !anyFilterActive ? (
+          <div
+            className="cc-section-note"
+            data-matter-queue-empty
+            data-empty-state="no-cases-yet"
+          >
+            <strong>No cases yet</strong>
+            <p>
+              Create a case to group related evidence for an incident,
+              claim, project, or review.
+            </p>
+            <button
+              type="button"
+              className="btn-primary"
+              data-empty-state-cta="create-case"
+              onClick={onCreateCase}
+            >
+              Create case
+            </button>
+          </div>
+        ) : (
+          <div
+            className="cc-section-note"
+            data-matter-queue-empty
+            data-empty-state="no-filter-match"
+          >
+            <strong>No cases match these filters</strong>
+            <p>
+              Try clearing filters or searching for a different case name.
+            </p>
+            <button
+              type="button"
+              className="btn-secondary"
+              data-empty-state-cta="clear-filters"
+              onClick={onClearFilters}
+            >
+              Clear filters
+            </button>
+          </div>
+        )
       ) : (
         <ul className="cases-list" data-matter-queue-items>
           {items.map((row) => (
-            <MatterQueueRow key={row.id} row={row} />
+            <MatterQueueRow
+              key={row.id}
+              row={row}
+              canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
+            />
           ))}
         </ul>
       )}
@@ -499,8 +670,21 @@ function MatterQueueTable({
   );
 }
 
-function MatterQueueRow({ row }: { row: MatterQueueItem }) {
+function MatterQueueRow({
+  row,
+  canSeeAdvancedCaseOps,
+}: {
+  row: MatterQueueItem;
+  canSeeAdvancedCaseOps: boolean;
+}) {
   const reasonCodes = row.riskReasonCodes ?? [];
+  // Phase CASES-PERSONAL-UX — the matter-queue API exposes
+  // `evidenceGapCount` (derived from CaseRiskSnapshot's package /
+  // report gap aggregation; the same signal the `missingArtifact`
+  // server-side filter uses). For personal/small-business users we
+  // surface it as a single plain-language "needs report or package"
+  // indicator instead of the enterprise counter strip.
+  const hasMissingArtifact = row.evidenceGapCount > 0;
   return (
     <li
       className="cases-row"
@@ -520,15 +704,24 @@ function MatterQueueRow({ row }: { row: MatterQueueItem }) {
               {row.referenceNumber}
             </span>
           ) : null}
-          <RiskBadge level={row.riskLevel} score={row.riskScore} />
+          {/* Phase CASES-PERSONAL-UX — risk badge is enterprise-only.
+              The CaseRiskSnapshot table is mostly unpopulated on
+              personal workspaces so the badge would either be hidden
+              by the `if (!level)` guard or read "Risk: NONE", both
+              of which are noise. */}
+          {canSeeAdvancedCaseOps ? (
+            <RiskBadge level={row.riskLevel} score={row.riskScore} />
+          ) : null}
+          {/* Status pill uses the human-readable label for both
+              audiences. data-status keeps the enum value for E2E. */}
           <span
             className="cases-row-chip"
             data-matter-queue-row-chip="status"
             data-status={row.status}
           >
-            {row.status}
+            {STATUS_LABEL[row.status as (typeof CASE_STATUSES)[number]] ?? row.status}
           </span>
-          {row.priority && row.priority !== "P2" ? (
+          {canSeeAdvancedCaseOps && row.priority && row.priority !== "P2" ? (
             <span
               className="cases-row-chip"
               data-matter-queue-row-chip="priority"
@@ -542,9 +735,25 @@ function MatterQueueRow({ row }: { row: MatterQueueItem }) {
           <Counter
             dataKey="linked-evidence"
             value={row.linkedEvidenceCount}
-            label="evidence"
+            label={row.linkedEvidenceCount === 1 ? "evidence record" : "evidence records"}
           />
-          {row.evidenceGapCount > 0 ? (
+          {/* Phase CASES-PERSONAL-UX — for personal users, collapse the
+              full operational counter strip into a single
+              plain-language "Needs report or package" chip when there
+              are gaps. Enterprise users still see the granular
+              counters below. */}
+          {!canSeeAdvancedCaseOps && hasMissingArtifact ? (
+            <span
+              className="cases-row-chip"
+              data-matter-queue-row-chip="needs-artifact"
+              data-missing-count={row.evidenceGapCount}
+            >
+              {row.evidenceGapCount === 1
+                ? "1 record needs report or package"
+                : `${row.evidenceGapCount} records need report or package`}
+            </span>
+          ) : null}
+          {canSeeAdvancedCaseOps && row.evidenceGapCount > 0 ? (
             <Counter
               dataKey="evidence-gap"
               value={row.evidenceGapCount}
@@ -552,7 +761,7 @@ function MatterQueueRow({ row }: { row: MatterQueueItem }) {
               tone="warning"
             />
           ) : null}
-          {row.openIncidentCount > 0 ? (
+          {canSeeAdvancedCaseOps && row.openIncidentCount > 0 ? (
             <Counter
               dataKey="open-incidents"
               value={row.openIncidentCount}
@@ -560,14 +769,14 @@ function MatterQueueRow({ row }: { row: MatterQueueItem }) {
               tone="high"
             />
           ) : null}
-          {row.activeWorkflowCount > 0 ? (
+          {canSeeAdvancedCaseOps && row.activeWorkflowCount > 0 ? (
             <Counter
               dataKey="active-workflows"
               value={row.activeWorkflowCount}
               label="wf"
             />
           ) : null}
-          {row.overdueWorkflowCount > 0 ? (
+          {canSeeAdvancedCaseOps && row.overdueWorkflowCount > 0 ? (
             <Counter
               dataKey="overdue-workflows"
               value={row.overdueWorkflowCount}
@@ -575,7 +784,7 @@ function MatterQueueRow({ row }: { row: MatterQueueItem }) {
               tone="critical"
             />
           ) : null}
-          {row.governanceBlockerCount > 0 ? (
+          {canSeeAdvancedCaseOps && row.governanceBlockerCount > 0 ? (
             <Counter
               dataKey="governance-blockers"
               value={row.governanceBlockerCount}
@@ -583,7 +792,7 @@ function MatterQueueRow({ row }: { row: MatterQueueItem }) {
               tone="high"
             />
           ) : null}
-          {row.activeLegalHoldCount > 0 ? (
+          {canSeeAdvancedCaseOps && row.activeLegalHoldCount > 0 ? (
             <span
               className="cases-row-chip"
               data-matter-queue-row-chip="hold"
@@ -592,7 +801,7 @@ function MatterQueueRow({ row }: { row: MatterQueueItem }) {
               Legal preservation
             </span>
           ) : null}
-          {row.activeAssignmentCount > 0 ? (
+          {canSeeAdvancedCaseOps && row.activeAssignmentCount > 0 ? (
             <Counter
               dataKey="assignments"
               value={row.activeAssignmentCount}
@@ -604,10 +813,12 @@ function MatterQueueRow({ row }: { row: MatterQueueItem }) {
             data-matter-queue-row-latest-activity
             title={row.latestActivityAtUtc}
           >
-            {formatRelativeTime(row.latestActivityAtUtc)}
+            Last updated {formatRelativeTime(row.latestActivityAtUtc)}
           </time>
         </div>
-        {reasonCodes.length > 0 ? (
+        {/* Phase CASES-PERSONAL-UX — risk-reason codes are enterprise
+            taxonomy; hidden for personal users. */}
+        {canSeeAdvancedCaseOps && reasonCodes.length > 0 ? (
           <div
             className="cases-row-reasons"
             data-matter-queue-row-reason-codes
@@ -630,6 +841,9 @@ function MatterQueueRow({ row }: { row: MatterQueueItem }) {
             ))}
           </div>
         ) : null}
+        {/* Recommended action surfaces for both audiences when present
+            — it's the closest thing to a "next simple action" hint
+            the user spec asks for, and it's plain language. */}
         {row.recommendedAction ? (
           <div
             className="cases-row-recommendation"
@@ -641,6 +855,21 @@ function MatterQueueRow({ row }: { row: MatterQueueItem }) {
             }}
           >
             Recommended: {row.recommendedAction}
+          </div>
+        ) : !canSeeAdvancedCaseOps && hasMissingArtifact ? (
+          // Personal-friendly fallback hint when the backend hasn't
+          // computed a recommendedAction but there's still a gap.
+          <div
+            className="cases-row-recommendation"
+            data-matter-queue-row-recommendation
+            data-recommendation-source="personal-fallback"
+            style={{
+              padding: "6px 0 0",
+              fontSize: 12,
+              color: "#b8c7c3",
+            }}
+          >
+            Generate the missing report or package from the evidence detail page.
           </div>
         ) : null}
       </Link>

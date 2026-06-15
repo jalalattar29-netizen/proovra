@@ -59,7 +59,16 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   ON_HOLD: ["INVESTIGATING", "RESOLVED"],
   RESOLVED: ["CLOSED", "INVESTIGATING"],
   CLOSED: ["ARCHIVED", "RESOLVED"],
-  ARCHIVED: [], // terminal
+  // Phase CASE-ARCHIVE-RESTORE — ARCHIVED is no longer terminal. The
+  // only path INTO ARCHIVED is `CLOSED → ARCHIVED`, so the only valid
+  // restore is the inverse: `ARCHIVED → CLOSED`. This keeps the
+  // lifecycle one-hop reversible, preserves `closedAtUtc` and
+  // `closureReason`, and lets the operator continue the existing
+  // CLOSED → RESOLVED → INVESTIGATING reopen path if needed.
+  // The legal-hold guard at `CLOSURE_STATUSES` still applies to this
+  // transition (target is CLOSED), so an active hold blocks restore
+  // fail-closed — the same way it blocks the original archive.
+  ARCHIVED: ["CLOSED"],
 };
 
 function transitionAllowed(from: string, to: string): boolean {
@@ -193,6 +202,40 @@ export async function changeCaseStatus(
     userAgent: input.userAgent ?? null,
     db: client,
   });
+
+  // Phase CASE-ARCHIVE-RESTORE — dedicated `cases.restored` audit
+  // event on the restore transition (ARCHIVED → CLOSED). Emitted
+  // in addition to the canonical `cases.status_changed` row so:
+  //   - Audit consumers that count `cases.status_changed` for
+  //     analytics keep working (back-compat).
+  //   - A targeted query for `action: "cases.restored"` surfaces
+  //     ONLY restorations without scanning every status mutation
+  //     for the `fromStatus === "ARCHIVED"` predicate.
+  // Same `appendPlatformAuditLog` infrastructure — no parallel
+  // logging system, no schema change.
+  if (from === "ARCHIVED" && input.toStatus === "CLOSED") {
+    await appendPlatformAuditLog({
+      userId: input.actorUserId,
+      action: "cases.restored",
+      category: "cases.lifecycle",
+      severity: "info",
+      source: "case_lifecycle_service",
+      outcome: "success",
+      resourceType: "case",
+      resourceId: existing.id,
+      metadata: {
+        teamId: existing.teamId,
+        caseId: existing.id,
+        actorUserId: input.actorUserId,
+        previousStatus: from,
+        restoredStatus: input.toStatus,
+        reason: input.reason ? input.reason.slice(0, 400) : null,
+      },
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+      db: client,
+    });
+  }
   return updated;
 }
 

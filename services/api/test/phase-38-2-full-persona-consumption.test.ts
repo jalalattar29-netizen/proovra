@@ -257,13 +257,22 @@ describe("Phase 38.2 — terminology rollout", () => {
     expect(SEARCH).toMatch(/\{terms\.evidence\}\s*Discovery/);
   });
 
-  it("Cases queue table renders terminology-tuned title + empty-state copy", () => {
+  it("Cases queue table renders the plain-language title + spec empty-state copy (no persona aliasing)", () => {
+    // Phase CASES-PERSONAL-UX (audit-driven follow-up) — the Cases
+    // page opted out of persona terminology. The h1 is plain
+    // "Cases" and the table title + empty-states use that label
+    // verbatim so personal/small-business users see consistent
+    // wording. Persona terminology is still applied on Home /
+    // Evidence pages; only this surface universally says "Cases".
     expect(CASES).toMatch(/data-matter-queue-title/);
-    expect(CASES).toMatch(/\$\{terms\.casePlural\}/);
-    // Empty-state copy now uses `terms.casePlural.toLowerCase()` and
-    // `terms.caseLower` — both demonstrate persona-tuning.
-    expect(CASES).toMatch(/terms\.casePlural\.toLowerCase\(\)/);
-    expect(CASES).toMatch(/terms\.caseLower/);
+    expect(CASES).toMatch(/`Cases · \$\{items\.length\}`/);
+    expect(CASES).not.toMatch(/terms\.casePlural/);
+    expect(CASES).not.toMatch(/terms\.caseLower/);
+    // The two spec empty states are wired and copy is locked.
+    expect(CASES).toMatch(/data-empty-state="no-cases-yet"/);
+    expect(CASES).toMatch(/data-empty-state="no-filter-match"/);
+    expect(CASES).toMatch(/<strong>No cases yet<\/strong>/);
+    expect(CASES).toMatch(/<strong>No cases match these filters<\/strong>/);
   });
 });
 

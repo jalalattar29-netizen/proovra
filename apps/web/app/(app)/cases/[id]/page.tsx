@@ -25,6 +25,16 @@ import { useCallback } from "react";
 import Link from "next/link";
 
 import { MatterWorkspace } from "../../../../components/cases-experience/MatterWorkspace";
+// Phase CASE-DETAIL-PERSONAL-UX — Personal / Small-Business workspaces
+// render a simplified 5-tab Case Detail (Overview / Evidence / Reports
+// & Packages / Notes / Settings). The richer enterprise MatterWorkspace
+// keeps its 12-tab surface; we just route between the two using the
+// same `/investigation` surface tier we use for evidence-graph and
+// cases-list advanced controls. Backend selectors + routes are
+// unchanged for both audiences.
+import { SimpleCaseDetail } from "../../../../components/cases-experience/simple-case-detail/SimpleCaseDetail";
+import { canAccessSurface } from "../../../../lib/surface/access";
+import { useSurfaceUserContext } from "../../../../lib/surface/useSurfaceUserContext";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
 
@@ -41,6 +51,17 @@ function CaseDetailPageInner() {
   const router = useRouter();
   const raw = params?.id;
   const caseId = Array.isArray(raw) ? raw[0] : raw;
+  // Phase CASE-DETAIL-PERSONAL-UX — same gate as the Cases list page.
+  // ENTERPRISE/investigation workspaces keep the 12-tab MatterWorkspace
+  // surface; Personal / small-team workspaces get the 5-tab
+  // SimpleCaseDetail with no SLA / Risk / SIU / Audit / Holds /
+  // Decisions / Assignments / Graph / Timeline. Backend routes are
+  // identical for both audiences.
+  const surfaceUserCtx = useSurfaceUserContext();
+  const canSeeAdvancedCaseOps = canAccessSurface(
+    surfaceUserCtx,
+    "/investigation",
+  );
 
   const onOpenEvidence = useCallback(
     (evidenceId: string) => {
@@ -65,38 +86,42 @@ function CaseDetailPageInner() {
           { label: caseId },
         ]}
       />
-      {/* Phase 14 — deep link from the canonical case detail surface
-          into the canonical /search surface, scoped to this case.
-          Operators land on the matter workspace by default but can
-          pivot to the cross-document search at any time. */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          padding: "0 16px",
-          marginBottom: 4,
-        }}
-      >
-        <Link
-          href={`/search?caseId=${encodeURIComponent(caseId)}`}
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: "#1e40af",
-            textDecoration: "none",
-            background: "#eff6ff",
-            border: "1px solid #bfdbfe",
-            borderRadius: 999,
-            padding: "4px 12px",
-          }}
-        >
-          View evidence in Search
-        </Link>
-      </div>
-      <MatterWorkspace
-        caseId={caseId}
-        onOpenEvidence={onOpenEvidence}
-      />
+      {canSeeAdvancedCaseOps ? (
+        <>
+          {/* Phase 14 — deep link from the canonical case detail
+              surface into the canonical /search surface, scoped to
+              this case. Enterprise-only — Personal users don't need
+              cross-document Discovery from this surface. */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              padding: "0 16px",
+              marginBottom: 4,
+            }}
+            data-cases-detail-search-pivot
+          >
+            <Link
+              href={`/search?caseId=${encodeURIComponent(caseId)}`}
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#1e40af",
+                textDecoration: "none",
+                background: "#eff6ff",
+                border: "1px solid #bfdbfe",
+                borderRadius: 999,
+                padding: "4px 12px",
+              }}
+            >
+              View evidence in Search
+            </Link>
+          </div>
+          <MatterWorkspace caseId={caseId} onOpenEvidence={onOpenEvidence} />
+        </>
+      ) : (
+        <SimpleCaseDetail caseId={caseId} onOpenEvidence={onOpenEvidence} />
+      )}
     </>
   );
 }

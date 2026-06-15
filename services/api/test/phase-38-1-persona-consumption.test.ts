@@ -159,23 +159,32 @@ describe("Phase 38.1 — sidebar More/Advanced", () => {
 // PART 3 — Cases page terminology consumption
 // =============================================================================
 
-describe("Phase 38.1 — Cases page consumes terminology", () => {
-  it("imports useTerminology from the canonical platform-context module", () => {
-    expect(CASES).toMatch(/useTerminology/);
+describe("Phase 38.1 / CASES-PERSONAL-UX — Cases page header (plain language)", () => {
+  // Phase CASES-PERSONAL-UX (audit-driven follow-up) — the Cases
+  // page header opted out of persona-tuned terminology. The audience
+  // is personal / small-business users for whom "Cases" is the
+  // plain-language term; persona aliases (Matters / Claims /
+  // Investigations) read as jargon here. Persona terminology is
+  // still used on Home / Evidence pages.
+  it("does NOT import useTerminology on the Cases header surface", () => {
+    expect(CASES).not.toMatch(/useTerminology/);
   });
 
-  it("renders the kicker + title via terminology (Case → Matter / Claim / Investigation)", () => {
-    expect(CASES).toMatch(/data-cases-kicker/);
+  it("renders a single canonical h1 'Cases' (no kicker duplicate, no persona suffix)", () => {
     expect(CASES).toMatch(/data-cases-title/);
-    // The title uses casePlural so it adapts.
-    expect(CASES).toMatch(/\{terms\.casePlural\}/);
+    expect(CASES).toMatch(
+      /<h1 className="cc-title" data-cases-title>\s*\n?\s*Cases\s*\n?\s*<\/h1>/,
+    );
+    // The prior kicker that duplicated `Your cases` is gone.
+    expect(CASES).not.toMatch(/data-cases-kicker/);
+    // The title is no longer interpolated from terms.casePlural.
+    expect(CASES).not.toMatch(/\{terms\.casePlural\}/);
   });
 
-  it("does NOT use terminology to gate behavior (capabilities still authoritative)", () => {
+  it("does NOT use terminology or persona to gate behavior (capabilities still authoritative)", () => {
     // The page still calls the canonical workspace-id hook
     // (`useTeamId` for team-only surfaces or the Phase 3 canonical
-    // `useActiveWorkspaceId` for personal-aware surfaces). The
-    // terminology hook is additive presentation only.
+    // `useActiveWorkspaceId` for personal-aware surfaces).
     expect(CASES).toMatch(/useTeamId|useActiveWorkspaceId/);
     // No persona-based capability check.
     expect(CASES).not.toMatch(/primaryProfile\s*===\s*"[A-Z]+"\s*\?/);

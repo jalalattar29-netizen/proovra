@@ -179,13 +179,29 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
       if ("profile" in res) {
         setProfile(res.profile);
         setPiiRevealed(res.profile.privacyGatedFieldsExposed);
-      } else setProfile(null);
-    } catch (e) {
-      if (e instanceof Error && /404/.test(e.message)) {
-        setProfile(null);
       } else {
-        setErr(e instanceof Error ? e.message : "Failed to load SIU profile.");
+        // Phase CASE-DETAIL-PERSONAL-UX — backend returned the
+        // `{error:{code:...}}` envelope (e.g. `siu_profile_not_found`).
+        // Treat it as the empty-state, NEVER render the raw JSON.
+        setProfile(null);
       }
+    } catch (e) {
+      // Phase CASE-DETAIL-PERSONAL-UX — `apiFetch` rejects with a
+      // message whose body is sometimes the raw JSON error payload
+      // (`{"error":{"code":"siu_profile_not_found",...}}`). The
+      // previous handler dropped `e.message` straight into the UI,
+      // exposing that JSON. We now treat any 404 + the canonical
+      // `siu_profile_not_found` code as the empty-state, and use a
+      // bounded "couldn't load" sentence for every other error
+      // shape. Raw payloads never reach the DOM.
+      if (e instanceof Error) {
+        const msg = e.message ?? "";
+        if (/404/.test(msg) || /siu_profile_not_found/.test(msg)) {
+          setProfile(null);
+          return;
+        }
+      }
+      setErr("Couldn't load the investigation profile right now.");
     }
   }, [caseId]);
 
@@ -208,12 +224,11 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
       )) as { profile: Profile; piiRedacted: false };
       setProfile(res.profile);
       setPiiRevealed(true);
-    } catch (e) {
-      setErr(
-        e instanceof Error
-          ? e.message
-          : "PII reveal failed (capability + step-up required).",
-      );
+    } catch {
+      // Phase CASE-DETAIL-PERSONAL-UX — bounded user-safe error copy
+      // regardless of backend response shape. Raw JSON payloads
+      // never reach the DOM.
+      setErr("PII reveal failed. This action needs an additional security step.");
     }
   }, [caseId]);
 
@@ -230,8 +245,9 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
         `/v1/cases/${caseId}/siu-export/preflight`,
       )) as { preflight: Preflight };
       setPreflight(res.preflight);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Preflight failed.");
+    } catch {
+      // Phase CASE-DETAIL-PERSONAL-UX — bounded user-safe error copy.
+      setErr("Couldn't run the export preflight check right now.");
     } finally {
       setBusy(false);
     }
@@ -265,8 +281,17 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
         }),
       });
       if (!res.ok) {
-        const text = await res.text();
-        setErr(`Export refused: ${res.status} ${text.slice(0, 240)}`);
+        // Phase CASE-DETAIL-PERSONAL-UX — never render the raw body
+        // (it may be a JSON error payload, an HTML 500 page, etc.).
+        // Surface only the bounded HTTP status + a human sentence.
+        await res.text().catch(() => "");
+        setErr(
+          res.status === 403
+            ? "Export refused — you don't have permission to export this case."
+            : res.status === 409
+              ? "Export refused — the case isn't ready to export yet. Run preflight and resolve any blockers."
+              : `Export refused (HTTP ${res.status}).`,
+        );
         return;
       }
       const blob = await res.blob();
@@ -276,8 +301,9 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
       link.download = `siu-export-${caseId}.zip`;
       link.click();
       URL.revokeObjectURL(url);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Export failed.");
+    } catch {
+      // Phase CASE-DETAIL-PERSONAL-UX — bounded user-safe error copy.
+      setErr("Couldn't export the case right now. Try again or contact support.");
     } finally {
       setBusy(false);
     }
@@ -319,8 +345,10 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
 
       {!profile ? (
         <p style={mutedText} data-testid="siu-empty">
-          No SIU profile yet. The case owner can add a profile via{" "}
-          <code>PUT /v1/cases/{caseId}/siu-profile</code>.
+          {/* Phase CASE-DETAIL-PERSONAL-UX — spec-locked empty-state
+              copy. The prior text leaked the literal backend route
+              path (`PUT /v1/cases/.../siu-profile`) into user copy. */}
+          No investigation profile has been created for this case.
         </p>
       ) : (
         <>
