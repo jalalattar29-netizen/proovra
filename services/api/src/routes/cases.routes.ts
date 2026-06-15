@@ -1286,30 +1286,62 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
+      // Phase CASES-ATTACH-PICKER — the picker needs filename fields
+      // to render real names instead of "type — status — short id".
+      // Additive: every previously-emitted field stays present.
+      // Filters tightened to exclude archived evidence too (was
+      // already excluding deleted + attached; archive is the third
+      // lifecycle state the personal user expects to hide).
       const evidence = await prisma.evidence.findMany({
         where: {
           ownerUserId,
           deletedAt: null,
+          archivedAt: null,
           caseId: null,
         },
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
+          title: true,
+          displayFileName: true,
+          originalFileName: true,
+          mimeType: true,
           type: true,
           status: true,
+          verificationStatus: true,
           createdAt: true,
+          latestReportVersion: true,
+          verificationPackageVersion: true,
+          _count: { select: { parts: true } },
         },
       });
+
+      const items = evidence.map((e) => ({
+        id: e.id,
+        title: e.title ?? null,
+        displayFileName: e.displayFileName ?? null,
+        originalFileName: e.originalFileName ?? null,
+        mimeType: e.mimeType ?? null,
+        itemCount: e._count.parts > 0 ? e._count.parts : 1,
+        type: String(e.type),
+        status: String(e.status),
+        verificationStatus: e.verificationStatus
+          ? String(e.verificationStatus)
+          : null,
+        createdAt: e.createdAt.toISOString(),
+        reportReady: e.latestReportVersion !== null,
+        packageReady: e.verificationPackageVersion !== null,
+      }));
 
       auditCaseAction(req, {
         userId: ownerUserId,
         action: "cases.available_evidence_list",
         outcome: "success",
         resourceId: id,
-        metadata: { count: evidence.length },
+        metadata: { count: items.length },
       });
 
-      return reply.code(200).send({ items: evidence });
+      return reply.code(200).send({ items });
     }
   );
 

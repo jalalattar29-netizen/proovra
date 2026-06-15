@@ -95,6 +95,14 @@ export function SimpleCaseDetail({
   const { confirm } = useConfirmAction();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  // Phase CASES-ATTACH-PICKER — `attachOpen` lives at page level so
+  // the single header "Add evidence" button can open the dialog
+  // from any tab. The previous implementation kept this state
+  // inside `EvidenceTab`, which left the header button effectively
+  // dead unless the user happened to already be on the Evidence
+  // tab. Lifting state also lets us remove the duplicate Add
+  // buttons that lived in the tab body + empty state.
+  const [attachOpen, setAttachOpen] = useState(false);
 
   const reload = useCallback(async () => {
     setState((prev) =>
@@ -195,7 +203,9 @@ export function SimpleCaseDetail({
         caseDetail={caseDetail}
         evidenceCount={evidenceItems.length}
         isReloading={Boolean(isReloading)}
-        onAddEvidence={() => setActiveTab("evidence")}
+        canLinkEvidence={viewer.canLinkEvidence}
+        linkEvidenceDisabledReason={viewer.disabledReasons.linkEvidence}
+        onAddEvidence={() => setAttachOpen(true)}
       />
 
       <nav
@@ -285,6 +295,23 @@ export function SimpleCaseDetail({
           confirm={confirm}
         />
       ) : null}
+
+      {/* Phase CASES-ATTACH-PICKER — single page-level modal mount.
+          Triggered exclusively by the header "Add evidence" button
+          (no duplicate triggers in the tab body or empty state). */}
+      {attachOpen ? (
+        <AttachEvidenceModal
+          caseId={caseId}
+          existingEvidenceIds={new Set(evidenceItems.map((i) => i.id))}
+          onClose={() => setAttachOpen(false)}
+          onAttached={async () => {
+            setAttachOpen(false);
+            await reload();
+            addToast("Evidence linked to case.", "success");
+          }}
+          onError={(msg) => addToast(msg, "error")}
+        />
+      ) : null}
     </main>
   );
 }
@@ -297,11 +324,15 @@ function SimpleCaseHeader({
   caseDetail,
   evidenceCount,
   isReloading,
+  canLinkEvidence,
+  linkEvidenceDisabledReason,
   onAddEvidence,
 }: {
   caseDetail: MatterWorkspaceCaseHeader;
   evidenceCount: number;
   isReloading: boolean;
+  canLinkEvidence: boolean;
+  linkEvidenceDisabledReason: string | null | undefined;
   onAddEvidence: () => void;
 }) {
   return (
@@ -362,6 +393,8 @@ function SimpleCaseHeader({
             destination. */}
         <Button
           onClick={onAddEvidence}
+          disabled={!canLinkEvidence}
+          title={linkEvidenceDisabledReason ?? undefined}
           data-simple-case-action="add-evidence"
         >
           Add evidence
@@ -509,7 +542,6 @@ function EvidenceTab({
   addToast: ToastFn;
   confirm: ConfirmFn;
 }) {
-  const [attachOpen, setAttachOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const handleRemove = useCallback(
@@ -553,21 +585,14 @@ function EvidenceTab({
       aria-label="Evidence"
       data-simple-case-evidence
     >
-      <header
-        className="cc-section-header"
-        style={{ display: "flex", justifyContent: "space-between" }}
-      >
+      {/* Phase CASES-ATTACH-PICKER (Final) — the tab body no longer
+          renders an Add-evidence button. The page header owns the
+          single canonical entry point so the user can attach from
+          any tab without duplicate affordances. */}
+      <header className="cc-section-header">
         <h2 className="cc-section-title">
           Evidence · {items.length}
         </h2>
-        <Button
-          onClick={() => setAttachOpen(true)}
-          disabled={!viewer.canLinkEvidence}
-          data-simple-case-attach-trigger
-          title={viewer.disabledReasons.linkEvidence ?? undefined}
-        >
-          Add evidence
-        </Button>
       </header>
 
       {items.length === 0 ? (
@@ -578,16 +603,9 @@ function EvidenceTab({
         >
           <strong>No evidence linked yet.</strong>
           <p>
-            Add evidence to group related files, photos, videos, or
-            documents in this case.
+            Use <em>Add evidence</em> above to link files, photos,
+            videos, or documents to this case.
           </p>
-          <Button
-            onClick={() => setAttachOpen(true)}
-            disabled={!viewer.canLinkEvidence}
-            data-simple-case-attach-empty
-          >
-            Add evidence
-          </Button>
         </div>
       ) : (
         <ul
@@ -693,22 +711,43 @@ function EvidenceTab({
         </ul>
       )}
 
-      {attachOpen ? (
-        <AttachEvidenceModal
-          caseId={caseId}
-          existingEvidenceIds={new Set(items.map((i) => i.id))}
-          onClose={() => setAttachOpen(false)}
-          onAttached={async () => {
-            setAttachOpen(false);
-            await onReload();
-            addToast("Evidence added to this case.", "success");
-          }}
-          onError={(msg) => addToast(msg, "error")}
-        />
-      ) : null}
     </section>
   );
 }
+
+/**
+ * Phase CASES-ATTACH-PICKER — searchable evidence-picker dialog.
+ * Replaces the prior native <select> which only displayed
+ * `${type} — ${status} — ${short id}` — useless to a personal user
+ * who identifies evidence by filename. The picker:
+ *
+ *   - renders one row per attachable evidence record using the
+ *     canonical `getDisplayTitle()` cascade (real filenames),
+ *   - filters client-side as the user types (the backend already
+ *     scopes by owner + not-attached + not-deleted + not-archived,
+ *     so the candidate set is small and client filtering keeps the
+ *     UI responsive without input-focus churn),
+ *   - lets the user click a row OR a "Select" button to pick,
+ *   - keeps the "Link selected evidence" button disabled until
+ *     something is selected,
+ *   - calls the existing POST /v1/cases/:id/evidence attach
+ *     endpoint, which still enforces `evaluateCrossTeamAttach`
+ *     (cross-workspace attach remains blocked at the backend).
+ */
+type AttachCandidate = {
+  id: string;
+  title: string | null;
+  displayFileName: string | null;
+  originalFileName: string | null;
+  mimeType: string | null;
+  itemCount: number;
+  type: string;
+  status: string;
+  verificationStatus: string | null;
+  createdAt: string;
+  reportReady: boolean;
+  packageReady: boolean;
+};
 
 function AttachEvidenceModal({
   caseId,
@@ -723,9 +762,9 @@ function AttachEvidenceModal({
   onAttached: () => Promise<void>;
   onError: (message: string) => void;
 }) {
-  type Candidate = { id: string; type: string; status: string; createdAt: string };
-  const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  const [candidates, setCandidates] = useState<AttachCandidate[] | null>(null);
   const [selected, setSelected] = useState<string>("");
+  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -734,23 +773,19 @@ function AttachEvidenceModal({
       try {
         const res = (await apiFetch(
           `/v1/cases/${caseId}/available-evidence`,
-        )) as { items: Candidate[] };
+        )) as { items: AttachCandidate[] };
         if (cancelled) return;
-        // Backend already excludes attached evidence (`caseId: null`
-        // predicate). The Set filter is a defensive client-side
-        // dedupe in case stale state lingers — backend stays the
-        // authority.
+        // Backend already excludes attached / deleted / archived
+        // and scopes to the owner. The Set filter is a defensive
+        // client-side dedupe in case stale state lingers — backend
+        // stays the authority for security.
         const filtered = (res.items ?? []).filter(
           (i) => !existingEvidenceIds.has(i.id),
         );
         setCandidates(filtered);
-      } catch (err) {
+      } catch {
         if (cancelled) return;
-        onError(
-          err instanceof Error
-            ? "Could not load available evidence."
-            : "Could not load available evidence.",
-        );
+        onError("Could not load available evidence.");
         setCandidates([]);
       }
     })();
@@ -759,19 +794,38 @@ function AttachEvidenceModal({
     };
   }, [caseId, existingEvidenceIds, onError]);
 
+  const trimmedQuery = query.trim().toLowerCase();
+  const visibleCandidates = (candidates ?? []).filter((c) => {
+    if (!trimmedQuery) return true;
+    const name = getDisplayTitle(c).toLowerCase();
+    const hay = [
+      name,
+      c.title ?? "",
+      c.displayFileName ?? "",
+      c.originalFileName ?? "",
+      c.type,
+      c.status,
+      c.id,
+      c.id.slice(0, 8),
+    ]
+      .join("\n")
+      .toLowerCase();
+    return hay.includes(trimmedQuery);
+  });
+
   const handleAttach = useCallback(async () => {
     if (!selected) return;
     setBusy(true);
     try {
-      // Backend enforces `evaluateCrossTeamAttach` strict same-team
-      // equality. Frontend just sends the picked id.
       await apiFetch(`/v1/cases/${caseId}/evidence`, {
         method: "POST",
         body: JSON.stringify({ evidenceId: selected }),
       });
+      setSelected("");
+      setQuery("");
       await onAttached();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Could not attach evidence.");
+      onError(err instanceof Error ? err.message : "Could not link evidence.");
     } finally {
       setBusy(false);
     }
@@ -796,38 +850,187 @@ function AttachEvidenceModal({
       <div
         style={{
           background: "#fff",
-          padding: 16,
+          padding: 20,
           borderRadius: 8,
-          minWidth: 320,
-          maxWidth: 480,
+          width: "min(560px, 92vw)",
+          maxHeight: "82vh",
+          display: "flex",
+          flexDirection: "column",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 id="attach-evidence-title" style={{ marginTop: 0 }}>
-          Add evidence to this case
+        <h3
+          id="attach-evidence-title"
+          style={{ margin: "0 0 4px 0" }}
+        >
+          Link evidence to case
         </h3>
-        {candidates === null ? (
-          <p>Loading…</p>
-        ) : candidates.length === 0 ? (
-          <p data-simple-case-attach-empty-list>
-            No unassigned evidence is available in this workspace.
-          </p>
-        ) : (
-          <select
-            value={selected}
-            onChange={(e) => setSelected(e.target.value)}
-            data-simple-case-attach-select
-            style={{ width: "100%", padding: 6 }}
-          >
-            <option value="">Select evidence</option>
-            {candidates.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.type} — {c.status} — {c.id.slice(0, 8)}
-              </option>
-            ))}
-          </select>
-        )}
-        <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end", gap: 6 }}>
+        <p className="cc-muted" style={{ margin: "0 0 12px 0" }}>
+          Choose an existing evidence record from this workspace.
+        </p>
+
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search evidence by name, type, or record ID"
+          aria-label="Search attachable evidence"
+          data-simple-case-attach-search
+          style={{
+            width: "100%",
+            padding: "8px 10px",
+            border: "1px solid rgba(15, 23, 42, 0.2)",
+            borderRadius: 6,
+            marginBottom: 12,
+          }}
+          disabled={busy}
+        />
+
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            border: "1px solid rgba(15, 23, 42, 0.08)",
+            borderRadius: 6,
+            minHeight: 120,
+          }}
+          data-simple-case-attach-list
+        >
+          {candidates === null ? (
+            <p
+              className="cc-muted"
+              data-simple-case-attach-loading
+              style={{ padding: 16 }}
+            >
+              Loading available evidence…
+            </p>
+          ) : candidates.length === 0 ? (
+            <p
+              className="cc-muted"
+              data-simple-case-attach-empty-list
+              style={{ padding: 16 }}
+            >
+              No available evidence to link. Upload or capture
+              evidence first, then return to this case.
+            </p>
+          ) : visibleCandidates.length === 0 ? (
+            <p
+              className="cc-muted"
+              data-simple-case-attach-no-match
+              style={{ padding: 16 }}
+            >
+              No matching evidence found. Try a different name or
+              record ID.
+            </p>
+          ) : (
+            <ul
+              style={{
+                listStyle: "none",
+                margin: 0,
+                padding: 0,
+              }}
+            >
+              {visibleCandidates.map((c) => {
+                const isSelected = selected === c.id;
+                return (
+                  <li
+                    key={c.id}
+                    data-simple-case-attach-row={c.id}
+                    data-selected={isSelected ? "true" : "false"}
+                    onClick={() => setSelected(c.id)}
+                    style={{
+                      padding: "10px 12px",
+                      cursor: "pointer",
+                      background: isSelected
+                        ? "rgba(30, 64, 175, 0.08)"
+                        : "transparent",
+                      borderBottom: "1px solid rgba(15, 23, 42, 0.06)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                        data-simple-case-attach-row-title
+                      >
+                        {getDisplayTitle(c)}
+                      </div>
+                      <div
+                        className="cc-muted"
+                        style={{
+                          fontSize: 12,
+                          marginTop: 2,
+                          display: "flex",
+                          gap: 8,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span>{c.type}</span>
+                        <span aria-hidden>·</span>
+                        <span>{c.status}</span>
+                        <span aria-hidden>·</span>
+                        <span>{c.id.slice(0, 8)}</span>
+                        <span
+                          data-simple-case-attach-row-report={
+                            c.reportReady ? "ready" : "missing"
+                          }
+                          style={{ color: c.reportReady ? "#15803d" : "#92400e" }}
+                        >
+                          {c.reportReady ? "Report ready" : "Report missing"}
+                        </span>
+                        <span
+                          data-simple-case-attach-row-package={
+                            c.packageReady ? "ready" : "missing"
+                          }
+                          style={{ color: c.packageReady ? "#15803d" : "#92400e" }}
+                        >
+                          {c.packageReady ? "Package ready" : "Package missing"}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelected(c.id);
+                      }}
+                      data-simple-case-attach-row-select={c.id}
+                      disabled={busy}
+                      style={{
+                        border: "1px solid rgba(15, 23, 42, 0.2)",
+                        background: isSelected ? "#1e40af" : "#fff",
+                        color: isSelected ? "#fff" : "#1e40af",
+                        borderRadius: 4,
+                        padding: "4px 10px",
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                    >
+                      {isSelected ? "Selected" : "Select"}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div
+          style={{
+            marginTop: 16,
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+          }}
+        >
           <Button variant="secondary" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
@@ -836,7 +1039,7 @@ function AttachEvidenceModal({
             disabled={!selected || busy}
             data-simple-case-attach-confirm
           >
-            {busy ? "Adding…" : "Add evidence"}
+            {busy ? "Linking…" : "Link selected evidence"}
           </Button>
         </div>
       </div>
