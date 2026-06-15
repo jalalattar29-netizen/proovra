@@ -3933,8 +3933,14 @@ trustDecisionSnapshot:
             select: { id: true },
           });
           if (created) {
+            // Phase SEARCH-REMEDIATION-CI-FIX — worker uses its own
+            // mirror of the API's indexer (see
+            // services/worker/src/search-index/artifact-indexer.ts
+            // for the rationale). Worker MUST NOT import from
+            // services/api/src — that violates the build rootDir
+            // boundary and crashes the worker Docker image build.
             const { indexPackage } = await import(
-              "../../api/src/services/search/artifact-indexing.service.js"
+              "./search-index/artifact-indexer.js"
             );
             const res = await indexPackage({ packageId: created.id });
             if (!res.ok) {
@@ -3957,7 +3963,7 @@ trustDecisionSnapshot:
           });
           if (co) {
             const { indexReport } = await import(
-              "../../api/src/services/search/artifact-indexing.service.js"
+              "./search-index/artifact-indexer.js"
             );
             const res = await indexReport({ reportId: co.id });
             if (!res.ok) {

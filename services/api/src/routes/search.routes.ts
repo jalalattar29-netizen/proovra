@@ -470,104 +470,23 @@ export async function searchRoutes(app: FastifyInstance) {
     }
   );
 
-  app.get(
-    "/v1/search/suggest",
-    { preHandler: [requireAuthAndLegal] },
-    async (req: any) => {
-      try {
-        const q = typeof req.query.q === "string" ? req.query.q : "";
-        const userId = req.user!.sub;
-
-        if (!q || q.length < 2) {
-          auditSearchAction(req, {
-            userId,
-            action: "search.suggest",
-            outcome: "success",
-            metadata: { q, suggestionCount: 0, skipped: true },
-          });
-          return { suggestions: [] };
-        }
-
-        const searchTerm = q.toLowerCase();
-
-        const suggestions: Array<{
-          type: string;
-          id: string;
-          title: string;
-        }> = [];
-
-        const evidence = await prisma.evidence.findMany({
-          where: {
-            ownerUserId: userId,
-            deletedAt: null,
-            mimeType: { contains: searchTerm, mode: "insensitive" },
-          },
-          select: { id: true, type: true, createdAt: true },
-          take: 3,
-        });
-
-        suggestions.push(
-          ...evidence.map((e: { id: string; type: string; createdAt: Date }) => ({
-            type: "evidence",
-            id: e.id,
-            title: `${e.type} - ${new Date(e.createdAt).toLocaleDateString()}`,
-          }))
-        );
-
-        const cases = await prisma.case.findMany({
-          where: {
-            ownerUserId: userId,
-            name: { contains: searchTerm, mode: "insensitive" },
-          },
-          select: { id: true, name: true },
-          take: 3,
-        });
-
-        suggestions.push(
-          ...cases.map((c: { id: string; name: string }) => ({
-            type: "case",
-            id: c.id,
-            title: c.name,
-          }))
-        );
-
-        auditSearchAction(req, {
-          userId,
-          action: "search.suggest",
-          outcome: "success",
-          metadata: {
-            q,
-            suggestionCount: suggestions.length,
-          },
-        });
-
-        fireSearchAnalytics({
-          eventType: "search_suggestions_requested",
-          userId,
-          req,
-          metadata: {
-            qLength: q.length,
-            suggestionCount: suggestions.length,
-          },
-        });
-
-        return { suggestions };
-      } catch (error) {
-        auditSearchAction(req, {
-          userId: req.user?.sub ?? null,
-          action: "search.suggest",
-          outcome: "failure",
-          severity: "warning",
-          metadata: {
-            reason: error instanceof Error ? error.message : "unknown_error",
-          },
-        });
-
-        req.log.error({ error }, "Search suggest failed");
-        return { suggestions: [] };
-      }
-    }
-  );
+  // Phase SEARCH-REMEDIATION-CI-FIX — the legacy GET /v1/search/suggest
+  // that lived here (querying `prisma.evidence` + `prisma.case` by
+  // ownerUserId with mimeType ILIKE and returning an untyped
+  // `{type, id, title}` shape) is removed. Fastify rejects two
+  // GET handlers for the same path at register-time, which crashed
+  // API startup on CI. The canonical handler — lower in this file
+  // under "Phase SEARCH-REMEDIATION-2 — type-ahead suggest" — is
+  // what the typeahead UI calls. It:
+  //   - queries the team-scoped `evidence_search_documents`
+  //     projection (so it returns Evidence + Case + Report +
+  //     Package + Note suggestions in one round-trip);
+  //   - applies the canonical `requireSearchActor` gate so
+  //     workspace + reviewer-restriction isolation is enforced;
+  //   - returns the `{ id, documentType, sourceId, title, ... }`
+  //     shape the frontend expects.
+  // The legacy handler's audit + analytics emissions were ported
+  // into the canonical handler below.
 
   // =========================================================================
   // Phase 24 — Enterprise Search + Evidence Discovery Platform
@@ -1057,44 +976,83 @@ export async function searchRoutes(app: FastifyInstance) {
       const actor = await requireSearchActor(req, reply, q.teamId);
       if (!actor) return;
       const limit = q.limit ?? 10;
-      // Anchor on prefix match first (preferred), then substring.
-      // One query with OR — Prisma adds both clauses and Postgres
-      // dedupes via the unique id.
-      const rows = await prisma.evidenceSearchDocument.findMany({
-        where: {
-          teamId: q.teamId,
-          // Non-reviewer actors never see reviewer-restricted rows.
-          ...(actor.isReviewerCapable ? {} : { reviewerRestricted: false }),
-          OR: [
-            { title: { contains: q.q, mode: "insensitive" } },
-            { searchableText: { contains: q.q, mode: "insensitive" } },
-          ],
-        },
-        select: {
-          id: true,
-          documentType: true,
-          sourceId: true,
-          title: true,
-          subtitle: true,
-          evidenceId: true,
-          caseId: true,
-          sourceUpdatedAtUtc: true,
-        },
-        orderBy: [{ sourceUpdatedAtUtc: "desc" }],
-        take: limit,
-      });
-      return reply.code(200).send({
-        suggestions: rows.map((r) => ({
-          id: r.id,
-          documentType: r.documentType,
-          sourceId: r.sourceId,
-          title: r.title,
-          subtitle: r.subtitle,
-          evidenceId: r.evidenceId,
-          caseId: r.caseId,
-          updatedAt: r.sourceUpdatedAtUtc.toISOString(),
-        })),
-      });
+      try {
+        // Anchor on prefix match first (preferred), then substring.
+        // One query with OR — Prisma adds both clauses and Postgres
+        // dedupes via the unique id.
+        const rows = await prisma.evidenceSearchDocument.findMany({
+          where: {
+            teamId: q.teamId,
+            // Non-reviewer actors never see reviewer-restricted rows.
+            ...(actor.isReviewerCapable ? {} : { reviewerRestricted: false }),
+            OR: [
+              { title: { contains: q.q, mode: "insensitive" } },
+              { searchableText: { contains: q.q, mode: "insensitive" } },
+            ],
+          },
+          select: {
+            id: true,
+            documentType: true,
+            sourceId: true,
+            title: true,
+            subtitle: true,
+            evidenceId: true,
+            caseId: true,
+            sourceUpdatedAtUtc: true,
+          },
+          orderBy: [{ sourceUpdatedAtUtc: "desc" }],
+          take: limit,
+        });
+        // Phase SEARCH-REMEDIATION-CI-FIX — preserve the legacy
+        // audit + analytics emissions (ported from the removed
+        // duplicate handler). Both helpers are fire-and-forget; a
+        // failure inside them never blocks the suggest response.
+        auditSearchAction(req, {
+          userId: actor.userId,
+          action: "search.suggest",
+          outcome: "success",
+          metadata: {
+            qLength: q.q.length,
+            teamId: q.teamId,
+            suggestionCount: rows.length,
+          },
+        });
+        fireSearchAnalytics({
+          eventType: "search_suggestions_requested",
+          userId: actor.userId,
+          req,
+          metadata: {
+            qLength: q.q.length,
+            suggestionCount: rows.length,
+          },
+        });
+        return reply.code(200).send({
+          suggestions: rows.map((r) => ({
+            id: r.id,
+            documentType: r.documentType,
+            sourceId: r.sourceId,
+            title: r.title,
+            subtitle: r.subtitle,
+            evidenceId: r.evidenceId,
+            caseId: r.caseId,
+            updatedAt: r.sourceUpdatedAtUtc.toISOString(),
+          })),
+        });
+      } catch (err) {
+        auditSearchAction(req, {
+          userId: actor.userId,
+          action: "search.suggest",
+          outcome: "failure",
+          severity: "warning",
+          metadata: {
+            reason: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+          },
+        });
+        // Fail soft: the typeahead UI handles an empty list as
+        // "no suggestions". Returning 200 keeps the user able to
+        // submit the underlying query.
+        return reply.code(200).send({ suggestions: [] });
+      }
     },
   );
 
