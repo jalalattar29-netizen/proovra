@@ -733,29 +733,16 @@ describe("Phase 6 source-text wiring guards", () => {
     ).toBeGreaterThanOrEqual(3);
   });
 
-  it("escalation-engine.service.js mirror is in sync", () => {
-    const src = read(
-      "../src/services/reviewer-ops/escalation-engine.service.js",
-    );
-    expect(src).toMatch(/templateSlug: true/);
-    expect(src).toMatch(/templateVersion: true/);
-    expect(src).toMatch(/templateDbId: true/);
-    expect(src).toMatch(/client\.evidence\.findUnique/);
-    expect(
-      src.match(/templateSlug: templateProvenance\.templateSlug/g)?.length ?? 0,
-    ).toBeGreaterThanOrEqual(3);
-  });
+  // Phase CASES-EVIDENCE-NAMES-ROOT-CAUSE — the ".service.js
+  // mirror is in sync" tests below were removed when the stale
+  // compiled .js shadows under services/api/src/ were purged.
+  // Runtime always loads the .ts now (tsx swaps the import
+  // extension when the .js does not exist), so the .ts pin above
+  // is the only source of truth.
 
   it("reports-aggregator.service.ts surfaces provenance trio on ArtifactRow", () => {
     const src = read("../src/services/reports/reports-aggregator.service.ts");
     expect(src).toMatch(/provenance: TemplateProvenance/);
-    expect(src).toMatch(/templateSlug: r\.templateSlug \?\? null/);
-    expect(src).toMatch(/templateVersion: r\.templateVersion \?\? null/);
-    expect(src).toMatch(/templateDbId: r\.templateDbId \?\? null/);
-  });
-
-  it("reports-aggregator.service.js mirror is in sync", () => {
-    const src = read("../src/services/reports/reports-aggregator.service.js");
     expect(src).toMatch(/templateSlug: r\.templateSlug \?\? null/);
     expect(src).toMatch(/templateVersion: r\.templateVersion \?\? null/);
     expect(src).toMatch(/templateDbId: r\.templateDbId \?\? null/);
@@ -776,22 +763,8 @@ describe("Phase 6 source-text wiring guards", () => {
     expect(src).toMatch(/templateDbId: templateProvenance\.templateDbId/);
   });
 
-  it("governance.service.js mirror is in sync", () => {
-    const src = read("../src/services/governance.service.js");
-    expect(src).toMatch(/templateSlug: templateProvenance\.templateSlug/);
-    expect(src).toMatch(/templateVersion: templateProvenance\.templateVersion/);
-    expect(src).toMatch(/templateDbId: templateProvenance\.templateDbId/);
-  });
-
   it("legal-hold.service.ts emits trio in LEGAL_HOLD_APPLIED payload for EVIDENCE kind", () => {
     const src = read("../src/services/lifecycle/legal-hold.service.ts");
-    expect(src).toMatch(/LEGAL_HOLD_APPLIED/);
-    expect(src).toMatch(/templateSlug: templateProvenance\.templateSlug/);
-    expect(src).toMatch(/input\.kind === "EVIDENCE" && scopeTargetId/);
-  });
-
-  it("legal-hold.service.js mirror is in sync", () => {
-    const src = read("../src/services/lifecycle/legal-hold.service.js");
     expect(src).toMatch(/LEGAL_HOLD_APPLIED/);
     expect(src).toMatch(/templateSlug: templateProvenance\.templateSlug/);
     expect(src).toMatch(/input\.kind === "EVIDENCE" && scopeTargetId/);

@@ -15,6 +15,21 @@ build
 coverage
 *.log
 
+# Phase CASES-EVIDENCE-NAMES-ROOT-CAUSE — TypeScript packages must
+# never have compiled .js / .js.map artifacts inside `src/`. The
+# build outputs belong in `dist/` (already ignored above). When a
+# stale `src/**/*.js` shadow exists next to a `.ts` source, Node's
+# ESM resolver loads the .js literally (imports use explicit `.js`
+# extensions per Node ESM rules) and silently ignores the .ts. That
+# is exactly how the matter-workspace "Untitled evidence" fix went
+# live without effect — a stale matter-workspace.service.js from
+# 2026-06-03 shadowed every subsequent .ts edit. Pinned by
+# `apps/web/__tests__/no-shadow-js-in-src.test.ts`.
+services/api/src/**/*.js
+services/api/src/**/*.js.map
+services/worker/src/**/*.js
+services/worker/src/**/*.js.map
+
 # prisma
 services/**/prisma/migrations
 

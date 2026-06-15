@@ -58,10 +58,12 @@ const ROUTES_TS = readFileSync(
   resolve(REPO_ROOT, "services", "api", "src", "routes", "collaboration.routes.ts"),
   "utf8",
 );
-const ROUTES_JS = readFileSync(
-  resolve(REPO_ROOT, "services", "api", "src", "routes", "collaboration.routes.js"),
-  "utf8",
-);
+// Phase CASES-EVIDENCE-NAMES-ROOT-CAUSE — the `.js` mirror that
+// used to be source-pinned here was a stale compiled shadow that
+// shadowed the .ts source at ESM runtime. The shadow has been
+// deleted repo-wide and is now blocked by .gitignore +
+// `apps/web/__tests__/no-shadow-js-in-src.test.ts`. The ".js
+// shadow" describe block below was removed for the same reason.
 const EVIDENCE_ROUTES_TS = readFileSync(
   resolve(REPO_ROOT, "services", "api", "src", "routes", "evidence.routes.ts"),
   "utf8",
@@ -110,36 +112,10 @@ describe("collaboration.routes guard: requireReviewerMember requires ACTIVE memb
     expect(guard.match(/not_found/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 
-  it(".js shadow: the compiled artifact is in lockstep with the .ts source", () => {
-    // The repo ships a sibling `.js` for every route. If the .js
-    // diverges from the .ts the wrong guard could ship in production.
-    // We assert the SAME predicate landed in both files.
-    expect(ROUTES_JS).toMatch(
-      /membership\.status\s*===\s*prismaPkg\.TeamMemberStatus\.ACTIVE/,
-    );
-    const activeIdx = ROUTES_JS.indexOf("isActiveMember");
-    const permIdx = ROUTES_JS.indexOf(
-      'requirePermission(membership.role, "evidence_request.review")',
-    );
-    expect(activeIdx).toBeGreaterThan(0);
-    expect(permIdx).toBeGreaterThan(activeIdx);
-    // Scope the rejection-shape check to the guard body only — the
-    // rest of the .js file has many other reply.code(404) calls for
-    // unrelated routes. The guard body ends at the next top-level
-    // `function ` declaration.
-    const start = ROUTES_JS.indexOf("async function requireReviewerMember");
-    expect(start).toBeGreaterThan(0);
-    const after = ROUTES_JS.indexOf("\nfunction ", start);
-    expect(after).toBeGreaterThan(start);
-    const guardJs = ROUTES_JS.slice(start, after);
-    const replyCalls = guardJs.match(/reply\.code\(\s*\d+\s*\)/g) ?? [];
-    expect(replyCalls.length).toBe(2);
-    for (const call of replyCalls) {
-      expect(call).toMatch(/reply\.code\(\s*404\s*\)/);
-    }
-    expect(guardJs).not.toMatch(/reply\.code\(\s*403\s*\)/);
-    expect(guardJs).not.toMatch(/reply\.code\(\s*401\s*\)/);
-  });
+  // The previous ".js shadow: compiled artifact is in lockstep
+  // with the .ts source" assertion was removed when the shadow
+  // .js files were purged. The .ts source-pin above is now the
+  // single source of truth; runtime always loads the .ts.
 
   it("frontend ↔ backend parity: both sides use prismaPkg.TeamMemberStatus.ACTIVE", () => {
     // The Evidence Detail capability computation
