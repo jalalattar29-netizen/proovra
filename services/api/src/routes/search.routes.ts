@@ -1329,20 +1329,33 @@ export async function searchRoutes(app: FastifyInstance) {
         };
       }
 
-      // Health classification — the single signal the frontend uses to
-      // pick which empty-state copy to render.
-      //   "healthy"        — index has at least one EVIDENCE row AND
-      //                      indexedEvidence === evidenceTotal
-      //   "partial_index"  — index has some EVIDENCE rows but fewer
-      //                      than evidenceTotal (backfill running)
-      //   "empty_index"    — index has zero rows for this workspace
-      //                      AND workspace has evidence (indexing not
-      //                      yet run / lifecycle hook broken)
-      //   "empty_workspace"— workspace itself has no evidence
+      // Health classification — the single signal the frontend uses
+      // to pick which empty-state copy to render.
+      //   "healthy"        — every EVIDENCE row is indexed AND the
+      //                      index has at least one row.
+      //   "partial_index"  — index has at least one row for the
+      //                      workspace but evidenceIndexed <
+      //                      evidenceTotal. Covers both "backfill
+      //                      running" AND "reports/packages indexed
+      //                      but evidence-specific indexer broken"
+      //                      — both are partial coverage from the
+      //                      Personal/SMB user's perspective.
+      //   "empty_index"    — workspace has source records but the
+      //                      ENTIRE index is empty across all
+      //                      document types (lifecycle hook never
+      //                      ran / backfill not started). Previously
+      //                      this branch fired on
+      //                      `indexedEvidence === 0` even when
+      //                      reports/packages WERE indexed, causing
+      //                      the chip to read "Search index
+      //                      preparing (0/N)" while the result list
+      //                      visibly showed REPORT rows. The fix
+      //                      requires the WHOLE index to be empty.
+      //   "empty_workspace"— workspace has no source evidence rows.
       const health: "healthy" | "partial_index" | "empty_index" | "empty_workspace" =
         evidenceTotal === 0
           ? "empty_workspace"
-          : indexedEvidence === 0
+          : indexedTotal === 0
             ? "empty_index"
             : indexedEvidence < evidenceTotal
               ? "partial_index"

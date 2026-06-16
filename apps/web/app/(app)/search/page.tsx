@@ -451,33 +451,54 @@ function SearchInner() {
     };
   }, [teamId]);
 
-  // Search-runtime-diagnostics — fetch once per teamId. Used to render
-  // explicit empty-state copy ("Search index preparing", "Workspace has
-  // no records yet") when the cause of an empty result is NOT "no
-  // matching rows". One fetch per workspace; a 404 (older backend) or
-  // any other failure collapses to null + searchHealthError=true so the
-  // page degrades to the legacy empty-state branches.
-  useEffect(() => {
-    if (!teamId) return;
-    let cancelled = false;
-    setSearchHealthError(false);
-    apiFetch(
-      `/v1/search/diagnostics?teamId=${encodeURIComponent(teamId)}`,
-      { method: "GET" },
-    )
-      .then((r: SearchDiagnostics) => {
-        if (cancelled) return;
-        setSearchHealth(r);
+  // Search-runtime-diagnostics — workspace-scoped health envelope.
+  // Used to render explicit empty-state copy ("Search index
+  // preparing", "Workspace has no records yet") when the cause of
+  // an empty result is NOT "no matching rows". A 404 (older
+  // backend) or any other failure collapses to null +
+  // searchHealthError=true so the page degrades to the legacy
+  // empty-state branches.
+  //
+  // Refetch trigger surface — runs on:
+  //   1. teamId change (workspace switch),
+  //   2. explicit reloadHealth() invocation from the search-result
+  //      handler when reality (rows returned) contradicts the
+  //      cached health (chip says "empty_index" but rows came
+  //      back). Without that second trigger the chip stays stuck
+  //      on "Search index preparing (0/N)" forever after a
+  //      backfill — the bug that motivated this fix.
+  // Search-runtime-diagnostics — passing `q` makes the backend run
+  // the same OR-over-(title/subtitle/summary/searchableText)
+  // probe-query the main `/v1/search` route would, returning the
+  // per-type `matchedByType` envelope. The frontend uses that to
+  // render truthful copy when a filter narrows results — e.g. when
+  // the Evidence filter returns 0 but REPORT/PACKAGE rows DID
+  // match the same query, the empty-state branch can say so
+  // explicitly instead of generic "No matches".
+  const reloadHealth = useCallback(
+    (probeQuery?: string) => {
+      if (!teamId) return;
+      setSearchHealthError(false);
+      const params = new URLSearchParams({ teamId });
+      const trimmed = probeQuery?.trim() ?? "";
+      if (trimmed.length > 0) params.set("q", trimmed.slice(0, 200));
+      apiFetch(`/v1/search/diagnostics?${params.toString()}`, {
+        method: "GET",
       })
-      .catch(() => {
-        if (cancelled) return;
-        setSearchHealth(null);
-        setSearchHealthError(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [teamId]);
+        .then((r: SearchDiagnostics) => {
+          setSearchHealth(r);
+        })
+        .catch(() => {
+          setSearchHealth(null);
+          setSearchHealthError(true);
+        });
+    },
+    [teamId],
+  );
+
+  useEffect(() => {
+    reloadHealth();
+  }, [reloadHealth]);
 
   // Run query on filter change.
   useEffect(() => {
@@ -509,6 +530,34 @@ function SearchInner() {
         setError(null);
         if (!r.rows.find((x) => x.documentId === selected?.documentId)) {
           setSelected(r.rows[0] ?? null);
+        }
+        // Search-runtime-diagnostics — reality wins over stale
+        // chip + truthful per-type empty-state.
+        //
+        // Two reasons to refetch diagnostics here:
+        //
+        //   (a) Reality wins. If the search returned rows but the
+        //       cached health envelope claims the index is empty /
+        //       preparing, the diagnostics fetch ran before a
+        //       backfill landed and is now stale — refresh so the
+        //       chip recovers to "Ready" instead of "0/N preparing".
+        //
+        //   (b) queryProbe freshness. The empty-state branch
+        //       wants the per-type match counts for the CURRENT
+        //       query so it can say "No EVIDENCE matched — but
+        //       REPORTs/PACKAGEs did" instead of generic copy. We
+        //       refetch on every search with the current q so the
+        //       envelope has matchedByType for the right query.
+        const cachedProbeQ = searchHealth?.queryProbe?.q ?? null;
+        const probeStale =
+          (filter.q ?? "").trim().length > 0 && cachedProbeQ !== filter.q;
+        const realityOverride =
+          r.rows.length > 0 &&
+          searchHealth &&
+          (searchHealth.health === "empty_index" ||
+            searchHealth.health === "empty_workspace");
+        if (probeStale || realityOverride) {
+          reloadHealth(filter.q);
         }
       })
       .catch((err: { message?: string }) => {
@@ -895,22 +944,27 @@ function SearchInner() {
             Search evidence, cases, reports, notes and OCR text across
             this workspace. Results respect visibility and governance.
           </p>
-          {/* Phase 15/16 — semantic-search status chip. The chip text
-              and colour reflect whichever mode the backend actually
-              ran (`modeUsed`), the workspace-scoped capability
-              (`semanticEnabled` + `semanticAvailable` from the Phase
-              16 status endpoint), and the per-query fallback reason
-              when the backend downgraded. Phase 13 wording is
-              preserved for the disabled baseline. No raw env-var
-              names appear in any chip variant. */}
-          <SemanticStatusChip
-            semanticEnabled={semanticEnabled}
-            semanticAvailable={semanticAvailable}
-            requestedMode={effectiveMode}
-            modeUsed={modeUsed}
-            fallbackReason={fallbackReason}
-            statusEndpointAvailable={semanticStatus !== null}
-          />
+          {/* Phase 15/16 — semantic-search status chip.
+              Search-runtime-diagnostics: the chip exposes internal
+              ranking-mode mechanics ("Hybrid semantic search active",
+              "fell back to keyword", "semantic disabled"). That copy
+              is developer / operator language and erodes trust for
+              Personal/SMB users — it must NOT render outside the
+              platform-admin surface. We gate on the canonical
+              `isPlatformAdmin` envelope flag (the same flag the
+              backfill panel already uses), so a non-admin user sees
+              the clean chrome and only the workspace health chip
+              from the diagnostics endpoint. */}
+          {isPlatformAdmin ? (
+            <SemanticStatusChip
+              semanticEnabled={semanticEnabled}
+              semanticAvailable={semanticAvailable}
+              requestedMode={effectiveMode}
+              modeUsed={modeUsed}
+              fallbackReason={fallbackReason}
+              statusEndpointAvailable={semanticStatus !== null}
+            />
+          ) : null}
           {/* Phase 16 — admin-only backfill panel. Hidden entirely for
               non-admins; the dry-run endpoint stays unreached from the
               UI. Renders directly under the chip to keep the operator
@@ -923,38 +977,70 @@ function SearchInner() {
               onRun={runBackfillDryRun}
             />
           ) : null}
-          {/* Search-runtime-diagnostics — single-line workspace + index
-              health chip. Surfaces the workspace name being searched
-              (so a wrong-workspace mismatch is visible at a glance) and
-              the coverage of the search index. Hidden when the
-              diagnostics endpoint is unavailable (older backends) so
-              the legacy operator surface is unaffected. */}
+          {/* Search-runtime-diagnostics — single-line workspace +
+              index health chip. Surfaces the workspace name being
+              searched (so a wrong-workspace mismatch is visible at
+              a glance) and the coverage of the search index. The
+              search-result handler refetches the diagnostics
+              envelope whenever rows are returned but the cached
+              health says "empty_index" / "empty_workspace" — so a
+              fresh backfill is reflected within one search round
+              trip instead of sticking on "0/N" forever.
+              Reality-wins guard: in the brief window between a
+              search result arriving and the diagnostics refetch
+              completing, the cached health value is suppressed if
+              the visible search returned rows — so the chip never
+              shows "Search index preparing (0/N)" alongside a
+              non-empty result list. */}
           {searchHealth ? (
-            <div
-              style={searchHealthChipStyle(searchHealth.health)}
-              data-search-health={searchHealth.health}
-              data-search-health-workspace-id={searchHealth.workspace.id}
-              data-search-health-workspace-name={
-                searchHealth.workspace.name ?? ""
-              }
-              data-search-health-evidence-total={searchHealth.index.evidenceTotal}
-              data-search-health-evidence-indexed={
-                searchHealth.index.evidenceIndexed
-              }
-              title={`API DB ${searchHealth.runtime.dbName ?? "(unknown)"} @ ${searchHealth.runtime.dbServerIp ?? "?"}:${searchHealth.runtime.dbServerPort ?? "?"} • ${searchHealth.runtime.nodeEnv ?? "?"}`}
-            >
-              <strong>
-                {searchHealth.workspace.name ?? "Workspace"}
-              </strong>{" "}
-              ·{" "}
-              {searchHealth.health === "healthy"
-                ? `${searchHealth.index.evidenceIndexed} records indexed`
-                : searchHealth.health === "partial_index"
-                  ? `${searchHealth.index.evidenceIndexed}/${searchHealth.index.evidenceTotal} indexed (catching up)`
-                  : searchHealth.health === "empty_index"
-                    ? `Search index preparing (0/${searchHealth.index.evidenceTotal})`
-                    : `Workspace has 0 records`}
-            </div>
+            (() => {
+              // The reality-wins override applies only to the two
+              // "the index is empty" states. Other states
+              // (healthy / partial_index) are already truthful.
+              const realityOverrides =
+                results &&
+                results.rows.length > 0 &&
+                (searchHealth.health === "empty_index" ||
+                  searchHealth.health === "empty_workspace");
+              const effectiveHealth = realityOverrides
+                ? "healthy"
+                : searchHealth.health;
+              return (
+                <div
+                  style={searchHealthChipStyle(effectiveHealth)}
+                  data-search-health={effectiveHealth}
+                  data-search-health-cached={searchHealth.health}
+                  data-search-health-reality-overrides={
+                    realityOverrides ? "true" : "false"
+                  }
+                  data-search-health-workspace-id={searchHealth.workspace.id}
+                  data-search-health-workspace-name={
+                    searchHealth.workspace.name ?? ""
+                  }
+                  data-search-health-evidence-total={
+                    searchHealth.index.evidenceTotal
+                  }
+                  data-search-health-evidence-indexed={
+                    searchHealth.index.evidenceIndexed
+                  }
+                  title={`API DB ${searchHealth.runtime.dbName ?? "(unknown)"} @ ${searchHealth.runtime.dbServerIp ?? "?"}:${searchHealth.runtime.dbServerPort ?? "?"} • ${searchHealth.runtime.nodeEnv ?? "?"}`}
+                >
+                  <strong>
+                    {searchHealth.workspace.name ?? "Workspace"}
+                  </strong>{" "}
+                  ·{" "}
+                  {effectiveHealth === "healthy"
+                    ? realityOverrides
+                      ? "Ready"
+                      : `${searchHealth.index.evidenceIndexed} records indexed`
+                    : effectiveHealth === "partial_index"
+                      ? `${searchHealth.index.evidenceIndexed}/${searchHealth.index.evidenceTotal} indexed (catching up)`
+                      : effectiveHealth === "empty_index"
+                        ? `Search index preparing (0/${searchHealth.index.evidenceTotal})`
+                        : `Workspace has 0 records`}
+                </div>
+              );
+            })()
           ) : searchHealthError ? (
             <div
               style={searchHealthChipStyle("unknown")}
@@ -1177,58 +1263,71 @@ function SearchInner() {
             </label>
           </FilterSection>
 
-          <FilterSection label="Saved views">
-            <button
-              type="button"
-              onClick={saveCurrentView}
-              disabled={savingView}
-              style={primaryButtonStyle}
-            >
-              {savingView ? "Saving…" : "Save current view"}
-            </button>
-            {savedViews === null ? (
-              <p style={mutedStyle}>Loading…</p>
-            ) : savedViews.length === 0 ? (
-              <p style={mutedStyle}>No saved views yet.</p>
-            ) : (
-              <ul style={savedViewListStyle}>
-                {savedViews.map((v) => (
-                  <li key={v.id} style={savedViewRowStyle}>
-                    <button
-                      type="button"
-                      onClick={() => applySavedView(v)}
-                      style={savedViewApplyStyle}
-                      title={v.description ?? ""}
-                    >
-                      {v.pinned ? "★ " : ""}
-                      {v.name}
-                      <span style={savedViewVisibilityStyle}>
-                        {v.visibility.toLowerCase()}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => renameSavedView(v.id, v.name)}
-                      style={iconButtonStyle}
-                      aria-label="Rename saved view"
-                      data-search-saved-view-rename={v.id}
-                      title="Rename"
-                    >
-                      ✎
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteSavedView(v.id)}
-                      style={iconButtonStyle}
-                      aria-label="Delete saved view"
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </FilterSection>
+          {/* Saved views — operator surface only. The Personal/SMB
+              search experience is intentionally one input box + the
+              filter rail; persisted views add visual clutter and
+              imply an enterprise workflow Personal users do not run.
+              Gate on the same `isPlatformAdmin` flag the semantic
+              chip + backfill panel already use, so the backend
+              saved-search routes stay intact (and enterprise users
+              keep their workflow). When the gate hides the section
+              the GET /v1/search/saved-views fetch above continues to
+              run silently so a future plan upgrade does not require
+              a refresh to populate the list. */}
+          {isPlatformAdmin ? (
+            <FilterSection label="Saved views">
+              <button
+                type="button"
+                onClick={saveCurrentView}
+                disabled={savingView}
+                style={primaryButtonStyle}
+              >
+                {savingView ? "Saving…" : "Save current view"}
+              </button>
+              {savedViews === null ? (
+                <p style={mutedStyle}>Loading…</p>
+              ) : savedViews.length === 0 ? (
+                <p style={mutedStyle}>No saved views yet.</p>
+              ) : (
+                <ul style={savedViewListStyle}>
+                  {savedViews.map((v) => (
+                    <li key={v.id} style={savedViewRowStyle}>
+                      <button
+                        type="button"
+                        onClick={() => applySavedView(v)}
+                        style={savedViewApplyStyle}
+                        title={v.description ?? ""}
+                      >
+                        {v.pinned ? "★ " : ""}
+                        {v.name}
+                        <span style={savedViewVisibilityStyle}>
+                          {v.visibility.toLowerCase()}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => renameSavedView(v.id, v.name)}
+                        style={iconButtonStyle}
+                        aria-label="Rename saved view"
+                        data-search-saved-view-rename={v.id}
+                        title="Rename"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteSavedView(v.id)}
+                        style={iconButtonStyle}
+                        aria-label="Delete saved view"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </FilterSection>
+          ) : null}
         </aside>
 
         {/* ----------------------------- CENTER ----------------------------- */}
@@ -1251,7 +1350,13 @@ function SearchInner() {
             </div>
           </div>
           {!results || results.rows.length === 0 ? (
-            <div style={emptyStateStyle} data-search-empty-state>
+            <div
+              style={emptyStateStyle}
+              data-search-empty-state
+              data-search-empty-state-filters-active={
+                hasNarrowingFilters(filter) ? "true" : "false"
+              }
+            >
               {loading ? (
                 <div data-search-empty-state-kind="loading">Searching…</div>
               ) : error ? (
@@ -1275,6 +1380,39 @@ function SearchInner() {
                     OCR text and transcripts when available.
                   </p>
                 </div>
+              ) : hasNarrowingFilters(filter) ? (
+                // Search-filter-audit — when a non-trivial filter is
+                // active (document type, evidence kind, status,
+                // dates, etc.) and the result set is empty, the cause
+                // is "the filter narrowed everything away", NOT "the
+                // workspace is empty" or "the index is preparing".
+                //
+                // Per-type truthful copy:
+                //   When the user has selected one or more document
+                //   types AND the diagnostics queryProbe reports
+                //   that OTHER types DID match the same query,
+                //   render an explicit "selected types had no
+                //   matches — but other types did" message naming
+                //   the matching types. Drives the user to clear
+                //   the type filter instead of doubting search.
+                //
+                //   When queryProbe is unavailable (older backend,
+                //   never fetched) or every type matched 0, fall
+                //   back to the generic clear-filters hint.
+                (() => {
+                  const hint = describeFilterEmpty(filter, searchHealth);
+                  return (
+                    <div data-search-empty-state-kind="no-match-filtered">
+                      <strong>
+                        {hint.headline}
+                        {searchHealth?.workspace?.name
+                          ? ` in "${searchHealth.workspace.name}"`
+                          : ""}
+                      </strong>
+                      <p style={{ marginTop: 6 }}>{hint.detail}</p>
+                    </div>
+                  );
+                })()
               ) : searchHealth?.health === "empty_workspace" ? (
                 // Search-runtime-diagnostics — the workspace itself
                 // has no evidence yet. Searching anything will return
@@ -1339,11 +1477,13 @@ function SearchInner() {
                   </strong>
                   <p style={{ marginTop: 6 }}>
                     Try a different filename, case name, report title,
-                    note, or record ID
-                    {searchHealth?.workspace?.name
-                      ? ` — or switch workspace if the record lives elsewhere.`
-                      : "."}
+                    note, or record ID.
                   </p>
+                  {searchHealth?.workspace?.name ? (
+                    <p style={{ marginTop: 6 }}>
+                      Or switch workspace if the record lives elsewhere.
+                    </p>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -1454,6 +1594,45 @@ function SearchInner() {
 // Inspector
 // -----------------------------------------------------------------------------
 
+/**
+ * Resolve the canonical destination URL + label for a search result
+ * row's primary "Open …" action. The button mirrors the click target
+ * that a user would expect for that document type — evidence detail
+ * for evidence-anchored types (EVIDENCE / REPORT / PACKAGE), case
+ * detail for case-anchored types (CASE / NOTE). Returns null when the
+ * row carries neither an evidenceId nor a caseId (defensive — every
+ * canonical projection writes one or the other, but the inspector
+ * must not render a dead button if the API ever omits both).
+ */
+function getOpenAction(
+  row: ResultRow,
+): { href: string; label: string } | null {
+  switch (row.documentType) {
+    case "EVIDENCE":
+      return row.evidenceId
+        ? { href: `/evidence/${row.evidenceId}`, label: "Open evidence" }
+        : null;
+    case "CASE":
+      return row.caseId
+        ? { href: `/cases/${row.caseId}`, label: "Open case" }
+        : null;
+    case "REPORT":
+      return row.evidenceId
+        ? { href: `/evidence/${row.evidenceId}`, label: "Open report" }
+        : null;
+    case "PACKAGE":
+      return row.evidenceId
+        ? { href: `/evidence/${row.evidenceId}`, label: "Open package" }
+        : null;
+    case "NOTE":
+      return row.caseId
+        ? { href: `/cases/${row.caseId}`, label: "Open note" }
+        : null;
+    default:
+      return null;
+  }
+}
+
 function Inspector({
   row,
   relationships,
@@ -1471,6 +1650,13 @@ function Inspector({
   canSeeWorkflows: boolean;
   canSeeInvestigation: boolean;
 }) {
+  // Inspector primary action — every result type now exposes a
+  // single "Open …" button right under the title. Previously the
+  // only way to navigate to the underlying record was to click one
+  // of the monospaced UUIDs under "Pointers", which read as
+  // developer surface and confused Personal/SMB users. Pointers
+  // remain as secondary technical metadata below.
+  const openAction = getOpenAction(row);
   return (
     <div>
       <div style={inspectorHeaderStyle}>
@@ -1483,6 +1669,16 @@ function Inspector({
         <h2 style={inspectorTitleStyle}>{row.title}</h2>
         {row.subtitle ? (
           <p style={inspectorSubtitleStyle}>{row.subtitle}</p>
+        ) : null}
+        {openAction ? (
+          <a
+            href={openAction.href}
+            style={inspectorPrimaryButtonStyle}
+            data-search-open-action={row.documentType}
+            data-search-open-href={openAction.href}
+          >
+            {openAction.label}
+          </a>
         ) : null}
       </div>
 
@@ -1963,6 +2159,108 @@ function SemanticBackfillPanel({
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
+
+/**
+ * Search-filter-audit — does the filter envelope carry any condition
+ * BEYOND the workspace + free-text query? When this returns true the
+ * empty-state surface MUST render the no-match-filtered branch
+ * instead of the workspace-empty / index-empty branches; the cause
+ * of a 0-row response in that case is filter narrowing, not an empty
+ * index. We deliberately do NOT count `q` itself — typing a query is
+ * the baseline operation, not "applying a filter".
+ */
+function hasNarrowingFilters(filter: FilterState | null): boolean {
+  if (!filter) return false;
+  if ((filter.documentTypes?.length ?? 0) > 0) return true;
+  if ((filter.evidenceTypes?.length ?? 0) > 0) return true;
+  if ((filter.workflowStatuses?.length ?? 0) > 0) return true;
+  if ((filter.reviewStatuses?.length ?? 0) > 0) return true;
+  if (filter.onLegalHold !== undefined) return true;
+  if (filter.exportRestricted !== undefined) return true;
+  if (filter.incidentLinked !== undefined) return true;
+  if (filter.workflowLinked !== undefined) return true;
+  if (filter.contributorScoped !== undefined) return true;
+  if (filter.updatedSinceUtc) return true;
+  if (filter.updatedUntilUtc) return true;
+  return false;
+}
+
+/**
+ * Search-filter-audit — render the truthful empty-state copy when a
+ * filter narrowed results to zero. Inputs:
+ *
+ *   - `filter`: the live filter envelope. `documentTypes` is the
+ *     only narrowing dimension we currently special-case for
+ *     per-type copy (the user's biggest source of confusion).
+ *   - `health`: the diagnostics envelope, including
+ *     `queryProbe.matchedByType` for the LIVE query the user typed
+ *     — populated by the search-result handler refetch above.
+ *
+ * Output:
+ *
+ *   - When the user selected one or more document types AND the
+ *     queryProbe reports OTHER types matched but the SELECTED
+ *     types didn't → "No <SELECTED> match. <OTHER> matched" copy
+ *     so the user knows clearing the filter would surface results
+ *     instead of doubting search.
+ *
+ *   - Otherwise → generic "No matches with the current filters,
+ *     try clearing one." copy.
+ *
+ * Pure function — kept outside the React tree so the tests can
+ * exercise the matrix without bringing up jsdom.
+ */
+function describeFilterEmpty(
+  filter: FilterState | null,
+  health: SearchDiagnostics | null,
+): { headline: string; detail: string } {
+  const generic = {
+    headline: "No matches with the current filters",
+    detail:
+      "Try clearing one or more filters on the left, or broaden your query.",
+  };
+  if (!filter) return generic;
+  const selectedTypes = filter.documentTypes ?? [];
+  // Only specialise when documentTypes is the ONLY narrowing
+  // filter — otherwise the per-type copy could be misleading (the
+  // narrowing was a date / lifecycle flag, not the type itself).
+  const onlyTypeNarrowing =
+    selectedTypes.length > 0 &&
+    (filter.evidenceTypes?.length ?? 0) === 0 &&
+    (filter.workflowStatuses?.length ?? 0) === 0 &&
+    (filter.reviewStatuses?.length ?? 0) === 0 &&
+    filter.onLegalHold === undefined &&
+    filter.exportRestricted === undefined &&
+    filter.incidentLinked === undefined &&
+    filter.workflowLinked === undefined &&
+    filter.contributorScoped === undefined &&
+    !filter.updatedSinceUtc &&
+    !filter.updatedUntilUtc;
+  const probe = health?.queryProbe;
+  const queryProbeUsable =
+    probe && filter.q && probe.q === filter.q ? probe : null;
+  if (!onlyTypeNarrowing || !queryProbeUsable) return generic;
+  // Find OTHER document types (not selected by the user) that DID
+  // match the live query. If any, name them in the copy.
+  const matchedOtherTypes: string[] = [];
+  for (const [type, count] of Object.entries(queryProbeUsable.matchedByType)) {
+    if (count > 0 && !selectedTypes.includes(type as DocumentType)) {
+      matchedOtherTypes.push(type);
+    }
+  }
+  if (matchedOtherTypes.length === 0) return generic;
+  // Render the friendly labels for both sides of the contradiction.
+  const selectedLabels = selectedTypes
+    .map((t) => DOCUMENT_TYPE_LABEL[t] ?? t)
+    .join(" / ");
+  const otherLabels = matchedOtherTypes
+    .map((t) => DOCUMENT_TYPE_LABEL[t as DocumentType] ?? t)
+    .join(" / ");
+  return {
+    headline: `No ${selectedLabels} records match`,
+    detail: `${otherLabels} records DID match your search — clear the type filter on the left to see them.`,
+  };
+}
 
 async function runSearch(filter: FilterState): Promise<SearchResponse> {
   const qs = new URLSearchParams();
@@ -2507,6 +2805,25 @@ const inspectorSubtitleStyle: React.CSSProperties = {
   fontSize: 12,
   color: "#475569",
   margin: "4px 0 0",
+};
+
+// Inspector primary action button — single canonical CTA per result.
+// Routes to the underlying record so users don't have to recognise
+// the right monospaced UUID under "Pointers". Plain `<a>` so the
+// browser native middle-click / cmd-click open-in-new-tab works
+// without us reimplementing it.
+const inspectorPrimaryButtonStyle: React.CSSProperties = {
+  display: "inline-block",
+  marginTop: 10,
+  padding: "8px 14px",
+  fontSize: 13,
+  fontWeight: 600,
+  background: "#0f172a",
+  color: "#ffffff",
+  border: "1px solid #0f172a",
+  borderRadius: 6,
+  textDecoration: "none",
+  cursor: "pointer",
 };
 
 const sectionStyle: React.CSSProperties = {

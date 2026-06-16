@@ -86,8 +86,16 @@ describe("Search-runtime-diagnostics — frontend empty-state branches", () => {
     expect(src).toMatch(/type SearchDiagnostics = \{/);
   });
 
-  it("/v1/search/diagnostics is fetched in a useEffect keyed on teamId", () => {
-    expect(src).toMatch(/\/v1\/search\/diagnostics\?teamId=/);
+  it("/v1/search/diagnostics is fetched via URLSearchParams threaded with teamId (+ optional q)", () => {
+    // Earlier turns hard-coded the URL as `?teamId=…`. The
+    // per-type empty-state work threads a `q` probe into the same
+    // endpoint via URLSearchParams, so the fixed-string pin no
+    // longer matches. The contract we actually care about is "the
+    // diagnostics URL includes teamId" — pin via the params
+    // builder.
+    expect(src).toMatch(/\/v1\/search\/diagnostics\?\$\{params\.toString\(\)\}/);
+    expect(src).toMatch(/params\.set\("q",/);
+    expect(src).toMatch(/new URLSearchParams\(\{ teamId \}\)/);
   });
 
   it("runSearch result handler treats a null / malformed response as error (not 0 results)", () => {
