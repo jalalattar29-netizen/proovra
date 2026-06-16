@@ -2889,6 +2889,16 @@ model WorkflowIntakeLink {
   // Security
   ipAllowlistCidrs String[] @map("ip_allowlist_cidrs")
 
+  // Intake-link sender identity (Phase: enterprise messaging).
+  // `senderDisplayMode` is one of "PROOVRA" | "WORKSPACE" | "CUSTOM"
+  // (the canonical enum lives in @proovra/shared.INTAKE_SENDER_DISPLAY_MODES;
+  // stored as text so future modes don't need a migration).
+  // `senderDisplayName` is only populated for CUSTOM mode and is the
+  // operator-supplied display name BEFORE the mandatory " via PROOVRA"
+  // suffix. Validation happens in shared.validateCustomSenderDisplayName.
+  senderDisplayMode String  @default("PROOVRA") @map("sender_display_mode") @db.VarChar(40)
+  senderDisplayName String? @map("sender_display_name") @db.VarChar(80)
+
   // Audit
   createdByUserId String   @map("created_by_user_id") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

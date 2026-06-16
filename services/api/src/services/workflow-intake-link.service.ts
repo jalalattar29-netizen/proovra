@@ -26,7 +26,17 @@ import type {
   WorkflowIntakeLink as DbWorkflowIntakeLink,
 } from "@prisma/client";
 import {
+  INTAKE_SENDER_DISPLAY_MODES,
+  type IntakeSenderDisplayMode,
+  type IntakeWhatsappTemplateMode,
+  INTAKE_WHATSAPP_TEMPLATE_MODES,
   isExternalWorkflowIntakeMode,
+  renderIntakeEmailMessage,
+  renderIntakeSmsMessage,
+  renderIntakeWhatsappMessage,
+  resolveIntakeSenderDisplay,
+  sanitizeIntakeMessagePreview,
+  validateCustomSenderDisplayName,
   WorkflowIntakeMode,
   WorkflowIntakeModeSchema,
 } from "@proovra/shared";
@@ -61,6 +71,12 @@ export type CreateWorkflowIntakeLinkInput = {
   consentDisclosureText?: string | null;
   expiresAtUtc: Date;
   ipAllowlistCidrs?: string[];
+  // Enterprise messaging — operator-chosen sender identity. PROOVRA
+  // branding is always preserved by the shared resolver; this just
+  // controls whether the message reads "PROOVRA secure intake" /
+  // "Acme Insurance via PROOVRA" / "<custom> via PROOVRA".
+  senderDisplayMode?: IntakeSenderDisplayMode;
+  senderDisplayName?: string | null;
 };
 
 export type CreateWorkflowIntakeLinkContext = {
@@ -81,6 +97,7 @@ export class WorkflowIntakeLinkError extends Error {
       | "intake_mode_not_supported_by_template"
       | "expiry_in_past"
       | "max_uses_invalid"
+      | "invalid_sender_display_name"
       | "internal",
     message?: string,
   ) {
@@ -189,6 +206,29 @@ export async function createWorkflowIntakeLink(
     throw new WorkflowIntakeLinkError("intake_mode_not_supported_by_template");
   }
 
+  // Sender identity — validated server-side so the API contract is
+  // hard regardless of what the web client sent. PROOVRA branding is
+  // applied at render time by `resolveIntakeSenderDisplay`; we only
+  // store the operator's CHOICE here.
+  const senderDisplayMode: IntakeSenderDisplayMode =
+    input.senderDisplayMode &&
+    (INTAKE_SENDER_DISPLAY_MODES as readonly string[]).includes(
+      input.senderDisplayMode,
+    )
+      ? input.senderDisplayMode
+      : "PROOVRA";
+  let senderDisplayName: string | null = null;
+  if (senderDisplayMode === "CUSTOM") {
+    const v = validateCustomSenderDisplayName(input.senderDisplayName ?? "");
+    if (!v.ok) {
+      throw new WorkflowIntakeLinkError(
+        "invalid_sender_display_name",
+        `senderDisplayName failed validation: ${v.reason}`,
+      );
+    }
+    senderDisplayName = v.value;
+  }
+
   // Issue a fresh token. issueIntakeToken returns null when the secret is
   // not configured — that is the master kill switch.
   const issued = issueIntakeToken();
@@ -219,6 +259,8 @@ export async function createWorkflowIntakeLink(
       consentDisclosureText: input.consentDisclosureText ?? null,
       expiresAtUtc: input.expiresAtUtc,
       ipAllowlistCidrs: input.ipAllowlistCidrs ?? [],
+      senderDisplayMode,
+      senderDisplayName,
       createdByUserId: ctx.actorUserId,
     },
   });
@@ -356,6 +398,10 @@ export async function sendIntakeLinkViaSms(
       revokedAtUtc: true,
       expiresAtUtc: true,
       recipientPhone: true,
+      recipientLabel: true,
+      workflowTemplateSlug: true,
+      senderDisplayMode: true,
+      senderDisplayName: true,
     },
   });
   if (!link) return { ok: false, reason: "link_not_found" };
@@ -372,16 +418,42 @@ export async function sendIntakeLinkViaSms(
   const { enqueueOutboundMessage } = await import(
     "./communications/communication.service.js"
   );
-  const { renderIntakeLinkSmsBody, appendStopFooter } = await import(
-    "@proovra/shared"
-  );
 
-  const body = appendStopFooter(
-    renderIntakeLinkSmsBody({
-      workspaceName: input.workspaceName,
-      intakeUrl: input.intakeUrl,
-    }),
-  );
+  // Resolve sender identity from the link's stored mode + name.
+  // PROOVRA branding is always added by the resolver — the operator
+  // cannot opt out.
+  const senderIdentity = resolveIntakeSenderDisplay({
+    mode:
+      (link.senderDisplayMode as IntakeSenderDisplayMode | null) ?? "PROOVRA",
+    workspaceName: input.workspaceName,
+    customName: link.senderDisplayName ?? null,
+  });
+
+  // Render the body via the shared SMS/WhatsApp renderer. The provider
+  // receives the REAL URL; we sanitize the persisted preview separately
+  // so a DB reader can never recover the raw token.
+  const renderInput = {
+    senderDisplay: senderIdentity.display,
+    requestTypeSlug: link.workflowTemplateSlug,
+    recipientLabel: link.recipientLabel ?? null,
+    intakeUrl: input.intakeUrl,
+    expiresAtUtc: link.expiresAtUtc.toISOString(),
+    channel: input.channel,
+    locale: "en" as const,
+  };
+
+  const body =
+    input.channel === "WHATSAPP"
+      ? renderIntakeWhatsappMessage(
+          renderInput,
+          resolveWhatsappTemplateMode(),
+        )
+      : renderIntakeSmsMessage(renderInput);
+
+  // Sanitized preview is stored on the CommunicationMessage row so a
+  // DB exfiltration cannot recover the raw token. The provider call
+  // below still gets the real `body`.
+  const sanitizedPreview = sanitizeIntakeMessagePreview(body);
 
   const result = await enqueueOutboundMessage(
     {
@@ -390,6 +462,7 @@ export async function sendIntakeLinkViaSms(
       purpose: "INTAKE_LINK",
       recipientPhone: link.recipientPhone,
       body,
+      bodyPreviewOverride: sanitizedPreview,
       sender: "PROOVRA",
       related: { intakeLinkId: link.id },
       createdByUserId: input.actorUserId,
@@ -404,6 +477,24 @@ export async function sendIntakeLinkViaSms(
     return { ok: true, communicationMessageId: result.message.id };
   }
   return { ok: false, reason: "delivery_failed_or_skipped" };
+}
+
+// WHATSAPP_INTAKE_TEMPLATE_MODE env switch — see shared
+// INTAKE_WHATSAPP_TEMPLATE_MODES. Default `"plain"` reuses the SMS
+// body shape so we never accidentally ship a free-form template
+// through a WABA-strict sender. Operators enable `"rich"` after
+// their WhatsApp Business profile is approved for free-form
+// outbound or is inside the 24h session window.
+function resolveWhatsappTemplateMode(): IntakeWhatsappTemplateMode {
+  const raw = (process.env.WHATSAPP_INTAKE_TEMPLATE_MODE ?? "")
+    .trim()
+    .toLowerCase();
+  if (
+    (INTAKE_WHATSAPP_TEMPLATE_MODES as readonly string[]).includes(raw)
+  ) {
+    return raw as IntakeWhatsappTemplateMode;
+  }
+  return "plain";
 }
 
 // -----------------------------------------------------------------------------
@@ -479,6 +570,9 @@ export async function sendIntakeLinkViaEmail(
       expiresAtUtc: true,
       recipientEmail: true,
       recipientLabel: true,
+      workflowTemplateSlug: true,
+      senderDisplayMode: true,
+      senderDisplayName: true,
     },
   });
   if (!link) return { ok: false, reason: "link_not_found" };
@@ -504,25 +598,35 @@ export async function sendIntakeLinkViaEmail(
   const recipientHash = hashRecipientPhone(email);
   const preview = maskEmailPreview(email);
 
-  // Compose the message body. Plain HTML + text fallback — no
-  // marketing, no tracking pixels. Includes the workspace name + the
-  // intake URL, with a short safety-net "this link expires …" line.
-  const expiresInDays = Math.max(
-    1,
-    Math.round((link.expiresAtUtc.getTime() - Date.now()) / 86_400_000),
+  // Resolve sender identity from the link's stored mode + name. The
+  // resolver always adds " via PROOVRA" (except for PROOVRA mode which
+  // IS the brand); the operator cannot remove the wordmark.
+  const senderIdentity = resolveIntakeSenderDisplay({
+    mode:
+      (link.senderDisplayMode as IntakeSenderDisplayMode | null) ?? "PROOVRA",
+    workspaceName: input.workspaceName,
+    customName: link.senderDisplayName ?? null,
+  });
+
+  // Render the email via the shared template — same renderer the web
+  // preview studio uses, guaranteeing what the operator saw is what
+  // the recipient gets.
+  const rendered = renderIntakeEmailMessage({
+    senderDisplay: senderIdentity.display,
+    requestTypeSlug: link.workflowTemplateSlug,
+    recipientLabel: link.recipientLabel ?? null,
+    intakeUrl: input.intakeUrl,
+    expiresAtUtc: link.expiresAtUtc.toISOString(),
+    channel: "EMAIL",
+    locale: "en",
+  });
+
+  // SECURITY: bodyPreview goes through the sanitizer so the raw token
+  // never lands in CommunicationMessage. The provider call below
+  // receives the real `rendered.text`/`rendered.html`.
+  const sanitizedPreview = sanitizeIntakeMessagePreview(
+    `${rendered.subject}\n${rendered.text}`,
   );
-  const subject = `${input.workspaceName} requested files from you`;
-  const text =
-    `${input.workspaceName} has asked you to share files securely.\n\n` +
-    `Open this link to upload:\n${input.intakeUrl}\n\n` +
-    `The link expires in about ${expiresInDays} day(s). You don't need ` +
-    `an account.`;
-  const html =
-    `<p>${escapeHtml(input.workspaceName)} has asked you to share files securely.</p>` +
-    `<p><a href="${escapeAttr(input.intakeUrl)}">${escapeHtml(input.intakeUrl)}</a></p>` +
-    `<p style="color:#475569;font-size:13px">` +
-    `The link expires in about ${expiresInDays} day(s). You don't need an account.` +
-    `</p>`;
 
   // Pre-create the CommunicationMessage row in QUEUED so the audit
   // trail captures the attempt even if the provider call throws.
@@ -538,8 +642,8 @@ export async function sendIntakeLinkViaEmail(
         recipientHash,
         recipientPreview: preview,
         status: prismaPkg.CommunicationStatus.QUEUED,
-        bodyPreview: subject.slice(0, 400),
-        sender: input.workspaceName.slice(0, 80),
+        bodyPreview: sanitizedPreview,
+        sender: senderIdentity.display.slice(0, 80),
         relatedIntakeLinkId: link.id,
         createdByUserId: input.actorUserId,
       },
@@ -560,9 +664,9 @@ export async function sendIntakeLinkViaEmail(
     providerResult = await sendCustomEmailViaResend({
       from: getEmailFromHeader(),
       to: email,
-      subject,
-      html,
-      text,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
     });
   } catch (err) {
     providerResult = {

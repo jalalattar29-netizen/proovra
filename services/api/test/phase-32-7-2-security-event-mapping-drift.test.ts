@@ -683,6 +683,12 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // information_schema.columns + is_nullable='NO'). Scoped to
       // exactly evidence_search_documents.
       "20270821000000_phase_search_evidence_search_documents_legacy_drop_not_null",
+      // Intake-link enterprise messaging — adds sender_display_mode +
+      // sender_display_name columns to workflow_intake_links so the
+      // operator can choose between PROOVRA / WORKSPACE / CUSTOM
+      // (PROOVRA branding is always preserved by the shared resolver).
+      // Additive only; existing rows default to PROOVRA mode.
+      "20270822000000_intake_link_sender_identity",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

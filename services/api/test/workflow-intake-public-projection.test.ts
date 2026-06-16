@@ -70,6 +70,11 @@ function fakeLink(overrides: Record<string, unknown> = {}) {
     revokedByUserId: null,
     revokedReason: "FORBIDDEN VALUE — should not leak",
     ipAllowlistCidrs: ["10.0.0.0/8"],
+    // Intake-link enterprise messaging — new sender identity columns
+    // (default PROOVRA mode, no custom display name). Public projection
+    // does not surface these; the test verifies they're not leaked.
+    senderDisplayMode: "PROOVRA",
+    senderDisplayName: null,
     createdByUserId: "user-admin",
     createdAt: new Date(),
     updatedAt: new Date(),

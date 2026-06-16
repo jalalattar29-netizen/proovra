@@ -173,9 +173,13 @@ describe("Phase IA-home-final — intake deep-links open real flows", () => {
   const PAGE = readWeb("app/(app)/intake-links/page.tsx");
 
   it("reads ?new=1 to auto-open the create-intake-link modal", () => {
+    // Intake-link redesign — the boolean `setShowCreate` was
+    // replaced by the more expressive `openCreate(initialSlug?)`
+    // helper, which now also clears stale errors before opening.
+    // Same deep-link contract; just the open helper changed name.
     expect(PAGE).toMatch(/useSearchParams/);
     expect(PAGE).toMatch(/searchParams\.get\("new"\) === "1"/);
-    expect(PAGE).toMatch(/setShowCreate\(true\)/);
+    expect(PAGE).toMatch(/openCreate\(\)/);
   });
 
   it("reads ?linkId= to auto-open the delivery drawer", () => {

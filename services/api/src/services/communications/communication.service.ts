@@ -151,6 +151,15 @@ export type EnqueueOutboundMessageInput = {
   createdByUserId?: string | null;
   /** Reserved for future per-call retry-policy override. */
   forceCritical?: boolean;
+  /**
+   * Caller-supplied sanitized preview for CommunicationMessage.bodyPreview.
+   * When set, replaces the default `safeBodyPreview(input.body)`. Used by
+   * the intake-link channel so the raw token never lands in the DB
+   * preview — the body still contains the full URL (the provider must
+   * see it), but the persisted preview is redacted via
+   * sanitizeIntakeMessagePreview from @proovra/shared.
+   */
+  bodyPreviewOverride?: string | null;
 };
 
 export type EnqueueOutboundMessageResult = {
@@ -189,7 +198,8 @@ export async function enqueueOutboundMessage(
         status: prismaPkg.CommunicationStatus.CANCELLED,
         errorCode: "invalid_phone",
         errorMessage: "Recipient phone could not be normalised to E.164.",
-        bodyPreview: safeBodyPreview(input.body),
+        bodyPreview:
+          input.bodyPreviewOverride ?? safeBodyPreview(input.body),
         sender: input.sender ?? null,
         relatedEvidenceId: input.related?.evidenceId ?? null,
         relatedEvidenceRequestId: input.related?.evidenceRequestId ?? null,
@@ -220,7 +230,8 @@ export async function enqueueOutboundMessage(
         errorCode: "provider_unconfigured",
         errorMessage:
           provider.unconfiguredReason() ?? "Provider not configured.",
-        bodyPreview: safeBodyPreview(input.body),
+        bodyPreview:
+          input.bodyPreviewOverride ?? safeBodyPreview(input.body),
         sender: input.sender ?? null,
         relatedEvidenceId: input.related?.evidenceId ?? null,
         relatedEvidenceRequestId: input.related?.evidenceRequestId ?? null,
@@ -267,7 +278,8 @@ export async function enqueueOutboundMessage(
         status: prismaPkg.CommunicationStatus.CANCELLED,
         errorCode: "recipient_opted_out",
         errorMessage: "Recipient has opted out of this channel.",
-        bodyPreview: safeBodyPreview(input.body),
+        bodyPreview:
+          input.bodyPreviewOverride ?? safeBodyPreview(input.body),
         sender: input.sender ?? null,
         relatedEvidenceId: input.related?.evidenceId ?? null,
         relatedEvidenceRequestId: input.related?.evidenceRequestId ?? null,
@@ -332,7 +344,8 @@ export async function enqueueOutboundMessage(
           recipientCount >= limits.perRecipientPerDay
             ? "Per-recipient daily limit reached."
             : "Per-team daily limit reached.",
-        bodyPreview: safeBodyPreview(input.body),
+        bodyPreview:
+          input.bodyPreviewOverride ?? safeBodyPreview(input.body),
         sender: input.sender ?? null,
         relatedEvidenceId: input.related?.evidenceId ?? null,
         relatedEvidenceRequestId: input.related?.evidenceRequestId ?? null,

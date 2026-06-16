@@ -96,10 +96,15 @@ describe("Phase IA-intake-personal-space-fix — copy", () => {
   });
 
   it("the empty-list state shows action-oriented copy, not a workspace nag", () => {
-    // The brief mandates the exact welcoming copy for an empty
-    // intake-links list.
+    // Intake-link redesign — the empty-state copy was rewritten into
+    // a richer EmptyState component with a title + body + actions +
+    // concrete examples. The original requirement (a welcoming,
+    // action-oriented message) is satisfied by the new title +
+    // first-paragraph copy below. The workspace-nag negative pin
+    // above still holds.
+    expect(PAGE).toMatch(/No intake links yet/);
     expect(PAGE).toMatch(
-      /Create a secure intake link to request evidence from a\s+client, source, witness, or contributor/,
+      /Create your first secure upload link to request evidence from/,
     );
   });
 

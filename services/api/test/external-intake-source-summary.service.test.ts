@@ -39,6 +39,10 @@ function fakeLink(overrides: Record<string, unknown> = {}) {
     revokedByUserId: null,
     revokedReason: null,
     ipAllowlistCidrs: [],
+    // Intake-link enterprise messaging — new sender identity columns
+    // (default PROOVRA mode, no custom display name).
+    senderDisplayMode: "PROOVRA",
+    senderDisplayName: null,
     createdByUserId: "user-admin",
     createdAt: new Date("2026-05-16T10:00:00Z"),
     updatedAt: new Date("2026-05-16T11:00:00Z"),

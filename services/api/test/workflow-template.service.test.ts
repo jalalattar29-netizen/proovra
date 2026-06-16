@@ -87,9 +87,19 @@ describe("liftIntakeTemplateToWorkflowTemplate", () => {
       expect(lifted.name).toBe(seed.name);
       expect(lifted.locationRequirement).toBe(seed.locationRequirement);
       expect(lifted.planMode).toBe("FLEXIBLE");
+      // Intake-links-e2e mode-compat bugfix — every lifted seed must
+      // advertise both the AUTHENTICATED modes (so workflow-instance
+      // creation keeps working) AND the EXTERNAL_* modes (so the
+      // intake-links flow can use them). Before this expansion, the
+      // intake-links create endpoint rejected every built-in seed
+      // with `intake_mode_not_supported_by_template`.
       expect(lifted.intakeModes).toEqual([
         "AUTHENTICATED_STANDARD",
         "AUTHENTICATED_GUIDED",
+        "EXTERNAL_ONE_TIME",
+        "EXTERNAL_REUSABLE",
+        "EXTERNAL_ANONYMOUS",
+        "EXTERNAL_PSEUDONYMOUS",
       ]);
       expect(lifted.steps.length).toBe(seed.steps.length);
 

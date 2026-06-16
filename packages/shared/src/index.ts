@@ -652,6 +652,43 @@ export type {
   VerificationAttemptStatus,
 } from "./communications.js";
 
+// Intake-link enterprise messaging — shared renderers, sanitizer,
+// sender-identity helpers. Frontend preview and backend send both
+// import from here so the recipient gets exactly what the operator
+// saw in the modal.
+export type {
+  CustomSenderValidation,
+  IntakeMessageRenderInput,
+  IntakeSenderDisplayMode,
+  IntakeSenderIdentity,
+  IntakeWhatsappTemplateMode,
+  RenderedEmail,
+  ResolveSenderInput,
+} from "./intake-link-messaging.js";
+export {
+  INTAKE_BRAND_NAME,
+  INTAKE_DO_NOT_FORWARD_LINE,
+  INTAKE_FOOTER_LINE,
+  INTAKE_NO_ACCOUNT_LINE,
+  INTAKE_SENDER_DISPLAY_MODES,
+  INTAKE_SMS_MAX_CHARS,
+  INTAKE_UNEXPECTED_LINE,
+  INTAKE_WHATSAPP_MAX_CHARS,
+  INTAKE_WHATSAPP_TEMPLATE_MODES,
+  SANITIZED_INTAKE_TOKEN_PLACEHOLDER,
+  SANITIZED_PREVIEW_MAX_CHARS,
+  SANITIZED_TOKEN_ONLY_PLACEHOLDER,
+  defaultIntakeSenderMode,
+  intakeRequestTypeLabel,
+  intakeRequestTypeNounLabel,
+  renderIntakeEmailMessage,
+  renderIntakeSmsMessage,
+  renderIntakeWhatsappMessage,
+  resolveIntakeSenderDisplay,
+  sanitizeIntakeMessagePreview,
+  validateCustomSenderDisplayName,
+} from "./intake-link-messaging.js";
+
 export {
   COMMUNICATION_CHANNELS,
   COMMUNICATION_DIRECTIONS,

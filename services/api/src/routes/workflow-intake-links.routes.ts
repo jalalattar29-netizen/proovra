@@ -109,8 +109,25 @@ const CreateBody = z
     // produces two real provider sends. Optional: when omitted we
     // synthesise a random one (no dedup; the API caller opted out).
     idempotencyKey: z.string().min(1).max(120).optional(),
+    // Intake-link enterprise messaging — sender identity. The
+    // service layer re-validates `senderDisplayName` via
+    // validateCustomSenderDisplayName; the route just type-gates
+    // the enum + length here. PROOVRA branding is appended by the
+    // shared resolver and cannot be removed.
+    senderDisplayMode: z
+      .enum(["PROOVRA", "WORKSPACE", "CUSTOM"])
+      .optional(),
+    senderDisplayName: z.string().min(1).max(80).nullable().optional(),
   })
   .superRefine((data, ctx) => {
+    if (data.senderDisplayMode === "CUSTOM" && !data.senderDisplayName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["senderDisplayName"],
+        message:
+          "senderDisplayName is required when senderDisplayMode is CUSTOM",
+      });
+    }
     if (data.deliveryMethod === "EMAIL" && !data.recipientEmail) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -294,6 +311,8 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
             consentDisclosureText: body.consentDisclosureText ?? null,
             expiresAtUtc: new Date(body.expiresAtUtc),
             ipAllowlistCidrs: body.ipAllowlistCidrs,
+            senderDisplayMode: body.senderDisplayMode,
+            senderDisplayName: body.senderDisplayName ?? null,
           },
           { actorUserId: ok.userId },
         );
@@ -426,7 +445,12 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         });
       } catch (err) {
         if (err instanceof WorkflowIntakeLinkError) {
-          const status = err.code === "feature_disabled" ? 503 : 400;
+          const status =
+            err.code === "feature_disabled"
+              ? 503
+              : err.code === "invalid_sender_display_name"
+                ? 400
+                : 400;
           return reply.code(status).send({
             error: { code: err.code, message: err.message },
           });
@@ -510,6 +534,81 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       return reply
         .code(200)
         .send({ link: projectWorkflowIntakeLink(link), item });
+    },
+  );
+
+  // -- Sender identity preview -----------------------------------------
+  //
+  // Intake-link enterprise messaging — returns the safe transport
+  // identity the recipient will see, with secret material redacted.
+  // Used by the Message Preview Studio in the create modal so the
+  // operator can confirm WHO the message will appear from BEFORE
+  // they click Create & Send. Never leaks API keys, Twilio SIDs, or
+  // messaging-service SIDs.
+  app.get(
+    "/v1/workflow/intake-links/sender-identity",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (workflowIntakeFeatureDisabledReason()) {
+        return sendFeatureDisabled(reply);
+      }
+      const q = z
+        .object({ teamId: z.string().uuid() })
+        .parse(req.query ?? {});
+      const ok = await requireMember(req, reply, q.teamId);
+      if (!ok) return;
+
+      // Resolve the channel identities from env. EVERYTHING is
+      // presented as a safe preview — no raw API keys ever cross the
+      // wire. `configured=false` channels render with "Not
+      // configured" and disable themselves in the modal.
+      const emailFromName = (process.env.EMAIL_FROM_NAME ?? "PROOVRA").slice(0, 80);
+      const emailFromAddress = (() => {
+        const explicit = process.env.EMAIL_FROM ?? "";
+        const match = explicit.match(/<([^>]+)>/);
+        if (match) return match[1];
+        if (/@/.test(explicit)) return explicit.trim();
+        return "no-reply@proovra.com";
+      })();
+      const emailConfigured = Boolean(process.env.RESEND_API_KEY);
+
+      const smsFromNumber = (process.env.TWILIO_SMS_FROM_NUMBER ?? "").trim();
+      const smsConfigured =
+        Boolean(process.env.TWILIO_ACCOUNT_SID) &&
+        (smsFromNumber.length > 0 ||
+          Boolean(process.env.TWILIO_MESSAGING_SERVICE_SID));
+
+      const whatsappFromNumber = (
+        process.env.TWILIO_WHATSAPP_NUMBER ?? ""
+      ).trim();
+      const whatsappConfigured =
+        Boolean(process.env.TWILIO_ACCOUNT_SID) &&
+        whatsappFromNumber.length > 0;
+
+      // Reuse the existing phone masker so the operator sees the
+      // same shape they're used to elsewhere in the app.
+      const { maskPhonePreview } = await import("@proovra/shared");
+      const fromNumberPreview = (raw: string): string | null => {
+        if (!raw) return null;
+        return maskPhonePreview(raw);
+      };
+
+      return reply.code(200).send({
+        email: {
+          configured: emailConfigured,
+          fromName: emailFromName,
+          fromAddressPreview: emailFromAddress,
+        },
+        sms: {
+          configured: smsConfigured,
+          fromNumberPreview: fromNumberPreview(smsFromNumber),
+        },
+        whatsapp: {
+          configured: whatsappConfigured,
+          fromNumberPreview: fromNumberPreview(whatsappFromNumber),
+          displayName: "PROOVRA",
+        },
+      });
     },
   );
 

@@ -33,6 +33,37 @@ import { OperationalBreadcrumb } from "../../../components/navigation/Operationa
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 import { validateE164 } from "../../../lib/phone/e164";
 import { IntakeLinkDeliveryDrawer } from "../../../components/intake-links/IntakeLinkDeliveryDrawer";
+// Intake-link enterprise messaging — frontend imports the SAME shared
+// renderers + sender-identity resolver the API uses, so the preview
+// the operator sees in the modal is bit-for-bit what the recipient
+// gets. The placeholder URL keeps the raw token out of the browser
+// preview (the real URL is composed on the server at create time).
+import {
+  renderIntakeEmailMessage,
+  renderIntakeSmsMessage,
+  renderIntakeWhatsappMessage,
+  resolveIntakeSenderDisplay,
+  validateCustomSenderDisplayName,
+  type IntakeSenderDisplayMode,
+} from "@proovra/shared";
+
+type SenderDisplayMode = IntakeSenderDisplayMode;
+
+type SenderTransportChannel = {
+  configured: boolean;
+  fromName?: string;
+  fromAddressPreview?: string;
+  fromNumberPreview?: string | null;
+  displayName?: string;
+};
+type SenderTransportInfo = {
+  email: SenderTransportChannel;
+  sms: SenderTransportChannel;
+  whatsapp: SenderTransportChannel;
+};
+
+const PLACEHOLDER_INTAKE_URL =
+  "https://app.proovra.com/intake/[secure-link]";
 
 type LinkRow = {
   id: string;
@@ -333,7 +364,19 @@ function IntakeLinksPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [featureDisabled, setFeatureDisabled] = useState(false);
 
-  const [showCreate, setShowCreate] = useState(false);
+  // Intake-links-e2e redesign — the create-modal state now carries an
+  // optional `slug` so the Common Requests tiles can preselect the
+  // template before the modal mounts. `null` = closed; an object =
+  // open. The wrapper `openCreate(slug?)` is the single entrypoint
+  // so every caller (header CTA, empty-state CTA, tiles) clears stale
+  // errors / delivery results consistently.
+  const [createOpen, setCreateOpen] = useState<{ initialSlug?: string } | null>(
+    null,
+  );
+  const openCreate = (initialSlug?: string) => {
+    setError(null);
+    setCreateOpen({ initialSlug });
+  };
   const [rawTokenReveal, setRawTokenReveal] = useState<{
     rawToken: string;
     intakeUrl: string;
@@ -360,7 +403,7 @@ function IntakeLinksPageInner() {
   useEffect(() => {
     if (appliedDeepLink) return;
     if (searchParams.get("new") === "1") {
-      setShowCreate(true);
+      openCreate();
       setAppliedDeepLink(true);
       return;
     }
@@ -543,48 +586,30 @@ function IntakeLinksPageInner() {
         routeId="workspace.intake_links"
         items={[{ label: "Intake links" }]}
       />
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
+      {/* Intake-links-e2e redesign — operational header. The H1 +
+          one-line subtitle frame the page; the primary CTA sits
+          inline (top-right on desktop, stacked on narrow viewports
+          via flexWrap). */}
+      <header style={headerRowStyle}>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <h1 style={titleStyle}>External Intake Links</h1>
-          <p style={mutedStyle}>
-            Secure, expiring links that let people outside your workspace
-            submit evidence into a specific workflow.
+          <p style={subtitleStyle}>
+            Create secure links so people outside your workspace can
+            upload photos, videos, audio, or documents.
           </p>
         </div>
         {currentTeam ? (
           <button
             type="button"
             style={primaryButtonStyle}
-            onClick={() => setShowCreate(true)}
+            onClick={() => openCreate()}
             disabled={!currentTeam}
+            data-intake-links-new-cta="true"
           >
             New intake link
           </button>
         ) : null}
       </header>
-
-      {/* Intake-links-e2e Phase 8 — compact 3-step guidance card.
-          Frames the page for SMB users who land here cold.  */}
-      <section style={guidanceCardStyle} data-intake-links-guidance="true">
-        <h2 style={{ ...sectionTitleStyle, marginBottom: 6 }}>
-          Request evidence with a secure upload link
-        </h2>
-        <p style={{ ...paragraphStyle, marginTop: 0, marginBottom: 12 }}>
-          Send a link by email, SMS, WhatsApp, or copy it manually.
-          Contributors upload files without joining your workspace.
-        </p>
-        <ol style={guidanceListStyle}>
-          <li>
-            <strong>Choose the request type.</strong>
-          </li>
-          <li>
-            <strong>Share the secure link.</strong>
-          </li>
-          <li>
-            <strong>Track delivery and submissions.</strong>
-          </li>
-        </ol>
-      </section>
 
       {!currentTeam ? (
         <div style={infoBoxStyle} data-intake-links-loading>
@@ -594,15 +619,16 @@ function IntakeLinksPageInner() {
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
-      {currentTeam && items !== null ? (
-        items.length === 0 ? (
-          <div style={infoBoxStyle} data-intake-links-empty>
-            Create a secure intake link to request evidence from a
-            client, source, witness, or contributor.
-          </div>
-        ) : (
+      {/* Intake-links-e2e redesign — operational list is the
+          primary surface when links exist. Renders BEFORE any
+          guidance / tiles so returning users see their work first.
+          Empty workspace falls through to the dedicated empty
+          state below. */}
+      {currentTeam && items !== null && items.length > 0 ? (
+        <section data-intake-links-list-section="true">
+          <h2 style={sectionHeaderStyle}>Your intake links</h2>
           <ul
-            style={{ listStyle: "none", padding: 0, marginTop: 24 }}
+            style={{ listStyle: "none", padding: 0, margin: 0 }}
             data-intake-links-list="true"
           >
             {items.map((it) => (
@@ -615,16 +641,60 @@ function IntakeLinksPageInner() {
               />
             ))}
           </ul>
-        )
+        </section>
       ) : null}
 
-      {showCreate && currentTeam ? (
+      {/* Intake-links-e2e redesign — empty state. Renders ONLY when
+          the workspace has zero links. Title + one-line copy + two
+          actions + three concrete examples so a first-time user
+          knows exactly what this page is for. */}
+      {currentTeam && items !== null && items.length === 0 ? (
+        <EmptyState
+          onCreate={() => openCreate()}
+          onPickRequestType={(slug) => openCreate(slug)}
+        />
+      ) : null}
+
+      {/* Intake-links-e2e redesign — How it works strip. Compact
+          3-card layout that helps first-time users without pushing
+          the operational list down. Renders ALWAYS but uses the
+          `secondary` flag to render smaller / collapsed when links
+          already exist (returning operators don't need the intro
+          repeated). */}
+      {currentTeam ? (
+        <HowItWorksStrip secondary={(items?.length ?? 0) > 0} />
+      ) : null}
+
+      {/* Intake-links-e2e redesign — Common requests tiles. Quick-
+          start tiles for the 6 most-asked request types. Clicking
+          Start opens the create modal with the tile's slug
+          preselected — every Start IS wired (no fake actions). */}
+      {currentTeam ? (
+        <CommonRequestsSection
+          onPick={(slug) => openCreate(slug)}
+          collapsed={(items?.length ?? 0) > 0}
+        />
+      ) : null}
+
+      {/* Intake-links-e2e redesign — safety note. Tells the user
+          what does NOT happen (contributors don't get workspace
+          access). Compact, not a hero card. */}
+      {currentTeam ? (
+        <p style={safetyNoteStyle} data-intake-links-safety-note="true">
+          Contributors can submit files without accessing your
+          workspace. You control delivery, expiration, file types, and
+          revocation.
+        </p>
+      ) : null}
+
+      {createOpen && currentTeam ? (
         <CreateLinkModal
           team={currentTeam}
           templates={eligibleTemplates}
-          onClose={() => setShowCreate(false)}
+          initialSlug={createOpen.initialSlug}
+          onClose={() => setCreateOpen(null)}
           onCreated={(created) => {
-            setShowCreate(false);
+            setCreateOpen(null);
             setRawTokenReveal({
               rawToken: created.rawToken,
               intakeUrl: intakeUrlFromToken(created.rawToken),
@@ -910,6 +980,560 @@ function describeRelativeTime(iso: string): string {
 }
 
 // -----------------------------------------------------------------------------
+// SenderIdentitySelector — sender identity radio + custom-name input.
+// The "via PROOVRA" suffix is appended by the shared resolver, so the
+// PROOVRA wordmark is always visible regardless of the choice. The
+// operator cannot remove it.
+// -----------------------------------------------------------------------------
+
+function SenderIdentitySelector({
+  mode,
+  name,
+  nameError,
+  workspaceName,
+  onModeChange,
+  onNameChange,
+}: {
+  mode: SenderDisplayMode;
+  name: string;
+  nameError: string | null;
+  workspaceName: string;
+  onModeChange: (m: SenderDisplayMode) => void;
+  onNameChange: (n: string) => void;
+}) {
+  const workspacePreview = workspaceName
+    ? `${workspaceName} via PROOVRA`
+    : null;
+  return (
+    <fieldset
+      style={senderFieldsetStyle}
+      data-intake-link-sender-selector="true"
+    >
+      <legend style={labelStyle}>Request appears from</legend>
+      <label style={senderRadioRowStyle}>
+        <input
+          type="radio"
+          name="sender-display-mode"
+          value="PROOVRA"
+          checked={mode === "PROOVRA"}
+          onChange={() => onModeChange("PROOVRA")}
+          data-intake-link-sender-mode-radio="PROOVRA"
+        />
+        <span>
+          <strong>PROOVRA secure intake</strong>
+          <span style={mutedStyle}> — generic, safe default</span>
+        </span>
+      </label>
+      {workspacePreview ? (
+        <label style={senderRadioRowStyle}>
+          <input
+            type="radio"
+            name="sender-display-mode"
+            value="WORKSPACE"
+            checked={mode === "WORKSPACE"}
+            onChange={() => onModeChange("WORKSPACE")}
+            data-intake-link-sender-mode-radio="WORKSPACE"
+          />
+          <span>
+            <strong>{workspacePreview}</strong>
+            <span style={mutedStyle}> — uses your workspace name</span>
+          </span>
+        </label>
+      ) : null}
+      <label style={senderRadioRowStyle}>
+        <input
+          type="radio"
+          name="sender-display-mode"
+          value="CUSTOM"
+          checked={mode === "CUSTOM"}
+          onChange={() => onModeChange("CUSTOM")}
+          data-intake-link-sender-mode-radio="CUSTOM"
+        />
+        <span>
+          <strong>Custom display name via PROOVRA</strong>
+          <span style={mutedStyle}> — for example "Smith & Partners"</span>
+        </span>
+      </label>
+      {mode === "CUSTOM" ? (
+        <div style={{ marginTop: 8 }}>
+          <input
+            type="text"
+            maxLength={80}
+            placeholder="e.g. Acme Insurance"
+            value={name}
+            onChange={(e) => onNameChange(e.target.value)}
+            aria-invalid={Boolean(nameError)}
+            data-intake-link-sender-custom-name="true"
+            style={{
+              ...inputStyle,
+              borderColor: nameError
+                ? "#dc2626"
+                : (inputStyle.border as string),
+              marginBottom: 4,
+            }}
+          />
+          <p style={{ ...mutedStyle, marginTop: 0 }}>
+            Appears as <strong>{(name || "Your name").slice(0, 60)} via PROOVRA</strong>.
+            PROOVRA branding is always added so recipients can trust
+            the source.
+          </p>
+          {nameError ? (
+            <p
+              style={{
+                ...mutedStyle,
+                color: "#b91c1c",
+                marginTop: 4,
+              }}
+              data-intake-link-sender-name-error="true"
+            >
+              {nameError}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </fieldset>
+  );
+}
+
+// Translates the `validateCustomSenderDisplayName` reason codes into
+// plain English shown under the input.
+function senderNameReasonCopy(reason: string): string {
+  switch (reason) {
+    case "empty":
+      return "Enter a display name.";
+    case "too_long":
+      return "Keep the name under 80 characters.";
+    case "contains_url":
+      return "Display names can't contain URLs.";
+    case "contains_email":
+      return "Display names can't contain email addresses.";
+    case "contains_phone":
+      return "Display names can't contain phone numbers.";
+    case "contains_control_chars":
+      return "Display names can't contain invisible or directional characters.";
+    case "impersonation":
+      return "Display names can't impersonate courts, police, government, or banks.";
+    case "reserved_brand":
+      return "PROOVRA is reserved — pick a different name (it's added automatically).";
+    default:
+      return "That display name isn't allowed.";
+  }
+}
+
+// -----------------------------------------------------------------------------
+// MessagePreviewStudio — shows exactly what the recipient will see.
+// Imports the SAME shared renderer the API uses, so the preview is
+// bit-for-bit accurate aside from the [secure-link] placeholder.
+// -----------------------------------------------------------------------------
+
+function MessagePreviewStudio({
+  channel,
+  senderMode,
+  senderName,
+  workspaceName,
+  requestTypeSlug,
+  recipientLabel,
+  expiresInHours,
+  senderTransport,
+}: {
+  channel: "EMAIL" | "SMS" | "WHATSAPP";
+  senderMode: SenderDisplayMode;
+  senderName: string;
+  workspaceName: string;
+  requestTypeSlug: string;
+  recipientLabel: string;
+  expiresInHours: number;
+  senderTransport: SenderTransportInfo | null;
+}) {
+  // Resolve sender display via the SAME shared function. If the
+  // current mode is CUSTOM with an invalid name, fall back gracefully
+  // so the preview never crashes — the submit gate already prevents
+  // the actual send when the name is invalid.
+  const senderIdentity = (() => {
+    try {
+      return resolveIntakeSenderDisplay({
+        mode: senderMode,
+        workspaceName,
+        customName: senderName || "Your business",
+      });
+    } catch {
+      return resolveIntakeSenderDisplay({
+        mode: "PROOVRA",
+      });
+    }
+  })();
+
+  const expiresAtUtc = new Date(
+    Date.now() + Math.max(1, expiresInHours) * 3600 * 1000,
+  ).toISOString();
+  const renderInput = {
+    senderDisplay: senderIdentity.display,
+    requestTypeSlug,
+    recipientLabel: recipientLabel || null,
+    intakeUrl: PLACEHOLDER_INTAKE_URL,
+    expiresAtUtc,
+    channel,
+    locale: "en" as const,
+  };
+
+  let bodyText = "";
+  let bodySubject: string | null = null;
+  if (channel === "EMAIL") {
+    const r = renderIntakeEmailMessage(renderInput);
+    bodySubject = r.subject;
+    bodyText = r.text;
+  } else if (channel === "SMS") {
+    bodyText = renderIntakeSmsMessage(renderInput);
+  } else {
+    // WhatsApp — preview the "plain" body the API ships by default.
+    // Rich body is gated behind WHATSAPP_INTAKE_TEMPLATE_MODE on the
+    // server; we don't surface that toggle in the modal yet.
+    bodyText = renderIntakeWhatsappMessage(renderInput);
+  }
+
+  const transport = senderTransport
+    ? channel === "EMAIL"
+      ? senderTransport.email
+      : channel === "SMS"
+        ? senderTransport.sms
+        : senderTransport.whatsapp
+    : null;
+
+  const transportLabel = (() => {
+    if (!transport) return "Loading…";
+    if (!transport.configured) return "Not configured";
+    if (channel === "EMAIL") {
+      return `${transport.fromName ?? "PROOVRA"} <${transport.fromAddressPreview ?? "no-reply@proovra.com"}>`;
+    }
+    if (channel === "SMS") {
+      return transport.fromNumberPreview
+        ? `PROOVRA via ${transport.fromNumberPreview}`
+        : "PROOVRA";
+    }
+    return transport.fromNumberPreview
+      ? `PROOVRA WhatsApp via ${transport.fromNumberPreview}`
+      : "PROOVRA WhatsApp";
+  })();
+
+  return (
+    <section
+      style={previewStudioStyle}
+      data-intake-link-preview-studio="true"
+      data-intake-link-preview-channel={channel}
+      aria-label="Message preview"
+    >
+      <h3 style={previewHeadingStyle}>Message preview</h3>
+      <div style={previewMetaRowStyle}>
+        <div>
+          <div style={previewMetaLabelStyle}>Appears from</div>
+          <div
+            style={previewMetaValueStyle}
+            data-intake-link-preview-sender-display="true"
+          >
+            {senderIdentity.display}
+          </div>
+        </div>
+        <div>
+          <div style={previewMetaLabelStyle}>Sent via</div>
+          <div
+            style={previewMetaValueStyle}
+            data-intake-link-preview-transport="true"
+            data-intake-link-preview-transport-configured={
+              transport?.configured ? "true" : "false"
+            }
+          >
+            {transportLabel}
+          </div>
+        </div>
+      </div>
+      {channel === "EMAIL" && bodySubject ? (
+        <div style={previewSubjectStyle}>
+          <span style={previewMetaLabelStyle}>Subject</span>
+          <div
+            style={previewMetaValueStyle}
+            data-intake-link-preview-subject="true"
+          >
+            {bodySubject}
+          </div>
+        </div>
+      ) : null}
+      <pre
+        style={previewBodyStyle}
+        data-intake-link-preview-body="true"
+      >
+        {bodyText}
+      </pre>
+      <p style={previewNoteStyle}>
+        Preview only. The secure link is generated when you create the
+        intake link.
+      </p>
+    </section>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// HowItWorksStrip — compact 3-card explainer that replaces the old
+// oversized guidance card. When `secondary` is true (i.e. the workspace
+// already has links) it renders smaller and de-emphasised so it
+// doesn't push the operational list down.
+// -----------------------------------------------------------------------------
+
+const HOW_IT_WORKS_CARDS: Array<{
+  title: string;
+  text: string;
+  testId: string;
+}> = [
+  {
+    title: "Create",
+    text: "Choose a request type, allowed file types, and expiration.",
+    testId: "create",
+  },
+  {
+    title: "Share",
+    text: "Send by email, SMS, WhatsApp, or copy the secure link manually.",
+    testId: "share",
+  },
+  {
+    title: "Track",
+    text: "See delivery, openings, submissions, expiration, and revocation.",
+    testId: "track",
+  },
+];
+
+function HowItWorksStrip({ secondary }: { secondary: boolean }) {
+  return (
+    <section
+      style={secondary ? howItWorksStripSecondaryStyle : howItWorksStripStyle}
+      data-intake-links-howitworks="true"
+      data-intake-links-howitworks-secondary={secondary ? "true" : "false"}
+      aria-label="How intake links work"
+    >
+      <h2 style={secondary ? sectionHeaderSecondaryStyle : sectionHeaderStyle}>
+        How it works
+      </h2>
+      <ol style={howItWorksGridStyle}>
+        {HOW_IT_WORKS_CARDS.map((c, i) => (
+          <li
+            key={c.testId}
+            style={
+              secondary ? howItWorksCardSecondaryStyle : howItWorksCardStyle
+            }
+            data-intake-links-howitworks-card={c.testId}
+          >
+            <div style={howItWorksStepStyle} aria-hidden>
+              {i + 1}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={howItWorksTitleStyle}>{c.title}</div>
+              <div style={howItWorksTextStyle}>{c.text}</div>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// CommonRequestsSection — quick-start tiles. Every tile preselects its
+// slug in the create modal via the `onPick` callback. No fake actions:
+// the catalog mirrors the seed registry so the backend always resolves
+// the slug to a real template.
+// -----------------------------------------------------------------------------
+
+const COMMON_REQUEST_TILES: Array<{
+  slug: string;
+  title: string;
+  text: string;
+}> = [
+  {
+    slug: "general-evidence-record",
+    title: "General evidence request",
+    text: "Catch-all for photos, documents, or a quick description.",
+  },
+  {
+    slug: "photos-videos",
+    title: "Photos & videos",
+    text: "Request visual proof from a client, witness, or field contributor.",
+  },
+  {
+    slug: "documents",
+    title: "Documents",
+    text: "Ask for PDFs, scans, or clear photos of paperwork.",
+  },
+  {
+    slug: "insurance-claim",
+    title: "Insurance claim evidence",
+    text: "Damage photos, repair quotes, receipts, and supporting paperwork.",
+  },
+  {
+    slug: "legal-matter",
+    title: "Legal document collection",
+    text: "Contracts, signed forms, sworn statements, and case documents.",
+  },
+  {
+    slug: "property-damage",
+    title: "Property damage",
+    text: "Scene overview, close-up damage shots, repair estimates.",
+  },
+];
+
+function CommonRequestsSection({
+  onPick,
+  collapsed,
+}: {
+  onPick: (slug: string) => void;
+  collapsed: boolean;
+}) {
+  // When the workspace has links, the user is here to manage them.
+  // Render the section but tighten the layout (denser grid, smaller
+  // descriptions) so it doesn't compete with the operational list.
+  return (
+    <section
+      style={collapsed ? commonRequestsSecondaryStyle : commonRequestsStyle}
+      data-intake-links-common-requests="true"
+      data-intake-links-common-requests-collapsed={collapsed ? "true" : "false"}
+      aria-label="Common requests"
+    >
+      <h2 style={collapsed ? sectionHeaderSecondaryStyle : sectionHeaderStyle}>
+        Common requests
+      </h2>
+      <ul style={tileGridStyle}>
+        {COMMON_REQUEST_TILES.map((t) => (
+          <li
+            key={t.slug}
+            style={tileStyle}
+            data-intake-links-common-tile={t.slug}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={tileTitleStyle}>{t.title}</div>
+              <div style={tileTextStyle}>{t.text}</div>
+            </div>
+            <button
+              type="button"
+              style={tileStartButtonStyle}
+              onClick={() => onPick(t.slug)}
+              data-intake-links-common-tile-start={t.slug}
+              aria-label={`Start a new ${t.title} intake link`}
+            >
+              Start
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// EmptyState — replaces the previous generic "Create a secure intake
+// link…" infoBox. Title + one-line copy + two real actions + three
+// concrete examples so a first-time user knows what this page is for.
+// -----------------------------------------------------------------------------
+
+const EMPTY_STATE_EXAMPLES = [
+  "Ask a client for accident photos",
+  "Collect signed documents",
+  "Request property damage evidence",
+];
+
+function EmptyState({
+  onCreate,
+  onPickRequestType,
+}: {
+  onCreate: () => void;
+  onPickRequestType: (slug: string) => void;
+}) {
+  return (
+    <section
+      style={emptyStateStyle}
+      data-intake-links-empty="true"
+      aria-label="No intake links yet"
+    >
+      <h2 style={emptyStateTitleStyle}>No intake links yet</h2>
+      <p style={emptyStateBodyStyle}>
+        Create your first secure upload link to request evidence from
+        someone outside your workspace. Use intake links when you need
+        evidence from a client, witness, contractor, or external
+        contributor.
+      </p>
+      <div style={emptyStateActionsStyle}>
+        <button
+          type="button"
+          style={primaryButtonStyle}
+          onClick={onCreate}
+          data-intake-links-empty-create="true"
+        >
+          New intake link
+        </button>
+        <a
+          href="#intake-links-howitworks"
+          style={secondaryButtonStyle}
+          onClick={(e) => {
+            // Smooth scroll to the How-it-works strip; the link
+            // remains a real anchor so keyboard users without JS
+            // still get the right destination.
+            const target = document.querySelector(
+              '[data-intake-links-howitworks="true"]',
+            );
+            if (target) {
+              e.preventDefault();
+              target.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+          }}
+          data-intake-links-empty-learn="true"
+        >
+          Learn how intake links work
+        </a>
+      </div>
+      <div style={emptyStateExamplesStyle}>
+        <div style={emptyStateExamplesLabelStyle}>For example:</div>
+        <ul style={emptyStateExamplesListStyle}>
+          {EMPTY_STATE_EXAMPLES.map((ex, i) => (
+            <li
+              key={i}
+              style={emptyStateExampleItemStyle}
+              data-intake-links-empty-example={i}
+            >
+              {ex}
+            </li>
+          ))}
+        </ul>
+        <p style={emptyStateExamplesHelpStyle}>
+          Or pick a quick-start template below.
+        </p>
+      </div>
+      {/* Surface the catalog inline so the user can act without
+          scrolling. Calls the same onPickRequestType wiring as the
+          standalone CommonRequestsSection. */}
+      <ul style={tileGridStyle}>
+        {COMMON_REQUEST_TILES.slice(0, 3).map((t) => (
+          <li
+            key={t.slug}
+            style={tileStyle}
+            data-intake-links-empty-tile={t.slug}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={tileTitleStyle}>{t.title}</div>
+              <div style={tileTextStyle}>{t.text}</div>
+            </div>
+            <button
+              type="button"
+              style={tileStartButtonStyle}
+              onClick={() => onPickRequestType(t.slug)}
+              data-intake-links-empty-tile-start={t.slug}
+              aria-label={`Start a new ${t.title} intake link`}
+            >
+              Start
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// -----------------------------------------------------------------------------
 // SubmissionsDrawer — Phase 3 view.
 // -----------------------------------------------------------------------------
 
@@ -1043,19 +1667,32 @@ type CreatedResult = {
 function CreateLinkModal({
   team,
   templates,
+  initialSlug,
   onClose,
   onCreated,
 }: {
   team: { id: string; name: string };
   templates: WorkflowTemplateRow[];
+  /** Common-requests tile preselects a slug; defaults to the first
+   *  catalog entry when unset (top-right "New intake link" button). */
+  initialSlug?: string;
   onClose: () => void;
   onCreated: (result: CreatedResult) => void;
 }) {
-  // Intake-links-e2e (Phase 1) — default to the most generic catalog
-  // entry rather than the first fetched workspace template. Falls
-  // through to a workspace template only when the user explicitly
-  // picks one from the "Other workflow" group.
-  const [slug, setSlug] = useState<string>(REQUEST_TYPES[0].slug);
+  // Intake-links-e2e redesign — resolve the initial slug from the
+  // optional `initialSlug` prop (clicked tile) before falling back to
+  // the generic catalog entry. Validates the prop against the catalog
+  // so a bad value never lands the modal on an unknown template.
+  const defaultSlug = (() => {
+    if (initialSlug && REQUEST_TYPES.some((r) => r.slug === initialSlug)) {
+      return initialSlug;
+    }
+    return REQUEST_TYPES[0].slug;
+  })();
+  const defaultKinds = (
+    REQUEST_TYPES.find((r) => r.slug === defaultSlug) ?? REQUEST_TYPES[0]
+  ).recommendedKinds;
+  const [slug, setSlug] = useState<string>(defaultSlug);
   const [intakeMode, setIntakeMode] = useState("EXTERNAL_ONE_TIME");
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(
     "MANUAL",
@@ -1068,11 +1705,44 @@ function CreateLinkModal({
   // Default the accepted-kinds set from the chosen catalog entry's
   // recommendation, then let the user tweak.
   const [allowedKinds, setAllowedKinds] = useState<Set<string>>(
-    new Set(REQUEST_TYPES[0].recommendedKinds),
+    new Set(defaultKinds),
   );
   const [consentText, setConsentText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Intake-link enterprise messaging — sender identity selector
+  // state. Defaults to WORKSPACE when the workspace has a name
+  // (otherwise PROOVRA), mirroring `defaultIntakeSenderMode` in
+  // @proovra/shared. The "via PROOVRA" suffix is always added by the
+  // shared renderer; the operator cannot remove it.
+  const [senderDisplayMode, setSenderDisplayMode] =
+    useState<SenderDisplayMode>(team.name ? "WORKSPACE" : "PROOVRA");
+  const [senderDisplayName, setSenderDisplayName] = useState<string>("");
+  const [senderNameError, setSenderNameError] = useState<string | null>(null);
+
+  // Sender-identity (transport) — populated by the
+  // /v1/workflow/intake-links/sender-identity fetch. Used by the
+  // preview studio to show "Email goes via PROOVRA <no-reply@…>"
+  // etc. without leaking provider secrets.
+  const [senderTransport, setSenderTransport] =
+    useState<SenderTransportInfo | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch(
+      `/v1/workflow/intake-links/sender-identity?teamId=${encodeURIComponent(team.id)}`,
+      { method: "GET" },
+    )
+      .then((res: SenderTransportInfo) => {
+        if (!cancelled) setSenderTransport(res);
+      })
+      .catch(() => {
+        if (!cancelled) setSenderTransport(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [team.id]);
 
   // Intake-links-e2e Phase 5 — a per-modal-lifetime nonce. Mounting
   // the modal generates a fresh value; double-clicking the submit
@@ -1120,6 +1790,39 @@ function CreateLinkModal({
     ? INTAKE_MODES.filter((m) => selectedTemplate.intakeModes.includes(m.value))
     : INTAKE_MODES;
 
+  // Intake-links-e2e mode-compat bugfix — when the operator changes
+  // request type, the previously-selected intake mode may no longer be
+  // supported by the new template. Auto-correct to the first
+  // supported mode so the modal never holds an invalid state, and
+  // wipe the create error so a stale message doesn't outlive its
+  // cause. The effect re-runs whenever `slug` changes, AND whenever
+  // `templates` finishes loading (so the auto-pick still happens
+  // even if the user opened the modal before the templates fetch
+  // settled).
+  useEffect(() => {
+    if (!selectedTemplate) return;
+    const supported = selectedTemplate.intakeModes;
+    if (supported.length === 0) {
+      // Template advertises NO intake modes at all. We can't pick
+      // one; surface the issue rather than letting the submit fail
+      // mid-flight.
+      setError(
+        "This request type is not configured for external intake. Pick another type.",
+      );
+      return;
+    }
+    if (!supported.includes(intakeMode)) {
+      // Prefer EXTERNAL_ONE_TIME when available — it's the safest
+      // default for SMB / Personal users. Fall back to the first
+      // mode the template actually advertises.
+      const preferred = supported.includes("EXTERNAL_ONE_TIME")
+        ? "EXTERNAL_ONE_TIME"
+        : supported[0];
+      setIntakeMode(preferred);
+    }
+    setError(null);
+  }, [slug, selectedTemplate, intakeMode]);
+
   // Intake-links-e2e (Phase 2) — conditional validation. EMAIL requires
   // an email; SMS/WHATSAPP requires a valid E.164 phone. Block submit
   // up-front rather than surfacing the backend 400.
@@ -1138,6 +1841,19 @@ function CreateLinkModal({
   async function submit() {
     setBusy(true);
     setError(null);
+
+    // Pre-validate the custom sender name on the client so the user
+    // doesn't have to round-trip to the backend for a bad name.
+    if (senderDisplayMode === "CUSTOM") {
+      const v = validateCustomSenderDisplayName(senderDisplayName);
+      if (!v.ok) {
+        setSenderNameError(senderNameReasonCopy(v.reason));
+        setBusy(false);
+        return;
+      }
+    }
+    setSenderNameError(null);
+
     try {
       const expiresAtUtc = new Date(
         Date.now() + expiresInHours * 3600 * 1000,
@@ -1171,6 +1887,9 @@ function CreateLinkModal({
         consentDisclosureText: consentText || null,
         expiresAtUtc,
         idempotencyKey: submitNonce,
+        senderDisplayMode,
+        senderDisplayName:
+          senderDisplayMode === "CUSTOM" ? senderDisplayName.trim() : null,
       };
 
       const res: CreatedResult = await apiFetch("/v1/workflow/intake-links", {
@@ -1181,11 +1900,7 @@ function CreateLinkModal({
       onCreated(res);
     } catch (err) {
       const e = err as { message?: string; code?: string };
-      setError(
-        e?.code === "FEATURE_DISABLED"
-          ? "External intake is not enabled on this deployment."
-          : e?.message ?? "Could not create intake link.",
-      );
+      setError(friendlyCreateError(e?.code, e?.message));
     } finally {
       setBusy(false);
     }
@@ -1284,6 +1999,24 @@ function CreateLinkModal({
           email and SMS together unless you choose a multi-channel
           workflow.
         </p>
+
+        {/* Intake-link enterprise messaging — sender identity
+            selector. "via PROOVRA" is appended automatically by the
+            shared resolver; the brand cannot be removed. */}
+        <SenderIdentitySelector
+          mode={senderDisplayMode}
+          name={senderDisplayName}
+          nameError={senderNameError}
+          workspaceName={team.name}
+          onModeChange={(m) => {
+            setSenderDisplayMode(m);
+            setSenderNameError(null);
+          }}
+          onNameChange={(n) => {
+            setSenderDisplayName(n);
+            setSenderNameError(null);
+          }}
+        />
 
         <label style={labelStyle}>Recipient label (optional)</label>
         <input
@@ -1464,6 +2197,33 @@ function CreateLinkModal({
           value={consentText}
           onChange={(e) => setConsentText(e.target.value.slice(0, 4000))}
         />
+
+        {/* Intake-link enterprise messaging — Message Preview Studio.
+            Hidden for MANUAL (no message is sent). Imports the SAME
+            shared renderer the API uses, so the preview equals what
+            the recipient will receive. The token is replaced by a
+            visible `[secure-link]` placeholder; the real URL is only
+            composed on the server at create time. */}
+        {deliveryMethod !== "MANUAL" ? (
+          <MessagePreviewStudio
+            channel={deliveryMethod}
+            senderMode={senderDisplayMode}
+            senderName={senderDisplayName}
+            workspaceName={team.name}
+            requestTypeSlug={slug}
+            recipientLabel={recipientLabel}
+            expiresInHours={expiresInHours}
+            senderTransport={senderTransport}
+          />
+        ) : (
+          <div
+            style={previewManualNoteStyle}
+            data-intake-link-preview-manual="true"
+          >
+            Manual delivery — no message will be sent. You'll receive
+            a one-time link to copy and share however you want.
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
           <button type="button" style={secondaryButtonStyle} onClick={onClose} disabled={busy}>
@@ -1686,6 +2446,36 @@ function RawTokenRevealModal({
 // Helpers
 // -----------------------------------------------------------------------------
 
+// Intake-links-e2e mode-compat bugfix — map backend CREATE reason
+// codes to plain English so a normal user never sees a raw enum like
+// `intake_mode_not_supported_by_template`. Unknown codes fall back to
+// the server-provided message; final fallback is a generic "could not
+// create" so the modal is never silent.
+function friendlyCreateError(
+  code: string | undefined,
+  message: string | undefined,
+): string {
+  const map: Record<string, string> = {
+    FEATURE_DISABLED:
+      "External intake is not enabled on this deployment.",
+    intake_mode_not_supported_by_template:
+      "This request type does not support the selected intake mode. Please choose another mode.",
+    template_not_found:
+      "That request type isn't available for this workspace.",
+    max_uses_invalid:
+      "Pick a usage limit between 1 and 10,000.",
+    feature_disabled:
+      "External intake is not enabled on this deployment.",
+    rate_limited:
+      "Too many intake links — wait a minute and try again.",
+  };
+  if (code && map[code]) return map[code];
+  // Backend error envelope sometimes nests reason under `message` — if
+  // it's a known reason string, friendly-map that too.
+  if (message && map[message]) return map[message];
+  return message ?? "Could not create intake link.";
+}
+
 // Intake-links-e2e (Phase 4) — map backend delivery-failure reason
 // codes to plain-language copy. Unknown codes pass through verbatim
 // so we never silently swallow a new reason the backend adds.
@@ -1832,19 +2622,298 @@ const modalBackdropStyle: React.CSSProperties = {
   zIndex: 1000,
   padding: 16,
 };
-const guidanceCardStyle: React.CSSProperties = {
-  marginTop: 16,
-  padding: "20px 24px",
-  background: "#eff6ff",
-  border: "1px solid #bfdbfe",
-  borderRadius: 12,
+// Intake-links-e2e redesign — operational header row. Flex with
+// `flexWrap: "wrap"` so the primary CTA drops below the title on
+// narrow viewports instead of overflowing horizontally.
+const headerRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 16,
+  flexWrap: "wrap",
+  marginBottom: 4,
 };
-const guidanceListStyle: React.CSSProperties = {
-  margin: 0,
-  paddingLeft: 20,
+const subtitleStyle: React.CSSProperties = {
   fontSize: 14,
+  lineHeight: 1.5,
+  color: "#475569",
+  margin: 0,
+  maxWidth: 640,
+};
+const sectionHeaderStyle: React.CSSProperties = {
+  fontSize: 16,
+  fontWeight: 600,
+  color: "#0f172a",
+  margin: "32px 0 12px",
+  letterSpacing: -0.1,
+};
+const sectionHeaderSecondaryStyle: React.CSSProperties = {
+  ...sectionHeaderStyle,
+  fontSize: 13,
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: 0.6,
+  color: "#64748b",
+  margin: "32px 0 10px",
+};
+
+// How-it-works strip — 3 compact cards in a grid.
+const howItWorksStripStyle: React.CSSProperties = {
+  marginTop: 8,
+};
+const howItWorksStripSecondaryStyle: React.CSSProperties = {
+  marginTop: 16,
+};
+const howItWorksGridStyle: React.CSSProperties = {
+  listStyle: "none",
+  padding: 0,
+  margin: 0,
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+};
+const howItWorksCardStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 12,
+  padding: "14px 16px",
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  borderRadius: 10,
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+};
+const howItWorksCardSecondaryStyle: React.CSSProperties = {
+  ...howItWorksCardStyle,
+  padding: "10px 12px",
+  background: "#f8fafc",
+  boxShadow: "none",
+};
+const howItWorksStepStyle: React.CSSProperties = {
+  flexShrink: 0,
+  width: 24,
+  height: 24,
+  borderRadius: 999,
+  background: "#0f172a",
+  color: "#fff",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 12,
+  fontWeight: 700,
+  lineHeight: 1,
+};
+const howItWorksTitleStyle: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: "#0f172a",
+  marginBottom: 2,
+};
+const howItWorksTextStyle: React.CSSProperties = {
+  fontSize: 13,
+  lineHeight: 1.45,
+  color: "#475569",
+};
+
+// Common requests tiles.
+const commonRequestsStyle: React.CSSProperties = {
+  marginTop: 8,
+};
+const commonRequestsSecondaryStyle: React.CSSProperties = {
+  marginTop: 16,
+};
+const tileGridStyle: React.CSSProperties = {
+  listStyle: "none",
+  padding: 0,
+  margin: 0,
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gap: 12,
+};
+const tileStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  padding: "14px 16px",
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  borderRadius: 10,
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+};
+const tileTitleStyle: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: "#0f172a",
+  marginBottom: 2,
+};
+const tileTextStyle: React.CSSProperties = {
+  fontSize: 12.5,
+  lineHeight: 1.4,
+  color: "#475569",
+};
+const tileStartButtonStyle: React.CSSProperties = {
+  flexShrink: 0,
+  padding: "6px 14px",
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#0f172a",
+  background: "#f1f5f9",
+  border: "1px solid #cbd5e1",
+  borderRadius: 6,
+  cursor: "pointer",
+};
+
+// Empty state.
+const emptyStateStyle: React.CSSProperties = {
+  marginTop: 24,
+  padding: "32px 32px 28px",
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+};
+const emptyStateTitleStyle: React.CSSProperties = {
+  fontSize: 18,
+  fontWeight: 600,
+  color: "#0f172a",
+  margin: "0 0 8px",
+};
+const emptyStateBodyStyle: React.CSSProperties = {
+  fontSize: 14,
+  lineHeight: 1.5,
+  color: "#475569",
+  margin: "0 0 16px",
+  maxWidth: 640,
+};
+const emptyStateActionsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  marginBottom: 24,
+};
+const emptyStateExamplesStyle: React.CSSProperties = {
+  marginBottom: 16,
+};
+const emptyStateExamplesLabelStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: 0.6,
+  color: "#64748b",
+  marginBottom: 6,
+};
+const emptyStateExamplesListStyle: React.CSSProperties = {
+  listStyle: "disc",
+  paddingLeft: 20,
+  margin: 0,
+};
+const emptyStateExampleItemStyle: React.CSSProperties = {
+  fontSize: 13,
   lineHeight: 1.6,
-  color: "#1e3a8a",
+  color: "#334155",
+};
+const emptyStateExamplesHelpStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#64748b",
+  margin: "12px 0 16px",
+};
+
+// Sender identity selector
+const senderFieldsetStyle: React.CSSProperties = {
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  padding: "12px 14px 10px",
+  margin: "4px 0 16px",
+  background: "#fafbfc",
+};
+const senderRadioRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 8,
+  marginBottom: 6,
+  fontSize: 14,
+  lineHeight: 1.4,
+  cursor: "pointer",
+};
+
+// Message Preview Studio
+const previewStudioStyle: React.CSSProperties = {
+  marginTop: 16,
+  padding: "14px 16px",
+  background: "#f8fafc",
+  border: "1px solid #cbd5e1",
+  borderRadius: 10,
+};
+const previewHeadingStyle: React.CSSProperties = {
+  margin: "0 0 12px",
+  fontSize: 12,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: 0.8,
+  color: "#475569",
+};
+const previewMetaRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 12,
+  marginBottom: 10,
+};
+const previewMetaLabelStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: 0.5,
+  color: "#64748b",
+};
+const previewMetaValueStyle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#0f172a",
+  wordBreak: "break-word",
+};
+const previewSubjectStyle: React.CSSProperties = {
+  marginBottom: 10,
+};
+const previewBodyStyle: React.CSSProperties = {
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: "#0f172a",
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  borderRadius: 6,
+  padding: "10px 12px",
+  margin: 0,
+  whiteSpace: "pre-wrap",
+  fontFamily: "inherit",
+  maxHeight: 220,
+  overflowY: "auto",
+};
+const previewNoteStyle: React.CSSProperties = {
+  marginTop: 8,
+  fontSize: 12,
+  color: "#64748b",
+};
+const previewManualNoteStyle: React.CSSProperties = {
+  marginTop: 16,
+  padding: "10px 14px",
+  background: "#f1f5f9",
+  border: "1px dashed #cbd5e1",
+  borderRadius: 8,
+  fontSize: 13,
+  color: "#475569",
+  lineHeight: 1.5,
+};
+
+// Safety note — small, unobtrusive line under the operational
+// content. Tells the user what does NOT happen.
+const safetyNoteStyle: React.CSSProperties = {
+  fontSize: 12.5,
+  color: "#64748b",
+  margin: "24px 0 0",
+  padding: "10px 14px",
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  lineHeight: 1.5,
 };
 const modalStyle: React.CSSProperties = {
   background: "#fff",

@@ -187,21 +187,21 @@ test("Reveal modal — friendlyDeliveryReason maps backend error codes to plain 
   }
 });
 
-test("Guidance card — Phase 8 compact intro is rendered at the top of the page", () => {
+test("Guidance — redesign replaces the single oversized card with a HowItWorksStrip + CommonRequestsSection", () => {
   const src = read(PAGE);
-  assert.match(src, /data-intake-links-guidance="true"/);
-  // Phase 8 rewrote the heading to make the value prop explicit on
-  // first impression (was: "How intake links work").
-  assert.match(src, /Request evidence with a secure upload link/);
-  // The body line that explains the channels.
-  assert.match(
-    src,
-    /Send a link by email, SMS, WhatsApp, or copy it manually/,
+  // The old large `data-intake-links-guidance` infoBox is gone; the
+  // new strip carries its own attribute.
+  assert.ok(
+    !/data-intake-links-guidance="true"/.test(src),
+    "old oversized guidance card data-attr must not be re-introduced",
   );
-  // Three steps — compact verb phrases.
-  assert.match(src, /Choose the request type\./);
-  assert.match(src, /Share the secure link\./);
-  assert.match(src, /Track delivery and submissions\./);
+  assert.match(src, /data-intake-links-howitworks="true"/);
+  assert.match(src, /function HowItWorksStrip\(/);
+  // The three card titles must be the canonical Create / Share /
+  // Track triplet.
+  assert.match(src, /title: "Create",/);
+  assert.match(src, /title: "Share",/);
+  assert.match(src, /title: "Track",/);
 });
 
 test("Delivery method picker — Phase 8 microcopy clarifies single-channel send", () => {

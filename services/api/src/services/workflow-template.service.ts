@@ -99,9 +99,29 @@ export type WorkflowTemplatePersistInput = {
 // capture, hence both authenticated modes.
 // -----------------------------------------------------------------------------
 
+// Intake-links-e2e bugfix — every lifted seed must advertise the
+// EXTERNAL_* intake modes too, otherwise the intake-links create flow
+// (workflow-intake-link.service.ts:188) rejects them with
+// `intake_mode_not_supported_by_template`. Before this fix, the seed
+// list only included the two AUTHENTICATED modes, which silently
+// broke 100% of intake-link creates against built-in request types.
+//
+// The four EXTERNAL_* modes ARE valid for these seeds — every built-in
+// seed is a plain-language SMB request type (General evidence,
+// Photos & videos, Documents, Insurance claim, Legal documents,
+// Property damage, Incident investigation, Compliance audit,
+// Source/witness submission). All of them make sense as either a
+// one-time or reusable external link; the anonymous/pseudonymous
+// variants are correct for the journalism + source-witness flows
+// and harmless for the others (the picker only exposes them when the
+// operator deliberately chooses an anonymous mode).
 const SEED_DEFAULT_INTAKE_MODES: WorkflowTemplate["intakeModes"] = [
   "AUTHENTICATED_STANDARD",
   "AUTHENTICATED_GUIDED",
+  "EXTERNAL_ONE_TIME",
+  "EXTERNAL_REUSABLE",
+  "EXTERNAL_ANONYMOUS",
+  "EXTERNAL_PSEUDONYMOUS",
 ];
 
 const SEED_DEFAULT_PLAN_MODE: WorkflowPlanMode = "FLEXIBLE";
