@@ -732,6 +732,26 @@ function toResultRow(
   if (doc.reviewerRestricted) badges.push("visibility-restricted");
   if (doc.legalHoldState) badges.push("legal-hold");
   if (doc.exportState === "INTERNAL") badges.push("export-restricted");
+  // Search-inclusion-audit — surface `archived` and `locked` tags
+  // from `searchableTagsJson` as user-facing badges. The projection
+  // writes these into the tags array when evidence.archivedAt /
+  // evidence.lockedAt are set; the search service forwards them as
+  // badges so a Personal/SMB user searching by filename can see at
+  // a glance that the matched record is archived (not currently
+  // workflowed) or locked (mutation gated). Both are explicitly
+  // included as "indexed but flagged" — same Option B the
+  // diagnostics audit settled on.
+  const tagsRaw = doc.searchableTagsJson;
+  if (Array.isArray(tagsRaw)) {
+    if (tagsRaw.includes("archived")) badges.push("archived");
+    if (tagsRaw.includes("locked")) badges.push("locked");
+    // Search-inclusion-audit (trash decision) — soft-deleted
+    // records remain in the index; the badge tells the user the
+    // matched row is in the trash + still restorable. The Open
+    // action on the result row routes to the safe (read-only)
+    // detail surface so normal mutations cannot fire.
+    if (tagsRaw.includes("in_trash")) badges.push("in_trash");
+  }
   // Defensive: drop any accidental badge that isn't in the allowed
   // catalog. (Belt-and-braces — we control all writers above.)
   const safeBadges = badges.filter(isAllowedSearchBadge);

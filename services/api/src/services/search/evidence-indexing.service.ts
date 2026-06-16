@@ -396,6 +396,11 @@ export async function indexEvidence(
       deletedAt: evidence.deletedAt ?? null,
       lifecycleState: evidence.lifecycleState ?? null,
       archivedAt: evidence.archivedAt ?? null,
+      // Search-inclusion-audit — surface the lock state so the
+      // shared projection can emit a "locked" tag; the search
+      // service promotes that tag to a result-row badge so users
+      // know mutations on this row are gated.
+      lockedAt: evidence.lockedAt ?? null,
       publicVerifyState: evidence.publicVerifyState ?? null,
       storageObjectLockLegalHoldStatus:
         evidence.storageObjectLockLegalHoldStatus ?? null,

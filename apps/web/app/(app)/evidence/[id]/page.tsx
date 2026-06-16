@@ -1107,6 +1107,71 @@ function EvidenceDetailPageInner() {
           </aside>
         ) : null}
 
+        {/* Search-page-final-cleanup (B) — trash banner. When the
+            evidence is soft-deleted (deletedAt set), surface a
+            prominent read-only banner with a Restore action. The
+            page already disables mutation buttons in the hero +
+            tabs when deletedAt is set (see disabled={...deletedAt}
+            guards below), so the banner is the user-facing
+            communicator that the record is in trash; the action
+            buttons themselves enforce the restriction.
+            Permanent-delete is intentionally NOT exposed here —
+            that lives behind the lifecycle DESTROYED state machine
+            (out of scope; see retention runbook).
+            data-evidence-trash-banner is the e2e probe. */}
+        {evidence.deletedAt ? (
+          <aside
+            className="evidence-detail-trash-banner"
+            role="status"
+            aria-live="polite"
+            data-evidence-trash-banner="true"
+            style={{
+              border: "1px solid rgba(180, 130, 40, 0.55)",
+              background: "rgba(180, 130, 40, 0.06)",
+              color: "#5a3a14",
+              borderRadius: 12,
+              padding: "16px 18px",
+              marginBottom: 16,
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <strong style={{ fontSize: 14, letterSpacing: 0.02 }}>
+                This record is in trash
+              </strong>
+              <span style={{ fontSize: 13, lineHeight: 1.5 }}>
+                Mutating actions (download, lock, archive, assign to
+                case, generate report/package) are disabled while
+                the record is in trash. Restore it to bring it back
+                to the active library.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => void restoreTrash()}
+              disabled={actionBusy}
+              data-evidence-trash-restore="true"
+              style={{
+                padding: "8px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                background: "#0f172a",
+                color: "#ffffff",
+                border: "1px solid #0f172a",
+                borderRadius: 6,
+                cursor: actionBusy ? "wait" : "pointer",
+                opacity: actionBusy ? 0.7 : 1,
+              }}
+            >
+              {actionBusy ? "Restoring…" : "Restore from trash"}
+            </button>
+          </aside>
+        ) : null}
+
         {/* LAYER 1 — Hero. Title, status pills, legal boundary, and
             the five canonical actions (Download Report PDF / Download
             Verification Package ZIP / Copy verification link / Lock /

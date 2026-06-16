@@ -45,7 +45,11 @@ describe("Search-runtime-diagnostics — backend endpoint", () => {
 
   it("diagnostics returns workspace, evidence.total, index counts, health, runtime", () => {
     const idx = src.indexOf('"/v1/search/diagnostics"');
-    const slice = src.slice(idx, idx + 6000);
+    // The diagnostics handler grew again when the trash-decision
+    // breakdown landed (search-inclusion-audit). Widen the slice
+    // so we still capture the response envelope + health
+    // classifier + runtime block.
+    const slice = src.slice(idx, idx + 16000);
     // The single send() in the handler must include the canonical
     // envelope keys the UI relies on.
     expect(slice).toMatch(/workspace:\s*\{/);
@@ -61,7 +65,11 @@ describe("Search-runtime-diagnostics — backend endpoint", () => {
 
   it("diagnostics health classifier covers the four runtime conditions", () => {
     const idx = src.indexOf('"/v1/search/diagnostics"');
-    const slice = src.slice(idx, idx + 6000);
+    // The diagnostics handler grew again when the trash-decision
+    // breakdown landed (search-inclusion-audit). Widen the slice
+    // so we still capture the response envelope + health
+    // classifier + runtime block.
+    const slice = src.slice(idx, idx + 16000);
     expect(slice).toMatch(/["']healthy["']/);
     expect(slice).toMatch(/["']partial_index["']/);
     expect(slice).toMatch(/["']empty_index["']/);
@@ -70,7 +78,11 @@ describe("Search-runtime-diagnostics — backend endpoint", () => {
 
   it("optional q probe runs the same OR shape as executeSearch", () => {
     const idx = src.indexOf('"/v1/search/diagnostics"');
-    const slice = src.slice(idx, idx + 6000);
+    // The diagnostics handler grew again when the trash-decision
+    // breakdown landed (search-inclusion-audit). Widen the slice
+    // so we still capture the response envelope + health
+    // classifier + runtime block.
+    const slice = src.slice(idx, idx + 16000);
     expect(slice).toMatch(/queryProbe/);
     expect(slice).toMatch(/title:\s*\{\s*contains:/);
     expect(slice).toMatch(/subtitle:\s*\{\s*contains:/);
@@ -130,7 +142,12 @@ describe("Search-runtime-diagnostics — frontend empty-state branches", () => {
     expect(src).toMatch(/data-search-health=/);
     expect(src).toMatch(/data-search-health-workspace-id=/);
     expect(src).toMatch(/data-search-health-workspace-name=/);
-    expect(src).toMatch(/data-search-health-evidence-total=/);
+    // search-inclusion-audit replaced `data-…-evidence-total` with
+    // the breakdown attributes (evidenceIndexable + per-state
+    // counts). Pin via the audience marker + the new attribute
+    // names so the contract stays explicit.
+    expect(src).toMatch(/data-search-health-audience=/);
+    expect(src).toMatch(/data-search-health-evidence-indexable=/);
     expect(src).toMatch(/data-search-health-evidence-indexed=/);
   });
 

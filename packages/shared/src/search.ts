@@ -240,6 +240,27 @@ export const SEARCH_RESULT_ALLOWED_BADGES: ReadonlyArray<string> = [
   "incident-linked",
   "communication-linked",
   "contributor-scoped",
+  // Search-inclusion-audit — archived evidence remains indexed +
+  // returned by search (Option B in the audit). Surface "archived"
+  // here as an explicit user-facing marker so a Personal/SMB user
+  // who searches a filename can tell they're looking at an
+  // archived record. The projection emits "archived" into
+  // searchableTagsJson when evidence.archivedAt is set, and the
+  // search service forwards it onto this badge list via
+  // toResultRow.
+  "archived",
+  // Search-inclusion-audit — locked evidence likewise stays
+  // indexed; the lock controls MUTATION, not visibility. Surface
+  // a chip so the user knows actions taken on this row are
+  // gated by the lock.
+  "locked",
+  // Search-inclusion-audit (trash decision) — soft-deleted
+  // records remain searchable + restorable during the retention
+  // window. The chip is rendered with neutral / warning-toned
+  // styling at the row level (NOT a destructive red — the record
+  // can still be brought back) and the Open action routes to the
+  // safe (read-only or restore-only) detail surface.
+  "in_trash",
 ];
 
 export function isAllowedSearchBadge(badge: string): boolean {

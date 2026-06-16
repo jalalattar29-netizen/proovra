@@ -190,6 +190,13 @@ export type EvidenceProjectionInput = {
     /** Phase 27 lifecycle state. */
     lifecycleState: string | null;
     archivedAt: Date | null;
+    /** Search-inclusion-audit — `evidence.lockedAt`. Drives the
+     *  user-facing "locked" badge on result rows; the lock does
+     *  NOT gate visibility (locked evidence remains searchable
+     *  for users with access). OPTIONAL — older callers (and
+     *  fixtures pre-dating the audit) may omit this field; the
+     *  projection treats undefined the same as null (no badge). */
+    lockedAt?: Date | null;
     publicVerifyState: string | null;
     storageObjectLockLegalHoldStatus: string | null;
     retentionPolicySource: string | null;
@@ -226,9 +233,20 @@ export function buildEvidenceProjection(
       deleteFromIndex: false,
     };
   }
-  if (evidence.deletedAt) {
-    return { ok: false, reason: "deleted", deleteFromIndex: true };
-  }
+  // Search-inclusion-audit (trash decision):
+  // Soft-deleted evidence (deletedAt IS NOT NULL but still
+  // restorable during the retention window) IS searchable. The
+  // result row is marked with an "in_trash" tag so the UI can
+  // render an "In trash" badge and route the user to the safe
+  // (read-only / restore-only) detail surface. Only the two
+  // lifecycle TERMINAL states (DESTROYED and PENDING_DESTRUCTION)
+  // remain excluded — those records are either gone or about to
+  // be gone and cannot be restored.
+  //
+  // Note: hard-deleted evidence (the actual DB row removed) is
+  // physically absent from the source table and therefore cannot
+  // reach this builder at all; the indexer's `findFirst` returns
+  // null and the caller treats that as `evidence_not_found`.
   // Phase 27 lifecycle terminal states — must NOT surface in search.
   const lifecycle = (evidence.lifecycleState ?? "ACTIVE").toUpperCase();
   if (lifecycle === "DESTROYED") {
@@ -302,6 +320,18 @@ export function buildEvidenceProjection(
       publicVerifyState,
       legalHoldState ? "legal_hold" : null,
       evidence.archivedAt ? "archived" : null,
+      // Search-inclusion-audit — surface lockedAt as a "locked"
+      // tag so executeSearch's toResultRow can promote it onto
+      // the result badges. The lock does not gate visibility
+      // (locked evidence stays searchable for users with access)
+      // but mutation surfaces respect it; the badge tells the
+      // user actions on this row are gated.
+      evidence.lockedAt ? "locked" : null,
+      // Search-inclusion-audit (trash decision) — soft-deleted
+      // records remain searchable; tagged so the UI renders the
+      // "In trash" chip and the result row routes to the safe
+      // (read-only / restore-only) detail surface.
+      evidence.deletedAt ? "in_trash" : null,
       lifecycle === "ON_HOLD" ? "on_hold" : null,
       lifecycle === "RETENTION_LOCKED" ? "retention_locked" : null,
     ]),

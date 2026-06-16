@@ -126,8 +126,32 @@ type SearchDiagnostics = {
     total: number;
     byType: Record<string, number>;
     evidenceIndexed: number;
+    // CHANGED — now mirrors `evidenceIndexable` (matches the
+    // indexer's exclusions). Field name kept for back-compat with
+    // older clients reading the response.
     evidenceTotal: number;
     coverage: number | null;
+    // NEW — per-state breakdown of the source population. Used by
+    // the admin-only chip to explain the delta between
+    // `evidenceIndexed` and `evidenceTotal` when health !== healthy.
+    // Older API builds omit this; consumers should treat it as
+    // optional.
+    breakdown?: {
+      evidenceIndexable: number;
+      activeIncluded: number;
+      archivedIncluded: number;
+      lockedIncluded: number;
+      // Search-inclusion-audit (trash decision) — soft-deleted
+      // records are INDEXED + searchable + tagged "in_trash".
+      // This count is the trash bucket inside evidenceIndexable.
+      trashedIncluded: number;
+      destroyedExcluded: number;
+      pendingDestructionExcluded: number;
+      // Hard-deleted rows are physically absent from the source
+      // table — the count is structurally unknowable. The API
+      // returns `null` rather than a misleading zero.
+      hardDeletedAbsent: number | null;
+    };
   };
   health: "healthy" | "partial_index" | "empty_index" | "empty_workspace";
   queryProbe: {
@@ -354,6 +378,17 @@ function SearchInner() {
   const [savedViews, setSavedViews] = useState<SavedView[] | null>(null);
   const [savingView, setSavingView] = useState(false);
   const [qDraft, setQDraft] = useState("");
+  // Search-page-final-cleanup (C) — date inputs go through a draft
+  // buffer so a partially-typed value doesn't fire a search request
+  // per keystroke. The Apply Filters button below the filter rail
+  // pushes the draft into the live filter envelope (which is what
+  // triggers the search). Chip / toggle / select filters still
+  // auto-apply on change — only the two `datetime-local` inputs
+  // batch.
+  // Strings are kept in the input's native `datetime-local` format
+  // (yyyy-MM-ddTHH:mm); converted to ISO on apply.
+  const [dateSinceDraft, setDateSinceDraft] = useState<string>("");
+  const [dateUntilDraft, setDateUntilDraft] = useState<string>("");
   const { confirm } = useConfirmAction();
   // Phase 16 — semantic status envelope. The chip + mode selector
   // honor this when present and silently degrade to the per-response
@@ -365,6 +400,39 @@ function SearchInner() {
     useState<SemanticBackfillResponse | null>(null);
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillError, setBackfillError] = useState<string | null>(null);
+  // Search-page-final-cleanup (A) — the admin health chip is
+  // DEFAULT-HIDDEN even for platform admins. Support only opts in
+  // by appending `?_debug=search-health` to the URL. This means
+  // the dev/admin who normally signs into a Personal workspace
+  // sees the same clean chrome as a Personal/SMB user. The chip
+  // returns only when (a) the user is platform-admin AND (b) the
+  // opt-in flag is present in the URL. The empty-index user-safe
+  // message (rendered for everyone when search is genuinely
+  // blocking) is unaffected by the flag.
+  const [searchHealthDebugOptIn, setSearchHealthDebugOptIn] =
+    useState<boolean>(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const url = new URL(window.location.href);
+      setSearchHealthDebugOptIn(
+        url.searchParams.get("_debug") === "search-health",
+      );
+    } catch {
+      setSearchHealthDebugOptIn(false);
+    }
+  }, []);
+  // Search-page-final-cleanup (C) — sync date drafts when the
+  // live filter envelope changes from somewhere OTHER than the
+  // local input (e.g. loading a saved view, deep link with
+  // updatedSinceUtc, Clear filters). Converting ISO →
+  // datetime-local format means slicing to "yyyy-MM-ddTHH:mm".
+  useEffect(() => {
+    if (!filter) return;
+    setDateSinceDraft(filter.updatedSinceUtc?.slice(0, 16) ?? "");
+    setDateUntilDraft(filter.updatedUntilUtc?.slice(0, 16) ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter?.updatedSinceUtc, filter?.updatedUntilUtc]);
   // Search-runtime-diagnostics — workspace-scoped health envelope used
   // to render explicit empty-state copy ("Search index preparing",
   // "Workspace has no records yet") instead of a misleading
@@ -682,6 +750,65 @@ function SearchInner() {
     [qDraft, updateFilter, pushRecent]
   );
 
+  // Search-page-final-cleanup (C) — date drafts → live filter.
+  // Apply pushes both date drafts (Since + Until) into the live
+  // filter envelope, which triggers the search-result effect.
+  // datetime-local string format ("yyyy-MM-ddTHH:mm") → ISO via
+  // new Date(...).toISOString(). Empty draft → undefined (the
+  // filter dimension is cleared on the wire).
+  const applyDraftFilters = useCallback(() => {
+    const sinceISO = dateSinceDraft
+      ? new Date(dateSinceDraft).toISOString()
+      : undefined;
+    const untilISO = dateUntilDraft
+      ? new Date(dateUntilDraft).toISOString()
+      : undefined;
+    updateFilter({
+      updatedSinceUtc: sinceISO,
+      updatedUntilUtc: untilISO,
+    });
+  }, [dateSinceDraft, dateUntilDraft, updateFilter]);
+
+  // Search-page-final-cleanup (C) — Clear filters wipes every
+  // narrowing dimension (document type, evidence kind, lifecycle
+  // toggles, dates) AND the local date drafts. The free-text
+  // query is preserved — the user just narrowed the wrong way,
+  // they didn't necessarily change their mind about what they're
+  // looking for. Cursor + sort + limit are also preserved.
+  const clearNarrowingFilters = useCallback(() => {
+    if (!filter) return;
+    setDateSinceDraft("");
+    setDateUntilDraft("");
+    updateFilter({
+      documentTypes: undefined,
+      evidenceTypes: undefined,
+      workflowStatuses: undefined,
+      reviewStatuses: undefined,
+      onLegalHold: undefined,
+      exportRestricted: undefined,
+      incidentLinked: undefined,
+      workflowLinked: undefined,
+      contributorScoped: undefined,
+      updatedSinceUtc: undefined,
+      updatedUntilUtc: undefined,
+    });
+  }, [filter, updateFilter]);
+
+  // Search-page-final-cleanup (C) — dirty detector. The Apply
+  // button only enables when a date draft differs from the live
+  // filter (so the button is meaningful — clicking it when both
+  // match is a no-op anyway). Date-only because chips already
+  // auto-apply on change.
+  const dateDraftDirty =
+    (filter?.updatedSinceUtc?.slice(0, 16) ?? "") !== dateSinceDraft ||
+    (filter?.updatedUntilUtc?.slice(0, 16) ?? "") !== dateUntilDraft;
+  // Clear button visibility — anything narrowing is active or any
+  // date draft is non-empty.
+  const filtersNonEmpty =
+    (filter ? hasNarrowingFilters(filter) : false) ||
+    dateSinceDraft.length > 0 ||
+    dateUntilDraft.length > 0;
+
   // Phase SEARCH-REMEDIATION-2 — type-ahead suggestions. Debounced
   // 250ms. Only fetched when the input has ≥2 chars. Results live
   // beside the search box; keyboard handlers cover ArrowUp/Down,
@@ -977,26 +1104,28 @@ function SearchInner() {
               onRun={runBackfillDryRun}
             />
           ) : null}
-          {/* Search-runtime-diagnostics — single-line workspace +
-              index health chip. Surfaces the workspace name being
-              searched (so a wrong-workspace mismatch is visible at
-              a glance) and the coverage of the search index. The
-              search-result handler refetches the diagnostics
-              envelope whenever rows are returned but the cached
-              health says "empty_index" / "empty_workspace" — so a
-              fresh backfill is reflected within one search round
-              trip instead of sticking on "0/N" forever.
-              Reality-wins guard: in the brief window between a
-              search result arriving and the diagnostics refetch
-              completing, the cached health value is suppressed if
-              the visible search returned rows — so the chip never
-              shows "Search index preparing (0/N)" alongside a
-              non-empty result list. */}
+          {/* Search-runtime-diagnostics — two distinct render paths:
+              -- NORMAL USERS (Personal/SMB) --
+                Render NOTHING in the healthy / partial_index /
+                empty_workspace branches. The numeric "X records
+                indexed" was an operator/debug counter and confused
+                users into thinking their workspace was broken when
+                the search was actually fine. Show a chip ONLY when
+                indexing is genuinely blocking search — `empty_index`
+                with NO results returned by the current query — and
+                even then surface user-safe copy ("Search is being
+                set up"), no numbers, no DB tooltip.
+              -- ADMIN USERS --
+                Render the full chip with the per-state breakdown
+                (evidenceIndexable, archived/locked counts, plus the
+                three excluded counts). This is the operator surface
+                that explains the delta between indexedEvidence and
+                evidenceIndexable. Gated on `isPlatformAdmin`.
+              Reality-wins guard still applies: in either render
+              path, if the current search returned rows, the cached
+              empty-index or preparing copy is suppressed. */}
           {searchHealth ? (
             (() => {
-              // The reality-wins override applies only to the two
-              // "the index is empty" states. Other states
-              // (healthy / partial_index) are already truthful.
               const realityOverrides =
                 results &&
                 results.rows.length > 0 &&
@@ -1005,10 +1134,43 @@ function SearchInner() {
               const effectiveHealth = realityOverrides
                 ? "healthy"
                 : searchHealth.health;
+              // Search-page-final-cleanup (A) — by default NO
+              // user sees the numeric/diagnostic chip in normal
+              // states. Two surfaces still render:
+              //   (i)  empty_index AND no results visible — the
+              //        chip is genuinely user-blocking; even
+              //        non-admins should see the bounded
+              //        "Search is being set up" message.
+              //   (ii) platform-admin AND `?_debug=search-health`
+              //        opted in via URL — the full diagnostic
+              //        breakdown for support work.
+              // Everything else collapses to `null`.
+              const userBlocking = effectiveHealth === "empty_index";
+              const supportOptIn =
+                isPlatformAdmin && searchHealthDebugOptIn;
+              if (!supportOptIn && !userBlocking) return null;
+              if (!supportOptIn) {
+                // User-facing blocking message — same copy + same
+                // gating regardless of role. Numbers / DB tooltip
+                // are deliberately omitted.
+                return (
+                  <div
+                    style={searchHealthChipStyle("empty_index")}
+                    data-search-health="empty_index"
+                    data-search-health-audience="user"
+                  >
+                    Search is being set up. Try again in a moment.
+                  </div>
+                );
+              }
+              // Support/admin path — opt-in only. Full breakdown,
+              // numbers included.
+              const breakdown = searchHealth.index.breakdown;
               return (
                 <div
                   style={searchHealthChipStyle(effectiveHealth)}
                   data-search-health={effectiveHealth}
+                  data-search-health-audience="admin"
                   data-search-health-cached={searchHealth.health}
                   data-search-health-reality-overrides={
                     realityOverrides ? "true" : "false"
@@ -1017,13 +1179,32 @@ function SearchInner() {
                   data-search-health-workspace-name={
                     searchHealth.workspace.name ?? ""
                   }
-                  data-search-health-evidence-total={
+                  data-search-health-evidence-indexable={
+                    breakdown?.evidenceIndexable ??
                     searchHealth.index.evidenceTotal
                   }
                   data-search-health-evidence-indexed={
                     searchHealth.index.evidenceIndexed
                   }
-                  title={`API DB ${searchHealth.runtime.dbName ?? "(unknown)"} @ ${searchHealth.runtime.dbServerIp ?? "?"}:${searchHealth.runtime.dbServerPort ?? "?"} • ${searchHealth.runtime.nodeEnv ?? "?"}`}
+                  data-search-health-active-included={
+                    breakdown?.activeIncluded ?? 0
+                  }
+                  data-search-health-archived-included={
+                    breakdown?.archivedIncluded ?? 0
+                  }
+                  data-search-health-locked-included={
+                    breakdown?.lockedIncluded ?? 0
+                  }
+                  data-search-health-trashed-included={
+                    breakdown?.trashedIncluded ?? 0
+                  }
+                  data-search-health-destroyed-excluded={
+                    breakdown?.destroyedExcluded ?? 0
+                  }
+                  data-search-health-pending-destruction-excluded={
+                    breakdown?.pendingDestructionExcluded ?? 0
+                  }
+                  title={renderAdminChipTooltip(searchHealth)}
                 >
                   <strong>
                     {searchHealth.workspace.name ?? "Workspace"}
@@ -1032,19 +1213,22 @@ function SearchInner() {
                   {effectiveHealth === "healthy"
                     ? realityOverrides
                       ? "Ready"
-                      : `${searchHealth.index.evidenceIndexed} records indexed`
+                      : `${searchHealth.index.evidenceIndexed} indexed`
                     : effectiveHealth === "partial_index"
                       ? `${searchHealth.index.evidenceIndexed}/${searchHealth.index.evidenceTotal} indexed (catching up)`
                       : effectiveHealth === "empty_index"
                         ? `Search index preparing (0/${searchHealth.index.evidenceTotal})`
-                        : `Workspace has 0 records`}
+                        : `Workspace has 0 indexable records`}
                 </div>
               );
             })()
-          ) : searchHealthError ? (
+          ) : searchHealthError &&
+            isPlatformAdmin &&
+            searchHealthDebugOptIn ? (
             <div
               style={searchHealthChipStyle("unknown")}
               data-search-health="unknown"
+              data-search-health-audience="admin"
             >
               Search index status unavailable
             </div>
@@ -1231,18 +1415,20 @@ function SearchInner() {
           </FilterSection>
 
           <FilterSection label="Updated">
+            {/* Search-page-final-cleanup (C) — date inputs are
+                draft-backed. Typing/clearing the picker writes
+                only to the local draft string; the live filter
+                envelope is unchanged until the user clicks Apply
+                filters (sticky panel below). Datetime-local
+                keystrokes used to fire a search per partial value
+                — annoying + wasteful + sometimes invalid. */}
             <label style={fieldLabelStyle}>
               Since
               <input
                 type="datetime-local"
-                value={filter.updatedSinceUtc?.slice(0, 16) ?? ""}
-                onChange={(e) =>
-                  updateFilter({
-                    updatedSinceUtc: e.target.value
-                      ? new Date(e.target.value).toISOString()
-                      : undefined,
-                  })
-                }
+                value={dateSinceDraft}
+                onChange={(e) => setDateSinceDraft(e.target.value)}
+                data-search-filter-date-since-input="true"
                 style={inputStyle}
               />
             </label>
@@ -1250,18 +1436,48 @@ function SearchInner() {
               Until
               <input
                 type="datetime-local"
-                value={filter.updatedUntilUtc?.slice(0, 16) ?? ""}
-                onChange={(e) =>
-                  updateFilter({
-                    updatedUntilUtc: e.target.value
-                      ? new Date(e.target.value).toISOString()
-                      : undefined,
-                  })
-                }
+                value={dateUntilDraft}
+                onChange={(e) => setDateUntilDraft(e.target.value)}
+                data-search-filter-date-until-input="true"
                 style={inputStyle}
               />
             </label>
           </FilterSection>
+
+          {/* Search-page-final-cleanup (C) — sticky Apply/Clear
+              panel. Apply is the only way to push date drafts
+              into the live filter envelope (chips auto-apply on
+              their own). Clear wipes every narrowing dimension
+              including dates. Free-text query is preserved by
+              both. The panel only renders when something can be
+              applied or cleared — keeps the rail uncluttered for
+              the no-filter case. */}
+          {(dateDraftDirty || filtersNonEmpty) ? (
+            <div
+              style={filterApplyPanelStyle}
+              data-search-filter-apply-panel="true"
+            >
+              <button
+                type="button"
+                onClick={applyDraftFilters}
+                disabled={!dateDraftDirty}
+                data-search-filter-apply="true"
+                style={primaryButtonStyle}
+              >
+                Apply filters
+              </button>
+              {filtersNonEmpty ? (
+                <button
+                  type="button"
+                  onClick={clearNarrowingFilters}
+                  data-search-filter-clear="true"
+                  style={secondaryButtonStyle}
+                >
+                  Clear filters
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           {/* Saved views — operator surface only. The Personal/SMB
               search experience is intentionally one input box + the
@@ -1531,8 +1747,12 @@ function SearchInner() {
                     {row.badges.length > 0 ? (
                       <div style={badgeRowStyle}>
                         {row.badges.map((b) => (
-                          <span key={b} style={badgeChipStyle(b)}>
-                            {b}
+                          <span
+                            key={b}
+                            style={badgeChipStyle(b)}
+                            data-search-result-badge={b}
+                          >
+                            {renderBadgeLabel(b)}
                           </span>
                         ))}
                       </div>
@@ -1604,29 +1824,100 @@ function SearchInner() {
  * canonical projection writes one or the other, but the inspector
  * must not render a dead button if the API ever omits both).
  */
+/**
+ * Search-inclusion-audit — render a friendly user-facing label for
+ * a backend badge code. Keeps the wire (lowercase, snake-case) in
+ * sync with operator/admin tooling while the UI uses plain English.
+ * For backend tokens not in the map, fall back to the raw token
+ * (the rendered chip text is bounded by the allowed-badge catalog
+ * anyway).
+ */
+function renderBadgeLabel(badge: string): string {
+  switch (badge) {
+    case "in_trash":
+      return "In trash";
+    case "archived":
+      return "Archived";
+    case "locked":
+      return "Locked";
+    case "legal-hold":
+      return "Legal hold";
+    case "export-restricted":
+      return "Export-restricted";
+    case "workflow-linked":
+      return "Workflow-linked";
+    case "review-linked":
+      return "Review-linked";
+    case "contributor-scoped":
+      return "Contributor-scoped";
+    case "visibility-restricted":
+      return "Visibility-restricted";
+    case "governance-restricted":
+      return "Governance-restricted";
+    case "incident-linked":
+      return "Incident-linked";
+    case "communication-linked":
+      return "Communication-linked";
+    case "integrity record":
+      return "Integrity record";
+    case "matched metadata":
+      return "Matched metadata";
+    case "related evidence":
+      return "Related evidence";
+    default:
+      return badge;
+  }
+}
+
 function getOpenAction(
   row: ResultRow,
 ): { href: string; label: string } | null {
+  // Search-inclusion-audit (trash decision): soft-deleted
+  // (`in_trash`) result rows route to the SAME evidence detail
+  // URL with `?context=trash` appended. The label changes to
+  // "Open in trash" so the user knows the destination is a
+  // read-only / restore-only surface and normal mutations are
+  // gated. The detail page itself is responsible for honoring
+  // the query param (separate ticket — that's where mutation
+  // gating lives). The badge on the row already signals trash
+  // state so the link decoration matches the row state.
+  const isInTrash = row.badges.includes("in_trash");
+  const trashSuffix = isInTrash ? "?context=trash" : "";
   switch (row.documentType) {
     case "EVIDENCE":
       return row.evidenceId
-        ? { href: `/evidence/${row.evidenceId}`, label: "Open evidence" }
+        ? {
+            href: `/evidence/${row.evidenceId}${trashSuffix}`,
+            label: isInTrash ? "Open in trash" : "Open evidence",
+          }
         : null;
     case "CASE":
       return row.caseId
-        ? { href: `/cases/${row.caseId}`, label: "Open case" }
+        ? {
+            href: `/cases/${row.caseId}${trashSuffix}`,
+            label: isInTrash ? "Open in trash" : "Open case",
+          }
         : null;
     case "REPORT":
       return row.evidenceId
-        ? { href: `/evidence/${row.evidenceId}`, label: "Open report" }
+        ? {
+            href: `/evidence/${row.evidenceId}${trashSuffix}`,
+            label: isInTrash ? "Open in trash" : "Open report",
+          }
         : null;
     case "PACKAGE":
       return row.evidenceId
-        ? { href: `/evidence/${row.evidenceId}`, label: "Open package" }
+        ? {
+            href: `/evidence/${row.evidenceId}${trashSuffix}`,
+            label: isInTrash ? "Open in trash" : "Open package",
+          }
         : null;
     case "NOTE":
       return row.caseId
-        ? { href: `/cases/${row.caseId}`, label: "Open note" }
+        ? {
+            href: `/cases/${row.caseId}${trashSuffix}`,
+            label: isInTrash ? "Open in trash" : "Open note",
+          }
         : null;
     default:
       return null;
@@ -1686,8 +1977,12 @@ function Inspector({
         <Section label="Signals">
           <div style={badgeRowStyle}>
             {row.badges.map((b) => (
-              <span key={b} style={badgeChipStyle(b)}>
-                {b}
+              <span
+                key={b}
+                style={badgeChipStyle(b)}
+                data-search-inspector-badge={b}
+              >
+                {renderBadgeLabel(b)}
               </span>
             ))}
           </div>
@@ -2262,6 +2557,36 @@ function describeFilterEmpty(
   };
 }
 
+/**
+ * Admin-only chip tooltip — surfaces the full per-state breakdown
+ * from the diagnostics envelope so an operator inspecting the chip
+ * knows EXACTLY which evidence rows the indexer excluded and why.
+ * Falls back to the runtime block (DB host + env) when the
+ * breakdown is missing (older backend without the field).
+ */
+function renderAdminChipTooltip(health: SearchDiagnostics): string {
+  const runtime = `API DB ${health.runtime.dbName ?? "(unknown)"} @ ${
+    health.runtime.dbServerIp ?? "?"
+  }:${health.runtime.dbServerPort ?? "?"} • ${
+    health.runtime.nodeEnv ?? "?"
+  }`;
+  const b = health.index.breakdown;
+  if (!b) return runtime;
+  return [
+    `Indexable evidence: ${b.evidenceIndexable}`,
+    `  active:    ${b.activeIncluded}`,
+    `  archived:  ${b.archivedIncluded}`,
+    `  locked:    ${b.lockedIncluded}`,
+    `  in trash:  ${b.trashedIncluded}`,
+    `Excluded by indexer:`,
+    `  destroyed:            ${b.destroyedExcluded}`,
+    `  pending destruction:  ${b.pendingDestructionExcluded}`,
+    `  hard-deleted:         (n/a — source row absent)`,
+    ``,
+    runtime,
+  ].join("\n");
+}
+
 async function runSearch(filter: FilterState): Promise<SearchResponse> {
   const qs = new URLSearchParams();
   qs.set("teamId", filter.teamId);
@@ -2587,6 +2912,37 @@ const primaryButtonStyle: React.CSSProperties = {
   color: "#fff",
   borderRadius: 6,
   cursor: "pointer",
+};
+
+// Search-page-final-cleanup (C) — secondary action ("Clear
+// filters"). Lower visual weight than primary so Apply stays the
+// obvious next move; both share the same height + radius so they
+// look like a button group in the filter panel.
+const secondaryButtonStyle: React.CSSProperties = {
+  padding: "6px 10px",
+  fontSize: 12,
+  fontWeight: 500,
+  border: "1px solid #cbd5e1",
+  background: "#ffffff",
+  color: "#334155",
+  borderRadius: 6,
+  cursor: "pointer",
+};
+
+// Sticky-ish container for the Apply/Clear button pair below
+// the Updated date pickers. Visually framed so a user editing
+// dates sees the resolution immediately under them and never
+// has to scroll back to the top-right Search button.
+const filterApplyPanelStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  padding: "10px 12px",
+  marginTop: 12,
+  borderTop: "1px solid #e2e8f0",
+  background: "#f8fafc",
+  borderRadius: 6,
+  position: "sticky",
+  bottom: 0,
 };
 
 const savedViewListStyle: React.CSSProperties = {

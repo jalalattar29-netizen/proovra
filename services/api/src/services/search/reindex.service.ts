@@ -141,8 +141,15 @@ export async function runWorkspaceReindex(
   const notes = emptyBucket();
 
   // -------------------------------------------------------------------------
-  // Evidence — find non-deleted rows for this team that have no
+  // Evidence — find INDEXABLE rows for this team that have no
   // matching evidence_search_documents row of documentType=EVIDENCE.
+  //
+  // Search-inclusion-audit (trash decision): "indexable" means
+  // every row EXCEPT lifecycle DESTROYED / PENDING_DESTRUCTION.
+  // Soft-deleted (deletedAt IS NOT NULL but still restorable)
+  // records ARE indexable and surface in search with an
+  // "In trash" badge. Hard-deleted rows are physically absent
+  // from `evidence` and so cannot be orphans by definition.
   // -------------------------------------------------------------------------
   const orphanEvidence = await client.$queryRaw<Array<{ id: string }>>`
     SELECT e.id::text AS id
@@ -151,7 +158,8 @@ export async function runWorkspaceReindex(
         ON esd.team_id      = e.team_id
        AND esd.document_type = 'EVIDENCE'
        AND esd.source_id    = e.id
-     WHERE e.deleted_at IS NULL
+     WHERE COALESCE(e.lifecycle_state, 'ACTIVE') NOT IN
+           ('DESTROYED','PENDING_DESTRUCTION')
        AND e.team_id = ${teamId}::uuid
        AND esd.id IS NULL
      LIMIT ${limit}`;

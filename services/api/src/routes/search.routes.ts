@@ -1094,7 +1094,12 @@ export async function searchRoutes(app: FastifyInstance) {
         "../services/search/artifact-indexing.service.js"
       );
 
-      // Find orphaned evidence — non-deleted, has teamId, no doc.
+      // Find orphaned evidence — every INDEXABLE row (active +
+      // archived + locked + trash) that has no matching search
+      // document. Search-inclusion-audit (trash decision): only
+      // lifecycle DESTROYED / PENDING_DESTRUCTION are excluded;
+      // soft-deleted (deletedAt IS NOT NULL) records belong in
+      // the index with an "in_trash" tag.
       const orphanEvidence = await prisma.$queryRaw<
         Array<{ id: string }>
       >`SELECT e.id::text AS id
@@ -1103,7 +1108,8 @@ export async function searchRoutes(app: FastifyInstance) {
            ON esd.team_id = e.team_id
           AND esd.document_type = 'EVIDENCE'
           AND esd.source_id = e.id
-         WHERE e.deleted_at IS NULL
+         WHERE COALESCE(e.lifecycle_state, 'ACTIVE') NOT IN
+               ('DESTROYED','PENDING_DESTRUCTION')
            AND e.team_id = ${body.teamId}::uuid
            AND esd.id IS NULL
          LIMIT ${limit}`;
@@ -1266,14 +1272,86 @@ export async function searchRoutes(app: FastifyInstance) {
       const actor = await requireSearchActor(req, reply, teamId);
       if (!actor) return;
 
-      const [team, evidenceTotal, indexedByTypeRaw, dbServer] = await Promise.all([
+      // Search-runtime-diagnostics — evidence breakdown by state.
+      //
+      // The chip's numerator counts EVIDENCE rows in
+      // `evidence_search_documents`. The indexer (search-projection)
+      // EXCLUDES only lifecycle DESTROYED + PENDING_DESTRUCTION
+      // rows from the index — every other state is indexable,
+      // INCLUDING soft-deleted (trash) records, which surface in
+      // results with an "in_trash" badge so the user can restore
+      // them. Hard-deleted rows are physically absent from
+      // `evidence` and so cannot be counted here at all.
+      //
+      // The correct denominator is `evidenceIndexable` (the
+      // population the indexer is supposed to write). Per-state
+      // counts break the indexable population into
+      // active / archived / locked / trashed and the excluded
+      // population into destroyed / pendingDestruction.
+      const [team, breakdownRaw, indexedByTypeRaw, dbServer] = await Promise.all([
         prisma.team.findUnique({
           where: { id: teamId },
           select: { id: true, name: true, isPersonal: true },
         }),
-        prisma.evidence.count({
-          where: { teamId, deletedAt: null },
-        }),
+        // Per-state breakdown — single round-trip via GROUP BY.
+        // Mutually-exclusive partition of every row in `evidence`
+        // for this team. Lifecycle DESTROYED + PENDING_DESTRUCTION
+        // win their bucket regardless of deleted_at / archived_at
+        // / locked_at so the totals add up to a single number.
+        //
+        //   activeIncluded        — alive, not archived, not locked,
+        //                           not trash
+        //   archivedIncluded      — alive, archivedAt set
+        //   lockedIncluded        — alive, lockedAt set (NOT also
+        //                           archived — archived wins to avoid
+        //                           double-counting)
+        //   trashedIncluded       — soft-deleted (deletedAt set)
+        //   destroyedExcluded     — lifecycle DESTROYED
+        //   pendingDestrExcluded  — lifecycle PENDING_DESTRUCTION
+        prisma.$queryRaw<
+          Array<{
+            active_included: bigint;
+            archived_included: bigint;
+            locked_included: bigint;
+            trashed_included: bigint;
+            destroyed_excluded: bigint;
+            pending_destruction_excluded: bigint;
+          }>
+        >`
+          SELECT
+            COUNT(*) FILTER (
+              WHERE COALESCE(lifecycle_state, 'ACTIVE') NOT IN
+                    ('DESTROYED','PENDING_DESTRUCTION')
+                AND deleted_at IS NULL
+                AND archived_at IS NULL
+                AND locked_at IS NULL
+            )::bigint AS active_included,
+            COUNT(*) FILTER (
+              WHERE COALESCE(lifecycle_state, 'ACTIVE') NOT IN
+                    ('DESTROYED','PENDING_DESTRUCTION')
+                AND deleted_at IS NULL
+                AND archived_at IS NOT NULL
+            )::bigint AS archived_included,
+            COUNT(*) FILTER (
+              WHERE COALESCE(lifecycle_state, 'ACTIVE') NOT IN
+                    ('DESTROYED','PENDING_DESTRUCTION')
+                AND deleted_at IS NULL
+                AND archived_at IS NULL
+                AND locked_at IS NOT NULL
+            )::bigint AS locked_included,
+            COUNT(*) FILTER (
+              WHERE COALESCE(lifecycle_state, 'ACTIVE') NOT IN
+                    ('DESTROYED','PENDING_DESTRUCTION')
+                AND deleted_at IS NOT NULL
+            )::bigint AS trashed_included,
+            COUNT(*) FILTER (
+              WHERE COALESCE(lifecycle_state, 'ACTIVE') = 'DESTROYED'
+            )::bigint AS destroyed_excluded,
+            COUNT(*) FILTER (
+              WHERE COALESCE(lifecycle_state, 'ACTIVE') = 'PENDING_DESTRUCTION'
+            )::bigint AS pending_destruction_excluded
+          FROM evidence
+          WHERE team_id = ${teamId}::uuid`,
         prisma.$queryRaw<Array<{ document_type: string; n: bigint }>>`
           SELECT document_type, COUNT(*)::bigint AS n
             FROM evidence_search_documents
@@ -1284,6 +1362,33 @@ export async function searchRoutes(app: FastifyInstance) {
                  inet_server_port() AS server_port,
                  current_database() AS db`,
       ]);
+      const bd = breakdownRaw[0] ?? {
+        active_included: 0n,
+        archived_included: 0n,
+        locked_included: 0n,
+        trashed_included: 0n,
+        destroyed_excluded: 0n,
+        pending_destruction_excluded: 0n,
+      };
+      const activeIncluded = Number(bd.active_included);
+      const archivedIncluded = Number(bd.archived_included);
+      const lockedIncluded = Number(bd.locked_included);
+      const trashedIncluded = Number(bd.trashed_included);
+      const destroyedExcluded = Number(bd.destroyed_excluded);
+      const pendingDestructionExcluded = Number(bd.pending_destruction_excluded);
+      // Indexable evidence — every row the projection writes,
+      // i.e. active + archived + locked + trash. This is the
+      // denominator the chip + health classifier compare against.
+      const evidenceIndexable =
+        activeIncluded + archivedIncluded + lockedIncluded + trashedIncluded;
+      // Back-compat field for older clients still reading
+      // `evidence.total`. Sum of every row the source table
+      // contains (indexable + the two excluded lifecycle states).
+      // Note: hard-deleted rows are physically absent and
+      // therefore cannot be counted here — that count is reported
+      // as `null` in the response below.
+      const evidenceTotal =
+        evidenceIndexable + destroyedExcluded + pendingDestructionExcluded;
 
       const indexedByType: Record<string, number> = {};
       let indexedTotal = 0;
@@ -1329,35 +1434,31 @@ export async function searchRoutes(app: FastifyInstance) {
         };
       }
 
-      // Health classification — the single signal the frontend uses
-      // to pick which empty-state copy to render.
-      //   "healthy"        — every EVIDENCE row is indexed AND the
-      //                      index has at least one row.
-      //   "partial_index"  — index has at least one row for the
-      //                      workspace but evidenceIndexed <
-      //                      evidenceTotal. Covers both "backfill
-      //                      running" AND "reports/packages indexed
-      //                      but evidence-specific indexer broken"
-      //                      — both are partial coverage from the
-      //                      Personal/SMB user's perspective.
-      //   "empty_index"    — workspace has source records but the
-      //                      ENTIRE index is empty across all
-      //                      document types (lifecycle hook never
-      //                      ran / backfill not started). Previously
-      //                      this branch fired on
-      //                      `indexedEvidence === 0` even when
-      //                      reports/packages WERE indexed, causing
-      //                      the chip to read "Search index
-      //                      preparing (0/N)" while the result list
-      //                      visibly showed REPORT rows. The fix
-      //                      requires the WHOLE index to be empty.
-      //   "empty_workspace"— workspace has no source evidence rows.
+      // Health classification — compared against `evidenceIndexable`,
+      // the population the indexer is supposed to write. NOT against
+      // raw `evidence.count` — that overcounts by lifecycle terminal
+      // states and creates a sticky "N-2/N" reading on healthy
+      // workspaces.
+      //
+      //   "empty_workspace"— no indexable evidence rows at all.
+      //   "empty_index"    — workspace has indexable evidence but
+      //                      ALL document types in the index are
+      //                      empty (lifecycle hook never ran /
+      //                      backfill not started).
+      //   "partial_index"  — index has at least one row but
+      //                      indexedEvidence < evidenceIndexable
+      //                      (backfill running, OR the EVIDENCE
+      //                      projection is failing while REPORT /
+      //                      PACKAGE projections succeed).
+      //   "healthy"        — indexedEvidence === evidenceIndexable
+      //                      (every indexable evidence is in the
+      //                      index).
       const health: "healthy" | "partial_index" | "empty_index" | "empty_workspace" =
-        evidenceTotal === 0
+        evidenceIndexable === 0
           ? "empty_workspace"
           : indexedTotal === 0
             ? "empty_index"
-            : indexedEvidence < evidenceTotal
+            : indexedEvidence < evidenceIndexable
               ? "partial_index"
               : "healthy";
 
@@ -1369,16 +1470,54 @@ export async function searchRoutes(app: FastifyInstance) {
           name: team?.name ?? null,
           isPersonal: team?.isPersonal ?? null,
         },
+        // Pre-existing top-level fields — kept for client
+        // back-compat. NEW callers should prefer the per-state
+        // breakdown under `index.breakdown` so they don't conflate
+        // "indexable evidence" with "raw evidence rows".
         evidence: { total: evidenceTotal },
         index: {
           total: indexedTotal,
           byType: indexedByType,
           evidenceIndexed: indexedEvidence,
-          evidenceTotal,
+          // CHANGED: was `evidenceTotal` (raw count). Now mirrors
+          // `evidenceIndexable` so the chip's numerator/denominator
+          // are drawn from the same population and "healthy" can
+          // legitimately be reached.
+          evidenceTotal: evidenceIndexable,
           coverage:
-            evidenceTotal === 0
+            evidenceIndexable === 0
               ? null
-              : Math.round((indexedEvidence / evidenceTotal) * 1000) / 10,
+              : Math.round((indexedEvidence / evidenceIndexable) * 1000) / 10,
+          // Per-state breakdown — every count is a mutually
+          // exclusive partition of the workspace's `evidence`
+          // table. Sum of the six fields below === evidenceTotal
+          // above. `hardDeletedAbsent` is reported as `null` and
+          // not summed in — the source row is physically gone,
+          // there is no way to count it from the DB.
+          //
+          //   activeIncluded                — alive, no archive/lock/trash
+          //   archivedIncluded              — alive, archivedAt set
+          //   lockedIncluded                — alive, lockedAt set
+          //   trashedIncluded               — soft-deleted (deletedAt set,
+          //                                   restorable, INDEXED with
+          //                                   "in_trash" badge)
+          //   destroyedExcluded             — lifecycle DESTROYED
+          //   pendingDestructionExcluded    — lifecycle PENDING_DESTRUCTION
+          //   hardDeletedAbsent             — null (count not knowable;
+          //                                   row physically absent)
+          //
+          // `evidenceIndexable` = activeIncluded + archivedIncluded
+          //                    + lockedIncluded + trashedIncluded.
+          breakdown: {
+            evidenceIndexable,
+            activeIncluded,
+            archivedIncluded,
+            lockedIncluded,
+            trashedIncluded,
+            destroyedExcluded,
+            pendingDestructionExcluded,
+            hardDeletedAbsent: null,
+          },
         },
         health,
         queryProbe,

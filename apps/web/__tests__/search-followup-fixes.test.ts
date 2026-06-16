@@ -52,15 +52,20 @@ test("Inspector — getOpenAction helper exists and maps every result type to a 
   assert.match(src, /case "REPORT":/);
   assert.match(src, /case "PACKAGE":/);
   assert.match(src, /case "NOTE":/);
-  // Each label must be the human-readable "Open …" form.
-  assert.match(src, /label:\s*"Open evidence"/);
-  assert.match(src, /label:\s*"Open case"/);
-  assert.match(src, /label:\s*"Open report"/);
-  assert.match(src, /label:\s*"Open package"/);
-  assert.match(src, /label:\s*"Open note"/);
-  // Hrefs hit the existing canonical routes.
-  assert.match(src, /href:\s*`\/evidence\/\$\{row\.evidenceId\}`/);
-  assert.match(src, /href:\s*`\/cases\/\$\{row\.caseId\}`/);
+  // Each label must be the human-readable "Open …" form. After the
+  // search-inclusion-audit (trash decision), each label is a
+  // ternary on `isInTrash` so the literal "Open evidence" sits on
+  // the false branch. Pin both as bare string literals — they
+  // appear in the source regardless of the ternary shape.
+  assert.match(src, /"Open evidence"/);
+  assert.match(src, /"Open case"/);
+  assert.match(src, /"Open report"/);
+  assert.match(src, /"Open package"/);
+  assert.match(src, /"Open note"/);
+  // Hrefs hit the existing canonical routes — the trashSuffix is
+  // appended as an interpolation, so widen the pin to allow it.
+  assert.match(src, /href:\s*`\/evidence\/\$\{row\.evidenceId\}\$\{trashSuffix\}`/);
+  assert.match(src, /href:\s*`\/cases\/\$\{row\.caseId\}\$\{trashSuffix\}`/);
 });
 
 test("Inspector renders the Open button with data-search-open-action + data-search-open-href attributes", () => {
@@ -169,7 +174,10 @@ test("Backend health classifier — empty_index now requires indexedTotal === 0,
   // empty_index branch.
   const diagIdx = src.indexOf('"/v1/search/diagnostics"');
   assert.ok(diagIdx > 0, "diagnostics route missing");
-  const handler = src.slice(diagIdx, diagIdx + 8000);
+  // The handler grew with the per-state breakdown
+  // (search-inclusion-audit). Widen the slice so we still see the
+  // health classifier.
+  const handler = src.slice(diagIdx, diagIdx + 14000);
   assert.match(handler, /const health/);
   // The empty_index gate must read indexedTotal === 0.
   // Pin by the ternary shape: ... : indexedTotal === 0 ? "empty_index" : ...

@@ -186,7 +186,7 @@ describe("Phase 25 — shared search projection engine", () => {
     expect(r.deleteFromIndex).toBe(false);
   });
 
-  it("buildEvidenceProjection asks for delete-from-index when the row is deleted / DESTROYED / PENDING_DESTRUCTION", () => {
+  it("buildEvidenceProjection asks for delete-from-index ONLY for lifecycle DESTROYED / PENDING_DESTRUCTION (NOT soft-deleted)", () => {
     const base = {
       id: "22222222-2222-2222-2222-222222222222",
       teamId: "11111111-1111-1111-1111-111111111111",
@@ -206,8 +206,11 @@ describe("Phase 25 — shared search projection engine", () => {
       reviewReadyAtUtc: null,
       updatedAt: new Date(),
     };
+    // Search-inclusion-audit (trash decision) — soft-deleted
+    // (deletedAt set) is now INDEXED with an "in_trash" tag, NOT
+    // deleted-from-index. Only the two lifecycle terminal states
+    // remain in the exclusion set.
     for (const variant of [
-      { ...base, deletedAt: new Date(), expectedReason: "deleted" as const },
       {
         ...base,
         deletedAt: null,
@@ -233,6 +236,19 @@ describe("Phase 25 — shared search projection engine", () => {
       expect(r.reason).toBe(expectedReason);
       expect(r.deleteFromIndex).toBe(true);
     }
+
+    // And the trash-INCLUDED case: soft-deleted but lifecycle
+    // not terminal — projection succeeds and emits the in_trash
+    // tag.
+    const trash = buildEvidenceProjection({
+      teamId: "11111111-1111-1111-1111-111111111111",
+      evidenceId: "22222222-2222-2222-2222-222222222222",
+      evidence: { ...base, deletedAt: new Date() },
+      workflowState: null,
+    });
+    expect(trash.ok).toBe(true);
+    if (!trash.ok) return;
+    expect(trash.projection.searchableTags as string[]).toContain("in_trash");
   });
 
   it("buildWorkflowInstanceProjection sets contributorScoped for EXTERNAL_CONTRIBUTOR / ANONYMOUS_SOURCE", () => {
