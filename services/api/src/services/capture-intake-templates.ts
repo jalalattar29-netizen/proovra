@@ -337,6 +337,113 @@ const TEMPLATES: IntakeTemplate[] = [
       },
     ],
   },
+  // Intake-links-e2e Phase 6 — three additional SMB request types
+  // that the operator REQUEST_TYPES catalog references. Each is a real
+  // backend template (merged into /v1/workflow/templates via
+  // listEffectiveWorkflowTemplates), so the dropdown is backed by real
+  // data instead of frontend-only constants.
+  //
+  // Seed-only — no DB rows. The merger is idempotent because seed
+  // entries are merged at read time, not written; deploys can't
+  // duplicate them.
+  {
+    id: "photos-videos",
+    version: 1,
+    name: "Photos & videos",
+    description:
+      "Ask the contributor for photos and short videos only — no documents required.",
+    locationRequirement: "recommended",
+    archived: false,
+    workspaceCategory: "GENERAL",
+    steps: [
+      {
+        id: "primary_photo_or_video",
+        title: "Photo or video",
+        description:
+          "Upload one or more photos or short videos of what we asked you to capture.",
+        purposeLabel: "Photo or video",
+        required: true,
+        acceptedKinds: ["PHOTO", "VIDEO"],
+      },
+      {
+        id: "additional_angle",
+        title: "Additional angle (optional)",
+        description:
+          "Add a second or third photo/video from a different angle if helpful.",
+        purposeLabel: "Additional angle",
+        required: false,
+        acceptedKinds: ["PHOTO", "VIDEO"],
+      },
+    ],
+  },
+  {
+    id: "documents",
+    version: 1,
+    name: "Documents",
+    description:
+      "Ask the contributor to send documents only (PDFs, scans, photos of paperwork).",
+    locationRequirement: "optional",
+    archived: false,
+    workspaceCategory: "GENERAL",
+    steps: [
+      {
+        id: "primary_document",
+        title: "Document",
+        description:
+          "Upload the document we asked for. PDFs and clear photos of paperwork both work.",
+        purposeLabel: "Document",
+        required: true,
+        acceptedKinds: ["DOCUMENT", "PHOTO"],
+      },
+      {
+        id: "additional_document",
+        title: "Additional document (optional)",
+        description: "Attach any related supporting paperwork.",
+        purposeLabel: "Additional document",
+        required: false,
+        acceptedKinds: ["DOCUMENT", "PHOTO"],
+      },
+    ],
+  },
+  {
+    id: "property-damage",
+    version: 1,
+    name: "Property damage",
+    description:
+      "Capture the scene, close-up damage shots, and any repair estimates or receipts.",
+    locationRequirement: "required",
+    archived: false,
+    workspaceCategory: "INSURANCE",
+    steps: [
+      {
+        id: "scene_overview",
+        title: "Scene overview",
+        description:
+          "Wide shot of the area or property so we can see context.",
+        purposeLabel: "Scene overview",
+        required: true,
+        acceptedKinds: ["PHOTO", "VIDEO"],
+      },
+      {
+        id: "damage_closeup",
+        title: "Close-up of the damage",
+        description:
+          "Detailed photos of the damage itself, from multiple angles if you can.",
+        purposeLabel: "Damage close-up",
+        required: true,
+        acceptedKinds: ["PHOTO", "VIDEO"],
+      },
+      {
+        id: "estimate_or_receipt",
+        title: "Estimate or receipt (optional)",
+        description:
+          "Upload any repair estimates, invoices, or receipts you already have.",
+        purposeLabel: "Estimate or receipt",
+        required: false,
+        acceptedKinds: ["DOCUMENT", "PHOTO"],
+      },
+    ],
+  },
 ];
 
 const TEMPLATE_INDEX = new Map(TEMPLATES.map((t) => [t.id, t]));

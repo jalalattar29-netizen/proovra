@@ -37,9 +37,21 @@ import {
   listWorkflowIntakeLinks,
   projectWorkflowIntakeLink,
   revokeWorkflowIntakeLink,
+  sendIntakeLinkViaEmail,
   sendIntakeLinkViaSms,
   WorkflowIntakeLinkError,
 } from "../services/workflow-intake-link.service.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import {
+  loadIntakeLinkSubmissions,
+  projectIntakeLinkList,
+  projectIntakeLinkListItem,
+} from "../services/intake-link-lifecycle.service.js";
+import {
+  dispatchIntakeLinkDelivery,
+  type DispatchIntakeDeliveryResult,
+} from "../services/intake-link-delivery-dispatcher.service.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import {
   workflowIntakeFeatureDisabledReason,
 } from "../services/workflow-intake-token.service.js";
@@ -48,35 +60,84 @@ import {
 // Zod schemas
 // -----------------------------------------------------------------------------
 
-const CreateBody = z.object({
-  teamId: z.string().uuid(),
-  workflowTemplateSlug: z
-    .string()
-    .min(1)
-    .max(120)
-    .regex(/^[a-z0-9](?:[a-z0-9-]{0,118}[a-z0-9])?$/, {
-      message: "slug must be kebab-case",
-    }),
-  intakeMode: z.enum(WORKFLOW_INTAKE_MODES),
-  caseId: z.string().uuid().nullable().optional(),
-  recipientLabel: z.string().max(180).nullable().optional(),
-  recipientEmail: z.string().email().nullable().optional(),
-  recipientPhone: z.string().max(32).nullable().optional(),
-  maxUses: z.number().int().min(1).max(10_000).optional(),
-  maxFileCountPerSession: z.number().int().min(1).max(500).nullable().optional(),
-  maxBytesPerSession: z
-    .union([z.number().int().min(1), z.string().regex(/^\d{1,20}$/)])
-    .nullable()
-    .optional(),
-  allowedAcceptedKinds: z
-    .array(z.enum(["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"]))
-    .max(4)
-    .optional(),
-  consentPolicyVersion: z.string().max(40).nullable().optional(),
-  consentDisclosureText: z.string().max(4000).nullable().optional(),
-  expiresAtUtc: z.string().datetime(),
-  ipAllowlistCidrs: z.array(z.string().max(64)).max(32).optional(),
-});
+// Intake-links-e2e — explicit delivery method. Default is MANUAL so any
+// existing caller that omits the field gets the legacy "create only, no
+// send" behaviour. EMAIL / SMS / WHATSAPP trigger an immediate send via
+// the matching channel using `sendIntakeLinkViaEmail` /
+// `sendIntakeLinkViaSms`. The page UI gates which recipient field is
+// required; the backend re-validates here so an API caller cannot bypass.
+export const DELIVERY_METHODS = ["MANUAL", "EMAIL", "SMS", "WHATSAPP"] as const;
+export type DeliveryMethod = (typeof DELIVERY_METHODS)[number];
+
+const CreateBody = z
+  .object({
+    teamId: z.string().uuid(),
+    workflowTemplateSlug: z
+      .string()
+      .min(1)
+      .max(120)
+      .regex(/^[a-z0-9](?:[a-z0-9-]{0,118}[a-z0-9])?$/, {
+        message: "slug must be kebab-case",
+      }),
+    intakeMode: z.enum(WORKFLOW_INTAKE_MODES),
+    caseId: z.string().uuid().nullable().optional(),
+    recipientLabel: z.string().max(180).nullable().optional(),
+    recipientEmail: z.string().email().nullable().optional(),
+    recipientPhone: z.string().max(32).nullable().optional(),
+    maxUses: z.number().int().min(1).max(10_000).optional(),
+    maxFileCountPerSession: z.number().int().min(1).max(500).nullable().optional(),
+    maxBytesPerSession: z
+      .union([z.number().int().min(1), z.string().regex(/^\d{1,20}$/)])
+      .nullable()
+      .optional(),
+    allowedAcceptedKinds: z
+      .array(z.enum(["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"]))
+      .max(4)
+      .optional(),
+    consentPolicyVersion: z.string().max(40).nullable().optional(),
+    consentDisclosureText: z.string().max(4000).nullable().optional(),
+    expiresAtUtc: z.string().datetime(),
+    ipAllowlistCidrs: z.array(z.string().max(64)).max(32).optional(),
+    // Intake-links-e2e (Phase 2/4) — explicit delivery channel.
+    deliveryMethod: z.enum(DELIVERY_METHODS).default("MANUAL"),
+    // The PUBLIC origin the contributor's link should point at. Only
+    // consumed when deliveryMethod !== MANUAL; the link itself stores
+    // only the token hash and does NOT persist this URL.
+    intakeUrlBase: z.string().url().max(1000).optional(),
+    // Intake-links-e2e Phase 5 — per-form-submit nonce. The dispatcher
+    // hashes this with (linkId, channel) so a double-click never
+    // produces two real provider sends. Optional: when omitted we
+    // synthesise a random one (no dedup; the API caller opted out).
+    idempotencyKey: z.string().min(1).max(120).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.deliveryMethod === "EMAIL" && !data.recipientEmail) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["recipientEmail"],
+        message: "recipientEmail is required when deliveryMethod is EMAIL",
+      });
+    }
+    if (
+      (data.deliveryMethod === "SMS" || data.deliveryMethod === "WHATSAPP") &&
+      !data.recipientPhone
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["recipientPhone"],
+        message:
+          "recipientPhone is required when deliveryMethod is SMS or WHATSAPP",
+      });
+    }
+    if (data.deliveryMethod !== "MANUAL" && !data.intakeUrlBase) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["intakeUrlBase"],
+        message:
+          "intakeUrlBase is required when deliveryMethod is EMAIL / SMS / WHATSAPP",
+      });
+    }
+  });
 
 const ListQuery = z.object({
   teamId: z.string().uuid(),
@@ -178,6 +239,21 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       const ok = await requireAdmin(req, reply, body.teamId);
       if (!ok) return;
 
+      // Intake-links-e2e Phase 7 — per-user-per-workspace create
+      // rate limit. 30/min for a single admin is generous for normal
+      // SMB use and stops a runaway script (or a misbehaving form
+      // re-submit loop) from spawning hundreds of links per minute.
+      const createLimit = await enforceRateLimit({
+        key: `intake-link:create:${body.teamId}:${ok.userId}`,
+        max: 30,
+        windowSec: 60,
+      });
+      if (!createLimit.allowed) {
+        return reply
+          .code(429)
+          .send({ error: { code: "rate_limited", message: "Too many intake links — try again in a minute." } });
+      }
+
       // Phase 9 — governance gate. Workspace policy can restrict
       // external / anonymous intake. Additive: workspaces without a
       // policy row continue to allow both.
@@ -222,11 +298,131 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
           { actorUserId: ok.userId },
         );
 
+        // Intake-links-e2e (Phase 7) — audit the create. Fire-and-
+        // forget; a failure to log MUST NOT break the create.
+        void appendPlatformAuditLog({
+          userId: ok.userId,
+          action: "intake.link.created",
+          category: "intake",
+          severity: "info",
+          source: "api",
+          outcome: "success",
+          resourceType: "workflow_intake_link",
+          resourceId: result.link.id,
+          requestId: req.id ?? null,
+          metadata: {
+            teamId: body.teamId,
+            workflowTemplateSlug: body.workflowTemplateSlug,
+            intakeMode: body.intakeMode,
+            deliveryMethod: body.deliveryMethod,
+            // Never log raw email / phone — both helpers already
+            // hash + mask. We pass booleans so audit can confirm
+            // which channel was attempted without leaking PII.
+            hasRecipientEmail: Boolean(body.recipientEmail),
+            hasRecipientPhone: Boolean(body.recipientPhone),
+          },
+        }).catch(() => {});
+
+        // Intake-links-e2e (Phase 4) — on-create delivery dispatch.
+        // The link is already persisted; if delivery fails, the link
+        // still exists and the caller can retry via the existing
+        // POST /:id/send endpoint. We always include a `delivery`
+        // envelope so the UI can render a Sent / Failed chip
+        // immediately after create.
+        type DeliveryResult =
+          | { method: "MANUAL"; status: "skipped" }
+          | {
+              method: "EMAIL" | "SMS" | "WHATSAPP";
+              status: "sent";
+              communicationMessageId: string;
+            }
+          | {
+              method: "EMAIL" | "SMS" | "WHATSAPP";
+              status: "failed";
+              reason: string;
+              communicationMessageId?: string;
+            };
+        let delivery: DeliveryResult = { method: "MANUAL", status: "skipped" };
+        if (body.deliveryMethod !== "MANUAL" && body.intakeUrlBase) {
+          // Compose the public intake URL the contributor opens.
+          // `intakeUrlBase` is the operator's origin (e.g.
+          // "https://app.proovra.com") + the page expects the token
+          // appended as a path segment under /intake/<token>.
+          const intakeUrl = `${body.intakeUrlBase.replace(/\/$/, "")}/intake/${result.rawToken}`;
+          const team = await prisma.team.findUnique({
+            where: { id: body.teamId },
+            select: { name: true, evidenceWorkspaceLabel: true },
+          });
+          const workspaceName =
+            team?.evidenceWorkspaceLabel ?? team?.name ?? "Your workspace";
+          // Intake-links-e2e Phase 5 — dispatcher with idempotency.
+          // A double-click that re-submits the same form (and so the
+          // same idempotencyKey) returns the prior message ID without
+          // making a second provider call. When the caller omits the
+          // key (older clients) we synthesise one from the link ID +
+          // timestamp so this single attempt is still atomic but
+          // double-clicks won't be caught.
+          const idempotencyKey =
+            body.idempotencyKey ?? `auto:${result.link.id}`;
+          const dispatched: DispatchIntakeDeliveryResult =
+            await dispatchIntakeLinkDelivery({
+              teamId: body.teamId,
+              intakeLinkId: result.link.id,
+              rawToken: result.rawToken,
+              intakeUrl,
+              channel: body.deliveryMethod as "EMAIL" | "SMS" | "WHATSAPP",
+              actorUserId: ok.userId,
+              workspaceName,
+              idempotencyKey,
+            });
+          if (dispatched.ok) {
+            delivery = {
+              method: body.deliveryMethod as "EMAIL" | "SMS" | "WHATSAPP",
+              status: "sent",
+              communicationMessageId: dispatched.communicationMessageId,
+            };
+          } else {
+            delivery = {
+              method: body.deliveryMethod as "EMAIL" | "SMS" | "WHATSAPP",
+              status: "failed",
+              reason: dispatched.reason,
+              communicationMessageId: dispatched.communicationMessageId,
+            };
+          }
+          // Audit the send attempt.
+          void appendPlatformAuditLog({
+            userId: ok.userId,
+            action:
+              delivery.status === "sent"
+                ? "intake.link.sent"
+                : "intake.link.delivery_failed",
+            category: "intake",
+            severity: delivery.status === "sent" ? "info" : "warning",
+            source: "api",
+            outcome: delivery.status === "sent" ? "success" : "failure",
+            resourceType: "workflow_intake_link",
+            resourceId: result.link.id,
+            requestId: req.id ?? null,
+            metadata: {
+              teamId: body.teamId,
+              method: delivery.method,
+              status: delivery.status,
+              communicationMessageId:
+                "communicationMessageId" in delivery
+                  ? delivery.communicationMessageId
+                  : null,
+              reason:
+                delivery.status === "failed" ? delivery.reason : null,
+            },
+          }).catch(() => {});
+        }
+
         return reply.code(201).send({
           link: projectWorkflowIntakeLink(result.link),
           rawToken: result.rawToken,
           warning:
             "The raw token is shown exactly once. Capture it now — it is not retrievable later.",
+          delivery,
         });
       } catch (err) {
         if (err instanceof WorkflowIntakeLinkError) {
@@ -264,7 +460,23 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         limit: query.limit,
       });
 
+      // Intake-links-e2e Phase 1 — enrich the list with delivery +
+      // activity aggregates + computed lifecycle. The old shape is
+      // preserved as `legacyLinks` for any caller that still expects
+      // the bare row projection; remove after the web client cuts
+      // over (which happens in Phase 2 of this same sprint).
+      const items = await projectIntakeLinkList({
+        links: rows,
+        // Provider IDs are admin-only — controlled by the
+        // ?_debug=intake-delivery URL flag the web client respects.
+        includeProviderMessageId:
+          typeof (req.query as Record<string, unknown>)?._debug === "string" &&
+          (req.query as Record<string, string>)._debug === "intake-delivery",
+      });
+
       return reply.code(200).send({
+        items,
+        // Back-compat for the prior frontend.
         links: rows.map(projectWorkflowIntakeLink),
       });
     },
@@ -289,9 +501,42 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       const ok = await requireMember(req, reply, link.teamId);
       if (!ok) return;
 
+      const item = await projectIntakeLinkListItem(link, {
+        includeProviderMessageId:
+          typeof (req.query as Record<string, unknown>)?._debug === "string" &&
+          (req.query as Record<string, string>)._debug === "intake-delivery",
+      });
+
       return reply
         .code(200)
-        .send({ link: projectWorkflowIntakeLink(link) });
+        .send({ link: projectWorkflowIntakeLink(link), item });
+    },
+  );
+
+  // -- Submissions ------------------------------------------------------
+  //
+  // Intake-links-e2e Phase 3 — owner/team-scoped view of every session
+  // a contributor opened against the link, with timestamps + the
+  // produced Evidence ID. Hard contract: ANONYMOUS / PSEUDONYMOUS
+  // intake modes redact contributor email/phone even if the row
+  // somehow carries them (defense in depth at the projection layer).
+  app.get(
+    "/v1/workflow/intake-links/:id/submissions",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (workflowIntakeFeatureDisabledReason()) {
+        return sendFeatureDisabled(reply);
+      }
+      const { id } = ParamsId.parse(req.params);
+      const link = await getWorkflowIntakeLink(id);
+      if (!link) {
+        return reply.code(404).send({ message: "Intake link not found" });
+      }
+      const ok = await requireMember(req, reply, link.teamId);
+      if (!ok) return;
+
+      const payload = await loadIntakeLinkSubmissions(link);
+      return reply.code(200).send(payload);
     },
   );
 
@@ -328,6 +573,30 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
 
+      // Phase 7 — audit the revoke. Fire-and-forget; never block
+      // the user-visible response on the audit row.
+      void appendPlatformAuditLog({
+        userId: ok.userId,
+        action: "intake.link.revoked",
+        category: "intake",
+        severity: "warning",
+        source: "api",
+        outcome: "success",
+        resourceType: "workflow_intake_link",
+        resourceId: id,
+        requestId: req.id ?? null,
+        metadata: {
+          teamId: existing.teamId,
+          // Reason is operator-supplied free text capped at 400 chars
+          // by RevokeBody. Safe to include in audit.
+          reason: body.reason ?? null,
+          // Pre-state for the audit row so a reader can see what the
+          // operator was looking at when they pressed Revoke.
+          priorStatus: existing.status,
+          priorUsedCount: existing.usedCount,
+        },
+      }).catch(() => {});
+
       return reply
         .code(200)
         .send({ link: projectWorkflowIntakeLink(updated) });
@@ -348,11 +617,17 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         return sendFeatureDisabled(reply);
       }
       const { id } = ParamsId.parse(req.params);
+      // Intake-links-e2e (Phase 4) — EMAIL is now a first-class
+      // resend channel alongside SMS/WHATSAPP.
       const body = z
         .object({
-          channel: z.enum(["SMS", "WHATSAPP"]).default("SMS"),
+          channel: z.enum(["SMS", "WHATSAPP", "EMAIL"]).default("SMS"),
           rawToken: z.string().min(8).max(512),
           intakeUrl: z.string().url().max(1000),
+          // Phase 5 idempotency nonce — same role as create. A
+          // user clicking Resend twice with the same nonce won't
+          // produce two real provider calls.
+          idempotencyKey: z.string().min(1).max(120).optional(),
         })
         .parse(req.body ?? {});
       const existing = await getWorkflowIntakeLink(id);
@@ -361,13 +636,32 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       }
       const ok = await requireAdmin(req, reply, existing.teamId);
       if (!ok) return;
+
+      // Phase 7 — per-link resend rate limit. 10/min per
+      // (link, user) protects against a UI bug or impatient
+      // operator hammering the Resend button.
+      const sendLimit = await enforceRateLimit({
+        key: `intake-link:send:${id}:${ok.userId}`,
+        max: 10,
+        windowSec: 60,
+      });
+      if (!sendLimit.allowed) {
+        return reply
+          .code(429)
+          .send({ error: { code: "rate_limited", message: "Too many resend attempts — wait a minute." } });
+      }
+
       const team = await prisma.team.findUnique({
         where: { id: existing.teamId },
         select: { name: true, evidenceWorkspaceLabel: true },
       });
       const workspaceName =
         team?.evidenceWorkspaceLabel ?? team?.name ?? "Your workspace";
-      const result = await sendIntakeLinkViaSms({
+
+      // Phase 5 — route resend through the dispatcher so it
+      // honours the same idempotency contract as create.
+      const idempotencyKey = body.idempotencyKey ?? `resend:${id}:${Date.now()}`;
+      const dispatched = await dispatchIntakeLinkDelivery({
         teamId: existing.teamId,
         intakeLinkId: id,
         rawToken: body.rawToken,
@@ -375,22 +669,59 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         channel: body.channel,
         actorUserId: ok.userId,
         workspaceName,
+        idempotencyKey,
       });
-      if (!result.ok) {
+      const sendResult = dispatched.ok
+        ? {
+            ok: true as const,
+            communicationMessageId: dispatched.communicationMessageId,
+          }
+        : { ok: false as const, reason: dispatched.reason };
+
+      // Audit the resend attempt regardless of channel.
+      void appendPlatformAuditLog({
+        userId: ok.userId,
+        action: sendResult.ok
+          ? "intake.link.sent"
+          : "intake.link.delivery_failed",
+        category: "intake",
+        severity: sendResult.ok ? "info" : "warning",
+        source: "api",
+        outcome: sendResult.ok ? "success" : "failure",
+        resourceType: "workflow_intake_link",
+        resourceId: id,
+        requestId: req.id ?? null,
+        metadata: {
+          teamId: existing.teamId,
+          method: body.channel,
+          status: sendResult.ok ? "sent" : "failed",
+          reason: sendResult.ok ? null : sendResult.reason,
+          resend: true,
+        },
+      }).catch(() => {});
+
+      if (!sendResult.ok) {
         const status =
-          result.reason === "link_not_found"
+          sendResult.reason === "link_not_found"
             ? 404
-            : result.reason === "link_revoked" ||
-                result.reason === "link_expired"
+            : sendResult.reason === "link_revoked" ||
+                sendResult.reason === "link_expired"
               ? 409
-              : result.reason === "link_missing_phone"
+              : sendResult.reason === "link_missing_phone" ||
+                  sendResult.reason === "link_missing_email"
                 ? 400
-                : 502;
-        return reply.code(status).send({ error: { code: result.reason } });
+                : sendResult.reason === "provider_unconfigured"
+                  ? 503
+                  : sendResult.reason === "max_attempts_exceeded"
+                    ? 429
+                    : 502;
+        return reply
+          .code(status)
+          .send({ error: { code: sendResult.reason } });
       }
-      return reply
-        .code(200)
-        .send({ communicationMessageId: result.communicationMessageId });
+      return reply.code(200).send({
+        communicationMessageId: sendResult.communicationMessageId,
+      });
     },
   );
 }

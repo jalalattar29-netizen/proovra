@@ -161,8 +161,13 @@ describe("Phase IA-self-serve-audit-fixes — Intake Links copy", () => {
     );
   });
 
-  it("form label 'Workflow template' renamed to 'Evidence request form'", () => {
-    expect(INTAKE).toMatch(/<label[^>]*>Evidence request form<\/label>/);
+  it("form label is plain-language SMB-friendly ('What are you asking for?')", () => {
+    // Intake-links-e2e Phase 1 — the field was relabelled again, from
+    // the older "Evidence request form" (still jargon for a non-PROOVRA
+    // user) to the question form that mirrors how lawyers and claim
+    // handlers actually describe the task. The control still binds the
+    // template slug, so the wire contract is unchanged.
+    expect(INTAKE).toMatch(/<label[^>]*>What are you asking for\?<\/label>/);
     expect(INTAKE).not.toMatch(/<label[^>]*>Workflow template<\/label>/);
   });
 });

@@ -54,6 +54,16 @@ import {
 // below.
 // -----------------------------------------------------------------------------
 
+// Intake-links-e2e Phase 6 — three SMB seeds added to the registry.
+// Product decisions:
+//   - `documents`        → GENERAL (catch-all paperwork ask, not legal-
+//                           specific; legal teams still get `legal-matter`
+//                           when they pick the LEGAL sector).
+//   - `photos-videos`    → GENERAL (visual capture, no sector affinity).
+//   - `property-damage`  → INSURANCE (canonically a claims-handler
+//                           workflow; INSURANCE filter therefore returns
+//                           BOTH `insurance-claim` and `property-damage`
+//                           — see the merge test below).
 const PHASE_R_SEED_SECTOR_MAP: Record<string, string> = {
   "general-evidence-record": "GENERAL",
   "insurance-claim": "INSURANCE",
@@ -61,6 +71,9 @@ const PHASE_R_SEED_SECTOR_MAP: Record<string, string> = {
   "incident-investigation": "INVESTIGATIONS",
   "compliance-audit": "COMPLIANCE",
   "journalism-field-capture": "JOURNALISM",
+  documents: "GENERAL",
+  "photos-videos": "GENERAL",
+  "property-damage": "INSURANCE",
 };
 
 // -----------------------------------------------------------------------------
@@ -176,7 +189,10 @@ describe("Phase R — seed sector mapping", () => {
 // -----------------------------------------------------------------------------
 
 describe("Phase R — mergeWorkflowTemplates seed filter", () => {
-  it("returns ALL 6 seeds when no workspaceCategory filter is supplied", () => {
+  it("returns ALL shipped seeds when no workspaceCategory filter is supplied", () => {
+    // The seed registry is the canonical count source; this test must
+    // not hardcode a number so a future Phase-N seed addition only has
+    // to update PHASE_R_SEED_SECTOR_MAP.
     const seeds = listIntakeTemplates();
     const merged = mergeWorkflowTemplates({
       seeds,
@@ -199,7 +215,11 @@ describe("Phase R — mergeWorkflowTemplates seed filter", () => {
     expect(slugs).toEqual(["compliance-audit"]);
   });
 
-  it("workspaceCategory=INSURANCE returns ONLY insurance-claim", () => {
+  it("workspaceCategory=INSURANCE returns BOTH insurance-claim AND property-damage", () => {
+    // Intake-links-e2e Phase 6 — `property-damage` is a claims-handler
+    // workflow and maps to INSURANCE on purpose. The merger returns
+    // results sorted by slug (workflow-template.service.ts), so the
+    // order is alphabetical.
     const seeds = listIntakeTemplates();
     const merged = mergeWorkflowTemplates({
       seeds,
@@ -208,7 +228,26 @@ describe("Phase R — mergeWorkflowTemplates seed filter", () => {
       workspaceCategory: "INSURANCE",
     });
     const slugs = merged.map((m) => m.template.slug);
-    expect(slugs).toEqual(["insurance-claim"]);
+    expect(slugs).toEqual(["insurance-claim", "property-damage"]);
+  });
+
+  it("workspaceCategory=GENERAL returns the three GENERAL seeds (documents, general-evidence-record, photos-videos)", () => {
+    // Intake-links-e2e Phase 6 — `documents` and `photos-videos` join
+    // the original `general-evidence-record` under GENERAL. Order is
+    // alphabetical by slug, per the merger.
+    const seeds = listIntakeTemplates();
+    const merged = mergeWorkflowTemplates({
+      seeds,
+      workspaceRows: [],
+      globalRows: [],
+      workspaceCategory: "GENERAL",
+    });
+    const slugs = merged.map((m) => m.template.slug);
+    expect(slugs).toEqual([
+      "documents",
+      "general-evidence-record",
+      "photos-videos",
+    ]);
   });
 
   it("workspaceCategory=FIELD_OPERATIONS returns ZERO seeds (no seed maps to that sector)", () => {
@@ -292,7 +331,7 @@ describe("Phase R — listEffectiveWorkflowTemplates sector filter", () => {
     expect(list[0].source).toBe("platform_seed");
   });
 
-  it("workspaceCategory=null returns all 6 seeds when no DB rows exist", async () => {
+  it("workspaceCategory=null returns every shipped seed when no DB rows exist", async () => {
     const list = await listEffectiveWorkflowTemplates(
       { workspaceCategory: null },
       buildEmptyClient(),
@@ -301,9 +340,11 @@ describe("Phase R — listEffectiveWorkflowTemplates sector filter", () => {
     expect(slugs).toEqual(Object.keys(PHASE_R_SEED_SECTOR_MAP).sort());
   });
 
-  it("workspaceCategory undefined (filter omitted) returns all 6 seeds", async () => {
+  it("workspaceCategory undefined (filter omitted) returns every shipped seed", async () => {
+    // Pinned against PHASE_R_SEED_SECTOR_MAP so a future seed addition
+    // only updates that map (no count hardcoded here).
     const list = await listEffectiveWorkflowTemplates({}, buildEmptyClient());
-    expect(list.length).toBe(6);
+    expect(list.length).toBe(Object.keys(PHASE_R_SEED_SECTOR_MAP).length);
   });
 
   it("a workspace DB row with workspaceCategory=LEGAL beats the seed when filter is LEGAL", async () => {
@@ -330,7 +371,8 @@ describe("Phase R — listEffectiveWorkflowTemplates sector filter", () => {
     expect(legalEntry).toBeDefined();
     expect(legalEntry!.source).toBe("workspace_db");
     expect(legalEntry!.template.name).toBe("Workspace Legal Override");
-    // The other 5 seeds are filtered out by the LEGAL category.
+    // No other seed maps to LEGAL, so the list collapses to this one
+    // override row.
     expect(list.length).toBe(1);
   });
 

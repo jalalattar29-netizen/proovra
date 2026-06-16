@@ -406,6 +406,217 @@ export async function sendIntakeLinkViaSms(
   return { ok: false, reason: "delivery_failed_or_skipped" };
 }
 
+// -----------------------------------------------------------------------------
+// Intake-links-e2e (Phase 3) — Operator-initiated EMAIL delivery of an
+// intake link.
+//
+// Mirrors `sendIntakeLinkViaSms` but uses the existing Resend integration
+// (services/email.service.ts → sendCustomEmailViaResend) directly. The
+// shared communication.service.enqueueOutboundMessage is phone-only at
+// the moment, so we build the CommunicationMessage row inline and update
+// it after the provider call. Same `(provider, providerMessageId, status)`
+// shape so the existing Twilio webhooks + retry sweeper read it the same
+// way for the EMAIL channel.
+//
+// Hard guarantees:
+//   - Refuses to send on revoked / expired links.
+//   - Refuses when no recipient email is set.
+//   - Recipient email is hashed (SHA-256 HMAC, same secret as phone
+//     hashing) and only a masked preview ever lives in logs / the
+//     CommunicationMessage row. Raw email is passed only to the Resend
+//     client and never logged.
+//   - Raw token is required by the caller (same contract as SMS) and is
+//     never persisted by this function.
+//   - Failure path still creates a CommunicationMessage row so the
+//     audit trail captures the attempt (no silent drops).
+// -----------------------------------------------------------------------------
+
+export type SendIntakeLinkViaEmailInput = {
+  teamId: string;
+  intakeLinkId: string;
+  rawToken: string;
+  intakeUrl: string;
+  actorUserId: string;
+  workspaceName: string;
+};
+
+export type SendIntakeLinkViaEmailResult =
+  | { ok: true; communicationMessageId: string; providerMessageId: string | null }
+  | {
+      ok: false;
+      reason:
+        | "link_not_found"
+        | "link_revoked"
+        | "link_expired"
+        | "link_missing_email"
+        | "provider_unconfigured"
+        | "delivery_failed";
+      communicationMessageId?: string;
+    };
+
+function maskEmailPreview(email: string): string {
+  const e = email.trim().toLowerCase();
+  const at = e.lastIndexOf("@");
+  if (at <= 0) return "(invalid)";
+  const local = e.slice(0, at);
+  const domain = e.slice(at + 1);
+  const localMasked =
+    local.length <= 2
+      ? local[0] + "•"
+      : local[0] + "•".repeat(Math.max(1, local.length - 2)) + local[local.length - 1];
+  return `${localMasked}@${domain}`;
+}
+
+export async function sendIntakeLinkViaEmail(
+  input: SendIntakeLinkViaEmailInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<SendIntakeLinkViaEmailResult> {
+  const link = await client.workflowIntakeLink.findFirst({
+    where: { id: input.intakeLinkId, teamId: input.teamId },
+    select: {
+      id: true,
+      revokedAtUtc: true,
+      expiresAtUtc: true,
+      recipientEmail: true,
+      recipientLabel: true,
+    },
+  });
+  if (!link) return { ok: false, reason: "link_not_found" };
+  if (link.revokedAtUtc) return { ok: false, reason: "link_revoked" };
+  if (link.expiresAtUtc.getTime() <= Date.now()) {
+    return { ok: false, reason: "link_expired" };
+  }
+  if (!link.recipientEmail) return { ok: false, reason: "link_missing_email" };
+
+  // Dynamic imports avoid pulling Prisma + Resend into the module's
+  // load-time graph (the create path doesn't need them).
+  const prismaPkg = await import("@prisma/client");
+  const { hashRecipientPhone } = await import(
+    "./communications/communication.service.js"
+  );
+  const { sendCustomEmailViaResend } = await import("./email.service.js");
+
+  const email = link.recipientEmail.trim().toLowerCase();
+  // Reuse the phone-hash helper — it's a generic HMAC-SHA256 keyed by
+  // COMMUNICATIONS_RECIPIENT_HASH_SECRET. Same hashing for the email
+  // string gives us a recipient identity column we can deduplicate /
+  // audit against without ever persisting the raw value.
+  const recipientHash = hashRecipientPhone(email);
+  const preview = maskEmailPreview(email);
+
+  // Compose the message body. Plain HTML + text fallback — no
+  // marketing, no tracking pixels. Includes the workspace name + the
+  // intake URL, with a short safety-net "this link expires …" line.
+  const expiresInDays = Math.max(
+    1,
+    Math.round((link.expiresAtUtc.getTime() - Date.now()) / 86_400_000),
+  );
+  const subject = `${input.workspaceName} requested files from you`;
+  const text =
+    `${input.workspaceName} has asked you to share files securely.\n\n` +
+    `Open this link to upload:\n${input.intakeUrl}\n\n` +
+    `The link expires in about ${expiresInDays} day(s). You don't need ` +
+    `an account.`;
+  const html =
+    `<p>${escapeHtml(input.workspaceName)} has asked you to share files securely.</p>` +
+    `<p><a href="${escapeAttr(input.intakeUrl)}">${escapeHtml(input.intakeUrl)}</a></p>` +
+    `<p style="color:#475569;font-size:13px">` +
+    `The link expires in about ${expiresInDays} day(s). You don't need an account.` +
+    `</p>`;
+
+  // Pre-create the CommunicationMessage row in QUEUED so the audit
+  // trail captures the attempt even if the provider call throws.
+  let message;
+  try {
+    message = await client.communicationMessage.create({
+      data: {
+        teamId: input.teamId,
+        channel: prismaPkg.CommunicationChannel.EMAIL,
+        direction: prismaPkg.CommunicationDirection.OUTBOUND,
+        purpose: prismaPkg.CommunicationPurpose.INTAKE_LINK,
+        provider: prismaPkg.CommunicationProvider.RESEND,
+        recipientHash,
+        recipientPreview: preview,
+        status: prismaPkg.CommunicationStatus.QUEUED,
+        bodyPreview: subject.slice(0, 400),
+        sender: input.workspaceName.slice(0, 80),
+        relatedIntakeLinkId: link.id,
+        createdByUserId: input.actorUserId,
+      },
+    });
+  } catch (err) {
+    // If the row insert itself fails, surface failure to the caller —
+    // we cannot proceed without an audit row.
+    return {
+      ok: false,
+      reason: "delivery_failed",
+    };
+  }
+
+  // Provider call. sendCustomEmailViaResend returns {ok, providerMessageId, errorCode, errorMessage}.
+  let providerResult;
+  try {
+    const { getEmailFromHeader } = await import("./email.service.js");
+    providerResult = await sendCustomEmailViaResend({
+      from: getEmailFromHeader(),
+      to: email,
+      subject,
+      html,
+      text,
+    });
+  } catch (err) {
+    providerResult = {
+      ok: false as const,
+      errorCode: "exception",
+      errorMessage: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+    };
+  }
+
+  if (!providerResult.ok) {
+    const errorCode = providerResult.errorCode ?? "unknown";
+    const isUnconfigured =
+      errorCode === "not_configured" || errorCode === "provider_unconfigured";
+    await client.communicationMessage.update({
+      where: { id: message.id },
+      data: {
+        status: prismaPkg.CommunicationStatus.FAILED,
+        failedAtUtc: new Date(),
+        errorCode: errorCode.slice(0, 80),
+        errorMessage: (providerResult.errorMessage ?? "").slice(0, 400),
+      },
+    });
+    return {
+      ok: false,
+      reason: isUnconfigured ? "provider_unconfigured" : "delivery_failed",
+      communicationMessageId: message.id,
+    };
+  }
+
+  await client.communicationMessage.update({
+    where: { id: message.id },
+    data: {
+      status: prismaPkg.CommunicationStatus.SENT,
+      sentAtUtc: new Date(),
+      providerMessageId: providerResult.providerMessageId,
+    },
+  });
+  return {
+    ok: true,
+    communicationMessageId: message.id,
+    providerMessageId: providerResult.providerMessageId ?? null,
+  };
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+function escapeAttr(s: string): string {
+  return escapeHtml(s).replace(/"/g, "&quot;");
+}
+
 export function projectWorkflowIntakeLink(link: DbWorkflowIntakeLink): {
   id: string;
   teamId: string;
