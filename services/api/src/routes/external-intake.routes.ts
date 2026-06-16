@@ -193,23 +193,40 @@ function orchestrationErrorToReply(
   err: ExternalIntakeOrchestrationError,
   reply: FastifyReply,
 ): void {
+  // Intake-links P0 bugfix — every public response MUST carry a
+  // user-safe `message` alongside the `code`. The web client's
+  // `apiFetch` requires both fields to enter its "standard shape"
+  // handler; missing `message` causes it to fall back to rendering
+  // the raw response body as the error string, which surfaces JSON
+  // like `{"error":{"code":"X"}}` to recipients.
+  const friendly = friendlyPublicIntakeMessage;
   switch (err.code) {
     case "consent_not_accepted":
-      reply.code(412).send({ error: { code: "CONSENT_REQUIRED" } });
+      reply.code(412).send({
+        error: { code: "CONSENT_REQUIRED", message: friendly("CONSENT_REQUIRED") },
+      });
       return;
     case "session_terminal":
     case "submission_already_submitted":
-      reply.code(409).send({ error: { code: "SESSION_TERMINAL" } });
+      reply.code(409).send({
+        error: { code: "SESSION_TERMINAL", message: friendly("SESSION_TERMINAL") },
+      });
       return;
     case "session_expired":
     case "link_expired":
     case "link_revoked":
-      reply.code(410).send({ error: { code: "LINK_NO_LONGER_AVAILABLE" } });
+      reply.code(410).send({
+        error: {
+          code: "LINK_NO_LONGER_AVAILABLE",
+          message: friendly("LINK_NO_LONGER_AVAILABLE"),
+        },
+      });
       return;
     case "submission_not_ready":
       reply.code(412).send({
         error: {
           code: "SUBMISSION_NOT_READY",
+          message: friendly("SUBMISSION_NOT_READY"),
           details: err.details ?? null,
         },
       });
@@ -217,17 +234,72 @@ function orchestrationErrorToReply(
     case "evidence_not_found":
     case "part_not_found":
     case "part_not_in_session":
-      reply.code(404).send({ error: { code: "NOT_FOUND" } });
+      reply
+        .code(404)
+        .send({ error: { code: "NOT_FOUND", message: friendly("NOT_FOUND") } });
       return;
     case "part_index_taken":
-      reply.code(409).send({ error: { code: "PART_INDEX_TAKEN" } });
+      reply.code(409).send({
+        error: { code: "PART_INDEX_TAKEN", message: friendly("PART_INDEX_TAKEN") },
+      });
       return;
     case "session_not_open_for_upload":
-      reply.code(409).send({ error: { code: "SESSION_NOT_OPEN_FOR_UPLOAD" } });
+      reply.code(409).send({
+        error: {
+          code: "SESSION_NOT_OPEN_FOR_UPLOAD",
+          message: friendly("SESSION_NOT_OPEN_FOR_UPLOAD"),
+        },
+      });
       return;
     default:
-      reply.code(500).send({ error: { code: "INTERNAL_ERROR" } });
+      reply.code(500).send({
+        error: { code: "INTERNAL_ERROR", message: friendly("INTERNAL_ERROR") },
+      });
       return;
+  }
+}
+
+/**
+ * Intake-links P0 bugfix — user-safe copy for every error code the
+ * public intake route emits. Recipients are not operators; they need
+ * actionable copy, never a raw enum. Backend ships the friendly
+ * message; the frontend has a parallel catalog as a final fallback
+ * if a future code is added without its `message`. The detailed
+ * reason stays in the server log via the route's existing structured
+ * logger.
+ */
+function friendlyPublicIntakeMessage(code: string): string {
+  switch (code) {
+    case "CONSENT_REQUIRED":
+      return "Please accept the consent disclosure before uploading.";
+    case "SESSION_TERMINAL":
+      return "This submission has already been completed. Please contact the sender if you need to add more files.";
+    case "LINK_NO_LONGER_AVAILABLE":
+      return "This upload link is no longer available. It may have expired or been revoked. Please contact the sender for a new link.";
+    case "SUBMISSION_NOT_READY":
+      return "Your submission isn't quite ready yet. Make sure every required file is uploaded, then try again.";
+    case "NOT_FOUND":
+      return "We couldn't find what you were trying to access. Try refreshing the page.";
+    case "PART_INDEX_TAKEN":
+      return "A file with that position already exists. Please try the upload again.";
+    case "SESSION_NOT_OPEN_FOR_UPLOAD":
+      return "This upload session is closed. Please contact the sender for a new link.";
+    case "INVALID_OR_EXPIRED_LINK":
+      return "This upload link is invalid or has expired. Please contact the sender for a new link.";
+    case "MAX_FILES_REACHED":
+      return "You've reached the file limit for this submission. Please contact the sender if you need to add more.";
+    case "MIME_TYPE_NOT_ALLOWED":
+      return "This file type isn't accepted by this upload link. Check the accepted file types and try a different file.";
+    case "FILE_VALIDATION_BLOCKED":
+      return "We couldn't accept this file for security reasons. Try a different file or contact the sender.";
+    case "RATE_LIMITED":
+      return "Too many requests in a short time. Please wait a moment and try again.";
+    case "INTERNAL_ERROR":
+      return "Something went wrong on our side. Please try again in a moment. If the problem persists, contact the sender.";
+    case "FEATURE_DISABLED":
+      return "External uploads are not enabled. Please contact the sender for an alternative.";
+    default:
+      return "Something went wrong. Please try again or contact the sender.";
   }
 }
 
@@ -246,45 +318,80 @@ function intakeErrorToReply(
   err: WorkflowIntakeSessionError,
   reply: FastifyReply,
 ): void {
+  // Intake-links P0 bugfix — same audit requirement as
+  // orchestrationErrorToReply: every code MUST ship a user-safe
+  // `message` or the public web client's apiFetch falls back to
+  // showing the raw JSON to recipients.
+  const friendly = friendlyPublicIntakeMessage;
   switch (err.code) {
     case "token_invalid":
     case "link_not_found":
       reply.code(404).send({
-        error: { code: "INVALID_OR_EXPIRED_LINK" },
+        error: {
+          code: "INVALID_OR_EXPIRED_LINK",
+          message: friendly("INVALID_OR_EXPIRED_LINK"),
+        },
       });
       return;
     case "link_revoked":
     case "link_expired":
     case "link_exhausted":
       reply.code(410).send({
-        error: { code: "LINK_NO_LONGER_AVAILABLE" },
+        error: {
+          code: "LINK_NO_LONGER_AVAILABLE",
+          message: friendly("LINK_NO_LONGER_AVAILABLE"),
+        },
       });
       return;
     case "session_not_found":
     case "session_link_mismatch":
-      reply.code(404).send({ error: { code: "SESSION_NOT_FOUND" } });
+      reply.code(404).send({
+        error: {
+          code: "SESSION_NOT_FOUND",
+          message: friendly("SESSION_NOT_FOUND"),
+        },
+      });
       return;
     case "session_terminal":
-      reply.code(409).send({ error: { code: "SESSION_TERMINAL" } });
+      reply.code(409).send({
+        error: { code: "SESSION_TERMINAL", message: friendly("SESSION_TERMINAL") },
+      });
       return;
     case "transition_not_allowed":
-      reply.code(409).send({ error: { code: "TRANSITION_NOT_ALLOWED" } });
+      reply.code(409).send({
+        error: {
+          code: "TRANSITION_NOT_ALLOWED",
+          message: friendly("TRANSITION_NOT_ALLOWED"),
+        },
+      });
       return;
     case "consent_not_accepted":
-      reply.code(412).send({ error: { code: "CONSENT_REQUIRED" } });
+      reply.code(412).send({
+        error: { code: "CONSENT_REQUIRED", message: friendly("CONSENT_REQUIRED") },
+      });
       return;
     case "consent_invalid_payload":
-      reply.code(400).send({ error: { code: "CONSENT_INVALID" } });
+      reply.code(400).send({
+        error: { code: "CONSENT_INVALID", message: friendly("CONSENT_INVALID") },
+      });
       return;
     case "intake_mode_mismatch":
-      reply.code(400).send({ error: { code: "INTAKE_MODE_MISMATCH" } });
+      reply.code(400).send({
+        error: {
+          code: "INTAKE_MODE_MISMATCH",
+          message: friendly("INTAKE_MODE_MISMATCH"),
+        },
+      });
       return;
     case "feature_disabled":
     case "session_expired":
     case "session_revoked":
     default:
       reply.code(410).send({
-        error: { code: "LINK_NO_LONGER_AVAILABLE" },
+        error: {
+          code: "LINK_NO_LONGER_AVAILABLE",
+          message: friendly("LINK_NO_LONGER_AVAILABLE"),
+        },
       });
       return;
   }
@@ -444,7 +551,10 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           )
         ) {
           return reply.code(400).send({
-            error: { code: "MIME_TYPE_NOT_ALLOWED" },
+            error: {
+              code: "MIME_TYPE_NOT_ALLOWED",
+              message: friendlyPublicIntakeMessage("MIME_TYPE_NOT_ALLOWED"),
+            },
           });
         }
 
@@ -470,16 +580,36 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
             },
           });
         }
+        // Intake-links P0 bugfix — max-files-per-session check.
+        // Previously this passed `evidenceId: session.evidenceId ?? undefined`
+        // to prisma. When the session has not yet produced an Evidence
+        // row (every first upload of every new session), `evidenceId`
+        // is null, `?? undefined` becomes `undefined`, and Prisma's
+        // semantic for `where: { field: undefined }` is "omit the
+        // filter entirely". The count then returned the TOTAL number
+        // of evidence_parts rows across the whole database — which on
+        // any production deployment exceeds `maxFileCountPerSession`
+        // (e.g. 10) immediately, so EVERY first upload failed with
+        // MAX_FILES_REACHED.
+        //
+        // Correct semantics: a session without an Evidence row has
+        // zero parts. Skip the cap check entirely until the Evidence
+        // exists; once it does, filter strictly on its id (no nullish
+        // fallback).
         if (
           typeof link.maxFileCountPerSession === "number" &&
-          link.maxFileCountPerSession > 0
+          link.maxFileCountPerSession > 0 &&
+          session.evidenceId
         ) {
           const existing = await prisma.evidencePart.count({
-            where: { evidenceId: session.evidenceId ?? undefined },
+            where: { evidenceId: session.evidenceId },
           });
           if (existing >= link.maxFileCountPerSession) {
             return reply.code(409).send({
-              error: { code: "MAX_FILES_REACHED" },
+              error: {
+                code: "MAX_FILES_REACHED",
+                message: `You can upload up to ${link.maxFileCountPerSession} files per submission. Contact the sender for a new link if you need to add more.`,
+              },
             });
           }
         }

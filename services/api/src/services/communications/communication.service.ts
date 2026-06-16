@@ -374,6 +374,14 @@ export async function enqueueOutboundMessage(
   }
 
   // Persist QUEUED, then dispatch.
+  //
+  // Intake-links P0 bugfix — the QUEUED-row write previously ignored
+  // the `bodyPreviewOverride` parameter and called `safeBodyPreview`
+  // directly. That meant the sanitizer wired in Phase A only applied
+  // to the cancelled-fallback rows; every successful SMS / WhatsApp
+  // send (which goes through this branch) was writing the raw intake
+  // URL (including the secret token) to `body_preview`. The fix is
+  // the same `??` precedence used at the cancelled-row sites above.
   const queued = await client.communicationMessage.create({
     data: {
       teamId: input.teamId,
@@ -384,7 +392,8 @@ export async function enqueueOutboundMessage(
       recipientHash,
       recipientPreview: preview,
       status: prismaPkg.CommunicationStatus.QUEUED,
-      bodyPreview: safeBodyPreview(input.body),
+      bodyPreview:
+        input.bodyPreviewOverride ?? safeBodyPreview(input.body),
       sender: input.sender ?? null,
       relatedEvidenceId: input.related?.evidenceId ?? null,
       relatedEvidenceRequestId: input.related?.evidenceRequestId ?? null,
@@ -400,6 +409,19 @@ export async function enqueueOutboundMessage(
     toE164: phone,
     body: input.body,
     externalId: queued.id,
+    // Intake-links P0 bugfix — opt every Twilio send into the
+    // /v1/communications/webhooks/twilio/status webhook so the row
+    // moves out of QUEUED/SENT into DELIVERED / FAILED / UNDELIVERED
+    // when the carrier (or the WhatsApp sandbox) confirms outcome.
+    // Without this, every WhatsApp message that failed delivery
+    // (e.g. recipient not joined to sandbox, template not approved,
+    // number not WA-enabled) read "SENT" forever in the UI. The
+    // webhook handler at communications.routes.ts is already wired;
+    // it just never knew Twilio existed because we never told
+    // Twilio our callback URL. Operators set the public URL via
+    // TWILIO_STATUS_CALLBACK_URL (typically
+    // https://api.proovra.com/v1/communications/webhooks/twilio/status).
+    statusCallbackUrl: resolveTwilioStatusCallbackUrl(),
   };
 
   const result =
@@ -408,6 +430,11 @@ export async function enqueueOutboundMessage(
       : await provider.sendSms(sendInput);
 
   return updateAfterProviderAttempt(queued, result, provider, client);
+}
+
+function resolveTwilioStatusCallbackUrl(): string | undefined {
+  const url = (process.env.TWILIO_STATUS_CALLBACK_URL ?? "").trim();
+  return url.length > 0 ? url : undefined;
 }
 
 // -----------------------------------------------------------------------------
@@ -457,6 +484,7 @@ export async function dispatchPendingMessage(
     toE164: phone,
     body: row.bodyPreview ?? "(retry)",
     externalId: row.id,
+    statusCallbackUrl: resolveTwilioStatusCallbackUrl(),
   };
   const result =
     row.channel === "WHATSAPP"

@@ -191,13 +191,33 @@ export class TwilioMessagingProvider implements MessagingProvider {
         "Twilio did not return a message SID.",
       );
     }
+    // Intake-links P0 bugfix — truthful status mapping.
+    // Twilio's POST /Messages.json returns one of:
+    //   queued | accepted | sending | sent | delivered | undelivered | failed
+    // Previously this collapsed ANYTHING non-`queued` to "SENT". That
+    // included `accepted`, which is what Twilio returns when a WhatsApp
+    // sandbox recipient hasn't joined yet — the row read "SENT" forever
+    // and the recipient never received anything. Map precisely:
+    //   queued | accepted | sending  → QUEUED  (provider has the job,
+    //                                            has not handed off yet)
+    //   sent | delivered              → SENT   (truly handed off / delivered;
+    //                                            the StatusCallback webhook
+    //                                            will upgrade to DELIVERED
+    //                                            when the carrier confirms)
+    //   undelivered | failed         → caller's failure path via .ok=false
+    //                                  (we keep ok=true here because the
+    //                                   API call itself succeeded — those
+    //                                   states come back via webhook).
+    const lower = status.toLowerCase();
+    const mappedStatus: "QUEUED" | "SENT" =
+      lower === "sent" || lower === "delivered" ? "SENT" : "QUEUED";
     return {
       ok: true,
       providerMessageId: sid,
       provider: "TWILIO",
       channel,
-      status: status === "queued" ? "QUEUED" : "SENT",
-      sentAtUtc: new Date(),
+      status: mappedStatus,
+      sentAtUtc: mappedStatus === "SENT" ? new Date() : null,
     };
   }
 

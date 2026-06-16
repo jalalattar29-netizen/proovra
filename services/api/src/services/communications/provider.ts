@@ -61,7 +61,12 @@ export type ProviderSendResult =
       // queued/accepted state; we map to QUEUED or SENT here. DELIVERED
       // arrives only via the inbound status callback.
       status: Extract<CommunicationStatus, "QUEUED" | "SENT">;
-      sentAtUtc: Date;
+      // Null when status is QUEUED — the provider hasn't actually
+      // sent the message yet (e.g. Twilio's `accepted`/`sending`
+      // intermediate states). Set to `new Date()` when status is
+      // SENT (truly handed off). Webhooks subsequently set
+      // `deliveredAtUtc` on the row.
+      sentAtUtc: Date | null;
     }
   | {
       ok: false;

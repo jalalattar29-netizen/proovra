@@ -34,6 +34,61 @@ import { use, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
 import { IntakeChecklist } from "../../../components/intake/IntakeChecklist";
+
+/**
+ * Intake-links P0 bugfix — friendly public error mapper. The backend
+ * now ships a `message` with every error code (see external-intake
+ * routes' `friendlyPublicIntakeMessage`), but this client-side catalog
+ * is the final fallback if a future code lands without one. It also
+ * means recipients NEVER see raw JSON or raw enum strings even on
+ * legacy responses still in flight during deploy.
+ */
+function friendlyIntakeError(err: {
+  code?: string;
+  message?: string;
+}): string {
+  const code = err?.code ?? "";
+  const map: Record<string, string> = {
+    RATE_LIMITED:
+      "Too many requests. Please wait a moment and try again.",
+    INVALID_OR_EXPIRED_LINK:
+      "This upload link is invalid or has expired. Please contact the sender for a new link.",
+    LINK_NO_LONGER_AVAILABLE:
+      "This upload link is no longer available. It may have expired or been revoked. Please contact the sender for a new link.",
+    FEATURE_DISABLED:
+      "External uploads are not enabled. Please contact the sender for an alternative.",
+    CONSENT_REQUIRED:
+      "Please accept the consent disclosure before uploading.",
+    SESSION_TERMINAL:
+      "This submission has already been completed. Please contact the sender if you need to add more files.",
+    SESSION_NOT_OPEN_FOR_UPLOAD:
+      "This upload session is closed. Please contact the sender for a new link.",
+    MAX_FILES_REACHED:
+      "You've reached the file limit for this submission. Please contact the sender if you need to add more.",
+    MIME_TYPE_NOT_ALLOWED:
+      "This file type isn't accepted by this upload link. Check the accepted file types and try a different file.",
+    FILE_VALIDATION_BLOCKED:
+      "We couldn't accept this file for security reasons. Try a different file or contact the sender.",
+    PART_INDEX_TAKEN:
+      "A file with that position already exists. Please try the upload again.",
+    NOT_FOUND:
+      "We couldn't find what you were trying to access. Try refreshing the page.",
+    SUBMISSION_NOT_READY:
+      "Your submission isn't quite ready yet. Make sure every required file is uploaded, then try again.",
+    INTERNAL_ERROR:
+      "Something went wrong on our side. Please try again in a moment. If the problem persists, contact the sender.",
+  };
+  if (code && map[code]) return map[code];
+  // Backend `message` (user-safe by contract) wins over a raw fallback.
+  // If the message string looks like raw JSON (legacy responses
+  // pre-deploy), strip to a generic line — never echo `{` to a
+  // recipient.
+  const msg = (err?.message ?? "").trim();
+  if (msg.startsWith("{") || msg.startsWith("[")) {
+    return "Something went wrong. Please try again or contact the sender.";
+  }
+  return msg || "Something went wrong. Please try again or contact the sender.";
+}
 import {
   IntakeCompletionProgress,
   type IntakeCompletion,
@@ -189,17 +244,7 @@ export default function ExternalIntakePage({
       })
       .catch((err: { code?: string; message?: string }) => {
         if (cancelled) return;
-        setErrorMessage(
-          err?.code === "RATE_LIMITED"
-            ? "Too many requests. Please wait a moment and try again."
-            : err?.code === "INVALID_OR_EXPIRED_LINK"
-              ? "This link is not valid."
-              : err?.code === "LINK_NO_LONGER_AVAILABLE"
-                ? "This link has expired or has been revoked."
-                : err?.code === "FEATURE_DISABLED"
-                  ? "External intake is not enabled."
-                  : err?.message ?? "Unable to open this link.",
-        );
+        setErrorMessage(friendlyIntakeError(err));
         setPhase("error");
       });
     return () => {
@@ -263,7 +308,7 @@ export default function ExternalIntakePage({
       setPhase("upload");
     } catch (err) {
       setErrorMessage(
-        (err as { message?: string })?.message ?? "Unable to record consent.",
+        friendlyIntakeError(err as { code?: string; message?: string }),
       );
     }
   }
@@ -361,7 +406,7 @@ export default function ExternalIntakePage({
       );
     } catch (err) {
       setErrorMessage(
-        (err as { message?: string })?.message ?? "Upload could not start.",
+        friendlyIntakeError(err as { code?: string; message?: string }),
       );
     }
   }
@@ -383,7 +428,7 @@ export default function ExternalIntakePage({
       );
     } catch (err) {
       setErrorMessage(
-        (err as { message?: string })?.message ?? "Could not save mapping.",
+        friendlyIntakeError(err as { code?: string; message?: string }),
       );
     }
   }
