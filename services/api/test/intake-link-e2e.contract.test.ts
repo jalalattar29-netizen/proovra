@@ -182,7 +182,13 @@ test("Resend handler — maps link_missing_email to HTTP 400, provider_unconfigu
     src,
     /sendResult\.reason === "link_missing_phone" \|\|\s*\n?\s*sendResult\.reason === "link_missing_email"/,
   );
-  assert.match(src, /sendResult\.reason === "provider_unconfigured"\s*\n?\s*\?\s*503/);
+  // WA template fix — the 503 branch now also matches
+  // whatsapp_template_unconfigured (Meta requires an approved
+  // Content Template; missing SID is operator-correctable, hence 503).
+  assert.match(
+    src,
+    /sendResult\.reason === "provider_unconfigured" \|\|\s*\n?\s*sendResult\.reason === "whatsapp_template_unconfigured"\s*\n?\s*\?\s*503/,
+  );
 });
 
 // ===========================================================================

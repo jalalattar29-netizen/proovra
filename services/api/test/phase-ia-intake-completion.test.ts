@@ -183,11 +183,12 @@ describe("Phase IA-intake-completion P3 — Delivery history", () => {
 
   it("intake-links page opens the drawer per row", () => {
     const PAGE = readWeb("app/(app)/intake-links/page.tsx");
-    // Intake-links-e2e Phase 2 renamed the row variable from `l` to
-    // `link` when the per-row renderer was extracted into the
-    // IntakeLinkCard component. The data-attribute and drawer wiring
-    // are unchanged; just the local variable name moved.
-    expect(PAGE).toMatch(/data-intake-link-delivery=\{link\.id\}/);
+    // Operations Console rebuild — per-row "Delivery" trigger
+    // (data-intake-link-delivery={link.id}) moved out of the page
+    // into IntakeLinksOperationsConsole's RowMenu. The page wires
+    // the drawer via the onOpenDelivery callback passed to the
+    // console; the drawer component itself is still rendered here.
+    expect(PAGE).toMatch(/onOpenDelivery=\{\(linkId\) => setDeliveryDrawerLinkId\(linkId\)\}/);
     expect(PAGE).toMatch(/<IntakeLinkDeliveryDrawer/);
   });
 });

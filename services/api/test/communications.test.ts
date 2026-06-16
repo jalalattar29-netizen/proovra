@@ -188,6 +188,8 @@ describe("TwilioMessagingProvider.verifyWebhookSignature", () => {
       smsFromNumber: null,
       whatsappNumber: null,
       authToken: null,
+      whatsappIntakeTemplateSid: null,
+      whatsappTemplateLanguage: "en",
     };
     const provider = new TwilioMessagingProvider(cfg);
     const url = "https://api.example.com/v1/communications/webhooks/twilio/status";
@@ -230,6 +232,8 @@ describe("TwilioMessagingProvider.verifyWebhookSignature", () => {
       smsFromNumber: null,
       whatsappNumber: null,
       authToken: null,
+      whatsappIntakeTemplateSid: null,
+      whatsappTemplateLanguage: "en",
     });
     const ok = provider.verifyWebhookSignature({
       url: "https://api.example.com/v1/communications/webhooks/twilio/status",
@@ -250,6 +254,8 @@ describe("TwilioMessagingProvider.verifyWebhookSignature", () => {
       smsFromNumber: null,
       whatsappNumber: null,
       authToken: null,
+      whatsappIntakeTemplateSid: null,
+      whatsappTemplateLanguage: "en",
     });
     const ok = provider.verifyWebhookSignature({
       url: "https://api.example.com/v1/communications/webhooks/twilio/status",
@@ -275,6 +281,8 @@ describe("TwilioMessagingProvider.parseDeliveryWebhook", () => {
     smsFromNumber: null,
     whatsappNumber: null,
     authToken: null,
+    whatsappIntakeTemplateSid: null,
+    whatsappTemplateLanguage: "en",
   });
 
   it("recognises a delivery status callback (DELIVERED)", () => {

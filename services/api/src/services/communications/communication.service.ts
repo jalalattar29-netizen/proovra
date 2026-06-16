@@ -160,6 +160,19 @@ export type EnqueueOutboundMessageInput = {
    * sanitizeIntakeMessagePreview from @proovra/shared.
    */
   bodyPreviewOverride?: string | null;
+  /**
+   * Optional Twilio Content Template payload. Only consumed for the
+   * WHATSAPP channel; SMS sends ignore it and use `body`. When
+   * present, the provider sends ContentSid + ContentVariables
+   * instead of `Body`, satisfying Meta's "approved template
+   * required" rule for business-initiated WhatsApp messages
+   * outside the 24h customer window.
+   */
+  template?: {
+    contentSid: string;
+    variables: Record<string, string>;
+    language?: string;
+  };
 };
 
 export type EnqueueOutboundMessageResult = {
@@ -422,6 +435,11 @@ export async function enqueueOutboundMessage(
     // TWILIO_STATUS_CALLBACK_URL (typically
     // https://api.proovra.com/v1/communications/webhooks/twilio/status).
     statusCallbackUrl: resolveTwilioStatusCallbackUrl(),
+    // WhatsApp template path (Meta-required for business-initiated
+    // messages outside the 24h customer window). When the caller
+    // hands us a template, the provider drops `Body` and sends via
+    // ContentSid + ContentVariables. SMS sends ignore this field.
+    template: input.template,
   };
 
   const result =

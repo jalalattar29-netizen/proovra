@@ -241,3 +241,89 @@ describe("Pin 8 — no raw token / token hash in the console", () => {
     );
   });
 });
+
+describe("Pin 9 — Actions dropdown is portaled out of the table (clipping fix)", () => {
+  it("RowMenu uses createPortal + a fixed-position panel so it escapes overflow:auto", () => {
+    const src = read(CONSOLE);
+    assert.match(src, /import\s*\{\s*createPortal\s*\}\s*from\s*"react-dom"/);
+    // Pin: the menu render uses createPortal with document.body. A
+    // future refactor that drops the portal would re-trigger the
+    // clipping bug.
+    assert.match(src, /createPortal\(menu, document\.body\)/);
+    // The panel must be position:fixed (not absolute) so it sits in
+    // the viewport coordinate system, immune to table-cell scroll
+    // ancestors.
+    assert.match(src, /position:\s*"fixed"/);
+    // data-attr so a future e2e test can grab the panel from anywhere
+    // on the page even though it lives in a portal.
+    assert.match(src, /data-intake-links-row-menu-panel/);
+  });
+
+  it("the trigger refs an element and positions the panel from its bounding rect", () => {
+    const src = read(CONSOLE);
+    assert.match(src, /triggerRef = useRef<HTMLButtonElement \| null>\(null\)/);
+    assert.match(src, /getBoundingClientRect\(\)/);
+  });
+});
+
+describe("Pin 10 — Archived tab actually loads archived rows", () => {
+  it("page fetches /v1/workflow/intake-links with archiveScope=all so every tab has data", () => {
+    const src = read(PAGE);
+    assert.match(
+      src,
+      /\/v1\/workflow\/intake-links\?teamId=\$\{encodeURIComponent\(teamId\)\}&archiveScope=all/,
+    );
+  });
+});
+
+describe("Pin 11 — KPI cards Upload started / Opened set the lifecycle filter", () => {
+  it("KpiStrip accepts onLifecycle + currentLifecycle props", () => {
+    const src = read(CONSOLE);
+    assert.match(src, /onLifecycle:\s*\(l:\s*LifecycleFilter\)\s*=>\s*void/);
+    assert.match(src, /currentLifecycle:\s*LifecycleFilter/);
+  });
+
+  it('"started" and "opened" entries set kind:"lifecycle" with STARTED / OPENED filter values', () => {
+    const src = read(CONSOLE);
+    assert.match(
+      src,
+      /key:\s*"started"[\s\S]{0,200}kind:\s*"lifecycle"[\s\S]{0,100}lifecycle:\s*"STARTED"/,
+    );
+    assert.match(
+      src,
+      /key:\s*"opened"[\s\S]{0,200}kind:\s*"lifecycle"[\s\S]{0,100}lifecycle:\s*"OPENED"/,
+    );
+  });
+
+  it("clicking a lifecycle-kind KPI resets the tab to 'all' so older OPENED/STARTED rows aren't hidden", () => {
+    const src = read(CONSOLE);
+    // The wired handler in the IntakeLinksOperationsConsole body
+    // sets tab="all" then setLifecycle(l). Pin both.
+    assert.match(
+      src,
+      /onLifecycle=\{\(l\) => \{\s*\n?\s*[\s\S]{0,400}setTab\("all"\);\s*\n?\s*setLifecycle\(l\);\s*\n?\s*\}\}/,
+    );
+  });
+});
+
+describe("Pin 12 — Delivery cell never shows 'Delivered' for QUEUED rows", () => {
+  it("QUEUED / RETRY_SCHEDULED render as 'Queued with provider' (not 'Delivered', not 'Sent')", () => {
+    const src = read(CONSOLE);
+    assert.match(
+      src,
+      /s === "QUEUED" \|\| s === "RETRY_SCHEDULED"[\s\S]{0,50}\? "Queued with provider"/,
+    );
+  });
+
+  it("SENT renders 'Sent to provider', DELIVERED renders 'Delivered' — no other status can map to those labels", () => {
+    const src = read(CONSOLE);
+    assert.match(src, /s === "SENT"[\s\S]{0,50}\? "Sent to provider"/);
+    assert.match(src, /s === "DELIVERED"[\s\S]{0,50}\? "Delivered"/);
+  });
+
+  it("the row delivery cell surfaces latestErrorCode so operators can act without opening the drawer", () => {
+    const src = read(CONSOLE);
+    assert.match(src, /delivery\.latestErrorCode/);
+    assert.match(src, /code \$\{delivery\.latestErrorCode\}/);
+  });
+});

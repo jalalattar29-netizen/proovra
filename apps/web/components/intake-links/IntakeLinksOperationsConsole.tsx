@@ -48,7 +48,15 @@
  *     pagination — the URL state already exists.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 
 import { apiFetch } from "../../lib/api";
 
@@ -581,7 +589,16 @@ export function IntakeLinksOperationsConsole(props: OperationsConsoleProps) {
       <KpiStrip
         kpis={kpis}
         onTab={(t) => setTab(t)}
+        onLifecycle={(l) => {
+          // Lifecycle KPIs (Upload started / Opened) reset the tab to
+          // "all" so the chosen lifecycle filter is the only narrowing
+          // dimension — otherwise the implicit "active" tab would hide
+          // any older OPENED/STARTED rows.
+          setTab("all");
+          setLifecycle(l);
+        }}
         currentTab={tab}
+        currentLifecycle={lifecycle}
       />
 
       {/* Search + filter chips */}
@@ -817,55 +834,98 @@ export function IntakeLinksOperationsConsole(props: OperationsConsoleProps) {
 function KpiStrip({
   kpis,
   onTab,
+  onLifecycle,
   currentTab,
+  currentLifecycle,
 }: {
   kpis: ReturnType<typeof computeKpis>;
   onTab: (t: Tab) => void;
+  onLifecycle: (l: LifecycleFilter) => void;
   currentTab: Tab;
+  currentLifecycle: LifecycleFilter;
 }) {
-  const entries: Array<{
-    key: string;
-    label: string;
-    value: number;
-    tab: Tab | null;
-  }> = [
-    { key: "active", label: "Active", value: kpis.active, tab: "active" },
-    { key: "submitted", label: "Submitted", value: kpis.submitted, tab: "submitted" },
-    { key: "started", label: "Upload started", value: kpis.started, tab: null },
-    { key: "opened", label: "Opened", value: kpis.opened, tab: null },
+  // Every KPI is clickable. Some jump to a tab (Active, Submitted,
+  // Expiring soon, Failed delivery, Revoked/expired); the lifecycle
+  // ones (Upload started, Opened) set the lifecycle filter on the
+  // "all" tab so the operator can see every link in that state
+  // regardless of the surrounding "active" gate.
+  type Entry =
+    | { key: string; label: string; value: number; kind: "tab"; tab: Tab }
+    | {
+        key: string;
+        label: string;
+        value: number;
+        kind: "lifecycle";
+        lifecycle: Exclude<LifecycleFilter, "">;
+      };
+  const entries: Entry[] = [
+    { key: "active", label: "Active", value: kpis.active, kind: "tab", tab: "active" },
+    {
+      key: "submitted",
+      label: "Submitted",
+      value: kpis.submitted,
+      kind: "tab",
+      tab: "submitted",
+    },
+    {
+      key: "started",
+      label: "Upload started",
+      value: kpis.started,
+      kind: "lifecycle",
+      lifecycle: "STARTED",
+    },
+    {
+      key: "opened",
+      label: "Opened",
+      value: kpis.opened,
+      kind: "lifecycle",
+      lifecycle: "OPENED",
+    },
     {
       key: "expiring_soon",
       label: "Expiring soon",
       value: kpis.expiringSoon,
+      kind: "tab",
       tab: "expiring_soon",
     },
     {
       key: "failed",
       label: "Failed delivery",
       value: kpis.failed,
+      kind: "tab",
       tab: "needs_attention",
     },
-    { key: "closed", label: "Revoked or expired", value: kpis.closed, tab: "closed" },
+    {
+      key: "closed",
+      label: "Revoked or expired",
+      value: kpis.closed,
+      kind: "tab",
+      tab: "closed",
+    },
   ];
   return (
     <ul style={kpiStripStyle} data-intake-links-kpis>
       {entries.map((e) => {
-        const clickable = e.tab !== null;
-        const isCurrent = e.tab !== null && currentTab === e.tab;
+        const isCurrent =
+          e.kind === "tab"
+            ? currentTab === e.tab
+            : currentLifecycle === e.lifecycle && currentTab === "all";
         return (
           <li key={e.key}>
             <button
               type="button"
-              disabled={!clickable}
-              onClick={() => (e.tab ? onTab(e.tab) : undefined)}
+              onClick={() =>
+                e.kind === "tab" ? onTab(e.tab) : onLifecycle(e.lifecycle)
+              }
               style={{
                 ...kpiCardStyle,
-                cursor: clickable ? "pointer" : "default",
+                cursor: "pointer",
                 borderColor: isCurrent ? "#1e40af" : "#e5e7eb",
                 boxShadow: isCurrent ? "0 0 0 2px #dbeafe" : "none",
               }}
               data-intake-links-kpi={e.key}
               data-intake-links-kpi-active={isCurrent ? "true" : "false"}
+              data-intake-links-kpi-kind={e.kind}
               aria-pressed={isCurrent}
             >
               <span style={kpiValueStyle}>{e.value}</span>
@@ -1041,10 +1101,16 @@ function DeliveryCell({ delivery }: { delivery: ConsoleItem["delivery"] }) {
   if (delivery.attemptCount === 0) {
     return <span style={mutedSpanStyle}>Not sent</span>;
   }
+  // Truthful labels: QUEUED never lies as "Delivered". A row is only
+  // "Delivered" when the provider's StatusCallback webhook has
+  // confirmed it. "Sent to provider" reflects ok=true from POST
+  // /Messages.json (Twilio accepted the job, hasn't yet handed off).
+  // "Queued with provider" reflects ongoing provider queueing —
+  // operator can recheck with the recheck CLI if it stalls.
   const s = delivery.latestStatus ?? "UNKNOWN";
   const label =
     s === "QUEUED" || s === "RETRY_SCHEDULED"
-      ? "Queued"
+      ? "Queued with provider"
       : s === "SENT"
         ? "Sent to provider"
         : s === "DELIVERED"
@@ -1052,12 +1118,46 @@ function DeliveryCell({ delivery }: { delivery: ConsoleItem["delivery"] }) {
           : s === "FAILED" || s === "UNDELIVERED"
             ? "Failed"
             : s;
+  // Surface error code when present so the operator can act without
+  // opening the delivery drawer. Known WhatsApp/Twilio codes are
+  // translated to plain English (e.g. 63016 → "WhatsApp template
+  // required or not approved"); unknown codes pass through verbatim.
+  const codeBit = delivery.latestErrorCode
+    ? ` · ${friendlyTwilioErrorCode(delivery.latestErrorCode)}`
+    : "";
   return (
     <span data-intake-links-row-delivery={s}>
       {label}
       {delivery.attemptCount > 1 ? ` · ${delivery.attemptCount} attempts` : ""}
+      {codeBit}
     </span>
   );
+}
+
+/**
+ * Friendly mapping of the Twilio error codes we routinely see on the
+ * intake-link delivery path. Operators should never have to look up
+ * a code from a row — the most common ones get a plain-English label
+ * here, the rest fall through unchanged so we don't silently swallow
+ * a new code.
+ */
+function friendlyTwilioErrorCode(code: string): string {
+  switch (code) {
+    case "63016":
+      return "WhatsApp template required or not approved.";
+    case "63015":
+      return "WhatsApp recipient is not opted in / sandbox not joined.";
+    case "63018":
+      return "WhatsApp recipient blocked the sender.";
+    case "63003":
+      return "WhatsApp number is not a valid recipient.";
+    case "30007":
+      return "Carrier filtered the SMS as spam.";
+    case "30008":
+      return "Carrier reported the SMS as undeliverable.";
+    default:
+      return `code ${code}`;
+  }
 }
 
 function ExpiresCell({ expiresAtUtc }: { expiresAtUtc: string }) {
@@ -1092,11 +1192,170 @@ function RowMenu(props: {
   onOpenDelivery: () => void;
   onOpenSubmissions: () => void;
 }) {
+  // Portal the menu out of the table so the table wrapper's
+  // `overflow-x: auto` (which creates a block clipping context per
+  // CSS spec) doesn't truncate the dropdown. We compute the panel's
+  // viewport-fixed position from the trigger's bounding rect on
+  // every open + window resize / scroll.
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLUListElement | null>(null);
   const { isActive, archived } = props;
+
+  const positionPanel = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const PANEL_WIDTH = 200;
+    const ESTIMATED_HEIGHT = 220;
+    const margin = 8;
+    // Right-align under the trigger, but flip up if the panel would
+    // run off the bottom edge of the viewport.
+    let top = rect.bottom + 4;
+    if (top + ESTIMATED_HEIGHT > window.innerHeight - margin) {
+      top = Math.max(margin, rect.top - ESTIMATED_HEIGHT - 4);
+    }
+    let left = rect.right - PANEL_WIDTH;
+    if (left < margin) left = margin;
+    if (left + PANEL_WIDTH > window.innerWidth - margin) {
+      left = window.innerWidth - PANEL_WIDTH - margin;
+    }
+    setCoords({ top, left });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    positionPanel();
+  }, [open, positionPanel]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onScroll = () => positionPanel();
+    const onResize = () => positionPanel();
+    const onClickAway = (e: MouseEvent) => {
+      const t = e.target as Node | null;
+      if (
+        t &&
+        !triggerRef.current?.contains(t) &&
+        !panelRef.current?.contains(t)
+      ) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("mousedown", onClickAway);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("mousedown", onClickAway);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open, positionPanel]);
+
+  const menu =
+    open && coords && typeof window !== "undefined" ? (
+      <ul
+        ref={panelRef}
+        role="menu"
+        style={{
+          ...menuPanelStyle,
+          position: "fixed",
+          top: coords.top,
+          left: coords.left,
+          right: "auto",
+          margin: 0,
+        }}
+        data-intake-links-row-menu-panel
+      >
+        <li>
+          <button
+            type="button"
+            role="menuitem"
+            style={menuItemStyle}
+            onClick={() => {
+              setOpen(false);
+              props.onOpenDetails();
+            }}
+            data-intake-links-row-action="details"
+          >
+            View details
+          </button>
+        </li>
+        <li>
+          <button
+            type="button"
+            role="menuitem"
+            style={menuItemStyle}
+            onClick={() => {
+              setOpen(false);
+              props.onOpenDelivery();
+            }}
+            data-intake-links-row-action="delivery"
+          >
+            Delivery history
+          </button>
+        </li>
+        {props.item.activity.sessionsCreated > 0 ? (
+          <li>
+            <button
+              type="button"
+              role="menuitem"
+              style={menuItemStyle}
+              onClick={() => {
+                setOpen(false);
+                props.onOpenSubmissions();
+              }}
+              data-intake-links-row-action="submissions"
+            >
+              View submissions
+            </button>
+          </li>
+        ) : null}
+        {isActive ? (
+          <li>
+            <button
+              type="button"
+              role="menuitem"
+              style={{ ...menuItemStyle, color: "#7f1d1d" }}
+              onClick={() => {
+                setOpen(false);
+                props.onRevoke();
+              }}
+              data-intake-links-row-action="revoke"
+            >
+              Revoke link
+            </button>
+          </li>
+        ) : null}
+        <li>
+          <button
+            type="button"
+            role="menuitem"
+            style={menuItemStyle}
+            onClick={() => {
+              setOpen(false);
+              props.onArchive();
+            }}
+            data-intake-links-row-action={archived ? "unarchive" : "archive"}
+          >
+            {archived ? "Unarchive" : "Archive"}
+          </button>
+        </li>
+      </ul>
+    ) : null;
+
   return (
     <div style={{ position: "relative", textAlign: "right" }}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         style={menuTriggerStyle}
@@ -1107,88 +1366,9 @@ function RowMenu(props: {
       >
         Actions ▾
       </button>
-      {open ? (
-        <ul
-          role="menu"
-          style={menuPanelStyle}
-          onMouseLeave={() => setOpen(false)}
-        >
-          <li>
-            <button
-              type="button"
-              role="menuitem"
-              style={menuItemStyle}
-              onClick={() => {
-                setOpen(false);
-                props.onOpenDetails();
-              }}
-              data-intake-links-row-action="details"
-            >
-              View details
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              role="menuitem"
-              style={menuItemStyle}
-              onClick={() => {
-                setOpen(false);
-                props.onOpenDelivery();
-              }}
-              data-intake-links-row-action="delivery"
-            >
-              Delivery history
-            </button>
-          </li>
-          {props.item.activity.sessionsCreated > 0 ? (
-            <li>
-              <button
-                type="button"
-                role="menuitem"
-                style={menuItemStyle}
-                onClick={() => {
-                  setOpen(false);
-                  props.onOpenSubmissions();
-                }}
-                data-intake-links-row-action="submissions"
-              >
-                View submissions
-              </button>
-            </li>
-          ) : null}
-          {isActive ? (
-            <li>
-              <button
-                type="button"
-                role="menuitem"
-                style={{ ...menuItemStyle, color: "#7f1d1d" }}
-                onClick={() => {
-                  setOpen(false);
-                  props.onRevoke();
-                }}
-                data-intake-links-row-action="revoke"
-              >
-                Revoke link
-              </button>
-            </li>
-          ) : null}
-          <li>
-            <button
-              type="button"
-              role="menuitem"
-              style={menuItemStyle}
-              onClick={() => {
-                setOpen(false);
-                props.onArchive();
-              }}
-              data-intake-links-row-action={archived ? "unarchive" : "archive"}
-            >
-              {archived ? "Unarchive" : "Archive"}
-            </button>
-          </li>
-        </ul>
-      ) : null}
+      {menu && typeof document !== "undefined"
+        ? createPortal(menu, document.body)
+        : null}
     </div>
   );
 }

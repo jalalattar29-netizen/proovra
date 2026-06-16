@@ -61,6 +61,20 @@ export type TwilioProviderConfig = {
   whatsappNumber: string | null;
   /** Fallback for signature validation when API key path is not available. */
   authToken: string | null;
+  /**
+   * Twilio Content Template Builder SID for the intake-link WhatsApp
+   * template (HX…). Required for production WhatsApp delivery: Meta
+   * rejects free-form Body outside the 24h customer-initiated
+   * window, so business-initiated intake messages MUST go through an
+   * approved template. Read from TWILIO_WHATSAPP_INTAKE_TEMPLATE_SID.
+   */
+  whatsappIntakeTemplateSid: string | null;
+  /**
+   * Language short code used when sending the intake template
+   * (typically "en", "es", "pt_BR"). Read from
+   * TWILIO_WHATSAPP_TEMPLATE_LANGUAGE; defaults to "en".
+   */
+  whatsappTemplateLanguage: string;
 };
 
 export type TwilioProviderConfigReason =
@@ -88,6 +102,10 @@ export function readTwilioConfigFromEnv(): {
   const whatsappNumber =
     (process.env.TWILIO_WHATSAPP_NUMBER ?? "").trim() || null;
   const authToken = (process.env.TWILIO_AUTH_TOKEN ?? "").trim() || null;
+  const whatsappIntakeTemplateSid =
+    (process.env.TWILIO_WHATSAPP_INTAKE_TEMPLATE_SID ?? "").trim() || null;
+  const whatsappTemplateLanguage =
+    (process.env.TWILIO_WHATSAPP_TEMPLATE_LANGUAGE ?? "").trim() || "en";
   if (!messagingServiceSid && !smsFromNumber && !whatsappNumber) {
     return { config: null, reason: "no_send_target_configured" };
   }
@@ -101,6 +119,8 @@ export function readTwilioConfigFromEnv(): {
       smsFromNumber,
       whatsappNumber,
       authToken,
+      whatsappIntakeTemplateSid,
+      whatsappTemplateLanguage,
     },
     reason: null,
   };
@@ -148,7 +168,30 @@ export class TwilioMessagingProvider implements MessagingProvider {
     const to =
       channel === "WHATSAPP" ? `whatsapp:${input.toE164}` : input.toE164;
     params.set("To", to);
-    params.set("Body", input.body);
+
+    // WhatsApp Business template path. Meta rejects free-form Body
+    // outside the 24h customer-initiated window with errorCode 63016
+    // ("template required"). When the caller supplies an approved
+    // ContentSid we send via Twilio's Content API (ContentSid +
+    // ContentVariables + ContentLanguage) and SKIP the `Body` param
+    // entirely — Twilio rejects requests that mix them.
+    // SMS is unaffected: templates are ignored, `Body` is required.
+    const useTemplate =
+      channel === "WHATSAPP" && Boolean(input.template?.contentSid);
+    if (useTemplate && input.template) {
+      params.set("ContentSid", input.template.contentSid);
+      // Stringified JSON map of positional variables: {"1":"...","2":"..."}.
+      // Twilio's Content API rejects a non-JSON ContentVariables.
+      params.set(
+        "ContentVariables",
+        JSON.stringify(input.template.variables),
+      );
+      const lang =
+        input.template.language ?? this.cfg.whatsappTemplateLanguage;
+      if (lang) params.set("ContentLanguage", lang);
+    } else {
+      params.set("Body", input.body);
+    }
 
     if (this.cfg.messagingServiceSid) {
       params.set("MessagingServiceSid", this.cfg.messagingServiceSid);

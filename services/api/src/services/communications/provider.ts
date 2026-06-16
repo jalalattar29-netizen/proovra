@@ -38,6 +38,26 @@ export type ProviderSendInput = {
   externalId?: string;
   /** Where the provider should POST delivery status callbacks. */
   statusCallbackUrl?: string;
+  /**
+   * Optional Twilio Content Template payload (WhatsApp Business
+   * Account "approved template" path). When present AND the channel
+   * is WHATSAPP, the provider sends with ContentSid + ContentVariables
+   * INSTEAD of `Body`. Free-form bodies are required by Meta to be
+   * inside a 24h customer-initiated window; templates are the only
+   * reliable way to deliver business-initiated WhatsApp outside that
+   * window. `language` is the BCP-47 / WhatsApp short code (typically
+   * "en", "es", "pt_BR" — must match a translation registered for
+   * the template).
+   *
+   * SMS sends must ignore `template`; providers MUST fall back to
+   * `body` for the SMS channel.
+   */
+  template?: {
+    contentSid: string;
+    /** Positional vars: {"1": "...", "2": "...", ...}. */
+    variables: Record<string, string>;
+    language?: string;
+  };
 };
 
 export type ProviderSendFailureReason =

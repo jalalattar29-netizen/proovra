@@ -109,6 +109,7 @@ export type DispatchIntakeDeliveryResult =
         | "link_missing_email"
         | "link_missing_phone"
         | "provider_unconfigured"
+        | "whatsapp_template_unconfigured"
         | "delivery_failed"
         | "delivery_failed_or_skipped"
         | "max_attempts_exceeded";

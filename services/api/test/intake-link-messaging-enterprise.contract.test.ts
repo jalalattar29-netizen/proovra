@@ -164,7 +164,11 @@ describe("GET /sender-identity — safe shape only", () => {
       '"/v1/workflow/intake-links/sender-identity"',
     );
     assert.ok(epIdx > 0);
-    const slice = src.slice(epIdx, epIdx + 2500);
+    // Window bumped to 4000 chars to accommodate the WhatsApp
+    // template-config block added in the production-template fix.
+    // The `email:` / `sms:` / `whatsapp:` keys all live in the
+    // single reply.send body — anywhere inside it is fine.
+    const slice = src.slice(epIdx, epIdx + 4000);
     for (const channel of ["email:", "sms:", "whatsapp:"]) {
       assert.ok(
         slice.includes(channel),

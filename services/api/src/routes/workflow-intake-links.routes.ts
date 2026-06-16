@@ -588,9 +588,29 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       const whatsappFromNumber = (
         process.env.TWILIO_WHATSAPP_NUMBER ?? ""
       ).trim();
-      const whatsappConfigured =
+      // WhatsApp intake delivery is only "configured" when BOTH the
+      // from-number AND an approved Content Template SID are set.
+      // Production WhatsApp Business sends require a template (Meta
+      // rule), so a from-number alone would still hit errorCode 63016.
+      const whatsappTemplateSid = (
+        process.env.TWILIO_WHATSAPP_INTAKE_TEMPLATE_SID ?? ""
+      ).trim();
+      const whatsappTemplateLanguage =
+        (process.env.TWILIO_WHATSAPP_TEMPLATE_LANGUAGE ?? "").trim() || "en";
+      const whatsappHasTwilio =
         Boolean(process.env.TWILIO_ACCOUNT_SID) &&
         whatsappFromNumber.length > 0;
+      const whatsappTemplateConfigured = whatsappTemplateSid.length > 0;
+      const whatsappConfigured =
+        whatsappHasTwilio && whatsappTemplateConfigured;
+      // Operator-facing reason so the UI can show "Setup required —
+      // add a Twilio Content Template SID" instead of silently
+      // disabling the WhatsApp option.
+      const whatsappUnconfiguredReason: string | null = whatsappConfigured
+        ? null
+        : !whatsappHasTwilio
+          ? "twilio_unconfigured"
+          : "intake_template_unconfigured";
 
       // Reuse the existing phone masker so the operator sees the
       // same shape they're used to elsewhere in the app.
@@ -614,6 +634,17 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
           configured: whatsappConfigured,
           fromNumberPreview: fromNumberPreview(whatsappFromNumber),
           displayName: "PROOVRA",
+          // Template configuration is exposed so the create modal
+          // can render an actionable setup-required affordance
+          // instead of pretending WhatsApp will work. The SID
+          // itself is safe to surface (it identifies a public
+          // template name, not a secret).
+          template: {
+            configured: whatsappTemplateConfigured,
+            sid: whatsappTemplateConfigured ? whatsappTemplateSid : null,
+            language: whatsappTemplateLanguage,
+          },
+          unconfiguredReason: whatsappUnconfiguredReason,
         },
       });
     },
@@ -911,7 +942,8 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
               : sendResult.reason === "link_missing_phone" ||
                   sendResult.reason === "link_missing_email"
                 ? 400
-                : sendResult.reason === "provider_unconfigured"
+                : sendResult.reason === "provider_unconfigured" ||
+                    sendResult.reason === "whatsapp_template_unconfigured"
                   ? 503
                   : sendResult.reason === "max_attempts_exceeded"
                     ? 429

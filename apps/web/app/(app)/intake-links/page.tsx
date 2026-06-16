@@ -485,7 +485,12 @@ function IntakeLinksPageInner() {
     () => async (teamId: string): Promise<void> => {
       try {
         const res = (await apiFetch(
-          `/v1/workflow/intake-links?teamId=${encodeURIComponent(teamId)}`,
+          // archiveScope=all so the console's Archived tab actually
+          // has rows to filter (the backend default is "active" which
+          // hides them). The console tab system then filters
+          // client-side: All / Active / Archived / etc. all work
+          // off the same loaded array without a per-tab refetch.
+          `/v1/workflow/intake-links?teamId=${encodeURIComponent(teamId)}&archiveScope=all`,
           { method: "GET" },
         )) as { items?: LinkListItem[]; links?: LinkRow[] };
         setItems(res.items ?? []);
@@ -2332,6 +2337,8 @@ function friendlyDeliveryReason(reason: string): string {
     link_expired: "this link has already expired",
     provider_unconfigured:
       "messaging isn't configured on this deployment",
+    whatsapp_template_unconfigured:
+      "WhatsApp template not configured — set TWILIO_WHATSAPP_INTAKE_TEMPLATE_SID first",
     delivery_failed: "the message provider rejected the send",
     delivery_failed_or_skipped:
       "the message provider rejected or skipped the send",
