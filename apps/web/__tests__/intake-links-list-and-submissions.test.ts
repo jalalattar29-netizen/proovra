@@ -29,19 +29,42 @@ test("Phase 2 — list endpoint consumed as `items` envelope (not legacy `links`
   assert.match(src, /setItems\(res\.items \?\? \[\]\)/);
 });
 
-test("Phase 2 — list renders IntakeLinkCard per item with lifecycle data-attr", () => {
+test("Phase 2 (post-console) — page wires the operations console with the rich items envelope", () => {
   const src = read(PAGE);
-  assert.match(src, /data-intake-links-list="true"/);
-  assert.match(src, /function IntakeLinkCard\(/);
-  assert.match(src, /data-intake-link-lifecycle=\{computedLifecycle\}/);
-  assert.match(src, /data-intake-link-lifecycle-chip="true"/);
+  // The legacy stacked-card list (`data-intake-links-list="true"`,
+  // `IntakeLinkCard`, lifecycle chip data-attrs, etc.) was replaced
+  // by IntakeLinksOperationsConsole. The page must now render the
+  // console and pass items through; the console owns its own
+  // lifecycle chip styling, delivery copy, and activity summary.
+  assert.match(src, /<IntakeLinksOperationsConsole/);
+  assert.match(src, /items=\{items as ConsoleItem\[\]\}/);
+  // Pin the absence of the old card so a future refactor can't
+  // accidentally resurrect the stacked layout.
+  assert.ok(
+    !/function IntakeLinkCard\(/.test(src),
+    "IntakeLinkCard was replaced by the operations console — it must not return",
+  );
+  // Lifecycle chip styling now lives inside the console; the page
+  // file must not redeclare the legacy LIFECYCLE_LABELS /
+  // LIFECYCLE_CHIP_STYLES constants.
+  assert.ok(
+    !/const LIFECYCLE_LABELS\s*:/.test(src),
+    "LIFECYCLE_LABELS belongs to the console now",
+  );
+  assert.ok(
+    !/const LIFECYCLE_CHIP_STYLES\s*:/.test(src),
+    "LIFECYCLE_CHIP_STYLES belongs to the console now",
+  );
 });
 
-test("Phase 2 — every lifecycle state has a label + chip style", () => {
-  const src = read(PAGE);
-  // The LIFECYCLE_LABELS + LIFECYCLE_CHIP_STYLES constants must
-  // enumerate all 8 states; missing one would render `undefined` in
-  // the chip.
+test("Phase 2 (post-console) — every lifecycle state still has a label + chip style (now in the console)", () => {
+  const CONSOLE = resolve(
+    REPO_ROOT,
+    "apps/web/components/intake-links/IntakeLinksOperationsConsole.tsx",
+  );
+  const src = read(CONSOLE);
+  // The console's LIFECYCLE_LABELS + LIFECYCLE_CHIP enumerate all 8
+  // states; missing one would render `undefined` in a chip.
   for (const state of [
     "CREATED",
     "SENT",
@@ -54,25 +77,22 @@ test("Phase 2 — every lifecycle state has a label + chip style", () => {
   ]) {
     assert.ok(
       src.includes(`${state}:`),
-      `LIFECYCLE_LABELS / LIFECYCLE_CHIP_STYLES missing entry for ${state}`,
+      `console LIFECYCLE_LABELS / LIFECYCLE_CHIP missing entry for ${state}`,
     );
   }
 });
 
-test("Phase 2 — delivery + activity summary helpers produce SMB-friendly copy", () => {
-  const src = read(PAGE);
-  assert.match(src, /function describeDeliverySummary\(/);
-  assert.match(src, /function describeActivitySummary\(/);
-  // Spot-check the empty / not-sent copy so SMB users never see "null".
-  assert.match(src, /Delivery: not sent yet \(manual link\)\./);
-  assert.match(src, /Not opened yet\./);
-});
-
-test("Phase 2 — View submissions button is gated on sessionsCreated > 0 (no fake action)", () => {
-  const src = read(PAGE);
+test("Phase 2 (post-console) — submissions visibility is wired through the console row menu, gated on sessionsCreated > 0", () => {
+  const CONSOLE = resolve(
+    REPO_ROOT,
+    "apps/web/components/intake-links/IntakeLinksOperationsConsole.tsx",
+  );
+  const src = read(CONSOLE);
+  // The "View submissions" menu item must only render when the link
+  // has at least one session — no fake action when nothing happened.
   assert.match(
     src,
-    /activity\.sessionsCreated > 0 \? \(\s*\n?\s*<button[\s\S]{0,500}data-intake-link-view-submissions/,
+    /props\.item\.activity\.sessionsCreated > 0 \? \(\s*<li>[\s\S]{0,500}data-intake-links-row-action="submissions"/,
   );
 });
 

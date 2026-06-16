@@ -77,6 +77,17 @@ function friendlyIntakeError(err: {
       "Your submission isn't quite ready yet. Make sure every required file is uploaded, then try again.",
     INTERNAL_ERROR:
       "Something went wrong on our side. Please try again in a moment. If the problem persists, contact the sender.",
+    // Forensic P0 fix — TRANSITION_NOT_ALLOWED was the 409 root cause
+    // (state machine missing UPLOAD_STARTED → SUBMITTED). Even after
+    // the fix, this code can still appear for legitimate double-Submit
+    // clicks or stale tabs. Friendly recovery copy beats the generic
+    // "Something went wrong".
+    TRANSITION_NOT_ALLOWED:
+      "This step can't be completed right now. Refresh the page and try again, or contact the sender if it keeps happening.",
+    SESSION_NOT_FOUND:
+      "We couldn't find this upload session. Refresh the page or open the link again to start a new session.",
+    SUBMIT_FAILED:
+      "We couldn't submit these files. Your uploads are still here — try Submit again, or contact the sender with the support ID below.",
   };
   if (code && map[code]) return map[code];
   // Backend `message` (user-safe by contract) wins over a raw fallback.
@@ -192,6 +203,25 @@ function kindFromMime(mime: string): AcceptedKind {
   if (m.startsWith("video/")) return "VIDEO";
   if (m.startsWith("audio/")) return "AUDIO";
   return "DOCUMENT";
+}
+
+/**
+ * P0 audit-fix — human-readable file-kind label for the part row's
+ * primary line ("Photo · 3.4 MB"). Operates purely on the MIME we
+ * already store; never mutates the filename or any identity field.
+ */
+function humanFileKindLabel(mime: string): string {
+  switch (kindFromMime(mime)) {
+    case "PHOTO":
+      return "Photo";
+    case "VIDEO":
+      return "Video";
+    case "AUDIO":
+      return "Audio";
+    case "DOCUMENT":
+    default:
+      return "Document";
+  }
 }
 
 async function disclosureHash(text: string): Promise<string> {
@@ -450,14 +480,35 @@ export default function ExternalIntakePage({
       setSession(res.session);
       setPhase("submitted");
     } catch (err) {
-      const e = err as { code?: string; message?: string; details?: { missingRequiredSteps?: string[] } };
-      setErrorMessage(
-        e?.code === "SUBMISSION_NOT_READY"
-          ? `Some required materials are missing: ${(e.details?.missingRequiredSteps ?? []).join(", ") || "see workflow steps"}.`
-          : e?.code === "CONSENT_REQUIRED"
-            ? "Please accept the consent before submitting."
-            : e?.message ?? "Submission failed.",
-      );
+      const e = err as {
+        code?: string;
+        message?: string;
+        requestId?: string;
+        details?: { missingRequiredSteps?: string[]; requestId?: string };
+      };
+      // SUBMISSION_NOT_READY keeps its bespoke composition since it
+      // depends on missing-step labels the catalog can't know about.
+      let copy: string;
+      if (e?.code === "SUBMISSION_NOT_READY") {
+        copy = `Some required materials are missing: ${
+          (e.details?.missingRequiredSteps ?? []).join(", ") || "see workflow steps"
+        }.`;
+      } else {
+        copy = friendlyIntakeError(e);
+      }
+      // P0 audit-fix: surface the requestId on submit failures so the
+      // contributor can quote it to the sender for diagnosis. The
+      // backend's `SUBMIT_FAILED` envelope now includes this field
+      // (see external-intake.routes.ts submit handler).
+      const requestId =
+        e?.requestId ?? e?.details?.requestId ?? undefined;
+      if (requestId && !copy.includes(requestId)) {
+        copy = `${copy}\n\nSupport ID: ${requestId}`;
+      }
+      setErrorMessage(copy);
+      // Stay on the upload phase so the contributor's already-uploaded
+      // files remain visible and they can re-try Submit without
+      // re-uploading.
       setPhase("upload");
     }
   }
@@ -710,13 +761,31 @@ export default function ExternalIntakePage({
               {parts.map((p) => (
                 <li key={p.id} style={partRowStyle}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+                    {/* P0 audit-fix — filename display.
+                        Cameras produce timestamp-based filenames like
+                        `20260619-202311-CAMERA-1234.HEIC` that wrap
+                        ugly on mobile. We MUST NOT rename or mutate the
+                        stored value (originalFileName remains exact in
+                        the part row + report + package + audit chain).
+                        Instead, render a primary line "Photo · 3.4 MB"
+                        for at-a-glance recognition, then the original
+                        filename as a compact secondary line with a
+                        2-line clamp and a `title` tooltip so the full
+                        name is reachable on hover / long-press. */}
+                    <div style={{ fontWeight: 600 }}>
+                      {humanFileKindLabel(p.mimeType)} ·{" "}
+                      {(p.sizeBytes / 1024 / 1024).toFixed(2)} MB
+                    </div>
+                    <div
+                      style={fileNameClampStyle}
+                      title={p.fileName}
+                      data-intake-part-filename={p.fileName}
+                    >
                       {p.fileName}
                     </div>
                     <div style={mutedStyle}>
-                      {(p.sizeBytes / 1024 / 1024).toFixed(2)} MB ·{" "}
                       {p.uploadedAtUtc
-                        ? "uploaded"
+                        ? "Uploaded"
                         : p.error
                           ? p.error
                           : `${p.uploadProgress}%`}
@@ -822,6 +891,25 @@ const paragraphStyle: React.CSSProperties = {
   color: "#334155",
 };
 
+// P0 audit-fix — filename display clamp. Renders the original
+// filename in monospace, breaks anywhere inside the box, clamps to
+// 2 lines on mobile, NEVER mutates the underlying value (the stored
+// `originalFileName` remains exact in the part row + report + package
+// + audit). Tooltip shows the full name on hover/long-press.
+const fileNameClampStyle: React.CSSProperties = {
+  fontFamily:
+    "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace",
+  fontSize: 12,
+  color: "#475569",
+  overflow: "hidden",
+  display: "-webkit-box",
+  WebkitBoxOrient: "vertical",
+  WebkitLineClamp: 2,
+  wordBreak: "break-all",
+  marginTop: 2,
+  marginBottom: 2,
+  lineHeight: 1.35,
+};
 const mutedStyle: React.CSSProperties = {
   fontSize: 13,
   color: "#64748b",

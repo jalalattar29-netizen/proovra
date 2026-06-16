@@ -75,6 +75,8 @@ function fakeLink(overrides: Record<string, unknown> = {}) {
     // does not surface these; the test verifies they're not leaked.
     senderDisplayMode: "PROOVRA",
     senderDisplayName: null,
+    archivedAtUtc: null,
+    archivedByUserId: null,
     createdByUserId: "user-admin",
     createdAt: new Date(),
     updatedAt: new Date(),

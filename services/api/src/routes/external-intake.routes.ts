@@ -298,6 +298,21 @@ function friendlyPublicIntakeMessage(code: string): string {
       return "Something went wrong on our side. Please try again in a moment. If the problem persists, contact the sender.";
     case "FEATURE_DISABLED":
       return "External uploads are not enabled. Please contact the sender for an alternative.";
+    case "SUBMIT_FAILED":
+      return "We couldn't submit these files. Your uploads are still here — try Submit again, or contact the sender with the support ID below.";
+    case "TRANSITION_NOT_ALLOWED":
+      // Most common cause now (after the UPLOAD_STARTED→SUBMITTED
+      // state-machine fix) is the recipient hitting Submit twice or
+      // a stale tab. The session is in a state that doesn't permit
+      // the requested move. Tell them their work is safe + how to
+      // recover.
+      return "This step can't be completed right now. Refresh the page and try again, or contact the sender if it keeps happening.";
+    case "SESSION_NOT_FOUND":
+      return "We couldn't find this upload session. Refresh the page or open the link again to start a new session.";
+    case "CONSENT_INVALID":
+      return "We couldn't accept your consent details. Please review and submit again.";
+    case "INTAKE_MODE_MISMATCH":
+      return "This upload link uses a different submission mode. Contact the sender for a fresh link.";
     default:
       return "Something went wrong. Please try again or contact the sender.";
   }
@@ -722,9 +737,12 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         const { link } = await validateIntakeToken(params.token);
         const session = await getIntakeSession(params.sid);
         if (!session || session.intakeLinkId !== link.id) {
-          return reply
-            .code(404)
-            .send({ error: { code: "SESSION_NOT_FOUND" } });
+          return reply.code(404).send({
+            error: {
+              code: "SESSION_NOT_FOUND",
+              message: friendlyPublicIntakeMessage("SESSION_NOT_FOUND"),
+            },
+          });
         }
         const result = await submitExternalIntake({ link, session });
         return reply.code(200).send({
@@ -741,7 +759,41 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         if (err instanceof ExternalIntakeOrchestrationError) {
           return orchestrationErrorToReply(err, reply);
         }
-        return reply.code(500).send({ error: { code: "INTERNAL_ERROR" } });
+        // P0 audit-fix: the public submit endpoint previously returned a
+        // bare `{error: {code: INTERNAL_ERROR}}` for any unhandled error
+        // from completeEvidence (signing / S3 headObject / custody /
+        // signing key). The contributor saw the generic friendly error
+        // with no requestId, and the operator couldn't correlate a
+        // support ticket to a log line. We now:
+        //   - log the full error (server-side only) with requestId
+        //     and session/link IDs so support can grep
+        //   - return a SUBMIT_FAILED code + friendly copy + requestId
+        //   - emit a SecurityEvent so prod operators can detect this
+        //     pattern via the security dashboard
+        // The raw error message NEVER reaches the contributor — only
+        // the requestId, which is meaningless without the server logs.
+        const requestId = req.id ?? null;
+        const errorMessage =
+          err instanceof Error ? err.message : String(err);
+        req.log?.error(
+          {
+            err,
+            requestId,
+            route: "external-intake.submit",
+            linkId: undefined, // safe — link may have already been resolved
+            sessionId: params.sid,
+            // No raw token, never. params.token is the wire-side
+            // identifier; we keep it OUT of the structured log.
+          },
+          `intake submit failed: ${errorMessage}`,
+        );
+        return reply.code(500).send({
+          error: {
+            code: "SUBMIT_FAILED",
+            message: friendlyPublicIntakeMessage("SUBMIT_FAILED"),
+            requestId,
+          },
+        });
       }
     },
   );

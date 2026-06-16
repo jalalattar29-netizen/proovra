@@ -347,9 +347,18 @@ export async function transitionIntakeSession(
     if (
       transition.reason === "terminal_from_status"
     ) {
-      throw new WorkflowIntakeSessionError("session_terminal");
+      throw new WorkflowIntakeSessionError(
+        "session_terminal",
+        // Include from/to in the diagnostic so a 409 in production
+        // logs names the exact state pair that failed. Never reveals
+        // tokens or PII — just enum values.
+        `Session already in terminal state: from=${session.status} to=${input.to}`,
+      );
     }
-    throw new WorkflowIntakeSessionError("transition_not_allowed");
+    throw new WorkflowIntakeSessionError(
+      "transition_not_allowed",
+      `Disallowed transition: from=${session.status} to=${input.to}`,
+    );
   }
 
   // Consent is required before the contributor can move from OPENED into

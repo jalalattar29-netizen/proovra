@@ -689,6 +689,18 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // (PROOVRA branding is always preserved by the shared resolver).
       // Additive only; existing rows default to PROOVRA mode.
       "20270822000000_intake_link_sender_identity",
+      // P0 forensic — split the dispatcher's idempotency marker off
+      // provider_message_id (which must hold the real Twilio SID for
+      // webhook correlation) into a dedicated delivery_idempotency_key
+      // column. Backfill migrates hijacked rows; CREATE INDEX is
+      // wrapped in the Phase O-Final information_schema.columns guard.
+      "20270823000000_communication_message_idem_key_split",
+      // Intake Links Operations Console — operator-facing archive
+      // lifecycle. Adds archived_at_utc + archived_by_user_id (both
+      // nullable, no backfill) so an enterprise-grade Active tab can
+      // hide cluttered historical links without revoking access.
+      // CREATE INDEX is wrapped in the Phase O-Final guard.
+      "20270824000000_intake_link_archive",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

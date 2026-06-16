@@ -23,8 +23,8 @@
  *     "feature disabled" state in that case so admins know to enable it.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { apiFetch } from "../../../lib/api";
 import { usePlatformContext } from "../../../lib/platform-context";
@@ -33,6 +33,10 @@ import { OperationalBreadcrumb } from "../../../components/navigation/Operationa
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 import { validateE164 } from "../../../lib/phone/e164";
 import { IntakeLinkDeliveryDrawer } from "../../../components/intake-links/IntakeLinkDeliveryDrawer";
+import {
+  IntakeLinksOperationsConsole,
+  type ConsoleItem,
+} from "../../../components/intake-links/IntakeLinksOperationsConsole";
 // Intake-link enterprise messaging — frontend imports the SAME shared
 // renderers + sender-identity resolver the API uses, so the preview
 // the operator sees in the modal is bit-for-bit what the recipient
@@ -111,6 +115,7 @@ type LinkListItem = {
     expiresAtUtc: string;
     revokedAtUtc: string | null;
     revokedReason: string | null;
+    archivedAtUtc: string | null;
     createdAt: string;
     updatedAt: string;
   };
@@ -315,17 +320,19 @@ const REQUEST_TYPES: Array<{
 // Intake-links-e2e (Phase 2) — delivery method catalog. Mirrors the
 // backend DELIVERY_METHODS enum exactly.
 type DeliveryMethod = "MANUAL" | "EMAIL" | "SMS" | "WHATSAPP";
+// P0 audit-fix — delivery method order. Email → SMS → WhatsApp →
+// Copy link only. Manual is demoted to last so primary users land
+// on a real delivery channel. WhatsApp is annotated with the
+// "Requires WhatsApp setup" affordance and gated on the
+// sender-identity endpoint's `whatsapp.configured` boolean — when
+// false the option is disabled in the selector with a clear reason
+// rather than letting the user pick a channel that won't actually
+// deliver.
 const DELIVERY_METHODS: Array<{
   value: DeliveryMethod;
   label: string;
   description: string;
 }> = [
-  {
-    value: "MANUAL",
-    label: "Copy link manually",
-    description:
-      "You'll get a one-time link to copy and share however you want.",
-  },
   {
     value: "EMAIL",
     label: "Send by email",
@@ -340,7 +347,13 @@ const DELIVERY_METHODS: Array<{
     value: "WHATSAPP",
     label: "Send by WhatsApp",
     description:
-      "PROOVRA sends a WhatsApp message to the recipient phone number below.",
+      "PROOVRA sends a WhatsApp message via your configured WhatsApp Business sender.",
+  },
+  {
+    value: "MANUAL",
+    label: "Copy link only",
+    description:
+      "You'll get a one-time link to copy and share however you want.",
   },
 ];
 
@@ -399,6 +412,20 @@ function IntakeLinksPageInner() {
   //   ?linkId=<id> → auto-open that link's delivery drawer
   // Applied once on mount so manual closes aren't re-triggered.
   const searchParams = useSearchParams();
+  const router = useRouter();
+  // Operations Console URL state. The console manages q / tab / channel
+  // / lifecycle / delivery / sort / page / pageSize internally; we
+  // hand it a writer that pushes the same params back to the address
+  // bar via Next's router so reload / share works without losing
+  // filter state. Use `replace` (not push) so the back button doesn't
+  // step through every keystroke.
+  const writeQueryToUrl = useCallback(
+    (q: URLSearchParams) => {
+      const qs = q.toString();
+      router.replace(qs ? `?${qs}` : "?", { scroll: false });
+    },
+    [router],
+  );
   const [appliedDeepLink, setAppliedDeepLink] = useState(false);
   useEffect(() => {
     if (appliedDeepLink) return;
@@ -619,35 +646,33 @@ function IntakeLinksPageInner() {
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
-      {/* Intake-links-e2e redesign — operational list is the
-          primary surface when links exist. Renders BEFORE any
-          guidance / tiles so returning users see their work first.
-          Empty workspace falls through to the dedicated empty
-          state below. */}
+      {/* Operations Console — the primary surface when links exist.
+          Replaces the legacy stacked-card layout with a searchable +
+          filterable + paginated table. KPI strip / status tabs /
+          row actions / details drawer all live inside the console
+          component. The page passes the rich items array, the
+          modal handlers, and the URL search params so reload/share
+          round-trips through the address bar. */}
       {currentTeam && items !== null && items.length > 0 ? (
         <section data-intake-links-list-section="true">
           <h2 style={sectionHeaderStyle}>Your intake links</h2>
-          <ul
-            style={{ listStyle: "none", padding: 0, margin: 0 }}
-            data-intake-links-list="true"
-          >
-            {items.map((it) => (
-              <IntakeLinkCard
-                key={it.link.id}
-                item={it}
-                onRevoke={() => revokeLink(it.link.id)}
-                onDelivery={() => setDeliveryDrawerLinkId(it.link.id)}
-                onViewSubmissions={() => setSubmissionsLinkId(it.link.id)}
-              />
-            ))}
-          </ul>
+          <IntakeLinksOperationsConsole
+            items={items as ConsoleItem[]}
+            onMutated={() => {
+              if (currentTeam) void refreshLinks(currentTeam.id);
+            }}
+            onRevoke={(linkId) => revokeLink(linkId)}
+            onOpenDelivery={(linkId) => setDeliveryDrawerLinkId(linkId)}
+            onOpenSubmissions={(linkId) => setSubmissionsLinkId(linkId)}
+            initialQuery={searchParams ? new URLSearchParams(searchParams.toString()) : undefined}
+            writeQuery={writeQueryToUrl}
+          />
         </section>
       ) : null}
 
-      {/* Intake-links-e2e redesign — empty state. Renders ONLY when
-          the workspace has zero links. Title + one-line copy + two
-          actions + three concrete examples so a first-time user
-          knows exactly what this page is for. */}
+      {/* Empty state — renders ONLY when the workspace has zero
+          links. Two CTAs + three concrete examples so a first-time
+          user knows exactly what this page is for. */}
       {currentTeam && items !== null && items.length === 0 ? (
         <EmptyState
           onCreate={() => openCreate()}
@@ -655,24 +680,20 @@ function IntakeLinksPageInner() {
         />
       ) : null}
 
-      {/* Intake-links-e2e redesign — How it works strip. Compact
-          3-card layout that helps first-time users without pushing
-          the operational list down. Renders ALWAYS but uses the
-          `secondary` flag to render smaller / collapsed when links
-          already exist (returning operators don't need the intro
-          repeated). */}
-      {currentTeam ? (
-        <HowItWorksStrip secondary={(items?.length ?? 0) > 0} />
+      {/* How it works strip — onboarding only. Hidden entirely
+          when links exist so the operator's working surface stays
+          uncluttered. */}
+      {currentTeam && (items?.length ?? 0) === 0 ? (
+        <HowItWorksStrip secondary={false} />
       ) : null}
 
-      {/* Intake-links-e2e redesign — Common requests tiles. Quick-
-          start tiles for the 6 most-asked request types. Clicking
-          Start opens the create modal with the tile's slug
-          preselected — every Start IS wired (no fake actions). */}
-      {currentTeam ? (
+      {/* Common requests tiles — ONBOARDING only. Hidden entirely
+          when ≥1 link exists; templates remain accessible via the
+          New intake link modal's request-type catalog. */}
+      {currentTeam && (items?.length ?? 0) === 0 ? (
         <CommonRequestsSection
           onPick={(slug) => openCreate(slug)}
-          collapsed={(items?.length ?? 0) > 0}
+          collapsed={false}
         />
       ) : null}
 
@@ -739,231 +760,13 @@ function IntakeLinksPageInner() {
   );
 }
 
-// -----------------------------------------------------------------------------
-// IntakeLinkCard — Phase 2 row renderer for the new envelope.
-// -----------------------------------------------------------------------------
-
-function IntakeLinkCard({
-  item,
-  onRevoke,
-  onDelivery,
-  onViewSubmissions,
-}: {
-  item: LinkListItem;
-  onRevoke: () => void;
-  onDelivery: () => void;
-  onViewSubmissions: () => void;
-}) {
-  const { link, delivery, activity, computedLifecycle } = item;
-  const lifecycleStyle = LIFECYCLE_CHIP_STYLES[computedLifecycle];
-  const deliverySummary = describeDeliverySummary(delivery);
-  const activitySummary = describeActivitySummary(activity);
-  return (
-    <li
-      style={cardStyle}
-      data-intake-link-row={link.id}
-      data-intake-link-lifecycle={computedLifecycle}
-    >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            flexWrap: "wrap",
-            marginBottom: 6,
-          }}
-        >
-          <span
-            style={{ ...lifecycleChipBaseStyle, ...lifecycleStyle }}
-            data-intake-link-lifecycle-chip="true"
-          >
-            {LIFECYCLE_LABELS[computedLifecycle]}
-          </span>
-          <span
-            style={deliveryMethodChipStyle}
-            data-intake-link-delivery-method-chip={
-              delivery.latestChannel ?? "MANUAL"
-            }
-          >
-            {delivery.latestChannel ?? "Manual"}
-          </span>
-        </div>
-        <div style={{ fontWeight: 600 }}>
-          {link.recipientLabel ?? link.workflowTemplateName}
-        </div>
-        <div style={mutedStyle}>
-          {link.workflowTemplateName} ·{" "}
-          {link.recipientEmailPreview
-            ? `to ${link.recipientEmailPreview}`
-            : link.recipientPhonePreview
-              ? `to ${link.recipientPhonePreview}`
-              : "no recipient set"}
-        </div>
-        <div
-          style={{ ...mutedStyle, marginTop: 4 }}
-          data-intake-link-delivery-summary="true"
-        >
-          {deliverySummary}
-        </div>
-        <div
-          style={{ ...mutedStyle, marginTop: 4 }}
-          data-intake-link-activity-summary="true"
-        >
-          {activitySummary}
-        </div>
-        <div style={{ ...mutedStyle, marginTop: 4 }}>
-          Used {link.usedCount} / {link.maxUses} · Created{" "}
-          {new Date(link.createdAt).toLocaleString()} · Expires{" "}
-          {new Date(link.expiresAtUtc).toLocaleString()}
-        </div>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-          alignItems: "flex-start",
-        }}
-      >
-        {activity.sessionsCreated > 0 ? (
-          <button
-            type="button"
-            style={secondaryButtonStyle}
-            onClick={onViewSubmissions}
-            data-intake-link-view-submissions={link.id}
-          >
-            View submissions ({activity.sessionsCreated})
-          </button>
-        ) : null}
-        <button
-          type="button"
-          style={secondaryButtonStyle}
-          onClick={onDelivery}
-          data-intake-link-delivery={link.id}
-        >
-          Delivery
-        </button>
-        {link.status === "ACTIVE" ? (
-          <button
-            type="button"
-            style={dangerButtonStyle}
-            onClick={onRevoke}
-            data-intake-link-revoke-btn={link.id}
-          >
-            Revoke
-          </button>
-        ) : null}
-      </div>
-    </li>
-  );
-}
-
-// Intake-links-e2e Phase 2 — lifecycle chip styling. Colours are
-// chosen so SUBMITTED reads "done" (green), DELIVERY_FAILED reads
-// "needs your attention" (red), and EXPIRED/REVOKED read "closed"
-// (grey/red). No emoji — accessibility + i18n.
-const LIFECYCLE_LABELS: Record<LinkListItem["computedLifecycle"], string> = {
-  CREATED: "Created",
-  SENT: "Sent",
-  DELIVERY_FAILED: "Delivery failed",
-  OPENED: "Opened",
-  STARTED: "Started",
-  SUBMITTED: "Submitted",
-  EXPIRED: "Expired",
-  REVOKED: "Revoked",
-};
-const LIFECYCLE_CHIP_STYLES: Record<
-  LinkListItem["computedLifecycle"],
-  React.CSSProperties
-> = {
-  CREATED: { background: "#f1f5f9", color: "#334155", border: "1px solid #cbd5e1" },
-  SENT: { background: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd" },
-  DELIVERY_FAILED: {
-    background: "#fee2e2",
-    color: "#991b1b",
-    border: "1px solid #fca5a5",
-  },
-  OPENED: {
-    background: "#fef9c3",
-    color: "#854d0e",
-    border: "1px solid #fde047",
-  },
-  STARTED: {
-    background: "#fde68a",
-    color: "#854d0e",
-    border: "1px solid #facc15",
-  },
-  SUBMITTED: {
-    background: "#dcfce7",
-    color: "#166534",
-    border: "1px solid #86efac",
-  },
-  EXPIRED: { background: "#f1f5f9", color: "#475569", border: "1px solid #94a3b8" },
-  REVOKED: { background: "#fee2e2", color: "#7f1d1d", border: "1px solid #fca5a5" },
-};
-
-const lifecycleChipBaseStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  padding: "2px 8px",
-  borderRadius: 999,
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-};
-const deliveryMethodChipStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#475569",
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  padding: "2px 8px",
-  borderRadius: 999,
-};
-
-function describeDeliverySummary(delivery: LinkListItem["delivery"]): string {
-  if (delivery.attemptCount === 0) return "Delivery: not sent yet (manual link).";
-  const ts = delivery.latestAtUtc
-    ? ` (${describeRelativeTime(delivery.latestAtUtc)})`
-    : "";
-  const channel = delivery.latestChannel ?? "channel";
-  switch (delivery.latestStatus) {
-    case "SENT":
-    case "DELIVERED":
-      return `Delivery: ${channel.toLowerCase()} sent${ts}.`;
-    case "FAILED":
-    case "UNDELIVERED":
-      return `Delivery: ${channel.toLowerCase()} failed${ts}. Use Resend.`;
-    case "QUEUED":
-    case "RETRY_SCHEDULED":
-      return `Delivery: ${channel.toLowerCase()} queued${ts}.`;
-    case "CANCELLED":
-      return `Delivery: ${channel.toLowerCase()} cancelled${ts}.`;
-    default:
-      return `Delivery: ${delivery.attemptCount} attempt(s).`;
-  }
-}
-
-function describeActivitySummary(activity: LinkListItem["activity"]): string {
-  if (activity.sessionsSubmitted > 0) {
-    const when = activity.lastSubmittedAtUtc
-      ? ` (last ${describeRelativeTime(activity.lastSubmittedAtUtc)})`
-      : "";
-    return `Submitted ${activity.sessionsSubmitted} time(s)${when} · ${activity.evidenceCount} evidence record(s).`;
-  }
-  if (activity.sessionsStarted > 0) {
-    const when = activity.lastStartedAtUtc
-      ? ` (last ${describeRelativeTime(activity.lastStartedAtUtc)})`
-      : "";
-    return `Upload in progress${when}.`;
-  }
-  if (activity.sessionsOpened > 0) {
-    const when = activity.lastOpenedAtUtc
-      ? ` ${describeRelativeTime(activity.lastOpenedAtUtc)}`
-      : "";
-    return `Opened${when}, no upload yet.`;
-  }
-  return "Not opened yet.";
-}
+// IntakeLinkCard and its card-only helpers (LIFECYCLE_LABELS,
+// LIFECYCLE_CHIP_STYLES, lifecycleChipBaseStyle, deliveryMethodChipStyle,
+// describeDeliverySummary, describeActivitySummary) were removed when
+// the stacked-card list was replaced by IntakeLinksOperationsConsole.
+// The console owns its own lifecycle chip styling and summary copy;
+// `describeRelativeTime` below survives because SubmissionsDrawer
+// still uses it.
 
 function describeRelativeTime(iso: string): string {
   const then = new Date(iso).getTime();
@@ -1972,16 +1775,53 @@ function CreateLinkModal({
         <select
           style={inputStyle}
           value={deliveryMethod}
-          onChange={(e) =>
-            setDeliveryMethod(e.target.value as DeliveryMethod)
-          }
+          onChange={(e) => {
+            const next = e.target.value as DeliveryMethod;
+            // P0 audit-fix — if the user somehow picks an unconfigured
+            // channel (e.g. via keyboard), force them onto MANUAL so
+            // they never end up with a link that "sent" but never
+            // arrives. The transport info comes from the same backend
+            // /sender-identity endpoint that gates the options below.
+            if (next === "WHATSAPP" && senderTransport && !senderTransport.whatsapp.configured) {
+              setDeliveryMethod("MANUAL");
+              return;
+            }
+            if (next === "EMAIL" && senderTransport && !senderTransport.email.configured) {
+              setDeliveryMethod("MANUAL");
+              return;
+            }
+            if (next === "SMS" && senderTransport && !senderTransport.sms.configured) {
+              setDeliveryMethod("MANUAL");
+              return;
+            }
+            setDeliveryMethod(next);
+          }}
           data-intake-link-delivery-method
         >
-          {DELIVERY_METHODS.map((d) => (
-            <option key={d.value} value={d.value}>
-              {d.label}
-            </option>
-          ))}
+          {DELIVERY_METHODS.map((d) => {
+            // Disable the option when the matching provider is not
+            // configured. Suffix the label with the reason so the
+            // user can see WHY it's greyed out without hunting for
+            // a separate explanation.
+            const disabled =
+              !!senderTransport &&
+              ((d.value === "WHATSAPP" && !senderTransport.whatsapp.configured) ||
+                (d.value === "EMAIL" && !senderTransport.email.configured) ||
+                (d.value === "SMS" && !senderTransport.sms.configured));
+            return (
+              <option
+                key={d.value}
+                value={d.value}
+                disabled={disabled}
+                data-intake-link-delivery-method-option={d.value}
+                data-intake-link-delivery-method-disabled={
+                  disabled ? "true" : "false"
+                }
+              >
+                {disabled ? `${d.label} — not configured` : d.label}
+              </option>
+            );
+          })}
         </select>
         <p style={{ ...mutedStyle, marginTop: -8, marginBottom: 4 }}>
           {DELIVERY_METHODS.find((d) => d.value === deliveryMethod)
@@ -2393,24 +2233,33 @@ function RawTokenRevealModal({
           }}
         >
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              style={canSend ? primaryButtonStyle : disabledButtonStyle}
-              onClick={() => send("SMS")}
-              disabled={!canSend || sendBusy !== null}
-              data-intake-link-send="SMS"
-            >
-              {sendBusy === "SMS" ? "Sending…" : "Send by SMS"}
-            </button>
-            <button
-              type="button"
-              style={canSend ? primaryButtonStyle : disabledButtonStyle}
-              onClick={() => send("WHATSAPP")}
-              disabled={!canSend || sendBusy !== null}
-              data-intake-link-send="WHATSAPP"
-            >
-              {sendBusy === "WHATSAPP" ? "Sending…" : "Send by WhatsApp"}
-            </button>
+            {/* P0 audit-fix — hide the SMS/WhatsApp send buttons
+                when no recipient phone is on the link. Pre-fix we
+                rendered them in a disabled state, which looked like
+                a bug rather than an intentional gate. Copy link is
+                the only action that makes sense in that case. */}
+            {canSend ? (
+              <>
+                <button
+                  type="button"
+                  style={primaryButtonStyle}
+                  onClick={() => send("SMS")}
+                  disabled={sendBusy !== null}
+                  data-intake-link-send="SMS"
+                >
+                  {sendBusy === "SMS" ? "Sending…" : "Send by SMS"}
+                </button>
+                <button
+                  type="button"
+                  style={primaryButtonStyle}
+                  onClick={() => send("WHATSAPP")}
+                  disabled={sendBusy !== null}
+                  data-intake-link-send="WHATSAPP"
+                >
+                  {sendBusy === "WHATSAPP" ? "Sending…" : "Send by WhatsApp"}
+                </button>
+              </>
+            ) : null}
             <button
               type="button"
               style={secondaryButtonStyle}
@@ -2431,12 +2280,6 @@ function RawTokenRevealModal({
             Close
           </button>
         </div>
-        {!canSend ? (
-          <p style={{ ...mutedStyle, marginTop: 12 }}>
-            Add a recipient phone number when creating the link to enable
-            Send by SMS or WhatsApp.
-          </p>
-        ) : null}
       </div>
     </div>
   );
@@ -2556,15 +2399,9 @@ const secondaryButtonStyle: React.CSSProperties = {
   borderRadius: 8,
   cursor: "pointer",
 };
-const dangerButtonStyle: React.CSSProperties = {
-  padding: "8px 12px",
-  fontWeight: 500,
-  color: "#7f1d1d",
-  background: "#fef2f2",
-  border: "1px solid #fecaca",
-  borderRadius: 8,
-  cursor: "pointer",
-};
+// dangerButtonStyle removed — it was used only by the legacy
+// IntakeLinkCard's Revoke button. The Operations Console owns its
+// own destructive-action styling now.
 const disabledButtonStyle: React.CSSProperties = {
   padding: "10px 20px",
   fontWeight: 600,

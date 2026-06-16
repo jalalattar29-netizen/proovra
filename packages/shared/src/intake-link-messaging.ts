@@ -183,7 +183,28 @@ export function resolveIntakeSenderDisplay(
     };
   }
   if (input.mode === "WORKSPACE") {
-    const name = (input.workspaceName ?? "").trim();
+    const rawName = (input.workspaceName ?? "").trim();
+    // P0 audit-fix — personal-workspace names embarrass the recipient.
+    // The product surfaces names like "Jalal Attar's personal workspace"
+    // as the default for Personal-plan users; that wording looks
+    // unprofessional in an SMS or email going to a client/witness.
+    // Map every personal-workspace pattern to either the brand or the
+    // simple "Personal Space via PROOVRA" form, so the message never
+    // leads with a personal name unless the operator explicitly chose
+    // CUSTOM. Pattern detection is intentionally narrow — we only
+    // collapse strings that literally end in "personal workspace" or
+    // "personal space" (case-insensitive). Real business names like
+    // "Personal Defenders Ltd" are unaffected.
+    const lowered = rawName.toLowerCase();
+    const isPersonalSpace =
+      lowered === "personal space" ||
+      lowered === "personal workspace" ||
+      lowered.endsWith("'s personal workspace") ||
+      lowered.endsWith("'s personal space") ||
+      lowered.endsWith("’s personal workspace") || // curly apostrophe
+      lowered.endsWith("’s personal space");
+    const name = isPersonalSpace ? "Personal Space" : rawName;
+
     if (name.length === 0) {
       // Fall back to PROOVRA when the workspace has no usable name —
       // safer than emitting "via PROOVRA" with a blank prefix.

@@ -422,6 +422,7 @@ export type IntakeLinkListItem = {
     expiresAtUtc: string;
     revokedAtUtc: string | null;
     revokedReason: string | null;
+    archivedAtUtc: string | null;
     createdAt: string;
     updatedAt: string;
   };
@@ -520,6 +521,7 @@ export async function projectIntakeLinkList(
         expiresAtUtc: link.expiresAtUtc.toISOString(),
         revokedAtUtc: link.revokedAtUtc?.toISOString() ?? null,
         revokedReason: link.revokedReason,
+        archivedAtUtc: link.archivedAtUtc?.toISOString() ?? null,
         createdAt: link.createdAt.toISOString(),
         updatedAt: link.updatedAt.toISOString(),
       },

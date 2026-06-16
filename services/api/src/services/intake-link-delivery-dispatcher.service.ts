@@ -30,12 +30,19 @@
  *     `await enqueueOutboundIntakeJob(...)` without changing the call
  *     sites.
  *
- * Why hash the idempotency key into the providerMessageId search:
- *   - We don't want to add a new column (no migration), but the
- *     existing `providerMessageId` is unique-per-attempt anyway. We
- *     write a synthetic `intake-idem:<hash>` value before the provider
- *     call; the second caller looking up the same hash sees the
- *     pre-existing row and short-circuits.
+ * Why a dedicated `deliveryIdempotencyKey` column:
+ *   - The first cut hijacked `providerMessageId` with a synthetic
+ *     `intake-idem:<hash>` value. That clobbered the real Twilio SID
+ *     (SM…/MM…), so the status webhook could never correlate inbound
+ *     delivery callbacks and the operator UI could never show true
+ *     state. Production rows landed with provider_message_id =
+ *     `intake-idem:<hex>` and the bug was invisible until a DB audit
+ *     surfaced it (see migration 20270823000000_communication_message_idem_key_split).
+ *   - The fix is a dedicated VARCHAR(128) column. The dispatcher
+ *     writes the bare hash into `deliveryIdempotencyKey`; the
+ *     underlying send-helpers continue to set `providerMessageId` to
+ *     the real provider SID via the existing
+ *     `updateAfterProviderAttempt` flow.
  *   - Idempotency keys are scoped to (linkId, channel) so different
  *     channels can be sent independently and a manual resend through
  *     a different channel always works.
@@ -60,9 +67,6 @@ import {
 
 /** Cap on retries for a single (linkId, channel, idempotencyKey) tuple. */
 export const MAX_INTAKE_DELIVERY_ATTEMPTS = 3;
-
-/** Synthetic prefix written into providerMessageId for idempotency lookups. */
-export const INTAKE_IDEM_PREFIX = "intake-idem:";
 
 export type IntakeDeliveryChannel = "EMAIL" | "SMS" | "WHATSAPP";
 
@@ -114,8 +118,9 @@ export type DispatchIntakeDeliveryResult =
 
 /**
  * Hash a caller-provided idempotency key with the (linkId, channel)
- * tuple. Returned as a hex string short enough to fit in the
- * providerMessageId VarChar(96) column with our `intake-idem:` prefix.
+ * tuple. Returned as a bare 32-char hex string written into the
+ * dedicated `deliveryIdempotencyKey` VARCHAR(128) column — NEVER into
+ * `providerMessageId`, which must hold the real Twilio SID.
  */
 export function buildIntakeIdempotencyHash(input: {
   intakeLinkId: string;
@@ -146,7 +151,6 @@ export async function dispatchIntakeLinkDelivery(
     channel: input.channel,
     idempotencyKey: input.idempotencyKey,
   });
-  const idemMarker = `${INTAKE_IDEM_PREFIX}${idemHash}`;
 
   // 1) Idempotency lookup. If a prior call with the same nonce
   //    already created a CommunicationMessage row, short-circuit. We
@@ -157,7 +161,7 @@ export async function dispatchIntakeLinkDelivery(
     where: {
       relatedIntakeLinkId: input.intakeLinkId,
       channel: input.channel,
-      providerMessageId: idemMarker,
+      deliveryIdempotencyKey: idemHash,
     },
     select: {
       id: true,
@@ -177,9 +181,9 @@ export async function dispatchIntakeLinkDelivery(
         deduped: true,
         communicationMessageId: prior.id,
         channel: input.channel,
-        // We never echo the synthetic idempotency marker as a real
-        // provider ID — that would leak our internal nonce shape.
-        providerMessageId: null,
+        // Echo the REAL provider SID if the prior send produced one.
+        // We never echo our internal idempotency hash.
+        providerMessageId: prior.providerMessageId ?? null,
       };
     }
     // Prior attempt failed. Return the same failure (don't auto-retry).
@@ -241,25 +245,16 @@ export async function dispatchIntakeLinkDelivery(
   }
 
   if (result.ok) {
-    // Tag the row with the idempotency marker so future identical
-    // sends short-circuit. We OVERWRITE the provider ID only when
-    // there isn't a real one yet (SMS path); for EMAIL, the Resend
-    // ID is meaningful so we leave it and write the marker into
-    // errorMessage as a secondary key. Simpler approach: always
-    // write the marker, and remember the real provider ID is also
-    // present in `attemptCount > 1` lookups via the prior
-    // CommunicationMessage row that the send-helper created.
-    //
-    // Trade-off: with this approach the public API's
-    // latestProviderMessageId never reflects the Resend ID for the
-    // first attempt. That's acceptable for the SMB list — admins
-    // who need the real ID can see it via the audit log + the
-    // _debug=intake-delivery URL flag (which surfaces the column
-    // when present).
+    // Tag the row with the bare idempotency hash so a follow-up call
+    // with the same nonce finds it and short-circuits. Crucially we
+    // write `deliveryIdempotencyKey` — NOT `providerMessageId`. The
+    // send-helper has already set `providerMessageId` to the real
+    // Twilio SID (SM…/MM…) or Resend message ID via
+    // `updateAfterProviderAttempt`, and we must not overwrite it.
     try {
       await client.communicationMessage.update({
         where: { id: result.communicationMessageId },
-        data: { providerMessageId: idemMarker },
+        data: { deliveryIdempotencyKey: idemHash },
       });
     } catch {
       // Don't fail the user-visible result for a marker patch.
@@ -275,13 +270,14 @@ export async function dispatchIntakeLinkDelivery(
   }
 
   // Failure path — mirror the helper's reason. Best-effort tag the
-  // failed row with the idempotency marker so a retry with the same
-  // nonce returns the same failure rather than auto-retrying.
+  // failed row with the idempotency hash (in its own column) so a
+  // retry with the same nonce returns the same failure rather than
+  // auto-retrying. Provider-id remains untouched on the failed row.
   if ("communicationMessageId" in result && result.communicationMessageId) {
     try {
       await client.communicationMessage.update({
         where: { id: result.communicationMessageId },
-        data: { providerMessageId: idemMarker },
+        data: { deliveryIdempotencyKey: idemHash },
       });
     } catch {
       /* ignore */

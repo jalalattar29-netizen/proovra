@@ -121,6 +121,30 @@ test("OPENED can directly submit a zero-file session", () => {
   assert.equal(r.ok, true);
 });
 
+test("UPLOAD_STARTED can submit directly — public flow never visits UPLOAD_COMPLETED (regression: prod 409 0500d474-…)", () => {
+  // Forensic P0 bugfix. The contributor flow goes:
+  //   open link → "Add files" (bumps OPENED → UPLOAD_STARTED) →
+  //   PUT to S3 → "Submit Evidence"
+  // Nothing in that flow sets UPLOAD_COMPLETED, so submit MUST be
+  // allowed straight from UPLOAD_STARTED. Without this, every
+  // upload-then-submit returned 409 transition_not_allowed.
+  const r = canTransitionWorkflowIntakeSession("UPLOAD_STARTED", "SUBMITTED");
+  assert.equal(
+    r.ok,
+    true,
+    "UPLOAD_STARTED -> SUBMITTED must be allowed; the public flow doesn't visit UPLOAD_COMPLETED",
+  );
+});
+
+test("submitting from a true terminal state is still rejected (state machine invariant intact)", () => {
+  // Sanity check — broadening UPLOAD_STARTED's allowed list must
+  // NOT let terminal states submit.
+  for (const from of ["SUBMITTED", "EXPIRED", "REVOKED", "ABANDONED"]) {
+    const r = canTransitionWorkflowIntakeSession(from, "SUBMITTED");
+    assert.equal(r.ok, false, `${from} -> SUBMITTED must remain disallowed`);
+  }
+});
+
 test("EXPIRED and REVOKED are reachable from every non-terminal state", () => {
   for (const from of [
     "CREATED",

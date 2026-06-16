@@ -78,23 +78,25 @@ test("REQUEST_TYPES — each entry has a plain-language label, not the raw slug"
   }
 });
 
-test("DELIVERY_METHODS catalog — MANUAL first, then EMAIL, SMS, WHATSAPP", () => {
+test("DELIVERY_METHODS catalog — Email → SMS → WhatsApp → Manual (Manual demoted last)", () => {
   const src = read(PAGE);
+  // Forensic P0 audit-fix: the catalog was reordered so primary
+  // users see a real delivery channel by default. "Copy link only"
+  // (renamed from "Copy link manually") is now LAST so the user
+  // doesn't accidentally pick the no-delivery path when they
+  // actually want a real channel.
   const idx = (literal: string) => src.indexOf(`value: "${literal}"`);
-  const manualIdx = idx("MANUAL");
   const emailIdx = idx("EMAIL");
   const smsIdx = idx("SMS");
   const whatsappIdx = idx("WHATSAPP");
+  const manualIdx = idx("MANUAL");
   assert.ok(manualIdx > 0, "MANUAL entry missing");
   assert.ok(emailIdx > 0, "EMAIL entry missing");
   assert.ok(smsIdx > 0, "SMS entry missing");
   assert.ok(whatsappIdx > 0, "WHATSAPP entry missing");
-  // MANUAL must come first so that the default value is the safe
-  // "copy yourself" option — never auto-send before the user has
-  // typed in an email or phone.
   assert.ok(
-    manualIdx < emailIdx && manualIdx < smsIdx && manualIdx < whatsappIdx,
-    "MANUAL must be the first delivery method in the catalog",
+    emailIdx < smsIdx && smsIdx < whatsappIdx && whatsappIdx < manualIdx,
+    "Order must be EMAIL → SMS → WHATSAPP → MANUAL",
   );
 });
 

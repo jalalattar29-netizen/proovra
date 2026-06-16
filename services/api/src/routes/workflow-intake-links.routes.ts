@@ -32,6 +32,7 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { hasRole } from "../services/rbac.js";
 import {
+  archiveWorkflowIntakeLink,
   createWorkflowIntakeLink,
   getWorkflowIntakeLink,
   listWorkflowIntakeLinks,
@@ -39,6 +40,7 @@ import {
   revokeWorkflowIntakeLink,
   sendIntakeLinkViaEmail,
   sendIntakeLinkViaSms,
+  unarchiveWorkflowIntakeLink,
   WorkflowIntakeLinkError,
 } from "../services/workflow-intake-link.service.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
@@ -162,6 +164,10 @@ const ListQuery = z.object({
   workflowTemplateSlug: z.string().max(120).optional(),
   caseId: z.string().uuid().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
+  // Operations Console — archive scope. Default "active" so the
+  // default list query continues to behave exactly as it did before
+  // the column was added.
+  archiveScope: z.enum(["active", "archived", "all"]).optional(),
 });
 
 const RevokeBody = z
@@ -482,6 +488,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         workflowTemplateSlug: query.workflowTemplateSlug,
         caseId: query.caseId,
         limit: query.limit,
+        archiveScope: query.archiveScope,
       });
 
       // Intake-links-e2e Phase 1 — enrich the list with delivery +
@@ -694,6 +701,101 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
           priorStatus: existing.status,
           priorUsedCount: existing.usedCount,
         },
+      }).catch(() => {});
+
+      return reply
+        .code(200)
+        .send({ link: projectWorkflowIntakeLink(updated) });
+    },
+  );
+
+  // -- Archive / unarchive ---------------------------------------------
+  //
+  // Operations Console — operator-facing declutter. Distinct from
+  // revoke: archive does NOT close public access, it only hides the
+  // row from the default Active view. Reversible via /unarchive.
+  // Admin-only (same authority as revoke) and fully audited.
+  app.post(
+    "/v1/workflow/intake-links/:id/archive",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (workflowIntakeFeatureDisabledReason()) {
+        return sendFeatureDisabled(reply);
+      }
+      const { id } = ParamsId.parse(req.params);
+      const existing = await getWorkflowIntakeLink(id);
+      if (!existing) {
+        return reply.code(404).send({ message: "Intake link not found" });
+      }
+      const ok = await requireAdmin(req, reply, existing.teamId);
+      if (!ok) return;
+
+      const updated = await archiveWorkflowIntakeLink({
+        id,
+        teamId: existing.teamId,
+        actorUserId: ok.userId,
+      });
+      if (!updated) {
+        return reply.code(404).send({ message: "Intake link not found" });
+      }
+
+      void appendPlatformAuditLog({
+        userId: ok.userId,
+        action: "intake.link.archived",
+        category: "intake",
+        severity: "info",
+        source: "api",
+        outcome: "success",
+        resourceType: "workflow_intake_link",
+        resourceId: id,
+        requestId: req.id ?? null,
+        metadata: {
+          teamId: existing.teamId,
+          priorStatus: existing.status,
+        },
+      }).catch(() => {});
+
+      return reply
+        .code(200)
+        .send({ link: projectWorkflowIntakeLink(updated) });
+    },
+  );
+
+  app.post(
+    "/v1/workflow/intake-links/:id/unarchive",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (workflowIntakeFeatureDisabledReason()) {
+        return sendFeatureDisabled(reply);
+      }
+      const { id } = ParamsId.parse(req.params);
+      const existing = await getWorkflowIntakeLink(id);
+      if (!existing) {
+        return reply.code(404).send({ message: "Intake link not found" });
+      }
+      const ok = await requireAdmin(req, reply, existing.teamId);
+      if (!ok) return;
+
+      const updated = await unarchiveWorkflowIntakeLink({
+        id,
+        teamId: existing.teamId,
+        actorUserId: ok.userId,
+      });
+      if (!updated) {
+        return reply.code(404).send({ message: "Intake link not found" });
+      }
+
+      void appendPlatformAuditLog({
+        userId: ok.userId,
+        action: "intake.link.unarchived",
+        category: "intake",
+        severity: "info",
+        source: "api",
+        outcome: "success",
+        resourceType: "workflow_intake_link",
+        resourceId: id,
+        requestId: req.id ?? null,
+        metadata: { teamId: existing.teamId },
       }).catch(() => {});
 
       return reply

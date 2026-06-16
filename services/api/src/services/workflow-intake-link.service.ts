@@ -280,10 +280,24 @@ export type ListWorkflowIntakeLinksInput = {
   limit?: number;
 };
 
+export type IntakeArchiveScope = "active" | "archived" | "all";
+
 export async function listWorkflowIntakeLinks(
-  input: ListWorkflowIntakeLinksInput,
+  input: ListWorkflowIntakeLinksInput & { archiveScope?: IntakeArchiveScope },
   client: PrismaClient = defaultPrisma,
 ): Promise<DbWorkflowIntakeLink[]> {
+  // Archive scope is operator-driven via the page's Archived tab. The
+  // default "active" matches what the Operations Console renders by
+  // default; "archived" only shows hidden rows; "all" is the full set
+  // (used by the All tab and by tests). Revoke and archive are
+  // orthogonal: a revoked link can also be archived.
+  const archiveScope = input.archiveScope ?? "active";
+  const archiveWhere =
+    archiveScope === "active"
+      ? { archivedAtUtc: null }
+      : archiveScope === "archived"
+        ? { archivedAtUtc: { not: null } }
+        : {};
   return client.workflowIntakeLink.findMany({
     where: {
       teamId: input.teamId,
@@ -292,6 +306,7 @@ export async function listWorkflowIntakeLinks(
         ? { workflowTemplateSlug: input.workflowTemplateSlug }
         : {}),
       ...(input.caseId ? { caseId: input.caseId } : {}),
+      ...archiveWhere,
     },
     orderBy: { createdAt: "desc" },
     take: Math.min(Math.max(input.limit ?? 50, 1), 200),
@@ -340,6 +355,62 @@ export async function revokeWorkflowIntakeLink(
       revokedAtUtc: new Date(),
       revokedByUserId: input.actorUserId,
       revokedReason: input.reason ?? null,
+    },
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Archive / unarchive — orthogonal to revoke.
+//
+// Revoke closes the public door (the link cannot accept submissions).
+// Archive only HIDES the row from the operator's default "Active" view
+// so a workspace with hundreds of historical links stays manageable.
+// Archiving a revoked link is fine; archiving an active link is fine.
+// Unarchive simply nulls the columns.
+//
+// Idempotent: archiving an already-archived link is a no-op (the
+// original archivedAtUtc / archivedByUserId are preserved so the audit
+// trail still names the original actor).
+// -----------------------------------------------------------------------------
+
+export type ArchiveWorkflowIntakeLinkInput = {
+  id: string;
+  teamId: string;
+  actorUserId: string;
+};
+
+export async function archiveWorkflowIntakeLink(
+  input: ArchiveWorkflowIntakeLinkInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<DbWorkflowIntakeLink | null> {
+  const existing = await client.workflowIntakeLink.findFirst({
+    where: { id: input.id, teamId: input.teamId },
+  });
+  if (!existing) return null;
+  if (existing.archivedAtUtc) return existing; // idempotent
+  return client.workflowIntakeLink.update({
+    where: { id: input.id },
+    data: {
+      archivedAtUtc: new Date(),
+      archivedByUserId: input.actorUserId,
+    },
+  });
+}
+
+export async function unarchiveWorkflowIntakeLink(
+  input: ArchiveWorkflowIntakeLinkInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<DbWorkflowIntakeLink | null> {
+  const existing = await client.workflowIntakeLink.findFirst({
+    where: { id: input.id, teamId: input.teamId },
+  });
+  if (!existing) return null;
+  if (!existing.archivedAtUtc) return existing; // idempotent
+  return client.workflowIntakeLink.update({
+    where: { id: input.id },
+    data: {
+      archivedAtUtc: null,
+      archivedByUserId: null,
     },
   });
 }
@@ -741,6 +812,7 @@ export function projectWorkflowIntakeLink(link: DbWorkflowIntakeLink): {
   expiresAtUtc: string;
   revokedAtUtc: string | null;
   revokedReason: string | null;
+  archivedAtUtc: string | null;
   createdAt: string;
   updatedAt: string;
 } {
@@ -767,6 +839,7 @@ export function projectWorkflowIntakeLink(link: DbWorkflowIntakeLink): {
     expiresAtUtc: link.expiresAtUtc.toISOString(),
     revokedAtUtc: link.revokedAtUtc?.toISOString() ?? null,
     revokedReason: link.revokedReason,
+    archivedAtUtc: link.archivedAtUtc?.toISOString() ?? null,
     createdAt: link.createdAt.toISOString(),
     updatedAt: link.updatedAt.toISOString(),
   };

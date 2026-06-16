@@ -105,6 +105,15 @@ const ALLOWED_TRANSITIONS: Readonly<
   ],
   UPLOAD_STARTED: [
     "UPLOAD_COMPLETED",
+    // Forensic P0 bugfix — the contributor flow goes:
+    //   open link → "Add files" (bumps OPENED → UPLOAD_STARTED) →
+    //   PUT to S3 → "Submit Evidence"
+    // Nothing in the public flow ever transitions to UPLOAD_COMPLETED
+    // (that's an enterprise/multi-stage marker). Without SUBMITTED
+    // in this list, every fresh upload-then-submit returned 409
+    // `transition_not_allowed`. Production request
+    // 0500d474-61e4-4453-a51f-ae0ae33f66ca hit exactly this path.
+    "SUBMITTED",
     "ABANDONED",
     "EXPIRED",
     "REVOKED",
