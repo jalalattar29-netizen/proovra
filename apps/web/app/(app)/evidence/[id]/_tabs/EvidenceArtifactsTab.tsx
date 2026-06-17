@@ -3,10 +3,11 @@
  *
  * Generated outputs only: reports, packages, public verification.
  *
- * Phase 2 — "Latest Artifact Summary" hero above the version history.
- * Shows: Latest Report / Latest Package / Latest Verification Link at
- * a glance, so the user doesn't have to read the version history to
- * answer "what's the most recent output".
+ * "Latest" hero now carries only the verification link. The earlier
+ * Latest-Report and Latest-Package cards were removed because the
+ * ArtifactHistorySection rendered immediately below already lists
+ * every version (v1, v2, …) and exposes "Download latest" — the
+ * top cards were a duplicate of the first row of each version table.
  *
  * Phase 1 — Public verification counts (views / report downloads /
  * package downloads / last view) are owned here. Removed from
@@ -16,12 +17,9 @@
 "use client";
 
 import { Globe, Package } from "lucide-react";
-import { Button } from "../../../../../components/ui";
 import {
   KeyValueGrid,
   SectionHeading,
-  describeReportArtifactStatus,
-  describeVerificationPackageStatus,
   formatValue,
   type EvidenceDetailCtx,
 } from "./_lib";
@@ -123,51 +121,24 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         </section>
       ) : null}
 
-      {/* Phase 2 — Latest artifact summary. Three rows: latest
-          report, latest package, latest verification link, with
-          inline shortcut buttons. Version history follows below. */}
+      {/* Latest verification link only — the report + package cards
+          that used to live here duplicated the version-history rows
+          rendered by ArtifactHistorySection below. Removing them
+          eliminates a top-of-tab "summary" that was redundant with
+          the immediately-following version table.
+
+          Verify link stays here because it has no equivalent surface
+          below; ArtifactHistorySection only carries report/package
+          versions. */}
       <section className="evidence-detail-section" data-evidence-section="latest-artifacts">
         <div className="evidence-detail-section-header">
           <SectionHeading
             kicker="Latest"
-            title="Latest report, package, and verification link"
+            title="Latest verification link"
             icon={Package}
           />
         </div>
         <div className="evidence-detail-data-grid">
-          <div className="evidence-detail-data-cell" data-latest-artifact="report">
-            <span>Latest report</span>
-            <strong>
-              {describeReportArtifactStatus(workspace.artifactStatus)}
-              {workspace.artifactStatus.report.available ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => void downloadReport()}
-                  style={{ marginLeft: 8 }}
-                >
-                  Download
-                </Button>
-              ) : null}
-            </strong>
-          </div>
-          <div className="evidence-detail-data-cell" data-latest-artifact="package">
-            <span>Latest verification package</span>
-            <strong>
-              {describeVerificationPackageStatus(
-                workspace.artifactStatus,
-                workspaceCaps.verificationPackageIncluded ?? false,
-              )}
-              {workspace.artifactStatus.verificationPackage.available ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => void downloadVerificationPackage()}
-                  style={{ marginLeft: 8 }}
-                >
-                  Download
-                </Button>
-              ) : null}
-            </strong>
-          </div>
           <div className="evidence-detail-data-cell" data-latest-artifact="verify">
             <span>Latest verification link</span>
             <strong>

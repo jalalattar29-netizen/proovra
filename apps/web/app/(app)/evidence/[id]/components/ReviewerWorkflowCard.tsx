@@ -1,6 +1,10 @@
 "use client";
 
 import { Button } from "../../../../../components/ui";
+import {
+  formatReviewerStatusLabel,
+  REVIEWER_STATUS_DISCLAIMER,
+} from "../../lib/reviewer-status";
 
 type WorkflowActor = {
   id: string;
@@ -68,9 +72,13 @@ export function ReviewerWorkflowCard({
       </div>
 
       <div className="evidence-detail-data-grid">
-        <div className="evidence-detail-data-cell">
+        <div
+          className="evidence-detail-data-cell"
+          data-evidence-reviewer-status-cell
+          data-evidence-reviewer-status={workflow.status ?? "NOT_STARTED"}
+        >
           <span>Status</span>
-          <strong>{workflow.status ? workflow.status.replace(/_/g, " ") : "Not configured"}</strong>
+          <strong>{formatReviewerStatusLabel(workflow.status)}</strong>
         </div>
         <div className="evidence-detail-data-cell">
           <span>Priority</span>
@@ -96,6 +104,13 @@ export function ReviewerWorkflowCard({
 
       <p className="evidence-detail-muted">
         {workflow.note || "Workflow state is recorded separately from forensic custody and does not alter the preserved evidence record."}
+      </p>
+      <p
+        className="evidence-detail-muted"
+        data-evidence-reviewer-disclaimer="true"
+        style={{ fontSize: 12, marginTop: 4 }}
+      >
+        {REVIEWER_STATUS_DISCLAIMER}
       </p>
 
       <div className="evidence-detail-subsection">

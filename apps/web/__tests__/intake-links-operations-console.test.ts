@@ -112,22 +112,24 @@ describe("Pin 2 — exactly 7 mutually-exclusive tabs (one per KPI card)", () =>
     }
   });
 
-  it("matchesTab predicate handles every tab and rejects unknowns", () => {
+  it("matchesTab delegates every tab to the canonical state-model — no local predicate", () => {
+    // After the strict state-model rewrite, the per-tab predicates
+    // live in lib/intake-links/state-model.ts (matchesIntakeTab).
+    // The console must delegate, not carry its own predicate logic.
     const src = read(CONSOLE);
-    // Each named case in the switch is the canonical truthful predicate.
-    for (const tag of [
-      'case "active":',
-      'case "submitted":',
-      'case "opened":',
-      'case "failed":',
-      'case "closed":',
-    ]) {
-      assert.ok(
-        src.includes(tag),
-        `matchesTab switch missing ${tag}`,
-      );
-    }
-    // No leftover predicates for the retired tabs.
+    assert.match(src, /matchesIntakeTab\(item,\s*tabToIntakeTab\(tab\)\)/);
+    // No leftover predicates inspecting activity counters per tab.
+    assert.ok(
+      !/case "opened":[\s\S]{0,400}item\.activity\.sessionsOpened > 0/.test(
+        src,
+      ),
+      "console must not carry opened-tab predicate — state-model owns it",
+    );
+    assert.ok(
+      !/case "active":[\s\S]{0,400}computedLifecycle/.test(src),
+      "console must not carry active-tab predicate — state-model owns it",
+    );
+    // Retired tabs must remain absent.
     assert.ok(
       !src.includes('case "needs_attention":'),
       "needs_attention predicate must be removed",
@@ -138,13 +140,17 @@ describe("Pin 2 — exactly 7 mutually-exclusive tabs (one per KPI card)", () =>
     );
   });
 
-  it("non-Archived tabs exclude archived rows; Archived tab includes them", () => {
+  it("archived-exclusion rule lives in the state-model, not the console", () => {
+    // Archive separation is now part of matchesIntakeTab — no
+    // duplicate console-side check.
     const src = read(CONSOLE);
-    assert.match(src, /if \(tab === "archived"\) return isArchived\(item\)/);
-    // The "archived rows are excluded from every other tab" rule.
-    assert.match(
-      src,
-      /if \(isArchived\(item\)\) return false/,
+    assert.ok(
+      !/if \(tab === "archived"\) return isArchived\(item\)/.test(src),
+      "archive tab handling must come from state-model, not console switch",
+    );
+    assert.ok(
+      !/if \(isArchived\(item\)\) return false/.test(src),
+      "archive-exclusion guard must live in state-model, not console",
     );
   });
 });
@@ -215,10 +221,13 @@ describe("Pin 3 — KPI strip = 7 cards, each maps to one tab, click clears conf
 });
 
 describe("Pin 4 — Archived is first-class", () => {
-  it("computeKpis returns an `archived` count", () => {
+  it("computeKpis is a thin wrapper over the canonical state-model and surfaces `archived`", () => {
+    // Phase 3 of the strict state-model rewrite — the KPI count
+    // function on the console must delegate to computeIntakeKpis from
+    // the state model (single source of truth) and surface `archived`.
     const src = read(CONSOLE);
-    assert.match(src, /archived,/);
-    assert.match(src, /if \(isArchived\(it\)\) \{\s*\n?\s*archived \+= 1/);
+    assert.match(src, /computeIntakeKpis\(items\)/);
+    assert.match(src, /archived:\s*k\.archived/);
   });
 
   it("Lifecycle dropdown lists ARCHIVED as a selectable value", () => {
@@ -238,18 +247,24 @@ describe("Pin 4 — Archived is first-class", () => {
     );
   });
 
-  it("row badge shows ARCHIVED as the PRIMARY chip when archived", () => {
+  it("row badges now use the two-chip pattern from the state model (link + session)", () => {
+    // Phase 4 of the strict state-model rewrite retired the single
+    // `primaryBadgeKind` chip — it conflated link state with session
+    // state and delivery state, producing rows that looked Active
+    // while showing Submitted. The row now renders TWO chips backed by
+    // getLifecycleBadges() so the operator can read both axes.
     const src = read(CONSOLE);
-    assert.match(
-      src,
-      /const primaryBadgeKind: ConsoleLifecycle \| "ARCHIVED" = archived\s*\n?\s*\? "ARCHIVED"\s*\n?\s*: computedLifecycle/,
+    assert.match(src, /data-intake-links-row-link-state/);
+    assert.match(src, /data-intake-links-row-session-state/);
+    assert.match(src, /getLifecycleBadges\(/);
+    assert.ok(
+      !/primaryBadgeKind/.test(src),
+      "primaryBadgeKind must be retired — two-chip pattern owns the row badge now",
     );
-    assert.match(
-      src,
-      /primaryBadgeKind === "ARCHIVED"\s*\n?\s*\? "Archived"/,
+    assert.ok(
+      !/data-intake-links-row-lifecycle-chip/.test(src),
+      "legacy single-chip data-attr must be gone",
     );
-    // The chip palette has an ARCHIVED entry.
-    assert.match(src, /ARCHIVED: \{ bg:[^}]+\}/);
   });
 
   it("page fetches with archiveScope=all so the Archived tab has data", () => {
@@ -396,11 +411,19 @@ describe("Pin 13 — Opened KPI is a real filter (tab=opened), not informational
     );
   });
 
-  it("matchesTab handles tab='opened' via the same predicate as the KPI count (activity.sessionsOpened > 0)", () => {
+  it("matchesTab delegates every tab decision to the canonical state-model (matchesIntakeTab)", () => {
+    // Phase 2 of the strict state-model rewrite consolidates per-tab
+    // predicates inside lib/intake-links/state-model.ts. The console
+    // must NOT carry its own switch over computedLifecycle — that
+    // local logic was the root cause of "Opened" rows showing
+    // SUBMITTED links (sessionsOpened > 0 ALSO true for submitted).
     const src = read(CONSOLE);
-    assert.match(
-      src,
-      /case "opened":[\s\S]{0,400}item\.activity\.sessionsOpened > 0/,
+    assert.match(src, /matchesIntakeTab\(item,\s*tabToIntakeTab\(tab\)\)/);
+    assert.ok(
+      !/case "opened":[\s\S]{0,400}item\.activity\.sessionsOpened > 0/.test(
+        src,
+      ),
+      "console must no longer carry its own opened-tab predicate — state-model owns it",
     );
   });
 

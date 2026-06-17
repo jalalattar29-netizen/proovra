@@ -27,6 +27,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { apiFetch } from "../../../lib/api";
+import {
+  canOpenEvidence as canOpenEvidenceFromSession,
+} from "../../../lib/intake-links/state-model";
 import { usePlatformContext } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 // OperationalBreadcrumb removed — the breadcrumb row ("Workspace ›
@@ -1492,12 +1495,35 @@ function SubmissionsDrawer({
               <strong>{payload.link.workflowTemplateName}</strong> ·{" "}
               {payload.link.recipientLabel ?? "no recipient label"}
             </p>
-            <p style={mutedStyle}>
-              {payload.totals.sessions} total ·{" "}
-              {payload.totals.submitted} submitted ·{" "}
-              {payload.totals.inProgress} in progress ·{" "}
-              {payload.totals.evidenceProduced} evidence record(s)
-            </p>
+            {/* Counts derived from the SAME session list shown below
+                — visibleTotal is the rendered row count, not a server
+                aggregate, so the numbers always match what the
+                operator sees. */}
+            {(() => {
+              const sessions = payload.sessions;
+              const visibleTotal = sessions.length;
+              const visibleSubmitted = sessions.filter(
+                (s) => String(s.status).toUpperCase() === "SUBMITTED",
+              ).length;
+              const visibleInProgress = sessions.filter((s) => {
+                const u = String(s.status).toUpperCase();
+                return (
+                  u === "OPENED" ||
+                  u === "UPLOAD_STARTED" ||
+                  u === "UPLOAD_COMPLETED"
+                );
+              }).length;
+              const visibleWithEvidence = sessions.filter(
+                (s) => Boolean(s.evidenceId),
+              ).length;
+              return (
+                <p style={mutedStyle} data-intake-link-submissions-counts="true">
+                  {visibleTotal} total · {visibleSubmitted} submitted ·{" "}
+                  {visibleInProgress} in progress · {visibleWithEvidence}{" "}
+                  evidence record(s)
+                </p>
+              );
+            })()}
             {payload.sessions.length === 0 ? (
               <div style={infoBoxStyle} data-intake-link-submissions-empty="true">
                 No submissions yet. The link is ready; nobody has uploaded
@@ -1505,47 +1531,93 @@ function SubmissionsDrawer({
               </div>
             ) : (
               <ul style={{ listStyle: "none", padding: 0 }}>
-                {payload.sessions.map((s) => (
-                  <li
-                    key={s.id}
-                    style={cardStyle}
-                    data-intake-link-submission-row={s.id}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600 }}>
-                        {s.pseudonym
-                          ? `Alias: ${s.pseudonym}`
-                          : s.submitterDisplayName ?? "Anonymous contributor"}
+                {payload.sessions.map((s, idx) => {
+                  // Distinct, ordered title — never repeat "Anonymous
+                  // contributor" on every row. The number is the
+                  // session's position in the list (1-based) so the
+                  // operator can refer to "Submission #2" in support
+                  // chat.
+                  const submissionNumber = idx + 1;
+                  // Contributor sub-line: the most specific identity
+                  // we have, falling back through alias → display name
+                  // → email preview → phone preview → Anonymous.
+                  const contributorLine = (() => {
+                    if (s.pseudonym) return `Alias: ${s.pseudonym}`;
+                    if (s.submitterDisplayName) return s.submitterDisplayName;
+                    if (s.submitterEmailPreview) return s.submitterEmailPreview;
+                    if (s.submitterPhonePreview) return s.submitterPhonePreview;
+                    return "Anonymous";
+                  })();
+                  // Use the shared state-model predicate to decide
+                  // whether the Open evidence button is rendered.
+                  // Returning a typed reason lets us show a muted
+                  // "Waiting for files" note instead of an empty cell
+                  // when the session hasn't produced an evidence row
+                  // yet — better than a silent missing button.
+                  const openability = canOpenEvidenceFromSession(s);
+                  return (
+                    <li
+                      key={s.id}
+                      style={cardStyle}
+                      data-intake-link-submission-row={s.id}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{ fontWeight: 600 }}
+                          data-intake-link-submission-title={submissionNumber}
+                        >
+                          Submission #{submissionNumber}
+                        </div>
+                        <div style={mutedStyle}>
+                          Contributor: <strong>{contributorLine}</strong>
+                        </div>
+                        <div style={mutedStyle}>
+                          Status: <strong>{s.status}</strong>
+                        </div>
+                        <div style={mutedStyle}>
+                          {s.openedAtUtc
+                            ? `Opened ${describeRelativeTime(s.openedAtUtc)}`
+                            : "Not opened yet"}
+                          {s.submittedAtUtc
+                            ? ` · Submitted ${describeRelativeTime(s.submittedAtUtc)}`
+                            : ""}
+                        </div>
+                        <div style={mutedStyle}>
+                          Evidence:{" "}
+                          {s.evidenceId ? "Available" : "Not created yet"}
+                        </div>
                       </div>
-                      <div style={mutedStyle}>
-                        Status: <strong>{s.status}</strong>{" "}
-                        {s.submitterEmailPreview
-                          ? `· ${s.submitterEmailPreview}`
-                          : ""}
-                      </div>
-                      <div style={mutedStyle}>
-                        {s.openedAtUtc
-                          ? `Opened ${describeRelativeTime(s.openedAtUtc)}`
-                          : "Not opened"}
-                        {s.submittedAtUtc
-                          ? ` · Submitted ${describeRelativeTime(s.submittedAtUtc)}`
-                          : ""}
-                      </div>
-                    </div>
-                    {s.evidenceId ? (
-                      <a
-                        href={`/evidence/${encodeURIComponent(s.evidenceId)}`}
-                        style={{
-                          ...secondaryButtonStyle,
-                          textDecoration: "none",
-                        }}
-                        data-intake-link-submission-open-evidence={s.evidenceId}
-                      >
-                        Open evidence
-                      </a>
-                    ) : null}
-                  </li>
-                ))}
+                      {openability.canOpen ? (
+                        <a
+                          href={`/evidence/${encodeURIComponent(s.evidenceId!)}`}
+                          style={{
+                            ...secondaryButtonStyle,
+                            textDecoration: "none",
+                          }}
+                          data-intake-link-submission-open-evidence={
+                            s.evidenceId ?? "none"
+                          }
+                        >
+                          Open evidence
+                        </a>
+                      ) : openability.reason === "no_evidence_yet" ? (
+                        <span
+                          style={{ ...mutedStyle, alignSelf: "center" }}
+                          data-intake-link-submission-waiting="true"
+                        >
+                          Waiting for files
+                        </span>
+                      ) : (
+                        <span
+                          style={{ ...mutedStyle, alignSelf: "center" }}
+                          data-intake-link-submission-terminal="true"
+                        >
+                          Session closed
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </>

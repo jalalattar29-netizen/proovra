@@ -109,20 +109,41 @@ test("Fix 2 — the Update Reviewer Workflow modal renders only when canSeeRevie
   );
 });
 
-test("Fix 2 — NotStartedEmptyState passes canSeeReviewerOps through to gate its action set", () => {
-  assert.match(REVIEW, /canSeeReviewerOps,?\s*\n?\s*setAssignCaseOpen/);
-  assert.match(REVIEW, /const showReviewerActions\s*=\s*canSeeReviewerOps/);
-  assert.match(REVIEW, /data-evidence-review-empty-reviewer-ops=\{showReviewerActions/);
+test("Fix 2 — Review tab no longer carries the NotStartedEmptyState replacement block", () => {
+  // REVIEW-TAB-STABILITY — the giant NOT_STARTED replacement card
+  // (with its non-clickable bullet list) was removed. Status is now
+  // surfaced inline via the workflow card / status box; the four
+  // fake-action sentences and the data-evidence-review-empty
+  // attribute are gone.
+  assert.ok(
+    !/NotStartedEmptyState/.test(REVIEW),
+    "NotStartedEmptyState must be retired",
+  );
+  assert.ok(
+    !/data-evidence-review-empty="NOT_STARTED"/.test(REVIEW),
+    "empty-state data-attr must be retired",
+  );
+  for (const sentence of [
+    "Add a comment or legal note",
+    "Attach this record to a case",
+    "Open the risk signals in the sidebar",
+    "Download the report PDF or verification package",
+  ]) {
+    assert.ok(
+      !REVIEW.includes(sentence),
+      `non-clickable plain-text "${sentence}" must be removed`,
+    );
+  }
 });
 
-test("Fix 2 — Assign reviewer button + bullet are gated on showReviewerActions", () => {
-  // Both the JSX button and the suggested-action list item are
-  // gated. On Personal Space the bullet list excludes "Assign a
-  // reviewer" and the button is unmounted.
-  assert.match(REVIEW, /\{showReviewerActions\s*\?\s*<li>Assign a reviewer<\/li>\s*:\s*null\}/);
+test("Fix 2 — Assign reviewer button is gated on canSeeReviewerOps inside the always-rendered Review actions row", () => {
+  // The button still hides on Personal Space (no reviewer-ops surface
+  // there) — it just lives in the always-rendered Review actions
+  // section now, not the deleted empty-state card.
+  assert.match(REVIEW, /data-evidence-review-actions/);
   assert.match(
     REVIEW,
-    /\{showReviewerActions\s*\?\s*\(\s*\n?\s*<Button[\s\S]{0,200}Assign reviewer/,
+    /canSeeReviewerOps\s*\?\s*\(\s*\n?\s*<Button[\s\S]{0,200}Assign reviewer/,
   );
 });
 
@@ -140,7 +161,13 @@ test("Fix 2 — WhatNeedsAttentionStrip only flags needsReviewer when canSeeRevi
 test("Fix 2 — enterprise still gets the full workflow: ReviewerWorkflowCard + EvidenceReviewActionsPanel", () => {
   // Phase IA-self-serve-completion gate stays untouched —
   // canSeeReviewerOps users see the full enterprise machinery.
-  assert.match(REVIEW, /\{canSeeReviewerOps \?\s*\(\s*<>[\s\S]{0,400}<ReviewerWorkflowCard/);
+  // ReviewerWorkflowCard now lives in the top Review Workflow slot
+  // (status-stable layout); EvidenceReviewActionsPanel still mounts
+  // separately for reviewer-ops users.
+  assert.match(
+    REVIEW,
+    /canSeeReviewerOps\s*\?\s*\(\s*\n?\s*<ReviewerWorkflowCard/,
+  );
   assert.match(REVIEW, /<EvidenceReviewActionsPanel/);
 });
 

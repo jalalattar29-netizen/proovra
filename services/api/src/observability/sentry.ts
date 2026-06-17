@@ -5,6 +5,7 @@ import * as Sentry from "@sentry/node";
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import { ZodError } from "zod";
 import { isAppError } from "../errors.js";
+import { readFastifyClientError } from "./fastify-client-error.js";
 
 let sentryReady = false;
 
@@ -188,6 +189,20 @@ export function initSentry() {
         return null;
       }
       if (isAppError(err) && err.statusCode >= 400 && err.statusCode < 500) {
+        return null;
+      }
+      // Phase 400-CLIENT-ERROR-HARDENING — Fastify's own client-input
+      // errors (FST_ERR_CTP_INVALID_JSON_BODY when a body claims JSON
+      // and isn't, FST_ERR_CTP_BODY_TOO_LARGE, FST_ERR_CTP_INVALID_MEDIA_TYPE,
+      // FST_ERR_VALIDATION, etc.) are HTTP 4xx client outcomes —
+      // typically bot/scanner traffic — not server-side bugs. The
+      // Fastify error handler already returns the canonical 4xx wire
+      // shape without calling captureException, but a future code path
+      // (a stray try/catch, an integration default-handler) could
+      // re-route one here. This belt-and-braces filter guarantees they
+      // never reach Sentry as high-priority alerts. Shares the same
+      // duck-typed detector the setErrorHandler uses.
+      if (readFastifyClientError(err) !== null) {
         return null;
       }
 

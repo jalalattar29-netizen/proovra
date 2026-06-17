@@ -59,6 +59,14 @@ import {
 import { createPortal } from "react-dom";
 
 import { apiFetch } from "../../lib/api";
+import {
+  type IntakeTab,
+  computeIntakeKpis,
+  getLifecycleBadges,
+  matchesIntakeTab,
+  LINK_STATE_LABEL,
+  SESSION_STATE_LABEL,
+} from "../../lib/intake-links/state-model";
 
 // =============================================================================
 // Public types — mirror LinkListItem on the page (kept private to avoid
@@ -196,6 +204,10 @@ function describeAbsoluteDate(iso: string | null): string {
 // Removed `needs_attention` and `expiring_soon` because they
 // duplicated existing slices (failed delivery, active+near-expiry)
 // and produced confusing overlap with the dropdown filters.
+// Tab keys (URL params) — mapped to the canonical IntakeTab enum in
+// the state model. We keep the legacy "failed" / "closed" param names
+// stable for backward compat with existing bookmarks, but every
+// decision routes through `matchesIntakeTab` from the state model.
 const TABS = [
   "all",
   "active",
@@ -206,6 +218,20 @@ const TABS = [
   "closed",
 ] as const;
 type Tab = (typeof TABS)[number];
+
+/** Translate the URL-facing tab param to the canonical state-model
+ *  enum. Two legacy aliases: "failed" → "failed_delivery", "closed"
+ *  → "revoked_or_expired". */
+function tabToIntakeTab(tab: Tab): IntakeTab {
+  switch (tab) {
+    case "failed":
+      return "failed_delivery";
+    case "closed":
+      return "revoked_or_expired";
+    default:
+      return tab;
+  }
+}
 
 // TAB_LABELS retired — the duplicate tab-pill row that consumed it
 // was removed. KPI card labels live inline in the KpiStrip entries
@@ -312,61 +338,28 @@ const LIFECYCLE_CHIP: Record<
 };
 
 // =============================================================================
-// Tab predicates — pure functions, easy to test, used both by the chip
-// counts and by the row filter.
+// Tab predicates — DELEGATED to the canonical state model.
+//
+// All filtering and counting decisions go through
+// `apps/web/lib/intake-links/state-model.ts`. The legacy local
+// predicates that read `computedLifecycle` (a conflated single enum)
+// for tab decisions are gone — they produced wrong buckets:
+//
+//   • "Active" double-counted DELIVERY_FAILED links
+//   • "Opened" included SUBMITTED rows because both have
+//     sessionsOpened > 0
+//
+// The state model separates link / session / delivery into three
+// orthogonal axes and the renderer just asks "which tab does this
+// row belong to?".
 // =============================================================================
 
-function isExpired(item: ConsoleItem): boolean {
-  return item.computedLifecycle === "EXPIRED";
-}
-function isRevoked(item: ConsoleItem): boolean {
-  return item.computedLifecycle === "REVOKED";
-}
 function isArchived(item: ConsoleItem): boolean {
   return Boolean(item.link.archivedAtUtc);
 }
-function isFailedDelivery(item: ConsoleItem): boolean {
-  return item.computedLifecycle === "DELIVERY_FAILED";
-}
-function isSubmitted(item: ConsoleItem): boolean {
-  return item.activity.sessionsSubmitted > 0;
-}
 
-// All / Active / Submitted / Failed / Archived / Closed are MUTUALLY
-// EXCLUSIVE tabs. Each tab is a pure predicate over the loaded items
-// array. Important rule: a row is in EXACTLY ONE bucket of the
-// default-view tabs (Archived overrides everything else if archived).
 function matchesTab(item: ConsoleItem, tab: Tab): boolean {
-  if (tab === "all") return true;
-  if (tab === "archived") return isArchived(item);
-  // Archived rows are EXCLUDED from every other tab — Archived is the
-  // operator's own private "out of active rotation" bucket. The
-  // Archived tab is the only place they appear unless the operator
-  // explicitly sets lifecycle=ARCHIVED.
-  if (isArchived(item)) return false;
-  switch (tab) {
-    case "active":
-      // Active = open for contributions: link status ACTIVE, not
-      // expired, not revoked. Submitted rows are still counted as
-      // Active until they expire or get revoked (the link can keep
-      // accepting more sessions if maxUses > 1).
-      return (
-        item.link.status === "ACTIVE" &&
-        !isExpired(item) &&
-        !isRevoked(item)
-      );
-    case "submitted":
-      return isSubmitted(item);
-    case "opened":
-      // Same predicate the Opened KPI count uses — rows where at
-      // least one contributor opened the link (regardless of
-      // whether they finished submitting).
-      return item.activity.sessionsOpened > 0;
-    case "failed":
-      return isFailedDelivery(item);
-    case "closed":
-      return isExpired(item) || isRevoked(item);
-  }
+  return matchesIntakeTab(item, tabToIntakeTab(tab));
 }
 
 // Match the lifecycle dropdown filter against an item. ARCHIVED is
@@ -383,39 +376,34 @@ function matchesLifecycleFilter(
 }
 
 // =============================================================================
-// KPI strip — derived from the *full* loaded items array, NOT from the
-// filtered view. The operator wants workspace-level metrics regardless
-// of which tab they're sitting on.
+// KPI strip — derived from the same state-model predicates as the tabs.
 // =============================================================================
+//
+// The numbers under the cards MUST equal the row counts under each
+// tab. `computeIntakeKpis` shares predicates with `matchesIntakeTab`
+// so by construction:
+//
+//   • clicking "Active" → tab=active → matchesIntakeTab(it,"active")
+//   • the count on the card → computeIntakeKpis(items).active
+//
+// Both call the same `matchesIntakeTab` under the hood, so drift is
+// impossible. If the count says 5 but the table shows 3, that's a
+// bug in the model — not in the renderer.
 
-// Workspace-level metrics shown above the table. Each KPI maps to
-// exactly one tab so a KPI click is unambiguous — no overlapping
-// counts that produce confusion. `total` is informational (not
-// clickable as a filter; the All tab covers it). Archived links are
-// EXCLUDED from every count except `archived` and `total` so the
-// operator's "Active" reading is the true operational workload.
 function computeKpis(items: ConsoleItem[]) {
-  const total = items.length;
-  let active = 0;
-  let submitted = 0;
-  let opened = 0;
-  let failed = 0;
-  let archived = 0;
-  let closed = 0;
-  for (const it of items) {
-    if (isArchived(it)) {
-      archived += 1;
-      continue;
-    }
-    if (it.link.status === "ACTIVE" && !isExpired(it) && !isRevoked(it)) {
-      active += 1;
-    }
-    if (it.activity.sessionsOpened > 0) opened += 1;
-    if (it.activity.sessionsSubmitted > 0) submitted += 1;
-    if (it.computedLifecycle === "DELIVERY_FAILED") failed += 1;
-    if (isExpired(it) || isRevoked(it)) closed += 1;
-  }
-  return { total, active, submitted, opened, failed, archived, closed };
+  const k = computeIntakeKpis(items);
+  // The console KPI strip uses legacy field names (`failed`, `closed`)
+  // so existing data-attrs and tests stay stable. Map the canonical
+  // names from the state model to those names.
+  return {
+    total: k.total,
+    active: k.active,
+    submitted: k.submitted,
+    opened: k.opened,
+    failed: k.failedDelivery,
+    archived: k.archived,
+    closed: k.revokedOrExpired,
+  };
 }
 
 // =============================================================================
@@ -958,36 +946,41 @@ function ConsoleRow({
   onOpenSubmissions: () => void;
 }) {
   const { link, delivery, activity, computedLifecycle } = item;
-  const isActive =
-    link.status === "ACTIVE" &&
-    computedLifecycle !== "EXPIRED" &&
-    computedLifecycle !== "REVOKED";
-  const archived = Boolean(link.archivedAtUtc);
-  // Primary badge: ARCHIVED wins over the computed lifecycle so an
-  // archived-and-revoked row reads "Archived" first (the operator
-  // archived it for a reason — that's the actionable state).
-  // Secondary badge: when archived, show the underlying state next
-  // to it so the operator can still see whether it was Revoked /
-  // Expired / Submitted etc. before being archived.
-  const primaryBadgeKind: ConsoleLifecycle | "ARCHIVED" = archived
-    ? "ARCHIVED"
-    : computedLifecycle;
-  const primaryChip = LIFECYCLE_CHIP[primaryBadgeKind];
-  const primaryLabel =
-    primaryBadgeKind === "ARCHIVED"
-      ? "Archived"
-      : (LIFECYCLE_LABELS[
-          primaryBadgeKind as Exclude<LifecycleFilter, "">
-        ] ?? primaryBadgeKind);
-  const showSecondaryBadge = archived && computedLifecycle !== "CREATED";
-  const secondaryChip = showSecondaryBadge
-    ? LIFECYCLE_CHIP[computedLifecycle]
-    : null;
-  const secondaryLabel = showSecondaryBadge
-    ? (LIFECYCLE_LABELS[
-        computedLifecycle as Exclude<LifecycleFilter, "">
-      ] ?? computedLifecycle)
-    : null;
+  // Canonical state model: two orthogonal chips.
+  //   • LINK state (Active / Archived / Revoked / Expired) — purely
+  //     about whether the link still accepts contributions.
+  //   • LATEST SESSION state (Opened / Upload started / Submitted) —
+  //     about what contributors have done, only shown when activity
+  //     exists. NO_ACTIVITY collapses the chip away.
+  // Delivery state has its own column further to the right so it
+  // never appears as part of the lifecycle stack.
+  const badges = getLifecycleBadges(item);
+  const linkState = badges.link;
+  const sessionState = badges.session;
+  const isActive = linkState === "ACTIVE";
+  const archived = linkState === "ARCHIVED";
+  // Chip styles by axis.
+  const linkChipStyle: Record<
+    typeof linkState,
+    { bg: string; fg: string; border: string }
+  > = {
+    ACTIVE: LIFECYCLE_CHIP.SENT, // re-use blue chip
+    ARCHIVED: LIFECYCLE_CHIP.ARCHIVED,
+    REVOKED: LIFECYCLE_CHIP.REVOKED,
+    EXPIRED: LIFECYCLE_CHIP.EXPIRED,
+  };
+  const sessionChipStyle: Record<
+    Exclude<typeof sessionState, undefined>,
+    { bg: string; fg: string; border: string }
+  > = {
+    OPENED: LIFECYCLE_CHIP.OPENED,
+    UPLOAD_STARTED: LIFECYCLE_CHIP.STARTED,
+    SUBMITTED: LIFECYCLE_CHIP.SUBMITTED,
+  };
+  const linkChip = linkChipStyle[linkState];
+  const linkLabel = LINK_STATE_LABEL[linkState];
+  const sessionChip = sessionState ? sessionChipStyle[sessionState] : null;
+  const sessionLabel = sessionState ? SESSION_STATE_LABEL[sessionState] : null;
   const channel = delivery.latestChannel ?? "MANUAL";
   const submissions = activity.sessionsSubmitted;
   const inProgress = activity.sessionsStarted - submissions;
@@ -1061,31 +1054,40 @@ function ConsoleRow({
         </span>
       </td>
       <td style={tdStyle}>
+        {/* Two-chip lifecycle stack.
+            The LINK state (Active / Archived / Revoked / Expired)
+            is the primary chip — it answers "can the operator still
+            expect contributions through this link?". The SESSION
+            state (Opened / Upload started / Submitted) is the
+            secondary chip — it answers "what has the contributor
+            done?". They are deliberately separate because mixing
+            them produced misleading combinations like
+            "Active row showing Submitted chip" or "Opened tab
+            counting Submitted rows". */}
         <span
           style={{
             ...chipBaseStyle,
-            backgroundColor: primaryChip.bg,
-            color: primaryChip.fg,
-            borderColor: primaryChip.border,
+            backgroundColor: linkChip.bg,
+            color: linkChip.fg,
+            borderColor: linkChip.border,
           }}
-          data-intake-links-row-lifecycle-chip={primaryBadgeKind}
+          data-intake-links-row-link-state={linkState}
         >
-          {primaryLabel}
+          {linkLabel}
         </span>
-        {secondaryChip && secondaryLabel ? (
+        {sessionChip && sessionLabel ? (
           <span
             style={{
               ...chipBaseStyle,
-              backgroundColor: secondaryChip.bg,
-              color: secondaryChip.fg,
-              borderColor: secondaryChip.border,
+              backgroundColor: sessionChip.bg,
+              color: sessionChip.fg,
+              borderColor: sessionChip.border,
               marginLeft: 6,
-              opacity: 0.75,
             }}
-            data-intake-links-row-lifecycle-secondary={computedLifecycle}
-            title={`Underlying state: ${secondaryLabel}`}
+            data-intake-links-row-session-state={sessionState}
+            title={`Latest contributor activity: ${sessionLabel}`}
           >
-            {secondaryLabel}
+            {sessionLabel}
           </span>
         ) : null}
       </td>

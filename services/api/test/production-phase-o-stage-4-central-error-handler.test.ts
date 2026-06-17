@@ -45,7 +45,7 @@ describe("Phase O Stage 4 — central error handler ZodError → 400 INVALID_INP
     // call so the canonical INVALID_INPUT wire shape wins over the
     // legacy VALIDATION_ERROR shape.
     expect(SERVER).toMatch(
-      /app\.setErrorHandler[\s\S]{0,4000}!isAppError\(err\) && err instanceof ZodError[\s\S]{0,2400}const appError = normalizeUnknownError\(err\);/,
+      /app\.setErrorHandler[\s\S]{0,8000}!isAppError\(err\) && err instanceof ZodError[\s\S]{0,8000}const appError = normalizeUnknownError\(err\);/,
     );
   });
 

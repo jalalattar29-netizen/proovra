@@ -185,12 +185,16 @@ describe("Phase 32.6.5 — Sentry filter catches `Stream isn't writeable`", () =
       const returnEventCount =
         (beforeSendBlock.match(/return\s+event;/g) ?? []).length;
       expect(returnEventCount).toBe(1);
-      // Phase CAPTURE-HARDENING — the API's beforeSend now has THREE
-      // bounded drop paths: (1) ZodError instance, (2) AppError 4xx
-      // instance, (3) the original Redis/message-includes filter.
+      // Phase CAPTURE-HARDENING + 400-CLIENT-ERROR-HARDENING — the
+      // API's beforeSend now has FOUR bounded drop paths:
+      //   (1) ZodError instance,
+      //   (2) AppError 4xx instance,
+      //   (3) FastifyError 4xx via readFastifyClientError (e.g.
+      //       FST_ERR_CTP_INVALID_JSON_BODY from bot probes),
+      //   (4) the original Redis/message-includes filter.
       // The worker sentry init only carries the original 1.
       const isApi = src === API_SENTRY;
-      const expectedReturnNull = isApi ? 3 : 1;
+      const expectedReturnNull = isApi ? 4 : 1;
       const returnNullCount =
         (beforeSendBlock.match(/return\s+null;/g) ?? []).length;
       expect(returnNullCount).toBe(expectedReturnNull);

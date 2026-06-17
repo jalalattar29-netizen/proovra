@@ -29,6 +29,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import {
+  REVIEWER_STATUS_LABEL,
+  REVIEWER_STATUS_PRIMARY_ACTIONS,
+  REVIEWER_STATUS_DISCLAIMER,
+} from "../../lib/reviewer-status";
 
 type Summary = {
   source: "external_intake";
@@ -88,25 +93,12 @@ type ReviewSummary = {
   workflow: ReviewWorkflowDetails | null;
 };
 
-// Legally-safe status labels. The on-the-wire status comes from the
-// existing EvidenceReviewWorkflowStatus enum; we only relabel for display.
-const STATUS_LABEL: Record<string, string> = {
-  NOT_STARTED: "Needs review",
-  IN_REVIEW: "In review",
-  NEEDS_INFO: "Needs additional context",
-  READY_FOR_EXTERNAL_REVIEW: "Ready for external review",
-  APPROVED_INTERNAL: "Accepted for internal review",
-  ESCALATED: "Escalated for further review",
-  CLOSED: "Not accepted",
-};
-
-const ACTIONABLE_STATUSES = [
-  "NOT_STARTED",
-  "IN_REVIEW",
-  "NEEDS_INFO",
-  "APPROVED_INTERNAL",
-  "CLOSED",
-];
+// Reviewer status labels + the actionable subset live in the shared
+// reviewer-status helper so every surface (this card, the Reviewer
+// Workflow card, the audit pins) reads the same map. See
+// apps/web/app/(app)/evidence/lib/reviewer-status.ts.
+const STATUS_LABEL = REVIEWER_STATUS_LABEL;
+const ACTIONABLE_STATUSES = REVIEWER_STATUS_PRIMARY_ACTIONS;
 
 export default function ExternalIntakeSourceCard({
   evidenceId,
@@ -198,6 +190,21 @@ export default function ExternalIntakeSourceCard({
   if (summary === undefined) return null;
   if (summary === null) return null;
 
+  // Resolve a real contributor identity. Returns null when nothing
+  // was collected — most intake-link workflows do not require name,
+  // email, phone, or alias, and rendering "Contributor: Not provided"
+  // creates confusion ("was something supposed to be collected?
+  // did the upload fail?"). When null we hide the entire row.
+  const contributorIdentity: string | null = (() => {
+    if (summary.session.pseudonym) return `Pseudonym: ${summary.session.pseudonym}`;
+    if (!summary.isAnonymous) {
+      if (summary.session.submitterEmail) return summary.session.submitterEmail;
+      if (summary.session.submitterDisplayName)
+        return summary.session.submitterDisplayName;
+    }
+    return null;
+  })();
+
   return (
     <section style={cardWrapperStyle} aria-label="External intake source">
       <header style={cardHeaderStyle}>
@@ -219,16 +226,10 @@ export default function ExternalIntakeSourceCard({
             ? new Date(summary.session.submittedAtUtc).toLocaleString()
             : "—"}
         </Detail>
-        <Detail label="Contributor">
-          {summary.isAnonymous
-            ? summary.session.pseudonym
-              ? `Pseudonym: ${summary.session.pseudonym}`
-              : "Anonymous"
-            : summary.session.submitterEmail ??
-              summary.session.submitterDisplayName ??
-              "Not provided"}
-        </Detail>
-        <Detail label="Consent">
+        {contributorIdentity ? (
+          <Detail label="Contributor">{contributorIdentity}</Detail>
+        ) : null}
+        <Detail label="Upload Agreement">
           {summary.session.consentAcceptedAtUtc
             ? `Accepted ${new Date(summary.session.consentAcceptedAtUtc).toLocaleString()}` +
               (summary.session.consentPolicyVersion
@@ -288,9 +289,11 @@ export default function ExternalIntakeSourceCard({
             );
           })}
         </div>
-        <p style={{ ...mutedStyle, marginTop: 12, fontSize: 12 }}>
-          Reviewer decisions are workflow status updates. They do not assert
-          authenticity, legal admissibility, or factual truth.
+        <p
+          style={{ ...mutedStyle, marginTop: 12, fontSize: 12 }}
+          data-evidence-reviewer-disclaimer="true"
+        >
+          {REVIEWER_STATUS_DISCLAIMER}
         </p>
       </div>
     </section>

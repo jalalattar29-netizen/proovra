@@ -476,16 +476,24 @@ describe("Phase IA-self-serve-audit-fixes — Evidence Detail gates", () => {
   });
 
   it("ReviewerWorkflowCard + EvidenceReviewActionsPanel are gated by canSeeReviewerOps", () => {
+    // Phase REVIEW-TAB-STABILITY — the Review tab now renders the
+    // workflow card in the always-on top slot (gated on
+    // canSeeReviewerOps), and the actions panel separately (also
+    // gated). Status changes never swap the layout.
     expect(EVI).toMatch(
-      /\{canSeeReviewerOps \?\s*\(\s*<>[\s\S]{0,500}<ReviewerWorkflowCard/,
+      /canSeeReviewerOps \?\s*\(\s*\n?\s*<ReviewerWorkflowCard/,
     );
     expect(EVI).toMatch(
       /canSeeReviewerOps[\s\S]{0,2000}<EvidenceReviewActionsPanel/,
     );
   });
 
-  it("self-serve users see a simplified 'Review status' card instead of the workflow machinery", () => {
-    expect(EVI).toMatch(/data-self-serve-review-status/);
+  it("self-serve users see a simplified 'Review status' section instead of the workflow machinery", () => {
+    // Phase REVIEW-TAB-STABILITY — the legacy
+    // `data-self-serve-review-status` attribute was replaced by the
+    // canonical `data-evidence-section="review-status"` so every
+    // tab section follows the same data-attr pattern.
+    expect(EVI).toMatch(/data-evidence-section="review-status"/);
     expect(EVI).toMatch(/title="Review status"/);
   });
 

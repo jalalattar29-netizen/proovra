@@ -289,7 +289,12 @@ test("REGRESSION GUARD: reviewer-status fix still reads nested workflow.status",
 });
 
 test("REGRESSION GUARD: five legally-safe reviewer status labels remain", () => {
+  // Labels moved to the canonical reviewer-status lib so every
+  // surface reads the same map. The External Intake card aliases
+  // REVIEWER_STATUS_LABEL to its local STATUS_LABEL.
   const card = read(CARD);
+  assert.match(card, /REVIEWER_STATUS_LABEL/);
+  const libSrc = read("apps/web/app/(app)/evidence/lib/reviewer-status.ts");
   for (const label of [
     "Needs review",
     "In review",
@@ -298,9 +303,9 @@ test("REGRESSION GUARD: five legally-safe reviewer status labels remain", () => 
     "Not accepted",
   ]) {
     assert.match(
-      card,
+      libSrc,
       new RegExp(label.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")),
-      `legally-safe label "${label}" must remain in STATUS_LABEL`,
+      `legally-safe label "${label}" must remain in the canonical reviewer-status lib`,
     );
   }
 });

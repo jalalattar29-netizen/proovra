@@ -4,18 +4,29 @@
  * Human review workspace. Workflow status / case assignment / notes /
  * comments / annotations / reviewer actions / AI advisory.
  *
- * Phase EVIDENCE-AI-CONSOLIDATION (this pass) — there is now ONE
- * canonical AI categorization surface: <AiCategorizationPanel>.
- * The prior on-mount wrapper card + the duplicate hidden-feature
- * panel mount are gone. Same backend endpoint, same data, ONE
- * disclaimer, ONE component mount. Disabled state collapses
- * inside the single panel — no large inactive section.
+ * Phase REVIEW-TAB-STABILITY (this pass) — the Review tab now renders
+ * the SAME sections in the SAME order regardless of reviewer status.
+ * Previously, NOT_STARTED swapped the entire layout for a giant
+ * empty-state card with a non-clickable suggested-action bullet list
+ * (comments/legal-notes hints, risk-signal hints, report/package
+ * download hints). Those bullets looked like buttons but weren't, and
+ * the layout jump between statuses was disorienting. New shape:
+ *   1. Review Workflow     — workflow card (or status box) + disclaimer
+ *   2. Review Actions      — Attach to case + Open report (always wired)
+ *   3. Case & Relationships
+ *   4. Notes & annotations
+ *   5. Audit / record actions
+ * Reviewer status changes only swap the status badge/label — not the
+ * page layout.
  *
- * Phase 1 — "Workspace and record retention state" was duplicated
- * by the Integrity tab's "Verification & preservation" block (same
- * retention / Object Lock / legal-hold rows). The duplicate is
- * removed from Review; archive/trash controls stay here because
- * they're operational actions, not posture.
+ * Phase EVIDENCE-AI-CONSOLIDATION — there is ONE canonical AI
+ * categorization surface: <AiCategorizationPanel>. The prior on-mount
+ * wrapper card + duplicate hidden-feature panel mount are gone.
+ *
+ * Phase 1 — "Workspace and record retention state" was duplicated by
+ * the Integrity tab's "Verification & preservation" block; the
+ * duplicate is removed from Review. Archive/trash controls stay here
+ * because they're operational actions, not posture.
  */
 
 "use client";
@@ -33,6 +44,10 @@ import {
   getEvidenceDeletionEligibility,
 } from "../../lib/evidence-delete-eligibility";
 import { canManageEvidenceRelationships } from "../../lib/evidence-relationships-visibility";
+import {
+  formatReviewerStatusLabel,
+  REVIEWER_STATUS_DISCLAIMER,
+} from "../../lib/reviewer-status";
 import { ReviewerCommentsPanel } from "../../components/ReviewerCommentsPanel";
 import { LegalNotesPanel } from "../../components/LegalNotesPanel";
 import { AnnotationPanel } from "../../components/AnnotationPanel";
@@ -43,77 +58,6 @@ import { EvidenceRelationshipsSection } from "../components/EvidenceRelationship
 import { ReviewerWorkflowCard } from "../components/ReviewerWorkflowCard";
 import { EvidenceReviewActionsPanel } from "../components/EvidenceReviewActionsPanel";
 import { ReviewerAuditTrailSection } from "../components/ReviewerAuditTrailSection";
-
-function NotStartedEmptyState({ ctx }: { ctx: EvidenceDetailCtx }) {
-  const {
-    workspace,
-    canSeeReviewerOps,
-    setAssignCaseOpen,
-    setSelectedCaseId,
-    setWorkflowOpen,
-    routerPush,
-  } = ctx;
-
-  // Phase EVIDENCE-REVIEW-VISIBILITY — the suggested-action list +
-  // the "Assign reviewer" button only render when the workspace
-  // exposes the reviewer-ops surface. On a Personal Space or any
-  // self-serve context the user IS the reviewer; there is no
-  // assignment to make. We keep the heading + neutral copy so the
-  // empty state still tells the user "nothing has happened here
-  // yet"; the action set shrinks to the affordances that work
-  // (attach to case, open report).
-  const showReviewerActions = canSeeReviewerOps;
-
-  return (
-    <section
-      className="evidence-detail-section"
-      data-evidence-review-empty="NOT_STARTED"
-      data-evidence-review-empty-reviewer-ops={showReviewerActions ? "true" : "false"}
-    >
-      <div className="evidence-detail-section-header">
-        <SectionHeading
-          kicker="Review"
-          title="Review has not started yet"
-          icon={ClipboardCheck}
-        />
-      </div>
-      <p className="evidence-detail-muted" style={{ marginBottom: 10 }}>
-        {showReviewerActions
-          ? "The evidence record is preserved and verified. No reviewer has started a structured review yet. Common next steps:"
-          : "The evidence record is preserved and verified. You can add a note or attach this record to a case below."}
-      </p>
-      <ul className="evidence-detail-flat-list" style={{ marginBottom: 12 }}>
-        {showReviewerActions ? <li>Assign a reviewer</li> : null}
-        <li>Add a comment or legal note</li>
-        <li>Attach this record to a case</li>
-        <li>Open the risk signals in the sidebar</li>
-        <li>Download the report PDF or verification package</li>
-      </ul>
-      <div className="evidence-detail-inline-actions" data-evidence-review-empty-actions>
-        <Button
-          variant="secondary"
-          onClick={() => {
-            setSelectedCaseId(workspace.relationships.caseId || "");
-            setAssignCaseOpen(true);
-          }}
-        >
-          Attach to case
-        </Button>
-        {showReviewerActions ? (
-          <Button variant="secondary" onClick={() => setWorkflowOpen(true)}>
-            Assign reviewer
-          </Button>
-        ) : null}
-        <Button
-          variant="secondary"
-          onClick={() => routerPush(`/evidence/${workspace.evidence.id}?tab=artifacts`)}
-        >
-          Open report
-        </Button>
-      </div>
-    </section>
-  );
-}
 
 export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const {
@@ -147,16 +91,99 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
     existingRelationshipCount: workspace.relationships.items.length,
   });
 
-  // Phase 2 — show the NOT_STARTED empty state when nobody has
-  // started a structured review yet. Once a reviewer sets any
-  // status the regular workflow block takes over.
-  const showEmptyState =
-    !workspace.reviewWorkflow?.status ||
-    workspace.reviewWorkflow.status === "NOT_STARTED";
+  // Phase REVIEW-TAB-STABILITY — surfaced for tests and for ops
+  // tooling. NOT_STARTED no longer causes the layout to swap; only
+  // the badge label flips.
+  const reviewerStatus = workspace.reviewWorkflow?.status ?? "NOT_STARTED";
 
   return (
     <>
-      {showEmptyState ? <NotStartedEmptyState ctx={ctx} /> : null}
+      {/* (1) Review Workflow — stable header always rendered. The
+          body inside is the enterprise workflow card when reviewer
+          ops are available, or a compact status row otherwise. */}
+      {canSeeReviewerOps ? (
+        <ReviewerWorkflowCard
+          workflow={workspace.reviewWorkflow}
+          events={workflowEvents}
+          eventsLoading={workflowEventsLoading}
+          actionBusy={actionBusy}
+          onRefreshEvents={() => void loadWorkflowEvents()}
+          onOpenEditor={() => setWorkflowOpen(true)}
+          formatDateTime={formatUserDateTime}
+        />
+      ) : (
+        <section
+          className="evidence-detail-section"
+          data-evidence-section="review-status"
+          data-evidence-reviewer-status={reviewerStatus}
+        >
+          <div className="evidence-detail-section-header">
+            <SectionHeading
+              kicker="Review"
+              title="Review status"
+              icon={ClipboardCheck}
+            />
+          </div>
+          <p>
+            <strong>{formatReviewerStatusLabel(reviewerStatus)}</strong>
+          </p>
+          <p
+            className="evidence-detail-muted"
+            data-evidence-reviewer-disclaimer="true"
+            style={{ fontSize: 12, marginTop: 4 }}
+          >
+            {REVIEWER_STATUS_DISCLAIMER}
+          </p>
+        </section>
+      )}
+
+      {/* (2) Review Actions — always rendered, only wired actions.
+          Attach to case + Open report (artifacts tab) are present
+          for every workspace. Reviewer-ops users additionally get
+          Assign reviewer to open the workflow editor. We deliberately
+          do NOT render unwired affordances — the four pseudo-action
+          bullets that used to live in the retired empty-state card
+          (comments hint, case-attach hint, risk-signal hint, report
+          download hint) are gone; the wired buttons stand alone. */}
+      <section
+        className="evidence-detail-section"
+        data-evidence-section="review-actions"
+      >
+        <div className="evidence-detail-section-header">
+          <SectionHeading
+            kicker="Review"
+            title="Review actions"
+            icon={ClipboardCheck}
+          />
+        </div>
+        <div
+          className="evidence-detail-inline-actions"
+          data-evidence-review-actions
+        >
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setSelectedCaseId(workspace.relationships.caseId || "");
+              setAssignCaseOpen(true);
+            }}
+          >
+            Attach to case
+          </Button>
+          {canSeeReviewerOps ? (
+            <Button variant="secondary" onClick={() => setWorkflowOpen(true)}>
+              Assign reviewer
+            </Button>
+          ) : null}
+          <Button
+            variant="secondary"
+            onClick={() =>
+              routerPush(`/evidence/${workspace.evidence.id}?tab=artifacts`)
+            }
+          >
+            Open report
+          </Button>
+        </div>
+      </section>
 
       <EvidenceRelationshipsSection
         caseName={workspace.relationships.caseName}
@@ -178,44 +205,14 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
       />
 
       {canSeeReviewerOps ? (
-        <>
-          <ReviewerWorkflowCard
-            workflow={workspace.reviewWorkflow}
-            events={workflowEvents}
-            eventsLoading={workflowEventsLoading}
-            actionBusy={actionBusy}
-            onRefreshEvents={() => void loadWorkflowEvents()}
-            onOpenEditor={() => setWorkflowOpen(true)}
-            formatDateTime={formatUserDateTime}
-          />
-
-          <EvidenceReviewActionsPanel
-            evidenceId={evidenceId}
-            teamId={workspace.reviewWorkflow?.teamId ?? null}
-            currentStatus={workspace.reviewWorkflow.status ?? null}
-            assignedToUserId={workspace.reviewWorkflow.assignedTo?.id ?? null}
-            currentUserId={null}
-            onChanged={() => void loadWorkflowEvents()}
-          />
-        </>
-      ) : !showEmptyState ? (
-        <section
-          className="evidence-detail-section"
-          data-self-serve-review-status
-        >
-          <div className="evidence-detail-section-header">
-            <SectionHeading
-              kicker="Review"
-              title="Review status"
-              icon={ClipboardCheck}
-            />
-          </div>
-          <p className="evidence-detail-muted">
-            {workspace.reviewWorkflow?.status
-              ? `Current status: ${workspace.reviewWorkflow.status}`
-              : "No review status set."}
-          </p>
-        </section>
+        <EvidenceReviewActionsPanel
+          evidenceId={evidenceId}
+          teamId={workspace.reviewWorkflow?.teamId ?? null}
+          currentStatus={workspace.reviewWorkflow.status ?? null}
+          assignedToUserId={workspace.reviewWorkflow.assignedTo?.id ?? null}
+          currentUserId={null}
+          onChanged={() => void loadWorkflowEvents()}
+        />
       ) : null}
 
       <section className="evidence-detail-section">

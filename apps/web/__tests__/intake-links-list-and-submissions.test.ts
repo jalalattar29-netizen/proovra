@@ -106,12 +106,17 @@ test("Phase 3 — SubmissionsDrawer fetches the real endpoint and renders the sa
   assert.match(src, /data-intake-link-submissions-drawer="true"/);
 });
 
-test("Phase 3 — submissions row links to evidence ONLY when evidenceId is present", () => {
+test("Phase 3 — submissions row links to evidence ONLY when state-model says it can open", () => {
   const src = read(PAGE);
-  // No evidenceId → no Open evidence button. Pin the ternary.
+  // Strict state-model rewrite (Phase 5) routes the Open evidence
+  // button through canOpenEvidence(session) — evidenceId presence is
+  // necessary but no longer sufficient (the session must also be in
+  // a terminal-with-evidence state). Pin the canOpen gate and the
+  // href shape that follows it.
+  assert.match(src, /openability\.canOpen \?/);
   assert.match(
     src,
-    /s\.evidenceId \? \(\s*\n?\s*<a\s*\n?\s*href=\{`\/evidence\/\$\{encodeURIComponent\(s\.evidenceId\)\}`\}/,
+    /href=\{`\/evidence\/\$\{encodeURIComponent\(s\.evidenceId!\)\}`\}/,
   );
 });
 

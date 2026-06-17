@@ -165,21 +165,42 @@ test("Phase 1 — Custody is the single home for access + forensic event lists",
 // Phase 2 — IA: 5 layers + NOT_STARTED empty state
 // ---------------------------------------------------------------------------
 
-test("Phase 2 — Review tab renders NOT_STARTED structured empty state", () => {
-  assert.match(REVIEW, /data-evidence-review-empty="NOT_STARTED"/);
-  assert.match(REVIEW, /Review has not started yet/);
-  // Suggested actions per audit spec
+test("Phase REVIEW-TAB-STABILITY — Review tab keeps the same layout across statuses (no NOT_STARTED replacement)", () => {
+  // The Review tab now always renders the wired Review actions row
+  // and the workflow/status block in place; status changes only flip
+  // the badge label, never swap the tab body. The old
+  // data-evidence-review-empty="NOT_STARTED" replacement block and
+  // its non-clickable bullet list are gone.
+  assert.ok(
+    !/data-evidence-review-empty="NOT_STARTED"/.test(REVIEW),
+    "NOT_STARTED replacement block must be retired",
+  );
+  assert.ok(
+    !/Review has not started yet/.test(REVIEW),
+    "old empty-state title must be retired",
+  );
+  assert.match(REVIEW, /data-evidence-review-actions/);
+  // The wired actions still render (Attach to case + Open report;
+  // Assign reviewer is gated on reviewer-ops).
   assert.match(REVIEW, /Attach to case/);
-  assert.match(REVIEW, /Assign reviewer/);
   assert.match(REVIEW, /Open report/);
-  assert.match(REVIEW, /data-evidence-review-empty-actions/);
 });
 
-test("Phase 2 — Artifacts tab carries a Latest summary above version history", () => {
+test("Phase ARTIFACTS-DEDUP — Artifacts tab carries only the verify-link card on top", () => {
+  // The latest-report + latest-package summary cards were removed
+  // because they duplicated the version-history rows immediately
+  // below (ArtifactHistorySection). Only the verify-link card stays
+  // — it has no equivalent surface elsewhere on the tab.
   assert.match(ARTIFACTS, /data-evidence-section="latest-artifacts"/);
-  assert.match(ARTIFACTS, /data-latest-artifact="report"/);
-  assert.match(ARTIFACTS, /data-latest-artifact="package"/);
   assert.match(ARTIFACTS, /data-latest-artifact="verify"/);
+  assert.ok(
+    !/data-latest-artifact="report"/.test(ARTIFACTS),
+    "duplicate Latest report card must be gone",
+  );
+  assert.ok(
+    !/data-latest-artifact="package"/.test(ARTIFACTS),
+    "duplicate Latest verification package card must be gone",
+  );
 });
 
 test("Phase 2 — Custody renders the grouped-by-day default with raw expander", () => {

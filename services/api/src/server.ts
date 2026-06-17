@@ -15,6 +15,7 @@ import { usersRoutes } from "./routes/users.routes.js";
 import { platformContextRoutes } from "./routes/platform-context.routes.js";
 import { workspacePersonaRoutes } from "./routes/workspace-persona.routes.js";
 import { captureException, initSentry } from "./observability/sentry.js";
+import { readFastifyClientError } from "./observability/fastify-client-error.js";
 // CR1 Phase D — legacy `auditMiddleware` removed. The canonical audit
 // chain is wired into each route via `appendPlatformAuditLog()` from
 // `services/platform-audit-log.service.ts` (hash-chained, DB-backed).
@@ -739,6 +740,46 @@ allowedHeaders: [
           message: "Request failed.",
           requestId,
         },
+      });
+    }
+
+    // -----------------------------------------------------------------
+     // Phase 400-CLIENT-ERROR-HARDENING — Fastify itself emits a family
+     // of FST_ERR_* codes for malformed client requests:
+     //
+     //   FST_ERR_CTP_INVALID_JSON_BODY   → 400 (body claims JSON, isn't)
+     //   FST_ERR_CTP_BODY_TOO_LARGE      → 413
+     //   FST_ERR_CTP_INVALID_CONTENT_LENGTH → 400
+     //   FST_ERR_CTP_INVALID_MEDIA_TYPE  → 415
+     //   FST_ERR_VALIDATION              → 400 (schema)
+     //
+     // These are CLIENT behaviour (often bots probing endpoints), not
+     // server bugs. The previous fallthrough sent them to the
+     // `request.failed.infrastructure` branch → `captureException` →
+     // high-priority Sentry alert, which polluted the issue list with
+     // noise like "Body is not valid JSON but content-type is set to
+     // application/json" on POST /v1/auth/email/register.
+     //
+     // New behaviour: any FastifyError-shaped object with a 4xx
+     // statusCode is a client error. We warn-log + return Fastify's
+     // canonical {error, message, statusCode} shape and skip Sentry.
+     // We deliberately do NOT log the request body (it may contain
+     // unparseable bytes or credentials the user typed by mistake).
+     // -----------------------------------------------------------------
+    const fastifyClientError = readFastifyClientError(err);
+    if (fastifyClientError) {
+      req.log.warn(
+        {
+          ...requestContext,
+          errorCode: fastifyClientError.code,
+          statusCode: fastifyClientError.statusCode,
+        },
+        "request.failed.client_error",
+      );
+      return reply.code(fastifyClientError.statusCode).send({
+        error: fastifyClientError.error,
+        message: fastifyClientError.message,
+        statusCode: fastifyClientError.statusCode,
       });
     }
 

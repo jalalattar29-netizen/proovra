@@ -3739,7 +3739,11 @@ function buildTechnicalMaterials(params: {
     tsaInputKind: string | null;
     otsProofBase64: string | null;
   };
-  publicKeyPem: string;
+  // Nullable to support the pending-signing path: when the evidence
+  // row has no signingKeyId yet, no SigningKey row is looked up, so
+  // there is no public key to render. Downstream consumers in the
+  // Technical Materials view-model already treat null defensively.
+  publicKeyPem: string | null;
   partsCount?: number;
 }) {
   // Phase C #4 — surface multipart hash semantics so reviewers don't have
@@ -8090,22 +8094,38 @@ await appendCustodyEvent({
 
       try {
         const evidence = await getEvidenceWithReadAccess(ownerUserId, id);
-        if (!evidence.signingKeyId || evidence.signingKeyVersion == null) {
-          return reply
-            .code(409)
-            .send({ message: "Signing key metadata is not recorded for this evidence record" });
-        }
-        const signingKey = await prisma.signingKey.findUnique({
-          where: {
-            keyId_version: {
-              keyId: evidence.signingKeyId,
-              version: evidence.signingKeyVersion,
-            },
-          },
-          select: { publicKeyPem: true },
-        });
+        // Signing-key metadata is OPTIONAL for the review-workspace
+        // projection. A row can legitimately exist before signing
+        // completes (mid-capture, mid-intake, post-upload pre-
+        // finalize). The previous 409 with the technical message
+        // "Signing key metadata is not recorded for this evidence
+        // record" reached the UI and read as a hard error to
+        // reviewers. The fix: render the full projection but mark
+        // `signingKey.recorded = false`; the Integrity tab shows a
+        // friendly "Signing metadata not yet recorded" warning, and
+        // preview/metadata/submissions/source context all still
+        // load. Signature verification just resolves to null in
+        // this branch; downstream consumers already handle null
+        // publicKeyPem.
+        const signingKeyMetadataRecorded =
+          !!evidence.signingKeyId && evidence.signingKeyVersion != null;
+        const signingKey = signingKeyMetadataRecorded
+          ? await prisma.signingKey.findUnique({
+              where: {
+                keyId_version: {
+                  keyId: evidence.signingKeyId!,
+                  version: evidence.signingKeyVersion!,
+                },
+              },
+              select: { publicKeyPem: true },
+            })
+          : null;
 
-        if (!signingKey) {
+        // The hard 503 below only fires when the row CLAIMS a
+        // signing key exists (id+version set) but the key row is
+        // missing from the table — that is a true server-config
+        // bug. Pending-signing rows skip this branch entirely.
+        if (signingKeyMetadataRecorded && !signingKey) {
           // Phase 1 — see /public/verify handler for context. A SIGNED
           // evidence row without a matching `signing_keys` row is an
           // operational misconfiguration (seed step missed). Emit a
@@ -8500,7 +8520,13 @@ await appendCustodyEvent({
 
         let signatureValid = false;
         try {
+          // signingKey is null when the row is pending-signing —
+          // signature verification is skipped and signatureValid
+          // stays false; the Integrity tab renders a
+          // "Signing metadata not yet recorded" warning rather
+          // than a hard error.
           signatureValid =
+            signingKey !== null &&
             recomputedFingerprintHash != null &&
             evidence.signatureBase64 != null &&
             ed25519VerifyHexSignature({
@@ -8576,7 +8602,7 @@ const timestampDigestMatches: boolean | null =
             fingerprintHash: evidence.fingerprintHash ?? null,
             signatureBase64: evidence.signatureBase64 ?? null,
             signingKeyId: evidence.signingKeyId ?? null,
-            publicKeyPem: signingKey.publicKeyPem ?? null,
+            publicKeyPem: signingKey?.publicKeyPem ?? null,
             tsaStatus: evidence.tsaStatus ?? null,
             tsaFailureReason: evidence.tsaFailureReason ?? null,
             otsStatus: effectiveOtsStatus,
@@ -9052,7 +9078,7 @@ const timestampDigestMatches: boolean | null =
                   tsaInputKind: evidence.tsaInputKind,
                   otsProofBase64: evidence.otsProofBase64,
                 },
-                publicKeyPem: signingKey.publicKeyPem,
+                publicKeyPem: signingKey?.publicKeyPem ?? null,
                 partsCount: parts.length,
               }),
               trustDecision,
