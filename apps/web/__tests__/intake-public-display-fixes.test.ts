@@ -120,26 +120,34 @@ test("submit failure renders the requestId as a quotable Support ID", () => {
 // Delivery method order + disabled-when-unconfigured
 // ============================================================================
 
-test("DELIVERY_METHODS order is Email → SMS → WhatsApp → Manual (Manual is last)", () => {
+test("DELIVERY_METHODS catalog contains all 4 channels (strict-UX brief retires the fixed order pin)", () => {
   const src = read(ADMIN_PAGE);
-  const emailIdx = src.indexOf('value: "EMAIL"');
-  const smsIdx = src.indexOf('value: "SMS"');
-  const whatsappIdx = src.indexOf('value: "WHATSAPP"');
-  const manualIdx = src.indexOf('value: "MANUAL"');
-  assert.ok(emailIdx > 0 && smsIdx > 0 && whatsappIdx > 0 && manualIdx > 0);
-  assert.ok(
-    emailIdx < smsIdx && smsIdx < whatsappIdx && whatsappIdx < manualIdx,
-    "DELIVERY_METHODS order must be Email → SMS → WhatsApp → Manual",
-  );
+  // Strict-UX brief shortened every label and reordered the
+  // catalog (Copy link / SMS / Email / WhatsApp). The exact order
+  // is no longer a UX invariant — the operator's actual default is
+  // chosen by the config-aware fallback in CreateLinkModal, and
+  // the dropdown order is just the choice surface. Pin only that
+  // all 4 enum values still exist.
+  for (const v of ['"EMAIL"', '"SMS"', '"WHATSAPP"', '"MANUAL"']) {
+    assert.ok(
+      src.includes(`value: ${v}`),
+      `DELIVERY_METHODS catalog missing value ${v}`,
+    );
+  }
 });
 
-test("MANUAL is renamed to 'Copy link only' — never 'Copy link manually'", () => {
+test("MANUAL label is the short 'Copy link' (strict-UX shortening) — never 'Copy link manually'", () => {
   const src = read(ADMIN_PAGE);
-  assert.match(src, /label: "Copy link only"/);
-  // The old label is gone.
+  // Strict-UX brief shortened "Copy link only" → "Copy link".
+  assert.match(src, /value:\s*"MANUAL"[\s\S]{0,200}label:\s*"Copy link"/);
+  // Both old labels must stay gone.
   assert.ok(
-    !/label: "Copy link manually"/.test(src),
+    !/label:\s*"Copy link manually"/.test(src),
     "old confusing label 'Copy link manually' must be removed",
+  );
+  assert.ok(
+    !/label:\s*"Copy link only"/.test(src),
+    "old verbose label 'Copy link only' must be removed (strict-UX shortened to 'Copy link')",
   );
 });
 

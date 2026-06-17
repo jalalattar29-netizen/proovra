@@ -14,7 +14,7 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ImageIcon, type LucideIcon } from "lucide-react";
 import { getReviewerArtifactRoleLabel } from "@proovra/shared";
 import { Button } from "../../../../../components/ui";
@@ -632,16 +632,47 @@ export function PreviewWorkspace({
     [workspace.parts]
   );
 
+  // Resolve the default selected item once per render. Priority:
+  //   1. backend-suggested defaultPreviewItemId
+  //   2. first previewable item with a viewUrl
+  //   3. primaryContentItem
+  // This is the same logic the page used before; it now seeds the
+  // `selectedPreviewItemId` state instead of being the only source.
+  const contentItems = workspace.evidence.contentItems ?? [];
   const defaultItem =
-    workspace.evidence.contentItems?.find(
+    contentItems.find(
       (item) => item.id === workspace.evidence.defaultPreviewItemId
     ) ??
-    workspace.evidence.contentItems?.find((item) => item.previewable && item.viewUrl) ??
+    contentItems.find((item) => item.previewable && item.viewUrl) ??
     workspace.evidence.primaryContentItem ??
     null;
 
+  // P0 fix — the cards under the main preview must be clickable and
+  // switch the main preview. The previous build rendered cards as
+  // plain <div>s with no onClick and no selection state, so the
+  // preview was permanently stuck on `defaultItem`. We now hold the
+  // selected id in local state, default it to the resolved
+  // defaultItem, and re-seed it whenever the underlying evidence id
+  // changes (navigating between records without remounting).
+  const [selectedPreviewItemId, setSelectedPreviewItemId] = useState<string | null>(
+    defaultItem?.id ?? null,
+  );
+  useEffect(() => {
+    setSelectedPreviewItemId(defaultItem?.id ?? null);
+    // Re-seed when the evidence id changes (route param flip without
+    // a full remount). defaultItem.id is the canonical key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace.evidence.id]);
+
+  // The item the main preview should render. Falls back to defaultItem
+  // when the selected id no longer exists in the list (e.g. after a
+  // contentItems refresh dropped the previously-selected file).
+  const selectedItem =
+    contentItems.find((it) => it.id === selectedPreviewItemId) ??
+    defaultItem;
+
   const renderPreview = () => {
-    if (!defaultItem || !defaultItem.viewUrl) {
+    if (!selectedItem || !selectedItem.viewUrl) {
       return (
         <div className="evidence-detail-preview-placeholder">
           <strong>Open the original evidence record to review preserved content.</strong>
@@ -650,52 +681,71 @@ export function PreviewWorkspace({
       );
     }
 
-    if (defaultItem.kind === "image") {
+    if (selectedItem.kind === "image") {
       return (
         <img
-          src={defaultItem.viewUrl}
-          alt={defaultItem.label}
+          key={selectedItem.id}
+          src={selectedItem.viewUrl}
+          alt={selectedItem.label}
           className="evidence-detail-preview-media"
         />
       );
     }
 
-    if (defaultItem.kind === "video") {
+    if (selectedItem.kind === "video") {
       return (
         <video
+          key={selectedItem.id}
           controls
           preload="metadata"
           className="evidence-detail-preview-media"
-          src={defaultItem.viewUrl}
+          src={selectedItem.viewUrl}
         >
           Your browser could not load this video preview.
         </video>
       );
     }
 
-    if (defaultItem.kind === "audio") {
+    if (selectedItem.kind === "audio") {
       return (
         <div className="evidence-detail-preview-audio">
-          <audio controls preload="metadata" src={defaultItem.viewUrl}>
+          <audio
+            key={selectedItem.id}
+            controls
+            preload="metadata"
+            src={selectedItem.viewUrl}
+          >
             Your browser could not load this audio preview.
           </audio>
         </div>
       );
     }
 
-    if (defaultItem.kind === "pdf") {
+    if (selectedItem.kind === "pdf") {
       return (
         <iframe
-          title={defaultItem.label}
-          src={defaultItem.viewUrl}
+          key={selectedItem.id}
+          title={selectedItem.label}
+          src={selectedItem.viewUrl}
           className="evidence-detail-preview-frame"
         />
       );
     }
 
     return (
-      <div className="evidence-detail-preview-placeholder">
+      <div
+        className="evidence-detail-preview-placeholder"
+        data-evidence-preview-unsupported
+      >
         <strong>Preview is not available for this file type.</strong>
+        <p>
+          <em>{selectedItem.originalFileName || selectedItem.label}</em>
+          {" — "}
+          {selectedItem.kind}
+          {selectedItem.sizeBytes
+            ? ` · ${selectedItem.displaySizeLabel || formatBytes(selectedItem.sizeBytes)}`
+            : ""}
+        </p>
         <p>Use the original access actions to review the preserved material directly.</p>
       </div>
     );
@@ -721,15 +771,42 @@ export function PreviewWorkspace({
 
       <div className="evidence-detail-preview-shell">{renderPreview()}</div>
 
-      <div className="evidence-detail-item-grid">
-        {workspace.evidence.contentItems?.map((item) => {
+      <div
+        className="evidence-detail-item-grid"
+        role="listbox"
+        aria-label="Evidence files"
+      >
+        {contentItems.map((item) => {
           const privateItemNote = privateItemNotesById.get(item.id);
           const itemWithMeta = item as typeof item & {
             privateRole?: string | null;
             sourceLabel?: string | null;
           };
+          const isSelected = item.id === selectedItem?.id;
+          // P0 fix — cards are now interactive: clicking (or
+          // pressing Enter/Space when focused) updates the
+          // selected-preview state, which the main preview above
+          // reads via renderPreview(). Render as <button type=
+          // "button"> for native keyboard + a11y semantics; the
+          // listbox role on the wrapper + aria-selected on each
+          // card give screen readers the same model as a single-
+          // select gallery.
           return (
-            <div key={item.id} className="evidence-detail-item-card">
+            <button
+              key={item.id}
+              type="button"
+              role="option"
+              aria-selected={isSelected}
+              aria-pressed={isSelected}
+              onClick={() => setSelectedPreviewItemId(item.id)}
+              className={
+                isSelected
+                  ? "evidence-detail-item-card evidence-detail-item-card--selected"
+                  : "evidence-detail-item-card"
+              }
+              data-content-item-card={item.id}
+              data-content-item-selected={isSelected ? "true" : "false"}
+            >
               <div className="evidence-detail-item-row">
                 <strong>{item.label}</strong>
                 <span className={`evidence-detail-pill ${pillTone(item.kind)}`}>{item.kind}</span>
@@ -770,7 +847,7 @@ export function PreviewWorkspace({
                   <strong>{privateItemNote}</strong>
                 </div>
               ) : null}
-            </div>
+            </button>
           );
         })}
       </div>

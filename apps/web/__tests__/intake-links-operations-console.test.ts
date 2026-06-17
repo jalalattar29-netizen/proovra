@@ -1,39 +1,40 @@
 /**
- * Intake Links Operations Console — frontend source-contract.
+ * Intake Links Operations Console — strict-model source-contract.
  *
- * Pins the structural commitments of the rebuilt console so a future
- * refactor can't silently regress the operations-grade UX:
+ * After multiple rounds of patch-driven changes left the filter model
+ * with overlapping primitives (KPI cards setting lifecycle filters,
+ * Needs-attention duplicating Failed, Expiring-soon duplicating
+ * Active, etc.), the console was rewritten to a single strict
+ * model. These pins lock the strict model in place so a future
+ * refactor can't quietly re-introduce the duplication:
  *
- *   1) Operations console component exists and is wired into page.tsx
- *      via <IntakeLinksOperationsConsole>. The page no longer renders
- *      the legacy <ul data-intake-links-list="true"> stacked-card list.
- *
- *   2) KPI strip exposes the 7 enterprise metrics (Active, Submitted,
- *      Upload started, Opened, Expiring soon, Failed delivery,
- *      Revoked or expired) via data-intake-links-kpi attrs.
- *
- *   3) Search / channel filter / lifecycle filter / delivery filter /
- *      sort / pagination controls are all present and carry the
- *      data-intake-links-* attrs the e2e tests target.
- *
- *   4) URL state — the console seeds from initialQuery and pushes
- *      changes back via writeQuery (matching the page-level Next
- *      router.replace plumbing).
- *
- *   5) Onboarding tiles are HIDDEN when items.length > 0 (rendered
- *      only when the workspace has zero links). This is the
- *      "no template-tile clutter once you're operational" rule.
- *
- *   6) The console renders a details drawer (data-intake-links-
- *      details-drawer) with Overview / Delivery / Activity /
- *      Submissions / Safety sections.
- *
- *   7) Row actions menu includes View details, Delivery history,
- *      Revoke (only when active), Archive/Unarchive. No Delete.
- *
- *   8) Raw token / token hash is NEVER referenced anywhere in the
- *      console component (the reveal modal is the only place a raw
- *      token is shown, and only immediately after creation).
+ *   1. Default tab is "all" (not "active"). Every other tab is an
+ *      explicit narrowing chosen by the operator.
+ *   2. Exactly 6 mutually-exclusive primary tabs:
+ *      All / Active / Submitted / Failed / Archived / Closed.
+ *      "needs_attention" and "expiring_soon" are gone.
+ *   3. Exactly 7 KPI cards, each mapped to ONE tab:
+ *      Total / Active / Submitted / Opened / Failed / Archived / Closed.
+ *      KPI click also clears every secondary filter so the resulting
+ *      view matches exactly what the KPI promised.
+ *   4. Archived is first-class:
+ *      - included in KPI strip with its own count
+ *      - listed in the Lifecycle dropdown
+ *      - rendered as the PRIMARY row badge when archived
+ *      - has its own tab
+ *   5. Secondary dropdowns are independent dimensions only:
+ *      channel / lifecycle / delivery / sort.
+ *   6. Sort dropdown has exactly 3 options:
+ *      Latest activity / Newest created / Expiring soon.
+ *   7. Clear filters resets to the canonical default
+ *      (tab=all, every dropdown empty, sort=activity, search="").
+ *   8. Empty state shows "No intake links match these filters" and
+ *      a Clear-filters button (not an inline link).
+ *   9. Actions menu still portals out so it can't be clipped.
+ *  10. Page fetches with archiveScope=all so the Archived tab works.
+ *  11. URL is canonical: a clean "/intake-links" URL matches the
+ *      default (no params written when state matches the default).
+ *  12. No raw token / token hash references anywhere in the console.
  */
 
 import { strict as assert } from "node:assert";
@@ -57,217 +58,191 @@ function read(p: string): string {
   return readFileSync(p, "utf8");
 }
 
-describe("Pin 1 — console exists and replaces the legacy list", () => {
-  it("IntakeLinksOperationsConsole.tsx file exists", () => {
+describe("Pin 1 — strict default: tab=all", () => {
+  it("CONSOLE file exists and the page renders it", () => {
     assert.ok(existsSync(CONSOLE), "operations console file missing");
+    const page = read(PAGE);
+    assert.match(page, /<IntakeLinksOperationsConsole/);
   });
 
-  it("page.tsx imports and renders the console", () => {
-    const src = read(PAGE);
+  it('initial tab state defaults to "all" (not "active")', () => {
+    const src = read(CONSOLE);
     assert.match(
       src,
-      /import\s*\{\s*IntakeLinksOperationsConsole/,
+      /clamp<Tab>\(initial\.get\("tab"\) as Tab, TABS\) \?\? "all"/,
     );
-    assert.match(src, /<IntakeLinksOperationsConsole/);
   });
 
-  it("page.tsx no longer renders the legacy <ul data-intake-links-list> when items exist", () => {
-    const src = read(PAGE);
-    // The legacy attr should be absent — the data-attr migrated to
-    // data-intake-links-operations-console (set on the new section).
-    assert.ok(
-      !/data-intake-links-list="true"/.test(src),
-      "legacy <ul data-intake-links-list> must not appear; console replaces it",
-    );
-    assert.match(
-      read(CONSOLE),
-      /data-intake-links-operations-console="true"/,
-    );
+  it("URL writer skips tab when it equals the default", () => {
+    const src = read(CONSOLE);
+    assert.match(src, /if \(tab !== "all"\) next\.set\("tab", tab\)/);
   });
 });
 
-describe("Pin 2 — KPI strip exposes the 7 enterprise metrics", () => {
-  it("each KPI chip carries data-intake-links-kpi with the expected key", () => {
+describe("Pin 2 — exactly 6 mutually-exclusive tabs", () => {
+  it("TABS array enumerates all / active / submitted / failed / archived / closed (and nothing else)", () => {
     const src = read(CONSOLE);
-    for (const k of [
-      "active",
-      "submitted",
-      "started",
-      "opened",
-      "expiring_soon",
-      "failed",
-      "closed",
-    ]) {
-      // The render uses the same template attr binding on every chip;
-      // the canonical pin is that the literal key appears as a value
-      // in the entries[] array.
+    const m = src.match(/const TABS = \[([\s\S]*?)\] as const;/);
+    assert.ok(m, "TABS array not found");
+    const expected = [
+      '"all"',
+      '"active"',
+      '"submitted"',
+      '"failed"',
+      '"archived"',
+      '"closed"',
+    ];
+    for (const tab of expected) {
       assert.ok(
-        src.includes(`key: "${k}"`),
-        `KPI key "${k}" missing from console entries`,
+        m[1].includes(tab),
+        `TABS missing ${tab}`,
       );
     }
-    assert.match(src, /data-intake-links-kpi=\{e\.key\}/);
-  });
-});
-
-describe("Pin 3 — operations controls are present and addressable", () => {
-  it("search input, sort dropdown, channel/lifecycle/delivery filters and clear button are rendered", () => {
-    const src = read(CONSOLE);
-    assert.match(src, /data-intake-links-search/);
-    assert.match(src, /data-intake-links-filter-channel/);
-    assert.match(src, /data-intake-links-filter-lifecycle/);
-    assert.match(src, /data-intake-links-filter-delivery/);
-    assert.match(src, /data-intake-links-sort/);
-    assert.match(src, /data-intake-links-clear/);
-  });
-
-  it("pagination controls are present (page-size selector + prev/next buttons)", () => {
-    const src = read(CONSOLE);
-    assert.match(src, /data-intake-links-page-size/);
-    assert.match(src, /data-intake-links-prev-page/);
-    assert.match(src, /data-intake-links-next-page/);
-  });
-
-  it("table layout — replaces stacked cards with <table> + <tbody> rows", () => {
-    const src = read(CONSOLE);
-    assert.match(src, /<table[\s\S]{0,200}data-intake-links-table/);
-    assert.match(src, /data-intake-links-row/);
-  });
-
-  it("default page size is 25 (per design brief)", () => {
-    const src = read(CONSOLE);
-    assert.match(src, /PAGE_SIZES = \[25, 50, 100\]/);
-  });
-});
-
-describe("Pin 4 — URL state plumbing", () => {
-  it("console accepts initialQuery + writeQuery props", () => {
-    const src = read(CONSOLE);
-    assert.match(src, /initialQuery\?:\s*URLSearchParams/);
-    assert.match(src, /writeQuery\?:\s*\(q: URLSearchParams\) => void/);
-  });
-
-  it("page passes useSearchParams + router.replace through", () => {
-    const src = read(PAGE);
-    assert.match(src, /writeQueryToUrl/);
-    assert.match(src, /router\.replace\(/);
-    // initialQuery must be seeded from the page-level useSearchParams
-    // so reload restores filter state.
-    assert.match(src, /initialQuery=\{searchParams \? new URLSearchParams/);
-  });
-});
-
-describe("Pin 5 — onboarding tiles hidden when links exist", () => {
-  it("CommonRequestsSection renders ONLY when items.length === 0", () => {
-    const src = read(PAGE);
-    // The post-rebuild conditional reads items?.length ?? 0 === 0.
-    assert.match(
-      src,
-      /currentTeam && \(items\?\.length \?\? 0\) === 0 \? \(\s*\n?\s*<CommonRequestsSection/,
-    );
-  });
-
-  it("HowItWorksStrip is ALSO hidden when items exist (no clutter for returning operators)", () => {
-    const src = read(PAGE);
-    assert.match(
-      src,
-      /currentTeam && \(items\?\.length \?\? 0\) === 0 \? \(\s*\n?\s*<HowItWorksStrip/,
-    );
-  });
-});
-
-describe("Pin 6 — details drawer with the 5 required sections", () => {
-  it("DetailsDrawer renders Overview / Delivery / Activity / Submissions / Safety", () => {
-    const src = read(CONSOLE);
-    assert.match(src, /data-intake-links-details-drawer/);
-    for (const section of [
-      "data-intake-links-details-overview",
-      "data-intake-links-details-delivery",
-      "data-intake-links-details-activity",
-      "data-intake-links-details-submissions",
-      "data-intake-links-details-safety",
-    ]) {
-      assert.match(read(CONSOLE), new RegExp(section));
+    // The retired tabs must be gone.
+    for (const removed of ['"needs_attention"', '"expiring_soon"']) {
+      assert.ok(
+        !m[1].includes(removed),
+        `${removed} must not appear in TABS (retired)`,
+      );
     }
   });
 
-  it('Delivery section surfaces "Provider tracking unavailable for older attempts" when SID is null', () => {
+  it("matchesTab predicate handles every tab and rejects unknowns", () => {
+    const src = read(CONSOLE);
+    // Each named case in the switch is the canonical truthful predicate.
+    for (const tag of [
+      'case "active":',
+      'case "submitted":',
+      'case "failed":',
+      'case "closed":',
+    ]) {
+      assert.ok(
+        src.includes(tag),
+        `matchesTab switch missing ${tag}`,
+      );
+    }
+    // No leftover predicates for the retired tabs.
+    assert.ok(
+      !src.includes('case "needs_attention":'),
+      "needs_attention predicate must be removed",
+    );
+    assert.ok(
+      !src.includes('case "expiring_soon":'),
+      "expiring_soon predicate must be removed",
+    );
+  });
+
+  it("non-Archived tabs exclude archived rows; Archived tab includes them", () => {
+    const src = read(CONSOLE);
+    assert.match(src, /if \(tab === "archived"\) return isArchived\(item\)/);
+    // The "archived rows are excluded from every other tab" rule.
+    assert.match(
+      src,
+      /if \(isArchived\(item\)\) return false/,
+    );
+  });
+});
+
+describe("Pin 3 — KPI strip = 7 cards, each maps to one tab, click clears conflicting filters", () => {
+  it("KpiStrip declares exactly 7 entries with the prescribed keys", () => {
+    const src = read(CONSOLE);
+    for (const key of [
+      '"total"',
+      '"active"',
+      '"submitted"',
+      '"opened"',
+      '"failed"',
+      '"archived"',
+      '"closed"',
+    ]) {
+      assert.ok(
+        src.includes(`key: ${key}`),
+        `KPI entries missing ${key}`,
+      );
+    }
+    // Retired KPIs must be gone.
+    for (const removed of ['"started"', '"expiring_soon"']) {
+      assert.ok(
+        !src.includes(`key: ${removed}`),
+        `${removed} KPI must not appear (retired)`,
+      );
+    }
+  });
+
+  it('every KPI entry is either kind:"tab" (clickable) or kind:"info" (informational)', () => {
+    const src = read(CONSOLE);
+    // The old "kind: lifecycle" entries that set the lifecycle
+    // dropdown from a KPI click are gone — strict model says KPIs
+    // never silently mutate secondary filters; they either switch
+    // a tab (kind:tab) or are informational (kind:info).
+    assert.ok(
+      !/kind:\s*"lifecycle"/.test(src),
+      "KPI strip must not have lifecycle-kind entries (strict-model rule)",
+    );
+    // The Opened entry MUST be informational — it has no
+    // corresponding tab and the brief forbids mapping it to tab=all.
+    assert.match(
+      src,
+      /key:\s*"opened",[\s\S]{0,150}kind:\s*"info"/,
+    );
+  });
+
+  it("handleKpiClick sets tab AND clears lifecycle/delivery/channel", () => {
+    const src = read(CONSOLE);
+    const idx = src.indexOf("const handleKpiClick");
+    assert.ok(idx > 0, "handleKpiClick missing");
+    const body = src.slice(idx, idx + 600);
+    assert.match(body, /setTab\(targetTab\)/);
+    assert.match(body, /setLifecycle\(""\)/);
+    assert.match(body, /setDelivery\(""\)/);
+    assert.match(body, /setChannel\(""\)/);
+  });
+
+  it("KpiStrip is wired with onKpi (not onTab + onLifecycle pair)", () => {
+    const src = read(CONSOLE);
+    assert.match(src, /<KpiStrip kpis=\{kpis\} onKpi=\{handleKpiClick\}/);
+  });
+});
+
+describe("Pin 4 — Archived is first-class", () => {
+  it("computeKpis returns an `archived` count", () => {
+    const src = read(CONSOLE);
+    assert.match(src, /archived,/);
+    assert.match(src, /if \(isArchived\(it\)\) \{\s*\n?\s*archived \+= 1/);
+  });
+
+  it("Lifecycle dropdown lists ARCHIVED as a selectable value", () => {
+    const src = read(CONSOLE);
+    const m = src.match(/const LIFECYCLES = \[([\s\S]*?)\] as const;/);
+    assert.ok(m);
+    assert.ok(m[1].includes('"ARCHIVED"'), "LIFECYCLES missing ARCHIVED");
+    assert.match(src, /ARCHIVED: "Archived"/);
+  });
+
+  it("lifecycle=ARCHIVED filter matches link.archivedAtUtc (not computedLifecycle)", () => {
+    const src = read(CONSOLE);
+    // matchesLifecycleFilter delegates ARCHIVED to isArchived().
+    assert.match(
+      src,
+      /if \(lifecycle === "ARCHIVED"\) return isArchived\(item\)/,
+    );
+  });
+
+  it("row badge shows ARCHIVED as the PRIMARY chip when archived", () => {
     const src = read(CONSOLE);
     assert.match(
       src,
-      /Provider tracking unavailable for older attempts/,
+      /const primaryBadgeKind: ConsoleLifecycle \| "ARCHIVED" = archived\s*\n?\s*\? "ARCHIVED"\s*\n?\s*: computedLifecycle/,
     );
-  });
-});
-
-describe("Pin 7 — row actions menu includes correct actions and no Delete", () => {
-  it("menu lists View details / Delivery history / Submissions / Revoke / Archive", () => {
-    const src = read(CONSOLE);
-    assert.match(src, /data-intake-links-row-action="details"/);
-    assert.match(src, /data-intake-links-row-action="delivery"/);
-    assert.match(src, /data-intake-links-row-action="submissions"/);
-    assert.match(src, /data-intake-links-row-action="revoke"/);
-    assert.match(src, /data-intake-links-row-action=\{archived \? "unarchive" : "archive"\}/);
-  });
-
-  it("there is NO Delete action in the menu (revoke + archive cover the workflow)", () => {
-    const src = read(CONSOLE);
-    assert.ok(
-      !/data-intake-links-row-action="delete"/.test(src),
-      "console must not expose a Delete row action",
-    );
-  });
-
-  it("Revoke is only rendered when the link is currently active (closed/expired/revoked rows do not show it again)", () => {
-    const src = read(CONSOLE);
-    // The pin: the Revoke <li> sits behind an `isActive ? (...) : null` gate.
     assert.match(
       src,
-      /isActive \? \(\s*<li>[\s\S]{0,500}data-intake-links-row-action="revoke"/,
+      /primaryBadgeKind === "ARCHIVED"\s*\n?\s*\? "Archived"/,
     );
-  });
-});
-
-describe("Pin 8 — no raw token / token hash in the console", () => {
-  it("the console source never references rawToken or tokenHash", () => {
-    const src = read(CONSOLE);
-    assert.ok(
-      !/rawToken/.test(src),
-      "rawToken must never appear in the operations console — it lives only in the post-create reveal modal",
-    );
-    assert.ok(
-      !/tokenHash/.test(src),
-      "tokenHash is a server secret — must not leak into the console",
-    );
-  });
-});
-
-describe("Pin 9 — Actions dropdown is portaled out of the table (clipping fix)", () => {
-  it("RowMenu uses createPortal + a fixed-position panel so it escapes overflow:auto", () => {
-    const src = read(CONSOLE);
-    assert.match(src, /import\s*\{\s*createPortal\s*\}\s*from\s*"react-dom"/);
-    // Pin: the menu render uses createPortal with document.body. A
-    // future refactor that drops the portal would re-trigger the
-    // clipping bug.
-    assert.match(src, /createPortal\(menu, document\.body\)/);
-    // The panel must be position:fixed (not absolute) so it sits in
-    // the viewport coordinate system, immune to table-cell scroll
-    // ancestors.
-    assert.match(src, /position:\s*"fixed"/);
-    // data-attr so a future e2e test can grab the panel from anywhere
-    // on the page even though it lives in a portal.
-    assert.match(src, /data-intake-links-row-menu-panel/);
+    // The chip palette has an ARCHIVED entry.
+    assert.match(src, /ARCHIVED: \{ bg:[^}]+\}/);
   });
 
-  it("the trigger refs an element and positions the panel from its bounding rect", () => {
-    const src = read(CONSOLE);
-    assert.match(src, /triggerRef = useRef<HTMLButtonElement \| null>\(null\)/);
-    assert.match(src, /getBoundingClientRect\(\)/);
-  });
-});
-
-describe("Pin 10 — Archived tab actually loads archived rows", () => {
-  it("page fetches /v1/workflow/intake-links with archiveScope=all so every tab has data", () => {
+  it("page fetches with archiveScope=all so the Archived tab has data", () => {
     const src = read(PAGE);
     assert.match(
       src,
@@ -276,38 +251,107 @@ describe("Pin 10 — Archived tab actually loads archived rows", () => {
   });
 });
 
-describe("Pin 11 — KPI cards Upload started / Opened set the lifecycle filter", () => {
-  it("KpiStrip accepts onLifecycle + currentLifecycle props", () => {
+describe("Pin 5 — secondary dropdowns are independent dimensions", () => {
+  it("channel / lifecycle / delivery dropdowns rendered with addressable data-attrs", () => {
     const src = read(CONSOLE);
-    assert.match(src, /onLifecycle:\s*\(l:\s*LifecycleFilter\)\s*=>\s*void/);
-    assert.match(src, /currentLifecycle:\s*LifecycleFilter/);
+    assert.match(src, /data-intake-links-filter-channel/);
+    assert.match(src, /data-intake-links-filter-lifecycle/);
+    assert.match(src, /data-intake-links-filter-delivery/);
   });
 
-  it('"started" and "opened" entries set kind:"lifecycle" with STARTED / OPENED filter values', () => {
+  it("filter pipeline AND-combines tab + channel + lifecycle + delivery + search", () => {
     const src = read(CONSOLE);
+    assert.match(src, /!matchesTab\(it, tab\)/);
     assert.match(
       src,
-      /key:\s*"started"[\s\S]{0,200}kind:\s*"lifecycle"[\s\S]{0,100}lifecycle:\s*"STARTED"/,
+      /channel && \(it\.delivery\.latestChannel \?\? "MANUAL"\) !== channel/,
     );
-    assert.match(
-      src,
-      /key:\s*"opened"[\s\S]{0,200}kind:\s*"lifecycle"[\s\S]{0,100}lifecycle:\s*"OPENED"/,
-    );
-  });
-
-  it("clicking a lifecycle-kind KPI resets the tab to 'all' so older OPENED/STARTED rows aren't hidden", () => {
-    const src = read(CONSOLE);
-    // The wired handler in the IntakeLinksOperationsConsole body
-    // sets tab="all" then setLifecycle(l). Pin both.
-    assert.match(
-      src,
-      /onLifecycle=\{\(l\) => \{\s*\n?\s*[\s\S]{0,400}setTab\("all"\);\s*\n?\s*setLifecycle\(l\);\s*\n?\s*\}\}/,
-    );
+    assert.match(src, /!matchesLifecycleFilter\(it, lifecycle\)/);
   });
 });
 
-describe("Pin 12 — Delivery cell never shows 'Delivered' for QUEUED rows", () => {
-  it("QUEUED / RETRY_SCHEDULED render as 'Queued with provider' (not 'Delivered', not 'Sent')", () => {
+describe("Pin 6 — Sort dropdown = exactly 3 options", () => {
+  it("SORTS list is activity / created / expires", () => {
+    const src = read(CONSOLE);
+    const m = src.match(/const SORTS = \[([\s\S]*?)\] as const;/);
+    assert.ok(m);
+    assert.ok(m[1].includes('"activity"'));
+    assert.ok(m[1].includes('"created"'));
+    assert.ok(m[1].includes('"expires"'));
+    // The dropped sorts must be gone.
+    assert.ok(!m[1].includes('"priority"'), "priority sort retired");
+    assert.ok(!m[1].includes('"recipient"'), "recipient sort retired");
+  });
+
+  it("SORT_LABELS map matches the brief", () => {
+    const src = read(CONSOLE);
+    assert.match(src, /activity: "Latest activity"/);
+    assert.match(src, /created: "Newest created"/);
+    assert.match(src, /expires: "Expiring soon"/);
+  });
+});
+
+describe("Pin 7 — Clear filters resets to canonical default", () => {
+  it("clearFilters sets tab=all, all dropdowns empty, sort=activity, search empty", () => {
+    const src = read(CONSOLE);
+    const idx = src.indexOf("const clearFilters");
+    assert.ok(idx > 0);
+    const body = src.slice(idx, idx + 400);
+    assert.match(body, /setQ\(""\)/);
+    assert.match(body, /setTab\("all"\)/);
+    assert.match(body, /setChannel\(""\)/);
+    assert.match(body, /setLifecycle\(""\)/);
+    assert.match(body, /setDelivery\(""\)/);
+    assert.match(body, /setSort\("activity"\)/);
+  });
+
+  it("anyFilterActive baseline matches the new default (tab !== 'all')", () => {
+    const src = read(CONSOLE);
+    assert.match(src, /tab !== "all" \|\|/);
+  });
+});
+
+describe("Pin 8 — empty state copy + Clear filters button", () => {
+  it('renders "No intake links match these filters." + Clear-filters button', () => {
+    const src = read(CONSOLE);
+    assert.match(src, /No intake links match these filters\./);
+    assert.match(src, /data-intake-links-empty-state/);
+    assert.match(src, /data-intake-links-empty-clear/);
+    // Disabled when no filters are active (no point clicking).
+    assert.match(src, /disabled=\{!anyFilterActive\}/);
+  });
+});
+
+describe("Pin 9 — Actions menu still portaled (clipping fix preserved)", () => {
+  it("RowMenu still uses createPortal + position:fixed", () => {
+    const src = read(CONSOLE);
+    assert.match(src, /import\s*\{\s*createPortal\s*\}\s*from\s*"react-dom"/);
+    assert.match(src, /createPortal\(menu, document\.body\)/);
+    assert.match(src, /position:\s*"fixed"/);
+  });
+});
+
+describe("Pin 10 — URL is canonical (defaults written as no params)", () => {
+  it("URL writer skips every default value", () => {
+    const src = read(CONSOLE);
+    // tab=all, sort=activity, page=1, pageSize=25 are all default.
+    assert.match(src, /if \(tab !== "all"\) next\.set/);
+    assert.match(src, /if \(sort !== "activity"\) next\.set/);
+    assert.match(src, /if \(page !== 1\) next\.set/);
+    assert.match(src, /if \(pageSize !== 25\) next\.set/);
+  });
+});
+
+describe("Pin 11 — no raw token / token hash references", () => {
+  it("the console source never references rawToken or tokenHash", () => {
+    const src = read(CONSOLE);
+    assert.ok(!/rawToken/.test(src));
+    assert.ok(!/tokenHash/.test(src));
+  });
+});
+
+describe("Pin 12 — DeliveryCell honesty + 63016 mapping preserved", () => {
+  it("QUEUED renders 'Queued with provider' (not Delivered / not Sent)", () => {
     const src = read(CONSOLE);
     assert.match(
       src,
@@ -315,15 +359,81 @@ describe("Pin 12 — Delivery cell never shows 'Delivered' for QUEUED rows", () 
     );
   });
 
-  it("SENT renders 'Sent to provider', DELIVERED renders 'Delivered' — no other status can map to those labels", () => {
+  it("Twilio errorCode 63016 maps to a plain-English label", () => {
     const src = read(CONSOLE);
-    assert.match(src, /s === "SENT"[\s\S]{0,50}\? "Sent to provider"/);
-    assert.match(src, /s === "DELIVERED"[\s\S]{0,50}\? "Delivered"/);
+    assert.match(src, /case "63016":/);
+    assert.match(src, /WhatsApp template required or not approved\./);
+  });
+});
+
+describe("Pin 13 — Opened KPI is informational, not a misleading tab=all shortcut", () => {
+  it('the Opened entry uses kind:"info" so it renders as a non-clickable stat', () => {
+    const src = read(CONSOLE);
+    assert.match(
+      src,
+      /key:\s*"opened",[\s\S]{0,200}kind:\s*"info"/,
+    );
+    // No leftover tab assignment that would silently set tab=all
+    // when the operator clicks Opened.
+    assert.ok(
+      !/key:\s*"opened"[\s\S]{0,200}tab:\s*"all"/.test(src),
+      "Opened KPI must NOT map to tab=all (brief: forbidden)",
+    );
   });
 
-  it("the row delivery cell surfaces latestErrorCode so operators can act without opening the drawer", () => {
+  it("the render branch disables informational entries (no click handler fires, no aria-pressed)", () => {
     const src = read(CONSOLE);
-    assert.match(src, /delivery\.latestErrorCode/);
-    assert.match(src, /code \$\{delivery\.latestErrorCode\}/);
+    assert.match(src, /const isClickable = e\.kind === "tab"/);
+    assert.match(src, /disabled=\{!isClickable\}/);
+    assert.match(
+      src,
+      /onClick=\{\(\) => \(isClickable \? onKpi\(e\.tab\) : undefined\)\}/,
+    );
+    // Informational stats carry data-intake-links-kpi-kind="info"
+    // so a future e2e test can distinguish them from tab triggers.
+    assert.match(src, /data-intake-links-kpi-kind=\{e\.kind\}/);
+  });
+});
+
+describe("Pin 14 — lifecycle=ARCHIVED auto-harmonises with tab=archived", () => {
+  it("handleLifecycleChange auto-switches to tab=archived when ARCHIVED is selected", () => {
+    const src = read(CONSOLE);
+    const idx = src.indexOf("const handleLifecycleChange");
+    assert.ok(idx > 0, "handleLifecycleChange missing");
+    const body = src.slice(idx, idx + 800);
+    assert.match(
+      body,
+      /if \(next === "ARCHIVED" && tab !== "archived"\) \{\s*\n?\s*setTab\("archived"\);/,
+    );
+  });
+
+  it("picking a non-archive lifecycle while sitting on Archived moves the tab back to All", () => {
+    const src = read(CONSOLE);
+    const idx = src.indexOf("const handleLifecycleChange");
+    const body = src.slice(idx, idx + 800);
+    assert.match(
+      body,
+      /if \(next !== "ARCHIVED" && next !== "" && tab === "archived"\) \{\s*\n?\s*[\s\S]{0,400}setTab\("all"\)/,
+    );
+  });
+
+  it("the lifecycle dropdown's onChange wires through handleLifecycleChange (not setLifecycle directly)", () => {
+    const src = read(CONSOLE);
+    assert.match(
+      src,
+      /onChange=\{\(e\) =>\s*\n?\s*handleLifecycleChange\(e\.target\.value as LifecycleFilter\)\s*\n?\s*\}/,
+    );
+  });
+
+  it("the filter pipeline no longer has a lifecycle-ARCHIVED cross-tab override (handler keeps state in sync)", () => {
+    const src = read(CONSOLE);
+    // The previous override (if (lifecycle === "ARCHIVED") { if
+    // (!isArchived(it)) return false; }) is gone — the dropdown
+    // handler keeps tab+lifecycle consistent so the pipeline can
+    // be a strict AND of independent dimensions.
+    assert.ok(
+      !/if \(lifecycle === "ARCHIVED"\) \{\s*\n?\s*if \(!isArchived\(it\)\) return false/.test(src),
+      "lifecycle=ARCHIVED special-case in filter pipeline must be removed (now handled at dropdown handler)",
+    );
   });
 });

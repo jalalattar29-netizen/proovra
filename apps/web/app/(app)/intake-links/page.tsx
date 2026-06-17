@@ -29,7 +29,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "../../../lib/api";
 import { usePlatformContext } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-import { OperationalBreadcrumb } from "../../../components/navigation/OperationalBreadcrumb";
+// OperationalBreadcrumb removed — the breadcrumb row ("Workspace ›
+// Intake links") was visual clutter above an already-titled page.
+// The H1 + subtitle below frame the page without it.
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 import { validateE164 } from "../../../lib/phone/e164";
 import { IntakeLinkDeliveryDrawer } from "../../../components/intake-links/IntakeLinkDeliveryDrawer";
@@ -213,12 +215,25 @@ type CurrentTeamSummary = { id: string; name: string } | null;
 // `EXTERNAL_PSEUDONYMOUS` is unchanged so the backend contract is
 // preserved; only the user-facing label was confusing for lawyers and
 // journalists.
+// Short option labels keep the dropdown clean — the long explanation
+// lives in INTAKE_MODE_HELPER_TEXT below and renders as helper copy
+// under the select based on the current selection. Enum values are
+// unchanged so the backend payload is identical to before.
 const INTAKE_MODES = [
-  { value: "EXTERNAL_ONE_TIME", label: "One-time link (single contributor, single submission)" },
-  { value: "EXTERNAL_REUSABLE", label: "Reusable link (multiple submissions)" },
-  { value: "EXTERNAL_ANONYMOUS", label: "Anonymous — no identity recorded" },
-  { value: "EXTERNAL_PSEUDONYMOUS", label: "Alias — contributor chooses a name to display" },
+  { value: "EXTERNAL_ONE_TIME", label: "One-time link" },
+  { value: "EXTERNAL_REUSABLE", label: "Reusable link" },
+  { value: "EXTERNAL_ANONYMOUS", label: "Anonymous" },
+  { value: "EXTERNAL_PSEUDONYMOUS", label: "Display name" },
 ];
+
+const INTAKE_MODE_HELPER_TEXT: Record<string, string> = {
+  EXTERNAL_ONE_TIME: "Best for one recipient and one submission.",
+  EXTERNAL_REUSABLE:
+    "Use when several people may submit files through the same link.",
+  EXTERNAL_ANONYMOUS: "No contributor identity is requested.",
+  EXTERNAL_PSEUDONYMOUS:
+    "Contributor chooses a name shown with the submission.",
+};
 
 const ACCEPTED_KIND_OPTIONS: Array<"PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT"> = [
   "PHOTO",
@@ -334,26 +349,24 @@ const DELIVERY_METHODS: Array<{
   description: string;
 }> = [
   {
-    value: "EMAIL",
-    label: "Send by email",
-    description: "PROOVRA sends the link to the recipient email below.",
+    value: "MANUAL",
+    label: "Copy link",
+    description: "Create a link and share it yourself.",
   },
   {
     value: "SMS",
     label: "Send by SMS",
-    description: "PROOVRA sends an SMS to the recipient phone number below.",
+    description: "PROOVRA sends the secure upload link by text message.",
+  },
+  {
+    value: "EMAIL",
+    label: "Send by email",
+    description: "PROOVRA sends a secure request email.",
   },
   {
     value: "WHATSAPP",
     label: "Send by WhatsApp",
-    description:
-      "PROOVRA sends a WhatsApp message via your configured WhatsApp Business sender.",
-  },
-  {
-    value: "MANUAL",
-    label: "Copy link only",
-    description:
-      "You'll get a one-time link to copy and share however you want.",
+    description: "PROOVRA sends the approved WhatsApp request template.",
   },
 ];
 
@@ -614,14 +627,11 @@ function IntakeLinksPageInner() {
 
   return (
     <main style={pageStyle}>
-      <OperationalBreadcrumb
-        routeId="workspace.intake_links"
-        items={[{ label: "Intake links" }]}
-      />
-      {/* Intake-links-e2e redesign — operational header. The H1 +
-          one-line subtitle frame the page; the primary CTA sits
-          inline (top-right on desktop, stacked on narrow viewports
-          via flexWrap). */}
+      {/* Operational header. The H1 + one-line subtitle frame the
+          page; the primary CTA sits inline (top-right on desktop,
+          stacked on narrow viewports via flexWrap). The breadcrumb
+          row above was intentionally removed — it duplicated the H1
+          and pushed the page CTA below the fold on smaller screens. */}
       <header style={headerRowStyle}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <h1 style={titleStyle}>External Intake Links</h1>
@@ -809,65 +819,86 @@ function SenderIdentitySelector({
   onModeChange: (m: SenderDisplayMode) => void;
   onNameChange: (n: string) => void;
 }) {
-  const workspacePreview = workspaceName
-    ? `${workspaceName} via PROOVRA`
-    : null;
+  // Card-style radio options. Each option is a stacked card with
+  // a clean title + muted description — no long explanatory text
+  // inside the clickable label, no "for example …" inline. The
+  // Custom name text input lives BELOW the cards when CUSTOM is
+  // selected so it doesn't fight the radio for visual weight.
+  type Option = {
+    value: SenderDisplayMode;
+    title: string;
+    description: string;
+  };
+  const options: Option[] = [
+    {
+      value: "PROOVRA",
+      title: "PROOVRA",
+      description: "Generic sender name. Best for neutral requests.",
+    },
+    ...(workspaceName
+      ? [
+          {
+            value: "WORKSPACE" as SenderDisplayMode,
+            title: "Workspace name",
+            description:
+              "Uses the current workspace name with PROOVRA.",
+          },
+        ]
+      : []),
+    {
+      value: "CUSTOM",
+      title: "Custom name",
+      description: "Show a company, case, or sender name.",
+    },
+  ];
   return (
     <fieldset
       style={senderFieldsetStyle}
       data-intake-link-sender-selector="true"
     >
       <legend style={labelStyle}>Request appears from</legend>
-      <label style={senderRadioRowStyle}>
-        <input
-          type="radio"
-          name="sender-display-mode"
-          value="PROOVRA"
-          checked={mode === "PROOVRA"}
-          onChange={() => onModeChange("PROOVRA")}
-          data-intake-link-sender-mode-radio="PROOVRA"
-        />
-        <span>
-          <strong>PROOVRA secure intake</strong>
-          <span style={mutedStyle}> — generic, safe default</span>
-        </span>
-      </label>
-      {workspacePreview ? (
-        <label style={senderRadioRowStyle}>
-          <input
-            type="radio"
-            name="sender-display-mode"
-            value="WORKSPACE"
-            checked={mode === "WORKSPACE"}
-            onChange={() => onModeChange("WORKSPACE")}
-            data-intake-link-sender-mode-radio="WORKSPACE"
-          />
-          <span>
-            <strong>{workspacePreview}</strong>
-            <span style={mutedStyle}> — uses your workspace name</span>
-          </span>
-        </label>
-      ) : null}
-      <label style={senderRadioRowStyle}>
-        <input
-          type="radio"
-          name="sender-display-mode"
-          value="CUSTOM"
-          checked={mode === "CUSTOM"}
-          onChange={() => onModeChange("CUSTOM")}
-          data-intake-link-sender-mode-radio="CUSTOM"
-        />
-        <span>
-          <strong>Custom display name via PROOVRA</strong>
-          <span style={mutedStyle}> — for example "Smith & Partners"</span>
-        </span>
-      </label>
+      <div style={senderCardListStyle}>
+        {options.map((opt) => {
+          const selected = mode === opt.value;
+          return (
+            <label
+              key={opt.value}
+              style={{
+                ...senderCardStyle,
+                ...(selected ? senderCardSelectedStyle : {}),
+              }}
+              data-intake-link-sender-card={opt.value}
+              data-intake-link-sender-card-selected={
+                selected ? "true" : "false"
+              }
+            >
+              <input
+                type="radio"
+                name="sender-display-mode"
+                value={opt.value}
+                checked={selected}
+                onChange={() => onModeChange(opt.value)}
+                data-intake-link-sender-mode-radio={opt.value}
+                style={senderCardRadioStyle}
+              />
+              <span style={senderCardTextStyle}>
+                <span style={senderCardTitleStyle}>{opt.title}</span>
+                <span style={senderCardDescStyle}>{opt.description}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
       {mode === "CUSTOM" ? (
-        <div style={{ marginTop: 8 }}>
+        <div style={{ marginTop: 12 }}>
+          <label style={labelStyle} htmlFor="intake-link-display-name">
+            Display name
+          </label>
           <input
+            id="intake-link-display-name"
             type="text"
             maxLength={80}
-            placeholder="e.g. Acme Insurance"
+            placeholder="Smith & Partners"
             value={name}
             onChange={(e) => onNameChange(e.target.value)}
             aria-invalid={Boolean(nameError)}
@@ -881,9 +912,8 @@ function SenderIdentitySelector({
             }}
           />
           <p style={{ ...mutedStyle, marginTop: 0 }}>
-            Appears as <strong>{(name || "Your name").slice(0, 60)} via PROOVRA</strong>.
-            PROOVRA branding is always added so recipients can trust
-            the source.
+            This name appears in the request message before &ldquo;via
+            PROOVRA&rdquo;.
           </p>
           {nameError ? (
             <p
@@ -1502,9 +1532,17 @@ function CreateLinkModal({
   ).recommendedKinds;
   const [slug, setSlug] = useState<string>(defaultSlug);
   const [intakeMode, setIntakeMode] = useState("EXTERNAL_ONE_TIME");
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(
-    "MANUAL",
-  );
+  // Default delivery method = SMS so the operator opens the modal
+  // pointed at a real send channel (the most common case) instead of
+  // the manual copy/paste fallback. Config-aware fallback runs in the
+  // useEffect below once the sender-identity transport info loads:
+  // if SMS isn't configured for this deployment we step down through
+  // Email → WhatsApp (only when template-ready) → Manual.
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("SMS");
+  // Track whether the user manually changed the delivery method. If
+  // they did, the config-aware fallback below stops overriding their
+  // choice — we never want to clobber an explicit operator click.
+  const [deliveryMethodTouched, setDeliveryMethodTouched] = useState(false);
   const [recipientLabel, setRecipientLabel] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
@@ -1551,6 +1589,39 @@ function CreateLinkModal({
       cancelled = true;
     };
   }, [team.id]);
+
+  // Config-aware delivery-method fallback. Default is SMS (set in
+  // the useState above) so the modal opens pointed at a real
+  // channel. Once the /sender-identity endpoint resolves with the
+  // workspace's actual transport configuration, we step the default
+  // down through the priority chain if SMS isn't usable:
+  //   1. SMS         (default)
+  //   2. Email       (when SMS not configured)
+  //   3. WhatsApp    (only when configured AND template-ready)
+  //   4. Manual      (last resort — no provider available)
+  // WhatsApp is intentionally NOT promoted above Email by default
+  // because it requires an approved Twilio Content Template; an
+  // unconfigured WhatsApp would 503 on send.
+  useEffect(() => {
+    if (deliveryMethodTouched) return;
+    if (!senderTransport) return;
+    const smsOk = senderTransport.sms.configured;
+    const emailOk = senderTransport.email.configured;
+    // WhatsApp readiness pulls the template-configured signal from
+    // the sender-identity payload when present; if the API surface
+    // doesn't carry it (older deployments) we fall through to
+    // `whatsapp.configured` which already gates on the template
+    // SID server-side per the strict template fix.
+    const waReady = senderTransport.whatsapp.configured;
+    const next: DeliveryMethod = smsOk
+      ? "SMS"
+      : emailOk
+        ? "EMAIL"
+        : waReady
+          ? "WHATSAPP"
+          : "MANUAL";
+    if (next !== deliveryMethod) setDeliveryMethod(next);
+  }, [senderTransport, deliveryMethodTouched, deliveryMethod]);
 
   // Intake-links-e2e Phase 5 — a per-modal-lifetime nonce. Mounting
   // the modal generates a fresh value; double-clicking the submit
@@ -1716,6 +1787,24 @@ function CreateLinkModal({
 
   return (
     <div style={modalBackdropStyle} role="dialog" aria-modal>
+      {/* Scoped focus-ring + hover styling for our custom selects.
+          CSS-in-JS can't express :focus-visible / :hover, so we inject
+          a tiny scoped sheet here. The class is keyed by data-intake-
+          link-modal-select on every select inside this modal. */}
+      <style>{`
+        select[data-intake-link-modal-select]:focus-visible {
+          border-color: #4f46e5;
+          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+        }
+        select[data-intake-link-modal-select]:hover:not(:disabled) {
+          border-color: #94a3b8;
+        }
+        select[data-intake-link-modal-select]:disabled {
+          background-color: #f3f4f6;
+          color: #6b7280;
+          cursor: not-allowed;
+        }
+      `}</style>
       <div style={modalStyle}>
         <h2 style={sectionTitleStyle}>New intake link</h2>
         {error ? <div style={errorBoxStyle}>{error}</div> : null}
@@ -1726,7 +1815,7 @@ function CreateLinkModal({
             the backend resolves via loadEffectiveWorkflowTemplate. */}
         <label style={labelStyle}>What are you asking for?</label>
         <select
-          style={inputStyle}
+          style={modalSelectStyle}
           value={slug}
           onChange={(e) => {
             const next = e.target.value;
@@ -1735,6 +1824,7 @@ function CreateLinkModal({
             if (match) setAllowedKinds(new Set(match.recommendedKinds));
           }}
           data-intake-link-request-type
+          data-intake-link-modal-select
         >
           <optgroup label="Common requests">
             {REQUEST_TYPES.map((r) => (
@@ -1761,9 +1851,10 @@ function CreateLinkModal({
 
         <label style={labelStyle}>Intake mode</label>
         <select
-          style={inputStyle}
+          style={modalSelectStyle}
           value={intakeMode}
           onChange={(e) => setIntakeMode(e.target.value)}
+          data-intake-link-modal-select
         >
           {eligibleModes.map((m) => (
             <option key={m.value} value={m.value}>
@@ -1771,6 +1862,14 @@ function CreateLinkModal({
             </option>
           ))}
         </select>
+        {INTAKE_MODE_HELPER_TEXT[intakeMode] ? (
+          <p
+            style={{ ...mutedStyle, marginTop: -8, marginBottom: 12 }}
+            data-intake-link-intake-mode-helper
+          >
+            {INTAKE_MODE_HELPER_TEXT[intakeMode]}
+          </p>
+        ) : null}
 
         {/* Intake-links-e2e (Phase 2) — explicit delivery method
             picker. The conditional recipient field below it changes
@@ -1778,10 +1877,14 @@ function CreateLinkModal({
             same dependency. */}
         <label style={labelStyle}>How should the link be delivered?</label>
         <select
-          style={inputStyle}
+          style={modalSelectStyle}
           value={deliveryMethod}
+          data-intake-link-modal-select
           onChange={(e) => {
             const next = e.target.value as DeliveryMethod;
+            // Mark touched so the config-aware default useEffect
+            // stops overriding the operator's explicit choice.
+            setDeliveryMethodTouched(true);
             // P0 audit-fix — if the user somehow picks an unconfigured
             // channel (e.g. via keyboard), force them onto MANUAL so
             // they never end up with a link that "sent" but never
@@ -2449,6 +2552,43 @@ const inputStyle: React.CSSProperties = {
   background: "#fff",
   boxSizing: "border-box",
 };
+// modalSelectStyle — used by every <select> inside CreateLinkModal.
+// Native browser-default selects looked out of place next to the
+// app's text inputs and buttons (different height, different border
+// radius, ugly OS-native chevron). This style sheet:
+//   • removes the OS-native appearance
+//   • paints a custom chevron via background-image SVG
+//   • matches the modal's <input> height + radius + border colour
+//   • adds a clean keyboard-only focus ring (no blue OS outline)
+const SELECT_CHEVRON_SVG =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 20 20'><path fill='%2364748b' d='M5.5 7.5l4.5 5 4.5-5z'/></svg>";
+const modalSelectStyle: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  // Right padding doubled to leave room for the chevron art.
+  padding: "10px 36px 10px 14px",
+  border: "1px solid #d7dee8",
+  borderRadius: 10,
+  marginBottom: 12,
+  fontSize: 14,
+  fontWeight: 500,
+  fontFamily: "inherit",
+  color: "#0f172a",
+  background: "#fff",
+  boxSizing: "border-box",
+  // Kill OS-native chevron; supply our own.
+  appearance: "none",
+  WebkitAppearance: "none",
+  MozAppearance: "none",
+  backgroundImage: `url("${SELECT_CHEVRON_SVG}")`,
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 12px center",
+  backgroundSize: "12px 12px",
+  // Clean keyboard focus ring (Tailwind-style indigo).
+  outline: "none",
+  cursor: "pointer",
+  lineHeight: 1.4,
+};
 const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: 13,
@@ -2664,19 +2804,58 @@ const emptyStateExamplesHelpStyle: React.CSSProperties = {
 // Sender identity selector
 const senderFieldsetStyle: React.CSSProperties = {
   border: "1px solid #e2e8f0",
-  borderRadius: 8,
-  padding: "12px 14px 10px",
+  borderRadius: 12,
+  padding: "14px 16px 12px",
   margin: "4px 0 16px",
   background: "#fafbfc",
 };
-const senderRadioRowStyle: React.CSSProperties = {
+// Card-style radio tokens. Each option is a stacked card with a
+// 12px radius, subtle border, white background, and a clean
+// "selected" state (indigo border + soft shadow). The radio sits
+// at the top-left so the title/description text doesn't wrap
+// awkwardly beside it.
+const senderCardListStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+  marginTop: 4,
+};
+const senderCardStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "flex-start",
-  gap: 8,
-  marginBottom: 6,
-  fontSize: 14,
-  lineHeight: 1.4,
+  gap: 12,
+  padding: "12px 14px",
+  border: "1px solid #d7dee8",
+  borderRadius: 12,
+  background: "#ffffff",
   cursor: "pointer",
+  transition: "border-color 120ms ease, box-shadow 120ms ease",
+};
+const senderCardSelectedStyle: React.CSSProperties = {
+  borderColor: "#4f46e5",
+  boxShadow: "0 0 0 2px rgba(99, 102, 241, 0.16)",
+};
+const senderCardRadioStyle: React.CSSProperties = {
+  marginTop: 3,
+  flexShrink: 0,
+  cursor: "pointer",
+};
+const senderCardTextStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 2,
+  minWidth: 0,
+};
+const senderCardTitleStyle: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: "#0f172a",
+  lineHeight: 1.3,
+};
+const senderCardDescStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#64748b",
+  lineHeight: 1.4,
 };
 
 // Message Preview Studio

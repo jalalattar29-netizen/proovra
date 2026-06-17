@@ -180,36 +180,39 @@ function describeAbsoluteDate(iso: string | null): string {
   });
 }
 
-function isExpiringSoon(iso: string): boolean {
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return false;
-  const now = Date.now();
-  return t > now && t - now < 72 * 60 * 60 * 1000; // < 72h
-}
+// isExpiringSoon was retired with the dropped "Expiring soon" tab.
+// The Expiring-soon signal now lives only as a row-level visual cue
+// inside ExpiresCell (soft 72h window) and as the "Expiring soon"
+// sort option. No predicate needed at the filter layer.
 
 // =============================================================================
 // Filter / sort / tab definitions.
 // =============================================================================
 
+// Strict console — single source of truth for lifecycle segmentation.
+// The 6 primary tabs are the ONLY way to slice the list by overall
+// status. Default is "all" so the operator opens the console seeing
+// the entire workspace, not a pre-narrowed view that hides rows.
+// Removed `needs_attention` and `expiring_soon` because they
+// duplicated existing slices (failed delivery, active+near-expiry)
+// and produced confusing overlap with the dropdown filters.
 const TABS = [
   "all",
   "active",
-  "needs_attention",
   "submitted",
-  "expiring_soon",
-  "closed",
+  "failed",
   "archived",
+  "closed",
 ] as const;
 type Tab = (typeof TABS)[number];
 
 const TAB_LABELS: Record<Tab, string> = {
   all: "All",
   active: "Active",
-  needs_attention: "Needs attention",
   submitted: "Submitted",
-  expiring_soon: "Expiring soon",
-  closed: "Revoked or expired",
+  failed: "Failed delivery",
   archived: "Archived",
+  closed: "Revoked or expired",
 };
 
 const CHANNELS = ["", "EMAIL", "SMS", "WHATSAPP", "MANUAL"] as const;
@@ -222,85 +225,83 @@ const CHANNEL_LABELS: Record<ChannelFilter, string> = {
   MANUAL: "Copy link only",
 };
 
+// Lifecycle dropdown — the operator-facing list of states a row can
+// be in. Includes ARCHIVED as a first-class entry so the operator can
+// say "show me archived rows" without leaving the All tab.
+// ARCHIVED is matched against link.archivedAtUtc (not computedLifecycle)
+// because archive is orthogonal to the computed state machine.
 const LIFECYCLES = [
   "",
   "CREATED",
   "SENT",
-  "DELIVERY_FAILED",
   "OPENED",
   "STARTED",
   "SUBMITTED",
-  "EXPIRED",
+  "ARCHIVED",
   "REVOKED",
+  "EXPIRED",
+  "DELIVERY_FAILED",
 ] as const;
 type LifecycleFilter = (typeof LIFECYCLES)[number];
 
 const LIFECYCLE_LABELS: Record<Exclude<LifecycleFilter, "">, string> = {
   CREATED: "Created",
   SENT: "Sent",
-  DELIVERY_FAILED: "Delivery failed",
   OPENED: "Opened",
   STARTED: "Upload started",
   SUBMITTED: "Submitted",
-  EXPIRED: "Expired",
+  ARCHIVED: "Archived",
   REVOKED: "Revoked",
+  EXPIRED: "Expired",
+  DELIVERY_FAILED: "Delivery failed",
 };
 
+// Delivery state dropdown — labels match the row DeliveryCell so the
+// operator never sees the dropdown say "Queued" while the row says
+// "Queued with provider". Single source of truth for verb tense.
 const DELIVERY_STATES = [
   "",
+  "NONE",
   "QUEUED",
   "SENT",
   "DELIVERED",
   "FAILED",
   "UNDELIVERED",
   "RETRY_SCHEDULED",
-  "NONE",
 ] as const;
 type DeliveryFilter = (typeof DELIVERY_STATES)[number];
 const DELIVERY_LABELS: Record<DeliveryFilter, string> = {
   "": "Any delivery state",
-  QUEUED: "Queued",
-  SENT: "Sent",
+  NONE: "Not sent",
+  QUEUED: "Queued with provider",
+  SENT: "Sent to provider",
   DELIVERED: "Delivered",
   FAILED: "Failed",
   UNDELIVERED: "Undelivered",
   RETRY_SCHEDULED: "Retry scheduled",
-  NONE: "Not sent yet",
 };
 
-const SORTS = [
-  "activity",
-  "created",
-  "expires",
-  "priority",
-  "recipient",
-] as const;
+// Sort dropdown — the brief mandates exactly three options:
+// "Latest activity / Created newest / Expiring soon".
+const SORTS = ["activity", "created", "expires"] as const;
 type Sort = (typeof SORTS)[number];
 const SORT_LABELS: Record<Sort, string> = {
   activity: "Latest activity",
   created: "Newest created",
-  expires: "Expires soonest",
-  priority: "Status priority",
-  recipient: "Recipient (A→Z)",
+  expires: "Expiring soon",
 };
 
 const PAGE_SIZES = [25, 50, 100] as const;
 
-// Lifecycle priority for the "status priority" sort. Lower = higher
-// urgency. SUBMITTED is parked low so finished work doesn't drown out
-// links that need operator attention.
-const LIFECYCLE_PRIORITY: Record<ConsoleLifecycle, number> = {
-  DELIVERY_FAILED: 0,
-  STARTED: 1,
-  OPENED: 2,
-  SENT: 3,
-  CREATED: 4,
-  SUBMITTED: 5,
-  EXPIRED: 6,
-  REVOKED: 7,
-};
-
-const LIFECYCLE_CHIP: Record<ConsoleLifecycle, { bg: string; fg: string; border: string }> = {
+// Row-badge palette. Two extras beyond ConsoleLifecycle:
+//   ARCHIVED — orthogonal to lifecycle; shown as the primary badge
+//   when link.archivedAtUtc is set, overriding the computed state so
+//   the operator never sees "Submitted" on a row that's been
+//   archived out of the active view.
+const LIFECYCLE_CHIP: Record<
+  ConsoleLifecycle | "ARCHIVED",
+  { bg: string; fg: string; border: string }
+> = {
   CREATED: { bg: "#f3f4f6", fg: "#374151", border: "#d1d5db" },
   SENT: { bg: "#dbeafe", fg: "#1e3a8a", border: "#93c5fd" },
   DELIVERY_FAILED: { bg: "#fef2f2", fg: "#991b1b", border: "#fca5a5" },
@@ -309,6 +310,7 @@ const LIFECYCLE_CHIP: Record<ConsoleLifecycle, { bg: string; fg: string; border:
   SUBMITTED: { bg: "#dcfce7", fg: "#166534", border: "#86efac" },
   EXPIRED: { bg: "#f3f4f6", fg: "#6b7280", border: "#d1d5db" },
   REVOKED: { bg: "#fee2e2", fg: "#7f1d1d", border: "#fca5a5" },
+  ARCHIVED: { bg: "#f5f3ff", fg: "#5b21b6", border: "#c4b5fd" },
 };
 
 // =============================================================================
@@ -325,49 +327,56 @@ function isRevoked(item: ConsoleItem): boolean {
 function isArchived(item: ConsoleItem): boolean {
   return Boolean(item.link.archivedAtUtc);
 }
-function needsAttention(item: ConsoleItem): boolean {
-  if (item.computedLifecycle === "DELIVERY_FAILED") return true;
-  if (
-    item.link.status === "ACTIVE" &&
-    !isArchived(item) &&
-    !isExpired(item) &&
-    isExpiringSoon(item.link.expiresAtUtc) &&
-    item.activity.sessionsSubmitted === 0
-  ) {
-    return true;
-  }
-  return false;
+function isFailedDelivery(item: ConsoleItem): boolean {
+  return item.computedLifecycle === "DELIVERY_FAILED";
 }
 function isSubmitted(item: ConsoleItem): boolean {
   return item.activity.sessionsSubmitted > 0;
 }
 
+// All / Active / Submitted / Failed / Archived / Closed are MUTUALLY
+// EXCLUSIVE tabs. Each tab is a pure predicate over the loaded items
+// array. Important rule: a row is in EXACTLY ONE bucket of the
+// default-view tabs (Archived overrides everything else if archived).
 function matchesTab(item: ConsoleItem, tab: Tab): boolean {
   if (tab === "all") return true;
   if (tab === "archived") return isArchived(item);
-  // Default-view tabs never include archived links — archive is its own tab.
+  // Archived rows are EXCLUDED from every other tab — Archived is the
+  // operator's own private "out of active rotation" bucket. The
+  // Archived tab is the only place they appear unless the operator
+  // explicitly sets lifecycle=ARCHIVED.
   if (isArchived(item)) return false;
   switch (tab) {
     case "active":
+      // Active = open for contributions: link status ACTIVE, not
+      // expired, not revoked. Submitted rows are still counted as
+      // Active until they expire or get revoked (the link can keep
+      // accepting more sessions if maxUses > 1).
       return (
         item.link.status === "ACTIVE" &&
         !isExpired(item) &&
         !isRevoked(item)
       );
-    case "needs_attention":
-      return needsAttention(item);
     case "submitted":
       return isSubmitted(item);
-    case "expiring_soon":
-      return (
-        item.link.status === "ACTIVE" &&
-        !isExpired(item) &&
-        !isRevoked(item) &&
-        isExpiringSoon(item.link.expiresAtUtc)
-      );
+    case "failed":
+      return isFailedDelivery(item);
     case "closed":
       return isExpired(item) || isRevoked(item);
   }
+}
+
+// Match the lifecycle dropdown filter against an item. ARCHIVED is
+// orthogonal to the computed state machine (it's a row metadata flag,
+// not a state), so it's checked separately. All other values match
+// the computedLifecycle directly.
+function matchesLifecycleFilter(
+  item: ConsoleItem,
+  lifecycle: LifecycleFilter,
+): boolean {
+  if (!lifecycle) return true;
+  if (lifecycle === "ARCHIVED") return isArchived(item);
+  return item.computedLifecycle === lifecycle;
 }
 
 // =============================================================================
@@ -376,37 +385,34 @@ function matchesTab(item: ConsoleItem, tab: Tab): boolean {
 // of which tab they're sitting on.
 // =============================================================================
 
+// Workspace-level metrics shown above the table. Each KPI maps to
+// exactly one tab so a KPI click is unambiguous — no overlapping
+// counts that produce confusion. `total` is informational (not
+// clickable as a filter; the All tab covers it). Archived links are
+// EXCLUDED from every count except `archived` and `total` so the
+// operator's "Active" reading is the true operational workload.
 function computeKpis(items: ConsoleItem[]) {
+  const total = items.length;
   let active = 0;
-  let sent = 0;
-  let opened = 0;
-  let started = 0;
   let submitted = 0;
-  let expiringSoon = 0;
+  let opened = 0;
   let failed = 0;
+  let archived = 0;
   let closed = 0;
   for (const it of items) {
-    if (isArchived(it)) continue;
-    if (it.link.status === "ACTIVE" && !isExpired(it) && !isRevoked(it)) active += 1;
-    const d = it.delivery.latestStatus;
-    if (d === "QUEUED" || d === "SENT" || d === "DELIVERED" || d === "RETRY_SCHEDULED") {
-      sent += 1;
+    if (isArchived(it)) {
+      archived += 1;
+      continue;
+    }
+    if (it.link.status === "ACTIVE" && !isExpired(it) && !isRevoked(it)) {
+      active += 1;
     }
     if (it.activity.sessionsOpened > 0) opened += 1;
-    if (it.activity.sessionsStarted > 0) started += 1;
     if (it.activity.sessionsSubmitted > 0) submitted += 1;
-    if (
-      it.link.status === "ACTIVE" &&
-      !isExpired(it) &&
-      !isRevoked(it) &&
-      isExpiringSoon(it.link.expiresAtUtc)
-    ) {
-      expiringSoon += 1;
-    }
     if (it.computedLifecycle === "DELIVERY_FAILED") failed += 1;
     if (isExpired(it) || isRevoked(it)) closed += 1;
   }
-  return { active, sent, opened, started, submitted, expiringSoon, failed, closed };
+  return { total, active, submitted, opened, failed, archived, closed };
 }
 
 // =============================================================================
@@ -422,8 +428,13 @@ export function IntakeLinksOperationsConsole(props: OperationsConsoleProps) {
   const initial = props.initialQuery ?? new URLSearchParams();
 
   const [q, setQ] = useState<string>(initial.get("q") ?? "");
+  // Default tab is "all" so the operator opens the console with the
+  // entire workspace visible. Per the strict-console brief, the
+  // previous "active" default was hiding archived / closed rows
+  // implicitly which made the row counts not add up against the KPI
+  // strip.
   const [tab, setTab] = useState<Tab>(
-    (clamp<Tab>(initial.get("tab") as Tab, TABS) ?? "active") as Tab,
+    (clamp<Tab>(initial.get("tab") as Tab, TABS) ?? "all") as Tab,
   );
   const [channel, setChannel] = useState<ChannelFilter>(
     (clamp<ChannelFilter>(initial.get("channel") as ChannelFilter, CHANNELS) ?? "") as ChannelFilter,
@@ -447,14 +458,14 @@ export function IntakeLinksOperationsConsole(props: OperationsConsoleProps) {
   });
   const [detailsLinkId, setDetailsLinkId] = useState<string | null>(null);
 
-  // Push state back into the URL whenever anything changes. Skipping
-  // empty values keeps the bar tidy ("/intake-links" stays clean when
-  // no filters are active).
+  // Push state back into the URL whenever anything changes. Skip
+  // values that match the default so a clean "/intake-links" URL
+  // (no params) always represents the canonical default view.
   useEffect(() => {
     if (!props.writeQuery) return;
     const next = new URLSearchParams();
     if (q.trim()) next.set("q", q.trim());
-    if (tab !== "active") next.set("tab", tab);
+    if (tab !== "all") next.set("tab", tab);
     if (channel) next.set("channel", channel);
     if (lifecycle) next.set("lifecycle", lifecycle);
     if (delivery) next.set("delivery", delivery);
@@ -472,14 +483,19 @@ export function IntakeLinksOperationsConsole(props: OperationsConsoleProps) {
 
   const kpis = useMemo(() => computeKpis(items), [items]);
 
-  // -- Filter + sort pipeline. Pure function of state → rows so a
-  //    refetch with the same filters renders the same view.
+  // Filter + sort pipeline. Pure function of state → rows.
+  // Strict AND across every dimension — no cross-dimension overrides.
+  // The previous lifecycle=ARCHIVED override is now handled at the
+  // dropdown change handler (handleLifecycleChange auto-syncs the
+  // tab), so by the time we reach this pipeline tab + lifecycle are
+  // always consistent and the operator never sees a stale "Active
+  // tab but viewing archived rows" view.
   const filtered = useMemo(() => {
     const qLower = q.trim().toLowerCase();
     return items.filter((it) => {
       if (!matchesTab(it, tab)) return false;
       if (channel && (it.delivery.latestChannel ?? "MANUAL") !== channel) return false;
-      if (lifecycle && it.computedLifecycle !== lifecycle) return false;
+      if (!matchesLifecycleFilter(it, lifecycle)) return false;
       if (delivery) {
         if (delivery === "NONE") {
           if (it.delivery.latestStatus !== null) return false;
@@ -515,22 +531,11 @@ export function IntakeLinksOperationsConsole(props: OperationsConsoleProps) {
         arr.sort((a, b) => b.link.createdAt.localeCompare(a.link.createdAt));
         break;
       case "expires":
+        // "Expiring soon" sort — closest expiry first. Already-expired
+        // rows still sort by their (past) expiry date, so the operator
+        // sees the freshly-expired ones at the top of the closed bucket.
         arr.sort((a, b) =>
           a.link.expiresAtUtc.localeCompare(b.link.expiresAtUtc),
-        );
-        break;
-      case "priority":
-        arr.sort(
-          (a, b) =>
-            LIFECYCLE_PRIORITY[a.computedLifecycle] -
-            LIFECYCLE_PRIORITY[b.computedLifecycle],
-        );
-        break;
-      case "recipient":
-        arr.sort((a, b) =>
-          (a.link.recipientLabel ?? a.link.recipientEmailPreview ?? "~").localeCompare(
-            b.link.recipientLabel ?? b.link.recipientEmailPreview ?? "~",
-          ),
         );
         break;
     }
@@ -542,21 +547,60 @@ export function IntakeLinksOperationsConsole(props: OperationsConsoleProps) {
   const pageStart = (pageClamped - 1) * pageSize;
   const visible = sorted.slice(pageStart, pageStart + pageSize);
 
+  // "Any filter active" against the canonical default (tab=all,
+  // every dropdown empty, sort=activity, search empty). Drives the
+  // Clear-filters button visibility AND the empty-state copy.
   const anyFilterActive =
     q.trim() !== "" ||
-    tab !== "active" ||
+    tab !== "all" ||
     channel !== "" ||
     lifecycle !== "" ||
     delivery !== "" ||
     sort !== "activity";
 
+  // Clear filters resets to the canonical default. Per brief:
+  //   tab=all, channel=any, lifecycle=any, delivery=any,
+  //   search="", sort=latest_activity (= "activity" internally).
   const clearFilters = () => {
     setQ("");
-    setTab("active");
+    setTab("all");
     setChannel("");
     setLifecycle("");
     setDelivery("");
     setSort("activity");
+  };
+
+  // KPI click handler. Every clickable KPI maps to exactly one tab.
+  // Clicking a KPI MUST clear conflicting secondary filters
+  // (lifecycle / delivery / channel) so the resulting view is
+  // unambiguous — otherwise a stale "delivery=FAILED" + tab=submitted
+  // combo could empty the table for no obvious reason.
+  const handleKpiClick = (targetTab: Tab) => {
+    setTab(targetTab);
+    setLifecycle("");
+    setDelivery("");
+    setChannel("");
+  };
+
+  // Lifecycle dropdown handler. Selecting ARCHIVED auto-switches the
+  // primary tab to "archived" so the operator never lands in the
+  // confusing "I'm on the Active tab but seeing archived rows"
+  // state. Selecting any other lifecycle on the Archived tab is
+  // also harmonised: switch back to All so the filter actually
+  // matches something (archived rows are excluded from non-Archived
+  // tabs by matchesTab).
+  const handleLifecycleChange = (next: LifecycleFilter) => {
+    setLifecycle(next);
+    if (next === "ARCHIVED" && tab !== "archived") {
+      setTab("archived");
+      return;
+    }
+    if (next !== "ARCHIVED" && next !== "" && tab === "archived") {
+      // Operator picked a non-archive lifecycle while sitting on the
+      // Archived tab — that combination is empty by definition.
+      // Move to All so the filter has rows to match.
+      setTab("all");
+    }
   };
 
   const handleArchive = useCallback(
@@ -585,21 +629,11 @@ export function IntakeLinksOperationsConsole(props: OperationsConsoleProps) {
       data-intake-links-operations-console="true"
       aria-label="Intake links operations console"
     >
-      {/* KPI strip */}
-      <KpiStrip
-        kpis={kpis}
-        onTab={(t) => setTab(t)}
-        onLifecycle={(l) => {
-          // Lifecycle KPIs (Upload started / Opened) reset the tab to
-          // "all" so the chosen lifecycle filter is the only narrowing
-          // dimension — otherwise the implicit "active" tab would hide
-          // any older OPENED/STARTED rows.
-          setTab("all");
-          setLifecycle(l);
-        }}
-        currentTab={tab}
-        currentLifecycle={lifecycle}
-      />
+      {/* KPI strip — 7 informational cards, each mapped to exactly
+          one tab. Clicking a card switches tab AND clears every
+          secondary filter (lifecycle/delivery/channel) so the
+          result set always matches what the KPI promised. */}
+      <KpiStrip kpis={kpis} onKpi={handleKpiClick} currentTab={tab} />
 
       {/* Search + filter chips */}
       <div style={controlsRowStyle} data-intake-links-controls>
@@ -627,7 +661,9 @@ export function IntakeLinksOperationsConsole(props: OperationsConsoleProps) {
         </select>
         <select
           value={lifecycle}
-          onChange={(e) => setLifecycle(e.target.value as LifecycleFilter)}
+          onChange={(e) =>
+            handleLifecycleChange(e.target.value as LifecycleFilter)
+          }
           aria-label="Filter by lifecycle"
           style={selectStyle}
           data-intake-links-filter-lifecycle
@@ -719,16 +755,23 @@ export function IntakeLinksOperationsConsole(props: OperationsConsoleProps) {
           <tbody>
             {visible.length === 0 ? (
               <tr>
-                <td colSpan={9} style={emptyRowStyle}>
-                  Nothing matches these filters. Try{" "}
+                <td
+                  colSpan={9}
+                  style={emptyRowStyle}
+                  data-intake-links-empty-state
+                >
+                  <div style={{ marginBottom: 12 }}>
+                    No intake links match these filters.
+                  </div>
                   <button
                     type="button"
                     onClick={clearFilters}
-                    style={inlineLinkStyle}
+                    style={emptyClearButtonStyle}
+                    data-intake-links-empty-clear
+                    disabled={!anyFilterActive}
                   >
-                    clearing them
+                    Clear filters
                   </button>
-                  .
                 </td>
               </tr>
             ) : (
@@ -833,100 +876,73 @@ export function IntakeLinksOperationsConsole(props: OperationsConsoleProps) {
 
 function KpiStrip({
   kpis,
-  onTab,
-  onLifecycle,
+  onKpi,
   currentTab,
-  currentLifecycle,
 }: {
   kpis: ReturnType<typeof computeKpis>;
-  onTab: (t: Tab) => void;
-  onLifecycle: (l: LifecycleFilter) => void;
+  onKpi: (t: Tab) => void;
   currentTab: Tab;
-  currentLifecycle: LifecycleFilter;
 }) {
-  // Every KPI is clickable. Some jump to a tab (Active, Submitted,
-  // Expiring soon, Failed delivery, Revoked/expired); the lifecycle
-  // ones (Upload started, Opened) set the lifecycle filter on the
-  // "all" tab so the operator can see every link in that state
-  // regardless of the surrounding "active" gate.
-  type Entry =
-    | { key: string; label: string; value: number; kind: "tab"; tab: Tab }
-    | {
-        key: string;
-        label: string;
-        value: number;
-        kind: "lifecycle";
-        lifecycle: Exclude<LifecycleFilter, "">;
-      };
+  // Strict-console KPI strip — 7 cards. Every card is either:
+  //   (a) actionable: maps to exactly ONE tab; clicking it switches
+  //       the tab AND clears conflicting secondary filters; OR
+  //   (b) informational: shows a count but is not clickable (no
+  //       hover, no aria-pressed, disabled). Used for counts that
+  //       don't have a clean 1:1 tab equivalent — clicking would
+  //       have to fall through to All, which misleads the operator
+  //       into thinking the click filtered when it didn't.
+  //
+  // "Total" is actionable → All (useful as a "reset to everything"
+  // shortcut).
+  // "Opened" is informational — there is no Opened tab and the
+  // brief explicitly forbids mapping it to All. A future "Opened"
+  // narrowing is available via the Lifecycle dropdown.
+  type Entry = {
+    key: string;
+    label: string;
+    value: number;
+  } & ({ kind: "tab"; tab: Tab } | { kind: "info" });
   const entries: Entry[] = [
+    { key: "total", label: "Total links", value: kpis.total, kind: "tab", tab: "all" },
     { key: "active", label: "Active", value: kpis.active, kind: "tab", tab: "active" },
-    {
-      key: "submitted",
-      label: "Submitted",
-      value: kpis.submitted,
-      kind: "tab",
-      tab: "submitted",
-    },
-    {
-      key: "started",
-      label: "Upload started",
-      value: kpis.started,
-      kind: "lifecycle",
-      lifecycle: "STARTED",
-    },
-    {
-      key: "opened",
-      label: "Opened",
-      value: kpis.opened,
-      kind: "lifecycle",
-      lifecycle: "OPENED",
-    },
-    {
-      key: "expiring_soon",
-      label: "Expiring soon",
-      value: kpis.expiringSoon,
-      kind: "tab",
-      tab: "expiring_soon",
-    },
-    {
-      key: "failed",
-      label: "Failed delivery",
-      value: kpis.failed,
-      kind: "tab",
-      tab: "needs_attention",
-    },
-    {
-      key: "closed",
-      label: "Revoked or expired",
-      value: kpis.closed,
-      kind: "tab",
-      tab: "closed",
-    },
+    { key: "submitted", label: "Submitted", value: kpis.submitted, kind: "tab", tab: "submitted" },
+    { key: "opened", label: "Opened", value: kpis.opened, kind: "info" },
+    { key: "failed", label: "Failed delivery", value: kpis.failed, kind: "tab", tab: "failed" },
+    { key: "archived", label: "Archived", value: kpis.archived, kind: "tab", tab: "archived" },
+    { key: "closed", label: "Revoked or expired", value: kpis.closed, kind: "tab", tab: "closed" },
   ];
   return (
     <ul style={kpiStripStyle} data-intake-links-kpis>
       {entries.map((e) => {
-        const isCurrent =
-          e.kind === "tab"
-            ? currentTab === e.tab
-            : currentLifecycle === e.lifecycle && currentTab === "all";
+        const isClickable = e.kind === "tab";
+        const isCurrent = isClickable && currentTab === e.tab;
         return (
           <li key={e.key}>
             <button
               type="button"
-              onClick={() =>
-                e.kind === "tab" ? onTab(e.tab) : onLifecycle(e.lifecycle)
-              }
+              disabled={!isClickable}
+              onClick={() => (isClickable ? onKpi(e.tab) : undefined)}
               style={{
                 ...kpiCardStyle,
-                cursor: "pointer",
+                cursor: isClickable ? "pointer" : "default",
                 borderColor: isCurrent ? "#1e40af" : "#e5e7eb",
                 boxShadow: isCurrent ? "0 0 0 2px #dbeafe" : "none",
+                // Informational cards are visually muted so the
+                // operator can tell at a glance that they're stats,
+                // not filter triggers.
+                opacity: isClickable ? 1 : 0.85,
               }}
               data-intake-links-kpi={e.key}
               data-intake-links-kpi-active={isCurrent ? "true" : "false"}
               data-intake-links-kpi-kind={e.kind}
-              aria-pressed={isCurrent}
+              data-intake-links-kpi-tab={isClickable ? e.tab : undefined}
+              aria-pressed={isClickable ? isCurrent : undefined}
+              aria-disabled={!isClickable}
+              title={
+                isClickable
+                  ? undefined
+                  : "Informational count — use the Lifecycle filter to narrow further."
+              }
             >
               <span style={kpiValueStyle}>{e.value}</span>
               <span style={kpiLabelStyle}>{e.label}</span>
@@ -934,12 +950,19 @@ function KpiStrip({
           </li>
         );
       })}
-      <li style={{ marginLeft: "auto", display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <li
+        style={{
+          marginLeft: "auto",
+          display: "flex",
+          gap: 6,
+          flexWrap: "wrap",
+        }}
+      >
         {TABS.map((t) => (
           <button
             key={t}
             type="button"
-            onClick={() => onTab(t)}
+            onClick={() => onKpi(t)}
             style={{
               ...tabPillStyle,
               backgroundColor: currentTab === t ? "#1e3a8a" : "#ffffff",
@@ -978,12 +1001,36 @@ function ConsoleRow({
   onOpenSubmissions: () => void;
 }) {
   const { link, delivery, activity, computedLifecycle } = item;
-  const chip = LIFECYCLE_CHIP[computedLifecycle];
   const isActive =
     link.status === "ACTIVE" &&
     computedLifecycle !== "EXPIRED" &&
     computedLifecycle !== "REVOKED";
   const archived = Boolean(link.archivedAtUtc);
+  // Primary badge: ARCHIVED wins over the computed lifecycle so an
+  // archived-and-revoked row reads "Archived" first (the operator
+  // archived it for a reason — that's the actionable state).
+  // Secondary badge: when archived, show the underlying state next
+  // to it so the operator can still see whether it was Revoked /
+  // Expired / Submitted etc. before being archived.
+  const primaryBadgeKind: ConsoleLifecycle | "ARCHIVED" = archived
+    ? "ARCHIVED"
+    : computedLifecycle;
+  const primaryChip = LIFECYCLE_CHIP[primaryBadgeKind];
+  const primaryLabel =
+    primaryBadgeKind === "ARCHIVED"
+      ? "Archived"
+      : (LIFECYCLE_LABELS[
+          primaryBadgeKind as Exclude<LifecycleFilter, "">
+        ] ?? primaryBadgeKind);
+  const showSecondaryBadge = archived && computedLifecycle !== "CREATED";
+  const secondaryChip = showSecondaryBadge
+    ? LIFECYCLE_CHIP[computedLifecycle]
+    : null;
+  const secondaryLabel = showSecondaryBadge
+    ? (LIFECYCLE_LABELS[
+        computedLifecycle as Exclude<LifecycleFilter, "">
+      ] ?? computedLifecycle)
+    : null;
   const channel = delivery.latestChannel ?? "MANUAL";
   const submissions = activity.sessionsSubmitted;
   const inProgress = activity.sessionsStarted - submissions;
@@ -1060,16 +1107,30 @@ function ConsoleRow({
         <span
           style={{
             ...chipBaseStyle,
-            backgroundColor: chip.bg,
-            color: chip.fg,
-            borderColor: chip.border,
+            backgroundColor: primaryChip.bg,
+            color: primaryChip.fg,
+            borderColor: primaryChip.border,
           }}
-          data-intake-links-row-lifecycle-chip={computedLifecycle}
+          data-intake-links-row-lifecycle-chip={primaryBadgeKind}
         >
-          {LIFECYCLE_LABELS[
-            computedLifecycle as Exclude<LifecycleFilter, "">
-          ] ?? computedLifecycle}
+          {primaryLabel}
         </span>
+        {secondaryChip && secondaryLabel ? (
+          <span
+            style={{
+              ...chipBaseStyle,
+              backgroundColor: secondaryChip.bg,
+              color: secondaryChip.fg,
+              borderColor: secondaryChip.border,
+              marginLeft: 6,
+              opacity: 0.75,
+            }}
+            data-intake-links-row-lifecycle-secondary={computedLifecycle}
+            title={`Underlying state: ${secondaryLabel}`}
+          >
+            {secondaryLabel}
+          </span>
+        ) : null}
       </td>
       <td style={tdStyle}>
         <DeliveryCell delivery={delivery} />
@@ -1699,14 +1760,17 @@ const emptyRowStyle: React.CSSProperties = {
   textAlign: "center",
   color: "#6b7280",
 };
-const inlineLinkStyle: React.CSSProperties = {
-  background: "none",
-  border: "none",
-  color: "#1d4ed8",
+// inlineLinkStyle retired — the empty-state now uses the standalone
+// emptyClearButtonStyle button below instead of an inline-link "try
+// clearing them" phrase.
+const emptyClearButtonStyle: React.CSSProperties = {
+  padding: "8px 16px",
+  border: "1px solid #d1d5db",
+  borderRadius: 6,
+  backgroundColor: "#ffffff",
+  fontSize: 14,
   cursor: "pointer",
-  textDecoration: "underline",
-  padding: 0,
-  fontSize: "inherit",
+  color: "#111827",
 };
 const rowTitleButtonStyle: React.CSSProperties = {
   background: "none",

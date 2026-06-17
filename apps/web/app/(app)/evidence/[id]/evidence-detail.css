@@ -479,6 +479,37 @@
   padding: 14px;
 }
 
+/* P0 fix — content-item cards are now <button> elements that select
+   which file the main preview renders. Reset the default button
+   chrome (alignment, font, cursor) so the card layout is unchanged
+   from the previous <div>, and add visible hover / focus / selected
+   states so the operator can see which file is currently in the
+   main preview above. */
+button.evidence-detail-item-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease,
+    background-color 120ms ease;
+}
+button.evidence-detail-item-card:hover {
+  border-color: rgba(15, 92, 86, 0.35);
+}
+button.evidence-detail-item-card:focus-visible {
+  outline: none;
+  border-color: var(--detail-teal, #0f5c56);
+  box-shadow: 0 0 0 3px rgba(15, 92, 86, 0.18);
+}
+.evidence-detail-item-card--selected,
+button.evidence-detail-item-card[aria-pressed="true"] {
+  border-color: var(--detail-teal, #0f5c56);
+  background: var(--detail-teal-soft, #e6f4f2);
+  box-shadow: 0 0 0 1px var(--detail-teal, #0f5c56) inset;
+}
+
 .evidence-detail-item-card p,
 .evidence-detail-signal-card p {
   margin: 6px 0 0;

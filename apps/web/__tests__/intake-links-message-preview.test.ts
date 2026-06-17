@@ -56,10 +56,17 @@ test("PLACEHOLDER_INTAKE_URL keeps the raw token out of the browser preview", ()
 test("Sender identity selector — renders three radios with stable data-attrs", () => {
   const src = read(PAGE);
   assert.match(src, /data-intake-link-sender-selector="true"/);
+  // Strict-UX brief converted the radios to card-style options
+  // rendered from a single `options` array — the data-attr is
+  // bound to `opt.value` instead of being a hardcoded literal.
+  // Pin: the dynamic binding exists AND each card carries a
+  // data-intake-link-sender-card={value} marker so e2e can still
+  // target each card by its enum value.
+  assert.match(src, /data-intake-link-sender-mode-radio=\{opt\.value\}/);
   for (const mode of ["PROOVRA", "WORKSPACE", "CUSTOM"]) {
     assert.ok(
-      src.includes(`data-intake-link-sender-mode-radio="${mode}"`),
-      `selector missing radio for "${mode}"`,
+      src.includes(`value: "${mode}"`),
+      `sender-identity options[] missing entry for "${mode}"`,
     );
   }
 });

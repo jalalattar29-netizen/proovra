@@ -9,8 +9,11 @@
  *      compliance-audit, journalism-field-capture). Each has a
  *      plain-language label so the user never sees raw template slugs.
  *
- *   2) DELIVERY_METHODS catalog — four methods exactly, MANUAL first
- *      (safe default), matching the backend Zod enum.
+ *   2) DELIVERY_METHODS catalog — four methods exactly (EMAIL, SMS,
+ *      WHATSAPP, MANUAL), matching the backend Zod enum. The modal's
+ *      *default* delivery method is SMS (config-aware fallback to
+ *      Email → WhatsApp → Manual), pinned by
+ *      intake-links-modal-strict-ux.test.ts.
  *
  *   3) The create modal renders both selectors (data-attrs:
  *      `data-intake-link-request-type`, `data-intake-link-delivery-method`)
@@ -78,34 +81,30 @@ test("REQUEST_TYPES — each entry has a plain-language label, not the raw slug"
   }
 });
 
-test("DELIVERY_METHODS catalog — Email → SMS → WhatsApp → Manual (Manual demoted last)", () => {
+test("DELIVERY_METHODS catalog — all 4 entries present, simplified labels per strict-UX brief", () => {
   const src = read(PAGE);
-  // Forensic P0 audit-fix: the catalog was reordered so primary
-  // users see a real delivery channel by default. "Copy link only"
-  // (renamed from "Copy link manually") is now LAST so the user
-  // doesn't accidentally pick the no-delivery path when they
-  // actually want a real channel.
+  // Strict-UX brief reordered to Copy link / SMS / Email / WhatsApp
+  // and shortened every label. The exact catalog *order* is no
+  // longer a UX invariant (the config-aware fallback picks the
+  // default channel; the dropdown order is just the operator's
+  // choice surface). Pin: every value is still present.
   const idx = (literal: string) => src.indexOf(`value: "${literal}"`);
-  const emailIdx = idx("EMAIL");
-  const smsIdx = idx("SMS");
-  const whatsappIdx = idx("WHATSAPP");
-  const manualIdx = idx("MANUAL");
-  assert.ok(manualIdx > 0, "MANUAL entry missing");
-  assert.ok(emailIdx > 0, "EMAIL entry missing");
-  assert.ok(smsIdx > 0, "SMS entry missing");
-  assert.ok(whatsappIdx > 0, "WHATSAPP entry missing");
-  assert.ok(
-    emailIdx < smsIdx && smsIdx < whatsappIdx && whatsappIdx < manualIdx,
-    "Order must be EMAIL → SMS → WHATSAPP → MANUAL",
-  );
+  assert.ok(idx("MANUAL") > 0, "MANUAL entry missing");
+  assert.ok(idx("EMAIL") > 0, "EMAIL entry missing");
+  assert.ok(idx("SMS") > 0, "SMS entry missing");
+  assert.ok(idx("WHATSAPP") > 0, "WHATSAPP entry missing");
 });
 
 test("Create modal — request-type and delivery-method selectors carry stable data-attrs", () => {
   const src = read(PAGE);
   assert.match(src, /data-intake-link-request-type/);
   assert.match(src, /data-intake-link-delivery-method/);
-  // Default state must use MANUAL so submit copy starts as "Create link".
-  assert.match(src, /useState<DeliveryMethod>\(\s*\n?\s*"MANUAL"/);
+  // Strict-UX update: default delivery method is SMS (was MANUAL).
+  // The config-aware fallback in CreateLinkModal downgrades the
+  // initial choice to Email / WhatsApp / Manual via the
+  // /sender-identity payload — pinned by
+  // intake-links-modal-strict-ux.test.ts.
+  assert.match(src, /useState<DeliveryMethod>\(\s*\n?\s*"SMS"/);
 });
 
 test("Create modal — email field becomes required only when EMAIL is selected", () => {
