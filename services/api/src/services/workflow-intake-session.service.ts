@@ -60,6 +60,12 @@ export type WorkflowIntakeSessionErrorCode =
   | "link_revoked"
   | "link_expired"
   | "link_exhausted"
+  // ONE_TIME link reopened after the contributor already submitted.
+  // Distinguished from `link_exhausted` so the public page can render
+  // a friendly "you already submitted" completion message instead of
+  // a generic "this link no longer works" error. Triggered when
+  // usedCount >= 1 AND maxUses === 1 AND link.status === EXPIRED.
+  | "link_already_submitted"
   | "session_not_found"
   | "session_link_mismatch"
   | "session_expired"
@@ -119,6 +125,17 @@ export async function validateIntakeToken(
     throw new WorkflowIntakeSessionError("link_expired");
   }
   if (link.usedCount >= link.maxUses) {
+    // Distinguish "already submitted" (the common, friendly case for
+    // ONE_TIME links a contributor reopens) from generic exhaustion.
+    // ONE_TIME links by convention have maxUses === 1; once submitted
+    // their usedCount is 1 and status flips to EXPIRED in the
+    // `transitionIntakeSession → SUBMITTED` block. Surfacing this as
+    // its own error lets the public page render a "Submission
+    // completed" read-only screen instead of a hostile "link expired"
+    // message.
+    if (link.maxUses === 1 && link.usedCount >= 1) {
+      throw new WorkflowIntakeSessionError("link_already_submitted");
+    }
     throw new WorkflowIntakeSessionError("link_exhausted");
   }
 

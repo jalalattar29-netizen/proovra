@@ -105,9 +105,25 @@ const SubmitLocationBody = z
   .strict()
   .optional();
 
+// Contributor device-clock context. Every field is optional and
+// sanitised server-side (see @proovra/shared client-signals helpers)
+// before persistence — clock skew, malformed strings, and absurd
+// offsets are dropped silently. The only field that ends up on the
+// Evidence row is `deviceTimeIso`, which matches the same column
+// Capture writes; intake-link and Capture display identically.
+const SubmitDeviceTimeBody = z
+  .object({
+    deviceTimeIso: z.string().max(64).optional(),
+    timezone: z.string().max(64).optional(),
+    timezoneOffsetMinutes: z.number().int().gte(-1440).lte(1440).optional(),
+  })
+  .strict()
+  .optional();
+
 const SubmitBody = z
   .object({
     location: SubmitLocationBody,
+    deviceTime: SubmitDeviceTimeBody,
   })
   .strict()
   .optional();
@@ -352,6 +368,8 @@ function friendlyPublicIntakeMessage(code: string): string {
       return "Sharing your location is required for this request. Allow location in your browser and try again, or contact the sender if location isn't available on your device.";
     case "INVALID_LOCATION_BODY":
       return "Location details look malformed. Skip sharing location or try again.";
+    case "LINK_ALREADY_SUBMITTED":
+      return "This upload link has already been used. Your earlier submission was received — there is nothing more for you to do here. Contact the sender if you need to send additional files.";
     default:
       return "Something went wrong. Please try again or contact the sender.";
   }
@@ -394,6 +412,19 @@ function intakeErrorToReply(
         error: {
           code: "LINK_NO_LONGER_AVAILABLE",
           message: friendly("LINK_NO_LONGER_AVAILABLE"),
+        },
+      });
+      return;
+    case "link_already_submitted":
+      // 410 (Gone) is the correct status: the resource (this token
+      // as a submission slot) has been intentionally retired. A
+      // distinct error code lets the public page render a friendly
+      // "Submission completed" read-only state instead of a hostile
+      // "link no longer available" message.
+      reply.code(410).send({
+        error: {
+          code: "LINK_ALREADY_SUBMITTED",
+          message: friendly("LINK_ALREADY_SUBMITTED"),
         },
       });
       return;
@@ -585,6 +616,16 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           privateRole: z.string().max(120).nullable().optional(),
           privateNote: z.string().max(1000).nullable().optional(),
           durationMs: z.number().int().min(0).max(8 * 60 * 60 * 1000).nullable().optional(),
+          // Optional browser-provided folder context (only present
+          // when the contributor used a directory picker). The raw
+          // value passes through; sanitisation runs server-side via
+          // extractSafeTopLevelFolderName, which rejects anything
+          // that looks like an absolute OS path and strips
+          // everything but the top-level folder name. We never
+          // trust this string — display is gated through the
+          // sanitiser. Cap at 1024 chars so an exotic deep path
+          // doesn't get past the request-body limit.
+          webkitRelativePath: z.string().max(1024).nullable().optional(),
         })
         .parse(req.body ?? {});
 
@@ -680,6 +721,7 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           privateRole: body.privateRole ?? null,
           privateNote: body.privateNote ?? null,
           durationMs: body.durationMs ?? null,
+          webkitRelativePath: body.webkitRelativePath ?? null,
         });
 
         return reply.code(201).send({
@@ -809,7 +851,25 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
               source: parsedBody.location.source ?? null,
             }
           : null;
-        const result = await submitExternalIntake({ link, session, location });
+        // Device-time context — the contributor's browser clock at
+        // submit time. The orchestration layer sanitises again
+        // before persistence; this just carries the raw values
+        // through. We forward only when at least one field is
+        // present so the wire shape stays compact.
+        const deviceTime = parsedBody?.deviceTime
+          ? {
+              deviceTimeIso: parsedBody.deviceTime.deviceTimeIso ?? null,
+              timezone: parsedBody.deviceTime.timezone ?? null,
+              timezoneOffsetMinutes:
+                parsedBody.deviceTime.timezoneOffsetMinutes ?? null,
+            }
+          : null;
+        const result = await submitExternalIntake({
+          link,
+          session,
+          location,
+          deviceTime,
+        });
         return reply.code(200).send({
           session: projectIntakeSessionForExternalView(result.session),
           submissionId: result.evidenceId,

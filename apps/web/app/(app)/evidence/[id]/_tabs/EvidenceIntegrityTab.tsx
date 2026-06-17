@@ -36,6 +36,11 @@ import {
   type EvidenceDetailCtx,
 } from "./_lib";
 import { formatUserDateTime } from "../../../../../lib/date";
+import {
+  displayCaptureMethod,
+  displaySourceType,
+  shouldShowContextSignal,
+} from "../../../../../lib/evidence/source-display";
 
 export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const {
@@ -58,40 +63,95 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           />
         </div>
 
-        <KeyValueGrid
-          items={[
-            {
-              label: "Source type",
-              value: workspace.sourceContext.sourceType.replace(/_/g, " "),
-            },
-            { label: "Capture method", value: workspace.sourceContext.captureMethodLabel },
-            { label: "Device time", value: formatValue(workspace.sourceContext.deviceTimeIso) },
-            {
-              label: "Captured at",
-              value: formatValue(formatUserDateTime(workspace.sourceContext.capturedAtUtc)),
-            },
-            {
-              label: "Uploaded at",
-              value: formatValue(formatUserDateTime(workspace.sourceContext.uploadedAtUtc)),
-            },
-            {
-              label: "Location included",
-              value: workspace.sourceContext.locationIncluded ? "Included" : "Not included",
-            },
-            {
-              label: "Screenshot filename heuristic",
+        {(() => {
+          // Strict-honesty rule: a context card renders ONLY when
+          // PROOVRA has a real collected value. Missing or
+          // not-collected signals are HIDDEN entirely — no
+          // placeholder cards, no fallback copy, no summary row.
+          // If reviewers need to know what's missing, the answer
+          // is to collect it (or to not surface the signal until
+          // we do).
+          const sc = workspace.sourceContext;
+          const items: { label: string; value: string }[] = [];
+
+          // Source type — only push when the helper resolves to a real
+          // label. Both null sourceType and unknown captureMethod
+          // produce "Source not recorded", which we suppress.
+          const sourceTypeLabel = displaySourceType(
+            sc.sourceType,
+            sc.captureMethod,
+          );
+          if (sourceTypeLabel && sourceTypeLabel !== "Source not recorded") {
+            items.push({ label: "Source type", value: sourceTypeLabel });
+          }
+
+          // Capture method — same rule. "Capture method not recorded"
+          // is the helper's fallback for unknown enum values and is
+          // suppressed.
+          const captureMethodLabel = displayCaptureMethod(sc.captureMethod);
+          if (
+            captureMethodLabel &&
+            captureMethodLabel !== "Capture method not recorded"
+          ) {
+            items.push({ label: "Capture method", value: captureMethodLabel });
+          }
+
+          // Server-stamped timestamps. formatUserDateTime returns null
+          // when the input ISO is null; formatValue then returns the
+          // em-dash placeholder. We bypass formatValue and skip the
+          // row entirely when no timestamp exists.
+          const capturedAt = sc.capturedAtUtc
+            ? formatUserDateTime(sc.capturedAtUtc)
+            : null;
+          if (capturedAt) {
+            items.push({ label: "Captured at", value: capturedAt });
+          }
+          const uploadedAt = sc.uploadedAtUtc
+            ? formatUserDateTime(sc.uploadedAtUtc)
+            : null;
+          if (uploadedAt) {
+            items.push({ label: "Uploaded at", value: uploadedAt });
+          }
+
+          // Device time — only when the client actually sent one.
+          if (sc.deviceTimeIso) {
+            items.push({ label: "Device time", value: sc.deviceTimeIso });
+          }
+
+          // Location — only when we actually have it. The absence of
+          // the row IS the message; no placeholder card is rendered.
+          if (sc.locationIncluded) {
+            items.push({ label: "Location included", value: "Included" });
+          }
+
+          // Client signals — DETECTED / COLLECTED_FALSE only. Every
+          // NOT_COLLECTED / UNAVAILABLE state is hidden.
+          if (
+            shouldShowContextSignal(sc.clientSignalsSummary.screenshotLikeStatus)
+          ) {
+            items.push({
+              label: "Screenshot indicators",
               value: describeClientSignalState(
-                workspace.sourceContext.clientSignalsSummary.screenshotLikeStatus,
+                sc.clientSignalsSummary.screenshotLikeStatus,
               ),
-            },
-            {
-              label: "Folder path signal",
+            });
+          }
+          if (
+            shouldShowContextSignal(sc.clientSignalsSummary.folderPathStatus)
+          ) {
+            items.push({
+              label: "Folder path indicators",
               value: describeClientSignalState(
-                workspace.sourceContext.clientSignalsSummary.folderPathStatus,
+                sc.clientSignalsSummary.folderPathStatus,
               ),
-            },
-          ]}
-        />
+            });
+          }
+
+          // If a record has truly no collected context (e.g. a stub
+          // row), render nothing rather than an empty grid skeleton.
+          if (items.length === 0) return null;
+          return <KeyValueGrid items={items} />;
+        })()}
 
         {workspace.sourceCaptureLocation ? (
           <div className="evidence-detail-map-shell">

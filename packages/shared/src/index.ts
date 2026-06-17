@@ -708,6 +708,16 @@ export type {
 } from "./intake-link-location.js";
 
 export {
+  buildIntakeClientSignals,
+  extractSafeTopLevelFolderName,
+  isScreenshotLikeFileName,
+  sanitizeClientDeviceTimeIso,
+  sanitizeClientTimezone,
+  sanitizeClientTimezoneOffsetMinutes,
+} from "./client-signals.js";
+export type { IntakeClientSignals } from "./client-signals.js";
+
+export {
   COMMUNICATION_CHANNELS,
   COMMUNICATION_DIRECTIONS,
   COMMUNICATION_PROVIDERS,

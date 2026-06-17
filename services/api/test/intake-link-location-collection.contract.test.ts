@@ -135,7 +135,12 @@ describe("Intake Links — location collection contract", () => {
     assert.match(route, /SubmitBody\.parse\(req\.body \?\? \{\}\)/);
     assert.match(
       route,
-      /submitExternalIntake\(\{ link, session, location \}\)/,
+      // Pinned shape: link + session + location must always be
+      // forwarded. Sibling fields (e.g. deviceTime, added in a later
+      // phase) are allowed and don't invalidate this pin — the
+      // contract here is "the location triplet survives", not "no
+      // other fields exist".
+      /submitExternalIntake\(\{[\s\S]{0,200}link,[\s\S]{0,200}session,[\s\S]{0,200}location,/,
     );
   });
 

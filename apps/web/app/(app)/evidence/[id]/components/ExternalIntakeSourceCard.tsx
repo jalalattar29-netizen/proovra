@@ -64,12 +64,28 @@ type Summary = {
   };
 };
 
-type ReviewSummary = {
+// P0 bugfix — the reviewer-workflow GET/PATCH endpoints return the
+// shape produced by `toWorkflowSummary` in services/api/src/services/
+// evidence-review/reviewer-workflow.service.ts:
+//
+//   { available: boolean; workflow: { id, status, priority, ... } | null }
+//
+// Before this fix the card read `review?.status` directly, which was
+// always undefined (the actual status lives at `review.workflow.status`).
+// That made every button appear inert: the PATCH ran successfully, but
+// the local state used to drive the active-style + currentStatusLabel
+// never updated, so the UI never visibly reflected the change.
+type ReviewWorkflowDetails = {
+  id?: string | null;
   status?: string | null;
   priority?: string | null;
   assignedTo?: { id?: string; displayName?: string | null } | null;
   note?: string | null;
   updatedAt?: string | null;
+};
+type ReviewSummary = {
+  available: boolean;
+  workflow: ReviewWorkflowDetails | null;
 };
 
 // Legally-safe status labels. The on-the-wire status comes from the
@@ -139,10 +155,15 @@ export default function ExternalIntakeSourceCard({
     };
   }, [evidenceId, summary === null || summary === undefined]);
 
+  // Read status from the nested workflow object — see the type comment
+  // above for the response shape. Defaults to NOT_STARTED when no
+  // workflow row exists yet (first click creates it via PATCH).
+  const currentStatus = review?.workflow?.status ?? "NOT_STARTED";
   const currentStatusLabel = useMemo(() => {
-    const status = review?.status ?? "NOT_STARTED";
-    return STATUS_LABEL[status] ?? status;
-  }, [review?.status]);
+    return STATUS_LABEL[currentStatus] ?? currentStatus;
+  }, [currentStatus]);
+
+  const [savedFlashStatus, setSavedFlashStatus] = useState<string | null>(null);
 
   async function patchReviewStatus(nextStatus: string, note?: string) {
     setReviewBusy(true);
@@ -160,6 +181,11 @@ export default function ExternalIntakeSourceCard({
         },
       );
       setReview(res);
+      // Brief success flash next to the active label. Independent of
+      // the active-button style so a reviewer who clicked the same
+      // status twice still gets a visible "saved" confirmation.
+      setSavedFlashStatus(nextStatus);
+      setTimeout(() => setSavedFlashStatus(null), 2400);
     } catch (err) {
       const e = err as { message?: string };
       setReviewError(e?.message ?? "Could not update review status.");
@@ -222,25 +248,45 @@ export default function ExternalIntakeSourceCard({
       <div style={reviewSectionStyle}>
         <header style={{ marginBottom: 8 }}>
           <p style={mutedStyle}>Reviewer status</p>
-          <h4 style={subtitleStyle}>{currentStatusLabel}</h4>
+          <h4
+            style={subtitleStyle}
+            data-evidence-reviewer-current-status={currentStatus}
+          >
+            {currentStatusLabel}
+            {savedFlashStatus && savedFlashStatus === currentStatus ? (
+              <span
+                style={savedFlashStyle}
+                data-evidence-reviewer-saved-flash="true"
+              >
+                Saved
+              </span>
+            ) : null}
+          </h4>
         </header>
         {reviewError ? <div style={errorBoxStyle}>{reviewError}</div> : null}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {ACTIONABLE_STATUSES.map((s) => (
-            <button
-              key={s}
-              type="button"
-              style={
-                review?.status === s
-                  ? { ...statusButtonStyle, ...statusButtonActiveStyle }
-                  : statusButtonStyle
-              }
-              disabled={reviewBusy}
-              onClick={() => patchReviewStatus(s)}
-            >
-              {STATUS_LABEL[s] ?? s}
-            </button>
-          ))}
+          {ACTIONABLE_STATUSES.map((s) => {
+            const active = currentStatus === s;
+            return (
+              <button
+                key={s}
+                type="button"
+                style={
+                  active
+                    ? { ...statusButtonStyle, ...statusButtonActiveStyle }
+                    : statusButtonStyle
+                }
+                disabled={reviewBusy}
+                onClick={() => patchReviewStatus(s)}
+                data-evidence-reviewer-status-btn={s}
+                data-evidence-reviewer-status-active={active ? "true" : "false"}
+                aria-pressed={active}
+              >
+                {reviewBusy && savedFlashStatus === null ? "…" : ""}
+                {STATUS_LABEL[s] ?? s}
+              </button>
+            );
+          })}
         </div>
         <p style={{ ...mutedStyle, marginTop: 12, fontSize: 12 }}>
           Reviewer decisions are workflow status updates. They do not assert
@@ -345,6 +391,19 @@ const statusButtonActiveStyle: React.CSSProperties = {
   borderColor: "#0f172a",
   color: "#fff",
   fontWeight: 600,
+};
+const savedFlashStyle: React.CSSProperties = {
+  marginLeft: 10,
+  padding: "2px 8px",
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: 0.4,
+  textTransform: "uppercase",
+  color: "#065f46",
+  background: "#d1fae5",
+  border: "1px solid #6ee7b7",
+  borderRadius: 999,
+  verticalAlign: "middle",
 };
 const errorBoxStyle: React.CSSProperties = {
   marginBottom: 8,

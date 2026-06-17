@@ -1370,7 +1370,16 @@ function mapCaptureMethodLabel(
     case "IMPORTED_DOCUMENT":
       return "Imported document";
     case "MULTIPART_PACKAGE":
-      return "Multipart package";
+      // Renamed from the engineering term "Multipart package" to
+      // reviewer copy. The bytes/manifest are unchanged; this is
+      // display-only.
+      return "Multi-file submission";
+    case "EXTERNAL_INTAKE_UPLOAD":
+      // Phase 4 intake-link path. The contributor uploaded files
+      // through a one-time secure intake link (consent → upload →
+      // submit). Reviewer wording matches the contributor's
+      // experience.
+      return "Secure upload session";
     default:
       return "Capture method not recorded";
   }
@@ -4233,8 +4242,16 @@ function buildSourceContext(params: {
       (part) => readBooleanClientSignal(part.clientSignals, "locationIncluded") === true
     );
   const captureMethod = params.evidence.captureMethod ?? null;
+  // EXTERNAL_INTAKE_UPLOAD is checked FIRST so an intake-link record
+  // never falls through to "folder_upload" (when the contributor sent
+  // multiple files) or "unknown". The web-side `displaySourceType()`
+  // helper independently re-checks captureMethod so callers that
+  // don't read sourceType are still correct, but this keeps the raw
+  // server enum honest too.
   const sourceType =
-    folderPathPresent || captureMethod === prismaPkg.CaptureMethod.MULTIPART_PACKAGE
+    captureMethod === prismaPkg.CaptureMethod.EXTERNAL_INTAKE_UPLOAD
+      ? "external_intake"
+      : folderPathPresent || captureMethod === prismaPkg.CaptureMethod.MULTIPART_PACKAGE
       ? "folder_upload"
       : captureMethod === prismaPkg.CaptureMethod.SECURE_CAMERA
         ? "native_capture"

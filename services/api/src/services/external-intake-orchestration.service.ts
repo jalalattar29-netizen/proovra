@@ -57,6 +57,18 @@ import { appendCustodyEvent } from "./custody-events.service.js";
 import { transitionIntakeSession } from "./workflow-intake-session.service.js";
 import { linkResponseFromIntakeSession } from "./evidence-request.service.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
+// Client-signal helpers — server-side canonical source. The intake
+// path computes screenshotLike from the original filename on every
+// part create (we never trust a client-sent boolean), and the
+// folder-path sanitiser rejects anything that looks like an
+// absolute OS path so a malicious or buggy client cannot leak the
+// user's home directory.
+import {
+  buildIntakeClientSignals,
+  sanitizeClientDeviceTimeIso,
+  sanitizeClientTimezone,
+  sanitizeClientTimezoneOffsetMinutes,
+} from "@proovra/shared";
 // Phase T — propagate canonical template identity onto Evidence rows
 // minted via the external-intake path. The WorkflowIntakeLink already
 // snapshots the slug, version, and (when DB-backed) the template id at
@@ -119,6 +131,13 @@ export type AddExternalPartInput = SessionLinkPair & {
   privateRole?: string | null;
   privateNote?: string | null;
   durationMs?: number | null;
+  /**
+   * Browser-supplied `file.webkitRelativePath`. Only present when the
+   * contributor used a directory picker; the server sanitises this
+   * to a safe top-level folder name before persistence (full local
+   * paths are rejected). Never trusted verbatim.
+   */
+  webkitRelativePath?: string | null;
 };
 
 export type UpdateExternalPartMappingInput = SessionLinkPair & {
@@ -395,6 +414,22 @@ export async function addExternalEvidencePart(
   // is already taken.
   let part: DbEvidencePart;
   try {
+    // Server-computed clientSignals. Every intake-link part gets a
+    // fresh evaluation of the screenshot heuristic against its
+    // ORIGINAL filename — this is canonical, not advisory: the web
+    // page could omit (or lie about) the signal and the server's
+    // value is the one that lands in the audit trail.
+    //
+    // Folder path is included only when the helper extracts a
+    // non-null top-level folder name from the webkitRelativePath
+    // input. The sanitizer rejects absolute OS paths, traversal
+    // tokens, and anything that isn't relative; if the contributor
+    // didn't use a directory picker, the field is simply omitted.
+    const clientSignals = buildIntakeClientSignals({
+      originalFileName: fileName,
+      webkitRelativePath: input.webkitRelativePath ?? null,
+    });
+
     part = await client.evidencePart.create({
       data: {
         evidenceId: evidence.id,
@@ -408,6 +443,7 @@ export async function addExternalEvidencePart(
         privateNote: input.privateNote?.slice(0, 1000) ?? null,
         checklistStepId: input.checklistStepId?.slice(0, 120) ?? null,
         sourceLabel: "external_intake",
+        clientSignals: clientSignals as Prisma.InputJsonValue,
         // External submitter is not a User; uploadedByUserId tracks the
         // workspace admin who is the owner-of-record for traceability.
         uploadedByUserId: input.link.createdByUserId,
@@ -523,8 +559,23 @@ export type ExternalIntakeLocationInput = {
   source?: string | null;
 };
 
+/**
+ * Contributor device-clock context captured at submit time. Every
+ * field is loose; the orchestration layer sanitises each value via
+ * the shared helpers before persistence. The only field that
+ * survives onto Evidence is `deviceTimeIso`, which lands on the
+ * same column Capture writes — so the Evidence Detail page can
+ * read it once and render identically for either origin.
+ */
+export type ExternalIntakeDeviceTimeInput = {
+  deviceTimeIso?: string | null;
+  timezone?: string | null;
+  timezoneOffsetMinutes?: number | null;
+};
+
 export type SubmitExternalIntakeInput = SessionLinkPair & {
   location?: ExternalIntakeLocationInput | null;
+  deviceTime?: ExternalIntakeDeviceTimeInput | null;
 };
 
 export type SubmitExternalIntakeResult = {
@@ -706,6 +757,36 @@ export async function submitExternalIntake(
         accuracyMeters: coords.accuracyMeters,
         locationSource: "INTAKE_LINK_GEOLOCATION",
       },
+    });
+  }
+
+  // Device-time context. Sanitised through the shared helpers — the
+  // ISO string must be parseable + within sensible clock-skew, the
+  // timezone identifier must match the IANA character set. We only
+  // write deviceTimeIso onto Evidence (matching the column Capture
+  // already uses, so the Evidence Detail tab renders identically
+  // for either origin); timezone/offset are accepted for forward
+  // compatibility but not persisted because the column doesn't
+  // exist today and we promised "no schema changes" for this
+  // feature. Failure to sanitise => no write, no card, no error.
+  const cleanDeviceTimeIso = sanitizeClientDeviceTimeIso(
+    input.deviceTime?.deviceTimeIso ?? null,
+  );
+  // Reserved for future schema column. Sanitised so a malicious
+  // value can't slip through even if we one day add a `clientTimezone`
+  // field; eslint-disable kept narrow.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const cleanTimezone = sanitizeClientTimezone(
+    input.deviceTime?.timezone ?? null,
+  );
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const cleanOffset = sanitizeClientTimezoneOffsetMinutes(
+    input.deviceTime?.timezoneOffsetMinutes ?? null,
+  );
+  if (cleanDeviceTimeIso) {
+    await client.evidence.update({
+      where: { id: evidence.id },
+      data: { deviceTimeIso: cleanDeviceTimeIso },
     });
   }
 

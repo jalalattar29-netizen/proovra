@@ -92,6 +92,8 @@ function friendlyIntakeError(err: {
       "Sharing your location is required for this request. Allow location in your browser and try again, or contact the sender if location isn't available on your device.",
     INVALID_LOCATION_BODY:
       "Location details look malformed. Skip sharing location or try again.",
+    LINK_ALREADY_SUBMITTED:
+      "This upload link has already been used. Your earlier submission was received — there is nothing more for you to do here. Contact the sender if you need to send additional files.",
   };
   if (code && map[code]) return map[code];
   // Backend `message` (user-safe by contract) wins over a raw fallback.
@@ -271,6 +273,7 @@ export default function ExternalIntakePage({
   const [phase, setPhase] = useState<
     | "loading"
     | "error"
+    | "already_submitted"
     | "consent"
     | "upload"
     | "submitting"
@@ -303,6 +306,15 @@ export default function ExternalIntakePage({
       })
       .catch((err: { code?: string; message?: string }) => {
         if (cancelled) return;
+        // Friendly terminal state: this ONE_TIME link has been used.
+        // We route around the generic error UI to render a clear
+        // "Submission completed" read-only screen so the contributor
+        // is not confused by a "link expired" message after they
+        // successfully submitted.
+        if (err?.code === "LINK_ALREADY_SUBMITTED") {
+          setPhase("already_submitted");
+          return;
+        }
         setErrorMessage(friendlyIntakeError(err));
         setPhase("error");
       });
@@ -459,6 +471,17 @@ export default function ExternalIntakePage({
 
     const partIndex = parts.length;
     try {
+      // Browser folder-picker context. `webkitRelativePath` is the
+      // ONLY safe folder hint the browser exposes — it's relative
+      // (e.g. "VacationPhotos/IMG_0001.jpg"), never absolute. The
+      // server sanitises further and extracts only the top-level
+      // folder name. We never read or send any other path data.
+      const relativePath =
+        typeof (file as File & { webkitRelativePath?: string })
+          .webkitRelativePath === "string" &&
+        (file as File & { webkitRelativePath?: string }).webkitRelativePath
+          ? (file as File & { webkitRelativePath: string }).webkitRelativePath
+          : null;
       const res: {
         part: { id: string; partIndex: number };
         upload: { putUrl: string };
@@ -472,6 +495,10 @@ export default function ExternalIntakePage({
             mimeType: file.type || "application/octet-stream",
             originalFileName: file.name,
             checksumSha256Base64: checksum,
+            // Optional. Server treats null/missing identically;
+            // null is sent explicitly so the wire shape is stable
+            // and contract tests can pin it.
+            webkitRelativePath: relativePath,
           }),
         },
         { auth: false },
@@ -580,7 +607,33 @@ export default function ExternalIntakePage({
         }
         return { consentState: "NOT_REQUESTED" as const };
       })();
-      const submitBody = locationBody ? { location: locationBody } : {};
+      // Contributor device clock + timezone at submit time. Captured
+      // locally — never silently exfiltrated mid-session. The server
+      // re-sanitises everything (clock skew, malformed strings); we
+      // send the raw values and let the canonical helpers decide.
+      // Resolved IANA timezone is opt-in: Intl.DateTimeFormat is
+      // available on every supported browser but we wrap defensively
+      // in case a deeply locked-down build throws.
+      const deviceTimeBody = (() => {
+        try {
+          const now = new Date();
+          const tzName =
+            typeof Intl !== "undefined" &&
+            typeof Intl.DateTimeFormat === "function"
+              ? Intl.DateTimeFormat().resolvedOptions().timeZone
+              : null;
+          return {
+            deviceTimeIso: now.toISOString(),
+            timezone: tzName ?? null,
+            timezoneOffsetMinutes: now.getTimezoneOffset(),
+          };
+        } catch {
+          return null;
+        }
+      })();
+      const submitBody: Record<string, unknown> = {};
+      if (locationBody) submitBody.location = locationBody;
+      if (deviceTimeBody) submitBody.deviceTime = deviceTimeBody;
       const res: { session: SessionView; submissionId: string } = await apiFetch(
         `/v1/external-intake/${encodeURIComponent(token)}/sessions/${session.id}/submit`,
         {
@@ -679,13 +732,38 @@ export default function ExternalIntakePage({
 
   if (phase === "submitted") {
     return (
-      <main style={pageStyle}>
-        <h1 style={titleStyle}>Submission received</h1>
+      <main style={pageStyle} data-intake-phase="submitted">
+        <h1 style={titleStyle}>Submission completed</h1>
         <p style={paragraphStyle}>
           Thank you. Your evidence has been securely submitted. The workspace
           that issued this link will review the materials.
         </p>
         <p style={mutedStyle}>You may now close this window.</p>
+      </main>
+    );
+  }
+
+  if (phase === "already_submitted") {
+    // Friendly read-only state when a contributor re-opens a
+    // ONE_TIME link AFTER they have already submitted. No upload
+    // controls, no submit button — just confirmation that the
+    // earlier submission was received. Differs from `phase ===
+    // "submitted"` only in that we did not just transition (the
+    // user reopened the tab fresh), so we cannot show a brand-new
+    // submission reference; the submission already exists in the
+    // workspace's hands.
+    return (
+      <main style={pageStyle} data-intake-phase="already_submitted">
+        <h1 style={titleStyle}>Submission completed</h1>
+        <p style={paragraphStyle}>
+          This link has already been used to submit evidence. There is
+          nothing more for you to do here — your earlier submission was
+          received and the workspace can review it.
+        </p>
+        <p style={mutedStyle}>
+          If you need to send additional files, contact the sender for a
+          new upload link.
+        </p>
       </main>
     );
   }
@@ -825,9 +903,17 @@ export default function ExternalIntakePage({
             style={secondaryButtonStyle}
             onClick={() => fileInputRef.current?.click()}
             disabled={phase === "submitting"}
+            data-intake-add-files-btn="true"
           >
             Add files
           </button>
+          <p
+            style={{ ...mutedStyle, marginTop: 6, fontSize: 12 }}
+            data-intake-add-files-hint="true"
+          >
+            Tip: hold Cmd/Ctrl (desktop) or tap multiple thumbnails (mobile)
+            to add several files at once.
+          </p>
 
           {expectedSteps.length > 0 ? (
             <div style={{ marginTop: 16, marginBottom: 16 }}>
