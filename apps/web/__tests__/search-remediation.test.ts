@@ -185,7 +185,7 @@ test("Backfill script supports --include-cases for indexing Cases too", () => {
 });
 
 test("Backfill script logs indexed/skipped/failed counts per batch", () => {
-  assert.match(BACKFILL, /progress  scanned=/);
+  assert.match(BACKFILL, /progress {2}scanned=/);
   assert.match(BACKFILL, /indexed=/);
   assert.match(BACKFILL, /skipped=/);
   assert.match(BACKFILL, /failed=/);

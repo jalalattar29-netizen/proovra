@@ -95,7 +95,13 @@ describe("Pin 2 — service layer is orthogonal to revoke", () => {
     const src = read(SERVICE);
     const fnIdx = src.indexOf("export async function archiveWorkflowIntakeLink");
     assert.ok(fnIdx > 0, "archive service fn missing");
-    const end = src.indexOf("\n}\n", fnIdx);
+    // Find the function's closing brace. The literal "\n}\n" misses
+    // on CRLF-checked-out files (Windows working copies), where the
+    // pattern is "\r\n}\r\n". Use a regex anchored after fnIdx that
+    // accepts either line ending so the test works on every OS the
+    // repo is cloned onto.
+    const endMatch = src.slice(fnIdx).search(/\r?\n\}\r?\n/);
+    const end = endMatch === -1 ? -1 : fnIdx + endMatch + 2;
     const body = src.slice(fnIdx, end);
     assert.match(body, /archivedAtUtc: new Date\(\)/);
     assert.match(body, /archivedByUserId: input\.actorUserId/);
@@ -110,7 +116,13 @@ describe("Pin 2 — service layer is orthogonal to revoke", () => {
     const src = read(SERVICE);
     const fnIdx = src.indexOf("export async function unarchiveWorkflowIntakeLink");
     assert.ok(fnIdx > 0, "unarchive service fn missing");
-    const end = src.indexOf("\n}\n", fnIdx);
+    // Find the function's closing brace. The literal "\n}\n" misses
+    // on CRLF-checked-out files (Windows working copies), where the
+    // pattern is "\r\n}\r\n". Use a regex anchored after fnIdx that
+    // accepts either line ending so the test works on every OS the
+    // repo is cloned onto.
+    const endMatch = src.slice(fnIdx).search(/\r?\n\}\r?\n/);
+    const end = endMatch === -1 ? -1 : fnIdx + endMatch + 2;
     const body = src.slice(fnIdx, end);
     assert.match(body, /archivedAtUtc: null/);
     assert.match(body, /archivedByUserId: null/);

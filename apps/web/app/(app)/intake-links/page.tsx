@@ -51,6 +51,8 @@ import {
   resolveIntakeSenderDisplay,
   validateCustomSenderDisplayName,
   type IntakeSenderDisplayMode,
+  INTAKE_LINK_LOCATION_POLICY_OPTIONS,
+  type IntakeLinkLocationPolicy,
 } from "@proovra/shared";
 
 type SenderDisplayMode = IntakeSenderDisplayMode;
@@ -933,6 +935,80 @@ function SenderIdentitySelector({
   );
 }
 
+// Operator-facing card-radio for the per-link location-collection
+// policy. Mirrors the SenderIdentitySelector card-radio pattern so
+// the modal stays visually coherent. The shared
+// INTAKE_LINK_LOCATION_POLICY_OPTIONS list is the source of truth
+// for label/description copy, so any future tweak to the wording
+// happens in @proovra/shared and lights up everywhere at once.
+function LocationPolicySelector({
+  policy,
+  onChange,
+}: {
+  policy: IntakeLinkLocationPolicy;
+  onChange: (p: IntakeLinkLocationPolicy) => void;
+}) {
+  return (
+    <fieldset
+      style={senderFieldsetStyle}
+      data-intake-link-location-policy-selector="true"
+    >
+      <legend style={labelStyle}>Location collection</legend>
+      <div style={senderCardListStyle}>
+        {INTAKE_LINK_LOCATION_POLICY_OPTIONS.map((opt) => {
+          const selected = policy === opt.value;
+          return (
+            <label
+              key={opt.value}
+              style={{
+                ...senderCardStyle,
+                ...(selected ? senderCardSelectedStyle : {}),
+              }}
+              data-intake-link-location-card={opt.value}
+              data-intake-link-location-card-selected={
+                selected ? "true" : "false"
+              }
+            >
+              <input
+                type="radio"
+                name="intake-link-location-policy"
+                value={opt.value}
+                checked={selected}
+                onChange={() => onChange(opt.value)}
+                data-intake-link-location-radio={opt.value}
+                style={senderCardRadioStyle}
+              />
+              <span style={senderCardTextStyle}>
+                <span style={senderCardTitleStyle}>
+                  {opt.title}
+                  {opt.value === "OPTIONAL" ? (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: "#4f46e5",
+                        marginLeft: 6,
+                        fontWeight: 500,
+                      }}
+                    >
+                      Recommended
+                    </span>
+                  ) : null}
+                </span>
+                <span style={senderCardDescStyle}>{opt.description}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      <p style={{ ...mutedStyle, marginTop: 8 }}>
+        Location is collected by the contributor&apos;s browser only after
+        they tap Share. Coordinates are stored on the submitted evidence
+        and labelled as &ldquo;Contributor browser location&rdquo;.
+      </p>
+    </fieldset>
+  );
+}
+
 // Translates the `validateCustomSenderDisplayName` reason codes into
 // plain English shown under the input.
 function senderNameReasonCopy(reason: string): string {
@@ -1567,6 +1643,13 @@ function CreateLinkModal({
   const [senderDisplayName, setSenderDisplayName] = useState<string>("");
   const [senderNameError, setSenderNameError] = useState<string | null>(null);
 
+  // Intake-link location collection — operator-chosen policy for the
+  // contributor page. New links default to OPTIONAL ("ask but don't
+  // block"); the backend default for existing rows is NONE so legacy
+  // links stay quiet. The shared enum is the source of truth.
+  const [locationPolicy, setLocationPolicy] =
+    useState<IntakeLinkLocationPolicy>("OPTIONAL");
+
   // Sender-identity (transport) — populated by the
   // /v1/workflow/intake-links/sender-identity fetch. Used by the
   // preview studio to show "Email goes via PROOVRA <no-reply@…>"
@@ -1769,6 +1852,7 @@ function CreateLinkModal({
         senderDisplayMode,
         senderDisplayName:
           senderDisplayMode === "CUSTOM" ? senderDisplayName.trim() : null,
+        locationPolicy,
       };
 
       const res: CreatedResult = await apiFetch("/v1/workflow/intake-links", {
@@ -1964,6 +2048,11 @@ function CreateLinkModal({
             setSenderDisplayName(n);
             setSenderNameError(null);
           }}
+        />
+
+        <LocationPolicySelector
+          policy={locationPolicy}
+          onChange={setLocationPolicy}
         />
 
         <label style={labelStyle}>Recipient label (optional)</label>

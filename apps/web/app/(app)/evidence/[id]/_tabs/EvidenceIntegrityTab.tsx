@@ -99,6 +99,7 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
               lat={workspace.sourceCaptureLocation.lat ?? 0}
               lng={workspace.sourceCaptureLocation.lng ?? 0}
               accuracyMeters={workspace.sourceCaptureLocation.accuracyMeters}
+              sourceLabel={workspace.sourceCaptureLocation.source}
             />
             <p className="evidence-detail-muted">{workspace.sourceCaptureLocation.legalBoundary}</p>
           </div>

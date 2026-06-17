@@ -79,15 +79,20 @@ describe("Pin 1 — strict default: tab=all", () => {
   });
 });
 
-describe("Pin 2 — exactly 6 mutually-exclusive tabs", () => {
-  it("TABS array enumerates all / active / submitted / failed / archived / closed (and nothing else)", () => {
+describe("Pin 2 — exactly 7 mutually-exclusive tabs (one per KPI card)", () => {
+  it("TABS array enumerates all / active / submitted / opened / failed / archived / closed (and nothing else)", () => {
     const src = read(CONSOLE);
     const m = src.match(/const TABS = \[([\s\S]*?)\] as const;/);
     assert.ok(m, "TABS array not found");
+    // Duplicate-tab-row removal turned every KPI card into the
+    // sole filter trigger — `opened` joined the tab union so the
+    // Opened KPI can drive a real filter (it was previously
+    // informational-only). All 7 tabs map 1:1 with KPI cards.
     const expected = [
       '"all"',
       '"active"',
       '"submitted"',
+      '"opened"',
       '"failed"',
       '"archived"',
       '"closed"',
@@ -113,6 +118,7 @@ describe("Pin 2 — exactly 6 mutually-exclusive tabs", () => {
     for (const tag of [
       'case "active":',
       'case "submitted":',
+      'case "opened":',
       'case "failed":',
       'case "closed":',
     ]) {
@@ -169,21 +175,25 @@ describe("Pin 3 — KPI strip = 7 cards, each maps to one tab, click clears conf
     }
   });
 
-  it('every KPI entry is either kind:"tab" (clickable) or kind:"info" (informational)', () => {
+  it("every KPI entry maps to exactly one tab — no informational-only or lifecycle-mutating entries", () => {
     const src = read(CONSOLE);
-    // The old "kind: lifecycle" entries that set the lifecycle
-    // dropdown from a KPI click are gone — strict model says KPIs
-    // never silently mutate secondary filters; they either switch
-    // a tab (kind:tab) or are informational (kind:info).
+    // After the duplicate-tab-row removal, every KPI card became
+    // a real filter trigger. There is no kind:"info" anymore (the
+    // Opened KPI now drives tab="opened"), and no kind:"lifecycle"
+    // (those were retired earlier — KPIs never silently mutate
+    // secondary filters).
     assert.ok(
       !/kind:\s*"lifecycle"/.test(src),
-      "KPI strip must not have lifecycle-kind entries (strict-model rule)",
+      "KPI strip must not have lifecycle-kind entries",
     );
-    // The Opened entry MUST be informational — it has no
-    // corresponding tab and the brief forbids mapping it to tab=all.
+    assert.ok(
+      !/kind:\s*"info"/.test(src),
+      "KPI strip must not have info-kind entries — every card is a real filter now",
+    );
+    // The Opened entry now maps to tab="opened" (was kind:"info").
     assert.match(
       src,
-      /key:\s*"opened",[\s\S]{0,150}kind:\s*"info"/,
+      /key:\s*"opened",[\s\S]{0,200}tab:\s*"opened"/,
     );
   });
 
@@ -366,32 +376,82 @@ describe("Pin 12 — DeliveryCell honesty + 63016 mapping preserved", () => {
   });
 });
 
-describe("Pin 13 — Opened KPI is informational, not a misleading tab=all shortcut", () => {
-  it('the Opened entry uses kind:"info" so it renders as a non-clickable stat', () => {
+describe("Pin 13 — Opened KPI is a real filter (tab=opened), not informational and not tab=all", () => {
+  it('the Opened entry maps to tab:"opened" — the real filter the brief required', () => {
     const src = read(CONSOLE);
     assert.match(
       src,
-      /key:\s*"opened",[\s\S]{0,200}kind:\s*"info"/,
+      /key:\s*"opened",[\s\S]{0,200}tab:\s*"opened"/,
     );
-    // No leftover tab assignment that would silently set tab=all
-    // when the operator clicks Opened.
+    // It MUST NOT silently fall through to tab=all (the original
+    // bug) and MUST NOT be informational anymore (the duplicate-
+    // tab-row removal made every KPI a real filter).
     assert.ok(
       !/key:\s*"opened"[\s\S]{0,200}tab:\s*"all"/.test(src),
-      "Opened KPI must NOT map to tab=all (brief: forbidden)",
+      "Opened KPI must NOT map to tab=all (would mislead the operator)",
+    );
+    assert.ok(
+      !/key:\s*"opened"[\s\S]{0,200}kind:\s*"info"/.test(src),
+      "Opened KPI must NOT be informational — it's a real filter now",
     );
   });
 
-  it("the render branch disables informational entries (no click handler fires, no aria-pressed)", () => {
+  it("matchesTab handles tab='opened' via the same predicate as the KPI count (activity.sessionsOpened > 0)", () => {
     const src = read(CONSOLE);
-    assert.match(src, /const isClickable = e\.kind === "tab"/);
-    assert.match(src, /disabled=\{!isClickable\}/);
     assert.match(
       src,
-      /onClick=\{\(\) => \(isClickable \? onKpi\(e\.tab\) : undefined\)\}/,
+      /case "opened":[\s\S]{0,400}item\.activity\.sessionsOpened > 0/,
     );
-    // Informational stats carry data-intake-links-kpi-kind="info"
-    // so a future e2e test can distinguish them from tab triggers.
-    assert.match(src, /data-intake-links-kpi-kind=\{e\.kind\}/);
+  });
+
+  it("every KPI card is clickable now (no disabled / aria-disabled left in the render branch)", () => {
+    const src = read(CONSOLE);
+    // The render is a single onClick → onKpi(e.tab); no isClickable
+    // gate, no disabled attribute, no aria-disabled.
+    assert.match(src, /onClick=\{\(\) => onKpi\(e\.tab\)\}/);
+    assert.ok(
+      !/disabled=\{!isClickable\}/.test(src),
+      "no leftover disabled={!isClickable} (every KPI is a real filter)",
+    );
+  });
+});
+
+describe("Pin 15 — duplicate tab-pill row removed (KPI cards are the only primary filter)", () => {
+  it("the KpiStrip body has no <button data-intake-links-tab> pills next to the cards", () => {
+    const src = read(CONSOLE);
+    // The duplicate row used to render a TABS.map(...) block of
+    // tab pills inside KpiStrip, each tagged with data-intake-
+    // links-tab. That entire block was deleted.
+    assert.ok(
+      !/data-intake-links-tab=/.test(src),
+      "duplicate tab-pill row must be removed — only data-intake-links-kpi-tab on the cards remains",
+    );
+  });
+
+  it("TAB_LABELS constant is retired (the labels live inline on the KPI entries now)", () => {
+    const src = read(CONSOLE);
+    assert.ok(
+      !/const TAB_LABELS:/.test(src),
+      "TAB_LABELS constant must be removed — KPI entries carry their own labels",
+    );
+  });
+
+  it("tabPillStyle is retired with the row it styled", () => {
+    const src = read(CONSOLE);
+    assert.ok(
+      !/^const tabPillStyle:/m.test(src),
+      "tabPillStyle constant must be removed (dead CSS)",
+    );
+  });
+
+  it("KpiStrip props no longer accept the now-deleted tab pill renderer", () => {
+    const src = read(CONSOLE);
+    // The strip exposes only kpis / onKpi / currentTab — no
+    // separate onTab handler split from the KPI click handler.
+    assert.match(
+      src,
+      /function KpiStrip\(\{\s*\n?\s*kpis,\s*\n?\s*onKpi,\s*\n?\s*currentTab,\s*\n?\s*\}/,
+    );
   });
 });
 

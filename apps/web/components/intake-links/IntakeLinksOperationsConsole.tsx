@@ -200,20 +200,18 @@ const TABS = [
   "all",
   "active",
   "submitted",
+  "opened",
   "failed",
   "archived",
   "closed",
 ] as const;
 type Tab = (typeof TABS)[number];
 
-const TAB_LABELS: Record<Tab, string> = {
-  all: "All",
-  active: "Active",
-  submitted: "Submitted",
-  failed: "Failed delivery",
-  archived: "Archived",
-  closed: "Revoked or expired",
-};
+// TAB_LABELS retired — the duplicate tab-pill row that consumed it
+// was removed. KPI card labels live inline in the KpiStrip entries
+// array now (one source of truth for what each filter is called).
+// The Tab type and the matchesTab predicate are still the single
+// source of truth for what each tab MEANS.
 
 const CHANNELS = ["", "EMAIL", "SMS", "WHATSAPP", "MANUAL"] as const;
 type ChannelFilter = (typeof CHANNELS)[number];
@@ -359,6 +357,11 @@ function matchesTab(item: ConsoleItem, tab: Tab): boolean {
       );
     case "submitted":
       return isSubmitted(item);
+    case "opened":
+      // Same predicate the Opened KPI count uses — rows where at
+      // least one contributor opened the link (regardless of
+      // whether they finished submitting).
+      return item.activity.sessionsOpened > 0;
     case "failed":
       return isFailedDelivery(item);
     case "closed":
@@ -883,66 +886,47 @@ function KpiStrip({
   onKpi: (t: Tab) => void;
   currentTab: Tab;
 }) {
-  // Strict-console KPI strip — 7 cards. Every card is either:
-  //   (a) actionable: maps to exactly ONE tab; clicking it switches
-  //       the tab AND clears conflicting secondary filters; OR
-  //   (b) informational: shows a count but is not clickable (no
-  //       hover, no aria-pressed, disabled). Used for counts that
-  //       don't have a clean 1:1 tab equivalent — clicking would
-  //       have to fall through to All, which misleads the operator
-  //       into thinking the click filtered when it didn't.
-  //
-  // "Total" is actionable → All (useful as a "reset to everything"
-  // shortcut).
-  // "Opened" is informational — there is no Opened tab and the
-  // brief explicitly forbids mapping it to All. A future "Opened"
-  // narrowing is available via the Lifecycle dropdown.
+  // Strict-console KPI strip — 7 cards, every card maps to exactly
+  // one tab and is the ONLY primary filter surface (the duplicate
+  // tab pill row that used to sit next to the cards was removed
+  // because it surfaced the same tabs twice). Clicking a KPI
+  // switches the tab AND clears conflicting secondary filters
+  // (lifecycle / delivery / channel) so the result set always
+  // matches what the card promised.
   type Entry = {
     key: string;
     label: string;
     value: number;
-  } & ({ kind: "tab"; tab: Tab } | { kind: "info" });
+    tab: Tab;
+  };
   const entries: Entry[] = [
-    { key: "total", label: "Total links", value: kpis.total, kind: "tab", tab: "all" },
-    { key: "active", label: "Active", value: kpis.active, kind: "tab", tab: "active" },
-    { key: "submitted", label: "Submitted", value: kpis.submitted, kind: "tab", tab: "submitted" },
-    { key: "opened", label: "Opened", value: kpis.opened, kind: "info" },
-    { key: "failed", label: "Failed delivery", value: kpis.failed, kind: "tab", tab: "failed" },
-    { key: "archived", label: "Archived", value: kpis.archived, kind: "tab", tab: "archived" },
-    { key: "closed", label: "Revoked or expired", value: kpis.closed, kind: "tab", tab: "closed" },
+    { key: "total", label: "Total links", value: kpis.total, tab: "all" },
+    { key: "active", label: "Active", value: kpis.active, tab: "active" },
+    { key: "submitted", label: "Submitted", value: kpis.submitted, tab: "submitted" },
+    { key: "opened", label: "Opened", value: kpis.opened, tab: "opened" },
+    { key: "failed", label: "Failed delivery", value: kpis.failed, tab: "failed" },
+    { key: "archived", label: "Archived", value: kpis.archived, tab: "archived" },
+    { key: "closed", label: "Revoked or expired", value: kpis.closed, tab: "closed" },
   ];
   return (
     <ul style={kpiStripStyle} data-intake-links-kpis>
       {entries.map((e) => {
-        const isClickable = e.kind === "tab";
-        const isCurrent = isClickable && currentTab === e.tab;
+        const isCurrent = currentTab === e.tab;
         return (
           <li key={e.key}>
             <button
               type="button"
-              disabled={!isClickable}
-              onClick={() => (isClickable ? onKpi(e.tab) : undefined)}
+              onClick={() => onKpi(e.tab)}
               style={{
                 ...kpiCardStyle,
-                cursor: isClickable ? "pointer" : "default",
+                cursor: "pointer",
                 borderColor: isCurrent ? "#1e40af" : "#e5e7eb",
                 boxShadow: isCurrent ? "0 0 0 2px #dbeafe" : "none",
-                // Informational cards are visually muted so the
-                // operator can tell at a glance that they're stats,
-                // not filter triggers.
-                opacity: isClickable ? 1 : 0.85,
               }}
               data-intake-links-kpi={e.key}
               data-intake-links-kpi-active={isCurrent ? "true" : "false"}
-              data-intake-links-kpi-kind={e.kind}
-              data-intake-links-kpi-tab={isClickable ? e.tab : undefined}
-              aria-pressed={isClickable ? isCurrent : undefined}
-              aria-disabled={!isClickable}
-              title={
-                isClickable
-                  ? undefined
-                  : "Informational count — use the Lifecycle filter to narrow further."
-              }
+              data-intake-links-kpi-tab={e.tab}
+              aria-pressed={isCurrent}
             >
               <span style={kpiValueStyle}>{e.value}</span>
               <span style={kpiLabelStyle}>{e.label}</span>
@@ -950,33 +934,6 @@ function KpiStrip({
           </li>
         );
       })}
-      <li
-        style={{
-          marginLeft: "auto",
-          display: "flex",
-          gap: 6,
-          flexWrap: "wrap",
-        }}
-      >
-        {TABS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => onKpi(t)}
-            style={{
-              ...tabPillStyle,
-              backgroundColor: currentTab === t ? "#1e3a8a" : "#ffffff",
-              color: currentTab === t ? "#ffffff" : "#1f2937",
-              borderColor: currentTab === t ? "#1e3a8a" : "#d1d5db",
-            }}
-            data-intake-links-tab={t}
-            data-intake-links-tab-active={currentTab === t ? "true" : "false"}
-            aria-pressed={currentTab === t}
-          >
-            {TAB_LABELS[t]}
-          </button>
-        ))}
-      </li>
     </ul>
   );
 }
@@ -1876,13 +1833,10 @@ const kpiLabelStyle: React.CSSProperties = {
   color: "#6b7280",
   marginTop: 2,
 };
-const tabPillStyle: React.CSSProperties = {
-  padding: "6px 12px",
-  borderRadius: 999,
-  border: "1px solid",
-  fontSize: 13,
-  cursor: "pointer",
-};
+// tabPillStyle retired — the duplicate tab-pill row that sat next to
+// the KPI cards was removed. KPI cards are now the only primary
+// filter surface; secondary narrowing happens via the Search /
+// Channel / Lifecycle / Delivery / Sort dropdowns below.
 const paginationRowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",

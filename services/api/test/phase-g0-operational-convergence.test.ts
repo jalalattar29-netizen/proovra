@@ -131,6 +131,13 @@ describe("Phase G0 (B.1) — sidebar uses Phase B canonical hierarchy", () => {
 // ===========================================================================
 
 describe("Phase G0 (B.2) — OperationalBreadcrumb mounted on nested pages", () => {
+  // Intake Links was intentionally removed from this list during the
+  // strict-UX modal-copy cleanup — the breadcrumb row ("Workspace ›
+  // Intake links") above the H1 was visual clutter that duplicated
+  // the page title and pushed the primary CTA below the fold on
+  // narrow viewports. The breadcrumb component itself is still in
+  // use on every other nested page; this is a page-specific opt-out,
+  // not a global removal.
   const PAGES: Array<{ name: string; rel: string }> = [
     {
       name: "Matter Workspace",
@@ -149,10 +156,6 @@ describe("Phase G0 (B.2) — OperationalBreadcrumb mounted on nested pages", () 
       rel: "../../../apps/web/app/(app)/governance/retention/page.tsx",
     },
     {
-      name: "Intake links",
-      rel: "../../../apps/web/app/(app)/intake-links/page.tsx",
-    },
-    {
       name: "Canonical /workspaces",
       rel: "../../../apps/web/app/(app)/workspaces/page.tsx",
     },
@@ -164,6 +167,20 @@ describe("Phase G0 (B.2) — OperationalBreadcrumb mounted on nested pages", () 
       expect(src).toMatch(/<OperationalBreadcrumb/);
     });
   }
+
+  it("Intake links page does NOT mount OperationalBreadcrumb (intentional opt-out for UX cleanup)", () => {
+    // Inverse regression pin — a future refactor that "puts the
+    // breadcrumb back to match every other page" would re-introduce
+    // the visual clutter the strict-UX brief removed. Lock the
+    // exception in place. The companion pin in
+    // apps/web/__tests__/intake-links-modal-strict-ux.test.ts (Pin
+    // 1) covers the same invariant from the web side.
+    const src = readSource(
+      "../../../apps/web/app/(app)/intake-links/page.tsx",
+    );
+    expect(src).not.toMatch(/<OperationalBreadcrumb/);
+    expect(src).not.toMatch(/import\s*\{\s*OperationalBreadcrumb\s*\}/);
+  });
 });
 
 // ===========================================================================

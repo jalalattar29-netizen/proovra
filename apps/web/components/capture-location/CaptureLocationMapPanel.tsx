@@ -13,6 +13,16 @@ type CaptureLocationMapPanelProps = {
   addToast?: (message: string, type: "success" | "info" | "error" | "warning") => void;
   height?: number;
   rounded?: number;
+  /**
+   * Optional source-label override. When omitted, the panel renders
+   * the historical "Browser/device-reported geolocation" label baked
+   * into the shared display model — so the Capture flow keeps the
+   * exact bytes it always had. The Intake Link surface passes the
+   * mapped label for the row's `locationSource` (e.g. "Contributor
+   * browser location") so reports/verify don't overclaim Capture
+   * provenance for contributor-uploaded coordinates.
+   */
+  sourceLabel?: string | null;
 };
 
 export default function CaptureLocationMapPanel(
@@ -342,8 +352,9 @@ export default function CaptureLocationMapPanel(
                 fontWeight: 600,
                 color: "rgba(228, 235, 237, 0.76)",
               }}
+              data-capture-location-source-label="true"
             >
-              {display.sourceLabel}
+              {props.sourceLabel ?? display.sourceLabel}
             </div>
           </div>
 

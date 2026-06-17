@@ -216,6 +216,16 @@ export type ReportEvidence = {
     lat: string | null;
     lng: string | null;
     accuracyMeters: string | null;
+    /**
+     * Provenance of (lat, lng, accuracyMeters). Drives the report's
+     * source label. Reads from `Evidence.locationSource` — known
+     * values include CAPTURE_BROWSER_GEOLOCATION (default for legacy
+     * authenticated capture) and INTAKE_LINK_GEOLOCATION (contributor
+     * browser via the Intake Link path). Null is treated as the
+     * historical CAPTURE label so pre-migration rows render exactly
+     * as they did before this feature shipped.
+     */
+    locationSource?: string | null;
   };
   evidenceStructure?: string | null;
   itemCount?: number | null;

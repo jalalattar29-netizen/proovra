@@ -1858,6 +1858,7 @@ async function prepareReportArtifacts(
       lat: true,
       lng: true,
       accuracyMeters: true,
+      locationSource: true,
       mimeType: true,
       storageBucket: true,
       storageKey: true,
@@ -2588,6 +2589,11 @@ verificationPackageMetadata:
       lat: evidence.lat?.toString() ?? null,
       lng: evidence.lng?.toString() ?? null,
       accuracyMeters: evidence.accuracyMeters?.toString() ?? null,
+      // Provenance of (lat, lng) — drives the report's Context Signal
+      // source label. Null on legacy rows is fine; the shared helper
+      // defaults to the historical CAPTURE label so pre-feature
+      // reports render identically.
+      locationSource: evidence.locationSource ?? null,
     },
 
 evidenceStructure:
@@ -3664,6 +3670,8 @@ submittedByAuthProvider:
                             prepared.reportEvidencePayload.gps.accuracyMeters
                           )
                         : null,
+                    locationSource:
+                      prepared.reportEvidencePayload.gps.locationSource ?? null,
                   }
                 : null,
             storageRegion: prepared.evidenceStorage.storageRegion,

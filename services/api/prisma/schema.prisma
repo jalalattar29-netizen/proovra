@@ -76,6 +76,27 @@ model Evidence {
   lat                      Float?
   lng                      Float?
   accuracyMeters           Float?    @map("accuracy_meters")
+  // Provenance of (lat, lng, accuracyMeters). Stored as text so a
+  // future source (e.g. EXIF_GPS once that pipeline lands) doesn't
+  // need a migration. Canonical values mirror EvidenceLocationSource
+  // in @proovra/shared:
+  //   CAPTURE_BROWSER_GEOLOCATION — recorded during an authenticated
+  //                                 Capture session (PROOVRA-app
+  //                                 user). Display label: "PROOVRA
+  //                                 secure capture".
+  //   INTAKE_LINK_GEOLOCATION     — recorded by the public intake
+  //                                 contributor's browser during the
+  //                                 upload session. Display label:
+  //                                 "Contributor browser permission".
+  //   EXIF_GPS                    — reserved for the future EXIF-GPS
+  //                                 extraction pipeline.
+  //   MANUAL_ENTRY                — reserved for operator override.
+  // Backfill (migration 20270825000000_evidence_location_source):
+  // every existing row with a non-null lat is stamped
+  // CAPTURE_BROWSER_GEOLOCATION (the only source that ever wrote
+  // coordinates pre-intake-link-location). Rows without coordinates
+  // are left NULL.
+  locationSource           String?   @map("location_source") @db.VarChar(40)
   capturedAtUtc            DateTime? @map("captured_at_utc") @db.Timestamptz(6)
   uploadedAtUtc            DateTime? @map("uploaded_at_utc") @db.Timestamptz(6)
   signedAtUtc              DateTime? @map("signed_at_utc") @db.Timestamptz(6)
@@ -2905,6 +2926,22 @@ model WorkflowIntakeLink {
   // access (use Revoke for that). Nullable; null = not archived.
   archivedAtUtc    DateTime? @map("archived_at_utc") @db.Timestamptz(6)
   archivedByUserId String?   @map("archived_by_user_id") @db.Uuid
+
+  // Location collection policy for the public contributor page.
+  // Stored as text (mirrors the IntakeLinkLocationPolicy enum in
+  // @proovra/shared) so future values can grow without a migration.
+  //   NONE     — public page never asks for location (default for
+  //              every pre-existing link — preserves prior behavior).
+  //   OPTIONAL — public page shows "Share location / Skip" and a
+  //              contributor decision is recorded; submit succeeds
+  //              with or without coordinates.
+  //   REQUIRED — submit is gated until the browser supplies
+  //              coordinates (or surfaces an unavailable error).
+  // Backfill: every pre-existing row defaults to NONE (see migration
+  // 20270825000000_intake_link_location_policy) so this feature
+  // ships without changing the behaviour of any link created
+  // before the column existed.
+  locationPolicy String @default("NONE") @map("location_policy") @db.VarChar(20)
 
   // Audit
   createdByUserId String   @map("created_by_user_id") @db.Uuid

@@ -54,9 +54,13 @@ function src(rel: string): string {
 const SIMPLE_DETAIL = src(
   "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
 );
-const HELPERS = src(
+// Loaded for potential future helper-tier pins; currently unused.
+// Prefixed with `_` so the unused-vars rule accepts it without
+// reintroducing the import error.
+const _HELPERS = src(
   "apps/web/components/cases-experience/simple-case-detail/helpers.ts",
 );
+void _HELPERS;
 const LIFECYCLE = src(
   "services/api/src/services/cases/case-lifecycle.service.ts",
 );

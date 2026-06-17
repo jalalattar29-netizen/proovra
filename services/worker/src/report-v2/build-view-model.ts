@@ -6,10 +6,10 @@ import path from "node:path";
 import {
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
-  CAPTURE_LOCATION_SOURCE_LABEL,
   CAPTURE_LOCATION_STATUS_LABEL,
   buildCaptureLocationDisplayModel,
   buildCaptureLocationPdfFallbackSvg,
+  evidenceLocationSourceLabel,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
   getReviewerEvidenceTypeLabel,
@@ -1474,10 +1474,33 @@ const captureLocationModel =
       })
     : null;
 
+// Provenance-aware labels.
+//
+// Intake-link contributions carry locationSource = INTAKE_LINK_GEOLOCATION
+// and MUST NOT borrow the Capture title/description — they were
+// recorded by an external contributor's browser at upload time, not by
+// the PROOVRA secure-capture flow. Authenticated capture (and every
+// legacy row, which the migration backfilled to CAPTURE_BROWSER_GEOLOCATION
+// or left null) keeps the historical title verbatim.
+//
+// Copy is deliberately humble: "Location was provided by the
+// contributor's browser during upload" — never "this proves where the
+// evidence was captured" — so the report cannot be read as legal
+// proof of physical presence. The shared legal-boundary string is
+// retained at the bottom so the long-form disclaimer is identical in
+// both branches.
+const reportedLocationSource = input.evidence.gps.locationSource ?? null;
+const isIntakeLinkLocation =
+  reportedLocationSource === "INTAKE_LINK_GEOLOCATION";
+
 const captureContext = hasCaptureContext && captureLat !== null && captureLng !== null
   ? {
-      statusLabel: CAPTURE_LOCATION_STATUS_LABEL,
-      description: CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+      statusLabel: isIntakeLinkLocation
+        ? "Upload session location"
+        : CAPTURE_LOCATION_STATUS_LABEL,
+      description: isIntakeLinkLocation
+        ? "Location was provided by the contributor's browser during upload. Captured after an explicit Share click — not silently. Coordinates are evidence of what the browser reported at the moment of upload, not independent proof of physical presence."
+        : CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
       lat:
         captureLocationModel?.latLabel ??
         formatCaptureLocationCoordinate(captureLat),
@@ -1492,7 +1515,10 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
           input.evidence.deviceTimeIso ??
           input.evidence.createdAtUtc
       ),
-      sourceLabel: CAPTURE_LOCATION_SOURCE_LABEL,
+      // Provenance-aware source label. Defaults to the historical
+      // CAPTURE label when locationSource is null so every report
+      // produced before this feature shipped renders byte-identically.
+      sourceLabel: evidenceLocationSourceLabel(reportedLocationSource),
       legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
       mapPreviewDataUrl:
         (await renderCaptureLocationMapPreviewDataUrl({

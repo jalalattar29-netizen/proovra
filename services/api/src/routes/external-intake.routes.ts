@@ -86,6 +86,32 @@ const TransitionBody = z.object({
   to: z.enum(WORKFLOW_INTAKE_SESSION_STATUSES),
 });
 
+// Public submit body — every field is optional so a NONE-policy link
+// continues to accept a bare `{}` request unchanged. The orchestration
+// layer is what gates REQUIRED links + decides whether to persist.
+// Coordinates are bounded here so junk numbers never even reach the
+// orchestration layer.
+const SubmitLocationBody = z
+  .object({
+    consentState: z
+      .enum(["GRANTED", "DENIED", "UNAVAILABLE", "NOT_REQUESTED"])
+      .optional(),
+    latitude: z.number().gte(-90).lte(90).optional(),
+    longitude: z.number().gte(-180).lte(180).optional(),
+    accuracyMeters: z.number().gte(0).lte(100_000).optional(),
+    capturedAtUtc: z.string().max(64).optional(),
+    source: z.enum(["BROWSER_GEOLOCATION"]).optional(),
+  })
+  .strict()
+  .optional();
+
+const SubmitBody = z
+  .object({
+    location: SubmitLocationBody,
+  })
+  .strict()
+  .optional();
+
 // -----------------------------------------------------------------------------
 // Rate limiter helpers
 // -----------------------------------------------------------------------------
@@ -251,6 +277,15 @@ function orchestrationErrorToReply(
         },
       });
       return;
+    case "location_required":
+      reply.code(412).send({
+        error: {
+          code: "LOCATION_REQUIRED",
+          message: friendly("LOCATION_REQUIRED"),
+          details: err.details ?? null,
+        },
+      });
+      return;
     default:
       reply.code(500).send({
         error: { code: "INTERNAL_ERROR", message: friendly("INTERNAL_ERROR") },
@@ -313,6 +348,10 @@ function friendlyPublicIntakeMessage(code: string): string {
       return "We couldn't accept your consent details. Please review and submit again.";
     case "INTAKE_MODE_MISMATCH":
       return "This upload link uses a different submission mode. Contact the sender for a fresh link.";
+    case "LOCATION_REQUIRED":
+      return "Sharing your location is required for this request. Allow location in your browser and try again, or contact the sender if location isn't available on your device.";
+    case "INVALID_LOCATION_BODY":
+      return "Location details look malformed. Skip sharing location or try again.";
     default:
       return "Something went wrong. Please try again or contact the sender.";
   }
@@ -744,7 +783,33 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
             },
           });
         }
-        const result = await submitExternalIntake({ link, session });
+        // Parse the optional submit body. Schema is strict() so unknown
+        // top-level keys are rejected; coordinates are bounded here so
+        // junk numbers never reach the orchestration gate.
+        let parsedBody: z.infer<typeof SubmitBody> = undefined;
+        try {
+          parsedBody = SubmitBody.parse(req.body ?? {});
+        } catch {
+          return reply.code(400).send({
+            error: {
+              code: "INVALID_LOCATION_BODY",
+              message:
+                "Location details look malformed. Skip sharing location or try again.",
+            },
+          });
+        }
+        const location = parsedBody?.location
+          ? {
+              consentState:
+                parsedBody.location.consentState ?? "NOT_REQUESTED",
+              latitude: parsedBody.location.latitude ?? null,
+              longitude: parsedBody.location.longitude ?? null,
+              accuracyMeters: parsedBody.location.accuracyMeters ?? null,
+              capturedAtUtc: parsedBody.location.capturedAtUtc ?? null,
+              source: parsedBody.location.source ?? null,
+            }
+          : null;
+        const result = await submitExternalIntake({ link, session, location });
         return reply.code(200).send({
           session: projectIntakeSessionForExternalView(result.session),
           submissionId: result.evidenceId,

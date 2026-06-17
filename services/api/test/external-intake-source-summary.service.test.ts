@@ -45,6 +45,7 @@ function fakeLink(overrides: Record<string, unknown> = {}) {
     senderDisplayName: null,
     archivedAtUtc: null,
     archivedByUserId: null,
+    locationPolicy: "NONE",
     createdByUserId: "user-admin",
     createdAt: new Date("2026-05-16T10:00:00Z"),
     updatedAt: new Date("2026-05-16T11:00:00Z"),

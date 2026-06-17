@@ -690,6 +690,24 @@ export {
 } from "./intake-link-messaging.js";
 
 export {
+  EVIDENCE_LOCATION_SOURCE_LABEL,
+  EVIDENCE_LOCATION_SOURCES,
+  INTAKE_LINK_LOCATION_POLICIES,
+  INTAKE_LINK_LOCATION_POLICY_OPTIONS,
+  INTAKE_LINK_LOCATION_PROMPT_COPY,
+  INTAKE_LOCATION_CONSENT_STATES,
+  evidenceLocationSourceLabel,
+  isEvidenceLocationSource,
+  isIntakeLinkLocationPolicy,
+  isIntakeLocationConsentState,
+} from "./intake-link-location.js";
+export type {
+  EvidenceLocationSource,
+  IntakeLinkLocationPolicy,
+  IntakeLocationConsentState,
+} from "./intake-link-location.js";
+
+export {
   COMMUNICATION_CHANNELS,
   COMMUNICATION_DIRECTIONS,
   COMMUNICATION_PROVIDERS,

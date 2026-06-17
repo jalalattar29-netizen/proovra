@@ -153,6 +153,12 @@ export type ExternalIntakeLinkPublicView = {
   allowedAcceptedKinds: string[];
   maxFileCountPerSession: number | null;
   expiresAtUtc: string;
+  // Operator-chosen location-collection policy for THIS link. Drives
+  // the contributor page geolocation UX (NONE = no prompt, OPTIONAL =
+  // Share/Skip, REQUIRED = blocks submit until granted). Stored as
+  // the raw string so future enum values flow through without a code
+  // change; the web client narrows via the shared type-guard.
+  locationPolicy: string;
 };
 
 const ACCEPTED_KIND_SET = new Set(["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"]);
@@ -222,6 +228,7 @@ export function projectIntakeLinkForExternalView(
     allowedAcceptedKinds: link.allowedAcceptedKinds,
     maxFileCountPerSession: link.maxFileCountPerSession,
     expiresAtUtc: link.expiresAtUtc.toISOString(),
+    locationPolicy: link.locationPolicy,
   };
 }
 

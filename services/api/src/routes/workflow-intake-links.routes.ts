@@ -23,6 +23,7 @@ import type {
 } from "fastify";
 import { z } from "zod";
 import {
+  INTAKE_LINK_LOCATION_POLICIES,
   WORKFLOW_INTAKE_LINK_STATUSES,
   WORKFLOW_INTAKE_MODES,
 } from "@proovra/shared";
@@ -120,6 +121,12 @@ const CreateBody = z
       .enum(["PROOVRA", "WORKSPACE", "CUSTOM"])
       .optional(),
     senderDisplayName: z.string().min(1).max(80).nullable().optional(),
+    // Location collection policy for the public contributor page.
+    // Optional in the API; the service layer defaults to NONE so a
+    // caller that omits the field gets the safe "do not ask"
+    // behaviour. The web modal sends an explicit value per the
+    // operator's choice (default OPTIONAL in the UI).
+    locationPolicy: z.enum(INTAKE_LINK_LOCATION_POLICIES).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.senderDisplayMode === "CUSTOM" && !data.senderDisplayName) {
@@ -319,6 +326,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
             ipAllowlistCidrs: body.ipAllowlistCidrs,
             senderDisplayMode: body.senderDisplayMode,
             senderDisplayName: body.senderDisplayName ?? null,
+            locationPolicy: body.locationPolicy,
           },
           { actorUserId: ok.userId },
         );

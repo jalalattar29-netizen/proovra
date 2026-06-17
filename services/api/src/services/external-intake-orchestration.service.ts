@@ -86,6 +86,7 @@ export type ExternalIntakeOrchestrationErrorCode =
   | "part_index_taken"
   | "submission_not_ready"
   | "submission_already_submitted"
+  | "location_required"
   | "internal_error";
 
 export class ExternalIntakeOrchestrationError extends Error {
@@ -500,7 +501,31 @@ export async function updateExternalEvidencePartMapping(
 // Step 3: submit — finalize Evidence + transition session
 // -----------------------------------------------------------------------------
 
-export type SubmitExternalIntakeInput = SessionLinkPair;
+/**
+ * Contributor-provided location captured by the public intake page.
+ * Always optional at the input layer; the policy check (NONE / OPTIONAL
+ * / REQUIRED) decides whether absence is fatal.
+ *
+ * Coordinates are validated server-side regardless of what the browser
+ * sent — bad numbers are rejected up front so we never persist garbage
+ * onto Evidence. Raw lat/lng are kept OUT of the platform audit log
+ * for privacy; the audit row stores only the consent state + an
+ * accuracy band, not the coordinates themselves.
+ */
+export type ExternalIntakeLocationInput = {
+  /** GRANTED | DENIED | UNAVAILABLE | NOT_REQUESTED — contributor's decision. */
+  consentState: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracyMeters?: number | null;
+  capturedAtUtc?: string | null;
+  /** Stable provenance tag; only BROWSER_GEOLOCATION is wired today. */
+  source?: string | null;
+};
+
+export type SubmitExternalIntakeInput = SessionLinkPair & {
+  location?: ExternalIntakeLocationInput | null;
+};
 
 export type SubmitExternalIntakeResult = {
   session: DbWorkflowIntakeSession;
@@ -554,6 +579,49 @@ function assertSubmissionReady(
   }
 }
 
+/**
+ * Coordinate sanity check. Browser geolocation always supplies finite
+ * numbers in valid ranges; anything outside that is rejected so the
+ * gate never accepts garbage from a forged payload. Returns the
+ * canonical (lat, lng, accuracy) tuple or null if any field is unusable.
+ *
+ * Accuracy is clamped to >=0 and <= 100000m — anything beyond that is
+ * essentially "no useful position" and we treat the location as absent
+ * for gate purposes.
+ */
+function normalizeIntakeLocationCoordinates(
+  loc: ExternalIntakeLocationInput | null | undefined,
+): { lat: number; lng: number; accuracyMeters: number | null } | null {
+  if (!loc) return null;
+  const lat = typeof loc.latitude === "number" ? loc.latitude : null;
+  const lng = typeof loc.longitude === "number" ? loc.longitude : null;
+  if (lat === null || lng === null) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90) return null;
+  if (lng < -180 || lng > 180) return null;
+  let accuracyMeters: number | null = null;
+  if (typeof loc.accuracyMeters === "number" && Number.isFinite(loc.accuracyMeters)) {
+    if (loc.accuracyMeters >= 0 && loc.accuracyMeters <= 100_000) {
+      accuracyMeters = loc.accuracyMeters;
+    }
+  }
+  return { lat, lng, accuracyMeters };
+}
+
+/**
+ * Accuracy band for the audit log. Raw accuracy values can be
+ * fingerprinting-adjacent, so we bucket them. This is also more
+ * useful for analytics ("most contributors land within 50m").
+ */
+function accuracyBand(meters: number | null): string {
+  if (meters === null) return "unknown";
+  if (meters <= 25) return "<=25m";
+  if (meters <= 100) return "<=100m";
+  if (meters <= 500) return "<=500m";
+  if (meters <= 2000) return "<=2km";
+  return ">2km";
+}
+
 export async function submitExternalIntake(
   input: SubmitExternalIntakeInput,
   client: PrismaClient = defaultPrisma,
@@ -563,6 +631,31 @@ export async function submitExternalIntake(
   if (!input.session.evidenceId) {
     throw new ExternalIntakeOrchestrationError("evidence_not_found", {
       reason: "no_parts_uploaded",
+    });
+  }
+
+  // Location policy gate. NONE = ignore whatever the client sent;
+  // OPTIONAL = persist coordinates only when GRANTED + valid;
+  // REQUIRED = submit blocked unless GRANTED + valid coordinates arrive.
+  // The location field is OPTIONAL in the route schema, so a missing
+  // body for a NONE link still works exactly like the pre-feature path.
+  const policy = input.link.locationPolicy ?? "NONE";
+  const consentState =
+    typeof input.location?.consentState === "string"
+      ? input.location.consentState
+      : "NOT_REQUESTED";
+  const coords = normalizeIntakeLocationCoordinates(input.location);
+  const shouldPersistLocation =
+    policy !== "NONE" && consentState === "GRANTED" && coords !== null;
+
+  if (policy === "REQUIRED" && !shouldPersistLocation) {
+    // Required policy never silently accepts a missing/denied/unavailable
+    // location. UNAVAILABLE is treated identically to DENIED for the gate
+    // — the public page should be surfacing a "contact requester" message
+    // in that branch so the user isn't deadlocked.
+    throw new ExternalIntakeOrchestrationError("location_required", {
+      consentState,
+      hasCoordinates: coords !== null,
     });
   }
 
@@ -597,6 +690,58 @@ export async function submitExternalIntake(
     ownerUserId: evidence.ownerUserId,
   });
 
+  // Persist contributor-provided location onto the Evidence row, AFTER
+  // completion. completeEvidence does NOT touch lat/lng/accuracyMeters/
+  // locationSource — it only writes integrity fields (sha256, signature,
+  // signingKeyId, status). Writing the location here keeps the policy
+  // owner colocated and means hashes / signatures / file metadata are
+  // never disturbed by the location feature. Missing location is NEVER
+  // an integrity failure: the gate above already accepted the submit.
+  if (shouldPersistLocation && coords) {
+    await client.evidence.update({
+      where: { id: evidence.id },
+      data: {
+        lat: coords.lat,
+        lng: coords.lng,
+        accuracyMeters: coords.accuracyMeters,
+        locationSource: "INTAKE_LINK_GEOLOCATION",
+      },
+    });
+  }
+
+  // Audit the contributor's location decision. Coordinates are NEVER
+  // logged here — only the consent state and an accuracy band. The
+  // raw lat/lng live on Evidence (workspace-protected) and surface
+  // via the location panel; the audit log is for compliance/forensic
+  // traceability of WHAT happened, not WHERE.
+  if (policy !== "NONE") {
+    try {
+      await appendPlatformAuditLog({
+        userId: null,
+        isPublic: true,
+        action: shouldPersistLocation
+          ? "external_intake.location.attached"
+          : `external_intake.location.${consentState.toLowerCase()}`,
+        category: "external_intake",
+        severity: "info",
+        source: "intake_link",
+        outcome: shouldPersistLocation ? "success" : "skipped",
+        resourceType: "evidence",
+        resourceId: evidence.id,
+        metadata: {
+          intakeLinkId: input.link.id,
+          intakeSessionId: input.session.id,
+          locationPolicy: policy,
+          consentState,
+          accuracyBand: accuracyBand(coords?.accuracyMeters ?? null),
+          source: input.location?.source ?? null,
+        },
+      });
+    } catch {
+      // Audit log failure must not abort an already-completed submission.
+    }
+  }
+
   // Emit external-specific custody event AFTER completion so it sits at the
   // end of the chain (the chain hashes events in order).
   await appendCustodyEvent({
@@ -609,6 +754,8 @@ export async function submitExternalIntake(
       workflowTemplateSlug: input.link.workflowTemplateSlug,
       workflowTemplateVersion: input.link.workflowTemplateVersion,
       partCount: parts.length,
+      locationProvided: shouldPersistLocation,
+      locationConsentState: policy !== "NONE" ? consentState : null,
     },
   });
 

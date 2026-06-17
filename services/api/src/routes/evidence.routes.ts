@@ -22,6 +22,7 @@ import {
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
   CAPTURE_LOCATION_SOURCE_LABEL,
   CAPTURE_LOCATION_STATUS_LABEL,
+  evidenceLocationSourceLabel,
   buildCaptureLocationExternalMapUrl,
   buildEvidenceTrustDecision,
   compareReviewerArtifactRolePriority,
@@ -738,6 +739,7 @@ const SAFE_EVIDENCE_SELECT = {
   lat: true,
   lng: true,
   accuracyMeters: true,
+  locationSource: true,
   mimeType: true,
   storageBucket: true,
   storageKey: true,
@@ -8810,7 +8812,16 @@ const timestampDigestMatches: boolean | null =
                     ? evidence.capturedAtUtc.toISOString()
                     : evidence.createdAt.toISOString(),
                   deviceTimeIso: evidence.deviceTimeIso ?? null,
-                  source: CAPTURE_LOCATION_SOURCE_LABEL,
+                  // Source label is now provenance-aware: rows whose
+                  // coordinates came from a contributor's browser via
+                  // the Intake Link path read as "Contributor browser
+                  // location", while authenticated Capture rows keep
+                  // the historical CAPTURE label. Existing rows pre-
+                  // location-source migration backfilled to CAPTURE so
+                  // their display is byte-identical to before.
+                  source: evidenceLocationSourceLabel(
+                    evidence.locationSource,
+                  ),
                   externalMapUrl:
                     buildCaptureLocationExternalMapUrl({
                       lat: decimalToNumber(evidence.lat),
@@ -10947,6 +10958,7 @@ action: "evidence.certification_requested",
         lat: true,
         lng: true,
         accuracyMeters: true,
+        locationSource: true,
         fingerprintCanonicalJson: true,
         fingerprintHash: true,
         // Phase C #4 — multipart hash semantics in public verify too.
@@ -12159,7 +12171,7 @@ const captureContext = hasCaptureLocationMetadata({
         ? evidence.capturedAtUtc.toISOString()
         : evidence.createdAt.toISOString(),
       deviceTimeIso: evidence.deviceTimeIso ?? null,
-      source: CAPTURE_LOCATION_SOURCE_LABEL,
+      source: evidenceLocationSourceLabel(evidence.locationSource),
       externalMapUrl:
         buildCaptureLocationExternalMapUrl({
           lat: decimalToNumber(evidence.lat),

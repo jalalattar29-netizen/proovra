@@ -39,7 +39,7 @@ test("reloadHealth callback now accepts an optional probe query and forwards it 
   // append it to the diagnostics URL via URLSearchParams.
   assert.match(
     src,
-    /const reloadHealth = useCallback\(\s*\(probeQuery\?\: string\) =>/,
+    /const reloadHealth = useCallback\(\s*\(probeQuery\?: string\) =>/,
   );
   // The fetch URL builder threads `q` into the URL when the probe
   // query is non-empty, bounded to 200 chars to match the backend

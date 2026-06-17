@@ -35,7 +35,12 @@ test("page imports the SHARED message renderers, not a local clone", () => {
   // the renderer here" change fails CI loudly.
   assert.match(
     src,
-    /import \{\s*\n?\s*renderIntakeEmailMessage,[\s\S]{0,200}from "@proovra\/shared";/,
+    // Cap raised from 200 → 600 so unrelated shared imports added
+    // alongside the renderers (e.g. INTAKE_LINK_LOCATION_POLICY_OPTIONS)
+    // do not silently push the import block past the limit. The pin
+    // still guards what matters: the renderer symbols come from the
+    // shared package, not a local re-implementation.
+    /import \{\s*\n?\s*renderIntakeEmailMessage,[\s\S]{0,600}from "@proovra\/shared";/,
   );
   assert.match(src, /renderIntakeSmsMessage,/);
   assert.match(src, /renderIntakeWhatsappMessage,/);

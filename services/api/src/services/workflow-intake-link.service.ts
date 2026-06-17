@@ -39,6 +39,9 @@ import {
   validateCustomSenderDisplayName,
   WorkflowIntakeMode,
   WorkflowIntakeModeSchema,
+  INTAKE_LINK_LOCATION_POLICIES,
+  isIntakeLinkLocationPolicy,
+  type IntakeLinkLocationPolicy,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../db.js";
@@ -77,6 +80,10 @@ export type CreateWorkflowIntakeLinkInput = {
   // "Acme Insurance via PROOVRA" / "<custom> via PROOVRA".
   senderDisplayMode?: IntakeSenderDisplayMode;
   senderDisplayName?: string | null;
+  // Operator-chosen location policy for the public contributor page.
+  // Defaults to NONE when omitted so existing API callers see no
+  // behavioural change. See packages/shared/src/intake-link-location.ts.
+  locationPolicy?: IntakeLinkLocationPolicy;
 };
 
 export type CreateWorkflowIntakeLinkContext = {
@@ -229,6 +236,15 @@ export async function createWorkflowIntakeLink(
     senderDisplayName = v.value;
   }
 
+  // Location policy — opt-in per link. Defaults to NONE when omitted
+  // so older API callers and existing rows preserve their previous
+  // (no-prompt) behaviour. New UI ships OPTIONAL as the default but
+  // that is a CLIENT choice; the server default stays NONE.
+  const locationPolicy: IntakeLinkLocationPolicy =
+    input.locationPolicy && isIntakeLinkLocationPolicy(input.locationPolicy)
+      ? input.locationPolicy
+      : "NONE";
+
   // Issue a fresh token. issueIntakeToken returns null when the secret is
   // not configured — that is the master kill switch.
   const issued = issueIntakeToken();
@@ -261,6 +277,7 @@ export async function createWorkflowIntakeLink(
       ipAllowlistCidrs: input.ipAllowlistCidrs ?? [],
       senderDisplayMode,
       senderDisplayName,
+      locationPolicy,
       createdByUserId: ctx.actorUserId,
     },
   });
@@ -940,6 +957,7 @@ export function projectWorkflowIntakeLink(link: DbWorkflowIntakeLink): {
   revokedAtUtc: string | null;
   revokedReason: string | null;
   archivedAtUtc: string | null;
+  locationPolicy: string;
   createdAt: string;
   updatedAt: string;
 } {
@@ -967,6 +985,7 @@ export function projectWorkflowIntakeLink(link: DbWorkflowIntakeLink): {
     revokedAtUtc: link.revokedAtUtc?.toISOString() ?? null,
     revokedReason: link.revokedReason,
     archivedAtUtc: link.archivedAtUtc?.toISOString() ?? null,
+    locationPolicy: link.locationPolicy,
     createdAt: link.createdAt.toISOString(),
     updatedAt: link.updatedAt.toISOString(),
   };

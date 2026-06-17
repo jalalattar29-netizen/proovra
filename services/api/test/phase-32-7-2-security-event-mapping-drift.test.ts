@@ -701,6 +701,15 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // hide cluttered historical links without revoking access.
       // CREATE INDEX is wrapped in the Phase O-Final guard.
       "20270824000000_intake_link_archive",
+      // Intake Links — location collection. Adds
+      // workflow_intake_links.location_policy (default 'NONE' so
+      // existing links keep their previous no-prompt behaviour) and
+      // evidence.location_source (nullable) with a guarded backfill
+      // that stamps CAPTURE_BROWSER_GEOLOCATION onto rows that
+      // already carry coordinates. Reuses the existing Evidence.lat
+      // / lng / accuracyMeters columns end-to-end so no parallel
+      // location concept is introduced.
+      "20270825000000_intake_link_location_collection",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

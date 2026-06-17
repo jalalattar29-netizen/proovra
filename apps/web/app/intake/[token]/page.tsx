@@ -88,6 +88,10 @@ function friendlyIntakeError(err: {
       "We couldn't find this upload session. Refresh the page or open the link again to start a new session.",
     SUBMIT_FAILED:
       "We couldn't submit these files. Your uploads are still here — try Submit again, or contact the sender with the support ID below.",
+    LOCATION_REQUIRED:
+      "Sharing your location is required for this request. Allow location in your browser and try again, or contact the sender if location isn't available on your device.",
+    INVALID_LOCATION_BODY:
+      "Location details look malformed. Skip sharing location or try again.",
   };
   if (code && map[code]) return map[code];
   // Backend `message` (user-safe by contract) wins over a raw fallback.
@@ -131,7 +135,29 @@ type LinkView = {
   allowedAcceptedKinds: AcceptedKind[];
   maxFileCountPerSession: number | null;
   expiresAtUtc: string;
+  /** Per-link operator setting — NONE | OPTIONAL | REQUIRED. */
+  locationPolicy?: string;
 };
+
+/**
+ * Contributor's local-only location state. Lives entirely in browser
+ * memory until Submit; the only network surface is the final submit
+ * POST. The page NEVER calls navigator.geolocation outside of an
+ * explicit Share click — that is the central privacy invariant of
+ * this feature.
+ */
+type LocationState =
+  | { phase: "idle" }
+  | { phase: "requesting" }
+  | {
+      phase: "granted";
+      lat: number;
+      lng: number;
+      accuracyMeters: number | null;
+      capturedAt: string;
+    }
+  | { phase: "denied" }
+  | { phase: "unavailable"; reason: string };
 
 type SessionView = {
   id: string;
@@ -257,6 +283,9 @@ export default function ExternalIntakePage({
   const [parts, setParts] = useState<StagedPart[]>([]);
   const [termsAcknowledged, setTermsAcknowledged] = useState(false);
   const [identityDisclosed, setIdentityDisclosed] = useState(false);
+  const [locationState, setLocationState] = useState<LocationState>({
+    phase: "idle",
+  });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // 1. Validate token + open session
@@ -294,11 +323,66 @@ export default function ExternalIntakePage({
     return expectedSteps.filter((s) => s.required && !mapped.has(s.id));
   }, [link, expectedSteps, parts]);
 
+  const locationPolicy: "NONE" | "OPTIONAL" | "REQUIRED" = (() => {
+    const raw = link?.locationPolicy;
+    if (raw === "OPTIONAL" || raw === "REQUIRED") return raw;
+    return "NONE";
+  })();
+
+  // REQUIRED policy blocks submit until coordinates land. OPTIONAL /
+  // NONE never gate on location — the user can submit either way.
+  const locationBlocksSubmit =
+    locationPolicy === "REQUIRED" && locationState.phase !== "granted";
+
   const canSubmit =
     parts.length > 0 &&
     parts.every((p) => p.uploadedAtUtc) &&
     requiredStepsMissing.length === 0 &&
+    !locationBlocksSubmit &&
     phase === "upload";
+
+  // navigator.geolocation is NEVER called outside this handler. The
+  // page only invokes it after an explicit Share click — this is the
+  // central privacy invariant: no silent geolocation prompts on page
+  // load, ever.
+  function shareLocation() {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationState({
+        phase: "unavailable",
+        reason: "Your browser does not support location sharing.",
+      });
+      return;
+    }
+    setLocationState({ phase: "requesting" });
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocationState({
+          phase: "granted",
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracyMeters:
+            typeof pos.coords.accuracy === "number" ? pos.coords.accuracy : null,
+          capturedAt: new Date(pos.timestamp).toISOString(),
+        });
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          setLocationState({ phase: "denied" });
+        } else {
+          setLocationState({
+            phase: "unavailable",
+            reason:
+              "Your device couldn't determine its location. You can still submit without it, or contact the sender.",
+          });
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
+    );
+  }
+
+  function skipLocation() {
+    setLocationState({ phase: "denied" });
+  }
 
   async function acceptConsent() {
     if (!link || !session) return;
@@ -472,9 +556,38 @@ export default function ExternalIntakePage({
     setPhase("submitting");
     setErrorMessage(null);
     try {
+      // Build the optional location body. NONE-policy links send no
+      // body so the request stays exactly as it was pre-feature. For
+      // OPTIONAL/REQUIRED we send the consent state + (when granted)
+      // bounded coordinates — the API revalidates everything.
+      const locationBody = (() => {
+        if (locationPolicy === "NONE") return undefined;
+        if (locationState.phase === "granted") {
+          return {
+            consentState: "GRANTED" as const,
+            latitude: locationState.lat,
+            longitude: locationState.lng,
+            accuracyMeters: locationState.accuracyMeters ?? undefined,
+            capturedAtUtc: locationState.capturedAt,
+            source: "BROWSER_GEOLOCATION" as const,
+          };
+        }
+        if (locationState.phase === "denied") {
+          return { consentState: "DENIED" as const };
+        }
+        if (locationState.phase === "unavailable") {
+          return { consentState: "UNAVAILABLE" as const };
+        }
+        return { consentState: "NOT_REQUESTED" as const };
+      })();
+      const submitBody = locationBody ? { location: locationBody } : {};
       const res: { session: SessionView; submissionId: string } = await apiFetch(
         `/v1/external-intake/${encodeURIComponent(token)}/sessions/${session.id}/submit`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(submitBody),
+        },
         { auth: false },
       );
       setSession(res.session);
@@ -818,6 +931,18 @@ export default function ExternalIntakePage({
             </div>
           ) : null}
 
+          {/* Location card — rendered only when the operator selected
+              OPTIONAL or REQUIRED for this link. NONE skips the card
+              entirely and never touches navigator.geolocation. */}
+          {locationPolicy !== "NONE" ? (
+            <LocationCard
+              policy={locationPolicy}
+              state={locationState}
+              onShare={shareLocation}
+              onSkip={skipLocation}
+            />
+          ) : null}
+
           <button
             type="button"
             style={{
@@ -828,6 +953,9 @@ export default function ExternalIntakePage({
             }}
             disabled={!canSubmit}
             onClick={onSubmit}
+            data-intake-submit-blocked-by-location={
+              locationBlocksSubmit ? "true" : "false"
+            }
           >
             {phase === "submitting" ? "Submitting…" : "Submit evidence"}
           </button>
@@ -836,6 +964,96 @@ export default function ExternalIntakePage({
     </main>
   );
 }
+
+/**
+ * Contributor-facing location card. Pure presentational + click
+ * handlers — all state machinery lives in the parent. The card
+ * renders one of four visual states (idle / requesting / granted /
+ * denied | unavailable) and adapts its copy to OPTIONAL vs REQUIRED.
+ *
+ * REQUIRED + unavailable shows a "contact requester" hint so a user
+ * whose browser cannot provide location is not deadlocked staring
+ * at a disabled Submit button.
+ */
+function LocationCard({
+  policy,
+  state,
+  onShare,
+  onSkip,
+}: {
+  policy: "OPTIONAL" | "REQUIRED";
+  state: LocationState;
+  onShare: () => void;
+  onSkip: () => void;
+}) {
+  const required = policy === "REQUIRED";
+  const title = required ? "Location required" : "Add location context";
+  const body = required
+    ? "This request requires location before submission."
+    : "Sharing your location is optional and can help the requester understand where the files were submitted from.";
+  return (
+    <div
+      style={locationCardStyle}
+      data-intake-location-card="true"
+      data-intake-location-policy={policy}
+      data-intake-location-phase={state.phase}
+    >
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{title}</div>
+      <div style={{ ...mutedStyle, marginBottom: 12 }}>{body}</div>
+      {state.phase === "idle" ? (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            style={primaryButtonStyle}
+            onClick={onShare}
+            data-intake-location-share="true"
+          >
+            Share location
+          </button>
+          {!required ? (
+            <button
+              type="button"
+              style={secondaryButtonStyle}
+              onClick={onSkip}
+              data-intake-location-skip="true"
+            >
+              Skip
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {state.phase === "requesting" ? (
+        <div style={mutedStyle}>Waiting for your browser&hellip;</div>
+      ) : null}
+      {state.phase === "granted" ? (
+        <div style={{ ...mutedStyle, color: "#065f46" }}>
+          Location captured
+          {typeof state.accuracyMeters === "number"
+            ? ` (accuracy ${Math.round(state.accuracyMeters)} m).`
+            : "."}
+        </div>
+      ) : null}
+      {state.phase === "denied" ? (
+        <div style={mutedStyle}>
+          {required
+            ? "Location is required. Allow location in your browser settings, or contact the sender."
+            : "Location not shared. You can still submit without it."}
+        </div>
+      ) : null}
+      {state.phase === "unavailable" ? (
+        <div style={mutedStyle}>{state.reason}</div>
+      ) : null}
+    </div>
+  );
+}
+
+const locationCardStyle: React.CSSProperties = {
+  marginTop: 24,
+  padding: 16,
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  background: "#f8fafc",
+};
 
 const requiredBadgeStyle: React.CSSProperties = {
   fontSize: 11,

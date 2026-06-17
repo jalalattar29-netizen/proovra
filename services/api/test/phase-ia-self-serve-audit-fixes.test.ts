@@ -143,10 +143,60 @@ describe("Phase IA-self-serve-audit-fixes — Trust governance card gate", () =>
 describe("Phase IA-self-serve-audit-fixes — Intake Links copy", () => {
   const INTAKE = readWeb("app/(app)/intake-links/page.tsx");
 
-  it("Pseudonymous mode label is now 'Alias — contributor chooses a name to display'", () => {
+  it("Pseudonymous mode label is the short SMB-friendly 'Display name' (modal microcopy cleanup)", () => {
+    // Strict-UX brief shortened every INTAKE_MODES label so the
+    // dropdown stays clean — the long explanation now lives in
+    // INTAKE_MODE_HELPER_TEXT and renders as helper copy under the
+    // select instead of inside the option label. The enum value
+    // EXTERNAL_PSEUDONYMOUS is unchanged so the backend payload is
+    // identical to before.
     expect(INTAKE).toMatch(
-      /value:\s*"EXTERNAL_PSEUDONYMOUS",\s*label:\s*"Alias — contributor chooses a name to display"/,
+      /value:\s*"EXTERNAL_PSEUDONYMOUS",\s*label:\s*"Display name"/,
     );
+    // Pin every other intake-mode label gets the short form too,
+    // so a future refactor can't bring back the old verbose options
+    // (which were the original reason this test was written).
+    expect(INTAKE).toMatch(
+      /value:\s*"EXTERNAL_ONE_TIME",\s*label:\s*"One-time link"/,
+    );
+    expect(INTAKE).toMatch(
+      /value:\s*"EXTERNAL_REUSABLE",\s*label:\s*"Reusable link"/,
+    );
+    expect(INTAKE).toMatch(
+      /value:\s*"EXTERNAL_ANONYMOUS",\s*label:\s*"Anonymous"/,
+    );
+    // Negative pins — the old verbose forms must stay gone. These
+    // were the strings the original test was protecting against
+    // (long, technical-sounding option text).
+    expect(INTAKE).not.toMatch(/single contributor, single submission/);
+    expect(INTAKE).not.toMatch(/Reusable link \(multiple submissions\)/);
+    expect(INTAKE).not.toMatch(/Anonymous — no identity recorded/);
+    expect(INTAKE).not.toMatch(
+      /Alias — contributor chooses a name to display/,
+    );
+  });
+
+  it("Intake-mode helper text supplies a plain-language explanation per mode (rendered under the select)", () => {
+    // The brief moved the explanation out of the dropdown label
+    // and into INTAKE_MODE_HELPER_TEXT, surfaced via a helper line
+    // (data-intake-link-intake-mode-helper) below the select. This
+    // preserves the original "user understands what each mode does"
+    // intent without cramming sentences into <option> text.
+    expect(INTAKE).toMatch(
+      /EXTERNAL_ONE_TIME:\s*"Best for one recipient and one submission\."/,
+    );
+    expect(INTAKE).toMatch(
+      /EXTERNAL_REUSABLE:[\s\S]{0,80}"Use when several people may submit files through the same link\."/,
+    );
+    expect(INTAKE).toMatch(
+      /EXTERNAL_ANONYMOUS:\s*"No contributor identity is requested\."/,
+    );
+    expect(INTAKE).toMatch(
+      /EXTERNAL_PSEUDONYMOUS:[\s\S]{0,80}"Contributor chooses a name shown with the submission\."/,
+    );
+    // The helper line is actually rendered (not just defined).
+    expect(INTAKE).toMatch(/data-intake-link-intake-mode-helper/);
+    expect(INTAKE).toMatch(/INTAKE_MODE_HELPER_TEXT\[intakeMode\]/);
   });
 
   it("feature-disabled state drops platform-administrator / deployment-runbook jargon", () => {

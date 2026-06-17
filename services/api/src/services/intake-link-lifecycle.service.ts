@@ -423,6 +423,7 @@ export type IntakeLinkListItem = {
     revokedAtUtc: string | null;
     revokedReason: string | null;
     archivedAtUtc: string | null;
+    locationPolicy: string;
     createdAt: string;
     updatedAt: string;
   };
@@ -522,6 +523,7 @@ export async function projectIntakeLinkList(
         revokedAtUtc: link.revokedAtUtc?.toISOString() ?? null,
         revokedReason: link.revokedReason,
         archivedAtUtc: link.archivedAtUtc?.toISOString() ?? null,
+        locationPolicy: link.locationPolicy,
         createdAt: link.createdAt.toISOString(),
         updatedAt: link.updatedAt.toISOString(),
       },

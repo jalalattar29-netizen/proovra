@@ -4804,6 +4804,7 @@ with this evidence record.
                             accuracyMeters={captureContext.accuracyMeters}
                             addToast={addToast}
                             height={280}
+                            sourceLabel={captureContext.source ?? null}
                           />
                         ) : null}
                       </div>

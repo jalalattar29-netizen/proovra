@@ -24,10 +24,10 @@ async function _emitPackagePipelineSpans(evidenceId: string) {
 import {
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
-  CAPTURE_LOCATION_SOURCE_LABEL,
   TRUST_DECISION_LEGAL_BOUNDARY,
   buildCaptureLocationExternalMapUrl,
   deriveAnchorSemantics,
+  evidenceLocationSourceLabel,
   getReviewerArtifactRoleLabel,
   getReviewerEvidenceCategories,
   getReviewerEvidenceTypeLabel,
@@ -243,6 +243,9 @@ type VerificationPackageMetadata = {
     lat?: number | null;
     lng?: number | null;
     accuracyMeters?: number | null;
+    /** Provenance — drives the package's source label. Null is treated
+     * as the historical CAPTURE label for byte-identical legacy output. */
+    locationSource?: string | null;
   } | null;
 };
 
@@ -1106,10 +1109,18 @@ function buildCaptureContext(
     evidenceId: evidenceId ?? null,
     capturedAtUtc: metadata.capturedAtUtc ?? null,
     deviceTimeIso: metadata.deviceTimeIso ?? null,
-    source: CAPTURE_LOCATION_SOURCE_LABEL,
-    title: "Capture Context",
+    source: evidenceLocationSourceLabel(
+      metadata.captureLocation?.locationSource ?? null,
+    ),
+    title:
+      metadata.captureLocation?.locationSource === "INTAKE_LINK_GEOLOCATION"
+        ? "Upload Session Location"
+        : "Capture Context",
     statusLabel: "Location metadata included",
-    subtitle: CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+    subtitle:
+      metadata.captureLocation?.locationSource === "INTAKE_LINK_GEOLOCATION"
+        ? "Location was provided by the contributor's browser during upload."
+        : CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
     integrityContext:
       "Device/browser-reported capture-location metadata was included in the signed integrity state for this evidence record.",
     custodyReference: {
