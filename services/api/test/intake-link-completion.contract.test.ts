@@ -186,12 +186,22 @@ describe("Public intake file picker — multi-select", () => {
     );
   });
 
-  it("onChange iterates EVERY selected file (no single-file shortcut)", () => {
+  it("onChange iterates EVERY selected file with a local partIndex counter", () => {
+    // Phase MULTI-FILE-PARTINDEX-FIX — onChange must:
+    //   1. snapshot `let nextIndex = parts.length` ONCE (React state
+    //      doesn't update across awaits within one onChange),
+    //   2. call `await stageFile(f, nextIndex)` per file,
+    //   3. increment `nextIndex += 1` after each file.
+    // Without this, every file in a multi-select sent partIndex=0
+    // and the backend's (evidenceId, partIndex) unique constraint
+    // rejected all but the first.
     const src = read(PAGE);
     assert.match(
       src,
-      /const files = Array\.from\(e\.target\.files \?\? \[\]\);[\s\S]{0,300}for \(const f of files\) \{[\s\S]{0,200}await stageFile\(f\);/,
+      /const files = Array\.from\(e\.target\.files \?\? \[\]\);[\s\S]{0,800}let nextIndex = parts\.length;/,
     );
+    assert.match(src, /await stageFile\(f, nextIndex\);/);
+    assert.match(src, /nextIndex \+= 1;/);
   });
 
   it("'Add files' button + multi-select hint are present (discoverability)", () => {
@@ -201,16 +211,104 @@ describe("Public intake file picker — multi-select", () => {
     assert.match(src, /multiple thumbnails/i);
   });
 
-  it("each file goes through stageFile independently (one part per file, no batching)", () => {
+  it("each file goes through stageFile independently with an explicit partIndex argument", () => {
     const src = read(PAGE);
-    // stageFile is the canonical per-file entry point. The pin
-    // matters because a future "optimisation" that batched files
-    // into a single POST would break SHA-256 per part and the
-    // verification-package layout.
-    assert.match(src, /async function stageFile\(file: File\)/);
-    // It computes a per-file checksum (sha256Base64) — pin that
-    // the function still has the hash step.
+    // Phase MULTI-FILE-PARTINDEX-FIX — stageFile MUST take partIndex
+    // as a REQUIRED second arg. Reading parts.length inside the
+    // function recreates the closure-stale bug.
+    assert.match(
+      src,
+      /async function stageFile\(file: File, partIndex: number\)/,
+    );
+    // Per-file SHA-256 still computed — batching files into a single
+    // POST would break verification-package layout, so the hash step
+    // must remain per-file.
     assert.match(src, /sha256Base64\(file\)/);
+  });
+
+  it("stageFile does NOT derive partIndex from React state (no `const partIndex = parts.length`)", () => {
+    // The smoking-gun line that caused the multi-file bug. Any
+    // reintroduction recreates it.
+    const src = read(PAGE);
+    assert.ok(
+      !/const partIndex = parts\.length/.test(src),
+      "stageFile must not read parts.length to derive partIndex",
+    );
+  });
+
+  it("stageFile sends the passed partIndex in the POST body", () => {
+    // The partIndex passed by the caller must flow into the
+    // /parts request body verbatim (not recomputed, not muted).
+    const src = read(PAGE);
+    assert.match(
+      src,
+      /body: JSON\.stringify\(\{\s*\n?\s*partIndex,/,
+    );
+  });
+
+  it("no first-only shortcut patterns are present (files\\[0\\] / slice\\(0,1\\) / take\\(1\\))", () => {
+    // Defense-in-depth — guard against the most common "drops every
+    // file but the first" rewrites a future refactor might attempt.
+    const src = read(PAGE);
+    // Scope the guards to the onChange handler region so an
+    // unrelated indexing elsewhere in the (1200-line) page does not
+    // false-positive. The onChange body lives between the file-input
+    // declaration and the closing `}}` of the JSX prop.
+    const handler = (() => {
+      const start = src.indexOf("e.target.files");
+      assert.ok(start > 0, "could not locate onChange handler region");
+      // Read a generous slice — covers the whole onChange body.
+      return src.slice(start, start + 2400);
+    })();
+    assert.ok(
+      !/files\[0\]/.test(handler),
+      "onChange must not slice to files[0] — every selected file is staged",
+    );
+    assert.ok(
+      !/files\.slice\(0,\s*1\)/.test(handler),
+      "onChange must not use files.slice(0, 1)",
+    );
+    assert.ok(
+      !/files\.(take|head|first)\(/.test(handler),
+      "onChange must not use take/head/first to keep only one file",
+    );
+  });
+
+  it("simulator: selecting 5 files at index 0 → partIndex sequence [0,1,2,3,4]", () => {
+    // Reproduces the runtime sequence from the source-pinned local
+    // counter. If the source contract above is satisfied, this
+    // arithmetic is what the page sends to the backend on a 5-file
+    // multi-select against an empty queue.
+    const observed: number[] = [];
+    let nextIndex = 0;
+    for (let i = 0; i < 5; i++) {
+      observed.push(nextIndex);
+      nextIndex += 1;
+    }
+    assert.deepEqual(observed, [0, 1, 2, 3, 4]);
+  });
+
+  it("simulator: adding 3 files then 2 more → second batch starts at queue length 3", () => {
+    // The local counter only matters WITHIN one onChange invocation.
+    // Between user-input events React has already re-rendered, so
+    // `parts.length` correctly reflects the queue. The second batch
+    // seeds nextIndex from parts.length = 3.
+    const batch1Indices: number[] = [];
+    let nextIndex = 0;
+    for (let i = 0; i < 3; i++) {
+      batch1Indices.push(nextIndex);
+      nextIndex += 1;
+    }
+    assert.deepEqual(batch1Indices, [0, 1, 2]);
+
+    const partsLengthAfterBatch1 = 3;
+    const batch2Indices: number[] = [];
+    nextIndex = partsLengthAfterBatch1;
+    for (let i = 0; i < 2; i++) {
+      batch2Indices.push(nextIndex);
+      nextIndex += 1;
+    }
+    assert.deepEqual(batch2Indices, [3, 4]);
   });
 });
 

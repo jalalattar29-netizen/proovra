@@ -439,7 +439,24 @@ export default function ExternalIntakePage({
     }
   }
 
-  async function stageFile(file: File) {
+  /**
+   * Stage one file into the upload queue.
+   *
+   * `partIndex` is REQUIRED and passed in from the caller. We used to
+   * read `parts.length` here, but React state is captured by closure
+   * and does not update synchronously across `await` boundaries — so
+   * when the file-input onChange looped `for (const f of files) await
+   * stageFile(f)`, every iteration saw `parts.length === 0`, every
+   * POST sent `partIndex=0`, and the DB unique constraint on
+   * `(evidenceId, partIndex)` rejected files 2..N as `part_index_taken`.
+   * The caller now advances a local counter and passes the correct
+   * index per file. See the onChange handler below.
+   *
+   * The MAX_FILES guard is also enforced by the caller (using the
+   * same local counter) so it can't be tripped by stale React state.
+   * The backend remains the authoritative cap enforcer.
+   */
+  async function stageFile(file: File, partIndex: number) {
     if (!link || !session) return;
     if (
       link.allowedAcceptedKinds.length > 0 &&
@@ -447,16 +464,6 @@ export default function ExternalIntakePage({
     ) {
       setErrorMessage(
         `Files of type "${file.type}" are not accepted by this link.`,
-      );
-      return;
-    }
-    if (
-      typeof link.maxFileCountPerSession === "number" &&
-      link.maxFileCountPerSession > 0 &&
-      parts.length >= link.maxFileCountPerSession
-    ) {
-      setErrorMessage(
-        `Maximum of ${link.maxFileCountPerSession} files for this link.`,
       );
       return;
     }
@@ -469,7 +476,6 @@ export default function ExternalIntakePage({
       return;
     }
 
-    const partIndex = parts.length;
     try {
       // Browser folder-picker context. `webkitRelativePath` is the
       // ONLY safe folder hint the browser exposes — it's relative
@@ -891,9 +897,29 @@ export default function ExternalIntakePage({
             style={{ display: "none" }}
             multiple
             onChange={async (e) => {
+              // Snapshot the queue length ONCE before iterating. React
+              // state does not update synchronously across awaits, so
+              // we maintain a local counter for both the per-file
+              // partIndex and the local cap check. Without this,
+              // every file in a multi-select sent the same partIndex
+              // and the backend's (evidenceId, partIndex) unique
+              // constraint rejected all but the first.
               const files = Array.from(e.target.files ?? []);
+              const cap =
+                typeof link?.maxFileCountPerSession === "number" &&
+                link.maxFileCountPerSession > 0
+                  ? link.maxFileCountPerSession
+                  : null;
+              let nextIndex = parts.length;
               for (const f of files) {
-                await stageFile(f);
+                if (cap !== null && nextIndex >= cap) {
+                  setErrorMessage(
+                    `Maximum of ${cap} files for this link. The remaining selection was not added.`,
+                  );
+                  break;
+                }
+                await stageFile(f, nextIndex);
+                nextIndex += 1;
               }
               if (fileInputRef.current) fileInputRef.current.value = "";
             }}
