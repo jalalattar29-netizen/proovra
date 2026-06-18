@@ -4,7 +4,6 @@ import { MarketingPage } from "../../../components/marketing/page-shell/Marketin
 import { PageHero } from "../../../components/marketing/page-shell/PageHero";
 import { FeatureGrid } from "../../../components/marketing/page-shell/FeatureGrid";
 import { ComparisonTable } from "../../../components/marketing/page-shell/ComparisonTable";
-import { LegalClarification } from "../../../components/marketing/page-shell/LegalClarification";
 import { PageCTA } from "../../../components/marketing/page-shell/PageCTA";
 import { MARKETING_LINKS } from "../../../components/marketing/tokens";
 
@@ -57,7 +56,6 @@ export default function EvidenceRecordsPage() {
           { feature: "Recipient can independently verify", left: false, right: true },
         ]}
       />
-      <LegalClarification />
       <PageCTA
         title="Turn your files into"
         highlight="Evidence Records."

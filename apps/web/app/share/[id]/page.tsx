@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { Card } from "../../../components/ui";
 import { MarketingHeader } from "../../../components/header";
-import { Footer } from "../../../components/Footer";
+import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
 
 export default function SharePage() {
   const params = useParams<{ id: string }>();
@@ -78,7 +78,7 @@ export default function SharePage() {
             </div>
           </main>
 
-          <Footer />
+          <EnterpriseFooter />
         </div>
       </div>
     </div>

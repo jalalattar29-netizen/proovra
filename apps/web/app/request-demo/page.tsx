@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { MarketingHeader } from "../../components/header";
-import { Footer } from "../../components/Footer";
+import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import { RequestDemoForm } from "../../components/request-demo-form";
 import { SALES_ASSETS } from "../../lib/sales-assets";
@@ -291,7 +291,7 @@ function RequestDemoPageContent() {
         </div>
       </SilverWatermarkSection>
 
-      <Footer />
+      <EnterpriseFooter />
     </div>
   );
 }

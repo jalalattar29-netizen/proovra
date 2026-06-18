@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { MarketingPage } from "../../../components/marketing/page-shell/MarketingPage";
 import { PageHero } from "../../../components/marketing/page-shell/PageHero";
 import { ComparisonTable } from "../../../components/marketing/page-shell/ComparisonTable";
-import { LegalClarification } from "../../../components/marketing/page-shell/LegalClarification";
 import { PageCTA } from "../../../components/marketing/page-shell/PageCTA";
 import { MARKETING_LINKS } from "../../../components/marketing/tokens";
 
@@ -46,7 +45,6 @@ export default function ComparePage() {
           { feature: "Guarantees legal admissibility", left: false, right: false },
         ]}
       />
-      <LegalClarification />
       <PageCTA
         title="Ready to move past"
         highlight="ordinary files?"

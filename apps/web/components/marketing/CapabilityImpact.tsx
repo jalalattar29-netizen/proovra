@@ -1,20 +1,14 @@
 import Link from "next/link";
-import {
-  Camera,
-  Clock,
-  Link2,
-  Package,
-  ScrollText,
-  ArrowRight,
-} from "lucide-react";
+import { Clock, Link2, Package, ScrollText, ArrowRight } from "lucide-react";
 import { MARKETING_LINKS } from "./tokens";
 import { SectionBadge } from "./SectionBadge";
+import { CameraGlyph } from "./RailIcons";
 
 const CAPABILITIES = [
   {
     title: "Cryptographic integrity",
     body: "SHA-256 fingerprints + ED25519 signatures on every record.",
-    Icon: Camera,
+    Icon: CameraGlyph,
     accent: "#F97316",
   },
   {
@@ -46,7 +40,7 @@ const CAPABILITIES = [
 export function CapabilityImpact() {
   return (
     <section
-      className="relative bg-[#F8FAFC]"
+      className="relative bg-white"
       style={{ fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif" }}
     >
       <div className="mx-auto max-w-[1480px] px-5 md:px-7 py-16 lg:px-10 2xl:px-12 lg:py-24">
@@ -63,10 +57,13 @@ export function CapabilityImpact() {
                 className="flex flex-col gap-3 rounded-[20px] border border-[#E5E7EB] bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.03)] transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.07)]"
               >
                 <span
-                  className="flex h-10 w-10 items-center justify-center rounded-2xl"
-                  style={{ background: `${accent}1A` }}
+                  className="flex h-12 w-12 items-center justify-center rounded-full"
+                  style={{
+                    background: accent,
+                    boxShadow: `0 12px 24px ${accent}38`,
+                  }}
                 >
-                  <Icon size={18} style={{ color: accent }} />
+                  <Icon size={22} strokeWidth={2.4} className="text-white" />
                 </span>
                 <h3 className="text-[14px] font-bold leading-[1.25] tracking-tight text-[#0F172A]">
                   {title}

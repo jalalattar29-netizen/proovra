@@ -3,7 +3,6 @@ import { Clock, ShieldCheck, ScrollText, CircleCheck } from "lucide-react";
 import { MarketingPage } from "../../../components/marketing/page-shell/MarketingPage";
 import { PageHero } from "../../../components/marketing/page-shell/PageHero";
 import { FeatureGrid } from "../../../components/marketing/page-shell/FeatureGrid";
-import { LegalClarification } from "../../../components/marketing/page-shell/LegalClarification";
 import { PageCTA } from "../../../components/marketing/page-shell/PageCTA";
 import { MARKETING_LINKS } from "../../../components/marketing/tokens";
 
@@ -38,7 +37,6 @@ export default function TrustedTimestampsPage() {
         surface="soft"
         columns={2}
       />
-      <LegalClarification />
       <PageCTA
         title="Verify when an"
         highlight="evidence record was created."

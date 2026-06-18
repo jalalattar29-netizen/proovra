@@ -3,7 +3,6 @@ import { ShieldCheck, Link2, Package, Hash, CircleCheck, FingerprintPattern } fr
 import { MarketingPage } from "../../../components/marketing/page-shell/MarketingPage";
 import { PageHero } from "../../../components/marketing/page-shell/PageHero";
 import { FeatureGrid } from "../../../components/marketing/page-shell/FeatureGrid";
-import { LegalClarification } from "../../../components/marketing/page-shell/LegalClarification";
 import { PageCTA } from "../../../components/marketing/page-shell/PageCTA";
 import { MARKETING_LINKS } from "../../../components/marketing/tokens";
 
@@ -53,7 +52,6 @@ export default function VerificationPage() {
         items={SIGNALS}
         columns={3}
       />
-      <LegalClarification />
       <PageCTA
         title="Run a live verification"
         highlight="right now."

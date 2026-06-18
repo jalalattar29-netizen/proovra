@@ -3,7 +3,6 @@ import { Lock, KeyRound, Eye, ShieldCheck, Globe2, ScrollText } from "lucide-rea
 import { MarketingPage } from "../../components/marketing/page-shell/MarketingPage";
 import { PageHero } from "../../components/marketing/page-shell/PageHero";
 import { FeatureGrid } from "../../components/marketing/page-shell/FeatureGrid";
-import { LegalClarification } from "../../components/marketing/page-shell/LegalClarification";
 import { PageCTA } from "../../components/marketing/page-shell/PageCTA";
 import { MARKETING_LINKS } from "../../components/marketing/tokens";
 
@@ -41,7 +40,6 @@ export default function SecurityPage() {
         surface="soft"
         columns={3}
       />
-      <LegalClarification />
       <PageCTA
         title="Bring our security posture"
         highlight="into your review."

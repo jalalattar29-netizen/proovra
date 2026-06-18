@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "../../components/ui";
 import { apiFetch, ApiError } from "../../lib/api";
 import { MarketingHeader } from "../../components/header";
-import { Footer } from "../../components/Footer";
+import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 
 export default function ForgotPasswordPage() {
   return (
@@ -190,7 +190,7 @@ function ForgotPasswordPageContent() {
             </div>
           </main>
 
-          <Footer />
+          <EnterpriseFooter />
         </div>
       </div>
     </div>

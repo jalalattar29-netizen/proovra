@@ -97,10 +97,13 @@ export function HeroSection() {
       }}
     >
       <style>{`
-        /* Header-height variable + hero height ladder. */
-        .proovra-hero { --marketing-header-height: 76px; min-height: 620px; }
+        /* Header-height variable + hero height ladder.
+           Mobile/tablet (<1024) use natural content height (no fixed
+           min-height) so the in-flow tower below the text never gets
+           clipped and the next section can never bleed over the hero. */
+        .proovra-hero { --marketing-header-height: 76px; }
         @media (min-width: 768px) {
-          .proovra-hero { --marketing-header-height: 88px; min-height: 640px; }
+          .proovra-hero { --marketing-header-height: 88px; }
         }
         @media (min-width: 1024px) {
           .proovra-hero {
@@ -155,19 +158,34 @@ export function HeroSection() {
            opacity; phones hide it entirely. Desktop tiers step up cleanly
            through 1024/1280/1440/1600/1920 to stay zoom-safe. */
 .proovra-hero-tower {
-  position: absolute;
-  z-index: 4;
-  pointer-events: none;
-  max-width: none;
-  width: auto;
+  /* Mobile/tablet (<1024): the tower renders in normal flow as a centered
+     block beneath the CTAs and trust chips. The split-hero composition is
+     reserved for desktop only — the tower never sits behind text. */
+  display: block;
+  position: relative;
+  z-index: 2;
+  margin: 28px auto 4px;
+  width: min(70%, 280px);
+  height: auto;
   object-fit: contain;
+  pointer-events: none;
+}
 
-  height: 490px;
-  right: 27%;
-  top: 100px;
-
-  bottom: auto !important;
-  transform: none !important;
+@media (min-width: 1024px) {
+  .proovra-hero-tower {
+    /* Desktop split-hero: tower absolute-positioned on the right side. */
+    display: block;
+    position: absolute;
+    margin: 0;
+    z-index: 4;
+    max-width: none;
+    width: auto;
+    height: 490px;
+    right: 27%;
+    top: 100px;
+    bottom: auto !important;
+    transform: none !important;
+  }
 }
 
 @media (min-width: 1280px) {
@@ -335,12 +353,8 @@ export function HeroSection() {
         className="proovra-hero-bg"
       />
 
-      <img
-        src={HERO_TOWER}
-        alt=""
-        aria-hidden="true"
-        className="proovra-hero-tower"
-      />
+      <div className="proovra-hero-wave" aria-hidden="true" />
+
 
       <div className="proovra-hero-rail" aria-hidden="true">
         <div className="proovra-hero-rail-line" />
@@ -419,19 +433,26 @@ Digital evidence infrastructure for legal, insurance, investigation, compliance,
           </div>
         </div>
 
-<div className="mt-6 flex max-w-[760px] flex-nowrap items-center gap-3 lg:mt-5 min-[1440px]:mt-8">
-            {TRUST_CHIPS.map(({ Icon, label }) => (
-            <div key={label} className="flex shrink-0 items-center gap-2 lg:gap-1.5 min-[1440px]:gap-2">
+        <div className="mt-6 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:mt-5 lg:flex lg:max-w-[760px] lg:flex-wrap lg:items-center lg:gap-3 min-[1440px]:mt-8">
+          {TRUST_CHIPS.map(({ Icon, label }) => (
+            <div key={label} className="flex items-center gap-2 lg:shrink-0 lg:gap-1.5 min-[1440px]:gap-2">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#0B1F5E] lg:h-6 lg:w-6 min-[1440px]:h-7 min-[1440px]:w-7">
                 <Icon size={14} className="text-white" />
               </span>
-<span className="whitespace-nowrap text-[12px] font-bold text-[#0F172A] min-[1440px]:text-[13px]">
-                  {label}
+              <span className="text-[12.5px] font-bold text-[#0F172A] lg:whitespace-nowrap min-[1440px]:text-[13px]">
+                {label}
               </span>
             </div>
           ))}
         </div>
       </div>
+
+      <img
+        src={HERO_TOWER}
+        alt=""
+        aria-hidden="true"
+        className="proovra-hero-tower"
+      />
     </section>
   );
 }

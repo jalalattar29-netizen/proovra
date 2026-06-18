@@ -11,7 +11,7 @@ import {
 import { Button, Card, useToast } from "../../components/ui";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import { MarketingHeader } from "../../components/header";
-import { Footer } from "../../components/Footer";
+import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { useAuth } from "../providers";
 import type { PricingCatalogResponse } from "./types";
 import { apiFetch } from "../../lib/api";
@@ -967,7 +967,7 @@ export default function MarketingPricingPage() {
         `}</style>
       </SilverWatermarkSection>
 
-      <Footer />
+      <EnterpriseFooter />
     </div>
   );
 }

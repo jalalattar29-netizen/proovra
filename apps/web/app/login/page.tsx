@@ -17,7 +17,7 @@ import { apiFetch, ApiError } from "../../lib/api";
 import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/header";
-import { Footer } from "../../components/Footer";
+import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import {
   clearPendingOAuthLegalAcceptance,
   savePendingOAuthLegalAcceptance,
@@ -841,7 +841,7 @@ function LoginPageContent() {
             </div>
           </main>
 
-          <Footer />
+          <EnterpriseFooter />
         </div>
       </div>
     </div>

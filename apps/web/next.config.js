@@ -52,11 +52,11 @@ const nextConfig = {
         destination: "/governance/policy",
         permanent: true,
       },
-      {
-        source: "/security",
-        destination: "/security-center",
-        permanent: true,
-      },
+      // Removed `/security` → `/security-center` permanent redirect.
+      // `/security` is now the public marketing Security overview page
+      // (app/security/page.tsx) and must render its own content; the
+      // dashboard `/security-center` lives behind the `(app)` auth wall
+      // and is reachable from inside the operator surfaces directly.
       // Phase Final-A3-PT2 — `/dashboard/api-keys` retired (the legacy
       // in-memory user-scoped API key store was removed in A-3). The
       // canonical, team-scoped, durable surface is `/integrations`.

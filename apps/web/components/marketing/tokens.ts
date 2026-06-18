@@ -52,7 +52,12 @@ export const MARKETING_LINKS = {
   support: "/support",
 
   trustCenter: "/trust-center",
-  security: "/security",
+  // Note: `/security` was historically a dashboard route that lived at
+  // `/security-center`; a stale 308 permanent redirect in next.config.js
+  // (since removed) caused some browsers to cache `/security` → `/security-center`.
+  // The marketing overview now lives at `/security-overview`, a brand-new
+  // URL that no cached redirect can hijack.
+  security: "/security-overview",
   faq: "/faq",
   whyProovra: "/why-proovra",
   comparison: "/compare/traditional-files-vs-proovra",

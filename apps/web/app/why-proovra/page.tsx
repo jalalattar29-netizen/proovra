@@ -4,7 +4,6 @@ import { MarketingPage } from "../../components/marketing/page-shell/MarketingPa
 import { PageHero } from "../../components/marketing/page-shell/PageHero";
 import { FeatureGrid } from "../../components/marketing/page-shell/FeatureGrid";
 import { ComparisonTable } from "../../components/marketing/page-shell/ComparisonTable";
-import { LegalClarification } from "../../components/marketing/page-shell/LegalClarification";
 import { PageCTA } from "../../components/marketing/page-shell/PageCTA";
 import { MARKETING_LINKS } from "../../components/marketing/tokens";
 
@@ -56,7 +55,6 @@ export default function WhyProovraPage() {
           { feature: "Recipient can verify offline", left: false, right: true },
         ]}
       />
-      <LegalClarification />
       <PageCTA
         title="Stop trusting files."
         highlight="Start verifying records."

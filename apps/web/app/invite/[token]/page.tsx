@@ -7,7 +7,7 @@ import { Button, Card, Skeleton, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 import { MarketingHeader } from "../../../components/header";
-import { Footer } from "../../../components/Footer";
+import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
 
 type InviteState =
   | "loading"
@@ -202,7 +202,7 @@ export default function InviteAcceptPage() {
             </div>
           </main>
 
-          <Footer />
+          <EnterpriseFooter />
         </div>
       </div>
     </div>

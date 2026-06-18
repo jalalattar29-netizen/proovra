@@ -15,7 +15,6 @@ import { MarketingPage } from "../../components/marketing/page-shell/MarketingPa
 import { PageHero } from "../../components/marketing/page-shell/PageHero";
 import { FeatureGrid } from "../../components/marketing/page-shell/FeatureGrid";
 import { WorkflowSteps } from "../../components/marketing/page-shell/WorkflowSteps";
-import { LegalClarification } from "../../components/marketing/page-shell/LegalClarification";
 import { PageCTA } from "../../components/marketing/page-shell/PageCTA";
 import { MARKETING_LINKS } from "../../components/marketing/tokens";
 
@@ -120,7 +119,6 @@ export default function PlatformOverviewPage() {
         surface="soft"
         columns={3}
       />
-      <LegalClarification />
       <PageCTA
         title="Ready to transform your"
         highlight="evidence operations?"

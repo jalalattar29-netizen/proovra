@@ -3,7 +3,6 @@ import { ScrollText, ShieldCheck, Lock, Eye, Clock, Briefcase } from "lucide-rea
 import { MarketingPage } from "../../../components/marketing/page-shell/MarketingPage";
 import { PageHero } from "../../../components/marketing/page-shell/PageHero";
 import { FeatureGrid } from "../../../components/marketing/page-shell/FeatureGrid";
-import { LegalClarification } from "../../../components/marketing/page-shell/LegalClarification";
 import { PageCTA } from "../../../components/marketing/page-shell/PageCTA";
 import { MARKETING_LINKS } from "../../../components/marketing/tokens";
 
@@ -40,7 +39,6 @@ export default function GovernancePage() {
         surface="soft"
         columns={3}
       />
-      <LegalClarification />
       <PageCTA
         title="Govern evidence"
         highlight="with confidence."

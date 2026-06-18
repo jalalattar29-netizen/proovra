@@ -21,7 +21,7 @@ const STANDARDS = [
 export function TrustedStandards() {
   return (
     <section
-      className="relative border-y border-[#E5E7EB] bg-[#F8FAFC]"
+      className="relative border-y border-[#E5E7EB] bg-white"
       style={{ fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif" }}
     >
       <div className="mx-auto max-w-[1480px] px-5 md:px-7 py-8 lg:px-10 2xl:px-12 lg:py-10">

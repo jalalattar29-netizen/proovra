@@ -4,7 +4,7 @@ import { useMemo, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "../../components/ui";
 import { MarketingHeader } from "../../components/header";
-import { Footer } from "../../components/Footer";
+import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 
 function ShieldIcon() {
@@ -447,7 +447,7 @@ export default function VerifyIntroPage() {
         </div>
       </SilverWatermarkSection>
 
-      <Footer />
+      <EnterpriseFooter />
     </div>
   );
 }

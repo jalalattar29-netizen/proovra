@@ -3,7 +3,6 @@ import { Scale, ScrollText, Briefcase, Package, ShieldCheck, FileText } from "lu
 import { MarketingPage } from "../../../components/marketing/page-shell/MarketingPage";
 import { PageHero } from "../../../components/marketing/page-shell/PageHero";
 import { FeatureGrid } from "../../../components/marketing/page-shell/FeatureGrid";
-import { LegalClarification } from "../../../components/marketing/page-shell/LegalClarification";
 import { PageCTA } from "../../../components/marketing/page-shell/PageCTA";
 import { MARKETING_LINKS } from "../../../components/marketing/tokens";
 
@@ -52,7 +51,6 @@ export default function LegalEDiscoveryPage() {
         items={PROOVRA_CAPABILITIES}
         columns={3}
       />
-      <LegalClarification />
       <PageCTA
         title="Defensible evidence,"
         highlight="from intake to disclosure."

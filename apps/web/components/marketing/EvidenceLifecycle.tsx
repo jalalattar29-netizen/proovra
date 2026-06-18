@@ -1,31 +1,27 @@
 import Link from "next/link";
-import {
-  Camera,
-  ShieldCheck,
-  FingerprintPattern,
-  FileText,
-  Globe2,
-  ArrowRight,
-} from "lucide-react";
+import { FingerprintPattern, FileText, ArrowRight } from "lucide-react";
 import { MARKETING_LINKS } from "./tokens";
 import { SectionBadge } from "./SectionBadge";
+import {
+  CameraGlyph,
+  LockGlyph,
+  ProveGlyph,
+} from "./RailIcons";
 
 const STAGES = [
   {
     n: "01",
     title: "Capture",
     body: "Collect evidence from any device or source.",
-    Icon: Camera,
+    Icon: CameraGlyph,
     accent: "#F97316",
-    bg: "rgba(249,115,22,0.10)",
   },
   {
     n: "02",
     title: "Preserve",
     body: "Hash, encrypt, and timestamp records.",
-    Icon: ShieldCheck,
+    Icon: LockGlyph,
     accent: "#2563EB",
-    bg: "rgba(37,99,235,0.10)",
   },
   {
     n: "03",
@@ -33,7 +29,6 @@ const STAGES = [
     body: "Check integrity signals in real time.",
     Icon: FingerprintPattern,
     accent: "#7C3AED",
-    bg: "rgba(124,58,237,0.10)",
   },
   {
     n: "04",
@@ -41,15 +36,13 @@ const STAGES = [
     body: "Generate audit-ready evidence reports.",
     Icon: FileText,
     accent: "#06B6D4",
-    bg: "rgba(6,182,212,0.10)",
   },
   {
     n: "05",
     title: "Prove",
     body: "Share verification by URL, hash, or package.",
-    Icon: Globe2,
+    Icon: ProveGlyph,
     accent: "#EC4899",
-    bg: "rgba(236,72,153,0.10)",
   },
 ];
 
@@ -79,15 +72,18 @@ export function EvidenceLifecycle() {
 
         <div className="relative mt-12">
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 xl:gap-4">
-            {STAGES.map(({ n, title, body, Icon, accent, bg }, idx) => (
+            {STAGES.map(({ n, title, body, Icon, accent }, idx) => (
               <div key={n} className="relative">
                 <div className="group relative flex h-full flex-col gap-3 rounded-[20px] border border-[#E5E7EB] bg-white p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-1 hover:border-[#CBD5E1] hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
                   <div className="flex items-center justify-between">
                     <span
-                      className="flex h-12 w-12 items-center justify-center rounded-2xl"
-                      style={{ background: bg }}
+                      className="flex h-12 w-12 items-center justify-center rounded-full"
+                      style={{
+                        background: accent,
+                        boxShadow: `0 12px 24px ${accent}38`,
+                      }}
                     >
-                      <Icon size={22} style={{ color: accent }} />
+                      <Icon size={22} className="text-white" strokeWidth={2.4} />
                     </span>
                     <span
                       className="rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wider text-white"

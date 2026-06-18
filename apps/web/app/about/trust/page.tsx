@@ -38,7 +38,7 @@ import {
 } from "@proovra/shared-evidence-presentation";
 
 import { MarketingHeader } from "../../../components/header";
-import { Footer } from "../../../components/Footer";
+import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
 
 export const metadata: Metadata = {
   title: "Trust Center · PROOVRA",
@@ -253,7 +253,7 @@ export default function TrustCenterPage(): JSX.Element {
         </div>
       </section>
 
-      <Footer />
+      <EnterpriseFooter />
     </div>
   );
 }

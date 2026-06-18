@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { MarketingHeader } from "../../../components/header";
-import { Footer } from "../../../components/Footer";
+import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
 import { SilverWatermarkSection } from "../../../components/SilverWatermarkSection";
 import { SALES_ASSETS } from "../../../lib/sales-assets";
 
@@ -340,7 +340,7 @@ export default function VerificationDemoPage() {
         </div>
       </SilverWatermarkSection>
 
-      <Footer />
+      <EnterpriseFooter />
     </div>
   );
 }

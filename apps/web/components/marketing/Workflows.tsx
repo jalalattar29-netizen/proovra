@@ -71,13 +71,13 @@ export function Workflows() {
               className="group flex flex-col gap-4 rounded-[20px] border border-[#E5E7EB] bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-1 hover:border-[#CBD5E1] hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
             >
               <span
-                className="flex h-12 w-12 items-center justify-center rounded-2xl"
+                className="flex h-12 w-12 items-center justify-center rounded-full"
                 style={{
-                  background: `${accent}1A`,
-                  boxShadow: `inset 0 0 0 1px ${accent}30`,
+                  background: accent,
+                  boxShadow: `0 12px 24px ${accent}38`,
                 }}
               >
-                <Icon size={22} style={{ color: accent }} />
+                <Icon size={22} strokeWidth={2.4} className="text-white" />
               </span>
               <div className="flex flex-col gap-1.5">
                 <h3 className="text-[15.5px] font-bold leading-[1.25] tracking-tight text-[#0F172A]">

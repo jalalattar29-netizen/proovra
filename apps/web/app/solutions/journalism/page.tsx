@@ -3,7 +3,6 @@ import { Newspaper, ShieldCheck, Lock, Globe2, FileText, Camera } from "lucide-r
 import { MarketingPage } from "../../../components/marketing/page-shell/MarketingPage";
 import { PageHero } from "../../../components/marketing/page-shell/PageHero";
 import { FeatureGrid } from "../../../components/marketing/page-shell/FeatureGrid";
-import { LegalClarification } from "../../../components/marketing/page-shell/LegalClarification";
 import { PageCTA } from "../../../components/marketing/page-shell/PageCTA";
 import { MARKETING_LINKS } from "../../../components/marketing/tokens";
 
@@ -52,7 +51,6 @@ export default function JournalismPage() {
         items={PROOVRA_CAPABILITIES}
         columns={3}
       />
-      <LegalClarification body="PROOVRA verifies integrity signals and custody — it does not determine factual truth, editorial conclusions, or whether a depicted event actually occurred. Editorial verification remains the responsibility of the newsroom." />
       <PageCTA
         title="Protect sources,"
         highlight="defend the story."

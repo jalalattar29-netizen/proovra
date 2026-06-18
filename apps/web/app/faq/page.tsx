@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { MarketingPage } from "../../components/marketing/page-shell/MarketingPage";
 import { PageHero } from "../../components/marketing/page-shell/PageHero";
 import { FAQAccordion } from "../../components/marketing/page-shell/FAQAccordion";
-import { LegalClarification } from "../../components/marketing/page-shell/LegalClarification";
 import { PageCTA } from "../../components/marketing/page-shell/PageCTA";
 import { MARKETING_LINKS } from "../../components/marketing/tokens";
 
@@ -91,7 +90,6 @@ export default function FAQPage() {
         title="Frequently asked."
         items={FAQ}
       />
-      <LegalClarification />
       <PageCTA
         title="Still have"
         highlight="a question?"

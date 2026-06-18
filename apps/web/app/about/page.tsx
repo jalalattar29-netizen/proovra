@@ -1,7 +1,7 @@
 "use client";
 
 import { MarketingHeader } from "../../components/header";
-import { Footer } from "../../components/Footer";
+import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import Link from "next/link";
 
@@ -220,7 +220,7 @@ export default function AboutPage() {
         </div>
       </SilverWatermarkSection>
 
-      <Footer />
+      <EnterpriseFooter />
     </div>
   );
 }

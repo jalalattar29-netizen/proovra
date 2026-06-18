@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { Footer } from "../../../components/Footer";
+import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
 import { MarketingHeader } from "../../../components/header";
 import { SilverWatermarkSection } from "../../../components/SilverWatermarkSection";
 import {
@@ -149,7 +149,7 @@ export default async function LegalPage({
         </div>
       </SilverWatermarkSection>
 
-      <Footer />
+      <EnterpriseFooter />
     </div>
   );
 }

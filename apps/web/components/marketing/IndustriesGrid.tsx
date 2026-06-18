@@ -44,12 +44,15 @@ const INDUSTRIES = [
 
 export function IndustriesGrid() {
   return (
-    <section
-      className="relative bg-[#F8FAFC]"
-      style={{ fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif" }}
-    >
-      <div className="mx-auto max-w-[1480px] px-5 md:px-7 py-20 lg:px-10 2xl:px-12 lg:py-30">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+<section className="relative bg-white">
+  <div
+  aria-hidden="true"
+className="pointer-events-none absolute inset-x-0 bottom-0 h-[500px] opacity-100"
+  style={{ zIndex: 0 }}
+>
+</div>
+<div className="mx-auto max-w-[1480px] px-5 md:px-7 py-20 lg:px-10 2xl:px-12 lg:py-30">
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="max-w-2xl">
             <SectionBadge>Solutions for every industry</SectionBadge>
             <h2 className="mt-3 text-[30px] font-extrabold leading-[1.1] tracking-[-0.02em] text-[#0F172A] md:text-[36px] lg:text-[44px]">

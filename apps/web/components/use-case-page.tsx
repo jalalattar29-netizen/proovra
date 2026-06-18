@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { MarketingHeader } from "./header";
-import { Footer } from "./Footer";
+import { EnterpriseFooter } from "./marketing/EnterpriseFooter";
 import { SilverWatermarkSection } from "./SilverWatermarkSection";
 import type { UseCasePageContent } from "./use-case-data";
 import { SALES_ASSETS } from "../lib/sales-assets";
@@ -298,7 +298,7 @@ export function UseCasePage({ content }: { content: UseCasePageContent }) {
         </div>
       </SilverWatermarkSection>
 
-      <Footer />
+      <EnterpriseFooter />
     </div>
   );
 }

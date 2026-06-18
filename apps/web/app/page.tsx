@@ -9,7 +9,6 @@ import { ProofInAction } from "../components/marketing/ProofInAction";
 import { Workflows } from "../components/marketing/Workflows";
 import { CapabilityImpact } from "../components/marketing/CapabilityImpact";
 import { ImportantClarification } from "../components/marketing/ImportantClarification";
-import { FinalCTA } from "../components/marketing/FinalCTA";
 import { EnterpriseFooter } from "../components/marketing/EnterpriseFooter";
 
 export default function HomePage() {
@@ -29,7 +28,6 @@ export default function HomePage() {
       <Workflows />
       <CapabilityImpact />
       <ImportantClarification />
-      <FinalCTA />
       <EnterpriseFooter />
     </main>
   );

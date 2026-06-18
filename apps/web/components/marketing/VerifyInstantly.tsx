@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { KeyboardEvent } from "react";
 import {
   ArrowRight,
-  ShieldCheck,
   UploadCloud,
   Hash,
   Link as LinkIcon,
@@ -16,44 +17,58 @@ import {
 } from "lucide-react";
 import { MARKETING_LINKS } from "./tokens";
 import { SectionBadge } from "./SectionBadge";
+import { ShieldCheckGlyph } from "./RailIcons";
 
-type Tab = "url" | "package" | "hash";
+const EMPTY_ERROR = "Enter a verification URL or record ID.";
+const INVALID_ERROR = "Enter a valid PROOVRA verification URL or record ID.";
 
-const TABS: { id: Tab; label: string; Icon: typeof LinkIcon }[] = [
-  { id: "url", label: "Verification URL", Icon: LinkIcon },
-  { id: "package", label: "Upload Package", Icon: UploadCloud },
-  { id: "hash", label: "Enter Hash", Icon: Hash },
-];
+function resolveVerifyTarget(input: string): string | null {
+  const raw = input.trim();
+  if (!raw) return null;
 
-const TAB_CONFIG: Record<
-  Tab,
-  { placeholder: string; helper: string; sampleLabel: string }
-> = {
-  url: {
-    placeholder: "Paste a PROOVRA verification URL",
-    helper: "Verify against the published evidence record.",
-    sampleLabel: "Try our sample:",
-  },
-  package: {
-    placeholder: "Drop a verification package (.zip) or click to upload",
-    helper: "Bundles include manifest, signatures, and custody chain.",
-    sampleLabel: "Or try the sample:",
-  },
-  hash: {
-    placeholder: "Enter SHA-256 hash",
-    helper: "We will look up matching evidence and timestamp records.",
-    sampleLabel: "Try a sample hash:",
-  },
-};
+  const fromUrl = raw.match(/\/verify\/([^/?#\s]+)/i);
+  if (fromUrl && fromUrl[1]) return `/verify/${fromUrl[1]}`;
+
+  // Looks like a URL but didn't carry a /verify/{id} segment — reject.
+  if (/^https?:\/\//i.test(raw) || raw.startsWith("/")) return null;
+
+  // Treat as a raw record id / hash.
+  if (/^[A-Za-z0-9._-]+$/.test(raw)) return `/verify/${raw}`;
+
+  return null;
+}
 
 export function VerifyInstantly() {
-  const [active, setActive] = useState<Tab>("url");
-  const cfg = TAB_CONFIG[active];
+  const router = useRouter();
+  const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleVerify = () => {
+    const raw = value.trim();
+    if (!raw) {
+      setError(EMPTY_ERROR);
+      return;
+    }
+    const target = resolveVerifyTarget(raw);
+    if (!target) {
+      setError(INVALID_ERROR);
+      return;
+    }
+    setError(null);
+    router.push(target);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleVerify();
+    }
+  };
 
   return (
     <section
       id="verify-instantly"
-      className="relative overflow-hidden bg-white"
+      className="relative bg-white"
       style={{ fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif" }}
     >
       <div className="mx-auto grid max-w-[1480px] grid-cols-1 gap-10 px-5 md:px-7 py-20 lg:grid-cols-[0.85fr_1.8fr] lg:gap-10 lg:px-10 2xl:px-12 lg:py-28">
@@ -87,46 +102,100 @@ export function VerifyInstantly() {
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <div className="rounded-[24px] border border-[#E5E7EB] bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
+            {/* Tab strip — all three render with their original visual style.
+                "Verification URL" is the only active mode; the other two are
+                inert visual labels (no click handler, no view switch). */}
             <div className="flex gap-1 rounded-2xl bg-[#F8FAFC] p-1">
-              {TABS.map(({ id, label, Icon }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setActive(id)}
-                  className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2 text-[12.5px] font-semibold transition-all ${
-                    active === id
-                      ? "bg-white text-[#0B1F5E] shadow-[0_2px_6px_rgba(15,23,42,0.06)]"
-                      : "text-[#475569] hover:text-[#0F172A]"
-                  }`}
-                >
-                  <Icon size={13} />
-                  {label}
-                </button>
-              ))}
+              <button
+                type="button"
+                aria-current="true"
+                className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-white px-2 py-2 text-[12.5px] font-semibold text-[#0B1F5E] shadow-[0_2px_6px_rgba(15,23,42,0.06)]"
+              >
+                <LinkIcon size={13} />
+                Verification URL
+              </button>
+              <button
+                type="button"
+                className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2 text-[12.5px] font-semibold text-[#475569] transition-colors hover:text-[#0F172A]"
+              >
+                <UploadCloud size={13} />
+                Upload Package
+              </button>
+              <button
+                type="button"
+                className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2 text-[12.5px] font-semibold text-[#475569] transition-colors hover:text-[#0F172A]"
+              >
+                <Hash size={13} />
+                Enter Hash
+              </button>
             </div>
 
-            <label className="mt-5 block text-[12px] font-medium uppercase tracking-[0.14em] text-[#475569]">
-              {active === "package" ? "Verification package" : active === "hash" ? "SHA-256 hash" : "Verification URL"}
+            <label
+              htmlFor="verify-input"
+              className="mt-5 block text-[12px] font-medium uppercase tracking-[0.14em] text-[#475569]"
+            >
+              Verification URL
             </label>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <input
+                id="verify-input"
                 type="text"
-                placeholder={cfg.placeholder}
-                aria-label={cfg.placeholder}
-                className="h-12 flex-1 rounded-xl border border-[#E5E7EB] bg-white px-4 text-[14px] text-[#0F172A] placeholder:text-[#94A3B8] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/15"
-                readOnly
+                placeholder="Paste a PROOVRA verification URL or enter a record ID"
+                aria-label="Paste a PROOVRA verification URL or enter a record ID"
+                value={value}
+                onChange={(event) => {
+                  setValue(event.target.value);
+                  if (error) setError(null);
+                }}
+                onKeyDown={handleKeyDown}
+                className="h-12 flex-1 rounded-xl border border-[#E5E7EB] bg-white px-4 text-[14px] text-[#0F172A] placeholder:text-[#94A3B8] focus:border-[#1769E0] focus:outline-none focus:ring-2 focus:ring-[#1769E0]/15"
               />
-              <Link
-                href={MARKETING_LINKS.verifyDemo}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#7C3AED] px-5 text-[14px] font-semibold text-white shadow-[0_8px_22px_rgba(124,58,237,0.30)] transition-all hover:bg-[#6d28d9]"
+              <button
+                type="button"
+                onClick={handleVerify}
+                className="relative inline-flex h-12 items-center justify-center gap-2 overflow-hidden rounded-xl px-5 text-[14px] font-semibold text-white transition-all hover:-translate-y-px focus:outline-none focus:ring-2 focus:ring-[#1769E0]/40 focus:ring-offset-1"
+                style={{
+                  background:
+                    "linear-gradient(135deg, #0B3B8F 0%, #1769E0 55%, #4DA3FF 100%)",
+                  boxShadow: "0 14px 30px rgba(23,105,224,0.25)",
+                }}
               >
-                Verify now
-                <ArrowRight size={15} />
-              </Link>
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 top-0 h-1/2"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 100%)",
+                  }}
+                />
+                <span className="relative inline-flex items-center gap-2">
+                  Verify now
+                  <ArrowRight size={15} />
+                </span>
+              </button>
             </div>
-            <p className="mt-3 text-[12.5px] text-[#64748B]">{cfg.helper}</p>
+
+            {error ? (
+              <p
+                role="alert"
+                aria-live="polite"
+                className="mt-2 text-[12.5px] text-[#DC2626]"
+              >
+                {error}
+              </p>
+            ) : (
+              <p className="mt-3 text-[12.5px] text-[#64748B]">
+                Paste a published verification URL or the record ID from an
+                evidence report. We will open the live verification page so you
+                can inspect every integrity signal — hash, timestamp, signature,
+                and custody chain.
+              </p>
+            )}
+
             <div className="mt-5 border-t border-[#EEF1F5] pt-4">
-              <p className="text-[12px] font-medium text-[#475569]">{cfg.sampleLabel}</p>
+              <p className="text-[12px] font-medium text-[#475569]">
+                Try our sample:
+              </p>
               <Link
                 href={MARKETING_LINKS.verifyDemo}
                 className="mt-1.5 inline-flex items-center gap-1 text-[13px] font-semibold text-[#2563EB] hover:text-[#1d4ed8]"
@@ -140,10 +209,13 @@ export function VerifyInstantly() {
           <div className="rounded-[24px] border border-[#E5E7EB] bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
             <div className="flex items-start gap-3">
               <span
-                className="flex h-10 w-10 items-center justify-center rounded-2xl"
-                style={{ background: "rgba(16,185,129,0.10)" }}
+                className="flex h-10 w-10 items-center justify-center rounded-full"
+                style={{
+                  background: "#10B981",
+                  boxShadow: "0 10px 22px rgba(16,185,129,0.30)",
+                }}
               >
-                <ShieldCheck size={20} className="text-[#10B981]" />
+                <ShieldCheckGlyph size={20} className="text-white" />
               </span>
               <div>
                 <h3 className="text-[16.5px] font-bold text-[#10B981]">Evidence Verified</h3>
