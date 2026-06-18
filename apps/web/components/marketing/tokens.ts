@@ -1,3 +1,29 @@
+/**
+ * Cool slate / blue-white surface palette for PROOVRA public marketing pages.
+ *
+ * Each value is a CSS var reference defined in app/globals.css under :root.
+ * Use these on public marketing surfaces only — authenticated dashboard pages
+ * keep --surface / --surface-soft.
+ *
+ * Hex equivalents (for reference):
+ *   pageBg:           #F8FAFC  (slate-50)
+ *   pageBgSoft:       #F1F5F9  (slate-100)
+ *   surface:          #FFFFFF  (pure white)
+ *   surfaceSoft:      #F8FAFC  (slate-50)
+ *   borderWarm:       #E2E8F0  (slate-200) — name retained from earlier warm iteration
+ *   borderWarmStrong: #CBD5E1  (slate-300)
+ *   borderWarmHover:  #CBD5E1  (slate-300)
+ */
+export const MARKETING_SURFACE = {
+  pageBg: "var(--proovra-page-bg)",
+  pageBgSoft: "var(--proovra-page-bg-soft)",
+  surface: "var(--proovra-surface)",
+  surfaceSoft: "var(--proovra-surface-soft)",
+  borderWarm: "var(--proovra-border-warm)",
+  borderWarmStrong: "var(--proovra-border-warm-strong)",
+  borderWarmHover: "var(--proovra-border-warm-hover)",
+} as const;
+
 export const MARKETING_COLORS = {
   navy: "#0B1F5E",
   navyDeep: "#06112E",
@@ -22,8 +48,6 @@ export const MARKETING_COLORS = {
 
 export const MARKETING_ASSETS = {
   brand: {
-    logoHorizontal: "/assets/branding/proovra-logo-horizontal.png",
-    logoPrimary: "/assets/branding/proovra-logo-primary.png",
     logoHeader: "/assets/branding/proovra-logo-header.png",
     mark: "/assets/branding/proovra-mark.png",
   },

@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { Card } from "../../../components/ui";
-import { MarketingHeader } from "../../../components/header";
+import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
 
 export default function SharePage() {

@@ -44,7 +44,7 @@ const INDUSTRIES = [
 
 export function IndustriesGrid() {
   return (
-<section className="relative bg-white">
+<section className="relative bg-[var(--proovra-page-bg)]">
   <div
   aria-hidden="true"
 className="pointer-events-none absolute inset-x-0 bottom-0 h-[500px] opacity-100"
@@ -61,7 +61,7 @@ className="pointer-events-none absolute inset-x-0 bottom-0 h-[500px] opacity-100
           </div>
           <Link
             href="/about"
-            className="inline-flex items-center gap-1.5 self-start rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-[13.5px] font-semibold text-[#0F172A] transition-all hover:border-[#CBD5E1] md:self-auto"
+            className="inline-flex items-center gap-1.5 self-start rounded-full border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] px-4 py-2 text-[13.5px] font-semibold text-[#0F172A] transition-all hover:border-[var(--proovra-border-warm-hover)] md:self-auto"
           >
             View all industries
             <ArrowRight size={14} />
@@ -73,7 +73,7 @@ className="pointer-events-none absolute inset-x-0 bottom-0 h-[500px] opacity-100
             <Link
               key={title}
               href={href}
-              className="group flex flex-col overflow-hidden rounded-[20px] border border-[#E5E7EB] bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-1 hover:border-[#CBD5E1] hover:shadow-[0_18px_40px_rgba(15,23,42,0.10)]"
+              className="group flex flex-col overflow-hidden rounded-[20px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-1 hover:border-[var(--proovra-border-warm-hover)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.10)]"
             >
               <div className="relative h-40 w-full overflow-hidden bg-[#0F172A] lg:h-36 xl:h-32">
                 <img

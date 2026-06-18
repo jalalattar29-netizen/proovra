@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button, Card, Skeleton, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
-import { MarketingHeader } from "../../../components/header";
+import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
 
 type InviteState =

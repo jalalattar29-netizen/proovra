@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MarketingHeader } from "../../../components/header";
+import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
 import { SilverWatermarkSection } from "../../../components/SilverWatermarkSection";
 import { RequestDemoSuccess } from "../../../components/request-demo-success";

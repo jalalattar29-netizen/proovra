@@ -37,7 +37,7 @@ import {
   type TrustCenterSection,
 } from "@proovra/shared-evidence-presentation";
 
-import { MarketingHeader } from "../../../components/header";
+import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
 
 export const metadata: Metadata = {

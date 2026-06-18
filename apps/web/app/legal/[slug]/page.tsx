@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
-import { MarketingHeader } from "../../../components/header";
+import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { SilverWatermarkSection } from "../../../components/SilverWatermarkSection";
 import {
   ALLOWED_LEGAL_SLUGS,

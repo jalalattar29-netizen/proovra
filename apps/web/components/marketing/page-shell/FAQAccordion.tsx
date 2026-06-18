@@ -16,7 +16,7 @@ export function FAQAccordion({ eyebrow, title, description, items }: FAQAccordio
   const [openIdx, setOpenIdx] = useState<number | null>(0);
 
   return (
-    <section className="relative bg-white">
+    <section className="relative bg-[var(--proovra-page-bg)]">
       <div className="mx-auto max-w-[1480px] px-5 md:px-7 py-16 lg:px-10 2xl:px-12 lg:py-24">
         {eyebrow ? (
           <span className="inline-flex items-center gap-2 text-[11.5px] font-semibold uppercase tracking-[0.22em] text-[#7C3AED]">
@@ -32,20 +32,20 @@ export function FAQAccordion({ eyebrow, title, description, items }: FAQAccordio
           </p>
         ) : null}
 
-        <div className="mt-10 overflow-hidden rounded-[24px] border border-[#E5E7EB] bg-white">
+        <div className="mt-10 overflow-hidden rounded-[24px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)]">
           {items.map((item, idx) => {
             const open = openIdx === idx;
             return (
               <div
                 key={item.q}
-                className={`border-b border-[#EEF1F5] last:border-b-0 ${
-                  open ? "bg-[#FAFBFD]" : "bg-white"
+                className={`border-b border-[var(--proovra-border-warm)] last:border-b-0 ${
+                  open ? "bg-[var(--proovra-surface-soft)]" : "bg-[var(--proovra-surface)]"
                 }`}
               >
                 <button
                   type="button"
                   onClick={() => setOpenIdx(open ? null : idx)}
-                  className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left transition-colors hover:bg-[#F8FAFC]"
+                  className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left transition-colors hover:bg-[var(--proovra-page-bg-soft)]"
                   aria-expanded={open}
                 >
                   <span className="text-[15.5px] font-semibold text-[#0F172A]">

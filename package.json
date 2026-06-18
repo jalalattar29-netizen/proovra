@@ -54,6 +54,7 @@
     "@types/node": "^25.5.2"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "zod": "^4.3.6"
   }
 }

@@ -24,7 +24,7 @@ export function ComparisonTable({
   rows,
 }: ComparisonTableProps) {
   return (
-    <section className="relative bg-[#F8FAFC]">
+    <section className="relative bg-[var(--proovra-page-bg-soft)]">
       <div className="mx-auto max-w-[1480px] px-5 md:px-7 py-16 lg:px-10 2xl:px-12 lg:py-24">
         {eyebrow ? (
           <span className="inline-flex items-center gap-2 text-[11.5px] font-semibold uppercase tracking-[0.22em] text-[#2563EB]">
@@ -40,8 +40,8 @@ export function ComparisonTable({
           </p>
         ) : null}
 
-        <div className="mt-10 overflow-hidden rounded-[24px] border border-[#E5E7EB] bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-          <div className="grid grid-cols-[1.5fr_1fr_1fr] gap-0 border-b border-[#E5E7EB] bg-[#F8FAFC]">
+        <div className="mt-10 overflow-hidden rounded-[24px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+          <div className="grid grid-cols-[1.5fr_1fr_1fr] gap-0 border-b border-[var(--proovra-border-warm)] bg-[var(--proovra-page-bg-soft)]">
             <div className="px-5 py-4 text-[11.5px] font-semibold uppercase tracking-[0.16em] text-[#475569]">
               Feature
             </div>
@@ -59,13 +59,13 @@ export function ComparisonTable({
             <div
               key={row.feature}
               className={`grid grid-cols-[1.5fr_1fr_1fr] gap-0 ${
-                idx % 2 === 1 ? "bg-[#FAFBFD]" : "bg-white"
+                idx % 2 === 1 ? "bg-[var(--proovra-surface-soft)]" : "bg-[var(--proovra-surface)]"
               }`}
             >
-              <div className="border-b border-[#EEF1F5] px-5 py-4 text-[13.5px] font-semibold text-[#0F172A]">
+              <div className="border-b border-[var(--proovra-border-warm)] px-5 py-4 text-[13.5px] font-semibold text-[#0F172A]">
                 {row.feature}
               </div>
-              <div className="flex items-start border-b border-[#EEF1F5] px-5 py-4 text-[13.5px] text-[#475569]">
+              <div className="flex items-start border-b border-[var(--proovra-border-warm)] px-5 py-4 text-[13.5px] text-[#475569]">
                 {typeof row.left === "boolean" ? (
                   row.left ? (
                     <Check size={16} className="text-[#10B981]" />
@@ -76,7 +76,7 @@ export function ComparisonTable({
                   row.left
                 )}
               </div>
-              <div className="flex items-start border-b border-[#EEF1F5] px-5 py-4 text-[13.5px] text-[#0F172A]">
+              <div className="flex items-start border-b border-[var(--proovra-border-warm)] px-5 py-4 text-[13.5px] text-[#0F172A]">
                 {typeof row.right === "boolean" ? (
                   row.right ? (
                     <Check size={16} className="text-[#10B981]" />

@@ -77,6 +77,19 @@ textarea {
   --surface-soft: #f5f6f4;
   --surface-muted: rgba(36, 55, 59, 0.06);
 
+  /* PROOVRA marketing surface palette — cool slate / blue-white.
+     Used only by public marketing pages (homepage, pricing, verify,
+     request-demo). Authenticated dashboard surfaces continue to use
+     --surface/--surface-soft. Variable names retained from the earlier
+     "warm" iteration to avoid breaking consumers — values are slate. */
+  --proovra-page-bg: #f8fafc;
+  --proovra-page-bg-soft: #f1f5f9;
+  --proovra-surface: #ffffff;
+  --proovra-surface-soft: #f8fafc;
+  --proovra-border-warm: #e2e8f0;
+  --proovra-border-warm-strong: #cbd5e1;
+  --proovra-border-warm-hover: #cbd5e1;
+
   --border-soft: rgba(15, 23, 42, 0.08);
   --shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.08);
   --shadow-card: 0 16px 32px rgba(0, 0, 0, 0.07);
@@ -996,145 +1009,9 @@ textarea:focus-visible {
   font-weight: 700;
 }
 
-/* =========================================================
-   Landing body classes used by current landing-body.tsx
-   ========================================================= */
-
-.landing-section-heading {
-  max-width: 840px;
-  margin-bottom: 28px;
-}
-
-.landing-section-heading h2 {
-  margin: 0 0 8px;
-}
-
-.how-it-works-grid,
-.who-it-for-grid,
-.proof-layers-grid,
-.landing-trust-grid {
-  display: grid;
-  gap: 16px;
-}
-
-.how-it-works-grid {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
-.who-it-for-grid {
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-}
-
-.proof-layers-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.landing-trust-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.how-it-works-step,
-.who-it-for-card,
-.proof-layer-card,
-.landing-trust-card,
-.landing-disclaimer-card {
-  border-radius: 20px;
-  padding: 20px 18px;
-  background: rgba(255, 255, 255, 0.38);
-  border: 1px solid rgba(36, 55, 59, 0.08);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-.how-it-works-step h3,
-.who-it-for-card h3,
-.proof-layer-card__title,
-.landing-trust-card__title {
-  margin: 12px 0 8px;
-  font-size: 16px;
-  color: #23373b;
-  font-weight: 800;
-}
-
-.how-it-works-step p,
-.who-it-for-card p,
-.proof-layer-card__body,
-.landing-trust-card__body {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.7;
-  color: #5f6b6f;
-}
-
-.how-it-works-icon,
-.landing-trust-card__icon {
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  margin-bottom: 14px;
-  background: rgba(58, 93, 97, 0.08);
-  border: 1px solid rgba(58, 93, 97, 0.12);
-  border-radius: 14px;
-  color: #3a5d61;
-}
-
-.who-it-for-card svg {
-  color: #3a5d61;
-}
-
-.proof-layer-card__eyebrow,
-.landing-proof-banner__eyebrow {
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #8b725b;
-  margin-bottom: 10px;
-}
-
-.landing-proof-banner {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 24px;
-  align-items: center;
-  padding: 26px;
-  border-radius: 24px;
-  background: linear-gradient(135deg, rgba(22, 36, 40, 0.94) 0%, rgba(12, 23, 27, 0.98) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 22px 52px rgba(2, 9, 22, 0.26);
-}
-
-.landing-proof-banner__title {
-  margin: 0 0 10px;
-  color: rgba(246, 252, 255, 0.96);
-}
-
-.landing-proof-banner__body {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.7;
-  color: rgba(219, 235, 248, 0.82);
-  max-width: 760px;
-}
-
-.landing-proof-banner__actions,
-.landing-final-cta__actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.landing-final-cta {
-  display: grid;
-  gap: 14px;
-  justify-items: center;
-}
-
-.landing-final-cta h2 {
-  margin: 0;
-}
+/* Legacy landing-body class system removed (Phase cleanup): the
+   `landing-body.tsx` component this CSS supported was unused — all
+   homepage sections now live under `components/marketing/*`. */
 
 /* =========================================================
    Evidence row classes from ui.tsx ListRow
@@ -1377,26 +1254,6 @@ textarea:focus-visible {
   }
 }
 
-@media (max-width: 1080px) {
-  .proof-layers-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .landing-trust-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 900px) {
-  .landing-proof-banner {
-    grid-template-columns: 1fr;
-  }
-
-  .landing-proof-banner__actions {
-    justify-content: flex-start;
-  }
-}
-
 @media (max-width: 768px) {
   .proovra-nav-app-desktop {
     display: none;
@@ -1414,11 +1271,6 @@ textarea:focus-visible {
 }
 
 @media (max-width: 760px) {
-  .proof-layers-grid,
-  .landing-trust-grid {
-    grid-template-columns: 1fr;
-  }
-
   .evidence-row-pro {
     align-items: flex-start;
     padding: 14px;
@@ -2362,82 +2214,9 @@ body.camera-open {
   border-color: rgba(245, 158, 11, 0.24);
 }
 
-/* =========================================================
-   HOME PAGE PREMIUM BRONZE STATUS + VELVET POLISH
-   ========================================================= */
-
-.home-page-shell .home-bronze-status {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 30px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  line-height: 1;
-  color: #8f745c;
-  border: 1px solid rgba(183, 157, 132, 0.26);
-  background: linear-gradient(
-    180deg,
-    rgba(183, 157, 132, 0.16) 0%,
-    rgba(255, 255, 255, 0.08) 100%
-  );
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 6px 14px rgba(92, 69, 50, 0.08);
-}
-
-.home-page-shell .home-bronze-status:hover {
-  border-color: rgba(183, 157, 132, 0.34);
-  color: #a18369;
-}
-
-.home-page-shell .home-velvet-card {
-  position: relative;
-  overflow: hidden;
-  border-radius: 30px;
-  border: 1px solid rgba(183, 157, 132, 0.20);
-  box-shadow:
-    0 22px 42px rgba(0, 0, 0, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-
-.home-page-shell .home-velvet-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 18% 14%, rgba(158, 216, 207, 0.05), transparent 28%),
-    radial-gradient(circle at 86% 18%, rgba(214, 184, 157, 0.045), transparent 24%);
-  z-index: 0;
-}
-
-.home-page-shell .home-velvet-card > * {
-  position: relative;
-  z-index: 1;
-}
-
-.home-page-shell .home-silver-text {
-  color: #dbe2df;
-}
-
-.home-page-shell .home-silver-text-muted {
-  color: rgba(211, 223, 220, 0.72);
-}
-
-.home-page-shell .home-bronze-outline {
-  border: 1px solid rgba(183, 157, 132, 0.18);
-  background: linear-gradient(
-    135deg,
-    rgba(183, 157, 132, 0.07),
-    rgba(255, 255, 255, 0.025)
-  );
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.08);
-}
+/* Legacy `.home-page-shell` bronze/velvet polish removed (Phase cleanup):
+   the old home shell wrapper was retired with the homepage redesign and
+   no TSX component carries the `.home-page-shell` class anymore. */
 
 /* =========================================================
    ADMIN + DASHBOARD PREMIUM SYSTEM

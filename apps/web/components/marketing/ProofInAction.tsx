@@ -14,7 +14,7 @@ import { SectionBadge } from "./SectionBadge";
 export function ProofInAction() {
   return (
     <section
-      className="relative bg-white"
+      className="relative bg-[var(--proovra-page-bg)]"
       style={{ fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif" }}
     >
       <div className="mx-auto grid max-w-[1480px] grid-cols-1 items-center gap-10 px-5 md:px-7 py-20 lg:grid-cols-[0.9fr_1.7fr] lg:gap-12 lg:px-10 2xl:px-12 lg:py-28">
@@ -38,8 +38,8 @@ export function ProofInAction() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-[#E5E7EB] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.10)]">
-          <div className="flex items-center gap-2 border-b border-[#EEF1F5] px-4 py-3">
+        <div className="rounded-[24px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] shadow-[0_24px_60px_rgba(15,23,42,0.10)]">
+          <div className="flex items-center gap-2 border-b border-[var(--proovra-border-warm)] px-4 py-3">
             <div className="flex gap-1.5">
               <span className="h-3 w-3 rounded-full bg-[#FF5F57]" />
               <span className="h-3 w-3 rounded-full bg-[#FEBC2E]" />
@@ -73,7 +73,7 @@ export function ProofInAction() {
               </span>
               <span
                 aria-hidden="true"
-                className="absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#0B1F5E] shadow-[0_8px_24px_rgba(15,23,42,0.20)]"
+                className="absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--proovra-surface)] text-[#0B1F5E] shadow-[0_8px_24px_rgba(15,23,42,0.20)]"
               >
                 <Play size={20} fill="currentColor" />
               </span>
@@ -123,7 +123,7 @@ export function ProofInAction() {
                 ].map(({ label, value, Icon, valid }) => (
                   <div
                     key={label}
-                    className="flex items-center justify-between rounded-xl border border-[#EEF1F5] bg-[#F8FAFC] px-3 py-2.5"
+                    className="flex items-center justify-between rounded-xl border border-[var(--proovra-border-warm)] bg-[var(--proovra-page-bg-soft)] px-3 py-2.5"
                   >
                     <span className="flex items-center gap-1.5 text-[#475569]">
                       <Icon size={13} className="text-[#2563EB]" />

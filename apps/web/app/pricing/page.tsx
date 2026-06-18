@@ -1,160 +1,132 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, type ElementType, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { CheckCircle2 } from "lucide-react";
+import {
+  AnchorSimple,
+  Archive,
+  Briefcase,
+  Buildings,
+  Camera,
+  CheckCircle,
+  ClockCounterClockwise,
+  FileText,
+  Fingerprint,
+  GitBranch,
+  Globe,
+  Package,
+  PenNib,
+  ShieldCheck,
+  Sparkle,
+  Stack,
+  User,
+  UsersThree,
+  Pulse,
+  Scroll,
+} from "@phosphor-icons/react";
 import {
   detectCurrency,
-  formatMoney,
   normalizeCurrency,
   type SupportedCurrency,
 } from "../../lib/currency";
-import { Button, Card, useToast } from "../../components/ui";
-import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
-import { MarketingHeader } from "../../components/header";
+import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { useAuth } from "../providers";
 import type { PricingCatalogResponse } from "./types";
 import { apiFetch } from "../../lib/api";
-import { PricingComparisonTable } from "../../components/pricing/PricingComparisonTable";
-import { PricingCheckoutGuide } from "../../components/pricing/PricingCheckoutGuide";
 
-function getAppBase() {
-  if (typeof window === "undefined") return "";
-  const { hostname } = window.location;
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return window.location.origin;
-  }
+type MarketingIcon = ElementType;
+
+type PlanId = "personal" | "payg" | "pro" | "team" | "enterprise";
+
+type PricingPlan = {
+  id: PlanId;
+  title: string;
+  subtitle: string;
+  price: string;
+  priceSuffix?: string;
+  priceNote: string;
+  badge?: string;
+  icon: MarketingIcon;
+  accent: { bg: string; ring: string };
+  iconColor: string;
+  ctaLabel: string;
+  ctaHref: string;
+  features: string[];
+  featured?: boolean;
+  enterprise?: boolean;
+};
+
+function formatPlanPrice(
+  cents: number | null | undefined,
+  currency: SupportedCurrency
+): string | null {
+  if (cents == null) return null;
+
+  const value = cents / 100;
+  const symbol = currency === "EUR" ? "€" : "$";
+
+  return `${symbol}${value.toLocaleString("en-US", {
+    maximumFractionDigits: 0,
+  })}`;
+}
+
+function GradientIconFrame({
+  children,
+  size = "md",
+}: {
+  children: React.ReactNode;
+  size?: "sm" | "md";
+}) {
+  const frameSize = size === "sm" ? "h-11 w-11" : "h-12 w-12";
+  const innerRadius = size === "sm" ? "rounded-[14px]" : "rounded-[15px]";
+
   return (
-    process.env.NEXT_PUBLIC_APP_BASE ??
-    process.env.NEXT_PUBLIC_WEB_BASE ??
-    ""
+    <span
+      className={`inline-flex ${frameSize} shrink-0 items-center justify-center rounded-2xl p-[2.5px] shadow-[0_8px_18px_rgba(15,23,42,0.05)]`}
+      style={{
+        background:
+          "linear-gradient(135deg,#2D2A7B 0%,#8A2F9B 48%,#E91E7A 100%)",
+      }}
+    >
+      <span
+        className={`flex h-full w-full items-center justify-center ${innerRadius} bg-white`}
+      >
+        {children}
+      </span>
+    </span>
   );
 }
 
-type PlanKey = "FREE" | "PAYG" | "PRO" | "TEAM";
-
-type PlanCard = {
-  key: PlanKey;
-  eyebrow: string;
-  title: string;
-  priceLabel: string | null;
-  billingModel: "free" | "one_time" | "monthly";
-  bestFor: string;
-  summary: string;
-  features: string[];
-  limitations?: string[];
-  helper?: string | null;
-  tone: "neutral" | "teal" | "bronze" | "team";
-  ctaLabel: string;
-  ctaHref: string;
-};
-
-type StorageAddonItem = {
-  key: string;
-  label: string;
-  storageBytes: number;
-  priceCents: number;
-  currency: string;
-  workspaceType: "PERSONAL" | "TEAM";
-};
-
-function formatBytesCompact(value: number | null | undefined): string {
-  const n = typeof value === "number" ? value : Number.NaN;
-  if (!Number.isFinite(n) || n <= 0) return "0 B";
-
-  const units = ["B", "KB", "MB", "GB", "TB"] as const;
-  let size = n;
-  let index = 0;
-
-  while (size >= 1024 && index < units.length - 1) {
-    size /= 1024;
-    index += 1;
-  }
-
-  const fixed = index === 0 ? 0 : size >= 100 ? 0 : size >= 10 ? 1 : 2;
-  return `${size.toFixed(fixed)} ${units[index]}`;
+function ProovraGradientIcon({
+  Icon,
+  size = 24,
+  strokeWidth = 3.1,
+  weight = "regular",
+}: {
+  Icon: MarketingIcon;
+  size?: number;
+  strokeWidth?: number;
+  weight?: "regular" | "bold" | "duotone";
+}) {
+  return (
+    <Icon
+      size={size}
+      weight={weight}
+      style={
+        {
+          color: "url(#proovraOutlineGradient)",
+          stroke: "url(#proovraOutlineGradient)",
+          strokeWidth,
+        } as CSSProperties
+      }
+    />
+  );
 }
-
-function formatCatalogMoney(
-  amountCents: number | null | undefined,
-  currency: SupportedCurrency | null
-): string | null {
-  if (!currency || amountCents == null) return null;
-  return formatMoney(amountCents / 100, currency);
-}
-
-function formatAddonMoney(item: StorageAddonItem): string {
-  const effectiveCurrency = normalizeCurrency(item.currency);
-  return formatMoney(item.priceCents / 100, effectiveCurrency);
-}
-
-function getPlanToneStyles(tone: PlanCard["tone"]) {
-  if (tone === "teal") {
-    return {
-      border: "1px solid rgba(79,112,107,0.16)",
-      eyebrow: "#3e6b68",
-      title: "#18383d",
-      dot: "#7fbdb4",
-      halo:
-        "radial-gradient(circle_at_82%_18%,rgba(158,216,207,0.12),transparent_34%)",
-    } as const;
-  }
-
-  if (tone === "bronze") {
-    return {
-      border: "1px solid rgba(183,157,132,0.16)",
-      eyebrow: "#8f765f",
-      title: "#23373b",
-      dot: "#c9a98b",
-      halo:
-        "radial-gradient(circle_at_82%_18%,rgba(214,184,157,0.12),transparent_34%)",
-    } as const;
-  }
-
-  if (tone === "team") {
-    return {
-      border: "1px solid rgba(79,112,107,0.16)",
-      eyebrow: "#50676a",
-      title: "#23373b",
-      dot: "#7ea9a2",
-      halo:
-        "radial-gradient(circle_at_82%_18%,rgba(126,169,162,0.10),transparent_34%)",
-    } as const;
-  }
-
-  return {
-    border: "1px solid rgba(79,112,107,0.14)",
-    eyebrow: "#4a5d60",
-    title: "#21353a",
-    dot: "#7ea9a2",
-    halo:
-      "radial-gradient(circle_at_82%_18%,rgba(255,255,255,0.18),transparent_32%)",
-  } as const;
-}
-
-const solidButtonStyle: React.CSSProperties = {
-  borderColor: "rgba(79,112,107,0.22)",
-  color: "#eef3f1",
-  background:
-    "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
-  boxShadow:
-    "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
-};
-
-const lightButtonStyle: React.CSSProperties = {
-  borderColor: "rgba(79,112,107,0.16)",
-  color: "#23373b",
-  background:
-    "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(242,244,241,0.86) 100%)",
-  boxShadow:
-    "0 10px 22px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
-};
 
 export default function MarketingPricingPage() {
-  const { addToast } = useToast();
   const { hasSession } = useAuth();
-
-  const [hoveredPlan, setHoveredPlan] = useState<string | null>(null);
   const [preferredCurrency, setPreferredCurrency] =
     useState<SupportedCurrency>("USD");
   const [catalog, setCatalog] = useState<PricingCatalogResponse | null>(null);
@@ -183,789 +155,836 @@ export default function MarketingPricingPage() {
     return normalizeCurrency(catalog?.currency ?? preferredCurrency);
   }, [catalog?.currency, preferredCurrency]);
 
-  const appBase = getAppBase();
-  const appBilling = appBase ? `${appBase}/billing` : "/billing";
-  const appRegister = appBase ? `${appBase}/register` : "/register";
+  const appBilling = "/billing";
+  const appRegister = "/register";
 
-  // R8.1A — wrapped in `useCallback` so the downstream `useMemo`
-  // (line ~353) that includes them in its dep array does not
-  // re-fire on every render. Pure builders; behavior identical.
-  const buildCtaHref = useCallback(
-    (key: PlanKey) => {
-      if (!hasSession) return appRegister;
-
-      if (key === "TEAM") {
-        return `${appBilling}?workspace=team&plan=TEAM`;
-      }
-
-      if (key === "FREE") {
-        return `${appBilling}?workspace=personal`;
-      }
-
-      return `${appBilling}?workspace=personal&plan=${key}`;
-    },
-    [hasSession, appBilling, appRegister],
-  );
-
-  const buildCtaLabel = useCallback((key: PlanKey) => {
-    if (!hasSession) {
-      if (key === "FREE") return "Create free account";
-      return "Create account and continue";
-    }
-
-    if (key === "FREE") return "Open billing console";
-    if (key === "TEAM") return "Open team checkout";
-    if (key === "PAYG") return "Open PAYG checkout";
-    if (key === "PRO") return "Open PRO checkout";
-    return `Choose ${key}`;
-  }, [hasSession]);
-
-  const storageAddonSummary = useMemo(() => {
-    if (
-      !Array.isArray(catalog?.storageAddons) ||
-      catalog.storageAddons.length === 0
-    ) {
-      return null;
-    }
-
-    const all = catalog.storageAddons as StorageAddonItem[];
-    return {
-      personal: all.filter((item) => item.workspaceType === "PERSONAL"),
-      team: all.filter((item) => item.workspaceType === "TEAM"),
-    };
-  }, [catalog]);
-
-  const plans: PlanCard[] = useMemo(
-    () => [
-      {
-        key: "FREE",
-        eyebrow: "Personal entry",
-        title: "Free",
-        priceLabel: formatCatalogMoney(0, displayCurrency),
-        billingModel: "free",
-        bestFor: "Initial evaluation and low-volume personal use",
-        summary:
-          "Start with a lightweight personal workflow and public verification access before moving into professional outputs.",
-        features: [
-          `${catalog?.free?.maxEvidenceRecords ?? 3} evidence records total`,
-          `Storage included: ${catalog?.free?.storageLabel ?? "250 MB"}`,
-          "Basic recorded integrity materials",
-          "Public verification access",
-        ],
-        limitations: [
-          "No teams included",
-          "PDF reports not included",
-          "Verification package not included",
-          "No paid storage add-ons until base plan upgrade",
-        ],
-        helper:
-          "Best when you want to test the workflow before stepping into paid evidence outputs.",
-        tone: "neutral",
-        ctaLabel: buildCtaLabel("FREE"),
-        ctaHref: buildCtaHref("FREE"),
-      },
-      {
-        key: "PAYG",
-        eyebrow: "Usage-based professional output",
-        title: "Pay-Per-Evidence",
-        priceLabel:
-          catalog?.payg?.monthlyPriceCents != null
-            ? `${formatMoney(
-                (catalog.payg.monthlyPriceCents ?? 0) / 100,
-                displayCurrency
-              )} / evidence`
-            : null,
-        billingModel: "one_time",
-        bestFor: "Occasional professional use",
-        summary:
-          "Use this when you want reviewer-facing outputs without committing to a recurring subscription.",
-        features: [
-          `Storage included: ${catalog?.payg?.storageLabel ?? "5 GB"}`,
-          "PDF report included",
-          "Verification package included",
-          "Shareable verification link",
-          "Supports selected personal one-time storage add-ons",
-        ],
-        limitations: [
-          "No teams included",
-          "Not designed for shared team workspaces",
-        ],
-        helper:
-          "Good for lawyers, investigators, or reviewers who need professional evidence output case by case.",
-        tone: "teal",
-        ctaLabel: buildCtaLabel("PAYG"),
-        ctaHref: buildCtaHref("PAYG"),
-      },
-      {
-        key: "PRO",
-        eyebrow: "Recurring professional workflow",
-        title: "Pro",
-        priceLabel:
-          catalog?.pro?.monthlyPriceCents != null
-            ? `${formatMoney(
-                (catalog.pro.monthlyPriceCents ?? 0) / 100,
-                displayCurrency
-              )} / month`
-            : null,
-        billingModel: "monthly",
-        bestFor: "Solo professionals who still need small team capability",
-        summary:
-          "For recurring professional work with full output coverage, plus support for a limited number of team workspaces.",
-        features: [
-          `Storage included: ${catalog?.pro?.storageLabel ?? "100 GB"}`,
-          "Unlimited evidence records",
-          "PDF reports included",
-          "Verification packages included",
-          `Create up to ${catalog?.pro?.maxOwnedTeams ?? 2} teams`,
-          `Up to ${catalog?.pro?.maxMembersPerTeam ?? 5} members per team`,
-          "Supports one-time personal storage top-ups",
-        ],
-        helper:
-          "Best for lawyers, investigators, consultants, or compliance professionals who need recurring use and up to two team workspaces.",
-        tone: "bronze",
-        ctaLabel: buildCtaLabel("PRO"),
-        ctaHref: buildCtaHref("PRO"),
-      },
-      {
-        key: "TEAM",
-        eyebrow: "Shared operational workspace",
-        title: "Team",
-        priceLabel:
-          catalog?.team?.monthlyPriceCents != null
-            ? `${formatMoney(
-                (catalog.team.monthlyPriceCents ?? 0) / 100,
-                displayCurrency
-              )} / month`
-            : null,
-        billingModel: "monthly",
-        bestFor: "Firms, practices, investigative teams, and organizations",
-        summary:
-          "Built for organizations that need more team workspaces, shared member access, and structured evidence operations.",
-        features: [
-          `Create up to ${catalog?.team?.maxOwnedTeams ?? 5} teams`,
-          `Up to ${catalog?.team?.maxMembersPerTeam ?? 5} members per team`,
-          `Storage included: ${catalog?.team?.storageLabel ?? "500 GB"}`,
-          "Shared workspace and member management",
-          "Reports and verification packages included",
-          "Supports one-time team storage top-ups",
-        ],
-        helper:
-          "Choose Team when PRO is too small for your organization and you need up to five separate teams under the subscription model.",
-        tone: "team",
-        ctaLabel: buildCtaLabel("TEAM"),
-        ctaHref: buildCtaHref("TEAM"),
-      },
-    ],
-    [displayCurrency, catalog, buildCtaLabel, buildCtaHref]
-  );
-
-  const enterprise = catalog?.enterprise ?? {
-    displayName: "Enterprise",
-    pricingModel: "CUSTOM" as const,
-    ctaLabel: "Contact Sales",
-    ctaHref: "/contact-sales",
-    summary:
-      "Custom commercial terms for larger organizations that need procurement handling, governance review, rollout planning, or higher-volume evidence operations.",
-    capabilities: [
-      "Custom seat volume and onboarding scope",
-      "Custom storage envelope and rollout planning",
-      "Shared review and multi-stakeholder workflow alignment",
-      "Commercial discussion for legal, compliance, claims, or enterprise review teams",
-    ],
-    operationalFit: [
-      "Procurement and security review",
-      "Retention and governance alignment",
-      "Departmental or organization-wide rollout",
-      "Higher-volume evidence operations",
-    ],
-    supportWindow:
-      "Enterprise inquiries are typically reviewed within 4 business hours, depending on workflow clarity and commercial fit.",
+  const buildCtaHref = (planId: PlanId): string => {
+    if (planId === "enterprise") return "/contact-sales";
+    if (!hasSession) return appRegister;
+    if (planId === "personal") return `${appBilling}?workspace=personal`;
+    if (planId === "team") return `${appBilling}?workspace=team&plan=TEAM`;
+    return `${appBilling}?workspace=personal&plan=${planId.toUpperCase()}`;
   };
 
-  return (
-    <div className="page landing-page">
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="/images/site-velvet-bg.webp.png"
-            alt=""
-            className="h-full w-full object-cover object-center"
-          />
-        </div>
+  const buildCtaLabel = (planId: PlanId): string => {
+    if (planId === "enterprise") return "Talk to an expert";
+    if (planId === "personal") return "Get started";
+    if (planId === "payg") return "Open billing console";
+    if (planId === "pro") return "Start Pro plan";
+    if (planId === "team") return "Start Team plan";
+    return "Choose plan";
+  };
 
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_38%,rgba(8,18,22,0.66)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.09),transparent_24%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.06),transparent_18%)]" />
+  const freePrice = displayCurrency === "EUR" ? "€0" : "$0";
+  const paygPrice =
+    formatPlanPrice(catalog?.payg?.monthlyPriceCents, displayCurrency) ??
+    (displayCurrency === "EUR" ? "€" : "$");
+  const proPrice =
+    formatPlanPrice(catalog?.pro?.monthlyPriceCents, displayCurrency) ??
+    (displayCurrency === "EUR" ? "€99" : "$99");
+  const teamPrice =
+    formatPlanPrice(catalog?.team?.monthlyPriceCents, displayCurrency) ??
+    (displayCurrency === "EUR" ? "€299" : "$299");
+
+  const plans: PricingPlan[] = [
+    {
+      id: "personal",
+      title: "Personal",
+      subtitle: "Get started with essential verification.",
+      price: freePrice,
+      priceNote: "Free forever",
+      icon: User,
+      accent: {
+        bg: "linear-gradient(135deg,#FB923C 0%,#F97316 100%)",
+        ring: "rgba(249,115,22,0.22)",
+      },
+      iconColor: "#F97316",
+      ctaLabel: buildCtaLabel("personal"),
+      ctaHref: buildCtaHref("personal"),
+      features: [
+        `${catalog?.free?.maxEvidenceRecords ?? 3} evidence records total`,
+        `${catalog?.free?.storageLabel ?? "250 MB"} storage`,
+        "Basic integrity signals",
+        "Public verification access",
+      ],
+    },
+    {
+      id: "payg",
+      title: "Per Evidence",
+      subtitle: "Use only what you need with flexible pricing.",
+      price: paygPrice,
+      priceSuffix: "/ evidence",
+      priceNote: "One-time checkout",
+      icon: Briefcase,
+      accent: {
+        bg: "linear-gradient(135deg,#3B82F6 0%,#2563EB 100%)",
+        ring: "rgba(37,99,235,0.18)",
+      },
+      iconColor: "#2563EB",
+      ctaLabel: buildCtaLabel("payg"),
+      ctaHref: buildCtaHref("payg"),
+      features: [
+        "Pay only when you complete evidence",
+        "Verification package included",
+        "Optional add-ons",
+        "No subscription required",
+      ],
+    },
+    {
+      id: "pro",
+      title: "Pro",
+      subtitle: "For professionals who need more power and storage.",
+      price: proPrice,
+      priceSuffix: "/month",
+      priceNote: "Billed monthly",
+      badge: "Most popular",
+      featured: true,
+      icon: Sparkle,
+      accent: {
+        bg: "linear-gradient(135deg,#7E22CE 0%,#5B21B6 100%)",
+        ring: "rgba(91,33,182,0.24)",
+      },
+      iconColor: "#5B21B6",
+      ctaLabel: buildCtaLabel("pro"),
+      ctaHref: buildCtaHref("pro"),
+      features: [
+        "Unlimited evidence records",
+        `${catalog?.pro?.storageLabel ?? "100 GB"} storage`,
+        "All verification packages",
+        "One-time personal top-ups",
+        `Up to ${catalog?.pro?.maxMembersPerTeam ?? 5} team members`,
+      ],
+    },
+    {
+      id: "team",
+      title: "Team",
+      subtitle: "Collaborate securely across your team.",
+      price: teamPrice,
+      priceSuffix: "/month",
+      priceNote: "Billed monthly",
+      badge: "Best for teams",
+      icon: UsersThree,
+      accent: {
+        bg: "linear-gradient(135deg,#22D3EE 0%,#06B6D4 100%)",
+        ring: "rgba(6,182,212,0.22)",
+      },
+      iconColor: "#06B6D4",
+      ctaLabel: buildCtaLabel("team"),
+      ctaHref: buildCtaHref("team"),
+      features: [
+        "Everything in Pro",
+        `${catalog?.team?.storageLabel ?? "500 GB"} storage`,
+        `Up to ${catalog?.team?.maxMembersPerTeam ?? 5} members per team`,
+        "Shared workspace",
+        "Team-first support",
+      ],
+    },
+    {
+      id: "enterprise",
+      title: "Enterprise",
+      subtitle: "Custom for your organization's scale, security & governance.",
+      price: "Custom",
+      priceNote: "Tailored to your needs",
+      icon: Buildings,
+      accent: {
+        bg: "linear-gradient(135deg,#7E22CE 0%,#5B21B6 100%)",
+        ring: "rgba(91,33,182,0.34)",
+      },
+      iconColor: "#7E22CE",
+      ctaLabel: "Talk to an expert",
+      ctaHref: "/contact-sales",
+      enterprise: true,
+      features: [
+        "Custom operational volume",
+        "Custom storage envelope",
+        "Advanced governance",
+        "Dedicated support",
+        "SLA & security review",
+      ],
+    },
+  ];
+
+  const lifecycleSteps: {
+    label: string;
+    icon: MarketingIcon;
+    bg: string;
+    shadow?: string;
+  }[] = [
+    {
+      label: "Capture",
+      icon: Camera,
+      bg: "linear-gradient(135deg,#FB923C,#F97316)",
+    },
+    {
+      label: "Preserve",
+      icon: Archive,
+      bg: "linear-gradient(135deg,#2563EB 0%,#1D4ED8 100%)",
+      shadow:
+        "0 14px 28px rgba(37,99,235,0.28), inset 0 1px 0 rgba(255,255,255,0.35)",
+    },
+    {
+      label: "Verify",
+      icon: ShieldCheck,
+      bg: "linear-gradient(135deg,#7E22CE,#5B21B6)",
+    },
+    {
+      label: "Report",
+      icon: FileText,
+      bg: "linear-gradient(135deg,#34D399,#10B981)",
+    },
+    {
+      label: "Govern",
+      icon: Scroll,
+      bg: "linear-gradient(135deg,#F472B6,#EC4899)",
+    },
+  ];
+
+  const everyPlanIncludes: { label: string; icon: MarketingIcon }[] = [
+    { label: "Reports", icon: FileText },
+    { label: "Verification Packages", icon: Package },
+    { label: "Public Verification", icon: Globe },
+    { label: "SHA-256 Hashing", icon: Fingerprint },
+    { label: "RFC 3161 Timestamps", icon: ClockCounterClockwise },
+    { label: "OpenTimestamps (OTS)", icon: AnchorSimple },
+    { label: "Digital Signatures", icon: PenNib },
+    { label: "Chain of Custody", icon: GitBranch },
+{ label: "Evidence Lifecycle", icon: Pulse },
+    { label: "Tamper-evident Records", icon: ShieldCheck },
+  ];
+
+  const enterpriseFeatures: {
+    title: string;
+    body: string;
+    icon: MarketingIcon;
+  }[] = [
+    {
+      title: "Procurement Support",
+      body: "Security questionnaires, DPA, SOC 2, ISO 27001, and more.",
+      icon: FileText,
+    },
+    {
+      title: "Governance Controls",
+      body: "Legal hold, retention policies, audit trails, and access control.",
+      icon: Scroll,
+    },
+    {
+      title: "Enterprise Rollout",
+      body: "Dedicated onboarding, training, and implementation support.",
+      icon: Stack,
+    },
+  ];
+
+  const whyChoose: {
+    title: string;
+    body: string;
+    icon: MarketingIcon;
+  }[] = [
+    {
+      title: "Reduce review time",
+      body: "Automated verification and audit-ready reports.",
+      icon: Briefcase,
+    },
+    {
+      title: "Improve evidence trust",
+      body: "Cryptographic integrity and independent timestamps.",
+      icon: ShieldCheck,
+    },
+    {
+      title: "Centralize verification",
+      body: "One platform for capture to proof.",
+      icon: Stack,
+    },
+    {
+      title: "Support audit readiness",
+      body: "Governance, retention, and complete audit trails.",
+      icon: CheckCircle,
+    },
+  ];
+
+  const compareRows: {
+    label: string;
+    values: [string, string, string, string, string];
+  }[] = [
+    {
+      label: "Evidence records",
+      values: [
+        `${catalog?.free?.maxEvidenceRecords ?? 3} total`,
+        "Pay only when you complete evidence",
+        "Unlimited",
+        "Unlimited across team workspaces",
+        "Custom operational volume",
+      ],
+    },
+    {
+      label: "Storage included",
+      values: [
+        catalog?.free?.storageLabel ?? "250 MB",
+        catalog?.payg?.storageLabel ?? "5 GB",
+        catalog?.pro?.storageLabel ?? "100 GB",
+        catalog?.team?.storageLabel ?? "500 GB",
+        "Custom storage envelope",
+      ],
+    },
+    {
+      label: "Storage add-ons",
+      values: [
+        "Not available",
+        "Optional",
+        "Personal top-ups",
+        "Team storage top-ups",
+        "Commercial planning",
+      ],
+    },
+    {
+      label: "Verification package",
+      values: ["Not included", "Included", "Included", "Included", "Included"],
+    },
+    {
+      label: "PDF reports",
+      values: ["Not included", "Included", "Included", "Included", "Included"],
+    },
+    {
+      label: "Public verification page",
+      values: ["Included", "Included", "Included", "Included", "Included"],
+    },
+    {
+      label: "Workspace support",
+      values: [
+        "Personal only",
+        "Personal only",
+        "Personal + team support",
+        "Team-first workspace support",
+        "Organization deployment",
+      ],
+    },
+    {
+      label: "Owned teams allowed",
+      values: ["0", "0", "2", "5", "Custom"],
+    },
+    {
+      label: "Team members",
+      values: [
+        "0",
+        "0",
+        `Up to ${catalog?.pro?.maxMembersPerTeam ?? 5}`,
+        `Up to ${catalog?.team?.maxMembersPerTeam ?? 5} per team`,
+        "Custom",
+      ],
+    },
+    {
+      label: "Commercial path",
+      values: ["Self-serve", "Self-serve", "Self-serve", "Self-serve", "Sales-led"],
+    },
+    {
+      label: "Best fit",
+      values: [
+        "Evaluation and low volume",
+        "Usage-based professional output",
+        "Recurring use with small team support",
+        "Shared operational multi-team usage",
+        "Procurement, governance, or larger rollout",
+      ],
+    },
+  ];
+
+  const SectionKicker = ({ children }: { children: React.ReactNode }) => (
+  <div className="inline-flex items-center gap-2 rounded-full border border-[#E0E7FF] bg-white/95 px-4 py-1.5 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#2563EB] shadow-[0_8px_20px_rgba(37,99,235,0.06)]">
+    <span className="h-1.5 w-1.5 rounded-full bg-[#5B21B6]" />
+    {children}
+  </div>
+);
+
+  return (
+    <div className="page landing-page bg-[var(--proovra-page-bg)]">
+      <svg width="0" height="0" className="absolute">
+        <defs>
+          <linearGradient
+            id="proovraOutlineGradient"
+            x1="0%"
+            y1="0%"
+            x2="100%"
+            y2="100%"
+          >
+            <stop offset="0%" stopColor="#2D2A7B" />
+            <stop offset="48%" stopColor="#8A2F9B" />
+            <stop offset="100%" stopColor="#E91E7A" />
+          </linearGradient>
+        </defs>
+      </svg>
+
+      <div className="relative overflow-hidden">
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              "url('/assets/backgrounds/proovra-page-hero-bg.png')",
+            backgroundRepeat: "no-repeat",
+            backgroundPosition: "center center",
+            backgroundSize: "100% 100%",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.40) 50%, rgba(255,255,255,0.20) 100%)",
+          }}
+        />
+
         <div className="relative z-10">
           <MarketingHeader />
 
-          <section className="mx-auto max-w-7xl px-6 pb-16 pt-10 md:px-8 md:pb-20 md:pt-14">
-            <div className="max-w-[860px]">
-              <div className="inline-flex items-center gap-[0.72rem] rounded-full border border-white/10 bg-white/[0.055] px-5 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
-                <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-[#b79d84] opacity-95" />
-                Pricing
-              </div>
+          <section className="mx-auto max-w-7xl px-6 pb-14 pt-16 text-center md:px-8 md:pb-20 md:pt-20 lg:pt-24">
+            <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-[#E0E7FF] bg-white/95 px-4 py-1.5 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#2563EB]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#5B21B6]" />
+              Pricing &amp; Plans
+            </div>
 
-              <h1 className="mt-5 max-w-[780px] text-[1.72rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.28rem] lg:text-[2.9rem]">
-                Choose the evidence workflow that fits your{" "}
-                <span className="text-[#bfe8df]">
-                  review volume, operational shape, and organizational scope
-                </span>
-                .
-              </h1>
+            <h1 className="mx-auto mt-5 max-w-[820px] text-[2rem] font-semibold leading-[1.06] tracking-[-0.035em] text-[#0F172A] md:text-[2.6rem] lg:text-[3rem]">
+              Choose the right operational model for your evidence program.
+            </h1>
 
-              <p className="mt-5 max-w-[760px] text-[0.96rem] leading-[1.8] tracking-[-0.006em] text-[#c7cfcc] md:text-[1rem]">
-                Use self-serve plans for individual and standard team workflows.
-                PRO now supports small team usage, while TEAM expands the number
-                of team workspaces you can operate. Use the enterprise path when
-                you need procurement discussion, governance review, rollout
-                planning, or larger-volume evidence operations.
-              </p>
+            <p className="mx-auto mt-5 max-w-[700px] text-[0.96rem] leading-[1.75] text-[#475569] md:text-[1.02rem]">
+              Flexible plans for professionals, teams, and enterprise
+              organizations that require trusted evidence operations.
+            </p>
 
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Link href="/contact-sales">
-                  <Button
-                    className="rounded-[999px] border px-6 py-3 text-[0.94rem] font-semibold"
-                    style={solidButtonStyle}
-                  >
-                    Contact Sales
-                  </Button>
-                </Link>
+            <div className="mx-auto mt-8 flex max-w-[640px] flex-wrap items-center justify-center gap-x-6 gap-y-3">
+              {lifecycleSteps.map((step) => {
+                const Icon = step.icon;
 
-                <Link href="/contact-sales">
-                  <Button
-                    variant="secondary"
-                    className="rounded-[999px] border px-6 py-3 text-[0.94rem] font-semibold"
-                    style={lightButtonStyle}
-                  >
-                    Request demo
-                  </Button>
-                </Link>
-              </div>
+                return (
+                  <div key={step.label} className="flex items-center gap-2">
+                    <span
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-white"
+                      style={{
+                        background: step.bg,
+                        boxShadow:
+                          step.shadow ?? "0 8px 18px rgba(15,23,42,0.10)",
+                      }}
+                    >
+                      <Icon size={16} weight="bold" />
+                    </span>
+                    <span className="text-[0.86rem] font-medium text-[#0F172A]">
+                      {step.label}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </section>
         </div>
       </div>
 
-      <SilverWatermarkSection
-        className="section section-body relative overflow-hidden"
-        style={{ paddingTop: 48, paddingBottom: 56 }}
-      >
-        <div className="container relative z-10 mx-auto max-w-7xl px-6 md:px-8">
-          <div className="mb-5">
-            <div className="text-[0.76rem] font-semibold uppercase tracking-[0.18em] text-[#8a7562]">
-              Self-serve plans
-            </div>
-            <div className="mt-2 max-w-[760px] text-[0.94rem] leading-[1.78] text-[#5d6d71]">
-              Choose one of these plans when you can complete selection
-              directly through standard billing without a sales-led procurement
-              or rollout process.
-            </div>
-          </div>
-
-          <div className="pricing-grid grid gap-4 xl:grid-cols-4">
-            {plans.map((plan) => {
-              const isHovered = hoveredPlan === plan.key;
-              const tone = getPlanToneStyles(plan.tone);
-
+      <section className="relative mx-auto max-w-[1500px] px-6 pt-8 md:px-8 2xl:px-10">
+        <div className="grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-5">
+          {plans.map((plan) => {
+            if (plan.enterprise) {
               return (
                 <div
-                  key={plan.key}
-                  onMouseEnter={() => setHoveredPlan(plan.key)}
-                  onMouseLeave={() => setHoveredPlan(null)}
+                  key={plan.id}
+                  id={`plan-${plan.id}`}
+                  className="relative flex h-full flex-col overflow-hidden rounded-[24px] border border-[#5B21B6]/35 p-6 text-white shadow-[0_24px_60px_rgba(15,23,42,0.32),0_0_0_1px_rgba(91,33,182,0.18)]"
                   style={{
-                    transform: isHovered ? "translateY(-3px)" : "none",
-                    transition: "transform 180ms ease",
+                    background:
+                      "linear-gradient(155deg,#0B1437 0%,#0E1E4A 55%,#15225E 100%)",
                   }}
                 >
-                  <Card
-                    className="relative h-full overflow-hidden rounded-[28px] border bg-transparent p-0 shadow-none"
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0"
                     style={{
-                      border: tone.border,
-                      boxShadow:
-                        "0 18px 38px rgba(0, 0, 0, 0.07), inset 0 1px 0 rgba(255,255,255,0.48)",
+                      background:
+                        "radial-gradient(circle at 80% 0%,rgba(91,33,182,0.30),transparent 55%),radial-gradient(circle at 0% 100%,rgba(34,211,238,0.18),transparent 50%)",
                     }}
-                  >
-                    <img
-                      src="/images/panel-silver.webp.png"
-                      alt=""
-                      className="absolute inset-0 h-full w-full object-cover object-center"
-                    />
-                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-                    <div
-                      className="absolute inset-0"
-                      style={{ background: tone.halo }}
-                    />
+                  />
 
-                    <div className="relative z-10 flex h-full flex-col p-5">
-                      <div>
-                        <div
-                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.16em]"
-                          style={{
-                            color: tone.eyebrow,
-                            border: "1px solid rgba(35,55,59,0.08)",
-                            background: "rgba(255,255,255,0.50)",
-                          }}
-                        >
-                          {plan.eyebrow}
-                        </div>
+                  <div className="relative z-10 flex h-full flex-col">
+                    <h3 className="text-[1.45rem] font-bold tracking-[-0.025em] text-white">
+                      {plan.title}
+                    </h3>
 
-                        <div className="mt-4">
-                          <p
-                            className="m-0 text-[1.02rem] font-semibold leading-[1.08] tracking-[-0.03em]"
-                            style={{ color: tone.title }}
-                          >
-                            {plan.title}
-                          </p>
+                    <p className="mt-2 min-h-[68px] text-[0.9rem] leading-[1.6] text-[#CBD5F5]">
+                      {plan.subtitle}
+                    </p>
 
-                          <p
-                            className="mt-2 text-[1rem] font-semibold leading-[1.08] tracking-[-0.03em]"
-                            style={{ color: tone.title }}
-                          >
-                            {plan.priceLabel ?? "—"}
-                          </p>
-                        </div>
-
-                        <div
-                          className="mt-3 inline-flex rounded-full px-3 py-1.5 text-[0.64rem] font-semibold uppercase tracking-[0.16em]"
-                          style={{
-                            color: "#7a6a58",
-                            border: "1px solid rgba(183,157,132,0.14)",
-                            background:
-                              "linear-gradient(180deg, rgba(247,242,237,0.80) 0%, rgba(255,255,255,0.65) 100%)",
-                          }}
-                        >
-                          {plan.billingModel === "free"
-                            ? "Free plan"
-                            : plan.billingModel === "one_time"
-                              ? "One-time checkout"
-                              : "Recurring monthly"}
-                        </div>
-
-                        <p className="mt-4 text-[0.88rem] font-semibold leading-[1.45] tracking-[-0.01em] text-[#23373b]">
-                          {plan.bestFor}
-                        </p>
-
-                        <p className="mt-2 text-[0.82rem] leading-[1.7] text-[#5a6c70]">
-                          {plan.summary}
-                        </p>
+                    <div className="mt-5">
+                      <div className="text-[2.1rem] font-semibold leading-none tracking-[-0.03em] text-white">
+                        {plan.price}
                       </div>
-
-                      <div
-                        className="mt-4 rounded-[20px] border p-4"
-                        style={{
-                          border: "1px solid rgba(35,55,59,0.08)",
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.76) 0%, rgba(245,246,244,0.92) 100%)",
-                        }}
-                      >
-                        <div className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-[#8a7562]">
-                          Included
-                        </div>
-
-                        <ul className="mt-3 grid gap-2.5 pl-0">
-                          {plan.features.map((feature, index) => (
-                            <li
-                              key={`${plan.key}-${index}`}
-                              className="flex list-none items-start gap-2.5 text-[0.8rem] leading-[1.65] text-[#516267]"
-                            >
-                              <span
-                                className="mt-[0.38rem] inline-block h-[8px] w-[8px] shrink-0 rounded-full"
-                                style={{ background: tone.dot }}
-                              />
-                              <span>{feature}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      {plan.limitations?.length ? (
-                        <div
-                          className="mt-3 rounded-[18px] border p-4 text-[0.78rem] leading-[1.62] text-[#7a5b5b]"
-                          style={{
-                            border: "1px solid rgba(194,78,78,0.10)",
-                            background: "rgba(194,78,78,0.04)",
-                          }}
-                        >
-                          <div className="mb-2 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[#9c6a6a]">
-                            Not included
-                          </div>
-                          {plan.limitations.map((item, index) => (
-                            <div key={index}>{item}</div>
-                          ))}
-                        </div>
-                      ) : null}
-
-                      {plan.helper ? (
-                        <div
-                          className="mt-3 rounded-[18px] border p-4 text-[0.78rem] leading-[1.65] text-[#667174]"
-                          style={{
-                            border: "1px solid rgba(35,55,59,0.08)",
-                            background:
-                              "linear-gradient(180deg, rgba(255,255,255,0.76) 0%, rgba(245,246,244,0.92) 100%)",
-                          }}
-                        >
-                          {plan.helper}
-                        </div>
-                      ) : null}
-
-                      <div className="mt-4">
-                        <Link
-                          href={plan.ctaHref}
-                          onClick={() =>
-                            addToast(`Opening ${plan.title} flow...`, "info")
-                          }
-                          className="block"
-                        >
-                          <Button
-                            variant="secondary"
-                            className="h-[44px] w-full rounded-[14px] px-4 text-[0.84rem] font-semibold"
-                            style={solidButtonStyle}
-                          >
-                            {plan.ctaLabel}
-                          </Button>
-                        </Link>
+                      <div className="mt-2 min-h-[18px] text-[0.8rem] text-[#AEB8D8]">
+                        {plan.priceNote}
                       </div>
                     </div>
-                  </Card>
+
+                    <div className="mt-5 grid gap-2">
+                      <Link
+                        href={plan.ctaHref}
+                        className="flex h-11 items-center justify-center rounded-[13px] bg-gradient-to-r from-[#EC4899] via-[#6D28D9] to-[#5B21B6] text-[0.88rem] font-semibold text-white shadow-[0_10px_24px_rgba(91,33,182,0.45)] transition hover:translate-y-[-1px]"
+                      >
+                        Talk to an expert
+                      </Link>
+                      <Link
+                        href="/request-demo"
+                        className="flex h-11 items-center justify-center rounded-[13px] border border-white/25 bg-white/5 text-[0.88rem] font-semibold text-white transition hover:bg-white/10"
+                      >
+                        Request demo
+                      </Link>
+                    </div>
+
+                    <div className="mt-5 rounded-[16px] bg-white/8 p-4 ring-1 ring-white/10">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/60">
+                        Included
+                      </div>
+                      <ul className="mt-3 grid gap-2 pl-0">
+                        {plan.features.map((feature) => (
+                          <li
+                            key={feature}
+                            className="flex list-none items-start gap-2 text-[0.8rem] leading-[1.5] text-[#D8DEF5]"
+                          >
+                            <CheckCircle2
+                              size={14}
+                              className="mt-[2px] shrink-0 text-[#34D399]"
+                              strokeWidth={2.4}
+                            />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               );
-            })}
-          </div>
+            }
 
-          <div className="mt-8">
-            <div className="mb-4">
-              <div className="text-[0.76rem] font-semibold uppercase tracking-[0.18em] text-[#8a7562]">
-                Sales-led enterprise path
-              </div>
-              <div className="mt-2 max-w-[760px] text-[0.94rem] leading-[1.78] text-[#5d6d71]">
-                Use this route when the workflow is bigger than standard
-                self-serve checkout and needs procurement, governance, rollout,
-                retention, or larger-volume planning.
-              </div>
-            </div>
+            return (
+              <div
+                key={plan.id}
+                id={`plan-${plan.id}`}
+                className={`relative flex h-full flex-col overflow-hidden rounded-[24px] border bg-[var(--proovra-surface)] p-6 transition ${
+                  plan.featured
+                    ? "border-[#5B21B6]/30 shadow-[0_24px_60px_rgba(91,33,182,0.18)] ring-1 ring-[#5B21B6]/20"
+                    : "border-[var(--proovra-border-warm)] shadow-[0_14px_30px_rgba(15,23,42,0.06)]"
+                }`}
+              >
+                {plan.badge ? (
+                  <div className="absolute right-4 top-4 rounded-full bg-[#F3EFFF] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#5B21B6]">
+                    {plan.badge}
+                  </div>
+                ) : null}
 
-            <Card
-              className="relative overflow-hidden rounded-[28px] border bg-transparent p-0 shadow-none"
-              style={{
-                border: "1px solid rgba(183,157,132,0.18)",
-                boxShadow:
-                  "0 18px 38px rgba(0, 0, 0, 0.07), inset 0 1px 0 rgba(255,255,255,0.48)",
-              }}
-            >
-              <img
-                src="/images/panel-silver.webp.png"
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover object-center"
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(214,184,157,0.12),transparent_34%)]" />
+                <h3
+                  className="text-[1.35rem] font-bold tracking-[-0.025em]"
+                  style={{ color: plan.iconColor }}
+                >
+                  {plan.title}
+                </h3>
 
-              <div className="relative z-10 p-6 md:p-7">
-                <div className="grid gap-5 lg:grid-cols-[1.14fr_0.86fr]">
-                  <div>
-                    <div
-                      className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.16em]"
-                      style={{
-                        color: "#8f765f",
-                        border: "1px solid rgba(183,157,132,0.16)",
-                        background:
-                          "linear-gradient(180deg, rgba(247,242,237,0.78) 0%, rgba(255,255,255,0.64) 100%)",
-                      }}
-                    >
-                      Enterprise path
-                    </div>
+                <p className="mt-2 min-h-[68px] text-[0.9rem] leading-[1.6] text-[#64748B]">
+                  {plan.subtitle}
+                </p>
 
-                    <div className="mt-4">
-                      <p className="m-0 text-[1.5rem] font-semibold leading-[1.04] tracking-[-0.03em] text-[#23373b] md:text-[1.82rem]">
-                        {enterprise.displayName}
-                      </p>
+                <div className="mt-5">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-[2rem] font-semibold leading-none tracking-[-0.03em] text-[#0F172A]">
+                      {plan.price}
+                    </span>
+                    {plan.priceSuffix ? (
+                      <span className="text-[0.85rem] text-[#64748B]">
+                        {plan.priceSuffix}
+                      </span>
+                    ) : null}
+                  </div>
 
-                      <p className="mt-2 text-[1.18rem] font-medium leading-[1.04] tracking-[-0.03em] text-[#23373b]">
-                        Custom
-                      </p>
-                    </div>
+                  <div className="mt-2 min-h-[18px] text-[0.8rem] text-[#64748B]">
+                    {plan.priceNote !== "Billed monthly" ? plan.priceNote : ""}
+                  </div>
+                </div>
 
-                    <p className="mt-4 text-[0.94rem] font-semibold leading-[1.45] tracking-[-0.01em] text-[#23373b]">
-                      Procurement, governance, and larger organizational fit
-                    </p>
+                <Link
+                  href={plan.ctaHref}
+                  className={`mt-5 inline-flex h-[44px] w-full items-center justify-center rounded-[13px] px-4 text-sm font-bold transition hover:translate-y-[-1px] ${
+                    plan.id === "personal"
+                      ? "border-2 border-[#F97316] bg-[var(--proovra-surface)] text-[#F97316] hover:bg-[#FFF7ED]"
+                      : plan.id === "payg"
+                        ? "border-2 border-[#2563EB] bg-[var(--proovra-surface)] text-[#2563EB] hover:bg-[#EFF6FF]"
+                        : plan.id === "pro"
+                          ? "bg-gradient-to-r from-[#5B21B6] to-[#7E22CE] text-white shadow-[0_12px_26px_rgba(91,33,182,0.34)]"
+                          : plan.id === "team"
+                            ? "bg-gradient-to-r from-[#0891B2] to-[#06B6D4] text-white shadow-[0_12px_26px_rgba(6,182,212,0.28)]"
+                            : "border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] text-[#0F172A] hover:border-[var(--proovra-border-warm-hover)]"
+                  }`}
+                >
+                  {plan.ctaLabel}
+                </Link>
 
-                    <p className="mt-2 max-w-[720px] text-[0.88rem] leading-[1.72] text-[#5a6c70]">
-                      {enterprise.summary}
-                    </p>
-
-                    <div className="mt-5 grid gap-4 md:grid-cols-2">
-                      <div
-                        className="rounded-[20px] border p-4"
-                        style={{
-                          border: "1px solid rgba(35,55,59,0.08)",
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.76) 0%, rgba(245,246,244,0.92) 100%)",
-                        }}
+                <div className="mt-5 rounded-[16px] bg-[var(--proovra-page-bg-soft)] p-4">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#64748B]">
+                    Included
+                  </div>
+                  <ul className="mt-3 grid gap-2 pl-0">
+                    {plan.features.map((feature) => (
+                      <li
+                        key={feature}
+                        className="flex list-none items-start gap-2 text-[0.8rem] leading-[1.5] text-[#475569]"
                       >
-                        <div className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-[#8a7562]">
-                          Typical enterprise needs
-                        </div>
-
-                        <ul className="mt-3 grid gap-2.5 pl-0">
-                          {enterprise.capabilities.map((feature, index) => (
-                            <li
-                              key={index}
-                              className="flex list-none items-start gap-2.5 text-[0.82rem] leading-[1.68] text-[#516267]"
-                            >
-                              <span
-                                className="mt-[0.38rem] inline-block h-[8px] w-[8px] shrink-0 rounded-full"
-                                style={{ background: "#c9a98b" }}
-                              />
-                              <span>{feature}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      <div className="grid gap-4">
-                        <div
-                          className="rounded-[20px] border p-4 text-[0.8rem] leading-[1.68] text-[#667174]"
-                          style={{
-                            border: "1px solid rgba(35,55,59,0.08)",
-                            background:
-                              "linear-gradient(180deg, rgba(255,255,255,0.76) 0%, rgba(245,246,244,0.92) 100%)",
-                          }}
-                        >
-                          <div className="mb-2 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
-                            Operational fit
-                          </div>
-                          {enterprise.operationalFit.join(" · ")}
-                        </div>
-
-                        <div
-                          className="rounded-[20px] border p-4 text-[0.8rem] leading-[1.68] text-[#6a5b4f]"
-                          style={{
-                            border: "1px solid rgba(183,157,132,0.14)",
-                            background:
-                              "linear-gradient(180deg, rgba(255,255,255,0.74) 0%, rgba(248,245,241,0.94) 100%)",
-                          }}
-                        >
-                          {enterprise.supportWindow}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    className="rounded-[22px] border p-5"
-                    style={{
-                      border: "1px solid rgba(183,157,132,0.16)",
-                      background:
-                        "linear-gradient(180deg, rgba(255,255,255,0.74) 0%, rgba(248,245,241,0.94) 100%)",
-                      boxShadow:
-                        "inset 0 1px 0 rgba(255,255,255,0.62), 0 12px 24px rgba(92,69,50,0.05)",
-                    }}
-                  >
-                    <div className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-[#8a7562]">
-                      When to use this route
-                    </div>
-
-                    <div className="mt-3 text-[0.98rem] font-semibold tracking-[-0.02em] text-[#23373b]">
-                      Not just more seats. A different commercial path.
-                    </div>
-
-                    <div className="mt-3 text-[0.86rem] leading-[1.75] text-[#5d6d71]">
-                      Choose Enterprise when the decision includes procurement,
-                      internal approvals, department rollout, retention-policy
-                      alignment, or a broader review workflow than standard
-                      checkout.
-                    </div>
-
-                    <div className="mt-5 flex flex-col gap-3">
-                      <Link href={enterprise.ctaHref} className="block">
-                        <Button
-                          className="h-[46px] w-full rounded-[14px] px-4 text-[0.86rem] font-semibold"
-                          style={solidButtonStyle}
-                        >
-                          {enterprise.ctaLabel}
-                        </Button>
-                      </Link>
-
-                      <Link href="/contact-sales" className="block">
-                        <Button
-                          variant="secondary"
-                          className="h-[46px] w-full rounded-[14px] px-4 text-[0.86rem] font-semibold"
-                          style={lightButtonStyle}
-                        >
-                          Request demo
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
+                        <CheckCircle2
+                          size={14}
+                          className="mt-[2px] shrink-0"
+                          style={{ color: plan.iconColor }}
+                          strokeWidth={2.4}
+                        />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
-            </Card>
-          </div>
+            );
+          })}
+        </div>
+      </section>
 
-          {storageAddonSummary ? (
-            <div
-              className="mt-8 rounded-[28px] border px-6 py-6 md:px-7 md:py-7"
-              style={{
-                border: "1px solid rgba(79,112,107,0.14)",
-                background:
-                  "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(243,245,242,0.96) 100%)",
-                boxShadow:
-                  "0 18px 36px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.55)",
-              }}
-            >
-              <div className="text-[1.1rem] font-semibold tracking-[-0.025em] text-[#21353a]">
-                Extra storage add-ons
+      <section className="relative mx-auto max-w-[1500px] px-6 pt-8 md:px-8 2xl:px-10">
+<div className="text-center">
+  <SectionKicker>Every plan includes</SectionKicker>
+</div>
+
+        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10">
+          {everyPlanIncludes.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <div
+                key={item.label}
+                className="flex flex-col items-center gap-2 text-center"
+              >
+                <GradientIconFrame size="sm">
+                  <ProovraGradientIcon
+                    Icon={Icon}
+                    size={22}
+                    strokeWidth={3}
+                    weight="regular"
+                  />
+                </GradientIconFrame>
+                <span className="text-[0.74rem] font-medium leading-[1.3] text-[#0F172A]">
+                  {item.label}
+                </span>
               </div>
+            );
+          })}
+        </div>
+      </section>
 
-              <div className="mt-2 max-w-[860px] text-[0.92rem] leading-[1.78] text-[#5d6d71]">
-                Storage top-ups are purchased inside the Billing console as
-                one-time expansions. Eligibility depends on workspace type and
-                base plan. For larger commercial storage planning, use Contact
-                Sales.
-              </div>
+      <section className="relative mx-auto max-w-[1500px] px-6 pt-8 md:px-8 2xl:px-10">
+        <div className="rounded-[28px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] p-6 shadow-[0_20px_44px_rgba(15,23,42,0.06)] md:p-10">
+          <div className="grid gap-10 lg:grid-cols-[1.25fr_0.75fr] lg:items-center">
+            <div>
+<SectionKicker>Built for enterprise</SectionKicker>
 
-              <div className="mt-6 grid gap-5 xl:grid-cols-2">
-                <div
-                  className="rounded-[24px] border px-5 py-5"
-                  style={{
-                    border: "1px solid rgba(79,112,107,0.10)",
-                    background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.54) 0%, rgba(243,245,242,0.88) 100%)",
-                  }}
-                >
-                  <div className="text-[0.78rem] font-semibold uppercase tracking-[0.16em] text-[#8a7562]">
-                    Personal workspace top-ups
-                  </div>
+              <h2 className="mt-4 max-w-[640px] text-[1.55rem] font-semibold leading-[1.18] tracking-[-0.02em] text-[#0F172A] md:text-[1.85rem]">
+                Built for procurement, governance, and large-scale evidence
+                operations.
+              </h2>
 
-                  <div className="mt-4 grid gap-3">
-                    {storageAddonSummary.personal.length === 0 ? (
-                      <div className="text-[0.86rem] leading-[1.75] text-[#5d6d71]">
-                        No personal storage add-ons published.
-                      </div>
-                    ) : (
-                      storageAddonSummary.personal.map((item) => (
-                        <div
-                          key={item.key}
-                          className="rounded-[18px] border px-4 py-4"
-                          style={{
-                            border: "1px solid rgba(79,112,107,0.10)",
-                            background:
-                              "linear-gradient(180deg, rgba(255,255,255,0.50) 0%, rgba(243,245,242,0.86) 100%)",
-                          }}
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <div className="text-[0.92rem] font-semibold text-[#21353a]">
-                                {item.label}
-                              </div>
-                              <div className="mt-1 text-[0.84rem] text-[#5d6d71]">
-                                {formatBytesCompact(item.storageBytes)} extra
-                                storage
-                              </div>
-                            </div>
-                            <div className="text-[0.9rem] font-semibold text-[#23373b]">
-                              {formatAddonMoney(item)}
-                            </div>
-                          </div>
-                          <div className="mt-2 text-[0.78rem] text-[#7a878a]">
-                            One-time purchase
-                          </div>
+              <p className="mt-3 max-w-[600px] text-[0.94rem] leading-[1.7] text-[#475569]">
+                We support complex organizational needs with security,
+                compliance, and scalability.
+              </p>
+
+              <div className="mt-6 grid gap-4">
+                {enterpriseFeatures.map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <div key={item.title} className="flex gap-3.5">
+                      <GradientIconFrame size="sm">
+                        <ProovraGradientIcon
+                          Icon={Icon}
+                          size={22}
+                          strokeWidth={3.05}
+                          weight="regular"
+                        />
+                      </GradientIconFrame>
+
+                      <div>
+                        <div className="text-[0.96rem] font-semibold text-[#0F172A]">
+                          {item.title}
                         </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                <div
-                  className="rounded-[24px] border px-5 py-5"
-                  style={{
-                    border: "1px solid rgba(79,112,107,0.10)",
-                    background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.54) 0%, rgba(243,245,242,0.88) 100%)",
-                  }}
-                >
-                  <div className="text-[0.78rem] font-semibold uppercase tracking-[0.16em] text-[#8a7562]">
-                    Team workspace top-ups
-                  </div>
-
-                  <div className="mt-4 grid gap-3">
-                    {storageAddonSummary.team.length === 0 ? (
-                      <div className="text-[0.86rem] leading-[1.75] text-[#5d6d71]">
-                        No team storage add-ons published.
-                      </div>
-                    ) : (
-                      storageAddonSummary.team.map((item) => (
-                        <div
-                          key={item.key}
-                          className="rounded-[18px] border px-4 py-4"
-                          style={{
-                            border: "1px solid rgba(79,112,107,0.10)",
-                            background:
-                              "linear-gradient(180deg, rgba(255,255,255,0.50) 0%, rgba(243,245,242,0.86) 100%)",
-                          }}
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <div className="text-[0.92rem] font-semibold text-[#21353a]">
-                                {item.label}
-                              </div>
-                              <div className="mt-1 text-[0.84rem] text-[#5d6d71]">
-                                {formatBytesCompact(item.storageBytes)} extra
-                                storage
-                              </div>
-                            </div>
-                            <div className="text-[0.9rem] font-semibold text-[#23373b]">
-                              {formatAddonMoney(item)}
-                            </div>
-                          </div>
-                          <div className="mt-2 text-[0.78rem] text-[#7a878a]">
-                            One-time purchase
-                          </div>
+                        <div className="mt-1 text-[0.86rem] leading-[1.6] text-[#475569]">
+                          {item.body}
                         </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          ) : null}
 
-          <div className="mt-8 grid gap-6">
-            <PricingComparisonTable
-              free={catalog?.free ?? null}
-              payg={catalog?.payg ?? null}
-              pro={catalog?.pro ?? null}
-              team={catalog?.team ?? null}
-              enterprise={catalog?.enterprise ?? null}
-            />
+            <div className="flex w-full justify-end lg:self-center">
+              <div className="grid w-full max-w-[320px] gap-3">
+                <Link
+                  href="/request-demo"
+                  className="flex h-11 items-center justify-center rounded-[13px] bg-gradient-to-r from-[#EC4899] via-[#7E22CE] to-[#5B21B6] text-[0.9rem] font-semibold text-white shadow-[0_12px_28px_rgba(91,33,182,0.35)] transition hover:translate-y-[-1px]"
+                >
+                  Schedule a demo
+                </Link>
 
-            <PricingCheckoutGuide />
-          </div>
-
-          <div className="mt-6 text-[0.82rem] leading-[1.7] text-[#667174]">
-            Prices shown in{" "}
-            <span className="font-medium text-[#31464a]">
-              {displayCurrency}
-            </span>
-            . VAT may apply depending on your country.
+                <Link
+                  href="/contact-sales"
+className="flex h-11 items-center justify-center rounded-[13px] border border-[#C45AD7] bg-white text-[0.9rem] font-semibold text-[#0F172A] shadow-[0_8px_18px_rgba(196,90,215,0.08)] transition duration-200 hover:-translate-y-[1px] hover:border-[#B24ACD] hover:bg-white hover:shadow-[0_12px_26px_rgba(196,90,215,0.16)]"
+                >
+                  Talk to Sales
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
+      </section>
 
-        <style jsx>{`
-          @media (max-width: 1279px) {
-            .pricing-grid {
-              grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            }
-          }
+<section className="relative mx-auto mt-8 max-w-7xl px-6 pb-12 md:mt-10 md:px-8 md:pb-16">
+  <SectionKicker>Compare plans</SectionKicker>
+        <div className="mt-4 overflow-x-auto rounded-[20px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
+          <table className="w-full min-w-[840px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-[var(--proovra-border-warm)] bg-[var(--proovra-page-bg-soft)]">
+                <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
+                  Capability
+                </th>
+                <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
+                  Free
+                </th>
+                <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
+                  Pay-Per-Evidence
+                </th>
+                <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
+                  Pro
+                </th>
+                <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
+                  Team
+                </th>
+                <th className="bg-[#F3EFFF] px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#5B21B6]">
+                  Enterprise
+                </th>
+              </tr>
+            </thead>
 
-          @media (max-width: 767px) {
-            .pricing-grid {
-              grid-template-columns: 1fr !important;
-            }
-          }
-        `}</style>
-      </SilverWatermarkSection>
+            <tbody>
+              {compareRows.map((row, rowIdx) => (
+                <tr
+                  key={row.label}
+                  className={rowIdx % 2 === 0 ? "bg-[var(--proovra-surface)]" : "bg-[var(--proovra-surface-soft)]"}
+                >
+                  <td className="px-5 py-3.5 text-[0.86rem] font-semibold text-[#0F172A]">
+                    {row.label}
+                  </td>
+
+                  {row.values.map((value, index) => (
+                    <td
+                      key={`${row.label}-${index}`}
+                      className={`px-5 py-3.5 text-[0.84rem] leading-[1.55] ${
+                        index === 4
+                          ? "bg-[#F3EFFF]/60 text-[#0F172A]"
+                          : "text-[#475569]"
+                      }`}
+                    >
+                      {value}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-3 text-[0.78rem] text-[#64748B]">
+          Prices shown in{" "}
+          <span className="font-medium text-[#0F172A]">{displayCurrency}</span>
+          . VAT may apply depending on your country.
+        </div>
+      </section>
+
+      <section className="relative mx-auto max-w-7xl px-6 pb-12 md:px-8 md:pb-16">
+<SectionKicker>Why organizations choose PROOVRA</SectionKicker>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {whyChoose.map((card) => {
+            const Icon = card.icon;
+
+            return (
+              <div
+                key={card.title}
+                className="rounded-[20px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] p-5 shadow-[0_10px_24px_rgba(15,23,42,0.05)]"
+              >
+                <GradientIconFrame>
+                  <ProovraGradientIcon
+                    Icon={Icon}
+                    size={25}
+                    strokeWidth={3.15}
+                    weight="regular"
+                  />
+                </GradientIconFrame>
+
+                <div className="mt-4 text-[1rem] font-semibold tracking-[-0.01em] text-[#0F172A]">
+                  {card.title}
+                </div>
+
+                <div className="mt-2 text-[0.86rem] leading-[1.6] text-[#475569]">
+                  {card.body}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="relative mx-auto max-w-7xl px-6 pb-16 md:px-8 md:pb-20">
+        <div
+          className="overflow-hidden rounded-[28px] p-8 text-white shadow-[0_24px_60px_rgba(91,33,182,0.26)] md:p-10"
+          style={{
+            background:
+              "linear-gradient(90deg,#4C1D95 0%,#5B21B6 46%,#7E22CE 72%,#EC4899 90%,#F97316 100%)",
+          }}
+        >
+          <div className="grid gap-6 md:grid-cols-[1.1fr_0.9fr] md:items-center">
+            <div>
+              <h2 className="text-[1.55rem] font-semibold tracking-[-0.02em] text-white md:text-[1.85rem]">
+                Ready to modernize your evidence operations?
+              </h2>
+
+              <p className="mt-3 max-w-[520px] text-[0.96rem] leading-[1.7] text-white/90">
+                Capture, verify, govern, and share digital evidence with
+                confidence.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3 md:justify-end">
+              <Link
+                href="/request-demo"
+                className="flex h-11 items-center justify-center rounded-full bg-white px-6 text-[0.88rem] font-semibold text-[#5B21B6] shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition hover:translate-y-[-1px]"
+              >
+                Request demo →
+              </Link>
+
+              <Link
+                href="/contact-sales"
+                className="flex h-11 items-center justify-center rounded-full border border-white/40 bg-white/10 px-6 text-[0.88rem] font-semibold text-white transition hover:bg-white/20"
+              >
+                Talk to Sales →
+              </Link>
+
+              <Link
+                href={hasSession ? appBilling : appRegister}
+                className="flex h-11 items-center justify-center rounded-full border border-white/40 bg-white/10 px-6 text-[0.88rem] font-semibold text-white transition hover:bg-white/20"
+              >
+                Start free
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <EnterpriseFooter />
     </div>

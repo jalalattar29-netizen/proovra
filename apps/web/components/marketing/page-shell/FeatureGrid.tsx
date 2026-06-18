@@ -32,7 +32,7 @@ export function FeatureGrid({
         : "sm:grid-cols-2 lg:grid-cols-3";
 
   return (
-    <section className={`relative ${surface === "soft" ? "bg-[#F8FAFC]" : "bg-white"}`}>
+    <section className={`relative ${surface === "soft" ? "bg-[var(--proovra-page-bg-soft)]" : "bg-[var(--proovra-page-bg)]"}`}>
       <div className="mx-auto max-w-[1480px] px-5 md:px-7 py-16 lg:px-10 2xl:px-12 lg:py-24">
         {eyebrow ? (
           <span className="inline-flex items-center gap-2 text-[11.5px] font-semibold uppercase tracking-[0.22em] text-[#7C3AED]">
@@ -52,7 +52,7 @@ export function FeatureGrid({
           {items.map(({ title: itemTitle, body, Icon, accent = "#2563EB" }) => (
             <div
               key={itemTitle}
-              className="flex flex-col gap-3 rounded-[20px] border border-[#E5E7EB] bg-white p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-0.5 hover:border-[#CBD5E1] hover:shadow-[0_14px_32px_rgba(15,23,42,0.06)]"
+              className="flex flex-col gap-3 rounded-[20px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-0.5 hover:border-[var(--proovra-border-warm-hover)] hover:shadow-[0_14px_32px_rgba(15,23,42,0.06)]"
             >
               <span
                 className="flex h-11 w-11 items-center justify-center rounded-2xl"

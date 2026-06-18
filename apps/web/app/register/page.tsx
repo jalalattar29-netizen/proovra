@@ -16,7 +16,7 @@ import { useAuth, useLocale } from "../providers";
 import { apiFetch, ApiError } from "../../lib/api";
 import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
-import { MarketingHeader } from "../../components/header";
+import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import {
   clearPendingOAuthLegalAcceptance,

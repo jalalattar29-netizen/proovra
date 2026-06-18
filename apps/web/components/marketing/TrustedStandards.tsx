@@ -21,7 +21,7 @@ const STANDARDS = [
 export function TrustedStandards() {
   return (
     <section
-      className="relative border-y border-[#E5E7EB] bg-white"
+      className="relative border-y border-[var(--proovra-border-warm)] bg-[var(--proovra-page-bg)]"
       style={{ fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif" }}
     >
       <div className="mx-auto max-w-[1480px] px-5 md:px-7 py-8 lg:px-10 2xl:px-12 lg:py-10">
@@ -37,7 +37,7 @@ export function TrustedStandards() {
           {STANDARDS.map(({ label, sub, Icon }) => (
             <div
               key={label}
-              className="group flex flex-col items-center gap-1.5 rounded-2xl border border-[#E5E7EB] bg-white px-2 py-3 text-center shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-all hover:-translate-y-0.5 hover:border-[#CBD5E1] hover:shadow-[0_6px_16px_rgba(15,23,42,0.05)]"
+              className="group flex flex-col items-center gap-1.5 rounded-2xl border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] px-2 py-3 text-center shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-all hover:-translate-y-0.5 hover:border-[var(--proovra-border-warm-hover)] hover:shadow-[0_6px_16px_rgba(15,23,42,0.05)]"
             >
               <span
                 className="flex h-8 w-8 items-center justify-center rounded-xl"

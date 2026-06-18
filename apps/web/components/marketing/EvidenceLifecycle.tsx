@@ -50,7 +50,7 @@ export function EvidenceLifecycle() {
   return (
     <section
       id="evidence-lifecycle"
-      className="relative bg-white"
+      className="relative bg-[var(--proovra-page-bg)]"
       style={{ fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif" }}
     >
       <div className="mx-auto max-w-[1480px] px-5 md:px-7 py-20 lg:px-10 2xl:px-12 lg:py-30">
@@ -63,7 +63,7 @@ export function EvidenceLifecycle() {
           </div>
           <Link
             href={MARKETING_LINKS.legal.methodology}
-            className="inline-flex items-center gap-1.5 self-start rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-[13.5px] font-semibold text-[#0F172A] transition-all hover:border-[#CBD5E1] md:self-auto"
+            className="inline-flex items-center gap-1.5 self-start rounded-full border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] px-4 py-2 text-[13.5px] font-semibold text-[#0F172A] transition-all hover:border-[var(--proovra-border-warm-hover)] md:self-auto"
           >
             Explore the platform
             <ArrowRight size={14} />
@@ -74,7 +74,7 @@ export function EvidenceLifecycle() {
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 xl:gap-4">
             {STAGES.map(({ n, title, body, Icon, accent }, idx) => (
               <div key={n} className="relative">
-                <div className="group relative flex h-full flex-col gap-3 rounded-[20px] border border-[#E5E7EB] bg-white p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-1 hover:border-[#CBD5E1] hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
+                <div className="group relative flex h-full flex-col gap-3 rounded-[20px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-1 hover:border-[var(--proovra-border-warm-hover)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
                   <div className="flex items-center justify-between">
                     <span
                       className="flex h-12 w-12 items-center justify-center rounded-full"

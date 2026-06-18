@@ -23,7 +23,7 @@ export function PageHero({
   align = "left",
 }: PageHeroProps) {
   return (
-    <section className="relative overflow-hidden bg-white">
+    <section className="relative overflow-hidden bg-[var(--proovra-surface)]">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 -top-20 h-[420px]"
@@ -92,7 +92,7 @@ export function PageHero({
             {secondaryCta && (
               <Link
                 href={secondaryCta.href}
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-[#E5E7EB] bg-white px-6 py-3.5 text-[15px] font-semibold text-[#0F172A] hover:border-[#CBD5E1]"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] px-6 py-3.5 text-[15px] font-semibold text-[#0F172A] hover:border-[var(--proovra-border-warm-hover)]"
               >
                 {secondaryCta.label}
               </Link>

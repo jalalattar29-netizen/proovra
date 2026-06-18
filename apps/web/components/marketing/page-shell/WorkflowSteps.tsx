@@ -19,7 +19,7 @@ const DEFAULT_ACCENTS = ["#F97316", "#2563EB", "#7C3AED", "#06B6D4", "#EC4899"];
 
 export function WorkflowSteps({ eyebrow, title, description, steps }: WorkflowStepsProps) {
   return (
-    <section className="relative bg-white">
+    <section className="relative bg-[var(--proovra-page-bg)]">
       <div className="mx-auto max-w-[1480px] px-5 md:px-7 py-16 lg:px-10 2xl:px-12 lg:py-24">
         {eyebrow ? (
           <span className="inline-flex items-center gap-2 text-[11.5px] font-semibold uppercase tracking-[0.22em] text-[#06B6D4]">
@@ -41,7 +41,7 @@ export function WorkflowSteps({ eyebrow, title, description, steps }: WorkflowSt
               const color = accent ?? DEFAULT_ACCENTS[idx % DEFAULT_ACCENTS.length];
               return (
                 <div key={stepTitle} className="relative">
-                  <div className="flex h-full flex-col gap-3 rounded-[20px] border border-[#E5E7EB] bg-white p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+                  <div className="flex h-full flex-col gap-3 rounded-[20px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
                     <div className="flex items-center justify-between">
                       <span
                         className="flex h-11 w-11 items-center justify-center rounded-2xl"

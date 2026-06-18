@@ -3,11 +3,11 @@ import { Info } from "lucide-react";
 export function ImportantClarification() {
   return (
     <section
-      className="relative bg-white"
+      className="relative bg-[var(--proovra-page-bg)]"
       style={{ fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif" }}
     >
       <div className="mx-auto max-w-[1480px] px-5 md:px-7 pb-16 lg:px-10 2xl:px-12 lg:pb-24">
-        <div className="rounded-[20px] border border-[#E5E7EB] bg-[#F8FAFC] p-6 md:p-7">
+        <div className="rounded-[20px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-page-bg-soft)] p-6 md:p-7">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-5">
             <span
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl"

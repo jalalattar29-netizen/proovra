@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "../../components/ui";
 import { apiFetch, ApiError } from "../../lib/api";
-import { MarketingHeader } from "../../components/header";
+import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 
 export default function ForgotPasswordPage() {

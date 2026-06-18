@@ -19,7 +19,7 @@ export function PageCTA({
   secondary,
 }: PageCTAProps) {
   return (
-    <section className="relative bg-white">
+    <section className="relative bg-[var(--proovra-page-bg)]">
       <div className="mx-auto max-w-[1480px] px-5 md:px-7 pb-20 lg:px-10 2xl:px-12 lg:pb-28">
         <div
           className="relative overflow-hidden rounded-[28px] px-8 py-12 shadow-[0_24px_60px_rgba(11,31,94,0.30)] md:px-14 md:py-16"
@@ -61,7 +61,7 @@ export function PageCTA({
             <div className="flex flex-col gap-3 md:items-end">
               <Link
                 href={primary.href}
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-white px-6 py-3.5 text-[15px] font-semibold text-[#0B1F5E] shadow-[0_12px_28px_rgba(15,23,42,0.30)] transition-all hover:bg-[#F8FAFC]"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-[var(--proovra-surface)] px-6 py-3.5 text-[15px] font-semibold text-[#0B1F5E] shadow-[0_12px_28px_rgba(15,23,42,0.30)] transition-all hover:bg-[var(--proovra-page-bg-soft)]"
               >
                 {primary.label}
                 <ArrowRight size={16} />

@@ -19,7 +19,7 @@ export function ContentSection({
 }: ContentSectionProps) {
   return (
     <section
-      className={`relative ${surface === "soft" ? "bg-[#F8FAFC]" : "bg-white"}`}
+      className={`relative ${surface === "soft" ? "bg-[var(--proovra-page-bg-soft)]" : "bg-[var(--proovra-page-bg)]"}`}
     >
       <div className="mx-auto max-w-[1480px] px-5 md:px-7 py-16 lg:px-10 2xl:px-12 lg:py-24">
         {eyebrow ? (

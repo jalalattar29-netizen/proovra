@@ -68,7 +68,7 @@ export function VerifyInstantly() {
   return (
     <section
       id="verify-instantly"
-      className="relative bg-white"
+      className="relative bg-[var(--proovra-page-bg)]"
       style={{ fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif" }}
     >
       <div className="mx-auto grid max-w-[1480px] grid-cols-1 gap-10 px-5 md:px-7 py-20 lg:grid-cols-[0.85fr_1.8fr] lg:gap-10 lg:px-10 2xl:px-12 lg:py-28">
@@ -93,7 +93,7 @@ export function VerifyInstantly() {
             </Link>
             <Link
               href={MARKETING_LINKS.offlineVerifier}
-              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-[#E5E7EB] bg-white px-5 py-3 text-[14px] font-semibold text-[#0F172A] hover:border-[#CBD5E1]"
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] px-5 py-3 text-[14px] font-semibold text-[#0F172A] hover:border-[var(--proovra-border-warm-hover)]"
             >
               Offline verifier
             </Link>
@@ -101,15 +101,15 @@ export function VerifyInstantly() {
         </div>
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          <div className="rounded-[24px] border border-[#E5E7EB] bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
+          <div className="rounded-[24px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] p-5 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
             {/* Tab strip — all three render with their original visual style.
                 "Verification URL" is the only active mode; the other two are
                 inert visual labels (no click handler, no view switch). */}
-            <div className="flex gap-1 rounded-2xl bg-[#F8FAFC] p-1">
+            <div className="flex gap-1 rounded-2xl bg-[var(--proovra-page-bg-soft)] p-1">
               <button
                 type="button"
                 aria-current="true"
-                className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-white px-2 py-2 text-[12.5px] font-semibold text-[#0B1F5E] shadow-[0_2px_6px_rgba(15,23,42,0.06)]"
+                className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-[var(--proovra-surface)] px-2 py-2 text-[12.5px] font-semibold text-[#0B1F5E] shadow-[0_2px_6px_rgba(15,23,42,0.06)]"
               >
                 <LinkIcon size={13} />
                 Verification URL
@@ -148,7 +148,7 @@ export function VerifyInstantly() {
                   if (error) setError(null);
                 }}
                 onKeyDown={handleKeyDown}
-                className="h-12 flex-1 rounded-xl border border-[#E5E7EB] bg-white px-4 text-[14px] text-[#0F172A] placeholder:text-[#94A3B8] focus:border-[#1769E0] focus:outline-none focus:ring-2 focus:ring-[#1769E0]/15"
+                className="h-12 flex-1 rounded-xl border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] px-4 text-[14px] text-[#0F172A] placeholder:text-[#94A3B8] focus:border-[#1769E0] focus:outline-none focus:ring-2 focus:ring-[#1769E0]/15"
               />
               <button
                 type="button"
@@ -192,7 +192,7 @@ export function VerifyInstantly() {
               </p>
             )}
 
-            <div className="mt-5 border-t border-[#EEF1F5] pt-4">
+            <div className="mt-5 border-t border-[var(--proovra-border-warm)] pt-4">
               <p className="text-[12px] font-medium text-[#475569]">
                 Try our sample:
               </p>
@@ -206,7 +206,7 @@ export function VerifyInstantly() {
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-[#E5E7EB] bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
+          <div className="rounded-[24px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] p-5 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
             <div className="flex items-start gap-3">
               <span
                 className="flex h-10 w-10 items-center justify-center rounded-full"
@@ -234,7 +234,7 @@ export function VerifyInstantly() {
               ].map(({ label, value, Icon }) => (
                 <div
                   key={label}
-                  className="rounded-2xl border border-[#EEF1F5] bg-[#F8FAFC] p-3"
+                  className="rounded-2xl border border-[var(--proovra-border-warm)] bg-[var(--proovra-page-bg-soft)] p-3"
                 >
                   <div className="flex items-center gap-1.5">
                     <Icon size={13} className="text-[#2563EB]" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { MarketingHeader } from "../../components/header";
+import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import Link from "next/link";

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MarketingHeader } from "./header";
+import { MarketingHeader } from "./marketing/MarketingHeader";
 import { EnterpriseFooter } from "./marketing/EnterpriseFooter";
 import { SilverWatermarkSection } from "./SilverWatermarkSection";
 import type { UseCasePageContent } from "./use-case-data";

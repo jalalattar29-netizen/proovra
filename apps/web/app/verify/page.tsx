@@ -3,7 +3,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "../../components/ui";
-import { MarketingHeader } from "../../components/header";
+import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 
@@ -128,37 +128,44 @@ export default function VerifyIntroPage() {
     <div className="page landing-page">
       <div className="relative overflow-hidden">
         <div className="absolute inset-0">
-          <img
-            src="/images/site-velvet-bg.webp.png"
-            alt=""
-            className="h-full w-full object-cover object-center"
-          />
+<div
+  aria-hidden="true"
+  className="absolute inset-0"
+  style={{
+    backgroundImage: "url('/assets/backgrounds/proovra-page-hero-bg.png')",
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "center center",
+    backgroundSize: "100% 100%",
+  }}
+/>
         </div>
 
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_38%,rgba(8,18,22,0.66)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.09),transparent_24%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.06),transparent_18%)]" />
-        <div className="absolute inset-0 opacity-[0.04] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.026)_0px,rgba(255,255,255,0.026)_1px,transparent_1px,transparent_4px)]" />
-
+<div
+  aria-hidden="true"
+  className="absolute inset-0"
+  style={{
+background:
+  "linear-gradient(90deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.28) 45%, rgba(255,255,255,0.14) 75%, rgba(255,255,255,0.00) 100%)",  }}
+/>
         <div className="relative z-10">
           <MarketingHeader />
 
-          <section className="mx-auto max-w-7xl px-6 pb-16 pt-10 md:px-8 md:pb-20 md:pt-14">
-            <div className="max-w-[760px]">
-              <div className="inline-flex items-center gap-[0.72rem] rounded-full border border-white/10 bg-white/[0.055] px-5 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
-                <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-[#b79d84] opacity-95" />
+          <section className="mx-auto max-w-7xl px-6 pb-10 pt-8 md:px-8 md:pb-14 md:pt-12">
+            <div className="max-w-[720px]">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#E0E7FF] bg-white/95 px-4 py-1.5 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#2563EB]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
                 Verify
               </div>
 
-              <h1 className="mt-5 max-w-[700px] text-[1.72rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.28rem] lg:text-[2.9rem]">
+              <h1 className="mt-4 max-w-[640px] text-[1.72rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#0F172A] md:text-[2.28rem] lg:text-[2.9rem]">
                 Review digital evidence through a{" "}
-                <span className="text-[#bfe8df]">
+                <span className="bg-[linear-gradient(90deg,#2563EB_0%,#7C3AED_100%)] bg-clip-text text-transparent">
                   verification-first reviewer-facing record
                 </span>
                 .
               </h1>
 
-              <p className="mt-5 max-w-[720px] text-[0.96rem] leading-[1.8] tracking-[-0.006em] text-[#c7cfcc] md:text-[1rem]">
+              <p className="mt-4 max-w-[680px] text-[0.96rem] leading-[1.8] tracking-[-0.006em] text-[#475569] md:text-[1rem]">
                 Open a PROOVRA verification token or public verification ID to
                 inspect the recorded integrity state, supporting review
                 materials, identity context, custody history, access activity,
@@ -167,18 +174,18 @@ export default function VerifyIntroPage() {
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2.5">
-                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#9dd2ca]">✓</span>
+                <div className="rounded-full border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] px-3.5 py-2 text-[0.78rem] text-[#0F172A] shadow-[0_2px_8px_rgba(15,23,42,0.06)]">
+                  <span className="mr-2 text-[#2563EB]">✓</span>
                   Read-only verification flow
                 </div>
 
-                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#9dd2ca]">✓</span>
+                <div className="rounded-full border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] px-3.5 py-2 text-[0.78rem] text-[#0F172A] shadow-[0_2px_8px_rgba(15,23,42,0.06)]">
+                  <span className="mr-2 text-[#2563EB]">✓</span>
                   No account required for inspection
                 </div>
 
-                <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#d6b89d]">✓</span>
+                <div className="rounded-full border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] px-3.5 py-2 text-[0.78rem] text-[#0F172A] shadow-[0_2px_8px_rgba(15,23,42,0.06)]">
+                  <span className="mr-2 text-[#2563EB]">✓</span>
                   Built for later scrutiny
                 </div>
               </div>
