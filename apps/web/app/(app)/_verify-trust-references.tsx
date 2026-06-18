@@ -136,25 +136,25 @@ export default function VerifyTrustReferences() {
       {
         kind: "methodology",
         title: "Methodology",
-        href: "/trust-center/methodology",
+        href: "/security/trust-center/methodology",
         rows: articleRows(refs.methodology),
       },
       {
         kind: "ai-disclosure",
         title: "AI Disclosure",
-        href: "/trust-center/ai-disclosure",
+        href: "/security/trust-center/ai-disclosure",
         rows: articleRows(refs.aiDisclosure),
       },
       {
         kind: "security",
         title: "Security",
-        href: "/trust-center/security",
+        href: "/security/trust-center/security",
         rows: articleRows(refs.security),
       },
       {
         kind: "subprocessors",
         title: "Subprocessors",
-        href: "/trust-center/subprocessors",
+        href: "/security/trust-center/subprocessors",
         rows: subprocessorRows(refs.subprocessors),
       },
     ];

@@ -82,12 +82,12 @@ const TRUST_CARDS: ReadonlyArray<TrustCard> = [
   {
     title: "AI transparency",
     body: "Provider usage, advisory scope, data sent to models, human review boundaries, known risks, and cost transparency. Opens the published AI disclosure center.",
-    href: "/trust-center/ai-disclosure",
+    href: "/security/trust-center/ai-disclosure",
   },
   {
     title: "Security documentation",
     body: "Authentication, authorisation, RBAC, MFA, encryption posture, audit logging, immutability, monitoring, incident response, and recovery documentation.",
-    href: "/trust-center/security",
+    href: "/security/trust-center/security",
   },
   {
     title: "Public verification",

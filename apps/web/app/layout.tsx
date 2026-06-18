@@ -29,12 +29,18 @@ const notoArabic = Noto_Sans_Arabic({
 });
 
 export const metadata: Metadata = {
-  title: "PROOVRA — Verifiable Digital Evidence",
-  description:
-    "Turn files into verifiable digital evidence with signed integrity records, trusted timestamps, and a review-ready verification workflow.",
+  title: {
+    default: "PROOVRA",
+    template: "%s | PROOVRA",
+  },
+  description: "Digital evidence infrastructure for high-trust operations.",
   icons: {
-    icon: [{ url: "/brand/favicon.png" }],
-    apple: "/brand/apple-touch-icon.png",
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
   },
   manifest: "/manifest.webmanifest",
 };
@@ -58,7 +64,7 @@ export default function RootLayout({
           name="viewport"
           content="width=device-width, initial-scale=1.0, viewport-fit=cover"
         />
-        <meta name="theme-color" content="#13252a" />
+        <meta name="theme-color" content="#FFFFFF" />
       </head>
 
 <body className="antialiased" style={{ fontFamily: "var(--font-jakarta)" }}>

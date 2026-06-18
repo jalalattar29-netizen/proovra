@@ -131,7 +131,7 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   { pathPrefix: "/teams", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "team workspace (PRO/TEAM)" },
   { pathPrefix: "/intake-links", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "intake links (PRO/TEAM)" },
   { pathPrefix: "/inbox", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "operational inbox (PRO/TEAM)" },
-  { pathPrefix: "/trust-center", tier: "CORE", directAccessPolicy: "allow", reason: "trust center" },
+  { pathPrefix: "/security/trust-center", tier: "CORE", directAccessPolicy: "allow", reason: "trust center" },
   { pathPrefix: "/settings", tier: "CORE", directAccessPolicy: "allow", reason: "account settings (incl. /settings/security)" },
   { pathPrefix: "/billing", tier: "CORE", directAccessPolicy: "allow", reason: "billing" },
   // Phase IA-surface-tier-finishing — these surfaces were CORE in the

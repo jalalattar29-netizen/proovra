@@ -116,15 +116,6 @@ textarea {
   --nav-bg: rgba(8, 18, 22, 0.78);
   --nav-border: rgba(255, 255, 255, 0.1);
 
-  --hero-grad-top: #081318;
-  --hero-grad-mid: #102126;
-  --hero-grad-bottom: #162b31;
-
-  --hero-bg:
-    radial-gradient(circle at 18% 12%, rgba(158, 216, 207, 0.1), transparent 42%),
-    radial-gradient(circle at 84% 20%, rgba(214, 184, 157, 0.07), transparent 18%),
-    linear-gradient(180deg, var(--hero-grad-top) 0%, var(--hero-grad-mid) 42%, var(--hero-grad-bottom) 100%);
-
   --btn-primary-bg: linear-gradient(135deg, #3e8f95 0%, #2f686d 50%, #1d3d42 100%);
   --btn-primary-color: #f4f7f6;
   --btn-primary-border: rgba(169, 201, 196, 0.28);
@@ -205,6 +196,13 @@ html[dir="rtl"] body {
 
 body {
   min-height: 100vh;
+}
+
+/* Decorative body effects — scoped to the authenticated dashboard only.
+   `.has-app-decor` is applied by `(app)/layout.tsx` on mount and removed
+   on unmount, so marketing routes never paint these fixed full-viewport
+   layers (which were causing scroll-jank on every page). */
+body.has-app-decor {
   background:
     radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.3), transparent 15%),
     radial-gradient(circle at 84% 26%, rgba(191, 164, 139, 0.08), transparent 18%),
@@ -213,7 +211,7 @@ body {
   background-attachment: fixed;
 }
 
-body::before {
+body.has-app-decor::before {
   content: "";
   position: fixed;
   inset: 0;
@@ -231,7 +229,7 @@ body::before {
   mix-blend-mode: soft-light;
 }
 
-body::after {
+body.has-app-decor::after {
   content: "";
   position: fixed;
   inset: 0;
@@ -2439,41 +2437,6 @@ body.camera-open {
     rgba(255, 255, 255, 0.025)
   );
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.08);
-}
-
-.marketing-velvet-card {
-  position: relative;
-  overflow: hidden;
-  border-radius: 28px;
-  border: 1px solid rgba(183, 157, 132, 0.20);
-  box-shadow:
-    0 22px 42px rgba(0, 0, 0, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-
-.marketing-velvet-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: url("/images/site-velvet-bg.webp.png");
-  background-size: cover;
-  background-position: center;
-  transform: scale(1.12);
-}
-
-.marketing-velvet-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 18% 14%, rgba(158,216,207,0.06), transparent 28%),
-    radial-gradient(circle at 86% 18%, rgba(214,184,157,0.05), transparent 22%),
-    linear-gradient(180deg, rgba(8,20,24,0.82) 0%, rgba(7,18,22,0.90) 100%);
-}
-
-.marketing-velvet-card > * {
-  position: relative;
-  z-index: 1;
 }
 
 /* =========================================================

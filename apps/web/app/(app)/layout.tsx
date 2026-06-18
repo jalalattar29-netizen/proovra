@@ -2,7 +2,7 @@
 
 import "../globals.css";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { AppShellV2 } from "../../components/app-shell-v2/AppShellV2";
@@ -31,6 +31,20 @@ export default function AppLayout({
   const router = useRouter();
 
   const { authReady, hasSession, setToken, updateUser } = useAuth();
+
+  // Phase scroll-perf — the body decorative effects (fixed gradient,
+  // soft-light noise overlay, fixed radial overlays) live in globals.css
+  // under `body.has-app-decor`. They cause scroll-jank when applied to
+  // marketing routes because they trigger full-viewport repaints on
+  // every scroll frame. Apply the class only while the (app) layout is
+  // mounted so the dashboard keeps its texture but the marketing site
+  // (which uses only the root layout) stays clean.
+  useEffect(() => {
+    document.body.classList.add("has-app-decor");
+    return () => {
+      document.body.classList.remove("has-app-decor");
+    };
+  }, []);
 
   const hideAiWidget = useMemo(() => {
     if (!pathname) return false;
