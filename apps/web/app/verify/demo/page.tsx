@@ -42,6 +42,7 @@ import {
 } from "@phosphor-icons/react";
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
+import { PlatformDashboardShowcase } from "../../../components/marketing/PlatformDashboardShowcase";
 import { SALES_ASSETS } from "../../../lib/sales-assets";
 
 const DEMO_RECORD = {
@@ -138,132 +139,6 @@ function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
-function ProductMockup() {
-  return (
-    <div className="relative w-full overflow-hidden rounded-[20px] border border-[#E2E8F0] bg-white shadow-[0_30px_70px_rgba(15,23,42,0.10)]">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-[#7C3AED] to-[#3B82F6] text-white">
-            <ShieldCheck size={14} strokeWidth={2.6} />
-          </div>
-          <span className="text-[11px] font-bold tracking-[0.18em] text-[#0F172A]">
-            PROOVRA
-          </span>
-        </div>
-        <div className="hidden items-center gap-2 text-[11.5px] text-[#64748B] sm:flex">
-          <ChevronRight size={12} />
-          Demo Record
-          <ChevronRight size={12} />
-          <span className="text-[#0F172A]">{DEMO_RECORD.fileName}</span>
-        </div>
-        <div className="ml-auto flex items-center gap-1.5 text-[11px] text-[#475569]">
-          <span className="hidden sm:inline">Verified on </span>
-          {DEMO_RECORD.verifiedAt}
-          <CheckCircle2 size={14} className="text-[#16A34A]" />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr]">
-        <nav className="hidden border-r border-[#E2E8F0] bg-[#F8FAFC] p-2 sm:block">
-          <ul className="space-y-0.5">
-            {TABS.map((tab, i) => {
-              const Icon = tab.icon;
-              const active = i === 0;
-              return (
-                <li key={tab.id}>
-                  <div
-                    className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] ${
-                      active
-                        ? "bg-white font-semibold text-[#0F172A] shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-                        : "text-[#475569]"
-                    }`}
-                  >
-                    <Icon size={13} strokeWidth={2.2} />
-                    {tab.label}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
-        <div className="p-5">
-          <div className="flex items-baseline gap-2.5">
-            <h3 className="text-[1.05rem] font-semibold text-[#0F172A]">
-              {DEMO_RECORD.fileName}
-            </h3>
-            <span className="rounded-md bg-[#EEF2FF] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.10em] text-[#4338CA]">
-              PDF
-            </span>
-            <span className="text-[11.5px] text-[#64748B]">
-              {DEMO_RECORD.fileSize}
-            </span>
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-            {[
-              { title: "Integrity", value: "Valid", helper: "SHA-256", tone: "valid" as const },
-              { title: "Signature", value: "Valid", helper: "Digital signature", tone: "valid" as const },
-              { title: "TSA Timestamp", value: "Verified", helper: "Trusted time", tone: "verified" as const },
-              { title: "OpenTimestamp", value: "Published", helper: "Blockchain anchored", tone: "published" as const },
-              { title: "Custody", value: "Consistent", helper: `${DEMO_RECORD.custodyEvents} events`, tone: "consistent" as const },
-              { title: "Storage Protection", value: "Protected", helper: "AES-256 · Encrypted", tone: "protected" as const },
-            ].map((s) => (
-              <div
-                key={s.title}
-                className="rounded-lg border border-[#E2E8F0] bg-white p-2.5"
-              >
-                <div className="text-[10.5px] font-medium text-[#64748B]">
-                  {s.title}
-                </div>
-                <div className="mt-1">
-                  <StatusPill tone={s.tone} label={s.value} />
-                </div>
-                <div className="mt-1 text-[10.5px] text-[#94A3B8]">
-                  {s.helper}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5">
-            <div className="text-[10.5px] font-semibold text-[#64748B]">
-              Custody Timeline ({DEMO_RECORD.custodyEvents} events)
-            </div>
-            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
-              {[
-                { label: "Captured", time: "May 17, 09:14 UTC", icon: Camera, color: "#F97316" },
-                { label: "Hash Generated", time: "May 17, 09:15 UTC", icon: Fingerprint, color: "#3B82F6" },
-                { label: "TSA Recorded", time: "May 17, 09:15 UTC", icon: Clock3, color: "#06B6D4" },
-                { label: "Signature Applied", time: "May 17, 09:16 UTC", icon: PenLine, color: "#7C3AED" },
-                { label: "Access Reviewed", time: "May 18, 11:02 UTC", icon: Eye, color: "#14B8A6" },
-                { label: "Report Generated", time: "May 18, 14:36 UTC", icon: FileText, color: "#EC4899" },
-              ].map((step) => {
-                const Icon = step.icon;
-                return (
-                  <div key={step.label} className="flex flex-col items-center text-center">
-                    <span
-                      className="flex h-7 w-7 items-center justify-center rounded-full text-white"
-                      style={{ background: step.color }}
-                    >
-                      <Icon size={13} strokeWidth={2.4} />
-                    </span>
-                    <div className="mt-1.5 text-[10px] font-semibold text-[#0F172A]">
-                      {step.label}
-                    </div>
-                    <div className="text-[9.5px] text-[#94A3B8]">{step.time}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function HeroChip({ label }: { label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-3 py-1.5 text-[12px] font-medium text-[#0F172A] shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
@@ -296,8 +171,8 @@ function HeroSection() {
         }}
       />
 
-      <div className="relative mx-auto grid max-w-7xl gap-10 px-6 pb-16 pt-20 md:px-8 md:pb-20 md:pt-24 lg:grid-cols-[1fr_1.05fr] lg:items-start lg:pt-28">
-        <div className="lg:pt-3">
+      <div className="relative mx-auto grid max-w-[1320px] gap-10 px-6 pb-16 pt-20 md:px-8 md:pb-20 md:pt-24 lg:grid-cols-[46fr_54fr] lg:items-center lg:pb-24 lg:pt-28">
+        <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-[#E0E7FF] bg-white/95 px-4 py-1.5 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#2563EB] shadow-[0_2px_8px_rgba(37,99,235,0.06)]">
             <span className="h-1.5 w-1.5 rounded-full bg-[#7C3AED]" />
             Verification Demo
@@ -353,8 +228,23 @@ function HeroSection() {
           </p>
         </div>
 
-        <div className="relative">
-          <ProductMockup />
+        <div className="relative flex justify-center lg:justify-end">
+          <div className="relative w-full max-w-[960px]">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -inset-6 rounded-[36px]"
+              style={{
+                background:
+                  "radial-gradient(circle at 50% 50%, rgba(37,99,235,0.10) 0%, rgba(37,99,235,0.04) 35%, transparent 70%)",
+                filter: "blur(10px)",
+              }}
+            />
+            <span className="absolute -top-3 right-5 z-10 inline-flex items-center gap-1.5 rounded-full border border-[#E5E7EB] bg-white px-3 py-1 text-[12px] font-semibold text-[#0F172A] shadow-[0_4px_12px_rgba(15,23,42,0.06)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#16A34A]" />
+              Live Platform View
+            </span>
+            <PlatformDashboardShowcase />
+          </div>
         </div>
       </div>
     </section>

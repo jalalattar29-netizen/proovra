@@ -87,17 +87,20 @@ export const MARKETING_LINKS = {
   comparison: "/compare/traditional-files-vs-proovra",
   about: "/about",
 
+  // Platform IA was consolidated into one /platform page with anchor
+  // navigation. Old short sub-pages remain on disk but are no longer linked
+  // from the marketing nav; these tokens now point at section anchors.
   platform: {
     overview: "/platform",
-    capture: "/platform/capture",
-    evidenceRecords: "/platform/evidence-records",
-    verification: "/platform/verification",
-    reports: "/platform/reports",
-    verificationPackages: "/platform/verification-packages",
-    cases: "/platform/cases",
-    teams: "/platform/teams-workspaces",
-    governance: "/platform/governance",
-    integrations: "/platform/integrations",
+    capture: "/platform#lifecycle",
+    evidenceRecords: "/platform#lifecycle",
+    verification: "/platform#trust",
+    reports: "/platform#modules",
+    verificationPackages: "/platform#modules",
+    cases: "/platform#modules",
+    teams: "/platform#modules",
+    governance: "/platform#governance",
+    integrations: "/platform#integrations",
   },
 
   technology: {
