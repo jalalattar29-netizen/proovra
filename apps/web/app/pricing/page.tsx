@@ -401,10 +401,14 @@ export default function MarketingPricingPage() {
     },
   ];
 
-  const compareRows: {
-    label: string;
-    values: [string, string, string, string, string];
-  }[] = [
+  const compareRows: (
+    | {
+        label: string;
+        values: [string, string, string, string, string];
+        group?: false;
+      }
+    | { label: string; group: true }
+  )[] = [
     {
       label: "Evidence records",
       values: [
@@ -455,6 +459,105 @@ export default function MarketingPricingPage() {
         "Personal + team support",
         "Team-first workspace support",
         "Organization deployment",
+      ],
+    },
+    { label: "Platform Operations", group: true },
+    {
+      label: "Intake links",
+      values: ["Not included", "Included", "Included", "Included", "Included"],
+    },
+    {
+      label: "Submission requests",
+      values: ["Not included", "Included", "Included", "Included", "Included"],
+    },
+    {
+      label: "AI assistant",
+      values: [
+        "Not included",
+        "Not included",
+        "Basic guidance",
+        "Team workflow assistance",
+        "Enterprise AI assistance",
+      ],
+    },
+    {
+      label: "Cases & matters",
+      values: [
+        "Not included",
+        "Not included",
+        "Personal cases",
+        "Team cases",
+        "Organization-wide matters",
+      ],
+    },
+    {
+      label: "Reviewer operations",
+      values: [
+        "Not included",
+        "Not included",
+        "Not included",
+        "Review assignments",
+        "Advanced reviewer workflows",
+      ],
+    },
+    {
+      label: "Tasks & review queues",
+      values: [
+        "Not included",
+        "Not included",
+        "Not included",
+        "Included",
+        "Advanced queues",
+      ],
+    },
+    {
+      label: "Governance controls",
+      values: [
+        "Not included",
+        "Not included",
+        "Basic controls",
+        "Team governance",
+        "Enterprise governance",
+      ],
+    },
+    {
+      label: "Retention policies",
+      values: [
+        "Not included",
+        "Not included",
+        "Not included",
+        "Basic retention",
+        "Custom retention policies",
+      ],
+    },
+    {
+      label: "Legal hold",
+      values: [
+        "Not included",
+        "Not included",
+        "Not included",
+        "Not included",
+        "Included",
+      ],
+    },
+    {
+      label: "Audit logs",
+      values: [
+        "Basic record history",
+        "Basic record history",
+        "Record audit history",
+        "Team audit logs",
+        "Organization audit logs",
+      ],
+    },
+    {
+      label: "Integrations & APIs",
+      values: [
+        "Not included",
+        "Not included",
+        "Not included",
+        "Limited integrations",
+        "APIs, webhooks, SSO, and integrations",
       ],
     },
     {
@@ -872,29 +975,61 @@ className="flex h-11 items-center justify-center rounded-[13px] border border-[#
             </thead>
 
             <tbody>
-              {compareRows.map((row, rowIdx) => (
-                <tr
-                  key={row.label}
-                  className={rowIdx % 2 === 0 ? "bg-[var(--proovra-surface)]" : "bg-[var(--proovra-surface-soft)]"}
-                >
-                  <td className="px-5 py-3.5 text-[0.86rem] font-semibold text-[#0F172A]">
-                    {row.label}
-                  </td>
-
-                  {row.values.map((value, index) => (
-                    <td
-                      key={`${row.label}-${index}`}
-                      className={`px-5 py-3.5 text-[0.84rem] leading-[1.55] ${
-                        index === 4
-                          ? "bg-[#F3EFFF]/60 text-[#0F172A]"
-                          : "text-[#475569]"
-                      }`}
+              {(() => {
+                // Stripe parity tracks data rows only so group dividers don't
+                // throw off the alternating pattern.
+                let dataIdx = -1;
+                return compareRows.map((row) => {
+                  if ("group" in row && row.group) {
+                    return (
+                      <tr key={`group-${row.label}`} className="bg-[#F1F5F9]">
+                        <td
+                          colSpan={6}
+                          className="px-5 py-2.5 text-[0.72rem] font-extrabold uppercase tracking-[0.18em] text-[#0F172A]"
+                        >
+                          {row.label}
+                        </td>
+                      </tr>
+                    );
+                  }
+                  dataIdx++;
+                  return (
+                    <tr
+                      key={row.label}
+                      className={
+                        dataIdx % 2 === 0
+                          ? "bg-[var(--proovra-surface)]"
+                          : "bg-[var(--proovra-surface-soft)]"
+                      }
                     >
-                      {value}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+                      <td className="px-5 py-3.5 text-[0.86rem] font-semibold text-[#0F172A]">
+                        {row.label}
+                      </td>
+
+                      {row.values.map((value, index) => {
+                        const isEnterprise = index === 4;
+                        const isMuted = value === "Not included";
+                        const enterpriseBg = isEnterprise
+                          ? "bg-[#F3EFFF]/60"
+                          : "";
+                        const textColor = isMuted
+                          ? "text-[#94A3B8]"
+                          : isEnterprise
+                            ? "text-[#0F172A]"
+                            : "text-[#475569]";
+                        return (
+                          <td
+                            key={`${row.label}-${index}`}
+                            className={`px-5 py-3.5 text-[0.84rem] leading-[1.55] ${enterpriseBg} ${textColor}`}
+                          >
+                            {value}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                });
+              })()}
             </tbody>
           </table>
         </div>
@@ -903,6 +1038,10 @@ className="flex h-11 items-center justify-center rounded-[13px] border border-[#
           Prices shown in{" "}
           <span className="font-medium text-[#0F172A]">{displayCurrency}</span>
           . VAT may apply depending on your country.
+        </div>
+        <div className="mt-2 text-[0.74rem] leading-[1.5] text-[#64748B]">
+          AI assistance is advisory and does not determine truth, authorship,
+          authenticity, identity, or legal admissibility.
         </div>
       </section>
 

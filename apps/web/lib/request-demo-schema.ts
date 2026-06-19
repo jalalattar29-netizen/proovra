@@ -9,6 +9,30 @@ export const TEAM_SIZE_OPTIONS = [
   { value: "1000+", label: "1000+" },
 ] as const;
 
+export const PRIMARY_INTEREST_OPTIONS = [
+  { value: "full-platform", label: "Full Platform Demo" },
+  { value: "capture-intake", label: "Capture & Secure Intake" },
+  { value: "verification", label: "Evidence Verification" },
+  { value: "reports-packages", label: "Reports & Verification Packages" },
+  { value: "cases-reviewers", label: "Cases & Reviewer Operations" },
+  { value: "governance", label: "Governance & Compliance" },
+  { value: "ai-assistant", label: "AI Assistant" },
+  { value: "integrations-apis", label: "Enterprise Integrations & APIs" },
+  { value: "security-trust", label: "Security & Trust Architecture" },
+  { value: "other", label: "Other" },
+] as const;
+
+export const ORGANIZATION_TYPE_OPTIONS = [
+  { value: "insurance", label: "Insurance" },
+  { value: "legal", label: "Legal / Law Firm" },
+  { value: "corporate-investigations", label: "Corporate Investigations" },
+  { value: "government", label: "Government / Public Sector" },
+  { value: "compliance", label: "Compliance / Audit" },
+  { value: "journalism", label: "Journalism / Media" },
+  { value: "enterprise-security", label: "Enterprise Security" },
+  { value: "other", label: "Other" },
+] as const;
+
 export const requestDemoSchema = z.object({
   fullName: z.string().trim().min(2, "Full name is required.").max(160),
   workEmail: z
@@ -20,6 +44,16 @@ export const requestDemoSchema = z.object({
   jobTitle: z.string().trim().max(120).optional().or(z.literal("")),
   country: z.string().trim().max(120).optional().or(z.literal("")),
   teamSize: z.string().trim().max(64).optional().or(z.literal("")),
+  primaryInterest: z
+    .string()
+    .trim()
+    .min(1, "Select a primary interest.")
+    .max(64),
+  organizationType: z
+    .string()
+    .trim()
+    .min(1, "Select an organization type.")
+    .max(64),
   useCase: z
     .string()
     .trim()
@@ -43,6 +77,8 @@ export type RequestDemoPayload = {
   jobTitle: string | null;
   country: string | null;
   teamSize: string | null;
+  primaryInterest: string;
+  organizationType: string;
   useCase: string;
   message: string | null;
   website: string | null;
@@ -67,6 +103,8 @@ export const REQUEST_DEMO_DEFAULT_VALUES: RequestDemoFormValues = {
   jobTitle: "",
   country: "",
   teamSize: "",
+  primaryInterest: "",
+  organizationType: "",
   useCase: "",
   message: "",
   website: "",
@@ -109,6 +147,8 @@ export function buildRequestDemoPayload(
     jobTitle: normalizeOptional(values.jobTitle),
     country: normalizeOptional(values.country),
     teamSize: normalizeOptional(values.teamSize),
+    primaryInterest: values.primaryInterest.trim(),
+    organizationType: values.organizationType.trim(),
     useCase: values.useCase.trim(),
     message: normalizeOptional(values.message),
     website: normalizeOptional(values.website),

@@ -1,28 +1,31 @@
 "use client";
 
-import { Suspense, useId, type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
-  Activity,
-  Archive,
   ArrowRight,
-  Calendar,
+  Briefcase,
+  Building2,
   Camera,
   CheckCircle2,
   ClipboardCheck,
+  Cpu,
   Eye,
   FileText,
-  Globe2,
   Landmark,
+  Link2,
   Lock,
-  Monitor,
+  Newspaper,
   Package,
-  ScrollText,
+  Plug,
   Scale,
+  ScrollText,
   Search,
   Shield,
   ShieldCheck,
+  Sparkles,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
@@ -30,10 +33,12 @@ import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { RequestDemoForm } from "../../components/request-demo-form";
 import { SALES_ASSETS } from "../../lib/sales-assets";
 
-function Eyebrow({ children }: { children: ReactNode }) {
+/* ─── Shared primitives ───────────────────────────────────────────────── */
+
+function SectionBadge({ children }: { children: ReactNode }) {
   return (
     <div className="flex justify-center">
-      <span className="inline-flex items-center gap-2 rounded-full border border-[#E0E7FF] bg-white/95 px-4 py-1.5 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#2563EB] shadow-[0_2px_8px_rgba(37,99,235,0.06)]">
+      <span className="inline-flex items-center gap-2 rounded-full border border-[#E0E7FF] bg-white px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#2563EB] shadow-[0_2px_8px_rgba(37,99,235,0.06)]">
         <span className="h-1.5 w-1.5 rounded-full bg-[#7C3AED]" />
         {children}
       </span>
@@ -41,28 +46,77 @@ function Eyebrow({ children }: { children: ReactNode }) {
   );
 }
 
-function SectionTitle({ children }: { children: ReactNode }) {
+function SectionHeading({ children }: { children: ReactNode }) {
   return (
-    <h2 className="mx-auto mt-4 max-w-[820px] text-center text-[1.7rem] font-semibold leading-[1.18] tracking-[-0.02em] text-[#0F172A] md:text-[2rem]">
+    <h2 className="mx-auto mt-4 max-w-[860px] text-center text-[1.8rem] font-bold leading-[1.12] tracking-[-0.02em] text-[#0F172A] md:text-[2.2rem]">
       {children}
     </h2>
   );
 }
 
+function SectionSubheading({ children }: { children: ReactNode }) {
+  return (
+    <p className="mx-auto mt-4 max-w-[760px] text-center text-[14.5px] leading-[1.65] text-[#475569]">
+      {children}
+    </p>
+  );
+}
+
+/* ─── Hero ────────────────────────────────────────────────────────────── */
+
 function HeroSection({ isEnterpriseTrack }: { isEnterpriseTrack: boolean }) {
-  const lifecycle: { label: string; icon: LucideIcon; bg: string }[] = [
-    { label: "Capture", icon: Camera, bg: "linear-gradient(135deg,#FB923C,#F97316)" },
-    { label: "Preserve", icon: Archive, bg: "linear-gradient(135deg,#2563EB,#1D4ED8)" },
-    { label: "Verify", icon: ShieldCheck, bg: "linear-gradient(135deg,#A78BFA,#7C3AED)" },
-    { label: "Report", icon: FileText, bg: "linear-gradient(135deg,#22D3EE,#06B6D4)" },
-    { label: "Govern", icon: ScrollText, bg: "linear-gradient(135deg,#F472B6,#EC4899)" },
+  // Each chip's icon badge uses a filled circular gradient that matches the
+  // brand's PROOVRA hero-scene workflow icons — light-to-dark gradient inside,
+  // white glyph, soft outer glow tied to the brand color.
+  const chips: {
+    label: string;
+    Icon: LucideIcon;
+    gradient: string;
+    glow: string;
+  }[] = [
+    {
+      label: "Capture",
+      Icon: Camera,
+      gradient: "linear-gradient(135deg,#FB923C 0%,#EA580C 100%)",
+      glow: "rgba(234,88,12,0.32)",
+    },
+    {
+      label: "Intake",
+      Icon: Link2,
+      gradient: "linear-gradient(135deg,#22D3EE 0%,#0891B2 100%)",
+      glow: "rgba(8,145,178,0.32)",
+    },
+    {
+      label: "Verify",
+      Icon: ShieldCheck,
+      gradient: "linear-gradient(135deg,#3B82F6 0%,#1E40AF 100%)",
+      glow: "rgba(30,64,175,0.32)",
+    },
+    {
+      label: "Review",
+      Icon: Users,
+      gradient: "linear-gradient(135deg,#2DD4BF 0%,#0F766E 100%)",
+      glow: "rgba(15,118,110,0.32)",
+    },
+    {
+      label: "Govern",
+      Icon: Landmark,
+      gradient: "linear-gradient(135deg,#F472B6 0%,#EC4899 100%)",
+      glow: "rgba(236,72,153,0.34)",
+    },
+    {
+      label: "AI Assist",
+      Icon: Sparkles,
+      gradient: "linear-gradient(135deg,#A78BFA 0%,#7C3AED 100%)",
+      glow: "rgba(124,58,237,0.34)",
+    },
   ];
 
   const trustBullets = [
-    "Tailored to your use case",
-    "Live platform walkthrough",
-    "Security & governance review",
-    "Enterprise deployment guidance",
+    "Personalized walkthrough for your use case",
+    "Secure intake, verification, and reporting review",
+    "Governance, audit, retention, and legal hold walkthrough",
+    "Enterprise deployment, integrations, and security discussion",
   ];
 
   const sourcePath = isEnterpriseTrack
@@ -75,8 +129,7 @@ function HeroSection({ isEnterpriseTrack }: { isEnterpriseTrack: boolean }) {
         aria-hidden="true"
         className="absolute inset-0"
         style={{
-          backgroundImage:
-            "url('/assets/backgrounds/proovra-page-hero-bg.png')",
+          backgroundImage: "url('/assets/backgrounds/proovra-page-hero-bg.png')",
           backgroundRepeat: "no-repeat",
           backgroundPosition: "center center",
           backgroundSize: "100% 100%",
@@ -87,52 +140,57 @@ function HeroSection({ isEnterpriseTrack }: { isEnterpriseTrack: boolean }) {
         className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(255,255,255,0.42) 52%, rgba(255,255,255,0.22) 100%)",
+            "linear-gradient(180deg, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.44) 52%, rgba(255,255,255,0.22) 100%)",
         }}
       />
 
       <div className="relative mx-auto grid max-w-7xl gap-10 px-6 pb-12 pt-14 md:px-8 md:pb-16 md:pt-18 lg:grid-cols-[1fr_1.05fr] lg:items-start lg:pt-20">
         <div className="lg:pt-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#E0E7FF] bg-white/95 px-4 py-1.5 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#2563EB] shadow-[0_2px_8px_rgba(37,99,235,0.06)]">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#E0E7FF] bg-white/95 px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#2563EB] shadow-[0_2px_8px_rgba(37,99,235,0.06)]">
             <span className="h-1.5 w-1.5 rounded-full bg-[#7C3AED]" />
             {isEnterpriseTrack ? "Enterprise Inquiry" : "Request a Demo"}
           </div>
 
-          <h1 className="mt-5 max-w-[620px] text-[2rem] font-semibold leading-[1.06] tracking-[-0.03em] text-[#0F172A] md:text-[2.5rem] lg:text-[2.9rem]">
-            Request a personalized{" "}
+          <h1 className="mt-5 max-w-[620px] text-[2rem] font-bold leading-[1.06] tracking-[-0.03em] text-[#07132B] md:text-[2.4rem] lg:text-[2.7rem]">
+            See the complete PROOVRA platform{" "}
             <span
               className="bg-clip-text text-transparent"
               style={{
                 backgroundImage:
-                  "linear-gradient(90deg, #F97316 0%, #EC4899 50%, #7C3AED 100%)",
+                  "linear-gradient(90deg,#2563EB 0%,#4F46E5 50%,#7C3AED 100%)",
               }}
             >
-              PROOVRA walkthrough.
+              in action.
             </span>
           </h1>
 
-          <p className="mt-5 max-w-[540px] text-[0.96rem] leading-[1.7] text-[#475569] md:text-[1rem]">
-            See how capture, verification, reporting, and governance fit your
-            review workflow.
+          <p className="mt-5 max-w-[600px] text-[0.96rem] leading-[1.7] text-[#475569] md:text-[1rem]">
+            Book a personalized walkthrough of PROOVRA&apos;s evidence operations
+            platform — from secure intake and capture to verification, review,
+            reporting, governance, and enterprise deployment.
           </p>
 
-          <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
-            {lifecycle.map((step) => {
-              const Icon = step.icon;
-              return (
-                <div key={step.label} className="flex items-center gap-2">
-                  <span
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-white shadow-[0_8px_18px_rgba(15,23,42,0.10)]"
-                    style={{ background: step.bg }}
-                  >
-                    <Icon size={16} strokeWidth={2.4} />
-                  </span>
-                  <span className="text-[0.86rem] font-medium text-[#0F172A]">
-                    {step.label}
-                  </span>
-                </div>
-              );
-            })}
+          {/* Platform coverage chips — filled-gradient icon badges.
+              Fixed 3 × 2 grid at all breakpoints so the row stays balanced:
+              Capture | Intake | Verify  /  Review | Govern | AI Assist. */}
+          <div className="mt-7 grid grid-cols-3 gap-2.5">
+            {chips.map(({ label, Icon, gradient, glow }) => (
+              <span
+                key={label}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#E5E7EB] bg-white py-1 pl-1 pr-3.5 text-[12.5px] font-semibold text-[#0F172A] shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+              >
+                <span
+                  className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                  style={{
+                    background: gradient,
+                    boxShadow: `0 4px 10px ${glow}, inset 0 1px 0 rgba(255,255,255,0.35)`,
+                  }}
+                >
+                  <Icon size={12} strokeWidth={2.4} className="text-white" />
+                </span>
+                {label}
+              </span>
+            ))}
           </div>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -143,7 +201,7 @@ function HeroSection({ isEnterpriseTrack }: { isEnterpriseTrack: boolean }) {
               >
                 <CheckCircle2
                   size={16}
-                  className="mt-[1px] shrink-0 text-[#2563EB]"
+                  className="mt-[1px] shrink-0 text-[#15803D]"
                   strokeWidth={2.4}
                 />
                 {b}
@@ -164,20 +222,17 @@ function RequestDemoFormCard({ sourcePath }: { sourcePath: string }) {
   return (
     <div
       id="request-demo-form"
-      className="request-demo-card overflow-hidden rounded-[22px] border border-white/50 bg-white/[0.82] p-5 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-lg md:p-6"
+      className="request-demo-card overflow-hidden rounded-[22px] border border-white/50 bg-white/[0.86] p-5 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-lg md:p-6"
     >
-      <div className="text-[1.15rem] font-semibold tracking-[-0.02em] text-[#0F172A] md:text-[1.25rem]">
+      <div className="text-[1.15rem] font-bold tracking-[-0.02em] text-[#07132B] md:text-[1.25rem]">
         Request a Demo
       </div>
-      <p className="mt-1.5 text-[13px] leading-[1.5] text-[#475569]">
-        Fill out the form and our team will get back to you within 1 business
-        day.
+      <p className="mt-1.5 text-[13px] leading-[1.55] text-[#475569]">
+        Tell us what you want to evaluate and our team will prepare a relevant
+        walkthrough.
       </p>
 
-      <RequestDemoForm
-        sourcePath={sourcePath}
-        submitButtonLabel="Request demo"
-      />
+      <RequestDemoForm sourcePath={sourcePath} submitButtonLabel="Request demo" />
 
       <p className="mt-3 inline-flex items-center gap-2 text-[11.5px] text-[#64748B]">
         <Lock size={12} />
@@ -220,72 +275,180 @@ function RequestDemoFormCard({ sourcePath }: { sourcePath: string }) {
   );
 }
 
-function WhatYoullSee() {
-  const cards: {
-    icon: LucideIcon;
-    title: string;
-    body: string;
-    chipBg: string;
-    chipText: string;
-  }[] = [
-    {
-      icon: Camera,
-      title: "Evidence Capture",
-      body: "See how records are captured and converted into structured evidence with integrity signals.",
-      chipBg: "linear-gradient(135deg,#FB923C,#F97316)",
-      chipText: "#F97316",
-    },
-    {
-      icon: ShieldCheck,
-      title: "Verification",
-      body: "Explore how integrity, context, and provenance are verified and reviewed with confidence.",
-      chipBg: "linear-gradient(135deg,#A78BFA,#7C3AED)",
-      chipText: "#7C3AED",
-    },
-    {
-      icon: FileText,
-      title: "Reports",
-      body: "See how reviewer-ready reports, audit trails, and disclosure packages are generated.",
-      chipBg: "linear-gradient(135deg,#22D3EE,#06B6D4)",
-      chipText: "#06B6D4",
-    },
-  ];
+/* ─── Section 2 — What you can evaluate ───────────────────────────────── */
 
+type EvaluateCard = {
+  title: string;
+  body: string;
+  shows: string[];
+  accent: string;
+  accentSoft: string;
+  Icon: LucideIcon;
+  disclaimer?: string;
+};
+
+const EVALUATE_CARDS: EvaluateCard[] = [
+  {
+    title: "Capture & Secure Intake",
+    body: "Collect evidence from uploads, devices, staff, clients, witnesses, vendors, or external contributors through controlled intake workflows.",
+    shows: [
+      "Mobile and web capture",
+      "Secure intake links",
+      "External submission requests",
+      "Upload workflows",
+      "Intake review before evidence enters the record",
+    ],
+    accent: "#EA580C",
+    accentSoft: "rgba(234,88,12,0.10)",
+    Icon: Camera,
+  },
+  {
+    title: "Verification & Integrity",
+    body: "Review integrity signals, timestamps, signatures, custody context, and independent verification results across each evidence record.",
+    shows: [
+      "SHA-256 integrity checks",
+      "RFC 3161 timestamps",
+      "OpenTimestamps anchoring",
+      "Digital signatures",
+      "Verification records",
+      "Public verification pages",
+    ],
+    accent: "#1E40AF",
+    accentSoft: "rgba(30,64,175,0.10)",
+    Icon: ShieldCheck,
+  },
+  {
+    title: "Reports & Verification Packages",
+    body: "Generate review-ready reports and portable verification packages that include records, manifests, hashes, metadata, and audit context.",
+    shows: [
+      "Review-ready reports",
+      "Verification packages",
+      "Exportable evidence outputs",
+      "Audit context",
+      "Package verification workflow",
+    ],
+    accent: "#DB2777",
+    accentSoft: "rgba(219,39,119,0.10)",
+    Icon: FileText,
+  },
+  {
+    title: "Cases & Reviewer Operations",
+    body: "Organize evidence around claims, incidents, investigations, legal matters, reviewers, assignments, and operational review queues.",
+    shows: [
+      "Cases and matters",
+      "Reviewer assignments",
+      "Task workflows",
+      "Review queues",
+      "Investigation context",
+      "Operational dashboards",
+    ],
+    accent: "#0F766E",
+    accentSoft: "rgba(15,118,110,0.10)",
+    Icon: Users,
+  },
+  {
+    title: "Governance & Compliance",
+    body: "Control retention, legal hold, access, policy enforcement, audit logs, and governance decisions across the evidence lifecycle.",
+    shows: [
+      "Retention policies",
+      "Legal hold",
+      "Audit logs",
+      "Access controls",
+      "Governance workflows",
+      "Compliance-ready activity history",
+    ],
+    accent: "#047857",
+    accentSoft: "rgba(4,120,87,0.10)",
+    Icon: Landmark,
+  },
+  {
+    title: "AI-Assisted Workflows",
+    body: "Use AI assistance to guide evidence collection, detect missing context, prepare reviewers, and support workflow decisions without replacing human judgment.",
+    shows: [
+      "Capture guidance",
+      "Submission review assistance",
+      "Missing context detection",
+      "Reviewer preparation",
+      "Suggested next actions",
+      "Advisory AI workflow support",
+    ],
+    accent: "#7C3AED",
+    accentSoft: "rgba(124,58,237,0.10)",
+    Icon: Sparkles,
+    disclaimer:
+      "AI assistance is advisory and does not determine truth, authorship, authenticity, identity, or legal admissibility.",
+  },
+];
+
+function WhatYouCanEvaluate() {
   return (
-    <section className="bg-[var(--proovra-page-bg)] py-12 md:py-16">
+    <section className="bg-[var(--proovra-page-bg)] py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-6 md:px-8">
-        <Eyebrow>What you&apos;ll see</Eyebrow>
-        <SectionTitle>
-          A tailored walkthrough of the platform in action.
-        </SectionTitle>
+        <SectionBadge>Platform Areas Available For Demo</SectionBadge>
+        <SectionHeading>
+          Choose the workflows that matter to your team.
+        </SectionHeading>
+        <SectionSubheading>
+          PROOVRA demos are tailored around the evidence workflows, review needs,
+          governance requirements, and enterprise systems your organization uses.
+        </SectionSubheading>
 
-        <div className="mt-10 grid gap-5 md:grid-cols-3">
-          {cards.map((c) => {
-            const Icon = c.icon;
+        <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {EVALUATE_CARDS.map((c) => {
+            const Icon = c.Icon;
             return (
               <div
                 key={c.title}
-                className="relative overflow-hidden rounded-[22px] border border-white/40 bg-white/50 p-6 shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.015] hover:border-white/60 hover:bg-white/60 hover:shadow-[0_18px_44px_rgba(15,23,42,0.07)]"
+                className="relative flex flex-col overflow-hidden rounded-[22px] border border-[#E5E7EB] bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.06)]"
               >
-                <span
-                  className="inline-flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-[0_8px_18px_rgba(15,23,42,0.10)]"
-                  style={{ background: c.chipBg }}
-                >
-                  <Icon size={22} strokeWidth={2.2} />
-                </span>
-                <h3 className="mt-5 text-[1.1rem] font-semibold tracking-[-0.01em] text-[#0F172A]">
-                  {c.title}
-                </h3>
-                <p className="mt-2 text-[13.5px] leading-[1.6] text-[#475569]">
+                <div className="flex items-center gap-3">
+                  <span
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px]"
+                    style={{ background: c.accentSoft, color: c.accent }}
+                  >
+                    <Icon size={20} strokeWidth={2} />
+                  </span>
+                  <h3 className="text-[17px] font-extrabold tracking-[-0.005em] text-[#07132B]">
+                    {c.title}
+                  </h3>
+                </div>
+
+                <p className="mt-4 text-[13.5px] leading-[1.6] text-[#475569]">
                   {c.body}
                 </p>
-                <div
-                  className="mt-5 inline-flex cursor-default items-center gap-1 text-[12.5px] font-semibold"
-                  style={{ color: c.chipText }}
-                >
-                  Learn more
-                  <ArrowRight size={12} />
+
+                <div className="mt-5">
+                  <div className="text-[10.5px] font-extrabold uppercase tracking-[0.16em] text-[#64748B]">
+                    What we can show
+                  </div>
+                  <ul className="mt-2.5 space-y-1.5 pl-0">
+                    {c.shows.map((s) => (
+                      <li
+                        key={s}
+                        className="flex items-start gap-2 text-[12.5px] leading-[1.55] text-[#0F172A]"
+                        style={{ listStyle: "none" }}
+                      >
+                        <span
+                          className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{ background: c.accent }}
+                        />
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
+
+                {c.disclaimer ? (
+                  <div className="mt-5 rounded-[10px] border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-[11px] leading-[1.5] text-[#64748B]">
+                    {c.disclaimer}
+                  </div>
+                ) : null}
+
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-x-0 bottom-0 h-[3px]"
+                  style={{ background: c.accent, opacity: 0.85 }}
+                />
               </div>
             );
           })}
@@ -295,93 +458,97 @@ function WhatYoullSee() {
   );
 }
 
-function GradientIconFrame({
-  Icon,
-  size = "md",
-}: {
+/* ─── Section 3 — Why teams request a demo ────────────────────────────── */
+
+const OUTCOME_CARDS: {
+  title: string;
+  body: string;
+  bestFor: string;
   Icon: LucideIcon;
-  size?: "sm" | "md";
-}) {
-  const rawId = useId();
-  const gradientId = `proovraIconGradient-${rawId.replace(/:/g, "")}`;
+  color: string;
+  soft: string;
+}[] = [
+  {
+    title: "Standardize evidence collection",
+    body: "Move away from scattered files, emails, and manual uploads by using structured capture and secure intake workflows.",
+    bestFor: "Claims teams, investigators, compliance teams, legal teams",
+    Icon: Camera,
+    color: "#EA580C",
+    soft: "rgba(234,88,12,0.10)",
+  },
+  {
+    title: "Improve review readiness",
+    body: "Prepare evidence with metadata, verification signals, reports, packages, and reviewer context before it reaches decision-makers.",
+    bestFor: "Review teams, legal operations, claim reviewers, audit teams",
+    Icon: Eye,
+    color: "#2563EB",
+    soft: "rgba(37,99,235,0.10)",
+  },
+  {
+    title: "Strengthen governance",
+    body: "Apply retention, legal hold, access control, audit logs, and lifecycle policies across evidence records and workflows.",
+    bestFor:
+      "Enterprises, regulated organizations, legal departments, public sector teams",
+    Icon: Landmark,
+    color: "#047857",
+    soft: "rgba(4,120,87,0.10)",
+  },
+  {
+    title: "Connect operations at scale",
+    body: "Bring capture, intake, verification, cases, reports, reviewers, AI assistance, and integrations into one operational workspace.",
+    bestFor:
+      "Enterprise teams, multi-location organizations, platform buyers",
+    Icon: Plug,
+    color: "#7C3AED",
+    soft: "rgba(124,58,237,0.10)",
+  },
+];
 
-  const box =
-    size === "sm"
-      ? "h-11 w-11 rounded-[12px]"
-      : "h-12 w-12 rounded-[14px]";
-
-  const inner =
-    size === "sm"
-      ? "rounded-[10.5px]"
-      : "rounded-[12.5px]";
-
-  const iconSize = size === "sm" ? 19 : 21;
-
+function WhyTeamsRequest() {
   return (
-    <span
-      className={`relative inline-flex ${box} items-center justify-center p-[1.5px] shadow-[0_8px_18px_rgba(124,58,237,0.08)]`}
-      style={{
-        background: "linear-gradient(135deg,#5B21B6 0%,#EC4899 100%)",
-      }}
-    >
-      <svg width="0" height="0" aria-hidden="true" focusable="false">
-        <defs>
-          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#5B21B6" />
-            <stop offset="55%" stopColor="#7C3AED" />
-            <stop offset="100%" stopColor="#EC4899" />
-          </linearGradient>
-        </defs>
-      </svg>
-
-      <span
-        className={`flex h-full w-full items-center justify-center ${inner}`}
-        style={{
-          background: "rgba(255,255,255,0.72)",
-        }}
-      >
-        <Icon
-          size={iconSize}
-          strokeWidth={2.6}
-          fill="none"
-          style={{
-            stroke: `url(#${gradientId})`,
-          }}
-        />
-      </span>
-    </span>
-  );
-}
-
-function WhoThisIsFor() {
-  const cards: { icon: LucideIcon; label: string }[] = [
-    { icon: Shield, label: "Insurance" },
-    { icon: Scale, label: "Legal" },
-    { icon: Landmark, label: "Government" },
-    { icon: ClipboardCheck, label: "Compliance" },
-    { icon: Camera, label: "Journalism" },
-    { icon: Search, label: "Corporate Investigations" },
-  ];
-
-  return (
-    <section className="bg-[var(--proovra-page-bg)] py-12 md:py-16">
+    <section className="bg-white py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-6 md:px-8">
-        <Eyebrow>Who this is for</Eyebrow>
-        <SectionTitle>
-          Built for teams with high-stakes review needs.
-        </SectionTitle>
+        <SectionBadge>Why Teams Request a Demo</SectionBadge>
+        <SectionHeading>
+          Built for teams that need evidence they can review, trace, and govern.
+        </SectionHeading>
+        <SectionSubheading>
+          PROOVRA helps organizations reduce fragile evidence handling, improve
+          review readiness, and create consistent evidence operations across
+          people, systems, and workflows.
+        </SectionSubheading>
 
-        <div className="mx-auto mt-10 grid max-w-6xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {cards.map((c) => {
-            const Icon = c.icon;
+        <div className="mt-12 grid gap-5 md:grid-cols-2">
+          {OUTCOME_CARDS.map((c) => {
+            const Icon = c.Icon;
             return (
               <div
-                key={c.label}
-className="flex flex-col items-center justify-center rounded-[16px] border border-white/40 bg-white/40 p-4 text-center shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.015] hover:border-white/70 hover:bg-white/60 hover:shadow-[0_14px_40px_rgba(15,23,42,0.06)]"
+                key={c.title}
+                className="relative overflow-hidden rounded-[22px] border border-[#E5E7EB] bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.06)] md:p-7"
               >
-<GradientIconFrame Icon={Icon} />
-                <div className="mt-3 text-[12.5px] font-semibold leading-[1.3] text-[#0F172A]">
-                  {c.label}
+                <div className="flex items-start gap-3">
+                  <span
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px]"
+                    style={{ background: c.soft, color: c.color }}
+                  >
+                    <Icon size={20} strokeWidth={2} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-[18px] font-extrabold tracking-[-0.005em] text-[#07132B]">
+                      {c.title}
+                    </h3>
+                    <p className="mt-2 text-[13.5px] leading-[1.6] text-[#475569]">
+                      {c.body}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-5 rounded-[12px] border border-[#E5E7EB] bg-[#F8FAFC] px-3.5 py-2.5">
+                  <span className="text-[10.5px] font-extrabold uppercase tracking-[0.16em] text-[#64748B]">
+                    Best for
+                  </span>
+                  <div className="mt-1 text-[12.5px] leading-[1.5] text-[#0F172A]">
+                    {c.bestFor}
+                  </div>
                 </div>
               </div>
             );
@@ -392,39 +559,234 @@ className="flex flex-col items-center justify-center rounded-[16px] border borde
   );
 }
 
-function WhatHappensNext() {
-  const steps: { icon: LucideIcon; title: string; body: string; bg: string }[] = [
-    {
-      icon: FileText,
-      title: "Request",
-      body: "Submit the form and tell us about your use case.",
-      bg: "linear-gradient(135deg,#FB923C,#F97316)",
-    },
-    {
-      icon: Eye,
-      title: "Review",
-      body: "We review your needs and prepare a tailored demo.",
-      bg: "linear-gradient(135deg,#3B82F6,#2563EB)",
-    },
-    {
-      icon: Calendar,
-      title: "Schedule",
-      body: "Pick a time that works best for your team.",
-      bg: "linear-gradient(135deg,#A78BFA,#7C3AED)",
-    },
-    {
-      icon: Monitor,
-      title: "Live Demo",
-      body: "See PROOVRA in action and get your questions answered.",
-      bg: "linear-gradient(135deg,#22D3EE,#06B6D4)",
-    },
-  ];
+/* ─── Section 4 — Who this is for ─────────────────────────────────────── */
 
+const AUDIENCE_CARDS: { Icon: LucideIcon; title: string; body: string; color: string }[] = [
+  {
+    Icon: Shield,
+    title: "Insurance",
+    body: "Claims, fraud review, damage documentation, subrogation support.",
+    color: "#EA580C",
+  },
+  {
+    Icon: Scale,
+    title: "Legal & eDiscovery",
+    body: "Matter review, evidence organization, reports, verification packages, audit trails.",
+    color: "#2563EB",
+  },
+  {
+    Icon: Search,
+    title: "Corporate Investigations",
+    body: "Incident response, HR investigations, internal audits, policy violations.",
+    color: "#7C3AED",
+  },
+  {
+    Icon: Landmark,
+    title: "Government & Public Sector",
+    body: "Public records, citizen submissions, investigative evidence, accountability workflows.",
+    color: "#0F766E",
+  },
+  {
+    Icon: ClipboardCheck,
+    title: "Compliance & Audit",
+    body: "Retention, legal hold, audit readiness, policy enforcement, review history.",
+    color: "#047857",
+  },
+  {
+    Icon: Newspaper,
+    title: "Journalism & Media",
+    body: "Source material preservation, media verification, transparent public verification.",
+    color: "#BE123C",
+  },
+  {
+    Icon: Building2,
+    title: "Enterprise Security",
+    body: "Incident evidence, access history, operational review, internal investigations.",
+    color: "#1E40AF",
+  },
+  {
+    Icon: Users,
+    title: "External Contributors",
+    body: "Clients, witnesses, vendors, field teams, and third parties submitting evidence through intake links.",
+    color: "#0891B2",
+  },
+];
+
+function WhoThisIsFor() {
   return (
-    <section className="bg-[var(--proovra-page-bg)] py-12 md:py-16">
+    <section className="bg-[var(--proovra-page-bg)] py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-6 md:px-8">
-        <Eyebrow>What happens next</Eyebrow>
-        <SectionTitle>From request to results in four simple steps.</SectionTitle>
+        <SectionBadge>Who This Is For</SectionBadge>
+        <SectionHeading>
+          Designed for high-stakes evidence workflows.
+        </SectionHeading>
+
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {AUDIENCE_CARDS.map((c) => {
+            const Icon = c.Icon;
+            return (
+              <div
+                key={c.title}
+                className="rounded-[20px] border border-[#E5E7EB] bg-white p-5 shadow-[0_2px_6px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(15,23,42,0.06)]"
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-[#E2E8F0] bg-[#F8FAFC]"
+                    style={{ color: c.color }}
+                  >
+                    <Icon size={18} strokeWidth={1.9} />
+                  </span>
+                  <h3 className="text-[14.5px] font-extrabold tracking-[-0.005em] text-[#07132B]">
+                    {c.title}
+                  </h3>
+                </div>
+                <p className="mt-3 text-[12.5px] leading-[1.55] text-[#64748B]">
+                  {c.body}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Section 5 — Enterprise ready ────────────────────────────────────── */
+
+const ENTERPRISE_CARDS: {
+  Icon: LucideIcon;
+  title: string;
+  body: string;
+  color: string;
+  soft: string;
+}[] = [
+  {
+    Icon: ShieldCheck,
+    title: "Security Review",
+    body: "SSO, role-based access, secure architecture, and enterprise deployment discussion.",
+    color: "#2563EB",
+    soft: "rgba(37,99,235,0.10)",
+  },
+  {
+    Icon: Landmark,
+    title: "Governance Controls",
+    body: "Retention, legal hold, approval workflows, and policy controls.",
+    color: "#047857",
+    soft: "rgba(4,120,87,0.10)",
+  },
+  {
+    Icon: ScrollText,
+    title: "Audit Trails",
+    body: "Complete activity history across records, reviewers, access, reports, and packages.",
+    color: "#0F766E",
+    soft: "rgba(15,118,110,0.10)",
+  },
+  {
+    Icon: Package,
+    title: "Verification Packages",
+    body: "Portable evidence outputs with manifests, hashes, reports, and verification metadata.",
+    color: "#4F46E5",
+    soft: "rgba(79,70,229,0.10)",
+  },
+  {
+    Icon: Plug,
+    title: "Integrations & APIs",
+    body: "Connect identity, storage, webhooks, APIs, and operational systems your teams already use.",
+    color: "#1E40AF",
+    soft: "rgba(30,64,175,0.10)",
+  },
+  {
+    Icon: Cpu,
+    title: "AI Governance",
+    body: "Advisory AI workflows designed to support intake, review preparation, and workflow guidance without determining truth or admissibility.",
+    color: "#7C3AED",
+    soft: "rgba(124,58,237,0.10)",
+  },
+];
+
+function EnterpriseReady() {
+  return (
+    <section className="bg-white py-16 md:py-20">
+      <div className="mx-auto max-w-7xl px-6 md:px-8">
+        <SectionBadge>Enterprise Ready</SectionBadge>
+        <SectionHeading>
+          Ready for security, governance, and deployment review.
+        </SectionHeading>
+        <SectionSubheading>
+          PROOVRA is designed for organizations that need controlled access,
+          auditability, evidence governance, secure deployment, and operational
+          visibility.
+        </SectionSubheading>
+
+        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {ENTERPRISE_CARDS.map((c) => {
+            const Icon = c.Icon;
+            return (
+              <div
+                key={c.title}
+                className="rounded-[20px] border border-[#E5E7EB] bg-white p-5 shadow-[0_2px_6px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(15,23,42,0.06)]"
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]"
+                    style={{ background: c.soft, color: c.color }}
+                  >
+                    <Icon size={18} strokeWidth={1.9} />
+                  </span>
+                  <h3 className="text-[15px] font-extrabold tracking-[-0.005em] text-[#07132B]">
+                    {c.title}
+                  </h3>
+                </div>
+                <p className="mt-3 text-[12.5px] leading-[1.6] text-[#64748B]">
+                  {c.body}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Section 6 — What happens next ───────────────────────────────────── */
+
+const NEXT_STEPS: { Icon: LucideIcon; title: string; body: string; color: string }[] = [
+  {
+    Icon: FileText,
+    title: "Request",
+    body: "Submit your use case, organization type, and primary interest.",
+    color: "#EA580C",
+  },
+  {
+    Icon: Eye,
+    title: "Review",
+    body: "Our team reviews your workflow, security needs, and demo priorities.",
+    color: "#2563EB",
+  },
+  {
+    Icon: ClipboardCheck,
+    title: "Prepare",
+    body: "We tailor the walkthrough around your evidence operations, governance, and review needs.",
+    color: "#7C3AED",
+  },
+  {
+    Icon: Briefcase,
+    title: "Live Demo",
+    body: "See the platform in action and discuss next steps, deployment, and pricing.",
+    color: "#0F766E",
+  },
+];
+
+function WhatHappensNext() {
+  return (
+    <section className="bg-[var(--proovra-page-bg)] py-16 md:py-20">
+      <div className="mx-auto max-w-7xl px-6 md:px-8">
+        <SectionBadge>What Happens Next</SectionBadge>
+        <SectionHeading>
+          From request to relevant demo in four steps.
+        </SectionHeading>
 
         <div className="relative mt-12">
           <div
@@ -432,8 +794,8 @@ function WhatHappensNext() {
             className="pointer-events-none absolute left-0 right-0 top-8 hidden border-t border-dashed border-[#E2E8F0] lg:block"
           />
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
-            {steps.map((s, i) => {
-              const Icon = s.icon;
+            {NEXT_STEPS.map((s, i) => {
+              const Icon = s.Icon;
               return (
                 <div
                   key={s.title}
@@ -441,14 +803,14 @@ function WhatHappensNext() {
                 >
                   <span
                     className="flex h-16 w-16 items-center justify-center rounded-2xl text-white shadow-[0_12px_24px_rgba(15,23,42,0.10)] ring-4 ring-[var(--proovra-page-bg)]"
-                    style={{ background: s.bg }}
+                    style={{ background: s.color }}
                   >
                     <Icon size={26} strokeWidth={2.2} />
                   </span>
-                  <div className="mt-5 text-[13px] font-semibold text-[#0F172A]">
+                  <div className="mt-5 text-[13.5px] font-extrabold text-[#07132B]">
                     {i + 1}. {s.title}
                   </div>
-                  <p className="mt-1.5 max-w-[200px] text-[12.5px] leading-[1.55] text-[#475569]">
+                  <p className="mt-1.5 max-w-[220px] text-[12.5px] leading-[1.55] text-[#475569]">
                     {s.body}
                   </p>
                 </div>
@@ -461,206 +823,57 @@ function WhatHappensNext() {
   );
 }
 
-function EnterpriseReady() {
-  const features: {
-    icon: LucideIcon;
-    title: string;
-    body: string;
-    tint: string;
-    border: string;
-    iconColor: string;
-  }[] = [
-    {
-      icon: ShieldCheck,
-      title: "Security Review",
-      body: "SLA-backed uptime, SSO, and role-based access.",
-      tint: "linear-gradient(180deg,#EFF6FF 0%,#FFFFFF 100%)",
-      border: "#BFDBFE",
-      iconColor: "#2563EB",
-    },
-    {
-      icon: ScrollText,
-      title: "Governance Controls",
-      body: "Audit trails, approval flows, and retention policies.",
-      tint: "linear-gradient(180deg,#F5F3FF 0%,#FFFFFF 100%)",
-      border: "#DDD6FE",
-      iconColor: "#7C3AED",
-    },
-    {
-      icon: Archive,
-      title: "Retention Policies",
-      body: "Customizable data retention and legal hold support.",
-      tint: "linear-gradient(180deg,#FDF2F8 0%,#FFFFFF 100%)",
-      border: "#FBCFE8",
-      iconColor: "#DB2777",
-    },
-    {
-      icon: Activity,
-      title: "Audit Trails",
-      body: "Complete visibility into every action and data change.",
-      tint: "linear-gradient(180deg,#EFF6FF 0%,#FFFFFF 100%)",
-      border: "#BFDBFE",
-      iconColor: "#2563EB",
-    },
-    {
-      icon: Package,
-      title: "Verification Packages",
-      body: "Exportable packages for legal, compliance, and disclosure.",
-      tint: "linear-gradient(180deg,#F5F3FF 0%,#FFFFFF 100%)",
-      border: "#DDD6FE",
-      iconColor: "#7C3AED",
-    },
-  ];
-
-  return (
-    <section className="bg-[var(--proovra-page-bg)] py-12 md:py-16">
-      <div className="mx-auto max-w-7xl px-6 md:px-8">
-        <div className="relative overflow-hidden rounded-[24px] border border-[#E2E8F0] bg-white p-6 shadow-[0_20px_44px_rgba(15,23,42,0.06)] md:p-9">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(circle at 92% 12%, rgba(124,58,237,0.07), transparent 45%), radial-gradient(circle at 8% 88%, rgba(37,99,235,0.05), transparent 40%)",
-            }}
-          />
-          <div className="relative grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#E0E7FF] bg-white/95 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563EB] shadow-[0_2px_8px_rgba(37,99,235,0.06)]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#7C3AED]" />
-                Enterprise ready
-              </div>
-              <h2 className="mt-4 max-w-[420px] text-[1.5rem] font-semibold leading-[1.18] tracking-[-0.02em] text-[#0F172A] md:text-[1.75rem]">
-                Enterprise-ready from day one.
-              </h2>
-              <p className="mt-3 max-w-[400px] text-[0.94rem] leading-[1.7] text-[#475569]">
-                PROOVRA is designed to meet the security, compliance, and
-                governance requirements of the world&apos;s most demanding
-                organizations.
-              </p>
-              <Link
-                href="/why-proovra"
-                className="group mt-5 inline-flex items-center gap-1 text-[13px] font-semibold text-[#2563EB] transition-all duration-200 hover:gap-1.5"
-              >
-                Learn about our enterprise capabilities
-                <ArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-0.5" />
-              </Link>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {features.map((f) => {
-                const Icon = f.icon;
-                return (
-                  <div
-                    key={f.title}
-                    className="rounded-[16px] border p-4"
-                    style={{ background: f.tint, borderColor: f.border }}
-                  >
-                    <div className="flex items-center gap-2.5">
-<GradientIconFrame Icon={Icon} size="sm" />
-                      <div className="text-[13.5px] font-semibold text-[#0F172A]">
-                        {f.title}
-                      </div>
-                    </div>
-                    <div className="mt-2.5 text-[12.5px] leading-[1.55] text-[#475569]">
-                      {f.body}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function _UnusedTrustedByStrip() {
-  const items: { icon: LucideIcon; label: string }[] = [
-    { icon: Scale, label: "Legal Partners" },
-    { icon: Globe2, label: "Global Insurance" },
-    { icon: CheckCircle2, label: "Compliance Solutions" },
-    { icon: Landmark, label: "Public Sector Network" },
-  ];
-
-  return (
-    <section className="bg-[var(--proovra-page-bg)] pb-12 md:pb-16">
-      <div className="mx-auto max-w-7xl px-6 md:px-8">
-        <div className="text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-[#64748B]">
-          Trusted by review-sensitive teams
-        </div>
-        <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-4">
-          {items.map((it) => {
-            const Icon = it.icon;
-            return (
-              <div
-                key={it.label}
-                className="flex items-center justify-center gap-3 opacity-70 transition hover:opacity-100"
-              >
-                <Icon size={22} className="text-[#94A3B8]" strokeWidth={1.8} />
-                <span className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                  {it.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
+/* ─── Section 7 — Bottom CTA ──────────────────────────────────────────── */
 
 function BottomCTA() {
   return (
     <section className="bg-[var(--proovra-page-bg)] pb-16 md:pb-20">
       <div className="mx-auto max-w-7xl px-6 md:px-8">
         <div
-          className="relative overflow-hidden rounded-[24px] border border-[#E2E8F0] bg-white p-7 shadow-[0_20px_44px_rgba(15,23,42,0.06)] md:p-9"
+          className="relative overflow-hidden rounded-[24px] p-7 shadow-[0_20px_44px_rgba(15,23,42,0.10)] md:p-9"
+          style={{
+            background:
+              "linear-gradient(135deg,#1F8E8E 0%,#64717A 48%,#D83A3A 100%)",
+            border: "1px solid rgba(255,255,255,0.10)",
+          }}
         >
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0"
-            style={{
-              backgroundImage:
-                "url('/assets/backgrounds/proovra-page-hero-bg.png')",
-              backgroundRepeat: "no-repeat",
-              backgroundPosition: "right center",
-              backgroundSize: "cover",
-              opacity: 0.6,
-            }}
-          />
+          {/* Subtle tone-down layer so the gradient feels calm rather than neon. */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0"
             style={{
               background:
-                "linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.75) 45%, rgba(255,255,255,0.50) 100%)",
+                "radial-gradient(ellipse at 70% 110%, rgba(15,23,42,0.18), transparent 55%)",
+              mixBlendMode: "soft-light",
             }}
           />
           <div className="relative grid gap-5 md:grid-cols-[1.1fr_0.9fr] md:items-center">
             <div>
-              <h2 className="text-[1.4rem] font-semibold tracking-[-0.02em] text-[#0F172A] md:text-[1.65rem]">
-                Ready to modernize your evidence operations?
+              <h2 className="text-[1.5rem] font-bold tracking-[-0.02em] md:text-[1.85rem]" style={{ color: "#FFFFFF" }}>
+                Modernize how your organization handles evidence.
               </h2>
-              <p className="mt-2 max-w-[460px] text-[13.5px] leading-[1.6] text-[#475569]">
-                Capture, verify, govern, and share digital evidence with
-                confidence.
+              <p className="mt-2.5 max-w-[520px] text-[13.5px] leading-[1.65]" style={{ color: "#E2E8F0" }}>
+                See how PROOVRA connects intake, verification, review, reporting,
+                governance, and enterprise operations in one secure platform.
               </p>
             </div>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
               <Link
                 href="#request-demo-form"
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#081A3D] px-6 text-[14px] font-semibold text-white shadow-[0_10px_24px_rgba(8,26,61,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_14px_32px_rgba(8,26,61,0.36)]"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-6 text-[14px] font-semibold text-[#0F172A] shadow-[0_10px_24px_rgba(15,23,42,0.22)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_14px_32px_rgba(15,23,42,0.30)]"
               >
                 Request demo
                 <ArrowRight size={14} />
               </Link>
               <Link
                 href={SALES_ASSETS.contactSalesUrl}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-6 text-[14px] font-semibold text-[#0F172A] transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.015] hover:border-[#CBD5E1] hover:shadow-[0_10px_20px_rgba(15,23,42,0.06)]"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-full border px-6 text-[14px] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.015]"
+                style={{
+                  background: "rgba(255,255,255,0.08)",
+                  borderColor: "rgba(255,255,255,0.35)",
+                }}
               >
-                Talk to Sales
+                Talk to sales
               </Link>
             </div>
           </div>
@@ -669,6 +882,8 @@ function BottomCTA() {
     </section>
   );
 }
+
+/* ─── Page composition ────────────────────────────────────────────────── */
 
 function RequestDemoPageContent() {
   const searchParams = useSearchParams();
@@ -678,10 +893,11 @@ function RequestDemoPageContent() {
     <div className="page landing-page bg-[var(--proovra-page-bg)]">
       <MarketingHeader />
       <HeroSection isEnterpriseTrack={isEnterpriseTrack} />
-      <WhatYoullSee />
+      <WhatYouCanEvaluate />
+      <WhyTeamsRequest />
       <WhoThisIsFor />
-      <WhatHappensNext />
       <EnterpriseReady />
+      <WhatHappensNext />
       <BottomCTA />
       <EnterpriseFooter />
     </div>
@@ -706,3 +922,4 @@ export default function RequestDemoPage() {
     </Suspense>
   );
 }
+

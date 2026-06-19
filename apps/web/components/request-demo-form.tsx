@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { Input, useToast } from "./ui";
 import {
+  ORGANIZATION_TYPE_OPTIONS,
+  PRIMARY_INTEREST_OPTIONS,
   REQUEST_DEMO_DEFAULT_VALUES,
   TEAM_SIZE_OPTIONS,
   buildRequestDemoPayload,
@@ -151,6 +153,8 @@ export function RequestDemoForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const teamSizeOptions = [...TEAM_SIZE_OPTIONS];
+  const primaryInterestOptions = [...PRIMARY_INTEREST_OPTIONS];
+  const organizationTypeOptions = [...ORGANIZATION_TYPE_OPTIONS];
 
   const isEnterpriseFlow = useMemo(
     () =>
@@ -158,10 +162,6 @@ export function RequestDemoForm({
       sourcePath.includes("track=enterprise"),
     [sourcePath]
   );
-
-  const nextStepText = isEnterpriseFlow
-    ? `We review enterprise inquiries for workflow fit, shared review requirements, rollout scope, and commercial readiness. Complete enterprise inquiries are typically reviewed ${SALES_ASSETS.expectedEnterpriseResponseWindowText}.`
-    : `We review requests for workflow fit, team context, and use-case clarity. Relevant requests usually receive a reply ${SALES_ASSETS.expectedResponseWindowText}.`;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -330,6 +330,48 @@ export function RequestDemoForm({
         </div>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
+            Primary interest <span className="text-[#F97316]">*</span>
+          </label>
+          <PremiumSelect
+            value={form.primaryInterest ?? ""}
+            onChange={(value) =>
+              setForm((prev: RequestDemoFormValues) => ({
+                ...prev,
+                primaryInterest: value,
+              }))
+            }
+            options={primaryInterestOptions}
+            placeholder="What you want to evaluate"
+          />
+          {errors.primaryInterest ? (
+            <div className="input-error">{errors.primaryInterest}</div>
+          ) : null}
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
+            Organization type <span className="text-[#F97316]">*</span>
+          </label>
+          <PremiumSelect
+            value={form.organizationType ?? ""}
+            onChange={(value) =>
+              setForm((prev: RequestDemoFormValues) => ({
+                ...prev,
+                organizationType: value,
+              }))
+            }
+            options={organizationTypeOptions}
+            placeholder="Select organization type"
+          />
+          {errors.organizationType ? (
+            <div className="input-error">{errors.organizationType}</div>
+          ) : null}
+        </div>
+      </div>
+
       <div>
         <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
           Primary use case <span className="text-[#F97316]">*</span>
@@ -342,11 +384,7 @@ export function RequestDemoForm({
               useCase: e.target.value,
             }))
           }
-          placeholder={
-            isEnterpriseFlow
-              ? "Describe your shared review, enterprise rollout, retention, procurement, audit, or policy-fit workflow."
-              : "Describe your review, compliance, legal, claims, investigation, or enterprise workflow."
-          }
+          placeholder="Describe your workflow, for example claims review, legal matter review, external evidence intake, compliance investigation, incident response, or public verification."
           className={`input min-h-[96px] w-full resize-y ${
             errors.useCase ? "input-has-error" : ""
           }`}
@@ -368,7 +406,7 @@ export function RequestDemoForm({
               message: e.target.value,
             }))
           }
-          placeholder="Anything else we should know before reviewing the request?"
+          placeholder="Tell us what you want to evaluate, current challenges, systems involved, review process, governance requirements, or timeline."
           className={`input min-h-[72px] w-full resize-y ${
             errors.message ? "input-has-error" : ""
           }`}
@@ -401,7 +439,11 @@ export function RequestDemoForm({
           What happens next
         </div>
         <p className="mt-1.5 text-[12.5px] leading-[1.55] text-[#475569]">
-          {nextStepText}
+          We review your request, use case, team context, and areas of interest
+          so the demo can focus on the workflows that matter most to you.{" "}
+          {isEnterpriseFlow
+            ? `Complete enterprise inquiries are typically reviewed ${SALES_ASSETS.expectedEnterpriseResponseWindowText}.`
+            : `Relevant requests usually receive a reply ${SALES_ASSETS.expectedResponseWindowText}.`}
         </p>
       </div>
 
@@ -418,7 +460,7 @@ export function RequestDemoForm({
           href={SALES_ASSETS.pricingUrl}
           className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-[#E2E8F0] bg-white px-6 text-[13.5px] font-semibold text-[#0F172A] transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.015] hover:border-[#CBD5E1] hover:shadow-[0_8px_18px_rgba(15,23,42,0.06)]"
         >
-          View Pricing
+          View pricing
         </a>
       </div>
     </form>

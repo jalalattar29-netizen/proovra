@@ -33,6 +33,7 @@ import {
   ScrollText,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
   Star,
   UserCheck,
   Users,
@@ -262,9 +263,10 @@ function LifecycleSection() {
             One record. Every step covered.
           </h2>
           <p className="mt-4 max-w-[760px] text-[17px] leading-[1.65] text-[#475569]">
-            PROOVRA connects capture, integrity, verification, reporting,
+            PROOVRA connects capture, intake, integrity, verification, reporting,
             packaging, review, and governance into one continuous evidence
-            workflow.
+            workflow. Secure intake links and guided submissions bring evidence
+            in from clients, witnesses, staff, and third parties.
           </p>
         </div>
 
@@ -892,6 +894,206 @@ function OutcomeRow({
   );
 }
 
+function PlatformWorkspaceSection() {
+  const modules: {
+    title: string;
+    body: string;
+    pill: string;
+    icon: LucideIcon;
+    color: string;
+    bg: string;
+    border: string;
+  }[] = [
+    {
+      title: "Capture",
+      body: "Collect evidence from devices, apps, uploads, and field teams.",
+      pill: "Source intake",
+      icon: Camera,
+      color: "#EA580C",
+      bg: "rgba(234,88,12,0.08)",
+      border: "rgba(234,88,12,0.18)",
+    },
+    {
+      title: "Secure Intake",
+      body: "Request submissions from clients, witnesses, staff, or third parties.",
+      pill: "Intake links",
+      icon: Link2,
+      color: "#0891B2",
+      bg: "rgba(8,145,178,0.08)",
+      border: "rgba(8,145,178,0.18)",
+    },
+    {
+      title: "Evidence Records",
+      body: "Create structured records with metadata, hashes, source context, and custody.",
+      pill: "Structured records",
+      icon: FileText,
+      color: "#2563EB",
+      bg: "rgba(37,99,235,0.08)",
+      border: "rgba(37,99,235,0.18)",
+    },
+    {
+      title: "AI Assistance",
+      body: "Guide evidence collection, detect missing context, and prepare reviewers.",
+      pill: "Advisory only",
+      icon: Sparkles,
+      color: "#7C3AED",
+      bg: "rgba(124,58,237,0.08)",
+      border: "rgba(124,58,237,0.18)",
+    },
+    {
+      title: "Verification",
+      body: "Check integrity, timestamps, signatures, custody, and preservation signals.",
+      pill: "Independent checks",
+      icon: ShieldCheck,
+      color: "#1E40AF",
+      bg: "rgba(30,64,175,0.08)",
+      border: "rgba(30,64,175,0.18)",
+    },
+    {
+      title: "TSA & OpenTimestamps",
+      body: "Support trusted timestamping and blockchain anchoring where available.",
+      pill: "Time proof",
+      icon: Clock3,
+      color: "#0F766E",
+      bg: "rgba(15,118,110,0.08)",
+      border: "rgba(15,118,110,0.18)",
+    },
+    {
+      title: "Reports",
+      body: "Generate review-ready reports with integrity results and audit context.",
+      pill: "Review-ready",
+      icon: FileText,
+      color: "#DB2777",
+      bg: "rgba(219,39,119,0.08)",
+      border: "rgba(219,39,119,0.18)",
+    },
+    {
+      title: "Verification Packages",
+      body: "Bundle records, manifests, reports, hashes, and verification metadata.",
+      pill: "Portable outputs",
+      icon: Package,
+      color: "#4F46E5",
+      bg: "rgba(79,70,229,0.08)",
+      border: "rgba(79,70,229,0.18)",
+    },
+    {
+      title: "Cases & Matters",
+      body: "Organize evidence by claims, incidents, investigations, and legal matters.",
+      pill: "Case context",
+      icon: Folder,
+      color: "#2563EB",
+      bg: "rgba(37,99,235,0.08)",
+      border: "rgba(37,99,235,0.18)",
+    },
+    {
+      title: "Reviewer Operations",
+      body: "Assign reviewers, track queues, manage tasks, and prepare review workflows.",
+      pill: "Queues & tasks",
+      icon: Users,
+      color: "#15803D",
+      bg: "rgba(21,128,61,0.08)",
+      border: "rgba(21,128,61,0.18)",
+    },
+    {
+      title: "Governance",
+      body: "Manage roles, access control, policies, retention, and lifecycle controls.",
+      pill: "Policy controls",
+      icon: Landmark,
+      color: "#047857",
+      bg: "rgba(4,120,87,0.08)",
+      border: "rgba(4,120,87,0.18)",
+    },
+    {
+      title: "Legal Hold & Audit",
+      body: "Preserve records, enforce holds, and export complete activity history.",
+      pill: "Audit-ready",
+      icon: Gavel,
+      color: "#BE123C",
+      bg: "rgba(190,18,60,0.08)",
+      border: "rgba(190,18,60,0.18)",
+    },
+  ];
+
+  return (
+    <section id="platform-workspace" className="bg-[var(--proovra-page-bg)] py-20 md:py-24">
+      <div className="mx-auto max-w-[1400px] px-6 md:px-8">
+        {/* Header */}
+        <div className="flex flex-col items-center text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#DBEAFE] bg-white px-3.5 py-2 text-[11.5px] font-bold uppercase tracking-[0.16em] text-[#2563EB]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
+            Platform Workspace
+          </span>
+          <h2 className="mt-5 max-w-[900px] text-[2rem] font-bold leading-[1.08] tracking-[-0.02em] text-[#0F172A] md:text-[2.6rem] lg:text-[3rem]">
+            One workspace. Every evidence operation.
+          </h2>
+          <p className="mt-4 max-w-[760px] text-[16px] leading-[1.65] text-[#475569]">
+            PROOVRA brings capture, intake, verification, review, reporting,
+            governance, and AI assistance into one connected evidence operations
+            workspace.
+          </p>
+        </div>
+
+        {/* 4 × 3 module map */}
+        <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
+          {modules.map((m) => {
+            const Icon = m.icon;
+            return (
+              <div
+                key={m.title}
+                className="relative flex flex-col rounded-[22px] bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.06)]"
+                style={{ border: "1px solid rgba(15,23,42,0.08)" }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]"
+                    style={{ background: m.bg, color: m.color }}
+                  >
+                    <Icon size={18} strokeWidth={1.9} />
+                  </span>
+                  <span
+                    className="rounded-full px-2.5 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.10em]"
+                    style={{
+                      background: m.bg,
+                      color: m.color,
+                      border: `1px solid ${m.border}`,
+                    }}
+                  >
+                    {m.pill}
+                  </span>
+                </div>
+                <h3 className="mt-4 text-[16px] font-extrabold tracking-[-0.005em] text-[#07132B]">
+                  {m.title}
+                </h3>
+                <p className="mt-1.5 text-[12.5px] leading-[1.55] text-[#64748B]">
+                  {m.body}
+                </p>
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-x-5 bottom-0 h-[2px] rounded-full"
+                  style={{ background: m.color, opacity: 0.7 }}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Subtle center caption */}
+        <div className="mt-10 flex flex-col items-center gap-2 text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#E5E7EB] bg-white px-3.5 py-1.5 text-[11.5px] font-semibold text-[#0F172A]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
+            Evidence Operations Workspace
+          </span>
+          <p className="max-w-[640px] text-[12.5px] leading-[1.5] text-[#64748B]">
+            Every module connects through the same record, custody, and
+            governance layer — so teams move between capture, review, and
+            reporting without context loss.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function SwitchSection() {
   const traditional: {
     icon: LucideIcon;
@@ -1387,9 +1589,10 @@ function ScreensSection() {
           <h2 className="mt-5 max-w-[1100px] text-[2.1rem] font-bold leading-[1.08] tracking-[-0.02em] text-[#0F172A] md:text-[2.8rem] lg:text-[3.2rem]">
             Built for reviewers, investigators, and administrators.
           </h2>
-          <p className="mt-4 max-w-[760px] text-[17px] leading-[1.65] text-[#475569]">
-            Give teams a clear operational view of every record, verification
-            result, report, case, and governance decision.
+          <p className="mt-4 max-w-[900px] text-[17px] leading-[1.65] text-[#475569]">
+            Give teams a clear operational view of evidence records, intake
+            activity, verification results, reports, packages, cases, reviewers,
+            tasks, and governance decisions.
           </p>
         </div>
 
@@ -1560,8 +1763,8 @@ function TrustSection() {
             </p>
           </div>
 
-          {/* 6 trust cards — 3 × 2 grid */}
-          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {/* 7 trust cards — 4 + 3 layout */}
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             <TrustCard
               Icon={Fingerprint}
               title="SHA-256 Integrity"
@@ -1587,6 +1790,14 @@ function TrustSection() {
               border="rgba(21,128,61,0.22)"
             />
             <TrustCard
+              Icon={PenLine}
+              title="Digital Signatures"
+              body="Signed outputs for reports, packages, and verification records."
+              color="#4F46E5"
+              bg="rgba(79,70,229,0.08)"
+              border="rgba(79,70,229,0.22)"
+            />
+            <TrustCard
               Icon={GitBranch}
               title="Chain of Custody"
               body="Every action recorded, time-stamped, and traceable."
@@ -1605,7 +1816,7 @@ function TrustSection() {
             <TrustCard
               Icon={Landmark}
               title="Governance Controls"
-              body="Retention, legal hold, policy enforcement, and audit oversight."
+              body="Retention, legal hold, access control, and audit oversight."
               color="#EA580C"
               bg="rgba(234,88,12,0.08)"
               border="rgba(234,88,12,0.22)"
@@ -1707,6 +1918,7 @@ export default function PlatformPage() {
       <MarketingHeader />
       <PlatformHero />
       <LifecycleSection />
+      <PlatformWorkspaceSection />
       <SwitchSection />
       <IndustriesSection />
       <ScreensSection />
