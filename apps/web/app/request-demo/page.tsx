@@ -6,23 +6,14 @@ import { useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   Briefcase,
-  Building2,
   Camera,
   CheckCircle2,
   ClipboardCheck,
-  Cpu,
   Eye,
   FileText,
   Landmark,
   Link2,
   Lock,
-  Newspaper,
-  Package,
-  Plug,
-  Scale,
-  ScrollText,
-  Search,
-  Shield,
   ShieldCheck,
   Sparkles,
   Users,
@@ -458,292 +449,223 @@ function WhatYouCanEvaluate() {
   );
 }
 
-/* ─── Section 3 — Why teams request a demo ────────────────────────────── */
+/* ─── Section 3 — Demo Scenarios ──────────────────────────────────────── */
 
-const OUTCOME_CARDS: {
-  title: string;
-  body: string;
-  bestFor: string;
-  Icon: LucideIcon;
-  color: string;
-  soft: string;
-}[] = [
+type DemoScenario = {
+  name: string;
+  teams: string[];
+  focus: string;
+  capabilities: string[];
+  accent: string;
+  accentSoft: string;
+  accentBorder: string;
+  accentTint: string;
+};
+
+const DEMO_SCENARIOS: DemoScenario[] = [
   {
-    title: "Standardize evidence collection",
-    body: "Move away from scattered files, emails, and manual uploads by using structured capture and secure intake workflows.",
-    bestFor: "Claims teams, investigators, compliance teams, legal teams",
-    Icon: Camera,
-    color: "#EA580C",
-    soft: "rgba(234,88,12,0.10)",
+    name: "Claims Investigation",
+    teams: ["Claims", "SIU", "Reviewers", "External contributors"],
+    focus: "Evidence intake, verification, review preparation, reporting.",
+    capabilities: [
+      "Secure intake links",
+      "Verification records",
+      "Reviewer workflows",
+      "Verification packages",
+    ],
+    accent: "#1D4ED8",
+    accentSoft: "rgba(29,64,175,0.10)",
+    accentBorder: "rgba(29,64,175,0.22)",
+    accentTint: "rgba(29,64,175,0.04)",
   },
   {
-    title: "Improve review readiness",
-    body: "Prepare evidence with metadata, verification signals, reports, packages, and reviewer context before it reaches decision-makers.",
-    bestFor: "Review teams, legal operations, claim reviewers, audit teams",
-    Icon: Eye,
-    color: "#2563EB",
-    soft: "rgba(37,99,235,0.10)",
+    name: "Internal Investigation",
+    teams: ["Corporate investigations", "HR", "Compliance"],
+    focus: "Evidence collection, review coordination, governance controls.",
+    capabilities: [
+      "Cases",
+      "Reviewer assignments",
+      "Audit history",
+      "Governance records",
+    ],
+    accent: "#0F766E",
+    accentSoft: "rgba(15,118,110,0.10)",
+    accentBorder: "rgba(15,118,110,0.22)",
+    accentTint: "rgba(15,118,110,0.04)",
   },
   {
-    title: "Strengthen governance",
-    body: "Apply retention, legal hold, access control, audit logs, and lifecycle policies across evidence records and workflows.",
-    bestFor:
-      "Enterprises, regulated organizations, legal departments, public sector teams",
-    Icon: Landmark,
-    color: "#047857",
-    soft: "rgba(4,120,87,0.10)",
+    name: "Legal Matter Review",
+    teams: ["Legal operations", "Counsel", "Litigation support"],
+    focus: "Matter-based evidence organization and review readiness.",
+    capabilities: [
+      "Cases",
+      "Reports",
+      "Verification packages",
+      "Custody visibility",
+    ],
+    accent: "#4338CA",
+    accentSoft: "rgba(67,56,202,0.10)",
+    accentBorder: "rgba(67,56,202,0.22)",
+    accentTint: "rgba(67,56,202,0.04)",
   },
   {
-    title: "Connect operations at scale",
-    body: "Bring capture, intake, verification, cases, reports, reviewers, AI assistance, and integrations into one operational workspace.",
-    bestFor:
-      "Enterprise teams, multi-location organizations, platform buyers",
-    Icon: Plug,
-    color: "#7C3AED",
-    soft: "rgba(124,58,237,0.10)",
+    name: "Public Sector Evidence Intake",
+    teams: ["Government agencies", "Investigators", "Public records teams"],
+    focus: "Public submissions, review processes, accountability workflows.",
+    capabilities: [
+      "Intake",
+      "Verification",
+      "Access history",
+      "Governance controls",
+    ],
+    accent: "#0891B2",
+    accentSoft: "rgba(8,145,178,0.10)",
+    accentBorder: "rgba(8,145,178,0.22)",
+    accentTint: "rgba(8,145,178,0.04)",
+  },
+  {
+    name: "Compliance Review",
+    teams: ["Compliance officers", "Governance teams", "Auditors"],
+    focus: "Retention, auditability, legal hold, oversight.",
+    capabilities: [
+      "Retention policies",
+      "Audit logs",
+      "Legal hold",
+      "Governance workflows",
+    ],
+    accent: "#059669",
+    accentSoft: "rgba(5,150,105,0.10)",
+    accentBorder: "rgba(5,150,105,0.22)",
+    accentTint: "rgba(5,150,105,0.04)",
+  },
+  {
+    name: "Media Verification",
+    teams: ["Journalists", "Editors", "Newsroom reviewers"],
+    focus: "Media preservation, verification visibility, transparent review.",
+    capabilities: [
+      "Verification records",
+      "Reports",
+      "Public verification",
+      "Integrity signals",
+    ],
+    accent: "#C026D3",
+    accentSoft: "rgba(192,38,211,0.10)",
+    accentBorder: "rgba(192,38,211,0.22)",
+    accentTint: "rgba(192,38,211,0.04)",
   },
 ];
 
-function WhyTeamsRequest() {
+function DemoScenarios() {
   return (
     <section className="bg-white py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-6 md:px-8">
-        <SectionBadge>Why Teams Request a Demo</SectionBadge>
+        <SectionBadge>Real-World Workflows</SectionBadge>
         <SectionHeading>
-          Built for teams that need evidence they can review, trace, and govern.
+          See PROOVRA through the workflow that matches your organization.
         </SectionHeading>
         <SectionSubheading>
-          PROOVRA helps organizations reduce fragile evidence handling, improve
-          review readiness, and create consistent evidence operations across
-          people, systems, and workflows.
+          Most organizations do not evaluate software by feature lists alone.
+          They evaluate whether the platform fits real operational workflows,
+          review processes, governance requirements, and evidence-handling
+          responsibilities.
         </SectionSubheading>
+        <p className="mx-auto mt-3 max-w-[760px] text-center text-[14px] leading-[1.65] text-[#475569]">
+          PROOVRA demonstrations are tailored around the scenarios that matter
+          most to your team.
+        </p>
 
-        <div className="mt-12 grid gap-5 md:grid-cols-2">
-          {OUTCOME_CARDS.map((c) => {
-            const Icon = c.Icon;
-            return (
-              <div
-                key={c.title}
-                className="relative overflow-hidden rounded-[22px] border border-[#E5E7EB] bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.06)] md:p-7"
-              >
-                <div className="flex items-start gap-3">
-                  <span
-                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px]"
-                    style={{ background: c.soft, color: c.color }}
-                  >
-                    <Icon size={20} strokeWidth={2} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-[18px] font-extrabold tracking-[-0.005em] text-[#07132B]">
-                      {c.title}
-                    </h3>
-                    <p className="mt-2 text-[13.5px] leading-[1.6] text-[#475569]">
-                      {c.body}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-5 rounded-[12px] border border-[#E5E7EB] bg-[#F8FAFC] px-3.5 py-2.5">
-                  <span className="text-[10.5px] font-extrabold uppercase tracking-[0.16em] text-[#64748B]">
-                    Best for
-                  </span>
-                  <div className="mt-1 text-[12.5px] leading-[1.5] text-[#0F172A]">
-                    {c.bestFor}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
+        <div className="mt-12 grid gap-5 md:grid-cols-2 lg:gap-6">
+          {DEMO_SCENARIOS.map((s, i) => (
+            <div
+              key={s.name}
+              className="relative overflow-hidden rounded-[22px] border bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.06)]"
+              style={{ borderColor: s.accentBorder }}
+            >
+              {/* Top accent stripe */}
+              <span
+                aria-hidden="true"
+                className="absolute inset-x-0 top-0 h-1.5"
+                style={{
+                  background: `linear-gradient(90deg, ${s.accent} 0%, ${s.accent}AA 100%)`,
+                }}
+              />
+              {/* Soft tinted underlay */}
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-0 h-32"
+                style={{
+                  background: `linear-gradient(180deg, ${s.accentTint}, transparent)`,
+                }}
+              />
 
-/* ─── Section 4 — Who this is for ─────────────────────────────────────── */
-
-const AUDIENCE_CARDS: { Icon: LucideIcon; title: string; body: string; color: string }[] = [
-  {
-    Icon: Shield,
-    title: "Insurance",
-    body: "Claims, fraud review, damage documentation, subrogation support.",
-    color: "#EA580C",
-  },
-  {
-    Icon: Scale,
-    title: "Legal & eDiscovery",
-    body: "Matter review, evidence organization, reports, verification packages, audit trails.",
-    color: "#2563EB",
-  },
-  {
-    Icon: Search,
-    title: "Corporate Investigations",
-    body: "Incident response, HR investigations, internal audits, policy violations.",
-    color: "#7C3AED",
-  },
-  {
-    Icon: Landmark,
-    title: "Government & Public Sector",
-    body: "Public records, citizen submissions, investigative evidence, accountability workflows.",
-    color: "#0F766E",
-  },
-  {
-    Icon: ClipboardCheck,
-    title: "Compliance & Audit",
-    body: "Retention, legal hold, audit readiness, policy enforcement, review history.",
-    color: "#047857",
-  },
-  {
-    Icon: Newspaper,
-    title: "Journalism & Media",
-    body: "Source material preservation, media verification, transparent public verification.",
-    color: "#BE123C",
-  },
-  {
-    Icon: Building2,
-    title: "Enterprise Security",
-    body: "Incident evidence, access history, operational review, internal investigations.",
-    color: "#1E40AF",
-  },
-  {
-    Icon: Users,
-    title: "External Contributors",
-    body: "Clients, witnesses, vendors, field teams, and third parties submitting evidence through intake links.",
-    color: "#0891B2",
-  },
-];
-
-function WhoThisIsFor() {
-  return (
-    <section className="bg-[var(--proovra-page-bg)] py-16 md:py-20">
-      <div className="mx-auto max-w-7xl px-6 md:px-8">
-        <SectionBadge>Who This Is For</SectionBadge>
-        <SectionHeading>
-          Designed for high-stakes evidence workflows.
-        </SectionHeading>
-
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {AUDIENCE_CARDS.map((c) => {
-            const Icon = c.Icon;
-            return (
-              <div
-                key={c.title}
-                className="rounded-[20px] border border-[#E5E7EB] bg-white p-5 shadow-[0_2px_6px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(15,23,42,0.06)]"
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-[#E2E8F0] bg-[#F8FAFC]"
-                    style={{ color: c.color }}
-                  >
-                    <Icon size={18} strokeWidth={1.9} />
-                  </span>
-                  <h3 className="text-[14.5px] font-extrabold tracking-[-0.005em] text-[#07132B]">
-                    {c.title}
+              <div className="relative p-6 md:p-7">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-[18px] font-extrabold tracking-[-0.005em] text-[#07132B]">
+                    {s.name}
                   </h3>
-                </div>
-                <p className="mt-3 text-[12.5px] leading-[1.55] text-[#64748B]">
-                  {c.body}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─── Section 5 — Enterprise ready ────────────────────────────────────── */
-
-const ENTERPRISE_CARDS: {
-  Icon: LucideIcon;
-  title: string;
-  body: string;
-  color: string;
-  soft: string;
-}[] = [
-  {
-    Icon: ShieldCheck,
-    title: "Security Review",
-    body: "SSO, role-based access, secure architecture, and enterprise deployment discussion.",
-    color: "#2563EB",
-    soft: "rgba(37,99,235,0.10)",
-  },
-  {
-    Icon: Landmark,
-    title: "Governance Controls",
-    body: "Retention, legal hold, approval workflows, and policy controls.",
-    color: "#047857",
-    soft: "rgba(4,120,87,0.10)",
-  },
-  {
-    Icon: ScrollText,
-    title: "Audit Trails",
-    body: "Complete activity history across records, reviewers, access, reports, and packages.",
-    color: "#0F766E",
-    soft: "rgba(15,118,110,0.10)",
-  },
-  {
-    Icon: Package,
-    title: "Verification Packages",
-    body: "Portable evidence outputs with manifests, hashes, reports, and verification metadata.",
-    color: "#4F46E5",
-    soft: "rgba(79,70,229,0.10)",
-  },
-  {
-    Icon: Plug,
-    title: "Integrations & APIs",
-    body: "Connect identity, storage, webhooks, APIs, and operational systems your teams already use.",
-    color: "#1E40AF",
-    soft: "rgba(30,64,175,0.10)",
-  },
-  {
-    Icon: Cpu,
-    title: "AI Governance",
-    body: "Advisory AI workflows designed to support intake, review preparation, and workflow guidance without determining truth or admissibility.",
-    color: "#7C3AED",
-    soft: "rgba(124,58,237,0.10)",
-  },
-];
-
-function EnterpriseReady() {
-  return (
-    <section className="bg-white py-16 md:py-20">
-      <div className="mx-auto max-w-7xl px-6 md:px-8">
-        <SectionBadge>Enterprise Ready</SectionBadge>
-        <SectionHeading>
-          Ready for security, governance, and deployment review.
-        </SectionHeading>
-        <SectionSubheading>
-          PROOVRA is designed for organizations that need controlled access,
-          auditability, evidence governance, secure deployment, and operational
-          visibility.
-        </SectionSubheading>
-
-        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {ENTERPRISE_CARDS.map((c) => {
-            const Icon = c.Icon;
-            return (
-              <div
-                key={c.title}
-                className="rounded-[20px] border border-[#E5E7EB] bg-white p-5 shadow-[0_2px_6px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(15,23,42,0.06)]"
-              >
-                <div className="flex items-center gap-3">
                   <span
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]"
-                    style={{ background: c.soft, color: c.color }}
+                    className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.16em]"
+                    style={{ background: s.accentSoft, color: s.accent }}
                   >
-                    <Icon size={18} strokeWidth={1.9} />
+                    Scenario {String(i + 1).padStart(2, "0")}
                   </span>
-                  <h3 className="text-[15px] font-extrabold tracking-[-0.005em] text-[#07132B]">
-                    {c.title}
-                  </h3>
                 </div>
-                <p className="mt-3 text-[12.5px] leading-[1.6] text-[#64748B]">
-                  {c.body}
-                </p>
+
+                <div className="mt-5">
+                  <div className="text-[10.5px] font-extrabold uppercase tracking-[0.16em] text-[#64748B]">
+                    Demo focus
+                  </div>
+                  <p className="mt-1.5 text-[13.5px] leading-[1.6] text-[#0F172A]">
+                    {s.focus}
+                  </p>
+                </div>
+
+                <div className="mt-5">
+                  <div className="text-[10.5px] font-extrabold uppercase tracking-[0.16em] text-[#64748B]">
+                    Teams involved
+                  </div>
+                  <ul className="mt-2 flex flex-wrap gap-1.5 pl-0">
+                    {s.teams.map((t) => (
+                      <li key={t} style={{ listStyle: "none" }}>
+                        <span
+                          className="inline-flex items-center rounded-full border bg-white px-2.5 py-1 text-[11.5px] font-semibold text-[#0F172A]"
+                          style={{ borderColor: s.accentBorder }}
+                        >
+                          {t}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="mt-5">
+                  <div className="text-[10.5px] font-extrabold uppercase tracking-[0.16em] text-[#64748B]">
+                    Key capabilities demonstrated
+                  </div>
+                  <ul className="mt-2 flex flex-wrap gap-1.5 pl-0">
+                    {s.capabilities.map((c) => (
+                      <li key={c} style={{ listStyle: "none" }}>
+                        <span
+                          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] font-semibold"
+                          style={{
+                            background: s.accentSoft,
+                            color: s.accent,
+                          }}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="block h-1 w-1 rounded-full"
+                            style={{ background: s.accent }}
+                          />
+                          {c}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -894,9 +816,7 @@ function RequestDemoPageContent() {
       <MarketingHeader />
       <HeroSection isEnterpriseTrack={isEnterpriseTrack} />
       <WhatYouCanEvaluate />
-      <WhyTeamsRequest />
-      <WhoThisIsFor />
-      <EnterpriseReady />
+      <DemoScenarios />
       <WhatHappensNext />
       <BottomCTA />
       <EnterpriseFooter />

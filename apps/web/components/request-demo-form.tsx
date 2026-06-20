@@ -17,7 +17,7 @@ import { SALES_ASSETS } from "../lib/sales-assets";
 
 type SelectOption = { value: string; label: string };
 
-function PremiumSelect({
+export function PremiumSelect({
   value,
   onChange,
   options,
