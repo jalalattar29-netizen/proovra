@@ -14,7 +14,7 @@ import {
   validateRequestDemoForm,
 } from "../lib/request-demo-schema";
 import { SALES_ASSETS } from "../lib/sales-assets";
-import { LeadSuccessModal } from "./marketing/LeadSuccessModal";
+import { EnterpriseSuccessModal } from "./marketing/EnterpriseSuccessModal";
 
 type SelectOption = { value: string; label: string };
 
@@ -472,7 +472,7 @@ export function RequestDemoForm({
         </a>
       </div>
 
-      <LeadSuccessModal
+      <EnterpriseSuccessModal
         open={successOpen}
         variant="requestDemo"
         onClose={() => setSuccessOpen(false)}

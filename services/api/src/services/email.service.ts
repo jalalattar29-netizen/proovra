@@ -219,6 +219,47 @@ function logoUrl(): string | undefined {
   return u ? u : undefined;
 }
 
+// Admin app base — used by lead-capture notification emails to deep-link
+// into the admin console. Resolution order: ADMIN_BASE_URL → APP_BASE_URL
+// → fallback to https://app.proovra.com. Public marketing host
+// (WEB_BASE_URL / www.proovra.com) MUST NOT be used here: admin pages
+// live under the (app) route group on app.proovra.com.
+//
+// When neither env var is set we emit a structured log line so ops can
+// fix it without exposing lead PII — only the resolved fallback host
+// is recorded, never the requestId or any payload values.
+let __adminBaseLogged = false;
+function adminBaseUrl(): string {
+  const explicit = env("ADMIN_BASE_URL") ?? env("APP_BASE_URL");
+  if (explicit && explicit.trim()) {
+    return explicit.trim().replace(/\/+$/, "");
+  }
+  if (!__adminBaseLogged) {
+    __adminBaseLogged = true;
+    try {
+      console.warn(
+        JSON.stringify({
+          tag: "admin_lead_url_fallback",
+          message:
+            "ADMIN_BASE_URL / APP_BASE_URL not configured — falling back to https://app.proovra.com",
+        })
+      );
+    } catch {
+      // logging must never throw
+    }
+  }
+  return "https://app.proovra.com";
+}
+
+export function buildAdminLeadUrl(input: {
+  kind: "demo-request" | "contact-sales";
+  id: string;
+}): string {
+  const segment =
+    input.kind === "demo-request" ? "demo-requests" : "contact-sales";
+  return `${adminBaseUrl()}/admin/${segment}/${encodeURIComponent(input.id)}`;
+}
+
 function safeHtml(s: string): string {
   return String(s)
     .replaceAll("&", "&amp;")
@@ -898,9 +939,16 @@ export function getEmailService(): EmailService {
         `
         : "";
 
+      const adminConsoleUrl = buildAdminLeadUrl({
+        kind: "demo-request",
+        id: params.requestId,
+      });
+
       const html = emailShell({
         title: "New demo request",
         preheader: `New demo request from ${params.fullName}.`,
+        ctaText: "Open in admin console",
+        ctaUrl: adminConsoleUrl,
         bodyHtml: `
           <div style="margin:0 0 10px 0;"><strong>Request ID:</strong> ${safeHtml(
             params.requestId
@@ -1044,6 +1092,8 @@ export function getEmailService(): EmailService {
         "",
         "Message:",
         params.message ?? "-",
+        "",
+        `Open in admin console: ${adminConsoleUrl}`,
         "",
         ...(quickLinks
           ? [
@@ -1316,10 +1366,10 @@ export function getEmailService(): EmailService {
         preheader: `${params.organization} — ${params.discussionTopic} · ${params.stage}`,
         bodyHtml,
         ctaText: "Open in admin console",
-        ctaUrl: `${
-          (process.env.PROOVRA_WEB_BASE?.trim() ||
-            "https://proovra.com")
-        }/admin/contact-sales/${encodeURIComponent(params.requestId)}`,
+        ctaUrl: buildAdminLeadUrl({
+          kind: "contact-sales",
+          id: params.requestId,
+        }),
         secondaryText:
           "Reply directly to the visitor's work email above — do not forward this notification externally.",
       });

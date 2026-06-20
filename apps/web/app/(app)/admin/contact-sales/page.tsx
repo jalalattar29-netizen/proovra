@@ -6,6 +6,7 @@
 // routing, no auto-reply tools — those land in a later phase.
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Card,
   Button,
@@ -365,12 +366,20 @@ export default function AdminContactSalesPage() {
                             {it.emailSentAt ? "Sent" : "—"}
                           </td>
                           <td className="px-5 py-3 text-right">
-                            <Button
-                              variant="secondary"
-                              onClick={() => openDetails(it.id)}
-                            >
-                              View
-                            </Button>
+                            <div className="inline-flex items-center gap-2">
+                              <Button
+                                variant="secondary"
+                                onClick={() => openDetails(it.id)}
+                              >
+                                Quick view
+                              </Button>
+                              <Link
+                                href={`/admin/contact-sales/${encodeURIComponent(it.id)}`}
+                                className="inline-flex items-center rounded-full border border-[#E2E8F0] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#0F172A] hover:bg-[#F8FAFC]"
+                              >
+                                Open →
+                              </Link>
+                            </div>
                           </td>
                         </tr>
                       ))}

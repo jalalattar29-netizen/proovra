@@ -16,7 +16,7 @@ import {
   validateContactSalesForm,
 } from "../lib/contact-sales-schema";
 import { SALES_ASSETS } from "../lib/sales-assets";
-import { LeadSuccessModal } from "./marketing/LeadSuccessModal";
+import { EnterpriseSuccessModal } from "./marketing/EnterpriseSuccessModal";
 
 type ContactSalesFormProps = {
   submitUrl?: string;
@@ -327,7 +327,7 @@ export function ContactSalesForm({
         </a>
       </div>
 
-      <LeadSuccessModal
+      <EnterpriseSuccessModal
         open={successOpen}
         variant="contactSales"
         onClose={() => setSuccessOpen(false)}

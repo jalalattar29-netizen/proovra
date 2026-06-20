@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Card,
   Button,
@@ -956,7 +957,7 @@ export default function AdminDemoRequestsPage() {
                           </div>
 
                           <div className="row-sub">
-                            Team size: {item.teamSize ?? "—"} · Source:{" "}
+                            Workspace size: {item.teamSize ?? "—"} · Source:{" "}
                             {item.source ?? "—"} · Track:{" "}
                             {titleCaseToken(item.leadTrack)}
                           </div>
@@ -1009,9 +1010,33 @@ export default function AdminDemoRequestsPage() {
                         </div>
 
                         <div
-                          style={{ fontSize: 12, color: "#738287", whiteSpace: "nowrap" }}
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "flex-end",
+                            gap: 8,
+                            whiteSpace: "nowrap",
+                          }}
                         >
-                          {formatTimestamp(item.createdAt)}
+                          <div style={{ fontSize: 12, color: "#738287" }}>
+                            {formatTimestamp(item.createdAt)}
+                          </div>
+                          <Link
+                            href={`/admin/demo-requests/${encodeURIComponent(item.id)}`}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: "#21353a",
+                              textDecoration: "none",
+                              padding: "4px 10px",
+                              borderRadius: 999,
+                              border: "1px solid rgba(79,112,107,0.18)",
+                              background: "rgba(255,255,255,0.6)",
+                            }}
+                          >
+                            Open →
+                          </Link>
                         </div>
                       </div>
                     </div>
