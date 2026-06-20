@@ -225,10 +225,10 @@ const NAV: NavGroup[] = [
 const LOGO_SRC = "/assets/branding/logo-dark.png";
 
 const navPillStyle = {
-  background: "rgba(15, 23, 42, 0.36)",
-  backdropFilter: "blur(14px)",
-  WebkitBackdropFilter: "blur(14px)",
-  border: "1px solid rgba(255,255,255,0.18)",
+  background: "linear-gradient(180deg, rgba(10,18,35,0.58), rgba(18,24,48,0.50))",
+  backdropFilter: "blur(10px)",
+  WebkitBackdropFilter: "blur(10px)",
+  border: "1px solid rgba(255,255,255,0.08)",
   boxShadow: "0 8px 22px rgba(15,23,42,0.08)",
 };
 

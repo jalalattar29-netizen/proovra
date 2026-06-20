@@ -251,6 +251,15 @@ export async function handleLeadSubmission<TInput extends Record<string, unknown
     process.env.NEXT_PUBLIC_API_BASE || process.env.API_BASE_URL
   );
 
+  // Canonical public origin we identify as to upstream. Cloudflare in front
+  // of api.proovra.com fingerprints bot traffic from data-center egress IPs
+  // (Vercel functions). Forwarding a canonical Origin + Referer + visitor IP
+  // gives the WAF a stable signature it can allowlist instead of guessing.
+  const webBase = (
+    process.env.NEXT_PUBLIC_WEB_BASE ?? "https://www.proovra.com"
+  ).replace(/\/+$/, "");
+  const forwardingKey = process.env.CONTACT_SALES_FORWARDING_KEY?.trim() || "";
+
   const upstreamPayload = {
     ...validated,
     intent: config.intent,
@@ -281,15 +290,30 @@ export async function handleLeadSubmission<TInput extends Record<string, unknown
     );
   }
 
+  // Build outbound headers. Keep PII out of header values — only
+  // visitor IP (already in `x-forwarded-for` semantics) and standard
+  // forwarding hints.
+  const outboundHeaders: Record<string, string> = {
+    "content-type": "application/json",
+    accept: "application/json",
+    "user-agent": userAgent || "proovra-web-proxy",
+    "x-forwarded-for": ip,
+    "x-forwarded-host": "www.proovra.com",
+    "x-forwarded-proto": "https",
+    "cf-connecting-ip": ip,
+    origin: webBase,
+    referer: `${webBase}/${config.sourcePage}`,
+    "x-web-client": "proovra-web-proxy",
+    [config.upstreamHeaderSource]: "website",
+  };
+  if (forwardingKey) {
+    outboundHeaders["x-internal-key"] = forwardingKey;
+  }
+
   try {
     const upstream = await fetch(`${apiBase}${config.upstreamPath}`, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "user-agent": userAgent,
-        "x-forwarded-for": ip,
-        [config.upstreamHeaderSource]: "website",
-      },
+      headers: outboundHeaders,
       body: JSON.stringify(upstreamPayload),
       cache: "no-store",
     });
@@ -328,6 +352,7 @@ export async function handleLeadSubmission<TInput extends Record<string, unknown
             : text.slice(0, 200),
       });
       try {
+        // High-signal alert log line (always emitted on non-2xx).
         console.error(
           JSON.stringify({
             tag: "marketing_lead_alert",
@@ -338,6 +363,35 @@ export async function handleLeadSubmission<TInput extends Record<string, unknown
             timestamp: new Date().toISOString(),
           })
         );
+
+        // 403 diagnostic: when the upstream returns 403 we need enough
+        // signal to distinguish Cloudflare WAF / Bot Fight Mode (cf-ray
+        // present, "cloudflare" Server, "challenge" / "blocked" body)
+        // from an API-layer rejection. Never log payload values — only
+        // header KEYS we sent, response header values for CF triage, and
+        // a body excerpt of the upstream's response (the block page, not
+        // anything we sent).
+        if (upstream.status === 403) {
+          const respHeaders: Record<string, string> = {};
+          ["server", "cf-ray", "cf-mitigated", "cf-cache-status",
+            "content-type", "x-frame-options", "set-cookie"].forEach((k) => {
+            const v = upstream.headers.get(k);
+            if (v) respHeaders[k] = k === "set-cookie" ? "[present]" : v;
+          });
+          console.error(
+            JSON.stringify({
+              tag: "marketing_lead_403_diag",
+              endpoint: config.upstreamPath,
+              upstreamUrl: `${apiBase}${config.upstreamPath}`,
+              intent: config.intent,
+              sourcePage: config.sourcePage,
+              requestHeaderKeys: Object.keys(outboundHeaders),
+              responseHeaders: respHeaders,
+              responseBodyExcerpt: text.slice(0, 500),
+              timestamp: new Date().toISOString(),
+            })
+          );
+        }
       } catch {
         // Logging must never throw.
       }
