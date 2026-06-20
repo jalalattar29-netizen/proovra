@@ -17,7 +17,6 @@ const COLUMNS: FooterCol[] = [
   {
     title: "Trust & Security",
     links: [
-      { label: "Security Overview", href: MARKETING_LINKS.security },
       { label: "Trust Center", href: MARKETING_LINKS.trustCenter },
       { label: "Security & Responsible Disclosure", href: "/legal/security" },
       { label: "Transparency", href: "/legal/transparency" },
@@ -152,7 +151,7 @@ export function EnterpriseFooter() {
             <Link href="/legal/terms" className="transition-colors hover:text-white">
               Terms of Service
             </Link>
-            <Link href={MARKETING_LINKS.security} className="transition-colors hover:text-white">
+            <Link href="/legal/security" className="transition-colors hover:text-white">
               Security
             </Link>
             <Link href={MARKETING_LINKS.trustCenter} className="transition-colors hover:text-white">

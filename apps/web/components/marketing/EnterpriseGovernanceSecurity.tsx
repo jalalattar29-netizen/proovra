@@ -194,13 +194,6 @@ export function EnterpriseGovernanceSecurity() {
               Explore platform controls
               <ArrowRight size={14} />
             </Link>
-            <Link
-              href={MARKETING_LINKS.security}
-              className="inline-flex h-11 items-center justify-center gap-1.5 text-[13px] font-semibold text-[#2563EB] transition-colors duration-200 hover:text-[#1D4ED8]"
-            >
-              View security overview
-              <ArrowRight size={13} />
-            </Link>
           </div>
         </div>
       </div>

@@ -127,6 +127,27 @@ function checkRateLimit(intent: LeadIntent, ip: string): {
   return { allowed: true };
 }
 
+const FIELD_ALIASES: Record<string, string> = {
+  expectedDeploymentTimeline: "deploymentTimeline",
+  additionalContext: "message",
+};
+
+function normalizeRawPayload(input: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [rawKey, rawValue] of Object.entries(input)) {
+    const key = FIELD_ALIASES[rawKey] ?? rawKey;
+    if (rawValue === null || rawValue === undefined) continue;
+    if (typeof rawValue === "string") {
+      const trimmed = rawValue.trim();
+      if (trimmed === "") continue;
+      if (out[key] === undefined) out[key] = trimmed;
+      continue;
+    }
+    if (out[key] === undefined) out[key] = rawValue;
+  }
+  return out;
+}
+
 function formatZodIssues(err: ZodError): { field: string; message: string }[] {
   return err.issues.map((i) => ({
     field: i.path.map(String).join(".") || "(root)",
@@ -203,7 +224,8 @@ export async function handleLeadSubmission<TInput extends Record<string, unknown
     return jsonError("Invalid request payload.", 400);
   }
 
-  const parsed = config.schema.safeParse(raw);
+  const normalized = normalizeRawPayload(raw as Record<string, unknown>);
+  const parsed = config.schema.safeParse(normalized);
   if (!parsed.success) {
     return jsonError("Validation failed.", 400, {
       issues: formatZodIssues(parsed.error),

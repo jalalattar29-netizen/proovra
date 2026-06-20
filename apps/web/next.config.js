@@ -54,8 +54,41 @@ const nextConfig = {
       },
       // CR1 Part 2 — `/security` → `/security-center` (the canonical
       // operator-facing security overview behind the `(app)` auth wall).
-      // The public marketing surface lives at `/security-overview`.
       { source: "/security", destination: "/security-center", permanent: true },
+      // Marketing — the standalone /security-overview marketing page was
+      // retired; the canonical public security destination is the
+      // /legal/security responsible-disclosure & security policy page.
+      { source: "/security-overview", destination: "/legal/security", permanent: true },
+      // Marketing — the standalone /technology/verification-methodology
+      // page was retired; the canonical public methodology destination
+      // is the legal-styled /legal/verification-methodology document.
+      {
+        source: "/technology/verification-methodology",
+        destination: "/legal/verification-methodology",
+        permanent: true,
+      },
+      // Marketing — the six /solutions/* industry pages were retired in
+      // favor of the canonical /for-* industry pages driven by the
+      // shared UseCasePage component (apps/web/components/use-case-page.tsx).
+      // Old indexed URLs continue to resolve via permanent redirects.
+      {
+        source: "/solutions/legal-ediscovery",
+        destination: "/for-lawyers",
+        permanent: true,
+      },
+      { source: "/solutions/insurance", destination: "/for-insurance", permanent: true },
+      {
+        source: "/solutions/corporate-investigations",
+        destination: "/for-investigations",
+        permanent: true,
+      },
+      { source: "/solutions/government", destination: "/for-government", permanent: true },
+      {
+        source: "/solutions/compliance-audit",
+        destination: "/for-compliance",
+        permanent: true,
+      },
+      { source: "/solutions/journalism", destination: "/for-journalism", permanent: true },
       // Phase Final-A3-PT2 — `/dashboard/api-keys` retired (the legacy
       // in-memory user-scoped API key store was removed in A-3). The
       // canonical, team-scoped, durable surface is `/integrations`.

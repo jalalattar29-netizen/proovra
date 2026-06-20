@@ -76,12 +76,6 @@ export const MARKETING_LINKS = {
   support: "/support",
 
   trustCenter: "/about/trust",
-  // Note: `/security` was historically a dashboard route that lived at
-  // `/security-center`; a stale 308 permanent redirect in next.config.js
-  // (since removed) caused some browsers to cache `/security` → `/security-center`.
-  // The marketing overview now lives at `/security-overview`, a brand-new
-  // URL that no cached redirect can hijack.
-  security: "/security-overview",
   faq: "/faq",
   whyProovra: "/why-proovra",
   comparison: "/compare/traditional-files-vs-proovra",
@@ -110,23 +104,32 @@ export const MARKETING_LINKS = {
     trustedTimestamps: "/technology/trusted-timestamps",
     openTimestamps: "/technology/opentimestamps",
     chainOfCustody: "/technology/chain-of-custody",
-    verificationMethodology: "/technology/verification-methodology",
+    // Canonical methodology lives at /legal/verification-methodology;
+    // the old standalone /technology/verification-methodology page was
+    // retired (a permanent redirect in next.config.js preserves old
+    // indexed URLs). Body-content "Read methodology" CTAs on the
+    // Technology pages route directly to the canonical destination.
+    verificationMethodology: "/legal/verification-methodology",
   },
 
+  // Canonical industry pages live under /for-*. The old /solutions/*
+  // pages were retired and permanently redirect to the canonical
+  // /for-* destinations (see next.config.js). Both this `solutions`
+  // block and the `industries` block now resolve to the same canonical
+  // routes.
   solutions: {
-    legal: "/solutions/legal-ediscovery",
-    insurance: "/solutions/insurance",
-    corporateInvestigations: "/solutions/corporate-investigations",
-    government: "/solutions/government",
-    compliance: "/solutions/compliance-audit",
-    journalism: "/solutions/journalism",
+    legal: "/for-lawyers",
+    insurance: "/for-insurance",
+    corporateInvestigations: "/for-investigations",
+    government: "/for-government",
+    compliance: "/for-compliance",
+    journalism: "/for-journalism",
   },
 
-  // Legacy "for the industry" paths — kept for backward compatibility.
   industries: {
     insurance: "/for-insurance",
     legal: "/for-lawyers",
-    government: "/for-investigations",
+    government: "/for-government",
     compliance: "/for-compliance",
     investigations: "/for-investigations",
     journalism: "/for-journalism",

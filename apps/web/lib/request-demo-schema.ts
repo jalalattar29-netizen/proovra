@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+const optionalString = (maxLength: number) =>
+  z.preprocess(
+    (value) => {
+      if (value === null || value === undefined) return undefined;
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        return trimmed === "" ? undefined : trimmed;
+      }
+      return value;
+    },
+    z.string().max(maxLength).optional()
+  );
+
 export const TEAM_SIZE_OPTIONS = [
   { value: "1-5", label: "1–5" },
   { value: "6-20", label: "6–20" },
@@ -40,10 +53,10 @@ export const requestDemoSchema = z.object({
     .trim()
     .email("Enter a valid email address.")
     .max(320),
-  organization: z.string().trim().max(180).optional().or(z.literal("")),
-  jobTitle: z.string().trim().max(120).optional().or(z.literal("")),
-  country: z.string().trim().max(120).optional().or(z.literal("")),
-  teamSize: z.string().trim().max(64).optional().or(z.literal("")),
+  organization: optionalString(180),
+  jobTitle: optionalString(120),
+  country: optionalString(120),
+  teamSize: optionalString(64),
   primaryInterest: z
     .string()
     .trim()
@@ -59,13 +72,8 @@ export const requestDemoSchema = z.object({
     .trim()
     .min(10, "Please provide a bit more detail.")
     .max(5000),
-  message: z
-    .string()
-    .trim()
-    .max(5000, "Message is too long.")
-    .optional()
-    .or(z.literal("")),
-  website: z.string().trim().max(300).optional().or(z.literal("")),
+  message: optionalString(5000),
+  website: optionalString(300),
 });
 
 export type RequestDemoFormValues = z.infer<typeof requestDemoSchema>;

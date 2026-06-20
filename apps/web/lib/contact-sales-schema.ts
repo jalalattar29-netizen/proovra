@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+const optionalString = (maxLength: number) =>
+  z.preprocess(
+    (value) => {
+      if (value === null || value === undefined) return undefined;
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        return trimmed === "" ? undefined : trimmed;
+      }
+      return value;
+    },
+    z.string().max(maxLength).optional()
+  );
+
 export const DISCUSSION_TOPIC_OPTIONS = [
   { value: "enterprise-pricing", label: "Enterprise Pricing" },
   { value: "team-rollout", label: "Team Rollout" },
@@ -52,29 +65,24 @@ export const contactSalesSchema = z.object({
   fullName: z.string().trim().min(2, "Full name is required.").max(160),
   workEmail: z.string().trim().email("Enter a valid email address.").max(320),
   organization: z.string().trim().min(1, "Organization is required.").max(180),
-  jobTitle: z.string().trim().max(120).optional().or(z.literal("")),
-  country: z.string().trim().max(120).optional().or(z.literal("")),
-  teamSize: z.string().trim().max(64).optional().or(z.literal("")),
+  jobTitle: optionalString(120),
+  country: optionalString(120),
+  teamSize: optionalString(64),
   discussionTopic: z
     .string()
     .trim()
     .min(1, "Select a discussion topic.")
     .max(64),
   stage: z.string().trim().min(1, "Select your current stage.").max(64),
-  deploymentTimeline: z.string().trim().max(64).optional().or(z.literal("")),
-  estimatedUsers: z.string().trim().max(64).optional().or(z.literal("")),
+  deploymentTimeline: optionalString(64),
+  estimatedUsers: optionalString(64),
   currentChallenge: z
     .string()
     .trim()
     .min(10, "Please describe your challenge in a bit more detail.")
     .max(5000),
-  additionalDetails: z
-    .string()
-    .trim()
-    .max(5000, "Message is too long.")
-    .optional()
-    .or(z.literal("")),
-  website: z.string().trim().max(300).optional().or(z.literal("")),
+  additionalDetails: optionalString(5000),
+  website: optionalString(300),
 });
 
 export type ContactSalesFormValues = z.infer<typeof contactSalesSchema>;
@@ -176,6 +184,7 @@ export function buildContactSalesPayload(values: ContactSalesFormValues) {
     stage: values.stage.trim(),
     deploymentTimeline: normalizeOptional(values.deploymentTimeline),
     estimatedUsers: normalizeOptional(values.estimatedUsers),
+    currentChallenge: values.currentChallenge.trim(),
     additionalDetails: normalizeOptional(values.additionalDetails),
     source:
       typeof window !== "undefined"
