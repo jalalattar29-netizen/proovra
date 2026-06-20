@@ -2166,6 +2166,78 @@ enum DemoFollowUpStatus {
   STOPPED
 }
 
+// Marketing lead capture — Contact Sales submissions from the public
+// /contact-sales form. Sibling to DemoRequest. No scoring / follow-up
+// orchestration in this phase — operators triage via the admin surface
+// at /admin/contact-sales. All fields nullable except identity + the
+// three visible-required form fields (organization, discussionTopic,
+// stage, currentChallenge).
+model ContactSalesRequest {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName     String  @map("full_name") @db.VarChar(160)
+  workEmail    String  @map("work_email") @db.VarChar(320)
+  organization String  @db.VarChar(180)
+  jobTitle     String? @map("job_title") @db.VarChar(120)
+  country      String? @db.VarChar(120)
+  teamSize     String? @map("team_size") @db.VarChar(64)
+
+  discussionTopic    String  @map("discussion_topic") @db.VarChar(64)
+  stage              String  @db.VarChar(64)
+  currentChallenge   String  @map("current_challenge")
+  deploymentTimeline String? @map("deployment_timeline") @db.VarChar(64)
+  estimatedUsers     String? @map("estimated_users") @db.VarChar(64)
+  additionalDetails  String? @map("additional_details")
+
+  source      String? @db.VarChar(120)
+  sourcePage  String? @map("source_page") @db.VarChar(120)
+  sourcePath  String? @map("source_path") @db.VarChar(512)
+  referrer    String? @db.VarChar(2048)
+  utmSource   String? @map("utm_source") @db.VarChar(160)
+  utmMedium   String? @map("utm_medium") @db.VarChar(160)
+  utmCampaign String? @map("utm_campaign") @db.VarChar(160)
+  utmTerm     String? @map("utm_term") @db.VarChar(160)
+  utmContent  String? @map("utm_content") @db.VarChar(160)
+
+  status   ContactSalesStatus   @default(NEW)
+  priority ContactSalesPriority @default(NORMAL)
+  isSpam   Boolean              @default(false) @map("is_spam")
+
+  emailSentAt   DateTime? @map("email_sent_at") @db.Timestamptz(6)
+  webhookSentAt DateTime? @map("webhook_sent_at") @db.Timestamptz(6)
+
+  reviewedAt       DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  reviewedByUserId String?   @map("reviewed_by_user_id") @db.Uuid
+  notes            String?
+
+  ipAddress String? @map("ip_address") @db.VarChar(45)
+  userAgent String? @map("user_agent") @db.VarChar(512)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([priority, createdAt(sort: Desc)])
+  @@index([workEmail])
+  @@index([organization])
+  @@index([createdAt(sort: Desc)])
+  @@map("contact_sales_requests")
+}
+
+enum ContactSalesStatus {
+  NEW
+  REVIEWED
+  CONTACTED
+  QUALIFIED
+  REJECTED
+  ARCHIVED
+}
+
+enum ContactSalesPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
 enum EvidenceType {
   VIDEO
   AUDIO

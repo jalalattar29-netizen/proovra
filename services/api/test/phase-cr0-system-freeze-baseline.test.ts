@@ -94,6 +94,7 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
     { page: "admin/audit/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/dashboard/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/demo-requests/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
+    { page: "admin/contact-sales/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/identity/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/identity/access-reviews/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/identity/permission-matrix/page.tsx", reason: "platform admin", revisitPhase: "CR1" },

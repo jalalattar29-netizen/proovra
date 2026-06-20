@@ -720,6 +720,19 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // the grandfathered allowance. Pure additive: zero DROP / RENAME /
       // TRUNCATE / DELETE / UPDATE-without-WHERE / SET-NOT-NULL.
       "20270826000000_pricing_hardening_enterprise_plan_record_caps",
+      // Contact Sales lead capture — sibling to demo_requests for the
+      // /contact-sales marketing form. Adds contact_sales_requests
+      // table + ContactSalesStatus + ContactSalesPriority enums + 5
+      // guarded indexes. Pure additive Phase O-Final-style migration:
+      // CREATE TYPE wrapped in DO + duplicate-object check, CREATE
+      // TABLE IF NOT EXISTS, every CREATE INDEX guarded by
+      // information_schema.columns existence checks. Zero DROP /
+      // RENAME / TRUNCATE / DELETE / UPDATE on existing tables.
+      // demo_requests rows are NOT touched. Allowlisted in
+      // phase-o-migration-safety-gate.test.ts via
+      // APPROVED_CRITICAL_BY_MIGRATION for the same CREATE_TABLE_IF_
+      // NOT_EXISTS kind as the wave2_duplicate_decisions precedent.
+      "20270827000000_contact_sales_lead_capture",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

@@ -14,6 +14,7 @@ import {
   validateRequestDemoForm,
 } from "../lib/request-demo-schema";
 import { SALES_ASSETS } from "../lib/sales-assets";
+import { LeadSuccessModal } from "./marketing/LeadSuccessModal";
 
 type SelectOption = { value: string; label: string };
 
@@ -135,7 +136,7 @@ type RequestDemoFormProps = {
 
 export function RequestDemoForm({
   submitUrl = "/api/request-demo",
-  redirectOnSuccess = true,
+  redirectOnSuccess = false, // success modal is the default UX now
   successUrl = SALES_ASSETS.requestDemoSuccessUrl,
   submitButtonLabel = "Submit demo request",
   sourcePath = "/request-demo",
@@ -151,6 +152,7 @@ export function RequestDemoForm({
     Partial<Record<keyof RequestDemoFormValues, string>>
   >({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successOpen, setSuccessOpen] = useState(false);
 
   const teamSizeOptions = [...TEAM_SIZE_OPTIONS];
   const primaryInterestOptions = [...PRIMARY_INTEREST_OPTIONS];
@@ -203,10 +205,6 @@ export function RequestDemoForm({
 
       setForm(REQUEST_DEMO_DEFAULT_VALUES);
       setErrors({});
-      addToast(
-        "Demo request received. We'll review your request and reply within 1 business day.",
-        "success"
-      );
 
       onSubmitted?.(data);
 
@@ -214,6 +212,9 @@ export function RequestDemoForm({
         router.push(successUrl);
         return;
       }
+
+      // Default: show the in-place success modal instead of redirecting.
+      setSuccessOpen(true);
     } catch {
       addToast(
         "We couldn't submit your demo request right now. Please try again or contact support@proovra.com.",
@@ -470,6 +471,12 @@ export function RequestDemoForm({
           View pricing
         </a>
       </div>
+
+      <LeadSuccessModal
+        open={successOpen}
+        variant="requestDemo"
+        onClose={() => setSuccessOpen(false)}
+      />
     </form>
   );
 }

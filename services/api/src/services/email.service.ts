@@ -124,6 +124,45 @@ export type EmailService = {
     requestDemoUrl: string;
     contactSalesUrl: string;
   }) => Promise<unknown>;
+
+  // Contact Sales — operator notification + visitor auto-reply.
+  // Mirrors the demo-request shape so admin notification copy and
+  // routing logic stay consistent. Operator copy NEVER contains
+  // secret-bearing tokens, magic links, or sender-IP geolocation.
+  sendContactSalesNotification: (params: {
+    to: string;
+    requestId: string;
+    fullName: string;
+    workEmail: string;
+    organization: string;
+    jobTitle?: string | null;
+    country?: string | null;
+    teamSize?: string | null;
+    discussionTopic: string;
+    stage: string;
+    currentChallenge: string;
+    deploymentTimeline?: string | null;
+    estimatedUsers?: string | null;
+    additionalDetails?: string | null;
+    source?: string | null;
+    sourcePath?: string | null;
+    referrer?: string | null;
+    utmSource?: string | null;
+    utmMedium?: string | null;
+    utmCampaign?: string | null;
+    utmTerm?: string | null;
+    utmContent?: string | null;
+    priority?: string | null;
+  }) => Promise<unknown>;
+
+  sendContactSalesAutoReply: (params: {
+    to: string;
+    fullName: string;
+    sampleReportUrl: string;
+    verificationDemoUrl: string;
+    methodologyUrl: string;
+    pricingUrl: string;
+  }) => Promise<unknown>;
 };
 
 // Phase P2.0 — RESEND_API_KEY is in the migrated set. Migrated names
@@ -529,6 +568,12 @@ export function getEmailService(): EmailService {
         throw new Error("Email service not configured: RESEND_API_KEY missing");
       },
       async sendDemoRequestFollowUp() {
+        throw new Error("Email service not configured: RESEND_API_KEY missing");
+      },
+      async sendContactSalesNotification() {
+        throw new Error("Email service not configured: RESEND_API_KEY missing");
+      },
+      async sendContactSalesAutoReply() {
         throw new Error("Email service not configured: RESEND_API_KEY missing");
       },
     };
@@ -1190,6 +1235,191 @@ export function getEmailService(): EmailService {
         from,
         to: params.to,
         subject: content.subject,
+        html,
+        text,
+      });
+    },
+
+    // ────────────────────────────────────────────────────────────────
+    // Contact Sales — operator notification
+    //
+    // Sent to CONTACT_SALES_NOTIFICATION_EMAIL (with DEMO_REQUEST_
+    // NOTIFICATION_EMAIL → SUPPORT_EMAIL → support@proovra.com
+    // fallback resolved by the caller). Body never contains visitor
+    // tokens, link secrets, or IP geolocation — only the form fields
+    // the visitor submitted plus the synthetic record id for admin
+    // deep-linking.
+    // ────────────────────────────────────────────────────────────────
+    async sendContactSalesNotification(params) {
+      const app = brandName();
+      const subject = `New contact-sales inquiry — ${params.organization}`;
+      const escalation =
+        params.priority === "HIGH"
+          ? `<div style="margin:0 0 10px 0; padding:8px 12px; background:#fef3c7; border-left:3px solid #d97706; font-weight:600; color:#92400e;">High priority — respond within the published SLA window.</div>`
+          : "";
+
+      const detail = (label: string, value?: string | null) =>
+        value && value.trim()
+          ? `<tr><td style="padding:6px 12px 6px 0; color:#475569; font-size:13px; vertical-align:top; white-space:nowrap;">${safeHtml(
+              label
+            )}</td><td style="padding:6px 0; color:#0f172a; font-size:13px;">${safeHtml(
+              value
+            )}</td></tr>`
+          : "";
+
+      const bodyHtml = `
+        ${escalation}
+        <div style="margin:0 0 14px 0; color:#0f172a; font-size:14px;">
+          <strong>${safeHtml(
+            params.fullName
+          )}</strong> at <strong>${safeHtml(
+            params.organization
+          )}</strong> submitted a contact-sales inquiry on ${safeHtml(app)}.
+        </div>
+        <table style="width:100%; border-collapse:collapse; margin:0 0 14px 0;">
+          ${detail("Work email", params.workEmail)}
+          ${detail("Job title", params.jobTitle)}
+          ${detail("Country", params.country)}
+          ${detail("Team size", params.teamSize)}
+          ${detail("Topic", params.discussionTopic)}
+          ${detail("Stage", params.stage)}
+          ${detail("Deployment timeline", params.deploymentTimeline)}
+          ${detail("Estimated users", params.estimatedUsers)}
+        </table>
+        <div style="margin:0 0 8px 0; color:#475569; font-size:13px; font-weight:600;">Current challenge</div>
+        <div style="margin:0 0 12px 0; padding:10px 14px; background:#f8fafc; border-left:3px solid #2563eb; color:#0f172a; font-size:13.5px; line-height:1.55; white-space:pre-wrap;">${safeHtml(
+          params.currentChallenge
+        )}</div>
+        ${
+          params.additionalDetails
+            ? `<div style="margin:0 0 8px 0; color:#475569; font-size:13px; font-weight:600;">Additional details</div>
+               <div style="margin:0 0 12px 0; padding:10px 14px; background:#f8fafc; border-left:3px solid #7c3aed; color:#0f172a; font-size:13.5px; line-height:1.55; white-space:pre-wrap;">${safeHtml(
+                 params.additionalDetails
+               )}</div>`
+            : ""
+        }
+        <div style="margin:14px 0 0 0; color:#64748b; font-size:12px;">
+          Record id <code>${safeHtml(
+            params.requestId
+          )}</code> &nbsp;·&nbsp; source ${safeHtml(
+            params.source ?? "website"
+          )}${
+            params.sourcePath
+              ? ` &nbsp;·&nbsp; ${safeHtml(params.sourcePath)}`
+              : ""
+          }
+        </div>
+      `.trim();
+
+      const html = emailShell({
+        title: "New contact-sales inquiry",
+        preheader: `${params.organization} — ${params.discussionTopic} · ${params.stage}`,
+        bodyHtml,
+        ctaText: "Open in admin console",
+        ctaUrl: `${
+          (process.env.PROOVRA_WEB_BASE?.trim() ||
+            "https://proovra.com")
+        }/admin/contact-sales/${encodeURIComponent(params.requestId)}`,
+        secondaryText:
+          "Reply directly to the visitor's work email above — do not forward this notification externally.",
+      });
+
+      const lines = [
+        `New contact-sales inquiry on ${app}`,
+        "",
+        `From: ${params.fullName} <${params.workEmail}>`,
+        `Organization: ${params.organization}`,
+      ];
+      if (params.jobTitle) lines.push(`Job title: ${params.jobTitle}`);
+      if (params.country) lines.push(`Country: ${params.country}`);
+      if (params.teamSize) lines.push(`Team size: ${params.teamSize}`);
+      lines.push(`Topic: ${params.discussionTopic}`);
+      lines.push(`Stage: ${params.stage}`);
+      if (params.deploymentTimeline)
+        lines.push(`Timeline: ${params.deploymentTimeline}`);
+      if (params.estimatedUsers)
+        lines.push(`Estimated users: ${params.estimatedUsers}`);
+      lines.push("", "Current challenge:", params.currentChallenge);
+      if (params.additionalDetails)
+        lines.push("", "Additional details:", params.additionalDetails);
+      lines.push(
+        "",
+        `Record id: ${params.requestId}`,
+        `Source: ${params.source ?? "website"}${
+          params.sourcePath ? ` (${params.sourcePath})` : ""
+        }`,
+        `Support: ${supportEmail()}`
+      );
+
+      return resend.emails.send({
+        from,
+        to: params.to,
+        subject,
+        html,
+        text: lines.join("\n"),
+      });
+    },
+
+    // ────────────────────────────────────────────────────────────────
+    // Contact Sales — visitor auto-reply (no enterprise-routing
+    // language; spec calls for "your inquiry has been submitted").
+    // ────────────────────────────────────────────────────────────────
+    async sendContactSalesAutoReply(params) {
+      const app = brandName();
+      const subject = `We received your inquiry`;
+
+      const html = emailShell({
+        title: "Your inquiry has been received",
+        preheader: `Thanks for contacting ${app}.`,
+        bodyHtml: `
+          <div style="margin:0 0 10px 0;">Hello ${safeHtml(
+            params.fullName
+          )},</div>
+          <div style="margin:0 0 10px 0;">
+            Your inquiry has been submitted successfully. A member of the
+            ${safeHtml(app)} team will review your request and respond as
+            soon as possible.
+          </div>
+          <div style="margin:16px 0 8px 0; color:#475569; font-size:13px; font-weight:600;">In the meantime, useful resources:</div>
+          <ul style="margin:0 0 0 0; padding:0 0 0 18px; color:#0f172a; font-size:13.5px; line-height:1.6;">
+            <li><a href="${safeHtml(
+              params.sampleReportUrl
+            )}" style="color:#2563eb; text-decoration:none;">Sample report</a></li>
+            <li><a href="${safeHtml(
+              params.verificationDemoUrl
+            )}" style="color:#2563eb; text-decoration:none;">Verification demo</a></li>
+            <li><a href="${safeHtml(
+              params.methodologyUrl
+            )}" style="color:#2563eb; text-decoration:none;">Verification methodology</a></li>
+            <li><a href="${safeHtml(
+              params.pricingUrl
+            )}" style="color:#2563eb; text-decoration:none;">Pricing</a></li>
+          </ul>
+        `.trim(),
+        ctaText: "View sample report",
+        ctaUrl: params.sampleReportUrl,
+        secondaryText:
+          "If this wasn't you, you can safely ignore this email.",
+      });
+
+      const text = [
+        `Hello ${params.fullName},`,
+        "",
+        `Your inquiry has been submitted successfully. A member of the ${app} team will review your request and respond as soon as possible.`,
+        "",
+        "Useful resources:",
+        `- Sample report: ${params.sampleReportUrl}`,
+        `- Verification demo: ${params.verificationDemoUrl}`,
+        `- Methodology: ${params.methodologyUrl}`,
+        `- Pricing: ${params.pricingUrl}`,
+        "",
+        `Support: ${supportEmail()}`,
+      ].join("\n");
+
+      return resend.emails.send({
+        from,
+        to: params.to,
+        subject,
         html,
         text,
       });

@@ -303,10 +303,17 @@ export async function handleLeadSubmission<TInput extends Record<string, unknown
     }
 
     if (!upstream.ok) {
-      // Fail-open: lead is captured in our logs so an operator can recover
-      // it. Tell the visitor it succeeded — the marketing form must work
-      // even when the upstream lead store is down. Operators can monitor
-      // the `marketing_lead` log tag for `upstreamStatus != 200/201`.
+      // Upstream rejected. We have no fallback capture for this
+      // intent — both /v1/demo-requests and /v1/contact-sales persist
+      // server-side, so any non-2xx here means the lead was NOT
+      // saved. Previously the handler returned 200 + degraded:true
+      // and the visitor saw fake success. That masked total lead
+      // loss for /v1/contact-sales when the route didn't exist.
+      //
+      // New behaviour: emit a high-signal alert log line ops can
+      // page on, log the structured `marketing_lead` line (keys
+      // only — no payload values), and return 502 so the form shows
+      // a real error message and the visitor can retry.
       logLead({
         intent: config.intent,
         sourcePage: config.sourcePage,
@@ -320,9 +327,24 @@ export async function handleLeadSubmission<TInput extends Record<string, unknown
             ? JSON.stringify(parsedUpstream).slice(0, 200)
             : text.slice(0, 200),
       });
-      return NextResponse.json(
-        { ok: true, message: config.successMessage, degraded: true },
-        { status: 200 }
+      try {
+        console.error(
+          JSON.stringify({
+            tag: "marketing_lead_alert",
+            endpoint: config.upstreamPath,
+            intent: config.intent,
+            sourcePage: config.sourcePage,
+            upstreamStatus: upstream.status,
+            timestamp: new Date().toISOString(),
+          })
+        );
+      } catch {
+        // Logging must never throw.
+      }
+      return jsonError(
+        "We couldn't deliver your submission to our team. Please try again in a moment.",
+        502,
+        { upstreamStatus: upstream.status }
       );
     }
 
@@ -343,7 +365,9 @@ export async function handleLeadSubmission<TInput extends Record<string, unknown
       { status: 200 }
     );
   } catch (err) {
-    // Network / timeout / DNS issue with upstream → also fail-open.
+    // Network / timeout / DNS issue with upstream. Same reasoning as
+    // the non-2xx branch above: no fallback persistence on the web
+    // layer, so we must NOT pretend success.
     logLead({
       intent: config.intent,
       sourcePage: config.sourcePage,
@@ -354,9 +378,24 @@ export async function handleLeadSubmission<TInput extends Record<string, unknown
       upstreamStatus: "error",
       upstreamMessage: err instanceof Error ? err.message : String(err),
     });
-    return NextResponse.json(
-      { ok: true, message: config.successMessage, degraded: true },
-      { status: 200 }
+    try {
+      console.error(
+        JSON.stringify({
+          tag: "marketing_lead_alert",
+          endpoint: config.upstreamPath,
+          intent: config.intent,
+          sourcePage: config.sourcePage,
+          upstreamStatus: "network_error",
+          timestamp: new Date().toISOString(),
+        })
+      );
+    } catch {
+      // ignore
+    }
+    return jsonError(
+      "We couldn't reach our submission service. Please try again in a moment.",
+      502,
+      { upstreamStatus: "network_error" }
     );
   }
 }

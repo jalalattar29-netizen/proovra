@@ -320,6 +320,19 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     "20270811000000_wave2_duplicate_decisions": new Set([
       "CREATE_TABLE_IF_NOT_EXISTS",
     ]),
+    // Contact Sales lead capture — adds `contact_sales_requests` for
+    // the /contact-sales marketing form. Mirrors the wave2 precedent:
+    // pure additive Phase O-Final-style migration with CREATE TYPE
+    // wrapped in DO + duplicate-object guard, CREATE TABLE IF NOT
+    // EXISTS for the new table, and every CREATE INDEX wrapped in DO
+    // blocks guarded by information_schema.columns existence checks.
+    // Zero DROP / RENAME / TRUNCATE / DELETE / UPDATE-without-WHERE /
+    // SET-NOT-NULL on existing tables. demo_requests is untouched.
+    // Also allowlisted in
+    // phase-32-7-2-security-event-mapping-drift.test.ts.
+    "20270827000000_contact_sales_lead_capture": new Set([
+      "CREATE_TABLE_IF_NOT_EXISTS",
+    ]),
   };
 
   it("every migration with timestamp > baseline has ZERO CRITICAL findings", async () => {

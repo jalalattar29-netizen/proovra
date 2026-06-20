@@ -1012,7 +1012,28 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // reimplementation of projection logic) and is gated by
 // `SEARCH_REINDEX_SECRET` via the existing cron-secret middleware —
 // it does NOT weaken auth on /v1/search/reconcile.
-const ROUTE_COUNT_PHASE_2_BASELINE = 94;
+//
+// Contact Sales lead-capture: bumped 94 → 96. Added 2 legitimate new
+// route files for the previously-missing /v1/contact-sales pipeline
+// (the marketing proxy had been 404-ing on the upstream and the
+// fail-open mask hid total Contact Sales lead loss):
+//   - contact-sales.routes.ts
+//     `POST /v1/contact-sales` — public marketing intake. Persists to
+//     the new `contact_sales_requests` table, then best-effort fires
+//     operator notification + visitor auto-reply via Resend. Carries
+//     `TENANT_SCOPE_EXCEPTION: public_verify_token_readonly` because
+//     the table has no `team_id` dimension by design (anonymous
+//     visitor at submission time).
+//   - admin-contact-sales.routes.ts
+//     `GET /v1/admin/contact-sales`, `GET /:id`, `PATCH /:id` — the
+//     operator triage queue. All three endpoints gated by
+//     `requirePlatformAdmin`. Carries
+//     `TENANT_SCOPE_EXCEPTION: platform_admin_global` for the same
+//     reason the existing admin-demo-requests routes are not tenant
+//     scoped: this is the global marketing-lead queue, the rows have
+//     no tenant relation, and PATCH calls write
+//     `platform_audit_log` for accountability.
+const ROUTE_COUNT_PHASE_2_BASELINE = 96;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

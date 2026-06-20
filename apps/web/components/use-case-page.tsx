@@ -1,5 +1,6 @@
 "use client";
 
+import { type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -22,10 +23,115 @@ import { EnterpriseFooter } from "./marketing/EnterpriseFooter";
 import type { UseCasePageContent } from "./use-case-data";
 import { SALES_ASSETS } from "../lib/sales-assets";
 
+// =========================================================================
+// SHARED DESIGN-SYSTEM TOKENS — exact match for Pricing + Platform pages
+// =========================================================================
+
+// Solutions-pages hero highlight gradient — warm orange → coral → magenta.
+// Scoped to this file only (Pricing/Platform define their own brand gradient).
+const BRAND_GRADIENT_TEXT =
+  "linear-gradient(90deg,#FF7A1A 0%,#FF4D5E 50%,#E83FAE 100%)";
+
+const CARD_SHADOW = "shadow-[0_18px_40px_rgba(15,23,42,0.06)]";
+
 const LIMITATION_COPY =
   "PROOVRA verifies recorded integrity signals, timestamp-related context, custody metadata, and supporting review materials. It does not determine factual truth, authorship, identity, or legal admissibility.";
 
-const HEADLINE_ACCENT = "#67e8f9"; // solid brand cyan — enterprise, restrained
+// =========================================================================
+// SHARED COMPONENTS — Eyebrow / SectionTitle / SectionSubtitle
+// (mirrors the helpers in apps/web/app/platform/page.tsx)
+// =========================================================================
+
+function Eyebrow({
+  children,
+  center,
+  tone = "light",
+}: {
+  children: ReactNode;
+  center?: boolean;
+  tone?: "light" | "dark";
+}) {
+  const wrapClass = center ? "flex justify-center" : "";
+  const inner =
+    tone === "dark"
+      ? "border-white/14 bg-white/[0.07] text-[#9dd2ca]"
+      : "border-[#E0E7FF] bg-[#F8FAFC] text-[#2563EB]";
+  const dot = tone === "dark" ? "bg-[#7A3CFF]" : "bg-[#7A3CFF]";
+  return (
+    <div className={wrapClass}>
+      <span
+        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${inner}`}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+        {children}
+      </span>
+    </div>
+  );
+}
+
+function SectionTitle({
+  children,
+  center,
+  tone = "light",
+}: {
+  children: ReactNode;
+  center?: boolean;
+  tone?: "light" | "dark";
+}) {
+  const color = tone === "dark" ? "text-[#edf3f0]" : "text-[#0F172A]";
+  return (
+    <h2
+      className={`${center ? "mx-auto text-center" : ""} mt-3 max-w-[760px] text-[1.7rem] font-semibold leading-[1.18] tracking-[-0.02em] ${color} md:text-[2rem]`}
+    >
+      {children}
+    </h2>
+  );
+}
+
+function SectionSubtitle({
+  children,
+  center,
+  tone = "light",
+}: {
+  children: ReactNode;
+  center?: boolean;
+  tone?: "light" | "dark";
+}) {
+  const color = tone === "dark" ? "text-[#c2cdc6]" : "text-[#475569]";
+  return (
+    <p
+      className={`${center ? "mx-auto text-center" : ""} mt-3 max-w-[680px] text-[14.5px] leading-[1.65] ${color}`}
+    >
+      {children}
+    </p>
+  );
+}
+
+function SectionHeader({
+  eyebrow,
+  title,
+  intro,
+  tone = "light",
+}: {
+  eyebrow: string;
+  title: string;
+  intro?: string;
+  tone?: "light" | "dark";
+}) {
+  return (
+    <div className="max-w-[760px]">
+      <Eyebrow tone={tone}>{eyebrow}</Eyebrow>
+      <SectionTitle tone={tone}>{title}</SectionTitle>
+      {intro ? (
+        <SectionSubtitle tone={tone}>{intro}</SectionSubtitle>
+      ) : null}
+    </div>
+  );
+}
+
+// =========================================================================
+// PLATFORM CAPABILITIES — global 15-capability matrix
+// =========================================================================
 
 type PlatformCapability = {
   tag: "Evidence" | "Integrity" | "Output" | "Governance" | "Workflow";
@@ -126,16 +232,21 @@ const PLATFORM_CAPABILITIES: PlatformCapability[] = [
   },
 ];
 
+// Capability tag colors map to Pricing/Platform palette: blue / violet / cyan / pink.
 const CAPABILITY_TAG_STYLE: Record<
   PlatformCapability["tag"],
-  { dot: string; tagText: string; band: string }
+  { dot: string; tagText: string }
 > = {
-  Evidence: { dot: "#06b6d4", tagText: "#0e7490", band: "rgba(6,182,212,0.04)" },
-  Integrity: { dot: "#2563eb", tagText: "#1d4ed8", band: "rgba(37,99,235,0.04)" },
-  Output: { dot: "#7c3aed", tagText: "#5b21b6", band: "rgba(124,58,237,0.04)" },
-  Governance: { dot: "#ec4899", tagText: "#9d174d", band: "rgba(236,72,153,0.04)" },
-  Workflow: { dot: "#a855f7", tagText: "#7e22ce", band: "rgba(168,85,247,0.04)" },
+  Evidence: { dot: "#06B6D4", tagText: "#0E7490" },
+  Integrity: { dot: "#2563EB", tagText: "#1D4ED8" },
+  Output: { dot: "#7C3AED", tagText: "#5B21B6" },
+  Governance: { dot: "#EC4899", tagText: "#9D174D" },
+  Workflow: { dot: "#A855F7", tagText: "#7E22CE" },
 };
+
+// =========================================================================
+// Icon mapping — workflow + operations
+// =========================================================================
 
 function iconForLifecycleLabel(label: string) {
   const l = label.toLowerCase();
@@ -203,48 +314,9 @@ function iconForOperationTitle(title: string) {
   return Briefcase;
 }
 
-function SectionHeader({
-  eyebrow,
-  title,
-  intro,
-  tone = "light",
-}: {
-  eyebrow: string;
-  title: string;
-  intro?: string;
-  tone?: "light" | "dark";
-}) {
-  const eyebrowColor = tone === "dark" ? "#9dd2ca" : "#8e7863";
-  const titleColor = tone === "dark" ? "#e9eee9" : "#1d3136";
-  const introColor = tone === "dark" ? "#c2cdc6" : "#3d4f53";
-  return (
-    <div className="max-w-3xl">
-      <div
-        className="text-[0.76rem] font-semibold uppercase tracking-[0.24em]"
-        style={{ color: eyebrowColor }}
-      >
-        {eyebrow}
-      </div>
-      <h2
-        className="mt-4 text-[1.6rem] font-semibold leading-[1.14] tracking-[-0.03em] md:text-[2.1rem]"
-        style={{ color: titleColor }}
-      >
-        {title}
-      </h2>
-      {intro ? (
-        <p
-          className="mt-5 text-[1.02rem] leading-[1.78]"
-          style={{ color: introColor }}
-        >
-          {intro}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
 // =========================================================================
-// HERO
+// HERO — dark image (soloutions-hero.png — sic, matches disk filename),
+// brand-gradient highlight
 // =========================================================================
 
 function Hero({ content }: { content: UseCasePageContent }) {
@@ -254,61 +326,70 @@ function Hero({ content }: { content: UseCasePageContent }) {
         aria-hidden="true"
         className="absolute inset-0"
         style={{
-          backgroundImage: "url('/assets/hero/legal-hero.png')",
+          backgroundImage: "url('/assets/hero/soloutions-hero.png')",
           backgroundRepeat: "no-repeat",
           backgroundPosition: "center center",
           backgroundSize: "cover",
         }}
       />
-      {/* much lighter overlay — keep image colors visible, ensure text legibility */}
       <div
         aria-hidden="true"
         className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(180deg, rgba(6,12,22,0.28) 0%, rgba(6,12,22,0.18) 38%, rgba(6,12,22,0.48) 100%)",
+            "linear-gradient(180deg, rgba(6,12,22,0.28) 0%, rgba(6,12,22,0.18) 38%, rgba(6,12,22,0.50) 100%)",
         }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(122,60,255,0.14),transparent_45%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[radial-gradient(circle_at_82%_28%,rgba(0,212,255,0.10),transparent_45%)]"
       />
 
       <div className="relative z-10 flex min-h-[640px] flex-col md:min-h-[720px] lg:min-h-[760px]">
         <MarketingHeader />
 
-        <section className="mx-auto flex w-full max-w-7xl flex-1 flex-col items-center justify-center px-6 pb-20 pt-12 text-center md:px-8 md:pb-28 md:pt-16">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/[0.07] px-4 py-1.5 text-[11.5px] font-semibold uppercase tracking-[0.18em] text-[#dfe7e2] shadow-[0_8px_22px_rgba(0,0,0,0.18)] backdrop-blur-md">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#a78bfa]" />
+        <section className="mx-auto flex w-full max-w-7xl flex-1 flex-col items-center justify-center px-6 pb-20 pt-24 text-center md:px-8 md:pb-28 md:pt-28 lg:pt-32">
+          <Eyebrow center tone="dark">
             {content.eyebrow}
-          </div>
+          </Eyebrow>
 
-          <h1 className="mt-7 max-w-[960px] text-[2.15rem] font-semibold leading-[1.06] tracking-[-0.035em] text-white md:text-[3rem] lg:text-[3.5rem]">
+          <h1 className="mx-auto mt-5 max-w-[940px] text-[2.05rem] font-semibold leading-[1.06] tracking-[-0.025em] text-white md:text-[2.85rem] lg:text-[3.25rem]">
             {content.headline}{" "}
-            <span style={{ color: HEADLINE_ACCENT }}>
+            <span
+              className="bg-clip-text text-transparent"
+              style={{ backgroundImage: BRAND_GRADIENT_TEXT }}
+            >
               {content.headlineHighlight}
             </span>
           </h1>
 
-          <p className="mt-7 max-w-[800px] text-[1.04rem] leading-[1.78] text-[#e6ecea] md:text-[1.12rem]">
+          <p className="mx-auto mt-5 max-w-[760px] text-[15px] leading-[1.65] text-[#dfe7e2] md:text-[15.5px]">
             {content.subhead}
           </p>
 
-          <div className="mt-8 flex max-w-[860px] flex-wrap items-center justify-center gap-x-3 gap-y-2.5">
+          <div className="mx-auto mt-7 flex max-w-[860px] flex-wrap items-center justify-center gap-x-3 gap-y-2.5">
             {content.proofPoints.map((p) => (
               <span
                 key={p}
-                className="inline-flex items-center rounded-full border border-white/14 bg-white/[0.07] px-3.5 py-1.5 text-[0.78rem] text-[#eef3f1] backdrop-blur-md"
+                className="inline-flex items-center rounded-full border border-white/14 bg-white/[0.07] px-3.5 py-1.5 text-[12.5px] text-[#eef3f1] backdrop-blur-md"
               >
-                <span className="mr-2 text-[#9dd2ca]">✓</span>
+                <span className="mr-2 text-[#00D4FF]">✓</span>
                 {p}
               </span>
             ))}
           </div>
 
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+          <div className="mx-auto mt-9 flex flex-wrap items-center justify-center gap-3">
             <Link
               href={SALES_ASSETS.requestDemoUrl}
-              className="inline-flex min-h-[50px] items-center justify-center rounded-full border border-white/14 px-8 py-3 text-[14px] font-semibold text-white shadow-[0_18px_38px_rgba(91,33,182,0.32)] transition duration-300 hover:translate-y-[-1px]"
+              className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-transparent px-7 py-3 text-[14px] font-semibold text-white shadow-[0_18px_38px_rgba(232,63,174,0.32)] transition duration-300 hover:translate-y-[-1px] hover:brightness-110"
               style={{
                 background:
-                  "linear-gradient(120deg,#2D2A7B 0%,#5B21B6 48%,#A21CAF 100%)",
+                  "linear-gradient(120deg,#E83FAE 0%,#6D28D9 100%)",
               }}
             >
               Request Demo
@@ -317,7 +398,7 @@ function Hero({ content }: { content: UseCasePageContent }) {
               href={SALES_ASSETS.sampleReportUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-[50px] items-center justify-center rounded-full border border-white/22 bg-white/[0.06] px-8 py-3 text-[14px] font-semibold text-[#eef3f1] backdrop-blur-md transition duration-300 hover:translate-y-[-1px] hover:bg-white/[0.10]"
+              className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/40 bg-white px-7 py-3 text-[14px] font-semibold text-[#5B21B6] shadow-[0_10px_22px_rgba(15,23,42,0.18)] transition duration-300 hover:translate-y-[-1px] hover:bg-[#F5F3FF]"
             >
               View Sample Report
             </a>
@@ -329,7 +410,7 @@ function Hero({ content }: { content: UseCasePageContent }) {
 }
 
 // =========================================================================
-// SECTION 1 — INDUSTRY CHALLENGES
+// SECTION 1 — INDUSTRY CHALLENGES (slate-50)
 // =========================================================================
 
 function IndustryChallengesSection({
@@ -338,15 +419,19 @@ function IndustryChallengesSection({
   content: UseCasePageContent;
 }) {
   return (
-    <section className="bg-[#f4f5f1] py-20 md:py-24">
-      <div className="mx-auto max-w-6xl px-6 md:px-8">
+    <section className="bg-[#F8FAFC] py-20 md:py-24">
+      <div className="mx-auto max-w-[1280px] px-6 md:px-8">
         <SectionHeader
           eyebrow={content.challengesEyebrow}
           title={content.challengesTitle}
         />
-        <div className="mt-8 max-w-3xl space-y-5">
+
+        <div className="mt-7 max-w-[760px] space-y-4">
           {content.challengesNarrative.map((p, i) => (
-            <p key={i} className="text-[1.02rem] leading-[1.85] text-[#3d4f53]">
+            <p
+              key={i}
+              className="text-[15px] leading-[1.7] text-[#475569]"
+            >
               {p}
             </p>
           ))}
@@ -354,14 +439,11 @@ function IndustryChallengesSection({
 
         <dl className="mt-12 grid gap-x-12 gap-y-7 md:grid-cols-2">
           {content.challenges.map((c, i) => (
-            <div
-              key={i}
-              className="border-t border-[rgba(79,112,107,0.22)] pt-5"
-            >
-              <dt className="text-[1.02rem] font-semibold tracking-[-0.01em] text-[#23373b]">
+            <div key={i} className="border-t border-[#E2E8F0] pt-5">
+              <dt className="text-[15.5px] font-semibold tracking-[-0.01em] text-[#0F172A]">
                 {c.title}
               </dt>
-              <dd className="mt-2 text-[0.96rem] leading-[1.78] text-[#55666a]">
+              <dd className="mt-2 text-[14.5px] leading-[1.7] text-[#475569]">
                 {c.body}
               </dd>
             </div>
@@ -373,35 +455,37 @@ function IndustryChallengesSection({
 }
 
 // =========================================================================
-// SECTION 2 — WORKFLOW (horizontal process diagram)
+// SECTION 2 — WORKFLOW (white, horizontal process diagram)
 // =========================================================================
 
 function WorkflowSection({ content }: { content: UseCasePageContent }) {
   return (
-    <section className="bg-[#fbfbf8] py-20 md:py-24">
-      <div className="mx-auto max-w-6xl px-6 md:px-8">
+    <section className="bg-white py-20 md:py-24">
+      <div className="mx-auto max-w-[1280px] px-6 md:px-8">
         <SectionHeader
           eyebrow={content.workflowEyebrow}
           title={content.workflowTitle}
         />
-        <div className="mt-8 max-w-3xl space-y-5">
+
+        <div className="mt-7 max-w-[760px] space-y-4">
           {content.workflowNarrative.map((p, i) => (
-            <p key={i} className="text-[1.02rem] leading-[1.85] text-[#3d4f53]">
+            <p
+              key={i}
+              className="text-[15px] leading-[1.7] text-[#475569]"
+            >
               {p}
             </p>
           ))}
         </div>
-      </div>
 
-      {/* Horizontal process diagram with arrow connectors */}
-      <div className="mx-auto mt-14 max-w-[1280px] px-6 md:px-8">
-        <div className="rounded-[24px] border border-[rgba(79,112,107,0.22)] bg-white p-6 shadow-[0_18px_44px_rgba(8,18,22,0.06)] md:p-9">
-          <div className="mb-7 text-center text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#8e7863]">
+        <div
+          className={`mt-12 rounded-[20px] border border-[#E2E8F0] bg-white p-6 md:p-9 ${CARD_SHADOW}`}
+        >
+          <div className="mb-7 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
             Evidence handling pipeline
           </div>
 
-          {/* Mobile: vertical stack. Desktop: horizontal row with arrows */}
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:justify-between lg:gap-2">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between lg:gap-3">
             {content.lifecycle.map((step, i) => {
               const Icon = iconForLifecycleLabel(step.label);
               const isLast = i === content.lifecycle.length - 1;
@@ -410,49 +494,30 @@ function WorkflowSection({ content }: { content: UseCasePageContent }) {
                   key={step.label}
                   className="flex flex-1 items-start gap-4 lg:flex-col lg:items-center lg:gap-0"
                 >
-                  <div className="flex flex-col items-center">
-                    <div
-                      className="flex h-12 w-12 items-center justify-center rounded-[14px] border text-[#0e7490] shadow-[0_8px_20px_rgba(6,182,212,0.10)]"
-                      style={{
-                        borderColor: "rgba(6,182,212,0.22)",
-                        background: "rgba(6,182,212,0.06)",
-                      }}
-                    >
-                      <Icon size={20} strokeWidth={1.8} />
-                    </div>
-                    <span className="mt-2 text-[0.66rem] font-mono font-semibold tracking-[0.14em] text-[#8e7863]">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] border border-[#E0E7FF] bg-[#F8FAFC] text-[#2563EB]">
+                    <Icon size={20} strokeWidth={1.8} />
                   </div>
 
-                  <div className="flex-1 lg:mt-3 lg:px-2 lg:text-center">
-                    <div className="text-[0.86rem] font-semibold uppercase tracking-[0.14em] text-[#23373b]">
+                  <div className="flex-1 lg:mt-4 lg:px-2 lg:text-center">
+                    <div className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
                       {step.label}
                     </div>
-                    <p className="mt-2 text-[0.86rem] leading-[1.6] text-[#55666a] lg:max-w-[180px]">
+                    <p className="mt-2 text-[13.5px] leading-[1.55] text-[#475569] lg:max-w-[200px]">
                       {step.body}
                     </p>
                   </div>
 
                   {!isLast ? (
-                    <>
-                      {/* Mobile arrow (vertical, below) */}
-                      <div
-                        aria-hidden="true"
-                        className="absolute hidden h-0 w-0 lg:hidden"
+                    <div
+                      aria-hidden="true"
+                      className="hidden self-center lg:flex"
+                    >
+                      <ArrowRight
+                        size={16}
+                        className="text-[#CBD5E1]"
+                        strokeWidth={2}
                       />
-                      {/* Desktop arrow */}
-                      <div
-                        aria-hidden="true"
-                        className="hidden self-center lg:flex"
-                      >
-                        <ArrowRight
-                          size={18}
-                          className="text-[#cbd5e1]"
-                          strokeWidth={2}
-                        />
-                      </div>
-                    </>
+                    </div>
                   ) : null}
                 </div>
               );
@@ -465,7 +530,7 @@ function WorkflowSection({ content }: { content: UseCasePageContent }) {
 }
 
 // =========================================================================
-// SECTION 3 — PLATFORM CAPABILITIES (grouped-band matrix)
+// SECTION 3 — PLATFORM CAPABILITIES (slate-50, grouped bands)
 // =========================================================================
 
 function PlatformCapabilitiesSection() {
@@ -478,36 +543,32 @@ function PlatformCapabilitiesSection() {
   }));
 
   return (
-    <section className="bg-[#f4f5f1] py-20 md:py-24">
-      <div className="mx-auto max-w-6xl px-6 md:px-8">
+    <section className="bg-[#F8FAFC] py-20 md:py-24">
+      <div className="mx-auto max-w-[1280px] px-6 md:px-8">
         <SectionHeader
-          eyebrow="What PROOVRA provides"
+          eyebrow="Platform capabilities"
           title="The full platform behind every evidence record."
           intro="PROOVRA is the same platform on every page — what changes is how each team uses it. The operational capability matrix below applies to every record."
         />
 
-        <div className="mt-12 overflow-hidden rounded-[20px] border border-[rgba(79,112,107,0.22)] bg-white shadow-[0_18px_48px_rgba(8,18,22,0.06)]">
+        <div
+          className={`mt-12 overflow-hidden rounded-[20px] border border-[#E2E8F0] bg-white ${CARD_SHADOW}`}
+        >
           {groups.map((g, gi) => (
             <div
               key={g.tag}
               className={`grid gap-y-4 px-6 py-6 md:grid-cols-[200px_1fr] md:gap-x-10 md:px-9 md:py-7 ${
-                gi !== groups.length - 1
-                  ? "border-b border-[rgba(79,112,107,0.14)]"
-                  : ""
+                gi !== groups.length - 1 ? "border-b border-[#E2E8F0]" : ""
               }`}
-              style={{ background: g.style.band }}
             >
               <div className="flex items-center gap-2.5 md:pt-1">
                 <span
                   aria-hidden="true"
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{
-                    background: g.style.dot,
-                    boxShadow: `0 0 0 4px ${g.style.dot}22`,
-                  }}
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: g.style.dot }}
                 />
                 <span
-                  className="text-[0.78rem] font-semibold uppercase tracking-[0.2em]"
+                  className="text-[11px] font-semibold uppercase tracking-[0.18em]"
                   style={{ color: g.style.tagText }}
                 >
                   {g.tag}
@@ -519,10 +580,10 @@ function PlatformCapabilitiesSection() {
                     key={cap.name}
                     className="grid gap-y-1 md:grid-cols-[230px_1fr] md:gap-x-6"
                   >
-                    <span className="text-[0.96rem] font-semibold tracking-[-0.01em] text-[#23373b]">
+                    <span className="text-[15px] font-semibold tracking-[-0.01em] text-[#0F172A]">
                       {cap.name}
                     </span>
-                    <span className="text-[0.92rem] leading-[1.7] text-[#55666a]">
+                    <span className="text-[14px] leading-[1.65] text-[#475569]">
                       {cap.description}
                     </span>
                   </li>
@@ -537,27 +598,29 @@ function PlatformCapabilitiesSection() {
 }
 
 // =========================================================================
-// SECTION 4 — COMPARISON TABLE
+// SECTION 4 — COMPARISON TABLE (white)
 // =========================================================================
 
 function ComparisonSection({ content }: { content: UseCasePageContent }) {
   return (
-    <section className="bg-[#fbfbf8] py-20 md:py-24">
-      <div className="mx-auto max-w-6xl px-6 md:px-8">
+    <section className="bg-white py-20 md:py-24">
+      <div className="mx-auto max-w-[1280px] px-6 md:px-8">
         <SectionHeader
           eyebrow={content.comparisonEyebrow}
           title={content.comparisonTitle}
           intro={content.comparisonIntro}
         />
 
-        <div className="mt-12 overflow-hidden rounded-[18px] border border-[rgba(79,112,107,0.22)] bg-white shadow-[0_14px_36px_rgba(8,18,22,0.05)]">
+        <div
+          className={`mt-12 overflow-hidden rounded-[18px] border border-[#E2E8F0] bg-white ${CARD_SHADOW}`}
+        >
           <table className="w-full border-collapse text-left">
             <thead>
               <tr>
-                <th className="border-b border-[rgba(79,112,107,0.22)] bg-[rgba(190,116,46,0.06)] px-6 py-4 text-[0.74rem] font-semibold uppercase tracking-[0.2em] text-[#9c6b25]">
+                <th className="border-b border-[#E2E8F0] bg-[#FFF7ED] px-6 py-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9A3412]">
                   Traditional approach
                 </th>
-                <th className="border-b border-[rgba(79,112,107,0.22)] bg-[rgba(37,99,235,0.04)] px-6 py-4 text-[0.74rem] font-semibold uppercase tracking-[0.2em] text-[#1d4ed8]">
+                <th className="border-b border-[#E2E8F0] bg-[#EEF2FF] px-6 py-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1D4ED8]">
                   PROOVRA
                 </th>
               </tr>
@@ -566,22 +629,22 @@ function ComparisonSection({ content }: { content: UseCasePageContent }) {
               {content.comparisonRows.map((row, i) => (
                 <tr
                   key={i}
-                  className="border-b border-[rgba(79,112,107,0.14)] last:border-b-0"
+                  className="border-b border-[#E2E8F0] last:border-b-0"
                 >
-                  <td className="bg-[rgba(190,116,46,0.025)] px-6 py-4 align-top text-[0.94rem] leading-[1.7] text-[#7a7066]">
+                  <td className="bg-[#FFFBF5] px-6 py-4 align-top text-[14.5px] leading-[1.65] text-[#7C6F5E]">
                     <div className="flex items-start gap-3">
                       <span
                         aria-hidden="true"
-                        className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#bc8a4c]"
+                        className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#F59E0B]"
                       />
                       <span>{row.traditional}</span>
                     </div>
                   </td>
-                  <td className="bg-[rgba(37,99,235,0.02)] px-6 py-4 align-top text-[0.96rem] font-medium leading-[1.7] text-[#1a2f47]">
+                  <td className="bg-white px-6 py-4 align-top text-[14.5px] font-medium leading-[1.65] text-[#0F172A]">
                     <div className="flex items-start gap-3">
                       <span
                         aria-hidden="true"
-                        className="mt-1.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-[#2563eb]"
+                        className="mt-1.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-[#2563EB]"
                       />
                       <span>{row.proovra}</span>
                     </div>
@@ -597,145 +660,124 @@ function ComparisonSection({ content }: { content: UseCasePageContent }) {
 }
 
 // =========================================================================
-// SECTION 5 — OPERATIONS
+// SECTION 5 — OPERATIONS (slate-50)
+// Numbered badge REMOVED — icon + title + description only
 // =========================================================================
 
 function OperationsSection({ content }: { content: UseCasePageContent }) {
   return (
-    <section className="bg-[#f4f5f1] py-20 md:py-24">
-      <div className="mx-auto max-w-6xl px-6 md:px-8">
+    <section className="bg-[#F8FAFC] py-20 md:py-24">
+      <div className="mx-auto max-w-[1280px] px-6 md:px-8">
         <SectionHeader
           eyebrow={content.operationsEyebrow}
           title={content.operationsTitle}
           intro={content.operationsIntro}
         />
 
-        <ol className="mt-12 grid gap-6 md:grid-cols-2">
+        <ul className="mt-12 grid gap-5 md:grid-cols-2">
           {content.operationsItems.map((it, i) => {
             const Icon = iconForOperationTitle(it.title);
             return (
               <li
                 key={i}
-                className="flex gap-5 rounded-[18px] border border-[rgba(79,112,107,0.22)] bg-white p-6 shadow-[0_10px_28px_rgba(8,18,22,0.04)] transition-shadow hover:shadow-[0_14px_36px_rgba(8,18,22,0.08)]"
+                className={`flex gap-4 rounded-[18px] border border-[#E2E8F0] bg-white p-6 ${CARD_SHADOW}`}
               >
-                <div className="flex flex-col items-center gap-2">
-                  <div
-                    className="flex h-12 w-12 items-center justify-center rounded-[14px] border text-[#1d4ed8] shadow-[0_8px_20px_rgba(37,99,235,0.10)]"
-                    style={{
-                      borderColor: "rgba(37,99,235,0.22)",
-                      background: "rgba(37,99,235,0.06)",
-                    }}
-                  >
-                    <Icon size={20} strokeWidth={1.8} />
-                  </div>
-                  <span className="font-mono text-[0.72rem] font-semibold tracking-[0.12em] text-[#8e7863]">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-[#E0E7FF] bg-[#F8FAFC] text-[#2563EB]">
+                  <Icon size={18} strokeWidth={1.9} />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-[1.06rem] font-semibold tracking-[-0.01em] text-[#23373b]">
+                  <h3 className="text-[16px] font-semibold tracking-[-0.01em] text-[#0F172A]">
                     {it.title}
                   </h3>
-                  <p className="mt-2 text-[0.96rem] leading-[1.8] text-[#55666a]">
+                  <p className="mt-2 text-[14.5px] leading-[1.7] text-[#475569]">
                     {it.body}
                   </p>
                 </div>
               </li>
             );
           })}
-        </ol>
+        </ul>
       </div>
     </section>
   );
 }
 
 // =========================================================================
-// SECTION 6 — GOVERNANCE (DARK PREMIUM)
+// SECTION 6 — GOVERNANCE (light premium surface)
 // =========================================================================
 
 function GovernanceSection({ content }: { content: UseCasePageContent }) {
   return (
-    <section
-      className="relative overflow-hidden py-20 md:py-24"
-      style={{
-        background:
-          "linear-gradient(165deg,#0c1024 0%,#13164a 55%,#1c1850 100%)",
-      }}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(124,58,237,0.20),transparent_48%)]" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_82%,rgba(236,72,153,0.14),transparent_48%)]" />
-
-      <div className="relative z-10 mx-auto max-w-6xl px-6 md:px-8">
+    <section className="bg-white py-20 md:py-24">
+      <div className="mx-auto max-w-[1280px] px-6 md:px-8">
         <SectionHeader
           eyebrow={content.governanceEyebrow}
           title={content.governanceTitle}
           intro={content.governanceIntro}
-          tone="dark"
         />
 
-        <div className="mt-12 grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-12">
+        <div className="mt-12 grid gap-10 lg:grid-cols-[1.05fr_1fr] lg:gap-10">
           <dl className="grid gap-x-10 gap-y-7 md:grid-cols-2 lg:grid-cols-1">
             {content.governanceItems.map((it, i) => (
-              <div
-                key={i}
-                className="border-t border-white/12 pt-5"
-              >
-                <dt className="text-[1.02rem] font-semibold tracking-[-0.01em] text-[#e9eee9]">
+              <div key={i} className="border-t border-[#E2E8F0] pt-5">
+                <dt className="text-[15.5px] font-semibold tracking-[-0.01em] text-[#0F172A]">
                   {it.title}
                 </dt>
-                <dd className="mt-2 text-[0.95rem] leading-[1.78] text-[#b9c4be]">
+                <dd className="mt-2 text-[14.5px] leading-[1.7] text-[#475569]">
                   {it.body}
                 </dd>
               </div>
             ))}
           </dl>
 
-          {/* Governance controls mockup — product visibility inside Governance band */}
-          <div className="rounded-[22px] border border-white/12 bg-white/[0.04] p-6 backdrop-blur-md">
+          {/* Premium governance-controls mockup, light surface */}
+          <div
+            className={`rounded-[20px] border border-[#E2E8F0] bg-white p-6 ${CARD_SHADOW}`}
+          >
             <div className="flex items-center justify-between">
-              <span className="text-[0.74rem] font-semibold uppercase tracking-[0.2em] text-[#f9a8d4]">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#5B21B6]">
                 Governance controls
               </span>
-              <span className="font-mono text-[0.72rem] text-[#a8b6b0]">
+              <span className="font-mono text-[12px] text-[#64748B]">
                 Workspace · matter-014
               </span>
             </div>
 
-            <div className="mt-5 space-y-4">
-              <div className="rounded-[14px] border border-white/8 bg-white/[0.03] p-4">
+            <div className="mt-5 space-y-3">
+              <div className="rounded-[12px] border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[0.86rem] font-medium text-[#e2e9e4]">
+                  <span className="text-[14px] font-medium text-[#0F172A]">
                     Retention policy
                   </span>
-                  <span className="rounded-full bg-[rgba(236,72,153,0.18)] px-2.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[#f9a8d4]">
+                  <span className="rounded-full border border-[#FCE7F3] bg-[#FDF2F8] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9D174D]">
                     7 years
                   </span>
                 </div>
-                <p className="mt-2 text-[0.8rem] text-[#a8b6b0]">
+                <p className="mt-2 text-[12.5px] text-[#64748B]">
                   Disposition · matter-aligned
                 </p>
               </div>
 
-              <div className="rounded-[14px] border border-white/8 bg-white/[0.03] p-4">
+              <div className="rounded-[12px] border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[0.86rem] font-medium text-[#e2e9e4]">
+                  <span className="text-[14px] font-medium text-[#0F172A]">
                     Legal hold
                   </span>
-                  <span className="rounded-full bg-[rgba(168,85,247,0.18)] px-2.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[#c4b5fd]">
+                  <span className="rounded-full border border-[#E9D5FF] bg-[#F5F3FF] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7E22CE]">
                     Active
                   </span>
                 </div>
-                <p className="mt-2 text-[0.8rem] text-[#a8b6b0]">
+                <p className="mt-2 text-[12.5px] text-[#64748B]">
                   Retention suspended · placed 2026-04-08
                 </p>
               </div>
 
-              <div className="rounded-[14px] border border-white/8 bg-white/[0.03] p-4">
+              <div className="rounded-[12px] border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[0.86rem] font-medium text-[#e2e9e4]">
+                  <span className="text-[14px] font-medium text-[#0F172A]">
                     Access roles
                   </span>
-                  <span className="text-[0.8rem] text-[#a8b6b0]">5 roles</span>
+                  <span className="text-[12.5px] text-[#64748B]">5 roles</span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {[
@@ -747,7 +789,7 @@ function GovernanceSection({ content }: { content: UseCasePageContent }) {
                   ].map((r) => (
                     <span
                       key={r}
-                      className="rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-0.5 text-[0.72rem] text-[#dfe7e2]"
+                      className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-0.5 text-[11.5px] text-[#0F172A]"
                     >
                       {r}
                     </span>
@@ -755,16 +797,16 @@ function GovernanceSection({ content }: { content: UseCasePageContent }) {
                 </div>
               </div>
 
-              <div className="rounded-[14px] border border-white/8 bg-white/[0.03] p-4">
+              <div className="rounded-[12px] border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[0.86rem] font-medium text-[#e2e9e4]">
+                  <span className="text-[14px] font-medium text-[#0F172A]">
                     Audit trail
                   </span>
-                  <span className="text-[0.8rem] text-[#a8b6b0]">
+                  <span className="text-[12.5px] text-[#64748B]">
                     Last 30 days · 142 events
                   </span>
                 </div>
-                <ul className="mt-2 space-y-1 text-[0.78rem] text-[#a8b6b0]">
+                <ul className="mt-2 space-y-1 text-[12px] text-[#64748B]">
                   <li>· reviewer.access · 14:32 UTC</li>
                   <li>· report.generated · 09:18 UTC</li>
                   <li>· retention.applied · 09:14 UTC</li>
@@ -779,7 +821,7 @@ function GovernanceSection({ content }: { content: UseCasePageContent }) {
 }
 
 // =========================================================================
-// SECTION 7 — VERIFICATION SURFACE (signature dark band)
+// SECTION 7 — VERIFICATION SURFACE (signature dark band — single dark interior)
 // =========================================================================
 
 function VerificationSurfacePanel({
@@ -792,88 +834,85 @@ function VerificationSurfacePanel({
       className="relative overflow-hidden py-24 md:py-28"
       style={{
         background:
-          "linear-gradient(160deg,#06222a 0%,#0a2f3a 55%,#063040 100%)",
+          "linear-gradient(160deg,#0B1437 0%,#0E1E4A 55%,#15225E 100%)",
       }}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_22%,rgba(158,216,207,0.14),transparent_45%)]" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_78%,rgba(214,184,157,0.10),transparent_45%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_22%,rgba(0,212,255,0.12),transparent_45%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_78%,rgba(122,60,255,0.14),transparent_45%)]" />
 
-      <div className="relative z-10 mx-auto max-w-7xl px-6 md:px-8">
+      <div className="relative z-10 mx-auto max-w-[1280px] px-6 md:px-8">
         <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_1fr]">
           <div>
-            <div className="text-[0.76rem] font-semibold uppercase tracking-[0.24em] text-[#9dd2ca]">
-              The verification surface
-            </div>
-            <h2 className="mt-4 text-[1.7rem] font-semibold leading-[1.14] tracking-[-0.03em] text-[#edf3f0] md:text-[2.2rem]">
+            <Eyebrow tone="dark">The verification surface</Eyebrow>
+            <h2 className="mt-3 max-w-[640px] text-[1.7rem] font-semibold leading-[1.18] tracking-[-0.02em] text-[#edf3f0] md:text-[2.1rem]">
               One reviewer-facing layer for every record.
             </h2>
-            <p className="mt-5 text-[1.04rem] leading-[1.78] text-[#c2cdc6]">
+            <p className="mt-4 max-w-[560px] text-[15px] leading-[1.65] text-[#CBD5F5]">
               {content.visualCaption}
             </p>
 
-            <div className="relative mt-9 overflow-hidden rounded-[28px] border border-white/10 shadow-[0_30px_80px_rgba(0,0,0,0.40)]">
+            <div className="mt-8 overflow-hidden rounded-[20px] border border-white/12 bg-white shadow-[0_30px_80px_rgba(0,0,0,0.40)]">
               <img
-                src={content.industryImage}
+                src={content.verificationImage}
                 alt=""
-                className="block h-[300px] w-full object-cover object-center md:h-[380px]"
+                className="block h-auto w-full object-contain"
               />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,26,29,0.0)_50%,rgba(15,26,29,0.62)_100%)]" />
             </div>
           </div>
 
           <div>
-            <div className="rounded-[22px] border border-white/12 bg-white/[0.04] p-6 backdrop-blur-md">
+            <div className="rounded-[20px] border border-white/12 bg-white/[0.04] p-6 backdrop-blur-md">
               <div className="flex items-center justify-between">
-                <span className="text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#9dd2ca]">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#00D4FF]">
                   Evidence record
                 </span>
-                <span className="font-mono text-[0.74rem] text-[#a8b6b0]">
+                <span className="font-mono text-[12px] text-[#CBD5F5]">
                   ER-2026-04812
                 </span>
               </div>
 
               <div className="mt-5 grid gap-4">
                 <div className="flex items-center gap-3 border-b border-white/8 pb-3">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#9dd2ca]" />
-                  <span className="text-[0.9rem] font-medium text-[#e2e9e4]">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#00D4FF]" />
+                  <span className="text-[14px] font-medium text-[#edf3f0]">
                     Integrity state
                   </span>
-                  <span className="ml-auto text-[0.82rem] text-[#a8b6b0]">
+                  <span className="ml-auto text-[13px] text-[#CBD5F5]">
                     Match · captured at completion
                   </span>
                 </div>
 
                 <div className="flex items-center gap-3 border-b border-white/8 pb-3">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#9dd2ca]" />
-                  <span className="text-[0.9rem] font-medium text-[#e2e9e4]">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#00D4FF]" />
+                  <span className="text-[14px] font-medium text-[#edf3f0]">
                     Hash · SHA-256
                   </span>
-                  <span className="ml-auto font-mono text-[0.78rem] text-[#a8b6b0]">
+                  <span className="ml-auto font-mono text-[12px] text-[#CBD5F5]">
                     9e3a…f04b
                   </span>
                 </div>
 
                 <div className="flex items-center gap-3 border-b border-white/8 pb-3">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#d6b89d]" />
-                  <span className="text-[0.9rem] font-medium text-[#e2e9e4]">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#7A3CFF]" />
+                  <span className="text-[14px] font-medium text-[#edf3f0]">
                     Timestamp context
                   </span>
-                  <span className="ml-auto text-[0.82rem] text-[#a8b6b0]">
+                  <span className="ml-auto text-[13px] text-[#CBD5F5]">
                     RFC 3161 · OpenTimestamps
                   </span>
                 </div>
 
                 <div className="border-b border-white/8 pb-3">
                   <div className="flex items-center gap-3">
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-[#9dd2ca]" />
-                    <span className="text-[0.9rem] font-medium text-[#e2e9e4]">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-[#00D4FF]" />
+                    <span className="text-[14px] font-medium text-[#edf3f0]">
                       Custody history
                     </span>
-                    <span className="ml-auto text-[0.82rem] text-[#a8b6b0]">
+                    <span className="ml-auto text-[13px] text-[#CBD5F5]">
                       4 events
                     </span>
                   </div>
-                  <ul className="mt-2 space-y-1 pl-5 text-[0.8rem] text-[#a8b6b0]">
+                  <ul className="mt-2 space-y-1 pl-5 text-[12.5px] text-[#CBD5F5]">
                     <li>Created · 2026-04-12 09:14</li>
                     <li>Upload completed · 2026-04-12 09:14</li>
                     <li>Report generated · 2026-04-12 09:18</li>
@@ -882,21 +921,21 @@ function VerificationSurfacePanel({
                 </div>
 
                 <div className="flex items-center gap-3 border-b border-white/8 pb-3">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#9dd2ca]" />
-                  <span className="text-[0.9rem] font-medium text-[#e2e9e4]">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#00D4FF]" />
+                  <span className="text-[14px] font-medium text-[#edf3f0]">
                     Report
                   </span>
-                  <span className="ml-auto text-[0.82rem] text-[#a8b6b0]">
+                  <span className="ml-auto text-[13px] text-[#CBD5F5]">
                     PDF · ready
                   </span>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#9dd2ca]" />
-                  <span className="text-[0.9rem] font-medium text-[#e2e9e4]">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#00D4FF]" />
+                  <span className="text-[14px] font-medium text-[#edf3f0]">
                     Verification package
                   </span>
-                  <span className="ml-auto text-[0.82rem] text-[#a8b6b0]">
+                  <span className="ml-auto text-[13px] text-[#CBD5F5]">
                     Shareable
                   </span>
                 </div>
@@ -910,118 +949,125 @@ function VerificationSurfacePanel({
 }
 
 // =========================================================================
-// SECTION 8 — REPORTING & VERIFICATION (with product output mockups)
+// SECTION 8 — REPORTING & VERIFICATION (slate-50, three product mockups)
+// Numbered badge REMOVED from list rows
 // =========================================================================
 
 function ReportingSection({ content }: { content: UseCasePageContent }) {
   return (
-    <section className="bg-[#fbfbf8] py-20 md:py-24">
-      <div className="mx-auto max-w-6xl px-6 md:px-8">
+    <section className="bg-[#F8FAFC] py-20 md:py-24">
+      <div className="mx-auto max-w-[1280px] px-6 md:px-8">
         <SectionHeader
           eyebrow={content.reportingEyebrow}
           title={content.reportingTitle}
           intro={content.reportingIntro}
         />
 
-        {/* Product output mockups: Verification Page, Verification Package, PDF Report */}
+        {/* Product output mockups */}
         <div className="mt-12 grid gap-5 md:grid-cols-3">
-          {/* Verification Page mockup */}
-          <div className="overflow-hidden rounded-[18px] border border-[rgba(79,112,107,0.22)] bg-white shadow-[0_12px_30px_rgba(8,18,22,0.05)]">
-            <div className="border-b border-[rgba(79,112,107,0.14)] bg-[rgba(6,182,212,0.05)] px-5 py-3">
-              <div className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[#0e7490]">
+          {/* Verification Page */}
+          <div
+            className={`overflow-hidden rounded-[18px] border border-[#E2E8F0] bg-white ${CARD_SHADOW}`}
+          >
+            <div className="border-b border-[#E2E8F0] bg-[#ECFEFF] px-5 py-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0E7490]">
                 Output · Verification Page
               </div>
             </div>
             <div className="p-5">
               <div className="flex items-baseline justify-between">
-                <span className="text-[0.78rem] font-semibold uppercase tracking-[0.16em] text-[#23373b]">
+                <span className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#0F172A]">
                   Record
                 </span>
-                <span className="font-mono text-[0.72rem] text-[#8e8e8e]">
+                <span className="font-mono text-[12px] text-[#64748B]">
                   ER-04812
                 </span>
               </div>
-              <div className="mt-4 space-y-2 text-[0.82rem] text-[#55666a]">
-                <div className="flex items-center justify-between border-b border-[rgba(79,112,107,0.10)] pb-2">
+              <div className="mt-4 space-y-2 text-[13.5px] text-[#475569]">
+                <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
                   <span>Integrity</span>
-                  <span className="font-medium text-[#0f9b6c]">Match</span>
+                  <span className="font-medium text-[#0F9B6C]">Match</span>
                 </div>
-                <div className="flex items-center justify-between border-b border-[rgba(79,112,107,0.10)] pb-2">
+                <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
                   <span>Timestamp</span>
                   <span>RFC 3161</span>
                 </div>
-                <div className="flex items-center justify-between border-b border-[rgba(79,112,107,0.10)] pb-2">
+                <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
                   <span>Custody</span>
                   <span>4 events</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Re-check</span>
-                  <span className="text-[#1d4ed8]">Available →</span>
+                  <span className="text-[#1D4ED8]">Available →</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Verification Package mockup */}
-          <div className="overflow-hidden rounded-[18px] border border-[rgba(79,112,107,0.22)] bg-white shadow-[0_12px_30px_rgba(8,18,22,0.05)]">
-            <div className="border-b border-[rgba(79,112,107,0.14)] bg-[rgba(124,58,237,0.05)] px-5 py-3">
-              <div className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[#5b21b6]">
+          {/* Verification Package */}
+          <div
+            className={`overflow-hidden rounded-[18px] border border-[#E2E8F0] bg-white ${CARD_SHADOW}`}
+          >
+            <div className="border-b border-[#E2E8F0] bg-[#F5F3FF] px-5 py-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#5B21B6]">
                 Output · Verification Package
               </div>
             </div>
             <div className="p-5">
               <div className="flex items-baseline justify-between">
-                <span className="text-[0.78rem] font-semibold uppercase tracking-[0.16em] text-[#23373b]">
+                <span className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#0F172A]">
                   Bundle
                 </span>
-                <span className="font-mono text-[0.72rem] text-[#8e8e8e]">
+                <span className="font-mono text-[12px] text-[#64748B]">
                   PKG-1042
                 </span>
               </div>
-              <div className="mt-4 space-y-2 text-[0.82rem] text-[#55666a]">
-                <div className="flex items-center justify-between border-b border-[rgba(79,112,107,0.10)] pb-2">
+              <div className="mt-4 space-y-2 text-[13.5px] text-[#475569]">
+                <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
                   <span>· Evidence record</span>
-                  <span className="text-[#8e8e8e]">1</span>
+                  <span className="text-[#64748B]">1</span>
                 </div>
-                <div className="flex items-center justify-between border-b border-[rgba(79,112,107,0.10)] pb-2">
+                <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
                   <span>· PDF report</span>
-                  <span className="text-[#8e8e8e]">1</span>
+                  <span className="text-[#64748B]">1</span>
                 </div>
-                <div className="flex items-center justify-between border-b border-[rgba(79,112,107,0.10)] pb-2">
+                <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
                   <span>· Technical materials</span>
-                  <span className="text-[#8e8e8e]">3</span>
+                  <span className="text-[#64748B]">3</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>· Verification page link</span>
-                  <span className="text-[#5b21b6]">Shareable</span>
+                  <span className="text-[#5B21B6]">Shareable</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* PDF Report mockup */}
-          <div className="overflow-hidden rounded-[18px] border border-[rgba(79,112,107,0.22)] bg-white shadow-[0_12px_30px_rgba(8,18,22,0.05)]">
-            <div className="border-b border-[rgba(79,112,107,0.14)] bg-[rgba(236,72,153,0.05)] px-5 py-3">
-              <div className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[#9d174d]">
+          {/* PDF Report */}
+          <div
+            className={`overflow-hidden rounded-[18px] border border-[#E2E8F0] bg-white ${CARD_SHADOW}`}
+          >
+            <div className="border-b border-[#E2E8F0] bg-[#FDF2F8] px-5 py-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9D174D]">
                 Output · PDF Report
               </div>
             </div>
             <div className="p-5">
-              <div className="rounded-[10px] border border-[rgba(79,112,107,0.16)] bg-[#fafaf7] p-4">
-                <div className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#23373b]">
+              <div className="rounded-[10px] border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
                   Evidence Record Report
                 </div>
-                <div className="mt-2 text-[0.7rem] text-[#8e8e8e]">
+                <div className="mt-2 text-[12px] text-[#64748B]">
                   ER-2026-04812 · 7 pages
                 </div>
                 <div className="mt-3 space-y-1.5">
-                  <div className="h-1.5 w-[88%] rounded bg-[rgba(79,112,107,0.18)]" />
-                  <div className="h-1.5 w-[74%] rounded bg-[rgba(79,112,107,0.16)]" />
-                  <div className="h-1.5 w-[82%] rounded bg-[rgba(79,112,107,0.16)]" />
-                  <div className="h-1.5 w-[68%] rounded bg-[rgba(79,112,107,0.14)]" />
-                  <div className="h-1.5 w-[78%] rounded bg-[rgba(79,112,107,0.14)]" />
+                  <div className="h-1.5 w-[88%] rounded bg-[#E2E8F0]" />
+                  <div className="h-1.5 w-[74%] rounded bg-[#E2E8F0]" />
+                  <div className="h-1.5 w-[82%] rounded bg-[#E2E8F0]" />
+                  <div className="h-1.5 w-[68%] rounded bg-[#E2E8F0]" />
+                  <div className="h-1.5 w-[78%] rounded bg-[#E2E8F0]" />
                 </div>
-                <div className="mt-4 flex items-center justify-between border-t border-[rgba(79,112,107,0.12)] pt-2 text-[0.7rem] text-[#8e8e8e]">
+                <div className="mt-4 flex items-center justify-between border-t border-[#E2E8F0] pt-2 text-[12px] text-[#64748B]">
                   <span>Signed · digital signature</span>
                   <span className="font-mono">9e3a…f04b</span>
                 </div>
@@ -1030,62 +1076,57 @@ function ReportingSection({ content }: { content: UseCasePageContent }) {
           </div>
         </div>
 
-        {/* Reporting items list */}
-        <ol className="mt-12 space-y-4">
+        {/* Reporting items — no numbered badges, just title + body */}
+        <ul className="mt-10 grid gap-5 md:grid-cols-2">
           {content.reportingItems.map((it, i) => (
             <li
               key={i}
-              className="flex gap-5 rounded-[16px] border border-[rgba(79,112,107,0.22)] bg-white p-5 shadow-[0_8px_22px_rgba(8,18,22,0.04)]"
+              className={`rounded-[16px] border border-[#E2E8F0] bg-white p-5 ${CARD_SHADOW}`}
             >
-              <span className="mt-[2px] flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[rgba(183,157,132,0.42)] bg-[#fcfbf6] text-[0.78rem] font-semibold text-[#8e7863]">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <div>
-                <h3 className="text-[1.04rem] font-semibold tracking-[-0.01em] text-[#23373b]">
-                  {it.title}
-                </h3>
-                <p className="mt-2 text-[0.96rem] leading-[1.78] text-[#55666a]">
-                  {it.body}
-                </p>
-              </div>
+              <h3 className="text-[15.5px] font-semibold tracking-[-0.01em] text-[#0F172A]">
+                {it.title}
+              </h3>
+              <p className="mt-2 text-[14.5px] leading-[1.7] text-[#475569]">
+                {it.body}
+              </p>
             </li>
           ))}
-        </ol>
+        </ul>
       </div>
     </section>
   );
 }
 
 // =========================================================================
-// SECTION 9 — FAQ
+// SECTION 9 — FAQ (white)
 // =========================================================================
 
 function FAQSection({ content }: { content: UseCasePageContent }) {
   return (
-    <section className="bg-[#f4f5f1] py-20 md:py-24">
-      <div className="mx-auto max-w-4xl px-6 md:px-8">
+    <section className="bg-white py-20 md:py-24">
+      <div className="mx-auto max-w-[820px] px-6 md:px-8">
         <SectionHeader
           eyebrow={content.faqEyebrow}
           title={content.faqTitle}
           intro={content.faqIntro}
         />
 
-        <div className="mt-12 space-y-3">
+        <div className="mt-10 space-y-3">
           {content.faqs.map((f, i) => (
             <details
               key={i}
-              className="group rounded-[14px] border border-[rgba(79,112,107,0.22)] bg-white open:shadow-[0_10px_28px_rgba(8,18,22,0.05)]"
+              className={`group rounded-[14px] border border-[#E2E8F0] bg-white open:${CARD_SHADOW}`}
             >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-[0.98rem] font-semibold text-[#23373b]">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-[15px] font-semibold text-[#0F172A]">
                 <span>{f.q}</span>
                 <span
                   aria-hidden="true"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[rgba(79,112,107,0.32)] text-[0.9rem] text-[#4f706b] transition-transform duration-200 group-open:rotate-45"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E2E8F0] text-[15px] text-[#475569] transition-transform duration-200 group-open:rotate-45"
                 >
                   +
                 </span>
               </summary>
-              <div className="border-t border-[rgba(79,112,107,0.14)] px-5 py-4 text-[0.94rem] leading-[1.78] text-[#55666a]">
+              <div className="border-t border-[#E2E8F0] px-5 py-4 text-[14.5px] leading-[1.7] text-[#475569]">
                 {f.a}
               </div>
             </details>
@@ -1098,13 +1139,13 @@ function FAQSection({ content }: { content: UseCasePageContent }) {
 
 function LimitationNote() {
   return (
-    <section className="bg-[#f4f5f1] pb-12">
-      <div className="mx-auto max-w-3xl px-6 md:px-8">
-        <div className="rounded-[16px] border border-[rgba(79,112,107,0.18)] bg-[rgba(255,255,255,0.55)] px-5 py-4">
-          <div className="text-[0.74rem] font-semibold uppercase tracking-[0.2em] text-[#8e7863]">
+    <section className="bg-white pb-14">
+      <div className="mx-auto max-w-[820px] px-6 md:px-8">
+        <div className="rounded-[14px] border border-[#E2E8F0] bg-[#F8FAFC] px-5 py-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
             Important limitation
           </div>
-          <p className="mt-2 text-[0.92rem] leading-[1.75] text-[#55666a]">
+          <p className="mt-2 text-[13.5px] leading-[1.7] text-[#475569]">
             {LIMITATION_COPY}
           </p>
         </div>
@@ -1114,26 +1155,26 @@ function LimitationNote() {
 }
 
 // =========================================================================
-// SECTION 10 — FINAL CTA
+// SECTION 10 — FINAL CTA (dark — consistent with all marketing-site CTAs)
 // =========================================================================
 
 function FinalCTA({ content }: { content: UseCasePageContent }) {
   return (
-    <section className="relative overflow-hidden bg-[#0c1820] py-20 md:py-24">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(124,58,237,0.18),transparent_45%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_78%,rgba(6,182,212,0.14),transparent_45%)]" />
+    <section className="relative overflow-hidden bg-[#0B1437] py-20 md:py-24">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(122,60,255,0.18),transparent_45%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_78%,rgba(0,212,255,0.14),transparent_45%)]" />
 
-      <div className="relative z-10 mx-auto max-w-4xl px-6 text-center md:px-8">
-        <h2 className="text-[1.75rem] font-semibold leading-[1.14] tracking-[-0.03em] text-[#edf1ef] md:text-[2.25rem]">
+      <div className="relative z-10 mx-auto max-w-[820px] px-6 text-center md:px-8">
+        <h2 className="text-[1.7rem] font-semibold leading-[1.18] tracking-[-0.02em] text-white md:text-[2.1rem]">
           {content.ctaTitle}
         </h2>
-        <p className="mx-auto mt-5 max-w-[680px] text-[1.02rem] leading-[1.78] text-[#c7cfcc]">
+        <p className="mx-auto mt-4 max-w-[640px] text-[15px] leading-[1.65] text-[#CBD5F5]">
           {content.ctaBody}
         </p>
-        <div className="mt-9 flex flex-wrap justify-center gap-3">
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link
             href={SALES_ASSETS.requestDemoUrl}
-            className="inline-flex min-h-[52px] items-center justify-center rounded-full border border-white/14 px-8 py-3 text-[15px] font-semibold text-white shadow-[0_18px_36px_rgba(91,33,182,0.32)] transition duration-300 hover:translate-y-[-1px]"
+            className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/14 px-7 py-3 text-[14px] font-semibold text-white shadow-[0_18px_36px_rgba(91,33,182,0.32)] transition duration-300 hover:translate-y-[-1px]"
             style={{
               background:
                 "linear-gradient(120deg,#2D2A7B 0%,#5B21B6 48%,#A21CAF 100%)",
@@ -1145,7 +1186,7 @@ function FinalCTA({ content }: { content: UseCasePageContent }) {
             href={SALES_ASSETS.sampleReportUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-[52px] items-center justify-center rounded-full border border-white/22 bg-white/[0.045] px-8 py-3 text-[15px] font-semibold text-[#e9eee9] backdrop-blur-md transition duration-300 hover:translate-y-[-1px] hover:bg-white/[0.08]"
+            className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/22 bg-white/[0.045] px-7 py-3 text-[14px] font-semibold text-[#eef3f1] backdrop-blur-md transition duration-300 hover:translate-y-[-1px] hover:bg-white/[0.08]"
           >
             View Sample Report
           </a>
@@ -1161,7 +1202,7 @@ function FinalCTA({ content }: { content: UseCasePageContent }) {
 
 export function UseCasePage({ content }: { content: UseCasePageContent }) {
   return (
-    <div className="page landing-page">
+    <div className="page landing-page bg-[var(--proovra-page-bg)]">
       <Hero content={content} />
       <IndustryChallengesSection content={content} />
       <WorkflowSection content={content} />

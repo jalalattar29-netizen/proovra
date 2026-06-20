@@ -21,6 +21,7 @@ export type FaqItem = {
 export type UseCasePageContent = {
   slug: string;
   industryImage: string;
+  verificationImage: string;
 
   eyebrow: string;
   headline: string;
@@ -73,6 +74,7 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
   lawyers: {
     slug: "lawyers",
     industryImage: "/assets/industries/industry-legal.png",
+    verificationImage: "/assets/verification/law-verification.png",
 
     eyebrow: "For Law Firms & In-House Legal",
     headline: "A structured evidence layer for",
@@ -330,6 +332,7 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
   insurance: {
     slug: "insurance",
     industryImage: "/assets/industries/industry-insurance.png",
+    verificationImage: "/assets/verification/insurance-verification.png",
 
     eyebrow: "For Claims, Adjusters & SIU",
     headline: "Claim evidence with",
@@ -587,6 +590,7 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
   investigations: {
     slug: "investigations",
     industryImage: "/assets/industries/industry-investigations.png",
+    verificationImage: "/assets/verification/investigator-verification.png",
 
     eyebrow: "For Corporate Investigations & HR",
     headline: "One review-grade evidence layer for",
@@ -844,6 +848,7 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
   journalism: {
     slug: "journalism",
     industryImage: "/assets/industries/industry-journalism.png",
+    verificationImage: "/assets/verification/journalism-verification.png",
 
     eyebrow: "For Newsrooms & Editorial Teams",
     headline: "Source material preserved with",
@@ -1101,6 +1106,7 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
   compliance: {
     slug: "compliance",
     industryImage: "/assets/industries/industry-compliance.png",
+    verificationImage: "/assets/verification/audit-verification.png",
 
     eyebrow: "For Compliance, Audit & Controls",
     headline: "Traceable evidence for",
@@ -1358,6 +1364,7 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
   government: {
     slug: "government",
     industryImage: "/assets/industries/industry-government.png",
+    verificationImage: "/assets/verification/goverment-verification.png",
 
     eyebrow: "For Public Sector & Agencies",
     headline: "Public-sector recordkeeping with",

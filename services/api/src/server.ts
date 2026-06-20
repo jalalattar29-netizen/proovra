@@ -7,6 +7,8 @@ import Fastify from "fastify";
 import type { FastifyBaseLogger } from "fastify";
 import { demoRequestsRoutes } from "./routes/demo-requests.routes.js";
 import { adminDemoRequestsRoutes } from "./routes/admin-demo-requests.routes.js";
+import { contactSalesRoutes } from "./routes/contact-sales.routes.js";
+import { adminContactSalesRoutes } from "./routes/admin-contact-sales.routes.js";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import { ZodError } from "zod";
@@ -1012,6 +1014,8 @@ allowedHeaders: [
   await app.register(analyticsRoutes);
   await app.register(demoRequestsRoutes);
   await app.register(adminDemoRequestsRoutes);
+  await app.register(contactSalesRoutes);
+  await app.register(adminContactSalesRoutes);
   await app.register(adminAuditRoutes);
   // Phase 2 Workflow Engine — additive routes under /v1/workflow/*. The
   // capture page does not consume these yet; that is Phase 3.

@@ -16,6 +16,7 @@ import {
   validateContactSalesForm,
 } from "../lib/contact-sales-schema";
 import { SALES_ASSETS } from "../lib/sales-assets";
+import { LeadSuccessModal } from "./marketing/LeadSuccessModal";
 
 type ContactSalesFormProps = {
   submitUrl?: string;
@@ -27,7 +28,7 @@ type ContactSalesFormProps = {
 
 export function ContactSalesForm({
   submitUrl = "/api/contact-sales",
-  redirectOnSuccess = true,
+  redirectOnSuccess = false, // success modal is the default UX now
   successUrl = SALES_ASSETS.requestDemoSuccessUrl,
   submitButtonLabel = "Contact sales",
   onSubmitted,
@@ -42,6 +43,7 @@ export function ContactSalesForm({
     Partial<Record<keyof ContactSalesFormValues, string>>
   >({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successOpen, setSuccessOpen] = useState(false);
 
   const teamSizeOptions = [...CONTACT_SALES_TEAM_SIZE_OPTIONS];
   const topicOptions = [...DISCUSSION_TOPIC_OPTIONS];
@@ -86,10 +88,6 @@ export function ContactSalesForm({
 
       setForm(CONTACT_SALES_DEFAULTS);
       setErrors({});
-      addToast(
-        "Enterprise inquiry received. The right PROOVRA team will review your request and respond.",
-        "success"
-      );
 
       onSubmitted?.(data);
 
@@ -97,6 +95,8 @@ export function ContactSalesForm({
         router.push(successUrl);
         return;
       }
+
+      setSuccessOpen(true);
     } catch {
       addToast(
         "We couldn't submit your enterprise inquiry right now. Please try again or contact support@proovra.com.",
@@ -326,6 +326,12 @@ export function ContactSalesForm({
           Request a demo
         </a>
       </div>
+
+      <LeadSuccessModal
+        open={successOpen}
+        variant="contactSales"
+        onClose={() => setSuccessOpen(false)}
+      />
     </form>
   );
 }

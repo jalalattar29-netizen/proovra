@@ -29,7 +29,7 @@ import {
   BookText,
   Building,
 } from "lucide-react";
-import { MARKETING_ASSETS, MARKETING_COPY, MARKETING_LINKS } from "./tokens";
+import { MARKETING_COPY, MARKETING_LINKS } from "./tokens";
 
 type DropdownItem = {
   label: string;
@@ -222,8 +222,26 @@ const NAV: NavGroup[] = [
   { label: "Verify", href: MARKETING_LINKS.verify },
 ];
 
+const LOGO_SRC = "/assets/branding/logo-dark.png";
+
+const navPillStyle = {
+  background: "rgba(15, 23, 42, 0.36)",
+  backdropFilter: "blur(14px)",
+  WebkitBackdropFilter: "blur(14px)",
+  border: "1px solid rgba(255,255,255,0.18)",
+  boxShadow: "0 8px 22px rgba(15,23,42,0.08)",
+};
+
+const navTextClass =
+  "text-white/90 hover:text-white hover:bg-white/10";
+
+const navActiveStyle = {
+  background: "rgba(255,255,255,0.12)",
+  color: "rgba(255,255,255,0.96)",
+};
+
 export function MarketingHeader() {
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+    const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -234,30 +252,33 @@ export function MarketingHeader() {
   }, [mobileOpen]);
 
   return (
-    <header
-      className="absolute top-0 left-0 right-0 z-50 w-full"
-      style={{
-        fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif",
-        background: "transparent",
-      }}
-    >
-      <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-4 px-5 md:px-7 py-2.5 lg:gap-6 lg:px-10 2xl:px-12 lg:py-3">
-        <Link
-          href="/"
-          className="flex shrink-0 items-center"
-          aria-label={MARKETING_COPY.brandName}
+<header
+className="absolute top-0 left-0 right-0 z-50 w-full"style={{
+  fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif",
+  background: "transparent",
+}}
+>
+    <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-4 px-5 py-1.5 md:px-7 lg:gap-5 lg:px-10 2xl:px-12">
+<Link
+  href="/"
+className="flex shrink-0 items-center"
+            aria-label={MARKETING_COPY.brandName}
           onClick={() => setOpenDropdown(null)}
         >
-          <img
-            src={MARKETING_ASSETS.brand.logoHeader}
-            alt={`${MARKETING_COPY.brandName} — ${MARKETING_COPY.brandTagline}`}
-            className="w-[180px] h-auto object-contain md:w-[210px] lg:w-[230px]"
-            style={{ objectFit: "contain" }}
-          />
+<img
+  src={LOGO_SRC}
+  alt={`${MARKETING_COPY.brandName} — ${MARKETING_COPY.brandTagline}`}
+className="h-auto w-[210px] object-contain drop-shadow-[0_2px_12px_rgba(15,23,42,0.10)] md:w-[235px] lg:w-[250px]"
+  style={{ objectFit: "contain" }}
+/>
         </Link>
 
-        <nav className="hidden items-center gap-0.5 xl:flex" aria-label="Primary">
-          {NAV.map((group) =>
+<nav
+  className="hidden items-center gap-0.5 rounded-full px-1.5 py-1 xl:flex"
+  style={navPillStyle}
+  aria-label="Primary"
+>
+            {NAV.map((group) =>
             group.items ? (
               <div
                 key={group.label}
@@ -267,21 +288,8 @@ export function MarketingHeader() {
               >
                 <button
                   type="button"
-                  className={`flex items-center gap-1 whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium transition-colors ${
-                    openDropdown === group.label
-                      ? "text-[#0B1F5E]"
-                      : "text-[#0F172A]"
-                  }`}
-                  style={
-                    openDropdown === group.label
-                      ? { background: "rgba(37,99,235,0.08)" }
-                      : undefined
-                  }
-                  onMouseEnter={(e) => {
-                    if (openDropdown !== group.label) {
-                      e.currentTarget.style.background = "rgba(37,99,235,0.06)";
-                    }
-                  }}
+className={`flex items-center gap-1 whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium transition-colors ${navTextClass}`}
+style={openDropdown === group.label ? navActiveStyle : undefined}
                   onMouseLeave={(e) => {
                     if (openDropdown !== group.label) {
                       e.currentTarget.style.background = "";
@@ -351,13 +359,7 @@ export function MarketingHeader() {
               <Link
                 key={group.label}
                 href={group.href ?? "#"}
-                className="whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium text-[#0F172A] transition-colors"
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(37,99,235,0.06)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "";
-                }}
+className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium transition-colors ${navTextClass}`}
               >
                 {group.label}
               </Link>
@@ -368,19 +370,14 @@ export function MarketingHeader() {
         <div className="hidden shrink-0 items-center gap-2 xl:flex">
           <Link
             href={MARKETING_LINKS.signIn}
-            className="whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium text-[#0F172A] transition-colors"
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(37,99,235,0.06)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "";
-            }}
+className="whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white"
+style={navPillStyle}
           >
             Sign in
           </Link>
           <Link
             href={MARKETING_LINKS.requestDemo}
-            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#0B1F5E] px-4 py-2.5 text-[14px] font-semibold text-white shadow-[0_6px_18px_rgba(11,31,94,0.22)] transition-all hover:bg-[#0a1c54] hover:shadow-[0_10px_24px_rgba(11,31,94,0.30)]"
+className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-4 py-2.5 text-[14px] font-semibold text-[#0F172A] shadow-[0_10px_28px_rgba(15,23,42,0.20)] transition-all hover:bg-[#F8FAFC] hover:shadow-[0_14px_34px_rgba(15,23,42,0.26)]"
           >
             Request a demo
             <ArrowRight size={14} />
@@ -389,7 +386,7 @@ export function MarketingHeader() {
 
         <button
           type="button"
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#E5E7EB] bg-white text-[#0F172A] xl:hidden"
+className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-slate-950/45 text-white backdrop-blur-xl xl:hidden"
           onClick={() => setMobileOpen(true)}
           aria-label="Open menu"
         >
@@ -406,9 +403,9 @@ export function MarketingHeader() {
               onClick={() => setMobileOpen(false)}
             >
               <img
-                src={MARKETING_ASSETS.brand.logoHeader}
+src={LOGO_SRC}
                 alt={`${MARKETING_COPY.brandName} — ${MARKETING_COPY.brandTagline}`}
-                className="w-[170px] h-auto object-contain"
+className="w-[170px] h-auto object-contain"
                 style={{ objectFit: "contain" }}
               />
             </Link>
