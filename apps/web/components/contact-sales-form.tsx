@@ -26,7 +26,7 @@ type ContactSalesFormProps = {
 };
 
 export function ContactSalesForm({
-  submitUrl = "/api/request-demo",
+  submitUrl = "/api/contact-sales",
   redirectOnSuccess = true,
   successUrl = SALES_ASSETS.requestDemoSuccessUrl,
   submitButtonLabel = "Contact sales",
@@ -74,18 +74,22 @@ export function ContactSalesForm({
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
+        const upstreamMessage =
+          data?.error?.message || data?.error || data?.message;
         const errorMessage =
-          data?.error?.message ||
-          data?.error ||
-          data?.message ||
-          "Unable to submit your request right now.";
+          typeof upstreamMessage === "string" && upstreamMessage.trim()
+            ? upstreamMessage
+            : "We couldn't submit your enterprise inquiry right now. Please try again or contact support@proovra.com.";
         addToast(errorMessage, "error");
         return;
       }
 
       setForm(CONTACT_SALES_DEFAULTS);
       setErrors({});
-      addToast("Enterprise inquiry submitted successfully.", "success");
+      addToast(
+        "Enterprise inquiry received. The right PROOVRA team will review your request and respond.",
+        "success"
+      );
 
       onSubmitted?.(data);
 
@@ -94,7 +98,10 @@ export function ContactSalesForm({
         return;
       }
     } catch {
-      addToast("Network error while submitting the inquiry.", "error");
+      addToast(
+        "We couldn't submit your enterprise inquiry right now. Please try again or contact support@proovra.com.",
+        "error"
+      );
     } finally {
       setIsSubmitting(false);
     }

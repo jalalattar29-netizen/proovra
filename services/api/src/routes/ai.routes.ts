@@ -12,6 +12,11 @@ import { AiChatService } from "../services/ai/ai-chat.service.js";
 import { AiCaptureService } from "../services/ai/ai-capture.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
+import { getPersonalWorkspaceScope } from "../services/workspace-billing.service.js";
+import {
+  assertWorkspaceAllowsAiOperation,
+  recordWorkspaceAiOperation,
+} from "../services/billing-enforcement.service.js";
 
 const aiProvider = createAiProvider();
 const aiCostGuard = new AiCostGuard();
@@ -307,6 +312,23 @@ export async function aiRoutes(app: FastifyInstance) {
 
       // Phase A3 — bounded timeout. The cost guard cannot save us
       // from a provider that simply never responds; this does.
+      // Pricing-hardening: plan-aware monthly AI cap. Throws
+      // AI_MONTHLY_LIMIT_REACHED (429) when over cap. ENTERPRISE skips.
+      const aiScope = await getPersonalWorkspaceScope(userId);
+      try {
+        await assertWorkspaceAllowsAiOperation(aiScope);
+      } catch (err) {
+        const code =
+          (err as { code?: string }).code ?? "AI_MONTHLY_LIMIT_REACHED";
+        const status = (err as { statusCode?: number }).statusCode ?? 429;
+        return reply.code(status).send({
+          code,
+          message:
+            (err as Error).message ??
+            "Monthly AI advisory limit reached for current plan",
+        });
+      }
+
       let result: Awaited<ReturnType<typeof aiChatService.analyzeChat>>;
       try {
         result = await withAiTimeout(
@@ -359,6 +381,17 @@ export async function aiRoutes(app: FastifyInstance) {
         emitAiChatAbuseSignal(req, userId, "cost_guard_exceeded");
       }
 
+      // Pricing-hardening: only successful operations count toward the
+      // plan's monthly cap. Failure / block paths do not consume.
+      if (result.status === "ok") {
+        try {
+          await recordWorkspaceAiOperation(aiScope);
+        } catch {
+          // Counter failures must not surface to the user — log and
+          // move on; over-charging a user is worse than under-counting.
+        }
+      }
+
       fireAiAnalytics({
         eventType: "ai_chat_request",
         userId,
@@ -373,11 +406,34 @@ export async function aiRoutes(app: FastifyInstance) {
   app.post(
     "/v1/ai/capture/analyze-session",
     { preHandler: [requireAuthAndLegal] },
-    async (req) => {
+    async (req, reply) => {
       const userId = getAuthUserId(req);
       const body = CaptureSessionReviewBody.parse(req.body);
 
+      // Pricing-hardening: plan-aware monthly AI cap.
+      const aiScope = await getPersonalWorkspaceScope(userId);
+      try {
+        await assertWorkspaceAllowsAiOperation(aiScope);
+      } catch (err) {
+        const code =
+          (err as { code?: string }).code ?? "AI_MONTHLY_LIMIT_REACHED";
+        const status = (err as { statusCode?: number }).statusCode ?? 429;
+        return reply.code(status).send({
+          code,
+          message:
+            (err as Error).message ??
+            "Monthly AI advisory limit reached for current plan",
+        });
+      }
+
       const result = await aiCaptureService.analyzeSession(userId, body);
+      if (result.status === "ok") {
+        try {
+          await recordWorkspaceAiOperation(aiScope);
+        } catch {
+          /* see chat handler comment */
+        }
+      }
 
       auditAiAction(req, {
         userId,
@@ -411,11 +467,34 @@ export async function aiRoutes(app: FastifyInstance) {
   app.post(
     "/v1/ai/capture/analyze-item",
     { preHandler: [requireAuthAndLegal] },
-    async (req) => {
+    async (req, reply) => {
       const userId = getAuthUserId(req);
       const body = CaptureItemReviewBody.parse(req.body);
 
+      // Pricing-hardening: plan-aware monthly AI cap.
+      const aiScope = await getPersonalWorkspaceScope(userId);
+      try {
+        await assertWorkspaceAllowsAiOperation(aiScope);
+      } catch (err) {
+        const code =
+          (err as { code?: string }).code ?? "AI_MONTHLY_LIMIT_REACHED";
+        const status = (err as { statusCode?: number }).statusCode ?? 429;
+        return reply.code(status).send({
+          code,
+          message:
+            (err as Error).message ??
+            "Monthly AI advisory limit reached for current plan",
+        });
+      }
+
       const result = await aiCaptureService.analyzeItem(userId, body);
+      if (result.status === "ok") {
+        try {
+          await recordWorkspaceAiOperation(aiScope);
+        } catch {
+          /* see chat handler comment */
+        }
+      }
 
       auditAiAction(req, {
         userId,

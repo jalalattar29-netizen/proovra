@@ -36,6 +36,14 @@ export type WorkspaceScope = {
   teamSeats: number;
   storageBytesOverride: bigint | null;
   activeStorageAddonBytes: bigint;
+  /**
+   * Grandfather override for the lifetime evidence-record cap. Set on
+   * the active Entitlement row for users that already exceeded the
+   * new per-plan caps at migration time so existing records remain
+   * accessible. `null` means "use the plan default". For TEAM-scope
+   * scopes this is sourced from the team owner's entitlement.
+   */
+  legacyRecordCapOverride: number | null;
 };
 
 function toBillingWorkspaceScope(scope: WorkspaceScope): BillingWorkspaceScope {
@@ -119,6 +127,14 @@ export async function getPersonalWorkspaceScope(
     teamSeats: 0,
     storageBytesOverride: null,
     activeStorageAddonBytes,
+    // Phase HOME-DATA-OWNERSHIP — `legacyRecordCapOverride` was
+    // added by the pricing-hardening migration. The Prisma client
+    // picks it up after `prisma generate`; the cast below survives
+    // both pre- and post-generate states without weakening the
+    // surrounding type.
+    legacyRecordCapOverride:
+      (entitlement as { legacyRecordCapOverride?: number | null })
+        .legacyRecordCapOverride ?? null,
   };
 
   assertWorkspacePlanCompatible(toBillingWorkspaceScope(scope));
@@ -206,6 +222,14 @@ export async function getTeamWorkspaceScope(
     ),
     storageBytesOverride: team.storageBytesOverride ?? null,
     activeStorageAddonBytes,
+    // Pricing-hardening: TEAM workspaces inherit the team OWNER's
+    // grandfather override (the legacy cap is per-payer, not per-team
+    // workspace). Personal-only sub-accounts won't have an override
+    // here; this only applies to existing Pro/Team payers that hit
+    // the new cap before the migration ran.
+    legacyRecordCapOverride:
+      (ownerEntitlement as { legacyRecordCapOverride?: number | null })
+        .legacyRecordCapOverride ?? null,
   };
 
   assertWorkspacePlanCompatible(toBillingWorkspaceScope(scope));

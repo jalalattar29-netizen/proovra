@@ -277,6 +277,8 @@ model Evidence {
   @@index([ownerUserId, archivedAt])
   @@index([ownerUserId, status])
   @@index([organizationId, createdAt(sort: Desc)])
+  @@index([teamId, createdAt(sort: Desc)])
+  @@index([teamId, deletedAt, createdAt(sort: Desc)])
   @@index([fileSha256])
   @@index([fingerprintHash])
   @@index([guestIdentityId])
@@ -1750,16 +1752,22 @@ model GuestIdentity {
 }
 
 model Entitlement {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId     String    @map("user_id") @db.Uuid
-  plan       PlanType
-  credits    Int       @default(0)
-  teamSeats  Int       @default(0) @map("team_seats")
-  active     Boolean   @default(true)
-  validUntil DateTime? @map("valid_until") @db.Timestamptz(6)
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                   String    @map("user_id") @db.Uuid
+  plan                     PlanType
+  credits                  Int       @default(0)
+  teamSeats                Int       @default(0) @map("team_seats")
+  active                   Boolean   @default(true)
+  validUntil               DateTime? @map("valid_until") @db.Timestamptz(6)
+  /// Grandfather override: when set, replaces the plan's lifetime
+  /// evidence-record cap for this user. Backfilled for accounts that
+  /// already exceeded the new Pro/Team caps at the time of the
+  /// pricing-hardening migration so existing records remain accessible
+  /// while new creation is blocked above their grandfathered allowance.
+  legacyRecordCapOverride  Int?      @map("legacy_record_cap_override")
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("entitlements")
@@ -2561,6 +2569,7 @@ enum PlanType {
   PAYG
   PRO
   TEAM
+  ENTERPRISE
 }
 
 enum PaymentProvider {

@@ -8,14 +8,8 @@ import {
   ChevronDown,
   Menu,
   X,
-  LayoutDashboard,
-  Camera,
-  FileBadge,
   ShieldCheck,
   FileText,
-  Package,
-  Briefcase,
-  Users,
   Scale,
   Building2,
   Search,
@@ -54,68 +48,13 @@ type NavGroup = {
 };
 
 const NAV: NavGroup[] = [
-  {
-    label: "Platform",
-    cols: 2,
-    items: [
-      {
-        label: "Overview",
-        href: MARKETING_LINKS.platform.overview,
-        description: "End-to-end evidence operations platform",
-        Icon: LayoutDashboard,
-        iconColor: "#2563EB",
-      },
-      {
-        label: "Capture",
-        href: MARKETING_LINKS.platform.capture,
-        description: "Collect evidence from files, devices, and intake links",
-        Icon: Camera,
-        iconColor: "#F97316",
-      },
-      {
-        label: "Evidence Records",
-        href: MARKETING_LINKS.platform.evidenceRecords,
-        description: "Structured records with hashes, metadata, and custody events",
-        Icon: FileBadge,
-        iconColor: "#7C3AED",
-      },
-      {
-        label: "Verification",
-        href: MARKETING_LINKS.platform.verification,
-        description: "Verify URLs, hashes, and evidence packages",
-        Icon: ShieldCheck,
-        iconColor: "#06B6D4",
-      },
-      {
-        label: "Reports",
-        href: MARKETING_LINKS.platform.reports,
-        description: "Court-review-ready reports with audit trail",
-        Icon: FileText,
-        iconColor: "#EC4899",
-      },
-      {
-        label: "Verification Packages",
-        href: MARKETING_LINKS.platform.verificationPackages,
-        description: "Portable signed bundles for independent review",
-        Icon: Package,
-        iconColor: "#2563EB",
-      },
-      {
-        label: "Cases & Matters",
-        href: MARKETING_LINKS.platform.cases,
-        description: "Organize evidence into claims, incidents, investigations",
-        Icon: Briefcase,
-        iconColor: "#7C3AED",
-      },
-      {
-        label: "Teams & Workspaces",
-        href: MARKETING_LINKS.platform.teams,
-        description: "Roles, collaboration, and workspace access control",
-        Icon: Users,
-        iconColor: "#F97316",
-      },
-    ],
-  },
+  // Platform is a single direct link to the unified /platform page.
+  // The old mega-menu sub-items (Overview, Capture, Evidence Records,
+  // Verification, Reports, Verification Packages, Cases & Matters,
+  // Teams & Workspaces) were consolidated into anchors on /platform
+  // and are no longer surfaced in navigation. Old `/platform/<sub>`
+  // URLs are redirected to /platform in next.config.js.
+  { label: "Platform", href: MARKETING_LINKS.platform.overview },
   {
     label: "Solutions",
     cols: 2,

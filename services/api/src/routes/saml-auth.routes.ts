@@ -48,6 +48,9 @@ import {
   handleSamlAssertion,
   SamlMappingError,
 } from "../services/security/saml-user-mapping.service.js";
+// SAML admin endpoints are Enterprise-only — gate resolver imported
+// from a shared service to keep this file within the R8 baseline.
+import { resolveSamlConnectionEnterpriseGate } from "../services/enterprise-gate-resolvers.service.js";
 import {
   buildSamlAuthnRequest,
 } from "../services/security/saml-authn-request.service.js";
@@ -789,6 +792,13 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         .object({ connectionId: z.string().uuid() })
         .parse(req.params);
 
+      const gate = await resolveSamlConnectionEnterpriseGate(connectionId);
+      if (!gate.ok) {
+        return reply
+          .code(gate.statusCode)
+          .send({ error: { code: gate.reason, upgradeCta: "/contact-sales" } });
+      }
+
       // Accept raw XML body or JSON with { metadataXml, metadataUrl }
       let metadataXml: string | null = null;
       const body = req.body as
@@ -939,6 +949,13 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
       const { connectionId } = z
         .object({ connectionId: z.string().uuid() })
         .parse(req.params);
+
+      const gate = await resolveSamlConnectionEnterpriseGate(connectionId);
+      if (!gate.ok) {
+        return reply
+          .code(gate.statusCode)
+          .send({ error: { code: gate.reason, upgradeCta: "/contact-sales" } });
+      }
 
       const actorUserId = (req as FastifyRequest & { user?: { sub?: string } })
         .user?.sub;
@@ -1144,6 +1161,13 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         .object({ connectionId: z.string().uuid() })
         .parse(req.params);
 
+      const gate = await resolveSamlConnectionEnterpriseGate(connectionId);
+      if (!gate.ok) {
+        return reply
+          .code(gate.statusCode)
+          .send({ error: { code: gate.reason, upgradeCta: "/contact-sales" } });
+      }
+
       const body = z
         .object({
           // Base64-only certificate (no PEM header/footer lines)
@@ -1248,6 +1272,13 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
       const { connectionId } = z
         .object({ connectionId: z.string().uuid() })
         .parse(req.params);
+
+      const gate = await resolveSamlConnectionEnterpriseGate(connectionId);
+      if (!gate.ok) {
+        return reply
+          .code(gate.statusCode)
+          .send({ error: { code: gate.reason, upgradeCta: "/contact-sales" } });
+      }
 
       const actorUserId = (req as FastifyRequest & { user?: { sub?: string } })
         .user?.sub;

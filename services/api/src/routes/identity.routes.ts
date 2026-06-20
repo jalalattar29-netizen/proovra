@@ -46,6 +46,7 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { denyTeamIfNotEnterprise as denyIfTeamNotEnterprise } from "../services/enterprise-gate-resolvers.service.js";
 import {
   PermissionSchema,
   DELEGATED_ADMIN_SCOPE_KINDS,
@@ -764,6 +765,7 @@ export async function identityRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const actor = await requireIdentityActor(req, reply, q.teamId, "identity.access_review.read");
       if (!actor) return;
+      if (await denyIfTeamNotEnterprise(reply, q.teamId, "accessReviews")) return;
       const rows = await listAccessReviews(q);
       return reply.code(200).send({ accessReviews: rows });
     },
@@ -776,6 +778,7 @@ export async function identityRoutes(app: FastifyInstance) {
       const body = z.object({ teamId: z.string().uuid() }).parse(req.body ?? {});
       const actor = await requireIdentityActor(req, reply, body.teamId, "identity.access_review.action");
       if (!actor) return;
+      if (await denyIfTeamNotEnterprise(reply, body.teamId, "accessReviews")) return;
       const { created } = await regenerateAccessReviewQueue({
         teamId: body.teamId,
         actorUserId: actor.userId,
@@ -804,6 +807,7 @@ export async function identityRoutes(app: FastifyInstance) {
       const body = DecisionBody.parse(req.body ?? {});
       const actor = await requireIdentityActor(req, reply, body.teamId, "identity.access_review.action");
       if (!actor) return;
+      if (await denyIfTeamNotEnterprise(reply, body.teamId, "accessReviews")) return;
       try {
         const updated = await completeAccessReview({
           teamId: body.teamId,

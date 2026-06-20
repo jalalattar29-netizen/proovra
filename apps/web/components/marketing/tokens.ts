@@ -75,7 +75,7 @@ export const MARKETING_LINKS = {
   sampleReport: "/brand/sample-report.pdf",
   support: "/support",
 
-  trustCenter: "/trust-center",
+  trustCenter: "/about/trust",
   // Note: `/security` was historically a dashboard route that lived at
   // `/security-center`; a stale 308 permanent redirect in next.config.js
   // (since removed) caused some browsers to cache `/security` → `/security-center`.

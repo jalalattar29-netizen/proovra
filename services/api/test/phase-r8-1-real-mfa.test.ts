@@ -268,7 +268,12 @@ describe("R8.1 Part 7 — bounded surface area (R8.1.1-aware)", () => {
         // pin further drift relative to the new canonical size.
         expectedBytes: 30979,
       },
-      { rel: "src/routes/scim.routes.ts", expectedBytes: 11446 },
+      // Pricing-hardening rebaseline (was 11446) — mirrors the parallel
+      // pin in phase-r8-enterprise-identity-security.test.ts. The +500-byte
+      // growth is a single Enterprise-feature gate at the top of
+      // `authenticateScim` that delegates to the shared resolver in
+      // `services/enterprise-gate-resolvers.service.ts`.
+      { rel: "src/routes/scim.routes.ts", expectedBytes: 12000 },
     ];
     for (const { rel, expectedBytes } of PINS) {
       const st = statSync(apiPath(rel));

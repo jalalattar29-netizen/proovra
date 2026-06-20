@@ -2,29 +2,32 @@
 
 import { type CSSProperties, type ElementType, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2 } from "lucide-react";
+// Pricing page icon set — lucide-react only. The phosphor-named aliases
+// below preserve the existing JSX so no in-page rename is required:
+// e.g. <Sparkle/> still works because we alias lucide's Sparkles to it.
 import {
-  AnchorSimple,
+  Anchor as AnchorSimple,
   Archive,
   Briefcase,
-  Buildings,
+  Building2 as Buildings,
   Camera,
-  CheckCircle,
-  ClockCounterClockwise,
+  CheckCircle2,
+  CheckCircle2 as CheckCircle,
   FileText,
   Fingerprint,
   GitBranch,
   Globe,
+  History as ClockCounterClockwise,
   Package,
-  PenNib,
+  PenTool as PenNib,
   ShieldCheck,
-  Sparkle,
-  Stack,
+  Sparkles as Sparkle,
+  Layers as Stack,
   User,
-  UsersThree,
-  Pulse,
-  Scroll,
-} from "@phosphor-icons/react";
+  Users as UsersThree,
+  Activity as Pulse,
+  ScrollText as Scroll,
+} from "lucide-react";
 import {
   detectCurrency,
   normalizeCurrency,
@@ -110,10 +113,13 @@ function ProovraGradientIcon({
   strokeWidth?: number;
   weight?: "regular" | "bold" | "duotone";
 }) {
+  // weight kept on the wrapper's prop surface for backwards-compat;
+  // lucide-react icons don't accept it, so we don't forward it.
+  void weight;
   return (
     <Icon
       size={size}
-      weight={weight}
+      strokeWidth={strokeWidth}
       style={
         {
           color: "url(#proovraOutlineGradient)",
@@ -181,10 +187,10 @@ export default function MarketingPricingPage() {
     (displayCurrency === "EUR" ? "€" : "$");
   const proPrice =
     formatPlanPrice(catalog?.pro?.monthlyPriceCents, displayCurrency) ??
-    (displayCurrency === "EUR" ? "€99" : "$99");
+    (displayCurrency === "EUR" ? "€19" : "$19");
   const teamPrice =
     formatPlanPrice(catalog?.team?.monthlyPriceCents, displayCurrency) ??
-    (displayCurrency === "EUR" ? "€299" : "$299");
+    (displayCurrency === "EUR" ? "€79" : "$79");
 
   const plans: PricingPlan[] = [
     {
@@ -248,11 +254,11 @@ export default function MarketingPricingPage() {
       ctaLabel: buildCtaLabel("pro"),
       ctaHref: buildCtaHref("pro"),
       features: [
-        "Unlimited evidence records",
+        `${catalog?.pro?.maxEvidenceRecords ?? 100} evidence records included`,
         `${catalog?.pro?.storageLabel ?? "100 GB"} storage`,
-        "All verification packages",
-        "One-time personal top-ups",
-        `Up to ${catalog?.pro?.maxMembersPerTeam ?? 5} team members`,
+        "Reports & verification packages included",
+        `AI assistance: ${catalog?.pro?.aiAdvisoryMonthlyOperations ?? 100} operations / month`,
+        "Personal workspace",
       ],
     },
     {
@@ -272,11 +278,11 @@ export default function MarketingPricingPage() {
       ctaLabel: buildCtaLabel("team"),
       ctaHref: buildCtaHref("team"),
       features: [
-        "Everything in Pro",
+        `${catalog?.team?.maxEvidenceRecordsPerMonth ?? 500} evidence records / month`,
         `${catalog?.team?.storageLabel ?? "500 GB"} storage`,
+        `AI assistance: ${catalog?.team?.aiAdvisoryMonthlyOperations ?? 500} operations / month`,
+        "Shared workspace, review assignments, team governance",
         `Up to ${catalog?.team?.maxMembersPerTeam ?? 5} members per team`,
-        "Shared workspace",
-        "Team-first support",
       ],
     },
     {
@@ -295,11 +301,11 @@ export default function MarketingPricingPage() {
       ctaHref: "/contact-sales",
       enterprise: true,
       features: [
-        "Custom operational volume",
-        "Custom storage envelope",
-        "Advanced governance",
-        "Dedicated support",
-        "SLA & security review",
+        "Identity & Access",
+        "Governance Controls",
+        "Preservation Infrastructure",
+        "Enterprise Security",
+        "Procurement & SLA",
       ],
     },
   ];
@@ -358,19 +364,19 @@ export default function MarketingPricingPage() {
     icon: MarketingIcon;
   }[] = [
     {
-      title: "Procurement Support",
-      body: "Security questionnaires, DPA, SOC 2, ISO 27001, and more.",
-      icon: FileText,
+      title: "Enterprise Identity",
+      body: "SAML SSO, SCIM provisioning, MFA enforcement, and centralized access governance.",
+      icon: Fingerprint,
     },
     {
-      title: "Governance Controls",
-      body: "Legal hold, retention policies, audit trails, and access control.",
+      title: "Governance & Compliance",
+      body: "Legal hold, retention policies, audit logging, and operational governance controls.",
       icon: Scroll,
     },
     {
-      title: "Enterprise Rollout",
-      body: "Dedicated onboarding, training, and implementation support.",
-      icon: Stack,
+      title: "Preservation Infrastructure",
+      body: "Immutable storage controls, cryptographic integrity, trusted timestamps, and chain of custody preservation.",
+      icon: Archive,
     },
   ];
 
@@ -414,8 +420,8 @@ export default function MarketingPricingPage() {
       values: [
         `${catalog?.free?.maxEvidenceRecords ?? 3} total`,
         "Pay only when you complete evidence",
-        "Unlimited",
-        "Unlimited across team workspaces",
+        `${catalog?.pro?.maxEvidenceRecords ?? 100} included`,
+        `${catalog?.team?.maxEvidenceRecordsPerMonth ?? 500} / month`,
         "Custom operational volume",
       ],
     },
@@ -471,13 +477,13 @@ export default function MarketingPricingPage() {
       values: ["Not included", "Included", "Included", "Included", "Included"],
     },
     {
-      label: "AI assistant",
+      label: "AI assistance (advisory)",
       values: [
         "Not included",
-        "Not included",
-        "Basic guidance",
-        "Team workflow assistance",
-        "Enterprise AI assistance",
+        `${catalog?.payg?.aiAdvisoryMonthlyOperations ?? 50} ops / month`,
+        `${catalog?.pro?.aiAdvisoryMonthlyOperations ?? 100} ops / month`,
+        `${catalog?.team?.aiAdvisoryMonthlyOperations ?? 500} ops / month`,
+        "Custom AI assistance",
       ],
     },
     {
@@ -515,7 +521,7 @@ export default function MarketingPricingPage() {
       values: [
         "Not included",
         "Not included",
-        "Basic controls",
+        "Personal-workspace controls",
         "Team governance",
         "Enterprise governance",
       ],
@@ -532,6 +538,36 @@ export default function MarketingPricingPage() {
     },
     {
       label: "Legal hold",
+      values: [
+        "Not included",
+        "Not included",
+        "Not included",
+        "Not included",
+        "Included",
+      ],
+    },
+    {
+      label: "SAML SSO, SCIM, MFA enforcement",
+      values: [
+        "Not included",
+        "Not included",
+        "Not included",
+        "Not included",
+        "Included",
+      ],
+    },
+    {
+      label: "Access reviews & session governance",
+      values: [
+        "Not included",
+        "Not included",
+        "Not included",
+        "Not included",
+        "Included",
+      ],
+    },
+    {
+      label: "Object Lock / immutable storage",
       values: [
         "Not included",
         "Not included",
@@ -668,7 +704,7 @@ export default function MarketingPricingPage() {
                           step.shadow ?? "0 8px 18px rgba(15,23,42,0.10)",
                       }}
                     >
-                      <Icon size={16} weight="bold" />
+                      <Icon size={16} strokeWidth={2.4} />
                     </span>
                     <span className="text-[0.86rem] font-medium text-[#0F172A]">
                       {step.label}
@@ -947,103 +983,105 @@ className="flex h-11 items-center justify-center rounded-[13px] border border-[#
         </div>
       </section>
 
-<section className="relative mx-auto mt-8 max-w-7xl px-6 pb-12 md:mt-10 md:px-8 md:pb-16">
-  <SectionKicker>Compare plans</SectionKicker>
-        <div className="mt-4 overflow-x-auto rounded-[20px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
-          <table className="w-full min-w-[840px] border-collapse text-left">
-            <thead>
-              <tr className="border-b border-[var(--proovra-border-warm)] bg-[var(--proovra-page-bg-soft)]">
-                <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
-                  Capability
-                </th>
-                <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
-                  Free
-                </th>
-                <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
-                  Pay-Per-Evidence
-                </th>
-                <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
-                  Pro
-                </th>
-                <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
-                  Team
-                </th>
-                <th className="bg-[#F3EFFF] px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#5B21B6]">
-                  Enterprise
-                </th>
-              </tr>
-            </thead>
+{(() => {
+        // Pricing-page UX refinement — Phase 4.
+        // Split the single sprawling comparison table into two enterprise-grade
+        // tables. The data still comes from `compareRows`; we just partition
+        // at the existing "Platform Operations" group separator so capacity
+        // and operations live in their own scannable surfaces.
+        type RowType = Exclude<(typeof compareRows)[number], { group: true }>;
+        const groupIdx = compareRows.findIndex(
+          (r) => "group" in r && r.group,
+        );
+        const capacityRows = compareRows.slice(0, groupIdx) as RowType[];
+        const operationsRows = compareRows.slice(groupIdx + 1) as RowType[];
 
-            <tbody>
-              {(() => {
-                // Stripe parity tracks data rows only so group dividers don't
-                // throw off the alternating pattern.
-                let dataIdx = -1;
-                return compareRows.map((row) => {
-                  if ("group" in row && row.group) {
-                    return (
-                      <tr key={`group-${row.label}`} className="bg-[#F1F5F9]">
+        const TableBlock = ({ rows }: { rows: RowType[] }) => (
+          <div className="mt-4 overflow-x-auto rounded-[20px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
+            <table className="w-full min-w-[840px] border-collapse text-left">
+              <thead>
+                <tr className="border-b border-[var(--proovra-border-warm)] bg-[var(--proovra-page-bg-soft)]">
+                  <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
+                    Capability
+                  </th>
+                  <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
+                    Free
+                  </th>
+                  <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
+                    Pay-Per-Evidence
+                  </th>
+                  <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
+                    Pro
+                  </th>
+                  <th className="px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#0F172A]">
+                    Team
+                  </th>
+                  <th className="bg-[#F3EFFF] px-5 py-3.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#5B21B6]">
+                    Enterprise
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, dataIdx) => (
+                  <tr
+                    key={row.label}
+                    className={
+                      dataIdx % 2 === 0
+                        ? "bg-[var(--proovra-surface)]"
+                        : "bg-[var(--proovra-surface-soft)]"
+                    }
+                  >
+                    <td className="px-5 py-3.5 text-[0.86rem] font-semibold text-[#0F172A]">
+                      {row.label}
+                    </td>
+                    {row.values.map((value, index) => {
+                      const isEnterprise = index === 4;
+                      const isMuted = value === "Not included";
+                      const enterpriseBg = isEnterprise
+                        ? "bg-[#F3EFFF]/60"
+                        : "";
+                      const textColor = isMuted
+                        ? "text-[#94A3B8]"
+                        : isEnterprise
+                          ? "text-[#0F172A]"
+                          : "text-[#475569]";
+                      return (
                         <td
-                          colSpan={6}
-                          className="px-5 py-2.5 text-[0.72rem] font-extrabold uppercase tracking-[0.18em] text-[#0F172A]"
+                          key={`${row.label}-${index}`}
+                          className={`px-5 py-3.5 text-[0.84rem] leading-[1.55] ${enterpriseBg} ${textColor}`}
                         >
-                          {row.label}
+                          {value}
                         </td>
-                      </tr>
-                    );
-                  }
-                  dataIdx++;
-                  return (
-                    <tr
-                      key={row.label}
-                      className={
-                        dataIdx % 2 === 0
-                          ? "bg-[var(--proovra-surface)]"
-                          : "bg-[var(--proovra-surface-soft)]"
-                      }
-                    >
-                      <td className="px-5 py-3.5 text-[0.86rem] font-semibold text-[#0F172A]">
-                        {row.label}
-                      </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
 
-                      {row.values.map((value, index) => {
-                        const isEnterprise = index === 4;
-                        const isMuted = value === "Not included";
-                        const enterpriseBg = isEnterprise
-                          ? "bg-[#F3EFFF]/60"
-                          : "";
-                        const textColor = isMuted
-                          ? "text-[#94A3B8]"
-                          : isEnterprise
-                            ? "text-[#0F172A]"
-                            : "text-[#475569]";
-                        return (
-                          <td
-                            key={`${row.label}-${index}`}
-                            className={`px-5 py-3.5 text-[0.84rem] leading-[1.55] ${enterpriseBg} ${textColor}`}
-                          >
-                            {value}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                });
-              })()}
-            </tbody>
-          </table>
-        </div>
+        return (
+          <>
+            <section className="relative mx-auto mt-8 max-w-7xl px-6 pb-8 md:mt-10 md:px-8 md:pb-10">
+              <SectionKicker>Plans &amp; Capacity</SectionKicker>
+              <TableBlock rows={capacityRows} />
+              <div className="mt-3 text-[0.78rem] text-[#64748B]">
+                Prices shown in{" "}
+                <span className="font-medium text-[#0F172A]">
+                  {displayCurrency}
+                </span>
+                . VAT may apply depending on your country.
+              </div>
+            </section>
 
-        <div className="mt-3 text-[0.78rem] text-[#64748B]">
-          Prices shown in{" "}
-          <span className="font-medium text-[#0F172A]">{displayCurrency}</span>
-          . VAT may apply depending on your country.
-        </div>
-        <div className="mt-2 text-[0.74rem] leading-[1.5] text-[#64748B]">
-          AI assistance is advisory and does not determine truth, authorship,
-          authenticity, identity, or legal admissibility.
-        </div>
-      </section>
+            <section className="relative mx-auto max-w-7xl px-6 pb-12 md:px-8 md:pb-16">
+              <SectionKicker>Operations &amp; Governance</SectionKicker>
+              <TableBlock rows={operationsRows} />
+            </section>
+          </>
+        );
+      })()}
 
       <section className="relative mx-auto max-w-7xl px-6 pb-12 md:px-8 md:pb-16">
 <SectionKicker>Why organizations choose PROOVRA</SectionKicker>

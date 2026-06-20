@@ -56,6 +56,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
+import { assertTeamAllowsEnterpriseFeature } from "../services/billing-enforcement.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
 import { getAuthUserId } from "../auth.js";
 import { AppError, ErrorCode } from "../errors.js";
@@ -757,6 +758,20 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
       if (!actorUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const params = TeamParams.parse(req.params);
       const body = PatchPolicyBody.parse(req.body ?? {});
+      // Pricing-hardening: MFA enforcement administration is Enterprise-only.
+      try {
+        await assertTeamAllowsEnterpriseFeature(params.teamId, "mfaEnforcement");
+      } catch (err) {
+        const status = (err as { statusCode?: number }).statusCode ?? 402;
+        const code = (err as { code?: string }).code ?? "ENTERPRISE_FEATURE_REQUIRED";
+        return reply.code(status).send({
+          error: {
+            code,
+            message: (err as Error).message,
+            upgradeCta: "/contact-sales",
+          },
+        });
+      }
       // Same admin scope guard.
       const guard = await readUserMfaPosture({
         teamId: params.teamId,

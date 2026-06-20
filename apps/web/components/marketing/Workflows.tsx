@@ -1,12 +1,14 @@
 "use client";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+// Workflows icon set — lucide-react only. Phosphor-named aliases keep
+// the existing JSX (<MagnifyingGlass/>, <Scales/>, <Bank/>) intact.
 import {
-  MagnifyingGlass,
-  Scales,
+  ArrowRight,
+  Search as MagnifyingGlass,
+  Scale as Scales,
   Briefcase,
-  Bank,
-} from "@phosphor-icons/react";
+  Landmark as Bank,
+} from "lucide-react";
 import { MARKETING_LINKS } from "./tokens";
 import { SectionBadge } from "./SectionBadge";
 
@@ -47,7 +49,7 @@ function GradientIcon({ Icon }: { Icon: typeof MagnifyingGlass }) {
       }}
     >
       <span className="flex h-full w-full items-center justify-center rounded-[15px] bg-[var(--proovra-surface)]">
-<Icon size={25} weight="bold" color="#8A2F9B" />
+<Icon size={25} strokeWidth={2.4} color="#8A2F9B" />
       </span>
     </span>
   );

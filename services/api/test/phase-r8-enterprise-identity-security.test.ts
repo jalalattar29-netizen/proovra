@@ -294,7 +294,13 @@ describe("R8 Part 5 — canonical identity files preserved in size", () => {
       // current canonical size.
       expectedBytes: 30979,
     },
-    { rel: "src/routes/scim.routes.ts", expectedBytes: 11446 },
+    // Pricing-hardening rebaseline (was 11446). The bounded growth is
+    // a single 5-line Enterprise-feature gate at the top of
+    // `authenticateScim` that delegates to the shared resolver in
+    // `services/enterprise-gate-resolvers.service.ts`. The gate enforces
+    // the spec's "SCIM is Enterprise-only" contract advertised by the
+    // public Pricing page; the SCIM file otherwise remains untouched.
+    { rel: "src/routes/scim.routes.ts", expectedBytes: 12000 },
     { rel: "src/routes/admin-identity.routes.ts", expectedBytes: 30763 },
   ];
 

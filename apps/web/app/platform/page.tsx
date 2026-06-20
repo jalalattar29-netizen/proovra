@@ -126,12 +126,18 @@ function PlatformHero() {
               Request a demo
               <ArrowRight size={14} />
             </Link>
-            <Link
-              href="#lifecycle"
+            {/* CTA cleanup: replaced "Explore the platform" (in-page anchor)
+                with "View sample report" pointing at the canonical sample
+                report PDF (/brand/sample-report.pdf). Same secondary visual
+                treatment, opens in a new tab as a downloadable asset. */}
+            <a
+              href="/brand/sample-report.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-[#E5E7EB] bg-white px-5 text-[13.5px] font-semibold text-[#0F172A] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#CBD5E1]"
             >
-              Explore the platform
-            </Link>
+              View sample report
+            </a>
           </div>
         </div>
 
@@ -1094,6 +1100,173 @@ function PlatformWorkspaceSection() {
   );
 }
 
+function PlatformGovernanceControlLayer() {
+  const leftList = [
+    "Identity & access controls",
+    "Legal hold and retention enforcement",
+    "Complete audit visibility",
+    "Immutable preservation controls",
+    "Workspace and session governance",
+  ];
+
+  const groups: { title: string; items: string[]; accent: string; soft: string }[] = [
+    {
+      title: "Identity",
+      items: [
+        "SAML SSO",
+        "SCIM Provisioning",
+        "MFA",
+        "Adaptive Authentication",
+      ],
+      accent: "#2563EB",
+      soft: "rgba(37,99,235,0.08)",
+    },
+    {
+      title: "Governance",
+      items: [
+        "Legal Hold",
+        "Retention Policies",
+        "Access Reviews",
+        "Workspace Controls",
+      ],
+      accent: "#0F766E",
+      soft: "rgba(15,118,110,0.08)",
+    },
+    {
+      title: "Auditability",
+      items: [
+        "Complete Audit Logs",
+        "Reviewer Activity",
+        "Export History",
+        "Custody Events",
+      ],
+      accent: "#7C3AED",
+      soft: "rgba(124,58,237,0.08)",
+    },
+    {
+      title: "Preservation",
+      items: [
+        "Object Lock",
+        "Immutable Storage",
+        "Hash Integrity",
+        "Timestamp Anchoring",
+      ],
+      accent: "#DB2777",
+      soft: "rgba(219,39,119,0.08)",
+    },
+  ];
+
+  return (
+    <section
+      id="platform-governance"
+      className="bg-[var(--proovra-page-bg)] py-20 md:py-24"
+    >
+      <div className="mx-auto max-w-[1400px] px-6 md:px-8">
+        {/* Header */}
+        <div className="flex flex-col items-center text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#DBEAFE] bg-white px-3.5 py-2 text-[11.5px] font-bold uppercase tracking-[0.16em] text-[#2563EB]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
+            Platform Governance
+          </span>
+          <h2 className="mt-5 max-w-[900px] text-[2rem] font-bold leading-[1.08] tracking-[-0.02em] text-[#0F172A] md:text-[2.5rem] lg:text-[2.85rem]">
+            The enterprise control layer behind every record.
+          </h2>
+          <p className="mt-4 max-w-[820px] text-[15.5px] leading-[1.65] text-[#475569]">
+            Evidence operations do not stop at verification. PROOVRA connects
+            identity, access, retention, legal hold, audit logs, and storage
+            controls into the same workflow that captures, verifies, reviews,
+            and reports evidence.
+          </p>
+        </div>
+
+        {/* Split-panel card */}
+        <div
+          className="mt-12 grid gap-0 overflow-hidden rounded-[24px] border border-[#E5E7EB] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.06)] lg:grid-cols-[44fr_56fr]"
+        >
+          {/* Left side — supporting copy + list */}
+          <div className="border-b border-[#E5E7EB] bg-[#FAFBFD] p-7 lg:border-b-0 lg:border-r lg:p-9">
+            <h3 className="text-[1.25rem] font-extrabold leading-[1.18] tracking-[-0.015em] text-[#07132B] md:text-[1.4rem]">
+              Controls that make PROOVRA operational, not just verifiable.
+            </h3>
+            <p className="mt-4 text-[14px] leading-[1.7] text-[#475569]">
+              Built for organizations that need structured evidence workflows,
+              defensible oversight, and repeatable governance across teams,
+              cases, and records.
+            </p>
+            <ul className="mt-6 grid gap-2.5 pl-0">
+              {leftList.map((item) => (
+                <li
+                  key={item}
+                  className="flex items-center gap-2.5 text-[13px] font-semibold text-[#0F172A]"
+                  style={{ listStyle: "none" }}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="block h-[2px] w-5 shrink-0 rounded-full"
+                    style={{
+                      background:
+                        "linear-gradient(90deg,#2563EB 0%,#7C3AED 100%)",
+                    }}
+                  />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Right side — control matrix */}
+          <div className="p-6 md:p-7 lg:p-8">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {groups.map((g) => (
+                <div
+                  key={g.title}
+                  className="rounded-[16px] border border-[#E5E7EB] bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.03)]"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      aria-hidden="true"
+                      className="block h-[3px] w-6 shrink-0 rounded-full"
+                      style={{ background: g.accent }}
+                    />
+                    <h4
+                      className="text-[11.5px] font-extrabold uppercase tracking-[0.16em]"
+                      style={{ color: g.accent }}
+                    >
+                      {g.title}
+                    </h4>
+                  </div>
+                  <ul className="mt-3 grid gap-1.5 pl-0">
+                    {g.items.map((it) => (
+                      <li
+                        key={it}
+                        className="flex items-center gap-2 text-[12.5px] text-[#0F172A]"
+                        style={{ listStyle: "none" }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="block h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{ background: g.accent, opacity: 0.7 }}
+                        />
+                        {it}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-5 text-[12px] leading-[1.6] text-[#64748B]">
+              Every control is connected to the evidence lifecycle — from
+              intake and preservation to verification, reporting, and
+              governance.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function SwitchSection() {
   const traditional: {
     icon: LucideIcon;
@@ -1919,6 +2092,7 @@ export default function PlatformPage() {
       <PlatformHero />
       <LifecycleSection />
       <PlatformWorkspaceSection />
+      <PlatformGovernanceControlLayer />
       <SwitchSection />
       <IndustriesSection />
       <ScreensSection />

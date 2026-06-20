@@ -128,7 +128,7 @@ function TrustLayerInsideOrganization() {
           <FlowConnector />
 
           <FlowLayer
-            label="Teams"
+            label="Workspaces"
             items={[
               "Legal",
               "Claims",

@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+// CapabilityImpact icon set — lucide-react only. Phosphor-named aliases
+// keep <ClockCounterClockwise/>, <LinkSimple/>, <Scroll/> JSX intact.
 import {
+  ArrowRight,
   Fingerprint,
-  ClockCounterClockwise,
-  LinkSimple,
+  History as ClockCounterClockwise,
+  Link2 as LinkSimple,
   Package,
-  Scroll,
-} from "@phosphor-icons/react";
+  ScrollText as Scroll,
+} from "lucide-react";
 import { MARKETING_LINKS } from "./tokens";
 import { SectionBadge } from "./SectionBadge";
 
@@ -50,7 +52,7 @@ function GradientIcon({ Icon }: { Icon: typeof Fingerprint }) {
       }}
     >
       <span className="flex h-full w-full items-center justify-center rounded-[15px] bg-[var(--proovra-surface)]">
-<Icon size={25} weight="bold" color="#8A2F9B" />
+<Icon size={25} strokeWidth={2.4} color="#8A2F9B" />
       </span>
     </span>
   );

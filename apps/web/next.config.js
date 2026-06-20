@@ -52,11 +52,10 @@ const nextConfig = {
         destination: "/governance/policy",
         permanent: true,
       },
-      // Removed `/security` → `/security-center` permanent redirect.
-      // `/security` is now the public marketing Security overview page
-      // (app/security/page.tsx) and must render its own content; the
-      // dashboard `/security-center` lives behind the `(app)` auth wall
-      // and is reachable from inside the operator surfaces directly.
+      // CR1 Part 2 — `/security` → `/security-center` (the canonical
+      // operator-facing security overview behind the `(app)` auth wall).
+      // The public marketing surface lives at `/security-overview`.
+      { source: "/security", destination: "/security-center", permanent: true },
       // Phase Final-A3-PT2 — `/dashboard/api-keys` retired (the legacy
       // in-memory user-scoped API key store was removed in A-3). The
       // canonical, team-scoped, durable surface is `/integrations`.
@@ -186,6 +185,44 @@ const nextConfig = {
       {
         source: "/collaboration",
         destination: "/inbox",
+        permanent: true,
+      },
+      // Marketing — Platform mega-menu consolidation. The eight legacy
+      // /platform/<sub> pages were collapsed into anchored sections on
+      // the unified /platform overview page. Each old URL 308s to the
+      // overview so existing bookmarks / external links still resolve.
+      // The old page.tsx files have been removed from app/platform/<sub>.
+      { source: "/platform/capture", destination: "/platform", permanent: true },
+      {
+        source: "/platform/evidence-records",
+        destination: "/platform",
+        permanent: true,
+      },
+      {
+        source: "/platform/verification",
+        destination: "/platform",
+        permanent: true,
+      },
+      { source: "/platform/reports", destination: "/platform", permanent: true },
+      {
+        source: "/platform/verification-packages",
+        destination: "/platform",
+        permanent: true,
+      },
+      { source: "/platform/cases", destination: "/platform", permanent: true },
+      {
+        source: "/platform/teams-workspaces",
+        destination: "/platform",
+        permanent: true,
+      },
+      {
+        source: "/platform/integrations",
+        destination: "/platform",
+        permanent: true,
+      },
+      {
+        source: "/platform/governance",
+        destination: "/platform",
         permanent: true,
       },
     ];

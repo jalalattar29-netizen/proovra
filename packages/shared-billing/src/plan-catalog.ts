@@ -1,5 +1,24 @@
 export type WorkspaceScopeType = "PERSONAL" | "TEAM";
-export type PlanType = "FREE" | "PAYG" | "PRO" | "TEAM";
+export type PlanType = "FREE" | "PAYG" | "PRO" | "TEAM" | "ENTERPRISE";
+
+/**
+ * Enterprise-only feature flags. Enforced by
+ * `assertEnterpriseFeature()` in services/api. A feature being `true`
+ * on a non-Enterprise plan means the plan is allowed to use it; in
+ * practice all of these stay `false` on FREE/PAYG/PRO/TEAM and `true`
+ * on ENTERPRISE. Sales-provisioned entitlement overrides can set them
+ * per-account via `Entitlement.featureOverrides` (future surface).
+ */
+export type EnterpriseFeatureFlags = {
+  ssoScim: boolean;
+  mfaEnforcement: boolean;
+  accessReviews: boolean;
+  sessionGovernance: boolean;
+  legalHold: boolean;
+  retentionPolicy: boolean;
+  organizationAuditLogs: boolean;
+  objectLock: boolean;
+};
 
 export type PlanCapabilities = {
   plan: PlanType;
@@ -14,8 +33,30 @@ export type PlanCapabilities = {
   verificationPackageIncluded: boolean;
   publicVerifyIncluded: boolean;
 
+  /**
+   * Lifetime cap on evidence records. `null` = no lifetime cap (the
+   * monthly cap may still apply). The enforcement guard checks this
+   * via a non-deleted Evidence count on the workspace.
+   */
   maxEvidenceRecords: number | null;
+
+  /**
+   * Rolling 30-day cap on evidence records. `null` = no monthly cap.
+   * Enforced by counting `Evidence.createdAt >= now() - 30 days` on
+   * the workspace. Pro is lifetime-capped (100, no monthly); Team is
+   * monthly-capped (500, no lifetime).
+   */
+  maxEvidenceRecordsPerMonth: number | null;
+
   paygCreditsRequiredPerCompletion: number;
+
+  /**
+   * Calendar-month cap on AI assistance calls (chat messages +
+   * capture analyses combined). `null` = custom (Enterprise). `0` =
+   * AI disabled (FREE). Enforced by `AiCostGuard` against the
+   * caller's resolved plan.
+   */
+  aiAdvisoryMonthlyOperations: number | null;
 
   allowsPersonalWorkspace: boolean;
   allowsTeamWorkspace: boolean;
@@ -26,6 +67,8 @@ export type PlanCapabilities = {
    * - FREE / PAYG => no owned teams
    * - PRO => up to 2 owned teams
    * - TEAM => up to 5 owned teams
+   * - ENTERPRISE => custom (modelled as a generous default; Sales
+   *                  provisions per-account overrides as needed)
    */
   maxOwnedTeams: number;
 
@@ -36,6 +79,15 @@ export type PlanCapabilities = {
    * must fail once this cap is reached.
    */
   maxMembersPerTeam: number;
+
+  /**
+   * Enterprise governance features. On non-Enterprise plans every
+   * flag is `false`. The API gate `assertEnterpriseFeature()` reads
+   * this block to decide whether SSO/SCIM, MFA enforcement, legal
+   * hold, retention policy, organization audit logs, and Object Lock
+   * routes are reachable.
+   */
+  enterpriseFeatures: EnterpriseFeatureFlags;
 };
 
 export type EnterprisePricingCatalog = {
@@ -47,6 +99,28 @@ export type EnterprisePricingCatalog = {
   capabilities: string[];
   operationalFit: string[];
   supportWindow: string;
+};
+
+const NO_ENTERPRISE_FEATURES: EnterpriseFeatureFlags = {
+  ssoScim: false,
+  mfaEnforcement: false,
+  accessReviews: false,
+  sessionGovernance: false,
+  legalHold: false,
+  retentionPolicy: false,
+  organizationAuditLogs: false,
+  objectLock: false,
+};
+
+const ALL_ENTERPRISE_FEATURES: EnterpriseFeatureFlags = {
+  ssoScim: true,
+  mfaEnforcement: true,
+  accessReviews: true,
+  sessionGovernance: true,
+  legalHold: true,
+  retentionPolicy: true,
+  organizationAuditLogs: true,
+  objectLock: true,
 };
 
 const MB = 1024n * 1024n;
@@ -65,12 +139,15 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     verificationPackageIncluded: false,
     publicVerifyIncluded: true,
     maxEvidenceRecords: 3,
+    maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
+    aiAdvisoryMonthlyOperations: 0,
     allowsPersonalWorkspace: true,
     allowsTeamWorkspace: false,
     teamWorkspaceRequired: false,
     maxOwnedTeams: 0,
     maxMembersPerTeam: 0,
+    enterpriseFeatures: NO_ENTERPRISE_FEATURES,
   },
 
   PAYG: {
@@ -84,12 +161,15 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     verificationPackageIncluded: true,
     publicVerifyIncluded: true,
     maxEvidenceRecords: null,
+    maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 1,
+    aiAdvisoryMonthlyOperations: 50,
     allowsPersonalWorkspace: true,
     allowsTeamWorkspace: false,
     teamWorkspaceRequired: false,
     maxOwnedTeams: 0,
     maxMembersPerTeam: 0,
+    enterpriseFeatures: NO_ENTERPRISE_FEATURES,
   },
 
   PRO: {
@@ -102,13 +182,16 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     reportsIncluded: true,
     verificationPackageIncluded: true,
     publicVerifyIncluded: true,
-    maxEvidenceRecords: null,
+    maxEvidenceRecords: 100,
+    maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
+    aiAdvisoryMonthlyOperations: 100,
     allowsPersonalWorkspace: true,
     allowsTeamWorkspace: true,
     teamWorkspaceRequired: false,
     maxOwnedTeams: 2,
     maxMembersPerTeam: 5,
+    enterpriseFeatures: NO_ENTERPRISE_FEATURES,
   },
 
   TEAM: {
@@ -122,12 +205,37 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     verificationPackageIncluded: true,
     publicVerifyIncluded: true,
     maxEvidenceRecords: null,
+    maxEvidenceRecordsPerMonth: 500,
     paygCreditsRequiredPerCompletion: 0,
+    aiAdvisoryMonthlyOperations: 500,
     allowsPersonalWorkspace: false,
     allowsTeamWorkspace: true,
     teamWorkspaceRequired: true,
     maxOwnedTeams: 5,
     maxMembersPerTeam: 5,
+    enterpriseFeatures: NO_ENTERPRISE_FEATURES,
+  },
+
+  ENTERPRISE: {
+    plan: "ENTERPRISE",
+    displayName: "Enterprise",
+    workspaceType: "BOTH",
+    monthlyPriceCents: null,
+    includedStorageBytes: 500n * GB,
+    includedSeats: 5,
+    reportsIncluded: true,
+    verificationPackageIncluded: true,
+    publicVerifyIncluded: true,
+    maxEvidenceRecords: null,
+    maxEvidenceRecordsPerMonth: null,
+    paygCreditsRequiredPerCompletion: 0,
+    aiAdvisoryMonthlyOperations: null,
+    allowsPersonalWorkspace: true,
+    allowsTeamWorkspace: true,
+    teamWorkspaceRequired: false,
+    maxOwnedTeams: 1000,
+    maxMembersPerTeam: 500,
+    enterpriseFeatures: ALL_ENTERPRISE_FEATURES,
   },
 };
 
@@ -159,6 +267,13 @@ export function canPlanGenerateVerificationPackage(plan: PlanType): boolean {
   return getPlanCapabilities(plan).verificationPackageIncluded;
 }
 
+export function planHasEnterpriseFeature(
+  plan: PlanType,
+  feature: keyof EnterpriseFeatureFlags,
+): boolean {
+  return getPlanCapabilities(plan).enterpriseFeatures[feature];
+}
+
 export function formatBytesHuman(bytes: bigint): string {
   const trim = (n: number): string => {
     if (Number.isFinite(n) && Math.abs(n - Math.round(n)) < 0.005) {
@@ -173,6 +288,28 @@ export function formatBytesHuman(bytes: bigint): string {
   return `${bytes} B`;
 }
 
+function projectPlan(plan: PlanType) {
+  const caps = PLAN_CAPABILITIES[plan];
+  return {
+    plan,
+    displayName: caps.displayName,
+    monthlyPriceCents: caps.monthlyPriceCents,
+    storageBytes: caps.includedStorageBytes.toString(),
+    storageLabel: formatBytesHuman(caps.includedStorageBytes),
+    reportsIncluded: caps.reportsIncluded,
+    verificationPackageIncluded: caps.verificationPackageIncluded,
+    publicVerifyIncluded: caps.publicVerifyIncluded,
+    maxEvidenceRecords: caps.maxEvidenceRecords,
+    maxEvidenceRecordsPerMonth: caps.maxEvidenceRecordsPerMonth,
+    aiAdvisoryMonthlyOperations: caps.aiAdvisoryMonthlyOperations,
+    seats: caps.includedSeats,
+    workspaceType: caps.workspaceType,
+    maxOwnedTeams: caps.maxOwnedTeams,
+    maxMembersPerTeam: caps.maxMembersPerTeam,
+    enterpriseFeatures: caps.enterpriseFeatures,
+  };
+}
+
 export function getPricingCatalogResponse() {
   const enterprise: EnterprisePricingCatalog = {
     displayName: "Enterprise",
@@ -182,10 +319,13 @@ export function getPricingCatalogResponse() {
     summary:
       "Custom commercial terms for larger organizations that need procurement handling, governance review, rollout planning, or higher-volume evidence operations.",
     capabilities: [
-      "Custom seat volume and onboarding scope",
+      "Custom operational volume and onboarding scope",
       "Custom storage envelope and rollout planning",
-      "Shared review and multi-stakeholder workflow alignment",
-      "Commercial discussion for legal, compliance, claims, or enterprise review teams",
+      "SAML SSO and SCIM provisioning",
+      "MFA enforcement, access reviews, session governance",
+      "Legal hold and custom retention policies",
+      "Organization audit logs",
+      "Object Lock / immutable storage controls",
     ],
     operationalFit: [
       "Procurement and security review",
@@ -198,73 +338,14 @@ export function getPricingCatalogResponse() {
   };
 
   return {
-    free: {
-      plan: "FREE" as const,
-      displayName: PLAN_CAPABILITIES.FREE.displayName,
-      monthlyPriceCents: PLAN_CAPABILITIES.FREE.monthlyPriceCents,
-      storageBytes: PLAN_CAPABILITIES.FREE.includedStorageBytes.toString(),
-      storageLabel: formatBytesHuman(PLAN_CAPABILITIES.FREE.includedStorageBytes),
-      reportsIncluded: PLAN_CAPABILITIES.FREE.reportsIncluded,
-      verificationPackageIncluded:
-        PLAN_CAPABILITIES.FREE.verificationPackageIncluded,
-      publicVerifyIncluded: PLAN_CAPABILITIES.FREE.publicVerifyIncluded,
-      maxEvidenceRecords: PLAN_CAPABILITIES.FREE.maxEvidenceRecords,
-      seats: PLAN_CAPABILITIES.FREE.includedSeats,
-      workspaceType: PLAN_CAPABILITIES.FREE.workspaceType,
-      maxOwnedTeams: PLAN_CAPABILITIES.FREE.maxOwnedTeams,
-      maxMembersPerTeam: PLAN_CAPABILITIES.FREE.maxMembersPerTeam,
-    },
-
+    free: projectPlan("FREE"),
     payg: {
-      plan: "PAYG" as const,
-      displayName: PLAN_CAPABILITIES.PAYG.displayName,
-      monthlyPriceCents: PLAN_CAPABILITIES.PAYG.monthlyPriceCents,
-      storageBytes: PLAN_CAPABILITIES.PAYG.includedStorageBytes.toString(),
-      storageLabel: formatBytesHuman(PLAN_CAPABILITIES.PAYG.includedStorageBytes),
-      reportsIncluded: PLAN_CAPABILITIES.PAYG.reportsIncluded,
-      verificationPackageIncluded:
-        PLAN_CAPABILITIES.PAYG.verificationPackageIncluded,
-      publicVerifyIncluded: PLAN_CAPABILITIES.PAYG.publicVerifyIncluded,
+      ...projectPlan("PAYG"),
       creditsRequiredPerCompletion:
         PLAN_CAPABILITIES.PAYG.paygCreditsRequiredPerCompletion,
-      seats: PLAN_CAPABILITIES.PAYG.includedSeats,
-      workspaceType: PLAN_CAPABILITIES.PAYG.workspaceType,
-      maxOwnedTeams: PLAN_CAPABILITIES.PAYG.maxOwnedTeams,
-      maxMembersPerTeam: PLAN_CAPABILITIES.PAYG.maxMembersPerTeam,
     },
-
-    pro: {
-      plan: "PRO" as const,
-      displayName: PLAN_CAPABILITIES.PRO.displayName,
-      monthlyPriceCents: PLAN_CAPABILITIES.PRO.monthlyPriceCents,
-      storageBytes: PLAN_CAPABILITIES.PRO.includedStorageBytes.toString(),
-      storageLabel: formatBytesHuman(PLAN_CAPABILITIES.PRO.includedStorageBytes),
-      reportsIncluded: PLAN_CAPABILITIES.PRO.reportsIncluded,
-      verificationPackageIncluded:
-        PLAN_CAPABILITIES.PRO.verificationPackageIncluded,
-      publicVerifyIncluded: PLAN_CAPABILITIES.PRO.publicVerifyIncluded,
-      seats: PLAN_CAPABILITIES.PRO.includedSeats,
-      workspaceType: PLAN_CAPABILITIES.PRO.workspaceType,
-      maxOwnedTeams: PLAN_CAPABILITIES.PRO.maxOwnedTeams,
-      maxMembersPerTeam: PLAN_CAPABILITIES.PRO.maxMembersPerTeam,
-    },
-
-    team: {
-      plan: "TEAM" as const,
-      displayName: PLAN_CAPABILITIES.TEAM.displayName,
-      monthlyPriceCents: PLAN_CAPABILITIES.TEAM.monthlyPriceCents,
-      storageBytes: PLAN_CAPABILITIES.TEAM.includedStorageBytes.toString(),
-      storageLabel: formatBytesHuman(PLAN_CAPABILITIES.TEAM.includedStorageBytes),
-      reportsIncluded: PLAN_CAPABILITIES.TEAM.reportsIncluded,
-      verificationPackageIncluded:
-        PLAN_CAPABILITIES.TEAM.verificationPackageIncluded,
-      publicVerifyIncluded: PLAN_CAPABILITIES.TEAM.publicVerifyIncluded,
-      seats: PLAN_CAPABILITIES.TEAM.includedSeats,
-      workspaceType: PLAN_CAPABILITIES.TEAM.workspaceType,
-      maxOwnedTeams: PLAN_CAPABILITIES.TEAM.maxOwnedTeams,
-      maxMembersPerTeam: PLAN_CAPABILITIES.TEAM.maxMembersPerTeam,
-    },
-
+    pro: projectPlan("PRO"),
+    team: projectPlan("TEAM"),
     enterprise,
   };
 }

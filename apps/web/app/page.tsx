@@ -8,6 +8,7 @@ import { IndustriesGrid } from "../components/marketing/IndustriesGrid";
 import { SecurityMethodology } from "../components/marketing/SecurityMethodology";
 import { ProofInAction } from "../components/marketing/ProofInAction";
 import { EnterpriseOperationsPlatform } from "../components/marketing/EnterpriseOperationsPlatform";
+import { EnterpriseGovernanceSecurity } from "../components/marketing/EnterpriseGovernanceSecurity";
 import { IntegrationsComplianceSection } from "../components/marketing/IntegrationsComplianceSection";
 import { ImportantClarification } from "../components/marketing/ImportantClarification";
 import { EnterpriseFooter } from "../components/marketing/EnterpriseFooter";
@@ -28,6 +29,7 @@ export default function HomePage() {
       <SecurityMethodology />
       <ProofInAction />
       <EnterpriseOperationsPlatform />
+      <EnterpriseGovernanceSecurity />
       <IntegrationsComplianceSection />
       <ImportantClarification />
       <EnterpriseFooter />

@@ -53,11 +53,21 @@ export interface BillingSummary {
   guestsAllowed: boolean;
 }
 
-const UNLIMITED_THRESHOLD = 1000;
-
-function projectMax(value: number): number | "unlimited" {
+/**
+ * Pricing-hardening: the published catalog never advertises "unlimited"
+ * for self-serve plans. Only ENTERPRISE — the Sales-provisioned tier —
+ * reads as "unlimited" semantically, because its caps are Custom and
+ * intentionally not enforced at the catalog level. Every other plan
+ * surfaces its real numeric cap so in-product chips never lie about
+ * what the backend actually enforces.
+ */
+function projectMax(
+  plan: WorkspacePlan,
+  value: number,
+): number | "unlimited" {
+  if (plan === "ENTERPRISE") return "unlimited";
   if (!Number.isFinite(value) || value <= 0) return 0;
-  return value >= UNLIMITED_THRESHOLD ? "unlimited" : value;
+  return value;
 }
 
 function projectFromLimits(
@@ -65,16 +75,16 @@ function projectFromLimits(
   limits: CollaborationTeamPlanLimits,
   teamsUsed: number,
 ): BillingSummary {
-  // Guests are unlocked on PRO and TEAM (matches the backend rule in
-  // services/api/src/services/collaboration-team/billing-guards.ts —
-  // `assertCanCreateGuest`). We mirror it here without re-reading
-  // legacy context.
-  const guestsAllowed = plan === "PRO" || plan === "TEAM";
+  // Guests are unlocked on PRO, TEAM, and ENTERPRISE (matches the
+  // backend rule in services/api/src/services/collaboration-team/
+  // billing-guards.ts — `assertCanCreateGuest`).
+  const guestsAllowed =
+    plan === "PRO" || plan === "TEAM" || plan === "ENTERPRISE";
   return {
     plan,
     teamsUsed,
-    teamsMax: projectMax(limits.maxTeams),
-    membersMax: projectMax(limits.maxMembersPerTeam),
+    teamsMax: projectMax(plan, limits.maxTeams),
+    membersMax: projectMax(plan, limits.maxMembersPerTeam),
     smsInvitesIncluded: limits.smsInvitesEnabled,
     guestsAllowed,
   };

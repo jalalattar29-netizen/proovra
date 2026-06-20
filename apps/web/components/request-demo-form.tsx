@@ -190,11 +190,12 @@ export function RequestDemoForm({
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
+        const upstreamMessage =
+          data?.error?.message || data?.error || data?.message;
         const errorMessage =
-          data?.error?.message ||
-          data?.error ||
-          data?.message ||
-          "Unable to submit your request right now.";
+          typeof upstreamMessage === "string" && upstreamMessage.trim()
+            ? upstreamMessage
+            : "We couldn't submit your demo request right now. Please try again or contact support@proovra.com.";
 
         addToast(errorMessage, "error");
         return;
@@ -202,7 +203,10 @@ export function RequestDemoForm({
 
       setForm(REQUEST_DEMO_DEFAULT_VALUES);
       setErrors({});
-      addToast("Demo request submitted successfully.", "success");
+      addToast(
+        "Demo request received. We'll review your request and reply within 1 business day.",
+        "success"
+      );
 
       onSubmitted?.(data);
 
@@ -211,7 +215,10 @@ export function RequestDemoForm({
         return;
       }
     } catch {
-      addToast("Network error while submitting the demo request.", "error");
+      addToast(
+        "We couldn't submit your demo request right now. Please try again or contact support@proovra.com.",
+        "error"
+      );
     } finally {
       setIsSubmitting(false);
     }

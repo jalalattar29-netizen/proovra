@@ -72,7 +72,13 @@ export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 export const WORKSPACE_SCOPES = ["PERSONAL", "TEAM"] as const;
 export type WorkspaceScope = (typeof WORKSPACE_SCOPES)[number];
 
-export const WORKSPACE_PLANS = ["FREE", "PAYG", "PRO", "TEAM"] as const;
+export const WORKSPACE_PLANS = [
+  "FREE",
+  "PAYG",
+  "PRO",
+  "TEAM",
+  "ENTERPRISE",
+] as const;
 export type WorkspacePlan = (typeof WORKSPACE_PLANS)[number];
 
 export const PERSONAS = [

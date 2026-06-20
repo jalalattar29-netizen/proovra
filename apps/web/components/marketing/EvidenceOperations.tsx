@@ -493,7 +493,7 @@ function GovernancePreview() {
             { Icon: Lock, label: "Retention Policy", right: "7 years", rightLabel: "Active", rightColor: "#15803D" },
             { Icon: Landmark, label: "Legal Hold", right: "3 Active Holds", rightLabel: null, rightColor: "#0F172A" },
             { Icon: ScrollText, label: "Audit Log", right: "12,846 Events", rightLabel: null, rightColor: "#0F172A" },
-            { Icon: CheckCircle2, label: "Compliance", right: "SOC 2 Type II", rightLabel: null, rightColor: "#047857" },
+            { Icon: CheckCircle2, label: "Compliance", right: "Security controls active", rightLabel: null, rightColor: "#047857" },
           ].map((row) => (
             <div key={row.label} className="flex items-center justify-between gap-1.5">
               <span className="flex items-center gap-1.5 truncate text-[9.5px] text-[#0F172A]">

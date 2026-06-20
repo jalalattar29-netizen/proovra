@@ -44,6 +44,7 @@ import {
   scimPatchGroup,
   scimReadGroup,
 } from "../services/access-control/scim-groups.service.js";
+import { resolveTeamEnterpriseFeatureGate } from "../services/enterprise-gate-resolvers.service.js";
 
 // -----------------------------------------------------------------------------
 // Token gate
@@ -82,6 +83,13 @@ async function authenticateScim(
       .send(scimError(403, "scope_not_granted", "scopeDenied"));
     return null;
   }
+
+  // SCIM = Enterprise (shared resolver).
+  if (!(await resolveTeamEnterpriseFeatureGate(result.token.teamId, "ssoScim")).ok) {
+    reply.type("application/scim+json").code(402).send(scimError(402, "ssoScim", "enterpriseFeatureRequired"));
+    return null;
+  }
+
   const proto = (req.headers["x-forwarded-proto"] as string) || "https";
   const host = req.headers["host"] ?? "";
   return {

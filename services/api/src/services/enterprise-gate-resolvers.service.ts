@@ -1,0 +1,107 @@
+/**
+ * Pricing-hardening — shared resolvers for the Enterprise feature gate
+ * used by canonical auth/identity routes (SCIM, SAML admin, etc.).
+ *
+ * These helpers exist in their own service file so that the route files
+ * (`scim.routes.ts`, `saml-auth.routes.ts`) remain within their R8 size
+ * baselines and so the gate logic is testable in isolation. Do NOT
+ * inline this logic in the route files — the R8 file-size pins in
+ * `phase-r8-enterprise-identity-security.test.ts` enforce it.
+ */
+
+import type { FastifyReply } from "fastify";
+import * as prismaPkg from "@prisma/client";
+import { prisma } from "../db.js";
+import { getPlanCapabilities } from "./plan-catalog.service.js";
+import type { EnterpriseFeatureFlags } from "./plan-catalog.service.js";
+
+export type TeamGateResult =
+  | { ok: true }
+  | { ok: false; reason: string; statusCode: number };
+
+/**
+ * Returns ok=true iff the team's effective plan (billing-active TEAM
+ * plan, otherwise the team owner's Entitlement plan) grants the
+ * requested Enterprise feature.
+ *
+ * Self-contained — does not throw. Callers map the negative result to
+ * their route's preferred reply shape (e.g. SCIM uses application/scim+json,
+ * SAML uses a JSON envelope).
+ */
+export async function resolveTeamEnterpriseFeatureGate(
+  teamId: string,
+  feature: keyof EnterpriseFeatureFlags,
+): Promise<TeamGateResult> {
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { ownerUserId: true, billingPlan: true, billingStatus: true },
+  });
+  if (!team) {
+    return { ok: false, reason: "team_not_found", statusCode: 404 };
+  }
+  let effectivePlan: prismaPkg.PlanType = team.billingPlan;
+  if (
+    team.billingStatus !== prismaPkg.TeamBillingStatus.ACTIVE &&
+    team.billingStatus !== prismaPkg.TeamBillingStatus.PAST_DUE
+  ) {
+    const ent = await prisma.entitlement.findFirst({
+      where: { userId: team.ownerUserId, active: true },
+      orderBy: { createdAt: "desc" },
+      select: { plan: true },
+    });
+    effectivePlan = ent?.plan ?? prismaPkg.PlanType.FREE;
+  }
+  if (!getPlanCapabilities(effectivePlan).enterpriseFeatures[feature]) {
+    return {
+      ok: false,
+      reason: "ENTERPRISE_FEATURE_REQUIRED",
+      statusCode: 402,
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Fastify-reply helper. Returns true when the gate denied (reply
+ * already sent) so route handlers can early-return. Keeps the route
+ * file thin — the helper is NOT inlined inside the canonical auth /
+ * identity route files (R8 size baseline).
+ */
+export async function denyTeamIfNotEnterprise(
+  reply: FastifyReply,
+  teamId: string,
+  feature: keyof EnterpriseFeatureFlags,
+): Promise<boolean> {
+  const gate = await resolveTeamEnterpriseFeatureGate(teamId, feature);
+  if (gate.ok) return false;
+  reply.code(gate.statusCode).send({
+    error: {
+      code: gate.reason,
+      message: `Feature "${feature}" is included only on Enterprise plans`,
+      upgradeCta: "/contact-sales",
+    },
+  });
+  return true;
+}
+
+/**
+ * Resolves the SAML connection's owning team and gates that team on
+ * the `ssoScim` Enterprise feature. Returns the structured deny shape
+ * the route layer surfaces to the operator.
+ */
+export async function resolveSamlConnectionEnterpriseGate(
+  connectionId: string,
+): Promise<TeamGateResult> {
+  const conn = await prisma.ssoConnection.findUnique({
+    where: { id: connectionId },
+    select: { teamId: true },
+  });
+  if (!conn) {
+    return {
+      ok: false,
+      reason: "saml_connection_not_found",
+      statusCode: 404,
+    };
+  }
+  return resolveTeamEnterpriseFeatureGate(conn.teamId, "ssoScim");
+}

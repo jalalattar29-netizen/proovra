@@ -49,11 +49,11 @@ const integrations: TileItem[] = [
 ];
 
 const compliance: TileItem[] = [
-  { kind: "logo", name: "SOC 2 Ready", desc: "Security controls and monitoring", logo: "/assets/logos/soc.svg" },
-  { kind: "logo", name: "ISO 27001 Aligned", desc: "Information security management", logo: "/assets/logos/iso.svg" },
-  { kind: "icon", name: "GDPR Ready", desc: "Data protection by design", Icon: ShieldCheck, tint: "#2563EB" },
-  { kind: "icon", name: "HIPAA Ready", desc: "Protected health information", Icon: FileCheck2, tint: "#BE123C" },
-  { kind: "logo", name: "NIST Aligned", desc: "Cybersecurity framework", logo: "/assets/logos/nist.svg" },
+  { kind: "logo", name: "Security control principles", desc: "Designed with recognized security frameworks", logo: "/assets/logos/soc.svg" },
+  { kind: "logo", name: "Aligned security controls", desc: "Enterprise security controls aligned with recognized frameworks", logo: "/assets/logos/iso.svg" },
+  { kind: "icon", name: "GDPR support", desc: "GDPR support features", Icon: ShieldCheck, tint: "#2563EB" },
+  { kind: "icon", name: "Healthcare workflows", desc: "Workflows for healthcare data handling", Icon: FileCheck2, tint: "#BE123C" },
+  { kind: "logo", name: "NIST-aligned controls", desc: "NIST cybersecurity-framework controls", logo: "/assets/logos/nist.svg" },
   { kind: "logo", name: "SAML SSO Supported", desc: "Enterprise single sign-on", logo: "/assets/logos/saml.svg" },
   { kind: "icon", name: "MFA Enforced", desc: "Multi-factor authentication", Icon: Lock, tint: "#15803D" },
   { kind: "icon", name: "SCIM Supported", desc: "User provisioning and sync", Icon: Users, tint: "#7C3AED" },
@@ -67,7 +67,7 @@ const trustBar: { name: string; desc: string; Icon: LucideIcon; color: string }[
   { name: "Enterprise Security", desc: "Built from the ground up", Icon: ShieldCheck, color: "#0F766E" },
   { name: "Data Integrity", desc: "Cryptographic verification", Icon: Lock, color: "#BE123C" },
   { name: "Operational Trust", desc: "Proven in the field", Icon: CheckCircle2, color: "#15803D" },
-  { name: "Court-Ready", desc: "Review-ready evidence", Icon: Scale, color: "#F97316" },
+  { name: "Review-ready", desc: "Reports and packages prepared for review", Icon: Scale, color: "#F97316" },
   { name: "Global Scale", desc: "Available worldwide", Icon: Globe2, color: "#2563EB" },
   { name: "Expert Support", desc: "Enterprise support", Icon: Headphones, color: "#0F172A" },
 ];

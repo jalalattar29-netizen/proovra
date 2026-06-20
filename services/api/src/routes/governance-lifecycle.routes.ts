@@ -44,6 +44,37 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../services/governance.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { assertTeamAllowsEnterpriseFeature } from "../services/billing-enforcement.service.js";
+
+/**
+ * Pricing-hardening: helper to reject mutating governance ops when
+ * the team's effective plan is not ENTERPRISE. Mirrors the inline
+ * pattern already used by `requirePermission` so the route reads
+ * uniformly. Returns true when the gate denied (reply already sent).
+ */
+async function denyIfTeamNotEnterprise(
+  reply: FastifyReply,
+  teamId: string,
+  feature: "retentionPolicy" | "legalHold",
+): Promise<boolean> {
+  try {
+    await assertTeamAllowsEnterpriseFeature(teamId, feature);
+    return false;
+  } catch (err) {
+    const status = (err as { statusCode?: number }).statusCode ?? 402;
+    const code = (err as { code?: string }).code ?? "ENTERPRISE_FEATURE_REQUIRED";
+    reply.code(status).send({
+      error: {
+        code,
+        message:
+          (err as Error).message ??
+          `Feature "${feature}" is included only on Enterprise plans`,
+        upgradeCta: "/contact-sales",
+      },
+    });
+    return true;
+  }
+}
 
 import {
   RetentionEngineError,
@@ -214,6 +245,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       if (!ok) return;
       const perm = requirePermission(ok.role, "governance.policy.manage");
       if (!perm.allowed) return denyByPermission(reply, perm.reason);
+      if (await denyIfTeamNotEnterprise(reply, body.teamId, "retentionPolicy")) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
@@ -258,6 +290,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       if (!ok) return;
       const perm = requirePermission(ok.role, "governance.policy.manage");
       if (!perm.allowed) return denyByPermission(reply, perm.reason);
+      if (await denyIfTeamNotEnterprise(reply, body.teamId, "retentionPolicy")) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
@@ -299,6 +332,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       if (!ok) return;
       const perm = requirePermission(ok.role, "governance.policy.manage");
       if (!perm.allowed) return denyByPermission(reply, perm.reason);
+      if (await denyIfTeamNotEnterprise(reply, body.teamId, "retentionPolicy")) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
@@ -426,6 +460,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       if (!ok) return;
       const perm = requirePermission(ok.role, "evidence.delete");
       if (!perm.allowed) return denyByPermission(reply, perm.reason);
+      if (await denyIfTeamNotEnterprise(reply, body.teamId, "legalHold")) return;
       try {
         const review = await createDestructionReview({
           ...body,
@@ -838,6 +873,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       if (!ok) return;
       const perm = requirePermission(ok.role, "evidence.delete");
       if (!perm.allowed) return denyByPermission(reply, perm.reason);
+      if (await denyIfTeamNotEnterprise(reply, body.teamId, "legalHold")) return;
       // Step-up required for APPROVED + EXECUTED (the destructive
       // branches). The other transitions are operator-recoverable.
       if (body.nextStatus === "APPROVED" || body.nextStatus === "EXECUTED") {
@@ -923,6 +959,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       // of state machine pointers must be permission-gated and audited.
       const perm = requirePermission(ok.role, "governance.policy.manage");
       if (!perm.allowed) return denyByPermission(reply, perm.reason);
+      if (await denyIfTeamNotEnterprise(reply, body.teamId, "legalHold")) return;
       // Step-up required when entering destruction or terminal states.
       if (body.toState === "PENDING_DESTRUCTION" || body.toState === "DESTROYED") {
         const gate = await requireStepUpForSensitiveAction({

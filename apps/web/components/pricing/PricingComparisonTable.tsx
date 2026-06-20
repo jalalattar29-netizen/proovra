@@ -11,22 +11,28 @@ type Props = {
     storageLabel?: string | null;
     maxOwnedTeams?: number | null;
     maxMembersPerTeam?: number | null;
+    aiAdvisoryMonthlyOperations?: number | null;
   } | null;
   payg: {
     storageLabel?: string | null;
     maxOwnedTeams?: number | null;
     maxMembersPerTeam?: number | null;
+    aiAdvisoryMonthlyOperations?: number | null;
   } | null;
   pro: {
+    maxEvidenceRecords?: number | null;
     storageLabel?: string | null;
     maxOwnedTeams?: number | null;
     maxMembersPerTeam?: number | null;
+    aiAdvisoryMonthlyOperations?: number | null;
   } | null;
   team: {
+    maxEvidenceRecordsPerMonth?: number | null;
     storageLabel?: string | null;
     seats?: number | null;
     maxOwnedTeams?: number | null;
     maxMembersPerTeam?: number | null;
+    aiAdvisoryMonthlyOperations?: number | null;
   } | null;
   enterprise?: EnterpriseColumn | null;
 };
@@ -44,9 +50,19 @@ export function PricingComparisonTable({
       values: [
         `${free?.maxEvidenceRecords ?? 3} total`,
         "Pay only when you complete evidence",
-        "Unlimited",
-        "Unlimited across team workspaces",
+        `${pro?.maxEvidenceRecords ?? 100} included`,
+        `${team?.maxEvidenceRecordsPerMonth ?? 500} / month`,
         "Custom operational volume",
+      ],
+    },
+    {
+      label: "AI assistance (advisory)",
+      values: [
+        "Not included",
+        `${payg?.aiAdvisoryMonthlyOperations ?? 50} ops / month`,
+        `${pro?.aiAdvisoryMonthlyOperations ?? 100} ops / month`,
+        `${team?.aiAdvisoryMonthlyOperations ?? 500} ops / month`,
+        "Custom AI assistance",
       ],
     },
     {
@@ -274,6 +290,27 @@ export function PricingComparisonTable({
           governance discussion, retention alignment, shared review rollout, or
           higher-volume operational fit beyond the standard self-serve limits.
         </div>
+      </div>
+
+      {/* AI advisory disclaimer + fair-usage note */}
+      <div
+        className="mt-4 rounded-[20px] border px-5 py-4"
+        style={{
+          border: "1px solid rgba(79,112,107,0.10)",
+          background: "rgba(255,255,255,0.62)",
+        }}
+      >
+        <div className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-[#5d6d71]">
+          AI advisory & fair usage
+        </div>
+        <p className="mt-2 max-w-[1020px] text-[0.86rem] leading-[1.7] text-[#5d6d71]">
+          AI assistance is advisory and does not determine truth, authorship,
+          authenticity, identity, or legal admissibility. Plan caps describe
+          the included monthly allowance for evidence creation, storage, and AI
+          operations. Storage usage, AI usage, and record counts are measured
+          against the active workspace; sustained operational volume beyond
+          plan caps is intended for Enterprise discussion.
+        </p>
       </div>
     </div>
   );

@@ -710,6 +710,16 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // / lng / accuracyMeters columns end-to-end so no parallel
       // location concept is introduced.
       "20270825000000_intake_link_location_collection",
+      // Pricing hardening — Enterprise plan tier on the PlanType enum
+      // (ALTER TYPE ADD VALUE IF NOT EXISTS), Entitlement.legacy_record_
+      // cap_override (additive INTEGER, nullable), and two Phase O-Final
+      // guarded CREATE INDEX statements on evidence (team_id,created_at
+      // and team_id,deleted_at,created_at). Backfills legacy_record_cap_
+      // override for PRO accounts already above 100 records so existing
+      // records remain accessible while new creation is blocked above
+      // the grandfathered allowance. Pure additive: zero DROP / RENAME /
+      // TRUNCATE / DELETE / UPDATE-without-WHERE / SET-NOT-NULL.
+      "20270826000000_pricing_hardening_enterprise_plan_record_caps",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

@@ -47,6 +47,7 @@ export function getPlanPriceCents(
       : readInt("BILLING_TEAM_PRICE_CENTS_USD", 7900);
   }
 
+  // ENTERPRISE is Custom — no published monthly price; FREE is 0.
   return 0;
 }
 
@@ -108,67 +109,89 @@ export function getStripeStorageAddonPriceId(params: {
   return process.env[envKey]?.trim() || null;
 }
 
+function projectPublishedPlan<P extends "FREE" | "PAYG" | "PRO" | "TEAM">(
+  plan: P,
+  monthlyPriceCents: number,
+) {
+  const caps = PLAN_CAPABILITIES[plan];
+  return {
+    plan,
+    displayName: caps.displayName,
+    monthlyPriceCents,
+    storageBytes: caps.includedStorageBytes.toString(),
+    storageLabel: formatBytesHuman(caps.includedStorageBytes),
+    reportsIncluded: caps.reportsIncluded,
+    verificationPackageIncluded: caps.verificationPackageIncluded,
+    publicVerifyIncluded: caps.publicVerifyIncluded,
+    maxEvidenceRecords: caps.maxEvidenceRecords,
+    maxEvidenceRecordsPerMonth: caps.maxEvidenceRecordsPerMonth,
+    aiAdvisoryMonthlyOperations: caps.aiAdvisoryMonthlyOperations,
+    seats: caps.includedSeats,
+    workspaceType: caps.workspaceType,
+    maxOwnedTeams: caps.maxOwnedTeams,
+    maxMembersPerTeam: caps.maxMembersPerTeam,
+    enterpriseFeatures: caps.enterpriseFeatures,
+  };
+}
+
 export function buildPricingCatalogResponse(params: {
   currency: BillingCurrency;
 }) {
   const currency = params.currency;
 
+  const enterpriseCaps = PLAN_CAPABILITIES.ENTERPRISE;
+
   return {
     currency,
-    free: {
-      plan: "FREE" as const,
-      displayName: PLAN_CAPABILITIES.FREE.displayName,
-      monthlyPriceCents: 0,
-      storageBytes: PLAN_CAPABILITIES.FREE.includedStorageBytes.toString(),
-      storageLabel: formatBytesHuman(PLAN_CAPABILITIES.FREE.includedStorageBytes),
-      reportsIncluded: PLAN_CAPABILITIES.FREE.reportsIncluded,
-      verificationPackageIncluded:
-        PLAN_CAPABILITIES.FREE.verificationPackageIncluded,
-      publicVerifyIncluded: PLAN_CAPABILITIES.FREE.publicVerifyIncluded,
-      maxEvidenceRecords: PLAN_CAPABILITIES.FREE.maxEvidenceRecords,
-      seats: PLAN_CAPABILITIES.FREE.includedSeats,
-      workspaceType: PLAN_CAPABILITIES.FREE.workspaceType,
-    },
+    free: projectPublishedPlan("FREE", 0),
     payg: {
-      plan: "PAYG" as const,
-      displayName: PLAN_CAPABILITIES.PAYG.displayName,
-      monthlyPriceCents: getPlanPriceCents(prismaPkg.PlanType.PAYG, currency),
-      storageBytes: PLAN_CAPABILITIES.PAYG.includedStorageBytes.toString(),
-      storageLabel: formatBytesHuman(PLAN_CAPABILITIES.PAYG.includedStorageBytes),
-      reportsIncluded: PLAN_CAPABILITIES.PAYG.reportsIncluded,
-      verificationPackageIncluded:
-        PLAN_CAPABILITIES.PAYG.verificationPackageIncluded,
-      publicVerifyIncluded: PLAN_CAPABILITIES.PAYG.publicVerifyIncluded,
+      ...projectPublishedPlan(
+        "PAYG",
+        getPlanPriceCents(prismaPkg.PlanType.PAYG, currency),
+      ),
       creditsRequiredPerCompletion:
         PLAN_CAPABILITIES.PAYG.paygCreditsRequiredPerCompletion,
-      seats: PLAN_CAPABILITIES.PAYG.includedSeats,
-      workspaceType: PLAN_CAPABILITIES.PAYG.workspaceType,
     },
-    pro: {
-      plan: "PRO" as const,
-      displayName: PLAN_CAPABILITIES.PRO.displayName,
-      monthlyPriceCents: getPlanPriceCents(prismaPkg.PlanType.PRO, currency),
-      storageBytes: PLAN_CAPABILITIES.PRO.includedStorageBytes.toString(),
-      storageLabel: formatBytesHuman(PLAN_CAPABILITIES.PRO.includedStorageBytes),
-      reportsIncluded: PLAN_CAPABILITIES.PRO.reportsIncluded,
-      verificationPackageIncluded:
-        PLAN_CAPABILITIES.PRO.verificationPackageIncluded,
-      publicVerifyIncluded: PLAN_CAPABILITIES.PRO.publicVerifyIncluded,
-      seats: PLAN_CAPABILITIES.PRO.includedSeats,
-      workspaceType: PLAN_CAPABILITIES.PRO.workspaceType,
-    },
-    team: {
-      plan: "TEAM" as const,
-      displayName: PLAN_CAPABILITIES.TEAM.displayName,
-      monthlyPriceCents: getPlanPriceCents(prismaPkg.PlanType.TEAM, currency),
-      storageBytes: PLAN_CAPABILITIES.TEAM.includedStorageBytes.toString(),
-      storageLabel: formatBytesHuman(PLAN_CAPABILITIES.TEAM.includedStorageBytes),
-      reportsIncluded: PLAN_CAPABILITIES.TEAM.reportsIncluded,
-      verificationPackageIncluded:
-        PLAN_CAPABILITIES.TEAM.verificationPackageIncluded,
-      publicVerifyIncluded: PLAN_CAPABILITIES.TEAM.publicVerifyIncluded,
-      seats: PLAN_CAPABILITIES.TEAM.includedSeats,
-      workspaceType: PLAN_CAPABILITIES.TEAM.workspaceType,
+    pro: projectPublishedPlan(
+      "PRO",
+      getPlanPriceCents(prismaPkg.PlanType.PRO, currency),
+    ),
+    team: projectPublishedPlan(
+      "TEAM",
+      getPlanPriceCents(prismaPkg.PlanType.TEAM, currency),
+    ),
+    /**
+     * Enterprise is Sales-provisioned (Custom). The marketing object
+     * is published so the public Pricing page and in-app Billing UI
+     * both source Enterprise capability copy from the same place. The
+     * in-product entitlement check (`assertEnterpriseFeature`) uses
+     * the boolean flags on `PLAN_CAPABILITIES.ENTERPRISE` server-side.
+     */
+    enterprise: {
+      displayName: enterpriseCaps.displayName,
+      pricingModel: "CUSTOM" as const,
+      ctaLabel: "Contact Sales",
+      ctaHref: "/contact-sales",
+      summary:
+        "Custom commercial terms for larger organizations that need procurement handling, governance review, rollout planning, or higher-volume evidence operations.",
+      capabilities: [
+        "Custom operational volume and onboarding scope",
+        "Custom storage envelope and rollout planning",
+        "SAML SSO and SCIM provisioning",
+        "MFA enforcement, access reviews, session governance",
+        "Legal hold and custom retention policies",
+        "Organization audit logs",
+        "Object Lock / immutable storage controls",
+      ],
+      operationalFit: [
+        "Procurement and security review",
+        "Retention and governance alignment",
+        "Departmental or organization-wide rollout",
+        "Higher-volume evidence operations",
+      ],
+      supportWindow:
+        "Enterprise inquiries are typically reviewed within 4 business hours, depending on workflow clarity and commercial fit.",
+      enterpriseFeatures: enterpriseCaps.enterpriseFeatures,
     },
     storageAddons: listStorageAddonDefinitions().map((item) => ({
       key: item.key,

@@ -76,6 +76,7 @@ import {
   revokeTrustedDevice,
 } from "../services/identity-security/trusted-device.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { denyTeamIfNotEnterprise as denyIfTeamNotEnterprise } from "../services/enterprise-gate-resolvers.service.js";
 import {
   changePasswordForUser,
   isPasswordPolicyCompliant,
@@ -263,6 +264,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       const body = RevokeSessionBody.parse(req.body ?? {});
       const actor = await requireSecurityActor(req, reply, body.teamId, "identity.access_review.action");
       if (!actor) return;
+      if (await denyIfTeamNotEnterprise(reply, body.teamId, "sessionGovernance")) return;
       const result = await revokeSession({
         teamId: body.teamId,
         userId: body.userId,
@@ -291,6 +293,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       const body = RevokeAllBody.parse(req.body ?? {});
       const actor = await requireSecurityActor(req, reply, body.teamId, "identity.access_review.action");
       if (!actor) return;
+      if (await denyIfTeamNotEnterprise(reply, body.teamId, "sessionGovernance")) return;
       const row = await revokeAllSessionsForUser({
         teamId: body.teamId,
         userId: body.userId,
@@ -310,6 +313,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       const q = TeamIdQuery.parse(req.query ?? {});
       const actor = await requireSecurityActor(req, reply, q.teamId, "identity.member.read");
       if (!actor) return;
+      if (await denyIfTeamNotEnterprise(reply, q.teamId, "sessionGovernance")) return;
       const rows = await listRevocationsForTeam({ teamId: q.teamId, limit: 100 });
       return reply
         .code(200)

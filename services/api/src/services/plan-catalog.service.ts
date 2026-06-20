@@ -9,6 +9,8 @@ export {
   getPlanSeatLimit,
   getPlanStorageLimitBytes,
   getPricingCatalogResponse,
+  planHasEnterpriseFeature,
+  type EnterpriseFeatureFlags,
   type PlanCapabilities,
   type WorkspaceScopeType,
 } from "@proovra/shared-billing";

@@ -42,7 +42,7 @@ export default function ComparePage() {
           { feature: "Sharing breaks context", left: "Common", right: "Avoided" },
           { feature: "Manual chain of custody work", left: "Required", right: "Eliminated" },
           { feature: "Determines factual truth", left: false, right: false },
-          { feature: "Guarantees legal admissibility", left: false, right: false },
+          { feature: "Supports audit-ready review workflows", left: false, right: true },
         ]}
       />
       <PageCTA

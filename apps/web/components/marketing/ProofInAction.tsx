@@ -92,7 +92,7 @@ export function ProofInAction() {
                     Evidence Verified
                   </h3>
                   <p className="mt-0.5 text-[12.5px] text-[#475569]">
-                    This evidence is authentic and has not been altered.
+                    Verification signals match the recorded integrity signals.
                   </p>
                 </div>
               </div>

@@ -84,8 +84,8 @@ export function SecurityMethodology() {
             className="max-w-md text-[15.5px] leading-[1.7]"
             style={{ color: "rgba(255, 255, 255, 0.72)" }}
           >
-            PROOVRA&apos;s infrastructure ensures your evidence remains authentic,
-            verifiable, and tamper-evident at every layer of the lifecycle.
+            PROOVRA&apos;s infrastructure keeps your evidence integrity-verified
+            and tamper-evident at every layer of the lifecycle.
           </p>
           <Link
             href={MARKETING_LINKS.trustCenter}

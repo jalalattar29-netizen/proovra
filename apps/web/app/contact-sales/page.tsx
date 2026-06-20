@@ -462,9 +462,9 @@ const DEPLOYMENT_MODELS: {
   },
   {
     label: "Dedicated Environment",
-    fits: "Organizations needing isolation from other tenants for operational or risk reasons.",
+    fits: "Organizations needing workspace isolation for operational or risk reasons.",
     why: "Dedicated capacity, isolated data boundaries, and tighter operational separation.",
-    requirement: "Stricter tenant separation and performance predictability for sensitive workflows.",
+    requirement: "Stricter workspace isolation and performance predictability for sensitive workflows.",
     Icon: Server,
     gradientId: "csDeployDedicated",
     borderColor: "rgba(20,184,166,0.20)",
@@ -1083,22 +1083,16 @@ function FinalCTA() {
               </ul>
             </div>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
-              <Link
-                href="#contact-sales-form"
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-6 text-[14px] font-semibold text-[#0F172A] shadow-[0_10px_24px_rgba(15,23,42,0.22)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02]"
-              >
-                Contact sales
-                <ArrowRight size={14} />
-              </Link>
+              {/* CTA cleanup: removed duplicate "Contact sales" button — the
+                  whole /contact-sales page IS the contact-sales flow. The
+                  remaining "Request a demo" button inherits the original
+                  primary white-pill treatment. */}
               <Link
                 href={SALES_ASSETS.requestDemoUrl}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-full border px-6 text-[14px] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5"
-                style={{
-                  background: "rgba(255,255,255,0.10)",
-                  borderColor: "rgba(255,255,255,0.40)",
-                }}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-6 text-[14px] font-semibold text-[#0F172A] shadow-[0_10px_24px_rgba(15,23,42,0.22)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02]"
               >
                 Request a demo
+                <ArrowRight size={14} />
               </Link>
             </div>
           </div>

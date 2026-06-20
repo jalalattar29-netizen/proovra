@@ -77,7 +77,7 @@ const RAIL_ITEMS = [
   Icon: FileCheck,
   color: "#06B6D4",
   title: "REPORT",
-  body: ["Generate court-ready", "reports with full audit trail"],
+  body: ["Generate review-ready", "reports with full audit trail"],
 },
 {
   Icon: RailProveIcon,
@@ -417,13 +417,19 @@ Digital evidence infrastructure for legal, insurance, investigation, compliance,
           </p>
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Link
-              href={MARKETING_LINKS.verifyDemo}
+            {/* CTA cleanup: replaced "Try live verification" with
+                "View sample report" pointing at the canonical sample
+                report PDF. Same primary navy-pill treatment, opens in a
+                new tab as a downloadable asset. */}
+            <a
+              href={MARKETING_LINKS.sampleReport}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-[#0B1F5E] px-6 py-3.5 text-[15px] font-semibold text-white shadow-[0_12px_30px_rgba(11,31,94,0.28)] transition-all hover:bg-[#0a1c54] hover:shadow-[0_18px_36px_rgba(11,31,94,0.34)]"
             >
-              Try live verification
+              View sample report
               <ArrowRight size={16} />
-            </Link>
+            </a>
             <Link
               href={MARKETING_LINKS.requestDemo}
               className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-[#E5E7EB] bg-white px-6 py-3.5 text-[15px] font-semibold text-[#0F172A] shadow-[0_4px_12px_rgba(15,23,42,0.04)] transition-all hover:border-[#CBD5E1] hover:shadow-[0_8px_20px_rgba(15,23,42,0.06)]"
