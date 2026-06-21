@@ -332,12 +332,24 @@ function Hero({ content }: { content: UseCasePageContent }) {
           backgroundSize: "cover",
         }}
       />
+      {/* Base vertical wash — preserves legibility along top/bottom. */}
       <div
         aria-hidden="true"
         className="absolute inset-0"
         style={{
           background:
             "linear-gradient(180deg, rgba(6,12,22,0.28) 0%, rgba(6,12,22,0.18) 38%, rgba(6,12,22,0.50) 100%)",
+        }}
+      />
+      {/* Left-anchored readability wash — keeps the right half of the
+          hero image visible and premium while the text block stays
+          legible on the left. Subtle, no heavy black rectangle. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(90deg, rgba(6,12,22,0.62) 0%, rgba(6,12,22,0.42) 26%, rgba(6,12,22,0.18) 48%, rgba(6,12,22,0) 64%)",
         }}
       />
       <div
@@ -352,56 +364,59 @@ function Hero({ content }: { content: UseCasePageContent }) {
       <div className="relative z-10 flex min-h-[640px] flex-col md:min-h-[720px] lg:min-h-[760px]">
         <MarketingHeader />
 
-        <section className="mx-auto flex w-full max-w-7xl flex-1 flex-col items-center justify-center px-6 pb-20 pt-24 text-center md:px-8 md:pb-28 md:pt-28 lg:pt-32">
-          <Eyebrow center tone="dark">
-            {content.eyebrow}
-          </Eyebrow>
+        {/* Hero content — left-aligned on desktop, naturally readable
+            on mobile (no centered fallback needed: the left-anchored
+            block already lands in a balanced column on narrow widths). */}
+        <section className="mx-auto flex w-full max-w-7xl flex-1 flex-col items-start justify-center px-6 pb-20 pt-24 text-left md:px-8 md:pb-28 md:pt-28 lg:pt-32">
+          <div className="w-full max-w-[720px]">
+            <Eyebrow tone="dark">{content.eyebrow}</Eyebrow>
 
-          <h1 className="mx-auto mt-5 max-w-[940px] text-[2.05rem] font-semibold leading-[1.06] tracking-[-0.025em] text-white md:text-[2.85rem] lg:text-[3.25rem]">
-            {content.headline}{" "}
-            <span
-              className="bg-clip-text text-transparent"
-              style={{ backgroundImage: BRAND_GRADIENT_TEXT }}
-            >
-              {content.headlineHighlight}
-            </span>
-          </h1>
-
-          <p className="mx-auto mt-5 max-w-[760px] text-[15px] leading-[1.65] text-[#dfe7e2] md:text-[15.5px]">
-            {content.subhead}
-          </p>
-
-          <div className="mx-auto mt-7 flex max-w-[860px] flex-wrap items-center justify-center gap-x-3 gap-y-2.5">
-            {content.proofPoints.map((p) => (
+            <h1 className="mt-5 text-[2.05rem] font-semibold leading-[1.06] tracking-[-0.025em] text-white md:text-[2.7rem] lg:text-[3.05rem]">
+              {content.headline}{" "}
               <span
-                key={p}
-                className="inline-flex items-center rounded-full border border-white/14 bg-white/[0.07] px-3.5 py-1.5 text-[12.5px] text-[#eef3f1] backdrop-blur-md"
+                className="bg-clip-text text-transparent"
+                style={{ backgroundImage: BRAND_GRADIENT_TEXT }}
               >
-                <span className="mr-2 text-[#00D4FF]">✓</span>
-                {p}
+                {content.headlineHighlight}
               </span>
-            ))}
-          </div>
+            </h1>
 
-          <div className="mx-auto mt-9 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href={SALES_ASSETS.requestDemoUrl}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-transparent px-7 py-3 text-[14px] font-semibold text-white shadow-[0_18px_38px_rgba(232,63,174,0.32)] transition duration-300 hover:translate-y-[-1px] hover:brightness-110"
-              style={{
-                background:
-                  "linear-gradient(120deg,#E83FAE 0%,#6D28D9 100%)",
-              }}
-            >
-              Request Demo
-            </Link>
-            <a
-              href={SALES_ASSETS.sampleReportUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/40 bg-white px-7 py-3 text-[14px] font-semibold text-[#5B21B6] shadow-[0_10px_22px_rgba(15,23,42,0.18)] transition duration-300 hover:translate-y-[-1px] hover:bg-[#F5F3FF]"
-            >
-              View Sample Report
-            </a>
+            <p className="mt-5 max-w-[620px] text-[15px] leading-[1.65] text-[#dfe7e2] md:text-[15.5px]">
+              {content.subhead}
+            </p>
+
+            <div className="mt-7 flex flex-wrap items-center justify-start gap-x-2.5 gap-y-2">
+              {content.proofPoints.map((p) => (
+                <span
+                  key={p}
+                  className="inline-flex items-center rounded-full border border-white/14 bg-white/[0.07] px-3.5 py-1.5 text-[12.5px] text-[#eef3f1] backdrop-blur-md"
+                >
+                  <span className="mr-2 text-[#00D4FF]">✓</span>
+                  {p}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-9 flex flex-wrap items-center justify-start gap-3">
+              <Link
+                href={SALES_ASSETS.requestDemoUrl}
+                className="inline-flex h-[44px] items-center justify-center rounded-full border border-transparent px-6 text-[13.5px] font-semibold text-white shadow-[0_14px_28px_rgba(232,63,174,0.28)] transition duration-300 hover:translate-y-[-1px] hover:brightness-110"
+                style={{
+                  background:
+                    "linear-gradient(120deg,#E83FAE 0%,#6D28D9 100%)",
+                }}
+              >
+                Request Demo
+              </Link>
+              <a
+                href={SALES_ASSETS.sampleReportUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-[44px] items-center justify-center rounded-full border border-white/40 bg-white/95 px-6 text-[13.5px] font-semibold text-[#5B21B6] shadow-[0_10px_22px_rgba(15,23,42,0.18)] transition duration-300 hover:translate-y-[-1px] hover:bg-white"
+              >
+                View Sample Report
+              </a>
+            </div>
           </div>
         </section>
       </div>
