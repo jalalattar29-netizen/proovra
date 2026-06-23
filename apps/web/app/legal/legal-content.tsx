@@ -23,8 +23,15 @@ export const ALLOWED_LEGAL_SLUGS = new Set([
   "incident-response",
   "abuse-reporting",
   "toms",
-  "privacy-matrix",
   "legal-changelog",
+  // Legal Center hardening — five new policy surfaces. Each is a
+  // standalone legal document with explicit scope, boundary language,
+  // and links to the Trust Center.
+  "ai-use-policy",
+  "verification-disclaimer",
+  "privacy-requests",
+  "refund-policy",
+  "accessibility",
 ]);
 
 export function titleFromSlug(slug: string) {
@@ -49,10 +56,14 @@ export function titleFromSlug(slug: string) {
     "incident-response": "Incident Response Policy",
     "abuse-reporting": "Abuse & Unlawful Content Reporting",
     toms: "Technical & Organizational Measures",
-    "privacy-matrix": "Privacy Matrix",
     "legal-changelog": "Legal Changelog",
+    "ai-use-policy": "AI Use Policy",
+    "verification-disclaimer": "Verification Disclaimer",
+    "privacy-requests": "Privacy Requests",
+    "refund-policy": "Consumer Cancellation and Refund Policy",
+    accessibility: "Accessibility Statement",
   };
-  
+
   return map[slug] ?? slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
@@ -62,11 +73,27 @@ export async function loadLegalMarkdown(slug: string) {
     "content",
     "legal",
     LEGAL_LOCALE,
-    `${slug}.md`
+    `${slug}.md`,
   );
   return readFile(filePath, "utf8");
 }
 
+/**
+ * Minimal Markdown renderer for legal documents. Supports:
+ *   - H1 / H2 / H3
+ *   - paragraphs, line-break-separated
+ *   - unordered lists (`- `) and ordered lists (`1. `)
+ *   - inline **bold**, *italic*, [link](url)
+ *   - `---` horizontal rule
+ *   - GitHub-flavored Markdown tables
+ *
+ * Tables are emitted as real `<table>` elements wrapped in a
+ * horizontally-scrollable enterprise container with #E2E8F0 borders,
+ * #F8FAFC header background, navy header text, slate body text, and
+ * comfortable cell padding. This is the renderer used by every
+ * /legal/[slug] document — adding table support here fixes table
+ * rendering globally.
+ */
 export function renderLegalMarkdown(md: string) {
   const lines = md.replace(/\r\n/g, "\n").split("\n");
   const nodes: ReactNode[] = [];
@@ -80,7 +107,7 @@ export function renderLegalMarkdown(md: string) {
           {listItems.map((item, idx) => (
             <li key={idx}>{item}</li>
           ))}
-        </ul>
+        </ul>,
       );
       listItems = [];
     }
@@ -94,7 +121,7 @@ export function renderLegalMarkdown(md: string) {
           {orderedItems.map((item, idx) => (
             <li key={idx}>{item}</li>
           ))}
-        </ol>
+        </ol>,
       );
       orderedItems = [];
     }
@@ -110,7 +137,7 @@ export function renderLegalMarkdown(md: string) {
         out.push(
           <strong key={`b-${i}`} style={{ color: "inherit" }}>
             {part.slice(2, -2)}
-          </strong>
+          </strong>,
         );
         return;
       }
@@ -119,7 +146,7 @@ export function renderLegalMarkdown(md: string) {
         out.push(
           <em key={`i-${i}`} style={{ color: "inherit" }}>
             {part.slice(1, -1)}
-          </em>
+          </em>,
         );
         return;
       }
@@ -141,7 +168,7 @@ export function renderLegalMarkdown(md: string) {
               className="legal-link"
             >
               {label}
-            </a>
+            </a>,
           );
           return;
         }
@@ -153,57 +180,208 @@ export function renderLegalMarkdown(md: string) {
     return out.length === 1 ? out[0] : <>{out}</>;
   };
 
-  for (const line of lines) {
+  // ---------------------------------------------------------------------------
+  // Table parsing — GitHub-flavoured pipe tables
+  // ---------------------------------------------------------------------------
+
+  const parseCells = (row: string): string[] =>
+    row
+      .trim()
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map((c) => c.trim());
+
+  const isSeparatorRow = (row: string): boolean => {
+    if (!row || !row.includes("|")) return false;
+    const cells = parseCells(row);
+    if (cells.length === 0) return false;
+    return cells.every((c) => /^:?-{3,}:?$/.test(c));
+  };
+
+  const tryParseTable = (
+    start: number,
+  ): { node: ReactNode; nextIndex: number } | null => {
+    const headerLine = lines[start];
+    const separatorLine = lines[start + 1];
+    if (!headerLine || !separatorLine) return null;
+    if (!headerLine.trim().startsWith("|")) return null;
+    if (!isSeparatorRow(separatorLine)) return null;
+
+    const headers = parseCells(headerLine);
+    const sep = parseCells(separatorLine);
+    if (sep.length !== headers.length) return null;
+
+    // Per-column alignment from separator markers
+    const alignments: ("left" | "center" | "right")[] = sep.map((c) => {
+      const left = c.startsWith(":");
+      const right = c.endsWith(":");
+      if (left && right) return "center";
+      if (right) return "right";
+      return "left";
+    });
+
+    const rows: string[][] = [];
+    let i = start + 2;
+    while (i < lines.length) {
+      const l = lines[i];
+      if (!l || !l.trim().startsWith("|")) break;
+      const cells = parseCells(l);
+      // Pad / truncate cells to header length so a stray row doesn't break parse
+      while (cells.length < headers.length) cells.push("");
+      if (cells.length > headers.length) cells.length = headers.length;
+      rows.push(cells);
+      i++;
+    }
+
+    const wrapperStyle: React.CSSProperties = {
+      overflowX: "auto",
+      WebkitOverflowScrolling: "touch",
+      margin: "1.5rem 0",
+      borderRadius: "12px",
+      border: "1px solid #E2E8F0",
+      boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+      background: "#FFFFFF",
+    };
+
+    const tableStyle: React.CSSProperties = {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: "14px",
+      lineHeight: 1.55,
+    };
+
+    const node = (
+      <div
+        key={`tw-${start}`}
+        className="legal-table-wrapper"
+        style={wrapperStyle}
+      >
+        <table className="legal-table" style={tableStyle}>
+          <thead style={{ background: "#F8FAFC" }}>
+            <tr>
+              {headers.map((h, hi) => (
+                <th
+                  key={`th-${hi}`}
+                  style={{
+                    padding: "12px 16px",
+                    textAlign: alignments[hi] ?? "left",
+                    fontWeight: 600,
+                    color: "#0F172A",
+                    borderBottom: "1px solid #E2E8F0",
+                    fontSize: "12.5px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {renderInline(h)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, ri) => (
+              <tr key={`tr-${ri}`}>
+                {row.map((cell, ci) => (
+                  <td
+                    key={`td-${ri}-${ci}`}
+                    style={{
+                      padding: "12px 16px",
+                      textAlign: alignments[ci] ?? "left",
+                      color: "#475569",
+                      verticalAlign: "top",
+                      borderTop: "1px solid #F1F5F9",
+                    }}
+                  >
+                    {renderInline(cell)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+
+    return { node, nextIndex: i };
+  };
+
+  let cursor = 0;
+  while (cursor < lines.length) {
+    const line = lines[cursor];
     const trimmed = line.trim();
 
     if (!trimmed) {
       flushLists();
+      cursor++;
       continue;
+    }
+
+    // Tables — must be checked before other block rules because table
+    // rows start with `|` which doesn't match any other rule but would
+    // otherwise fall through to the paragraph branch and render as
+    // raw text with pipes.
+    if (trimmed.startsWith("|")) {
+      const table = tryParseTable(cursor);
+      if (table) {
+        flushLists();
+        nodes.push(table.node);
+        cursor = table.nextIndex;
+        continue;
+      }
     }
 
     if (trimmed === "---") {
       flushLists();
       nodes.push(<hr key={`hr-${nodes.length}`} className="legal-divider" />);
+      cursor++;
       continue;
     }
 
     if (trimmed.startsWith("### ")) {
       flushLists();
       nodes.push(
-        <h3 key={`h3-${nodes.length}`}>{renderInline(trimmed.slice(4))}</h3>
+        <h3 key={`h3-${nodes.length}`}>{renderInline(trimmed.slice(4))}</h3>,
       );
+      cursor++;
       continue;
     }
 
     if (trimmed.startsWith("## ")) {
       flushLists();
       nodes.push(
-        <h2 key={`h2-${nodes.length}`}>{renderInline(trimmed.slice(3))}</h2>
+        <h2 key={`h2-${nodes.length}`}>{renderInline(trimmed.slice(3))}</h2>,
       );
+      cursor++;
       continue;
     }
 
     if (trimmed.startsWith("# ")) {
       flushLists();
       nodes.push(
-        <h1 key={`h1-${nodes.length}`}>{renderInline(trimmed.slice(2))}</h1>
+        <h1 key={`h1-${nodes.length}`}>{renderInline(trimmed.slice(2))}</h1>,
       );
+      cursor++;
       continue;
     }
 
     if (trimmed.startsWith("- ")) {
       listItems.push(renderInline(trimmed.slice(2)));
+      cursor++;
       continue;
     }
 
     const orderedMatch = trimmed.match(/^\d+\.\s+(.*)$/);
     if (orderedMatch) {
       orderedItems.push(renderInline(orderedMatch[1]));
+      cursor++;
       continue;
     }
 
     flushLists();
     nodes.push(<p key={`p-${nodes.length}`}>{renderInline(trimmed)}</p>);
+    cursor++;
   }
 
   flushLists();

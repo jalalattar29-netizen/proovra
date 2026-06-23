@@ -1132,9 +1132,11 @@ export const ROUTE_REGISTRY = [
     },
     // ---------------------------------------------------------------------------
     // Phase 1A — Trust pillar surface. Canonical id `workspace.trust` points
-    // at the real Trust hub page (apps/web/app/(app)/trust/page.tsx) which
+    // at the real Trust hub page (apps/web/app/(app)/trust-hub/page.tsx) which
     // composes verification methodology, public-verify, offline verifier,
     // signers, c2pa operations, subprocessors, privacy + retention surfaces.
+    // The in-app hub URL is `/trust-hub` (relocated from `/trust` so the
+    // top-level `/trust` URL can serve the public-facing Trust Center).
     // ---------------------------------------------------------------------------
     {
         id: "workspace.trust",

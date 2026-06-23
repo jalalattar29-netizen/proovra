@@ -44,6 +44,18 @@ export const MARKETING_COLORS = {
   success: "#10B981",
   warning: "#F59E0B",
   error: "#EF4444",
+
+  // Scoped accent tokens — used by specific Solutions / Technology
+  // surfaces only (see app/technology/page.tsx and
+  // components/use-case-page.tsx). Not applied globally.
+  burgundy: "#7A1F3D",
+  burgundyDark: "#5E1730",
+  burgundySoft: "#F8EEF3",
+  burgundyBorder: "rgba(122,31,61,0.22)",
+  governanceGreen: "#0B6B53",
+  governanceGreenDark: "#084C3C",
+  governanceGreenSoft: "#EAF6F2",
+  governanceGreenBorder: "rgba(11,107,83,0.22)",
 } as const;
 
 export const MARKETING_ASSETS = {
@@ -75,10 +87,9 @@ export const MARKETING_LINKS = {
   sampleReport: "/brand/sample-report.pdf",
   support: "/support",
 
-  trustCenter: "/about/trust",
+  trustCenter: "/trust",
   faq: "/faq",
   whyProovra: "/why-proovra",
-  comparison: "/compare/traditional-files-vs-proovra",
   about: "/about",
 
   // Platform IA was consolidated into one /platform page with anchor
@@ -99,11 +110,24 @@ export const MARKETING_LINKS = {
 
   technology: {
     overview: "/technology",
-    cryptographicHashing: "/technology/cryptographic-hashing",
-    digitalSignatures: "/technology/digital-signatures",
-    trustedTimestamps: "/technology/trusted-timestamps",
-    openTimestamps: "/technology/opentimestamps",
-    chainOfCustody: "/technology/chain-of-custody",
+    // Technology was consolidated into a single in-depth architecture
+    // page at /technology. The five detail subpages (cryptographic-
+    // hashing, digital-signatures, trusted-timestamps, opentimestamps,
+    // chain-of-custody) were retired and permanently redirect to the
+    // canonical destination with in-page anchors (#ai-architecture,
+    // #verification-architecture, #security-architecture,
+    // #governance-architecture). Old token keys point at the new
+    // anchors so any unmigrated consumer still resolves to the right
+    // place.
+    aiArchitecture: "/technology#ai-architecture",
+    verificationArchitecture: "/technology#verification-architecture",
+    securityArchitecture: "/technology#security-architecture",
+    governanceArchitecture: "/technology#governance-architecture",
+    cryptographicHashing: "/technology#verification-architecture",
+    digitalSignatures: "/technology#verification-architecture",
+    trustedTimestamps: "/technology#verification-architecture",
+    openTimestamps: "/technology#verification-architecture",
+    chainOfCustody: "/technology#governance-architecture",
     // Canonical methodology lives at /legal/verification-methodology;
     // the old standalone /technology/verification-methodology page was
     // retired (a permanent redirect in next.config.js preserves old

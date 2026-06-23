@@ -72,7 +72,7 @@ function readWorker(rel) {
     return readFileSync(workerPath(rel), "utf8");
 }
 const TRUST_CENTER_CONTENT_SRC = readPackages("shared-evidence-presentation/src/trust-center-content.ts");
-const TRUST_CENTER_PAGE = readWeb("app/about/trust/page.tsx");
+const TRUST_CENTER_PAGE = readWeb("app/trust/page.tsx");
 const CLAIMS_MATRIX = readPackages("shared-evidence-presentation/src/claims-matrix.ts");
 const FOOTER = readWeb("components/Footer.tsx");
 // ===========================================================================
@@ -109,9 +109,9 @@ describe("E5 Test 1 — section IDs are stable + canonical", () => {
             expect(s.limitations.length, `limitations missing for ${s.id}`).toBeGreaterThan(0);
         }
     });
-    it("deep-link helper produces stable /about/trust#<id> URLs", () => {
-        expect(trustCenterDeepLink("ai-limitations")).toBe("/about/trust#ai-limitations");
-        expect(trustCenterDeepLink("chain-of-custody")).toBe("/about/trust#chain-of-custody");
+    it("deep-link helper produces stable /trust#<id> URLs", () => {
+        expect(trustCenterDeepLink("ai-limitations")).toBe("/trust#ai-limitations");
+        expect(trustCenterDeepLink("chain-of-custody")).toBe("/trust#chain-of-custody");
     });
 });
 // ===========================================================================
@@ -261,11 +261,11 @@ describe("E5 Test 5 — page consumes the shared content module", () => {
     });
 });
 // ===========================================================================
-// PART 6 — IA preservation: under /about/, no new root nav
+// PART 6 — IA preservation: canonical /trust top-level destination
 // ===========================================================================
 describe("E5 Test 6 — IA preservation", () => {
-    it("page lives at apps/web/app/about/trust/page.tsx", () => {
-        expect(existsSync(webPath("app/about/trust/page.tsx"))).toBe(true);
+    it("page lives at apps/web/app/trust/page.tsx", () => {
+        expect(existsSync(webPath("app/trust/page.tsx"))).toBe(true);
     });
     it("32.8 canonical primaries still exactly 6 (no new root nav)", () => {
         const groups = readWeb("lib/navigation/canonicalNavigationGroups.ts");
@@ -274,8 +274,8 @@ describe("E5 Test 6 — IA preservation", () => {
         const ids = Array.from(m[1].matchAll(/["']([^"']+)["']/g)).map((mm) => mm[1]);
         expect(ids).toHaveLength(9); // baseline grew with G0+ IA — was 6 pre-G0, now 9 canonical primaries
     });
-    it("footer Trust & Verification column links the Trust Center as the entry point", () => {
-        expect(FOOTER).toMatch(/href:\s*["']\/about\/trust["']/);
+    it("footer Legal column links the Trust Center as the entry point", () => {
+        expect(FOOTER).toMatch(/href:\s*["']\/trust["']/);
         expect(FOOTER).toMatch(/label:\s*["']Trust Center["']/);
     });
     it("trust center page links DOWN to the detailed legal docs (no duplication)", () => {

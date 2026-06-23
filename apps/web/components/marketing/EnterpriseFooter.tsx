@@ -8,46 +8,64 @@ type FooterCol = {
 };
 
 /**
- * Footer columns focus on enterprise trust, legal, governance, and
- * support — not on marketing nav already exposed in the header. Every
- * link below points at a real route (marketing `/security`, `/trust-center`
- * or the dynamic `/legal/[slug]` registry under `content/legal/en/*.md`).
+ * Enterprise legal/trust/compliance footer. Marketing nav (Platform,
+ * Solutions, Pricing, etc.) lives in the marketing header — it is
+ * intentionally NOT duplicated here. Three columns: Trust & Security,
+ * Legal & Compliance, Governance & Requests.
+ *
+ * Trust Center (/trust) remains the complete hub for every doc surfaced
+ * below — no orphan pages.
+ *
+ * "Security Overview" preserves the legacy entry-point label and points
+ * at `/security-overview`, which 308s to the canonical
+ * `/legal/security` document. Privacy Matrix is permanently deleted
+ * and intentionally absent here.
  */
 const COLUMNS: FooterCol[] = [
   {
     title: "Trust & Security",
     links: [
-      { label: "Trust Center", href: MARKETING_LINKS.trustCenter },
-      { label: "Security & Responsible Disclosure", href: "/legal/security" },
-      { label: "Transparency", href: "/legal/transparency" },
-      { label: "Verification Methodology", href: "/legal/verification-methodology" },
       { label: "Evidence Handling", href: "/legal/evidence-handling" },
       { label: "Incident Response", href: "/legal/incident-response" },
+      { label: "Security Overview", href: "/security-overview" },
+      { label: "Transparency", href: "/legal/transparency" },
+      { label: "Trust Center", href: MARKETING_LINKS.trustCenter },
+      { label: "Verification Disclaimer", href: "/legal/verification-disclaimer" },
+      { label: "Verification Methodology", href: "/legal/verification-methodology" },
     ],
   },
   {
     title: "Legal & Compliance",
     links: [
-      { label: "Privacy Policy", href: "/legal/privacy" },
-      { label: "Terms of Service", href: "/legal/terms" },
+      // The canonical slug for the Acceptable Use Policy is /legal/aup
+      // (matches the markdown source file aup.md). The user spec
+      // suggested /legal/acceptable-use; using the canonical avoids a
+      // 308 hop and matches the existing source-of-truth registry.
+      { label: "Acceptable Use Policy", href: "/legal/aup" },
+      { label: "Accessibility Statement", href: "/legal/accessibility" },
       { label: "Cookies", href: "/legal/cookies" },
       { label: "Data Processing Addendum", href: "/legal/dpa" },
-      { label: "Acceptable Use Policy", href: "/legal/aup" },
+      { label: "Legal Changelog", href: "/legal/legal-changelog" },
+      { label: "Privacy Policy", href: "/legal/privacy" },
       { label: "Subprocessors", href: "/legal/subprocessors" },
       { label: "Technical & Organizational Measures", href: "/legal/toms" },
-      { label: "Privacy Matrix", href: "/legal/privacy-matrix" },
-      { label: "Legal Changelog", href: "/legal/legal-changelog" },
+      { label: "Terms of Service", href: "/legal/terms" },
     ],
   },
   {
     title: "Governance & Requests",
     links: [
-      { label: "Data Retention", href: "/legal/data-retention" },
-      { label: "Law Enforcement Requests", href: "/legal/law-enforcement" },
       { label: "Abuse Reporting", href: "/legal/abuse-reporting" },
+      { label: "AI Use Policy", href: "/legal/ai-use-policy" },
+      { label: "Consumer Cancellation & Refund Policy", href: "/legal/refund-policy" },
+      { label: "Contact", href: "/contact-sales" },
+      { label: "Data Retention", href: "/legal/data-retention" },
       { label: "DMCA", href: "/legal/dmca" },
       { label: "Impressum", href: "/legal/impressum" },
-      { label: "Support", href: "/legal/support" },
+      { label: "Law Enforcement Requests", href: "/legal/law-enforcement" },
+      { label: "Privacy Requests", href: "/legal/privacy-requests" },
+      { label: "Support", href: "/support" },
+      { label: "Support Policy", href: "/legal/support" },
     ],
   },
 ];
@@ -55,44 +73,58 @@ const COLUMNS: FooterCol[] = [
 export function EnterpriseFooter() {
   return (
     <footer
-      className="relative text-white"
+      className="relative overflow-hidden text-white"
       style={{
         fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif",
-        background: "linear-gradient(180deg, #0B1F5E 0%, #06112E 100%)",
       }}
     >
-      <div className="mx-auto max-w-[1480px] px-5 md:px-7 pt-16 lg:px-10 2xl:px-12 lg:pt-20">
+      {/* Footer surface artwork — set as a layer so the cover/center
+          rendering matches the natural composition of the asset and
+          leaves the right edge "premium" without stretching. A subtle
+          deepening wash sits on top to keep column text readable, but
+          stays well below the threshold that would obscure the
+          artwork. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0"
+        style={{
+          backgroundImage: "url('/assets/cards/footer-card.png')",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "center center",
+          backgroundSize: "cover",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(6,17,46,0.32) 0%, rgba(6,17,46,0.48) 100%)",
+        }}
+      />
+
+      <div className="relative mx-auto max-w-[1480px] px-5 md:px-7 pt-16 lg:px-10 2xl:px-12 lg:pt-20">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1.1fr_3fr] lg:gap-16">
-<div className="flex flex-col gap-4">
-<Link
-  href="/"
-  aria-label={MARKETING_COPY.brandName}
-  className="inline-flex w-fit items-center gap-1"
->
-  <div className="relative flex h-[96px] w-[96px] shrink-0 items-center justify-center overflow-visible">
-    <img
-      src="/assets/branding/proovra-mark.png"
-      alt=""
-      aria-hidden="true"
-      className="absolute left-1/2 top-1/2 h-[165px] w-[165px] max-w-none -translate-x-1/2 -translate-y-1/2 object-contain"
-    />
-  </div>
+          <div className="flex flex-col gap-5">
+            {/* Horizontal logo image carries the wordmark, so we no
+                longer compose mark + typeset text inline. */}
+            <Link
+              href="/"
+              aria-label={MARKETING_COPY.brandName}
+              className="inline-flex w-fit items-center"
+            >
+              <img
+                src="/assets/branding/footer-logo.png"
+                alt={MARKETING_COPY.brandName}
+                className="h-auto w-[220px] max-w-full object-contain"
+                style={{ objectFit: "contain" }}
+              />
+            </Link>
 
-  <div className="flex flex-col justify-center leading-none">
-    <span className="text-[30px] font-extrabold tracking-[0.12em] text-white">
-      PROOVRA
-    </span>
-
-    <span className="mt-2 text-[9.5px] font-semibold uppercase tracking-[0.26em] text-white/60">
-      Integrity in Every Evidence
-    </span>
-  </div>
-</Link>
-
-<p className="max-w-[290px] text-[13px] leading-[1.65] text-white/65">
-  Enterprise infrastructure for digital evidence integrity,
-  verification, and governance.
-</p>
+            <p className="max-w-[290px] text-[13px] leading-[1.65] text-white/70">
+              Enterprise infrastructure for digital evidence integrity,
+              verification, and governance.
+            </p>
             <a
               href={`mailto:${MARKETING_COPY.supportEmail}`}
               className="inline-flex w-fit items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3.5 py-1.5 text-[12.5px] font-medium text-white/85 transition-all hover:bg-white/10"

@@ -23,6 +23,7 @@ import {
 } from "../../../../../components/ui";
 import DashboardShell from "../../../../../components/dashboard/DashboardShell";
 import AdminConsoleNav from "../../../../../components/admin/AdminConsoleNav";
+import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../lib/api";
 
 type Status =
@@ -231,6 +232,7 @@ export default function AdminContactSalesDetailPage({
   }
 
   return (
+    <PageRouteGate routeId="admin.contactSales">
     <DashboardShell
       eyebrow="Contact Sales"
       title="Inquiry detail"
@@ -476,5 +478,6 @@ export default function AdminContactSalesDetailPage({
         )}
       </div>
     </DashboardShell>
+    </PageRouteGate>
   );
 }

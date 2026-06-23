@@ -23,6 +23,8 @@ import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { RequestDemoForm } from "../../components/request-demo-form";
 import { SALES_ASSETS } from "../../lib/sales-assets";
+import { MARKETING_BTN } from "../../lib/marketing-buttons";
+import { RevealSection } from "../../components/motion";
 
 /* ─── Shared primitives ───────────────────────────────────────────────── */
 
@@ -786,7 +788,7 @@ function BottomCTA() {
                   primary white-pill treatment. */}
               <Link
                 href={SALES_ASSETS.contactSalesUrl}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-6 text-[14px] font-semibold text-[#0F172A] shadow-[0_10px_24px_rgba(15,23,42,0.22)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_14px_32px_rgba(15,23,42,0.30)]"
+                className={MARKETING_BTN.purpleSecondary}
               >
                 Talk to sales
                 <ArrowRight size={14} />
@@ -809,10 +811,10 @@ function RequestDemoPageContent() {
     <div className="page landing-page bg-[var(--proovra-page-bg)]">
       <MarketingHeader />
       <HeroSection isEnterpriseTrack={isEnterpriseTrack} />
-      <WhatYouCanEvaluate />
-      <DemoScenarios />
-      <WhatHappensNext />
-      <BottomCTA />
+      <RevealSection direction="up"><WhatYouCanEvaluate /></RevealSection>
+      <RevealSection direction="right"><DemoScenarios /></RevealSection>
+      <RevealSection direction="left"><WhatHappensNext /></RevealSection>
+      <RevealSection direction="up"><BottomCTA /></RevealSection>
       <EnterpriseFooter />
     </div>
   );

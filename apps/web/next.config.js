@@ -67,6 +67,37 @@ const nextConfig = {
         destination: "/legal/verification-methodology",
         permanent: true,
       },
+      // Marketing — the five Technology detail subpages were retired in
+      // favor of the single, in-depth /technology architecture page.
+      // Anchors on the destination preserve deep-link semantics:
+      //   * hashing / signatures / timestamps / OTS  → #verification-architecture
+      //   * chain of custody                          → #governance-architecture
+      // Old indexed URLs continue to resolve via permanent redirects.
+      {
+        source: "/technology/cryptographic-hashing",
+        destination: "/technology#verification-architecture",
+        permanent: true,
+      },
+      {
+        source: "/technology/digital-signatures",
+        destination: "/technology#verification-architecture",
+        permanent: true,
+      },
+      {
+        source: "/technology/trusted-timestamps",
+        destination: "/technology#verification-architecture",
+        permanent: true,
+      },
+      {
+        source: "/technology/opentimestamps",
+        destination: "/technology#verification-architecture",
+        permanent: true,
+      },
+      {
+        source: "/technology/chain-of-custody",
+        destination: "/technology#governance-architecture",
+        permanent: true,
+      },
       // Marketing — the six /solutions/* industry pages were retired in
       // favor of the canonical /for-* industry pages driven by the
       // shared UseCasePage component (apps/web/components/use-case-page.tsx).
@@ -256,6 +287,27 @@ const nextConfig = {
       {
         source: "/platform/governance",
         destination: "/platform",
+        permanent: true,
+      },
+      // Legal Center IA restructure — Trust Center promoted to a
+      // top-level destination (`/trust`) so it reads as a primary
+      // trust/legal pillar rather than an About sub-page. The legacy
+      // `/about/trust` URL 308s to the canonical path so external
+      // links, indexed URLs, and old Help-menu deep links continue
+      // to resolve.
+      {
+        source: "/about/trust",
+        destination: "/trust",
+        permanent: true,
+      },
+      // Legal Center IA restructure — the standalone Privacy Matrix
+      // page was retired because its content is already covered in
+      // the Privacy Policy. Any indexed Matrix URL 308s to the
+      // canonical destination so external references continue to
+      // resolve.
+      {
+        source: "/legal/privacy-matrix",
+        destination: "/legal/privacy",
         permanent: true,
       },
     ];

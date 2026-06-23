@@ -3,6 +3,7 @@
 import { FileText, Lock } from "lucide-react";
 import { PlatformDashboardShowcase } from "../marketing/PlatformDashboardShowcase";
 import { SALES_ASSETS } from "../../lib/sales-assets";
+import { MARKETING_BTN } from "../../lib/marketing-buttons";
 import { HeroChip } from "./_shared";
 
 export function Hero() {
@@ -65,7 +66,7 @@ export function Hero() {
               href={SALES_ASSETS.sampleReportUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-6 text-[14px] font-semibold text-[#0F172A] transition hover:border-[#CBD5E1]"
+              className={MARKETING_BTN.primaryDark}
             >
               View sample report
               <FileText size={14} />

@@ -54,7 +54,9 @@ const TRUST_SERVICE = readRepo("services/api/src/services/trust/trust-center.ser
 const SUBPROCESSOR_SERVICE = readRepo("services/api/src/services/trust/subprocessor.service.ts");
 const STATUS_SERVICE = readRepo("services/api/src/services/trust/status-page.service.ts");
 const ROUTES = readRepo("services/api/src/routes/trust-and-governance.routes.ts");
-const TRUST_PAGE = readRepo("apps/web/app/(app)/trust/page.tsx");
+// Phase E5 rebaseline (see .ts mirror): workspace Trust hub migrated
+// to (app)/trust-hub/page.tsx; canonical public Trust Center owns /trust.
+const TRUST_PAGE = readRepo("apps/web/app/(app)/trust-hub/page.tsx");
 const REDIRECT_LANDING = readRepo("apps/web/app/(app)/trust-center/page.tsx");
 const METHODOLOGY_PAGE = readRepo("apps/web/app/(app)/trust-center/methodology/page.tsx");
 const SECTION_LIST = readRepo("apps/web/app/(app)/trust-center/_section-list.tsx");

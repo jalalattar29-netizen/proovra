@@ -12,6 +12,7 @@ import { EnterpriseGovernanceSecurity } from "../components/marketing/Enterprise
 import { IntegrationsComplianceSection } from "../components/marketing/IntegrationsComplianceSection";
 import { ImportantClarification } from "../components/marketing/ImportantClarification";
 import { EnterpriseFooter } from "../components/marketing/EnterpriseFooter";
+import { RevealSection } from "../components/motion";
 
 export default function HomePage() {
   return (
@@ -21,17 +22,17 @@ export default function HomePage() {
     >
       <MarketingHeader />
       <HeroSection />
-      <TrustedStandards />
-      <VerifyInstantly />
-      <EvidenceLifecycle />
-      <EvidenceOperations />
-      <IndustriesGrid />
-      <SecurityMethodology />
-      <ProofInAction />
-      <EnterpriseOperationsPlatform />
-      <EnterpriseGovernanceSecurity />
-      <IntegrationsComplianceSection />
-      <ImportantClarification />
+      <RevealSection direction="up"><TrustedStandards /></RevealSection>
+      <RevealSection direction="right"><VerifyInstantly /></RevealSection>
+      <RevealSection direction="left"><EvidenceLifecycle /></RevealSection>
+      <RevealSection direction="up"><EvidenceOperations /></RevealSection>
+      <RevealSection direction="right"><IndustriesGrid /></RevealSection>
+      <RevealSection direction="left"><SecurityMethodology /></RevealSection>
+      <RevealSection direction="up"><ProofInAction /></RevealSection>
+      <RevealSection direction="right"><EnterpriseOperationsPlatform /></RevealSection>
+      <RevealSection direction="left"><EnterpriseGovernanceSecurity /></RevealSection>
+      <RevealSection direction="up"><IntegrationsComplianceSection /></RevealSection>
+      <RevealSection direction="right"><ImportantClarification /></RevealSection>
       <EnterpriseFooter />
     </main>
   );

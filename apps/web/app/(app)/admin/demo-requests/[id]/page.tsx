@@ -22,6 +22,7 @@ import {
 } from "../../../../../components/ui";
 import DashboardShell from "../../../../../components/dashboard/DashboardShell";
 import AdminConsoleNav from "../../../../../components/admin/AdminConsoleNav";
+import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../lib/api";
 
 type DemoStatus =
@@ -199,6 +200,7 @@ export default function AdminDemoRequestDetailPage({
   }
 
   return (
+    <PageRouteGate routeId="admin.demoRequests">
     <DashboardShell
       eyebrow="Demo Requests"
       title="Request detail"
@@ -415,6 +417,7 @@ export default function AdminDemoRequestDetailPage({
         )}
       </div>
     </DashboardShell>
+    </PageRouteGate>
   );
 }
 

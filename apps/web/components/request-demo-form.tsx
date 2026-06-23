@@ -15,6 +15,7 @@ import {
 } from "../lib/request-demo-schema";
 import { SALES_ASSETS } from "../lib/sales-assets";
 import { EnterpriseSuccessModal } from "./marketing/EnterpriseSuccessModal";
+import { MARKETING_BTN } from "../lib/marketing-buttons";
 
 type SelectOption = { value: string; label: string };
 
@@ -466,7 +467,7 @@ export function RequestDemoForm({
 
         <a
           href={SALES_ASSETS.pricingUrl}
-          className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-[#E2E8F0] bg-white px-6 text-[13.5px] font-semibold text-[#0F172A] transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.015] hover:border-[#CBD5E1] hover:shadow-[0_8px_18px_rgba(15,23,42,0.06)]"
+          className={MARKETING_BTN.purpleSecondary}
         >
           View pricing
         </a>

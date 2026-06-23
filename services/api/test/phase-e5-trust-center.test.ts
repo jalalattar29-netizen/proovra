@@ -22,8 +22,10 @@
  *   - The same forbidden phrase regexes MUST also remain false against
  *     the existing safe surfaces (Verify page, report-v2 sections, AI
  *     components) — cross-surface wording alignment.
- *   - The Trust Center MUST live under the existing `/about/` route —
- *     no new root nav item, 32.8 IA preserved.
+ *   - The Trust Center MUST live at the canonical top-level `/trust`
+ *     destination — promoted from the legacy `/about/trust` sub-route
+ *     so Trust Center reads as a primary trust/legal destination, not
+ *     an About sub-page.
  *   - Every section MUST carry an explicit `Limitations` sub-block.
  *   - The page MUST link to the existing legal documentation (no doc
  *     duplication; the Trust Center is a summary surface, not a
@@ -88,7 +90,7 @@ function readWorker(rel: string): string {
 const TRUST_CENTER_CONTENT_SRC = readPackages(
   "shared-evidence-presentation/src/trust-center-content.ts",
 );
-const TRUST_CENTER_PAGE = readWeb("app/about/trust/page.tsx");
+const TRUST_CENTER_PAGE = readWeb("app/trust/page.tsx");
 const CLAIMS_MATRIX = readPackages(
   "shared-evidence-presentation/src/claims-matrix.ts",
 );
@@ -136,12 +138,12 @@ describe("E5 Test 1 — section IDs are stable + canonical", () => {
     }
   });
 
-  it("deep-link helper produces stable /about/trust#<id> URLs", () => {
+  it("deep-link helper produces stable /trust#<id> URLs", () => {
     expect(trustCenterDeepLink("ai-limitations")).toBe(
-      "/about/trust#ai-limitations",
+      "/trust#ai-limitations",
     );
     expect(trustCenterDeepLink("chain-of-custody")).toBe(
-      "/about/trust#chain-of-custody",
+      "/trust#chain-of-custody",
     );
   });
 });
@@ -346,12 +348,12 @@ describe("E5 Test 5 — page consumes the shared content module", () => {
 });
 
 // ===========================================================================
-// PART 6 — IA preservation: under /about/, no new root nav
+// PART 6 — IA preservation: canonical /trust top-level destination
 // ===========================================================================
 
 describe("E5 Test 6 — IA preservation", () => {
-  it("page lives at apps/web/app/about/trust/page.tsx", () => {
-    expect(existsSync(webPath("app/about/trust/page.tsx"))).toBe(true);
+  it("page lives at apps/web/app/trust/page.tsx", () => {
+    expect(existsSync(webPath("app/trust/page.tsx"))).toBe(true);
   });
 
   it("32.8 canonical primaries still exactly 6 (no new root nav)", () => {
@@ -366,8 +368,8 @@ describe("E5 Test 6 — IA preservation", () => {
     expect(ids).toHaveLength(9); // baseline grew with G0+ IA — was 6 pre-G0, now 9 canonical primaries
   });
 
-  it("footer Trust & Verification column links the Trust Center as the entry point", () => {
-    expect(FOOTER).toMatch(/href:\s*["']\/about\/trust["']/);
+  it("footer Legal column links the Trust Center as the entry point", () => {
+    expect(FOOTER).toMatch(/href:\s*["']\/trust["']/);
     expect(FOOTER).toMatch(/label:\s*["']Trust Center["']/);
   });
 

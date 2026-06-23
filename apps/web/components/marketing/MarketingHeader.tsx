@@ -16,12 +16,6 @@ import {
   Landmark,
   BookOpen,
   Newspaper,
-  Cpu,
-  FingerprintPattern,
-  KeyRound,
-  Clock,
-  Anchor,
-  Link2,
   Compass,
   Sparkles,
   HelpCircle,
@@ -30,6 +24,7 @@ import {
   Building,
 } from "lucide-react";
 import { MARKETING_COPY, MARKETING_LINKS } from "./tokens";
+import { MARKETING_BTN } from "../../lib/marketing-buttons";
 
 type DropdownItem = {
   label: string;
@@ -102,54 +97,12 @@ const NAV: NavGroup[] = [
       },
     ],
   },
-  {
-    label: "Technology",
-    cols: 2,
-    items: [
-      {
-        label: "Technology Overview",
-        href: MARKETING_LINKS.technology.overview,
-        description: "How PROOVRA creates verifiable evidence records",
-        Icon: Cpu,
-        iconColor: "#2563EB",
-      },
-      {
-        label: "Cryptographic Hashing",
-        href: MARKETING_LINKS.technology.cryptographicHashing,
-        description: "SHA-256 fingerprints for evidence integrity",
-        Icon: FingerprintPattern,
-        iconColor: "#F97316",
-      },
-      {
-        label: "Digital Signatures",
-        href: MARKETING_LINKS.technology.digitalSignatures,
-        description: "Signed records, reports, and packages",
-        Icon: KeyRound,
-        iconColor: "#7C3AED",
-      },
-      {
-        label: "Trusted Timestamping",
-        href: MARKETING_LINKS.technology.trustedTimestamps,
-        description: "RFC 3161 timestamp signals where available",
-        Icon: Clock,
-        iconColor: "#06B6D4",
-      },
-      {
-        label: "OpenTimestamps",
-        href: MARKETING_LINKS.technology.openTimestamps,
-        description: "Bitcoin anchoring through OTS where available",
-        Icon: Anchor,
-        iconColor: "#EC4899",
-      },
-      {
-        label: "Chain of Custody",
-        href: MARKETING_LINKS.technology.chainOfCustody,
-        description: "Linked event history for the evidence lifecycle",
-        Icon: Link2,
-        iconColor: "#2563EB",
-      },
-    ],
-  },
+  // Technology consolidated into a single in-depth architecture page.
+  // The mega-menu sub-items (Hashing, Signatures, Timestamps, OTS,
+  // Custody) were collapsed into anchored sections on /technology and
+  // are no longer surfaced as separate nav entries. Old /technology/<sub>
+  // URLs redirect via next.config.js.
+  { label: "Technology", href: MARKETING_LINKS.technology.overview },
   {
     label: "Resources",
     cols: 1,
@@ -224,20 +177,34 @@ const NAV: NavGroup[] = [
 
 const LOGO_SRC = "/assets/branding/logo-dark.png";
 
-const navPillStyle = {
-  background: "linear-gradient(180deg, rgba(10,18,35,0.58), rgba(18,24,48,0.50))",
-  backdropFilter: "blur(10px)",
-  WebkitBackdropFilter: "blur(10px)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 8px 22px rgba(15,23,42,0.08)",
-};
-
-const navTextClass =
-  "text-white/90 hover:text-white hover:bg-white/10";
+// Nav glass pill removed. Header items now sit DIRECTLY over the hero
+// — no translucent container, no backdrop blur, no faux-frosted border.
+//
+// Hover affordance is a CENTER-OUT underline animation using the PROOVRA
+// warm gradient (the same #FF7A1A → #E83FAE accent used in the
+// Solutions hero highlight). Implementation uses a `::after`
+// pseudo-element scaled along X from origin-center, so the underline
+// grows symmetrically from the center of the word to both edges.
+//
+// Duration 250ms, ease-out — premium without being flashy. Matches the
+// quality bar of Stripe / Vercel / Linear / Notion-enterprise nav.
+const navTextClass = [
+  "relative",
+  "text-[#0F172A] hover:text-[#0F172A]",
+  // pseudo-element setup — invisible by default
+  "after:pointer-events-none after:absolute after:left-3 after:right-3 after:bottom-[6px]",
+  "after:h-[2px] after:rounded-full",
+  "after:bg-[linear-gradient(90deg,#FF7A1A_0%,#FF4D5E_50%,#E83FAE_100%)]",
+  // origin center + scale-x-0 means the line is hidden but ready to grow
+  // outward; scale-x-100 on hover/focus grows it from the centre to
+  // both edges.
+  "after:origin-center after:scale-x-0",
+  "after:transition-transform after:duration-[250ms] after:ease-out",
+  "hover:after:scale-x-100 focus-visible:after:scale-x-100",
+].join(" ");
 
 const navActiveStyle = {
-  background: "rgba(255,255,255,0.12)",
-  color: "rgba(255,255,255,0.96)",
+  color: "#0F172A",
 };
 
 export function MarketingHeader() {
@@ -274,8 +241,7 @@ className="h-auto w-[210px] object-contain drop-shadow-[0_2px_12px_rgba(15,23,42
         </Link>
 
 <nav
-  className="hidden items-center gap-0.5 rounded-full px-1.5 py-1 xl:flex"
-  style={navPillStyle}
+  className="hidden items-center gap-0.5 xl:flex"
   aria-label="Primary"
 >
             {NAV.map((group) =>
@@ -288,13 +254,12 @@ className="h-auto w-[210px] object-contain drop-shadow-[0_2px_12px_rgba(15,23,42
               >
                 <button
                   type="button"
-className={`flex items-center gap-1 whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium transition-colors ${navTextClass}`}
-style={openDropdown === group.label ? navActiveStyle : undefined}
-                  onMouseLeave={(e) => {
-                    if (openDropdown !== group.label) {
-                      e.currentTarget.style.background = "";
-                    }
-                  }}
+                  className={`flex items-center gap-1 whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium transition-colors ${navTextClass} ${
+                    openDropdown === group.label
+                      ? "after:scale-x-100"
+                      : ""
+                  }`}
+                  style={openDropdown === group.label ? navActiveStyle : undefined}
                   aria-expanded={openDropdown === group.label}
                   aria-haspopup="menu"
                 >
@@ -370,14 +335,15 @@ className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium
         <div className="hidden shrink-0 items-center gap-2 xl:flex">
           <Link
             href={MARKETING_LINKS.signIn}
-className="whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white"
-style={navPillStyle}
+            className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium transition-colors ${navTextClass}`}
           >
             Sign in
           </Link>
+          {/* Primary dark CTA — homepage hero language. Deep navy +
+              white text, soft enterprise shadow, no glow. */}
           <Link
             href={MARKETING_LINKS.requestDemo}
-className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-4 py-2.5 text-[14px] font-semibold text-[#0F172A] shadow-[0_10px_28px_rgba(15,23,42,0.20)] transition-all hover:bg-[#F8FAFC] hover:shadow-[0_14px_34px_rgba(15,23,42,0.26)]"
+            className={`${MARKETING_BTN.primaryDark} shrink-0`}
           >
             Request a demo
             <ArrowRight size={14} />
@@ -386,7 +352,7 @@ className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-f
 
         <button
           type="button"
-className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-slate-950/45 text-white backdrop-blur-xl xl:hidden"
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white/85 text-[#0F172A] xl:hidden"
           onClick={() => setMobileOpen(true)}
           aria-label="Open menu"
         >

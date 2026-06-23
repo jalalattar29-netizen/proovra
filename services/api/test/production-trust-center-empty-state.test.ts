@@ -71,7 +71,12 @@ function readRepo(rel: string): string {
 }
 
 const ROUTES = readRepo("services/api/src/routes/trust-and-governance.routes.ts");
-const TRUST_PAGE = readRepo("apps/web/app/(app)/trust/page.tsx");
+// Phase E5 rebaseline: workspace Trust hub migrated from
+// `(app)/trust/page.tsx` to `(app)/trust-hub/page.tsx`. The canonical
+// public Trust Center now owns `/trust` (Next.js parallel-page rule
+// forbids both). Empty-state guarantees still apply to the workspace
+// hub at its new canonical location.
+const TRUST_PAGE = readRepo("apps/web/app/(app)/trust-hub/page.tsx");
 const REDIRECT_LANDING = readRepo("apps/web/app/(app)/trust-center/page.tsx");
 const STATUS = readRepo("apps/web/app/(app)/trust-center/status/page.tsx");
 

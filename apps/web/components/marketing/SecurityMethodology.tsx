@@ -60,16 +60,21 @@ export function SecurityMethodology() {
       className="relative overflow-hidden text-white"
       style={{
         fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif",
-        background:
-          "linear-gradient(115deg, #050B2E 0%, #07144A 28%, #10145A 55%, #24105A 78%, #3B0F75 100%)",
+        backgroundImage: "url('/assets/cards/icon-card.png')",
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "cover",
+        backgroundPosition: "center center",
       }}
     >
+      {/* Subtle wash — the icon-card.png artwork has the brand mark on
+          its right side; this scrim keeps the right-column pillar grid
+          legible without burying the artwork. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(circle at 78% 45%, rgba(124,58,237,0.18), transparent 48%)",
+            "linear-gradient(180deg, rgba(5,10,28,0.42) 0%, rgba(5,10,28,0.55) 100%)",
         }}
       />
 

@@ -35,6 +35,7 @@ import {
 } from "../../lib/currency";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
+import { RevealSection } from "../../components/motion";
 import { useAuth } from "../providers";
 import type { PricingCatalogResponse } from "./types";
 import { apiFetch } from "../../lib/api";
@@ -717,6 +718,7 @@ export default function MarketingPricingPage() {
         </div>
       </div>
 
+      <RevealSection direction="up">
       <section className="relative mx-auto max-w-[1500px] px-6 pt-8 md:px-8 2xl:px-10">
         <div className="grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-5">
           {plans.map((plan) => {
@@ -885,7 +887,9 @@ export default function MarketingPricingPage() {
           })}
         </div>
       </section>
+      </RevealSection>
 
+      <RevealSection direction="right">
       <section className="relative mx-auto max-w-[1500px] px-6 pt-8 md:px-8 2xl:px-10">
 <div className="text-center">
   <SectionKicker>Every plan includes</SectionKicker>
@@ -916,72 +920,102 @@ export default function MarketingPricingPage() {
           })}
         </div>
       </section>
+      </RevealSection>
 
+      <RevealSection direction="left">
       <section className="relative mx-auto max-w-[1500px] px-6 pt-8 md:px-8 2xl:px-10">
-        <div className="rounded-[28px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] p-6 shadow-[0_20px_44px_rgba(15,23,42,0.06)] md:p-10">
-          <div className="grid gap-10 lg:grid-cols-[1.25fr_0.75fr] lg:items-center">
-            <div>
-<SectionKicker>Built for enterprise</SectionKicker>
+        {/* Enterprise card surface — icon-card.png. The asset is a dark
+            navy/purple artwork with the brand mark embedded on the right;
+            text + features below switch to white to read against it. A
+            very low-opacity scrim sits over the artwork only to keep the
+            left-side text column from competing with the embedded mark. */}
+        <div
+          className="relative overflow-hidden rounded-[28px] border border-white/10 shadow-[0_30px_70px_rgba(15,23,42,0.28)]"
+          style={{
+            backgroundImage: "url('/assets/cards/icon-card.png')",
+            backgroundRepeat: "no-repeat",
+            backgroundSize: "cover",
+            backgroundPosition: "center center",
+          }}
+        >
+          <div
+            aria-hidden="true"
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(90deg, rgba(5,10,28,0.55) 0%, rgba(5,10,28,0.30) 38%, rgba(5,10,28,0.10) 62%, rgba(5,10,28,0) 100%)",
+            }}
+          />
 
-              <h2 className="mt-4 max-w-[640px] text-[1.55rem] font-semibold leading-[1.18] tracking-[-0.02em] text-[#0F172A] md:text-[1.85rem]">
-                Built for procurement, governance, and large-scale evidence
-                operations.
-              </h2>
+          <div className="relative p-6 md:p-10">
+            <div className="grid gap-10 lg:grid-cols-[1.25fr_0.75fr] lg:items-center">
+              <div>
+                <SectionKicker>Built for enterprise</SectionKicker>
 
-              <p className="mt-3 max-w-[600px] text-[0.94rem] leading-[1.7] text-[#475569]">
-                We support complex organizational needs with security,
-                compliance, and scalability.
-              </p>
+                <h2 className="mt-4 max-w-[640px] text-[1.55rem] font-semibold leading-[1.18] tracking-[-0.02em] text-white md:text-[1.85rem]">
+                  Built for procurement, governance, and large-scale evidence
+                  operations.
+                </h2>
 
-              <div className="mt-6 grid gap-4">
-                {enterpriseFeatures.map((item) => {
-                  const Icon = item.icon;
+                <p className="mt-3 max-w-[600px] text-[0.94rem] leading-[1.7] text-white/75">
+                  We support complex organizational needs with security,
+                  compliance, and scalability.
+                </p>
 
-                  return (
-                    <div key={item.title} className="flex gap-3.5">
-                      <GradientIconFrame size="sm">
-                        <ProovraGradientIcon
-                          Icon={Icon}
-                          size={22}
-                          strokeWidth={3.05}
-                          weight="regular"
-                        />
-                      </GradientIconFrame>
+                <div className="mt-6 grid gap-4">
+                  {enterpriseFeatures.map((item) => {
+                    const Icon = item.icon;
 
-                      <div>
-                        <div className="text-[0.96rem] font-semibold text-[#0F172A]">
-                          {item.title}
-                        </div>
-                        <div className="mt-1 text-[0.86rem] leading-[1.6] text-[#475569]">
-                          {item.body}
+                    return (
+                      <div key={item.title} className="flex gap-3.5">
+                        <GradientIconFrame size="sm">
+                          <ProovraGradientIcon
+                            Icon={Icon}
+                            size={22}
+                            strokeWidth={3.05}
+                            weight="regular"
+                          />
+                        </GradientIconFrame>
+
+                        <div>
+                          <div className="text-[0.96rem] font-semibold text-white">
+                            {item.title}
+                          </div>
+                          <div className="mt-1 text-[0.86rem] leading-[1.6] text-white/70">
+                            {item.body}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
 
-            <div className="flex w-full justify-end lg:self-center">
-              <div className="grid w-full max-w-[320px] gap-3">
-                <Link
-                  href="/request-demo"
-                  className="flex h-11 items-center justify-center rounded-[13px] bg-gradient-to-r from-[#EC4899] via-[#7E22CE] to-[#5B21B6] text-[0.9rem] font-semibold text-white shadow-[0_12px_28px_rgba(91,33,182,0.35)] transition hover:translate-y-[-1px]"
-                >
-                  Schedule a demo
-                </Link>
+              <div className="flex w-full justify-end lg:self-center">
+                <div className="grid w-full max-w-[320px] gap-3">
+                  <Link
+                    href="/request-demo"
+                    className="flex h-11 items-center justify-center rounded-[13px] bg-gradient-to-r from-[#EC4899] via-[#7E22CE] to-[#5B21B6] text-[0.9rem] font-semibold text-white shadow-[0_12px_28px_rgba(91,33,182,0.35)] transition hover:translate-y-[-1px]"
+                  >
+                    Schedule a demo
+                  </Link>
 
-                <Link
-                  href="/contact-sales"
-className="flex h-11 items-center justify-center rounded-[13px] border border-[#C45AD7] bg-white text-[0.9rem] font-semibold text-[#0F172A] shadow-[0_8px_18px_rgba(196,90,215,0.08)] transition duration-200 hover:-translate-y-[1px] hover:border-[#B24ACD] hover:bg-white hover:shadow-[0_12px_26px_rgba(196,90,215,0.16)]"
-                >
-                  Talk to Sales
-                </Link>
+                  {/* Secondary CTA restyled for the dark card surface:
+                      semi-opaque white pill with brand-purple text — same
+                      family as the hero "View Sample Report" pattern. */}
+                  <Link
+                    href="/contact-sales"
+                    className="flex h-11 items-center justify-center rounded-[13px] border border-white/40 bg-white/95 text-[0.9rem] font-semibold text-[#5B21B6] shadow-[0_10px_22px_rgba(15,23,42,0.22)] transition duration-200 hover:-translate-y-[1px] hover:bg-white hover:shadow-[0_14px_28px_rgba(15,23,42,0.30)]"
+                  >
+                    Talk to Sales
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
+      </RevealSection>
 
 {(() => {
         // Pricing-page UX refinement — Phase 4.
@@ -1083,6 +1117,7 @@ className="flex h-11 items-center justify-center rounded-[13px] border border-[#
         );
       })()}
 
+      <RevealSection direction="up">
       <section className="relative mx-auto max-w-7xl px-6 pb-12 md:px-8 md:pb-16">
 <SectionKicker>Why organizations choose PROOVRA</SectionKicker>
 
@@ -1116,7 +1151,9 @@ className="flex h-11 items-center justify-center rounded-[13px] border border-[#
           })}
         </div>
       </section>
+      </RevealSection>
 
+      <RevealSection direction="right">
       <section className="relative mx-auto max-w-7xl px-6 pb-16 md:px-8 md:pb-20">
         <div
           className="overflow-hidden rounded-[28px] p-8 text-white shadow-[0_24px_60px_rgba(91,33,182,0.26)] md:p-10"
@@ -1162,6 +1199,7 @@ className="flex h-11 items-center justify-center rounded-[13px] border border-[#
           </div>
         </div>
       </section>
+      </RevealSection>
 
       <EnterpriseFooter />
     </div>

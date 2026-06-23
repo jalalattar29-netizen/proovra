@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   ArrowRight,
   Briefcase,
@@ -26,6 +26,8 @@ import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { ContactSalesForm } from "../../components/contact-sales-form";
 import { SALES_ASSETS } from "../../lib/sales-assets";
+import { MARKETING_BTN } from "../../lib/marketing-buttons";
+import { RevealSection } from "../../components/motion";
 
 /* ─── Pricing-style gradient icon system ──────────────────────────────── */
 
@@ -35,45 +37,6 @@ import { SALES_ASSETS } from "../../lib/sales-assets";
  * SVG `url(#id)` reference. Sizes target a 30-40% bump over the previous
  * solid-tinted icons so visual weight matches Pricing feature icons.
  */
-type IconSize = "table" | "quote" | "stake" | "deploy";
-
-const ICON_SIZE_TABLE: Record<
-  IconSize,
-  { frame: string; inset: string; icon: number }
-> = {
-  table: { frame: "h-11 w-11", inset: "rounded-[13px]", icon: 22 },
-  quote: { frame: "h-12 w-12", inset: "rounded-[14px]", icon: 22 },
-  stake: { frame: "h-14 w-14", inset: "rounded-[16px]", icon: 26 },
-  deploy: { frame: "h-16 w-16", inset: "rounded-[18px]", icon: 30 },
-};
-
-function GradientIconFrame({
-  Icon,
-  gradientId,
-  ringGradientCss,
-  size = "stake",
-}: {
-  Icon: LucideIcon;
-  gradientId: string;
-  ringGradientCss: string;
-  size?: IconSize;
-}) {
-  const s = ICON_SIZE_TABLE[size];
-  return (
-    <span
-      className={`inline-flex ${s.frame} shrink-0 items-center justify-center rounded-2xl p-[2.5px] shadow-[0_8px_18px_rgba(15,23,42,0.06)]`}
-      style={{ background: ringGradientCss }}
-    >
-      <span
-        className={`cs-grad-icon flex h-full w-full items-center justify-center ${s.inset} bg-white`}
-        style={{ ["--cs-grad" as string]: `url(#${gradientId})` } as CSSProperties}
-      >
-        <Icon size={s.icon} strokeWidth={1.85} />
-      </span>
-    </span>
-  );
-}
-
 /** Single SVG defs block with every gradient the page references. */
 function ContactSalesIconGradients() {
   const grads: { id: string; stops: string[] }[] = [
@@ -125,31 +88,58 @@ function ContactSalesIconGradients() {
   );
 }
 
-/* Build the inline CSS gradient that mirrors a given <linearGradient> id. */
-function ringCss(stops: string[]): string {
-  const segs = stops
-    .map((c, i) => `${c} ${(i / (stops.length - 1)) * 100}%`)
-    .join(", ");
-  return `linear-gradient(135deg, ${segs})`;
-}
+/* Stable id tokens for the <linearGradient> defs above. Used as a
+   `gradientId` field on Contact Sales data rows so future renderers can
+   reference the same SVG gradients by key. The previous full inline-CSS
+   ring map was removed because no live renderer consumed it. */
+type RingGradientId =
+  | "csDeployCloud"
+  | "csDeployDedicated"
+  | "csDeployPrivate"
+  | "csDeployRegional"
+  | "csStakeLegal"
+  | "csStakeCompliance"
+  | "csStakeSecurity"
+  | "csStakeProcurement"
+  | "csStakeOperations"
+  | "csReviewSSO"
+  | "csReviewSCIM"
+  | "csReviewAudit"
+  | "csReviewRetention"
+  | "csReviewAccess"
+  | "csQuote";
 
-const RING = {
-  csDeployCloud: ringCss(["#06B6D4", "#2563EB", "#4F46E5"]),
-  csDeployDedicated: ringCss(["#14B8A6", "#06B6D4", "#2563EB"]),
-  csDeployPrivate: ringCss(["#8B5CFF", "#7C3AED", "#4F46E5"]),
-  csDeployRegional: ringCss(["#FB7185", "#EC4899", "#F97316"]),
-  csStakeLegal: ringCss(["#2563EB", "#4F46E5"]),
-  csStakeCompliance: ringCss(["#0F766E", "#06B6D4"]),
-  csStakeSecurity: ringCss(["#8B5CFF", "#7C3AED"]),
-  csStakeProcurement: ringCss(["#FB7185", "#F97316"]),
-  csStakeOperations: ringCss(["#F000E8", "#C026D3"]),
-  csReviewSSO: ringCss(["#49B8FF", "#6E7BFF"]),
-  csReviewSCIM: ringCss(["#14B8A6", "#06B6D4"]),
-  csReviewAudit: ringCss(["#8B5CFF", "#7C3AED"]),
-  csReviewRetention: ringCss(["#C43DFF", "#8B5CFF"]),
-  csReviewAccess: ringCss(["#F000E8", "#C026D3"]),
-  csQuote: ringCss(["#4F46E5", "#7C3AED", "#C026D3"]),
+/* Shared Platform-style icon tile for Contact Sales cards. Tinted bg + soft
+   color ring + accent stroke color. One key per logical category so the
+   stakeholder column reads colorful but the deployment + requirement
+   groups stay visually unified. */
+const contactIconStyles = {
+  legal: "bg-blue-50 text-blue-600 ring-blue-100",
+  compliance: "bg-emerald-50 text-emerald-600 ring-emerald-100",
+  security: "bg-violet-50 text-violet-600 ring-violet-100",
+  procurement: "bg-orange-50 text-orange-600 ring-orange-100",
+  operations: "bg-cyan-50 text-cyan-600 ring-cyan-100",
+  deployment: "bg-indigo-50 text-indigo-600 ring-indigo-100",
+  requirement: "bg-slate-50 text-blue-600 ring-blue-100",
 } as const;
+
+type ContactIconCategory = keyof typeof contactIconStyles;
+
+function IconTile({
+  Icon,
+  category,
+}: {
+  Icon: LucideIcon;
+  category: ContactIconCategory;
+}) {
+  return (
+    <span
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ${contactIconStyles[category]}`}
+    >
+      <Icon className="h-5 w-5" strokeWidth={2.1} />
+    </span>
+  );
+}
 
 /* ─── Shared primitives ───────────────────────────────────────────────── */
 
@@ -418,12 +408,7 @@ function RealQuestions() {
               }`}
               style={{ listStyle: "none" }}
             >
-              <GradientIconFrame
-                Icon={Quote}
-                gradientId="csQuote"
-                ringGradientCss={RING.csQuote}
-                size="quote"
-              />
+              <IconTile Icon={Quote} category="requirement" />
               <blockquote className="text-[16px] font-semibold leading-[1.55] tracking-[-0.005em] text-[#0F172A] md:text-[17.5px]">
                 &ldquo;{q}&rdquo;
               </blockquote>
@@ -446,7 +431,7 @@ const DEPLOYMENT_MODELS: {
   why: string;
   requirement: string;
   Icon: LucideIcon;
-  gradientId: keyof typeof RING;
+  gradientId: RingGradientId;
   borderColor: string;
   accentBar: string;
 }[] = [
@@ -514,12 +499,7 @@ function DeploymentModels() {
               className="relative overflow-hidden rounded-[24px] border bg-white p-6 shadow-[0_8px_28px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)] md:p-7"
               style={{ borderColor: m.borderColor }}
             >
-              <GradientIconFrame
-                Icon={m.Icon}
-                gradientId={m.gradientId}
-                ringGradientCss={RING[m.gradientId]}
-                size="deploy"
-              />
+              <IconTile Icon={m.Icon} category="deployment" />
 
               <h3 className="mt-5 text-[18px] font-extrabold tracking-[-0.005em] text-[#07132B]">
                 {m.label}
@@ -698,7 +678,7 @@ const STAKEHOLDERS: {
   questions: string;
   decisions: string;
   Icon: LucideIcon;
-  gradientId: keyof typeof RING;
+  gradientId: RingGradientId;
   borderColor: string;
   accentBar: string;
 }[] = [
@@ -796,11 +776,9 @@ function StakeholdersInvolved() {
                 }}
               />
 
-              <GradientIconFrame
+              <IconTile
                 Icon={s.Icon}
-                gradientId={s.gradientId}
-                ringGradientCss={RING[s.gradientId]}
-                size="stake"
+                category={s.role.toLowerCase() as ContactIconCategory}
               />
 
               <h3 className="mt-4 text-[16px] font-extrabold tracking-[-0.005em] text-[#07132B]">
@@ -845,7 +823,8 @@ const SECURITY_REVIEW: {
   evaluates: string;
   affects: string;
   Icon: LucideIcon;
-  gradientId: keyof typeof RING;
+  color: string;
+  bg: string;
 }[] = [
   {
     topic: "SSO",
@@ -856,7 +835,8 @@ const SECURITY_REVIEW: {
     affects:
       "IdP configuration scope, session-policy alignment, and rollout sequencing per directory.",
     Icon: KeyRound,
-    gradientId: "csReviewSSO",
+    color: "#2563EB",
+    bg: "rgba(37,99,235,0.08)",
   },
   {
     topic: "SCIM",
@@ -867,7 +847,8 @@ const SECURITY_REVIEW: {
     affects:
       "Directory integration scope and ownership boundaries between IT and operations.",
     Icon: Users,
-    gradientId: "csReviewSCIM",
+    color: "#0F766E",
+    bg: "rgba(15,118,110,0.08)",
   },
   {
     topic: "Audit Logs",
@@ -878,7 +859,8 @@ const SECURITY_REVIEW: {
     affects:
       "Logging integration plan, retention configuration, and ongoing review cadence.",
     Icon: FileSearch,
-    gradientId: "csReviewAudit",
+    color: "#DB2777",
+    bg: "rgba(219,39,119,0.08)",
   },
   {
     topic: "Retention Policies",
@@ -889,7 +871,8 @@ const SECURITY_REVIEW: {
     affects:
       "Policy configuration, retention envelope sizing, and exception handling.",
     Icon: CalendarClock,
-    gradientId: "csReviewRetention",
+    color: "#4F46E5",
+    bg: "rgba(79,70,229,0.08)",
   },
   {
     topic: "Access Controls",
@@ -900,7 +883,8 @@ const SECURITY_REVIEW: {
     affects:
       "Role taxonomy, workspace configuration, and ongoing access-review cadence.",
     Icon: Fingerprint,
-    gradientId: "csReviewAccess",
+    color: "#047857",
+    bg: "rgba(4,120,87,0.08)",
   },
 ];
 
@@ -932,12 +916,12 @@ function SecurityReviewScope() {
                 className="grid grid-cols-1 gap-3 px-6 py-5 lg:grid-cols-[200px_1fr_1fr_1fr] lg:gap-6 lg:py-6"
               >
                 <dt className="flex items-center gap-3">
-                  <GradientIconFrame
-                    Icon={r.Icon}
-                    gradientId={r.gradientId}
-                    ringGradientCss={RING[r.gradientId]}
-                    size="table"
-                  />
+                  <span
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]"
+                    style={{ background: r.bg, color: r.color }}
+                  >
+                    <r.Icon size={18} strokeWidth={1.9} />
+                  </span>
                   <span className="text-[14px] font-extrabold tracking-[-0.005em] text-[#07132B]">
                     {r.topic}
                   </span>
@@ -1089,7 +1073,7 @@ function FinalCTA() {
                   primary white-pill treatment. */}
               <Link
                 href={SALES_ASSETS.requestDemoUrl}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-6 text-[14px] font-semibold text-[#0F172A] shadow-[0_10px_24px_rgba(15,23,42,0.22)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02]"
+                className={MARKETING_BTN.purpleSecondary}
               >
                 Request a demo
                 <ArrowRight size={14} />
@@ -1123,14 +1107,14 @@ export default function ContactSalesPage() {
       `}</style>
       <MarketingHeader />
       <HeroSection />
-      <WhyContactSales />
-      <RealQuestions />
-      <DeploymentModels />
-      <EnterpriseEngagementPath />
-      <StakeholdersInvolved />
-      <SecurityReviewScope />
-      <IntegrityClarification />
-      <FinalCTA />
+      <RevealSection direction="up"><WhyContactSales /></RevealSection>
+      <RevealSection direction="right"><RealQuestions /></RevealSection>
+      <RevealSection direction="left"><DeploymentModels /></RevealSection>
+      <RevealSection direction="up"><EnterpriseEngagementPath /></RevealSection>
+      <RevealSection direction="right"><StakeholdersInvolved /></RevealSection>
+      <RevealSection direction="left"><SecurityReviewScope /></RevealSection>
+      <RevealSection direction="up"><IntegrityClarification /></RevealSection>
+      <RevealSection direction="right"><FinalCTA /></RevealSection>
       <EnterpriseFooter />
     </div>
   );

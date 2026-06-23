@@ -34,7 +34,8 @@ const ROUTE_REGISTRY = readSource("../../../apps/web/lib/navigation/routeRegistr
 const SERVER_NAV_REGISTRY = readSource("../../../services/api/src/services/platform-context/navigation-registry.ts");
 const PLATFORM_CONTEXT_TYPES = readSource("../../../services/api/src/services/platform-context/types.ts");
 const NEXT_CONFIG = readSource("../../../apps/web/next.config.js");
-const TRUST_PAGE = readSource("../../../apps/web/app/(app)/trust/page.tsx");
+// Phase E5 rebaseline (see phase-1a-pillar-ia.test.ts).
+const TRUST_PAGE = readSource("../../../apps/web/app/(app)/trust-hub/page.tsx");
 const CANONICAL_PILLAR_ORDER = [
     "HOME",
     "CAPTURE",

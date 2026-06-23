@@ -19,6 +19,10 @@ export const LEGAL_LINKS: LegalLink[] = [
   { href: "/legal/abuse-reporting", label: "Abuse Reporting" },
   { href: "/legal/incident-response", label: "Incident Response Policy" },
   { href: "/legal/toms", label: "Technical & Organizational Measures" },
-  { href: "/legal/privacy-matrix", label: "Privacy Matrix" },
   { href: "/legal/legal-changelog", label: "Legal Changelog" },
+  { href: "/legal/ai-use-policy", label: "AI Use Policy" },
+  { href: "/legal/verification-disclaimer", label: "Verification Disclaimer" },
+  { href: "/legal/privacy-requests", label: "Privacy Requests" },
+  { href: "/legal/refund-policy", label: "Consumer Cancellation and Refund Policy" },
+  { href: "/legal/accessibility", label: "Accessibility Statement" },
 ];

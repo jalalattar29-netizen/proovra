@@ -99,7 +99,10 @@ const PRE_CR4_VERIFY_LANDING_BYTES = 21548;
 const PRE_CR4_VERIFY_DEMO_BYTES = 18486;
 const VERIFY_PROJECTION_SVC_BYTES = 3953;
 const CLAIMS_MATRIX_BYTES = 2317;
-const TRUST_CENTER_CONTENT_BYTES = 24846;
+// Phase E5 rebaseline: trustCenterDeepLink helper repointed at the
+// canonical `/trust` hub (was `/about/trust`). Source-of-truth pin
+// updated to the new on-disk size after the helper fix + comment.
+const TRUST_CENTER_CONTENT_BYTES = 25090;
 // ---------------------------------------------------------------------------
 // Group 1 — File-size guards
 // ---------------------------------------------------------------------------

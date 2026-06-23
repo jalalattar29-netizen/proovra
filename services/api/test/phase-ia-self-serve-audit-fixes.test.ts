@@ -99,7 +99,12 @@ describe("Phase IA-self-serve-audit-fixes — Search inspector gates", () => {
 // ============================================================================
 
 describe("Phase IA-self-serve-audit-fixes — Trust governance card gate", () => {
-  const TRUST = readWeb("app/(app)/trust/page.tsx");
+  // Phase E5 rebaseline: workspace Trust hub moved from
+  // `(app)/trust/page.tsx` to `(app)/trust-hub/page.tsx` because the
+  // canonical public Trust Center now owns `/trust` (Next.js parallel-
+  // page rule forbids both). Self-serve gate assertions still apply to
+  // the workspace hub at its new canonical location.
+  const TRUST = readWeb("app/(app)/trust-hub/page.tsx");
 
   it("file is a client component (hook usage requires it)", () => {
     expect(TRUST).toMatch(/^[\s\S]{0,800}"use client";/);
@@ -588,9 +593,11 @@ describe("Phase IA-self-serve-audit-fixes — banned-phrase sweep", () => {
       ["app/(app)/evidence/[id]/page.tsx"],
     ],
     [
+      // Phase E5 rebaseline: workspace Trust hub moved to /trust-hub
+      // (canonical /trust is now the public Trust Center).
       "Trust 'Lifecycle orchestrator state'",
       /Lifecycle orchestrator state/i,
-      ["app/(app)/trust/page.tsx"],
+      ["app/(app)/trust-hub/page.tsx"],
     ],
   ];
 
@@ -628,8 +635,9 @@ describe("Phase IA-self-serve-audit-fixes — hidden-link sweep", () => {
     { page: "app/(app)/search/page.tsx", href: "/workflows/", allowedIfGate: "canSeeWorkflows" },
     { page: "app/(app)/search/page.tsx", href: "/investigation/", allowedIfGate: "canSeeInvestigation" },
     { page: "app/(app)/search/page.tsx", href: "/integrations", allowedIfGate: "canSeeIntegrations" },
-    // Trust — Governance card gated this phase
-    { page: "app/(app)/trust/page.tsx", href: "/governance", allowedIfGate: "canAccessSurface" },
+    // Trust — Governance card gated this phase (Phase E5 rebaseline:
+    // workspace Trust hub moved to /trust-hub).
+    { page: "app/(app)/trust-hub/page.tsx", href: "/governance", allowedIfGate: "canAccessSurface" },
     // Billing — no hidden hrefs at all
     { page: "app/(app)/billing/page.tsx", href: "/workflows", allowedIfGate: null },
     { page: "app/(app)/billing/page.tsx", href: "/governance", allowedIfGate: null },

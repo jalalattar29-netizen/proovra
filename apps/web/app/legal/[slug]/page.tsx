@@ -1,14 +1,15 @@
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
-import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
-import { SilverWatermarkSection } from "../../../components/SilverWatermarkSection";
+import { LegalHero } from "../../../components/legal/LegalHero";
 import {
   ALLOWED_LEGAL_SLUGS,
   loadLegalMarkdown,
   renderLegalMarkdown,
   titleFromSlug,
 } from "../legal-content";
+import { legalHeroFor } from "../legal-hero-meta";
 
 export default async function LegalPage({
   params,
@@ -30,124 +31,60 @@ export default async function LegalPage({
   }
 
   const title = titleFromSlug(slug);
+  const hero = legalHeroFor(slug, title);
 
   return (
-    <div className="page landing-page">
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="/images/site-velvet-bg.webp.png"
-            alt=""
-            className="h-full w-full object-cover object-center"
-          />
-        </div>
+    <div className="page legal-center-page" style={{ background: "#F6F9FC" }}>
+      <LegalHero
+        label={hero.label}
+        title={hero.title}
+        summary={hero.summary}
+        meta={hero.meta}
+        highlight={hero.highlight}
+      />
 
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_38%,rgba(8,18,22,0.66)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.09),transparent_24%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.06),transparent_18%)]" />
-        <div className="absolute inset-0 opacity-[0.04] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.026)_0px,rgba(255,255,255,0.026)_1px,transparent_1px,transparent_4px)]" />
+      {/* Content card on silver background */}
+      <section className="mx-auto max-w-5xl px-6 py-12 md:px-8 md:py-16">
+        <article
+          className="
+            legal-page relative overflow-hidden rounded-[24px] border bg-white
+            shadow-[0_18px_42px_rgba(8,18,22,0.04)]
+            px-6 py-8 md:px-10 md:py-12 lg:px-14 lg:py-14
+            text-[#0F172A]
+            [&_h1]:hidden
+            [&_h2]:mb-4 [&_h2]:mt-10 [&_h2]:text-[1.42rem] [&_h2]:font-semibold [&_h2]:leading-[1.18] [&_h2]:tracking-[-0.02em] [&_h2]:text-[#081426]
+            [&_h3]:mb-3 [&_h3]:mt-8 [&_h3]:text-[0.95rem] [&_h3]:font-bold [&_h3]:uppercase [&_h3]:tracking-[0.14em] [&_h3]:text-[#475569]
+            [&_p]:my-0 [&_p]:mb-4 [&_p]:text-[0.98rem] [&_p]:leading-[1.88] [&_p]:text-[#475569]
+            [&_strong]:font-semibold [&_strong]:text-[#081426]
+            [&_em]:text-[#0F172A]
+            [&_a.legal-link]:font-medium [&_a.legal-link]:text-[#2563EB] [&_a.legal-link]:underline [&_a.legal-link]:underline-offset-4 hover:[&_a.legal-link]:text-[#1E40AF]
+            [&_ul]:my-4 [&_ul]:ml-0 [&_ul]:grid [&_ul]:gap-2.5 [&_ul]:pl-0
+            [&_ol]:my-4 [&_ol]:ml-0 [&_ol]:grid [&_ol]:gap-2.5 [&_ol]:pl-0
+            [&_li]:relative [&_li]:list-none [&_li]:pl-6 [&_li]:text-[0.98rem] [&_li]:leading-[1.78] [&_li]:text-[#475569]
+            [&_ul>li::before]:absolute [&_ul>li::before]:left-0 [&_ul>li::before]:top-[0.75rem] [&_ul>li::before]:h-1.5 [&_ul>li::before]:w-1.5 [&_ul>li::before]:rounded-full [&_ul>li::before]:bg-[#2563EB] [&_ul>li::before]:content-['']
+            [&_ol]:counter-reset-[legal-counter]
+            [&_ol>li]:pl-10
+            [&_ol>li::before]:absolute [&_ol>li::before]:left-0 [&_ol>li::before]:top-[0.15rem] [&_ol>li::before]:flex [&_ol>li::before]:h-7 [&_ol>li::before]:w-7 [&_ol>li::before]:items-center [&_ol>li::before]:justify-center [&_ol>li::before]:rounded-full [&_ol>li::before]:border [&_ol>li::before]:border-[#DDE6F2] [&_ol>li::before]:bg-[#F1F5F9] [&_ol>li::before]:text-[0.78rem] [&_ol>li::before]:font-semibold [&_ol>li::before]:text-[#0B1F4D] [&_ol>li::before]:content-[counter(legal-counter)]
+            [&_ol>li]:counter-increment-[legal-counter]
+            [&_hr]:my-8 [&_hr]:border-0 [&_hr]:h-px [&_hr]:bg-[linear-gradient(90deg,transparent_0%,#DDE6F2_30%,#DDE6F2_70%,transparent_100%)]
+          "
+          data-legal-content
+        >
+          {renderLegalMarkdown(content)}
+        </article>
 
-        <div className="relative z-10">
-          <MarketingHeader />
-
-          <section className="mx-auto max-w-7xl px-6 pb-16 pt-10 md:px-8 md:pb-20 md:pt-14">
-            <div className="max-w-[760px]">
-<div className="inline-flex items-center gap-[0.72rem] rounded-full border border-white/10 bg-white/[0.055] px-5 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
-  <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-[#b79d84] opacity-95" />
-                Legal
-              </div>
-
-              <h1 className="mt-5 max-w-[640px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]">
-                {title}
-              </h1>
-
-<p className="mt-5 max-w-[650px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
-  Governance, privacy, security, verification, and policy materials for{" "}
-  <span className="text-[#e7ece9]">PROO✓RA</span>, structured to support{" "}
-  <span className="text-[#bfe8df]">trust-sensitive evaluation</span>,{" "}
-  <span className="text-[#e6ebe8]">review readiness</span>, and{" "}
-  <span className="text-[#d6b89d]">clearer legal and operational understanding</span>.
-</p>
-
-              <div className="mt-6 flex flex-wrap gap-2.5">
-                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#9dd2ca]">✓</span>
-                  Structured legal reference
-                </div>
-
-                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#9dd2ca]">✓</span>
-                  Policy and compliance context
-                </div>
-
-                <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#d6b89d]">✓</span>
-                  Updated legal materials
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-      </div>
-
-      <SilverWatermarkSection
-        className="section section-body relative overflow-hidden"
-        style={{ paddingTop: 48, paddingBottom: 56 }}
-      >
-        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
-          <img
-            src="/images/landing-network-bg.png"
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
-        </div>
-
-        <div className="container relative z-10">
-          <article
-            className="
-              legal-page relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)]
-              shadow-[0_30px_80px_rgba(0,0,0,0.14)]
-            "
+        {/* Back to Trust Center */}
+        <div className="mt-8 flex justify-center">
+          <Link
+            href="/trust"
+            className="inline-flex items-center gap-2 rounded-full border border-[#DDE6F2] bg-white px-5 py-2.5 text-[13px] font-semibold text-[#0B1F4D] shadow-[0_2px_8px_rgba(8,18,22,0.04)] transition hover:bg-[#F1F5F9]"
+            data-legal-back-to-trust
           >
-            <img
-              src="/images/panel-silver.webp.png"
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover object-center"
-            />
-
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.58)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_18%,rgba(214,184,157,0.18),transparent_38%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(255,255,255,0.34),transparent_28%)]" />
-
-            <div
-              className="
-                relative z-10 px-6 py-7 md:px-10 md:py-10 lg:px-12 lg:py-12
-                text-[#33464a]
-                [&_h1]:mb-5 [&_h1]:text-[2rem] [&_h1]:font-semibold [&_h1]:leading-[1.02] [&_h1]:tracking-[-0.04em] [&_h1]:text-[#16282d]
-                [&_h2]:mb-4 [&_h2]:mt-10 [&_h2]:text-[1.42rem] [&_h2]:font-semibold [&_h2]:leading-[1.15] [&_h2]:tracking-[-0.03em] [&_h2]:text-[#1d3136]
-                [&_h3]:mb-3 [&_h3]:mt-8 [&_h3]:text-[1.05rem] [&_h3]:font-semibold [&_h3]:uppercase [&_h3]:tracking-[0.14em] [&_h3]:text-[#8e7863]
-                [&_p]:my-0 [&_p]:mb-4 [&_p]:text-[0.98rem] [&_p]:leading-[1.92] [&_p]:text-[#55666a]
-                [&_strong]:font-semibold [&_strong]:text-[#1f3438]
-                [&_em]:text-[#49666b]
-                [&_a]:font-medium [&_a]:text-[#b79d84] hover:[&_a]:text-[#d6b89d]
-                [&_ul]:my-4 [&_ul]:ml-0 [&_ul]:grid [&_ul]:gap-3 [&_ul]:pl-0
-                [&_ol]:my-4 [&_ol]:ml-0 [&_ol]:grid [&_ol]:gap-3 [&_ol]:pl-0
-                [&_li]:relative [&_li]:list-none [&_li]:pl-6 [&_li]:text-[0.98rem] [&_li]:leading-[1.85] [&_li]:text-[#55666a]
-                [&_ul>li::before]:absolute [&_ul>li::before]:left-0 [&_ul>li::before]:top-[0.78rem] [&_ul>li::before]:h-2 [&_ul>li::before]:w-2 [&_ul>li::before]:rounded-full [&_ul>li::before]:bg-[#7ea9a2] [&_ul>li::before]:content-['']
-                [&_ol]:counter-reset-[legal-counter]
-                [&_ol>li]:pl-10
-                [&_ol>li::before]:absolute [&_ol>li::before]:left-0 [&_ol>li::before]:top-[0.18rem] [&_ol>li::before]:flex [&_ol>li::before]:h-7 [&_ol>li::before]:w-7 [&_ol>li::before]:items-center [&_ol>li::before]:justify-center [&_ol>li::before]:rounded-full [&_ol>li::before]:border [&_ol>li::before]:border-[rgba(183,157,132,0.28)] [&_ol>li::before]:bg-[rgba(183,157,132,0.10)] [&_ol>li::before]:text-[0.78rem] [&_ol>li::before]:font-semibold [&_ol>li::before]:text-[#8f735a] [&_ol>li::before]:content-[counter(legal-counter)]
-                [&_ol>li]:counter-increment-[legal-counter]
-                [&_hr]:my-8 [&_hr]:border-0 [&_hr]:h-px [&_hr]:bg-[linear-gradient(90deg,transparent_0%,rgba(79,112,107,0.18)_18%,rgba(183,157,132,0.26)_50%,rgba(79,112,107,0.18)_82%,transparent_100%)]
-              "
-            >
-              {renderLegalMarkdown(content)}
-            </div>
-          </article>
+            <span aria-hidden="true">←</span>
+            <span>Back to Trust Center</span>
+          </Link>
         </div>
-      </SilverWatermarkSection>
+      </section>
 
       <EnterpriseFooter />
     </div>

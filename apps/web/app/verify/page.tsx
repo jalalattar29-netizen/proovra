@@ -6,6 +6,7 @@ import { Button } from "../../components/ui";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
+import { RevealSection } from "../../components/motion";
 
 function ShieldIcon() {
   return (
@@ -194,6 +195,7 @@ background:
         </div>
       </div>
 
+      <RevealSection direction="up">
       <SilverWatermarkSection
         className="section section-body relative overflow-hidden"
         style={{ paddingTop: 48, paddingBottom: 56 }}
@@ -453,6 +455,7 @@ background:
           </section>
         </div>
       </SilverWatermarkSection>
+      </RevealSection>
 
       <EnterpriseFooter />
     </div>

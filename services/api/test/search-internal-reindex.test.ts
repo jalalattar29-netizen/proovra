@@ -218,6 +218,22 @@ describe("Production CLI — dist/scripts/backfill-search-index.js wiring", () =
 
 let app: FastifyInstance | null = null;
 
+// Behavioral-suite env gate. The default vitest setup does NOT load
+// services/api/.env, so DATABASE_URL is unset in plain `pnpm test`
+// runs. Without DATABASE_URL the real buildServer() reaches for
+// Postgres + secrets and HANGS (no throw, no timeout). Detecting
+// required env BEFORE safeBuild() lets us cleanly skip the suite in
+// plain dev/CI runs while keeping coverage active anywhere `.env`
+// (or RUN_SEARCH_BEHAVIORAL=1) is wired up.
+function hasRequiredSearchBehavioralEnv(): boolean {
+  if (process.env.RUN_SEARCH_BEHAVIORAL === "1") return true;
+  return Boolean(
+    process.env.DATABASE_URL && process.env.DATABASE_URL.length > 0,
+  );
+}
+
+const shouldRun = hasRequiredSearchBehavioralEnv();
+
 async function safeBuild(): Promise<FastifyInstance | null> {
   try {
     const mod = await import("../src/server.js");
@@ -244,9 +260,13 @@ async function mintToken(
   return (res.json() as { token?: string }).token ?? null;
 }
 
+// `shouldRun` (above) early-returns when DATABASE_URL is unset, so
+// safeBuild() never fires in plain `pnpm test` runs. 120s is the
+// cold-start budget for configured environments.
 beforeAll(async () => {
+  if (!shouldRun) return;
   app = await safeBuild();
-}, 60_000);
+}, 120_000);
 
 afterAll(async () => {
   if (app) {

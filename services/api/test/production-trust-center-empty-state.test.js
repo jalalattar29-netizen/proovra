@@ -64,7 +64,9 @@ function readRepo(rel) {
     return readFileSync(fileURLToPath(new URL(`../../../${rel}`, import.meta.url)), "utf8");
 }
 const ROUTES = readRepo("services/api/src/routes/trust-and-governance.routes.ts");
-const TRUST_PAGE = readRepo("apps/web/app/(app)/trust/page.tsx");
+// Phase E5 rebaseline (see .ts mirror): workspace Trust hub migrated
+// to (app)/trust-hub/page.tsx; canonical public Trust Center owns /trust.
+const TRUST_PAGE = readRepo("apps/web/app/(app)/trust-hub/page.tsx");
 const REDIRECT_LANDING = readRepo("apps/web/app/(app)/trust-center/page.tsx");
 const STATUS = readRepo("apps/web/app/(app)/trust-center/status/page.tsx");
 // ===========================================================================

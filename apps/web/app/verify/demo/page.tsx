@@ -14,6 +14,7 @@ import { LifecycleTimeline } from "../../../components/verify-demo/LifecycleTime
 import { ExampleRecordAndOutputs } from "../../../components/verify-demo/ExampleRecordAndOutputs";
 import { ImportantClarification } from "../../../components/verify-demo/ImportantClarification";
 import { BottomCTA } from "../../../components/verify-demo/BottomCTA";
+import { RevealSection } from "../../../components/motion";
 
 export default function VerificationDemoPage() {
   const handleCopyLink = () => {
@@ -39,12 +40,12 @@ export default function VerificationDemoPage() {
     <div className="page landing-page bg-[var(--proovra-page-bg)]">
       <MarketingHeader />
       <Hero />
-      <WhatReviewerSees />
-      <Walkthrough onCopyLink={handleCopyLink} />
-      <LifecycleTimeline />
-      <ExampleRecordAndOutputs />
-      <ImportantClarification />
-      <BottomCTA />
+      <RevealSection direction="up"><WhatReviewerSees /></RevealSection>
+      <RevealSection direction="right"><Walkthrough onCopyLink={handleCopyLink} /></RevealSection>
+      <RevealSection direction="left"><LifecycleTimeline /></RevealSection>
+      <RevealSection direction="up"><ExampleRecordAndOutputs /></RevealSection>
+      <RevealSection direction="right"><ImportantClarification /></RevealSection>
+      <RevealSection direction="left"><BottomCTA /></RevealSection>
       <EnterpriseFooter />
     </div>
   );

@@ -50,7 +50,15 @@ const PLATFORM_CONTEXT_TYPES = readSource(
   "../../../services/api/src/services/platform-context/types.ts",
 );
 const NEXT_CONFIG = readSource("../../../apps/web/next.config.js");
-const TRUST_PAGE = readSource("../../../apps/web/app/(app)/trust/page.tsx");
+// Phase E5 rebaseline: the in-product workspace Trust hub (with
+// TRUST_CARDS + PageRouteGate routeId="workspace.trust") migrated
+// from `(app)/trust/page.tsx` to `(app)/trust-hub/page.tsx`. The
+// canonical public Trust Center now lives at `app/trust/page.tsx`;
+// Next.js parallel-page rules forbid keeping a second `page.tsx`
+// inside the `(app)` group that resolves to `/trust`. Source-of-truth
+// content checks below now run against the workspace hub at its new
+// canonical location.
+const TRUST_PAGE = readSource("../../../apps/web/app/(app)/trust-hub/page.tsx");
 
 const CANONICAL_PILLAR_ORDER = [
   "HOME",

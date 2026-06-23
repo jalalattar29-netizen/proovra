@@ -28,21 +28,24 @@ const notoArabic = Noto_Sans_Arabic({
   display: "swap",
 });
 
+// Browser-tab + Apple-touch + PWA icons all resolve through Next.js's
+// app-router icon convention: `app/icon.png` → /icon, `app/apple-icon.png`
+// → /apple-icon. Both files are byte-for-byte copies of the canonical
+// brand mark (`public/assets/branding/proovra-mark.png`). The web
+// manifest also points at the same source asset so the PWA install
+// icon stays in lockstep with the browser tab icon.
 export const metadata: Metadata = {
   title: {
     default: "PROOVRA",
     template: "%s | PROOVRA",
   },
   description: "Digital evidence infrastructure for high-trust operations.",
-  icons: {
-    icon: [
-      { url: "/favicon.ico" },
-      { url: "/icon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-    ],
-    apple: "/apple-touch-icon.png",
-  },
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/assets/branding/proovra-mark.png",
+    shortcut: "/assets/branding/proovra-mark.png",
+    apple: "/assets/branding/proovra-mark.png",
+  },
 };
 
 export default function RootLayout({

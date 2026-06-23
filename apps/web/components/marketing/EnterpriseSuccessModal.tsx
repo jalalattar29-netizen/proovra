@@ -52,7 +52,7 @@ const COPY: Record<EnterpriseSuccessVariant, CopySet> = {
     info: {
       responseTime: "Within 1 business day",
       status: "Received",
-      nextStep: "Team review",
+      nextStep: "Workspace review",
     },
     primary: {
       label: "View sample report",
@@ -71,7 +71,7 @@ const COPY: Record<EnterpriseSuccessVariant, CopySet> = {
     info: {
       responseTime: "Within 1 business day",
       status: "Received",
-      nextStep: "Team review",
+      nextStep: "Workspace review",
     },
     primary: {
       label: "View sample report",

@@ -47,6 +47,7 @@ import { PlatformDashboardShowcase } from "../../components/marketing/PlatformDa
 import { PlatformDashboardPreview } from "../../components/marketing/PlatformDashboardPreview";
 import { IntegrationsComplianceSection } from "../../components/marketing/IntegrationsComplianceSection";
 import { SALES_ASSETS } from "../../lib/sales-assets";
+import { RevealSection } from "../../components/motion";
 
 const BRAND_GRADIENT_TEXT =
   "linear-gradient(90deg,#FF2DBD 0%,#7A3CFF 50%,#00D4FF 100%)";
@@ -1179,87 +1180,124 @@ function PlatformGovernanceControlLayer() {
           </p>
         </div>
 
-        {/* Split-panel card */}
+        {/* Split-panel card — backdrop now uses /assets/cards/icon-card.png.
+            Inner left panel + control-matrix sub-cards remain solid surfaces
+            so the governance content stays fully readable against the
+            artwork. A readability scrim sits between the image and the
+            content layer. */}
         <div
-          className="mt-12 grid gap-0 overflow-hidden rounded-[24px] border border-[#E5E7EB] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.06)] lg:grid-cols-[44fr_56fr]"
+          className="relative mt-12 overflow-hidden rounded-[24px] border shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
+          style={{
+            borderColor: "rgba(255,255,255,0.10)",
+            backgroundImage: "url('/assets/cards/icon-card.png')",
+            backgroundSize: "cover",
+            backgroundPosition: "center center",
+            backgroundRepeat: "no-repeat",
+            backgroundColor: "#050F33",
+          }}
         >
-          {/* Left side — supporting copy + list */}
-          <div className="border-b border-[#E5E7EB] bg-[#FAFBFD] p-7 lg:border-b-0 lg:border-r lg:p-9">
-            <h3 className="text-[1.25rem] font-extrabold leading-[1.18] tracking-[-0.015em] text-[#07132B] md:text-[1.4rem]">
-              Controls that make PROOVRA operational, not just verifiable.
-            </h3>
-            <p className="mt-4 text-[14px] leading-[1.7] text-[#475569]">
-              Built for organizations that need structured evidence workflows,
-              defensible oversight, and repeatable governance across teams,
-              cases, and records.
-            </p>
-            <ul className="mt-6 grid gap-2.5 pl-0">
-              {leftList.map((item) => (
-                <li
-                  key={item}
-                  className="flex items-center gap-2.5 text-[13px] font-semibold text-[#0F172A]"
-                  style={{ listStyle: "none" }}
-                >
-                  <span
-                    aria-hidden="true"
-                    className="block h-[2px] w-5 shrink-0 rounded-full"
-                    style={{
-                      background:
-                        "linear-gradient(90deg,#2563EB 0%,#7C3AED 100%)",
-                    }}
-                  />
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Right side — control matrix */}
-          <div className="p-6 md:p-7 lg:p-8">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {groups.map((g) => (
-                <div
-                  key={g.title}
-                  className="rounded-[16px] border border-[#E5E7EB] bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.03)]"
-                >
-                  <div className="flex items-center gap-2">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(5,15,51,0.46) 0%, rgba(5,15,51,0.60) 100%)",
+            }}
+          />
+          <div className="relative grid gap-0 lg:grid-cols-[44fr_56fr]">
+            {/* Left side — supporting copy + list. Transparent so the
+                icon-card backdrop runs unbroken across the whole card.
+                Right edge keeps a translucent divider. */}
+            <div
+              className="border-b p-7 lg:border-b-0 lg:border-r lg:p-9"
+              style={{
+                borderColor: "rgba(255,255,255,0.12)",
+                background: "transparent",
+              }}
+            >
+              <h3 className="text-[1.25rem] font-extrabold leading-[1.18] tracking-[-0.015em] text-white md:text-[1.4rem]">
+                Controls that make PROOVRA operational, not just verifiable.
+              </h3>
+              <p className="mt-4 text-[14px] leading-[1.7] text-[#CBD5F5]">
+                Built for organizations that need structured evidence workflows,
+                defensible oversight, and repeatable governance across teams,
+                cases, and records.
+              </p>
+              <ul className="mt-6 grid gap-2.5 pl-0">
+                {leftList.map((item) => (
+                  <li
+                    key={item}
+                    className="flex items-center gap-2.5 text-[13px] font-semibold text-white"
+                    style={{ listStyle: "none" }}
+                  >
                     <span
                       aria-hidden="true"
-                      className="block h-[3px] w-6 shrink-0 rounded-full"
-                      style={{ background: g.accent }}
+                      className="block h-[2px] w-5 shrink-0 rounded-full"
+                      style={{
+                        background:
+                          "linear-gradient(90deg,#60A5FA 0%,#A78BFA 100%)",
+                      }}
                     />
-                    <h4
-                      className="text-[11.5px] font-extrabold uppercase tracking-[0.16em]"
-                      style={{ color: g.accent }}
-                    >
-                      {g.title}
-                    </h4>
-                  </div>
-                  <ul className="mt-3 grid gap-1.5 pl-0">
-                    {g.items.map((it) => (
-                      <li
-                        key={it}
-                        className="flex items-center gap-2 text-[12.5px] text-[#0F172A]"
-                        style={{ listStyle: "none" }}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="block h-1.5 w-1.5 shrink-0 rounded-full"
-                          style={{ background: g.accent, opacity: 0.7 }}
-                        />
-                        {it}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+                    {item}
+                  </li>
+                ))}
+              </ul>
             </div>
 
-            <p className="mt-5 text-[12px] leading-[1.6] text-[#64748B]">
-              Every control is connected to the evidence lifecycle — from
-              intake and preservation to verification, reporting, and
-              governance.
-            </p>
+            {/* Right side — control matrix. Sub-cards are now translucent
+                dark glass tinted with each group accent so they read as
+                part of the unified governance card, not floating white
+                panels. */}
+            <div className="p-6 md:p-7 lg:p-8">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {groups.map((g) => (
+                  <div
+                    key={g.title}
+                    className="rounded-[16px] border p-4 backdrop-blur-[2px] shadow-[0_8px_22px_rgba(0,0,0,0.18)]"
+                    style={{
+                      borderColor: `${g.accent}55`,
+                      background: "rgba(15,23,42,0.55)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="block h-[3px] w-6 shrink-0 rounded-full"
+                        style={{ background: g.accent }}
+                      />
+                      <h4
+                        className="text-[11.5px] font-extrabold uppercase tracking-[0.16em]"
+                        style={{ color: g.accent }}
+                      >
+                        {g.title}
+                      </h4>
+                    </div>
+                    <ul className="mt-3 grid gap-1.5 pl-0">
+                      {g.items.map((it) => (
+                        <li
+                          key={it}
+                          className="flex items-center gap-2 text-[12.5px] text-[#E5E7EB]"
+                          style={{ listStyle: "none" }}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="block h-1.5 w-1.5 shrink-0 rounded-full"
+                            style={{ background: g.accent, opacity: 0.85 }}
+                          />
+                          {it}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+
+              <p className="mt-5 text-[12px] leading-[1.6] text-white/80">
+                Every control is connected to the evidence lifecycle — from
+                intake and preservation to verification, reporting, and
+                governance.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -2090,15 +2128,15 @@ export default function PlatformPage() {
     <div className="page landing-page bg-white">
       <MarketingHeader />
       <PlatformHero />
-      <LifecycleSection />
-      <PlatformWorkspaceSection />
-      <PlatformGovernanceControlLayer />
-      <SwitchSection />
-      <IndustriesSection />
-      <ScreensSection />
-      <TrustSection />
-      <IntegrationsComplianceSection />
-      <FinalCTA />
+      <RevealSection direction="up"><LifecycleSection /></RevealSection>
+      <RevealSection direction="right"><PlatformWorkspaceSection /></RevealSection>
+      <RevealSection direction="left"><PlatformGovernanceControlLayer /></RevealSection>
+      <RevealSection direction="up"><SwitchSection /></RevealSection>
+      <RevealSection direction="right"><IndustriesSection /></RevealSection>
+      <RevealSection direction="left"><ScreensSection /></RevealSection>
+      <RevealSection direction="up"><TrustSection /></RevealSection>
+      <RevealSection direction="right"><IntegrationsComplianceSection /></RevealSection>
+      <RevealSection direction="left"><FinalCTA /></RevealSection>
       <EnterpriseFooter />
     </div>
   );

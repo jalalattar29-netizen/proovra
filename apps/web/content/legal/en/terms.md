@@ -1,6 +1,6 @@
 # Terms of Service
 
-Last Updated: 06.04.2026
+Last Updated: 2026-06-23
 
 These Terms of Service (“Terms”) govern your access to and use of the websites, applications, APIs, and related services provided under the Proovra name (the “Services”).
 
@@ -61,14 +61,33 @@ Integrity verification shows whether the platform-recorded evidence data appears
 
 ## 5. USER RESPONSIBILITIES
 
-You are responsible for:
+You are responsible for the lawful use of the Services, including for:
 
 - the legality of your use of the Services
 - the legality of uploaded or captured content
-- maintaining the confidentiality of credentials
+- having the legal rights, permissions, consent, lawful basis, or authority required before uploading, capturing, storing, sharing, or processing materials involving other people, devices, property, workplaces, confidential information, or regulated data
+- obtaining any consent required by applicable privacy, employment, surveillance, recording, court, discovery, retention, or sector-specific laws
+- not uploading unlawful, abusive, defamatory, invasive, harassing, threatening, exploitative, or unauthorised material
+- not using the Services to harass, surveil, threaten, defame, intimidate, or otherwise violate the rights of others
+- understanding that PROOVRA does not provide legal advice
+- understanding that PROOVRA does not guarantee admissibility, evidentiary weight, or legal outcome
+- maintaining the confidentiality of credentials and any second-factor authentication device
 - protecting your devices and environment
-- controlling who receives access to evidence, reports, or verification links
-- configuring teams, permissions, and sharing appropriately
+- controlling who receives access to evidence, reports, Public Verification URLs, or Verification Packages
+- configuring teams, workspaces, permissions, retention, legal hold, and sharing controls appropriately
+- ensuring that uploaded content does not infringe intellectual-property rights or violate privacy rights of third parties
+
+PROOVRA may suspend, restrict, or terminate access where it reasonably believes that the user has not met these responsibilities or that continued use creates legal or security risk.
+
+## 5A. EVIDENCE AND VERIFICATION LIMITATIONS
+
+PROOVRA may record integrity signals, metadata, timestamps, custody events, reports, and Verification Package context. These signals help reviewers inspect what was recorded by the platform, but they do not by themselves establish factual truth, authorship, identity, intent, liability, or legal admissibility. Reviewers, claimants, counsel, regulators, and other recipients of PROOVRA-generated materials are expected to evaluate the underlying recorded content on its own merits and to apply the relevant standards of the matter, jurisdiction, or process.
+
+See the Verification Methodology and the Verification Disclaimer for the full description of what PROOVRA records and what it does not determine.
+
+## 5B. AI-ASSISTED FEATURES
+
+Where AI assistance is enabled in your workspace, AI features in PROOVRA are advisory only. AI does not determine factual truth, authorship, identity, intent, liability, or legal admissibility. AI assistance currently operates primarily on operational metadata and structured workspace context. PROOVRA does not use customer evidence content to train general-purpose AI models. See the AI Use Policy for the full description.
 
 ## 6. PROHIBITED USE
 
@@ -197,15 +216,26 @@ You may also review:
 
 - Privacy Policy
 - Cookie Policy
-- Data Processing Agreement (DPA)
+- Data Processing Addendum (DPA)
 - Data Retention Policy
 - Subprocessors
-- Technical & Organizational Measures (TOMs)
-- Privacy Matrix
-- Legal Changelog
-- Security Policy
-- Evidence Handling Policy
+- Technical and Organizational Measures (TOMs)
+- Acceptable Use Policy
+- Privacy Requests
+- Consumer Cancellation and Refund Policy
 - Verification Methodology
+- Verification Disclaimer
+- AI Use Policy
+- Evidence Handling Policy
+- Security and Responsible Disclosure
+- Incident Response Policy
+- Transparency Policy
+- Law Enforcement Request Policy
+- Abuse Reporting
+- Accessibility Statement
+- Support Policy (`/legal/support` — policy document) and the public Support page (`/support` — operational contact)
+- Legal Changelog
+- Trust Center
 
 ## 24. CONTACT
 
