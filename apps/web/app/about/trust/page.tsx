@@ -10,4 +10,7 @@
 // IMPORTANT: Do NOT add About-only content here. If About needs an
 // overview that links into the Trust Center, build it on /about and
 // leave this route as the canonical Trust Center re-export.
-export { default, metadata } from "../../trust/page";
+// Re-exports only `default` — Next.js disallows a `metadata` export
+// inside the "use client" canonical module. Page-level title/description
+// fall back to the root layout for this compatibility route.
+export { default } from "../../trust/page";

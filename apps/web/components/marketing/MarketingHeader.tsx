@@ -19,7 +19,6 @@ import {
   Compass,
   Sparkles,
   HelpCircle,
-  LifeBuoy,
   BookText,
   Building,
 } from "lucide-react";
@@ -49,6 +48,13 @@ const NAV: NavGroup[] = [
   // and are no longer surfaced in navigation. Old `/platform/<sub>`
   // URLs are redirected to /platform in next.config.js.
   { label: "Platform", href: MARKETING_LINKS.platform.overview },
+  // Technology consolidated into a single in-depth architecture page.
+  // The mega-menu sub-items (Hashing, Signatures, Timestamps, OTS,
+  // Custody) were collapsed into anchored sections on /technology and
+  // are no longer surfaced as separate nav entries. Old /technology/<sub>
+  // URLs redirect via next.config.js. Positioned immediately after
+  // Platform so the product-family pair reads as one unit.
+  { label: "Technology", href: MARKETING_LINKS.technology.overview },
   {
     label: "Solutions",
     cols: 2,
@@ -97,16 +103,13 @@ const NAV: NavGroup[] = [
       },
     ],
   },
-  // Technology consolidated into a single in-depth architecture page.
-  // The mega-menu sub-items (Hashing, Signatures, Timestamps, OTS,
-  // Custody) were collapsed into anchored sections on /technology and
-  // are no longer surfaced as separate nav entries. Old /technology/<sub>
-  // URLs redirect via next.config.js.
-  { label: "Technology", href: MARKETING_LINKS.technology.overview },
   {
     label: "Resources",
     cols: 1,
     items: [
+      // Why PROOVRA + Contact Support intentionally NOT here. Why
+      // PROOVRA moved to Company; Contact Support is available through
+      // the footer only.
       {
         label: "Trust Center",
         href: MARKETING_LINKS.trustCenter,
@@ -129,25 +132,11 @@ const NAV: NavGroup[] = [
         iconColor: "#F97316",
       },
       {
-        label: "Why PROOVRA",
-        href: MARKETING_LINKS.whyProovra,
-        description: "Why teams move from ordinary files to evidence records",
-        Icon: Compass,
-        iconColor: "#EC4899",
-      },
-      {
         label: "FAQ",
         href: MARKETING_LINKS.faq,
         description: "Common buyer and product questions",
         Icon: HelpCircle,
         iconColor: "#2563EB",
-      },
-      {
-        label: "Contact Support",
-        href: MARKETING_LINKS.support,
-        description: "Help and support contact",
-        Icon: LifeBuoy,
-        iconColor: "#06B6D4",
       },
     ],
   },
@@ -161,6 +150,13 @@ const NAV: NavGroup[] = [
         description: "Why PROOVRA exists and the problem it solves",
         Icon: Building,
         iconColor: "#2563EB",
+      },
+      {
+        label: "Why PROOVRA",
+        href: MARKETING_LINKS.whyProovra,
+        description: "Why teams move from ordinary files to evidence records",
+        Icon: Compass,
+        iconColor: "#EC4899",
       },
       {
         label: "Contact Sales",

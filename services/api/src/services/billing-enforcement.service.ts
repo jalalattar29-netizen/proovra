@@ -11,17 +11,54 @@ import {
   assertWorkspaceStorageAvailable,
   getWorkspaceUsage,
 } from "./workspace-usage.service.js";
+import { isInternalUnlimitedTester } from "./internal-testers.js";
 
 type EntitlementWriter = Pick<prismaPkg.Prisma.TransactionClient, "entitlement">;
 
+/**
+ * Canonical entry point used by routes to build a WorkspaceScope for the
+ * authenticated requester. `params.ownerUserId` MUST be the requester's
+ * userId (sourced from `getAuthUserId(req)` against the verified JWT in
+ * `middleware/auth.ts`) — NEVER from a request body, header, or query
+ * string. The requester's email is looked up server-side from the
+ * `users` table and attached to `scope.authenticatedUserEmail`, which
+ * the internal-tester bypass helper (`services/internal-testers.ts`)
+ * reads to short-circuit limit assertions for a tiny QA allow-list.
+ */
 export async function resolveWorkspaceScopeForUser(params: {
   ownerUserId: string;
   teamId?: string | null;
 }): Promise<WorkspaceScope> {
-  if (params.teamId) {
-    return getTeamWorkspaceScope(params.teamId);
-  }
-  return getPersonalWorkspaceScope(params.ownerUserId);
+  const [scope, requesterUser] = await Promise.all([
+    params.teamId
+      ? getTeamWorkspaceScope(params.teamId)
+      : getPersonalWorkspaceScope(params.ownerUserId),
+    prisma.user.findUnique({
+      where: { id: params.ownerUserId },
+      select: { email: true },
+    }),
+  ]);
+
+  return {
+    ...scope,
+    authenticatedUserEmail: requesterUser?.email ?? null,
+  };
+}
+
+/**
+ * INTERNAL TESTING BYPASS — single chokepoint.
+ *
+ * Returns `true` when the scope's authenticated requester is on the
+ * internal-tester allow-list (`services/internal-testers.ts`). Every
+ * `assertWorkspaceAllows*` / `consumeWorkspaceCompletionCredits` entry
+ * point in this file calls this FIRST and early-returns when true, so
+ * customer billing logic, plan capabilities, and limit errors remain
+ * intact for everyone else. `scope.authenticatedUserEmail` is populated
+ * server-side by `resolveWorkspaceScopeForUser` above — clients cannot
+ * influence the value.
+ */
+function shouldBypassForInternalTester(scope: WorkspaceScope): boolean {
+  return isInternalUnlimitedTester(scope.authenticatedUserEmail);
 }
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -48,6 +85,8 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 export async function assertWorkspaceAllowsEvidenceCreation(
   scope: WorkspaceScope
 ) {
+  // Internal testing bypass — see services/internal-testers.ts.
+  if (shouldBypassForInternalTester(scope)) return;
   const caps = getPlanCapabilities(scope.plan);
 
   if (scope.workspaceType === "TEAM" && !caps.allowsTeamWorkspace) {
@@ -182,10 +221,14 @@ export async function assertWorkspaceAllowsStorageGrowth(params: {
   scope: WorkspaceScope;
   incomingBytes?: bigint | number | null;
 }) {
+  // Internal testing bypass — see services/internal-testers.ts.
+  if (shouldBypassForInternalTester(params.scope)) return;
   return assertWorkspaceStorageAvailable(params);
 }
 
 export async function assertWorkspaceAllowsReport(scope: WorkspaceScope) {
+  // Internal testing bypass — see services/internal-testers.ts.
+  if (shouldBypassForInternalTester(scope)) return;
   const caps = getPlanCapabilities(scope.plan);
 
   if (!caps.reportsIncluded) {
@@ -201,6 +244,8 @@ export async function assertWorkspaceAllowsReport(scope: WorkspaceScope) {
 export async function assertWorkspaceAllowsVerificationPackage(
   scope: WorkspaceScope
 ) {
+  // Internal testing bypass — see services/internal-testers.ts.
+  if (shouldBypassForInternalTester(scope)) return;
   const caps = getPlanCapabilities(scope.plan);
 
   if (!caps.verificationPackageIncluded) {
@@ -217,6 +262,8 @@ export async function assertWorkspaceAllowsReportStorage(params: {
   scope: WorkspaceScope;
   incomingBytes?: bigint | number | null;
 }) {
+  // Internal testing bypass — see services/internal-testers.ts.
+  if (shouldBypassForInternalTester(params.scope)) return;
   await assertWorkspaceAllowsReport(params.scope);
   return assertWorkspaceStorageAvailable({
     scope: params.scope,
@@ -228,6 +275,8 @@ export async function assertWorkspaceAllowsVerificationPackageStorage(params: {
   scope: WorkspaceScope;
   incomingBytes?: bigint | number | null;
 }) {
+  // Internal testing bypass — see services/internal-testers.ts.
+  if (shouldBypassForInternalTester(params.scope)) return;
   await assertWorkspaceAllowsVerificationPackage(params.scope);
   return assertWorkspaceStorageAvailable({
     scope: params.scope,
@@ -246,6 +295,10 @@ export async function consumeWorkspaceCompletionCredits(
   scope: WorkspaceScope,
   tx?: EntitlementWriter
 ) {
+  // Internal testing bypass — see services/internal-testers.ts. Skips
+  // credit deduction entirely for the allow-listed QA account so
+  // completion flows are unmetered during development.
+  if (shouldBypassForInternalTester(scope)) return;
   const caps = getPlanCapabilities(scope.plan);
   const required = caps.paygCreditsRequiredPerCompletion;
 
@@ -333,6 +386,8 @@ async function resolveAiUsageTenantId(
 export async function assertWorkspaceAllowsAiOperation(
   scope: WorkspaceScope,
 ): Promise<void> {
+  // Internal testing bypass — see services/internal-testers.ts.
+  if (shouldBypassForInternalTester(scope)) return;
   const caps = getPlanCapabilities(scope.plan);
   const cap = caps.aiAdvisoryMonthlyOperations;
 

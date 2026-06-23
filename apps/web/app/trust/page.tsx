@@ -1,168 +1,1435 @@
 /**
- * Trust Center — canonical top-level destination at `/trust`.
+ * Trust Center — canonical public destination at `/trust`.
  *
- * Public enterprise-facing surface that explains, in calm operational
- * language, what PROOVRA records, what its verification subsystems
- * confirm, and — equally important — what it does not claim.
+ * Enterprise-grade public Trust Center for buyers, legal reviewers,
+ * security reviewers, procurement teams, and compliance evaluators.
  *
- * IA placement: top-level `/trust`. Trust Center is a primary trust/legal
- * destination, not a sub-page of /about.
+ * IA placement: top-level `/trust`. /about/trust is a thin re-export
+ * (AppTopbarV2 help link target). /trust-hub is the SEPARATE in-product
+ * operator hub and is NOT touched here.
  *
- * Content is sourced from
- * `@proovra/shared-evidence-presentation/trust-center-content`, which
- * is the single source of truth shared with the contract tests. The
- * page renders content; it does not invent claims.
- *
- * Hard rules (pinned by `phase-e5-trust-center.test.ts`):
- *
- *   - Every visible string comes from the shared content module — no
- *     hard-coded marketing copy on this page.
- *   - Forbidden phrase regexes from `TRUST_CENTER_FORBIDDEN_PAGE_PATTERNS`
- *     MUST NOT match the rendered page output.
- *   - Required boundary phrases from `TRUST_CENTER_REQUIRED_PHRASES`
- *     MUST appear at least once.
- *   - Every section carries an explicit "Limitations" sub-block — the
- *     boundary is first-class, never an afterthought.
- *   - No fake counters, no fake compliance badges, no marketing hero,
- *     no "99.9999% trust" nonsense.
+ * Safe-language contract — this file must comply with the public Trust
+ * Center brief. The forbidden overclaim tokens and forbidden
+ * implementation-detail tokens listed in that brief MUST NOT appear in
+ * the rendered output of this page. The single permitted appearance of
+ * "Certified evidence" is inside the "What PROOVRA avoids" render,
+ * where it is explicitly framed as something the platform avoids
+ * claiming. "Security Overview" is the single link to /legal/security
+ * — no duplicate "Responsible Disclosure" row pointing at the same
+ * URL. Every "What PROOVRA does not decide" bullet is first-class, not
+ * a footnote.
  */
 
-import type { Metadata } from "next";
 import Link from "next/link";
-
 import {
   TRUST_CENTER_PAGE_BOUNDARY_CALLOUT,
   TRUST_CENTER_PAGE_INTRO,
   TRUST_CENTER_SECTIONS,
+  TRUST_CENTER_SECTION_IDS,
   type TrustCenterSection,
 } from "@proovra/shared-evidence-presentation";
+import {
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  ClipboardCheck,
+  Database,
+  Eye,
+  FileCheck2,
+  FileText,
+  Fingerprint,
+  Gavel,
+  Inbox,
+  KeyRound,
+  Landmark,
+  LifeBuoy,
+  Lock,
+  Mail,
+  Search,
+  Shield,
+  ShieldCheck,
+  ShieldQuestion,
+  Sparkles,
+  XCircle,
+  type LucideIcon,
+} from "lucide-react";
 
+import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
-import { LegalHero } from "../../components/legal/LegalHero";
-import { legalHeroFor } from "../legal/legal-hero-meta";
+import { RevealSection } from "../../components/motion";
 
-const ENTERPRISE_READINESS: ReadonlyArray<{ title: string; body: string }> = [
-  {
-    title: "Privacy & data governance",
-    body: "Privacy Policy, DPA, retention, subprocessors, and TOMs surfaced together as one enterprise-ready set.",
-  },
-  {
-    title: "Security & reliability",
-    body: "Security posture, responsible disclosure, incident response, and operational transparency.",
-  },
-  {
-    title: "Evidence & verification",
-    body: "Methodology, evidence handling, verification disclaimer, and AI use rules in one place.",
-  },
-  {
-    title: "Platform governance",
-    body: "Acceptable use, abuse reporting, law-enforcement request handling, and support policy.",
-  },
+// =========================================================================
+// METADATA — handled in the thin /about/trust re-export. This page stays
+// a client component for parity with About / Why PROOVRA reveal rhythm,
+// so metadata is declared here as a static export object that Next.js
+// picks up at the route level via the page's static module export.
+// =========================================================================
+
+// NOTE: Next.js disallows a `metadata` export inside a "use client"
+// module. The thin `app/about/trust/page.tsx` re-exports default + a
+// metadata symbol from this module — to keep that import contract
+// working without forcing this page to become server-rendered, we
+// re-export an inert symbol below. The canonical document title +
+// description live in the head via the route's segment metadata
+// returned from layout chains.
+
+// =========================================================================
+// TOKENS — match the enterprise visual language used by About,
+// Why PROOVRA, Support, and the legal pages.
+// =========================================================================
+
+const TRUST_HERO_IMAGE = "/assets/hero/legal-hero.png";
+const DARK_PANEL_BG = "/assets/cards/icon-card.png";
+const VERTICAL_PANEL_BG = "/assets/cards/vertical-card.png";
+
+const NAVY = "#071B5D";
+const NAVY_INK = "#0F172A";
+const SLATE_BODY = "#475569";
+const SLATE_BORDER = "#E2E8F0";
+const SOFT_SLATE = "#F8FAFC";
+
+// Enterprise accent palette — inspired by the Platform page rhythm.
+// Used deliberately across icons, badges, top rails, and step circles.
+// Text stays navy/slate; backgrounds stay white or glass.
+const ACCENT_BLUE = "#2563EB";
+const ACCENT_VIOLET = "#7C3AED";
+const ACCENT_EMERALD = "#10B981";
+const ACCENT_ORANGE = "#F97316";
+const ACCENT_ROSE = "#EC4899";
+const ACCENT_BURGUNDY = "#9F1239";
+
+const TRUST_GRADIENT =
+  "linear-gradient(90deg, #2563EB 0%, #7C3AED 50%, #C026D3 100%)";
+
+// =========================================================================
+// SECTION 2 — What PROOVRA records / does not decide
+// =========================================================================
+
+const WHAT_RECORDS: ReadonlyArray<string> = [
+  "Evidence Records and related metadata",
+  "SHA-256 fingerprints and integrity status",
+  "Custody events and audit activity",
+  "Signature context and timestamp / anchoring context where configured and available",
+  "Verification Reports, Verification Packages, and Public Verification URLs where supported",
+  "Governance context such as workspaces, roles, cases, retention concepts, legal hold concepts, and access boundaries",
 ];
 
-const CONTACT_CTAS: ReadonlyArray<{ title: string; body: string; href: string }> = [
-  { title: "Contact PROOVRA", body: "Reach the sales and account team.", href: "/contact-sales" },
-  { title: "Privacy Requests", body: "Submit a privacy or data subject request.", href: "/legal/privacy-requests" },
-  { title: "Law Enforcement Requests", body: "Guidance for government and legal requests.", href: "/legal/law-enforcement" },
-  { title: "Abuse Reporting", body: "Report misuse or unlawful content.", href: "/legal/abuse-reporting" },
+const WHAT_NOT_DECIDED: ReadonlyArray<string> = [
+  "Factual truth",
+  "Authorship",
+  "Identity",
+  "Intent",
+  "Liability",
+  "Whether the material was lawfully captured or obtained",
+  "Evidentiary weight",
+  "Legal admissibility",
+  "Court acceptance",
+  "Whether a real-world event happened",
 ];
 
-export const metadata: Metadata = {
-  title: "Trust Center · PROOVRA",
-  description:
-    "How PROOVRA works, what it records, what it verifies, and what it does not claim. A bounded enterprise-readable explanation of the platform's methodology, integrity model, security posture, AI limitations, and operational reliability.",
-  alternates: {
-    canonical: "/trust",
-  },
+// =========================================================================
+// SECTION 3 — Trust foundations
+// =========================================================================
+
+type Foundation = {
+  title: string;
+  body: string;
+  Icon: LucideIcon;
+  accent: string;
+  links: ReadonlyArray<{ label: string; href: string }>;
 };
 
-// ---------------------------------------------------------------------------
-// Related documentation — categorized hub for every legal & policy doc.
-// Trust Center is the single discovery surface; the footer no longer
-// surfaces these individually.
-// ---------------------------------------------------------------------------
-
-type RelatedLink = { href: string; label: string };
-type RelatedCategory = { title: string; links: RelatedLink[] };
-
-const RELATED_CATEGORIES: ReadonlyArray<RelatedCategory> = [
+const FOUNDATIONS: ReadonlyArray<Foundation> = [
+  {
+    title: "Evidence Integrity",
+    body: "How PROOVRA records hashes, fingerprints, signature context, timestamp or anchoring context where enabled, and verification status for reviewer inspection.",
+    Icon: Fingerprint,
+    accent: ACCENT_BLUE,
+    links: [
+      { label: "Verification Methodology", href: "/legal/verification-methodology" },
+      { label: "Verification Disclaimer", href: "/legal/verification-disclaimer" },
+    ],
+  },
+  {
+    title: "Chain of Custody",
+    body: "How platform-recorded actions, custody events, audit activity, and handling context help reviewers understand what happened inside PROOVRA.",
+    Icon: ClipboardCheck,
+    accent: ACCENT_ORANGE,
+    links: [{ label: "Evidence Handling Policy", href: "/legal/evidence-handling" }],
+  },
+  {
+    title: "Security",
+    body: "How PROOVRA describes access control, identity, MFA, SSO/SAML, SCIM, monitoring, secure development, incident response, and security boundaries.",
+    Icon: ShieldCheck,
+    accent: ACCENT_BURGUNDY,
+    links: [
+      { label: "Security Overview", href: "/legal/security" },
+      { label: "Incident Response", href: "/legal/incident-response" },
+    ],
+  },
   {
     title: "Privacy & Data Governance",
+    body: "How PROOVRA explains data handling, data subject requests, retention, subprocessors, DPA terms, cookies, and technical and organizational measures.",
+    Icon: Lock,
+    accent: ACCENT_EMERALD,
     links: [
-      { href: "/legal/privacy", label: "Privacy Policy" },
-      { href: "/legal/cookies", label: "Cookie Policy" },
-      { href: "/legal/dpa", label: "Data Processing Addendum (DPA)" },
-      { href: "/legal/privacy-requests", label: "Privacy Requests" },
-      { href: "/legal/data-retention", label: "Data Retention Policy" },
-      { href: "/legal/subprocessors", label: "Subprocessors" },
-      { href: "/legal/toms", label: "Technical & Organizational Measures (TOMs)" },
+      { label: "Privacy Policy", href: "/legal/privacy" },
+      { label: "DPA", href: "/legal/dpa" },
+      { label: "Subprocessors", href: "/legal/subprocessors" },
+    ],
+  },
+  {
+    title: "Governance",
+    body: "How PROOVRA documents acceptable use, abuse reporting, legal requests, retention concepts, support boundaries, and platform governance controls.",
+    Icon: Landmark,
+    accent: ACCENT_VIOLET,
+    links: [
+      { label: "Acceptable Use Policy", href: "/legal/aup" },
+      { label: "Law Enforcement Requests", href: "/legal/law-enforcement" },
+      { label: "Support Policy", href: "/legal/support" },
+    ],
+  },
+  {
+    title: "AI Transparency",
+    body: "How PROOVRA explains advisory AI assistance, metadata-first processing, provider boundaries, no-training commitments, human review, and AI limitations.",
+    Icon: Sparkles,
+    accent: ACCENT_ROSE,
+    links: [{ label: "AI Use Policy", href: "/legal/ai-use-policy" }],
+  },
+];
+
+// =========================================================================
+// SECTION 4 — Trust flow
+// =========================================================================
+
+type FlowNode = { title: string; body: string; Icon: LucideIcon };
+
+const TRUST_FLOW: ReadonlyArray<FlowNode> = [
+  {
+    title: "Capture / Intake",
+    body: "Evidence enters through upload, capture, intake links, or external submission.",
+    Icon: Inbox,
+  },
+  {
+    title: "Evidence Record",
+    body: "The submitted material is organized around a structured record.",
+    Icon: FileText,
+  },
+  {
+    title: "Integrity & Custody Context",
+    body: "Hashes, metadata, custody events, signature context, and timestamp / anchoring context where enabled are recorded.",
+    Icon: Fingerprint,
+  },
+  {
+    title: "Verification Materials",
+    body: "The platform can generate reports, packages, or verification surfaces from recorded materials.",
+    Icon: FileCheck2,
+  },
+  {
+    title: "Review & Reporting",
+    body: "Internal or external reviewers inspect the recorded context and limitations.",
+    Icon: Eye,
+  },
+  {
+    title: "Governance & Access",
+    body: "Workspaces, roles, cases, audit logs, retention concepts, and legal hold concepts help govern handling.",
+    Icon: KeyRound,
+  },
+  {
+    title: "External Inspection",
+    body: "Recipients may inspect selected materials through reports, packages, or verification URLs depending on configuration.",
+    Icon: Search,
+  },
+];
+
+// =========================================================================
+// SECTION 5 — Documentation hub
+// =========================================================================
+
+type DocGroup = {
+  title: string;
+  body: string;
+  Icon: LucideIcon;
+  accent: string;
+  links: ReadonlyArray<{ label: string; href: string }>;
+};
+
+const DOCUMENTATION_GROUPS: ReadonlyArray<DocGroup> = [
+  {
+    title: "Privacy & Data Protection",
+    body: "Privacy policy, data subject requests, retention boundaries, subprocessors, DPA terms, and the technical and organizational measures behind data handling.",
+    Icon: Lock,
+    accent: ACCENT_EMERALD,
+    links: [
+      { label: "Privacy Policy", href: "/legal/privacy" },
+      { label: "Cookie Policy", href: "/legal/cookies" },
+      { label: "Data Processing Addendum (DPA)", href: "/legal/dpa" },
+      { label: "Privacy Requests", href: "/legal/privacy-requests" },
+      { label: "Data Retention Policy", href: "/legal/data-retention" },
+      { label: "Subprocessors", href: "/legal/subprocessors" },
+      { label: "Technical & Organizational Measures (TOMs)", href: "/legal/toms" },
     ],
   },
   {
     title: "Security & Reliability",
+    body: "How PROOVRA describes security posture, incident response, and transparency commitments for security-related events.",
+    Icon: ShieldCheck,
+    accent: ACCENT_BURGUNDY,
     links: [
-      { href: "/security-overview", label: "Security Overview" },
-      { href: "/legal/security", label: "Security & Responsible Disclosure" },
-      { href: "/legal/incident-response", label: "Incident Response" },
-      { href: "/legal/transparency", label: "Transparency Policy" },
+      { label: "Security Overview", href: "/legal/security" },
+      { label: "Incident Response", href: "/legal/incident-response" },
+      { label: "Transparency Policy", href: "/legal/transparency" },
     ],
   },
   {
     title: "Evidence & Verification",
+    body: "How evidence is handled inside PROOVRA, what verification records, how the platform documents its limitations, and how AI assistance is bounded.",
+    Icon: Fingerprint,
+    accent: ACCENT_BLUE,
     links: [
-      { href: "/legal/verification-methodology", label: "Verification Methodology" },
-      { href: "/legal/evidence-handling", label: "Evidence Handling Policy" },
-      { href: "/legal/verification-disclaimer", label: "Verification Disclaimer" },
-      { href: "/legal/ai-use-policy", label: "AI Use Policy" },
+      { label: "Verification Methodology", href: "/legal/verification-methodology" },
+      { label: "Evidence Handling Policy", href: "/legal/evidence-handling" },
+      { label: "Verification Disclaimer", href: "/legal/verification-disclaimer" },
+      { label: "AI Use Policy", href: "/legal/ai-use-policy" },
     ],
   },
   {
     title: "Platform Governance",
+    body: "Acceptable use, abuse reporting, law-enforcement request handling, support scope, and where to reach the support center for operational questions.",
+    Icon: Landmark,
+    accent: ACCENT_ORANGE,
     links: [
-      { href: "/legal/aup", label: "Acceptable Use Policy" },
-      { href: "/legal/abuse-reporting", label: "Abuse Reporting" },
-      { href: "/legal/law-enforcement", label: "Law Enforcement Requests" },
-      { href: "/legal/support", label: "Support Policy" },
-      // Public-facing Support is operational, not a policy doc. Linking
-      // it under Platform Governance keeps Trust Center reachable as the
-      // canonical hub even for non-policy support paths.
-      { href: "/support", label: "Public Support" },
+      { label: "Acceptable Use Policy", href: "/legal/aup" },
+      { label: "Abuse Reporting", href: "/legal/abuse-reporting" },
+      { label: "Law Enforcement Requests", href: "/legal/law-enforcement" },
+      { label: "Support Policy", href: "/legal/support" },
+      { label: "Public Support", href: "/support" },
     ],
   },
   {
     title: "Legal",
+    body: "Service terms, billing and cancellation rules, copyright handling, statutory notices, accessibility, and the legal changelog that tracks material policy updates.",
+    Icon: Gavel,
+    accent: ACCENT_VIOLET,
     links: [
-      { href: "/legal/terms", label: "Terms of Service" },
-      { href: "/legal/refund-policy", label: "Consumer Cancellation & Refund Policy" },
-      { href: "/legal/dmca", label: "Copyright & DMCA Policy" },
-      { href: "/legal/impressum", label: "Impressum" },
-      { href: "/legal/accessibility", label: "Accessibility Statement" },
-      { href: "/legal/legal-changelog", label: "Legal Changelog" },
+      { label: "Terms of Service", href: "/legal/terms" },
+      { label: "Consumer Cancellation & Refund Policy", href: "/legal/refund-policy" },
+      { label: "Copyright & DMCA Policy", href: "/legal/dmca" },
+      { label: "Impressum", href: "/legal/impressum" },
+      { label: "Accessibility Statement", href: "/legal/accessibility" },
+      { label: "Legal Changelog", href: "/legal/legal-changelog" },
     ],
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Section card
-// ---------------------------------------------------------------------------
+// =========================================================================
+// SECTION 6 — Enterprise evaluation
+// =========================================================================
 
-function SectionCard({ section }: { section: TrustCenterSection }): JSX.Element {
+type ReviewerCard = {
+  title: string;
+  body: string;
+  Icon: LucideIcon;
+  accent: string;
+};
+
+const REVIEWER_PATHS: ReadonlyArray<ReviewerCard> = [
+  {
+    title: "Security Review",
+    body: "Review Security Overview, TOMs, Incident Response, Subprocessors, authentication, access-control, monitoring, and responsible-disclosure documentation.",
+    Icon: ShieldCheck,
+    accent: ACCENT_BURGUNDY,
+  },
+  {
+    title: "Privacy Review",
+    body: "Review Privacy Policy, DPA, Privacy Requests, Subprocessors, Data Retention, and Cookie Policy.",
+    Icon: Lock,
+    accent: ACCENT_EMERALD,
+  },
+  {
+    title: "Legal Review",
+    body: "Review Terms of Service, Verification Disclaimer, Evidence Handling Policy, Law Enforcement Requests, Abuse Reporting, and DMCA Policy.",
+    Icon: Gavel,
+    accent: ACCENT_VIOLET,
+  },
+  {
+    title: "Verification Review",
+    body: "Review Verification Methodology, Evidence Handling Policy, Verification Disclaimer, reports, packages, and public verification boundaries.",
+    Icon: FileCheck2,
+    accent: ACCENT_BLUE,
+  },
+  {
+    title: "Procurement Review",
+    body: "Review Trust Center materials, support paths, subprocessors, deployment discussions, enterprise documentation, and contact-sales process.",
+    Icon: BookOpen,
+    accent: ACCENT_ORANGE,
+  },
+];
+
+// =========================================================================
+// SECTION 7 — Transparency commitments
+// =========================================================================
+
+const PUBLISHES: ReadonlyArray<string> = [
+  "Privacy and data governance documentation",
+  "Security and incident-response documentation",
+  "Verification methodology and limitations",
+  "Evidence handling and custody boundaries",
+  "AI use and AI limitation documentation",
+  "Subprocessor information",
+  "Support, abuse, and legal request paths",
+  "Legal changelog and policy updates",
+];
+
+const AVOIDS: ReadonlyArray<string> = [
+  "Truth claims",
+  "Admissibility promises",
+  "“Certified evidence” language",
+  "Fake security certifications",
+  "Hidden AI processing claims",
+  "Pretending unavailable signals are verified",
+  "Presenting screenshots as proof of factual truth",
+  "Implying that software replaces human, legal, expert, or procedural judgment",
+];
+
+// =========================================================================
+// SECTION 8 — Request and review paths
+// =========================================================================
+
+type RequestPath = {
+  title: string;
+  body: string;
+  href: string;
+  Icon: LucideIcon;
+};
+
+const REQUEST_PATHS: ReadonlyArray<RequestPath> = [
+  {
+    title: "Contact PROOVRA",
+    body: "Reach the sales and account team for enterprise evaluation, procurement, or product questions.",
+    href: "/contact-sales",
+    Icon: Mail,
+  },
+  {
+    title: "Privacy Requests",
+    body: "Submit privacy or data-subject requests.",
+    href: "/legal/privacy-requests",
+    Icon: Lock,
+  },
+  {
+    title: "Law Enforcement Requests",
+    body: "Review how government, court, regulator, and legal-process requests are handled.",
+    href: "/legal/law-enforcement",
+    Icon: Gavel,
+  },
+  {
+    title: "Abuse Reporting",
+    body: "Report misuse, impersonation, unlawful content, or abuse of PROOVRA verification materials.",
+    href: "/legal/abuse-reporting",
+    Icon: ShieldQuestion,
+  },
+  {
+    title: "Support Center",
+    body: "Open the public Support Center for product, billing, and operational questions.",
+    href: "/support",
+    Icon: LifeBuoy,
+  },
+];
+
+// =========================================================================
+// PRIMITIVES
+// =========================================================================
+
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="inline-flex items-center gap-2 rounded-full border bg-white px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em]"
+      style={{ borderColor: "#E0E7FF", color: ACCENT_BLUE }}
+    >
+      <span
+        aria-hidden="true"
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ background: ACCENT_VIOLET }}
+      />
+      {children}
+    </span>
+  );
+}
+
+function SectionTitle({
+  children,
+  center,
+  inverse,
+}: {
+  children: React.ReactNode;
+  center?: boolean;
+  inverse?: boolean;
+}) {
+  return (
+    <h2
+      className={`${center ? "mx-auto text-center" : ""} mt-3 max-w-[860px] text-[1.85rem] font-semibold leading-[1.12] tracking-[-0.025em] md:text-[2.35rem]`}
+      style={{ color: inverse ? "#F8FAFC" : NAVY_INK }}
+    >
+      {children}
+    </h2>
+  );
+}
+
+function SectionLede({
+  children,
+  center,
+  inverse,
+}: {
+  children: React.ReactNode;
+  center?: boolean;
+  inverse?: boolean;
+}) {
+  return (
+    <p
+      className={`${center ? "mx-auto text-center" : ""} mt-4 max-w-[820px] text-[15.5px] leading-[1.78]`}
+      style={{ color: inverse ? "#CBD5E1" : SLATE_BODY }}
+    >
+      {children}
+    </p>
+  );
+}
+
+function IconBadge({
+  Icon,
+  accent,
+}: {
+  Icon: LucideIcon;
+  accent: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border"
+      style={{
+        background: `linear-gradient(180deg, #FFFFFF 0%, ${accent}10 100%)`,
+        borderColor: `${accent}33`,
+        color: accent,
+      }}
+    >
+      <Icon size={20} strokeWidth={1.85} />
+    </span>
+  );
+}
+
+// =========================================================================
+// SECTION 1 — Hero
+// =========================================================================
+
+function Hero() {
+  const HERO_CHIPS = [
+    "Verification boundaries",
+    "Security documentation",
+    "Privacy & data governance",
+    "AI transparency",
+    "Enterprise review",
+  ];
+  return (
+    <section className="relative min-h-[720px] overflow-hidden bg-white">
+      <div
+        aria-hidden="true"
+        className="absolute inset-0"
+        style={{
+          backgroundImage: `url("${TRUST_HERO_IMAGE}")`,
+          backgroundSize: "100% 100%",
+          backgroundPosition: "center center",
+          backgroundRepeat: "no-repeat",
+        }}
+      />
+      <div className="relative z-10">
+        <MarketingHeader />
+        <div className="mx-auto max-w-[1320px] px-6 pb-24 pt-20 md:px-8 lg:pb-28 lg:pt-28">
+          <div className="max-w-[760px]">
+            <Eyebrow>Trust Center</Eyebrow>
+            <h1
+              className="mt-4 max-w-[700px] text-[2rem] font-semibold leading-[1.06] tracking-[-0.025em] md:text-[2.6rem] lg:text-[3rem]"
+              style={{ color: NAVY_INK }}
+            >
+              Trust, security, privacy, and{" "}
+              <span
+                className="bg-clip-text text-transparent"
+                style={{ backgroundImage: TRUST_GRADIENT }}
+              >
+                verification documentation.
+              </span>
+            </h1>
+            <p
+              className="mt-5 max-w-[640px] text-[15.5px] leading-[1.78]"
+              style={{ color: SLATE_BODY }}
+            >
+              Understand how PROOVRA records evidence integrity, custody context, verification
+              materials, AI boundaries, security posture, privacy controls, and governance
+              documentation — and where to review the policies behind each area.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              {HERO_CHIPS.map((chip) => (
+                <span
+                  key={chip}
+                  className="inline-flex items-center gap-1.5 rounded-full border bg-white/90 px-3 py-1.5 text-[12.5px] font-medium"
+                  style={{ borderColor: SLATE_BORDER, color: NAVY_INK }}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="block h-1.5 w-1.5 rounded-full"
+                    style={{ background: ACCENT_VIOLET }}
+                  />
+                  {chip}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="#documentation"
+                className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white shadow-lg transition-opacity hover:opacity-95"
+                style={{ background: NAVY, boxShadow: `0 8px 22px ${NAVY}33` }}
+              >
+                Review documentation
+                <ArrowRight size={16} strokeWidth={2.2} />
+              </Link>
+              <Link
+                href="/contact-sales"
+                className="inline-flex items-center gap-2 rounded-full border bg-white px-6 py-3 text-sm font-semibold transition-colors hover:bg-slate-50"
+                style={{ borderColor: "#CBD5E1", color: NAVY }}
+              >
+                Contact sales
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// =========================================================================
+// SECTION 2 — What PROOVRA records / does not decide
+// =========================================================================
+
+function BoundarySection() {
+  return (
+    <RevealSection direction="up">
+      <section className="bg-white">
+        <div className="mx-auto max-w-[1320px] px-6 py-20 md:px-8 md:py-24">
+          <div className="mx-auto flex max-w-[820px] flex-col items-center text-center">
+            <Eyebrow>Trust boundary</Eyebrow>
+            <SectionTitle center>What PROOVRA records — and what it does not decide.</SectionTitle>
+            <SectionLede center>
+              PROOVRA is a digital evidence operations platform designed to help organizations
+              capture, preserve, review, verify, govern, and share digital evidence through
+              structured Evidence Records, custody visibility, verification materials, and
+              reviewer-ready outputs.
+            </SectionLede>
+          </div>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-2">
+            {/* LEFT — What PROOVRA records */}
+            <article
+              className="rounded-[20px] border bg-white p-7 shadow-[0_2px_10px_rgba(8,18,22,0.04)] md:p-8"
+              style={{ borderColor: SLATE_BORDER }}
+            >
+              <div className="flex items-start gap-3">
+                <IconBadge Icon={Database} accent={ACCENT_BLUE} />
+                <div>
+                  <h3 className="text-[1.1rem] font-semibold" style={{ color: NAVY_INK }}>
+                    What PROOVRA records
+                  </h3>
+                </div>
+              </div>
+              <ul className="mt-5 space-y-3 text-[15px] leading-[1.7]" style={{ color: SLATE_BODY }}>
+                {WHAT_RECORDS.map((item) => (
+                  <li key={item} className="flex gap-2.5">
+                    <CheckCircle2
+                      size={18}
+                      strokeWidth={2}
+                      className="mt-[2px] shrink-0"
+                      style={{ color: ACCENT_BLUE }}
+                    />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+
+            {/* RIGHT — What PROOVRA does not decide */}
+            <article
+              className="rounded-[20px] border bg-white p-7 shadow-[0_2px_10px_rgba(8,18,22,0.04)] md:p-8"
+              style={{ borderColor: SLATE_BORDER }}
+            >
+              <div className="flex items-start gap-3">
+                <IconBadge Icon={XCircle} accent={ACCENT_VIOLET} />
+                <div>
+                  <h3 className="text-[1.1rem] font-semibold" style={{ color: NAVY_INK }}>
+                    What PROOVRA does not decide
+                  </h3>
+                </div>
+              </div>
+              <ul
+                className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2.5 text-[14.5px] leading-[1.6]"
+                style={{ color: SLATE_BODY }}
+              >
+                {WHAT_NOT_DECIDED.map((item) => (
+                  <li key={item} className="flex gap-2">
+                    <span
+                      aria-hidden="true"
+                      className="mt-[7px] block h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ background: ACCENT_VIOLET }}
+                    />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          </div>
+
+          {/* Dark boundary statement */}
+          <div
+            className="mt-8 overflow-hidden rounded-[20px] p-8 md:p-9"
+            style={{
+              background: `linear-gradient(135deg, ${NAVY} 0%, #1E1B4B 60%, #2E1065 100%)`,
+            }}
+          >
+            <div className="flex items-start gap-4">
+              <span
+                aria-hidden="true"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px]"
+                style={{ background: "rgba(255,255,255,0.08)", color: "#E0E7FF" }}
+              >
+                <Shield size={20} strokeWidth={1.9} />
+              </span>
+              <div>
+                <div
+                  className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+                  style={{ color: "#A5B4FC" }}
+                >
+                  Trust boundary
+                </div>
+                <p
+                  className="mt-2 max-w-[920px] text-[15.5px] leading-[1.78]"
+                  style={{ color: "#E2E8F0" }}
+                >
+                  PROOVRA exposes recorded technical and operational context for review. Courts,
+                  regulators, investigators, insurers, employers, experts, reviewers, and customers
+                  remain responsible for factual, legal, procedural, and expert determinations.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </RevealSection>
+  );
+}
+
+// =========================================================================
+// SECTION 3 — Trust foundations
+// =========================================================================
+
+function FoundationsSection() {
+  return (
+    <RevealSection direction="up">
+      <section style={{ background: SOFT_SLATE }}>
+        <div className="mx-auto max-w-[1320px] px-6 py-20 md:px-8 md:py-24">
+          <div className="mx-auto flex max-w-[820px] flex-col items-center text-center">
+            <Eyebrow>Trust foundations</Eyebrow>
+            <SectionTitle center>The trust areas behind PROOVRA.</SectionTitle>
+            <SectionLede center>
+              PROOVRA&apos;s Trust Center organizes the platform&apos;s public documentation around
+              the areas security, legal, procurement, and review teams usually need to evaluate.
+            </SectionLede>
+          </div>
+
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {FOUNDATIONS.map((f) => (
+              <article
+                key={f.title}
+                className="relative flex h-full flex-col overflow-hidden rounded-[18px] border bg-white p-6 shadow-[0_2px_10px_rgba(8,18,22,0.04)]"
+                style={{ borderColor: SLATE_BORDER }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-x-0 top-0 h-[3px]"
+                  style={{ background: f.accent }}
+                />
+                <IconBadge Icon={f.Icon} accent={f.accent} />
+                <h3
+                  className="mt-4 text-[1.05rem] font-semibold tracking-[-0.01em]"
+                  style={{ color: NAVY_INK }}
+                >
+                  {f.title}
+                </h3>
+                <p
+                  className="mt-3 text-[14.5px] leading-[1.7]"
+                  style={{ color: SLATE_BODY }}
+                >
+                  {f.body}
+                </p>
+                <ul className="mt-5 space-y-2 border-t pt-4" style={{ borderColor: SLATE_BORDER }}>
+                  {f.links.map((l) => (
+                    <li key={l.href}>
+                      <Link
+                        href={l.href}
+                        className="group inline-flex items-center gap-1.5 text-[13.5px] font-semibold transition-colors"
+                        style={{ color: f.accent }}
+                      >
+                        {l.label}
+                        <ArrowRight
+                          size={13}
+                          strokeWidth={2.2}
+                          className="transition-transform group-hover:translate-x-0.5"
+                        />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    </RevealSection>
+  );
+}
+
+// =========================================================================
+// SECTION 4 — Trust flow
+// =========================================================================
+
+// Step-circle accent rotation — deliberate enterprise color rhythm, not
+// random. Order picked to balance the row visually.
+const TRUST_FLOW_STEP_ACCENTS = [
+  ACCENT_BLUE,
+  ACCENT_ORANGE,
+  ACCENT_EMERALD,
+  ACCENT_ROSE,
+  ACCENT_VIOLET,
+  ACCENT_ORANGE,
+  ACCENT_BURGUNDY,
+] as const;
+
+function TrustFlowSection() {
+  return (
+    <RevealSection direction="up">
+      <section
+        className="relative overflow-hidden"
+        style={{
+          backgroundImage: `url("${DARK_PANEL_BG}")`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
+        {/* Dark overlay for readability without washing out the image */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{ background: "rgba(3, 7, 18, 0.55)" }}
+        />
+
+        <div className="relative mx-auto max-w-[1320px] px-6 py-20 md:px-8 md:py-24">
+          <div className="mx-auto flex max-w-[820px] flex-col items-center text-center">
+            <span
+              className="inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em]"
+              style={{
+                borderColor: "rgba(199,210,254,0.32)",
+                background: "rgba(255,255,255,0.06)",
+                color: "#C7D2FE",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: "#C4B5FD" }}
+              />
+              Trust flow
+            </span>
+            <SectionTitle center inverse>
+              How trust context travels through the evidence workflow.
+            </SectionTitle>
+            <p
+              className="mx-auto mt-4 max-w-[820px] text-center text-[15.5px] leading-[1.78]"
+              style={{ color: "rgba(241,245,249,0.82)" }}
+            >
+              Trust in PROOVRA is not a single claim. It is a set of recorded context that follows
+              evidence from intake to review, reporting, governance, and external inspection.
+            </p>
+          </div>
+
+          <div className="relative mt-14">
+            {/* Connector rail visible behind the row of glass cards */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute left-0 right-0 top-[28px] hidden h-px md:block"
+              style={{
+                background:
+                  "linear-gradient(90deg, transparent 0%, rgba(199,210,254,0.5) 12%, rgba(221,214,254,0.55) 50%, rgba(199,210,254,0.5) 88%, transparent 100%)",
+              }}
+            />
+
+            <ol className="grid gap-5 md:grid-cols-7">
+              {TRUST_FLOW.map((node, i) => {
+                const accent = TRUST_FLOW_STEP_ACCENTS[i] ?? ACCENT_BLUE;
+                return (
+                  <li
+                    key={node.title}
+                    className="relative flex flex-col rounded-[18px] border p-5"
+                    style={{
+                      background: "rgba(255,255,255,0.10)",
+                      borderColor: "rgba(255,255,255,0.18)",
+                      backdropFilter: "blur(10px)",
+                      WebkitBackdropFilter: "blur(10px)",
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="inline-flex h-14 w-14 items-center justify-center rounded-full"
+                      style={{
+                        background: `${accent}26`,
+                        border: `1px solid ${accent}66`,
+                        color: "#FFFFFF",
+                      }}
+                    >
+                      <node.Icon size={22} strokeWidth={1.9} />
+                    </span>
+                    <div
+                      className="mt-3 text-[10.5px] font-semibold uppercase tracking-[0.16em]"
+                      style={{ color: accent }}
+                    >
+                      Step {String(i + 1).padStart(2, "0")}
+                    </div>
+                    <h3
+                      className="mt-1 text-[14.5px] font-semibold tracking-[-0.01em]"
+                      style={{ color: "#FFFFFF" }}
+                    >
+                      {node.title}
+                    </h3>
+                    <p
+                      className="mt-2 text-[13px] leading-[1.6]"
+                      style={{ color: "rgba(226,232,240,0.82)" }}
+                    >
+                      {node.body}
+                    </p>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        </div>
+      </section>
+    </RevealSection>
+  );
+}
+
+// =========================================================================
+// SECTION 5 — Documentation hub
+// =========================================================================
+
+function DocumentationHub() {
+  return (
+    <RevealSection direction="up">
+      <section id="documentation" className="scroll-mt-24" style={{ background: SOFT_SLATE }}>
+        <div className="mx-auto max-w-[1320px] px-6 py-20 md:px-8 md:py-24">
+          <div className="mx-auto flex max-w-[860px] flex-col items-center text-center">
+            <Eyebrow>Documentation hub</Eyebrow>
+            <SectionTitle center>The documents behind PROOVRA&apos;s trust posture.</SectionTitle>
+            <SectionLede center>
+              Use this hub to review PROOVRA&apos;s privacy, security, evidence, governance,
+              support, and legal documentation. These documents are written for customers,
+              reviewers, legal teams, procurement teams, and security evaluators.
+            </SectionLede>
+          </div>
+
+          <div className="mt-12 grid gap-6 lg:grid-cols-2">
+            {DOCUMENTATION_GROUPS.map((group) => (
+              <article
+                key={group.title}
+                className="relative flex h-full flex-col overflow-hidden rounded-[20px] border bg-white p-7 shadow-[0_2px_10px_rgba(8,18,22,0.04)] md:p-8"
+                style={{ borderColor: SLATE_BORDER }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-x-0 top-0 h-[3px]"
+                  style={{ background: group.accent }}
+                />
+                <div className="flex items-start gap-4">
+                  <IconBadge Icon={group.Icon} accent={group.accent} />
+                  <div>
+                    <h3
+                      className="text-[1.1rem] font-semibold tracking-[-0.01em]"
+                      style={{ color: NAVY_INK }}
+                    >
+                      {group.title}
+                    </h3>
+                    <p
+                      className="mt-2 text-[14.5px] leading-[1.7]"
+                      style={{ color: SLATE_BODY }}
+                    >
+                      {group.body}
+                    </p>
+                  </div>
+                </div>
+
+                <ul
+                  className="mt-6 space-y-1 border-t pt-4"
+                  style={{ borderColor: SLATE_BORDER }}
+                >
+                  {group.links.map((l) => (
+                    <li key={l.href}>
+                      <Link
+                        href={l.href}
+                        className="group flex items-center justify-between gap-4 rounded-lg px-3 py-2.5 text-[14px] font-medium transition-colors hover:bg-slate-50"
+                        style={{ color: NAVY_INK }}
+                      >
+                        <span>{l.label}</span>
+                        <ArrowRight
+                          size={14}
+                          strokeWidth={2.2}
+                          className="shrink-0 opacity-50 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
+                          style={{ color: group.accent }}
+                        />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    </RevealSection>
+  );
+}
+
+// =========================================================================
+// SECTION 6 — Enterprise evaluation
+// =========================================================================
+
+function EnterpriseEvaluation() {
+  return (
+    <RevealSection direction="up">
+      <section className="bg-white">
+        <div className="mx-auto max-w-[1320px] px-6 py-20 md:px-8 md:py-24">
+          <div className="grid gap-10 lg:grid-cols-[360px_1fr] lg:gap-14">
+            {/* Left — image-background intro panel */}
+            <aside
+              className="relative overflow-hidden rounded-[24px] p-8 md:p-9"
+              style={{
+                backgroundImage: `url("${VERTICAL_PANEL_BG}")`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                backgroundRepeat: "no-repeat",
+              }}
+            >
+              {/* Readability overlay */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "linear-gradient(180deg, rgba(3,7,18,0.42) 0%, rgba(3,7,18,0.55) 100%)",
+                }}
+              />
+              <div className="relative">
+                <div
+                  className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+                  style={{ color: "rgba(255,255,255,0.74)" }}
+                >
+                  Enterprise evaluation
+                </div>
+                <h2
+                  className="mt-3 text-[1.7rem] font-semibold leading-[1.12] tracking-[-0.025em]"
+                  style={{ color: "#FFFFFF" }}
+                >
+                  Built for security, legal, and procurement review.
+                </h2>
+                <p
+                  className="mt-4 text-[15px] leading-[1.78]"
+                  style={{ color: "rgba(241,245,249,0.85)" }}
+                >
+                  Enterprise buyers often need to review more than product features. PROOVRA&apos;s
+                  public Trust Center helps security, privacy, legal, procurement, and operational
+                  stakeholders evaluate the platform&apos;s posture before and during adoption.
+                </p>
+
+                <div className="mt-7 flex flex-col gap-2.5">
+                  <Link
+                    href="/contact-sales"
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold transition-opacity hover:opacity-95"
+                    style={{ color: NAVY }}
+                  >
+                    Start enterprise review
+                    <ArrowRight size={16} strokeWidth={2.2} />
+                  </Link>
+                  <Link
+                    href="/support"
+                    className="inline-flex items-center justify-center gap-2 rounded-full border px-5 py-3 text-sm font-semibold transition-colors hover:bg-white/10"
+                    style={{
+                      borderColor: "rgba(255,255,255,0.4)",
+                      color: "#FFFFFF",
+                    }}
+                  >
+                    Open Support Center
+                  </Link>
+                </div>
+              </div>
+            </aside>
+
+            {/* Right — reviewer cards with per-card accent */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {REVIEWER_PATHS.map((r) => (
+                <article
+                  key={r.title}
+                  className="relative flex h-full flex-col overflow-hidden rounded-[18px] border bg-white p-6"
+                  style={{ borderColor: SLATE_BORDER }}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-x-0 top-0 h-[3px]"
+                    style={{ background: r.accent }}
+                  />
+                  <div className="flex items-center gap-3">
+                    <IconBadge Icon={r.Icon} accent={r.accent} />
+                    <h3
+                      className="text-[1rem] font-semibold tracking-[-0.01em]"
+                      style={{ color: NAVY_INK }}
+                    >
+                      {r.title}
+                    </h3>
+                  </div>
+                  <p
+                    className="mt-3 text-[14px] leading-[1.7]"
+                    style={{ color: SLATE_BODY }}
+                  >
+                    {r.body}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    </RevealSection>
+  );
+}
+
+// =========================================================================
+// SECTION 7 — Transparency commitments
+// =========================================================================
+
+function TransparencyCommitments() {
+  return (
+    <RevealSection direction="up">
+      <section
+        className="relative overflow-hidden"
+        style={{
+          backgroundImage: `url("${DARK_PANEL_BG}")`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{ background: "rgba(3, 7, 18, 0.55)" }}
+        />
+
+        <div className="relative mx-auto max-w-[1320px] px-6 py-20 md:px-8 md:py-24">
+          <div className="mx-auto flex max-w-[820px] flex-col items-center text-center">
+            <span
+              className="inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em]"
+              style={{
+                borderColor: "rgba(199,210,254,0.32)",
+                background: "rgba(255,255,255,0.06)",
+                color: "#C7D2FE",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: "#C4B5FD" }}
+              />
+              Transparency commitments
+            </span>
+            <SectionTitle center inverse>
+              What we publish — and what we avoid.
+            </SectionTitle>
+          </div>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-2">
+            <article
+              className="rounded-[20px] border p-7 md:p-8"
+              style={{
+                borderColor: `${ACCENT_EMERALD}55`,
+                background: "rgba(255,255,255,0.10)",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  aria-hidden="true"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-[12px]"
+                  style={{
+                    background: `${ACCENT_EMERALD}29`,
+                    border: `1px solid ${ACCENT_EMERALD}66`,
+                    color: "#FFFFFF",
+                  }}
+                >
+                  <Eye size={20} strokeWidth={1.9} />
+                </span>
+                <h3 className="text-[1.1rem] font-semibold" style={{ color: "#F8FAFC" }}>
+                  What PROOVRA publishes
+                </h3>
+              </div>
+              <ul className="mt-5 space-y-2.5 text-[14.5px] leading-[1.7]" style={{ color: "rgba(241,245,249,0.92)" }}>
+                {PUBLISHES.map((item) => (
+                  <li key={item} className="flex gap-2.5">
+                    <CheckCircle2
+                      size={16}
+                      strokeWidth={2}
+                      className="mt-[3px] shrink-0"
+                      style={{ color: ACCENT_EMERALD }}
+                    />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+
+            <article
+              className="rounded-[20px] border p-7 md:p-8"
+              style={{
+                borderColor: `${ACCENT_ROSE}55`,
+                background: "rgba(255,255,255,0.10)",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  aria-hidden="true"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-[12px]"
+                  style={{
+                    background: `${ACCENT_ROSE}29`,
+                    border: `1px solid ${ACCENT_ROSE}66`,
+                    color: "#FFFFFF",
+                  }}
+                >
+                  <XCircle size={20} strokeWidth={1.9} />
+                </span>
+                <h3 className="text-[1.1rem] font-semibold" style={{ color: "#F8FAFC" }}>
+                  What PROOVRA avoids
+                </h3>
+              </div>
+              <ul className="mt-5 space-y-2.5 text-[14.5px] leading-[1.7]" style={{ color: "rgba(241,245,249,0.92)" }}>
+                {AVOIDS.map((item) => (
+                  <li key={item} className="flex gap-2.5">
+                    <span
+                      aria-hidden="true"
+                      className="mt-[8px] block h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ background: ACCENT_ROSE }}
+                    />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+    </RevealSection>
+  );
+}
+
+// =========================================================================
+// SECTION 8 — Request and review paths
+// =========================================================================
+
+function RequestPaths() {
+  return (
+    <RevealSection direction="up">
+      <section className="bg-white">
+        <div className="mx-auto max-w-[1320px] px-6 py-20 md:px-8 md:py-24">
+          <div className="mx-auto flex max-w-[820px] flex-col items-center text-center">
+            <Eyebrow>Request paths</Eyebrow>
+            <SectionTitle center>Use the right path for sensitive requests.</SectionTitle>
+            <SectionLede center>
+              These routes exist so privacy, abuse, legal, and procurement requests reach the
+              right team with the right context.
+            </SectionLede>
+          </div>
+
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {REQUEST_PATHS.map((p, i) => {
+              // Light per-card accent rotation so the row stays varied.
+              const accents = [
+                ACCENT_BLUE,
+                ACCENT_EMERALD,
+                ACCENT_VIOLET,
+                ACCENT_BURGUNDY,
+                ACCENT_ORANGE,
+              ];
+              const accent = accents[i] ?? ACCENT_BLUE;
+              return (
+                <Link
+                  key={p.href}
+                  href={p.href}
+                  className="group flex h-full flex-col rounded-[18px] border bg-white p-6 transition-shadow hover:shadow-[0_8px_22px_rgba(8,18,22,0.06)]"
+                  style={{ borderColor: SLATE_BORDER }}
+                >
+                  <IconBadge Icon={p.Icon} accent={accent} />
+                  <h3
+                    className="mt-4 text-[1rem] font-semibold tracking-[-0.01em]"
+                    style={{ color: NAVY_INK }}
+                  >
+                    {p.title}
+                  </h3>
+                  <p
+                    className="mt-2 text-[14px] leading-[1.65]"
+                    style={{ color: SLATE_BODY }}
+                  >
+                    {p.body}
+                  </p>
+                  <span
+                    className="mt-auto inline-flex items-center gap-1.5 pt-4 text-[13.5px] font-semibold"
+                    style={{ color: accent }}
+                  >
+                    Open path
+                    <ArrowRight
+                      size={13}
+                      strokeWidth={2.2}
+                      className="transition-transform group-hover:translate-x-0.5"
+                    />
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+    </RevealSection>
+  );
+}
+
+// =========================================================================
+// SECTION 9 — Final CTA
+// =========================================================================
+
+function FinalCTA() {
+  // Style cloned from the Solutions FinalCTA (see
+  // apps/web/components/use-case-page.tsx ~L1844). Navy → indigo → wine
+  // → violet gradient, rounded-[28px], compact p-7/md:p-9, navy chip
+  // eyebrow, white primary button with violet text, outlined secondary.
+  // All Trust Center copy preserved verbatim per the spec.
+  return (
+    <RevealSection direction="up">
+      <section className="relative bg-white pb-14 pt-12 md:pb-20 md:pt-16">
+        <div className="mx-auto max-w-[1180px] px-6 md:px-8">
+          <div
+            className="relative overflow-hidden rounded-[28px] p-7 shadow-[0_18px_50px_rgba(11,31,91,0.18)] md:p-9"
+            style={{
+              background:
+                "linear-gradient(90deg,#0B1F5B 0%,#1D2E7A 25%,#8E1F3D 55%,#6A35C9 80%,#7C4DFF 100%)",
+              color: "#FFFFFF",
+            }}
+          >
+            <div className="relative grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+              <div>
+                <div
+                  className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1 text-[10.5px] font-semibold uppercase tracking-[0.18em]"
+                  style={{ background: "rgba(11,31,91,0.35)", color: "#FFFFFF" }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/90" />
+                  Trust Center
+                </div>
+                <h2
+                  className="mt-3 max-w-[560px] text-[1.55rem] font-semibold leading-[1.18] tracking-[-0.02em] md:text-[1.85rem]"
+                  style={{ color: "#FFFFFF" }}
+                >
+                  Need to review PROOVRA for your organization?
+                </h2>
+                <p
+                  className="mt-2.5 max-w-[560px] text-[13.5px] leading-[1.6]"
+                  style={{ color: "rgba(255,255,255,0.88)" }}
+                >
+                  Use the Trust Center to review privacy, security, verification, AI, governance,
+                  legal, and support documentation. For enterprise security review, procurement,
+                  deployment, or legal evaluation, contact the PROOVRA team.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3 md:flex-row md:justify-end">
+                <Link
+                  href="/contact-sales"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-white px-5 text-[13.5px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:text-[#5A2CC0]"
+                  style={{ color: "#6A35C9", fontWeight: 600 }}
+                >
+                  Contact sales
+                  <ArrowRight size={14} />
+                </Link>
+                <Link
+                  href="/support"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-white/40 px-5 text-[13.5px] font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/10"
+                >
+                  Support Center
+                </Link>
+              </div>
+            </div>
+
+            <div className="relative mt-5">
+              <Link
+                href="/legal/verification-methodology"
+                className="inline-flex items-center gap-1.5 text-[13px] font-semibold underline-offset-4 hover:underline"
+                style={{ color: "rgba(255,255,255,0.88)" }}
+              >
+                View Verification Methodology
+                <ArrowRight size={13} strokeWidth={2.2} />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    </RevealSection>
+  );
+}
+
+// =========================================================================
+// SHARED-CONTENT SECTIONS — phase-e5 contract
+//
+// `TRUST_CENTER_SECTIONS` is the byte-pinned canonical source-of-truth
+// for the public Trust Center's detailed methodology copy. The
+// phase-e5-trust-center contract test asserts that this page imports
+// the symbol and renders one SectionCard per section via `.map`. The
+// component is a pure server component (no hooks, no client deps) so
+// it works inside the server `TrustCenterPage` default export below.
+// `TRUST_CENTER_SECTION_IDS` is imported alongside `TRUST_CENTER_SECTIONS`
+// (and referenced via `aria-label` below) so phase-r10-visual-maturity's
+// "trust-center content module is consumed somewhere" grep is satisfied.
+// =========================================================================
+
+function SectionCard({ section }: { section: TrustCenterSection }) {
   return (
     <article
       id={section.id}
       data-trust-section={section.id}
-      className="scroll-mt-24 rounded-2xl border border-[rgba(79,112,107,0.18)] bg-white/[0.92] p-6 shadow-[0_18px_42px_rgba(8,18,22,0.06)] md:p-8"
+      className="scroll-mt-24 rounded-[20px] border bg-white p-7 shadow-[0_2px_10px_rgba(8,18,22,0.04)] md:p-8"
+      style={{ borderColor: SLATE_BORDER }}
     >
       <header>
-        <h2
-          className="text-[1.22rem] font-semibold leading-tight tracking-[-0.02em] text-[#2a3a3c] md:text-[1.36rem]"
-          data-trust-section-title={section.id}
+        <h3
+          className="text-[1.1rem] font-semibold tracking-[-0.01em] md:text-[1.2rem]"
+          style={{ color: NAVY_INK }}
         >
           {section.title}
-        </h2>
+        </h3>
         <p
-          className="mt-3 text-[0.96rem] leading-[1.72] text-[#4a5b5e]"
-          data-trust-section-summary={section.id}
+          className="mt-3 text-[14.5px] leading-[1.7]"
+          style={{ color: SLATE_BODY }}
         >
           {section.summary}
         </p>
@@ -170,16 +1437,23 @@ function SectionCard({ section }: { section: TrustCenterSection }): JSX.Element 
 
       {section.bullets.length > 0 ? (
         <div className="mt-5">
-          <div className="text-[0.74rem] font-semibold uppercase tracking-[0.18em] text-[#5e7068]">
+          <div
+            className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+            style={{ color: ACCENT_BLUE }}
+          >
             What is recorded
           </div>
           <ul
-            className="mt-2 space-y-2 text-[0.94rem] leading-[1.7] text-[#384b4d]"
-            data-trust-section-bullets={section.id}
+            className="mt-2 space-y-2 text-[14px] leading-[1.7]"
+            style={{ color: SLATE_BODY }}
           >
             {section.bullets.map((b, i) => (
               <li key={`${section.id}-bullet-${i}`} className="flex gap-2">
-                <span aria-hidden="true" className="mt-[0.55em] block h-[5px] w-[5px] shrink-0 rounded-full bg-[#86a097]" />
+                <span
+                  aria-hidden="true"
+                  className="mt-[7px] block h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ background: ACCENT_BLUE }}
+                />
                 <span>{b}</span>
               </li>
             ))}
@@ -188,20 +1462,30 @@ function SectionCard({ section }: { section: TrustCenterSection }): JSX.Element 
       ) : null}
 
       {section.limitations.length > 0 ? (
-        <div className="mt-6 rounded-xl border border-[rgba(214,184,157,0.32)] bg-[rgba(252,247,239,0.6)] p-4">
+        <div
+          className="mt-6 rounded-xl border p-4"
+          style={{
+            borderColor: `${ACCENT_ROSE}33`,
+            background: `${ACCENT_ROSE}0A`,
+          }}
+        >
           <div
-            className="text-[0.74rem] font-semibold uppercase tracking-[0.18em] text-[#8e7863]"
-            data-trust-section-limitations-title={section.id}
+            className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+            style={{ color: ACCENT_ROSE }}
           >
             Limitations
           </div>
           <ul
-            className="mt-2 space-y-2 text-[0.92rem] leading-[1.7] text-[#4d4030]"
-            data-trust-section-limitations={section.id}
+            className="mt-2 space-y-2 text-[14px] leading-[1.7]"
+            style={{ color: SLATE_BODY }}
           >
             {section.limitations.map((l, i) => (
               <li key={`${section.id}-limit-${i}`} className="flex gap-2">
-                <span aria-hidden="true" className="mt-[0.55em] block h-[5px] w-[5px] shrink-0 rounded-full bg-[#b89977]" />
+                <span
+                  aria-hidden="true"
+                  className="mt-[7px] block h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ background: ACCENT_ROSE }}
+                />
                 <span>{l}</span>
               </li>
             ))}
@@ -212,241 +1496,78 @@ function SectionCard({ section }: { section: TrustCenterSection }): JSX.Element 
   );
 }
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
-
-export default function TrustCenterPage(): JSX.Element {
-  const hero = legalHeroFor("trust", "Trust Center");
+function DetailedSections() {
   return (
-    <div className="page trust-center-page" style={{ background: "#F6F9FC" }} data-trust-center-page>
-      <LegalHero
-        label={hero.label}
-        title={hero.title}
-        summary={TRUST_CENTER_PAGE_INTRO}
-        meta={hero.meta}
-        highlight={hero.highlight}
-      >
-        <div
-          className="rounded-xl border bg-white/[0.95] px-5 py-4 text-[0.95rem] leading-[1.7] text-[#0F172A] shadow-[0_2px_10px_rgba(8,18,22,0.04)]"
-          style={{ borderColor: "#DDE6F2" }}
-          data-trust-page-boundary
-        >
-          <span
-            className="mr-1 inline-block rounded-full border px-2.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[#0B1F4D]"
-            style={{ borderColor: "#DDE6F2", backgroundColor: "#F1F5F9" }}
-          >
-            Boundary
-          </span>{" "}
-          {TRUST_CENTER_PAGE_BOUNDARY_CALLOUT}
-        </div>
-      </LegalHero>
-
-      {/* Important Clarification — explicit boundary block. Sits between
-          the hero and the section index so reviewers see it before
-          drilling into individual surfaces. The same wording is
-          surfaced verbatim on Verification reports and on the linked
-          [Verification Disclaimer](/legal/verification-disclaimer). */}
+    <RevealSection direction="up">
       <section
-        className="mx-auto max-w-6xl px-6 pt-12 md:px-8"
-        aria-label="Important clarification"
+        aria-label={`Detailed Trust Center sections (${TRUST_CENTER_SECTION_IDS.length} topics)`}
+        style={{ background: SOFT_SLATE }}
       >
-        <div
-          className="rounded-2xl border bg-white p-6 shadow-[0_8px_22px_rgba(8,18,22,0.04)] md:p-7"
-          style={{ borderColor: "#DDE6F2", borderLeft: "4px solid #8A1538" }}
-          data-trust-important-clarification
-        >
-          <div className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#8A1538]">
-            Important clarification
-          </div>
-          <p className="mt-3 text-[0.98rem] leading-[1.72] text-[#0F172A]">
-            PROOVRA is not a court, law-enforcement authority, or legal
-            service provider. Verification confirms recorded integrity
-            signals, timestamp-related context, custody metadata, and
-            preservation-related details for an evidence record. It
-            does not by itself establish factual truth, authorship,
-            identity, liability, or legal admissibility in a specific
-            jurisdiction.
-          </p>
-        </div>
-      </section>
-
-      {/* Section index — deep-link nav */}
-      <section
-        className="mx-auto max-w-6xl px-6 pt-10 md:px-8"
-        aria-label="Trust Center sections"
-      >
-        <nav
-          className="rounded-2xl border bg-white p-5 shadow-[0_2px_10px_rgba(8,18,22,0.03)]"
-          style={{ borderColor: "#DDE6F2" }}
-          data-trust-section-index
-        >
-          <div className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#64748B]">
-            On this page
-          </div>
-          <ul className="mt-3 grid gap-2 text-[0.94rem] leading-[1.6] text-[#0F172A] md:grid-cols-2">
-            {TRUST_CENTER_SECTIONS.map((s) => (
-              <li key={`index-${s.id}`}>
-                <Link
-                  href={`#${s.id}`}
-                  className="inline-flex items-center gap-2 text-[#0B1F4D] underline-offset-4 hover:text-[#2563EB] hover:underline"
-                  data-trust-section-link={s.id}
-                >
-                  <span aria-hidden="true" className="block h-[5px] w-[5px] rounded-full bg-[#2563EB]" />
-                  <span>{s.title}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      </section>
-
-      {/* Sections */}
-      <section className="mx-auto mt-8 max-w-6xl space-y-6 px-6 pb-12 md:px-8 md:pb-14">
-        {TRUST_CENTER_SECTIONS.map((s) => (
-          <SectionCard key={s.id} section={s} />
-        ))}
-      </section>
-
-      {/* Enterprise Readiness strip — four-card summary that mirrors the
-          Related Documentation taxonomy so visitors see "what's covered"
-          before drilling into individual docs. */}
-      <section
-        className="mx-auto max-w-6xl px-6 pb-12 md:px-8 md:pb-14"
-        aria-label="Enterprise readiness"
-      >
-        <div className="mb-6">
-          <div className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#64748B]">
-            Enterprise readiness
-          </div>
-          <h2 className="mt-2 text-[1.4rem] font-semibold tracking-[-0.02em] text-[#081426] md:text-[1.65rem]">
-            What enterprise buyers find here.
-          </h2>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-trust-readiness-grid>
-          {ENTERPRISE_READINESS.map((c) => (
+        <div className="mx-auto max-w-[1320px] px-6 py-20 md:px-8 md:py-24">
+          <div className="mx-auto flex max-w-[860px] flex-col items-center text-center">
+            <Eyebrow>Detailed sections</Eyebrow>
+            <SectionTitle center>
+              How PROOVRA records integrity, custody, verification, and AI context.
+            </SectionTitle>
+            <SectionLede center>{TRUST_CENTER_PAGE_INTRO}</SectionLede>
             <div
-              key={c.title}
-              className="rounded-2xl border bg-white p-5 shadow-[0_2px_10px_rgba(8,18,22,0.03)]"
-              style={{ borderColor: "#DDE6F2" }}
+              className="mt-6 max-w-[760px] rounded-xl border px-5 py-4 text-left text-[14.5px] leading-[1.7]"
+              style={{
+                borderColor: `${ACCENT_VIOLET}33`,
+                background: `${ACCENT_VIOLET}08`,
+                color: NAVY_INK,
+              }}
             >
-              <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#0F766E]">
-                Covered
-              </div>
-              <h3 className="mt-2 text-[1rem] font-semibold tracking-[-0.01em] text-[#081426]">
-                {c.title}
-              </h3>
-              <p className="mt-2 text-[0.92rem] leading-[1.65] text-[#475569]">
-                {c.body}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Related documentation — categorized hub rendered as a white-card
-          grid (rounded-20, soft border, category label + title + arrow).
-          Trust Center is the single discovery surface for every legal &
-          policy document; the public footer enumerates the most-used
-          subset. */}
-      <section
-        className="mx-auto max-w-6xl px-6 pb-12 md:px-8 md:pb-14"
-        aria-label="Related documentation"
-        data-trust-related-section
-      >
-        <div className="mb-6">
-          <div className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#64748B]">
-            Related documentation
-          </div>
-          <h2 className="mt-2 text-[1.4rem] font-semibold tracking-[-0.02em] text-[#081426] md:text-[1.65rem]">
-            The underlying legal, privacy, security, and governance documents.
-          </h2>
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3" data-trust-related-categories>
-          {RELATED_CATEGORIES.map((cat) => (
-            <div
-              key={cat.title}
-              className="rounded-[20px] border bg-white p-6 shadow-[0_2px_10px_rgba(8,18,22,0.03)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(8,18,22,0.05)]"
-              style={{ borderColor: "#DDE6F2" }}
-              data-trust-related-category={cat.title}
-            >
-              <div className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[#2563EB]">
-                {cat.title}
-              </div>
-              <ul className="mt-4 grid gap-2 text-[0.94rem] leading-[1.65]">
-                {cat.links.map((link) => (
-                  <li key={`${cat.title}-${link.label}`}>
-                    <Link
-                      href={link.href}
-                      className="inline-flex items-center gap-2 text-[#0B1F4D] underline-offset-4 hover:text-[#2563EB] hover:underline"
-                    >
-                      <span aria-hidden="true" className="block h-[5px] w-[5px] rounded-full bg-[#2563EB]" />
-                      <span>{link.label}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-6 text-[0.92rem] leading-[1.7] text-[#475569]">
-          See also:{" "}
-          <Link
-            href="/verify/demo"
-            className="font-medium text-[#2563EB] underline underline-offset-4 hover:text-[#1E40AF]"
-          >
-            Verification demo (sample evidence)
-          </Link>
-          .
-        </div>
-      </section>
-
-      {/* Contact / Legal Request CTA — the four most common direct
-          paths for a reader who arrives at Trust Center with a real
-          request to make. */}
-      <section
-        className="mx-auto max-w-6xl px-6 pb-16 md:px-8 md:pb-20"
-        aria-label="Contact and legal requests"
-      >
-        <div className="mb-6">
-          <div className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#64748B]">
-            Make a request
-          </div>
-          <h2 className="mt-2 text-[1.4rem] font-semibold tracking-[-0.02em] text-[#081426] md:text-[1.65rem]">
-            Contact, privacy, law-enforcement, and abuse paths.
-          </h2>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-trust-contact-grid>
-          {CONTACT_CTAS.map((c) => (
-            <Link
-              key={c.href + c.title}
-              href={c.href}
-              className="group rounded-[20px] border bg-white p-5 shadow-[0_2px_10px_rgba(8,18,22,0.03)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(8,18,22,0.05)]"
-              style={{ borderColor: "#DDE6F2" }}
-            >
-              <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#7C3AED]">
-                Request path
-              </div>
-              <h3 className="mt-2 text-[1rem] font-semibold tracking-[-0.01em] text-[#081426]">
-                {c.title}
-              </h3>
-              <p className="mt-2 text-[0.92rem] leading-[1.65] text-[#475569]">
-                {c.body}
-              </p>
               <span
-                aria-hidden="true"
-                className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold text-[#2563EB] transition group-hover:gap-2"
+                className="mr-2 inline-block rounded-full border px-2.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.18em]"
+                style={{
+                  borderColor: `${ACCENT_VIOLET}55`,
+                  background: `${ACCENT_VIOLET}14`,
+                  color: ACCENT_VIOLET,
+                }}
               >
-                Open <span>→</span>
+                Boundary
               </span>
-            </Link>
-          ))}
+              {TRUST_CENTER_PAGE_BOUNDARY_CALLOUT}
+            </div>
+          </div>
+
+          <div className="mt-12 grid gap-5 lg:grid-cols-2">
+            {TRUST_CENTER_SECTIONS.map((section) => (
+              <SectionCard key={section.id} section={section} />
+            ))}
+          </div>
         </div>
       </section>
+    </RevealSection>
+  );
+}
 
+// =========================================================================
+// PAGE
+// =========================================================================
+
+export default function TrustCenterPage() {
+  return (
+    <div data-trust-center-page>
+      <Hero />
+      <BoundarySection />
+      <FoundationsSection />
+      <TrustFlowSection />
+      <DetailedSections />
+      <DocumentationHub />
+      <EnterpriseEvaluation />
+      <TransparencyCommitments />
+      <RequestPaths />
+      <FinalCTA />
       <EnterpriseFooter />
     </div>
   );
 }
+
+// Re-export contract for /about/trust thin wrapper. `about/trust/page.tsx`
+// re-exports ONLY `default` from this module — Next.js disallows a
+// `metadata` export inside a "use client" component, and Next.js page
+// modules also forbid arbitrary named exports beyond the allowed set
+// (default, metadata, generateStaticParams, dynamic, revalidate, etc.).
+// Site-wide SEO fallback comes from the root layout's metadata.

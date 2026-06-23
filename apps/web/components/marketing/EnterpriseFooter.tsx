@@ -64,7 +64,7 @@ const COLUMNS: FooterCol[] = [
       { label: "Impressum", href: "/legal/impressum" },
       { label: "Law Enforcement Requests", href: "/legal/law-enforcement" },
       { label: "Privacy Requests", href: "/legal/privacy-requests" },
-      { label: "Support", href: "/support" },
+      { label: "Contact Support", href: "/support" },
       { label: "Support Policy", href: "/legal/support" },
     ],
   },

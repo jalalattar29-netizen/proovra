@@ -44,6 +44,21 @@ export type WorkspaceScope = {
    * scopes this is sourced from the team owner's entitlement.
    */
   legacyRecordCapOverride: number | null;
+  /**
+   * Email of the REQUESTING authenticated user, looked up server-side
+   * from `users.email` by the canonical scope builder
+   * (`resolveWorkspaceScopeForUser` in `billing-enforcement.service.ts`).
+   * Used ONLY by the internal-tester bypass helper
+   * (`services/internal-testers.ts`) to short-circuit plan/limit
+   * enforcement for a tiny allow-list of internal QA accounts. Never
+   * sourced from a request body, header, or query string — a client
+   * cannot self-elect into the bypass.
+   *
+   * Optional: direct callers of `getPersonalWorkspaceScope` /
+   * `getTeamWorkspaceScope` that bypass the canonical resolver leave
+   * this `undefined`, which fails the bypass check (safe default).
+   */
+  authenticatedUserEmail?: string | null;
 };
 
 function toBillingWorkspaceScope(scope: WorkspaceScope): BillingWorkspaceScope {
