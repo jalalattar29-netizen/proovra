@@ -84,7 +84,25 @@ function useInView(
       setInView(true);
       return;
     }
-    const threshold = Math.min(Math.max(amount, 0), 1);
+    // Trust Center fix (2026-06-23): the previous implementation passed
+    // `{ threshold: amount }` (default 0.18). IntersectionObserver
+    // thresholds are computed as the fraction of the OBSERVED ELEMENT
+    // that is visible inside the viewport. For sections taller than
+    // ~5.5× the viewport height (multi-column documentation hubs,
+    // multi-card foundation grids, mapped TRUST_CENTER_SECTIONS bands)
+    // that fraction can NEVER reach 18% no matter how the user scrolls,
+    // because at most `viewportHeight / sectionHeight` of the element
+    // is visible at once. The observer never fired, the wrapper stayed
+    // at `opacity: 0`, and the section appeared to "disappear" on long
+    // pages. Switching to `{ threshold: 0, rootMargin: '0px 0px -X% 0px' }`
+    // is the standard scroll-reveal pattern: the reveal fires when the
+    // element's bounding box touches a viewport that has been shrunk by
+    // `amount × 100%` from the bottom — robust for elements of any
+    // height, and matches the pre-fix trigger timing for normal-sized
+    // sections.
+    const offsetPct = Math.round(
+      Math.min(Math.max(amount, 0), 0.95) * 100,
+    );
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
@@ -96,7 +114,10 @@ function useInView(
           setInView(false);
         }
       },
-      { threshold },
+      {
+        threshold: 0,
+        rootMargin: `0px 0px -${offsetPct}% 0px`,
+      },
     );
     observer.observe(el);
     return () => observer.disconnect();

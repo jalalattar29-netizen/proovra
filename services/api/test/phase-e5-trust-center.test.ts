@@ -342,8 +342,22 @@ describe("E5 Test 5 — page consumes the shared content module", () => {
     }
   });
 
-  it("renders one SectionCard per section via .map", () => {
-    expect(TRUST_CENTER_PAGE).toMatch(/TRUST_CENTER_SECTIONS\.map/);
+  // 2026-06-23 UX rebaseline: the public marketing /trust page no
+  // longer renders a visible band that maps over TRUST_CENTER_SECTIONS
+  // — the giant detailed-sections list dominated the page and
+  // duplicated the link surface already covered by the redesigned
+  // Documentation Hub and Trust Flow sections. The shared
+  // TRUST_CENTER_SECTIONS module still exists, the public page still
+  // imports + consumes its symbols (TRUST_CENTER_SECTIONS,
+  // TRUST_CENTER_SECTION_IDS, TRUST_CENTER_PAGE_INTRO,
+  // TRUST_CENTER_PAGE_BOUNDARY_CALLOUT — pinned by the assertions in
+  // "page consumes the shared content module" above), and the
+  // detailed mapped list remains available to any private /
+  // authenticated Trust Center surface that needs it. This `it`
+  // intentionally no longer requires `TRUST_CENTER_SECTIONS.map` to
+  // appear in the public-page source.
+  it("public page still consumes TRUST_CENTER_SECTIONS (no longer required to .map them visibly)", () => {
+    expect(TRUST_CENTER_PAGE).toMatch(/TRUST_CENTER_SECTIONS/);
   });
 });
 

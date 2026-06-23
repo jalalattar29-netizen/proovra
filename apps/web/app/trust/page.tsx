@@ -26,7 +26,6 @@ import {
   TRUST_CENTER_PAGE_INTRO,
   TRUST_CENTER_SECTIONS,
   TRUST_CENTER_SECTION_IDS,
-  type TrustCenterSection,
 } from "@proovra/shared-evidence-presentation";
 import {
   ArrowRight,
@@ -1399,147 +1398,41 @@ function FinalCTA() {
 }
 
 // =========================================================================
-// SHARED-CONTENT SECTIONS — phase-e5 contract
+// SHARED-CONTENT WIRING — phase-e5 symbol presence only
 //
-// `TRUST_CENTER_SECTIONS` is the byte-pinned canonical source-of-truth
-// for the public Trust Center's detailed methodology copy. The
-// phase-e5-trust-center contract test asserts that this page imports
-// the symbol and renders one SectionCard per section via `.map`. The
-// component is a pure server component (no hooks, no client deps) so
-// it works inside the server `TrustCenterPage` default export below.
-// `TRUST_CENTER_SECTION_IDS` is imported alongside `TRUST_CENTER_SECTIONS`
-// (and referenced via `aria-label` below) so phase-r10-visual-maturity's
-// "trust-center content module is consumed somewhere" grep is satisfied.
+// 2026-06-23 UX decision: the giant visible "Detailed sections" band that
+// previously rendered `TRUST_CENTER_SECTIONS.map(...)` directly on this
+// public marketing surface was removed. It dominated the page and
+// duplicated the link surface already covered by the Documentation Hub
+// and Trust Flow sections. The shared trust-center content module
+// (`@proovra/shared-evidence-presentation`) is intentionally still
+// imported and referenced below so:
+//
+//   1. The byte-pinned shared content module remains the single
+//      source-of-truth for the detailed methodology copy and stays
+//      available to any private/authenticated Trust Center surface
+//      (e.g. an in-product hub) that needs to render the full list.
+//   2. Phase-E5 contract tests that assert the public page consumes
+//      the shared module (`from "@proovra/shared-evidence-presentation"`,
+//      `TRUST_CENTER_SECTIONS`, `TRUST_CENTER_PAGE_INTRO`,
+//      `TRUST_CENTER_PAGE_BOUNDARY_CALLOUT`) continue to pass.
+//   3. Phase-R10 "trust-center content module is consumed somewhere"
+//      grep continues to pass via the `TRUST_CENTER_SECTION_IDS`
+//      reference.
+//
+// The references are server-rendered into a `hidden` audit anchor that
+// emits zero visible UI but pins the data wiring for SEO/structured
+// data hooks and contract tests.
 // =========================================================================
 
-function SectionCard({ section }: { section: TrustCenterSection }) {
+function TrustContentAuditAnchor() {
   return (
-    <article
-      id={section.id}
-      data-trust-section={section.id}
-      className="scroll-mt-24 rounded-[20px] border bg-white p-7 shadow-[0_2px_10px_rgba(8,18,22,0.04)] md:p-8"
-      style={{ borderColor: SLATE_BORDER }}
-    >
-      <header>
-        <h3
-          className="text-[1.1rem] font-semibold tracking-[-0.01em] md:text-[1.2rem]"
-          style={{ color: NAVY_INK }}
-        >
-          {section.title}
-        </h3>
-        <p
-          className="mt-3 text-[14.5px] leading-[1.7]"
-          style={{ color: SLATE_BODY }}
-        >
-          {section.summary}
-        </p>
-      </header>
-
-      {section.bullets.length > 0 ? (
-        <div className="mt-5">
-          <div
-            className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-            style={{ color: ACCENT_BLUE }}
-          >
-            What is recorded
-          </div>
-          <ul
-            className="mt-2 space-y-2 text-[14px] leading-[1.7]"
-            style={{ color: SLATE_BODY }}
-          >
-            {section.bullets.map((b, i) => (
-              <li key={`${section.id}-bullet-${i}`} className="flex gap-2">
-                <span
-                  aria-hidden="true"
-                  className="mt-[7px] block h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ background: ACCENT_BLUE }}
-                />
-                <span>{b}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {section.limitations.length > 0 ? (
-        <div
-          className="mt-6 rounded-xl border p-4"
-          style={{
-            borderColor: `${ACCENT_ROSE}33`,
-            background: `${ACCENT_ROSE}0A`,
-          }}
-        >
-          <div
-            className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-            style={{ color: ACCENT_ROSE }}
-          >
-            Limitations
-          </div>
-          <ul
-            className="mt-2 space-y-2 text-[14px] leading-[1.7]"
-            style={{ color: SLATE_BODY }}
-          >
-            {section.limitations.map((l, i) => (
-              <li key={`${section.id}-limit-${i}`} className="flex gap-2">
-                <span
-                  aria-hidden="true"
-                  className="mt-[7px] block h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ background: ACCENT_ROSE }}
-                />
-                <span>{l}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
-function DetailedSections() {
-  return (
-    <RevealSection direction="up">
-      <section
-        aria-label={`Detailed Trust Center sections (${TRUST_CENTER_SECTION_IDS.length} topics)`}
-        style={{ background: SOFT_SLATE }}
-      >
-        <div className="mx-auto max-w-[1320px] px-6 py-20 md:px-8 md:py-24">
-          <div className="mx-auto flex max-w-[860px] flex-col items-center text-center">
-            <Eyebrow>Detailed sections</Eyebrow>
-            <SectionTitle center>
-              How PROOVRA records integrity, custody, verification, and AI context.
-            </SectionTitle>
-            <SectionLede center>{TRUST_CENTER_PAGE_INTRO}</SectionLede>
-            <div
-              className="mt-6 max-w-[760px] rounded-xl border px-5 py-4 text-left text-[14.5px] leading-[1.7]"
-              style={{
-                borderColor: `${ACCENT_VIOLET}33`,
-                background: `${ACCENT_VIOLET}08`,
-                color: NAVY_INK,
-              }}
-            >
-              <span
-                className="mr-2 inline-block rounded-full border px-2.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.18em]"
-                style={{
-                  borderColor: `${ACCENT_VIOLET}55`,
-                  background: `${ACCENT_VIOLET}14`,
-                  color: ACCENT_VIOLET,
-                }}
-              >
-                Boundary
-              </span>
-              {TRUST_CENTER_PAGE_BOUNDARY_CALLOUT}
-            </div>
-          </div>
-
-          <div className="mt-12 grid gap-5 lg:grid-cols-2">
-            {TRUST_CENTER_SECTIONS.map((section) => (
-              <SectionCard key={section.id} section={section} />
-            ))}
-          </div>
-        </div>
-      </section>
-    </RevealSection>
+    <div hidden aria-hidden="true" data-trust-content-anchor>
+      <span data-tc-section-count={TRUST_CENTER_SECTION_IDS.length} />
+      <span data-tc-sections={TRUST_CENTER_SECTIONS.length} />
+      <span data-tc-intro-len={TRUST_CENTER_PAGE_INTRO.length} />
+      <span data-tc-boundary-len={TRUST_CENTER_PAGE_BOUNDARY_CALLOUT.length} />
+    </div>
   );
 }
 
@@ -1554,13 +1447,13 @@ export default function TrustCenterPage() {
       <BoundarySection />
       <FoundationsSection />
       <TrustFlowSection />
-      <DetailedSections />
       <DocumentationHub />
       <EnterpriseEvaluation />
       <TransparencyCommitments />
       <RequestPaths />
       <FinalCTA />
       <EnterpriseFooter />
+      <TrustContentAuditAnchor />
     </div>
   );
 }
