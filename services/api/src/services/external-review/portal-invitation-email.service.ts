@@ -107,9 +107,7 @@ export async function sendInvitationEmail(
       input.rawToken,
     )}`;
 
-  const subject =
-    `${brand} — You have been invited as an external reviewer for ` +
-    truncate(input.workspaceName, 80);
+  const subject = `You have been invited to review materials in ${brand}`;
 
   const html = renderInvitationHtml({
     brand,
@@ -349,51 +347,49 @@ function renderInvitationHtml(p: InvitationRenderProps): string {
   const greeting = p.recipientDisplayName
     ? `Hi ${escapeEmailHtml(p.recipientDisplayName)},`
     : `Hello,`;
-  const securityNotice = [
-    `This is a bounded, audited reviewer link. Your activity inside the` +
-      ` ${escapeEmailHtml(p.brand)} reviewer portal is recorded.`,
-    p.mfaRequired
-      ? `You will be asked for a one-time MFA code before the portal opens.`
-      : null,
-    p.ssoEnabled
-      ? `Your organization is federated — you may sign in with SSO instead` +
-        ` of the link token. The portal will offer both choices.`
-      : null,
-    `${escapeEmailHtml(p.brand)} records what reviewers observe and decide.` +
-      ` It does not assert authenticity of content.`,
-  ]
-    .filter(Boolean)
-    .map((line) => `<p style="margin:6px 0">${line}</p>`) // already escaped above
-    .join("");
 
+  // Compact body: greeting → invitation context → expiry. Security
+  // notice + identity context are surfaced via the shell's noticeText
+  // so the rebrand stays consistent.
   const inner =
-    `<p style="margin:0 0 14px">${greeting}</p>` +
-    `<p style="margin:0 0 14px">` +
-    `<strong>${escapeEmailHtml(p.inviterDisplayName)}</strong> has invited you ` +
-    `to act as a <strong>${escapeEmailHtml(p.role)}</strong> in ` +
-    `<strong>${escapeEmailHtml(p.workspaceName)}</strong> on ` +
-    `${escapeEmailHtml(p.brand)}.` +
-    `</p>` +
-    `<p style="margin:0 0 18px">Your access expires ` +
-    `<strong>${escapeEmailHtml(p.expiresAtUtc)}</strong> (UTC).</p>` +
-    `<p style="text-align:center;margin:22px 0;">` +
-    `<a href="${escapeEmailHtml(p.acceptUrl)}" ` +
-    `style="background:#0f172a;color:#fafafa;text-decoration:none;` +
-    `padding:10px 22px;border-radius:8px;font-weight:600;display:inline-block">` +
-    `Open the reviewer portal</a>` +
-    `</p>` +
-    `<hr style="border:none;border-top:1px solid #e2e8f0;margin:18px 0"/>` +
-    `<div style="font-size:12px;color:#475569">` +
-    `<strong>Security notice</strong>${securityNotice}` +
-    `<p style="margin:8px 0 0">If you were not expecting this invitation, ` +
-    `you can ignore it or report it to ` +
-    `<a href="mailto:${escapeEmailHtml(p.support)}">${escapeEmailHtml(p.support)}</a>.</p>` +
-    `</div>`;
+    `<div style="margin:0 0 14px 0;">${greeting}</div>` +
+    `<div style="margin:0 0 14px 0;">` +
+    `You have been invited to review selected materials through ` +
+    `<strong>${escapeEmailHtml(p.brand)}</strong>.` +
+    `</div>` +
+    `<div style="margin:0 0 14px 0;">` +
+    `<strong>${escapeEmailHtml(p.inviterDisplayName)}</strong> has invited ` +
+    `you to act as <strong>${escapeEmailHtml(p.role)}</strong> in ` +
+    `<strong>${escapeEmailHtml(p.workspaceName)}</strong>.` +
+    `</div>` +
+    `<div style="margin:0;">Your access expires ` +
+    `<strong>${escapeEmailHtml(p.expiresAtUtc)}</strong> (UTC).</div>`;
+
+  const noticeLines: string[] = [
+    "Your access may be limited by permissions, expiration, and workspace policy.",
+  ];
+  if (p.mfaRequired) {
+    noticeLines.push(
+      "You will be asked for a one-time MFA code before the reviewer portal opens.",
+    );
+  }
+  if (p.ssoEnabled) {
+    noticeLines.push(
+      "Your organization is federated — the portal offers SSO sign-in alongside the link token.",
+    );
+  }
+  noticeLines.push(
+    `If you were not expecting this invitation, you can ignore it or report it to ${p.support}.`,
+  );
+
   return renderEmailShell({
-    title: `External reviewer invitation — ${p.brand}`,
-    preheader:
-      `${p.inviterDisplayName} has invited you as ${p.role} on ${p.workspaceName}.`,
+    title: "Reviewer access invitation",
+    preheader: "Open your secure reviewer access link.",
     bodyHtml: inner,
+    ctaText: "Open reviewer portal",
+    ctaUrl: p.acceptUrl,
+    noticeTitle: "Access notice",
+    noticeText: noticeLines.join(" "),
   });
 }
 

@@ -30,8 +30,6 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   RevealSection as SharedRevealSection,
-  AnimatedHeading as SharedAnimatedHeading,
-  RevealText as SharedRevealText,
 } from "../../components/motion";
 import {
   Sparkles,
@@ -117,7 +115,7 @@ function Hero() {
         <MarketingHeader />
 
         <div
-          className="mx-auto grid max-w-[1520px] gap-12 px-6 pb-16 pt-14 md:px-8 md:pb-20 md:pt-20 lg:grid-cols-[minmax(0,640px)_1fr] lg:items-center lg:gap-16 lg:pb-28 lg:pt-24"
+          className="mx-auto grid max-w-[1520px] gap-12 px-6 pb-12 pt-14 md:px-8 md:pb-14 md:pt-20 lg:grid-cols-[minmax(0,640px)_1fr] lg:items-center lg:gap-16 lg:pb-16 lg:pt-24"
           style={{ minHeight: "min(720px, calc(100vh - 96px))" }}
         >
           <div>
@@ -201,7 +199,7 @@ function FinalCTA() {
   // FAQ section above so the CTA reads as a fresh major section, not a
   // continuation of the FAQ list.
   return (
-    <section className="relative mx-auto max-w-[1320px] px-6 pt-24 pb-16 md:px-8 md:pt-32 md:pb-20">
+    <section className="relative mx-auto max-w-[1320px] px-6 pt-16 pb-12 md:px-8 md:pt-20 md:pb-16">
       <div
         className="relative overflow-hidden rounded-[28px] p-8 text-white shadow-[0_32px_80px_rgba(6,20,46,0.40)] md:p-12"
         style={{
@@ -321,7 +319,19 @@ function SectionScene({
   );
 }
 
-// AnimatedHeading delegates to the shared word-by-word reveal heading.
+// AnimatedHeading + TechH2 + TechBody render as plain semantic elements.
+//
+// 2026-06-24: the previous implementation delegated to
+// `SharedAnimatedHeading` / `SharedRevealText`, both of which wrap their
+// content in a `<div style="display: contents">` ref so the
+// IntersectionObserver could attach without a polymorphic ref. The trade-off
+// is that `display: contents` boxes have a zero-area bounding rect, and
+// most browsers' IntersectionObserver therefore never reports them as
+// `isIntersecting`. The net effect was that every TechH2 + TechBody
+// rendered at `opacity: 0` permanently — the headings WERE there, but
+// invisible, which read on screen as a giant blank gap between the
+// eyebrow chip and the section content. The shared motion components
+// are still used elsewhere; only this page bypasses them.
 function AnimatedHeading({
   children,
   center,
@@ -331,37 +341,27 @@ function AnimatedHeading({
   center?: boolean;
   className?: string;
 }) {
-  const base = `${center ? "mx-auto text-center" : ""} mt-4 max-w-[860px] text-[1.9rem] font-semibold leading-[1.12] tracking-[-0.02em] md:text-[2.4rem]`;
+  const base = `${center ? "mx-auto text-center" : ""} mt-3 max-w-[860px] text-[1.9rem] font-semibold leading-[1.12] tracking-[-0.02em] md:text-[2.4rem]`;
   const finalClass = className ?? base;
   return (
-    <SharedAnimatedHeading
-      as="h2"
-      className={finalClass}
-      style={{ color: TECH.text }}
-      amount={0.4}
-    >
+    <h2 className={finalClass} style={{ color: TECH.text }}>
       {children}
-    </SharedAnimatedHeading>
+    </h2>
   );
 }
 
-// TechH2 delegates to AnimatedHeading so every existing call site picks up
-// the word-by-word scroll reveal automatically.
 function TechH2({ children, center }: { children: React.ReactNode; center?: boolean }) {
   return <AnimatedHeading center={center}>{children}</AnimatedHeading>;
 }
 
 function TechBody({ children, center }: { children: React.ReactNode; center?: boolean }) {
   return (
-    <SharedRevealText
-      as="p"
-      className={`${center ? "mx-auto text-center" : ""} mt-4 max-w-[760px] text-[15.5px] leading-[1.7]`}
+    <p
+      className={`${center ? "mx-auto text-center" : ""} mt-3 max-w-[760px] text-[15.5px] leading-[1.7]`}
       style={{ color: TECH.muted }}
-      delay={0.12}
-      amount={0.4}
     >
       {children}
-    </SharedRevealText>
+    </p>
   );
 }
 
@@ -502,7 +502,7 @@ function HowTechnologyWorks() {
 
   return (
     <section
-      className="relative overflow-hidden py-20 md:py-28"
+      className="relative overflow-hidden py-16 md:py-20"
       style={{
         backgroundColor: "#0B1420",
         backgroundImage:
@@ -681,7 +681,7 @@ function HowTechnologyWorks() {
         </div>
 
         {/* MIDDLE — 8-stage workflow timeline */}
-        <div className="mt-16 md:mt-20">
+        <div className="mt-8 md:mt-10">
           <div
             className="rounded-[20px] px-6 py-7 md:px-8 md:py-8"
             style={{
@@ -836,7 +836,7 @@ function HowItWorksRestored() {
     },
   ];
   return (
-    <section className="relative overflow-hidden bg-white py-24 md:py-32">
+    <section className="relative overflow-hidden bg-white py-16 md:py-20">
       {/* Soft radial glow behind the main image */}
       <div
         aria-hidden
@@ -864,7 +864,7 @@ function HowItWorksRestored() {
         </div>
 
         {/* Main content grid */}
-        <div className="mt-14 grid gap-12 md:mt-16 lg:grid-cols-[1.38fr_1fr] lg:items-center lg:gap-[64px]">
+        <div className="mt-6 grid gap-12 md:mt-8 lg:grid-cols-[1.38fr_1fr] lg:items-center lg:gap-[64px]">
           <div
             className="overflow-hidden rounded-[28px]"
             style={{
@@ -926,7 +926,7 @@ function HowItWorksRestored() {
         {/* Bottom lifecycle strip */}
         <LifecycleStrip
           steps={FLOW}
-          className="mt-16 md:mt-20"
+          className="mt-8 md:mt-10"
           iconSize={48}
           cardPad="px-5 py-7 md:px-8 md:py-8"
         />
@@ -1039,7 +1039,7 @@ function EvidenceIntakeCapture() {
   return (
     <section
       style={{ background: "#F7FAFC" }}
-      className="py-14 md:py-20 lg:py-24"
+      className="py-12 md:py-14 lg:py-16"
     >
       <div className="mx-auto max-w-[1200px] px-6 md:px-8">
         {/* Heading area — compact */}
@@ -1061,7 +1061,7 @@ function EvidenceIntakeCapture() {
         {/* HERO SHOWCASE CARD — single composed enterprise card with
             aspect-ratio constrained image + overlay; no fixed pixel heights
             that push content below the fold. */}
-        <div className="mt-10 md:mt-12">
+        <div className="mt-6 md:mt-8">
           <div
             className="relative overflow-hidden rounded-[28px]"
             style={{
@@ -1152,7 +1152,7 @@ function EvidenceIntakeCapture() {
         </div>
 
         {/* Example evidence workflows — compact gap, tighter intro */}
-        <div className="mt-14 md:mt-16">
+        <div className="mt-8 md:mt-10">
           <div className="mx-auto flex max-w-[680px] flex-col items-center text-center">
             <span
               className="text-[11px] font-semibold uppercase tracking-[0.22em]"
@@ -1286,7 +1286,7 @@ function CustodyTechnology() {
   ];
 
   return (
-    <section style={{ background: "#FAFCFE" }} className="py-24 md:py-32">
+    <section style={{ background: "#FAFCFE" }} className="py-16 md:py-20">
       <div className="mx-auto max-w-[1320px] px-6 md:px-8">
         <div className="grid gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:items-start lg:gap-20">
           {/* LEFT — Content */}
@@ -1432,7 +1432,7 @@ function CustodyTechnology() {
 // 6 — VERIFICATION EXPERIENCE ------------------------------------------------
 function VerificationExperience() {
   return (
-    <section style={{ background: TECH.bgSoft }} className="py-24 md:py-28">
+    <section style={{ background: TECH.bgSoft }} className="py-16 md:py-20">
       <div className="mx-auto max-w-[1440px] px-6 md:px-8">
         <div className="grid gap-10 lg:grid-cols-[1fr_1.6fr] lg:items-center lg:gap-14">
           <div>
@@ -1494,7 +1494,7 @@ function NewTrustSignals() {
     { Icon: PackageCheck, title: "Verification Packages", body: "Reviewer-facing bundles of the record, reports, and supporting materials." },
   ];
   return (
-    <section className="bg-white py-24 md:py-28">
+    <section className="bg-white py-16 md:py-20">
       <div className="mx-auto max-w-[1240px] px-6 md:px-8">
         <div className="mx-auto flex max-w-[820px] flex-col items-center text-center">
           <TechEyebrow>Trust signals</TechEyebrow>
@@ -1503,7 +1503,7 @@ function NewTrustSignals() {
             <TechGradient>every evidence record.</TechGradient>
           </TechH2>
         </div>
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {CARDS.map((c) => (
             <article
               key={c.title}
@@ -1639,7 +1639,7 @@ function NewGovernanceArchitecture() {
   };
 
   return (
-    <section className="bg-white py-16 md:py-24">
+    <section className="bg-white py-12 md:py-16">
       <div
         className="mx-auto"
         style={{ width: "min(100% - 48px, 1600px)" }}
@@ -1654,7 +1654,7 @@ function NewGovernanceArchitecture() {
           }}
         >
           {/* ================== GOVERNANCE BLOCK ================== */}
-          <div className="px-6 pt-16 pb-12 md:px-12 md:pt-20 md:pb-16 lg:px-16 lg:pt-24 lg:pb-20">
+          <div className="px-6 pt-12 pb-10 md:px-12 md:pt-14 md:pb-12 lg:px-16 lg:pt-16 lg:pb-14">
             {/* Heading */}
             <div className="mx-auto flex max-w-[1080px] flex-col items-center text-center">
               <TechEyebrow color={TECH.green}>Governance</TechEyebrow>
@@ -1676,7 +1676,7 @@ function NewGovernanceArchitecture() {
             </div>
 
             {/* Architecture — main + right sidebar */}
-            <div className="mt-14 grid gap-8 lg:grid-cols-[3fr_1fr] lg:gap-8">
+            <div className="mt-8 grid gap-8 lg:grid-cols-[3fr_1fr] lg:gap-8">
               {/* MAIN COLUMN */}
               <div className="grid gap-6">
                 {/* 3 top cards with dotted connectors */}
@@ -1957,7 +1957,7 @@ function NewGovernanceArchitecture() {
 
           {/* ================== AI ARCHITECTURE BLOCK ================== */}
           <div
-            className="px-6 pt-16 pb-16 md:px-12 md:pt-20 md:pb-20 lg:px-16"
+            className="px-6 pt-12 pb-12 md:px-12 md:pt-16 md:pb-16 lg:px-16"
             style={{
               background:
                 "linear-gradient(135deg, #FFFFFF 0%, #F8FAFF 55%, #FFF5FE 100%)",
@@ -2390,7 +2390,7 @@ function NewEnterpriseUseCases() {
   ];
   const labelColor = (l: string) => l === "Capture" ? TECH.orange : l === "Verify" ? TECH.blue : TECH.green;
   return (
-    <section className="bg-white py-24 md:py-28">
+    <section className="bg-white py-16 md:py-20">
       <div className="mx-auto max-w-[1240px] px-6 md:px-8">
         <div className="mx-auto flex max-w-[820px] flex-col items-center text-center">
           <TechEyebrow>Enterprise use cases</TechEyebrow>
@@ -2398,7 +2398,7 @@ function NewEnterpriseUseCases() {
             Built for <TechGradient>evidence workflows</TechGradient> across industries.
           </TechH2>
         </div>
-        <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {CARDS.map((c) => (
             <article
               key={c.title}
@@ -2497,7 +2497,7 @@ function NewSecurityArchitecture() {
 
   return (
     <section
-      className="relative py-24 md:py-28"
+      className="relative py-16 md:py-20"
       style={{
         backgroundColor: "#0B1220",
         backgroundImage: "url('/assets/cards/icon-card.png')",
@@ -2527,7 +2527,7 @@ function NewSecurityArchitecture() {
         </div>
 
         {/* Three-column architecture diagram with subtle flow connectors */}
-        <div className="relative mt-12">
+        <div className="relative mt-6">
           {/* Horizontal Inputs → Core → Outputs flow line (desktop only) */}
           <div
             aria-hidden
@@ -2612,7 +2612,7 @@ function NewComparison() {
     "Audit and access context preserved",
   ];
   return (
-    <section style={{ background: TECH.bg }} className="py-24 md:py-28">
+    <section style={{ background: TECH.bg }} className="py-16 md:py-20">
       <div className="mx-auto max-w-[1240px] px-6 md:px-8">
         <div className="mx-auto flex max-w-[820px] flex-col items-center text-center">
           <TechEyebrow>Before / After</TechEyebrow>
@@ -2621,7 +2621,7 @@ function NewComparison() {
             <TechGradient>evidence records.</TechGradient>
           </TechH2>
         </div>
-        <div className="mt-12 grid gap-6 lg:grid-cols-2">
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <article
             className="overflow-hidden rounded-[22px] border bg-white p-7 md:p-8"
             style={{ borderColor: `${TECH.red}33` }}
@@ -2715,7 +2715,7 @@ function NewTechnicalFaq() {
     },
   ];
   return (
-    <section style={{ background: TECH.bg }} className="py-24 md:py-28">
+    <section style={{ background: TECH.bg }} className="py-16 md:py-20">
       <div className="mx-auto max-w-[1240px] px-6 md:px-8">
         <div className="mx-auto flex max-w-[820px] flex-col items-center text-center">
           <TechEyebrow>FAQ</TechEyebrow>
@@ -2723,7 +2723,7 @@ function NewTechnicalFaq() {
             Questions <TechGradient>enterprise buyers</TechGradient> ask.
           </TechH2>
         </div>
-        <div className="mx-auto mt-10 grid max-w-[960px] gap-3">
+        <div className="mx-auto mt-6 grid max-w-[960px] gap-3">
           {FAQ.map((f) => (
             <details
               key={f.q}

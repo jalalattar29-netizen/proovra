@@ -409,6 +409,7 @@ function LoginPageContent() {
       shape: "pill",
       logo_alignment: "left",
       width: Math.round(width),
+      locale: "en",
     });
   };
 
@@ -592,7 +593,7 @@ function LoginPageContent() {
       Return to your{" "}
       <span
         style={{
-          background: "linear-gradient(90deg,#E64880 0%,#FF6B6B 52%,#FF8A6A 100%)",
+          background: "linear-gradient(90deg,#C92C63 0%,#D63E76 38%,#E14A68 68%,#8B3DE6 100%)",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
           backgroundClip: "text",

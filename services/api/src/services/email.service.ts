@@ -229,6 +229,25 @@ function logoUrl(): string | undefined {
   return u ? u : undefined;
 }
 
+// Public hero banner. Lives on the marketing site so it is reachable
+// from every email client without a CDN swap. The image itself carries
+// the PROOVRA wordmark + tagline — emails MUST NOT render a second
+// logo above or below.
+function heroBannerUrl(): string {
+  const base = webBaseUrl().replace(/\/+$/, "");
+  return `${base}/assets/branding/email-hero-banner.png`;
+}
+
+function legalLinks(): Array<{ label: string; href: string }> {
+  const base = webBaseUrl().replace(/\/+$/, "");
+  return [
+    { label: "Terms of Service", href: `${base}/legal/terms` },
+    { label: "Privacy Policy", href: `${base}/legal/privacy` },
+    { label: "Trust Center", href: `${base}/trust` },
+    { label: "Support", href: `${base}/support` },
+  ];
+}
+
 // Admin app base — used by lead-capture notification emails to deep-link
 // into the admin console. Resolution order: ADMIN_BASE_URL → APP_BASE_URL
 // → fallback to https://app.proovra.com. Public marketing host
@@ -290,17 +309,29 @@ function emailShell(params: {
   bodyHtml: string;
   ctaText?: string;
   ctaUrl?: string;
+  // Plain gray paragraph rendered below the CTA. Kept for back-compat —
+  // new templates should prefer noticeTitle/noticeText so the message
+  // sits inside a labelled card.
   secondaryText?: string;
+  // Optional security/notice card (light surface, neutral border).
+  noticeTitle?: string;
+  noticeText?: string;
+  // Optional list of secondary action links rendered below the CTA as a
+  // single bulleted line. Cap at 3-4 per spec.
+  secondaryLinks?: Array<{ label: string; url: string }>;
 }) {
   const appName = brandName();
   const base = webBaseUrl().replace(/\/$/, "");
-  const logo = logoUrl();
+  const support = supportEmail();
+  const hero = heroBannerUrl();
 
   const title = safeHtml(params.title);
   const preheader = safeHtml(params.preheader);
   const secondaryText = params.secondaryText
     ? safeHtml(params.secondaryText)
     : "";
+  const noticeTitle = params.noticeTitle ? safeHtml(params.noticeTitle) : "";
+  const noticeText = params.noticeText ? safeHtml(params.noticeText) : "";
 
   const ctaText = params.ctaText ? safeHtml(params.ctaText) : "";
   const ctaUrl = params.ctaUrl ? String(params.ctaUrl) : "";
@@ -311,28 +342,29 @@ function emailShell(params: {
     params.ctaText && params.ctaUrl
       ? `
         <tr>
-          <td style="padding: 0 28px 18px 28px;">
+          <td style="padding: 4px 32px 10px 32px; text-align:center;">
             <a href="${ctaUrl}"
                style="
                  display:inline-block;
-                 background:#0f172a;
-                 color:#ffffff;
+                 background:#07132B;
+                 color:#FFFFFF;
                  text-decoration:none;
-                 padding:12px 18px;
-                 border-radius:9999px;
+                 padding:14px 24px;
+                 border-radius:12px;
                  font-weight:700;
                  font-size:14px;
                  line-height:14px;
+                 font-family:Arial, Helvetica, sans-serif;
                ">
               ${ctaText}
             </a>
           </td>
         </tr>
         <tr>
-          <td style="padding: 0 28px 18px 28px; color:#64748b; font-size:12px; line-height:18px;">
-            If the button doesn’t work, copy and paste this link into your browser:
-            <div style="word-break: break-all; margin-top:8px;">
-              <a href="${ctaUrl}" style="color:#2563eb; text-decoration:none;">${safeHtml(
+          <td style="padding: 0 32px 22px 32px; color:#64748B; font-size:12px; line-height:18px; text-align:center; font-family:Arial, Helvetica, sans-serif;">
+            If the button does not work, copy and paste this link into your browser:
+            <div style="word-break: break-all; margin-top:6px;">
+              <a href="${ctaUrl}" style="color:#2563EB; text-decoration:none;">${safeHtml(
                 ctaUrl
               )}</a>
             </div>
@@ -341,30 +373,54 @@ function emailShell(params: {
       `
       : "";
 
-  const headerLogo = logo
-    ? `
-      <tr>
-        <td style="padding: 24px 0 8px 0; text-align:center;">
-          <a href="${base}" style="text-decoration:none;">
-            <img
-              src="${logo}"
-              width="140"
-              alt="${safeHtml(appName)}"
-              style="display:block; margin:0 auto; border:0; outline:none; text-decoration:none;"
-            />
-          </a>
-        </td>
-      </tr>
-    `
-    : `
-      <tr>
-        <td style="padding: 24px 0 8px 0; text-align:center; font-weight:800; font-size:18px; color:#0f172a;">
-          <a href="${base}" style="color:#0f172a; text-decoration:none;">${safeHtml(
-            appName
-          )}</a>
-        </td>
-      </tr>
-    `;
+  const noticeBlock =
+    params.noticeText
+      ? `
+        <tr>
+          <td style="padding: 0 32px 22px 32px;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #E5E7EB; border-radius:14px; background:#F8FAFC;">
+              <tr>
+                <td style="padding:16px 18px; color:#475569; font-size:13px; line-height:20px; font-family:Arial, Helvetica, sans-serif;">
+                  ${
+                    noticeTitle
+                      ? `<div style="margin:0 0 4px 0; color:#07132B; font-weight:700;">${noticeTitle}</div>`
+                      : ""
+                  }
+                  ${noticeText}
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      `
+      : "";
+
+  const secondaryLinksBlock =
+    params.secondaryLinks && params.secondaryLinks.length > 0
+      ? `
+        <tr>
+          <td style="padding: 0 32px 22px 32px; color:#475569; font-size:13px; line-height:22px; text-align:center; font-family:Arial, Helvetica, sans-serif;">
+            ${params.secondaryLinks
+              .map(
+                (link) =>
+                  `<a href="${safeHtml(link.url)}" style="color:#2563EB; text-decoration:none; margin:0 8px;">${safeHtml(
+                    link.label
+                  )}</a>`
+              )
+              .join(`<span style="color:#CBD5E1;">·</span>`)}
+          </td>
+        </tr>
+      `
+      : "";
+
+  const legalLinkRow = legalLinks()
+    .map(
+      (l) =>
+        `<a href="${safeHtml(l.href)}" style="color:#475569; text-decoration:none; margin:0 6px;">${safeHtml(
+          l.label
+        )}</a>`
+    )
+    .join(`<span style="color:#CBD5E1;">·</span>`);
 
   return `
 <!doctype html>
@@ -374,12 +430,12 @@ function emailShell(params: {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${title}</title>
   </head>
-  <body style="margin:0; padding:0; background:#f1f5f9;">
+  <body style="margin:0; padding:0; background:#F4F7FB; font-family:Arial, Helvetica, sans-serif; color:#101828;">
     <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">
       ${preheader}
     </div>
 
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9; padding:0; margin:0;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#F4F7FB; padding:0; margin:0;">
       <tr>
         <td align="center" style="padding:24px 12px;">
           <table
@@ -387,31 +443,46 @@ function emailShell(params: {
             width="100%"
             cellspacing="0"
             cellpadding="0"
-            style="max-width:560px; background:#ffffff; border-radius:16px; overflow:hidden; box-shadow:0 10px 30px rgba(2,6,23,0.10);"
+            style="max-width:620px; background:#FFFFFF; border:1px solid #E5E7EB; border-radius:18px; overflow:hidden; box-shadow:0 12px 36px rgba(15,23,42,0.10);"
           >
-            ${headerLogo}
-
             <tr>
-              <td style="padding: 6px 28px 0 28px; text-align:center;">
-                <div style="font-size:20px; line-height:28px; font-weight:800; color:#0f172a;">
-                  ${title}
-                </div>
+              <td style="padding:0; margin:0; font-size:0; line-height:0;">
+                <a href="${base}" style="text-decoration:none; display:block;">
+                  <img
+                    src="${hero}"
+                    alt="PROOVRA — Integrity in Every Evidence"
+                    width="620"
+                    style="display:block; width:100%; max-width:620px; height:auto; border:0; outline:none; text-decoration:none;"
+                  />
+                </a>
               </td>
             </tr>
 
             <tr>
-              <td style="padding:12px 28px 18px 28px; color:#334155; font-size:14px; line-height:22px;">
+              <td style="padding: 32px 32px 8px 32px; text-align:center; font-family:Arial, Helvetica, sans-serif;">
+                <h1 style="margin:0; font-size:26px; line-height:32px; font-weight:800; color:#07132B;">
+                  ${title}
+                </h1>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:12px 32px 22px 32px; color:#475569; font-size:15px; line-height:24px; font-family:Arial, Helvetica, sans-serif;">
                 ${params.bodyHtml}
               </td>
             </tr>
 
             ${ctaBlock}
 
+            ${noticeBlock}
+
+            ${secondaryLinksBlock}
+
             ${
               secondaryText
                 ? `
                 <tr>
-                  <td style="padding: 0 28px 20px 28px; color:#64748b; font-size:12px; line-height:18px;">
+                  <td style="padding: 0 32px 22px 32px; color:#64748B; font-size:13px; line-height:20px; text-align:center; font-family:Arial, Helvetica, sans-serif;">
                     ${secondaryText}
                   </td>
                 </tr>
@@ -420,27 +491,26 @@ function emailShell(params: {
             }
 
             <tr>
-              <td style="padding:16px 28px; background:#f8fafc; border-top:1px solid #e2e8f0; color:#64748b; font-size:12px; line-height:18px;">
+              <td style="padding:20px 32px 22px 32px; background:#FFFFFF; border-top:1px solid #E5E7EB; color:#64748B; font-size:12px; line-height:18px; text-align:center; font-family:Arial, Helvetica, sans-serif;">
                 <div style="margin-bottom:8px;">
-                  Need help? Contact us at
-                  <a href="mailto:${safeHtml(
-                    supportEmail()
-                  )}" style="color:#2563eb; text-decoration:none;">
-                    ${safeHtml(supportEmail())}
-                  </a>
+                  ${legalLinkRow}
                 </div>
-                <div>
-                  © ${year} ${safeHtml(appName)} ·
-                  <a href="${base}" style="color:#2563eb; text-decoration:none;">${safeHtml(
-                    base
+                <div style="margin-bottom:8px;">
+                  Need help? Contact <a href="mailto:${safeHtml(
+                    support
+                  )}" style="color:#2563EB; text-decoration:none;">${safeHtml(
+                    support
                   )}</a>
+                </div>
+                <div style="color:#94A3B8;">
+                  © ${year} ${safeHtml(appName)}. All rights reserved.
                 </div>
               </td>
             </tr>
           </table>
 
-          <div style="max-width:560px; margin:14px auto 0 auto; color:#94a3b8; font-size:11px; line-height:16px; text-align:center;">
-            Please don’t reply to this email. This inbox is not monitored.
+          <div style="max-width:620px; margin:14px auto 0 auto; color:#94A3B8; font-size:11px; line-height:16px; text-align:center; font-family:Arial, Helvetica, sans-serif;">
+            This message was sent for account, security, support, or service-related purposes.
           </div>
         </td>
       </tr>
@@ -457,32 +527,33 @@ function prettyReason(reason: string): string {
 function buildFollowUpContent(step: 1 | 2 | 3) {
   if (step === 1) {
     return {
-      subject: `Still reviewing PROOVRA?`,
-      title: "A quick follow-up on your PROOVRA request",
-      preheader: "A short reminder with the most useful PROOVRA resources.",
+      subject: "Still reviewing PROOVRA?",
+      title: "Still reviewing PROOVRA?",
+      preheader: "A quick follow-up with useful PROOVRA resources.",
       intro:
-        "Just following up in case your demo request is still active. The links below are usually the fastest way to evaluate the workflow before a live walkthrough.",
+        "Just following up in case your demo request is still active. If you are evaluating evidence operations, verification workflows, or reviewer-ready reporting, these resources may help you assess the platform.",
       ctaText: "Open verification demo",
     };
   }
 
   if (step === 2) {
     return {
-      subject: `See the workflow more clearly`,
-      title: "A clearer way to evaluate the workflow",
-      preheader: "Resources to help you review the PROOVRA workflow in practice.",
+      subject: "See the PROOVRA workflow more clearly",
+      title: "See the workflow more clearly",
+      preheader: "Review a sample report and methodology overview.",
       intro:
-        "If you are still evaluating fit, these materials usually answer the practical questions faster than another confirmation email.",
+        "PROOVRA is designed to help organizations preserve, review, and share evidence records with recorded integrity and custody context. The sample report and methodology overview show what reviewers can inspect.",
       ctaText: "View sample report",
     };
   }
 
   return {
-    subject: `Still interested in a walkthrough?`,
-    title: "Final follow-up on your PROOVRA request",
-    preheader: "One last check-in on your demo request.",
+    subject: "Still interested in a PROOVRA walkthrough?",
+    title: "Still interested in a walkthrough?",
+    preheader:
+      "Book time with the PROOVRA team or continue reviewing resources.",
     intro:
-      "This is a final follow-up in case the request is still relevant. If the workflow is still active on your side, you can use the links below to continue or book a walkthrough.",
+      "If PROOVRA still looks relevant to your evidence operations workflow, you can request a walkthrough with the team. If not, no action is needed.",
     ctaText: "Book a walkthrough",
   };
 }
@@ -644,27 +715,27 @@ export function getEmailService(): EmailService {
 
       const html = emailShell({
         title: "Reset your password",
-        preheader: `Reset your ${app} password.`,
+        preheader: "Use this secure link to choose a new password.",
         bodyHtml: `
-          <div style="margin:0 0 10px 0;">
-            We received a request to reset the password for your <strong>${safeHtml(
-              app
-            )}</strong> account.
+          <div style="margin:0 0 12px 0;">
+            We received a request to reset the password for your
+            <strong>${safeHtml(app)}</strong> account.
           </div>
-          <div style="margin:0 0 10px 0;">
+          <div style="margin:0;">
             Click the button below to choose a new password.
           </div>
         `.trim(),
         ctaText: "Reset password",
         ctaUrl: resetUrl,
-        secondaryText:
-          "If you did not request this reset, you can safely ignore this email. Your password will not change unless this link is used.",
+        noticeTitle: "Security notice",
+        noticeText:
+          "This password reset link expires after the configured reset window. Your password will not change unless this link is used. If you did not request this reset, you can safely ignore this email.",
       });
 
       const text =
-        `Reset your ${app} password\n\n` +
-        `We received a request to reset the password for your ${app} account.\n` +
-        `Open this link to choose a new password:\n${resetUrl}\n\n` +
+        `Reset your ${app} password.\n\n` +
+        `We received a request to reset your password.\n` +
+        `Reset link: ${resetUrl}\n\n` +
         `If you did not request this reset, you can safely ignore this email.\n` +
         `Your password will not change unless this link is used.\n\n` +
         `Support: ${supportEmail()}\n`;
@@ -688,29 +759,28 @@ export function getEmailService(): EmailService {
 
       const html = emailShell({
         title: "Verify your email address",
-        preheader: `Confirm ownership of this email to activate your ${app} account.`,
+        preheader: `Confirm your email address to activate your ${app} workspace.`,
         bodyHtml: `
-          <div style="margin:0 0 10px 0;">
-            Thank you for creating a <strong>${safeHtml(app)}</strong> account.
+          <div style="margin:0 0 12px 0;">
+            Thank you for creating your <strong>${safeHtml(app)}</strong> account.
           </div>
-          <div style="margin:0 0 10px 0;">
-            Before you can access your workspace, please verify ownership of this
-            email address.
+          <div style="margin:0;">
+            Please verify ownership of this email address before accessing your
+            workspace.
           </div>
         `.trim(),
         ctaText: "Verify email address",
         ctaUrl: verifyUrl,
-        secondaryText:
-          "If you did not create this account, you can safely ignore this email.",
+        noticeTitle: "Security notice",
+        noticeText:
+          "This verification link expires in 24 hours. If you did not create this account, you can safely ignore this email.",
       });
 
       const text =
-        `Verify your ${app} email address\n\n` +
-        `Thank you for creating a ${app} account.\n` +
-        `Before you can access your workspace, please verify ownership of\n` +
-        `this email address by opening the link below:\n\n` +
-        `${verifyUrl}\n\n` +
-        `If you did not create this account, ignore this email.\n` +
+        `Verify your ${app} account.\n\n` +
+        `Please verify ownership of this email address before accessing your workspace.\n\n` +
+        `Verification link: ${verifyUrl}\n\n` +
+        `This link expires in 24 hours. If you did not create this account, you can safely ignore this email.\n\n` +
         `Support: ${supportEmail()}\n`;
 
       return resend.emails.send({
@@ -729,7 +799,6 @@ export function getEmailService(): EmailService {
       adminSpaUrl: string,
       snoozeUrl?: string | null,
     ) {
-      const app = brandName();
       // Bound the displayed count for safety.
       const safeCount = Number.isFinite(pendingCount)
         ? Math.max(0, Math.min(999, Math.floor(pendingCount)))
@@ -740,10 +809,10 @@ export function getEmailService(): EmailService {
       // opaque signed JWT. When omitted, the block is omitted.
       const snoozeHtmlBlock = snoozeUrl
         ? `
-          <div style="margin:12px 0 0 0; padding:10px 14px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; color:#475569;">
+          <div style="margin:14px 0 0 0; padding:12px 14px; border:1px solid #E5E7EB; border-radius:10px; background:#F8FAFC; font-size:13px; color:#475569; line-height:20px;">
             Not ready to review now?
             <a href="${safeHtml(snoozeUrl)}"
-               style="color:#2563eb; text-decoration:none; font-weight:600;">
+               style="color:#2563EB; text-decoration:none; font-weight:600;">
               Snooze these digest emails for 15 days
             </a>
             — security events and audit logs are unaffected.
@@ -751,48 +820,48 @@ export function getEmailService(): EmailService {
         `.trim()
         : "";
       const snoozeTextLine = snoozeUrl
-        ? `To snooze digest emails for 15 days: ${snoozeUrl}\n`
+        ? `Snooze digest emails for 15 days: ${snoozeUrl}\n`
         : "";
       const html = emailShell({
         title: "Pending MFA recovery requests",
-        preheader: `You have ${safeCount} pending recovery request${
-          safeCount === 1 ? "" : "s"
-        } awaiting your review.`,
+        preheader: "Review pending MFA recovery requests for your workspace.",
         bodyHtml: `
-          <div style="margin:0 0 10px 0;">
+          <div style="margin:0 0 12px 0;">
             Members of <strong>${safeHtml(teamDisplayName)}</strong> have
-            requested two-factor authentication recovery and verified
-            their mailbox. Their requests have been waiting more than
-            24 hours for an administrator decision.
+            requested MFA recovery and verified mailbox access.
           </div>
-          <div style="margin:0 0 10px 0;">
-            Open the admin console below to review and approve or
-            reject each request.
+          <div style="margin:0 0 14px 0;">
+            These requests require administrator review before MFA settings are
+            changed.
           </div>
-          <div style="margin:0 0 10px 0;">
-            <strong>${safeCount}</strong> pending request${
-              safeCount === 1 ? "" : "s"
-            }
-          </div>
-          <div style="margin:0 0 10px 0; color:#475569; font-size:13px;">
-            Approving a request revokes the user&apos;s MFA factors and
-            forces them to re-enroll on their next sign-in. It does
-            NOT grant the user a session.
-          </div>
+          <table role="presentation" cellspacing="0" cellpadding="0" style="margin:6px 0 0 0; border-collapse:collapse;">
+            <tr>
+              <td style="padding:4px 14px 4px 0; color:#64748B; font-size:14px;">Workspace</td>
+              <td style="padding:4px 0; font-weight:700; color:#07132B; font-size:14px;">${safeHtml(
+                teamDisplayName
+              )}</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 14px 4px 0; color:#64748B; font-size:14px;">Pending requests</td>
+              <td style="padding:4px 0; font-weight:700; color:#07132B; font-size:14px;">${safeCount}</td>
+            </tr>
+          </table>
           ${snoozeHtmlBlock}
         `.trim(),
         ctaText: "Open admin console",
         ctaUrl: adminSpaUrl,
-        secondaryText:
-          "If you are no longer an administrator of this workspace, you can ignore this email.",
+        noticeTitle: "Administrator action required",
+        noticeText:
+          "Approving a recovery request revokes the member's existing MFA factors and requires re-enrollment. It does not grant the member an active session.",
       });
       const text =
-        `Pending MFA recovery requests for ${teamDisplayName} on ${app}\n\n` +
-        `${safeCount} request${safeCount === 1 ? "" : "s"} awaiting review.\n` +
+        `Pending MFA recovery requests — ${teamDisplayName}\n\n` +
+        `Workspace: ${teamDisplayName}\n` +
+        `Pending requests: ${safeCount}\n\n` +
         `Open the admin console: ${adminSpaUrl}\n\n` +
-        `Approving a request does NOT grant a session — the user must still re-enroll.\n` +
+        `Approving a recovery request revokes the member's existing MFA factors and requires re-enrollment. It does not grant the member an active session.\n` +
         snoozeTextLine +
-        `Support: ${supportEmail()}\n`;
+        `\nSupport: ${supportEmail()}\n`;
       return resend.emails.send({
         from,
         to: adminEmail,
@@ -811,33 +880,29 @@ export function getEmailService(): EmailService {
       const app = brandName();
       const html = emailShell({
         title: "Verify your MFA recovery request",
-        preheader: `Confirm you initiated an MFA recovery on ${app}.`,
+        preheader: "Confirm that you can access this mailbox before admin review.",
         bodyHtml: `
-          <div style="margin:0 0 10px 0;">
-            We received a request to reset the two-factor
-            authentication on your <strong>${safeHtml(app)}</strong>
-            account.
+          <div style="margin:0 0 12px 0;">
+            We received a request to recover multi-factor authentication access
+            for your <strong>${safeHtml(app)}</strong> account.
           </div>
-          <div style="margin:0 0 10px 0;">
-            Click the button below to confirm this request was you.
-            This step ONLY confirms that you can access this mailbox
-            — your organization's administrator must still approve
-            the reset before MFA is changed.
-          </div>
-          <div style="margin:0 0 10px 0;">
-            This link expires in 15 minutes.
+          <div style="margin:0;">
+            Confirming this email only verifies mailbox access. Your organization
+            administrator may still need to review and approve the recovery
+            request before MFA settings are changed.
           </div>
         `.trim(),
         ctaText: "Confirm recovery request",
         ctaUrl: verificationUrl,
-        secondaryText:
-          "If you did not initiate this recovery request, ignore this email and notify your administrator.",
+        noticeTitle: "Security notice",
+        noticeText:
+          "This link expires in 15 minutes. If you did not request MFA recovery, ignore this email and notify your administrator.",
       });
       const text =
-        `Verify your ${app} MFA recovery request\n\n` +
-        `Confirm you initiated the recovery by opening this link:\n${verificationUrl}\n\n` +
-        `This only confirms mailbox access. Your administrator must still approve the reset.\n` +
-        `If you did not request this, ignore this email and notify your administrator.\n` +
+        `Verify your ${app} MFA recovery request.\n\n` +
+        `Confirm mailbox access: ${verificationUrl}\n\n` +
+        `This does not grant a session or replace admin approval.\n\n` +
+        `This link expires in 15 minutes. If you did not request MFA recovery, ignore this email and notify your administrator.\n\n` +
         `Support: ${supportEmail()}\n`;
       return resend.emails.send({
         from,
@@ -854,35 +919,42 @@ export function getEmailService(): EmailService {
       invitationToken: string
     ) {
       const url = inviteAcceptUrl(invitationToken);
+      const app = brandName();
 
       const html = emailShell({
-        title: "You’re invited",
-        preheader: `Join ${orgName} on ${brandName()}.`,
+        title: `Join ${orgName} on ${app}`,
+        preheader: `Accept your invitation to join ${orgName}.`,
         bodyHtml: `
-          <div style="margin:0 0 10px 0;">
-            You have been invited to join <strong>${safeHtml(
-              orgName
-            )}</strong> on <strong>${safeHtml(brandName())}</strong>.
+          <div style="margin:0 0 12px 0;">
+            You have been invited to collaborate in a <strong>${safeHtml(
+              app
+            )}</strong> workspace.
           </div>
-          <div style="margin:0 0 10px 0;">
-            Click the button below to review and accept your invitation.
+          <div style="margin:0;">
+            Accept the invitation to access <strong>${safeHtml(
+              orgName
+            )}</strong> according to the permissions assigned by the workspace
+            administrator.
           </div>
         `.trim(),
         ctaText: "Accept invitation",
         ctaUrl: url,
-        secondaryText:
-          "If you weren’t expecting this invitation, you can ignore this email.",
+        noticeTitle: "Security notice",
+        noticeText:
+          "Only accept this invitation if you recognize the organization or sender.",
       });
 
       const text =
-        `You're invited to join ${orgName} on ${brandName()}.\n\n` +
-        `Accept invitation:\n${url}\n\n` +
-        `If you were not expecting this, you can ignore this email.\n`;
+        `You have been invited to a ${app} workspace.\n\n` +
+        `Workspace: ${orgName}\n` +
+        `Accept invitation: ${url}\n\n` +
+        `Only accept this invitation if you recognize the organization or sender.\n\n` +
+        `Support: ${supportEmail()}\n`;
 
       return resend.emails.send({
         from,
         to: email,
-        subject: `You're invited to join ${orgName} on ${brandName()}`,
+        subject: `You have been invited to a ${app} workspace`,
         html,
         text,
       });
@@ -902,37 +974,55 @@ export function getEmailService(): EmailService {
 
       const html = emailShell({
         title: "Batch complete",
-        preheader: `Your batch "${batchName}" has completed.`,
+        preheader: `Your ${brandName()} batch has finished processing.`,
         bodyHtml: `
-          <div style="margin:0 0 10px 0;">
-            <strong>${safeHtml(orgName)}</strong> batch <strong>${safeHtml(
-          batchName
-        )}</strong> has completed.
+          <div style="margin:0 0 14px 0;">
+            Your batch process has completed.
           </div>
-          <table role="presentation" cellspacing="0" cellpadding="0" style="margin:8px 0 0 0; border-collapse:collapse;">
+          <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 10px 0; border-collapse:collapse;">
             <tr>
-              <td style="padding:4px 10px 4px 0; color:#64748b;">Total</td>
-              <td style="padding:4px 0; font-weight:700; color:#0f172a;">${total}</td>
+              <td style="padding:4px 14px 4px 0; color:#64748B; font-size:14px;">Workspace</td>
+              <td style="padding:4px 0; font-weight:700; color:#07132B; font-size:14px;">${safeHtml(
+                orgName
+              )}</td>
             </tr>
             <tr>
-              <td style="padding:4px 10px 4px 0; color:#64748b;">Succeeded</td>
-              <td style="padding:4px 0; font-weight:700; color:#0f172a;">${succeeded}</td>
+              <td style="padding:4px 14px 4px 0; color:#64748B; font-size:14px;">Batch</td>
+              <td style="padding:4px 0; font-weight:700; color:#07132B; font-size:14px;">${safeHtml(
+                batchName
+              )}</td>
             </tr>
             <tr>
-              <td style="padding:4px 10px 4px 0; color:#64748b;">Failed</td>
-              <td style="padding:4px 0; font-weight:700; color:#0f172a;">${failed}</td>
+              <td style="padding:4px 14px 4px 0; color:#64748B; font-size:14px;">Total</td>
+              <td style="padding:4px 0; font-weight:700; color:#07132B; font-size:14px;">${total}</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 14px 4px 0; color:#64748B; font-size:14px;">Successful</td>
+              <td style="padding:4px 0; font-weight:700; color:#07132B; font-size:14px;">${succeeded}</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 14px 4px 0; color:#64748B; font-size:14px;">Failed</td>
+              <td style="padding:4px 0; font-weight:700; color:#07132B; font-size:14px;">${failed}</td>
             </tr>
           </table>
         `.trim(),
         ctaText: "View results",
         ctaUrl: batchUrl,
+        noticeText:
+          failed > 0
+            ? "Some items did not complete. Open the results page to review the failure details and next steps."
+            : undefined,
       });
 
       const text =
-        `Batch complete: ${batchName}\n` +
-        `Org: ${orgName}\n` +
-        `Total: ${total}\nSucceeded: ${succeeded}\nFailed: ${failed}\n\n` +
-        `View results: ${batchUrl}\n`;
+        `Batch complete: ${batchName}\n\n` +
+        `Workspace: ${orgName}\n` +
+        `Total: ${total}\nSuccessful: ${succeeded}\nFailed: ${failed}\n\n` +
+        `View results: ${batchUrl}\n` +
+        (failed > 0
+          ? `\nSome items did not complete. Open the results page to review the failure details and next steps.\n`
+          : "") +
+        `\nSupport: ${supportEmail()}\n`;
 
       return resend.emails.send({
         from,
@@ -948,50 +1038,45 @@ export function getEmailService(): EmailService {
         ? params.qualificationReasons
         : [];
 
-      const reasonsHtml =
-        qualificationReasons.length > 0
-          ? qualificationReasons
-              .map(
-                (reason) =>
-                  `<li style="margin:0 0 6px 0;">${safeHtml(
-                    prettyReason(reason)
-                  )}</li>`
-              )
-              .join("")
-          : `<li style="margin:0 0 6px 0;">No qualification reasons recorded.</li>`;
-
       const quickLinks = params.quickLinks;
 
+      // Compact internal email — five concise sections + one CTA into the
+      // admin console. Heavy CRM detail (UTMs, qualification breakdown,
+      // spam scores) is preserved in the plaintext payload but kept out
+      // of the HTML so the message reads in under 20 seconds.
+      // Quick Actions block is retained: it's pinned by the
+      // admin-lead-cta.contract source-contract test and is genuinely
+      // useful in the operator inbox.
       const quickLinksHtml = quickLinks
         ? `
-          <div style="margin:18px 0 8px 0;"><strong>Quick actions</strong></div>
-          <ul style="margin:0; padding-left:18px; color:#334155;">
-            <li style="margin:0 0 6px 0;"><a href="${safeHtml(
+          <div style="margin:18px 0 8px 0; color:#07132B;"><strong>Quick actions</strong></div>
+          <ul style="margin:0; padding-left:18px; color:#475569; font-size:14px; line-height:22px;">
+            <li><a href="${safeHtml(
               quickLinks.replyToLeadMailto
-            )}" style="color:#2563eb; text-decoration:none;">Reply to lead</a></li>
-            <li style="margin:0 0 6px 0;"><a href="${safeHtml(
+            )}" style="color:#2563EB; text-decoration:none;">Reply to lead</a></li>
+            <li><a href="${safeHtml(
               quickLinks.sampleReportUrl
-            )}" style="color:#2563eb; text-decoration:none;">Open sample report</a></li>
-            <li style="margin:0 0 6px 0;"><a href="${safeHtml(
+            )}" style="color:#2563EB; text-decoration:none;">Open sample report</a></li>
+            <li><a href="${safeHtml(
               quickLinks.verificationDemoUrl
-            )}" style="color:#2563eb; text-decoration:none;">Open verification demo</a></li>
-            <li style="margin:0 0 6px 0;"><a href="${safeHtml(
+            )}" style="color:#2563EB; text-decoration:none;">Open verification demo</a></li>
+            <li><a href="${safeHtml(
               quickLinks.methodologyUrl
-            )}" style="color:#2563eb; text-decoration:none;">Open methodology</a></li>
-            <li style="margin:0 0 6px 0;"><a href="${safeHtml(
+            )}" style="color:#2563EB; text-decoration:none;">Open methodology</a></li>
+            <li><a href="${safeHtml(
               quickLinks.pricingUrl
-            )}" style="color:#2563eb; text-decoration:none;">Open pricing</a></li>
-            <li style="margin:0 0 6px 0;"><a href="${safeHtml(
+            )}" style="color:#2563EB; text-decoration:none;">Open pricing</a></li>
+            <li><a href="${safeHtml(
               quickLinks.requestDemoUrl
-            )}" style="color:#2563eb; text-decoration:none;">Open request demo page</a></li>
-            <li style="margin:0 0 6px 0;"><a href="${safeHtml(
+            )}" style="color:#2563EB; text-decoration:none;">Open request demo page</a></li>
+            <li><a href="${safeHtml(
               quickLinks.contactSalesUrl
-            )}" style="color:#2563eb; text-decoration:none;">Open contact sales page</a></li>
+            )}" style="color:#2563EB; text-decoration:none;">Open contact sales page</a></li>
             ${
               quickLinks.bookingUrl
-                ? `<li style="margin:0 0 6px 0;"><a href="${safeHtml(
+                ? `<li><a href="${safeHtml(
                     quickLinks.bookingUrl
-                  )}" style="color:#2563eb; text-decoration:none;">Open booking</a></li>`
+                  )}" style="color:#2563EB; text-decoration:none;">Open booking</a></li>`
                 : ""
             }
           </ul>
@@ -1003,104 +1088,58 @@ export function getEmailService(): EmailService {
         id: params.requestId,
       });
 
+      const detail = (label: string, value?: string | null) =>
+        value && String(value).trim()
+          ? `<tr><td style="padding:5px 14px 5px 0; color:#64748B; font-size:13px; vertical-align:top; white-space:nowrap;">${safeHtml(
+              label
+            )}</td><td style="padding:5px 0; color:#07132B; font-size:13px; font-weight:600;">${safeHtml(
+              String(value)
+            )}</td></tr>`
+          : "";
+
       const html = emailShell({
         title: "New demo request",
         preheader: `New demo request from ${params.fullName}.`,
         ctaText: "Open in admin console",
         ctaUrl: adminConsoleUrl,
         bodyHtml: `
-          <div style="margin:0 0 10px 0;"><strong>Request ID:</strong> ${safeHtml(
-            params.requestId
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Name:</strong> ${safeHtml(
-            params.fullName
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Work email:</strong> ${safeHtml(
-            params.workEmail
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Organization:</strong> ${safeHtml(
-            params.organization ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Job title:</strong> ${safeHtml(
-            params.jobTitle ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Country:</strong> ${safeHtml(
-            params.country ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Team size:</strong> ${safeHtml(
-            params.teamSize ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Source:</strong> ${safeHtml(
-            params.source ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Source path:</strong> ${safeHtml(
-            params.sourcePath ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Referrer:</strong> ${safeHtml(
-            params.referrer ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>UTM source:</strong> ${safeHtml(
-            params.utmSource ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>UTM medium:</strong> ${safeHtml(
-            params.utmMedium ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>UTM campaign:</strong> ${safeHtml(
-            params.utmCampaign ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>UTM term:</strong> ${safeHtml(
-            params.utmTerm ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>UTM content:</strong> ${safeHtml(
-            params.utmContent ?? "-"
-          )}</div>
+          <div style="margin:0 0 14px 0;">
+            A new demo request was submitted through the ${safeHtml(
+              brandName()
+            )} website.
+          </div>
 
-          <div style="margin:18px 0 8px 0;"><strong>Qualification</strong></div>
-          <div style="margin:0 0 10px 0;"><strong>Priority:</strong> ${safeHtml(
-            params.priority ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Lead quality:</strong> ${safeHtml(
-            params.leadQuality ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Lead track:</strong> ${safeHtml(
-            params.leadTrack ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Recommended action:</strong> ${safeHtml(
-            params.recommendedAction ?? "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Response SLA:</strong> ${safeHtml(
-            params.responseSlaHours != null
-              ? `${params.responseSlaHours}h`
-              : "-"
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Qualification score:</strong> ${safeHtml(
-            params.qualificationScore != null
-              ? String(params.qualificationScore)
-              : "-"
-          )}</div>
+          <div style="margin:14px 0 6px 0; color:#07132B;"><strong>Requester</strong></div>
+          <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse; margin:0 0 10px 0;">
+            ${detail("Name", params.fullName)}
+            ${detail("Work email", params.workEmail)}
+            ${detail("Organization", params.organization)}
+            ${detail("Job title", params.jobTitle)}
+            ${detail("Country", params.country)}
+            ${detail("Workspace size", params.teamSize)}
+          </table>
 
-          <div style="margin:14px 0 8px 0;"><strong>Qualification reasons</strong></div>
-          <ul style="margin:0; padding-left:18px; color:#334155;">
-            ${reasonsHtml}
-          </ul>
+          <div style="margin:14px 0 6px 0; color:#07132B;"><strong>Request</strong></div>
+          <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse; margin:0 0 10px 0;">
+            ${detail("Use case", params.useCase)}
+            ${detail("Recommended action", params.recommendedAction)}
+            ${detail("Priority", params.priority)}
+          </table>
+          ${
+            params.message && params.message.trim()
+              ? `<div style="margin:0 0 12px 0; padding:10px 14px; background:#F8FAFC; border:1px solid #E5E7EB; border-radius:10px; color:#0F172A; font-size:13.5px; line-height:1.55; white-space:pre-wrap;">${safeHtml(
+                  params.message
+                )}</div>`
+              : ""
+          }
 
-          <div style="margin:18px 0 8px 0;"><strong>Spam assessment</strong></div>
-          <div style="margin:0 0 10px 0;"><strong>Spam score:</strong> ${safeHtml(
-            String(params.spamScore ?? 0)
-          )}</div>
-          <div style="margin:0 0 10px 0;"><strong>Flagged as spam:</strong> ${safeHtml(
-            params.isSpam ? "yes" : "no"
-          )}</div>
-
-          <div style="margin:14px 0 8px 0;"><strong>Use case</strong></div>
-          <div style="white-space:pre-wrap; color:#334155;">${safeHtml(
-            params.useCase
-          )}</div>
-
-          <div style="margin:14px 0 8px 0;"><strong>Message</strong></div>
-          <div style="white-space:pre-wrap; color:#334155;">${safeHtml(
-            params.message ?? "-"
-          )}</div>
+          <div style="margin:14px 0 6px 0; color:#07132B;"><strong>Source</strong></div>
+          <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse; margin:0 0 10px 0;">
+            ${detail("Source path", params.sourcePath)}
+            ${detail("Submitted at", new Date().toISOString())}
+            ${detail("Referrer", params.referrer)}
+            ${detail("Record ID", params.requestId)}
+          </table>
 
           ${quickLinksHtml}
         `.trim(),
@@ -1181,70 +1220,52 @@ export function getEmailService(): EmailService {
     },
 
     async sendDemoRequestAutoReply(params) {
-      const bookingLine = params.bookingUrl
-        ? `
-          <div style="margin:0 0 10px 0;">
-            If you already know you want a walkthrough, you can also use the booking link below.
-          </div>
-        `
-        : "";
+      // Quick links kept in plaintext but rendered in HTML as a compact
+      // 3-link secondary row (Sample Report / Methodology / Pricing) per
+      // spec — booking link appended if configured.
+      const trustCenterUrl = `${webBaseUrl().replace(/\/+$/, "")}/trust`;
 
-      const resourcesHtml = `
-        <div style="margin:14px 0 8px 0;"><strong>Helpful resources</strong></div>
-        <ul style="margin:0; padding-left:18px; color:#334155;">
-          <li style="margin:0 0 6px 0;"><a href="${safeHtml(
-            params.sampleReportUrl
-          )}" style="color:#2563eb; text-decoration:none;">View a sample report</a></li>
-          <li style="margin:0 0 6px 0;"><a href="${safeHtml(
-            params.verificationDemoUrl
-          )}" style="color:#2563eb; text-decoration:none;">Open the verification demo</a></li>
-          <li style="margin:0 0 6px 0;"><a href="${safeHtml(
-            params.methodologyUrl
-          )}" style="color:#2563eb; text-decoration:none;">Review the verification methodology</a></li>
-          <li style="margin:0 0 6px 0;"><a href="${safeHtml(
-            params.pricingUrl
-          )}" style="color:#2563eb; text-decoration:none;">Review pricing</a></li>
-          ${
-            params.bookingUrl
-              ? `<li style="margin:0 0 6px 0;"><a href="${safeHtml(
-                  params.bookingUrl
-                )}" style="color:#2563eb; text-decoration:none;">Book a walkthrough</a></li>`
-              : ""
-          }
-        </ul>
-      `;
+      const secondaryLinks: Array<{ label: string; url: string }> = [
+        { label: "Verification Methodology", url: params.methodologyUrl },
+        { label: "Sample Report", url: params.sampleReportUrl },
+        { label: "Pricing", url: params.pricingUrl },
+      ];
+      if (params.bookingUrl) {
+        secondaryLinks.push({
+          label: "Book a walkthrough",
+          url: params.bookingUrl,
+        });
+      }
 
       const html = emailShell({
-        title: "We received your demo request",
-        preheader: "Your PROOVRA demo request has been received.",
+        title: "Your demo request has been received",
+        preheader: `Thank you for contacting ${brandName()}.`,
         bodyHtml: `
-          <div style="margin:0 0 10px 0;">
+          <div style="margin:0 0 14px 0;">
             Hello <strong>${safeHtml(params.fullName)}</strong>,
           </div>
-          <div style="margin:0 0 10px 0;">
-            We received your request for a PROOVRA demo.
+          <div style="margin:0 0 12px 0;">
+            Thank you for contacting ${safeHtml(brandName())}.
           </div>
-          <div style="margin:0 0 10px 0;">
-            Our team will review your request and reply ${safeHtml(
-              params.responseWindowText
-            )} if the workflow looks relevant for a live walkthrough.
+          <div style="margin:0;">
+            A member of our team will review your request and contact you if
+            the workflow is a fit for a live walkthrough.
           </div>
-          <div style="margin:0 0 10px 0;">
-            In the meantime, these links provide the clearest picture of how the product works in practice.
-          </div>
-          ${resourcesHtml}
-          ${bookingLine}
         `.trim(),
-        ctaText: "Open verification demo",
-        ctaUrl: params.verificationDemoUrl,
-        secondaryText: `If you have additional context, contact us at ${supportEmail()}.`,
+        ctaText: "Visit Trust Center",
+        ctaUrl: trustCenterUrl,
+        secondaryLinks,
+        noticeText:
+          "For security, procurement, or legal review, the Trust Center provides public documentation.",
       });
+
+      void params.responseWindowText;
 
       const text = [
         `Hello ${params.fullName},`,
         "",
-        "We received your request for a PROOVRA demo.",
-        `Our team will review your request and reply ${params.responseWindowText} if appropriate.`,
+        `Thank you for contacting ${brandName()}. Your demo request has been received.`,
+        `A member of our team will review your request and contact you if the workflow is a fit for a live walkthrough.`,
         "",
         "Helpful resources:",
         `- Sample report: ${params.sampleReportUrl}`,
@@ -1259,7 +1280,7 @@ export function getEmailService(): EmailService {
       return resend.emails.send({
         from,
         to: params.to,
-        subject: `We received your demo request — ${brandName()}`,
+        subject: `We received your ${brandName()} demo request`,
         html,
         text,
       });
@@ -1275,52 +1296,40 @@ export function getEmailService(): EmailService {
           ? params.sampleReportUrl
           : params.bookingUrl ?? params.requestDemoUrl;
 
-      const resourcesHtml = `
-        <div style="margin:14px 0 8px 0;"><strong>Useful next links</strong></div>
-        <ul style="margin:0; padding-left:18px; color:#334155;">
-          <li style="margin:0 0 6px 0;"><a href="${safeHtml(
-            params.sampleReportUrl
-          )}" style="color:#2563eb; text-decoration:none;">Sample report</a></li>
-          <li style="margin:0 0 6px 0;"><a href="${safeHtml(
-            params.verificationDemoUrl
-          )}" style="color:#2563eb; text-decoration:none;">Verification demo</a></li>
-          <li style="margin:0 0 6px 0;"><a href="${safeHtml(
-            params.methodologyUrl
-          )}" style="color:#2563eb; text-decoration:none;">Verification methodology</a></li>
-          <li style="margin:0 0 6px 0;"><a href="${safeHtml(
-            params.pricingUrl
-          )}" style="color:#2563eb; text-decoration:none;">Pricing</a></li>
-          <li style="margin:0 0 6px 0;"><a href="${safeHtml(
-            params.requestDemoUrl
-          )}" style="color:#2563eb; text-decoration:none;">Request demo</a></li>
-          <li style="margin:0 0 6px 0;"><a href="${safeHtml(
-            params.contactSalesUrl
-          )}" style="color:#2563eb; text-decoration:none;">Contact sales</a></li>
-          ${
-            params.bookingUrl
-              ? `<li style="margin:0 0 6px 0;"><a href="${safeHtml(
-                  params.bookingUrl
-                )}" style="color:#2563eb; text-decoration:none;">Book a walkthrough</a></li>`
-              : ""
-          }
-        </ul>
-      `;
+      // Per-step secondary links, capped at the spec's two-link set.
+      const secondaryLinks: Array<{ label: string; url: string }> =
+        params.step === 1
+          ? [
+              { label: "Sample Report", url: params.sampleReportUrl },
+              { label: "Verification Methodology", url: params.methodologyUrl },
+            ]
+          : params.step === 2
+          ? [
+              { label: "Verification Demo", url: params.verificationDemoUrl },
+              { label: "Verification Methodology", url: params.methodologyUrl },
+            ]
+          : [
+              { label: "Contact Sales", url: params.contactSalesUrl },
+              {
+                label: "Trust Center",
+                url: `${webBaseUrl().replace(/\/+$/, "")}/trust`,
+              },
+            ];
 
       const html = emailShell({
         title: content.title,
         preheader: content.preheader,
         bodyHtml: `
-          <div style="margin:0 0 10px 0;">
+          <div style="margin:0 0 14px 0;">
             Hello <strong>${safeHtml(params.fullName)}</strong>,
           </div>
-          <div style="margin:0 0 10px 0;">
+          <div style="margin:0;">
             ${safeHtml(content.intro)}
           </div>
-          ${resourcesHtml}
         `.trim(),
         ctaText: content.ctaText,
         ctaUrl,
-        secondaryText: `If the request is no longer relevant, you can simply ignore this email. Support: ${supportEmail()}.`,
+        secondaryLinks,
       });
 
       const text = [
@@ -1361,67 +1370,66 @@ export function getEmailService(): EmailService {
     // ────────────────────────────────────────────────────────────────
     async sendContactSalesNotification(params) {
       const app = brandName();
-      const subject = `New contact-sales inquiry — ${params.organization}`;
+      const subject = `New contact sales inquiry — ${params.organization}`;
       const escalation =
         params.priority === "HIGH"
-          ? `<div style="margin:0 0 10px 0; padding:8px 12px; background:#fef3c7; border-left:3px solid #d97706; font-weight:600; color:#92400e;">High priority — respond within the published SLA window.</div>`
+          ? `<div style="margin:0 0 14px 0; padding:10px 14px; background:#FEF3C7; border:1px solid #FCD34D; border-radius:10px; font-weight:700; color:#92400E; font-size:13px;">High priority — respond within the published SLA window.</div>`
           : "";
 
       const detail = (label: string, value?: string | null) =>
-        value && value.trim()
-          ? `<tr><td style="padding:6px 12px 6px 0; color:#475569; font-size:13px; vertical-align:top; white-space:nowrap;">${safeHtml(
+        value && String(value).trim()
+          ? `<tr><td style="padding:5px 14px 5px 0; color:#64748B; font-size:13px; vertical-align:top; white-space:nowrap;">${safeHtml(
               label
-            )}</td><td style="padding:6px 0; color:#0f172a; font-size:13px;">${safeHtml(
-              value
+            )}</td><td style="padding:5px 0; color:#07132B; font-size:13px; font-weight:600;">${safeHtml(
+              String(value)
             )}</td></tr>`
           : "";
 
       const bodyHtml = `
         ${escalation}
-        <div style="margin:0 0 14px 0; color:#0f172a; font-size:14px;">
-          <strong>${safeHtml(
-            params.fullName
-          )}</strong> at <strong>${safeHtml(
-            params.organization
-          )}</strong> submitted a contact-sales inquiry on ${safeHtml(app)}.
+        <div style="margin:0 0 14px 0;">
+          A new contact sales inquiry was submitted through the ${safeHtml(
+            app
+          )} website.
         </div>
-        <table style="width:100%; border-collapse:collapse; margin:0 0 14px 0;">
+
+        <div style="margin:14px 0 6px 0; color:#07132B;"><strong>Contact</strong></div>
+        <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse; margin:0 0 10px 0;">
+          ${detail("Name", params.fullName)}
           ${detail("Work email", params.workEmail)}
+          ${detail("Organization", params.organization)}
           ${detail("Job title", params.jobTitle)}
-          ${detail("Country", params.country)}
-          ${detail("Team size", params.teamSize)}
+        </table>
+
+        <div style="margin:14px 0 6px 0; color:#07132B;"><strong>Inquiry</strong></div>
+        <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse; margin:0 0 10px 0;">
           ${detail("Topic", params.discussionTopic)}
-          ${detail("Stage", params.stage)}
-          ${detail("Deployment timeline", params.deploymentTimeline)}
+          ${detail("Current stage", params.stage)}
+          ${detail("Timeline", params.deploymentTimeline)}
           ${detail("Estimated users", params.estimatedUsers)}
         </table>
-        <div style="margin:0 0 8px 0; color:#475569; font-size:13px; font-weight:600;">Current challenge</div>
-        <div style="margin:0 0 12px 0; padding:10px 14px; background:#f8fafc; border-left:3px solid #2563eb; color:#0f172a; font-size:13.5px; line-height:1.55; white-space:pre-wrap;">${safeHtml(
+        <div style="margin:0 0 12px 0; padding:10px 14px; background:#F8FAFC; border:1px solid #E5E7EB; border-radius:10px; color:#0F172A; font-size:13.5px; line-height:1.55; white-space:pre-wrap;"><strong style="display:block; margin:0 0 4px 0; color:#475569; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">Challenge</strong>${safeHtml(
           params.currentChallenge
         )}</div>
         ${
           params.additionalDetails
-            ? `<div style="margin:0 0 8px 0; color:#475569; font-size:13px; font-weight:600;">Additional details</div>
-               <div style="margin:0 0 12px 0; padding:10px 14px; background:#f8fafc; border-left:3px solid #7c3aed; color:#0f172a; font-size:13.5px; line-height:1.55; white-space:pre-wrap;">${safeHtml(
-                 params.additionalDetails
-               )}</div>`
+            ? `<div style="margin:0 0 12px 0; padding:10px 14px; background:#F8FAFC; border:1px solid #E5E7EB; border-radius:10px; color:#0F172A; font-size:13.5px; line-height:1.55; white-space:pre-wrap;"><strong style="display:block; margin:0 0 4px 0; color:#475569; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">Additional details</strong>${safeHtml(
+                params.additionalDetails
+              )}</div>`
             : ""
         }
-        <div style="margin:14px 0 0 0; color:#64748b; font-size:12px;">
-          Record id <code>${safeHtml(
-            params.requestId
-          )}</code> &nbsp;·&nbsp; source ${safeHtml(
-            params.source ?? "website"
-          )}${
-            params.sourcePath
-              ? ` &nbsp;·&nbsp; ${safeHtml(params.sourcePath)}`
-              : ""
-          }
-        </div>
+
+        <div style="margin:14px 0 6px 0; color:#07132B;"><strong>Routing</strong></div>
+        <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse; margin:0 0 10px 0;">
+          ${detail("Priority", params.priority)}
+          ${detail("Source path", params.sourcePath)}
+          ${detail("Submitted at", new Date().toISOString())}
+          ${detail("Record ID", params.requestId)}
+        </table>
       `.trim();
 
       const html = emailShell({
-        title: "New contact-sales inquiry",
+        title: "New contact sales inquiry",
         preheader: `${params.organization} — ${params.discussionTopic} · ${params.stage}`,
         bodyHtml,
         ctaText: "Open in admin console",
@@ -1429,8 +1437,8 @@ export function getEmailService(): EmailService {
           kind: "contact-sales",
           id: params.requestId,
         }),
-        secondaryText:
-          "Reply directly to the visitor's work email above — do not forward this notification externally.",
+        noticeText:
+          "Reply directly to the visitor's work email above. Do not forward this notification externally.",
       });
 
       const lines = [
@@ -1476,51 +1484,52 @@ export function getEmailService(): EmailService {
     async sendContactSalesAutoReply(params) {
       const app = brandName();
       const subject = `We received your inquiry`;
+      const trustCenterUrl = `${webBaseUrl().replace(/\/+$/, "")}/trust`;
+      const supportCenterUrl = `${webBaseUrl().replace(/\/+$/, "")}/support`;
 
       const html = emailShell({
         title: "Your inquiry has been received",
-        preheader: `Thanks for contacting ${app}.`,
+        preheader: `Thank you for contacting ${app}.`,
         bodyHtml: `
-          <div style="margin:0 0 10px 0;">Hello ${safeHtml(
-            params.fullName
-          )},</div>
-          <div style="margin:0 0 10px 0;">
-            Your inquiry has been submitted successfully. A member of the
-            ${safeHtml(app)} team will review your request and respond as
-            soon as possible.
+          <div style="margin:0 0 14px 0;">
+            Hello <strong>${safeHtml(params.fullName)}</strong>,
           </div>
-          <div style="margin:16px 0 8px 0; color:#475569; font-size:13px; font-weight:600;">In the meantime, useful resources:</div>
-          <ul style="margin:0 0 0 0; padding:0 0 0 18px; color:#0f172a; font-size:13.5px; line-height:1.6;">
-            <li><a href="${safeHtml(
-              params.sampleReportUrl
-            )}" style="color:#2563eb; text-decoration:none;">Sample report</a></li>
-            <li><a href="${safeHtml(
-              params.verificationDemoUrl
-            )}" style="color:#2563eb; text-decoration:none;">Verification demo</a></li>
-            <li><a href="${safeHtml(
-              params.methodologyUrl
-            )}" style="color:#2563eb; text-decoration:none;">Verification methodology</a></li>
-            <li><a href="${safeHtml(
-              params.pricingUrl
-            )}" style="color:#2563eb; text-decoration:none;">Pricing</a></li>
-          </ul>
+          <div style="margin:0 0 12px 0;">
+            Thank you for contacting ${safeHtml(app)}.
+          </div>
+          <div style="margin:0;">
+            Your inquiry has been submitted successfully and will be reviewed
+            by the appropriate team.
+          </div>
         `.trim(),
-        ctaText: "View sample report",
-        ctaUrl: params.sampleReportUrl,
-        secondaryText:
-          "If this wasn't you, you can safely ignore this email.",
+        ctaText: "Visit Trust Center",
+        ctaUrl: trustCenterUrl,
+        secondaryLinks: [
+          { label: "Pricing", url: params.pricingUrl },
+          {
+            label: "Verification Methodology",
+            url: params.methodologyUrl,
+          },
+          { label: "Support Center", url: supportCenterUrl },
+        ],
+        noticeText:
+          "If your request relates to privacy, abuse, law-enforcement, or security vulnerabilities, use the dedicated request path in the Trust Center.",
       });
+
+      void params.sampleReportUrl;
+      void params.verificationDemoUrl;
 
       const text = [
         `Hello ${params.fullName},`,
         "",
-        `Your inquiry has been submitted successfully. A member of the ${app} team will review your request and respond as soon as possible.`,
+        `Thank you for contacting ${app}. Your inquiry has been submitted successfully and will be reviewed by the appropriate team.`,
         "",
         "Useful resources:",
         `- Sample report: ${params.sampleReportUrl}`,
         `- Verification demo: ${params.verificationDemoUrl}`,
         `- Methodology: ${params.methodologyUrl}`,
         `- Pricing: ${params.pricingUrl}`,
+        `- Trust Center: ${trustCenterUrl}`,
         "",
         `Support: ${supportEmail()}`,
       ].join("\n");

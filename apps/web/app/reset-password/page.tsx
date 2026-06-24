@@ -538,8 +538,7 @@ function ResetPasswordPageContent() {
                           required
                           value={confirm}
                           onChange={(e) => setConfirm(e.target.value)}
-                          onFocus={() => setPasswordFocused(true)}
-                          onBlur={() => setPasswordFocused(false)}
+                          onFocus={() => setPasswordFocused(false)}
                           onKeyDown={handleCapsLockKey}
                           onKeyUp={handleCapsLockKey}
                           aria-invalid={passwordsMismatch}

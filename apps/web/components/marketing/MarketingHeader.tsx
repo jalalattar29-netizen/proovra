@@ -22,6 +22,7 @@ import {
   HelpCircle,
   BookText,
   Building,
+  PackageCheck,
 } from "lucide-react";
 import { MARKETING_COPY, MARKETING_LINKS } from "./tokens";
 import { MARKETING_BTN } from "../../lib/marketing-buttons";
@@ -169,7 +170,30 @@ const NAV: NavGroup[] = [
     ],
   },
   { label: "Pricing", href: MARKETING_LINKS.pricing },
-  { label: "Verify", href: MARKETING_LINKS.verify },
+  {
+    // Verify dropdown — Public Verify lands on /verify, Offline
+    // Verifier lands on /offline-verifier. Kept as a small 1-col menu
+    // so the header stays balanced on desktop. Mobile expands into
+    // the same two rows under a "Verify" details summary.
+    label: "Verify",
+    cols: 1,
+    items: [
+      {
+        label: "Public Verify",
+        href: MARKETING_LINKS.verify,
+        description: "Verify a published evidence record online",
+        Icon: ShieldCheck,
+        iconColor: "#2563EB",
+      },
+      {
+        label: "Offline Verifier",
+        href: "/offline-verifier",
+        description: "Inspect a Verification Package locally in your browser",
+        Icon: PackageCheck,
+        iconColor: "#10A37F",
+      },
+    ],
+  },
 ];
 
 const LOGO_SRC = "/assets/branding/logo-dark.png";
