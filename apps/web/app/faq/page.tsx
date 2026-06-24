@@ -3,6 +3,7 @@ import { MarketingPage } from "../../components/marketing/page-shell/MarketingPa
 import { FAQAccordion } from "../../components/marketing/page-shell/FAQAccordion";
 import { PageCTA } from "../../components/marketing/page-shell/PageCTA";
 import { MARKETING_LINKS } from "../../components/marketing/tokens";
+import { MARKETING_BTN } from "../../lib/marketing-buttons";
 import { RevealSection } from "../../components/motion";
 
 export const metadata: Metadata = {
@@ -186,7 +187,7 @@ export default function FAQPage() {
         </a>
         <a
           href={MARKETING_LINKS.verifyDemo}
-          className="rounded-full border border-[#CBD5E1] bg-white px-6 py-3 text-sm font-semibold text-[#071B5D]"
+          className={MARKETING_BTN.heroSecondary}
         >
           Try live verification
         </a>

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
+import { MARKETING_BTN } from "../../lib/marketing-buttons";
 
 export const metadata: Metadata = {
   title: "Support · PROOVRA",
@@ -390,7 +391,7 @@ export default function SupportPage() {
                 </a>
                 <Link
                   href="/contact-sales"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-[#E5E7EB] bg-white px-5 text-[13.5px] font-semibold text-[#0F172A] transition hover:-translate-y-0.5 hover:border-[#CBD5E1]"
+                  className={MARKETING_BTN.heroSecondary}
                 >
                   Talk to sales
                 </Link>

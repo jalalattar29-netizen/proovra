@@ -117,6 +117,39 @@ const PATHS = {
   c2paSummary: "provenance/c2pa-summary.json",
 } as const;
 
+// Legacy paths emitted by older / current package generators. The
+// verifier reads canonical paths first, then falls back to legacy
+// paths so packages produced before the canonical layout was rolled
+// out continue to verify correctly. This is purely additive — no
+// behaviour change for packages written at the canonical paths.
+const LEGACY_PATHS = {
+  tsaToken: "timestamp.tsr",
+} as const;
+
+// Accepted artifact prefixes. `evidence/` is the canonical layout;
+// `evidence-parts/` is the prefix the current worker-side package
+// builder emits for multipart originals. Files under either prefix
+// count as artifacts for the artifact-integrity sub-result.
+const ARTIFACT_PREFIXES = ["evidence/", "evidence-parts/"] as const;
+
+function isArtifactPath(p: string): boolean {
+  for (const prefix of ARTIFACT_PREFIXES) {
+    if (p.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+function readFirstBytes(
+  reader: PackageReader,
+  paths: readonly string[],
+): Uint8Array | null {
+  for (const p of paths) {
+    const b = reader.readBytes(p);
+    if (b && b.length > 0) return b;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
@@ -296,9 +329,7 @@ export async function verifyPackage(input: {
   let itemsChecked = 0;
   const artifactFailures: ArtifactIntegrityFailure[] = [];
   if (parsedIndex) {
-    const evidenceFiles = parsedIndex.files.filter((f) =>
-      f.path.startsWith("evidence/"),
-    );
+    const evidenceFiles = parsedIndex.files.filter((f) => isArtifactPath(f.path));
     itemsChecked = evidenceFiles.length;
     if (evidenceFiles.length === 0) {
       artifactStatus = "missing";
@@ -360,7 +391,10 @@ export async function verifyPackage(input: {
   // -----------------------------------------------------------------
   // 7. Timestamping (TSA + OTS) — presence + structural sanity only
   // -----------------------------------------------------------------
-  const tsaToken = reader.readBytes(PATHS.tsaToken);
+  const tsaToken = readFirstBytes(reader, [
+    PATHS.tsaToken,
+    LEGACY_PATHS.tsaToken,
+  ]);
   let tsaStatus: OfflineVerificationResult["timestamping"]["tsaStatus"] =
     "missing";
   let tsaDetail: OfflineVerificationResult["timestamping"]["tsaDetail"] = "missing";

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
 import { LegalHero } from "../../../components/legal/LegalHero";
+import { MARKETING_BTN } from "../../../lib/marketing-buttons";
 import {
   ALLOWED_LEGAL_SLUGS,
   loadLegalMarkdown,
@@ -77,7 +78,7 @@ export default async function LegalPage({
         <div className="mt-8 flex justify-center">
           <Link
             href="/trust"
-            className="inline-flex items-center gap-2 rounded-full border border-[#DDE6F2] bg-white px-5 py-2.5 text-[13px] font-semibold text-[#0B1F4D] shadow-[0_2px_8px_rgba(8,18,22,0.04)] transition hover:bg-[#F1F5F9]"
+            className={MARKETING_BTN.heroSecondary}
             data-legal-back-to-trust
           >
             <span aria-hidden="true">←</span>

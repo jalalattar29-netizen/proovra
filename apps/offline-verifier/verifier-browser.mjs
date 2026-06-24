@@ -26,6 +26,19 @@ const PATHS = {
   otsJson: "opentimestamps.json",
 };
 
+const LEGACY_PATHS = {
+  tsaToken: "timestamp.tsr",
+};
+
+const ARTIFACT_PREFIXES = ["evidence/", "evidence-parts/"];
+
+function isArtifactPath(p) {
+  for (const prefix of ARTIFACT_PREFIXES) {
+    if (p.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
 const STANDING_LIMITATIONS = [
   "NO_LEGAL_ADMISSIBILITY_CLAIM",
   "NO_AUTHORSHIP_CLAIM",
@@ -288,7 +301,10 @@ async function verify(file) {
   // -----------------------------------------------------------------
   // TSA + OTS
   // -----------------------------------------------------------------
-  const tsaToken = await reader.readBytes(PATHS.tsaToken);
+  let tsaToken = await reader.readBytes(PATHS.tsaToken);
+  if (!tsaToken || tsaToken.byteLength === 0) {
+    tsaToken = await reader.readBytes(LEGACY_PATHS.tsaToken);
+  }
   let tsaStatus = "missing";
   let tsaDetail = "missing";
   if (tsaToken && tsaToken.byteLength > 0) {
@@ -341,7 +357,7 @@ async function verify(file) {
   }
 
   const evidenceList = (parsedIndex?.files ?? []).filter((f) =>
-    f.path.startsWith("evidence/"),
+    isArtifactPath(f.path),
   );
   let artifactStatus = "unsupported";
   const artifactFailures = [];

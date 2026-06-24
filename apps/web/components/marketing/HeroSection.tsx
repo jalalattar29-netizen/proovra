@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { MARKETING_LINKS } from "./tokens";
 import { SectionBadge } from "./SectionBadge";
+import { MARKETING_BTN } from "../../lib/marketing-buttons";
 
 const HERO_BACKGROUND = "/assets/hero/proovra-hero-background.png";
 const HERO_TOWER = "/assets/hero/proovra-hero-tower-trimmed.png";
@@ -432,7 +433,7 @@ Digital evidence infrastructure for legal, insurance, investigation, compliance,
             </a>
             <Link
               href={MARKETING_LINKS.requestDemo}
-              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-[#E5E7EB] bg-white px-6 py-3.5 text-[15px] font-semibold text-[#0F172A] shadow-[0_4px_12px_rgba(15,23,42,0.04)] transition-all hover:border-[#CBD5E1] hover:shadow-[0_8px_20px_rgba(15,23,42,0.06)]"
+              className={MARKETING_BTN.heroSecondary}
             >
               Request a demo
             </Link>

@@ -16,6 +16,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
+import { MARKETING_BTN } from "../../../lib/marketing-buttons";
 import { SECTION_BORDER } from "./shared";
 
 const TRUST_CHIPS = [
@@ -83,10 +84,7 @@ export function VerifyHero() {
                   Open verification
                   <ArrowRight size={14} />
                 </a>
-                <Link
-                  href="/offline-verifier"
-                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-[#2563EB] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#2563EB] transition hover:bg-[#EEF6FF]"
-                >
+                <Link href="/offline-verifier" className={MARKETING_BTN.heroSecondary}>
                   Offline Verifier
                   <ArrowRight size={14} />
                 </Link>

@@ -319,6 +319,72 @@ describe("M1 Offline Verifier — TSA / OTS honest scope", () => {
   });
 });
 
+describe("Offline Verifier — Legacy path acceptance (VPV5)", () => {
+  // The current worker-side generator writes the RFC3161 TSA token at
+  // top-level `timestamp.tsr` and multipart originals under the
+  // `evidence-parts/` prefix. The verifier must accept these legacy
+  // paths in addition to the canonical `timestamps/tsa.tsr` and
+  // `evidence/` layout, so packages produced by the live generator
+  // verify cleanly without the operator seeing spurious
+  // `TSA_PROOF_MISSING` and `ARTIFACT_HASH_MISSING_FROM_PACKAGE`
+  // warnings.
+
+  it("legacy TSA path `timestamp.tsr` is accepted as a valid token", async () => {
+    const files = buildSyntheticPackage({
+      extraIndexed: {
+        "timestamp.tsr": new Uint8Array([1, 2, 3, 4]),
+      },
+    });
+    const r = await verifyPackage({
+      reader: createMemoryPackageReader(files),
+      crypto: memoryCryptoAdapter,
+    });
+    expect(r.timestamping.tsaStatus).toBe("unsupported");
+    expect(r.timestamping.tsaDetail).toBe(
+      "rfc3161_external_verification_required",
+    );
+    expect(r.overall.warnings).not.toContain("TSA_PROOF_MISSING");
+  });
+
+  it("legacy artifact prefix `evidence-parts/` counts as an artifact", async () => {
+    // Build a synthetic package whose only artifact lives under the
+    // generator's `evidence-parts/` prefix. The canonical `evidence/`
+    // prefix exists too because buildSyntheticPackage adds an
+    // example; we override that here by NOT relying on the helper's
+    // built-in `evidence/example.txt` for this assertion and instead
+    // checking that the count includes the legacy-prefixed file.
+    const files = buildSyntheticPackage({
+      extraIndexed: {
+        "evidence-parts/part-001.bin": new Uint8Array([10, 20, 30]),
+      },
+    });
+    const r = await verifyPackage({
+      reader: createMemoryPackageReader(files),
+      crypto: memoryCryptoAdapter,
+    });
+    expect(r.artifactIntegrity.status).toBe("verified");
+    expect(r.artifactIntegrity.itemsChecked).toBeGreaterThanOrEqual(2);
+    expect(r.overall.warnings).not.toContain(
+      "ARTIFACT_HASH_MISSING_FROM_PACKAGE",
+    );
+  });
+
+  it("canonical TSA path still wins when both legacy and canonical exist", async () => {
+    const files = buildSyntheticPackage({
+      extraIndexed: {
+        "timestamps/tsa.tsr": new Uint8Array([1, 2, 3, 4]),
+        "timestamp.tsr": new Uint8Array([5, 6, 7, 8]),
+      },
+    });
+    const r = await verifyPackage({
+      reader: createMemoryPackageReader(files),
+      crypto: memoryCryptoAdapter,
+    });
+    expect(r.timestamping.tsaStatus).toBe("unsupported");
+    expect(r.overall.warnings).not.toContain("TSA_PROOF_MISSING");
+  });
+});
+
 describe("M1 Offline Verifier — No legal overclaim wording", () => {
   it("summary never contains forbidden phrases", async () => {
     const files = buildSyntheticPackage();

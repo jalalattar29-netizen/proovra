@@ -74,6 +74,7 @@ import {
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { SALES_ASSETS } from "../../lib/sales-assets";
+import { MARKETING_BTN } from "../../lib/marketing-buttons";
 
 // =========================================================================
 // Shared primitives
@@ -170,7 +171,7 @@ function Hero() {
                 href={SALES_ASSETS.sampleReportUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-[#2563EB] bg-white px-6 py-3 text-[15px] font-semibold text-[#2563EB] transition-all hover:bg-[#EEF6FF] hover:-translate-y-0.5"
+                className={MARKETING_BTN.heroSecondary}
               >
                 View sample report
               </a>

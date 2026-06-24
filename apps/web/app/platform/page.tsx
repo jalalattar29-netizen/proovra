@@ -48,6 +48,7 @@ import { PlatformDashboardPreview } from "../../components/marketing/PlatformDas
 import { IntegrationsComplianceSection } from "../../components/marketing/IntegrationsComplianceSection";
 import { SALES_ASSETS } from "../../lib/sales-assets";
 import { RevealSection } from "../../components/motion";
+import { MARKETING_BTN } from "../../lib/marketing-buttons";
 
 const BRAND_GRADIENT_TEXT =
   "linear-gradient(90deg,#FF2DBD 0%,#7A3CFF 50%,#00D4FF 100%)";
@@ -135,7 +136,7 @@ function PlatformHero() {
               href="/brand/sample-report.pdf"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-[#E5E7EB] bg-white px-5 text-[13.5px] font-semibold text-[#0F172A] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#CBD5E1]"
+              className={MARKETING_BTN.heroSecondary}
             >
               View sample report
             </a>

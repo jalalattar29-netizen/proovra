@@ -51,6 +51,7 @@ import {
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { RevealSection } from "../../components/motion";
+import { MARKETING_BTN } from "../../lib/marketing-buttons";
 
 // ---------------------------------------------------------------------------
 // Bounded enums (must match `packages/offline-verifier/src/result-schema.ts`)
@@ -72,6 +73,19 @@ const PATHS = {
   // Phase M2
   c2paSummary: "provenance/c2pa-summary.json",
 };
+
+const LEGACY_PATHS = {
+  tsaToken: "timestamp.tsr",
+};
+
+const ARTIFACT_PREFIXES = ["evidence/", "evidence-parts/"] as const;
+
+function isArtifactPath(p: string): boolean {
+  for (const prefix of ARTIFACT_PREFIXES) {
+    if (p.startsWith(prefix)) return true;
+  }
+  return false;
+}
 
 const STANDING_LIMITATIONS = [
   "NO_LEGAL_ADMISSIBILITY_CLAIM",
@@ -286,10 +300,7 @@ function HeroWithTool() {
                 Choose verification package
                 <ArrowRight size={14} />
               </a>
-              <Link
-                href="/verify"
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-[#2563EB] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#2563EB] transition hover:bg-[#EEF6FF]"
-              >
+              <Link href="/verify" className={MARKETING_BTN.heroSecondary}>
                 Public Verify
                 <ArrowRight size={14} />
               </Link>
@@ -944,8 +955,11 @@ async function verify(file: File): Promise<ResultPayload> {
     }
   }
 
-  // TSA / OTS
-  const tsaToken = await reader.readBytes(PATHS.tsaToken);
+  // TSA / OTS — accept canonical and legacy TSA token paths.
+  let tsaToken = await reader.readBytes(PATHS.tsaToken);
+  if (!tsaToken || tsaToken.byteLength === 0) {
+    tsaToken = await reader.readBytes(LEGACY_PATHS.tsaToken);
+  }
   let tsaStatus = "missing";
   let tsaDetail = "missing";
   if (tsaToken && tsaToken.byteLength > 0) {
@@ -1080,7 +1094,7 @@ async function verify(file: File): Promise<ResultPayload> {
   }
 
   const evidenceList = (parsedIndex?.files ?? []).filter((f) =>
-    f.path.startsWith("evidence/"),
+    isArtifactPath(f.path),
   );
   let artifactStatus = "unsupported";
   const artifactFailures: Array<{ path: string; reason: string }> = [];
@@ -1714,10 +1728,7 @@ function PrivacyByDesign() {
                 upload of the ZIP is made.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
-                <Link
-                  href="/trust"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-[#2563EB] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#2563EB] transition hover:bg-[#EEF6FF]"
-                >
+                <Link href="/trust" className={MARKETING_BTN.heroSecondary}>
                   Trust Center
                   <ArrowRight size={14} />
                 </Link>

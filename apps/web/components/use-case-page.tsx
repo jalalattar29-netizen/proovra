@@ -517,7 +517,7 @@ function Hero({ content }: { content: UseCasePageContent }) {
             <div className="mt-9 flex flex-wrap items-center justify-start gap-3">
               <Link
                 href={SALES_ASSETS.requestDemoUrl}
-                className={MARKETING_BTN.secondaryLight}
+                className={MARKETING_BTN.heroSecondary}
               >
                 Request Demo
               </Link>

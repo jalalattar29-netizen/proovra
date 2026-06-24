@@ -56,6 +56,7 @@ import {
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { RevealSection } from "../../components/motion";
+import { MARKETING_BTN } from "../../lib/marketing-buttons";
 
 // =========================================================================
 // METADATA — handled in the thin /about/trust re-export. This page stays
@@ -593,8 +594,7 @@ function Hero() {
               </Link>
               <Link
                 href="/contact-sales"
-                className="inline-flex items-center gap-2 rounded-full border bg-white px-6 py-3 text-sm font-semibold transition-colors hover:bg-slate-50"
-                style={{ borderColor: "#CBD5E1", color: NAVY }}
+                className={MARKETING_BTN.heroSecondary}
               >
                 Contact sales
               </Link>

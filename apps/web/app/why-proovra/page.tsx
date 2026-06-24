@@ -31,6 +31,7 @@ import {
 import { MarketingPage } from "../../components/marketing/page-shell/MarketingPage";
 import { MARKETING_LINKS } from "../../components/marketing/tokens";
 import { RevealSection } from "../../components/motion";
+import { MARKETING_BTN } from "../../lib/marketing-buttons";
 
 export const metadata: Metadata = {
   title: "Why PROOVRA — Move from files to Evidence Records",
@@ -370,7 +371,7 @@ export default function WhyProovraPage() {
               </Link>
               <Link
                 href={MARKETING_LINKS.verifyDemo}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-[#E5E7EB] bg-white px-5 text-[13.5px] font-semibold text-[#0F172A] transition hover:-translate-y-0.5 hover:border-[#CBD5E1]"
+                className={MARKETING_BTN.heroSecondary}
               >
                 Try live verification
               </Link>
