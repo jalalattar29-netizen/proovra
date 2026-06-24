@@ -658,13 +658,15 @@ export function getEmailService(): EmailService {
         ctaText: "Reset password",
         ctaUrl: resetUrl,
         secondaryText:
-          "If you didn’t request this, you can safely ignore this email.",
+          "If you did not request this reset, you can safely ignore this email. Your password will not change unless this link is used.",
       });
 
       const text =
         `Reset your ${app} password\n\n` +
-        `Open this link to reset your password:\n${resetUrl}\n\n` +
-        `If you didn't request this, ignore this email.\n` +
+        `We received a request to reset the password for your ${app} account.\n` +
+        `Open this link to choose a new password:\n${resetUrl}\n\n` +
+        `If you did not request this reset, you can safely ignore this email.\n` +
+        `Your password will not change unless this link is used.\n\n` +
         `Support: ${supportEmail()}\n`;
 
       return resend.emails.send({

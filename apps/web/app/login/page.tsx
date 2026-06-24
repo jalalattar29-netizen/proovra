@@ -17,6 +17,7 @@ import { apiFetch, ApiError } from "../../lib/api";
 import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
+import { ForgotPasswordModal } from "../../components/marketing/ForgotPasswordModal";
 import {
   clearPendingOAuthLegalAcceptance,
   savePendingOAuthLegalAcceptance,
@@ -142,6 +143,12 @@ function LoginPageContent() {
   const [verifyResendBusy, setVerifyResendBusy] = useState(false);
   const [verifyResendStatus, setVerifyResendStatus] = useState<string | null>(null);
 
+  // FP3 — forgot-password modal lives inside the login page. The
+  // standalone /forgot-password route now redirects to /login?forgot=1
+  // so deep links open the modal directly.
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const forgotTriggerRef = useRef<HTMLButtonElement | null>(null);
+
   const isMountedRef = useRef(true);
   const inFlightRef = useRef(false);
   const googleInitOnceRef = useRef(false);
@@ -165,6 +172,20 @@ function LoginPageContent() {
   useEffect(() => {
     nextUrlRef.current = nextUrl;
   }, [nextUrl]);
+
+  // FP3 — auto-open the forgot-password modal when the URL carries
+  // `?forgot=1` (the /forgot-password redirect target). On open we
+  // strip the param via router.replace so a refresh doesn't keep
+  // reopening the modal after the user has already dismissed it.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (searchParams.get("forgot") === "1") {
+      setForgotOpen(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("forgot");
+      router.replace(url.pathname + (url.search ? url.search : ""));
+    }
+  }, [searchParams, router]);
 
   const logDebug = (msg: string) => {
     if (DEBUG_AUTH) console.info(`[Auth] ${msg}`);
@@ -743,13 +764,23 @@ function LoginPageContent() {
                             </div>
 
                             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                              <Link
-                                href="/forgot-password"
+                              <button
+                                ref={forgotTriggerRef}
+                                type="button"
+                                onClick={() => setForgotOpen(true)}
                                 className="auth-link"
-                                style={{ color: "#D63E76", fontWeight: 600 }}
+                                style={{
+                                  color: "#D63E76",
+                                  fontWeight: 600,
+                                  background: "transparent",
+                                  border: 0,
+                                  padding: 0,
+                                  cursor: "pointer",
+                                  font: "inherit",
+                                }}
                               >
                                 Forgot password?
-                              </Link>
+                              </button>
                             </div>
                           </div>
 
@@ -980,6 +1011,14 @@ function LoginPageContent() {
             </div>
           </main>
         </div>
+
+        {/* FP3 — forgot-password modal mounted at the page root so it
+            sits above the auth card backdrop and inherits the warm
+            palette regardless of which section the trigger lives in. */}
+        <ForgotPasswordModal
+          open={forgotOpen}
+          onClose={() => setForgotOpen(false)}
+        />
       </div>
     </div>
   );
