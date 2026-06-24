@@ -327,6 +327,17 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
     },
   });
 
+  // EV3 — OAuth providers (Google, Apple) have already verified the
+  // email address before issuing the id_token we accepted here.
+  // Stamp emailVerifiedAt on the user record so the email-verification
+  // login guard treats OAuth users as already-verified and never asks
+  // them to click a link. GUEST upgrades inherit the OAuth check by
+  // being upgraded to the OAuth provider below.
+  const isOAuthProvider =
+    profile.provider === prismaPkg.AuthProvider.GOOGLE ||
+    profile.provider === prismaPkg.AuthProvider.APPLE;
+  const now = new Date();
+
   if (!user && profile.email) {
     const guest = await prisma.user.findFirst({
       where: { email: profile.email, provider: prismaPkg.AuthProvider.GUEST },
@@ -339,6 +350,9 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
           providerUserId: profile.providerUserId,
           displayName: profile.displayName ?? guest.displayName,
           email: profile.email ?? guest.email,
+          ...(isOAuthProvider && !guest.emailVerifiedAt
+            ? { emailVerifiedAt: now }
+            : {}),
         },
       });
     }
@@ -351,6 +365,7 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
         providerUserId: profile.providerUserId,
         email: profile.email ?? null,
         displayName: profile.displayName ?? null,
+        ...(isOAuthProvider ? { emailVerifiedAt: now } : {}),
       },
     });
   } else {
@@ -359,6 +374,11 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
       data: {
         email: profile.email ?? user.email,
         displayName: profile.displayName ?? user.displayName,
+        // Only fill emailVerifiedAt — never overwrite an existing
+        // verification timestamp so we keep the original audit point.
+        ...(isOAuthProvider && !user.emailVerifiedAt
+          ? { emailVerifiedAt: now }
+          : {}),
       },
     });
   }

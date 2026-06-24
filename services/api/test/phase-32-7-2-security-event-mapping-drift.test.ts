@@ -733,6 +733,18 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // APPROVED_CRITICAL_BY_MIGRATION for the same CREATE_TABLE_IF_
       // NOT_EXISTS kind as the wave2_duplicate_decisions precedent.
       "20270827000000_contact_sales_lead_capture",
+      // Enterprise email verification (EV). Adds email_verification_tokens
+      // table + 3 indexes + FK + a single bounded UPDATE backfilling
+      // users.email_verified_at for legacy accounts (so they aren't
+      // locked out when the verify gate ships). Pure-additive Phase O
+      // pattern: CREATE TABLE IF NOT EXISTS, CREATE INDEX IF NOT EXISTS,
+      // FK wrapped in a DO + duplicate-object guard, UPDATE scoped by
+      // `WHERE email_verified_at IS NULL`. Zero DROP / RENAME /
+      // TRUNCATE / DELETE / UPDATE-without-WHERE / SET-NOT-NULL.
+      // Allowlisted in phase-o-migration-safety-gate.test.ts via
+      // APPROVED_CRITICAL_BY_MIGRATION for the CREATE_TABLE_IF_NOT_EXISTS
+      // kind, matching the contact-sales precedent.
+      "20270828000000_email_verification_tokens",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

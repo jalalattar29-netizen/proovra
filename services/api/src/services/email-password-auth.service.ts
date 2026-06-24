@@ -8,6 +8,33 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+// Tagged error thrown when a register attempt collides with an existing
+// EMAIL provider account. The route handler converts this to a 409 with
+// code "EMAIL_ALREADY_EXISTS". Carrying the marker on the error object
+// keeps the service layer framework-agnostic (no Fastify reply usage
+// here) while still letting routes branch precisely.
+export class EmailAlreadyExistsError extends Error {
+  readonly code = "EMAIL_ALREADY_EXISTS" as const;
+  constructor() {
+    super("Email already registered");
+    this.name = "EmailAlreadyExistsError";
+  }
+}
+
+export async function isEmailAvailableForRegistration(
+  emailRaw: string,
+): Promise<boolean> {
+  const email = normalizeEmail(emailRaw);
+  const existing = await prisma.user.findFirst({
+    where: {
+      provider: AuthProvider.EMAIL,
+      providerUserId: email,
+    },
+    select: { id: true },
+  });
+  return !existing;
+}
+
 function sha256Hex(input: string): string {
   return createHash("sha256").update(input, "utf8").digest("hex");
 }
@@ -63,28 +90,49 @@ export async function registerWithEmailPassword(params: {
   const provider = AuthProvider.EMAIL;
   const providerUserId = email;
 
+  // Security: refuse registration when an EMAIL provider account
+  // already exists for this address. The prior implementation silently
+  // upserted, which (a) overwrote the existing passwordHash on every
+  // re-submission and (b) gave the frontend no way to surface a real
+  // "account already exists" affordance. We now read first, then
+  // create — Prisma's @@unique(provider, providerUserId) catches the
+  // race condition (two concurrent registrations) and translates to
+  // the same EmailAlreadyExistsError below.
+  const existing = await prisma.user.findFirst({
+    where: { provider, providerUserId },
+    select: { id: true },
+  });
+
+  if (existing) {
+    throw new EmailAlreadyExistsError();
+  }
+
   const passwordHash = hashPassword(params.password);
 
-  const user = await prisma.user.upsert({
-    where: {
-      provider_providerUserId: {
+  let user;
+  try {
+    user = await prisma.user.create({
+      data: {
         provider,
-        providerUserId
-      }
-    },
-    create: {
-      provider,
-      providerUserId,
-      email,
-      displayName: params.displayName ?? null,
-      passwordHash
-    },
-    update: {
-      email,
-      displayName: params.displayName ?? undefined,
-      passwordHash
+        providerUserId,
+        email,
+        displayName: params.displayName ?? null,
+        passwordHash,
+      },
+    });
+  } catch (err) {
+    // Prisma P2002 = unique constraint violation. Race between the
+    // findFirst above and this create — surface as the same conflict.
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code?: unknown }).code === "P2002"
+    ) {
+      throw new EmailAlreadyExistsError();
     }
-  });
+    throw err;
+  }
 
   const entitlement = await prisma.entitlement.findFirst({
     where: {
@@ -325,4 +373,122 @@ export async function resetPasswordWithToken(params: {
   return {
     ok: true as const
   };
+}
+
+// ============================================================
+// EV3 — Enterprise email verification token lifecycle
+// ============================================================
+
+// 24-hour single-use window per the product spec. Tokens are stored as
+// SHA-256 hex (sha256Hex), never plaintext. Each call invalidates any
+// prior unused token for the same user via `usedAt = now()` so the most
+// recent link in the inbox is always the only working one — important
+// when resend is hammered.
+const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
+
+export async function createEmailVerificationToken(userId: string) {
+  const rawToken = randomBytes(32).toString("hex");
+  const tokenHash = sha256Hex(rawToken);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + EMAIL_VERIFICATION_TTL_MS);
+
+  // Invalidate any prior unused tokens for this user, then issue a
+  // fresh one. Wrapped in a transaction so a flooded resend can never
+  // race two valid tokens for the same user.
+  await prisma.$transaction([
+    prisma.emailVerificationToken.updateMany({
+      where: {
+        userId,
+        usedAt: null,
+      },
+      data: { usedAt: now },
+    }),
+    prisma.emailVerificationToken.create({
+      data: {
+        userId,
+        tokenHash,
+        expiresAt,
+      },
+    }),
+  ]);
+
+  return { rawToken, expiresAt };
+}
+
+// Returns either the freshly verified user or a structured failure.
+// The failure reasons are deliberately coarse — the route layer maps
+// them to neutral, non-enumerating client messages.
+export type ConsumeEmailVerificationTokenResult =
+  | { ok: true; user: { id: string; email: string | null; provider: string; emailVerifiedAt: Date } }
+  | { ok: false; reason: "invalid" | "expired" | "already_used" };
+
+export async function consumeEmailVerificationToken(
+  rawTokenInput: string,
+): Promise<ConsumeEmailVerificationTokenResult> {
+  const raw = rawTokenInput.trim();
+  if (!raw) return { ok: false, reason: "invalid" };
+
+  const tokenHash = sha256Hex(raw);
+  const now = new Date();
+
+  const rec = await prisma.emailVerificationToken.findFirst({
+    where: { tokenHash },
+  });
+
+  if (!rec) return { ok: false, reason: "invalid" };
+  if (rec.usedAt) return { ok: false, reason: "already_used" };
+  if (rec.expiresAt <= now) return { ok: false, reason: "expired" };
+
+  // Atomic: mark token used + stamp user emailVerifiedAt in one txn.
+  // If the user was already verified out-of-band (e.g. via a separate
+  // email-link click that landed first), keep the older timestamp so
+  // audit-log queries show the actual moment ownership was proven.
+  const [, user] = await prisma.$transaction([
+    prisma.emailVerificationToken.update({
+      where: { id: rec.id },
+      data: { usedAt: now },
+    }),
+    prisma.user.update({
+      where: { id: rec.userId },
+      data: {
+        emailVerifiedAt: { set: now },
+      },
+      select: {
+        id: true,
+        email: true,
+        provider: true,
+        emailVerifiedAt: true,
+      },
+    }),
+  ]);
+
+  return {
+    ok: true,
+    user: {
+      id: user.id,
+      email: user.email,
+      provider: user.provider,
+      // Non-null after the update above; assert to narrow the type.
+      emailVerifiedAt: user.emailVerifiedAt as Date,
+    },
+  };
+}
+
+// Helper for the resend route: find a user by normalized email,
+// scoped to EMAIL provider only. Returns null for OAuth users (who
+// don't need a verification link) and for non-existent emails. The
+// route surfaces a neutral response either way so callers cannot
+// probe existence.
+export async function findUnverifiedEmailUserByEmail(emailRaw: string) {
+  const email = normalizeEmail(emailRaw);
+  const user = await prisma.user.findFirst({
+    where: {
+      provider: AuthProvider.EMAIL,
+      providerUserId: email,
+    },
+    select: { id: true, email: true, emailVerifiedAt: true },
+  });
+  if (!user) return null;
+  if (user.emailVerifiedAt) return null;
+  return user;
 }

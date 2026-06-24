@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -207,6 +208,16 @@ export function MarketingHeader() {
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Route-aware auth action. On /register we surface "Sign in" so an
+  // existing user can switch flows; on /login we surface "Create account"
+  // so a new visitor can switch. Everywhere else the header keeps its
+  // default "Sign in + Request a demo" pair. Pathname is read client-side
+  // only — this component already opts into `"use client"`.
+  const pathname = usePathname() ?? "";
+  const isLoginPage = pathname === "/login" || pathname.startsWith("/login/");
+  const switchAuthLabel = isLoginPage ? "Create account" : "Sign in";
+  const switchAuthHref = isLoginPage ? "/register" : MARKETING_LINKS.signIn;
+
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
     return () => {
@@ -330,10 +341,10 @@ className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium
 
         <div className="hidden shrink-0 items-center gap-2 xl:flex">
           <Link
-            href={MARKETING_LINKS.signIn}
+            href={switchAuthHref}
             className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium transition-colors ${navTextClass}`}
           >
-            Sign in
+            {switchAuthLabel}
           </Link>
           {/* Primary dark CTA — homepage hero language. Deep navy +
               white text, soft enterprise shadow, no glow. */}
@@ -422,11 +433,11 @@ className="w-[170px] h-auto object-contain"
           </nav>
           <div className="flex flex-col gap-3 border-t border-[#E5E7EB] p-6">
             <Link
-              href={MARKETING_LINKS.signIn}
+              href={switchAuthHref}
               onClick={() => setMobileOpen(false)}
               className="flex h-12 items-center justify-center rounded-2xl border border-[#E5E7EB] text-[15px] font-semibold text-[#0F172A]"
             >
-              Sign in
+              {switchAuthLabel}
             </Link>
             <Link
               href={MARKETING_LINKS.requestDemo}

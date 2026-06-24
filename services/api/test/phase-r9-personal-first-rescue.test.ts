@@ -406,15 +406,22 @@ describe("Phase R9 — signup eager bootstrap", () => {
     expect(nextExport).toBeGreaterThan(fnStart);
     const body = EMAIL_AUTH_SRC.slice(fnStart, nextExport);
 
+    // The contract is "the user row is persisted before bootstrap, and
+    // bootstrap happens before return." Either `prisma.user.upsert` OR
+    // the security-hardened `prisma.user.create` pattern satisfies it.
+    // The migration from upsert → create was deliberate: silent upsert
+    // overwrote existing rows, blocking the EMAIL_ALREADY_EXISTS gate.
     const upsertIdx = body.indexOf("prisma.user.upsert");
+    const createIdx = body.indexOf("prisma.user.create");
+    const userPersistIdx = Math.max(upsertIdx, createIdx);
     const bootstrapIdx = body.indexOf(
       "ensurePersonalWorkspace({ userId: user.id })",
     );
     // Last `return user;` inside the function body.
     const returnIdx = body.lastIndexOf("return user;");
 
-    expect(upsertIdx).toBeGreaterThan(0);
-    expect(bootstrapIdx).toBeGreaterThan(upsertIdx);
+    expect(userPersistIdx).toBeGreaterThan(0);
+    expect(bootstrapIdx).toBeGreaterThan(userPersistIdx);
     expect(returnIdx).toBeGreaterThan(bootstrapIdx);
   });
 

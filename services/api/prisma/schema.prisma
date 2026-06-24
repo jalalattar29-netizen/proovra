@@ -812,6 +812,7 @@ model User {
   claimedGuestIdentities            GuestIdentity[]               @relation("GuestClaimedBy")
   guestIdentity                     GuestIdentity?
   passwordResetTokens               PasswordResetToken[]
+  emailVerificationTokens           EmailVerificationToken[]
   payments                          Payment[]
   subscriptions                     Subscription[]
   teamMembers                       TeamMember[]
@@ -1904,6 +1905,30 @@ model PasswordResetToken {
   @@index([tokenHash])
   @@index([expiresAt])
   @@map("password_reset_tokens")
+}
+
+// Enterprise email verification (EV1).
+//
+// Issued after every EMAIL-provider registration and after every
+// resend request. Stored as SHA-256 hex of the raw token so the DB
+// never holds a usable secret. Single-use via `usedAt`; expired rows
+// are kept for audit (do not auto-delete — investigations may need
+// the history). The (userId, createdAt DESC) index supports the
+// "fetch latest active token for user" query the resend path runs;
+// the tokenHash index supports the verify-link lookup.
+model EmailVerificationToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("email_verification_tokens")
 }
 
 model AnalyticsEvent {

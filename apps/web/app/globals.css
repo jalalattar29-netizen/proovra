@@ -2037,22 +2037,31 @@ body.camera-open {
 
 .auth-legal-checkbox:focus-visible {
   outline: none;
-  border-color: rgba(79, 112, 107, 0.52);
+  border-color: #e64880;
   box-shadow:
-    0 0 0 3px rgba(79, 112, 107, 0.14),
+    0 0 0 4px rgba(230, 72, 128, 0.32),
     inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
 
 .auth-legal-checkbox:checked {
-  border-color: rgba(62, 96, 99, 0.55);
-  background: linear-gradient(
-    180deg,
-    rgba(62, 96, 99, 0.96) 0%,
-    rgba(24, 43, 48, 0.98) 100%
-  );
+  border-color: #e64880 !important;
+  background: #e64880 !important;
+  background-image: none !important;
   box-shadow:
-    0 8px 18px rgba(20, 48, 52, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    0 8px 18px rgba(230, 72, 128, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.auth-legal-checkbox:checked:hover {
+  border-color: #d63e76 !important;
+  background: #d63e76 !important;
+  background-image: none !important;
+}
+
+.auth-legal-checkbox:checked:focus-visible {
+  box-shadow:
+    0 0 0 4px rgba(230, 72, 128, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .auth-legal-checkbox:checked::after {
@@ -2062,7 +2071,7 @@ body.camera-open {
   top: 2px;
   width: 5px;
   height: 10px;
-  border: solid #eef3f1;
+  border: solid #ffffff;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }

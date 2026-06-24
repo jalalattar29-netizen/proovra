@@ -11,13 +11,12 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button, useToast } from "../../components/ui";
+import { useToast } from "../../components/ui";
 import { useAuth, useLocale } from "../providers";
 import { apiFetch, ApiError } from "../../lib/api";
 import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
-import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import {
   clearPendingOAuthLegalAcceptance,
   savePendingOAuthLegalAcceptance,
@@ -136,6 +135,12 @@ function LoginPageContent() {
   const [appleReady, setAppleReady] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // EV5 — when the backend returns EMAIL_NOT_VERIFIED we surface a
+  // distinct "verify your email" panel with a Resend affordance instead
+  // of a flat error string. The flag clears on any retry.
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [verifyResendBusy, setVerifyResendBusy] = useState(false);
+  const [verifyResendStatus, setVerifyResendStatus] = useState<string | null>(null);
 
   const isMountedRef = useRef(true);
   const inFlightRef = useRef(false);
@@ -333,9 +338,22 @@ function LoginPageContent() {
 
       const msg = err instanceof Error ? err.message : "Login failed";
       const requestId = err instanceof ApiError ? err.requestId : undefined;
+      const errCode = err instanceof ApiError ? err.code : undefined;
 
       authLogger.log("AUTH_SESSION_FAILED", "error", { message: msg, requestId }, provider);
       authLogger.logTokenExchangeError(provider, msg);
+
+      // EV5 — backend signals an unverified email with a structured
+      // 403 + EMAIL_NOT_VERIFIED code. Flip to the dedicated verify
+      // panel instead of a flat error string so the operator can
+      // resend the link without leaving the page.
+      if (provider === "email" && errCode === "EMAIL_NOT_VERIFIED") {
+        setNeedsVerification(true);
+        setVerifyResendStatus(null);
+        setError(null);
+        setStatus(null);
+        return;
+      }
 
       const providerLabel =
         provider === "guest" ? "" : provider.charAt(0).toUpperCase() + provider.slice(1);
@@ -517,92 +535,119 @@ function LoginPageContent() {
       <div className="relative min-h-screen overflow-hidden">
         <div className="absolute inset-0">
           <img
-            src="/images/site-velvet-bg.webp.png"
+            src="/assets/hero/register-logo...png"
             alt=""
             className="h-full w-full object-cover object-center"
           />
         </div>
 
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_38%,rgba(8,18,22,0.76)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.09),transparent_24%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.06),transparent_18%)]" />
-        <div className="absolute inset-0 opacity-[0.04] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.026)_0px,rgba(255,255,255,0.026)_1px,transparent_1px,transparent_4px)]" />
+        {/* Warm readability overlay — only as much as needed to keep
+            the auth card legible against the bright sunrise artwork.
+            No heavy black scrim, no dark teal wash. */}
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,229,207,0.10)_0%,rgba(255,255,255,0.02)_45%,rgba(33,22,45,0.10)_100%)]" />
 
         <div className="relative z-10 flex min-h-screen flex-col">
           <MarketingHeader />
 
-          <main className="flex flex-1 items-center px-6 pb-14 pt-10 md:px-8 md:pb-20 md:pt-14">
+          <main className="flex flex-1 items-center px-6 pb-14 pt-24 md:px-8 md:pb-20 md:pt-28">
             <div className="mx-auto w-full max-w-7xl">
-              <div className="grid gap-10 lg:grid-cols-[0.92fr_0.88fr] lg:items-center">
-<section className="hidden lg:block">
+              <div className="grid gap-10 lg:grid-cols-[0.92fr_0.88fr] lg:items-start">
+                {/* Left column is offset down on desktop only so its
+                    "Welcome Back" eyebrow lines up with the right
+                    card's "Sign in" headline. Same math as Register:
+                    card padding (36px) + eyebrow chip (~38px) + mt-4
+                    (16px) ≈ 90px from card-top to headline. Mobile
+                    keeps zero offset. */}
+                <section className="hidden lg:block lg:pt-[88px]">
   <div className="max-w-[900px]">
-    <div className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
-      <span className="text-[#9ed8cf]">
+    <div className="inline-flex items-center gap-2.5 rounded-full border border-[rgba(230,72,128,0.22)] bg-white/70 px-4 py-2 text-[0.74rem] font-semibold uppercase tracking-[0.2em] text-[#21162D] shadow-[0_10px_24px_rgba(33,22,45,0.10)] backdrop-blur-md">
+      <span style={{ color: "#E64880" }}>
         <ShieldIcon />
       </span>
-      Secure access
+      Welcome Back
     </div>
 
-    <h1 className="mt-5 max-w-[760px] text-[2rem] font-medium leading-[0.98] tracking-[-0.045em] text-[#edf1ef] md:text-[2.7rem] xl:text-[3.25rem]">
-      Sign in to continue your{" "}
-      <span className="text-[#bfe8df]">evidence workflow</span>.
+    <h1 className="mt-5 max-w-[760px] text-[2rem] font-medium leading-[0.98] tracking-[-0.045em] text-[#1B1230] md:text-[2.7rem] xl:text-[3.25rem]">
+      Return to your{" "}
+      <span
+        style={{
+          background: "linear-gradient(90deg,#E64880 0%,#FF6B6B 52%,#FF8A6A 100%)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          backgroundClip: "text",
+          color: "transparent",
+        }}
+      >
+        PROOVRA
+      </span>{" "}
+      workspace.
     </h1>
 
-    <p className="mt-5 max-w-[760px] text-[1rem] leading-[1.82] tracking-[-0.006em] text-[#c7cfcc]">
-      Access your dashboard, verification records, reports, and protected evidence
-      flows using email, Google, Apple, or guest access.
+    <p className="mt-5 max-w-[760px] text-[1rem] leading-[1.82] tracking-[-0.006em] text-[#4B3B4F]">
+      Sign in to continue reviewing evidence records, verification reports, cases,
+      workspaces, and protected review workflows.
     </p>
 
     <div className="mt-6 flex flex-wrap gap-2.5">
-      <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-        <span className="mr-2 text-[#9dd2ca]">✓</span>
-        Google and Apple sign-in
-      </div>
-
-      <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-        <span className="mr-2 text-[#9dd2ca]">✓</span>
-        Email access available
-      </div>
-
-      <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-        <span className="mr-2 text-[#d6b89d]">✓</span>
-        Guest access supported
-      </div>
+      {[
+        "Evidence Operations Workspace",
+        "Secure Review Access",
+        "Reports, Cases & Verification Materials",
+      ].map((label) => (
+        <div
+          key={label}
+          className="rounded-full border px-3.5 py-2 text-[0.78rem] font-medium text-[#21162D] backdrop-blur-md"
+          style={{
+            background: "rgba(255,255,255,0.16)",
+            borderColor: "rgba(255,255,255,0.32)",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+          }}
+        >
+          <span className="mr-2" style={{ color: "#E64880" }}>✓</span>
+          {label}
+        </div>
+      ))}
     </div>
   </div>
 </section>
 
-                <section className="mx-auto w-full max-w-[540px]">
+                <section className="mx-auto w-full max-w-[520px]">
                   <div
-                    className="auth-card auth-premium relative overflow-hidden rounded-[30px]"
+                    className="auth-card auth-premium relative overflow-hidden rounded-[28px]"
                     style={{
-                      boxShadow: "0 30px 80px rgba(0,0,0,0.18)",
-                      border: "1px solid rgba(79,112,107,0.22)",
+                      boxShadow: "0 28px 80px rgba(59,28,74,0.22)",
+                      border: "1px solid rgba(255,255,255,0.45)",
+                      background: "rgba(255,255,255,0.74)",
+                      backdropFilter: "blur(22px) saturate(1.1)",
+                      WebkitBackdropFilter: "blur(22px) saturate(1.1)",
                     }}
                   >
-                    <img
-                      src="/images/panel-silver.webp.png"
-                      alt=""
-                      className="absolute inset-0 h-full w-full object-cover object-center"
-                    />
-                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.55)_100%)]" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(214,184,157,0.18),transparent_40%)]" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(255,255,255,0.35),transparent_30%)]" />
+                    {/* Warm corner highlights on the glass surface */}
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_15%,rgba(255,179,107,0.16),transparent_40%)]" />
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(255,255,255,0.55),transparent_30%)]" />
 
-                    <div className="relative z-10 p-7 md:p-8">
+                    <div className="relative z-10 p-8 lg:p-9">
                       <div className="mb-6">
-                        <div className="inline-flex items-center gap-2.5 rounded-full border border-[#23373b]/8 bg-[rgba(35,55,59,0.05)] px-4 py-2.5 text-[0.74rem] font-semibold uppercase tracking-[0.18em] text-[#566366]">
-                          <span className="text-[#3f5e62]">
+                        <div
+                          className="inline-flex items-center gap-2.5 rounded-full px-4 py-2.5 text-[0.74rem] font-semibold uppercase tracking-[0.18em]"
+                          style={{
+                            color: "#21162D",
+                            background: "rgba(230,72,128,0.08)",
+                            border: "1px solid rgba(230,72,128,0.20)",
+                          }}
+                        >
+                          <span style={{ color: "#E64880" }}>
                             <ShieldIcon />
                           </span>
                           Account access
                         </div>
 
-                        <h2 className="mt-4 text-[1.9rem] font-semibold tracking-[-0.04em] text-[#16282d] md:text-[2.15rem]">
-                          {t("signInTitle")}
+                        <h2 className="mt-4 text-[1.9rem] font-semibold tracking-[-0.04em] text-[#1B1230] md:text-[2.15rem]">
+                          Sign in
                         </h2>
 
-                        <p className="mt-3 text-[0.96rem] leading-[1.78] text-[#5c6a6e]">
+                        <p className="mt-3 text-[0.96rem] leading-[1.78] text-[#4B3B4F]">
                           Continue with your preferred sign-in method and return safely to your
                           PROOVRA workspace.
                         </p>
@@ -625,15 +670,16 @@ function LoginPageContent() {
                         <div style={SocialHostStyle}>
                           <button
                             type="button"
+                            aria-label="Continue with Apple"
                             disabled={busy}
                             onClick={() => void startApple()}
                             className="auth-social-btn"
                             style={{
                               background:
-                                "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
-                              color: "#eef3f1",
-                              border: "1px solid rgba(79,112,107,0.28)",
-                              boxShadow: "0 14px 28px rgba(20,48,52,0.16)",
+                                "linear-gradient(180deg, #2A1C36 0%, #15101F 100%)",
+                              color: "#ffffff",
+                              border: "1px solid rgba(33,22,45,0.45)",
+                              boxShadow: "0 14px 28px rgba(33,22,45,0.22)",
                             }}
                           >
                             <span className="auth-social-icon" aria-hidden="true">
@@ -646,7 +692,7 @@ function LoginPageContent() {
                         <div
                           className="auth-divider"
                           style={{
-                            color: "#6c787c",
+                            color: "#7A687D",
                           }}
                         >
                           {t("orDivider")}
@@ -654,7 +700,7 @@ function LoginPageContent() {
 
                         <form onSubmit={onEmailLogin} style={{ display: "grid", gap: 10 }}>
                           <div className="auth-input-wrap">
-                            <span className="auth-input-icon" aria-hidden="true" style={{ color: "#446166" }}>
+                            <span className="auth-input-icon" aria-hidden="true" style={{ color: "#7A687D" }}>
                               <EmailIcon />
                             </span>
                             <input
@@ -666,17 +712,17 @@ function LoginPageContent() {
                               onChange={(e) => setEmail(e.target.value)}
                               disabled={busy}
                               style={{
-                                background: "rgba(255,255,255,0.9)",
-                                border: "1px solid rgba(79,112,107,0.16)",
+                                background: "rgba(255,255,255,0.84)",
+                                border: "1px solid rgba(255,255,255,0.44)",
                                 boxShadow: ui.inputShadow,
-                                color: "#102126",
+                                color: "#1B1230",
                               }}
                             />
                           </div>
 
                           <div style={{ display: "grid", gap: 6 }}>
                             <div className="auth-input-wrap">
-                              <span className="auth-input-icon" aria-hidden="true" style={{ color: "#446166" }}>
+                              <span className="auth-input-icon" aria-hidden="true" style={{ color: "#7A687D" }}>
                                 <LockIcon />
                               </span>
                               <input
@@ -688,16 +734,20 @@ function LoginPageContent() {
                                 onChange={(e) => setPassword(e.target.value)}
                                 disabled={busy}
                                 style={{
-                                  background: "rgba(255,255,255,0.9)",
-                                  border: "1px solid rgba(79,112,107,0.16)",
+                                  background: "rgba(255,255,255,0.84)",
+                                  border: "1px solid rgba(255,255,255,0.44)",
                                   boxShadow: ui.inputShadow,
-                                  color: "#102126",
+                                  color: "#1B1230",
                                 }}
                               />
                             </div>
 
                             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                              <Link href="/forgot-password" className="auth-link" style={{ color: "#45656a" }}>
+                              <Link
+                                href="/forgot-password"
+                                className="auth-link"
+                                style={{ color: "#D63E76", fontWeight: 600 }}
+                              >
                                 Forgot password?
                               </Link>
                             </div>
@@ -711,12 +761,12 @@ function LoginPageContent() {
     gap: 12,
     padding: "12px 14px",
     borderRadius: 16,
-    background: "rgba(255,255,255,0.34)",
-    border: "1px solid rgba(79,112,107,0.12)",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22)",
+    background: "rgba(255,255,255,0.42)",
+    border: "1px solid rgba(230,72,128,0.20)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.30)",
     fontSize: 14,
     lineHeight: 1.75,
-    color: "#506166",
+    color: "#4B3B4F",
   }}
 >
   <input
@@ -725,18 +775,19 @@ function LoginPageContent() {
     onChange={(e) => setAcceptLegal(e.target.checked)}
     disabled={busy}
     className="auth-legal-checkbox"
+    style={{ accentColor: "#E64880" }}
   />
   <span style={{ display: "block", paddingTop: 1 }}>
     I agree to the{" "}
-    <Link href="/legal/terms" className="auth-link" style={{ color: "#9a7a5d", fontWeight: 600 }}>
+    <Link href="/legal/terms" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
       Terms of Service
     </Link>
     {", "}
-    <Link href="/legal/privacy" className="auth-link" style={{ color: "#9a7a5d", fontWeight: 600 }}>
+    <Link href="/legal/privacy" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
       Privacy Policy
     </Link>
     {" and "}
-    <Link href="/legal/cookies" className="auth-link" style={{ color: "#9a7a5d", fontWeight: 600 }}>
+    <Link href="/legal/cookies" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
       Cookie Policy
     </Link>
     .
@@ -748,38 +799,126 @@ function LoginPageContent() {
                             disabled={busy}
                             style={{
                               background:
-                                "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
-                              color: "#eef3f1",
-                              border: "1px solid rgba(79,112,107,0.28)",
-                              boxShadow: "0 14px 28px rgba(20,48,52,0.16)",
+                                "linear-gradient(90deg, #E64880 0%, #FF6B6B 52%, #FF8A6A 100%)",
+                              color: "#ffffff",
+                              border: "1px solid rgba(230,72,128,0.45)",
+                              boxShadow: "0 14px 28px rgba(230,72,128,0.22)",
+                              fontWeight: 600,
                             }}
                           >
                             Sign in with Email
                           </button>
                         </form>
 
-                        <Button
-                          variant="secondary"
-                          onClick={() => handleAuth("/v1/auth/guest")}
-                          disabled={busy}
-                          style={{
-                            background:
-                              "linear-gradient(180deg, rgba(255,255,255,0.65) 0%, rgba(245,246,244,0.95) 100%)",
-                            color: "#23373b",
-                            border: "1px solid rgba(79,112,107,0.18)",
-                            boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
-                          }}
-                        >
-                          {t("continueGuest")}
-                        </Button>
+                        {/* EV5 — distinct affordance for unverified accounts.
+                            Reads as a calm verification status block, not an
+                            error. Resend button hits the same backend
+                            endpoint used by /register and /auth/verify-email. */}
+                        {needsVerification && (
+                          <div
+                            role="status"
+                            aria-live="polite"
+                            style={{
+                              background: "rgba(255,255,255,0.62)",
+                              border: "1px solid rgba(230,72,128,0.22)",
+                              borderRadius: 16,
+                              padding: "14px 16px",
+                              color: "#1B1230",
+                              display: "grid",
+                              gap: 10,
+                            }}
+                          >
+                            <div style={{ fontWeight: 600 }}>
+                              Verify your email address
+                            </div>
+                            <div style={{ color: "#4B3B4F", fontSize: 14, lineHeight: 1.6 }}>
+                              Please verify your email address before signing in.
+                              The link in your inbox will activate your account.
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                              <button
+                                type="button"
+                                disabled={verifyResendBusy || !email}
+                                onClick={async () => {
+                                  if (verifyResendBusy || !email) return;
+                                  setVerifyResendBusy(true);
+                                  setVerifyResendStatus("Sending verification email…");
+                                  try {
+                                    await apiFetch(
+                                      "/v1/auth/email/resend-verification",
+                                      {
+                                        method: "POST",
+                                        body: JSON.stringify({ email }),
+                                      },
+                                      { auth: false },
+                                    );
+                                    setVerifyResendStatus("Verification email sent.");
+                                  } catch {
+                                    setVerifyResendStatus(
+                                      "Please wait before requesting another verification email.",
+                                    );
+                                  } finally {
+                                    window.setTimeout(
+                                      () => setVerifyResendBusy(false),
+                                      60_000,
+                                    );
+                                  }
+                                }}
+                                className="auth-social-btn"
+                                style={{
+                                  background:
+                                    verifyResendBusy || !email
+                                      ? "rgba(230,72,128,0.18)"
+                                      : "linear-gradient(90deg, #E64880 0%, #FF6B6B 52%, #FF8A6A 100%)",
+                                  color:
+                                    verifyResendBusy || !email ? "#7A687D" : "#ffffff",
+                                  border: "1px solid rgba(230,72,128,0.45)",
+                                  boxShadow:
+                                    verifyResendBusy || !email
+                                      ? "none"
+                                      : "0 14px 28px rgba(230,72,128,0.22)",
+                                  fontWeight: 600,
+                                  cursor:
+                                    verifyResendBusy || !email ? "not-allowed" : "pointer",
+                                }}
+                              >
+                                {verifyResendBusy ? "Resend pending…" : "Resend verification email"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNeedsVerification(false);
+                                  setVerifyResendStatus(null);
+                                }}
+                                style={{
+                                  color: "#D63E76",
+                                  fontWeight: 600,
+                                  fontSize: 14,
+                                  background: "transparent",
+                                  border: 0,
+                                  padding: 0,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Use a different email
+                              </button>
+                            </div>
+                            {verifyResendStatus ? (
+                              <div style={{ color: "#4B3B4F", fontSize: 13 }}>
+                                {verifyResendStatus}
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
 
                         {error && (
                           <div
                             className="error-text"
+                            role="alert"
                             style={{
-                              color: "#b42318",
-                              background: "rgba(255,255,255,0.52)",
-                              border: "1px solid rgba(180,35,24,0.12)",
+                              color: "#D14343",
+                              background: "rgba(255,255,255,0.62)",
+                              border: "1px solid rgba(209,67,67,0.20)",
                               borderRadius: 14,
                               padding: "10px 12px",
                             }}
@@ -792,9 +931,9 @@ function LoginPageContent() {
                           <div
                             className="auth-status"
                             style={{
-                              color: "#496268",
-                              background: "rgba(255,255,255,0.42)",
-                              border: "1px solid rgba(79,112,107,0.10)",
+                              color: "#4B3B4F",
+                              background: "rgba(255,255,255,0.52)",
+                              border: "1px solid rgba(230,72,128,0.12)",
                               borderRadius: 14,
                               padding: "10px 12px",
                             }}
@@ -826,11 +965,11 @@ function LoginPageContent() {
                         className="auth-switch"
                         style={{
                           marginTop: 18,
-                          color: "#617074",
+                          color: "#4B3B4F",
                         }}
                       >
                         <span>{t("register")}? </span>
-                        <Link href="/register" style={{ color: "#45656a", fontWeight: 600 }}>
+                        <Link href="/register" style={{ color: "#D63E76", fontWeight: 600 }}>
                           {t("register")}
                         </Link>
                       </div>
@@ -840,8 +979,6 @@ function LoginPageContent() {
               </div>
             </div>
           </main>
-
-          <EnterpriseFooter />
         </div>
       </div>
     </div>

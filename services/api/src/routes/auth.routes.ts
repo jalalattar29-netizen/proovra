@@ -17,7 +17,14 @@ import {
   loginWithEmailPassword,
   createPasswordResetTokenForEmail,
   resetPasswordWithToken,
+  isEmailAvailableForRegistration,
+  EmailAlreadyExistsError,
 } from "../services/email-password-auth.service.js";
+import {
+  dispatchVerificationEmail,
+  processResendVerification,
+  confirmVerificationToken,
+} from "../services/email-verification.service.js";
 
 import { getEmailService } from "../services/email.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
@@ -64,6 +71,17 @@ import { recordAuthenticatedSession } from "../services/access-control/session-i
 const AUTH_LOGIN_RATE_LIMIT_PER_IP_PER_MIN = 10;
 const AUTH_PASSWORD_RESET_RATE_LIMIT_PER_IP_PER_MIN = 5;
 const AUTH_RATE_LIMIT_WINDOW_SEC = 60;
+// Email-register + availability are unauthenticated public surfaces.
+// Both can be scripted to flood the user table (register) or scrape
+// existence (availability). Tight buckets; legitimate humans are
+// already nowhere near these counts.
+const AUTH_REGISTER_RATE_LIMIT_PER_IP_PER_MIN = 5;
+const AUTH_EMAIL_AVAILABILITY_RATE_LIMIT_PER_IP_PER_MIN = 30;
+// EV4 — verification + resend per-IP buckets. The per-email
+// cooldown (60 s) lives in email-verification.service.ts so the
+// route stays thin.
+const AUTH_EMAIL_VERIFY_RATE_LIMIT_PER_IP_PER_MIN = 10;
+const AUTH_EMAIL_RESEND_RATE_LIMIT_PER_IP_PER_MIN = 3;
 // Phase 1 — guest-auth rate limit. Anonymous /v1/auth/guest creates a
 // new User row and JWT every call. Without a bucket an attacker can
 // inflate the user table arbitrarily, exhaust signing-key bucket
@@ -76,6 +94,21 @@ function readClientIp(req: FastifyRequest): string {
   // `req.ip` is normalised by Fastify; fall back to "unknown" so the
   // rate-limit key is always non-empty (the limiter throws otherwise).
   return (req.ip && req.ip.length > 0 ? req.ip : "unknown").slice(0, 200);
+}
+
+// Shared 429 reply — every public auth route returns this exact
+// shape on rate-limit hits. Single helper keeps the file small.
+function replyRateLimited(reply: FastifyReply, resetAtMs: number) {
+  return reply
+    .code(429)
+    .header("Retry-After", String(Math.max(1, Math.ceil((resetAtMs - Date.now()) / 1000))))
+    .send({
+      error: {
+        code: "RATE_LIMITED",
+        message: "Too many requests. Try again shortly.",
+        timestamp: new Date().toISOString(),
+      },
+    });
 }
 
 // Phase 2.5 — session inventory recording helpers.
@@ -841,21 +874,71 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.post("/v1/auth/email/register", async (req, reply) => {
+    // Per-IP register rate limit. Mirrors login limit but tighter
+    // (registration is even more abuse-prone — it creates User rows).
+    const rl = await enforceRateLimit({
+      key: `auth:email-register:ip:${readClientIp(req)}`,
+      max: AUTH_REGISTER_RATE_LIMIT_PER_IP_PER_MIN,
+      windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
+    });
+    if (!rl.allowed) {
+      auditAuthEvent(req, {
+        userId: null,
+        action: "auth.email_register",
+        outcome: "blocked",
+        severity: "warning",
+        metadata: { reason: "rate_limited", scope: "ip" },
+      });
+      return replyRateLimited(reply, rl.resetAtMs);
+    }
+
     const body = EmailRegisterBody.parse(req.body);
 
-    const user = await registerWithEmailPassword({
-      email: body.email,
-      password: body.password,
-      displayName: body.displayName ?? null,
+    let user;
+    try {
+      user = await registerWithEmailPassword({
+        email: body.email,
+        password: body.password,
+        displayName: body.displayName ?? null,
+      });
+    } catch (err) {
+      if (err instanceof EmailAlreadyExistsError) {
+        auditAuthEvent(req, {
+          userId: null,
+          action: "auth.email_register",
+          outcome: "failure",
+          severity: "info",
+          metadata: { reason: "email_already_exists", email: body.email },
+        });
+        return reply.code(409).send({
+          error: {
+            code: "EMAIL_ALREADY_EXISTS",
+            message: "An account already exists for this email.",
+            timestamp: new Date().toISOString(),
+          },
+        });
+      }
+      throw err;
+    }
+
+    // EV4 — email registrations no longer issue a session. The
+    // user must prove ownership of the inbox via the verification
+    // email; only the verify endpoint mints a JWT. Google/Apple
+    // routes above are unaffected (OAuth pre-verifies upstream).
+    const toEmail = user.email ?? body.email;
+    const dispatch = await dispatchVerificationEmail({
+      userId: user.id,
+      toEmail,
     });
-
-    const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
-    // Phase 2.5 — record AuthenticatedSession on first email/password
-    // register so the new user immediately sees the session in
-    // /v1/users/me/sessions. Best-effort.
-    await recordSessionFromSignedToken(req, user, token);
-
-    maybeSetWebCookie(req, reply, token);
+    if (!dispatch.delivered) {
+      auditAuthEvent(req, {
+        userId: user.id,
+        action: "auth.email_verification_send",
+        outcome: "failure",
+        severity: "warning",
+        metadata: { email: toEmail, error: dispatch.error },
+      });
+    }
 
     auditAuthEvent(req, {
       userId: user.id,
@@ -866,6 +949,7 @@ export async function authRoutes(app: FastifyInstance) {
         provider: user.provider,
         email: user.email,
         displayName: body.displayName ?? null,
+        verificationSent: dispatch.delivered,
       },
     });
 
@@ -874,7 +958,41 @@ export async function authRoutes(app: FastifyInstance) {
       method: "email_password",
     });
 
-    return reply.code(201).send({ token, user });
+    return reply.code(201).send({
+      verificationSent: dispatch.delivered,
+      email: toEmail,
+    });
+  });
+
+  // Public, unauthenticated availability check for the register page.
+  // Returns only { available: boolean } — never names, IDs, providers,
+  // or any other user metadata. Rate-limited per IP to make scripted
+  // enumeration uneconomical. Format errors return { available: false,
+  // reason: "INVALID_FORMAT" } so the UI can distinguish them from a
+  // real existence hit.
+  app.get("/v1/auth/email/availability", async (req, reply) => {
+    const rl = await enforceRateLimit({
+      key: `auth:email-availability:ip:${readClientIp(req)}`,
+      max: AUTH_EMAIL_AVAILABILITY_RATE_LIMIT_PER_IP_PER_MIN,
+      windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
+    });
+    if (!rl.allowed) {
+      return replyRateLimited(reply, rl.resetAtMs);
+    }
+
+    const query = (req.query ?? {}) as Record<string, unknown>;
+    const emailRaw = typeof query.email === "string" ? query.email : "";
+
+    const parsed = z.string().email().safeParse(emailRaw);
+    if (!parsed.success) {
+      return reply.code(200).send({ available: false, reason: "INVALID_FORMAT" });
+    }
+
+    const available = await isEmailAvailableForRegistration(parsed.data);
+    if (available) {
+      return reply.code(200).send({ available: true });
+    }
+    return reply.code(200).send({ available: false, reason: "EMAIL_ALREADY_EXISTS" });
   });
 
   app.post("/v1/auth/email/login", async (req, reply) => {
@@ -922,6 +1040,29 @@ export async function authRoutes(app: FastifyInstance) {
       });
 
       return reply.code(401).send({ message: "invalid_credentials" });
+    }
+
+    // EV4 — verify gate: run AFTER credential check (response shape
+    // identical to wrong-password) but BEFORE MFA (don't fingerprint
+    // MFA status on unverified accounts).
+    if (!user.emailVerifiedAt) {
+      auditAuthEvent(req, {
+        userId: user.id,
+        action: "auth.email_login",
+        outcome: "failure",
+        severity: "info",
+        metadata: {
+          email: body.email,
+          reason: "email_not_verified",
+        },
+      });
+      return reply.code(403).send({
+        error: {
+          code: "EMAIL_NOT_VERIFIED",
+          message: "Please verify your email address before signing in.",
+          timestamp: new Date().toISOString(),
+        },
+      });
     }
 
     // R8.1.2 — second-factor gate. Email/password is the primary
@@ -1067,6 +1208,107 @@ export async function authRoutes(app: FastifyInstance) {
       },
     });
 
+    return reply.code(200).send({ ok: true });
+  });
+
+  // EV4 — email verification: consume the link, auto-sign-in.
+  // Business logic lives in email-verification.service.ts.
+  app.post("/v1/auth/email/verify", async (req, reply) => {
+    const rl = await enforceRateLimit({
+      key: `auth:email-verify:ip:${readClientIp(req)}`,
+      max: AUTH_EMAIL_VERIFY_RATE_LIMIT_PER_IP_PER_MIN,
+      windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
+    });
+    if (!rl.allowed) {
+      return replyRateLimited(reply, rl.resetAtMs);
+    }
+
+    const parsed = z.object({ token: z.string().min(1).max(256) }).safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: {
+          code: "INVALID_REQUEST",
+          message: "Missing or malformed verification token.",
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+
+    const result = await confirmVerificationToken(parsed.data.token);
+    if (!result.ok) {
+      auditAuthEvent(req, {
+        userId: null,
+        action: "auth.email_verification_confirm",
+        outcome: "failure",
+        severity: "info",
+        metadata: { reason: result.reason },
+      });
+      return reply.code(400).send({
+        error: {
+          code: "INVALID_OR_EXPIRED",
+          message: "Verification link is invalid or has expired.",
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+
+    // Re-fetch the canonical row (the consume helper returns a
+    // narrow projection); JWT payload + session inventory need it.
+    const fullUser = await prisma.user.findUnique({ where: { id: result.user.id } });
+    if (!fullUser) {
+      return reply.code(500).send({
+        error: {
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Verification succeeded but the account could not be loaded.",
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+
+    const token = signJwt(jwtPayloadFromUser(fullUser), jwtSecret, 60 * 60 * 24 * 30);
+    await recordSessionFromSignedToken(req, fullUser, token);
+    maybeSetWebCookie(req, reply, token);
+
+    auditAuthEvent(req, {
+      userId: fullUser.id,
+      action: "auth.email_verification_confirm",
+      outcome: "success",
+      resourceId: fullUser.id,
+      metadata: { provider: fullUser.provider, email: fullUser.email },
+    });
+
+    return reply.code(200).send({ token, user: fullUser });
+  });
+
+  // EV4 — email verification: resend the link. Always returns 200
+  // `{ ok: true }` so the surface cannot be used for enumeration.
+  app.post("/v1/auth/email/resend-verification", async (req, reply) => {
+    const rl = await enforceRateLimit({
+      key: `auth:email-resend:ip:${readClientIp(req)}`,
+      max: AUTH_EMAIL_RESEND_RATE_LIMIT_PER_IP_PER_MIN,
+      windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
+    });
+    if (!rl.allowed) {
+      return replyRateLimited(reply, rl.resetAtMs);
+    }
+
+    const parsed = z.object({ email: z.string().email().max(320) }).safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(200).send({ ok: true });
+    }
+
+    const spec = await processResendVerification(parsed.data.email);
+    auditAuthEvent(req, {
+      userId: spec.userId,
+      action: "auth.email_verification_resend",
+      outcome: spec.outcome,
+      severity: spec.severity,
+      metadata: {
+        email: parsed.data.email,
+        ...(spec.reason ? { reason: spec.reason } : {}),
+        ...(spec.error ? { error: spec.error } : {}),
+      },
+    });
     return reply.code(200).send({ ok: true });
   });
 

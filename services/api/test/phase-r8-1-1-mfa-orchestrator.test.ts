@@ -309,7 +309,12 @@ describe("R8.1.2 Part 7 — login flow integration LIVE (was deferred in R8.1.1)
     // Phase E10.1 rebaselined: +per-IP rate limit on login +
     // password-reset (DEF-037 closure).
     // Rebaselined post-G3.x/G4/G5 — auth.routes.ts grew.
-    const expected = 48469;
+    // Phase EV rebaselined: enterprise email verification — verify +
+    // resend + register-dispatch logic was extracted into
+    // email-verification.service.ts (saves ~5.3 KB) before this bump,
+    // so the residual growth reflects the irreducible HTTP-layer cost
+    // of the new flow.
+    const expected = 57000;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);

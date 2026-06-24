@@ -333,6 +333,18 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     "20270827000000_contact_sales_lead_capture": new Set([
       "CREATE_TABLE_IF_NOT_EXISTS",
     ]),
+    // Enterprise email verification (EV). Pure-additive Phase O
+    // pattern, mirroring the wave2 + contact-sales precedents:
+    // CREATE TABLE IF NOT EXISTS for the new email_verification_tokens
+    // table, FK + indexes wrapped in IF NOT EXISTS / DO blocks, and a
+    // single backfill UPDATE on users.email_verified_at scoped by
+    // `WHERE email_verified_at IS NULL` so legacy accounts are not
+    // re-touched. Zero DROP / RENAME / TRUNCATE / DELETE / data
+    // movement on existing rows; the users-table UPDATE is bounded
+    // and idempotent.
+    "20270828000000_email_verification_tokens": new Set([
+      "CREATE_TABLE_IF_NOT_EXISTS",
+    ]),
   };
 
   it("every migration with timestamp > baseline has ZERO CRITICAL findings", async () => {

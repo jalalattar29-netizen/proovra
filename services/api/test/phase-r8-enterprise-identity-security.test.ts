@@ -278,7 +278,8 @@ describe("R8 Part 5 — canonical identity files preserved in size", () => {
     // password-reset (DEF-037 closure; ~30 lines of bounded hardening).
     // Rebaselined post-G3.x/G4/G5 — auth.routes.ts grew with MFA
     // step-up + per-IP rate-limit + governance-aware enrollment.
-    { rel: "src/routes/auth.routes.ts", expectedBytes: 48469 },
+    // Phase EV: rebaselined post enterprise email verification.
+    { rel: "src/routes/auth.routes.ts", expectedBytes: 57000 },
     // R8.1.3 baseline (was 15823 after R8.1.2; grew for the SSO
     // durable-challenge + enrollment-required branches).
     { rel: "src/routes/sso-auth.routes.ts", expectedBytes: 18565 },

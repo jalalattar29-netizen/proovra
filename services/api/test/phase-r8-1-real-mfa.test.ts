@@ -257,7 +257,8 @@ describe("R8.1 Part 7 — bounded surface area (R8.1.1-aware)", () => {
       // Phase E10.1 rebaselined: +per-IP rate limit on login +
       // password-reset (DEF-037 closure).
       // Rebaselined post-G3.x/G4/G5 — auth.routes.ts grew.
-      { rel: "src/routes/auth.routes.ts", expectedBytes: 48469 },
+      // Phase EV: rebaselined post enterprise email verification.
+      { rel: "src/routes/auth.routes.ts", expectedBytes: 57000 },
       { rel: "src/routes/sso-auth.routes.ts", expectedBytes: 18565 },
       { rel: "src/routes/identity.routes.ts", expectedBytes: 31353 },
       {

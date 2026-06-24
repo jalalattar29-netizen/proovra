@@ -24,6 +24,16 @@ export type EmailService = {
     resetUrl: string
   ) => Promise<unknown>;
 
+  // EV2 — enterprise email verification.
+  // Sent on email/password registration and on resend. The verifyUrl
+  // points at /auth/verify-email?token=<raw> on the public web app.
+  // Subject + body are deliberately minimal so the email reads like
+  // Stripe / Linear / Vanta transactional mail, not marketing.
+  sendEmailVerificationEmail: (
+    email: string,
+    verifyUrl: string
+  ) => Promise<unknown>;
+
   // PHASE R8.1.5 — verified-email preflight for lost-factor MFA
   // recovery. The body carries a verification LINK (not the token
   // itself in plaintext URL params — the link points to a web page
@@ -590,6 +600,9 @@ export function getEmailService(): EmailService {
       async sendPasswordResetEmail() {
         throw new Error("Email service not configured: RESEND_API_KEY missing");
       },
+      async sendEmailVerificationEmail() {
+        throw new Error("Email service not configured: RESEND_API_KEY missing");
+      },
       async sendMfaRecoveryVerificationEmail() {
         throw new Error("Email service not configured: RESEND_API_KEY missing");
       },
@@ -658,6 +671,50 @@ export function getEmailService(): EmailService {
         from,
         to: email,
         subject: `Reset your ${app} password`,
+        html,
+        text,
+      });
+    },
+
+    // EV2 — enterprise email verification.
+    // Minimal Stripe/Linear/Vanta-style transactional copy. No
+    // marketing claims, no celebration art. The link is the single
+    // CTA. `verifyUrl` already carries the raw token in a query
+    // param so this function is provider-agnostic.
+    async sendEmailVerificationEmail(email: string, verifyUrl: string) {
+      const app = brandName();
+
+      const html = emailShell({
+        title: "Verify your email address",
+        preheader: `Confirm ownership of this email to activate your ${app} account.`,
+        bodyHtml: `
+          <div style="margin:0 0 10px 0;">
+            Thank you for creating a <strong>${safeHtml(app)}</strong> account.
+          </div>
+          <div style="margin:0 0 10px 0;">
+            Before you can access your workspace, please verify ownership of this
+            email address.
+          </div>
+        `.trim(),
+        ctaText: "Verify email address",
+        ctaUrl: verifyUrl,
+        secondaryText:
+          "If you did not create this account, you can safely ignore this email.",
+      });
+
+      const text =
+        `Verify your ${app} email address\n\n` +
+        `Thank you for creating a ${app} account.\n` +
+        `Before you can access your workspace, please verify ownership of\n` +
+        `this email address by opening the link below:\n\n` +
+        `${verifyUrl}\n\n` +
+        `If you did not create this account, ignore this email.\n` +
+        `Support: ${supportEmail()}\n`;
+
+      return resend.emails.send({
+        from,
+        to: email,
+        subject: `Verify your ${app} account`,
         html,
         text,
       });
