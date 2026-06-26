@@ -148,21 +148,19 @@ function BatchAnalysisPageInner() {
 
   const handleExportResults = async (jobId: string) => {
     try {
-      const token =
-        typeof window !== "undefined"
-          ? localStorage.getItem("proovra-token")
-          : null;
-
-      if (!token) {
-        throw new Error("Missing session token");
-      }
-
       const apiBase = process.env.NEXT_PUBLIC_API_BASE || "https://api.proovra.com";
 
+      // Authentication carried by the HttpOnly `proovra_session` cookie.
+      // The in-memory token (if present, e.g. immediately after OAuth) is
+      // attached as a defensive fallback for callers without cookies.
+      const { readApiToken } = await import("../../../../lib/api");
+      const memToken = readApiToken();
+      const headers: Record<string, string> = { "x-web-client": "1" };
+      if (memToken) headers["Authorization"] = `Bearer ${memToken}`;
+
       const response = await fetch(`${apiBase}/v1/batch-analysis/${jobId}/export`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
+        credentials: "include",
       });
 
       if (!response.ok) {

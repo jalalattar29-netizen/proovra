@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import { Card } from "../ui";
 import { apiFetch, ApiError } from "../../lib/api";
+import { hasPreferencesConsent } from "../../lib/consent";
+import {
+  classifyRouteClass,
+  getSafePageContext,
+  isSensitiveRoute,
+} from "../../lib/privacy/redact";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -42,7 +48,10 @@ export function ProovraChatWidget() {
 useEffect(() => {
   if (typeof window === "undefined") return;
 
-  const seen = window.localStorage.getItem("proovra-chat-hint-seen");
+  const canPersist = hasPreferencesConsent();
+  const seen = canPersist
+    ? window.localStorage.getItem("proovra-chat-hint-seen")
+    : null;
 
   if (seen) return;
 
@@ -50,7 +59,13 @@ useEffect(() => {
 
   const timer = window.setTimeout(() => {
     setShowHint(false);
-    window.localStorage.setItem("proovra-chat-hint-seen", "1");
+    if (canPersist) {
+      try {
+        window.localStorage.setItem("proovra-chat-hint-seen", "1");
+      } catch {
+        // ignore quota / private mode
+      }
+    }
   }, 3000);
 
   return () => window.clearTimeout(timer);
@@ -70,10 +85,24 @@ useEffect(() => {
     setError(null);
 
     try {
+      const rawPath =
+        typeof window !== "undefined" ? window.location.pathname : null;
+      const safe = getSafePageContext(rawPath);
+      // Never send page titles — they routinely contain evidence names,
+      // case numbers, recipient names, or report subjects.
       const pageContext = {
-        path: typeof window !== "undefined" ? window.location.pathname : undefined,
-        title: typeof document !== "undefined" ? document.title : undefined,
+        path: safe.safePath,
+        routeClass: safe.routeClass,
       };
+
+      // Defense-in-depth: refuse to send any AI request from a sensitive
+      // route even if the host page somehow rendered the widget.
+      if (isSensitiveRoute(rawPath) || classifyRouteClass(rawPath) === "auth") {
+        setUnavailable(true);
+        setError("AI assistant disabled on this page.");
+        setBusy(false);
+        return;
+      }
 
       const response = (await apiFetch(
         "/v1/ai/chat",

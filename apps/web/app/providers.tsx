@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { type Locale, type LocaleMode, resolveInitialLocale, translations } from "../lib/i18n";
-import { apiFetch } from "../lib/api";
+import { apiFetch, setApiToken } from "../lib/api";
 import { initSentry } from "../lib/sentry";
 import { ToastProvider } from "../components/ui";
 import { ConfirmActionProvider } from "../components/ui/ConfirmActionModal";
@@ -10,6 +10,7 @@ import {
   getCookieConsentEventName,
   readCookieConsentState,
   hasAnalyticsConsent,
+  hasPreferencesConsent,
   isCookieConsentSyncedForUser,
   markCookieConsentSyncedForUser,
 } from "../lib/consent";
@@ -66,12 +67,17 @@ export function useAuth() {
   return ctx;
 }
 
-function readStoredToken(): string | null {
-  if (typeof window === "undefined") return null;
+/**
+ * Migration cleanup: older builds persisted the auth JWT under this key.
+ * Authentication is now strictly cookie-based (HttpOnly `proovra_session`).
+ * Remove any stale value on boot so it cannot be read by extensions/scripts.
+ */
+function clearLegacyAuthStorage(): void {
+  if (typeof window === "undefined") return;
   try {
-    return localStorage.getItem("proovra-token");
+    window.localStorage.removeItem("proovra-token");
   } catch {
-    return null;
+    // ignore
   }
 }
 
@@ -133,6 +139,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     document.documentElement.lang = locale;
     document.documentElement.dir = isRTL ? "rtl" : "ltr";
 
+    // Locale + locale-mode are functional preferences. Only persist when
+    // the user has granted preferences consent; otherwise behaviour stays
+    // in-memory for the current session.
+    if (!hasPreferencesConsent()) return;
     try {
       localStorage.setItem("proovra-locale", locale);
       localStorage.setItem("proovra-locale-mode", mode);
@@ -157,18 +167,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const authValue = useMemo<AuthContextValue>(() => {
     const setToken = (next: string | null) => {
       setTokenState(next);
-
-      if (typeof window === "undefined") return;
-
-      try {
-        if (next) {
-          localStorage.setItem("proovra-token", next);
-        } else {
-          localStorage.removeItem("proovra-token");
-          setUser(null);
-        }
-      } catch {
-        // ignore
+      // Push to the in-memory token slot in lib/api so subsequent apiFetch
+      // calls can attach Authorization until the session cookie is in flight
+      // / used by the next page load. Never persisted to storage.
+      setApiToken(next ?? null);
+      if (!next) {
+        setUser(null);
       }
     };
 
@@ -186,10 +190,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const ensureGuest = async () => {
       if (typeof window === "undefined") return;
 
-      const stored = readStoredToken();
-      if (stored) {
-        setTokenState(stored);
-        await refreshMe();
+      // If we already have a session cookie, /v1/auth/me will return the
+      // user and we don't need a fresh guest mint.
+      const existing = await fetchMe();
+      if (existing) {
+        setUser(existing);
         return;
       }
 
@@ -219,10 +224,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const stored = readStoredToken();
-    if (stored) {
-      setTokenState(stored);
-    }
+    // One-time best-effort scrub of the legacy localStorage auth token.
+    // Authentication now relies on the HttpOnly `proovra_session` cookie.
+    clearLegacyAuthStorage();
 
     void (async () => {
       try {

@@ -272,8 +272,10 @@ function LoginPageContent() {
     setError(null);
     setStatus(`Signing in via ${provider}...`);
 
-    const guestToken =
-      typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
+    // Guest JWT (if any) lives in memory only — the auth context holds it
+    // for the lifetime of this tab and never persists it to storage.
+    const { readApiToken } = await import("../../lib/api");
+    const guestToken = readApiToken();
 
     authLogger.logTokenExchangeStart(provider, path);
 

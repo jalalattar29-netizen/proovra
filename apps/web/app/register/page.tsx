@@ -501,8 +501,8 @@ function RegisterPageContent() {
       setStatus(`Signing in via ${provider}...`);
     }
 
-    const guestToken =
-      typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
+    const { readApiToken } = await import("../../lib/api");
+    const guestToken = readApiToken();
 
     try {
       setReturnUrl(currentReturnUrl);

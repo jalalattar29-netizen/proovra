@@ -119,14 +119,12 @@ function VerifyEmailPageContent() {
           // ignore
         }
 
-        // Best-effort: claim any pre-session evidence the operator
-        // captured while anonymous (the proovra-token in localStorage
-        // is the guest JWT seeded by providers.tsx).
+        // Best-effort: claim any pre-session evidence the operator captured
+        // while anonymous. The guest JWT lives in memory only (lib/api in-
+        // memory slot, seeded by providers.tsx via setApiToken).
         try {
-          const guestToken =
-            typeof window !== "undefined"
-              ? window.localStorage.getItem("proovra-token")
-              : null;
+          const { readApiToken } = await import("../../../lib/api");
+          const guestToken = readApiToken();
           if (guestToken) {
             await apiFetch("/v1/evidence/claim", {
               method: "POST",

@@ -10,6 +10,10 @@ import {
   getTrustDecisionPresentationTone,
 } from "@proovra/shared";
 const coverBrandIconUrl = reportAssetDataUrl("icon-192.png");
+const coverHeaderLockupUrl = reportAssetDataUrl("report-header.png");
+// `coverBrandIconUrl` is retained for any legacy section that may still reference
+// it. The cover header itself uses the inline lockup image below.
+void coverBrandIconUrl;
 
 function findRowValue(
   rows: Array<{ label: string; value: string }>,
@@ -260,17 +264,11 @@ const integrityBadgeText = decision.shortLabel;
     <section class="report-cover report-cover-premium cover-tone-${presentationTone}">
       <div class="cover-certificate-card cover-tone-${presentationTone}">
         <div class="cover-certificate-top">
-          <div class="cover-brand-row">
-            <img
-              class="cover-brand-icon-img"
-              src="${escapeHtml(coverBrandIconUrl)}"
-              alt=""
-            />
-            <div class="cover-brand-lockup">
-              <div class="cover-brand-mini">PROOVRA</div>
-              <div class="cover-brand-sub">Evidence Verification Report</div>
-            </div>
-          </div>
+          <img
+            class="cover-header-lockup"
+            src="${escapeHtml(coverHeaderLockupUrl)}"
+            alt="PROOVRA — Integrity in Every Evidence"
+          />
 
           <div class="cover-top-badge badge ${integrityBadgeClass}">
             ${escapeHtml(integrityBadgeText)}

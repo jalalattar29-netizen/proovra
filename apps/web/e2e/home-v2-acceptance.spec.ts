@@ -14,8 +14,10 @@
  *                  pro-issues persona; Activity shows real events.
  *
  * Auth: the dev-login endpoint (`/v1/dev/login?persona=...`) mints a
- * real session token; we seed it into localStorage as the web app
- * expects (`proovra-token`) before loading /home.
+ * real session and sets the HttpOnly `proovra_session` cookie. Playwright's
+ * page.request shares the browser context cookie jar, so subsequent
+ * page.goto() calls to the web app authenticate via the cookie — no
+ * localStorage seeding required.
  *
  * Prereqs (operator-provided): see playwright.config.ts header.
  */
@@ -33,7 +35,8 @@ const BANNED_HREF_PATTERNS = [
   /\/v\/[^/]/, // wrong public-verify path (must be /verify/)
 ];
 
-/** Mint a dev session for the persona and inject it into the web origin. */
+/** Mint a dev session for the persona; the response sets the HttpOnly
+ * `proovra_session` cookie in the shared browser context cookie jar. */
 async function loginAs(page: Page, persona: PersonaKey): Promise<void> {
   const res = await page.request.get(
     `${API_BASE}/v1/dev/login?persona=${persona}`,
@@ -42,13 +45,6 @@ async function loginAs(page: Page, persona: PersonaKey): Promise<void> {
   expect(res.ok(), `dev-login for ${persona} should succeed`).toBeTruthy();
   const body = (await res.json()) as { token: string };
   expect(body.token, "dev-login must return a token").toBeTruthy();
-
-  // Seed the token from a same-origin page so the flow survives CSP
-  // hardening on local prod-like builds as well as `next dev`.
-  await page.goto(`${WEB_BASE}/login`);
-  await page.evaluate((token) => {
-    window.localStorage.setItem("proovra-token", token);
-  }, body.token);
 }
 
 /** Assert a navigation did not land on a 404 / blank page. */

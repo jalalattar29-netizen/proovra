@@ -1,6 +1,6 @@
 # Cookie Policy
 
-Last Updated: 2026-06-23
+Last Updated: 2026-06-26
 
 This Cookie Policy explains how PROOVRA ("PROOVRA", "we", "us", or "our") uses cookies and similar technologies on our websites and web-based Services, and how you can control them.
 
@@ -18,6 +18,8 @@ Cookies are small text files (or similar technologies such as local storage, ses
 - analytics and diagnostics
 
 For simplicity, this policy refers to all such technologies as "cookies."
+
+PROOVRA's session authentication uses an HTTP-only cookie (`proovra_session`) that is not accessible to JavaScript running in your browser. PROOVRA does not persist session tokens, authentication bearer tokens, evidence identifiers, verification tokens, or case metadata in browser `localStorage` or `sessionStorage`.
 
 ## 2. COOKIE CATEGORIES
 
@@ -62,9 +64,28 @@ The table below describes the cookies and technologies the platform may set or r
 | Stripe checkout interaction | Stripe | Process billing and payment interactions inside the Stripe checkout surface | Strictly necessary (for paid checkout only) | Governed by Stripe |
 | PayPal checkout interaction (where enabled) | PayPal | Process billing interactions in the PayPal checkout surface | Strictly necessary (for paid checkout only) | Governed by PayPal |
 | Cloudflare-related technologies (where deployed) | Cloudflare | Edge security, bot detection, and infrastructure protection | Strictly necessary / Security | Governed by Cloudflare |
-| Reliability / error-reporting telemetry (where enabled) | Sentry | Detect crashes, performance regressions, and service errors | Analytics / Reliability | Governed by Sentry / limited by PROOVRA configuration |
+| Reliability / error-reporting telemetry (where enabled) | Sentry | Detect crashes, performance regressions, and service errors. Browser-side error reports are sent only after analytics consent. Sensitive routes (for example `/verify/<token>`, `/evidence/<id>`, `/share/<token>`, `/intake/<token>`, `/portal/<token>`, `/auth/callback`), UUIDs, JWT-shaped values, long opaque tokens, and email addresses are redacted before any event leaves the browser. The browser SDK runs with `sendDefaultPii: false` and no trace propagation. | Analytics / Reliability | Governed by Sentry / limited by PROOVRA configuration |
 | Vercel Analytics or web analytics (where enabled) | Vercel | Aggregated page and performance analytics where the Vercel deployment surface is used and analytics is enabled | Analytics | Governed by Vercel configuration |
 | Cloudflare Web Analytics (where enabled) | Cloudflare | Aggregated website analytics and performance telemetry where Cloudflare Web Analytics is enabled | Analytics | Governed by Cloudflare configuration |
+
+### 3.1 Browser local-storage / session-storage keys
+
+The PROOVRA web app additionally uses the following browser-storage keys. These are not HTTP cookies but are governed by the same consent categories.
+
+| Key | Storage | Purpose | Category | Set when |
+|---|---|---|---|---|
+| `proovra-cookie-consent-state` | localStorage | Records your cookie consent choices and policy version | Strictly necessary (consent record) | When you save or change cookie preferences |
+| `proovra-cookie-consent-synced:<userId>` | localStorage | Tracks whether your consent choices have been synced to the backend for the current account | Strictly necessary (consent record) | After signing in |
+| `proovra-locale`, `proovra-locale-mode` | localStorage | Remember interface language and auto/manual mode | Functional preferences | Only after preferences consent |
+| `proovra-chat-hint-seen` | localStorage | Suppresses the in-app assistant nudge after first display | Functional preferences | Only after preferences consent |
+| `proovra.persona-hint.dismissed:*`, `contextual-help-dismissed:*`, `proovra.persona-setup-dismissed:*`, `capture-readiness-dismissed:*`, `capture-workflow-guidance-dismissed:*`, `capture-suggestions-dismissed:*`, `proovra:search:recent:*` | localStorage | Remember dismissed guidance, suggestion panels, and recently used search terms | Functional preferences | Only after preferences consent |
+| `proovra_legal_acceptance` | localStorage | Records legal acceptance required to complete account registration | Strictly necessary (legal acceptance) | During registration |
+| `proovra_pending_oauth_legal_acceptance` | sessionStorage | Carries pending legal acceptance through an OAuth redirect | Strictly necessary (OAuth handshake) | During OAuth sign-in |
+| `proovra-return-url`, `proovra-apple-state` | sessionStorage | Carry the post-sign-in return URL and OAuth state through redirect | Strictly necessary (OAuth handshake) | During sign-in / OAuth |
+| `visitor_id` | localStorage | Anonymous visitor identifier used by aggregated product analytics | Analytics | Only after analytics consent |
+| `session_id` | sessionStorage | Per-tab analytics session identifier | Analytics | Only after analytics consent |
+
+When you withdraw consent for a category, PROOVRA removes the corresponding non-essential keys from your browser.
 
 The current Subprocessors page lists which third-party providers are presently engaged for the platform.
 

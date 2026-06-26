@@ -5,6 +5,9 @@ import { prisma } from "../db.js";
 import {
   classifyRouteType,
   normalizeRoutePath,
+  redactAnalyticsPath,
+  redactAnalyticsReferrer,
+  shouldRejectAnalyticsEvent,
 } from "../lib/route-classification.js";
 
 function readHeader(
@@ -376,10 +379,20 @@ export async function writeAnalyticsEvent(
 ): Promise<void> {
   const db = params.db ?? prisma;
   const geo = readGeoFromRequest(params.req);
-  const normalizedPath = normalizeRoutePath(
-    params.path ?? readRequestPath(params.req)
-  );
-  const routeType = classifyRouteType(normalizedPath);
+  const rawPath = params.path ?? readRequestPath(params.req);
+
+  // Reject value-less events from public-sensitive routes before any work.
+  // page_view on /verify/<token> has no aggregate analytic value beyond
+  // the route family, so we drop it rather than risk persisting the token.
+  if (shouldRejectAnalyticsEvent(params.eventType, rawPath)) {
+    return;
+  }
+
+  // Defense in depth: even if the client sent a raw token or UUID, redact
+  // it before any persistence (path, referrer, session landing path).
+  const safePath = redactAnalyticsPath(rawPath);
+  const safeReferrer = redactAnalyticsReferrer(params.referrer ?? null);
+  const routeType = classifyRouteType(normalizeRoutePath(rawPath));
   const sessionId = params.sessionId ?? null;
   const visitorId = params.visitorId ?? null;
 
@@ -389,7 +402,7 @@ export async function writeAnalyticsEvent(
       sessionId,
       visitorId,
       userId: params.userId ?? null,
-      path: normalizedPath,
+      path: safePath,
       routeType,
       countryRaw: geo.countryRaw,
       countryCode: geo.countryCode,
@@ -405,8 +418,8 @@ export async function writeAnalyticsEvent(
       userId: params.userId ?? null,
       sessionId: sessionId ?? `system_${params.eventType}`,
       visitorId: visitorId ?? `system_${params.userId ?? "anonymous"}`,
-      path: normalizedPath,
-      referrer: params.referrer ?? null,
+      path: safePath,
+      referrer: safeReferrer,
       country: geo.countryRaw,
       countryCode: geo.countryCode,
       city: geo.city,

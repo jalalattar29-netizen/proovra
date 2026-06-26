@@ -1,7 +1,12 @@
 "use client";
 
 import { apiFetch } from "./api";
-import { CONSENT_VERSION, saveConsentState } from "./consent";
+import {
+  CONSENT_VERSION,
+  clearNonEssentialStorage,
+  getConsentState,
+  saveConsentState,
+} from "./consent";
 
 type CookieConsentCategories = {
   categories?: string[];
@@ -68,16 +73,22 @@ type CookieConsentConfig = {
           acceptAllBtn: string;
           acceptNecessaryBtn: string;
           showPreferencesBtn: string;
+          footer?: string;
         };
         preferencesModal: {
           title: string;
           acceptAllBtn: string;
           acceptNecessaryBtn: string;
           savePreferencesBtn: string;
+          closeIconLabel?: string;
           sections: Array<{
             title: string;
             description: string;
-            linkedCategory: "necessary" | "preferences" | "analytics" | "marketing";
+            linkedCategory?:
+              | "necessary"
+              | "preferences"
+              | "analytics"
+              | "marketing";
           }>;
         };
       };
@@ -104,8 +115,15 @@ function extractAcceptedCategories(payload: CookieConsentCallbackPayload): strin
 }
 
 async function persistConsent(categories: string[] = []) {
+  const previous = getConsentState();
   const next = buildAcceptedState(categories);
   saveConsentState(next);
+
+  clearNonEssentialStorage({
+    preferences: previous.preferences && !next.preferences,
+    analytics: previous.analytics && !next.analytics,
+    marketing: previous.marketing && !next.marketing,
+  });
 
   try {
     await apiFetch("/v1/users/cookie-consent", {
@@ -199,41 +217,49 @@ export async function initCookieConsent(): Promise<void> {
       translations: {
         en: {
           consentModal: {
-            title: "Cookie preferences",
+            title: "Privacy Preferences",
             description:
-              "We use necessary cookies to run PROOVRA. Optional preferences, analytics, and marketing cookies are only enabled if you allow them.",
+              "Manage how PROOVRA uses cookies and similar technologies. Strictly necessary technologies keep authentication, security, evidence verification, and core platform functions working. Optional technologies are used only with your consent.",
             acceptAllBtn: "Accept all",
-            acceptNecessaryBtn: "Reject optional",
+            acceptNecessaryBtn: "Reject all",
             showPreferencesBtn: "Manage preferences",
+            footer:
+              '<a href="/legal/cookies">Cookie Policy</a>\n<a href="/legal/privacy">Privacy Policy</a>\n<a href="/trust">Trust Center</a>',
           },
           preferencesModal: {
-            title: "Manage cookie preferences",
+            title: "Privacy Preferences",
             acceptAllBtn: "Accept all",
-            acceptNecessaryBtn: "Reject optional",
+            acceptNecessaryBtn: "Reject all",
             savePreferencesBtn: "Save preferences",
+            closeIconLabel: "Close privacy preferences",
             sections: [
               {
-                title: "Necessary cookies",
+                title: "Manage your privacy",
                 description:
-                  "Required for core website and account functionality. These cannot be disabled.",
+                  'Manage how PROOVRA uses cookies and similar technologies. Strictly necessary technologies keep authentication, security, evidence verification, and core platform functions working. Optional technologies are used only with your consent. Learn more in our <a href="/legal/cookies">Cookie Policy</a>, <a href="/legal/privacy">Privacy Policy</a>, and at our <a href="/trust">Trust Center</a>.',
+              },
+              {
+                title: "Strictly Necessary",
+                description:
+                  "Required for authentication, security, fraud prevention, evidence verification, session management, and essential platform functionality. These cannot be disabled.",
                 linkedCategory: "necessary",
               },
               {
-                title: "Preferences cookies",
+                title: "Functional Preferences",
                 description:
-                  "Remember non-essential preferences such as display choices or other convenience settings.",
+                  "Remember language, interface preferences, dismissed guidance, and similar usability settings.",
                 linkedCategory: "preferences",
               },
               {
-                title: "Analytics cookies",
+                title: "Analytics",
                 description:
-                  "Help us understand product usage and improve performance, reliability, and usability.",
+                  "Help us understand product usage and improve performance using privacy-minimized analytics. Evidence content, verification tokens, filenames, hashes, GPS data, and case metadata are not used for analytics. Reliability and error monitoring used to detect and fix technical issues are included in this category; sensitive routes and identifiers are redacted before any report is sent.",
                 linkedCategory: "analytics",
               },
               {
-                title: "Marketing cookies",
+                title: "Marketing",
                 description:
-                  "Used only if PROOVRA later enables campaign attribution or marketing-related technologies.",
+                  "Currently not used unless explicitly enabled in the future. Marketing trackers are off by default.",
                 linkedCategory: "marketing",
               },
             ],

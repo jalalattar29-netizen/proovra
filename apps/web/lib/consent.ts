@@ -143,3 +143,99 @@ export function openCookiePreferences(): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent("proovra:open-cookie-preferences"));
 }
+
+const PREFERENCE_STORAGE_KEYS = [
+  "proovra-locale",
+  "proovra-locale-mode",
+  "proovra-chat-hint-seen",
+] as const;
+
+const PREFERENCE_STORAGE_KEY_PREFIXES = [
+  "proovra.persona-hint.dismissed:",
+  "contextual-help-dismissed:",
+  "proovra.persona-setup-dismissed:",
+  "capture-readiness-dismissed:",
+  "capture-workflow-guidance-dismissed:",
+  "capture-suggestions-dismissed:",
+  "proovra:search:recent:",
+] as const;
+
+const ANALYTICS_STORAGE_KEYS = ["visitor_id"] as const;
+const ANALYTICS_SESSION_STORAGE_KEYS = ["session_id"] as const;
+
+function removeMatchingKeys(
+  store: Storage,
+  exact: ReadonlyArray<string>,
+  prefixes: ReadonlyArray<string> = [],
+): void {
+  for (const key of exact) {
+    try {
+      store.removeItem(key);
+    } catch {
+      // ignore
+    }
+  }
+
+  if (prefixes.length === 0) return;
+
+  const toRemove: string[] = [];
+  for (let i = 0; i < store.length; i += 1) {
+    const k = store.key(i);
+    if (!k) continue;
+    if (prefixes.some((prefix) => k.startsWith(prefix))) {
+      toRemove.push(k);
+    }
+  }
+
+  for (const k of toRemove) {
+    try {
+      store.removeItem(k);
+    } catch {
+      // ignore
+    }
+  }
+}
+
+export type ClearNonEssentialOptions = {
+  preferences?: boolean;
+  analytics?: boolean;
+  marketing?: boolean;
+};
+
+/**
+ * Removes non-essential client-side storage when the user withdraws
+ * consent. Never touches auth/session, consent record, legal acceptance,
+ * or OAuth-return temp state — those are strictly necessary.
+ */
+export function clearNonEssentialStorage(
+  options: ClearNonEssentialOptions = {
+    preferences: true,
+    analytics: true,
+    marketing: true,
+  },
+): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    if (options.preferences) {
+      removeMatchingKeys(
+        window.localStorage,
+        PREFERENCE_STORAGE_KEYS,
+        PREFERENCE_STORAGE_KEY_PREFIXES,
+      );
+    }
+
+    if (options.analytics) {
+      removeMatchingKeys(window.localStorage, ANALYTICS_STORAGE_KEYS);
+      if (typeof window.sessionStorage !== "undefined") {
+        removeMatchingKeys(
+          window.sessionStorage,
+          ANALYTICS_SESSION_STORAGE_KEYS,
+        );
+      }
+    }
+    // marketing currently writes no client storage; flag reserved for future
+  } catch {
+    // ignore
+  }
+}

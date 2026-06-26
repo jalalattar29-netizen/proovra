@@ -4424,23 +4424,13 @@ const glassPanelStyle: CSSProperties = {
     logo: "/brand/icon-192.png",
     headerVelvet: "/brand/site-velvet-bg.webp.png",
   };
+  void verifyAssetPaths;
+
+  const VERIFY_HEADER_IMAGE = "/assets/branding/report-header.png";
 
   const pageBackgroundStyle: CSSProperties = {
     background:
       "radial-gradient(circle at 12% 0%, rgba(11,46,39,0.055), transparent 30%), radial-gradient(circle at 90% 8%, rgba(96,66,24,0.045), transparent 26%), linear-gradient(180deg, #f6f7f4 0%, #f8faf8 42%, #f2f4f1 100%)",
-  };
-
-  const headerVelvetStyle: CSSProperties = {
-    backgroundImage: `
-      linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.34) 100%),
-      url("${verifyAssetPaths.headerVelvet}")
-    `,
-    backgroundColor: "#062b24",
-    backgroundSize: "cover",
-    backgroundPosition: "center bottom",
-    backgroundRepeat: "no-repeat",
-    border: "1px solid rgba(255,255,255,0.18)",
-    boxShadow: "0 18px 50px rgba(11,46,39,0.18)",
   };
 
   return (
@@ -4465,62 +4455,32 @@ const glassPanelStyle: CSSProperties = {
                 <div className="container" style={{ position: "relative", zIndex: 1 }}>
           <div
             style={{
-              ...glassCardStyle,
-              ...headerVelvetStyle,
               marginBottom: 28,
-              padding: "16px 20px",
+              width: "100%",
+              height: 92,
+              borderRadius: 26,
+              overflow: "hidden",
+              position: "relative",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              gap: 16,
-              flexWrap: "wrap",
+              padding: "0 22px 0 34px",
+              background: "transparent",
+              border: `1px solid ${VERIFY_BRAND.softLine}`,
+              boxShadow: "0 18px 42px rgba(7, 26, 58, 0.10)",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <img
-                src={verifyAssetPaths.logo}
-                alt="PROOVRA"
-                style={{
-                  width: 46,
-                  height: 46,
-                  borderRadius: 13,
-                  objectFit: "contain",
-                  boxShadow: "0 12px 28px rgba(11,46,39,0.16)",
-                  flexShrink: 0,
-                }}
-              />
-
-              <div>
-                <div
-                  style={{
-fontFamily: "var(--font-jakarta), ui-sans-serif, system-ui, sans-serif",
-                    fontSize: 20,
-                    fontWeight: 900,
-                    letterSpacing: "0.075em",
-                    lineHeight: 1.05,
-                    background:
-                      "linear-gradient(180deg, #f2f4f6 0%, #cfd4d8 35%, #9aa3aa 55%, #e6eaed 100%)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    textShadow:
-                      "0 1px 0 rgba(255,255,255,0.25), 0 2px 6px rgba(0,0,0,0.25)",
-                  }}
-                                >
-                  PROOVRA
-                </div>
-                <div
-                  style={{
-                    marginTop: 5,
-                    ...VERIFY_TYPO.kicker,
-                    fontSize: 10,
-                    letterSpacing: "0.13em",
-                    color: "rgba(220,225,230,0.85)",
-                  }}
-                                  >
-                  Secure Evidence Verification
-                </div>
-              </div>
-            </div>
+            <img
+              src={VERIFY_HEADER_IMAGE}
+              alt="PROOVRA — Integrity in Every Evidence"
+              style={{
+                display: "block",
+                width: "min(430px, 58vw)",
+                maxHeight: 58,
+                objectFit: "contain",
+                objectPosition: "left center",
+              }}
+            />
 
             <a
               href="/"
@@ -4531,10 +4491,10 @@ fontFamily: "var(--font-jakarta), ui-sans-serif, system-ui, sans-serif",
                 minHeight: 42,
                 padding: "10px 15px",
                 borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.24)",
-                background: "rgba(255,255,255,0.12)",
-                color: "#ffffff",
-                                fontSize: 11,
+                border: `1px solid ${VERIFY_BRAND.softLine}`,
+                background: "#ffffff",
+                color: VERIFY_BRAND.ink,
+                fontSize: 11,
                 fontWeight: 900,
                 letterSpacing: "0.06em",
                 textTransform: "uppercase",

@@ -24,15 +24,18 @@ function asObject(value) {
         ? value
         : null;
 }
+// In-memory only. Authentication is carried by the HttpOnly `proovra_session`
+// cookie set by the backend; this slot exists only for immediate post-OAuth
+// requests and the guest-evidence-claim flow. NEVER persist to storage.
+let inMemoryToken = null;
+export function setApiToken(token) {
+    inMemoryToken = token && token.trim() ? token : null;
+}
+export function readApiToken() {
+    return inMemoryToken;
+}
 function readToken() {
-    if (typeof window === "undefined")
-        return null;
-    try {
-        return localStorage.getItem("proovra-token");
-    }
-    catch {
-        return null;
-    }
+    return inMemoryToken;
 }
 async function fetchWithAuthRetry(url, init, opts) {
     const makeHeaders = () => {

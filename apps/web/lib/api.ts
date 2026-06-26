@@ -46,13 +46,27 @@ type ApiFetchOpts = {
   retryAuthOnce?: boolean;
 };
 
+/**
+ * In-memory only. The web app authenticates via the HttpOnly `proovra_session`
+ * cookie that the backend sets after login/register/OAuth. We retain a short-
+ * lived in-memory token slot for two reasons:
+ *   1. immediate post-OAuth requests where the cookie may still be in flight,
+ *   2. the guest-evidence-claim flow that needs to forward the guest JWT.
+ *
+ * NEVER persist this value to localStorage / sessionStorage / IndexedDB.
+ */
+let inMemoryToken: string | null = null;
+
+export function setApiToken(token: string | null): void {
+  inMemoryToken = token && token.trim() ? token : null;
+}
+
+export function readApiToken(): string | null {
+  return inMemoryToken;
+}
+
 function readToken(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return localStorage.getItem("proovra-token");
-  } catch {
-    return null;
-  }
+  return inMemoryToken;
 }
 
 async function fetchWithAuthRetry(

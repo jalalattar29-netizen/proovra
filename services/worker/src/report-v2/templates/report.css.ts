@@ -4,7 +4,11 @@ import { reportAssetDataUrl } from "../asset-data-url.js";
 export function getReportCss(): string {
   const c = REPORT_BRAND.colors;
 const paperSilverUrl = reportAssetDataUrl("paper-silver.png");
-const velvetUrl = reportAssetDataUrl("site-velvet-bg.webp.png");
+// velvetUrl was previously used as the cover header background image. The
+// header now uses an inline brand-lockup <img> in cover.ts, so this asset
+// is no longer referenced. Keep the import path documented in case the
+// asset is needed by a future section.
+// const velvetUrl = reportAssetDataUrl("site-velvet-bg.webp.png");
 
   return `
 @page {
@@ -139,18 +143,29 @@ letter-spacing: -0.005em;
 }
 
 .cover-certificate-top {
-  background: rgba(18, 42, 38, 0.92) ;
-  min-height: 50px;
+  /* Real header container — page background shows through; no image bg. */
+  width: 210mm;
+  height: 26mm;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 10px 16px;
-  border-bottom: 2px solid ${c.accentMetal};
+  padding: 0 14mm 0 18mm;
+  background: transparent;
+  border-bottom: 2px solid #071A3A;
+  overflow: hidden;
+}
+
+.cover-header-lockup {
+  /* Inline brand lockup. Controlled by img dimensions + object-fit, never
+     by background-size, so the wordmark + tagline cannot crop. */
+  max-width: 76mm;
+  max-height: 18mm;
+  object-fit: contain;
+  display: block;
 }
 
 .cover-tone-warning .cover-certificate-top {
-  background: linear-gradient(180deg, rgba(45, 74, 76, 0.96), rgba(84, 66, 34, 0.96));
   border-bottom-color: ${c.warning};
 }
 
@@ -160,7 +175,6 @@ letter-spacing: -0.005em;
 }
 
 .cover-tone-danger .cover-certificate-top {
-  background: linear-gradient(180deg, rgba(68, 28, 24, 0.96), rgba(96, 41, 31, 0.96));
   border-bottom-color: ${c.danger};
 }
 
@@ -2503,9 +2517,14 @@ body {
 
 .cover-certificate-top {
   width: 210mm !important;
+  height: 26mm !important;
   margin: 0 !important;
   border-radius: 0 !important;
-  padding: 10mm 14mm 8mm 14mm !important;
+  padding: 0 14mm 0 18mm !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  overflow: hidden !important;
 }
 
 .cover-premium-body {
@@ -2643,18 +2662,10 @@ body {
 /* COVER FINAL POLISH */
 
 .cover-certificate-top {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(0, 0, 0, 0.10) 0%,
-      rgba(0, 0, 0, 0.34) 100%
-    ),
-    url("${velvetUrl}") !important;
-
-  background-color: #062b24 !important;
-  background-size: cover !important;
-  background-position: center bottom !important;
-  background-repeat: no-repeat !important;
+  /* Header now uses an inline lockup <img>, not a background image. The
+     page background (paper-silver in .report-section) shows through. */
+  background: transparent !important;
+  background-image: none !important;
   border-bottom-color: rgba(196, 165, 91, 0.82) !important;
 }
 

@@ -48,14 +48,32 @@ export default function AppLayout({
 
   const hideAiWidget = useMemo(() => {
     if (!pathname) return false;
-    return pathname.startsWith("/admin") || pathname.startsWith("/verify");
+    return (
+      pathname.startsWith("/admin") ||
+      pathname.startsWith("/verify") ||
+      pathname.startsWith("/v/") ||
+      pathname.startsWith("/share") ||
+      pathname.startsWith("/intake") ||
+      pathname.startsWith("/portal") ||
+      pathname.startsWith("/offline-verifier") ||
+      pathname.startsWith("/auth")
+    );
   }, [pathname]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Tell the backend to clear the HttpOnly `proovra_session` cookie.
+    try {
+      const { apiFetch } = await import("../../lib/api");
+      await apiFetch("/v1/auth/logout", { method: "POST" }, { auth: true, retryAuthOnce: false });
+    } catch {
+      // best-effort — proceed with local clear regardless
+    }
+
+    // Defensive cleanup of any legacy localStorage auth token.
     try {
       localStorage.removeItem("proovra-token");
     } catch {
-      //
+      // ignore
     }
 
     setToken(null);

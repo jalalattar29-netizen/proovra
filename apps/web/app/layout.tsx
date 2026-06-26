@@ -8,6 +8,7 @@ import {
 import "./globals.css";
 import { Providers } from "./providers";
 import CookieConsentInit from "./CookieConsentInit";
+import PrivacyPreferencesLauncher from "../components/privacy/PrivacyPreferencesLauncher";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -71,8 +72,9 @@ export default function RootLayout({
       </head>
 
 <body className="antialiased" style={{ fontFamily: "var(--font-jakarta)" }}>
-          <CookieConsentInit />
+        <CookieConsentInit />
         <Providers>{children}</Providers>
+        <PrivacyPreferencesLauncher />
       </body>
     </html>
   );
