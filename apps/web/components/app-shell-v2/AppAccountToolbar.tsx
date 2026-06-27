@@ -101,20 +101,7 @@ function getWorkspaceLabels(
     };
   }
 
-  const { workspace } = envelope;
-  const scope = workspace.scope;
-
-  return {
-    name:
-      workspace.name ??
-      (scope === "PERSONAL" ? "Personal Space" : "Organization workspace"),
-    scopeLine:
-      scope === "PERSONAL"
-        ? "Personal • Owner"
-        : workspace.membership.role
-          ? `Organization • ${workspace.membership.role}`
-          : "Organization • Role unavailable",
-  };
+return { name: "Personal Space", scopeLine: "Personal • Owner" };
 }
 
 export function AppAccountToolbar({
@@ -166,7 +153,7 @@ const runtimeTeamId =
   envelope?.activeSpace?.type === "ORGANIZATION"
     ? envelope.activeSpace.id
     : null;
-    
+
   const { name: workspaceName, scopeLine } = getWorkspaceLabels(envelope, state);
 
   const personalSpace = envelope?.personalSpace ?? null;

@@ -231,8 +231,8 @@
 
 .app-account-toolbar {
   position: fixed;
-  top: 24px;
-  right: 42px;
+  top: 26px;
+  right: 36px;
   z-index: 120;
   pointer-events: none;
 }
@@ -473,6 +473,12 @@
   color: #64748b !important;
 }
 
+.app-shell-v2-content {
+  padding-top: 24px !important;
+  padding-left: 28px !important;
+  padding-right: 28px !important;
+}
+
 /* =========================================================
    PROOVRA INTERNAL SHELL — BRAND REFRESH
    Keep this BEFORE PHASE 38.4. Do not add display:none here.
@@ -506,15 +512,28 @@
   border-color: rgba(15, 23, 42, 0.09) !important;
 }
 
+.app-shell-v2-main {
+  display: grid !important;
+  grid-template-columns: 248px minmax(0, 1fr) !important;
+  min-height: 100vh !important;
+}
+
+.app-shell-v2-desktop-sidebar {
+  width: 248px !important;
+  min-width: 248px !important;
+  max-width: 248px !important;
+  display: flex !important;
+  align-items: stretch !important;
+}
+
 .app-sidebar-v2 {
-  position: sticky !important;
-  top: 0 !important;
-  height: 100vh !important;
+  position: relative !important;
+  width: 248px !important;
+  min-width: 248px !important;
+  max-width: 248px !important;
   min-height: 100vh !important;
   overflow: hidden !important;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.92), rgba(248,246,241,0.96)),
-    #f8f6f1 !important;
+  background: #fbfaf7 !important;
   border-right: 1px solid rgba(15, 23, 42, 0.08) !important;
 }
 
@@ -523,10 +542,10 @@
   inset: 0 !important;
   z-index: 0 !important;
   background-image: url("/assets/branding/sidebar.png") !important;
-  background-size: 360px auto !important;
-  background-position: top left !important;
+  background-size: 300px auto !important;
+  background-position: top center !important;
   background-repeat: repeat-y !important;
-  opacity: 0.22 !important;
+  opacity: 0.12 !important;
   transform: none !important;
 }
 
@@ -537,18 +556,36 @@
   z-index: 1 !important;
   pointer-events: none !important;
   background:
-    linear-gradient(90deg, rgba(255,255,255,0.30), rgba(255,255,255,0.82)),
-    linear-gradient(180deg, rgba(255,255,255,0.20), rgba(248,246,241,0.94) 78%, rgba(248,246,241,1));
+    linear-gradient(180deg, rgba(255,255,255,0.86), rgba(251,250,247,0.94)),
+    linear-gradient(90deg, rgba(255,255,255,0.30), rgba(255,255,255,0.78)) !important;
 }
 
 .app-sidebar-v2-inner {
   position: relative !important;
   z-index: 2 !important;
-  height: 100vh !important;
-  min-height: 0 !important;
-  padding: 22px 14px 20px !important;
+  min-height: 100vh !important;
+  padding: 24px 16px 20px !important;
   display: flex !important;
   flex-direction: column !important;
+  gap: 18px !important;
+}
+
+.app-sidebar-v2-scroll {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  display: grid !important;
+  align-content: start !important;
+  gap: 22px !important;
+}
+
+.app-sidebar-v2-brand {
+  padding: 0 2px 18px !important;
+}
+
+.app-sidebar-v2-brand-logo {
+  width: 100% !important;
+  max-width: 190px !important;
 }
 
 .app-sidebar-v2-brand {
