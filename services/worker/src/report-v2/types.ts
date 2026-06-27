@@ -487,6 +487,14 @@ export type ReportViewModel = {
   verificationStatusLabel: string;
   integrityVerified: boolean;
   trustDecision: ReportTrustDecision;
+  /**
+   * Phase 2/3 — canonical evidence materials bundle sealed at report
+   * generation time. Sections consume this for reviewer evidence
+   * type, OTS effective status (honesty rule), workspace scope, legal
+   * boundary copy, etc., instead of re-deriving lifecycle truth.
+   * Semantics across the bundle are `report-snapshot-only`.
+   */
+  canonicalMaterials: import("@proovra/shared").CanonicalEvidenceMaterials;
   anchorSummary: ReportAnchorSummary | null;
   verificationPackageIntegrity: {
   available: boolean;

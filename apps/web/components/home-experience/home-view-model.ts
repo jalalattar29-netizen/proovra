@@ -1039,6 +1039,7 @@ export type HomeEvidenceListInput = {
     status?: string;
     verificationStatus?: string | null;
     latestReportVersion?: number | null;
+    reportReady?: boolean;
     createdAt?: string;
     caseId?: string | null;
     teamId?: string | null;
@@ -2968,7 +2969,7 @@ function recentEvidenceTrustChip(it: WorkspaceEvidenceItem): {
   if (verdict === "FAILED" || verdict === "REVIEW_REQUIRED") {
     return { label: "Flagged for review", tone: "danger" };
   }
-  if (it.latestReportVersion != null) {
+  if (it.reportReady === true) {
     return { label: "Report ready", tone: "ok" };
   }
   const status = (it.status ?? "").toUpperCase();

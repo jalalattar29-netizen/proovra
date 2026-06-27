@@ -492,12 +492,22 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
   });
 
   it("the long technical sentence does NOT appear in pdf/report.ts (compact surfaces)", async () => {
-    const { readFileSync } = await import("node:fs");
+    const { readFileSync, existsSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
-    const pdf = readFileSync(
-      fileURLToPath(new URL("../src/pdf/report.ts", import.meta.url)),
-      "utf8",
+    const pdfPath = fileURLToPath(
+      new URL("../src/pdf/report.ts", import.meta.url),
     );
+    // Phase 2: services/worker/src/pdf/report.ts (the legacy v1 PDF
+    // builder) was deleted as confirmed dead code (zero live imports;
+    // phase-ia-ots-info-fallback.test.ts already asserts the active
+    // report path does not import it). When the file is absent the
+    // long-technical-sentence assertion is vacuously satisfied — the
+    // sentence cannot appear in a file that does not exist.
+    if (!existsSync(pdfPath)) {
+      expect(existsSync(pdfPath)).toBe(false);
+      return;
+    }
+    const pdf = readFileSync(pdfPath, "utf8");
     expect(pdf).not.toMatch(
       /"Bitcoin transaction detected; anchoring verification pending/,
     );

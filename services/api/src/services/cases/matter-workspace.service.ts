@@ -20,6 +20,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 import {
   computeCaseRisk,
   listCaseEvidenceIds,
@@ -651,8 +652,13 @@ async function runEvidenceBoard(
         verificationStatus: true,
         lifecycleState: true,
         createdAt: true,
-        latestReportVersion: true,
-        verificationPackageVersion: true,
+        _count: {
+          select: {
+            parts: true,
+            reports: true,
+            verificationPackages: true,
+          },
+        },
         // Phase CASES-EVIDENCE-NAMES — expose the same filename
         // columns the Evidence Library / Evidence Detail surfaces
         // use so the Case Detail UI can run the canonical title
@@ -662,7 +668,6 @@ async function runEvidenceBoard(
         displayFileName: true,
         originalFileName: true,
         mimeType: true,
-        _count: { select: { parts: true } },
       },
     });
     // Look up linkId/linkRole/linkSource for the items present so the
@@ -701,8 +706,10 @@ async function runEvidenceBoard(
           : null,
         lifecycleState: e.lifecycleState ? String(e.lifecycleState) : null,
         createdAt: e.createdAt.toISOString(),
-        reportReady: e.latestReportVersion !== null,
-        packageReady: e.verificationPackageVersion !== null,
+        ...deriveCanonicalArtifactAvailability({
+          reportAvailable: e._count.reports > 0,
+          verificationPackageAvailable: e._count.verificationPackages > 0,
+        }),
         linkId: byEv.get(e.id)?.linkId ?? null,
         linkRole: byEv.get(e.id)?.role ? String(byEv.get(e.id)!.role) : null,
         linkSource: byEv.get(e.id)?.source
@@ -1648,7 +1655,7 @@ async function runDeliverables(
         prisma.evidence.count({
           where: {
             id: { in: evidenceIds },
-            verificationPackageVersion: { not: null },
+            verificationPackages: { some: {} },
           },
         }),
       ]);

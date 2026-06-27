@@ -405,8 +405,13 @@ describe("Phase 1B Closure — wiring: verification package + worker", () => {
     expect(WORKER_PROVENANCE_LOADER).toMatch(/projectProvenanceChain/);
   });
   it("processor calls the loader before createVerificationPackage", () => {
+    // Phase 3: the loader→createVerificationPackage gap grew when the
+    // processor started building the canonical-materials snapshot
+    // (packageCanonicalMaterials = buildReportCanonicalMaterials({...}))
+    // between them. The ordering invariant still holds; the window is
+    // widened to accept the additional ~600 characters.
     expect(PROCESSOR).toMatch(
-      /loadProvenanceChainForPackage[\s\S]{0,400}?createVerificationPackage/,
+      /loadProvenanceChainForPackage[\s\S]{0,2000}?createVerificationPackage/,
     );
   });
 });

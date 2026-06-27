@@ -1,3 +1,8 @@
+import type {
+  CanonicalEvidenceMaterials,
+  CanonicalOtsStateMaterial,
+  CanonicalTimestampStateMaterial,
+} from "@proovra/shared";
 import {
   ReportEvidence,
   ReportAnchorSummary,
@@ -190,7 +195,7 @@ export function buildTechnicalIdentityRows(
 }
 
 export function buildTimestampRows(
-  evidence: ReportEvidence,
+  evidence: ReportEvidence | CanonicalTimestampStateMaterial,
   contentSummary?: ReportEvidenceContentSummary
 ): KeyValueRow[] {
   const isMultipart =
@@ -204,11 +209,11 @@ export function buildTimestampRows(
   });
 
   return [
-    { label: "Timestamp Provider", value: safe(evidence.tsaProvider) },
-    { label: "Timestamp URL", value: safe(evidence.tsaUrl) },
-    { label: "Serial Number", value: safe(evidence.tsaSerialNumber) },
-    { label: "Generation Time (UTC)", value: safe(evidence.tsaGenTimeUtc) },
-    { label: "Hash Algorithm", value: safe(evidence.tsaHashAlgorithm) },
+    { label: "Timestamp Provider", value: safe((evidence as ReportEvidence).tsaProvider) },
+    { label: "Timestamp URL", value: safe((evidence as ReportEvidence).tsaUrl) },
+    { label: "Serial Number", value: safe((evidence as ReportEvidence).tsaSerialNumber) },
+    { label: "Generation Time (UTC)", value: safe((evidence as ReportEvidence).tsaGenTimeUtc) },
+    { label: "Hash Algorithm", value: safe((evidence as ReportEvidence).tsaHashAlgorithm) },
     {
       label: "Timestamp Status",
       value: mapTimestampStatusPublicLabel(evidence.tsaStatus),
@@ -220,7 +225,9 @@ export function buildTimestampRows(
   ];
 }
 
-export function buildOtsRows(evidence: ReportEvidence): KeyValueRow[] {
+export function buildOtsRows(
+  evidence: ReportEvidence | CanonicalOtsStateMaterial
+): KeyValueRow[] {
   return [
     {
       label: "OTS Status",
@@ -229,9 +236,18 @@ export function buildOtsRows(evidence: ReportEvidence): KeyValueRow[] {
         bitcoinTxid: evidence.otsBitcoinTxid,
       }),
     },
-    { label: "OTS Calendar", value: safe(evidence.otsCalendar) },
-    { label: "OTS Anchored At (UTC)", value: safe(evidence.otsAnchoredAtUtc) },
-    { label: "OTS Upgraded At (UTC)", value: safe(evidence.otsUpgradedAtUtc) },
+    {
+      label: "OTS Calendar",
+      value: safe((evidence as ReportEvidence).otsCalendar),
+    },
+    {
+      label: "OTS Anchored At (UTC)",
+      value: safe((evidence as ReportEvidence).otsAnchoredAtUtc),
+    },
+    {
+      label: "OTS Upgraded At (UTC)",
+      value: safe((evidence as ReportEvidence).otsUpgradedAtUtc),
+    },
     { label: "OTS Bitcoin TxID", value: safe(evidence.otsBitcoinTxid) },
   ].filter(isMeaningfulTechnicalRow);
 }
@@ -281,6 +297,7 @@ export function buildAnchorRows(
 }
 
 export function buildTechnicalAppendixModel(
+  canonicalMaterials: CanonicalEvidenceMaterials,
   evidence: ReportEvidence,
   externalMode: boolean,
   anchorSummary: ReportAnchorSummary | null,
@@ -309,7 +326,8 @@ export function buildTechnicalAppendixModel(
   ];
 
 const usesCanonicalTimestampDigest =
-  evidence.tsaInputKind != null && evidence.tsaInputKind !== "FILE_SHA256";
+  canonicalMaterials.timestampState.tsaInputKind != null &&
+  canonicalMaterials.timestampState.tsaInputKind !== "FILE_SHA256";
 
 const isMultipart =
   contentSummary.structure === "multipart" || contentSummary.itemCount > 1;
@@ -322,29 +340,29 @@ const recordedDigestLabel =
 const timestampDigestLabel = getTimestampDigestValueLabel({
   structure: contentSummary.structure,
   itemCount: contentSummary.itemCount,
-  tsaInputKind: evidence.tsaInputKind,
+  tsaInputKind: canonicalMaterials.timestampState.tsaInputKind,
 });
     
 const fingerprintRows: KeyValueRow[] = [
   {
     label: recordedDigestLabel,
-    value: safe(evidence.fileSha256),
+    value: safe(canonicalMaterials.fingerprint.fileSha256),
   },
-    {
+  {
     label: "Canonical Fingerprint Hash",
-    value: safe(evidence.fingerprintHash),
+    value: safe(canonicalMaterials.fingerprint.fingerprintHash),
   },
-      {
-      label: "Canonical Fingerprint Record",
-      value: evidence.fingerprintCanonicalJson
-        ? "Recorded in verification package; omitted from PDF to keep the report readable and lightweight"
-        : "Not recorded",
-    },
-  ];
+  {
+    label: "Canonical Fingerprint Record",
+    value: canonicalMaterials.fingerprint.fingerprintCanonicalJsonPresent
+      ? "Recorded in verification package; omitted from PDF to keep the report readable and lightweight"
+      : "Not recorded",
+  },
+];
 
   return {
-    fileSha256: safe(evidence.fileSha256),
-    fingerprintHash: safe(evidence.fingerprintHash),
+    fileSha256: safe(canonicalMaterials.fingerprint.fileSha256),
+    fingerprintHash: safe(canonicalMaterials.fingerprint.fingerprintHash),
     signingKeyReference: buildPublicSigningKeyReference(
       evidence.signingKeyId,
       evidence.signingKeyVersion
@@ -352,33 +370,47 @@ const fingerprintRows: KeyValueRow[] = [
     signatureRows,
     fingerprintRows,
     timestampRows: buildTimestampRows(evidence, contentSummary),
-    anchoringRows: buildOtsRows(evidence).concat(
+    anchoringRows: buildOtsRows(canonicalMaterials.otsState).concat(
       buildAnchorRows(anchorSummary, {
-        otsStatus: evidence.otsStatus,
-        otsBitcoinTxid: evidence.otsBitcoinTxid,
-        otsAnchoredAtUtc: evidence.otsAnchoredAtUtc,
-        otsProofPresent: Boolean(evidence.otsProofBase64),
+        otsStatus:
+          canonicalMaterials.otsState.effectiveStatus ??
+          canonicalMaterials.otsState.otsStatus,
+        otsBitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
+        otsAnchoredAtUtc: canonicalMaterials.otsState.otsAnchoredAtUtc,
+        otsProofPresent: canonicalMaterials.otsState.proofPresent,
       })
     ),
-    timestampStatusLabel: mapTimestampStatusPublicLabel(evidence.tsaStatus),
-    timestampStatusTone: mapTimestampTone(evidence.tsaStatus),
+    timestampStatusLabel: mapTimestampStatusPublicLabel(
+      canonicalMaterials.timestampState.tsaStatus
+    ),
+    timestampStatusTone: mapTimestampTone(
+      canonicalMaterials.timestampState.tsaStatus
+    ),
     otsStatusLabel: mapOtsStatusPublicLabelWithTxid({
-      status: evidence.otsStatus,
-      bitcoinTxid: evidence.otsBitcoinTxid,
+      status:
+        canonicalMaterials.otsState.effectiveStatus ??
+        canonicalMaterials.otsState.otsStatus,
+      bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
     }),
     otsStatusTone:
-      safe(evidence.otsStatus, "").toUpperCase() === "ANCHORED" &&
-      isValidBitcoinTxid(evidence.otsBitcoinTxid)
+      safe(
+        canonicalMaterials.otsState.effectiveStatus ??
+          canonicalMaterials.otsState.otsStatus,
+        ""
+      ).toUpperCase() === "ANCHORED" &&
+      isValidBitcoinTxid(canonicalMaterials.otsState.otsBitcoinTxid)
         ? "success"
-        : mapOtsTone(evidence.otsStatus),
+        : mapOtsTone(canonicalMaterials.otsState.otsStatus),
     tsaMessageImprint: safe(evidence.tsaMessageImprint),
-    tsaInputDigestHex: safe(evidence.tsaInputDigestHex),
-    tsaInputKind: safe(evidence.tsaInputKind),
-    otsHash: safe(evidence.otsHash),
+    tsaInputDigestHex: safe(canonicalMaterials.timestampState.tsaInputDigestHex),
+    tsaInputKind: safe(canonicalMaterials.timestampState.tsaInputKind),
+    otsHash: safe(canonicalMaterials.otsState.otsHash),
     otsDetail: safe(evidence.otsFailureReason, ""),
     anchorHash: safe(anchorSummary?.anchorHash),
 timestampReferenceNote:
-  evidence.tsaTokenBase64 && !externalMode
+  (canonicalMaterials.timestampState.tokenPresent ||
+    ((evidence as ReportEvidence).tsaTokenBase64 ? true : false)) &&
+  !externalMode
     ? usesCanonicalTimestampDigest
       ? `Full RFC 3161 token remains available through the verification package and technical verification endpoint. This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material.`
       : "Full RFC 3161 token remains available through the verification package and technical verification endpoint."

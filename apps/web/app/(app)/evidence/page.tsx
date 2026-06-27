@@ -748,7 +748,7 @@ function EvidenceLibraryPageInner() {
         }
       : {
           label: "Reports ready",
-          value: String(visibleItems.filter((item) => Boolean(item.latestReportVersion)).length),
+          value: String(visibleItems.filter((item) => item.reportReady === true).length),
           tone: "success" as const,
           detail: pageScopeDetail,
         };

@@ -83,6 +83,7 @@ export type EvidenceListItem = {
   identityLevelLabel?: string;
   submittedByEmail: string | null;
   latestReportVersion: number | null;
+  reportReady?: boolean;
   originalFileName: string | null;
   displayFileName: string | null;
   reviewReadyAtUtc: string | null;

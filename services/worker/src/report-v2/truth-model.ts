@@ -1,8 +1,10 @@
 import {
   buildEvidenceTrustDecision,
+  buildCanonicalEvidenceMaterials,
   getTrustDecisionConfidenceLabel,
   hasCoreCryptoMaterials as hasSharedCoreCryptoMaterials,
   isExplicitRecordedIntegrityVerified,
+  type CanonicalEvidenceMaterials,
 } from "@proovra/shared";
 import {
   Tone,
@@ -134,11 +136,13 @@ export function buildLegalLimitationShort(): CalloutModel {
   };
 }
 
-export function buildStorageCallout(evidence: ReportEvidence): CalloutModel {
+export function buildStorageCallout(
+  canonicalMaterials: CanonicalEvidenceMaterials
+): CalloutModel {
   const tone = normalizeStorageTone(
-    evidence.storageImmutable,
-    evidence.storageObjectLockMode,
-    evidence.storageObjectLockRetainUntilUtc
+    canonicalMaterials.storageState.isProtected,
+    canonicalMaterials.storageState.storageObjectLockMode,
+    canonicalMaterials.storageState.storageObjectLockRetainUntilUtc
   );
 
   return {
@@ -162,8 +166,13 @@ export function buildStorageCallout(evidence: ReportEvidence): CalloutModel {
   };
 }
 
-export function buildTimestampCallout(evidence: ReportEvidence): CalloutModel {
-  const tone = normalizeTimestampTone(evidence.tsaStatus);
+export function buildTimestampCallout(
+  canonicalMaterials: CanonicalEvidenceMaterials,
+  failureReason: string | null | undefined
+): CalloutModel {
+  const tone = normalizeTimestampTone(
+    canonicalMaterials.timestampState.tsaStatus
+  );
 
   return {
     title:
@@ -180,29 +189,26 @@ export function buildTimestampCallout(evidence: ReportEvidence): CalloutModel {
         : tone === "warning"
           ? "A trusted timestamp was not finalized in the current report state. The evidence record can still be reviewed using its recorded fingerprint, signature, custody, and storage materials."
           : tone === "danger"
-            ? normalizeTimestampFailureReason(evidence.tsaFailureReason)
+            ? normalizeTimestampFailureReason(failureReason)
             : "No trusted timestamp record was included.",
     tone,
   };
 }
 
-export function buildOtsCallout(evidence: ReportEvidence): CalloutModel {
-  // Tone is txid-aware: "Bitcoin anchoring verified" only when the OTS proof
-  // is ANCHORED AND a valid Bitcoin transaction id is recorded. ANCHORED
-  // without txid is treated as still-pending public anchoring (warning tone).
+export function buildOtsCallout(
+  canonicalMaterials: CanonicalEvidenceMaterials,
+  failureReason: string | null | undefined
+): CalloutModel {
+  const effectiveStatus =
+    canonicalMaterials.otsState.effectiveStatus ??
+    canonicalMaterials.otsState.otsStatus;
   const tone = normalizeBitcoinAnchorTone({
-    status: evidence.otsStatus,
-    bitcoinTxid: evidence.otsBitcoinTxid,
+    status: effectiveStatus,
+    bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
   });
-  const baseStatusTone = normalizeOtsTone(evidence.otsStatus);
-
-  // Phase IA-OTS-hybrid-fix (UX correction) — visible report cards
-  // show SHORT canonical status words: "Anchored" / "Pending" /
-  // "Failed" / "Unavailable". The detailed PENDING+txid prose lives
-  // ONLY in the technical appendix + smoke/debug output via
-  // `mapOtsStatusTechnicalDetail`. The body of this callout still
-  // explains the state in two short sentences so the reader has
-  // enough context without leaking implementation jargon.
+  const baseStatusTone = normalizeOtsTone(
+    canonicalMaterials.otsState.otsStatus
+  );
 
   return {
     title:
@@ -222,10 +228,10 @@ export function buildOtsCallout(evidence: ReportEvidence): CalloutModel {
             : "OpenTimestamps proof material is present, but public anchoring has not finalized yet."
           : tone === "danger"
             ? `OpenTimestamps processing reported a failure state.${safe(
-                evidence.otsFailureReason,
+                failureReason,
                 ""
               )
-                ? ` ${safe(evidence.otsFailureReason)}`
+                ? ` ${safe(failureReason)}`
                 : ""}`.trim()
             : "No public anchoring record was included.",
     tone,
@@ -245,12 +251,12 @@ export function buildReviewSequence(
 }
 
 export function buildIntegrityReadinessSummary(
-  evidence: ReportEvidence
+  canonicalMaterials: CanonicalEvidenceMaterials
 ): string {
   return [
-    mapTimestampStatusPublicLabel(evidence.tsaStatus),
+    mapTimestampStatusPublicLabel(canonicalMaterials.timestampState.tsaStatus),
     safeBooleanLabel(
-      evidence.storageImmutable,
+      canonicalMaterials.storageState.isProtected,
       "Immutable",
       "Review storage",
       "Not reported"
@@ -270,6 +276,107 @@ export function buildAnchorPublicationSummary(
   }
 
   return "Public anchoring unavailable";
+}
+
+/**
+ * Phase 2/3 — produce the canonical evidence materials bundle for the
+ * Report PDF. This is the single chokepoint through which Report-v2
+ * consumes lifecycle truth: reviewer evidence type, OTS effective
+ * status (honesty rule), workspace scope, legal boundary copy, etc.
+ *
+ * Phase 3 sections gradually move from reading raw evidence columns
+ * to reading this bundle. The bundle is sealed at report generation
+ * time — `snapshotSemantics === "report-snapshot-only"` everywhere
+ * by construction (REPORT_SNAPSHOT outputType).
+ */
+export function buildReportCanonicalMaterials(params: {
+  evidence: ReportEvidence;
+  custodyEvents: ReportCustodyEvent[];
+  trustDecision: ReportTrustDecision;
+  snapshotGeneratedAtUtc?: string | Date | null;
+  /**
+   * Defaults to REPORT_SNAPSHOT (the original use-case). The
+   * verification-package builder calls this with
+   * VERIFICATION_PACKAGE_SNAPSHOT so the emitted
+   * `canonical-record.json` carries package-snapshot semantics on
+   * every material.
+   */
+  outputType?:
+    | "REPORT_SNAPSHOT"
+    | "VERIFICATION_PACKAGE_SNAPSHOT"
+    | "OFFLINE_PACKAGE_REVIEW";
+}): CanonicalEvidenceMaterials {
+  const ev = params.evidence;
+  return buildCanonicalEvidenceMaterials({
+    evidence: {
+      id: ev.id,
+      status: ev.status ?? null,
+      verificationStatus: ev.verificationStatus ?? null,
+      captureMethod: ev.captureMethod ?? null,
+      uploadedAtUtc: ev.uploadedAtUtc ?? null,
+      signedAtUtc: ev.signedAtUtc ?? null,
+      recordedIntegrityVerifiedAtUtc:
+        ev.recordedIntegrityVerifiedAtUtc ?? null,
+      fileSha256: ev.fileSha256 ?? null,
+      fingerprintHash: ev.fingerprintHash ?? null,
+      fingerprintCanonicalJsonPresent: Boolean(ev.fingerprintCanonicalJson),
+      hashSemantics:
+        (ev as { hashSemantics?: string | null }).hashSemantics ?? null,
+      multipartManifestSha256:
+        (ev as { multipartManifestSha256?: string | null })
+          .multipartManifestSha256 ?? null,
+      signatureBase64: ev.signatureBase64 ?? null,
+      signingKeyId: ev.signingKeyId ?? null,
+      signingKeyVersion:
+        typeof ev.signingKeyVersion === "number" ? ev.signingKeyVersion : null,
+      tsaStatus: ev.tsaStatus ?? null,
+      tsaTokenBase64Present: Boolean(
+        (ev as { tsaTokenBase64?: string | null }).tsaTokenBase64,
+      ),
+      tsaSerialNumber: ev.tsaSerialNumber ?? null,
+      tsaGenTimeUtc: ev.tsaGenTimeUtc ?? null,
+      tsaInputDigestHex:
+        (ev as { tsaInputDigestHex?: string | null }).tsaInputDigestHex ?? null,
+      tsaInputKind:
+        (ev as { tsaInputKind?: string | null }).tsaInputKind ?? null,
+      storageObjectLockMode: ev.storageObjectLockMode ?? null,
+      storageObjectLockRetainUntilUtc:
+        ev.storageObjectLockRetainUntilUtc ?? null,
+      storageObjectLockLegalHoldStatus:
+        (ev as { storageObjectLockLegalHoldStatus?: string | null })
+          .storageObjectLockLegalHoldStatus ?? null,
+      otsStatus: ev.otsStatus ?? null,
+      otsHash: ev.otsHash ?? null,
+      otsBitcoinTxid: ev.otsBitcoinTxid ?? null,
+      otsAnchoredAtUtc: ev.otsAnchoredAtUtc ?? null,
+      otsUpgradedAtUtc:
+        (ev as { otsUpgradedAtUtc?: string | null }).otsUpgradedAtUtc ?? null,
+      otsProofPresent: Boolean(
+        (ev as { otsProofBase64?: string | null }).otsProofBase64,
+      ),
+      identityLevelSnapshot: ev.identityLevelSnapshot ?? null,
+      workspaceNameSnapshot:
+        (ev as { workspaceNameSnapshot?: string | null })
+          .workspaceNameSnapshot ?? null,
+      organizationNameSnapshot:
+        (ev as { organizationNameSnapshot?: string | null })
+          .organizationNameSnapshot ?? null,
+      organizationVerifiedSnapshot:
+        (ev as { organizationVerifiedSnapshot?: boolean | null })
+          .organizationVerifiedSnapshot ?? null,
+      teamId: (ev as { teamId?: string | null }).teamId ?? null,
+    },
+    team: null,
+    parts: [],
+    custodyEvents: params.custodyEvents.map((e) => ({
+      eventType: e.eventType,
+      atUtc: e.atUtc,
+    })),
+    trustDecision: params.trustDecision,
+    mediaIntelligence: null,
+    outputType: params.outputType ?? "REPORT_SNAPSHOT",
+    snapshotGeneratedAtUtc: params.snapshotGeneratedAtUtc ?? null,
+  });
 }
 
 export function buildTrustDecision(params: {

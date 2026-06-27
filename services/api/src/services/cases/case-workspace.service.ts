@@ -19,6 +19,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
 
@@ -539,8 +540,10 @@ export async function buildCaseWorkspace(input: {
             ? String(e.verificationStatus)
             : null,
           createdAt: e.createdAt.toISOString(),
-          reportReady: reportEvidenceIds.has(e.id),
-          packageReady: packageEvidenceIds.has(e.id),
+          ...deriveCanonicalArtifactAvailability({
+            reportAvailable: reportEvidenceIds.has(e.id),
+            verificationPackageAvailable: packageEvidenceIds.has(e.id),
+          }),
         })),
       };
     }

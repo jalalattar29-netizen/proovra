@@ -63,7 +63,7 @@ export function buildReportAvailability(item: EvidenceListItem, detail?: DetailW
   available: boolean;
   label: string;
 } {
-  const available = Boolean(detail?.report?.url && detail?.report?.generatedAtUtc) || Boolean(item.latestReportVersion);
+  const available = Boolean(detail?.report?.url && detail?.report?.generatedAtUtc) || item.reportReady === true;
   return {
     available,
     label: available ? "Report available" : "Report not recorded",

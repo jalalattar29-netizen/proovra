@@ -229,7 +229,11 @@ describe("report v2 pipeline", () => {
     // admissibility, or evidentiary weight"). The intent — that the
     // cover advises the reader about the report's scope — is what this
     // assertion protects.
-    expect(coverHtml).toContain("does not independently prove truth");
+    // Phase 4 — cover boundary text now comes from the canonical
+    // legal-boundary helper (packages/shared/src/canonical-evidence-materials.ts).
+    // The canonical wording says "does not independently prove factual
+    // truth" which is strictly more precise than the prior "truth".
+    expect(coverHtml).toContain("does not independently prove factual truth");
     expect(coverHtml).not.toContain("court acceptance");
     expect(coverHtml).not.toContain("examiner-grade forensic acquisition");
     expect(html).not.toContain("Evidence Manifest");
@@ -619,7 +623,11 @@ describe("report v2 pipeline", () => {
     // admissibility, or evidentiary weight"). The intent — that the
     // cover advises the reader about the report's scope — is what this
     // assertion protects.
-    expect(coverHtml).toContain("does not independently prove truth");
+    // Phase 4 — cover boundary text now comes from the canonical
+    // legal-boundary helper (packages/shared/src/canonical-evidence-materials.ts).
+    // The canonical wording says "does not independently prove factual
+    // truth" which is strictly more precise than the prior "truth".
+    expect(coverHtml).toContain("does not independently prove factual truth");
     expect(coverHtml).not.toContain("court acceptance");
     expect(coverHtml).not.toContain("examiner-grade forensic acquisition");
     expect(html).toContain("Legal and evidentiary boundary");

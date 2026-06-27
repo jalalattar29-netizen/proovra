@@ -1698,7 +1698,7 @@ function WhatItDoesNot() {
 
 function PrivacyByDesign() {
   return (
-    <section className="bg-[#F7FAFC] py-16 md:py-20">
+    <section className="bg-[#F7FAFC] py-16 md:py-20" data-testid="privacy-notice">
       <div className="mx-auto max-w-[1100px] px-6 md:px-8">
         <div
           className="rounded-[20px] border bg-white p-7 md:p-9"
@@ -1718,9 +1718,8 @@ function PrivacyByDesign() {
               </h2>
               <p className="mt-3 text-[15px] leading-[1.7]" style={{ color: SECTION_MUTED }}>
                 The selected ZIP is read locally in the browser. PROOVRA does
-                not receive the package during offline verification. The only
-                network call this page initiates is the JSZip script load from
-                the pinned CDN with Subresource Integrity.
+                not receive the package during offline verification. JSZip is
+                bundled with the page — the ZIP is never uploaded.
               </p>
               <p className="mt-3 text-[13.5px] leading-[1.65]" style={{ color: SECTION_MUTED }}>
                 You can confirm this in your browser&apos;s network panel: only
@@ -1757,7 +1756,7 @@ function PrivacyByDesign() {
                 {
                   Icon: Eye,
                   title: "Observable in DevTools",
-                  body: "Only the pinned JSZip script and page assets appear in the network panel.",
+                  body: "Only static page assets appear in the network panel — no ZIP upload, no external script.",
                 },
               ].map((p) => (
                 <li

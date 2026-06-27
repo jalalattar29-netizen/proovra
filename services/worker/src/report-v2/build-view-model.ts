@@ -9,6 +9,7 @@ import {
   CAPTURE_LOCATION_STATUS_LABEL,
   buildCaptureLocationDisplayModel,
   buildCaptureLocationPdfFallbackSvg,
+  deriveCanonicalArtifactAvailability,
   evidenceLocationSourceLabel,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
@@ -16,6 +17,7 @@ import {
   hasCaptureLocationMetadata,
   isCompleteOtsAnchor,
 } from "@proovra/shared";
+import type { CanonicalEvidenceMaterials } from "@proovra/shared";
 import type {
   CalloutModel,
   CustodyHashRow,
@@ -85,6 +87,7 @@ import {
   buildStorageCallout,
   buildTimestampCallout,
   buildTrustDecision,
+  buildReportCanonicalMaterials,
   hasCoreCryptoMaterials,
   isIntegrityVerified,
   normalizeStorageTone,
@@ -270,6 +273,7 @@ function normalizeProviderFailure(value: string | null | undefined): string {
 }
 
 function buildExecutiveRows(
+  canonicalMaterials: CanonicalEvidenceMaterials,
   evidence: ReportEvidence,
   structureLabel: string,
   contentSummary: ReportEvidenceContentSummary,
@@ -291,7 +295,9 @@ function buildExecutiveRows(
   add("Evidence Type", mapPublicEvidenceTypeLabel(evidence, contentSummary));
   add(
     "Verification Status",
-    mapVerificationStatusLabel(evidence.verificationStatus)
+    mapVerificationStatusLabel(
+      canonicalMaterials.evidenceRecord.verificationStatus
+    )
   );
   add("Evidence Structure", structureLabel);
   add("Item Count", String(contentSummary.itemCount));
@@ -329,7 +335,7 @@ function buildExecutiveRows(
   add("Organization / Workspace", buildOrganizationDisplay(evidence));
   add(
     "Integrity Verified At (UTC)",
-    safe(evidence.recordedIntegrityVerifiedAtUtc)
+    safe(canonicalMaterials.evidenceRecord.recordedIntegrityVerifiedAtUtc)
   );
 
   return rows;
@@ -432,6 +438,7 @@ async function optimizeEvidencePreviews(
 }
 
 function buildVerificationSummaryRows(
+  canonicalMaterials: CanonicalEvidenceMaterials,
   evidence: ReportEvidence,
   custody: ReturnType<typeof splitCustodyEvents>,
   structureLabel: string,
@@ -451,15 +458,23 @@ function buildVerificationSummaryRows(
   };
 
   add("Evidence Reference", buildPublicEvidenceReference(evidence.id));
-  add("Integrity State", mapVerificationStatusLabel(evidence.verificationStatus));
+  add(
+    "Integrity State",
+    mapVerificationStatusLabel(
+      canonicalMaterials.evidenceRecord.verificationStatus
+    )
+  );
 
   const recordedDigestLabel =
     contentSummary.itemCount > 1
       ? "Canonical Package Digest (SHA-256)"
       : "Original File SHA-256";
 
-  add(recordedDigestLabel, safe(evidence.fileSha256));
-  add("Canonical Fingerprint Hash", safe(evidence.fingerprintHash));
+  add(recordedDigestLabel, safe(canonicalMaterials.fingerprint.fileSha256));
+  add(
+    "Canonical Fingerprint Hash",
+    safe(canonicalMaterials.fingerprint.fingerprintHash)
+  );
 
   if (contentSummary.itemCount > 1 && primaryContentItem?.sha256) {
     add(
@@ -471,32 +486,43 @@ function buildVerificationSummaryRows(
   }
 
   add("Primary MIME Type", safe(contentSummary.primaryMimeType));
-    add("Content Size", formatBytesHuman(evidence.sizeBytes));
+  add("Content Size", formatBytesHuman(evidence.sizeBytes));
   add("Forensic Custody Events", String(custody.forensic.length));
   add(
     "Signature Materials",
-    evidence.signatureBase64 && evidence.signingKeyId
+    canonicalMaterials.fingerprint.signatureBase64 &&
+      canonicalMaterials.fingerprint.signingKeyId
       ? "Recorded"
       : "Incomplete"
   );
   add(
     "Timestamp Status",
-    mapTimestampStatusPublicLabel(evidence.tsaStatus)
+    mapTimestampStatusPublicLabel(canonicalMaterials.timestampState.tsaStatus)
   );
-add(
-  "Anchoring Status",
-  mapOtsStatusPublicLabelWithTxid({
-    status: evidence.otsStatus,
-    bitcoinTxid: evidence.otsBitcoinTxid,
-  })
-);
+  add(
+    "Anchoring Status",
+    mapOtsStatusPublicLabelWithTxid({
+      status:
+        canonicalMaterials.otsState.effectiveStatus ??
+        canonicalMaterials.otsState.otsStatus,
+      bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
+    })
+  );
   add("Last Verified At (UTC)", safe(evidence.lastVerifiedAtUtc));
   add(
     "Last Verified Source",
     mapVerificationSourceLabel(evidence.lastVerifiedSource)
   );
-  add("Storage Lock Mode", mapObjectLockModePublicLabel(evidence.storageObjectLockMode));
-  add("Retention Until (UTC)", safe(evidence.storageObjectLockRetainUntilUtc));
+  add(
+    "Storage Lock Mode",
+    mapObjectLockModePublicLabel(
+      canonicalMaterials.storageState.storageObjectLockMode
+    )
+  );
+  add(
+    "Retention Until (UTC)",
+    safe(canonicalMaterials.storageState.storageObjectLockRetainUntilUtc)
+  );
   add("Report Generated At (UTC)", safe(evidence.reportGeneratedAtUtc));
   add("Evidence Structure", structureLabel);
   add("Previewable Items", String(contentSummary.previewableItemCount));
@@ -537,6 +563,7 @@ function resolveOtsPresentationEvidence(evidence: ReportEvidence): ReportEvidenc
 }
 
 function buildReviewReadinessRows(
+  canonicalMaterials: CanonicalEvidenceMaterials,
   evidence: ReportEvidence,
   custody: ReturnType<typeof splitCustodyEvents>,
   externalMode: boolean
@@ -548,11 +575,15 @@ function buildReviewReadinessRows(
     },
     {
       label: "Verification Status",
-      value: mapVerificationStatusLabel(evidence.verificationStatus),
+      value: mapVerificationStatusLabel(
+        canonicalMaterials.evidenceRecord.verificationStatus
+      ),
     },
     {
       label: "Timestamp Status",
-      value: mapTimestampStatusPublicLabel(evidence.tsaStatus),
+      value: mapTimestampStatusPublicLabel(
+        canonicalMaterials.timestampState.tsaStatus
+      ),
     },
 
 {
@@ -563,14 +594,16 @@ function buildReviewReadinessRows(
 {
   label: "Public Anchoring Status",
   value: mapOtsStatusPublicLabelWithTxid({
-    status: evidence.otsStatus,
-    bitcoinTxid: evidence.otsBitcoinTxid,
+    status:
+      canonicalMaterials.otsState.effectiveStatus ??
+      canonicalMaterials.otsState.otsStatus,
+    bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
   }),
 },
     {
       label: "Immutable Storage",
       value: safeBooleanLabel(
-        evidence.storageImmutable,
+        canonicalMaterials.storageState.isProtected,
         "Verified",
         "Recorded with limitations",
         "Not reported"
@@ -583,10 +616,10 @@ function buildReviewReadinessRows(
     {
       label: "Technical Materials Available",
       value:
-        evidence.fileSha256 &&
-        evidence.fingerprintHash &&
-        evidence.signatureBase64 &&
-        evidence.signingKeyId
+        canonicalMaterials.fingerprint.fileSha256 &&
+        canonicalMaterials.fingerprint.fingerprintHash &&
+        canonicalMaterials.fingerprint.signatureBase64 &&
+        canonicalMaterials.fingerprint.signingKeyId
           ? "Yes"
           : "Incomplete",
     },
@@ -711,25 +744,30 @@ function buildEvidenceContentSummaryRows(
 }
 
 function buildStorageRows(
-  evidence: ReportEvidence,
-  anchorSummary: ReportAnchorSummary | null
+  canonicalMaterials: CanonicalEvidenceMaterials,
+  anchorSummary: ReportAnchorSummary | null,
+  evidence: ReportEvidence
 ): KeyValueRow[] {
   const rows: KeyValueRow[] = [
     { label: "Storage Region", value: safe(evidence.storageRegion) },
     {
       label: "Storage Protection Mode",
-      value: mapObjectLockModePublicLabel(evidence.storageObjectLockMode),
+      value: mapObjectLockModePublicLabel(
+        canonicalMaterials.storageState.storageObjectLockMode
+      ),
     },
-{
-  label: "Protected from modification until",
-  value: evidence.storageObjectLockRetainUntilUtc
-    ? `${new Date(evidence.storageObjectLockRetainUntilUtc).toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })} (${evidence.storageObjectLockRetainUntilUtc})`
-    : "Not recorded",
-},
+    {
+      label: "Protected from modification until",
+      value: canonicalMaterials.storageState.storageObjectLockRetainUntilUtc
+        ? `${new Date(
+            canonicalMaterials.storageState.storageObjectLockRetainUntilUtc
+          ).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })} (${canonicalMaterials.storageState.storageObjectLockRetainUntilUtc})`
+        : "Not recorded",
+    },
     {
       label: "Legal Hold",
       value: safe(evidence.storageObjectLockLegalHoldStatus, "OFF"),
@@ -737,7 +775,7 @@ function buildStorageRows(
     {
       label: "Immutable Storage",
       value: safeBooleanLabel(
-        evidence.storageImmutable,
+        canonicalMaterials.storageState.isProtected,
         "Verified",
         "Recorded with limitations",
         "Not reported"
@@ -756,15 +794,19 @@ function buildStorageRows(
     },
     {
       label: "RFC 3161 Status",
-      value: mapTimestampStatusPublicLabel(evidence.tsaStatus),
+      value: mapTimestampStatusPublicLabel(
+        canonicalMaterials.timestampState.tsaStatus
+      ),
     },
-{
-  label: "Public Anchoring Status",
-  value: mapOtsStatusPublicLabelWithTxid({
-    status: evidence.otsStatus,
-    bitcoinTxid: evidence.otsBitcoinTxid,
-  }),
-},
+    {
+      label: "Public Anchoring Status",
+      value: mapOtsStatusPublicLabelWithTxid({
+        status:
+          canonicalMaterials.otsState.effectiveStatus ??
+          canonicalMaterials.otsState.otsStatus,
+        bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
+      }),
+    },
     {
       label: "RFC 3161 Note",
       value: normalizeProviderFailure(evidence.tsaFailureReason),
@@ -1038,6 +1080,7 @@ function buildForensicIntegrityStatementModel(
 }
 
 function buildTechnicalAppendixCourtRows(params: {
+  canonicalMaterials: CanonicalEvidenceMaterials;
   evidence: ReportEvidence;
   structureLabel: string;
   contentSummary: ReportEvidenceContentSummary;
@@ -1072,15 +1115,15 @@ function buildTechnicalAppendixCourtRows(params: {
     },
     {
   label: "File Digest Present",
-  value: params.evidence.fileSha256 ? "Yes" : "No",
+  value: params.canonicalMaterials.fingerprint.fileSha256 ? "Yes" : "No",
 },
 {
   label: "Canonical Fingerprint Present",
-  value: params.evidence.fingerprintHash ? "Yes" : "No",
+  value: params.canonicalMaterials.fingerprint.fingerprintHash ? "Yes" : "No",
 },
 {
   label: "Signature Present",
-  value: params.evidence.signatureBase64 ? "Yes" : "No",
+  value: params.canonicalMaterials.fingerprint.signatureBase64 ? "Yes" : "No",
 },
 {
   label: "Public Key Reference",
@@ -1153,7 +1196,7 @@ function buildTechnicalAppendixCourtRows(params: {
     {
       label: "Immutable Storage",
       value: safeBooleanLabel(
-        params.evidence.storageImmutable,
+        params.canonicalMaterials.storageState.isProtected,
         "Verified",
         "Recorded with limitations",
         "Not reported"
@@ -1253,10 +1296,23 @@ export async function buildReportViewModel(
   const custody = splitCustodyEvents(input.custodyEvents);
   const otsEvidence = resolveOtsPresentationEvidence(input.evidence);
   const integrityVerified = isIntegrityVerified(input.evidence);
-const trustDecision = buildTrustDecision({
-  evidence: otsEvidence,
-  custodyEvents: custody.forensic,
-});
+  const trustDecision = buildTrustDecision({
+    evidence: otsEvidence,
+    custodyEvents: custody.forensic,
+  });
+  // Phase 2/3 — seal canonical evidence materials at report generation
+  // time. The bundle is the single chokepoint through which Report-v2
+  // consumes lifecycle truth (reviewer evidence type, OTS effective
+  // status / honesty rule, workspace scope, legal boundary copy).
+  // Every material carries `snapshotSemantics: "report-snapshot-only"`
+  // because outputType is REPORT_SNAPSHOT — the report cannot
+  // accidentally drift to live state.
+  const canonicalMaterials = buildReportCanonicalMaterials({
+    evidence: otsEvidence,
+    custodyEvents: input.custodyEvents,
+    trustDecision,
+    snapshotGeneratedAtUtc: input.generatedAtUtc,
+  });
   const reviewGuidance = resolveReviewGuidance(
     input.evidence,
     contentSummary.itemCount,
@@ -1309,11 +1365,13 @@ const primaryContentItem = resolvePrimaryContentItem(
     forensicEventCount: custody.forensic.length,
   });
 
-  const timestampTone = normalizeTimestampTone(input.evidence.tsaStatus);
+  const timestampTone = normalizeTimestampTone(
+    canonicalMaterials.timestampState.tsaStatus
+  );
   const storageTone = normalizeStorageTone(
-    input.evidence.storageImmutable,
-    input.evidence.storageObjectLockMode,
-    input.evidence.storageObjectLockRetainUntilUtc
+    canonicalMaterials.storageState.isProtected,
+    canonicalMaterials.storageState.storageObjectLockMode,
+    canonicalMaterials.storageState.storageObjectLockRetainUntilUtc
   );
   const storageAndTimestampTone =
     timestampTone === "danger" || storageTone === "danger"
@@ -1358,7 +1416,7 @@ const primaryContentItem = resolvePrimaryContentItem(
     },
     {
       label: "Storage & Timestamp",
-      value: buildIntegrityReadinessSummary(input.evidence),
+      value: buildIntegrityReadinessSummary(canonicalMaterials),
       tone: storageAndTimestampTone,
     },
     {
@@ -1374,16 +1432,17 @@ const primaryContentItem = resolvePrimaryContentItem(
   ];
 
 const technicalAppendix = buildTechnicalAppendixModel(
+  canonicalMaterials,
   otsEvidence,
   externalMode,
   anchorSummary,
   contentSummary
 );
 
-const verificationPackageAvailable = Boolean(
-  input.evidence.verificationPackageVersion ||
-    input.evidence.verificationPackageGeneratedAtUtc
-);
+const { packageReady: verificationPackageAvailable } = deriveCanonicalArtifactAvailability({
+  verificationPackageVersion: input.evidence.verificationPackageVersion,
+  verificationPackageGeneratedAtUtc: input.evidence.verificationPackageGeneratedAtUtc,
+});
 
 // Phase D Blocker 3 — per-artifact completeness must come from the
 // per-artifact presence record persisted by the worker at package
@@ -1580,10 +1639,14 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     evidenceReference: buildPublicEvidenceReference(input.evidence.id),
     recordStatusLabel: mapRecordStatusLabel(input.evidence.status),
     verificationStatusLabel: mapVerificationStatusLabel(
-      input.evidence.verificationStatus
+      canonicalMaterials.evidenceRecord.verificationStatus
     ),
     integrityVerified,
     trustDecision,
+    // Phase 2/3 — canonical materials snapshot. Renderers consume this
+    // for reviewer-evidence-type, OTS effective status, workspace
+    // scope, legal boundary copy. Sealed at report-snapshot time.
+    canonicalMaterials,
     anchorSummary,
     verificationPackageIntegrity,
     executiveConclusion,
@@ -1594,22 +1657,25 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     heroCards,
 
     executiveRows: buildExecutiveRows(
+      canonicalMaterials,
       input.evidence,
       structureLabel,
       contentSummary,
       primaryContentItem,
       externalMode
     ),
-verificationSummaryRows: buildVerificationSummaryRows(
-  otsEvidence,
-  custody,
-  structureLabel,
-  contentSummary,
-  primaryContentItem,
-  externalMode
-),
+    verificationSummaryRows: buildVerificationSummaryRows(
+      canonicalMaterials,
+      input.evidence,
+      custody,
+      structureLabel,
+      contentSummary,
+      primaryContentItem,
+      externalMode
+    ),
     reviewReadinessRows: buildReviewReadinessRows(
-      otsEvidence,
+      canonicalMaterials,
+      input.evidence,
       custody,
       externalMode
     ),
@@ -1672,11 +1738,11 @@ verificationSummaryRows: buildVerificationSummaryRows(
         : null,
     ].filter(Boolean) as ReportViewModel["certificationBlocks"],
 
-    storageRows: buildStorageRows(otsEvidence, anchorSummary),
+    storageRows: buildStorageRows(canonicalMaterials, anchorSummary, input.evidence),
     storageCallouts: [
-      buildStorageCallout(input.evidence),
-      buildTimestampCallout(input.evidence),
-      buildOtsCallout(otsEvidence),
+      buildStorageCallout(canonicalMaterials),
+      buildTimestampCallout(canonicalMaterials, input.evidence.tsaFailureReason),
+      buildOtsCallout(canonicalMaterials, otsEvidence.otsFailureReason),
     ],
 
     forensicRows: buildTimelineRows(custody.forensic),
@@ -1727,18 +1793,14 @@ verificationSummaryRows: buildVerificationSummaryRows(
         contentSummary
       ),
       reviewReadinessSummary: buildReviewReadinessRows(
-        otsEvidence,
+        canonicalMaterials,
+        input.evidence,
         custody,
         externalMode
       ),
-      timestampRows: buildTimestampRows(input.evidence, contentSummary),
-      otsRows: buildOtsRows(otsEvidence),
-      anchorRows: buildAnchorRows(anchorSummary, {
-        otsStatus: otsEvidence.otsStatus,
-        otsBitcoinTxid: otsEvidence.otsBitcoinTxid,
-        otsAnchoredAtUtc: otsEvidence.otsAnchoredAtUtc,
-        otsProofPresent: Boolean(otsEvidence.otsProofBase64),
-      }),
+      timestampRows: buildTimestampRows(canonicalMaterials.timestampState, contentSummary),
+      otsRows: buildOtsRows(canonicalMaterials.otsState),
+      anchorRows: buildAnchorRows(anchorSummary, canonicalMaterials.otsState),
       signingKeyReference: buildPublicSigningKeyReference(
         input.evidence.signingKeyId,
         input.evidence.signingKeyVersion
@@ -1758,6 +1820,7 @@ verificationSummaryRows: buildVerificationSummaryRows(
         input.evidence.lastVerifiedSource
       ),
 courtAppendixRows: buildTechnicalAppendixCourtRows({
+  canonicalMaterials,
   evidence: otsEvidence,
   structureLabel,
   contentSummary,
@@ -1770,7 +1833,7 @@ courtAppendixRows: buildTechnicalAppendixCourtRows({
         input.evidence.signingKeyVersion
       ),
       tsaMessageImprint: input.evidence.tsaMessageImprint ?? "N/A",
-      otsHash: otsEvidence.otsHash ?? "N/A",
+      otsHash: canonicalMaterials.otsState.otsHash ?? "N/A",
       anchorHash: anchorSummary?.anchorHash ?? "N/A",
     },
   };

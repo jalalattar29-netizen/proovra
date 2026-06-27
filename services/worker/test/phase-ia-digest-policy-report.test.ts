@@ -67,18 +67,24 @@ describe("Phase IA-digest-policy — technical model sources digests from persis
     );
   });
 
-  it("tsaInputDigestHex is read from evidence.tsaInputDigestHex", () => {
+  it("tsaInputDigestHex is sourced from canonical timestamp state material", () => {
+    // The technical-model now routes through canonicalMaterials.timestampState
+    // (canonical projection) rather than reading evidence.* directly.
     expect(MODEL).toMatch(
-      /tsaInputDigestHex:\s*safe\(evidence\.tsaInputDigestHex\)/,
+      /tsaInputDigestHex:\s*safe\(canonicalMaterials\.timestampState\.tsaInputDigestHex\)/,
     );
   });
 
-  it("tsaInputKind is read from evidence.tsaInputKind", () => {
-    expect(MODEL).toMatch(/tsaInputKind:\s*safe\(evidence\.tsaInputKind\)/);
+  it("tsaInputKind is sourced from canonical timestamp state material", () => {
+    expect(MODEL).toMatch(
+      /tsaInputKind:\s*safe\(canonicalMaterials\.timestampState\.tsaInputKind\)/,
+    );
   });
 
-  it("otsHash is read from evidence.otsHash", () => {
-    expect(MODEL).toMatch(/otsHash:\s*safe\(evidence\.otsHash\)/);
+  it("otsHash is sourced from canonical OTS state material", () => {
+    expect(MODEL).toMatch(
+      /otsHash:\s*safe\(canonicalMaterials\.otsState\.otsHash\)/,
+    );
   });
 
   it("NEVER reads fileSha256 as a TSA digest source", () => {
@@ -104,8 +110,11 @@ describe("Phase IA-digest-policy — verification snapshot manifest sources dige
     );
   });
 
-  it("snapshot manifest otsHash is sourced from the OTS-evidence projection", () => {
-    expect(SNAPSHOT_BUILDER).toMatch(/otsHash:\s*otsEvidence\.otsHash/);
+  it("snapshot manifest otsHash is sourced from canonical OTS state material", () => {
+    // build-view-model now routes through canonicalMaterials.otsState
+    expect(SNAPSHOT_BUILDER).toMatch(
+      /otsHash:\s*canonicalMaterials\.otsState\.otsHash/,
+    );
   });
 
   it("snapshot manifest never re-derives a TSA digest from fileSha256", () => {

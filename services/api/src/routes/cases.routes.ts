@@ -9,6 +9,7 @@ import { getObjectStream } from "../storage.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
+import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import {
@@ -1329,9 +1330,13 @@ export async function casesRoutes(app: FastifyInstance) {
           status: true,
           verificationStatus: true,
           createdAt: true,
-          latestReportVersion: true,
-          verificationPackageVersion: true,
-          _count: { select: { parts: true } },
+          _count: {
+            select: {
+              parts: true,
+              reports: true,
+              verificationPackages: true,
+            },
+          },
         },
       });
 
@@ -1348,8 +1353,10 @@ export async function casesRoutes(app: FastifyInstance) {
           ? String(e.verificationStatus)
           : null,
         createdAt: e.createdAt.toISOString(),
-        reportReady: e.latestReportVersion !== null,
-        packageReady: e.verificationPackageVersion !== null,
+        ...deriveCanonicalArtifactAvailability({
+          reportAvailable: e._count.reports > 0,
+          verificationPackageAvailable: e._count.verificationPackages > 0,
+        }),
       }));
 
       auditCaseAction(req, {

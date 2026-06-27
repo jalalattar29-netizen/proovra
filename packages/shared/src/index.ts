@@ -2143,3 +2143,90 @@ export * from "./evidence-digest-policy.js";
 // To use the custody hash helpers:
 //   import { buildCustodyEventHash, canonicalJsonValue } from "@proovra/shared/custody-hash";
 // -----------------------------------------------------------------------------
+
+// PROOVRA Phase 1 — Evidence Lifecycle Contract.
+// Single canonical contract for the 14 lifecycle steps (capture →
+// publish → anchor). NOT a new truth layer; every "material" here is a
+// pointer to an existing fact (Evidence column, CustodyEvent type,
+// Report/VerificationPackage row). Read-only helpers; no DB writes.
+// See packages/shared/src/evidence-lifecycle-contract.ts.
+export {
+  EVIDENCE_LIFECYCLE_STEPS,
+  EVIDENCE_LIFECYCLE_EVENT_NAMES,
+  EVIDENCE_LIFECYCLE_MATERIALS,
+  EVIDENCE_LIFECYCLE_FAILURE_CODES,
+  EVIDENCE_LIFECYCLE_SNAPSHOT_SEMANTICS,
+  EVIDENCE_LIFECYCLE_OUTPUT_TYPES,
+  getLifecycleStepDefinition,
+  listEvidenceLifecycleSteps,
+  validateLifecycleStepInputs,
+  deriveLifecycleMaterialAvailability,
+  deriveLifecycleReadinessForOutput,
+  getOutputRequirements,
+} from "./evidence-lifecycle-contract.js";
+export type {
+  EvidenceLifecycleStep,
+  EvidenceLifecycleEventName,
+  EvidenceLifecycleMaterial,
+  EvidenceLifecycleFailureCode,
+  EvidenceLifecycleSnapshotSemantic,
+  EvidenceLifecycleOutputType,
+  EvidenceLifecycleStepDefinition,
+  LifecycleMaterialPresenceMap,
+  LifecycleStepInputValidation,
+  LifecycleOutputReadiness,
+} from "./evidence-lifecycle-contract.js";
+
+// PROOVRA Phase 2 — Canonical Evidence Materials.
+// Pure, read-only projection of existing lifecycle facts into one
+// typed bundle that Report PDF, Verification Package, Public Verify,
+// and internal projections all consume. NOT a new truth layer.
+// See packages/shared/src/canonical-evidence-materials.ts.
+export {
+  CANONICAL_SNAPSHOT_LIVE_SEMANTICS,
+  CANONICAL_WORKSPACE_SCOPES,
+  CANONICAL_OUTPUT_TYPES,
+  deriveCanonicalWorkspaceScope,
+  describeCanonicalWorkspaceScope,
+  buildCanonicalEvidenceMaterials,
+  buildCanonicalEvidenceMaterialsWithTrustInput,
+  buildCanonicalEvidenceRecord,
+  buildCanonicalFingerprintMaterial,
+  buildCanonicalPartIndex,
+  buildCanonicalCustodySnapshot,
+  buildCanonicalIdentitySnapshot,
+  buildCanonicalTimestampState,
+  buildCanonicalStorageState,
+  buildCanonicalOtsState,
+  buildCanonicalMediaIntelligenceSnapshot,
+  buildCanonicalTrustDecisionMaterial,
+  buildCanonicalLegalBoundaryMaterial,
+  deriveCanonicalMaterialAvailability,
+  deriveCanonicalArtifactAvailability,
+  deriveCanonicalOutputContext,
+} from "./canonical-evidence-materials.js";
+export type {
+  CanonicalSnapshotLiveSemantics,
+  CanonicalWorkspaceScope,
+  CanonicalWorkspaceScopeInput,
+  CanonicalOutputType,
+  CanonicalOutputContext,
+  CanonicalEvidenceRecord,
+  CanonicalFingerprintMaterial,
+  CanonicalPartIndexEntry,
+  CanonicalPartIndexMaterial,
+  CanonicalCustodySnapshotMaterial,
+  CanonicalIdentitySnapshotMaterial,
+  CanonicalTimestampStateMaterial,
+  CanonicalStorageStateMaterial,
+  CanonicalOtsStateMaterial,
+  CanonicalMediaIntelligenceSnapshotMaterial,
+  CanonicalTrustDecisionMaterial,
+  CanonicalLegalBoundaryMaterial,
+  CanonicalMaterialIssue,
+  CanonicalMaterialIssueSeverity,
+  CanonicalMaterialAvailability,
+  CanonicalEvidenceMaterials,
+  CanonicalMaterialsBuildInput,
+  EvidenceTrustDecision,
+} from "./canonical-evidence-materials.js";

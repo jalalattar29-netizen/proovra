@@ -304,9 +304,13 @@ test("Backend /v1/cases/:id/available-evidence selects the filename fields the p
     "originalFileName: true",
     "mimeType: true",
     "verificationStatus: true",
-    "latestReportVersion: true",
-    "verificationPackageVersion: true",
-    "_count: { select: { parts: true } }",
+    // readiness now uses _count.reports / _count.verificationPackages
+    // via deriveCanonicalArtifactAvailability — latestReportVersion and
+    // verificationPackageVersion no longer needed in the Prisma select.
+    "reports: true",
+    "verificationPackages: true",
+    // _count.select is multi-line; check for parts individually
+    "parts: true",
   ]) {
     assert.ok(
       window.includes(field),

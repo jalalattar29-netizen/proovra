@@ -320,6 +320,7 @@ describe("Phase M1.1 — public mount on apps/web", () => {
   it("privacy notice is present and prominent", () => {
     expect(page).toContain('data-testid="privacy-notice"');
     expect(page).toContain("never uploaded");
+    expect(page).toContain("PROOVRA does");
   });
 
   it("file input + verify button + download button exposed", () => {
@@ -337,10 +338,12 @@ describe("Phase M1.1 — public mount on apps/web", () => {
     expect(page).toContain("Historical verification (signing-time material)");
   });
 
-  it("JSZip CDN URL is pinned with Subresource Integrity", () => {
-    expect(page).toContain("jszip@3.10.1");
-    expect(page).toContain("integrity={JSZIP_INTEGRITY}");
-    expect(page).toContain("sha384-");
+  it("JSZip is bundled via npm (no external CDN)", () => {
+    // Phase 2026-06-25: CDN replaced with local npm import
+    expect(page).toContain('import JSZip from "jszip"');
+    expect(page).not.toContain("JSZIP_INTEGRITY");
+    // no runtime CDN script tag (comment mentions jsdelivr but no script element)
+    expect(page).not.toMatch(/<script[^>]*jsdelivr/);
   });
 
   it("page never fetches the file to PROOVRA", () => {

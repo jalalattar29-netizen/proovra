@@ -530,6 +530,41 @@ export type VerifyResponse = {
   } | null;
   verificationSnapshot?: VerifySnapshotSection;
   liveAnchoring?: VerifyLiveAnchoring;
+  /**
+   * Phase 2 canonical OutputContext shape. The public verify endpoint
+   * is a PUBLIC_VERIFY_LIVE output; this carries the snapshot vs live
+   * semantics that the hero card and live-delta affordances render.
+   */
+  outputContext?: {
+    outputType:
+      | "REPORT_SNAPSHOT"
+      | "VERIFICATION_PACKAGE_SNAPSHOT"
+      | "PUBLIC_VERIFY_LIVE"
+      | "INTERNAL_OPERATIONAL_PROJECTION"
+      | "OFFLINE_PACKAGE_REVIEW";
+    isSnapshotOutput: boolean;
+    isLiveOutput: boolean;
+    snapshotGeneratedAtUtc?: string | null;
+    liveObservedAtUtc?: string | null;
+    liveDeltaMaterials?: ReadonlyArray<string>;
+    legalBoundary?: string;
+  } | null;
+  /**
+   * Phase 0 audit field — which artifact actually sourced the verdict.
+   * Already emitted by services/api/src/routes/evidence.routes.ts.
+   */
+  trustDecisionSource?:
+    | "REPORT_SNAPSHOT"
+    | "VERIFICATION_PACKAGE_SNAPSHOT"
+    | "LIVE_SHARED_FALLBACK"
+    | "UNAVAILABLE"
+    | null;
+  trustDecisionSnapshot?: {
+    reportVersion?: number | null;
+    reportGeneratedAtUtc?: string | null;
+    verificationPackageVersion?: number | null;
+    verificationPackageGeneratedAtUtc?: string | null;
+  } | null;
   verificationStatus?: string | null;
   captureMethod?: string | null;
   identityLevelSnapshot?: string | null;

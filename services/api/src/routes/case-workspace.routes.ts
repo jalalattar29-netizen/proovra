@@ -18,6 +18,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { getAuthUserId } from "../auth.js";
+import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -825,8 +826,12 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
           verificationStatus: true,
           lifecycleState: true,
           createdAt: true,
-          latestReportVersion: true,
-          verificationPackageVersion: true,
+          _count: {
+            select: {
+              reports: true,
+              verificationPackages: true,
+            },
+          },
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: limit + 1,
@@ -857,8 +862,10 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
             : null,
           lifecycleState: e.lifecycleState ? String(e.lifecycleState) : null,
           createdAt: e.createdAt.toISOString(),
-          reportReady: e.latestReportVersion !== null,
-          packageReady: e.verificationPackageVersion !== null,
+          ...deriveCanonicalArtifactAvailability({
+            reportAvailable: e._count.reports > 0,
+            verificationPackageAvailable: e._count.verificationPackages > 0,
+          }),
           alreadyLinked: linkedSet.has(e.id),
           existingLinkRole: linkedRoleByEv.get(e.id) ?? null,
         })),

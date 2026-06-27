@@ -2,7 +2,10 @@ import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
 import type { ReportTrustDecision } from "./report-v2/types.js";
-import { buildTrustDecision } from "./report-v2/truth-model.js";
+import {
+  buildTrustDecision,
+  buildReportCanonicalMaterials,
+} from "./report-v2/truth-model.js";
 import type {
   Prisma,
   CertificationType,
@@ -173,6 +176,15 @@ type IdentitySnapshot = {
   organizationNameSnapshot: string | null;
   organizationVerifiedSnapshot: boolean | null;
   reviewerSummaryVersion: number;
+  /**
+   * Phase 2 canonical workspace-scope inputs captured at preparation
+   * time. `workspaceIsPersonal=true` means the attached Team row is
+   * a personal-account workspace; non-null `teamId` alone is NOT a
+   * signal of enterprise team governance because personal workspaces
+   * are stored as Team rows.
+   */
+  workspaceIsPersonal: boolean | null;
+  workspaceLabelAtPackageTime: string | null;
 };
 
 type ReportCertificationSnapshot = {
@@ -2069,6 +2081,7 @@ async function prepareReportArtifacts(
         legalName: string | null;
         evidenceWorkspaceLabel: string | null;
         verificationState: prismaPkg.OrganizationVerificationState | null;
+        isPersonal: boolean;
       }
     | null = null;
 
@@ -2082,6 +2095,14 @@ async function prepareReportArtifacts(
         evidenceWorkspaceLabel: true,
         verificationState: true,
         retentionPolicy: true,
+        // Phase 2 canonical workspace scope — `Team.isPersonal=true`
+        // means this is a personal-account workspace, not enterprise
+        // team governance. The legacy "teamId truthy = team_governed"
+        // derivation in verification-package.ts is misleading because
+        // every record has a teamId (personal workspaces are stored
+        // as Team rows). We surface `isPersonal` so the package can
+        // emit a correct canonical workspace scope.
+        isPersonal: true,
       },
     });
   }
@@ -2464,6 +2485,12 @@ captureMethod: deriveReportCaptureMethod({
       workspaceTeam?.legalName ?? workspaceTeam?.name ?? null,
     organizationVerifiedSnapshot: workspaceVerified,
     reviewerSummaryVersion: provisionalVersion,
+    // Phase 2 — canonical workspace-scope inputs captured at prep time.
+    workspaceIsPersonal: workspaceTeam?.isPersonal ?? null,
+    workspaceLabelAtPackageTime:
+      workspaceTeam?.evidenceWorkspaceLabel ??
+      workspaceTeam?.name ??
+      null,
   };
 
   const reviewGuidance = buildReportReviewGuidance({
@@ -3554,8 +3581,41 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
         const verificationPackageProvenanceChain =
           await loadProvenanceChainForPackage(prepared.evidenceId);
 
+        // Phase 3 — canonical evidence materials sealed at
+        // verification-package generation time. The bundle is the
+        // single self-describing snapshot of every lifecycle
+        // material; it lands inside the ZIP as
+        // `canonical-record.json`. Every section's
+        // `snapshotSemantics` is `package-snapshot-only` because
+        // outputType = VERIFICATION_PACKAGE_SNAPSHOT.
+        const packageCanonicalMaterials = buildReportCanonicalMaterials({
+          evidence: prepared.reportEvidencePayload,
+          custodyEvents: prepared.custodyForVerificationPackage.map((e) => ({
+            sequence: e.sequence,
+            atUtc: e.atUtc,
+            eventType: e.eventType,
+            payloadSummary: "",
+            prevEventHash: e.prevEventHash ?? null,
+            eventHash: e.eventHash ?? null,
+          })),
+          trustDecision: finalized.finalizedTrustDecision,
+          snapshotGeneratedAtUtc: prepared.now,
+          outputType: "VERIFICATION_PACKAGE_SNAPSHOT",
+        });
+
         const finalizedVerificationPackage = await createVerificationPackage({
           teamId: evidence.teamId ?? undefined,
+          // Phase 2 canonical workspace scope inputs. `isPersonalTeam`
+          // is the only correct way to distinguish personal vs team
+          // workspaces (teamId is always non-null for normal flows).
+          // Sourced from `prepared.identitySnapshot` because the team
+          // is loaded inside the prepare phase, not here.
+          isPersonalTeam: prepared.identitySnapshot.workspaceIsPersonal,
+          workspaceLabelAtPackageTime:
+            prepared.identitySnapshot.workspaceLabelAtPackageTime ??
+            prepared.identitySnapshot.workspaceNameSnapshot ??
+            null,
+          canonicalMaterials: packageCanonicalMaterials,
           intelligence: verificationPackageIntelligence,
           provenanceChain: verificationPackageProvenanceChain,
           evidenceFiles: prepared.verificationEvidenceFiles,

@@ -46,6 +46,13 @@ describe("evidence detail enterprise integrity backend contract", () => {
     expect(SRC).toMatch(/artifactStatus,/);
   });
 
+  it("review-workspace response sources hero legalBoundary from the canonical shared material", () => {
+    expect(SRC).toMatch(/legalBoundary:\s*buildCanonicalLegalBoundaryMaterial\(\)\.reportBoundary,/);
+    expect(SRC).not.toContain(
+      "PROOVRA verifies the recorded integrity state of evidence records and supporting technical materials. It does not independently establish factual truth, authorship, identity, legal admissibility, or evidentiary weight.",
+    );
+  });
+
   it("review-workspace preservation matrix carries OTS freshness fields", () => {
     const idx = SRC.indexOf("preservationMatrix:");
     expect(idx).toBeGreaterThan(-1);

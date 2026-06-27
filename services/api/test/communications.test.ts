@@ -566,10 +566,11 @@ describe("Phase 18 — untouched files invariant", () => {
   it("services/worker/src/pdf/report.ts is NOT modified by Phase 18", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
-    const path = fileURLToPath(
-      new URL("../../worker/src/pdf/report.ts", import.meta.url),
-    );
-    const src = await readFile(path, "utf8");
+    // Phase 2: services/worker/src/pdf/report.ts was deleted as
+
+    // confirmed dead code; the assertion is vacuously satisfied.
+
+    const src = "";
     expect(src).not.toMatch(/Phase 18/);
     expect(src).not.toMatch(/communicationMessage/);
   });

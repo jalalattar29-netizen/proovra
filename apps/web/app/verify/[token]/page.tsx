@@ -108,13 +108,13 @@ type _MediaIntelligenceAdvisoryField = {
 };
 
 const VERIFY_BRAND = {
-  ink: "#10201d",
-  accent: "#0b2e27",
+  ink: "#071A3A",
+  accent: "#071A3A",
   accent2: "#12315A",
-  muted: "rgba(16, 32, 29, 0.68)",
-  subtle: "rgba(11, 46, 39, 0.72)",
-  line: "rgba(12, 28, 25, 0.18)",
-  softLine: "rgba(12, 28, 25, 0.12)",
+  muted: "rgba(7, 26, 58, 0.68)",
+  subtle: "rgba(7, 26, 58, 0.72)",
+  line: "rgba(7, 26, 58, 0.18)",
+  softLine: "rgba(7, 26, 58, 0.12)",
   glass: "rgba(255, 255, 255, 0.58)",
   glassStrong: "rgba(255, 255, 255, 0.74)",
   silver: "#eef1ef",
@@ -1556,9 +1556,16 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     return {
       status: "verified",
       title: "Final Verification Verdict",
-      label: publicAnchoringPending
-        ? "Recorded integrity verified; publication pending"
-        : "Recorded integrity verified",
+      // Phase 2 closure — prefer the canonical verdict label from the
+      // shared trust-decision module. The previous hardcoded strings
+      // duplicated `decision.verdictLabel` from packages/shared, which
+      // could drift if the canonical wording ever changed. The fallback
+      // only runs when no trustDecision was provided (legacy callers).
+      label: input.trustDecision
+        ? getTrustDecisionLabel(input.trustDecision)
+        : publicAnchoringPending
+          ? "Recorded integrity verified; publication pending"
+          : "Recorded integrity verified",
       riskLevel: publicAnchoringPending ? "Medium" : "Low",
       actionRequired:
         publicAnchoringPending
@@ -1900,6 +1907,103 @@ function buildMismatchExplanations(params: {
   }
 
   return explanations;
+}
+
+/**
+ * Phase 2 closure — render the canonical OutputContext under the verdict
+ * card. Reviewers see at a glance whether the verdict is a sealed
+ * snapshot (REPORT / VERIFICATION_PACKAGE) or live, the snapshot's
+ * generated-at timestamp, when the live view was observed, and which
+ * materials may have advanced since the snapshot was sealed (live
+ * delta). Pure additive surface; no existing element changed.
+ */
+function OutputContextBadge({
+  outputContext,
+}: {
+  outputContext: NonNullable<VerifyResponse["outputContext"]>;
+}) {
+  const sourceLabel: Record<string, string> = {
+    REPORT_SNAPSHOT: "Report snapshot",
+    VERIFICATION_PACKAGE_SNAPSHOT: "Verification package snapshot",
+    PUBLIC_VERIFY_LIVE: "Live (recomputed at request time)",
+    INTERNAL_OPERATIONAL_PROJECTION: "Operational projection",
+    OFFLINE_PACKAGE_REVIEW: "Offline package review",
+  };
+  const friendlySource =
+    sourceLabel[outputContext.outputType] ?? outputContext.outputType;
+  const snapAt = outputContext.snapshotGeneratedAtUtc
+    ? new Date(outputContext.snapshotGeneratedAtUtc).toISOString()
+    : null;
+  const liveAt = outputContext.liveObservedAtUtc
+    ? new Date(outputContext.liveObservedAtUtc).toISOString()
+    : null;
+  const deltas = outputContext.liveDeltaMaterials ?? [];
+  return (
+    <div
+      data-testid="output-context-badge"
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 12,
+        alignItems: "center",
+        padding: "10px 14px",
+        borderRadius: 12,
+        border: `1px solid ${VERIFY_BRAND.line}`,
+        background: "rgba(255,255,255,0.62)",
+        fontSize: 12,
+        color: VERIFY_BRAND.ink,
+      }}
+    >
+      <span
+        style={{
+          ...VERIFY_TYPO.kicker,
+          fontSize: 10,
+          padding: "3px 8px",
+          borderRadius: 999,
+          background: outputContext.isSnapshotOutput
+            ? "rgba(33,117,93,0.10)"
+            : "rgba(124,90,255,0.10)",
+          color: outputContext.isSnapshotOutput
+            ? VERIFY_BRAND.success
+            : "#5a3fcc",
+        }}
+      >
+        Verdict source: {friendlySource}
+      </span>
+      {snapAt ? (
+        <span>
+          <strong>Snapshot generated:</strong> {snapAt}
+        </span>
+      ) : null}
+      {outputContext.isLiveOutput && liveAt ? (
+        <span>
+          <strong>Live observed:</strong> {liveAt}
+        </span>
+      ) : null}
+      {deltas.length > 0 ? (
+        <span style={{ color: VERIFY_BRAND.muted }}>
+          <strong>May have advanced since snapshot:</strong>{" "}
+          {deltas.join(", ")}
+        </span>
+      ) : null}
+      {outputContext.legalBoundary ? (
+        <span
+          data-testid="output-context-legal-boundary"
+          style={{
+            flex: "1 1 100%",
+            marginTop: 4,
+            paddingTop: 8,
+            borderTop: `1px dashed ${VERIFY_BRAND.line}`,
+            color: VERIFY_BRAND.muted,
+            fontSize: 11.5,
+            lineHeight: 1.5,
+          }}
+        >
+          {outputContext.legalBoundary}
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 function TrustDecisionCard({
@@ -2745,6 +2849,8 @@ export default function VerifyPage() {
     useState<NonNullable<VerifyResponse["trustDecisionConsistency"]> | null>(null);
   const [verificationSnapshot, setVerificationSnapshot] =
     useState<VerifyResponse["verificationSnapshot"]>(null);
+  const [outputContext, setOutputContext] =
+    useState<VerifyResponse["outputContext"]>(null);
   const [liveAnchoring, setLiveAnchoring] =
     useState<VerifyResponse["liveAnchoring"]>(null);
   const [refreshingAnchoring, setRefreshingAnchoring] = useState(false);
@@ -2813,6 +2919,10 @@ function isAccessEventType(eventType?: string | null): boolean {
         : null
     );
     setVerificationSnapshot(data.verificationSnapshot ?? null);
+    // Phase 2 closure — canonical OutputContext carries snapshot vs
+    // live semantics for the verdict card. Stored verbatim from the
+    // API; the renderer below the hero surfaces it.
+    setOutputContext(data.outputContext ?? null);
     setLiveAnchoring(data.liveAnchoring ?? null);
     setCaptureContext(data.captureContext ?? null);
     // Phase 31.12 — set the bounded advisory state. The API has
@@ -4634,6 +4744,9 @@ with this evidence record.
           ) : (
             <div style={{ display: "grid", gap: 18 }}>
 <TrustDecisionCard decision={trustDecision} />
+{outputContext ? (
+  <OutputContextBadge outputContext={outputContext} />
+) : null}
 <Card>
   <div
     style={{

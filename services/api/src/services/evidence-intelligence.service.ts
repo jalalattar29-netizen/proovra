@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { evaluateCustodyChain } from "./custody-events.service.js";
 import {
+  deriveCanonicalArtifactAvailability,
   isAccessCustodyEventType,
   normalizeOtsStatusValue,
 } from "@proovra/shared";
@@ -344,25 +345,34 @@ function buildVerificationProof(params: EvidenceIntelligenceInput["evidence"]): 
 function buildArtifactSummaries(params: {
   evidence: EvidenceIntelligenceInput["evidence"];
 }): EvidenceIntelligence["artifacts"] {
-  const reportReady = Boolean(params.evidence.reportGeneratedAtUtc || params.evidence.latestReportVersion);
-  const verificationPackageReady = Boolean(params.evidence.verificationPackageGeneratedAtUtc || params.evidence.verificationPackageVersion);
+  const artifactAvailability = deriveCanonicalArtifactAvailability({
+    latestReportVersion: params.evidence.latestReportVersion,
+    reportGeneratedAtUtc: params.evidence.reportGeneratedAtUtc,
+    verificationPackageVersion: params.evidence.verificationPackageVersion,
+    verificationPackageGeneratedAtUtc:
+      params.evidence.verificationPackageGeneratedAtUtc,
+  });
 
   return {
     report: {
-      available: reportReady,
+      available: artifactAvailability.report.available,
       label: "PDF report",
-      version: params.evidence.latestReportVersion ? String(params.evidence.latestReportVersion) : null,
-      generatedAtUtc: formatNullableDate(params.evidence.reportGeneratedAtUtc),
+      version: artifactAvailability.report.version
+        ? String(artifactAvailability.report.version)
+        : null,
+      generatedAtUtc: artifactAvailability.report.generatedAtUtc,
       generatedByLabel: "Automated report engine",
       downloadCount: null,
       lastDownloadedAtUtc: null,
       offlineVerificationIncluded: true,
     },
     verificationPackage: {
-      available: verificationPackageReady,
+      available: artifactAvailability.verificationPackage.available,
       label: "Verification package",
-      version: params.evidence.verificationPackageVersion ? String(params.evidence.verificationPackageVersion) : null,
-      generatedAtUtc: formatNullableDate(params.evidence.verificationPackageGeneratedAtUtc),
+      version: artifactAvailability.verificationPackage.version
+        ? String(artifactAvailability.verificationPackage.version)
+        : null,
+      generatedAtUtc: artifactAvailability.verificationPackage.generatedAtUtc,
       generatedByLabel: "Automated package generator",
       downloadCount: null,
       lastDownloadedAtUtc: null,
@@ -632,14 +642,21 @@ export async function buildEvidenceIntelligence(
   ).length;
   const forensicEventCount = custodyRecords.length - accessEventCount;
 
+  const { reportReady, packageReady: verificationPackageReady } = deriveCanonicalArtifactAvailability({
+    latestReportVersion: params.evidence.latestReportVersion,
+    reportGeneratedAtUtc: params.evidence.reportGeneratedAtUtc,
+    verificationPackageVersion: params.evidence.verificationPackageVersion,
+    verificationPackageGeneratedAtUtc: params.evidence.verificationPackageGeneratedAtUtc,
+  });
+
   return {
     recordId: params.evidenceId,
     status: {
       evidence: String(params.evidence.status),
       verificationStatus: params.evidence.verificationStatus ?? null,
       signedAtUtc: formatNullableDate(params.evidence.signedAtUtc),
-      reportReady: Boolean(params.evidence.reportGeneratedAtUtc),
-      verificationPackageReady: Boolean(params.evidence.verificationPackageGeneratedAtUtc),
+      reportReady,
+      verificationPackageReady,
     },
     preservation: {
       locked: Boolean(params.evidence.lockedAt),
@@ -704,8 +721,8 @@ export async function buildEvidenceIntelligence(
       evidence: params.evidence,
       chainValid: chain.valid,
       chainMode: chain.mode,
-      reportReady: Boolean(params.evidence.reportGeneratedAtUtc || params.evidence.latestReportVersion),
-      verificationPackageReady: Boolean(params.evidence.verificationPackageGeneratedAtUtc || params.evidence.verificationPackageVersion),
+      reportReady,
+      verificationPackageReady,
       anchorPublished: Boolean(params.anchor?.published),
     }),
     verificationProof: buildVerificationProof(params.evidence),
@@ -716,19 +733,15 @@ export async function buildEvidenceIntelligence(
       anchor: params.anchor,
       storage: params.storage,
       chainValid: chain.valid,
-      reportReady: Boolean(params.evidence.reportGeneratedAtUtc || params.evidence.latestReportVersion),
-      verificationPackageReady: Boolean(
-        Boolean(params.evidence.verificationPackageGeneratedAtUtc || params.evidence.verificationPackageVersion)
-      ),
+      reportReady,
+      verificationPackageReady,
     }),
     custodyTimeline: buildCustodyTimeline({ records: custodyRecords }),
     librarySummary: buildLibrarySummary({
       evidence: params.evidence,
       chainValid: chain.valid,
-      reportReady: Boolean(params.evidence.reportGeneratedAtUtc || params.evidence.latestReportVersion),
-      verificationPackageReady: Boolean(
-        Boolean(params.evidence.verificationPackageGeneratedAtUtc || params.evidence.verificationPackageVersion)
-      ),
+      reportReady,
+      verificationPackageReady,
       anchorPublished: Boolean(params.anchor?.published),
     }),
   };

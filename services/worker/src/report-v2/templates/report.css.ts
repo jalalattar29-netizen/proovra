@@ -112,7 +112,7 @@ letter-spacing: -0.005em;
   border-bottom: 1px solid rgba(18, 42, 38, 0.16);
   font-size: 18.5px;
   font-weight: 800;
-  color: ${c.accent};
+  color: #071A3A;
   letter-spacing: -0.02em;
   line-height: 1.15;
   text-align: left;
@@ -2587,7 +2587,7 @@ body {
   border-color: rgba(12, 28, 25, 0.22) !important;
 }
 
-/* darker small labels inside cards */
+/* Navy field labels — do NOT affect success/warning/danger statuses */
 .cover-meta-label,
 .info-card-label,
 .kv-label,
@@ -2599,9 +2599,22 @@ body {
 .integrity-detail-label,
 .custody-stat-label,
 .custody-lifecycle-label,
-.executive-summary-label {
-  color: rgba(11, 46, 39, 0.78) !important;
-  font-weight: 950 !important;
+.executive-summary-label,
+.report-table th,
+.custody-hash-chain-table th,
+.technical-verification-kicker,
+.technical-access-kicker,
+.technical-appendix-block-title,
+.technical-verification-title,
+.legal-interpretation-card-title,
+.integrity-detail-label,
+.integrity-check-label,
+.cover-panel-title,
+.cover-verify-title,
+.gallery-card-file-name,
+.section-kicker {
+  color: #071A3A !important;
+  font-weight: 900 !important;
 }
 
 /* softer but clearer internal row dividers */

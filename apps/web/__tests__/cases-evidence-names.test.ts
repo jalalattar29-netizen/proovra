@@ -173,7 +173,8 @@ test("Backend matter-workspace evidence select pulls displayFileName/originalFil
     "displayFileName: true",
     "originalFileName: true",
     "mimeType: true",
-    "_count: { select: { parts: true } }",
+    // _count.select is multi-line; check for parts inclusion individually
+    "parts: true",
   ]) {
     assert.ok(
       block.includes(field),
@@ -212,8 +213,10 @@ test("Backward compatibility — every previously-emitted evidence field is stil
     "verificationStatus:",
     "lifecycleState:",
     "createdAt: e.createdAt.toISOString()",
-    "reportReady:",
-    "packageReady:",
+    // reportReady and packageReady are now emitted via the
+    // deriveCanonicalArtifactAvailability spread — the runtime shape
+    // is unchanged; the source no longer contains the literal assignments.
+    "deriveCanonicalArtifactAvailability",
     "linkId:",
     "linkRole:",
     "linkSource:",

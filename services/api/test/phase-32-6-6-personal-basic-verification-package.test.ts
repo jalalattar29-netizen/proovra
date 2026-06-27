@@ -87,8 +87,11 @@ describe("Phase 32.6.6 — createVerificationPackage personal-basic branch", () 
   const fnIdx = SRC.indexOf("export async function createVerificationPackage");
   expect(fnIdx).toBeGreaterThan(-1);
   // The mode-selection block lives early in the function body; bound
-  // the search range to the first ~6KB after the function header.
-  const fn = SRC.slice(fnIdx, fnIdx + 8000);
+  // the search range with extra slack so future input-type additions
+  // (Phase 3 added isPersonalTeam, workspaceLabelAtPackageTime,
+  // canonicalMaterials, etc.) cannot push the declaration past the
+  // window. 12KB is comfortable; the actual offset is ~7KB today.
+  const fn = SRC.slice(fnIdx, fnIdx + 12000);
 
   it("declares packageMode as `personal_basic | team_governed`", () => {
     expect(fn).toMatch(

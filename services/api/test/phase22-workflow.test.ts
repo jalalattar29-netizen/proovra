@@ -213,12 +213,31 @@ describe("Phase 22 — untouched files invariant", () => {
   it("services/worker/src/pdf/report.ts has NO Phase 22 markers", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
-    const src = await readFile(
-      fileURLToPath(
-        new URL("../../worker/src/pdf/report.ts", import.meta.url),
-      ),
-      "utf8",
+    // Phase 2: services/worker/src/pdf/report.ts was deleted as
+
+    // confirmed dead code (zero live importers; canonical PDF path
+
+    // is services/worker/src/report-v2/build-report-pdf.ts). When the
+
+    // file is absent this 'untouched files invariant' assertion is
+
+    // vacuously satisfied — the historical Phase XX cannot have
+
+    // touched a file that does not exist.
+
+    const { existsSync } = await import("node:fs");
+
+    const pdfReportPath = fileURLToPath(
+
+      new URL("../../worker/src/pdf/report.ts", import.meta.url),
+
     );
+
+    const src = existsSync(pdfReportPath)
+
+      ? await readFile(pdfReportPath, "utf8")
+
+      : "";
     expect(src).not.toMatch(/Phase 22/);
     expect(src).not.toMatch(/evidenceWorkflowInstance/);
     expect(src).not.toMatch(/workflow-engine/);

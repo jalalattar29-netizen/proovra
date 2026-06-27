@@ -27,6 +27,8 @@ import {
   TRUST_DECISION_LEGAL_BOUNDARY,
   buildCaptureLocationExternalMapUrl,
   deriveAnchorSemantics,
+  deriveCanonicalWorkspaceScope,
+  describeCanonicalWorkspaceScope,
   evidenceLocationSourceLabel,
   getReviewerArtifactRoleLabel,
   getReviewerEvidenceCategories,
@@ -34,6 +36,7 @@ import {
   hasCaptureLocationMetadata,
   isAccessCustodyEventType,
   serializeTrustDecisionForReviewerPackage,
+  type CanonicalEvidenceMaterials,
 } from "@proovra/shared";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
@@ -2012,6 +2015,9 @@ High-level package integrity profile.
 trust-decision.json
 Enterprise trust decision summary aligned with the PDF report decision model.
 
+canonical-record.json
+Single self-describing snapshot of every canonical lifecycle material (evidence record, fingerprint, part index, custody snapshot, identity snapshot, timestamp state, storage state, OTS state with the honesty rule applied, trust decision, media intelligence snapshot, legal boundary). Schema: proovra.canonical-record/v1. Every material inside carries snapshotSemantics = "package-snapshot-only". Offline reviewers may read this single file to inspect the package-snapshot truth without re-aggregating per-artifact files.
+
 original-linkage.json
 Links the included file(s), storage preservation details, and report artifact back to the preserved original record.
 
@@ -2076,6 +2082,12 @@ ${buildAnchorReadmeSection({
   anchorPublicBaseUrl: params.anchorPublicBaseUrl,
   bitcoinTxid: params.bitcoinTxid,
 })}
+
+EVIDENCE CONTAINER BOUNDARY
+
+This package verifies the exported evidence container.
+It does not represent the current live server state.
+Use Public Verify to inspect the current live state.
 
 LEGAL NOTE
 
@@ -2526,6 +2538,31 @@ export async function createVerificationPackage(data: {
    * field is informational.
    */
   teamId?: string;
+  /**
+   * Phase 2 canonical workspace scope inputs. `isPersonalTeam=true`
+   * means the attached Team row is a personal-account workspace
+   * (Team.isPersonal=true); the legacy "teamId truthy = team_governed"
+   * inference does NOT distinguish this. When null/undefined the
+   * package conservatively treats the workspace as personal — that is
+   * the safer wording.
+   */
+  isPersonalTeam?: boolean | null;
+  /**
+   * Human-readable workspace label captured at package generation
+   * time. Surfaced verbatim in package-mode.json so offline reviewers
+   * can read the workspace name without consulting the live API.
+   */
+  workspaceLabelAtPackageTime?: string | null;
+  /**
+   * Phase 3 — canonical evidence materials snapshot sealed at
+   * verification-package generation time (outputType =
+   * VERIFICATION_PACKAGE_SNAPSHOT). When provided, the package
+   * emits `canonical-record.json` carrying the full canonical
+   * bundle so offline reviewers can read a single self-describing
+   * snapshot of every lifecycle material. Optional for backward
+   * compatibility — old callers still produce valid packages.
+   */
+  canonicalMaterials?: CanonicalEvidenceMaterials | null;
   evidenceBuffer?: Buffer;
   evidenceFiles?: VerificationEvidenceFile[];
   fingerprint: string;
@@ -2992,21 +3029,42 @@ export async function createVerificationPackage(data: {
     );
     artifactPresence.manifestPresent = true;
 
-    // Phase 32.6.6 — bounded `package-mode.json` notice declares
-    // whether this package was built in personal_basic (no team
-    // governance context) or team_governed (workspace governance
-    // policy applied at build time) mode. Consumers inspecting the
-    // archive can read this file without parsing the full manifest
-    // to know which sections to expect (e.g., team-governed
-    // packages carry workspace policy + governance audit; personal
-    // basic does not).
+    // Phase 32.6.6 + Phase 2 — bounded `package-mode.json` notice.
     //
-    // The notice deliberately uses neutral language: it never
-    // overclaims authenticity, never asserts admissibility, and
-    // never marks personal packages as "less real" — the forensic
-    // primitives (manifest, signatures, TSA, OTS, custody export)
-    // are identical between modes. Only the team-governance
-    // sections differ.
+    // Legacy `mode` field (`personal_basic` | `team_governed`) is
+    // retained verbatim for the offline verifier and historical
+    // consumers. Phase 2 audit found the legacy derivation was
+    // misleading: every record has a teamId because personal
+    // workspaces are stored as `Team` rows with `isPersonal=true`,
+    // so `teamId ? "team_governed" : "personal_basic"` mislabelled
+    // every personal-account record as "team_governed".
+    //
+    // The Phase 2 canonical fields below carry the correct
+    // workspace scope semantics derived through the shared
+    // `deriveCanonicalWorkspaceScope()` helper:
+    //   - workspaceScope: one of PERSONAL_ACCOUNT_WORKSPACE
+    //     | TEAM_ACCOUNT_WORKSPACE
+    //     | ORGANIZATION_WORKSPACE_RESERVED_OR_DISABLED
+    //   - workspaceLabelAtPackageTime: the human label captured at
+    //     build time, so offline reviewers can read it without
+    //     consulting the live API.
+    //   - isPersonalWorkspaceAtPackageTime: convenience boolean.
+    //   - governanceMeaning: a neutral, plain-language description
+    //     of what the scope means; the package never overclaims
+    //     "team-governed = enterprise governance".
+    //
+    // The notice deliberately stays neutral: it never overclaims
+    // authenticity, never asserts admissibility, never marks
+    // personal packages as "less real" — the forensic primitives
+    // (manifest, signatures, TSA, OTS, custody export) are
+    // identical between scopes.
+    const workspaceScope = deriveCanonicalWorkspaceScope({
+      teamId: data.teamId ?? null,
+      isPersonalTeam: data.isPersonalTeam ?? null,
+    });
+    const isPersonalWorkspaceAtPackageTime =
+      workspaceScope === "PERSONAL_ACCOUNT_WORKSPACE";
+    const governanceMeaning = describeCanonicalWorkspaceScope(workspaceScope);
     appendPackageEntry(
       archive,
       packageEntries,
@@ -3021,6 +3079,13 @@ export async function createVerificationPackage(data: {
         teamId: data.teamId ?? null,
         reportVersion: data.reportVersion ?? null,
         generatedAtUtc: new Date().toISOString(),
+        // Phase 2 canonical workspace scope fields (additive; legacy
+        // `mode` above is preserved for the offline verifier).
+        workspaceScope,
+        workspaceLabelAtPackageTime:
+          (data.workspaceLabelAtPackageTime ?? null) || null,
+        isPersonalWorkspaceAtPackageTime,
+        governanceMeaning,
       }),
       "application/json"
     );
@@ -3100,6 +3165,42 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       ),
       "application/json"
     );
+
+    // Phase 3 — canonical evidence materials snapshot.
+    //
+    // Emits the single self-describing JSON snapshot of every
+    // canonical lifecycle material (evidence record, fingerprint,
+    // part index, custody snapshot, identity snapshot, timestamp
+    // state, storage state, OTS state with the honesty rule applied,
+    // trust decision, media intelligence snapshot, legal boundary).
+    //
+    // Every material inside carries
+    // `snapshotSemantics: "package-snapshot-only"` because the
+    // bundle is built with outputType = VERIFICATION_PACKAGE_SNAPSHOT.
+    //
+    // The file is OPTIONAL for backward compatibility — packages
+    // built before this version simply omit it; the offline verifier
+    // continues to read every other artefact as before.
+    if (data.canonicalMaterials) {
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "canonical-record.json",
+        jsonBuffer({
+          schema: "proovra.canonical-record/v1",
+          generatedAtUtc: new Date().toISOString(),
+          evidenceId: data.evidenceId ?? null,
+          reportVersion: data.reportVersion ?? null,
+          outputType: "VERIFICATION_PACKAGE_SNAPSHOT",
+          notice:
+            "Canonical evidence materials sealed at package generation. This file represents the package-snapshot only; for current live state see the Public Verify page.",
+          legalBoundary:
+            data.canonicalMaterials.legalBoundary.packageBoundary,
+          materials: data.canonicalMaterials,
+        }),
+        "application/json"
+      );
+    }
 
     appendPackageEntry(
       archive,

@@ -29,17 +29,23 @@ import {
   getReviewerArtifactRoleLabel,
   getReviewerEvidenceTypeLabel,
   getReviewerUploadModeLabel,
+  deriveCanonicalArtifactAvailability,
   deriveAnchorSemantics,
   hasCaptureLocationMetadata,
   isPrimaryReviewerArtifactRole,
   maskPublicEmailsInText,
   resolveReviewerArtifactRole,
   resolveEffectiveOtsStatus,
+  // Phase 2 — canonical legal boundary so the public-verify response
+  // emits the same boundary copy as the snapshot outputs (Report PDF
+  // and Verification Package) will in Phase 3.
+  buildCanonicalLegalBoundaryMaterial,
   type EvidenceIntelligence,
   type ReviewerArtifactRole,
   type ReviewerArtifactRoleSource,
   type TrustDecision,
   type VerificationPackageMetadata,
+  type CanonicalOutputContext,
 } from "@proovra/shared";
 import {
   type EvidenceAssetKind as PublicEvidenceAssetKind,
@@ -2352,19 +2358,15 @@ function buildEvidenceListReportReadyFilter(
   reportReady: EvidenceListQuery["reportReady"]
 ): Prisma.EvidenceWhereInput | null {
   if (reportReady === "ready") {
-    return {
-      OR: [
-        { latestReportVersion: { not: null } },
-        { reportGeneratedAtUtc: { not: null } },
-      ],
-    };
+    // Use actual Report relation existence — not the denormalized
+    // latestReportVersion / reportGeneratedAtUtc proxy fields.
+    return { reports: { some: {} } };
   }
 
   if (reportReady === "missing") {
-    return {
-      latestReportVersion: null,
-      reportGeneratedAtUtc: null,
-    };
+    // Use actual Report relation absence — consistent with the relation-based
+    // REPORTS_READY_PREDICATE used by the library-summary endpoint.
+    return { reports: { none: {} } };
   }
 
   return null;
@@ -2440,6 +2442,10 @@ function mapEvidenceListItem(item: SelectedEvidenceListItem) {
     identityLevelLabel: mapIdentityLevelLabel(item.identityLevelSnapshot),
     submittedByEmail: item.submittedByEmail,
     latestReportVersion: item.latestReportVersion,
+    reportReady: deriveCanonicalArtifactAvailability({
+      latestReportVersion: item.latestReportVersion,
+      reportGeneratedAtUtc: item.reportGeneratedAtUtc,
+    }).reportReady,
     originalFileName: item.originalFileName ?? null,
     displayFileName: item.displayFileName ?? null,
     reviewReadyAtUtc: item.reviewReadyAtUtc ? item.reviewReadyAtUtc.toISOString() : null,
@@ -7988,6 +7994,13 @@ await appendCustodyEvent({
       }
 
       const itemCount = await getEvidenceItemCount(id);
+      const canonicalAvailability = deriveCanonicalArtifactAvailability({
+        latestReportVersion: evidence.latestReportVersion,
+        reportGeneratedAtUtc: evidence.reportGeneratedAtUtc,
+        verificationPackageVersion: evidence.verificationPackageVersion,
+        verificationPackageGeneratedAtUtc:
+          evidence.verificationPackageGeneratedAtUtc,
+      });
       const metadataPayload = {
         evidenceId: id,
         title: resolveEvidenceTitle(evidence.title),
@@ -7997,10 +8010,7 @@ await appendCustodyEvent({
         sizeBytes: bigintToString(evidence.sizeBytes),
         captureMethod: evidence.captureMethod ?? null,
         verificationStatus: evidence.verificationStatus ?? null,
-        reportReady: Boolean(evidence.latestReportVersion || evidence.reportGeneratedAtUtc),
-        verificationPackageReady: Boolean(
-          evidence.verificationPackageVersion || evidence.verificationPackageGeneratedAtUtc
-        ),
+        ...canonicalAvailability,
         caseLinked: Boolean(evidence.caseId),
         workspaceLabel: evidence.workspaceNameSnapshot ?? null,
         checklistMetadataOnly: true,
@@ -8019,7 +8029,7 @@ await appendCustodyEvent({
       const suggestedTags = [
         evidence.mimeType ?? "mime-unrecorded",
         evidence.verificationStatus ?? "verification-unrecorded",
-        evidence.latestReportVersion || evidence.reportGeneratedAtUtc ? "report-ready" : "report-missing",
+        canonicalAvailability.reportReady ? "report-ready" : "report-missing",
         evidence.caseId ? "case-linked" : "case-unassigned",
       ];
       const riskFlags = aiResult.flags.map((flag) => ({
@@ -9116,8 +9126,7 @@ const timestampDigestMatches: boolean | null =
               uploadedAtUtc: part.uploadedAtUtc?.toISOString() ?? null,
               createdAt: part.createdAt.toISOString(),
             })),
-            legalBoundary:
-              "PROOVRA verifies the recorded integrity state of evidence records and supporting technical materials. It does not independently establish factual truth, authorship, identity, legal admissibility, or evidentiary weight.",
+            legalBoundary: buildCanonicalLegalBoundaryMaterial().reportBoundary,
           })
         );
       } catch (err) {
@@ -12292,6 +12301,30 @@ trustDecisionSnapshot: {
     ? latestVerificationPackage.generatedAtUtc.toISOString()
     : null,
 },
+// Phase 2 — canonical OutputContext shape. The public verify
+// endpoint is a PUBLIC_VERIFY_LIVE output; the snapshot-vs-live
+// distinction is explicit in this field so Phase 3 UI can render
+// "Verdict source: REPORT_SNAPSHOT (as of …)" cleanly without
+// re-deriving the semantics in the page.
+// Live-delta materials are the categories that may have advanced
+// since the sealed snapshot — custody chain (append-only) and OTS
+// anchoring (live-updating-after-snapshot).
+outputContext: ((): CanonicalOutputContext => {
+  const snapshotGen =
+    latestReport?.generatedAtUtc?.toISOString() ??
+    latestVerificationPackage?.generatedAtUtc?.toISOString() ??
+    null;
+  return {
+    outputType: "PUBLIC_VERIFY_LIVE",
+    isSnapshotOutput: false,
+    isLiveOutput: true,
+    snapshotGeneratedAtUtc: snapshotGen,
+    liveObservedAtUtc: new Date().toISOString(),
+    liveDeltaMaterials: ["custodyChain", "otsAnchoring"],
+    legalBoundary: buildCanonicalLegalBoundaryMaterial()
+      .publicVerifyBoundary,
+  };
+})(),
   contentAccessPolicy: publicVerifyAccessPolicy,
     contentExposureDecision: {
     mode: publicVerifyAccessPolicy.mode,

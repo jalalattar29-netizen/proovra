@@ -42,6 +42,10 @@ test("SEARCH_DOCUMENT_TYPES covers all Phase 24 surfaces", () => {
     "COMMUNICATION",
     "CASE_TIMELINE",
     "INCIDENT",
+    "CASE",
+    "NOTE",
+    "PACKAGE",
+    "REPORT",
   ];
   assert.deepEqual([...SEARCH_DOCUMENT_TYPES].sort(), [...expected].sort());
 });
