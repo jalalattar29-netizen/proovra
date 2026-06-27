@@ -227,235 +227,238 @@
   white-space: nowrap;
 }
 
-/* ACCOUNT TOOLBAR */
+/* PROOVRA APP SHELL — FINAL STABLE LAYOUT */
 
-.app-account-toolbar {
-  position: fixed;
-  top: 26px;
-  right: 36px;
-  z-index: 120;
-  pointer-events: none;
+.app-shell-v2 {
+  min-height: 100vh !important;
+  background: #f7f8fb !important;
+  color: #101827 !important;
 }
 
-.app-account-toolbar-inner {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  pointer-events: auto;
+.app-shell-v2-main {
+  display: grid !important;
+  grid-template-columns: 248px minmax(0, 1fr) !important;
+  min-height: 100vh !important;
 }
 
-.app-account-toolbar-mobile-menu {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  background: rgba(255, 255, 255, 0.82);
-  color: #132033;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+.app-shell-v2-desktop-sidebar {
+  display: block !important;
+  width: 248px !important;
+  min-width: 248px !important;
+  max-width: 248px !important;
 }
 
-.app-account-toolbar-runtime {
-  display: inline-flex;
-  align-items: center;
+.app-shell-v2-mobile-overlay,
+.app-shell-v2-mobile-drawer {
+  display: none !important;
 }
 
-.app-account-toolbar .app-topbar-v2-language,
-.app-account-toolbar .app-topbar-v2-user,
-.app-account-toolbar .app-topbar-v2-workspace-button,
-.app-account-toolbar .app-topbar-v2-inbox-indicator {
-    color: #132033 !important;
-  background: rgba(255, 255, 255, 0.84) !important;
-  border: 1px solid rgba(15, 23, 42, 0.09) !important;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06) !important;
-  backdrop-filter: blur(16px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
+/* Sidebar */
+.app-sidebar-v2 {
+  position: fixed !important;
+  inset: 0 auto 0 0 !important;
+  width: 248px !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+  background: #fbfaf7 !important;
+  border-right: 1px solid rgba(15, 23, 42, 0.08) !important;
 }
 
-@media (max-width: 980px) {
-  .app-account-toolbar {
-    top: 14px;
-    right: 14px;
-    left: 14px;
-  }
-
-  .app-account-toolbar-inner {
-    justify-content: space-between;
-  }
-
-  .app-account-toolbar-mobile-menu {
-    display: inline-flex;
-  }
+.app-sidebar-v2-bg {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 0 !important;
+  background-image: url("/assets/branding/sidebar.png") !important;
+  background-size: 248px auto !important;
+  background-position: top center !important;
+  background-repeat: repeat-y !important;
+  opacity: 0.16 !important;
 }
 
-@media (min-width: 981px) {
-  .app-account-toolbar-mobile-menu {
-    display: none;
-  }
+.app-sidebar-v2::after {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
+  background: rgba(255,255,255,0.72) !important;
 }
 
-/* ==========================================================================
-   PROOVRA LIGHT THEME FINAL OVERRIDES
-   ========================================================================== */
+.app-sidebar-v2-inner {
+  position: relative !important;
+  z-index: 2 !important;
+  height: 100vh !important;
+  padding: 24px 16px 18px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 18px !important;
+}
 
-/* ---------- Sidebar ---------- */
+.app-sidebar-v2-brand {
+  padding: 0 0 18px !important;
+}
+
+.app-sidebar-v2-brand-logo {
+  width: 190px !important;
+  max-width: 190px !important;
+  height: auto !important;
+}
+
+.app-sidebar-v2-scroll {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  display: grid !important;
+  align-content: start !important;
+  gap: 20px !important;
+}
 
 .app-sidebar-v2-link {
-  color: #243340 !important;
-  background: transparent !important;
+  min-height: 42px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 11px !important;
+  padding: 0 12px !important;
+  border-radius: 13px !important;
+  color: #253243 !important;
+  text-decoration: none !important;
   border: 1px solid transparent !important;
+  background: transparent !important;
+  font-size: 0.88rem !important;
+  font-weight: 650 !important;
 }
 
 .app-sidebar-v2-link:hover {
-  color: #111827 !important;
-  background: rgba(255, 255, 255, 0.75) !important;
-  border-color: rgba(15, 23, 42, 0.08) !important;
+  background: rgba(255,255,255,0.86) !important;
+  border-color: rgba(15,23,42,0.08) !important;
+  color: #101827 !important;
 }
 
 .app-sidebar-v2-link.is-active {
-  color: #0b1725 !important;
-  font-weight: 700 !important;
-  background: rgba(255, 255, 255, 0.92) !important;
-  border-color: rgba(15, 23, 42, 0.08) !important;
-  box-shadow:
-    0 12px 28px rgba(15, 23, 42, 0.07),
-    inset 3px 0 0 #14b8a6 !important;
+  background: rgba(255,255,255,0.96) !important;
+  color: #101827 !important;
+  border-color: rgba(15,23,42,0.08) !important;
+  box-shadow: inset 3px 0 0 #14b8a6, 0 10px 24px rgba(15,23,42,0.06) !important;
 }
 
 .app-sidebar-v2-link-icon {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 9px !important;
+  display: grid !important;
+  place-items: center !important;
   color: inherit !important;
-  background: rgba(255, 255, 255, 0.72) !important;
-  border: 1px solid rgba(15, 23, 42, 0.06) !important;
+  background: rgba(255,255,255,0.75) !important;
+  border: 1px solid rgba(15,23,42,0.06) !important;
 }
 
 .app-sidebar-v2-group-title {
+  padding: 0 8px !important;
   color: #6b7280 !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
 }
-
-/* ---------- Trust Card ---------- */
 
 .app-sidebar-v2-trust-card {
-  background: rgba(255, 255, 255, 0.78) !important;
-  border: 1px solid rgba(15, 23, 42, 0.08) !important;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.05) !important;
-}
-
-.app-sidebar-v2-trust-icon {
-  color: #14b8a6 !important;
-  background: rgba(20, 184, 166, 0.08) !important;
-  border: 1px solid rgba(20, 184, 166, 0.14) !important;
+  background: rgba(255,255,255,0.84) !important;
+  border: 1px solid rgba(15,23,42,0.08) !important;
+  box-shadow: 0 14px 34px rgba(15,23,42,0.05) !important;
 }
 
 .app-sidebar-v2-trust-card strong {
   color: #162334 !important;
 }
 
-.app-sidebar-v2-trust-card p {
-  color: #64748b !important;
-}
-
-.app-sidebar-v2-trust-card a {
-  color: #0ea5e9 !important;
-}
-
-/* ---------- Help ---------- */
-
-.app-sidebar-v2-help {
-  color: #425466 !important;
-}
-
-.app-sidebar-v2-help strong {
-  color: #1f2937 !important;
-}
-
+.app-sidebar-v2-trust-card p,
 .app-sidebar-v2-help small {
   color: #64748b !important;
 }
 
-/* ---------- Workspace + Account Menus ---------- */
-
-.app-topbar-v2-workspace-menu,
-.app-topbar-v2-account-menu {
-  background: #ffffff !important;
+.app-sidebar-v2-help,
+.app-sidebar-v2-help strong {
   color: #1f2937 !important;
-  border: 1px solid rgba(15, 23, 42, 0.08) !important;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.10) !important;
 }
 
-.app-topbar-v2-account-menu-header {
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+/* Content */
+.app-shell-v2-content-wrap {
+  min-width: 0 !important;
+  background: #f7f8fb !important;
 }
 
-.app-topbar-v2-account-menu-header strong,
-.app-topbar-v2-workspace-menu-header strong,
+.app-shell-v2-content {
+  min-width: 0 !important;
+  padding: 28px 36px 48px !important;
+  background:
+    radial-gradient(circle at 35% 4%, rgba(79,70,229,0.055), transparent 30%),
+    linear-gradient(180deg, #f8f9fc 0%, #f4f6f9 100%) !important;
+}
+
+/* Floating account toolbar */
+.app-account-toolbar {
+  position: fixed !important;
+  top: 24px !important;
+  right: 38px !important;
+  z-index: 120 !important;
+  pointer-events: none !important;
+}
+
+.app-account-toolbar-inner {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  pointer-events: auto !important;
+}
+
+.app-account-toolbar-mobile-menu {
+  display: none !important;
+}
+
+.app-topbar-v2-language,
+.app-topbar-v2-user,
+.app-topbar-v2-workspace-button,
+.app-topbar-v2-inbox-indicator {
+  color: #132033 !important;
+  background: rgba(255,255,255,0.90) !important;
+  border: 1px solid rgba(15,23,42,0.08) !important;
+  box-shadow: 0 10px 28px rgba(15,23,42,0.06) !important;
+}
+
+.app-topbar-v2-user {
+  min-height: 42px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 4px 10px 4px 4px !important;
+  border-radius: 999px !important;
+}
+
+.app-topbar-v2-user-copy strong,
 .app-topbar-v2-workspace-copy strong {
   color: #111827 !important;
 }
 
-.app-topbar-v2-account-menu-header span,
-.app-topbar-v2-workspace-copy span,
-.app-topbar-v2-workspace-menu-header span,
-.app-topbar-v2-workspace-menu-group-label {
+.app-topbar-v2-user-copy span,
+.app-topbar-v2-workspace-copy span {
   color: #64748b !important;
 }
 
-.app-topbar-v2-account-menu a,
-.app-topbar-v2-account-menu button,
-.app-topbar-v2-workspace-menu-item {
+/* Dropdowns required by tests */
+.app-topbar-v2-workspace-menu,
+.app-topbar-v2-account-menu {
+  position: absolute !important;
+  top: calc(100% + 8px) !important;
+  right: 0 !important;
+  min-width: 280px !important;
+  background: #fff !important;
   color: #1f2937 !important;
-}
-
-.app-topbar-v2-account-menu a:hover,
-.app-topbar-v2-account-menu button:hover,
-.app-topbar-v2-workspace-menu-item:hover {
-  background: #f3f6f8 !important;
-  color: #111827 !important;
-}
-
-.app-user-menu-signout {
-  color: #dc2626 !important;
-}
-
-.app-user-menu-signout svg {
-  color: #dc2626 !important;
-  stroke: #dc2626 !important;
-}
-
-.app-user-menu-signout:hover {
-  background: #fee2e2 !important;
-  color: #b91c1c !important;
-}
-
-.app-user-menu-signout:hover svg {
-  color: #b91c1c !important;
-  stroke: #b91c1c !important;
-}
-
-.app-topbar-v2-workspace-menu-item.is-active {
-  background: #eef6f5 !important;
-  outline: 1px solid rgba(20, 184, 166, 0.22) !important;
-}
-
-.app-topbar-v2-workspace-menu-empty {
-  padding: 12px 10px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: #64748b !important;
-}
-
-.app-topbar-v2-workspace-menu-footer {
-  border-top: 1px solid rgba(15, 23, 42, 0.08) !important;
-  padding-top: 6px;
-  margin-top: 4px;
-}
-
-.app-topbar-v2-workspace-menu {
-  background: #ffffff !important;
-  color: #1f2937 !important;
-  border: 1px solid rgba(15, 23, 42, 0.08) !important;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.10) !important;
+  border: 1px solid rgba(15,23,42,0.08) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 60px rgba(15,23,42,0.12) !important;
+  padding: 8px !important;
+  z-index: 140 !important;
 }
 
 .app-topbar-v2-workspace-menu-group {
@@ -473,10 +476,116 @@
   color: #64748b !important;
 }
 
-.app-shell-v2-content {
-  padding-top: 24px !important;
-  padding-left: 28px !important;
-  padding-right: 28px !important;
+.app-topbar-v2-workspace-menu-item,
+.app-topbar-v2-account-menu a,
+.app-topbar-v2-account-menu button {
+  color: #1f2937 !important;
+  background: transparent !important;
+  border-radius: 10px !important;
+}
+
+.app-topbar-v2-workspace-menu-item:hover,
+.app-topbar-v2-account-menu a:hover,
+.app-topbar-v2-account-menu button:hover {
+  background: #f3f6f8 !important;
+  color: #111827 !important;
+}
+
+.app-topbar-v2-workspace-menu-item.is-active {
+  background: #eef6f5 !important;
+  outline: 1px solid rgba(20,184,166,0.22) !important;
+}
+
+.app-topbar-v2-workspace-menu-empty {
+  padding: 12px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #64748b !important;
+}
+
+.app-topbar-v2-workspace-menu-footer {
+  border-top: 1px solid rgba(15,23,42,0.08) !important;
+  padding-top: 6px;
+  margin-top: 4px;
+}
+
+.app-topbar-v2-brand,
+.app-topbar-v2-nav,
+.app-topbar-v2-bg,
+.app-topbar-v2::after {
+  display: none !important;
+}
+
+/* Mobile */
+@media (max-width: 980px) {
+  .app-shell-v2-main {
+    display: block !important;
+  }
+
+  .app-shell-v2-desktop-sidebar {
+    display: none !important;
+  }
+
+  .app-sidebar-v2 {
+    position: relative !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .app-account-toolbar {
+    top: 14px !important;
+    left: 14px !important;
+    right: 14px !important;
+  }
+
+  .app-account-toolbar-mobile-menu {
+    display: inline-flex !important;
+  }
+
+  .app-shell-v2-mobile-overlay {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 899 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    background: rgba(15,23,42,0.28) !important;
+  }
+
+  .app-shell-v2-mobile-overlay.is-open {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  .app-shell-v2-mobile-drawer {
+    display: block !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    z-index: 900 !important;
+    width: min(320px, 86vw) !important;
+    transform: translateX(-105%) !important;
+    transition: transform 220ms ease !important;
+  }
+
+  .app-shell-v2-mobile-drawer.is-open {
+    transform: translateX(0) !important;
+  }
+}
+
+.app-topbar-v2-workspace-menu {
+  position: absolute !important;
+  top: calc(100% + 8px) !important;
+  right: 0 !important;
+  min-width: 280px !important;
+  background: #fff !important;
+  color: #1f2937 !important;
+  border: 1px solid rgba(15,23,42,0.08) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 60px rgba(15,23,42,0.12) !important;
+  padding: 8px !important;
+  z-index: 140 !important;
 }
 
 /* =========================================================
