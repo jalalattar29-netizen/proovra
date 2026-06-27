@@ -745,6 +745,11 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // APPROVED_CRITICAL_BY_MIGRATION for the CREATE_TABLE_IF_NOT_EXISTS
       // kind, matching the contact-sales precedent.
       "20270828000000_email_verification_tokens",
+      // Phase 2A live production reconciliation catch-up. Additive-only:
+      // 47 missing columns from the live audit, plus guarded null-only
+      // backfills from legacy source columns where the mapping is
+      // unambiguous. No DROP / RENAME / FK changes / destructive enum work.
+      "20270829000000_phase_2a_live_missing_columns_catchup",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);
