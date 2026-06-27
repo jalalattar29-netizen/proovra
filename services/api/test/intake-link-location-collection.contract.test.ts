@@ -281,8 +281,8 @@ describe("Intake Links — location collection contract", () => {
     );
     assert.match(
       proc,
-      /locationSource:\s*\n\s*prepared\.reportEvidencePayload\.gps\.locationSource/,
-      "verification-package metadata must carry locationSource through",
+      /locationSource:\s*\n\s*finalized\.finalizedReportEvidencePayload\.gps\s*\n\s*\.\s*locationSource\s*\?\?\s*null/,
+      "verification-package metadata must carry locationSource through the finalized canonical lifecycle payload",
     );
   });
 

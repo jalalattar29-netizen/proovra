@@ -13,6 +13,7 @@ import {
   ReportCustodyEvent,
   CalloutModel,
   ReportTrustDecision,
+  MediaIntelligenceReportInput,
 } from "./types.js";
 import {
   normalizeTimestampFailureReason,
@@ -295,6 +296,22 @@ export function buildReportCanonicalMaterials(params: {
   trustDecision: ReportTrustDecision;
   snapshotGeneratedAtUtc?: string | Date | null;
   /**
+   * Evidence parts for the canonical part index. Pass the real ordered
+   * parts at verification-package generation time; omit (or pass null)
+   * for report-only snapshots where parts are not materialised.
+   */
+  parts?: ReadonlyArray<{
+    partIndex: number;
+    sha256: string | null;
+    sizeBytes: number | null;
+    mimeType: string | null;
+  }> | null;
+  /** Full canonical media-intelligence object sealed at snapshot time. */
+  mediaIntelligence?:
+    | MediaIntelligenceReportInput
+    | import("../verification-package-intelligence.js").IntelligencePackageInput
+    | null;
+  /**
    * Defaults to REPORT_SNAPSHOT (the original use-case). The
    * verification-package builder calls this with
    * VERIFICATION_PACKAGE_SNAPSHOT so the emitted
@@ -367,13 +384,13 @@ export function buildReportCanonicalMaterials(params: {
       teamId: (ev as { teamId?: string | null }).teamId ?? null,
     },
     team: null,
-    parts: [],
+    parts: params.parts ?? [],
     custodyEvents: params.custodyEvents.map((e) => ({
       eventType: e.eventType,
       atUtc: e.atUtc,
     })),
     trustDecision: params.trustDecision,
-    mediaIntelligence: null,
+    mediaIntelligence: params.mediaIntelligence ?? null,
     outputType: params.outputType ?? "REPORT_SNAPSHOT",
     snapshotGeneratedAtUtc: params.snapshotGeneratedAtUtc ?? null,
   });

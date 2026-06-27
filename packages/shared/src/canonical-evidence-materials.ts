@@ -224,6 +224,22 @@ export type CanonicalMediaIntelligenceSnapshotMaterial = {
   advisory: string;
 };
 
+type CanonicalMediaIntelligenceInput = {
+  observationCount?: number | null;
+  advisory?: string | null;
+  signals?: ReadonlyArray<unknown>;
+  mediaSignals?: ReadonlyArray<unknown>;
+  derivedThumbnails?: ReadonlyArray<unknown>;
+  derivedAssets?: ReadonlyArray<unknown>;
+  ocrTranscript?:
+    | ReadonlyArray<unknown>
+    | {
+        ocr?: ReadonlyArray<unknown>;
+        transcript?: ReadonlyArray<unknown>;
+      }
+    | null;
+};
+
 export type CanonicalTrustDecisionMaterial = {
   snapshotSemantics: CanonicalSnapshotLiveSemantics;
   /**
@@ -399,11 +415,8 @@ export type CanonicalMaterialsBuildInput = {
    * cite the snapshot semantics correctly.
    */
   trustDecision: EvidenceTrustDecision;
-  /** Optional advisory media intelligence summary. */
-  mediaIntelligence?: {
-    observationCount: number;
-    advisory?: string | null;
-  } | null;
+  /** Optional advisory media intelligence object from the finalized lifecycle. */
+  mediaIntelligence?: CanonicalMediaIntelligenceInput | null;
   /**
    * Context: which output is being built. Affects only the snapshot
    * vs live semantics tags on each material, not the data itself.
@@ -675,7 +688,9 @@ export function buildCanonicalOtsState(
 export function buildCanonicalMediaIntelligenceSnapshot(
   input: CanonicalMaterialsBuildInput,
 ): CanonicalMediaIntelligenceSnapshotMaterial {
-  const count = Math.max(0, Math.trunc(input.mediaIntelligence?.observationCount ?? 0));
+  const count = deriveCanonicalMediaIntelligenceObservationCount(
+    input.mediaIntelligence,
+  );
   return {
     snapshotSemantics: semanticForMaterial(
       "mediaIntelligenceSnapshot",
@@ -687,6 +702,19 @@ export function buildCanonicalMediaIntelligenceSnapshot(
       nonEmptyOrNull(input.mediaIntelligence?.advisory) ??
       "Media intelligence observations are advisory only and do not assert factual truth.",
   };
+}
+
+function deriveCanonicalMediaIntelligenceObservationCount(
+  input: CanonicalMediaIntelligenceInput | null | undefined,
+): number {
+  if (!input) return 0;
+  if (Array.isArray(input.mediaSignals)) {
+    return input.mediaSignals.length;
+  }
+  if (Array.isArray(input.signals)) {
+    return input.signals.length;
+  }
+  return Math.max(0, Math.trunc(input.observationCount ?? 0));
 }
 
 export function buildCanonicalTrustDecisionMaterial(

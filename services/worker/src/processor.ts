@@ -3483,6 +3483,7 @@ const effectiveReportEvidencePayload = {
           reportKey: prepared.reportKey,
           scheduleOtsUpgrade,
           reportVersion: prepared.version,
+          finalizedReportEvidencePayload: effectiveReportEvidencePayload,
           effectiveVerificationStatus,
           effectiveRecordedIntegrityVerifiedAtUtc,
           finalizedReportPdf,
@@ -3589,8 +3590,8 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
         // `snapshotSemantics` is `package-snapshot-only` because
         // outputType = VERIFICATION_PACKAGE_SNAPSHOT.
         const packageCanonicalMaterials = buildReportCanonicalMaterials({
-          evidence: prepared.reportEvidencePayload,
-          custodyEvents: prepared.custodyForVerificationPackage.map((e) => ({
+          evidence: finalized.finalizedReportEvidencePayload,
+          custodyEvents: finalized.finalizedCustodyEvents.map((e) => ({
             sequence: e.sequence,
             atUtc: e.atUtc,
             eventType: e.eventType,
@@ -3599,8 +3600,17 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
             eventHash: e.eventHash ?? null,
           })),
           trustDecision: finalized.finalizedTrustDecision,
-          snapshotGeneratedAtUtc: prepared.now,
+          snapshotGeneratedAtUtc:
+            finalized.finalizedReportEvidencePayload.reportGeneratedAtUtc ??
+            prepared.now,
           outputType: "VERIFICATION_PACKAGE_SNAPSHOT",
+          parts: prepared.verificationEvidenceFiles.map((f, i) => ({
+            partIndex: f.partIndex ?? i,
+            sha256: f.sha256 ?? null,
+            sizeBytes: f.sizeBytes ?? null,
+            mimeType: f.mimeType ?? null,
+          })),
+          mediaIntelligence: verificationPackageIntelligence ?? null,
         });
 
         const finalizedVerificationPackage = await createVerificationPackage({
@@ -3624,7 +3634,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
           fingerprint: prepared.fingerprintCanonicalJson,
 signature: evidence.signatureBase64!,
           timestampToken: evidence.tsaTokenBase64 ?? null,
-publicKey: prepared.reportEvidencePayload.publicKeyPem as string,
+publicKey: finalized.finalizedReportEvidencePayload.publicKeyPem as string,
           custody: finalized.finalizedCustodyEvents,
           evidenceId: prepared.evidenceId,
           reportVersion: prepared.version,
@@ -3642,18 +3652,20 @@ signingKeyVersion: evidence.signingKeyVersion ?? undefined,
           // record actually has proof bytes. Null fields stay null;
           // never fabricated.
           ots: {
-            status: prepared.reportEvidencePayload.otsStatus ?? null,
-            proofBase64: prepared.reportEvidencePayload.otsProofBase64 ?? null,
-            hash: prepared.reportEvidencePayload.otsHash ?? null,
-            calendar: prepared.reportEvidencePayload.otsCalendar ?? null,
+            status: finalized.finalizedReportEvidencePayload.otsStatus ?? null,
+            proofBase64:
+              finalized.finalizedReportEvidencePayload.otsProofBase64 ?? null,
+            hash: finalized.finalizedReportEvidencePayload.otsHash ?? null,
+            calendar:
+              finalized.finalizedReportEvidencePayload.otsCalendar ?? null,
             bitcoinTxid:
-              prepared.reportEvidencePayload.otsBitcoinTxid ?? null,
+              finalized.finalizedReportEvidencePayload.otsBitcoinTxid ?? null,
             anchoredAtUtc:
-              prepared.reportEvidencePayload.otsAnchoredAtUtc ?? null,
+              finalized.finalizedReportEvidencePayload.otsAnchoredAtUtc ?? null,
             upgradedAtUtc:
-              prepared.reportEvidencePayload.otsUpgradedAtUtc ?? null,
+              finalized.finalizedReportEvidencePayload.otsUpgradedAtUtc ?? null,
             failureReason:
-              prepared.reportEvidencePayload.otsFailureReason ?? null,
+              finalized.finalizedReportEvidencePayload.otsFailureReason ?? null,
           },
           metadata: {
             title: prepared.display.displayTitle,
@@ -3697,41 +3709,57 @@ signingKeyVersion: evidence.signingKeyVersion ?? undefined,
             mimeType: evidence.mimeType ?? null,
 evidenceStatus: String(evidence.status),
 createdAtUtc: evidence.createdAt.toISOString(),
-verificationStatus: String(finalized.effectiveVerificationStatus),
-captureMethod: String(prepared.identitySnapshot.captureMethod),
-identityLevelSnapshot: String(prepared.identitySnapshot.identityLevelSnapshot),
-submittedByEmail: prepared.identitySnapshot.submittedByEmail,
+verificationStatus: String(
+  finalized.finalizedReportEvidencePayload.verificationStatus,
+),
+captureMethod: String(
+  finalized.finalizedReportEvidencePayload.captureMethod,
+),
+identityLevelSnapshot: String(
+  finalized.finalizedReportEvidencePayload.identityLevelSnapshot,
+),
+submittedByEmail: finalized.finalizedReportEvidencePayload.submittedByEmail,
 submittedByAuthProvider:
-  prepared.identitySnapshot.submittedByAuthProvider
-    ? String(prepared.identitySnapshot.submittedByAuthProvider)
+  finalized.finalizedReportEvidencePayload.submittedByAuthProvider
+    ? String(finalized.finalizedReportEvidencePayload.submittedByAuthProvider)
     : null,
-            capturedAtUtc: prepared.reportEvidencePayload.capturedAtUtc ?? null,
-            deviceTimeIso: prepared.reportEvidencePayload.deviceTimeIso ?? null,
-            uploadedAtUtc: prepared.reportEvidencePayload.uploadedAtUtc ?? null,
-            signedAtUtc: prepared.reportEvidencePayload.signedAtUtc ?? null,
-            reportGeneratedAtUtc: prepared.now.toISOString(),
+            capturedAtUtc:
+              finalized.finalizedReportEvidencePayload.capturedAtUtc ?? null,
+            deviceTimeIso:
+              finalized.finalizedReportEvidencePayload.deviceTimeIso ?? null,
+            uploadedAtUtc:
+              finalized.finalizedReportEvidencePayload.uploadedAtUtc ?? null,
+            signedAtUtc:
+              finalized.finalizedReportEvidencePayload.signedAtUtc ?? null,
+            reportGeneratedAtUtc:
+              finalized.finalizedReportEvidencePayload.reportGeneratedAtUtc ??
+              prepared.now.toISOString(),
             captureLocation:
-              prepared.reportEvidencePayload.gps &&
-              (prepared.reportEvidencePayload.gps.lat !== null ||
-                prepared.reportEvidencePayload.gps.lng !== null ||
-                prepared.reportEvidencePayload.gps.accuracyMeters !== null)
+              finalized.finalizedReportEvidencePayload.gps &&
+              (finalized.finalizedReportEvidencePayload.gps.lat !== null ||
+                finalized.finalizedReportEvidencePayload.gps.lng !== null ||
+                finalized.finalizedReportEvidencePayload.gps.accuracyMeters !==
+                  null)
                 ? {
                     lat:
-                      prepared.reportEvidencePayload.gps.lat !== null
-                        ? Number(prepared.reportEvidencePayload.gps.lat)
+                      finalized.finalizedReportEvidencePayload.gps.lat !== null
+                        ? Number(finalized.finalizedReportEvidencePayload.gps.lat)
                         : null,
                     lng:
-                      prepared.reportEvidencePayload.gps.lng !== null
-                        ? Number(prepared.reportEvidencePayload.gps.lng)
+                      finalized.finalizedReportEvidencePayload.gps.lng !== null
+                        ? Number(finalized.finalizedReportEvidencePayload.gps.lng)
                         : null,
                     accuracyMeters:
-                      prepared.reportEvidencePayload.gps.accuracyMeters !== null
+                      finalized.finalizedReportEvidencePayload.gps
+                        .accuracyMeters !== null
                         ? Number(
-                            prepared.reportEvidencePayload.gps.accuracyMeters
+                            finalized.finalizedReportEvidencePayload.gps
+                              .accuracyMeters
                           )
                         : null,
                     locationSource:
-                      prepared.reportEvidencePayload.gps.locationSource ?? null,
+                      finalized.finalizedReportEvidencePayload.gps
+                        .locationSource ?? null,
                   }
                 : null,
             storageRegion: prepared.evidenceStorage.storageRegion,
@@ -3742,8 +3770,10 @@ submittedByAuthProvider:
             storageObjectLockLegalHoldStatus:
               prepared.evidenceStorage.storageObjectLockLegalHoldStatus,
             storageImmutable: prepared.evidenceStorage.storageImmutable,
-            tsaStatus: prepared.reportEvidencePayload.tsaStatus ?? null,
-            otsStatus: prepared.reportEvidencePayload.otsStatus ?? null,
+            tsaStatus:
+              finalized.finalizedReportEvidencePayload.tsaStatus ?? null,
+            otsStatus:
+              finalized.finalizedReportEvidencePayload.otsStatus ?? null,
 caseId: prepared.packageMetadataContext.caseId,
 caseName: prepared.packageMetadataContext.caseName,
 retentionPolicy: prepared.packageMetadataContext.retentionPolicy,
@@ -3753,7 +3783,8 @@ teamId: prepared.packageMetadataContext.teamId,
 ownerUserId: prepared.packageMetadataContext.ownerUserId,
             verificationPackageVersion: prepared.version,
             recordedIntegrityVerifiedAtUtc:
-              finalized.effectiveRecordedIntegrityVerifiedAtUtc ?? null,
+              finalized.finalizedReportEvidencePayload
+                .recordedIntegrityVerifiedAtUtc ?? null,
           },
         });
         finalizedVerificationZip = finalizedVerificationPackage.buffer;

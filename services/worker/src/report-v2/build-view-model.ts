@@ -1312,6 +1312,7 @@ export async function buildReportViewModel(
     custodyEvents: input.custodyEvents,
     trustDecision,
     snapshotGeneratedAtUtc: input.generatedAtUtc,
+    mediaIntelligence: input.mediaIntelligence ?? null,
   });
   const reviewGuidance = resolveReviewGuidance(
     input.evidence,

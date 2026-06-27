@@ -2702,9 +2702,10 @@ export async function createVerificationPackage(data: {
     );
   }
 
-  const packageMode: "personal_basic" | "team_governed" = data.teamId
-    ? "team_governed"
-    : "personal_basic";
+  const packageMode: "personal_basic" | "team_governed" =
+    data.teamId && data.isPersonalTeam === false
+      ? "team_governed"
+      : "personal_basic";
 
   if (packageMode === "team_governed") {
     const { assertPackageEligibleOrDeny } = await import(

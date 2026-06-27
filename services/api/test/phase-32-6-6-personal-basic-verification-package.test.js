@@ -78,7 +78,14 @@ describe("Phase 32.6.6 — createVerificationPackage personal-basic branch", () 
     // the search range to the first ~6KB after the function header.
     const fn = SRC.slice(fnIdx, fnIdx + 8000);
     it("declares packageMode as `personal_basic | team_governed`", () => {
-        expect(fn).toMatch(/packageMode\s*:\s*"personal_basic"\s*\|\s*"team_governed"\s*=\s*data\.teamId\s*\?\s*"team_governed"\s*:\s*"personal_basic"/);
+        expect(fn).toMatch(/packageMode\s*:\s*"personal_basic"\s*\|\s*"team_governed"\s*=\s*data\.teamId\s*&&\s*data\.isPersonalTeam\s*===\s*false\s*\?\s*"team_governed"\s*:\s*"personal_basic"/);
+        expect(fn).not.toMatch(/packageMode\s*:\s*"personal_basic"\s*\|\s*"team_governed"\s*=\s*data\.teamId\s*\?\s*"team_governed"\s*:\s*"personal_basic"/);
+    });
+    it("does not treat teamId alone as a governance signal", () => {
+        expect(fn).toMatch(/data\.isPersonalTeam\s*===\s*false/);
+        expect(fn).toMatch(/:\s*"personal_basic"/);
+        expect(SRC).toMatch(/workspaceScope/);
+        expect(SRC).toMatch(/PERSONAL_ACCOUNT_WORKSPACE/);
     });
     it("personal mode skips the eligibility gate (gate runs only for team mode)", () => {
         // The gate import must live inside an `if (packageMode === "team_governed")` block.
