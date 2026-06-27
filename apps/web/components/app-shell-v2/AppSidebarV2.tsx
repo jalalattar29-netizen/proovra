@@ -771,17 +771,6 @@ const teamId =
           ) : null}
         </div>
 
-        <div className="app-sidebar-v2-trust-card">
-          <div className="app-sidebar-v2-trust-icon">
-            <ShieldCheck size={20} strokeWidth={2} />
-          </div>
-          <strong>Verification-first</strong>
-          <p>
-            We do not store truth. We record integrity. You own the evidence.
-          </p>
-          <Link href="/legal/verification-methodology">Learn more →</Link>
-        </div>
-
         <Link href="/support" className="app-sidebar-v2-help">
           <Headphones size={18} strokeWidth={1.9} />
           <span>
