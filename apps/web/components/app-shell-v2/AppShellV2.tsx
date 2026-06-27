@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { AppSidebarV2 } from "./AppSidebarV2";
-import { AppTopbarV2 } from "./AppTopbarV2";
+import { AppAccountToolbar } from "./AppAccountToolbar";
 import { PersonaSetupBanner } from "./PersonaSetupBanner";
 import { CommandPalette } from "../navigation/CommandPalette";
 import { usePathname } from "next/navigation";
@@ -81,11 +81,11 @@ export function AppShellV2({ children, onLogout }: AppShellV2Props) {
       data-active-persona={activePersona}
       data-workspace-experience-mode={experienceShell.mode}
     >
-      <AppTopbarV2
-        onLogout={onLogout}
-        mobileSidebarOpen={mobileSidebarOpen}
-        onToggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
-      />
+<AppAccountToolbar
+  onLogout={onLogout}
+  mobileSidebarOpen={mobileSidebarOpen}
+  onToggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
+/>
 
       {/* Phase 38.1 — Persona setup discoverability. Dismissible; never
           blocks the app; renders only when the active workspace lacks a

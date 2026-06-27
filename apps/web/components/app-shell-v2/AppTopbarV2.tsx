@@ -213,8 +213,7 @@ export function AppTopbarV2({
     (personalSpace?.id ? 1 : 0) + organizations.length;
 
   return (
-    <header className="app-topbar-v2">
-
+<div className="app-floating-account-bar">
       <div className="app-topbar-v2-inner">
         <button
           type="button"
@@ -704,6 +703,6 @@ export function AppTopbarV2({
           </div>
         </div>
       </div>
-    </header>
+</div>
   );
 }
