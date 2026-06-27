@@ -1,0 +1,5 @@
+-- Restored historical migration marker.
+-- This migration is already recorded as applied in production via _prisma_migrations.
+-- The original SQL content was lost after rollback.
+-- This file is intentionally empty.
+-- No database changes should be executed from this migration.

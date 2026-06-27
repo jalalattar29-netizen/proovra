@@ -483,6 +483,13 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
             "20270809000000_phase_2_1_final_drift_closure",
             "20270819000000_phase_t_trust_center_versions_published_at_repair",
             "20270819010000_phase_t_subprocessor_versions_runtime_repair",
+            "20270829000000_evr_p4_canonical_verification_record",
+"20270830000000_evr_p10_tsa_retry_tracking",
+"20270901000000_verification_package_validation_findings",
+"20270902000000_verification_package_hash",
+"20270903000000_verification_package_validation_status",
+"20270904000000_report_claims_package_verified",
+"20270905000000_contributor_identity_snapshot",
         ]);
         const newer = entries.filter((name) => {
             const m = name.match(/^(\d{14})/);
