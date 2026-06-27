@@ -214,7 +214,6 @@ export function AppTopbarV2({
 
   return (
     <header className="app-topbar-v2">
-      <div className="app-topbar-v2-bg" />
 
       <div className="app-topbar-v2-inner">
         <button

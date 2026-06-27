@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { AppSidebarV2 } from "./AppSidebarV2";
 import { AppTopbarV2 } from "./AppTopbarV2";
-import { AppFooterV2 } from "./AppFooterV2";
 import { PersonaSetupBanner } from "./PersonaSetupBanner";
 import { CommandPalette } from "../navigation/CommandPalette";
 import { usePathname } from "next/navigation";
@@ -106,7 +105,6 @@ export function AppShellV2({ children, onLogout }: AppShellV2Props) {
           <main className="app-shell-v2-content">
             {needsRecovery ? <WorkspaceRecoveryPanel /> : children}
           </main>
-          <AppFooterV2 />
         </div>
       </div>
 

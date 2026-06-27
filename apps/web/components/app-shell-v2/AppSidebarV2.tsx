@@ -705,13 +705,21 @@ export function AppSidebarV2() {
   }
 
   return (
-    <aside
-      className="app-sidebar-v2"
-      data-workspace-experience-mode={experience.mode}
-    >
-      <div className="app-sidebar-v2-bg" />
-      <div className="app-sidebar-v2-inner">
-        <div className="app-sidebar-v2-scroll">
+<aside
+  className="app-sidebar-v2"
+  data-workspace-experience-mode={experience.mode}
+>
+  <div className="app-sidebar-v2-bg" />
+
+  <div className="app-sidebar-v2-inner">
+    <div className="app-sidebar-v2-brand">
+      <img
+        src="/assets/branding/report-header.png"
+        alt="PROOVRA"
+        className="app-sidebar-v2-brand-logo"
+      />
+    </div>
+            <div className="app-sidebar-v2-scroll">
           {groups.map((group) => (
             <SidebarGroupView
               key={group.id}
