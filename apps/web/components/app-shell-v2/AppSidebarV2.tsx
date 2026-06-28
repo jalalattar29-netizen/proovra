@@ -714,7 +714,7 @@ const teamId =
   <div className="app-sidebar-v2-inner">
     <div className="app-sidebar-v2-brand">
       <img
-src="/assets/branding/footer-logo.png"
+        src="/assets/branding/report-header.png"
         alt="PROOVRA"
         className="app-sidebar-v2-brand-logo"
       />
@@ -770,16 +770,7 @@ src="/assets/branding/footer-logo.png"
             </div>
           ) : null}
         </div>
-<div className="app-sidebar-v2-trust-card">
-  <div className="app-sidebar-v2-trust-icon">
-    <ShieldCheck size={20} strokeWidth={2} />
-  </div>
-  <strong>Verification-first</strong>
-  <p>
-    We do not store truth. We record integrity. You own the evidence.
-  </p>
-  <Link href="/legal/verification-methodology">Learn more →</Link>
-</div>
+
         <Link href="/support" className="app-sidebar-v2-help">
           <Headphones size={18} strokeWidth={1.9} />
           <span>
